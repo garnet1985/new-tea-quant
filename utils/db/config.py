@@ -37,6 +37,7 @@ DB_CONFIG = {
 TABLES = {
     'meta_info': 'meta_info',  # 保存一些general info
     'stock_index': 'stock_index',  # 保存全部股票清单
+    'stock_kline': 'stock_kline',  # 保存股票K线数据
 }
 
 STRATEGY_TABLES = {

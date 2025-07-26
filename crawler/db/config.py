@@ -9,50 +9,42 @@ load_dotenv()
 
 # Database Configuration
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
-    'database': os.getenv('DB_NAME', 'stocks'),
-    'port': int(os.getenv('DB_PORT', 3306)),
-    'charset': 'utf8mb4',
-    'autocommit': True,
-    'pool_size': 10,
-    'max_overflow': 20,
-    'pool_recycle': 3600,
-    'pool_pre_ping': True,
+    'base': {
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'user': os.getenv('DB_USER', 'root'),
+        'password': os.getenv('DB_PASSWORD', ''),
+        'database': os.getenv('DB_NAME', 'stocks-py'),
+        'port': int(os.getenv('DB_PORT', 3306)),
+        'charset': 'utf8mb4',
+        'autocommit': True,
+    },
+    'pool': {
+        'pool_size_min': 5,
+        'pool_size_max': 30
+    },
+    'performance': {
+        'max_allowed_packet': 16777216 * 64,  # 16MB * 32 = 512MB
+    },
+    'timeout': {
+        'connection': 60,
+        'read': 60,
+        'write': 60,
+    }
 }
 
 # Table Configuration - 匹配Node.js项目的表结构
 TABLES = {
     # Raw Data Tables
-    'stockIndex': 'stockIndex',
-    'stockKline': 'stockKline', 
-    'stockDetail': 'stockDetail',
-    'industryIndex': 'industryIndex',
-    'industryKline': 'industryKline',
-    'industryStockMap': 'industryStockMap',
-    'macroEconomics': 'macroEconomics',
-    'realEstate': 'realEstate',
-    'corporateFinance': 'corporateFinance',
-    'corporateKeyIndicator': 'corporateKeyIndicator',
-    'capitalStructure': 'capitalStructure',
-    
-    # Strategy Tables
-    'HL_OpportunityHistory': 'HL_OpportunityHistory',
-    'HL_StockSummary': 'HL_StockSummary',
-    'HL_Meta': 'HL_Meta',
-    
-    # History Tables
-    'history': 'history',
-    
-    # Meta Tables
-    'meta': 'meta',
+    'stockIndex': 'stock_index',  # 匹配Node.js中的表名
+    'stock_index': 'stock_index',  # 保持兼容性
+    'stockKline': 'stock_kline',
+    'stockDetail': 'stock_detail',
+    'industryIndex': 'industry_index',
+    'industryKline': 'industry_kline',
+    'industryStockMap': 'industry_stock_map',
+    'macroEconomics': 'macro_economics',
+    'realEstate': 'real_estate',
+    'HL_OpportunityHistory': 'hl_opportunity_history',
+    'HL_StockSummary': 'hl_stock_summary',
+    'HL_Meta': 'hl_meta',
 }
-
-# Connection Pool Settings
-POOL_CONFIG = {
-    'min_size': 5,
-    'max_size': 20,
-    'max_queries': 50000,
-    'max_inactive_connection_lifetime': 300.0,
-} 

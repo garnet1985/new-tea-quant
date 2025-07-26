@@ -21,13 +21,13 @@ from crawler.db.models import (
     hl_stock_summary_model,
     hl_meta_model
 )
-from crawler.db.sync_connection import get_sync_db_connection
+from crawler.db.db_manager import get_sync_db_manager
 
 
 def check_database_connection():
     """检查数据库连接"""
     try:
-        db = get_sync_db_connection()
+        db = get_sync_db_manager()
         
         # 测试连接
         result = db.execute_query("SELECT 1 as test")
@@ -48,7 +48,7 @@ def check_database_connection():
 def show_table_info():
     """显示表信息"""
     try:
-        db = get_sync_db_connection()
+        db = get_sync_db_manager()
         
         tables = [
             'stockIndex', 'stockKline', 'stockDetail', 
@@ -104,7 +104,7 @@ def test_model_operations():
 def get_database_summary():
     """获取数据库摘要信息"""
     try:
-        db = get_sync_db_connection()
+        db = get_sync_db_manager()
         
         summary = {}
         

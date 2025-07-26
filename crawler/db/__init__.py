@@ -1,9 +1,8 @@
 """
 Database Package - 匹配Node.js项目表结构
 """
-from .config import DB_CONFIG, TABLES, POOL_CONFIG
-from .connection import DatabaseConnection, get_db_connection
-from .sync_connection import SyncDatabaseConnection, get_sync_db_connection
+from .config import DB_CONFIG, TABLES
+from .db_manager import DatabaseManager, get_db_manager, get_sync_db_manager
 from .models import (
     BaseModel,
     StockIndexModel,
@@ -36,15 +35,14 @@ __all__ = [
     # Config
     'DB_CONFIG',
     'TABLES', 
-    'POOL_CONFIG',
+    'DB_CONFIG',
     
     # Connection classes
-    'DatabaseConnection',
-    'SyncDatabaseConnection',
+    'DatabaseManager',
     
     # Connection functions
-    'get_db_connection',
-    'get_sync_db_connection',
+    'get_db_manager',
+    'get_sync_db_manager',
     
     # Models
     'BaseModel',

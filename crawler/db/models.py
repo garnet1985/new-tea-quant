@@ -3,7 +3,7 @@ Database Table Models - 匹配Node.js项目表结构
 """
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from .sync_connection import get_sync_db_connection
+from .db_manager import get_sync_db_manager
 from .config import TABLES
 
 
@@ -12,7 +12,7 @@ class BaseModel:
     
     def __init__(self, table_name: str):
         self.table_name = table_name
-        self.db = get_sync_db_connection()
+        self.db = get_sync_db_manager()
     
     def insert(self, data: Dict[str, Any]) -> int:
         """插入数据"""

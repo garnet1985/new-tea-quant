@@ -8,6 +8,7 @@ import asyncio
 from typing import Optional, Dict, List, Any
 from contextlib import contextmanager
 from loguru import logger
+
 from .config import DB_CONFIG, TABLES, STRATEGY_TABLES, TABLE_SCHEMA_PATH
 
 
@@ -22,6 +23,11 @@ class DatabaseManager:
         # 异步连接
         self.async_pool = None
         self.is_async_initialized = False
+
+        self.tables = {
+            'base': {},
+            'strategy': {},
+        }
         
     # ==================== 同步连接方法 ====================
 
@@ -114,72 +120,72 @@ class DatabaseManager:
     
     def create_tables(self):
         """创建基础表（如果不存在）"""
-        # 确保已连接到数据库
-        if not self.is_sync_connected:
-            self.connect_sync()
             
         # 使用schema驱动的表创建
         base_tables = TABLES
         strategy_tables = STRATEGY_TABLES
         
         for table_name in base_tables:
-            self.create_table(table_name)
+            table_model = self._get_table_model(table_name, 'base')
+            table_model.create_table()
+            self.tables['base'][table_name] = table_model
+
         
         for table_name in strategy_tables:
-            self.create_table(table_name)
-            
-
-    def create_table(self, table_name: str):
-        """根据schema.json创建表"""
-        schema = self.load_table_schema(table_name)
-        if not schema:
-            logger.error(f"Failed to load schema for table: {table_name}")
-            return
-
-        with self.sync_connection.cursor() as cursor:
-            cursor.execute(schema)
-            logger.info(f"Table '{table_name}' is ready")
-        self.sync_connection.commit()
-
+            table_model = self._get_table_model(table_name, 'strategy')
+            table_model.create_table()
+            self.tables['strategy'][table_name] = table_model
     
-    def load_table_schema(self, table_name: str) -> str:
-        """加载表结构并生成CREATE TABLE语句"""
-        import json
+    def get_base_table_instance(self, table_name: str):
+        return self.tables['base'][table_name]
+
+    def get_strategy_table_instance(self, table_name: str):
+        return self.tables['strategy'][table_name]  
+
+    def get_table_instance(self, table_name: str, table_type: str):
+        return self.tables[table_type][table_name]
+
+    def _get_table_model(self, table_name: str, table_type: str):
+        """根据表名和类型获取对应的模型实例"""
         import os
+        import importlib.util
         
-        try:
-            # 判断是基础表还是策略表
-            if table_name in TABLES:
-                # 基础表
-                schema_path = os.path.join(
-                    os.path.dirname(__file__), 
-                    'tables', 'base', table_name, 'schema.json'
-                )
-            elif table_name in STRATEGY_TABLES:
-                # 策略表
-                schema_path = os.path.join(
-                    os.path.dirname(__file__), 
-                    'tables', 'strategy', table_name, 'schema.json'
-                )
-            else:
-                logger.error(f"Table '{table_name}' not found in TABLES or STRATEGY_TABLES")
-                return None
-            
-            if not os.path.exists(schema_path):
-                logger.error(f"Schema file not found: {schema_path}")
-                return None
-            
-            # 读取schema文件
-            with open(schema_path, 'r', encoding='utf-8') as f:
-                schema_data = json.load(f)
-            
-            # 生成CREATE TABLE语句
-            return self._generate_create_table_sql(schema_data)
-            
-        except Exception as e:
-            logger.error(f"Failed to load schema for {table_name}: {e}")
-            return None
-    
+        # 构建表目录路径
+        table_dir = os.path.join(os.path.dirname(__file__), 'tables', table_type, table_name)
+        model_file = os.path.join(table_dir, 'model.py')
+        
+        # 检查是否存在自定义模型文件
+        if os.path.exists(model_file):
+            try:
+                # 动态导入自定义模型
+                spec = importlib.util.spec_from_file_location(f"{table_type}_{table_name}_model", model_file)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                
+                # 查找模型类（假设类名为 TableNameModel 或 Model）
+                model_class = None
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    if (isinstance(attr, type) and 
+                        hasattr(attr, '__bases__') and 
+                        any('BaseTableModel' in str(base) for base in attr.__bases__)):
+                        model_class = attr
+                        break
+                
+                if model_class:
+                    logger.info(f"Using custom model for table: {table_name}")
+                    return model_class(table_name, table_type, self)
+                else:
+                    logger.warning(f"Custom model file found but no valid model class in {model_file}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to load custom model for {table_name}: {e}")
+        
+        # 如果没有自定义模型或加载失败，使用 BaseTableModel
+        from .db_model import BaseTableModel
+        logger.info(f"Using BaseTableModel for table: {table_name}")
+        return BaseTableModel(table_name, table_type, self)
+
     def _generate_create_table_sql(self, schema_data: dict) -> str:
         """根据schema数据生成CREATE TABLE SQL语句"""
         table_name = schema_data['name']

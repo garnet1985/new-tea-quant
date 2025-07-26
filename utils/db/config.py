@@ -35,19 +35,8 @@ DB_CONFIG = {
 
 # Table Configuration - 匹配Node.js项目的表结构
 TABLES = {
-    # Raw Data Tables
-    # 'stockIndex': 'stock_index',  # 匹配Node.js中的表名
-    'stock_index': 'stock_index',  # 保持兼容性
-    # 'stockKline': 'stock_kline',
-    # 'stockDetail': 'stock_detail',
-    # 'industryIndex': 'industry_index',
-    # 'industryKline': 'industry_kline',
-    # 'industryStockMap': 'industry_stock_map',
-    # 'macroEconomics': 'macro_economics',
-    # 'realEstate': 'real_estate',
-    # 'HL_OpportunityHistory': 'hl_opportunity_history',
-    # 'HL_StockSummary': 'hl_stock_summary',
-    # 'HL_Meta': 'hl_meta',
+    'meta_info': 'meta_info',  # 保存一些general info
+    'stock_index': 'stock_index',  # 保存全部股票清单
 }
 
 STRATEGY_TABLES = {

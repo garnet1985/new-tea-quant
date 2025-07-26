@@ -11,15 +11,17 @@ utils/db/
 ├── __init__.py              # 包初始化文件
 ├── config.py               # 数据库配置
 ├── db_manager.py           # 数据库管理器
-├── models.py               # 数据模型（暂时注释）
+├── db_model.py             # 数据表基本的删查增改的API
 ├── README.md               # 本文档
 └── tables/                 # 表结构定义
     ├── base/               # 基础表（不建议修改）
     │   └── stock_index/
-    │       └── schema.json
+    │       └── schema.json（必要）
+    │       └── model.py    (可选，需要继承 db_model.py 中的基类TableModel)
     └── strategy/           # 策略表（可自定义）
         └── [your_table]/
-            └── schema.json
+            └── schema.json（必要）
+            └── model.py    (可选，需要继承 db_model.py 中的基类TableModel)
 ```
 
 ## 重要说明

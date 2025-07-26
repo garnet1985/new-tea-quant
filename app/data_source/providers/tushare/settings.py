@@ -1,10 +1,9 @@
 # Tushare API settings
 
 # Token configuration
-auth_token = 'crawler/providers/tushare/auth/token.txt'
+auth_token = 'app/data_source/providers/tushare/auth/token.txt'
 
-# Date settings
-default_start_date = '20080101'
+
 
 # API settings
 base_url = 'http://117.72.14.170:8010'

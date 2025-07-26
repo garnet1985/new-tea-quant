@@ -51,6 +51,7 @@ class BaseTableModel:
         table_name = schema_data['name']
         primary_key = schema_data.get('primaryKey', 'id')
         fields = schema_data['fields']
+        indexes = schema_data.get('indexes', [])
         
         # 构建字段定义
         field_definitions = []
@@ -69,6 +70,10 @@ class BaseTableModel:
                 field_def = f"`{field_name}` {field_type}(1)"
             elif field_type == 'DATETIME':
                 field_def = f"`{field_name}` {field_type}"
+            elif field_type == 'DECIMAL' and 'length' in field:
+                field_def = f"`{field_name}` {field_type}({field['length']})"
+            elif field_type == 'BIGINT':
+                field_def = f"`{field_name}` {field_type}"
             else:
                 field_def = f"`{field_name}` {field_type}"
             
@@ -86,7 +91,24 @@ class BaseTableModel:
         
         # 添加主键约束
         if primary_key:
-            field_definitions.append(f"PRIMARY KEY (`{primary_key}`)")
+            if isinstance(primary_key, list):
+                # 联合主键
+                pk_fields = ', '.join([f"`{pk}`" for pk in primary_key])
+                field_definitions.append(f"PRIMARY KEY ({pk_fields})")
+            else:
+                # 单字段主键
+                field_definitions.append(f"PRIMARY KEY (`{primary_key}`)")
+        
+        # 添加索引
+        for index in indexes:
+            index_name = index['name']
+            index_fields = ', '.join([f"`{field}`" for field in index['fields']])
+            is_unique = index.get('unique', False)
+            
+            if is_unique:
+                field_definitions.append(f"UNIQUE KEY `{index_name}` ({index_fields})")
+            else:
+                field_definitions.append(f"KEY `{index_name}` ({index_fields})")
         
         # 生成完整的CREATE TABLE语句
         field_definitions_str = ',\n            '.join(field_definitions)

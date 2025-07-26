@@ -1,8 +1,15 @@
 
+"""
+Tushare数据存储类
+"""
+from loguru import logger
+
+
 class TushareStorage:
     def __init__(self, connected_db):
         self.db = connected_db
         self.stock_index_table = self.db.get_table_instance('stock_index', 'base')
+        self.stock_kline_table = self.db.get_table_instance('stock_kline', 'base')
 
     def save_stock_index(self, data):
         self.stock_index_table.clear()
@@ -46,4 +53,38 @@ class TushareStorage:
         self.stock_index_table.insert(converted_data)
 
     def get_stock_index(self):
-        return self.stock_index_table.find_all()
+        return self.stock_index_table.get_all()
+
+    def get_all_latest_kline_data(self) -> dict:
+        """
+        一次性获取所有股票所有周期的最新数据日期
+        返回格式: {code: {term: latest_date}}
+        """
+        try:
+            # 使用SQL聚合查询获取所有股票所有周期的最新日期
+            query = """
+                SELECT code, market, term, MAX(date) as latest_date 
+                FROM stock_kline 
+                GROUP BY code, market, term
+            """
+            result = self.stock_kline_table.execute_raw_query(query)
+            
+            # 转换为字典格式
+            latest_data = {}
+            for row in result:
+                code = row['code']
+                market = row['market']
+                ts_code = code + '.' + market
+                term = row['term']
+                latest_date = row['latest_date']
+                
+                if ts_code not in latest_data:
+                    latest_data[ts_code] = {}
+                latest_data[ts_code][term] = latest_date
+            
+            logger.info(f"获取到 {len(latest_data)} 只股票的最新数据状态")
+            return latest_data
+            
+        except Exception as e:
+            logger.error(f"获取最新数据状态失败: {e}")
+            return {}

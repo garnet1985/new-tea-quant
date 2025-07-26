@@ -25,7 +25,7 @@ class App:
         # step 1: set up database
         self.db.initialize()
 
-    def setup_data_source(self):
+    def renew_data(self):
         data_source = Tushare(self.db)
         data_source.renew_data()
 
@@ -49,7 +49,7 @@ def main():
     app.setup_database()
 
     # step 2: set up data source
-    app.setup_data_source()
+    app.renew_data()
 
     # step 3: run registered strategy simulations
     app.run_strategy_simulations()

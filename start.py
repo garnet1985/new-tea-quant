@@ -5,8 +5,9 @@ Debug测试文件 - 验证代码是否生效
 import sys
 import os
 from loguru import logger
-from crawler.providers.tushare.query import TushareQuery
 from utils.db.db_manager import DatabaseManager
+
+from app.data_source.providers.tushare.main import Tushare
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -21,20 +22,12 @@ class App:
         # self.scan_opportunities()
 
     def setup_database(self):
-        print("setup_database")
         # step 1: set up database
-        self.db.connect_sync()
-        # 2. create db if not exists
-        self.db.create_db()
-        # 3. create tables if not exists
-        self.db.create_tables()
+        self.db.initialize()
 
     def setup_data_source(self):
-        # step 1: set up tushare
-        # self.tushare.setup_tushare()
-        # step 2: renew data
-        # self.tushare.renew_data()
-        pass
+        data_source = Tushare(self.db)
+        data_source.renew_data()
 
     def run_strategy_simulations(self):
         # step 1: run registered strategy simulations

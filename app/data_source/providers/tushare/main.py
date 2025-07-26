@@ -11,6 +11,8 @@ class Tushare:
         self.db = connected_db
         self.storage = TushareStorage(connected_db)
 
+        self.meta_info = self.db.get_table_instance('meta_info', 'base')
+
         self.token = self.get_token()
         ts.set_token(self.token)
 
@@ -39,22 +41,57 @@ class Tushare:
         return last_market_open_day
 
     # renew functions
-    def renew_stock_index(self):
-        data = None
-        
-        if self.storage.should_renew_stock_index():
-            # exchange: 交易所，list_status: 上市状态，fields: 字段
-            fields = 'ts_code,symbol,name,area,industry,market,exchange,list_date'
-            # 上市状态 L上市 D退市 P暂停上市，默认是L
-            stock_status = 'L'
+    def renew_stock_index(self, is_force=True):
 
-            # 获取数据
-            data = self.pro.stock_basic(exchange='', list_status=stock_status, fields=fields)
-
-            # 保存到数据库
+        if is_force:
+            print('renew stock index')
+            data = self.request_stock_index()
             self.storage.save_stock_index(data)
+            self.meta_info.set_meta_info('stock_index_last_update', self.last_market_open_day)
+            return
 
+
+
+        meta_info = self.meta_info.get_meta_info('stock_index_last_update')
+        if meta_info == None:
+            print('renew stock index')
+            data = self.request_stock_index()
+            self.storage.save_stock_index(data)
+            self.meta_info.set_meta_info('stock_index_last_update', self.last_market_open_day)
+        else:
+            if meta_info < self.last_market_open_day:
+                print('renew stock index')
+                data = self.request_stock_index()
+                self.storage.save_stock_index(data)
+                self.meta_info.set_meta_info('stock_index_last_update', self.last_market_open_day)
+            else:
+                print('stock index is up to date')
+
+    def request_stock_index(self):
+        fields = 'ts_code,symbol,name,area,industry,market,exchange,list_date'
+        stock_status = 'L'
+        data = self.pro.stock_basic(exchange='', list_status=stock_status, fields=fields)
         return data
+
+
+
+
+
+        # meta_info.get_meta_info('stock_index_last_update')
+
+        # if self.storage.should_renew_stock_index():
+        #     # exchange: 交易所，list_status: 上市状态，fields: 字段
+        #     fields = 'ts_code,symbol,name,area,industry,market,exchange,list_date'
+        #     # 上市状态 L上市 D退市 P暂停上市，默认是L
+        #     stock_status = 'L'
+
+        #     # 获取数据
+        #     data = self.pro.stock_basic(exchange='', list_status=stock_status, fields=fields)
+
+        #     # 保存到数据库
+        #     self.storage.save_stock_index(data)
+
+        # return data
 
    
     # def get_stock_daily(self, ts_code='', trade_date='', start_date=start_date, end_date=end_date):

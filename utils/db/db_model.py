@@ -58,6 +58,7 @@ class BaseTableModel:
             field_name = field['name']
             field_type = field['type'].upper()
             is_required = field.get('isRequired', False)
+            auto_increment = field.get('autoIncrement', False)
             
             # 处理字段类型和长度
             if field_type == 'VARCHAR' and 'length' in field:
@@ -77,10 +78,14 @@ class BaseTableModel:
             else:
                 field_def += " NULL"
             
+            # 添加自增约束
+            if auto_increment:
+                field_def += " AUTO_INCREMENT"
+            
             field_definitions.append(field_def)
         
         # 添加主键约束
-        if primary_key and primary_key != 'id':
+        if primary_key:
             field_definitions.append(f"PRIMARY KEY (`{primary_key}`)")
         
         # 生成完整的CREATE TABLE语句
@@ -161,8 +166,13 @@ class BaseTableModel:
         """插入或更新单条数据"""
         try:
             # 构建ON DUPLICATE KEY UPDATE子句
-            update_clause = ', '.join([f"{k} = VALUES({k})" for k in data.keys() if k not in unique_keys])
+            update_fields = [f"{k} = VALUES({k})" for k in data.keys() if k not in unique_keys]
             
+            if not update_fields:
+                # 如果没有需要更新的字段，就只做插入
+                return self.insert_one(data)
+            
+            update_clause = ', '.join(update_fields)
             columns = ', '.join(data.keys())
             placeholders = ', '.join(['%s'] * len(data))
             query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"

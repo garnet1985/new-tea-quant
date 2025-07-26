@@ -6,7 +6,7 @@ import sys
 import os
 from loguru import logger
 from crawler.providers.tushare.query import TushareQuery
-from crawler.db.db_manager import DatabaseManager
+from utils.db.db_manager import DatabaseManager
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))

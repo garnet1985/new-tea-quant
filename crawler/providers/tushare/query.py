@@ -4,7 +4,7 @@ from crawler.providers.tushare.settings import (
     auth_token, 
     default_start_date
 )
-from crawler.db.db_manager import DatabaseManager
+from utils.db.db_manager import DatabaseManager
 import pandas as pd
 from loguru import logger
 

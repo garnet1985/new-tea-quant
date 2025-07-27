@@ -87,3 +87,72 @@ class TushareStorage:
         except Exception as e:
             logger.error(f"获取最新数据状态失败: {e}")
             return {}
+
+    def save_stock_kline(self, data, job):
+        """
+        保存股票K线数据到数据库
+        
+        Args:
+            data: pandas DataFrame，包含K线数据
+            job: 包含任务信息的字典，包括 code, market, term, start_date, end_date 等
+        """
+        if data is None or data.empty:
+            logger.warning("没有K线数据需要保存")
+            return
+        
+        try:
+            # 从job中获取基本信息
+            code = job.get('code', '')
+            market = job.get('market', '')
+            term = job.get('term', 'daily')
+            
+            # 将 pandas DataFrame 转换为字典列表
+            if hasattr(data, 'to_dict'):
+                data_list = data.to_dict('records')
+            elif isinstance(data, list):
+                data_list = data
+            else:
+                data_list = [data]
+            
+            # 转换数据格式以匹配数据库表结构
+            converted_data = []
+            
+            for item in data_list:
+                # 根据schema.json的字段定义转换数据
+                converted_item = {
+                    'code': code,  # 从job中获取
+                    'market': market,  # 从job中获取
+                    'term': term,  # 从job中获取
+                    'date': item.get('trade_date', ''),  # 交易日期
+                    'open': item.get('open', 0),  # 开盘价
+                    'close': item.get('close', 0),  # 收盘价
+                    'highest': item.get('high', 0),  # 最高价
+                    'lowest': item.get('low', 0),  # 最低价
+                    'priceChangeDelta': item.get('change', 0),  # 价格变动
+                    'priceChangeRateDelta': item.get('pct_chg', 0),  # 价格变动率
+                    'preClose': item.get('pre_close', 0),  # 前日收盘价
+                    'volume': item.get('vol', 0),  # 成交量
+                    'amount': item.get('amount', 0)  # 成交额
+                }
+                
+                # 验证必填字段
+                required_fields = ['code', 'market', 'term', 'date', 'open', 'close', 'highest', 'lowest']
+                missing_fields = [field for field in required_fields if not converted_item.get(field)]
+                
+                if missing_fields:
+                    logger.warning(f"跳过缺少必填字段的数据: {missing_fields}, 数据: {item}")
+                    continue
+                
+                converted_data.append(converted_item)
+            
+            # 批量插入数据
+            if converted_data:
+                logger.info(f"保存 {len(converted_data)} 条 {term} K线数据 (股票: {code}.{market})")
+                self.stock_kline_table.insert(converted_data)
+                logger.info(f"✅ {term} K线数据保存成功")
+            else:
+                logger.warning("没有有效的K线数据需要保存")
+                
+        except Exception as e:
+            logger.error(f"保存K线数据失败: {e}")
+            raise

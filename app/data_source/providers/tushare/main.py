@@ -4,7 +4,7 @@ from loguru import logger
 from app.data_source.providers.tushare.settings import (
     auth_token
 )
-from app.data_source.providers.conf.conf import data_start_date
+from app.data_source.providers.conf.conf import data_default_start_date, kline_terms
 from app.data_source.providers.tushare.storage import TushareStorage
 
 class Tushare:
@@ -19,90 +19,75 @@ class Tushare:
 
         self.pro = ts.pro_api()
 
-        self.last_market_open_day = self.get_last_market_open_day()
+        self.last_market_open_day = None
 
     def renew_data(self):
+        self.last_market_open_day = self.get_last_market_open_day() # TODO: 这里需要优化，不要每次都获取
         self.renew_stock_index()
         self.renew_stock_kline_batch()
 
-    def generate_kline_update_jobs(self, stock_info: list, terms: list, 
-                                 last_market_open_day: str, default_start_date: str = '20080101') -> list:
-        """
-        生成K线数据更新任务列表
-        
-        Args:
-            stock_info: 股票信息列表，每个元素为 (code, market) 元组
-            terms: 周期列表 ['daily', 'weekly', 'monthly']
-            last_market_open_day: 最后交易日
-            default_start_date: 默认开始日期（当没有数据时使用）
-            
-        Returns:
-            任务列表，每个任务包含 code, market, ts_code, term, start_date, end_date, reason
-        """
-        from datetime import datetime, timedelta
-        
+
+
+
+
+    
+
+    def generate_kline_renew_jobs(self, stock_idx_info: list) -> list:
         jobs = []
-        latest_data = self.storage.get_all_latest_kline_data()
+        current_data = self.storage.get_all_latest_kline_dates()
         
-        for code, market in stock_info:
-            ts_code = code + '.' + market
-            for term in terms:
-                job = self._create_kline_job_for_stock_term(
-                    code, market, ts_code, term, last_market_open_day, latest_data, default_start_date
-                )
-                if job:
-                    jobs.append(job)
-        
-        # 按优先级排序：日线 > 周线 > 月线
-        term_priority = {'daily': 1, 'weekly': 2, 'monthly': 3}
-        jobs.sort(key=lambda x: (term_priority.get(x['term'], 4), x['code']))
-        
-        logger.info(f"生成了 {len(jobs)} 个K线更新任务")
+        for code, market in stock_idx_info:
+            jobs += self.to_single_stock_kline_renew_job({
+                'ts_code': self.to_storage_code(code, market),
+                'code': code,
+                'market': market
+            }, current_data)
+
         return jobs
 
-    def _create_kline_job_for_stock_term(self, code: str, market: str, ts_code: str, term: str, 
-                                       last_market_open_day: str, 
-                                       latest_data: dict, default_start_date: str) -> dict:
-        """
-        为单个股票单个周期创建K线更新任务
-        """
-        from datetime import datetime, timedelta
-        
+
+    def to_single_stock_kline_renew_job(self, stock_idx_info: dict, current_data: dict) -> dict:
+        jobs = []
+        for term in kline_terms:
+            job = self.to_single_stock_kline_renew_job_by_term(term, stock_idx_info, current_data)
+            if job:
+                jobs.append(job)
+        return jobs
+
+
+    def to_single_stock_kline_renew_job_by_term(self, term: str, stock_idx_info: dict, current_data: dict) -> dict:
         # 获取该股票该周期的最新数据日期
-        latest_date = latest_data.get(ts_code, {}).get(term)
-        
+        latest_date = current_data.get(stock_idx_info['ts_code'], {}).get(term)
+
         if not latest_date:
             # 没有数据，使用默认开始日期
             return {
-                'code': code,
-                'market': market,
-                'ts_code': ts_code,
+                'code': stock_idx_info['code'],
+                'market': stock_idx_info['market'],
+                'ts_code': stock_idx_info['ts_code'],
                 'term': term,
-                'start_date': default_start_date,
-                'end_date': last_market_open_day,
-                'reason': 'no_data'
+                'start_date': data_default_start_date,
+                'end_date': self.last_market_open_day
             }
         
         latest_dt = datetime.strptime(latest_date, '%Y%m%d')
-        last_market_dt = datetime.strptime(last_market_open_day, '%Y%m%d')
-        
-        # 根据不同的周期类型判断是否需要更新
+        last_market_dt = datetime.strptime(self.last_market_open_day, '%Y%m%d')
+
         if term == 'daily':
-            # 日线：直接比较日期
             if latest_dt < last_market_dt:
                 start_date = (latest_dt + timedelta(days=1)).strftime('%Y%m%d')
                 return {
-                    'code': code,
-                    'market': market,
-                    'ts_code': ts_code,
+                    'code': stock_idx_info['code'],
+                    'market': stock_idx_info['market'],
+                    'ts_code': stock_idx_info['ts_code'],
                     'term': term,
                     'start_date': start_date,
-                    'end_date': last_market_open_day,
-                    'reason': 'daily_update'
+                    'end_date': self.last_market_open_day
                 }
-                
+            else:
+                return None
+        
         elif term == 'weekly':
-            # 周线：检查是否包含最新的完整周
             latest_week_start = latest_dt - timedelta(days=latest_dt.weekday())
             last_market_week_start = last_market_dt - timedelta(days=last_market_dt.weekday())
             
@@ -111,12 +96,12 @@ class Tushare:
                 next_week_start = latest_week_start + timedelta(days=7)
                 start_date = next_week_start.strftime('%Y%m%d')
                 return {
-                    'code': code,
-                    'market': market,
-                    'ts_code': ts_code,
+                    'code': stock_idx_info['code'],
+                    'market': stock_idx_info['market'],
+                    'ts_code': stock_idx_info['ts_code'],
                     'term': term,
                     'start_date': start_date,
-                    'end_date': last_market_open_day,
+                    'end_date': self.last_market_open_day,
                     'reason': 'weekly_update'
                 }
                 
@@ -133,12 +118,12 @@ class Tushare:
                     next_month_start = latest_month_start.replace(month=latest_month_start.month + 1)
                 start_date = next_month_start.strftime('%Y%m%d')
                 return {
-                    'code': code,
-                    'market': market,
-                    'ts_code': ts_code,
+                    'code': stock_idx_info['code'],
+                    'market': stock_idx_info['market'],
+                    'ts_code': stock_idx_info['ts_code'],
                     'term': term,
                     'start_date': start_date,
-                    'end_date': last_market_open_day,
+                    'end_date': self.last_market_open_day,
                     'reason': 'monthly_update'
                 }
         
@@ -189,25 +174,27 @@ class Tushare:
         logger.info(f"获取K线数据: {job['code']} {job['term']} "
                    f"({job['start_date']} -> {job['end_date']})")
 
+    
+
     def renew_stock_kline_batch(self):
         """
         批量更新股票K线数据
         """
         # 获取所有股票代码和市场信息
         stock_index_data = self.storage.get_stock_index()
-        stock_info = [(stock['code'], stock['market']) for stock in stock_index_data]
-        
-        # 定义周期和参数
-        terms = ['daily', 'weekly', 'monthly']
-        default_start_date = '20080101'
+        stock_idx_info = [(stock['code'], stock['market']) for stock in stock_index_data]
+
+        # TODO: remove below slicing
+        stock_idx_info = stock_idx_info[:5]
         
         # 生成更新任务
-        jobs = self.generate_kline_update_jobs(
-            stock_info, terms, self.last_market_open_day, default_start_date
-        )
+        jobs = self.generate_kline_renew_jobs(stock_idx_info)
+
+        
+        # print(jobs)
         
         # 执行任务
-        self.execute_kline_jobs(jobs)
+        # self.execute_kline_jobs(jobs)
 
     # auth related
     def get_token(self):
@@ -290,7 +277,7 @@ class Tushare:
 
     # stock kline related
     def renew_stock_kline(self):
-        """旧的单股票K线更新方法（保留兼容性）"""
+        """旧的单股票K线更新方法 (保留兼容性)"""
         stock_index = self.storage.get_stock_index()
 
         for idx in stock_index:
@@ -303,5 +290,8 @@ class Tushare:
         """根据股票代码和周期更新K线数据"""
         # TODO: 实现具体的K线数据获取和保存逻辑
         logger.info(f"更新K线数据: {code} {term}")
+
+    def to_storage_code(self, code: str, market: str):
+        return code + '.' + market
 
     # 其他注释掉的代码保持不变...

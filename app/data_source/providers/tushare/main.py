@@ -22,9 +22,12 @@ class Tushare:
         self.last_market_open_day = None
 
     def renew_data(self):
-        self.last_market_open_day = self.get_last_market_open_day() # TODO: 这里需要优化，不要每次都获取
-        self.renew_stock_index()
-        self.renew_stock_kline_batch()
+        self.last_market_open_day = self.get_last_market_open_day()
+        if self.last_market_open_day != None:
+            self.renew_stock_index()
+            self.renew_stock_kline_by_batch()
+        else:
+            logger.error("无法获取交易日历, renew job 失败!")
 
 
 
@@ -130,14 +133,7 @@ class Tushare:
         # 不需要更新
         return None
 
-    def execute_kline_jobs(self, jobs: list, batch_size: int = 10):
-        """
-        执行K线数据更新任务
-        
-        Args:
-            jobs: 任务列表
-            batch_size: 批处理大小
-        """
+    def execute_stock_kline_renew_jobs(self, jobs: list, batch_size: int = 10):
         if not jobs:
             logger.info("没有需要更新的K线数据任务")
             return
@@ -147,11 +143,12 @@ class Tushare:
         
         for i, job in enumerate(jobs):
             try:
-                logger.info(f"执行任务 {i+1}/{total_jobs}: {job['code']} {job['term']} "
-                          f"({job['start_date']} -> {job['end_date']})")
+                logger.info(f"执行进度: {(i+1)/total_jobs * 100:.1f}% ({i+1}/{total_jobs}) | 细节: {job['ts_code']} {job['term']} ({job['start_date']} -> {job['end_date']})")
                 
                 # 这里调用具体的K线数据获取和保存逻辑
-                self._fetch_and_save_kline_data(job)
+                data = self.fetch_kline_data(job)
+                self.storage.save_stock_kline(data, job)
+                # self.fetch_and_save_kline_data(job)
                 
                 # 每处理一批任务后暂停一下，避免API限制
                 if (i + 1) % batch_size == 0:
@@ -162,21 +159,18 @@ class Tushare:
             except Exception as e:
                 logger.error(f"执行任务失败 {job['code']} {job['term']}: {e}")
                 continue
-        
         logger.info(f"K线数据更新任务执行完成，共处理 {total_jobs} 个任务")
 
-    def _fetch_and_save_kline_data(self, job: dict):
-        """
-        获取并保存K线数据（具体实现）
-        """
-        # TODO: 实现具体的K线数据获取和保存逻辑
-        # 这里需要调用Tushare API获取数据，然后保存到数据库
-        logger.info(f"获取K线数据: {job['code']} {job['term']} "
-                   f"({job['start_date']} -> {job['end_date']})")
-
+    def fetch_kline_data(self, job: dict):
+        if job['term'] == 'daily':
+            return self.pro.daily(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+        elif job['term'] == 'weekly':
+            return self.pro.weekly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+        elif job['term'] == 'monthly':
+            return self.pro.monthly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
     
 
-    def renew_stock_kline_batch(self):
+    def renew_stock_kline_by_batch(self):
         """
         批量更新股票K线数据
         """
@@ -190,41 +184,7 @@ class Tushare:
         # 生成更新任务
         jobs = self.generate_kline_renew_jobs(stock_idx_info)
 
-        
-        # print(jobs)
-        
-        # 执行任务
-        # self.execute_kline_jobs(jobs)
-
-    # auth related
-    def get_token(self):
-        try:
-            with open(auth_token, 'r') as f:
-                return f.read().strip()
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Token file not found: {auth_token}. Please create the token file with your Tushare token.")
-
-
-    # Market open date & calendar related
-    def get_last_market_open_day(self):
-        end_date = datetime.now().strftime('%Y%m%d')
-        start_date = (datetime.now() - timedelta(days=10)).strftime('%Y%m%d')
-        try:
-            dates = self.pro.trade_cal(exchange='', start_date=start_date, end_date=end_date)
-            # 检查返回的字段名
-            if 'is_open' in dates.columns:
-                last_market_open_day = dates[dates['is_open'] == 1]['cal_date'].max()
-            elif 'is_open' in dates.columns:
-                last_market_open_day = dates[dates['is_open'] == 1]['cal_date'].max()
-            else:
-                # 如果字段名不匹配，使用当前日期作为默认值
-                logger.warning("无法获取交易日历，使用当前日期作为默认值")
-                last_market_open_day = datetime.now().strftime('%Y%m%d')
-            return last_market_open_day
-        except Exception as e:
-            logger.error(f"获取交易日历失败: {e}")
-            # 使用当前日期作为默认值
-            return datetime.now().strftime('%Y%m%d')
+        self.execute_stock_kline_renew_jobs(jobs)
 
 
 
@@ -266,32 +226,55 @@ class Tushare:
 
 
 
+    # # stock kline related
+    # def renew_stock_kline(self):
+    #     """旧的单股票K线更新方法 (保留兼容性)"""
+    #     stock_index = self.storage.get_stock_index()
+
+    #     for idx in stock_index:
+    #         if self.storage.should_renew_stock_kline(idx['code'], 'daily', self.last_market_open_day):
+    #             self.renew_stock_kline_by_code(idx['code'], 'daily')
+    #         else:
+    #             print(f"stock kline for {idx['code']} is up to date")
+
+    # def renew_stock_kline_by_code(self, code: str, term: str):
+    #     """根据股票代码和周期更新K线数据"""
+    #     # TODO: 实现具体的K线数据获取和保存逻辑
+    #     logger.info(f"更新K线数据: {code} {term}")
 
 
 
 
+    # auth related
+    def get_token(self):
+        try:
+            with open(auth_token, 'r') as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Token file not found: {auth_token}. Please create the token file with your Tushare token.")
 
 
-
-
-
-    # stock kline related
-    def renew_stock_kline(self):
-        """旧的单股票K线更新方法 (保留兼容性)"""
-        stock_index = self.storage.get_stock_index()
-
-        for idx in stock_index:
-            if self.storage.should_renew_stock_kline(idx['code'], 'daily', self.last_market_open_day):
-                self.renew_stock_kline_by_code(idx['code'], 'daily')
+    # Market open date & calendar related
+    def get_last_market_open_day(self):
+        end_date = datetime.now().strftime('%Y%m%d')
+        start_date = (datetime.now() - timedelta(days=10)).strftime('%Y%m%d')
+        try:
+            dates = self.pro.trade_cal(exchange='', start_date=start_date, end_date=end_date)
+            # 检查返回的字段名
+            if 'is_open' in dates.columns:
+                last_market_open_day = dates[dates['is_open'] == 1]['cal_date'].max()
+            elif 'is_open' in dates.columns:
+                last_market_open_day = dates[dates['is_open'] == 1]['cal_date'].max()
             else:
-                print(f"stock kline for {idx['code']} is up to date")
+                # 如果字段名不匹配，使用当前日期作为默认值
+                logger.warning("无法获取交易日历，使用当前日期作为默认值")
+                last_market_open_day = datetime.now().strftime('%Y%m%d')
+            return last_market_open_day
+        except Exception as e:
+            logger.error(f"获取交易日历失败: {e}")
+            # 使用当前日期作为默认值
+            return datetime.now().strftime('%Y%m%d')
 
-    def renew_stock_kline_by_code(self, code: str, term: str):
-        """根据股票代码和周期更新K线数据"""
-        # TODO: 实现具体的K线数据获取和保存逻辑
-        logger.info(f"更新K线数据: {code} {term}")
-
+    
     def to_storage_code(self, code: str, market: str):
         return code + '.' + market
-
-    # 其他注释掉的代码保持不变...

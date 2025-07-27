@@ -55,7 +55,7 @@ class TushareStorage:
     def get_stock_index(self):
         return self.stock_index_table.get_all()
 
-    def get_all_latest_kline_data(self) -> dict:
+    def get_all_latest_kline_dates(self) -> dict:
         """
         一次性获取所有股票所有周期的最新数据日期
         返回格式: {code: {term: latest_date}}
@@ -81,8 +81,7 @@ class TushareStorage:
                 if ts_code not in latest_data:
                     latest_data[ts_code] = {}
                 latest_data[ts_code][term] = latest_date
-            
-            logger.info(f"获取到 {len(latest_data)} 只股票的最新数据状态")
+        
             return latest_data
             
         except Exception as e:

@@ -3,16 +3,14 @@
 Tushare数据存储类
 """
 from loguru import logger
-from utils.db.thread_safe_db_model import ThreadSafeBaseTableModel
-
 
 class TushareStorage:
     def __init__(self, connected_db):
         self.db = connected_db
         # 使用线程安全的数据库模型
-        self.meta_info = ThreadSafeBaseTableModel('meta_info', 'base')
-        self.stock_index_table = ThreadSafeBaseTableModel('stock_index', 'base')
-        self.stock_kline_table = ThreadSafeBaseTableModel('stock_kline', 'base')
+        self.meta_info = connected_db.get_table_instance('meta_info')
+        self.stock_index_table = connected_db.get_table_instance('stock_index')
+        self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
     def save_stock_index(self, data):
         self.stock_index_table.clear()
@@ -246,16 +244,10 @@ class TushareStorage:
                     term_counts[term] = term_counts.get(term, 0) + 1
                     stock_counts[stock_key] = stock_counts.get(stock_key, 0) + 1
                 
-                logger.info(f"批量保存 {len(valid_data)} 条K线数据")
-                logger.info(f"涉及股票: {len(stock_counts)} 只")
-                for term, count in term_counts.items():
-                    logger.info(f"  - {term}: {count} 条")
-                
                 # 批量插入或更新数据（使用ON DUPLICATE KEY UPDATE）
                 # 主键字段: ['code', 'market', 'term', 'date']
                 primary_keys = ['code', 'market', 'term', 'date']
                 self.stock_kline_table.replace(valid_data, primary_keys)
-                logger.info(f"✅ 批量保存成功")
             else:
                 logger.warning("没有有效数据需要保存")
                 

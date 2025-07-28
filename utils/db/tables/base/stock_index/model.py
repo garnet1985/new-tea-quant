@@ -15,19 +15,19 @@ class StockIndexModel(BaseTableModel):
     
     def get_stock_by_code(self, code: str) -> Optional[Dict[str, Any]]:
         """根据股票代码获取股票信息"""
-        return self.find_one("code = %s", (code,))
+        return self.load_one("code = %s", (code,))
     
     def get_stocks_by_market(self, market: str) -> List[Dict[str, Any]]:
         """根据市场获取股票列表"""
-        return self.find_many("market = %s", (market,))
+        return self.load_many("market = %s", (market,))
     
     def get_stocks_by_industry(self, industry: str) -> List[Dict[str, Any]]:
         """根据行业获取股票列表"""
-        return self.find_many("industry = %s", (industry,))
+        return self.load_many("industry = %s", (industry,))
     
     def get_alive_stocks(self) -> List[Dict[str, Any]]:
         """获取所有活跃股票"""
-        return self.find_many("isAlive = 1")
+        return self.load_many("isAlive = 1")
     
     def get_stock_count_by_market(self, market: str) -> int:
         """获取指定市场的股票数量"""
@@ -43,7 +43,7 @@ class StockIndexModel(BaseTableModel):
     
     def search_stocks(self, keyword: str) -> List[Dict[str, Any]]:
         """搜索股票（按代码或名称）"""
-        return self.find_many(
+        return self.load_many(
             "code LIKE %s OR name LIKE %s",
             (f"%{keyword}%", f"%{keyword}%")
         )

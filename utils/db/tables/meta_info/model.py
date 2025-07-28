@@ -40,5 +40,5 @@ class MetaInfoModel(BaseTableModel):
         else:
             # 如果记录存在，更新记录
             txt = self.toStr(info['info'], key, value)
-            self.upsert_one({'info': txt}, ['info'])
+            self.replace_one({'info': txt}, ['info'])
 

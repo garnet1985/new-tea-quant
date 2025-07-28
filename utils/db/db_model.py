@@ -130,7 +130,7 @@ class BaseTableModel:
         try:
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(f"DELETE FROM {self.table_name}")
-                self.db.sync_connection.commit()
+                cursor.connection.commit()
                 return cursor.rowcount
         except Exception as e:
             logger.error(f"Failed to clear table {self.table_name}: {e}")
@@ -145,7 +145,7 @@ class BaseTableModel:
             
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
-                self.db.sync_connection.commit()
+                cursor.connection.commit()
                 return cursor.lastrowid
         except Exception as e:
             logger.error(f"Failed to insert data into {self.table_name}: {e}")
@@ -165,7 +165,7 @@ class BaseTableModel:
             
             with self.db.get_sync_cursor() as cursor:
                 cursor.executemany(query, values)
-                self.db.sync_connection.commit()
+                cursor.connection.commit()
                 return len(data_list)
         except Exception as e:
             logger.error(f"Failed to batch insert data into {self.table_name}: {e}")
@@ -179,7 +179,7 @@ class BaseTableModel:
             
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(query, tuple(data.values()) + params)
-                self.db.sync_connection.commit()
+                cursor.connection.commit()
                 return cursor.rowcount
         except Exception as e:
             logger.error(f"Failed to update data in {self.table_name}: {e}")
@@ -206,7 +206,7 @@ class BaseTableModel:
             
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
-                self.db.sync_connection.commit()
+                cursor.connection.commit()
                 return cursor.lastrowid
         except Exception as e:
             logger.error(f"Failed to upsert data in {self.table_name}: {e}")
@@ -226,11 +226,13 @@ class BaseTableModel:
         if hasattr(self.db, 'enable_thread_safety') and self.db.enable_thread_safety:
             # 对于大数据量，使用异步写入队列
             if len(data_list) > 1000:
-                logger.info(f"Large dataset detected ({len(data_list)} records), using async write queue")
+                if self.db.is_verbose:
+                    logger.info(f"Large dataset detected ({len(data_list)} records), using async write queue")
                 
                 # 定义回调函数
                 def write_callback(result):
-                    logger.info(f"Async write completed for {self.table_name}: {result} records")
+                    if self.db.is_verbose:
+                        logger.info(f"Async write completed for {self.table_name}: {result} records")
                 
                 # 加入写入队列
                 self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)

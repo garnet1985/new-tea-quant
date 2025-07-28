@@ -1,0 +1,45 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 3306,
+    "user": "root",
+    "password": "",
+    "database": "stocks-py",
+    "charset": "utf8mb4",
+    "autocommit": true,
+    "pool_size_min": 5,
+    "pool_size_max": 30,
+    "max_allowed_packet": 1073741824,
+    "connection_timeout": 60,
+    "read_timeout": 60,
+    "write_timeout": 60
+  },
+  "tushare": {
+    "token_file": "app/data_source/providers/tushare/auth/token.txt",
+    "base_url": "http://api.tushare.pro",
+    "timeout": 30,
+    "retry_times": 3,
+    "retry_delay": 1
+  },
+  "performance": {
+    "max_workers": 5,
+    "batch_size": 100,
+    "flush_interval": 5,
+    "max_history": 1000,
+    "monitor_enabled": true
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}",
+    "file": "logs/app.log",
+    "max_size": "10MB",
+    "rotation": "1 day",
+    "retention": "30 days"
+  },
+  "storage": {
+    "data_dir": "data",
+    "cache_dir": "data/cache",
+    "backup_enabled": true,
+    "backup_interval": 3600
+  }
+}

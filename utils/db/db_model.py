@@ -240,13 +240,24 @@ class BaseTableModel:
             
             # 对于小数据量，使用线程安全的批量写入
             try:
-                update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
+                # 构建SQL语句
+                data_keys = list(data_list[0].keys())
                 
-                columns = list(data_list[0].keys())
-                placeholders = ', '.join(['%s'] * len(columns))
-                query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+                # 检查unique_keys是否都在data_keys中
+                missing_keys = [k for k in unique_keys if k not in data_keys]
+                if missing_keys:
+                    logger.error(f"主键字段在数据中缺失: {missing_keys}")
+                    return 0
                 
-                values = [tuple(data[col] for col in columns) for data in data_list]
+                # 构建update子句
+                update_fields = [k for k in data_keys if k not in unique_keys]
+                update_clause = ', '.join([f"{k} = VALUES({k})" for k in update_fields])
+                
+                columns = ', '.join(data_keys)
+                placeholders = ', '.join(['%s'] * len(data_keys))
+                query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+                
+                values = [tuple(data[col] for col in data_keys) for data in data_list]
                 
                 return self.db.execute_many(query, values)
                 
@@ -261,13 +272,15 @@ class BaseTableModel:
             while retry_count < max_retries:
                 try:
                     # 构建ON DUPLICATE KEY UPDATE子句
-                    update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
+                    data_keys = list(data_list[0].keys())
+                    update_fields = [k for k in data_keys if k not in unique_keys]
+                    update_clause = ', '.join([f"{k} = VALUES({k})" for k in update_fields])
                     
-                    columns = list(data_list[0].keys())
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+                    columns = ', '.join(data_keys)
+                    placeholders = ', '.join(['%s'] * len(data_keys))
+                    query = f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
                     
-                    values = [tuple(data[col] for col in columns) for data in data_list]
+                    values = [tuple(data[col] for col in data_keys) for data in data_list]
                     
                     with self.db.get_sync_cursor() as cursor:
                         cursor.executemany(query, values)

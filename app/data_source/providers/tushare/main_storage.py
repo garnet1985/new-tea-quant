@@ -165,6 +165,8 @@ class TushareStorage:
         Returns:
             list: 转换后的数据列表
         """
+        import math
+        
         if data is None or data.empty:
             return []
         
@@ -180,26 +182,44 @@ class TushareStorage:
         converted_data = []
         
         for item in data_list:
+            # 处理NaN值和范围限制的辅助函数
+            def clean_value(value, default=0, max_value=None, min_value=None):
+                """清理数值，将NaN转换为默认值，并限制范围"""
+                if value is None or (isinstance(value, float) and math.isnan(value)):
+                    return default
+                
+                # 限制范围
+                if max_value is not None and value > max_value:
+                    value = max_value
+                if min_value is not None and value < min_value:
+                    value = min_value
+                
+                return value
+            
             # 根据schema.json的字段定义转换数据
             converted_item = {
                 'code': code,  # 从job中获取
                 'market': market,  # 从job中获取
                 'term': term,  # 从job中获取
                 'date': item.get('trade_date', ''),  # 交易日期
-                'open': item.get('open', 0),  # 开盘价
-                'close': item.get('close', 0),  # 收盘价
-                'highest': item.get('high', 0),  # 最高价
-                'lowest': item.get('low', 0),  # 最低价
-                'priceChangeDelta': item.get('change', 0),  # 价格变动
-                'priceChangeRateDelta': item.get('pct_chg', 0),  # 价格变动率
-                'preClose': item.get('pre_close', 0),  # 前日收盘价
-                'volume': item.get('vol', 0),  # 成交量
-                'amount': item.get('amount', 0)  # 成交额
+                'open': clean_value(item.get('open', 0)),  # 开盘价
+                'close': clean_value(item.get('close', 0)),  # 收盘价
+                'highest': clean_value(item.get('high', 0)),  # 最高价
+                'lowest': clean_value(item.get('low', 0)),  # 最低价
+                'priceChangeDelta': clean_value(item.get('change', 0)),  # 价格变动
+                'priceChangeRateDelta': clean_value(item.get('pct_chg', 0), 0, 9999.9999, -9999.9999),  # 价格变动率，限制在decimal(8,4)范围内
+                'preClose': clean_value(item.get('pre_close', 0)),  # 前日收盘价
+                'volume': clean_value(item.get('vol', 0)),  # 成交量
+                'amount': clean_value(item.get('amount', 0))  # 成交额
             }
             
-            # 验证必填字段
+            # 验证必填字段（排除NaN值的情况）
             required_fields = ['code', 'market', 'term', 'date', 'open', 'close', 'highest', 'lowest']
-            missing_fields = [field for field in required_fields if not converted_item.get(field)]
+            missing_fields = []
+            for field in required_fields:
+                value = converted_item.get(field)
+                if value is None or value == '' or (isinstance(value, float) and math.isnan(value)):
+                    missing_fields.append(field)
             
             if missing_fields:
                 logger.warning(f"跳过缺少必填字段的数据: {missing_fields}, 数据: {item}")
@@ -216,23 +236,33 @@ class TushareStorage:
         Args:
             data_list: 数据列表，每个元素都是字典格式
         """
+        import math
+        
         if not data_list:
             logger.warning("没有数据需要保存")
             return
         
         try:
-            # 验证数据格式
+            # 验证数据格式并清理NaN值
             valid_data = []
             for item in data_list:
+                # 清理NaN值
+                cleaned_item = {}
+                for key, value in item.items():
+                    if isinstance(value, float) and math.isnan(value):
+                        cleaned_item[key] = 0
+                    else:
+                        cleaned_item[key] = value
+                
                 # 验证必填字段
                 required_fields = ['code', 'market', 'term', 'date', 'open', 'close', 'highest', 'lowest']
-                missing_fields = [field for field in required_fields if not item.get(field)]
+                missing_fields = [field for field in required_fields if not cleaned_item.get(field)]
                 
                 if missing_fields:
                     logger.warning(f"跳过缺少必填字段的数据: {missing_fields}")
                     continue
                 
-                valid_data.append(item)
+                valid_data.append(cleaned_item)
             
             if valid_data:
                 # 统计不同term的数据量

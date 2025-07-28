@@ -3,14 +3,16 @@
 Tushare数据存储类
 """
 from loguru import logger
+from utils.db.thread_safe_db_model import ThreadSafeBaseTableModel
 
 
 class TushareStorage:
     def __init__(self, connected_db):
         self.db = connected_db
-        self.meta_info = self.db.get_table_instance('meta_info', 'base')
-        self.stock_index_table = self.db.get_table_instance('stock_index', 'base')
-        self.stock_kline_table = self.db.get_table_instance('stock_kline', 'base')
+        # 使用线程安全的数据库模型
+        self.meta_info = ThreadSafeBaseTableModel('meta_info', 'base')
+        self.stock_index_table = ThreadSafeBaseTableModel('stock_index', 'base')
+        self.stock_kline_table = ThreadSafeBaseTableModel('stock_kline', 'base')
 
     def save_stock_index(self, data):
         self.stock_index_table.clear()

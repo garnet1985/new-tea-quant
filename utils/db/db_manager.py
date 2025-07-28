@@ -53,6 +53,10 @@ class DatabaseManager:
         }
         self._stats_lock = threading.Lock()
 
+        # 全局回调系统
+        self._global_callbacks = []
+        self._callbacks_lock = threading.Lock()
+
         self.is_verbose = False
         
         # 启动写入线程（如果启用线程安全）
@@ -529,7 +533,8 @@ class DatabaseManager:
                 cursor.connection.commit()
                 total_affected += affected_rows
                 
-                logger.debug(f"Batch write completed: {len(batch)} records, affected: {affected_rows}")
+                if self.is_verbose:
+                    logger.debug(f"Batch write completed: {len(batch)} records, affected: {affected_rows}")
         
         with self._stats_lock:
             self._stats['batch_writes'] += 1
@@ -589,7 +594,8 @@ class DatabaseManager:
                     with self._stats_lock:
                         self._stats['writes_completed'] += 1
                     
-                    logger.debug(f"Write task completed for {write_task['table_name']}: {result} records")
+                    if self.is_verbose:
+                        logger.debug(f"Write task completed for {write_task['table_name']}: {result} records")
                     
                 except Exception as e:
                     logger.error(f"Write task failed for {write_task['table_name']}: {e}")
@@ -623,14 +629,41 @@ class DatabaseManager:
         # 分批执行
         return self.execute_many(query, values)
     
+    def add_global_callback(self, callback: Callable):
+        """添加全局回调函数，在所有异步写入完成后执行"""
+        with self._callbacks_lock:
+            self._global_callbacks.append(callback)
+    
+    def remove_global_callback(self, callback: Callable):
+        """移除全局回调函数"""
+        with self._callbacks_lock:
+            if callback in self._global_callbacks:
+                self._global_callbacks.remove(callback)
+    
+    def clear_global_callbacks(self):
+        """清除所有全局回调函数"""
+        with self._callbacks_lock:
+            self._global_callbacks.clear()
+    
     def wait_for_writes(self, timeout: Optional[float] = None):
-        """等待所有写入任务完成"""
+        """等待所有写入任务完成，并执行全局回调"""
         if not self.enable_thread_safety:
             return
         
         try:
             self._write_queue.join()
             logger.info("All write tasks completed")
+            
+            # 执行全局回调
+            with self._callbacks_lock:
+                callbacks_to_execute = self._global_callbacks.copy()
+            
+            for callback in callbacks_to_execute:
+                try:
+                    callback()
+                except Exception as e:
+                    logger.error(f"Global callback error: {e}")
+                    
         except Exception as e:
             logger.error(f"Error waiting for writes: {e}")
     

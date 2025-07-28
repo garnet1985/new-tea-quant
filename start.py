@@ -26,8 +26,22 @@ class App:
         self.db.initialize()
 
     def renew_data(self):
+        # 添加数据更新完成后的回调函数
+        self.db.add_global_callback(self.on_data_renew_complete)
+        
         data_source = Tushare(self.db)
         data_source.renew_data()
+    
+    def on_data_renew_complete(self):
+        """数据更新完成后的回调函数"""
+        logger.info("🎉 数据更新完成！开始执行后续任务...")
+        
+        # 这里可以添加你需要在数据更新完成后执行的函数
+        # 例如：运行策略分析、生成报告等
+        self.run_strategy_simulations()
+        self.scan_opportunities()
+        
+        logger.info("✅ 后续任务执行完成")
 
     def run_strategy_simulations(self):
         # step 1: run registered strategy simulations

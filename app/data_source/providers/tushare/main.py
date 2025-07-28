@@ -43,8 +43,10 @@ class Tushare:
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, self.latest_market_open_day, self.storage)
-        print(f"jobs: {jobs}")
-        self.execute_stock_kline_renew_jobs(jobs)
+        if len(jobs) > 0:
+            self.execute_stock_kline_renew_jobs(jobs)
+        else:
+            logger.info("All K-lines are up to date")
 
 
 
@@ -170,7 +172,6 @@ class Tushare:
         meta_info_key = 'stock_index_last_update'
 
         if is_force:
-            print('renew stock index')
             idx_data = self.request_stock_index()
             self.storage.save_stock_index(idx_data)
             self.storage.save_meta_info(meta_info_key, self.latest_market_open_day)

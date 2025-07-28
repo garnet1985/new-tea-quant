@@ -19,18 +19,28 @@ class Tushare:
 
 
     def renew_data(self):
+        import time
+        start_time = time.time()
+
+
         self.latest_market_open_day = self.service.get_latest_market_open_day(self.api)
         if self.latest_market_open_day != None:
             self.latest_stock_index = self.renew_stock_index()
             self.renew_stock_kline_by_batch()
         else:
             logger.error("Can not retrieve most recent market open date, renew job blocked!")
+
+
+        # 计算总耗时
+        total_time = time.time() - start_time
+        logger.info(f"✅ total time consuming: {total_time:.2f} seconds")
     
 
     def renew_stock_kline_by_batch(self):
         """
         批量更新股票K线数据
         """
+        
         # 获取所有股票代码和市场信息
         stock_list = []
         for _, row in self.latest_stock_index.iterrows():
@@ -39,14 +49,23 @@ class Tushare:
             stock_list.append((code, market))
 
         # TODO: remove below slicing
-        stock_list = stock_list[:3]
+        # stock_list = stock_list[:100]
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, self.latest_market_open_day, self.storage)
         if len(jobs) > 0:
             self.execute_stock_kline_renew_jobs(jobs)
+            
+            # 等待异步写入完成
+            logger.info("等待异步写入完成...")
+            self.db.wait_for_writes(timeout=60)
+            logger.info("异步写入完成")
         else:
             logger.info("All K-lines are up to date")
+
+        logger.info(f"✅ Renew stock kline jobs complete. total jobs: {len(jobs)}")
+        
+
 
 
 

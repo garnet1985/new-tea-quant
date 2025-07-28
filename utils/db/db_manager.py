@@ -143,7 +143,8 @@ class DatabaseManager:
         return self.tables['strategy'][table_name]  
 
     def get_table_instance(self, table_name: str, table_type: str):
-        return self.tables[table_type][table_name]
+        """获取表实例，使用动态模型加载"""
+        return self._get_table_model(table_name, table_type)
 
     def _get_table_model(self, table_name: str, table_type: str):
         """根据表名和类型获取对应的模型实例"""
@@ -265,7 +266,14 @@ class DatabaseManager:
     @contextmanager
     def get_sync_cursor(self):
         """获取同步数据库游标的上下文管理器"""
-        if not self.is_sync_connected:
+        if not self.is_sync_connected or self.sync_connection is None:
+            self.connect_sync()
+        
+        # 检查连接是否有效
+        try:
+            self.sync_connection.ping(reconnect=True)
+        except Exception as e:
+            logger.warning(f"Database connection lost, reconnecting: {e}")
             self.connect_sync()
         
         cursor = None
@@ -275,11 +283,22 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Synchronous database cursor error: {e}")
             if self.sync_connection:
-                self.sync_connection.rollback()
+                try:
+                    self.sync_connection.rollback()
+                except:
+                    pass
+            # 如果是连接相关错误，尝试重连
+            if "Packet sequence number wrong" in str(e) or "settimeout" in str(e):
+                logger.warning("Connection error detected, will reconnect on next use")
+                self.is_sync_connected = False
+                self.sync_connection = None
             raise
         finally:
             if cursor:
-                cursor.close()
+                try:
+                    cursor.close()
+                except:
+                    pass
     
     def execute_sync_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         """执行同步查询语句"""

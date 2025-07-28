@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from collections import defaultdict
 from loguru import logger
 from app.data_source.providers.conf.conf import kline_terms, data_default_start_date
 
@@ -23,18 +24,23 @@ class TushareService:
             last_market_open_day = datetime.now().strftime('%Y%m%d')
         return last_market_open_day
 
-    def generate_kline_renew_jobs(self, stock_idx_info: list, last_market_open_day: str, storage) -> list:
-        jobs = []
-        most_recent_records = storage.get_stocks_last_kline_record_dates()
+    def generate_kline_renew_jobs(self, stock_idx_info: list, last_market_open_day: str, storage) -> dict:
+        
+        stock_groups = defaultdict(list)
+        most_recent_records = storage.get_most_recent_stock_kline_record_dates()
         
         for code, market in stock_idx_info:
-            jobs += self.to_single_stock_kline_renew_job({
+            stock_key = f"{code}.{market}"
+            stock_jobs = self.to_single_stock_kline_renew_job({
                 'ts_code': self.to_ts_code(code, market),
                 'code': code,
                 'market': market
             }, most_recent_records, last_market_open_day)
-
-        return jobs
+            
+            if stock_jobs:  # 只有当有任务时才添加到分组中
+                stock_groups[stock_key] = stock_jobs
+        
+        return dict(stock_groups)
 
 
     def to_single_stock_kline_renew_job(self, stock_idx_info: dict, most_recent_records: dict, last_market_open_day: str) -> dict:

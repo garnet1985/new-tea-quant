@@ -14,7 +14,7 @@ class BaseTableModel:
         self.schema_path = os.path.join(os.path.dirname(__file__), 'tables', table_type, table_name, 'schema.json')
         
     
-    def get_table_name(self) -> str:
+    def load_table_name(self) -> str:
         return self.table_name
     
     def create_table(self) -> bool:
@@ -207,28 +207,53 @@ class BaseTableModel:
             logger.error(f"Failed to upsert data in {self.table_name}: {e}")
             return 0
     
-    def upsert(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
+    def replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
         """批量插入或更新数据"""
         if not data_list:
             return 0
         
-        try:
-            # 构建ON DUPLICATE KEY UPDATE子句
-            update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
-            
-            columns = list(data_list[0].keys())
-            placeholders = ', '.join(['%s'] * len(columns))
-            query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
-            
-            values = [tuple(data[col] for col in columns) for data in data_list]
-            
-            with self.db.get_sync_cursor() as cursor:
-                cursor.executemany(query, values)
-                self.db.sync_connection.commit()
-                return len(data_list)
-        except Exception as e:
-            logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
-            return 0
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                # 构建ON DUPLICATE KEY UPDATE子句
+                update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
+                
+                columns = list(data_list[0].keys())
+                placeholders = ', '.join(['%s'] * len(columns))
+                query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+                
+                values = [tuple(data[col] for col in columns) for data in data_list]
+                
+                with self.db.get_sync_cursor() as cursor:
+                    cursor.executemany(query, values)
+                    self.db.sync_connection.commit()
+                    return len(data_list)
+                    
+            except Exception as e:
+                retry_count += 1
+                error_msg = str(e)
+                
+                # 如果是连接相关错误，尝试重试
+                if ("Packet sequence number wrong" in error_msg or 
+                    "settimeout" in error_msg or 
+                    "(0, '')" in error_msg):
+                    
+                    if retry_count < max_retries:
+                        logger.warning(f"Database connection error, retrying ({retry_count}/{max_retries}): {e}")
+                        import time
+                        time.sleep(0.1 * retry_count)  # 指数退避
+                        continue
+                    else:
+                        logger.error(f"Failed to batch upsert data in {self.table_name} after {max_retries} retries: {e}")
+                        return 0
+                else:
+                    # 其他错误，不重试
+                    logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
+                    return 0
+        
+        return 0
     
     def delete_one(self, condition: str, params: tuple = ()) -> int:
         """删除单条数据"""
@@ -256,7 +281,7 @@ class BaseTableModel:
             logger.error(f"Failed to delete data from {self.table_name}: {e}")
             return 0
     
-    def find_one(self, condition: str = "1=1", params: tuple = (), order_by: str = None) -> Optional[Dict[str, Any]]:
+    def load_one(self, condition: str = "1=1", params: tuple = (), order_by: str = None) -> Optional[Dict[str, Any]]:
         """查找单条记录"""
         try:
             query = f"SELECT * FROM {self.table_name} WHERE {condition}"
@@ -267,10 +292,10 @@ class BaseTableModel:
             result = self.db.execute_sync_query(query, params)
             return result[0] if result else None
         except Exception as e:
-            logger.error(f"Failed to find one record from {self.table_name}: {e}")
+            logger.error(f"Failed to load one record from {self.table_name}: {e}")
             return None
     
-    def find_many(self, condition: str = "1=1", params: tuple = (), limit: int = None, order_by: str = None, offset: int = None) -> List[Dict[str, Any]]:
+    def load_many(self, condition: str = "1=1", params: tuple = (), limit: int = None, order_by: str = None, offset: int = None) -> List[Dict[str, Any]]:
         """查找多条记录"""
         try:
             query = f"SELECT * FROM {self.table_name} WHERE {condition}"
@@ -283,8 +308,34 @@ class BaseTableModel:
             
             return self.db.execute_sync_query(query, params)
         except Exception as e:
-            logger.error(f"Failed to find many records from {self.table_name}: {e}")
+            logger.error(f"Failed to load many records from {self.table_name}: {e}")
             return []
+
+    def load_by_id(self, id_value: Any, id_field: str = "id") -> Optional[Dict[str, Any]]:
+        """根据ID获取记录"""
+        return self.load_one(f"{id_field} = %s", (id_value,))
+
+    def load_all(self, order_by: str = None, limit: int = None) -> List[Dict[str, Any]]:
+        """获取所有记录"""
+        return self.load_many(order_by=order_by, limit=limit)
+
+    def load_paginated(self, page: int = 1, page_size: int = 20, order_by: str = None) -> Dict[str, Any]:
+        """分页获取记录"""
+        offset = (page - 1) * page_size
+        
+        # 获取总数
+        total = self.count()
+        
+        # 获取当前页数据
+        data = self.load_many(limit=page_size, offset=offset, order_by=order_by)
+        
+        return {
+            'data': data,
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total + page_size - 1) // page_size
+        }
     
     def count(self, condition: str = "1=1", params: tuple = ()) -> int:
         """统计记录数"""
@@ -306,31 +357,7 @@ class BaseTableModel:
             logger.error(f"Failed to check existence in {self.table_name}: {e}")
             return False
     
-    def get_by_id(self, id_value: Any, id_field: str = "id") -> Optional[Dict[str, Any]]:
-        """根据ID获取记录"""
-        return self.find_one(f"{id_field} = %s", (id_value,))
-    
-    def get_all(self, order_by: str = None, limit: int = None) -> List[Dict[str, Any]]:
-        """获取所有记录"""
-        return self.find_many(order_by=order_by, limit=limit)
-    
-    def get_paginated(self, page: int = 1, page_size: int = 20, order_by: str = None) -> Dict[str, Any]:
-        """分页获取记录"""
-        offset = (page - 1) * page_size
-        
-        # 获取总数
-        total = self.count()
-        
-        # 获取当前页数据
-        data = self.find_many(limit=page_size, offset=offset, order_by=order_by)
-        
-        return {
-            'data': data,
-            'total': total,
-            'page': page,
-            'page_size': page_size,
-            'total_pages': (total + page_size - 1) // page_size
-        }
+
     
     def execute_raw_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """执行原始SQL查询"""

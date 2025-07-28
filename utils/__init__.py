@@ -1,7 +1,7 @@
 """
 Utils Package - 通用工具模块
 """
-from .db import DatabaseManager, get_db_manager, get_sync_db_manager, DB_CONFIG, TABLES, STRATEGY_TABLES
+from .db import DatabaseManager, get_db_manager, get_sync_db_manager, DB_CONFIG
 
 __all__ = [
     # Database
@@ -9,6 +9,4 @@ __all__ = [
     'get_db_manager', 
     'get_sync_db_manager',
     'DB_CONFIG',
-    'TABLES',
-    'STRATEGY_TABLES',
 ] 

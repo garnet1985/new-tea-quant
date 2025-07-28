@@ -62,7 +62,7 @@ class JobWorker:
                  max_workers: int = 5,
                  execution_mode: ExecutionMode = ExecutionMode.PARALLEL,
                  job_executor: Optional[Callable] = None,
-                 enable_monitoring: bool = True):
+                 enable_monitoring: bool = False):
         """
         初始化任务执行器
         
@@ -135,7 +135,8 @@ class JobWorker:
         with self.stats_lock:
             self.stats['total_jobs'] += 1
         
-        logger.debug(f"Added job {job_id} to queue")
+        if self.enable_monitoring:
+            logger.info(f"Added job {job_id} to queue")
     
     def add_jobs(self, jobs: List[Dict[str, Any]]):
         """
@@ -164,8 +165,9 @@ class JobWorker:
             logger.warning("No jobs to execute")
             return self.get_stats()
         
-        logger.info(f"Starting job execution in {self.execution_mode.value} mode")
-        logger.info(f"Total jobs: {self.stats['total_jobs']}")
+        if self.enable_monitoring:
+            logger.info(f"Starting job execution in {self.execution_mode.value} mode")
+            logger.info(f"Total jobs: {self.stats['total_jobs']}")
         
         self.is_running = True
         self.should_stop = False
@@ -210,7 +212,8 @@ class JobWorker:
         result.start_time = start_time
         
         try:
-            logger.debug(f"Executing job {job_id}")
+            if self.enable_monitoring:
+                logger.info(f"Executing job {job_id}")
             
             # 执行任务
             job_result = self.job_executor(job_data)
@@ -221,7 +224,7 @@ class JobWorker:
             result.end_time = time.time()
             result.duration = result.end_time - start_time
             
-            logger.debug(f"Job {job_id} completed in {result.duration:.2f}s")
+            logger.info(f"Job {job_id} completed in {result.duration:.2f}s")
             
         except Exception as e:
             result.status = JobStatus.FAILED
@@ -325,18 +328,19 @@ class JobWorker:
     def print_stats(self):
         """打印执行统计信息"""
         stats = self.get_stats()
-        
-        logger.info("📊 Job Execution Statistics:")
-        logger.info(f"  Total Jobs: {stats['total_jobs']}")
-        logger.info(f"  Completed: {stats['completed_jobs']}")
-        logger.info(f"  Failed: {stats['failed_jobs']}")
-        logger.info(f"  Cancelled: {stats['cancelled_jobs']}")
-        logger.info(f"  Success Rate: {stats['completed_jobs']/stats['total_jobs']*100:.1f}%" if stats['total_jobs'] > 0 else "  Success Rate: N/A")
-        logger.info(f"  Total Duration: {stats['total_duration']:.2f}s")
-        logger.info(f"  Average Duration: {stats['avg_duration']:.2f}s")
-        logger.info(f"  Throughput: {stats['throughput']:.2f} jobs/s")
-        logger.info(f"  Queue Size: {stats['queue_size']}")
-        logger.info(f"  Results Count: {stats['results_count']}")
+
+        if self.enable_monitoring:
+            logger.info("📊 Job Execution Statistics:")
+            logger.info(f"  Total Jobs: {stats['total_jobs']}")
+            logger.info(f"  Completed: {stats['completed_jobs']}")
+            logger.info(f"  Failed: {stats['failed_jobs']}")
+            logger.info(f"  Cancelled: {stats['cancelled_jobs']}")
+            logger.info(f"  Success Rate: {stats['completed_jobs']/stats['total_jobs']*100:.1f}%" if stats['total_jobs'] > 0 else "  Success Rate: N/A")
+            logger.info(f"  Total Duration: {stats['total_duration']:.2f}s")
+            logger.info(f"  Average Duration: {stats['avg_duration']:.2f}s")
+            logger.info(f"  Throughput: {stats['throughput']:.2f} jobs/s")
+            logger.info(f"  Queue Size: {stats['queue_size']}")
+            logger.info(f"  Results Count: {stats['results_count']}")
     
     def pause(self):
         """暂停执行"""
@@ -385,6 +389,7 @@ class JobWorker:
                 'avg_duration': 0,
                 'throughput': 0
             }
+            
         logger.info("Statistics reset")
     
     def __del__(self):

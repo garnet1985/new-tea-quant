@@ -24,7 +24,7 @@ class MetaInfoModel(BaseTableModel):
         return '|'.join([f"{k}={v}" for k, v in info_dict.items()])
 
     def get_meta_info(self, key: str):
-        info = self.find_one()
+        info = self.load_one()
         if info is None:
             return None
         else:
@@ -32,7 +32,7 @@ class MetaInfoModel(BaseTableModel):
             return info_dict.get(key)
 
     def set_meta_info(self, key: str, value: str):
-        info = self.find_one()
+        info = self.load_one()
         if info is None:
             # 如果记录不存在，创建新记录
             txt = f"{key}={value}"

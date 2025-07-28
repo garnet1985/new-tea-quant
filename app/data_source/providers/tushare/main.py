@@ -39,7 +39,7 @@ class Tushare:
             stock_list.append((code, market))
 
         # TODO: remove below slicing
-        stock_list = stock_list[:5]
+        stock_list = stock_list[:3]
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, self.latest_market_open_day, self.storage)

@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd
 from loguru import logger
 from utils.db.db_manager import get_sync_db_manager
-from app.data_source.providers.tushare.storage import TushareStorage
+from app.data_source.providers.tushare.main_storage import TushareStorage
 
 def test_save_stock_kline():
     """测试 save_stock_kline 函数"""

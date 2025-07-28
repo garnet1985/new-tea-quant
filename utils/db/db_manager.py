@@ -39,6 +39,9 @@ class DatabaseManager:
         # 注册的自定义表
         self.registered_tables = {}
         
+        # 表缓存锁（用于保护表实例缓存）
+        self._tables_lock = threading.Lock() if enable_thread_safety else None
+        
         # 统计信息
         self._stats = {
             'connections_created': 0,
@@ -49,12 +52,17 @@ class DatabaseManager:
             'batch_writes': 0
         }
         self._stats_lock = threading.Lock()
+
+        self.is_verbose = False
         
         # 启动写入线程（如果启用线程安全）
         if enable_thread_safety:
             self._start_write_thread()
-        
+    
     # ==================== 线程安全相关方法 ====================
+
+    def set_verbose(self, is_verbose: bool):
+        self.is_verbose = is_verbose
     
     def _start_write_thread(self):
         """启动写入线程"""
@@ -62,14 +70,16 @@ class DatabaseManager:
             self._write_thread_running = True
             self._write_thread = threading.Thread(target=self._write_worker, daemon=True)
             self._write_thread.start()
-            logger.info("Database write thread started")
+            if self.is_verbose:
+                logger.info("Database write thread started")
     
     def _stop_write_thread(self):
         """停止写入线程"""
         self._write_thread_running = False
         if self._write_thread and self._write_thread.is_alive():
             self._write_thread.join(timeout=5)
-            logger.info("Database write thread stopped")
+            if self.is_verbose:
+                logger.info("Database write thread stopped")
     
     def _create_connection(self) -> pymysql.Connection:
         """创建新的数据库连接"""
@@ -91,7 +101,8 @@ class DatabaseManager:
             with self._stats_lock:
                 self._stats['connections_created'] += 1
             
-            logger.debug(f"Created new database connection (total: {self._stats['connections_created']})")
+            if self.is_verbose:
+                logger.debug(f"Created new database connection (total: {self._stats['connections_created']})")
             return connection
             
         except Exception as e:
@@ -117,7 +128,8 @@ class DatabaseManager:
             connection = self._connection_pool.get_nowait()
             with self._stats_lock:
                 self._stats['connections_reused'] += 1
-            logger.debug("Reused connection from pool")
+            if self.is_verbose:
+                logger.debug("Reused connection from pool")
         except queue.Empty:
             # 池中没有可用连接，创建新的
             connection = self._create_connection()
@@ -132,7 +144,8 @@ class DatabaseManager:
         """初始化数据库连接"""
         if self.enable_thread_safety:
             # 线程安全模式：延迟初始化
-            logger.info("Database manager initialized in thread-safe mode")
+            if self.is_verbose:
+                logger.info("Database manager initialized in thread-safe mode")
         else:
             # 原有模式：立即连接
             self.connect_sync()
@@ -157,7 +170,8 @@ class DatabaseManager:
                 write_timeout=DB_CONFIG['timeout']['write'],
             )
             self.is_sync_connected = True
-            logger.info("Synchronous database connected successfully")
+            if self.is_verbose:
+                logger.info("Synchronous database connected successfully")
         except pymysql.err.OperationalError as e:
             # 检查是否是数据库不存在的错误
             if e.args[0] == 1049:  # Unknown database
@@ -178,7 +192,8 @@ class DatabaseManager:
                         write_timeout=DB_CONFIG['timeout']['write'],
                     )
                     self.is_sync_connected = True
-                    logger.info("Synchronous database connected successfully after creation")
+                    if self.is_verbose:
+                        logger.info("Synchronous database connected successfully after creation")
                 else:
                     logger.error("Failed to create database")
                     raise
@@ -194,7 +209,8 @@ class DatabaseManager:
         if self.sync_connection:
             self.sync_connection.close()
             self.is_sync_connected = False
-            logger.info("Synchronous database disconnected")
+            if self.is_verbose:
+                logger.info("Synchronous database disconnected")
 
     def create_db(self):
         """创建数据库（如果不存在）"""
@@ -238,7 +254,7 @@ class DatabaseManager:
             'model_class': model_class
         }
         
-        logger.info(f"注册自定义表: {table_name}")
+        logger.info(f"Table registered: {table_name}")
         return table_name
 
     
@@ -251,7 +267,8 @@ class DatabaseManager:
             # 创建注册的自定义表
             self._create_registered_tables()
             
-            logger.info("所有表创建完成")
+            if self.is_verbose:
+                logger.info("All tables created")
         except Exception as e:
             logger.error(f"创建表失败: {e}")
             raise
@@ -272,7 +289,7 @@ class DatabaseManager:
                         table_model = self._get_table_model(table_name)
                         table_model.create_table()
                         self.tables[table_name] = table_model
-                        logger.info(f"创建基础表: {table_name}")
+                        logger.info(f"created base table: {table_name}")
     
     def _create_registered_tables(self):
         """创建注册的自定义表"""
@@ -294,14 +311,23 @@ class DatabaseManager:
                 table_model.create_table()
                 self.tables[table_name] = table_model
                 
-                logger.info(f"创建注册表: {table_name}")
+                logger.info(f"created registered table: {table_name}")
                 
             except Exception as e:
                 logger.error(f"创建注册表 {table_name} 失败: {e}")
                 raise
     
     def get_table_instance(self, table_name: str):
-        """获取表实例"""
+        """获取表实例（线程安全）"""
+        # 如果启用线程安全，使用锁保护表缓存
+        if self.enable_thread_safety and self._tables_lock:
+            with self._tables_lock:
+                return self._get_table_instance_internal(table_name)
+        else:
+            return self._get_table_instance_internal(table_name)
+    
+    def _get_table_instance_internal(self, table_name: str):
+        """获取表实例的内部实现"""
         # 首先检查缓存
         if table_name in self.tables:
             return self.tables[table_name]
@@ -320,18 +346,10 @@ class DatabaseManager:
             return table_model
         
         # 尝试获取基础表
-        return self._get_table_model(table_name)
+        table_model = self._get_table_model(table_name)
+        self.tables[table_name] = table_model
+        return table_model
     
-    # 兼容性方法
-    def get_base_table_instance(self, table_name: str):
-        """兼容性方法：获取基础表实例"""
-        return self.get_table_instance(table_name)
-    
-    def get_strategy_table_instance(self, table_name: str):
-        """兼容性方法：获取策略表实例（已废弃）"""
-        logger.warning("get_strategy_table_instance 已废弃，请使用 get_table_instance")
-        return self.get_table_instance(table_name)
-
     def _get_table_model(self, table_name: str):
         """根据表名获取对应的模型实例"""
         import os
@@ -360,7 +378,8 @@ class DatabaseManager:
                         break
                 
                 if model_class:
-                    logger.info(f"Using custom model for table: {table_name}")
+                    if self.is_verbose:
+                        logger.info(f"Using custom model for table: {table_name}")
                     return model_class(table_name, self)
                 else:
                     logger.warning(f"Custom model file found but no valid model class in {model_file}")
@@ -370,7 +389,8 @@ class DatabaseManager:
         
         # 如果没有自定义模型或加载失败，使用 BaseTableModel
         from .db_model import BaseTableModel
-        logger.info(f"Using BaseTableModel for table: {table_name}")
+        if self.is_verbose:
+            logger.info(f"Using BaseTableModel for table: {table_name}")
         return BaseTableModel(table_name, self)
 
     def _generate_create_table_sql(self, schema_data: dict) -> str:
@@ -419,35 +439,6 @@ class DatabaseManager:
         """
         
         return create_sql
-    
-    def create_indexes(self):
-        pass
-        # """创建索引（如果不存在）"""
-        # try:
-        #     if not self.is_sync_connected:
-        #         self.connect_sync()
-            
-        #     # 为stock_index表创建索引
-        #     indexes = [
-        #         "CREATE INDEX IF NOT EXISTS idx_stock_index_market ON stock_index(market)",
-        #         "CREATE INDEX IF NOT EXISTS idx_stock_index_industry ON stock_index(industry)",
-        #         "CREATE INDEX IF NOT EXISTS idx_stock_index_type ON stock_index(type)",
-        #     ]
-            
-        #     with self.get_sync_cursor() as cursor:
-        #         for index_sql in indexes:
-        #             try:
-        #                 cursor.execute(index_sql)
-        #                 logger.info(f"Index created: {index_sql}")
-        #             except Exception as e:
-        #                 logger.warning(f"Failed to create index: {e}")
-            
-        #     return True
-            
-        # except Exception as e:
-        #     logger.error(f"Failed to create indexes: {e}")
-        #     return False
-
     
     @contextmanager
     def get_sync_cursor(self):
@@ -565,7 +556,8 @@ class DatabaseManager:
         with self._stats_lock:
             self._stats['writes_queued'] += 1
         
-        logger.debug(f"Write task queued for table {table_name}: {len(data_list)} records")
+        if self.is_verbose:
+            logger.info(f"Write task queued for table {table_name}: {len(data_list)} records")
     
     def _write_worker(self):
         """写入工作线程"""

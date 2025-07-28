@@ -43,6 +43,7 @@ class Tushare:
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, self.latest_market_open_day, self.storage)
+        print(f"jobs: {jobs}")
         self.execute_stock_kline_renew_jobs(jobs)
 
 
@@ -114,10 +115,8 @@ class Tushare:
         """
         stock_key = job_data['stock_key']
         stock_jobs = job_data['stock_jobs']
-        
+
         try:
-            logger.info(f"开始处理股票 {stock_key}，共 {len(stock_jobs)} 个周期")
-            
             # 收集该股票的所有数据
             all_stock_data = []
             
@@ -130,10 +129,7 @@ class Tushare:
                         # 转换数据格式并添加到批量数据中
                         converted_data = self.storage.convert_kline_data_for_storage(data, job)
                         all_stock_data.extend(converted_data)
-                        logger.debug(f"股票 {stock_key} {job['term']} 获取到 {len(converted_data)} 条数据")
-                    else:
-                        logger.warning(f"股票 {stock_key} {job['term']} 未获取到数据")
-                        
+
                 except Exception as e:
                     logger.error(f"获取股票 {stock_key} {job['term']} 数据失败: {e}")
                     # 继续处理其他周期，不中断整个股票的处理
@@ -141,7 +137,6 @@ class Tushare:
             # 当单只股票全部数据请求完成，存储一次
             if all_stock_data:
                 self.storage.batch_save_stock_kline(all_stock_data)
-                logger.info(f"✅ 股票 {stock_key} 处理完成，保存 {len(all_stock_data)} 条数据")
                 
                 return {
                     'stock_key': stock_key,
@@ -150,7 +145,6 @@ class Tushare:
                     'terms_processed': len(stock_jobs)
                 }
             else:
-                logger.warning(f"股票 {stock_key} 没有有效数据")
                 return {
                     'stock_key': stock_key,
                     'status': 'no_data',

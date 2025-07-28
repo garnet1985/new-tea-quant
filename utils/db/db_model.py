@@ -1,17 +1,19 @@
 from typing import Dict, List, Any, Optional
 from loguru import logger
-from .config import DB_CONFIG
+from .db_config import DB_CONFIG
 import json
 import os
 
 class BaseTableModel:
     """通用表操作模型基类"""
     
-    def __init__(self, table_name: str, table_type: str, connected_db):
+    def __init__(self, table_name: str, connected_db):
         self.db = connected_db
         self.table_name = table_name
-        self.table_type = table_type
-        self.schema_path = os.path.join(os.path.dirname(__file__), 'tables', table_type, table_name, 'schema.json')
+        # 构建schema路径 - 直接使用表名，不再区分类型
+        self.schema_path = os.path.join(os.path.dirname(__file__), 'tables', table_name, 'schema.json')
+        # 加载schema（如果存在）
+        self.schema = self.load_table_schema()
         
     
     def load_table_name(self) -> str:
@@ -26,16 +28,19 @@ class BaseTableModel:
         sql = self.to_create_table_sql(schema_data)
         
         try:
-            with self.db.sync_connection.cursor() as cursor:
+            with self.db.get_sync_cursor() as cursor:
                 cursor.execute(sql)
                 logger.info(f"Table '{self.table_name}' is ready")
-            self.db.sync_connection.commit()
             return True
         except Exception as e:
             logger.error(f"Failed to create table {self.table_name}: {e}")
             return False
 
     def load_table_schema(self):
+        # 如果已经有schema（比如注册表），直接返回
+        if hasattr(self, 'schema') and self.schema:
+            return self.schema
+            
         if not os.path.exists(self.schema_path):
             logger.error(f"Schema file not found: {self.schema_path}")
             return None
@@ -184,7 +189,7 @@ class BaseTableModel:
         """更新数据（别名方法）"""
         return self.update_one(data, condition, params)
     
-    def upsert_one(self, data: Dict[str, Any], unique_keys: List[str]) -> int:
+    def replace_one(self, data: Dict[str, Any], unique_keys: List[str]) -> int:
         """插入或更新单条数据"""
         try:
             # 构建ON DUPLICATE KEY UPDATE子句
@@ -208,16 +213,31 @@ class BaseTableModel:
             return 0
     
     def replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
-        """批量插入或更新数据"""
+        """
+        批量插入或更新数据（支持线程安全）
+        
+        对于大数据量，自动使用异步写入队列
+        对于小数据量，直接执行
+        """
         if not data_list:
             return 0
         
-        max_retries = 3
-        retry_count = 0
-        
-        while retry_count < max_retries:
+        # 检查数据库管理器是否支持线程安全
+        if hasattr(self.db, 'enable_thread_safety') and self.db.enable_thread_safety:
+            # 对于大数据量，使用异步写入队列
+            if len(data_list) > 1000:
+                logger.info(f"Large dataset detected ({len(data_list)} records), using async write queue")
+                
+                # 定义回调函数
+                def write_callback(result):
+                    logger.info(f"Async write completed for {self.table_name}: {result} records")
+                
+                # 加入写入队列
+                self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)
+                return len(data_list)
+            
+            # 对于小数据量，使用线程安全的批量写入
             try:
-                # 构建ON DUPLICATE KEY UPDATE子句
                 update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
                 
                 columns = list(data_list[0].keys())
@@ -226,34 +246,55 @@ class BaseTableModel:
                 
                 values = [tuple(data[col] for col in columns) for data in data_list]
                 
-                with self.db.get_sync_cursor() as cursor:
-                    cursor.executemany(query, values)
-                    self.db.sync_connection.commit()
-                    return len(data_list)
-                    
-            except Exception as e:
-                retry_count += 1
-                error_msg = str(e)
+                return self.db.execute_many(query, values)
                 
-                # 如果是连接相关错误，尝试重试
-                if ("Packet sequence number wrong" in error_msg or 
-                    "settimeout" in error_msg or 
-                    "(0, '')" in error_msg):
+            except Exception as e:
+                logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
+                return 0
+        else:
+            # 原有模式：使用重试机制
+            max_retries = 3
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                try:
+                    # 构建ON DUPLICATE KEY UPDATE子句
+                    update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
                     
-                    if retry_count < max_retries:
-                        logger.warning(f"Database connection error, retrying ({retry_count}/{max_retries}): {e}")
-                        import time
-                        time.sleep(0.1 * retry_count)  # 指数退避
-                        continue
+                    columns = list(data_list[0].keys())
+                    placeholders = ', '.join(['%s'] * len(columns))
+                    query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+                    
+                    values = [tuple(data[col] for col in columns) for data in data_list]
+                    
+                    with self.db.get_sync_cursor() as cursor:
+                        cursor.executemany(query, values)
+                        cursor.connection.commit()
+                        return len(data_list)
+                        
+                except Exception as e:
+                    retry_count += 1
+                    error_msg = str(e)
+                    
+                    # 如果是连接相关错误，尝试重试
+                    if ("Packet sequence number wrong" in error_msg or 
+                        "settimeout" in error_msg or 
+                        "(0, '')" in error_msg):
+                        
+                        if retry_count < max_retries:
+                            logger.warning(f"Database connection error, retrying ({retry_count}/{max_retries}): {e}")
+                            import time
+                            time.sleep(0.1 * retry_count)  # 指数退避
+                            continue
+                        else:
+                            logger.error(f"Failed to batch upsert data in {self.table_name} after {max_retries} retries: {e}")
+                            return 0
                     else:
-                        logger.error(f"Failed to batch upsert data in {self.table_name} after {max_retries} retries: {e}")
+                        # 其他错误，不重试
+                        logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
                         return 0
-                else:
-                    # 其他错误，不重试
-                    logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
-                    return 0
-        
-        return 0
+            
+            return 0
     
     def delete_one(self, condition: str, params: tuple = ()) -> int:
         """删除单条数据"""
@@ -372,8 +413,19 @@ class BaseTableModel:
         try:
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(query, params)
-                self.db.sync_connection.commit()
+                cursor.connection.commit()
                 return cursor.rowcount
         except Exception as e:
             logger.error(f"Failed to execute raw update: {e}")
             return 0
+    
+    def wait_for_writes(self):
+        """等待所有异步写入完成"""
+        if hasattr(self.db, 'wait_for_writes'):
+            self.db.wait_for_writes()
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """获取数据库统计信息"""
+        if hasattr(self.db, 'get_stats'):
+            return self.db.get_stats()
+        return {}

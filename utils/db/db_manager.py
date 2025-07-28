@@ -1,22 +1,23 @@
 """
-Unified MySQL Database Manager
-支持同步和异步操作
+统一的MySQL数据库管理器
+支持同步和异步操作，默认线程安全
 """
-import json
 import pymysql
-import asyncio
-from typing import Optional, Dict, List, Any
+import threading
+import time
+import queue
+from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
 from loguru import logger
 
-from .config import DB_CONFIG, TABLES, STRATEGY_TABLES, TABLE_SCHEMA_PATH
+from .db_config import DB_CONFIG
 
 
 class DatabaseManager:
-    """统一的MySQL数据库管理器 - 支持同步和异步操作"""
+    """统一的MySQL数据库管理器 - 支持同步和异步操作，默认线程安全"""
     
-    def __init__(self):
-        # 同步连接
+    def __init__(self, enable_thread_safety: bool = True):
+        # 原有属性（保持兼容性）
         self.sync_connection = None
         self.is_sync_connected = False
         
@@ -24,19 +25,120 @@ class DatabaseManager:
         self.async_pool = None
         self.is_async_initialized = False
 
-        self.tables = {
-            'base': {},
-            'strategy': {},
-        }
+        # 线程安全属性
+        self.enable_thread_safety = enable_thread_safety
+        self._local = threading.local() if enable_thread_safety else None
+        self._connection_pool = queue.Queue(maxsize=10) if enable_thread_safety else None
+        self._write_queue = queue.Queue() if enable_thread_safety else None
+        self._write_thread = None
+        self._write_thread_running = False
         
+        # 表缓存 - 简化为单一字典
+        self.tables = {}
+        
+        # 注册的自定义表
+        self.registered_tables = {}
+        
+        # 统计信息
+        self._stats = {
+            'connections_created': 0,
+            'connections_reused': 0,
+            'writes_queued': 0,
+            'writes_completed': 0,
+            'writes_failed': 0,
+            'batch_writes': 0
+        }
+        self._stats_lock = threading.Lock()
+        
+        # 启动写入线程（如果启用线程安全）
+        if enable_thread_safety:
+            self._start_write_thread()
+        
+    # ==================== 线程安全相关方法 ====================
+    
+    def _start_write_thread(self):
+        """启动写入线程"""
+        if self._write_thread is None or not self._write_thread.is_alive():
+            self._write_thread_running = True
+            self._write_thread = threading.Thread(target=self._write_worker, daemon=True)
+            self._write_thread.start()
+            logger.info("Database write thread started")
+    
+    def _stop_write_thread(self):
+        """停止写入线程"""
+        self._write_thread_running = False
+        if self._write_thread and self._write_thread.is_alive():
+            self._write_thread.join(timeout=5)
+            logger.info("Database write thread stopped")
+    
+    def _create_connection(self) -> pymysql.Connection:
+        """创建新的数据库连接"""
+        try:
+            connection = pymysql.connect(
+                host=DB_CONFIG['base']['host'],
+                user=DB_CONFIG['base']['user'],
+                password=DB_CONFIG['base']['password'],
+                database=DB_CONFIG['base']['database'],
+                port=DB_CONFIG['base']['port'],
+                charset=DB_CONFIG['base']['charset'],
+                autocommit=DB_CONFIG['base']['autocommit'],
+                max_allowed_packet=DB_CONFIG['performance']['max_allowed_packet'],
+                connect_timeout=DB_CONFIG['timeout']['connection'],
+                read_timeout=DB_CONFIG['timeout']['read'],
+                write_timeout=DB_CONFIG['timeout']['write'],
+            )
+            
+            with self._stats_lock:
+                self._stats['connections_created'] += 1
+            
+            logger.debug(f"Created new database connection (total: {self._stats['connections_created']})")
+            return connection
+            
+        except Exception as e:
+            logger.error(f"Failed to create database connection: {e}")
+            raise
+    
+    def _get_thread_safe_connection(self) -> pymysql.Connection:
+        """获取线程安全的数据库连接"""
+        # 检查线程本地连接
+        if hasattr(self._local, 'connection'):
+            try:
+                self._local.connection.ping(reconnect=True)
+                return self._local.connection
+            except Exception as e:
+                logger.warning(f"Thread local connection invalid, creating new one: {e}")
+                try:
+                    self._local.connection.close()
+                except:
+                    pass
+        
+        # 尝试从连接池获取
+        try:
+            connection = self._connection_pool.get_nowait()
+            with self._stats_lock:
+                self._stats['connections_reused'] += 1
+            logger.debug("Reused connection from pool")
+        except queue.Empty:
+            # 池中没有可用连接，创建新的
+            connection = self._create_connection()
+        
+        # 存储到线程本地
+        self._local.connection = connection
+        return connection
+    
     # ==================== 同步连接方法 ====================
 
     def initialize(self):
-        """初始化同步数据库连接"""
-        self.connect_sync()
-        self.create_db()
-        self.create_tables()
-        self.create_indexes()
+        """初始化数据库连接"""
+        if self.enable_thread_safety:
+            # 线程安全模式：延迟初始化
+            logger.info("Database manager initialized in thread-safe mode")
+        else:
+            # 原有模式：立即连接
+            self.connect_sync()
+            self.create_db()
+            self.create_tables()
+            self.create_indexes()
     
     def connect_sync(self):
         """建立同步数据库连接"""
@@ -117,49 +219,133 @@ class DatabaseManager:
             logger.error(f"Failed to create database: {e}")
             return False 
 
+    def register_table(self, table_name: str, table_schema: dict, model_class=None):
+        """
+        注册自定义表
+        
+        Args:
+            table_name: 表名（会自动添加 cust_ 前缀）
+            table_schema: 表结构定义（字典格式）
+            model_class: 自定义模型类（可选，继承自BaseTableModel）
+        """
+        # 确保表名有 cust_ 前缀
+        if not table_name.startswith('cust_'):
+            table_name = f'cust_{table_name}'
+        
+        # 存储表信息
+        self.registered_tables[table_name] = {
+            'schema': table_schema,
+            'model_class': model_class
+        }
+        
+        logger.info(f"注册自定义表: {table_name}")
+        return table_name
+
     
     def create_tables(self):
-        """创建基础表（如果不存在）"""
+        """创建所有表（基础表和注册表）"""
+        try:
+            # 创建基础表
+            self._create_base_tables()
             
-        # 使用schema驱动的表创建
-        base_tables = TABLES
-        strategy_tables = STRATEGY_TABLES
-        
-        for table_name in base_tables:
-            table_model = self._get_table_model(table_name, 'base')
-            table_model.create_table()
-            self.tables['base'][table_name] = table_model
-
-        
-        for table_name in strategy_tables:
-            table_model = self._get_table_model(table_name, 'strategy')
-            table_model.create_table()
-            self.tables['strategy'][table_name] = table_model
+            # 创建注册的自定义表
+            self._create_registered_tables()
+            
+            logger.info("所有表创建完成")
+        except Exception as e:
+            logger.error(f"创建表失败: {e}")
+            raise
     
+    def _create_base_tables(self):
+        """创建基础表"""
+        import os
+        
+        # 获取 tables 目录下的所有表
+        tables_dir = os.path.join(os.path.dirname(__file__), 'tables')
+        if os.path.exists(tables_dir):
+            for table_name in os.listdir(tables_dir):
+                table_path = os.path.join(tables_dir, table_name)
+                if os.path.isdir(table_path):
+                    # 检查是否有 schema.json
+                    schema_file = os.path.join(table_path, 'schema.json')
+                    if os.path.exists(schema_file):
+                        table_model = self._get_table_model(table_name)
+                        table_model.create_table()
+                        self.tables[table_name] = table_model
+                        logger.info(f"创建基础表: {table_name}")
+    
+    def _create_registered_tables(self):
+        """创建注册的自定义表"""
+        for table_name, table_info in self.registered_tables.items():
+            try:
+                # 创建自定义表模型
+                if table_info['model_class']:
+                    # 使用自定义模型类
+                    table_model = table_info['model_class'](table_name, self)
+                else:
+                    # 使用基础模型类
+                    from .db_model import BaseTableModel
+                    table_model = BaseTableModel(table_name, self)
+                
+                # 设置schema
+                table_model.schema = table_info['schema']
+                
+                # 创建表
+                table_model.create_table()
+                self.tables[table_name] = table_model
+                
+                logger.info(f"创建注册表: {table_name}")
+                
+            except Exception as e:
+                logger.error(f"创建注册表 {table_name} 失败: {e}")
+                raise
+    
+    def get_table_instance(self, table_name: str):
+        """获取表实例"""
+        # 首先检查缓存
+        if table_name in self.tables:
+            return self.tables[table_name]
+        
+        # 检查是否是注册表
+        if table_name in self.registered_tables:
+            table_info = self.registered_tables[table_name]
+            if table_info['model_class']:
+                table_model = table_info['model_class'](table_name, self)
+            else:
+                from .db_model import BaseTableModel
+                table_model = BaseTableModel(table_name, self)
+            
+            table_model.schema = table_info['schema']
+            self.tables[table_name] = table_model
+            return table_model
+        
+        # 尝试获取基础表
+        return self._get_table_model(table_name)
+    
+    # 兼容性方法
     def get_base_table_instance(self, table_name: str):
-        return self.tables['base'][table_name]
-
+        """兼容性方法：获取基础表实例"""
+        return self.get_table_instance(table_name)
+    
     def get_strategy_table_instance(self, table_name: str):
-        return self.tables['strategy'][table_name]  
+        """兼容性方法：获取策略表实例（已废弃）"""
+        logger.warning("get_strategy_table_instance 已废弃，请使用 get_table_instance")
+        return self.get_table_instance(table_name)
 
-    def get_table_instance(self, table_name: str, table_type: str):
-        """获取表实例，使用动态模型加载"""
-        return self._get_table_model(table_name, table_type)
-
-    def _get_table_model(self, table_name: str, table_type: str):
-        """根据表名和类型获取对应的模型实例"""
+    def _get_table_model(self, table_name: str):
+        """根据表名获取对应的模型实例"""
         import os
         import importlib.util
         
         # 构建表目录路径
-        table_dir = os.path.join(os.path.dirname(__file__), 'tables', table_type, table_name)
+        table_dir = os.path.join(os.path.dirname(__file__), 'tables', table_name)
         model_file = os.path.join(table_dir, 'model.py')
         
         # 检查是否存在自定义模型文件
         if os.path.exists(model_file):
             try:
                 # 动态导入自定义模型
-                spec = importlib.util.spec_from_file_location(f"{table_type}_{table_name}_model", model_file)
+                spec = importlib.util.spec_from_file_location(f"{table_name}_model", model_file)
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
                 
@@ -175,7 +361,7 @@ class DatabaseManager:
                 
                 if model_class:
                     logger.info(f"Using custom model for table: {table_name}")
-                    return model_class(table_name, table_type, self)
+                    return model_class(table_name, self)
                 else:
                     logger.warning(f"Custom model file found but no valid model class in {model_file}")
                     
@@ -185,7 +371,7 @@ class DatabaseManager:
         # 如果没有自定义模型或加载失败，使用 BaseTableModel
         from .db_model import BaseTableModel
         logger.info(f"Using BaseTableModel for table: {table_name}")
-        return BaseTableModel(table_name, table_type, self)
+        return BaseTableModel(table_name, self)
 
     def _generate_create_table_sql(self, schema_data: dict) -> str:
         """根据schema数据生成CREATE TABLE SQL语句"""
@@ -265,262 +451,284 @@ class DatabaseManager:
     
     @contextmanager
     def get_sync_cursor(self):
-        """获取同步数据库游标的上下文管理器"""
-        if not self.is_sync_connected or self.sync_connection is None:
-            self.connect_sync()
-        
-        # 检查连接是否有效
-        try:
-            self.sync_connection.ping(reconnect=True)
-        except Exception as e:
-            logger.warning(f"Database connection lost, reconnecting: {e}")
-            self.connect_sync()
-        
-        cursor = None
-        try:
-            cursor = self.sync_connection.cursor(pymysql.cursors.DictCursor)
-            yield cursor
-        except Exception as e:
-            logger.error(f"Synchronous database cursor error: {e}")
-            if self.sync_connection:
+        """获取同步数据库游标的上下文管理器（支持线程安全）"""
+        if self.enable_thread_safety:
+            # 线程安全模式
+            connection = self._get_thread_safe_connection()
+            cursor = None
+            
+            try:
+                cursor = connection.cursor(pymysql.cursors.DictCursor)
+                yield cursor
+            except Exception as e:
+                logger.error(f"Database cursor error: {e}")
                 try:
-                    self.sync_connection.rollback()
+                    connection.rollback()
                 except:
                     pass
-            # 如果是连接相关错误，尝试重连
-            if "Packet sequence number wrong" in str(e) or "settimeout" in str(e):
-                logger.warning("Connection error detected, will reconnect on next use")
-                self.is_sync_connected = False
-                self.sync_connection = None
-            raise
-        finally:
-            if cursor:
-                try:
-                    cursor.close()
-                except:
-                    pass
+                raise
+            finally:
+                if cursor:
+                    try:
+                        cursor.close()
+                    except:
+                        pass
+        else:
+            # 原有模式
+            if not self.is_sync_connected or self.sync_connection is None:
+                self.connect_sync()
+            
+            # 检查连接是否有效
+            try:
+                self.sync_connection.ping(reconnect=True)
+            except Exception as e:
+                logger.warning(f"Database connection lost, reconnecting: {e}")
+                self.connect_sync()
+            
+            cursor = None
+            try:
+                cursor = self.sync_connection.cursor(pymysql.cursors.DictCursor)
+                yield cursor
+            except Exception as e:
+                logger.error(f"Synchronous database cursor error: {e}")
+                if self.sync_connection:
+                    try:
+                        self.sync_connection.rollback()
+                    except:
+                        pass
+                # 如果是连接相关错误，尝试重连
+                if "Packet sequence number wrong" in str(e) or "settimeout" in str(e):
+                    logger.warning("Connection error detected, will reconnect on next use")
+                    self.is_sync_connected = False
+                    self.sync_connection = None
+                raise
+            finally:
+                if cursor:
+                    try:
+                        cursor.close()
+                    except:
+                        pass
     
     def execute_sync_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-        """执行同步查询语句"""
+        """执行同步查询语句（支持线程安全）"""
         with self.get_sync_cursor() as cursor:
             cursor.execute(query, params)
             return cursor.fetchall()
     
-    # def execute_sync_many(self, query: str, params: List[tuple]) -> int:
-    #     """批量执行同步SQL语句"""
-    #     with self.get_sync_cursor() as cursor:
-    #         affected_rows = cursor.executemany(query, params)
-    #         self.sync_connection.commit()
-    #         return affected_rows
+    def execute_sync_update(self, query: str, params: Optional[tuple] = None) -> int:
+        """执行同步更新语句（支持线程安全）"""
+        with self.get_sync_cursor() as cursor:
+            affected_rows = cursor.execute(query, params)
+            cursor.connection.commit()
+            return affected_rows
     
-    # def execute_sync_update(self, query: str, params: Optional[tuple] = None) -> int:
-    #     """执行同步更新语句"""
-    #     with self.get_sync_cursor() as cursor:
-    #         affected_rows = cursor.execute(query, params)
-    #         self.sync_connection.commit()
-    #         return affected_rows
-    
-    # def insert_sync_data(self, table: str, data: Dict[str, Any]) -> int:
-    #     """同步插入数据"""
-    #     columns = ', '.join(data.keys())
-    #     placeholders = ', '.join(['%s'] * len(data))
-    #     query = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
+    def execute_many(self, query: str, params_list: List[tuple], batch_size: int = 1000) -> int:
+        """批量执行SQL语句（线程安全）"""
+        if not params_list:
+            return 0
         
-    #     return self.execute_sync_update(query, tuple(data.values()))
-    
-    # def insert_sync_many(self, table: str, data_list: List[Dict[str, Any]]) -> int:
-    #     """同步批量插入数据"""
-    #     if not data_list:
-    #         return 0
+        total_affected = 0
+        
+        # 分批处理
+        for i in range(0, len(params_list), batch_size):
+            batch = params_list[i:i + batch_size]
             
-    #     columns = list(data_list[0].keys())
-    #     placeholders = ', '.join(['%s'] * len(columns))
-    #     query = f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
+            with self.get_sync_cursor() as cursor:
+                affected_rows = cursor.executemany(query, batch)
+                cursor.connection.commit()
+                total_affected += affected_rows
+                
+                logger.debug(f"Batch write completed: {len(batch)} records, affected: {affected_rows}")
         
-    #     values = [tuple(data[col] for col in columns) for data in data_list]
-    #     return self.execute_sync_many(query, values)
-    
-    # # ==================== 异步连接方法 ====================
-    
-    # async def initialize_async(self):
-    #     """初始化异步数据库连接池"""
-    #     try:
-    #         # 创建异步连接池
-    #         self.async_pool = await self._create_async_connection_pool()
-    #         self.is_async_initialized = True
-    #         logger.info("Asynchronous database connection pool initialized successfully")
-    #     except Exception as e:
-    #         logger.error(f"Failed to initialize asynchronous database connection pool: {e}")
-    #         raise
-    
-    # async def _create_async_connection_pool(self):
-    #     """创建异步连接池"""
-    #     return await pymysql.connect(
-    #         host=DB_CONFIG['base']['host'],
-    #         user=DB_CONFIG['base']['user'],
-    #         password=DB_CONFIG['base']['password'],
-    #         database=DB_CONFIG['base']['database'],
-    #         port=DB_CONFIG['base']['port'],
-    #         charset=DB_CONFIG['base']['charset'],
-    #         autocommit=DB_CONFIG['base']['autocommit'],
-    #         max_allowed_packet=16777216,  # 16MB
-    #         connect_timeout=DB_CONFIG['pool']['connection_timeout'],
-    #         read_timeout=DB_CONFIG['pool']['read_timeout'],
-    #         write_timeout=DB_CONFIG['pool']['write_timeout'],
-    #     )
-    
-    # async def get_async_connection(self):
-    #     """获取异步数据库连接"""
-    #     if not self.is_async_initialized:
-    #         await self.initialize_async()
-    #     return self.async_pool
-    
-    # async def execute_async_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-    #     """执行异步查询语句"""
-    #     connection = await self.get_async_connection()
-    #     async with connection.cursor(pymysql.cursors.DictCursor) as cursor:
-    #         await cursor.execute(query, params)
-    #         result = await cursor.fetchall()
-    #         return result
-    
-    # async def execute_async_update(self, query: str, params: Optional[tuple] = None) -> int:
-    #     """执行异步更新语句"""
-    #     connection = await self.get_async_connection()
-    #     async with connection.cursor() as cursor:
-    #         affected_rows = await cursor.execute(query, params)
-    #         await connection.commit()
-    #         return affected_rows
-    
-    # async def insert_async_data(self, table: str, data: Dict[str, Any]) -> int:
-    #     """异步插入数据"""
-    #     columns = ', '.join(data.keys())
-    #     placeholders = ', '.join(['%s'] * len(data))
-    #     query = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
+        with self._stats_lock:
+            self._stats['batch_writes'] += 1
         
-    #     return await self.execute_async_update(query, tuple(data.values()))
+        return total_affected
     
-    # ==================== 通用工具方法 ====================
+    def queue_write(self, table_name: str, data_list: List[Dict[str, Any]], 
+                   unique_keys: List[str], callback: Optional[Callable] = None):
+        """将写入任务加入队列（异步写入）"""
+        if not self.enable_thread_safety:
+            logger.warning("Thread safety not enabled, falling back to sync write")
+            return self._execute_batch_write(table_name, data_list, unique_keys)
+        
+        write_task = {
+            'table_name': table_name,
+            'data_list': data_list,
+            'unique_keys': unique_keys,
+            'callback': callback,
+            'timestamp': time.time()
+        }
+        
+        self._write_queue.put(write_task)
+        
+        with self._stats_lock:
+            self._stats['writes_queued'] += 1
+        
+        logger.debug(f"Write task queued for table {table_name}: {len(data_list)} records")
     
-    # def table_exists_sync(self, table_name: str) -> bool:
-    #     """同步检查表是否存在"""
-    #     query = """
-    #     SELECT COUNT(*) as count 
-    #     FROM information_schema.tables 
-    #     WHERE table_schema = %s AND table_name = %s
-    #     """
-    #     result = self.execute_sync_query(query, (DB_CONFIG['base']['database'], table_name))
-    #     return result[0]['count'] > 0
+    def _write_worker(self):
+        """写入工作线程"""
+        logger.info("Database write worker started")
+        
+        while self._write_thread_running:
+            try:
+                # 获取写入任务
+                try:
+                    write_task = self._write_queue.get(timeout=1)
+                except queue.Empty:
+                    continue
+                
+                # 执行写入
+                try:
+                    result = self._execute_batch_write(
+                        write_task['table_name'],
+                        write_task['data_list'],
+                        write_task['unique_keys']
+                    )
+                    
+                    # 调用回调函数
+                    if write_task['callback']:
+                        try:
+                            write_task['callback'](result)
+                        except Exception as e:
+                            logger.error(f"Write callback error: {e}")
+                    
+                    with self._stats_lock:
+                        self._stats['writes_completed'] += 1
+                    
+                    logger.debug(f"Write task completed for {write_task['table_name']}: {result} records")
+                    
+                except Exception as e:
+                    logger.error(f"Write task failed for {write_task['table_name']}: {e}")
+                    with self._stats_lock:
+                        self._stats['writes_failed'] += 1
+                
+                finally:
+                    self._write_queue.task_done()
+                    
+            except Exception as e:
+                logger.error(f"Write worker error: {e}")
+                time.sleep(0.1)
+        
+        logger.info("Database write worker stopped")
     
-    # async def table_exists_async(self, table_name: str) -> bool:
-    #     """异步检查表是否存在"""
-    #     query = """
-    #     SELECT COUNT(*) as count 
-    #     FROM information_schema.tables 
-    #     WHERE table_schema = %s AND table_name = %s
-    #     """
-    #     result = await self.execute_async_query(query, (DB_CONFIG['base']['database'], table_name))
-    #     return result[0]['count'] > 0
+    def _execute_batch_write(self, table_name: str, data_list: List[Dict[str, Any]], 
+                           unique_keys: List[str]) -> int:
+        """执行批量写入"""
+        if not data_list:
+            return 0
+        
+        # 构建SQL语句
+        update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
+        columns = list(data_list[0].keys())
+        placeholders = ', '.join(['%s'] * len(columns))
+        query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
+        
+        # 准备数据
+        values = [tuple(data[col] for col in columns) for data in data_list]
+        
+        # 分批执行
+        return self.execute_many(query, values)
     
-    # def get_table_info_sync(self, table_name: str) -> List[Dict[str, Any]]:
-    #     """同步获取表结构信息"""
-    #     query = f"DESCRIBE {table_name}"
-    #     return self.execute_sync_query(query)
+    def wait_for_writes(self, timeout: Optional[float] = None):
+        """等待所有写入任务完成"""
+        if not self.enable_thread_safety:
+            return
+        
+        try:
+            self._write_queue.join()
+            logger.info("All write tasks completed")
+        except Exception as e:
+            logger.error(f"Error waiting for writes: {e}")
     
-    # async def get_table_info_async(self, table_name: str) -> List[Dict[str, Any]]:
-    #     """异步获取表结构信息"""
-    #     query = f"DESCRIBE {table_name}"
-    #     return await self.execute_async_query(query)
+    def get_stats(self) -> Dict[str, Any]:
+        """获取统计信息"""
+        with self._stats_lock:
+            stats = self._stats.copy()
+        
+        if self.enable_thread_safety:
+            stats['queue_size'] = self._write_queue.qsize()
+            stats['pool_size'] = self._connection_pool.qsize()
+        
+        return stats
     
-    # def get_table_count_sync(self, table_name: str, condition: str = "1=1", params: tuple = ()) -> int:
-    #     """同步获取表记录数"""
-    #     query = f"SELECT COUNT(*) as count FROM {table_name} WHERE {condition}"
-    #     result = self.execute_sync_query(query, params)
-    #     return result[0]['count'] if result else 0
+    def close(self):
+        """关闭数据库管理器"""
+        logger.info("Closing DatabaseManager...")
+        
+        # 停止写入线程
+        if self.enable_thread_safety:
+            self._stop_write_thread()
+            
+            # 等待写入完成
+            self.wait_for_writes(timeout=10)
+            
+            # 关闭所有连接
+            while not self._connection_pool.empty():
+                try:
+                    connection = self._connection_pool.get_nowait()
+                    connection.close()
+                except:
+                    pass
+            
+            # 关闭线程本地连接
+            if hasattr(self._local, 'connection'):
+                try:
+                    self._local.connection.close()
+                except:
+                    pass
+        
+        # 关闭原有连接
+        if self.sync_connection:
+            try:
+                self.sync_connection.close()
+            except:
+                pass
+        
+        logger.info("DatabaseManager closed")
     
-    # async def get_table_count_async(self, table_name: str, condition: str = "1=1", params: tuple = ()) -> int:
-    #     """异步获取表记录数"""
-    #     query = f"SELECT COUNT(*) as count FROM {table_name} WHERE {condition}"
-    #     result = await self.execute_async_query(query, params)
-    #     return result[0]['count'] if result else 0
+    # ==================== 兼容性方法 ====================
     
-    # def execute_sync_transaction(self, queries: List[tuple]) -> bool:
-    #     """执行同步事务"""
-    #     try:
-    #         with self.get_sync_cursor() as cursor:
-    #             for query, params in queries:
-    #                 cursor.execute(query, params)
-    #             self.sync_connection.commit()
-    #             return True
-    #     except Exception as e:
-    #         logger.error(f"Synchronous transaction failed: {e}")
-    #         self.sync_connection.rollback()
-    #         return False
+    def connect(self):
+        """兼容性方法：建立同步连接"""
+        return self.connect_sync()
     
-    # async def execute_async_transaction(self, queries: List[tuple]) -> bool:
-    #     """执行异步事务"""
-    #     try:
-    #         connection = await self.get_async_connection()
-    #         async with connection.cursor() as cursor:
-    #             for query, params in queries:
-    #                 await cursor.execute(query, params)
-    #             await connection.commit()
-    #             return True
-    #     except Exception as e:
-    #         logger.error(f"Asynchronous transaction failed: {e}")
-    #         await connection.rollback()
-    #         return False
+    def disconnect(self):
+        """兼容性方法：断开同步连接"""
+        return self.disconnect_sync()
     
-    # # ==================== 兼容性方法 ====================
+    @contextmanager
+    def get_cursor(self):
+        """兼容性方法：获取同步游标"""
+        return self.get_sync_cursor()
     
-    # # 为了保持向后兼容，提供一些别名方法
-    # def connect(self):
-    #     """兼容性方法：建立同步连接"""
-    #     return self.connect_sync()
+    def execute_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
+        """兼容性方法：执行同步查询"""
+        return self.execute_sync_query(query, params)
     
-    # def disconnect(self):
-    #     """兼容性方法：断开同步连接"""
-    #     return self.disconnect_sync()
-    
-    # @contextmanager
-    # def get_cursor(self):
-    #     """兼容性方法：获取同步游标"""
-    #     return self.get_sync_cursor()
-    
-    # def execute_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-    #     """兼容性方法：执行同步查询"""
-    #     return self.execute_sync_query(query, params)
-    
-    # def execute_many(self, query: str, params: List[tuple]) -> int:
-    #     """兼容性方法：批量执行同步SQL"""
-    #     return self.execute_sync_many(query, params)
-    
-    # def execute_update(self, query: str, params: Optional[tuple] = None) -> int:
-    #     """兼容性方法：执行同步更新"""
-    #     return self.execute_sync_update(query, params)
-    
-    # def insert_data(self, table: str, data: Dict[str, Any]) -> int:
-    #     """兼容性方法：同步插入数据"""
-    #     return self.insert_sync_data(table, data)
-    
-    # def insert_many(self, table: str, data_list: List[Dict[str, Any]]) -> int:
-    #     """兼容性方法：同步批量插入数据"""
-    #     return self.insert_sync_many(table, data_list)
-    
-    # # ==================== 数据库管理方法 ====================
-    
+    def execute_update(self, query: str, params: Optional[tuple] = None) -> int:
+        """兼容性方法：执行同步更新"""
+        return self.execute_sync_update(query, params)
     
 
-# 全局数据库管理器实例
-db_manager = DatabaseManager()
+# 全局数据库管理器实例（默认启用线程安全）
+db_manager = DatabaseManager(enable_thread_safety=True)
 
 
 def get_db_manager() -> DatabaseManager:
-    """获取数据库管理器实例"""
+    """获取数据库管理器实例（默认线程安全）"""
     return db_manager
 
 
 def get_sync_db_manager() -> DatabaseManager:
     """获取同步数据库管理器实例（兼容性函数）"""
-    if not db_manager.is_sync_connected:
-        db_manager.connect_sync()
-    return db_manager 
+    return db_manager
+
+
+def close_db_manager():
+    """关闭数据库管理器"""
+    global db_manager
+    if db_manager:
+        db_manager.close()
+        db_manager = None 

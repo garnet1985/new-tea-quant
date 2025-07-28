@@ -1,8 +1,8 @@
 from utils.db.db_model import BaseTableModel
 
 class MetaInfoModel(BaseTableModel):
-    def __init__(self, table_name: str, table_type: str, connected_db):
-        super().__init__(table_name, table_type, connected_db)
+    def __init__(self, table_name: str, connected_db):
+        super().__init__(table_name, connected_db)
 
     def toDict(self, info):
         # info is a string like "key1=value1|key2=value2|key3=value3"

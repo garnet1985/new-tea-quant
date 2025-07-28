@@ -10,8 +10,8 @@ from loguru import logger
 class StockIndexModel(BaseTableModel):
     """股票指数表自定义模型"""
     
-    def __init__(self, table_name: str, table_type: str, connected_db):
-        super().__init__(table_name, table_type, connected_db)
+    def __init__(self, table_name: str, connected_db):
+        super().__init__(table_name, connected_db)
     
     def get_stock_by_code(self, code: str) -> Optional[Dict[str, Any]]:
         """根据股票代码获取股票信息"""

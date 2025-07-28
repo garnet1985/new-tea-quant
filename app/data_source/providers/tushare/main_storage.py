@@ -8,8 +8,9 @@ from loguru import logger
 class TushareStorage:
     def __init__(self, connected_db):
         self.db = connected_db
-        self.stock_index_table = self.db.get_table_instance('stock_index', 'base')
-        self.stock_kline_table = self.db.get_table_instance('stock_kline', 'base')
+        self.meta_info = self.db.get_table_instance('meta_info')
+        self.stock_index_table = self.db.get_table_instance('stock_index')
+        self.stock_kline_table = self.db.get_table_instance('stock_kline')
 
     def save_stock_index(self, data):
         self.stock_index_table.clear()
@@ -55,11 +56,7 @@ class TushareStorage:
     def get_stock_index(self):
         return self.stock_index_table.get_all()
 
-    def get_all_latest_kline_dates(self) -> dict:
-        """
-        一次性获取所有股票所有周期的最新数据日期
-        返回格式: {code: {term: latest_date}}
-        """
+    def get_most_recent_stock_kline_record_dates(self) -> dict:
         try:
             # 使用SQL聚合查询获取所有股票所有周期的最新日期
             query = """
@@ -156,3 +153,56 @@ class TushareStorage:
         except Exception as e:
             logger.error(f"保存K线数据失败: {e}")
             raise
+    
+    def batch_save_stock_kline(self, data_list, stock_key):
+        """
+        批量保存股票K线数据到数据库
+        
+        Args:
+            data_list: 数据列表，每个元素都是字典格式
+            stock_key: 股票标识 (如 "000001.SZ")
+        """
+        if not data_list:
+            logger.warning(f"股票 {stock_key} 没有数据需要保存")
+            return
+        
+        try:
+            # 验证数据格式
+            valid_data = []
+            for item in data_list:
+                # 验证必填字段
+                required_fields = ['code', 'market', 'term', 'date', 'open', 'close', 'highest', 'lowest']
+                missing_fields = [field for field in required_fields if not item.get(field)]
+                
+                if missing_fields:
+                    logger.warning(f"跳过缺少必填字段的数据: {missing_fields}")
+                    continue
+                
+                valid_data.append(item)
+            
+            if valid_data:
+                # 统计不同term的数据量
+                term_counts = {}
+                for item in valid_data:
+                    term = item['term']
+                    term_counts[term] = term_counts.get(term, 0) + 1
+                
+                logger.info(f"批量保存股票 {stock_key} 的 {len(valid_data)} 条K线数据")
+                for term, count in term_counts.items():
+                    logger.info(f"  - {term}: {count} 条")
+                
+                # 批量插入数据
+                self.stock_kline_table.insert(valid_data)
+                logger.info(f"✅ 股票 {stock_key} 批量保存成功")
+            else:
+                logger.warning(f"股票 {stock_key} 没有有效数据需要保存")
+                
+        except Exception as e:
+            logger.error(f"批量保存股票 {stock_key} K线数据失败: {e}")
+            raise
+
+    def save_meta_info(self, key, value):
+        self.meta_info.set_meta_info(key, value)
+
+    def get_meta_info(self, key):
+        return self.meta_info.get_meta_info(key)

@@ -7,6 +7,53 @@ class TushareService:
     def __init__(self):
         self.latest_market_open_day_backward_checking_days = 15
 
+    def normalize_stock_index_data(self, stock_index_data: list) -> list:
+        """
+        统一股票指数数据格式
+        将API数据(包含ts_code)和数据库数据(包含code和market)统一为标准格式
+        
+        Args:
+            stock_index_data: 股票指数数据列表
+            
+        Returns:
+            list: 统一格式的股票指数数据，每个元素包含 code, market, ts_code
+        """
+        normalized_data = []
+        
+        for row in stock_index_data:
+            if 'ts_code' in row:
+                # API数据格式：包含ts_code字段
+                ts_code = row['ts_code']
+                code, market = ts_code.split('.', 1)
+                normalized_row = {
+                    'code': code,
+                    'market': market,
+                    'ts_code': ts_code,
+                    'name': row.get('name', ''),
+                    'industry': row.get('industry', ''),
+                    'area': row.get('area', ''),
+                    'exchange': row.get('exchange', ''),
+                    'list_date': row.get('list_date', '')
+                }
+            else:
+                # 数据库数据格式：包含code和market字段
+                code = row['code']
+                market = row['market']
+                ts_code = f"{code}.{market}"
+                normalized_row = {
+                    'code': code,
+                    'market': market,
+                    'ts_code': ts_code,
+                    'name': row.get('name', ''),
+                    'industry': row.get('industry', ''),
+                    'area': row.get('area', ''),
+                    'exchange': row.get('exchangeCenter', ''),  # 数据库字段名不同
+                    'list_date': row.get('list_date', '')
+                }
+            
+            normalized_data.append(normalized_row)
+        return normalized_data
+
     def get_latest_market_open_day(self, api):
         # 如果今天还没过去，那么最后一次交易日应该是昨天
         # 使用昨天作为结束日期来查询交易日历

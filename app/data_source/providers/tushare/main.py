@@ -26,6 +26,15 @@ class Tushare:
         self.latest_market_open_day = self.service.get_latest_market_open_day(self.api)
         if self.latest_market_open_day != None:
             self.latest_stock_index = self.renew_stock_index()
+            
+            # 如果股票指数是最新的（返回None），从数据库加载现有数据
+            if self.latest_stock_index is None:
+                self.latest_stock_index = self.storage.load_stock_index()
+                logger.info("股票指数是最新的，使用数据库中的现有数据")
+            
+            # 统一股票指数数据格式
+            self.latest_stock_index = self.service.normalize_stock_index_data(self.latest_stock_index)
+            
             self.renew_stock_kline_by_batch()
         else:
             logger.error("Can not retrieve most recent market open date, renew job blocked!")
@@ -43,9 +52,11 @@ class Tushare:
         
         # 获取所有股票代码和市场信息
         stock_list = []
-        for _, row in self.latest_stock_index.iterrows():
-            ts_code = row['ts_code']
-            code, market = ts_code.split('.')
+        
+        # 处理统一格式的股票指数数据
+        for row in self.latest_stock_index:
+            code = row['code']
+            market = row['market']
             stock_list.append((code, market))
 
         # TODO: remove below slicing
@@ -186,7 +197,7 @@ class Tushare:
             return self.api.monthly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
 
 
-    def renew_stock_index(self, is_force=True):
+    def renew_stock_index(self, is_force=False):
 
         meta_info_key = 'stock_index_last_update'
 
@@ -217,7 +228,14 @@ class Tushare:
         fields = 'ts_code,name,area,industry,market,exchange,list_date'
         stock_status = 'L'
         data = self.api.stock_basic(exchange='', list_status=stock_status, fields=fields)
-        return data
+        
+        # 统一转换为列表格式，保持数据格式一致
+        if hasattr(data, 'to_dict'):
+            return data.to_dict('records')
+        elif isinstance(data, list):
+            return data
+        else:
+            return [data]
 
     
     # auth related

@@ -80,7 +80,7 @@ class FuturesWorker:
                  job_executor: Optional[Callable] = None,
                  enable_monitoring: bool = True,
                  timeout: float = 30.0,
-                 verbose: bool = False,
+                 is_verbose: bool = False,
                  debug: bool = False):
         """
         初始化任务执行器
@@ -91,7 +91,7 @@ class FuturesWorker:
             job_executor: 自定义任务执行函数
             enable_monitoring: 是否启用监控
             timeout: 任务超时时间（秒）
-            verbose: 是否启用详细日志输出
+            is_verbose: 是否启用详细日志输出
             debug: 是否启用调试日志输出
         """
         self.max_workers = max_workers
@@ -99,7 +99,7 @@ class FuturesWorker:
         self.job_executor = job_executor
         self.enable_monitoring = enable_monitoring
         self.timeout = timeout
-        self.verbose = verbose
+        self.is_verbose = is_verbose
         self.debug = debug
         
         # 任务队列
@@ -154,7 +154,7 @@ class FuturesWorker:
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
         except (ValueError, OSError) as e:
-            if self.verbose:
+            if self.is_verbose:
                 logger.warning(f"Could not set signal handlers: {e}")
     
     def _emergency_shutdown(self):
@@ -169,14 +169,14 @@ class FuturesWorker:
                 future.cancel()
                 cancelled_count += 1
         
-        if self.verbose:
+        if self.is_verbose:
             logger.warning(f"Cancelled {cancelled_count} active tasks")
         
         # 强制关闭线程池
         if self.executor:
             try:
                 self.executor.shutdown(wait=False)
-                if self.verbose:
+                if self.is_verbose:
                     logger.warning("ThreadPoolExecutor force shutdown completed")
             except Exception as e:
                 logger.error(f"Error in force shutdown: {e}")
@@ -232,7 +232,7 @@ class FuturesWorker:
             logger.warning("No jobs to execute")
             return self.get_stats()
         
-        if self.verbose:
+        if self.is_verbose:
             logger.info(f"Starting job execution in {self.execution_mode.value} mode")
             logger.info(f"Total jobs: {self.stats['total_jobs']}")
         
@@ -287,7 +287,7 @@ class FuturesWorker:
             result.duration = time.time() - start_time
             
             # 进度日志在 _update_stats 中处理，避免重复
-            if self.verbose:
+            if self.is_verbose:
                 logger.debug(f"Job {job_id} completed in {result.duration:.2f}s")
             
         except Exception as e:
@@ -303,7 +303,7 @@ class FuturesWorker:
     
     def _run_serial(self):
         """串行执行任务"""
-        if self.verbose:
+        if self.is_verbose:
             logger.info("Running jobs in serial mode")
         
         while not self.job_queue.empty() and not self.should_stop:
@@ -324,7 +324,7 @@ class FuturesWorker:
     
     def _run_parallel(self):
         """并行执行任务"""
-        if self.verbose:
+        if self.is_verbose:
             logger.info(f"Running jobs in parallel mode with {self.max_workers} workers")
         
         futures = []
@@ -371,7 +371,7 @@ class FuturesWorker:
                 else:
                     break
         except KeyboardInterrupt:
-            if self.verbose:
+            if self.is_verbose:
                 logger.info("Received interrupt signal, cancelling remaining tasks...")
             for future in futures:
                 if not future.done():
@@ -432,7 +432,7 @@ class FuturesWorker:
         """打印执行统计信息"""
         stats = self.get_stats()
         
-        if self.verbose:
+        if self.is_verbose:
             logger.info("📊 Job Execution Statistics:")
             logger.info(f"  Total Jobs: {stats['total_jobs']}")
             logger.info(f"  Completed: {stats['completed_jobs']}")
@@ -449,24 +449,24 @@ class FuturesWorker:
     def pause(self):
         """暂停执行"""
         self.is_paused = True
-        if self.verbose:
+        if self.is_verbose:
             logger.info("Job execution paused")
     
     def resume(self):
         """恢复执行"""
         self.is_paused = False
-        if self.verbose:
+        if self.is_verbose:
             logger.info("Job execution resumed")
     
     def stop(self):
         """停止执行"""
         self.should_stop = True
-        if self.verbose:
+        if self.is_verbose:
             logger.info("Job execution stopped")
     
     def shutdown(self, timeout: float = 5.0):
         """关闭任务执行器"""
-        if self.verbose:
+        if self.is_verbose:
             logger.info("Shutting down FuturesWorker...")
         
         self.should_stop = True
@@ -482,7 +482,7 @@ class FuturesWorker:
         if self.executor:
             try:
                 self.executor.shutdown(wait=True)
-                if self.verbose:
+                if self.is_verbose:
                     logger.info("ThreadPoolExecutor shutdown completed")
             except Exception as e:
                 logger.error(f"Error shutting down ThreadPoolExecutor: {e}")
@@ -493,12 +493,12 @@ class FuturesWorker:
         self.clear_queue()
         self.clear_results()
         
-        if self.verbose:
+        if self.is_verbose:
             logger.info("FuturesWorker shutdown completed")
     
     def force_shutdown(self):
         """强制关闭任务执行器"""
-        if self.verbose:
+        if self.is_verbose:
             logger.warning("Force shutting down FuturesWorker...")
         
         self.should_stop = True
@@ -514,7 +514,7 @@ class FuturesWorker:
         if self.executor:
             try:
                 self.executor.shutdown(wait=False)
-                if self.verbose:
+                if self.is_verbose:
                     logger.warning("ThreadPoolExecutor force shutdown completed")
             except Exception as e:
                 logger.error(f"Error in force shutdown: {e}")
@@ -525,7 +525,7 @@ class FuturesWorker:
         self.clear_queue()
         self.clear_results()
         
-        if self.verbose:
+        if self.is_verbose:
             logger.warning("Force shutdown completed")
     
     def clear_queue(self):

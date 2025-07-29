@@ -6,10 +6,12 @@ from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
 
 class Tushare:
-    def __init__(self, connected_db):
+    def __init__(self, connected_db, is_verbose: bool = False):
         self.db = connected_db
         self.storage = TushareStorage(connected_db)
         self.service = TushareService()
+
+        self.is_verbose = is_verbose
 
         self.latest_market_open_day = None
         self.latest_stock_index = None
@@ -18,7 +20,7 @@ class Tushare:
         self.api = ts.pro_api()
 
 
-    def renew_data(self):
+    async def renew_data(self):
         import time
         start_time = time.time()
 
@@ -34,7 +36,7 @@ class Tushare:
             # 统一股票指数数据格式
             self.latest_stock_index = self.service.normalize_stock_index_data(self.latest_stock_index)
             
-            self.renew_stock_kline_by_batch()
+            await self.renew_stock_kline_by_batch()
         else:
             logger.error("Can not retrieve most recent market open date, renew job blocked!")
 
@@ -44,7 +46,7 @@ class Tushare:
         logger.info(f"✅ total time consuming: {total_time:.2f} seconds")
     
 
-    def renew_stock_kline_by_batch(self):
+    async def renew_stock_kline_by_batch(self):
         """
         批量更新股票K线数据
         """
@@ -83,7 +85,7 @@ class Tushare:
             self.execute_stock_kline_renew_jobs(jobs)
             
             # 等待异步写入完成
-            self.db.wait_for_writes(timeout=60)
+            await self.db.wait_for_writes(timeout=60)
         else:
             logger.info("All K-lines are up to date")
 
@@ -113,7 +115,7 @@ class Tushare:
             execution_mode=ExecutionMode.PARALLEL,
             enable_monitoring=True,
             timeout=60.0,  # 增加超时时间，因为数据获取可能需要更长时间
-            verbose=False,  # 关闭详细日志，只保留进度信息
+            is_verbose=self.is_verbose,  # 关闭详细日志，只保留进度信息
             debug=False    # 关闭调试日志
         )
         

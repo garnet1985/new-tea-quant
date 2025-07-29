@@ -11,6 +11,7 @@ class BaseTableModel:
         self.db = connected_db
         self.table_name = table_name
         self.schema = self.load_schema()
+        self.verbose = False
 
     def load_schema(self) -> dict:
         schema_path = os.path.join(os.path.dirname(__file__), 'tables', self.table_name, 'schema.json')
@@ -20,12 +21,12 @@ class BaseTableModel:
             return None
         return schema
     
-    def create_table(self) -> bool:
+    def create_table(self, custom_table_name: str = None) -> bool:
         if not self.schema:
             logger.error(f"Failed to load schema for table: {self.table_name}")
             return False
 
-        sql = self.to_create_table_sql(self.schema)
+        sql = self.to_create_table_sql(self.schema, custom_table_name)
         
         try:
             with self.db.get_sync_cursor() as cursor:
@@ -37,9 +38,9 @@ class BaseTableModel:
             return False
 
 
-    def to_create_table_sql(self, schema_data: dict):
+    def to_create_table_sql(self, schema_data: dict, custom_table_name: str = None):
         """根据schema数据生成CREATE TABLE SQL语句"""
-        table_name = schema_data['name']
+        table_name = custom_table_name if custom_table_name else schema_data['name']
         primary_key = schema_data.get('primaryKey', 'id')
         fields = schema_data['fields']
         indexes = schema_data.get('indexes', [])

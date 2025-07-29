@@ -47,7 +47,7 @@ class BaseStrategy(ABC):
         pass
     
     @abstractmethod
-    def present(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def report(self):
         """
         展示数据
         """

@@ -74,18 +74,16 @@ class Tushare:
                 term_counts[term] = term_counts.get(term, 0) + 1
                 total_jobs += 1
         
-        logger.info(f"📊 任务统计:")
-        logger.info(f"  总任务数: {total_jobs}")
+        logger.info(f"📊 data renew jobs:")
+        logger.info(f"  total: {total_jobs}")
         for term, count in term_counts.items():
-            logger.info(f"  {term}: {count} 个任务")
+            logger.info(f"  - {term} k-line fetch jobs: {count}")
 
         if len(jobs) > 0:
             self.execute_stock_kline_renew_jobs(jobs)
             
             # 等待异步写入完成
-            logger.info("等待异步写入完成...")
             self.db.wait_for_writes(timeout=60)
-            logger.info("异步写入完成")
         else:
             logger.info("All K-lines are up to date")
 

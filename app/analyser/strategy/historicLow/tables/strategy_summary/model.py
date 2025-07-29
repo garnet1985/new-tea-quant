@@ -1,8 +1,43 @@
+import os
+import json
+from loguru import logger
 from utils.db.db_model import BaseTableModel
 
 class HLStrategySummaryModel(BaseTableModel):
-    def __init__(self, table_name: str, connected_db):
+    """HistoricLow策略的策略汇总表模型"""
+    
+    def __init__(self, connected_db):
+        # 设置表名和前缀
+        table_name = "strategy_summary"
+        table_prefix = "HL"
+        self.table_full_name = f"{table_prefix}_{table_name}"
+
+        # 调用父类构造函数
         super().__init__(table_name, connected_db)
+        
+        # 注册表到数据库管理器，使其在初始化时自动创建
+        self.db.register_table(
+            table_name=table_name,
+            prefix=table_prefix,
+            schema=self.schema,
+            model_class=self.__class__
+        )
+    
+    def load_schema(self) -> dict:
+        """加载表结构定义"""
+        # 获取当前文件所在目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        schema_path = os.path.join(current_dir, 'schema.json')
+        
+        try:
+            with open(schema_path, 'r', encoding='utf-8') as f:
+                schema = json.load(f)
+                if self.db.is_verbose:
+                    logger.info(f"Schema loaded for {self.table_name}: {schema_path}")
+                return schema
+        except Exception as e:
+            logger.error(f"Failed to load schema from {schema_path}: {e}")
+            return None
 
     def toDict(self, info):
         # info is a string like "key1=value1|key2=value2|key3=value3"
@@ -43,5 +78,4 @@ class HLStrategySummaryModel(BaseTableModel):
             txt = self.toStr(info['info'], key, value)
             # 使用UPDATE语句更新第一条记录，而不是replace_one
             update_sql = "UPDATE meta_info SET info = %s WHERE id = %s"
-            self.db.execute_sync_update(update_sql, (txt, info['id']))
-
+            self.db.execute_sync_update(update_sql, (txt, info['id'])) 

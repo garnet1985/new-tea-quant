@@ -6,6 +6,7 @@ import pymysql
 import threading
 import time
 import queue
+import asyncio
 from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
 from loguru import logger
@@ -16,7 +17,7 @@ from .db_config import DB_CONFIG
 class DatabaseManager:
     """统一的MySQL数据库管理器 - 支持同步和异步操作，默认线程安全"""
     
-    def __init__(self, enable_thread_safety: bool = True):
+    def __init__(self, is_verbose: bool = False, enable_thread_safety: bool = True):
         # 原有属性（保持兼容性）
         self.sync_connection = None
         self.is_sync_connected = False
@@ -57,11 +58,13 @@ class DatabaseManager:
         self._global_callbacks = []
         self._callbacks_lock = threading.Lock()
 
-        self.is_verbose = False
+        self.is_verbose = is_verbose
         
         # 启动写入线程（如果启用线程安全）
         if enable_thread_safety:
             self._start_write_thread()
+
+        self.initialize()
     
     # ==================== 线程安全相关方法 ====================
 
@@ -167,15 +170,18 @@ class DatabaseManager:
             raise
     
     def _initialize_strategy_models(self):
-        """初始化策略模型"""
+        """初始化策略模型和策略管理器"""
         try:
             from app.analyser.strategy.strategy_manager import StrategyManager
             
-            strategy_manager = StrategyManager(self)
-            strategy_manager.initialize_strategies()
+            # 创建策略管理器
+            self.strategy_manager = StrategyManager(self)
+            
+            # 初始化策略（这会注册表到数据库管理器）
+            self.strategy_manager.initialize_strategies()
             
             if self.is_verbose:
-                logger.info("Strategy models initialized")
+                logger.info("Strategy models and manager initialized")
                 
         except Exception as e:
             logger.error(f"Strategy models initialization failed: {e}")
@@ -680,13 +686,14 @@ class DatabaseManager:
         with self._callbacks_lock:
             self._global_callbacks.clear()
     
-    def wait_for_writes(self, timeout: Optional[float] = None):
+    async def wait_for_writes(self, timeout: Optional[float] = None):
         """等待所有写入任务完成，并执行全局回调"""
         if not self.enable_thread_safety:
             return
         
         try:
-            self._write_queue.join()
+            # 使用 asyncio.to_thread 在线程池中运行同步的 join 操作
+            await asyncio.to_thread(self._write_queue.join)
             logger.info("All write tasks completed")
             
             # 执行全局回调

@@ -24,6 +24,8 @@
 - **暂停/恢复**: 支持运行时暂停和恢复执行
 - **停止**: 优雅停止所有任务
 - **队列管理**: 清空任务队列和结果队列
+- **信号处理**: 自动处理 Ctrl+C 和系统信号
+- **优雅关闭**: 确保资源正确释放，避免线程泄漏
 
 ## 核心类
 
@@ -173,6 +175,7 @@ JobWorker(
 - `pause()`: 暂停执行
 - `resume()`: 恢复执行
 - `stop()`: 停止执行
+- `shutdown(timeout=5.0)`: 优雅关闭执行器
 - `clear_queue()`: 清空任务队列
 - `clear_results()`: 清空结果队列
 
@@ -206,6 +209,33 @@ for i in range(0, len(all_jobs), batch_size):
     batch = all_jobs[i:i+batch_size]
     worker.run_jobs(batch)
 ```
+
+## 信号处理和优雅关闭
+
+### 自动信号处理
+JobWorker 现在支持自动处理系统信号，确保在程序被中断时能够优雅地关闭：
+
+```python
+# 自动处理 Ctrl+C (SIGINT) 和 SIGTERM 信号
+worker = JobWorker(enable_monitoring=True)
+
+try:
+    stats = worker.run_jobs(jobs)
+except KeyboardInterrupt:
+    print("Gracefully shutting down...")
+    # 信号处理器会自动调用 shutdown()
+```
+
+### 手动关闭
+```python
+# 显式关闭执行器
+worker.shutdown(timeout=5.0)  # 等待最多5秒完成关闭
+```
+
+### 资源清理
+- 自动清理线程池资源
+- 清空任务和结果队列
+- 确保无资源泄漏
 
 ## 错误处理
 

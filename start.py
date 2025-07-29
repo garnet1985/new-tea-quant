@@ -9,7 +9,7 @@ import asyncio
 
 from utils.db.db_manager import DatabaseManager
 from app.data_source.providers.tushare.main import Tushare
-from app.analyser.strategy import StrategyManager
+from app.analyser import Analyzer
 
 
 # 添加项目根目录到Python路径
@@ -17,16 +17,25 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class App:
     def __init__(self):
-        self.db = DatabaseManager()
-        self.data_source = Tushare(self.db)
-        self.strategy = StrategyManager(self.db)
+
+        self.is_verbose = False
+        # 1. 首先初始化数据库
+        self.db = DatabaseManager(self.is_verbose)
+        self.db.initialize()
+        
+        # 2. 然后创建数据源和策略管理器
+        self.data_source = Tushare(self.db, self.is_verbose)
+        self.analyzer = Analyzer(self.db, self.is_verbose)
+        
+        # 3. 初始化策略（这会注册表到数据库）
+        self.analyzer.initialize()
 
     async def renew_data(self):
         """更新股票数据"""
         await self.data_source.renew_data()
     
     def scan_strategies(self):
-        self.strategy.scan_all_strategies()
+        self.analyzer.scan_all_strategies()
         
 
 async def main():

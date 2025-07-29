@@ -154,15 +154,17 @@ class TushareService:
             return None
 
     def to_single_stock_weekly_kline_renew_job(self, code: str, market: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
-        # 计算最新记录日期所在周的开始日期（周一）
-        latest_week_start = formatted_latest_record_date - timedelta(days=formatted_latest_record_date.weekday())
-        # 计算最后一次市场开放日期所在周的开始日期（周一）
-        last_market_week_start = formatted_latest_market_open_date - timedelta(days=formatted_latest_market_open_date.weekday())
+        # 周线数据通常在每周结束后更新（周五）
+        # 只有当最新记录日期加两周后的周一已经到来时，才需要更新
+        # 例如：如果最新记录是7月25日（周五），那么至少要到8月8日（周一）才考虑更新
         
-        # 只有当最新记录的周开始日期小于最后一次市场开放日期的周开始日期时才需要更新
-        if latest_week_start < last_market_week_start:
+        # 计算最新记录日期加两周后的周一
+        two_weeks_later_monday = formatted_latest_record_date + timedelta(days=14 - formatted_latest_record_date.weekday())
+        
+        # 只有当最新市场开放日期大于等于两周后的周一时，才需要更新
+        if formatted_latest_market_open_date >= two_weeks_later_monday:
             # 需要更新：从最新周的下一个周开始
-            next_week_start = latest_week_start + timedelta(days=7)
+            next_week_start = formatted_latest_record_date + timedelta(days=7 - formatted_latest_record_date.weekday())
             start_date = next_week_start.strftime('%Y%m%d')
             return {
                 'code': code,
@@ -172,8 +174,8 @@ class TushareService:
                 'start_date': start_date,
                 'end_date': latest_market_open_day
             }
-        else:
-            return None
+        
+        return None
 
     def to_single_stock_monthly_kline_renew_job(self, code: str, market: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 月线数据通常在月底生成，包含整个月的数据

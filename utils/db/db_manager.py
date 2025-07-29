@@ -567,7 +567,8 @@ class DatabaseManager:
     
     def _write_worker(self):
         """写入工作线程"""
-        logger.info("Database write worker started")
+        if self.is_verbose:
+            logger.info("Database write worker started")
         
         while self._write_thread_running:
             try:

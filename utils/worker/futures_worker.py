@@ -10,7 +10,7 @@ import threading
 import signal
 import atexit
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed, Future
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED, Future
 from queue import Queue, Empty
 from typing import List, Dict, Any, Callable, Optional
 from enum import Enum
@@ -20,6 +20,8 @@ from datetime import datetime
 
 # 设置日志
 logger = logging.getLogger(__name__)
+# 避免重复日志输出
+logger.propagate = False
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -128,6 +130,9 @@ class FuturesWorker:
         
         # 线程锁
         self.stats_lock = threading.Lock()
+        
+        # 进度跟踪
+        self._printed_progress = set()
         
         # 初始化线程池
         if self.execution_mode == ExecutionMode.PARALLEL:
@@ -281,8 +286,9 @@ class FuturesWorker:
             result.end_time = datetime.now()
             result.duration = time.time() - start_time
             
-            # 只保留关键的进度信息
-            logger.info(f"Job {job_id} completed in {result.duration:.2f}s. Progress: {self.stats['completed_jobs']} out of {self.stats['total_jobs']} - {self.stats['completed_jobs']/self.stats['total_jobs'] * 100:.2f}%")
+            # 进度日志在 _update_stats 中处理，避免重复
+            if self.verbose:
+                logger.debug(f"Job {job_id} completed in {result.duration:.2f}s")
             
         except Exception as e:
             result.status = JobStatus.FAILED
@@ -336,21 +342,34 @@ class FuturesWorker:
         
         # 等待所有任务完成
         try:
-            for future in as_completed(futures, timeout=self.timeout):
-                if self.should_stop:
-                    future.cancel()
-                    continue
+            # 使用wait而不是as_completed，避免重复处理
+            done, not_done = wait(futures, timeout=self.timeout, return_when=FIRST_COMPLETED)
+            
+            while done and not self.should_stop:
+                for future in done:
+                    if self.should_stop:
+                        future.cancel()
+                        continue
+                    
+                    try:
+                        result = future.result(timeout=30)
+                        # 添加调试信息，检查是否重复调用
+                        if self.debug:
+                            logger.debug(f"Processing result for job {result.job_id}")
+                        self._update_stats(result)
+                        self.results_queue.put(result)
+                    except Exception as e:
+                        # 错误信息总是显示
+                        logger.error(f"Error in parallel execution: {e}")
+                    finally:
+                        if future in self.active_futures:
+                            self.active_futures.remove(future)
                 
-                try:
-                    result = future.result(timeout=30)
-                    self._update_stats(result)
-                    self.results_queue.put(result)
-                except Exception as e:
-                    # 错误信息总是显示
-                    logger.error(f"Error in parallel execution: {e}")
-                finally:
-                    if future in self.active_futures:
-                        self.active_futures.remove(future)
+                # 继续等待剩余的任务
+                if not_done:
+                    done, not_done = wait(not_done, timeout=self.timeout, return_when=FIRST_COMPLETED)
+                else:
+                    break
         except KeyboardInterrupt:
             if self.verbose:
                 logger.info("Received interrupt signal, cancelling remaining tasks...")
@@ -364,12 +383,28 @@ class FuturesWorker:
     def _update_stats(self, result: JobResult):
         """更新统计信息"""
         with self.stats_lock:
+            # 检查是否已经处理过这个任务
+            if result.job_id in self._printed_progress:
+                if self.debug:
+                    logger.debug(f"Skipping duplicate result for job {result.job_id}")
+                return
+            
             if result.status == JobStatus.COMPLETED:
                 self.stats['completed_jobs'] += 1
+                # 每个任务完成后都打印进度
+                current_completed = self.stats['completed_jobs']
+                total_jobs = self.stats['total_jobs']
+                
+                # 标记为已处理并打印进度
+                self._printed_progress.add(result.job_id)
+                logger.info(f"Job {result.job_id} completed. Progress: {current_completed} out of {total_jobs} - {current_completed/total_jobs * 100:.2f}%")
+                    
             elif result.status == JobStatus.FAILED:
                 self.stats['failed_jobs'] += 1
+                self._printed_progress.add(result.job_id)
             elif result.status == JobStatus.CANCELLED:
                 self.stats['cancelled_jobs'] += 1
+                self._printed_progress.add(result.job_id)
     
     def get_results(self) -> List[JobResult]:
         """获取所有执行结果"""
@@ -534,6 +569,36 @@ class FuturesWorker:
         """析构函数"""
         try:
             if hasattr(self, 'executor') and self.executor:
-                self.shutdown(timeout=1.0)
+                # 在析构时不打印日志，避免重复
+                self.should_stop = True
+                self.is_running = False
+                
+                # 取消所有活动任务
+                if hasattr(self, 'active_futures'):
+                    for future in self.active_futures:
+                        if not future.done():
+                            future.cancel()
+                
+                # 关闭线程池
+                if self.executor:
+                    try:
+                        self.executor.shutdown(wait=False)
+                    except Exception:
+                        pass
+                    finally:
+                        self.executor = None
+                        
+                # 清空队列（不打印日志）
+                while not self.job_queue.empty():
+                    try:
+                        self.job_queue.get_nowait()
+                    except:
+                        break
+                        
+                while not self.results_queue.empty():
+                    try:
+                        self.results_queue.get_nowait()
+                    except:
+                        break
         except Exception:
             pass 

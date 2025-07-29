@@ -30,7 +30,6 @@ class Tushare:
             # 如果股票指数是最新的（返回None），从数据库加载现有数据
             if self.latest_stock_index is None:
                 self.latest_stock_index = self.storage.load_stock_index()
-                logger.info("股票指数是最新的，使用数据库中的现有数据")
             
             # 统一股票指数数据格式
             self.latest_stock_index = self.service.normalize_stock_index_data(self.latest_stock_index)
@@ -64,6 +63,22 @@ class Tushare:
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, self.latest_market_open_day, self.storage)
+        
+        # 统计各类型任务数量
+        term_counts = {}
+        total_jobs = 0
+        
+        for stock_key, stock_jobs in jobs.items():
+            for job in stock_jobs:
+                term = job['term']
+                term_counts[term] = term_counts.get(term, 0) + 1
+                total_jobs += 1
+        
+        logger.info(f"📊 任务统计:")
+        logger.info(f"  总任务数: {total_jobs}")
+        for term, count in term_counts.items():
+            logger.info(f"  {term}: {count} 个任务")
+
         if len(jobs) > 0:
             self.execute_stock_kline_renew_jobs(jobs)
             

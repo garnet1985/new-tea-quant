@@ -1,7 +1,11 @@
 
 
 
+# 策略启用状态
+enabled = True
+
 invest_settings = {
+    "enabled": True,  # 策略启用状态
     "goal": {
         "win": 1.5,
         "loss": 0.8,

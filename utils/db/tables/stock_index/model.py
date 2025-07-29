@@ -2,6 +2,7 @@
 Stock Index 自定义模型
 提供股票指数相关的特定方法
 """
+from utils.db.db_config import DB_CONFIG
 from utils.db.db_model import BaseTableModel
 from typing import List, Dict, Any, Optional
 from loguru import logger
@@ -55,3 +56,30 @@ class StockIndexModel(BaseTableModel):
             "code LIKE %s OR name LIKE %s",
             (f"%{keyword}%", f"%{keyword}%")
         )
+    
+    def get_stock_index(self, ts_code_exclude_list = DB_CONFIG['stock_index']['ts_code_exclude_list']) -> List[Dict[str, Any]]:
+        """获取股票列表，排除科创板等"""
+        try:
+            # 构建动态的 WHERE 条件
+            where_conditions = []
+            params = []
+            
+            for exclude_pattern in ts_code_exclude_list:
+                where_conditions.append("code NOT LIKE %s")
+                params.append(exclude_pattern)
+            
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            
+            sql = f"""
+                SELECT code, name, market 
+                FROM stock_index 
+                WHERE {where_clause}
+                ORDER BY code
+            """
+            
+            result = self.db.execute_sync_query(sql, params)
+            return result
+            
+        except Exception as e:
+            logger.error(f"获取股票列表失败: {e}")
+            return []

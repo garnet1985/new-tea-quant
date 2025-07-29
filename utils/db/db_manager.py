@@ -156,8 +156,7 @@ class DatabaseManager:
             # 创建数据库（如果不存在）
             self.create_db()
             
-            # 初始化策略模型（这会注册表到数据库管理器）
-            self._initialize_strategy_models()
+
             
             # 创建所有表（包括注册的策略表）
             self.create_tables()
@@ -170,22 +169,9 @@ class DatabaseManager:
             raise
     
     def _initialize_strategy_models(self):
-        """初始化策略模型和策略管理器"""
-        try:
-            from app.analyser.strategy.strategy_manager import StrategyManager
-            
-            # 创建策略管理器
-            self.strategy_manager = StrategyManager(self)
-            
-            # 初始化策略（这会注册表到数据库管理器）
-            self.strategy_manager.initialize_strategies()
-            
-            if self.is_verbose:
-                logger.info("Strategy models and manager initialized")
-                
-        except Exception as e:
-            logger.error(f"Strategy models initialization failed: {e}")
-            raise
+        """初始化策略模型和策略管理器 - 已废弃，现在由 Analyzer 负责"""
+        # 这个方法现在由 Analyzer 负责，保持兼容性
+        pass
     
     def connect_sync(self):
         """建立同步数据库连接"""

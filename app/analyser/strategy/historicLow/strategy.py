@@ -4,47 +4,62 @@ HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
 from typing import Dict, List, Any
 from datetime import datetime, timedelta
+
+from loguru import logger
 from utils.worker.futures_worker import FuturesWorker
 from .historic_low_settings import invest_settings
 from .tables.meta.model import HLMetaModel
 from .tables.opportunity_history.model import HLOpportunityHistoryModel
 from .tables.strategy_summary.model import HLStrategySummaryModel
-from ..base_strategy import BaseStrategy
+from ...libs.base_strategy import BaseStrategy
 
 
 class HistoricLowStrategy(BaseStrategy):
     """HistoricLow 策略实现"""
     
-    def __init__(self, db_manager):
+    # 策略启用状态
+    is_enabled = True
+    
+    def __init__(self, db, is_verbose=False):
         """
         初始化 HistoricLow 策略
         
         Args:
-            db_manager: 已初始化的数据库管理器实例
+            db: 已初始化的数据库管理器实例
+            is_verbose: 是否显示详细日志
         """
-        super().__init__(
-            db_manager,
-            "Historic Low",
-            "HL"
-        )
         
-        self.strategy_description = "寻找股票的历史低点，识别可能的买入机会"
+        description = "寻找股票的历史低点，识别可能的买入机会"
+        name = "Historic Low"
+        prefix = "HL"
+
+        super().__init__(
+            db=db,
+            is_verbose=is_verbose,
+            name=name,
+            prefix=prefix,
+            description=description
+        )
         
         # 加载策略设置
         self.settings = invest_settings
-        
-        # 初始化策略所需的表模型
+
+    def initialize(self):
+        # this method is automatically called by base strategy class
+
         self._initialize_tables()
+        pass
     
     def _initialize_tables(self):
         """初始化策略所需的表模型"""
+        
         self.required_tables = {
+            "stock_index": self.db.get_table_instance("stock_index"),
+
             "meta": HLMetaModel(self.db),
             "opportunity_history": HLOpportunityHistoryModel(self.db),
             "strategy_summary": HLStrategySummaryModel(self.db)
         }
-        
-        self.log_info("表模型初始化完成")
     
     def scan(self) -> List[Dict[str, Any]]:
         """
@@ -53,24 +68,25 @@ class HistoricLowStrategy(BaseStrategy):
         Returns:
             List[Dict]: 投资机会列表
         """
-        self.log_info("开始扫描投资机会...")
         
         # 获取股票列表
         stock_idx = self._get_stock_index()
+        
+        # TODO: remove below line
+        stock_idx = stock_idx[100:200]
+
         if not stock_idx:
-            self.log_warning("未找到可扫描的股票")
             return []
         
-        self.log_info(f"找到 {len(stock_idx)} 只股票，开始扫描...")
         
         # 使用多线程扫描
         opportunities = self._scan_stocks_with_worker(stock_idx)
+        logger.info(f"🔍 扫描完成，发现 {len(opportunities)} 个投资机会")
         
         # 保存扫描结果
         if opportunities:
             self._save_meta(opportunities)
         
-        self.log_info(f"扫描完成，发现 {len(opportunities)} 个投资机会")
         return opportunities
     
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
@@ -84,7 +100,6 @@ class HistoricLowStrategy(BaseStrategy):
     
     def test(self) -> None:
         """测试策略 - 使用历史数据模拟"""
-        self.log_info("开始策略测试...")
         
         # 这里可以实现历史数据回测逻辑
         # 暂时简单实现
@@ -103,26 +118,12 @@ class HistoricLowStrategy(BaseStrategy):
         ]
         
         self.report(test_opportunities)
-        self.log_info("策略测试完成")
     
     def _get_stock_index(self) -> List[Dict[str, Any]]:
         """获取股票列表，排除科创板等"""
         try:
-            sql = """
-                SELECT code, name, market 
-                FROM stock_index 
-                WHERE code NOT LIKE %s 
-                AND code NOT LIKE %s 
-                AND code NOT LIKE %s
-                ORDER BY code
-            """
-            params = ('688%', '%BJ%', '%BJ')
-            
-            result = self.db.execute_sync_query(sql, params)
-            return result
-            
+            return self.required_tables["stock_index"].get_stock_index()
         except Exception as e:
-            self.log_error(f"获取股票列表失败: {e}")
             return []
     
     def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -183,7 +184,6 @@ class HistoricLowStrategy(BaseStrategy):
             return opportunities
             
         except Exception as e:
-            self.log_error(f"扫描股票 {stock['code']} 失败: {e}")
             return []
     
     def _prepare_data(self, stock: Dict[str, Any]) -> tuple:
@@ -216,7 +216,6 @@ class HistoricLowStrategy(BaseStrategy):
             return daily_data, monthly_data
             
         except Exception as e:
-            self.log_error(f"准备股票 {stock['code']} 数据失败: {e}")
             return [], []
     
     def _find_opportunity(self, stock: Dict[str, Any], latest_daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -233,7 +232,6 @@ class HistoricLowStrategy(BaseStrategy):
             return opportunities
             
         except Exception as e:
-            self.log_error(f"寻找股票 {stock['code']} 机会失败: {e}")
             return []
     
     def _find_lowest_records(self, stock: Dict[str, Any], monthly_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -343,26 +341,23 @@ class HistoricLowStrategy(BaseStrategy):
     
     def _save_meta(self, opportunities: List[Dict[str, Any]]) -> None:
         """保存扫描结果到元数据表"""
-        try:
-            # 准备元数据
-            meta_data = {
-                'date': datetime.now().strftime('%Y%m%d'),
-                'lastOpportunityUpdateTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'lastSuggestedStockCodes': [opp['code'] for opp in opportunities]
-            }
+        # 准备元数据
+        meta_data = {
+            'date': datetime.now().strftime('%Y%m%d'),
+            'lastOpportunityUpdateTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'lastSuggestedStockCodes': [opp['code'] for opp in opportunities]
+        }
+        
+        # 使用元数据表模型保存
+        meta_table = self.required_tables['meta']
+        meta_table.update_meta(
+            date=meta_data['date'],
+            last_opportunity_update_time=meta_data['lastOpportunityUpdateTime'],
+            last_suggested_stock_codes=','.join(meta_data['lastSuggestedStockCodes'])
+        )
             
-            # 使用元数据表模型保存
-            meta_table = self.required_tables['meta']
-            meta_table.update_meta(
-                date=meta_data['date'],
-                last_opportunity_update_time=meta_data['lastOpportunityUpdateTime'],
-                last_suggested_stock_codes=','.join(meta_data['lastSuggestedStockCodes'])
-            )
             
-            self.log_info("扫描结果已保存到元数据表")
             
-        except Exception as e:
-            self.log_error(f"保存扫描结果失败: {e}")
     
     def _to_digit(self, num: float, digit: int = 2) -> float:
         """格式化数字"""

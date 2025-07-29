@@ -145,17 +145,41 @@ class DatabaseManager:
     # ==================== 同步连接方法 ====================
 
     def initialize(self):
-        """初始化数据库连接"""
-        if self.enable_thread_safety:
-            # 线程安全模式：延迟初始化
-            if self.is_verbose:
-                logger.info("Database manager initialized in thread-safe mode")
-        else:
-            # 原有模式：立即连接
+        """初始化数据库管理器（包含连接、创建数据库、初始化策略模型、创建表）"""
+        try:
+            # 连接数据库
             self.connect_sync()
+            
+            # 创建数据库（如果不存在）
             self.create_db()
+            
+            # 初始化策略模型（这会注册表到数据库管理器）
+            self._initialize_strategy_models()
+            
+            # 创建所有表（包括注册的策略表）
             self.create_tables()
-            self.create_indexes()
+            
+            if self.is_verbose:
+                logger.info("Database manager fully initialized")
+                
+        except Exception as e:
+            logger.error(f"Database initialization failed: {e}")
+            raise
+    
+    def _initialize_strategy_models(self):
+        """初始化策略模型"""
+        try:
+            from app.analyser.strategy.strategy_manager import StrategyManager
+            
+            strategy_manager = StrategyManager(self)
+            strategy_manager.initialize_strategies()
+            
+            if self.is_verbose:
+                logger.info("Strategy models initialized")
+                
+        except Exception as e:
+            logger.error(f"Strategy models initialization failed: {e}")
+            raise
     
     def connect_sync(self):
         """建立同步数据库连接"""
@@ -239,16 +263,17 @@ class DatabaseManager:
             logger.error(f"Failed to create database: {e}")
             return False 
 
-    def register_table(self, table_name, prefix, schema):
+    def register_table(self, table_name, prefix, schema, model_class=None):
         """
         注册自定义表
         
         Args:
             table_name: 表名 (会自动添加 strategy 的 prefix)
-            table_schema: 表结构定义（字典格式）
+            prefix: 表前缀
+            schema: 表结构定义（字典格式）
             model_class: 自定义模型类 (可选, 继承自BaseTableModel)
         """
-        # 确保表名有 cust_ 前缀
+        # 确保表名有前缀
         if not prefix:
             logger.error(f"prefix is required for table: {table_name}")
         else:   
@@ -257,9 +282,11 @@ class DatabaseManager:
         # 存储表信息
         self.registered_tables[table_name] = {
             'schema': schema,
+            'model_class': model_class
         }
         
-        logger.info(f"Table registered: {table_name}")
+        if self.is_verbose:
+            logger.info(f"{table_name} table is registered")
         return table_name
 
     
@@ -294,7 +321,8 @@ class DatabaseManager:
                         table_model = self._get_table_model(table_name)
                         table_model.create_table()
                         self.tables[table_name] = table_model
-                        logger.info(f"created base table: {table_name}")
+                        if self.is_verbose:
+                            logger.info(f"created base table: {table_name}")
     
     def _create_registered_tables(self):
         """创建注册的自定义表"""
@@ -302,21 +330,26 @@ class DatabaseManager:
             try:
                 # 创建自定义表模型
                 if table_info['model_class']:
-                    # 使用自定义模型类
-                    table_model = table_info['model_class'](table_name, self)
+                    # 使用自定义模型类 - 只传递数据库连接
+                    table_model = table_info['model_class'](self)
                 else:
                     # 使用基础模型类
                     from .db_model import BaseTableModel
                     table_model = BaseTableModel(table_name, self)
                 
-                # 设置schema
-                table_model.schema = table_info['schema']
+                # 设置schema（如果不是自定义模型类）
+                if not table_info['model_class']:
+                    table_model.schema = table_info['schema']
                 
-                # 创建表
-                table_model.create_table()
+                # 创建表（使用自定义表名）
+                custom_table_name = None
+                if hasattr(table_model, 'table_full_name'):
+                    custom_table_name = table_model.table_full_name
+                table_model.create_table(custom_table_name)
                 self.tables[table_name] = table_model
                 
-                logger.info(f"created registered table: {table_name}")
+                if self.is_verbose:
+                    logger.info(f"created registered table: {table_name}")
                 
             except Exception as e:
                 logger.error(f"创建注册表 {table_name} 失败: {e}")

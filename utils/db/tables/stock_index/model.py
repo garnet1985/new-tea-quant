@@ -12,7 +12,15 @@ class StockIndexModel(BaseTableModel):
     
     def __init__(self, table_name: str, connected_db):
         super().__init__(table_name, connected_db)
-    
+
+    def get_index(self, exclude_expressions: List[str] = None) -> List[Dict[str, Any]]:
+        """获取股票指数"""
+        idx = self.load_many()
+        if exclude_expressions:
+            for exclude_expression in exclude_expressions:
+                idx = [stock for stock in idx if not exclude_expression.match(stock['ts_code'])]
+        return idx
+
     def get_stock_by_code(self, code: str) -> Optional[Dict[str, Any]]:
         """根据股票代码获取股票信息"""
         return self.load_one("code = %s", (code,))

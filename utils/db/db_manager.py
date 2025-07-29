@@ -239,23 +239,24 @@ class DatabaseManager:
             logger.error(f"Failed to create database: {e}")
             return False 
 
-    def register_table(self, table_name: str, table_schema: dict, model_class=None):
+    def register_table(self, table_name, prefix, schema):
         """
         注册自定义表
         
         Args:
-            table_name: 表名（会自动添加 cust_ 前缀）
+            table_name: 表名 (会自动添加 strategy 的 prefix)
             table_schema: 表结构定义（字典格式）
-            model_class: 自定义模型类（可选，继承自BaseTableModel）
+            model_class: 自定义模型类 (可选, 继承自BaseTableModel)
         """
         # 确保表名有 cust_ 前缀
-        if not table_name.startswith('cust_'):
-            table_name = f'cust_{table_name}'
+        if not prefix:
+            logger.error(f"prefix is required for table: {table_name}")
+        else:   
+            table_name = prefix + '_' + table_name
         
         # 存储表信息
         self.registered_tables[table_name] = {
-            'schema': table_schema,
-            'model_class': model_class
+            'schema': schema,
         }
         
         logger.info(f"Table registered: {table_name}")

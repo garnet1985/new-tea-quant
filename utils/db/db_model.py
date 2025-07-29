@@ -10,22 +10,22 @@ class BaseTableModel:
     def __init__(self, table_name: str, connected_db):
         self.db = connected_db
         self.table_name = table_name
-        # 构建schema路径 - 直接使用表名，不再区分类型
-        self.schema_path = os.path.join(os.path.dirname(__file__), 'tables', table_name, 'schema.json')
-        # 加载schema（如果存在）
-        self.schema = self.load_table_schema()
-        
-    
-    def load_table_name(self) -> str:
-        return self.table_name
+        self.schema = self.load_schema()
+
+    def load_schema(self) -> dict:
+        schema_path = os.path.join(os.path.dirname(__file__), 'tables', self.table_name, 'schema.json')
+        schema = json.load(open(schema_path, 'r'))
+        if not schema:
+            logger.error(f"Failed to load schema from {schema_path} for table {self.table_name}")
+            return None
+        return schema
     
     def create_table(self) -> bool:
-        schema_data = self.load_table_schema()
-        if not schema_data:
+        if not self.schema:
             logger.error(f"Failed to load schema for table: {self.table_name}")
             return False
 
-        sql = self.to_create_table_sql(schema_data)
+        sql = self.to_create_table_sql(self.schema)
         
         try:
             with self.db.get_sync_cursor() as cursor:
@@ -36,20 +36,6 @@ class BaseTableModel:
             logger.error(f"Failed to create table {self.table_name}: {e}")
             return False
 
-    def load_table_schema(self):
-        # 如果已经有schema（比如注册表），直接返回
-        if hasattr(self, 'schema') and self.schema:
-            return self.schema
-            
-        if not os.path.exists(self.schema_path):
-            logger.error(f"Schema file not found: {self.schema_path}")
-            return None
-        
-        # 读取schema文件
-        with open(self.schema_path, 'r', encoding='utf-8') as f:
-            schema_data = json.load(f)
-        
-        return schema_data
 
     def to_create_table_sql(self, schema_data: dict):
         """根据schema数据生成CREATE TABLE SQL语句"""

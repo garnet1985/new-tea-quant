@@ -1,6 +1,6 @@
 import tushare as ts
 from loguru import logger
-from utils.worker.worker import JobWorker, ExecutionMode
+from utils.worker.futures_worker import FuturesWorker, ExecutionMode
 from app.data_source.providers.tushare.main_settings import auth_token_file
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
@@ -82,7 +82,7 @@ class Tushare:
 
     def execute_stock_kline_renew_jobs(self, jobs: dict):
         """
-        使用JobWorker并行执行K线数据获取任务
+        使用FuturesWorker并行执行K线数据获取任务
         
         Args:
             jobs: 按股票分组的任务字典 {stock_key: [job_info1, job_info2, ...]}
@@ -92,12 +92,16 @@ class Tushare:
             return
         
         total_stocks = len(jobs)
-        logger.info(f"Start to execute {total_stocks} stocks with JobWorker")
+        logger.info(f"Start to execute {total_stocks} stocks with FuturesWorker")
         
         # 创建并行执行器
-        worker = JobWorker(
+        worker = FuturesWorker(
             max_workers=5,
-            execution_mode=ExecutionMode.PARALLEL
+            execution_mode=ExecutionMode.PARALLEL,
+            enable_monitoring=True,
+            timeout=60.0,  # 增加超时时间，因为数据获取可能需要更长时间
+            verbose=False,  # 关闭详细日志，只保留进度信息
+            debug=False    # 关闭调试日志
         )
         
         # 设置任务执行函数

@@ -26,7 +26,7 @@ class Analyzer:
         self.is_verbose = is_verbose
         
         # 注册的策略类
-        self._registered_strategies: Dict[str, Type[BaseStrategy]] = {}
+        self._registered_strategies: Dict[str, Any] = {}
         
         # 实例化的策略对象
         self._strategy_instances: Dict[str, BaseStrategy] = {}
@@ -63,7 +63,7 @@ class Analyzer:
             
             # 尝试导入策略模块
             try:
-                module_path = f"app.analyser.strategy.{strategy_folder.name}.strategy"
+                module_path = f"app.analyzer.strategy.{strategy_folder.name}.strategy"
                 strategy_module = importlib.import_module(module_path)
                 
                 # 查找继承 BaseStrategy 的策略类
@@ -91,21 +91,28 @@ class Analyzer:
                     logger.info(f"📋 注册策略: {strategy_name} -> {strategy_class.__name__}")
                         
             except ImportError as e:
-                logger.warning(f"⚠️ 导入策略 {strategy_name} 失败: {e}")
+                logger.warning(f"⚠️ 导入策略模块 {strategy_folder.name} 失败: {e}")
             except Exception as e:
-                logger.error(f"❌ 注册策略 {strategy_name} 失败: {e}")
+                logger.error(f"❌ 注册策略失败: {e}")
     
     def _initialize_enabled_strategies(self) -> None:
         """初始化所有启用的策略"""
         for strategy_name, strategy_class in self._registered_strategies.items():
             # 检查策略是否启用
             if self._is_strategy_enabled(strategy_class):
-                # 实例化策略
+                # 先创建策略实例（不调用initialize）
                 strategy_instance = strategy_class(db=self.db, is_verbose=self.is_verbose)
-                self._strategy_instances[strategy_name] = strategy_instance
+                
+                # 现在调用策略的初始化方法
+                strategy_instance.initialize()
                 
                 # 注册策略的表到数据库管理器
                 self._register_strategy_tables(strategy_instance)
+                
+                # 创建所有注册的表
+                self.db.create_tables()
+                
+                self._strategy_instances[strategy_name] = strategy_instance
                 
                 if self.is_verbose:
                     logger.info(f"✅ 初始化策略: {strategy_name} -> {strategy_class.__name__}")
@@ -132,6 +139,10 @@ class Analyzer:
         try:
             if hasattr(strategy_instance, 'required_tables'):
                 for table_name, table_model in strategy_instance.required_tables.items():
+                    # 跳过基础表，只注册策略特有的表
+                    if hasattr(table_model, 'is_base_table') and table_model.is_base_table:
+                        continue
+                    
                     # 获取表的前缀（从策略实例获取）
                     prefix = strategy_instance.prefix
                     
@@ -147,6 +158,8 @@ class Analyzer:
                     )
                     
                     if self.is_verbose:
+                        logger.info(f"📋 注册表: {prefix}_{table_name}")
+                    else:
                         logger.info(f"📋 注册表: {prefix}_{table_name}")
                         
         except Exception as e:

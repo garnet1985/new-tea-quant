@@ -5,12 +5,11 @@
 enabled = True
 
 invest_settings = {
-    "enabled": True,  # 策略启用状态
     "goal": {
-        "win": 1.5,
-        "loss": 0.8,
+        "win": 1.5,  # 50% profit
+        "loss": 0.8,  # 20% loss
         "opportunityRange": 0.05,
         "kellyCriterionDivider": 5
     },
-    "scan_terms": [60, 96]
+    "scan_terms": [60, 96, 0] # 0 means all terms
 }

@@ -156,8 +156,6 @@ class DatabaseManager:
             # 创建数据库（如果不存在）
             self.create_db()
             
-
-            
             # 创建所有表（包括注册的策略表）
             self.create_tables()
             
@@ -168,10 +166,6 @@ class DatabaseManager:
             logger.error(f"Database initialization failed: {e}")
             raise
     
-    def _initialize_strategy_models(self):
-        """初始化策略模型和策略管理器 - 已废弃，现在由 Analyzer 负责"""
-        # 这个方法现在由 Analyzer 负责，保持兼容性
-        pass
     
     def connect_sync(self):
         """建立同步数据库连接"""
@@ -322,8 +316,15 @@ class DatabaseManager:
             try:
                 # 创建自定义表模型
                 if table_info['model_class']:
-                    # 使用自定义模型类 - 只传递数据库连接
-                    table_model = table_info['model_class'](self)
+                    # 检查是否是BaseTableModel的子类
+                    from .db_model import BaseTableModel
+                    if (issubclass(table_info['model_class'], BaseTableModel) and 
+                        table_info['model_class'].__init__.__code__.co_argcount == 3):  # self + table_name + connected_db
+                        # 如果是BaseTableModel的子类且构造函数接受3个参数，传递table_name和self
+                        table_model = table_info['model_class'](table_name, self)
+                    else:
+                        # 否则只传递self（数据库连接）
+                        table_model = table_info['model_class'](self)
                 else:
                     # 使用基础模型类
                     from .db_model import BaseTableModel

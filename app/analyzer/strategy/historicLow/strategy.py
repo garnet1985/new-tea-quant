@@ -167,7 +167,7 @@ class HistoricLowStrategy(BaseStrategy):
 
         monthly_data = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
 
-        if(len(monthly_data) < self.service.get_min_required_monthly_records()):
+        if(len(monthly_data) < self.settings["min_required_monthly_records"]):
             return []
 
         # 获取最新的日线数据，添加错误处理
@@ -230,10 +230,7 @@ class HistoricLowStrategy(BaseStrategy):
                         'win': self.service.set_win(latest_record),
                         'purchase': latest_record['close']
                     },
-                    'historic_low_ref': {
-                        'term': low_point['term'],
-                        'ref': low_point
-                    } 
+                    'historic_low_ref': low_point
                 }
                 return opportunity
         

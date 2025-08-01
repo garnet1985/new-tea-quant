@@ -11,5 +11,7 @@ invest_settings = {
         "opportunityRange": 0.05,
         "kellyCriterionDivider": 5
     },
-    "scan_terms": [60, 96, 0] # 0 means all terms
+    # 区间：整个月线的25%，40%，70%位置
+    "dividers": [0.3, 0.5],
+    "min_required_monthly_records": 100
 }

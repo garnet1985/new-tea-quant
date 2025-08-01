@@ -51,7 +51,7 @@ class HistoricLowStrategy(BaseStrategy):
 
         self.common = AnalyzerService()
         self.service = HistoricLowService()
-        self.simulator = HLSimulator()
+        self.simulator = HLSimulator(self)
 
 
     def initialize(self):
@@ -170,7 +170,13 @@ class HistoricLowStrategy(BaseStrategy):
         if len(monthly_data) < self.service.get_min_required_monthly_records():
             return []
 
-        latest_daily_record = self.service.get_most_recent_klines(self.required_tables["stock_kline"], stock, 'daily', 1)[0]
+        # 获取最新的日线数据，添加错误处理
+        daily_data = self.service.get_most_recent_klines(self.required_tables["stock_kline"], stock, 'daily', 1)
+        if not daily_data or len(daily_data) == 0:
+            print(f"    ❌ {stock['code']} 没有日线数据")
+            return []
+        
+        latest_daily_record = daily_data[0]
 
         opportunity = self.scan_single_stock(stock, latest_daily_record, monthly_data)
         
@@ -206,6 +212,11 @@ class HistoricLowStrategy(BaseStrategy):
         
         # 遍历所有最低点，找到第一个匹配的投资机会（与JavaScript版本一致）
         for low_point in low_points:
+            # 检查low_point是否有效
+            if low_point is None or low_point['record'] is None:
+                print(f"    ⚠️ 扫描周期 {low_point['term'] if low_point else 'unknown'}: 无效的最低点记录，跳过")
+                continue
+                
             # 检查当前价格是否在投资范围内
             is_in_range = self.service.is_in_invest_range(latest_record, low_point)
             lowest_price = float(low_point['record']['lowest'])

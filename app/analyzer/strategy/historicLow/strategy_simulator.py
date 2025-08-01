@@ -10,7 +10,10 @@ from app.analyzer.strategy.historicLow.strategy_settings import invest_settings
 from utils.worker.futures_worker import FuturesWorker
 
 class HLSimulator:
-    def __init__(self):
+    def __init__(self, strategy):
+
+        self.strategy = strategy
+
         self.test_tracker = {
             'investing': {},
             'settled': {}
@@ -23,9 +26,8 @@ class HLSimulator:
         self.common = AnalyzerService()
         self.service = HistoricLowService()
 
-
-    def test_strategy(self, stock: Dict[str, Any], opportunity: Dict[str, Any]) -> bool:
-        stock_idx = self.required_tables["stock_index"].get_stock_index()
+    def test_strategy(self) -> bool:
+        stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
 
         # todo: remove below line
         stock_idx = stock_idx[1:2]  # 只测试第二只股票 (000002)
@@ -34,11 +36,12 @@ class HLSimulator:
         jobs = []
 
         for stock in stock_idx:
-            monthly_data = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
-            daily_data = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'daily')
+            monthly_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
+            daily_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'daily')
             print(f"    {stock['code']} 月度数据: {len(monthly_data)} 条, 日度数据: {len(daily_data)} 条")
             
-            if len(monthly_data) >= self.service.get_min_required_monthly_records():
+            # 检查数据是否足够
+            if len(monthly_data) >= self.service.get_min_required_monthly_records() and len(daily_data) > 0:
                 jobs.append({
                     'id': f"scan_{stock['code']}",
                     'data': {
@@ -48,7 +51,10 @@ class HLSimulator:
                     }
                 })
             else:
-                print(f"    ❌ {stock['code']} 月度数据不足，需要至少 {self.service.get_min_required_monthly_records()} 条")
+                if len(monthly_data) < self.service.get_min_required_monthly_records():
+                    print(f"    ❌ {stock['code']} 月度数据不足，需要至少 {self.service.get_min_required_monthly_records()} 条")
+                if len(daily_data) == 0:
+                    print(f"    ❌ {stock['code']} 没有日度数据")
 
         worker = FuturesWorker(
             max_workers=10,
@@ -91,7 +97,11 @@ class HLSimulator:
         print(f"   最终投资状态: {len(self.test_tracker['investing'])} 个")
         print(f"   已结算投资: {len(self.test_tracker['settled'])} 个")
         
-        self.settle_open_investments(data['stock'], data['daily_data'][-1])
+        # 添加错误处理，确保有日线数据才进行结算
+        if data['daily_data'] and len(data['daily_data']) > 0:
+            self.settle_open_investments(data['stock'], data['daily_data'][-1])
+        else:
+            print(f"    ❌ {stock_code} 没有日线数据，跳过结算")
 
     def simulate_a_day_for_a_stock(self, stock: Dict[str, Any], daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]]) -> bool:
         """测试单个股票"""
@@ -103,7 +113,7 @@ class HLSimulator:
             # 如果结算了，扫描新机会
             if should_settle:
                 # 投资已结算（在settle_result中已清空投资状态），扫描新机会
-                opportunity = self.scan_single_stock(stock, daily_record, monthly_data)
+                opportunity = self.strategy.scan_single_stock(stock, daily_record, monthly_data)
                 if opportunity:
                     self.invest(stock, opportunity)
                     return True
@@ -111,7 +121,7 @@ class HLSimulator:
             return False
         else:
             # 2. 没有投资，扫描新机会
-            opportunity = self.scan_single_stock(stock, daily_record, monthly_data)
+            opportunity = self.strategy.scan_single_stock(stock, daily_record, monthly_data)
             if opportunity:
                 self.invest(stock, opportunity)
                 return True

@@ -4,6 +4,10 @@ from utils.worker.futures_worker import FuturesWorker, ExecutionMode
 from app.data_source.providers.tushare.main_settings import auth_token_file
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
+import warnings
+
+# 抑制tushare库的FutureWarning
+warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
 
 class Tushare:
     def __init__(self, connected_db, is_verbose: bool = False):
@@ -208,12 +212,19 @@ class Tushare:
             raise  # 重新抛出异常，让JobWorker捕获并记录
 
     def fetch_kline_data(self, job: dict):
-        if job['term'] == 'daily':
-            return self.api.daily(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
-        elif job['term'] == 'weekly':
-            return self.api.weekly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
-        elif job['term'] == 'monthly':
-            return self.api.monthly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+        import tushare as ts
+        import warnings
+        
+        # 临时抑制tushare的FutureWarning
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
+            
+            if job['term'] == 'daily':
+                return ts.pro_bar(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'], adj='qfq')
+            elif job['term'] == 'weekly':
+                return ts.pro_bar(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'], adj='qfq', freq='W')
+            elif job['term'] == 'monthly':
+                return ts.pro_bar(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'], adj='qfq', freq='M')
 
 
     def renew_stock_index(self, is_force=False):

@@ -65,7 +65,7 @@ class HistoricLowStrategy(BaseStrategy):
         
         self.required_tables = {
             "stock_index": self.db.get_table_instance("stock_index"),
-            "stock_kline": self.db.get_table_instance("stock_kline"),
+            "stock_kline": self.db.get_table_instance("stock_kline_qfq"),
 
             "meta": HLMetaModel(self.db),
             "opportunity_history": HLOpportunityHistoryModel(self.db),
@@ -165,13 +165,26 @@ class HistoricLowStrategy(BaseStrategy):
     def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 准备数据
 
-        monthly_data = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
+        monthly_data_result = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
+        
+        # 确保monthly_data是列表格式
+        if monthly_data_result:
+            monthly_data = monthly_data_result
+        else:
+            monthly_data = []
 
         if(len(monthly_data) < self.settings["min_required_monthly_records"]):
             return []
 
         # 获取最新的日线数据，添加错误处理
-        daily_data = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['code'], 'daily')
+        daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['code'], 'daily')
+        
+        # 确保daily_data是单个记录而不是列表
+        if daily_data_result and len(daily_data_result) > 0:
+            daily_data = daily_data_result[0]  # 取第一个（最新的）记录
+        else:
+            # 如果没有日线数据，返回空列表
+            return []
 
         opportunity = self.scan_single_stock(stock, daily_data, monthly_data)
         
@@ -183,14 +196,19 @@ class HistoricLowStrategy(BaseStrategy):
 
 
 
-    def scan_single_stock(self, stock: Dict[str, Any], latest_daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def scan_single_stock(self, stock: Dict[str, Any], latest_daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]], daily_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """寻找投资机会"""
-        # 寻找最低点记录
+        # 1. 趋势过滤：检查股票趋势是否适合投资
+        if daily_data and not self.service.is_trend_suitable_for_investment(monthly_data, daily_data):
+            # print(f"    ⚠️  {stock['code']} 趋势不适合投资，跳过")
+            return None
+        
+        # 2. 寻找最低点记录
         low_points = self.service.find_lowest_records(monthly_data)
 
         # print(f"    🔍 找到 {len(low_points)} 个最低点")
         
-        # 从最低点寻找机会
+        # 3. 从最低点寻找机会
         opportunity = self._find_opportunity_from_low_points(stock, low_points, latest_daily_record)
         
         # if opportunity:
@@ -204,22 +222,12 @@ class HistoricLowStrategy(BaseStrategy):
         """从最低点寻找投资机会（与JavaScript版本保持一致）"""
         current_price = float(latest_record['close'])
         
-        # 遍历所有最低点，找到第一个匹配的投资机会（与JavaScript版本一致）
+        # 检查当前价格是否在投资范围内
         for low_point in low_points:
-            # 检查low_point是否有效
-            if low_point is None or low_point['record'] is None:
-                # print(f"    ⚠️ 扫描周期 {low_point['term'] if low_point else 'unknown'}: 无效的最低点记录，跳过")
-                continue
-                
-            # 检查当前价格是否在投资范围内
-            is_in_range = self.service.is_in_invest_range(latest_record, low_point)
-            lowest_price = float(low_point['record']['lowest'])
-            # print(f"    📊 扫描周期 {low_point['term']}: 最低点 {lowest_price}, 在投资范围内: {is_in_range}")
-            
-            if is_in_range:
-                # 找到第一个匹配的机会就返回（与JavaScript版本一致）
+            if self.service.is_in_invest_range(latest_record, low_point):
+                # 找到匹配的历史低点，创建投资机会
                 opportunity = {
-                    'meta': {
+                    'stock': {
                         'code': stock['code'],
                         'name': stock['name'],
                         'market': stock['market']

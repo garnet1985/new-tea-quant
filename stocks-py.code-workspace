@@ -7,5 +7,10 @@
 			"path": "../stocks"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"cSpell.words": [
+			"klines",
+			"Tushare"
+		]
+	}
 }

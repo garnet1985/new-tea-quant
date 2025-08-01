@@ -16,6 +16,9 @@ class HLMetaModel(BaseTableModel):
         # 调用父类构造函数
         super().__init__(table_name, connected_db)
         
+        # 覆盖table_name为完整表名
+        self.table_name = self.table_full_name
+        
         # 注册表到数据库管理器，使其在初始化时自动创建
         self.db.register_table(
             table_name=table_name,
@@ -46,9 +49,11 @@ class HLMetaModel(BaseTableModel):
     
     def update_meta(self, date: str, last_opportunity_update_time: str, last_suggested_stock_codes: list):
         """更新元数据"""
+        from datetime import datetime
+        
         data = {
             'date': date,
-            'dateTime': 'NOW()',  # 使用数据库的当前时间
+            'dateTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  # 使用Python的当前时间
             'lastOpportunityUpdateTime': last_opportunity_update_time,
             'lastSuggestedStockCodes': json.dumps(last_suggested_stock_codes)
         }

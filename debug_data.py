@@ -19,7 +19,7 @@ def main():
     print(f"🎯 测试股票: {stock['code']} - {stock['name']}")
     
     # 获取数据
-    kline_table = db.get_table_instance("stock_kline")
+    kline_table = db.get_table_instance("stock_kline_qfq")
     monthly_data = kline_table.get_all_klines_by_term(stock['code'], 'monthly')
     daily_data = kline_table.get_all_klines_by_term(stock['code'], 'daily')
     

@@ -21,15 +21,16 @@ class AnalyzerService:
         计算年化收益率
         
         Args:
-            profit_rate: 总收益率（小数形式，如0.1表示10%）
+            profit_rate: 总收益率（小数形式， 如0.1表示10%)
             duration_in_days: 投资天数
             
         Returns:
-            float: 年化收益率（百分比形式）
+            float: 年化收益率（小数形式）
         """
         if duration_in_days <= 0:
             return 0.0
         
-        # 年化收益率 = (1 + 总收益率)^(365/投资天数) - 1
-        annual_return = ((1 + profit_rate) ** (365 / duration_in_days) - 1)
+        # 对于短期投资，使用简单的年化公式：年化收益率 = 总收益率 * (365/投资天数)
+        # 这样可以避免短期投资产生极其夸张的年化收益率
+        annual_return = profit_rate * (365 / duration_in_days)
         return annual_return

@@ -24,7 +24,7 @@ def main():
             print(f"🎯 第二只股票: {stock_idx[1]['code']} - {stock_idx[1]['name']}")
     
     # 获取股票K线数据
-    kline_table = db.get_table_instance("stock_kline")
+    kline_table = db.get_table_instance("stock_kline_qfq")
     
     if len(stock_idx) > 1:
         stock_code = stock_idx[1]['code']  # 000002

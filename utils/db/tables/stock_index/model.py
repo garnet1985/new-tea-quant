@@ -13,6 +13,8 @@ class StockIndexModel(BaseTableModel):
     
     def __init__(self, table_name: str, connected_db):
         super().__init__(table_name, connected_db)
+        # 标记为基础表（不需要前缀）
+        self.is_base_table = True
 
     def get_index(self, exclude_expressions: List[str] = None) -> List[Dict[str, Any]]:
         """获取股票指数"""

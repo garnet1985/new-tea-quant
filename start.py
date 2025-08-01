@@ -9,7 +9,7 @@ import asyncio
 
 from utils.db.db_manager import DatabaseManager
 from app.data_source.providers.tushare.main import Tushare
-from app.analyser import Analyzer
+from app.analyzer import Analyzer
 
 
 # 添加项目根目录到Python路径

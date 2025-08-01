@@ -19,7 +19,7 @@ def test_strategy():
     stock = {'code': '000002', 'name': '万科A', 'market': 'sz'}
     
     # 获取最新数据
-    kline_table = db.get_table_instance('stock_kline')
+    kline_table = db.get_table_instance('stock_kline_qfq')
     daily_data = kline_table.get_all_klines_by_term('000002', 'daily')
     monthly_data = kline_table.get_all_klines_by_term('000002', 'monthly')
     

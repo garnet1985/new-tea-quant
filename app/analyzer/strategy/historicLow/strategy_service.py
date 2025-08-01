@@ -10,6 +10,11 @@ class HistoricLowService:
         """寻找最低点记录"""
         low_points = []
         
+        # 检查输入数据是否有效
+        if not records or len(records) == 0:
+            print("    ⚠️ 没有月度数据，无法寻找最低点")
+            return low_points
+        
         # 为每个扫描周期寻找最低点
         for term in invest_settings['scan_terms']:
             if term > len(records):
@@ -17,27 +22,40 @@ class HistoricLowService:
             else:
                 data = records[:term]
             lowest_record = self.find_lowest(data)
-            low_points.append({
-                'term': term,
-                'record': lowest_record
-            })
+            if lowest_record is not None:  # 只添加有效的最低点记录
+                low_points.append({
+                    'term': term,
+                    'record': lowest_record
+                })
+            else:
+                print(f"    ⚠️ 扫描周期 {term}: 未找到有效的最低点记录")
         
         # 添加全历史最低点（JavaScript版本有这个逻辑）
         if records:
             all_time_lowest = self.find_lowest(records)
-            low_points.append({
-                'term': 0,  # 0表示全历史
-                'record': all_time_lowest
-            })
+            if all_time_lowest is not None:  # 只添加有效的全历史最低点
+                low_points.append({
+                    'term': 0,  # 0表示全历史
+                    'record': all_time_lowest
+                })
+            else:
+                print(f"    ⚠️ 全历史: 未找到有效的最低点记录")
         
         return low_points
 
     def find_lowest(self, records):
         """寻找最低点记录（从最新到最旧查找，与JavaScript版本一致）"""
+        # 检查输入数据是否有效
+        if not records or len(records) == 0:
+            return None
+            
         lowest_record = None
         # 从最新到最旧查找（与JavaScript版本一致）
         for i in range(len(records) - 1, -1, -1):
             record = records[i]
+            # 检查记录是否有效
+            if record is None or 'lowest' not in record:
+                continue
             if lowest_record is None or record['lowest'] < lowest_record['lowest']:
                 lowest_record = record
         return lowest_record

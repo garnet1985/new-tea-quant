@@ -37,11 +37,9 @@ class HLSimulator:
 
         for stock in stock_idx:
             monthly_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
-            daily_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'daily')
-            print(f"    {stock['code']} 月度数据: {len(monthly_data)} 条, 日度数据: {len(daily_data)} 条")
             
-            # 检查数据是否足够
-            if len(monthly_data) >= self.service.get_min_required_monthly_records() and len(daily_data) > 0:
+            if len(monthly_data) > self.service.get_min_required_monthly_records():
+                daily_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'daily')
                 jobs.append({
                     'id': f"scan_{stock['code']}",
                     'data': {
@@ -50,11 +48,7 @@ class HLSimulator:
                         'daily_data': daily_data
                     }
                 })
-            else:
-                if len(monthly_data) < self.service.get_min_required_monthly_records():
-                    print(f"    ❌ {stock['code']} 月度数据不足，需要至少 {self.service.get_min_required_monthly_records()} 条")
-                if len(daily_data) == 0:
-                    print(f"    ❌ {stock['code']} 没有日度数据")
+
 
         worker = FuturesWorker(
             max_workers=10,
@@ -75,57 +69,47 @@ class HLSimulator:
 
     def test_job(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         stock_code = data['stock']['code']
-        print(f"\n🔍 开始扫描股票 {stock_code}")
-        print(f"   月度数据: {len(data['monthly_data'])} 条")
-        print(f"   日度数据: {len(data['daily_data'])} 条")
-        
-        scan_count = 0
-        invest_count = 0
         
         for daily_record in data['daily_data']:
-            monthly_data = self.service.get_records_before_date(data['monthly_data'], daily_record['date'])
-            if len(monthly_data) < self.service.get_min_required_monthly_records():
+            monthly_K_lines = self.service.get_records_before_date(data['monthly_data'], daily_record['date'])
+
+            if len(monthly_K_lines) < self.service.get_min_required_monthly_records():
                 continue
             else:
-                scan_count += 1
-                result = self.simulate_a_day_for_a_stock(data['stock'], daily_record, monthly_data)
-                if result:
-                    invest_count += 1
+                # debug code to check if get_records_before_date is correct
+                # print(f"date of today: {daily_record['date']}")
+                # print(f"{monthly_data[-1]['date']}")
+                self.simulate_one_day_for_one_stock(data['stock'], daily_record, monthly_K_lines)
 
-        print(f"   扫描天数: {scan_count}")
-        print(f"   投资次数: {invest_count}")
-        print(f"   最终投资状态: {len(self.test_tracker['investing'])} 个")
-        print(f"   已结算投资: {len(self.test_tracker['settled'])} 个")
-        
         # 添加错误处理，确保有日线数据才进行结算
         if data['daily_data'] and len(data['daily_data']) > 0:
             self.settle_open_investments(data['stock'], data['daily_data'][-1])
         else:
-            print(f"    ❌ {stock_code} 没有日线数据，跳过结算")
+            print(f"    ❌ CRITICAL ERROR: {stock_code} 没有日线数据，跳过结算")
 
-    def simulate_a_day_for_a_stock(self, stock: Dict[str, Any], daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]]) -> bool:
+
+    def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_K_lines: List[Dict[str, Any]]) -> bool:
         """测试单个股票"""
         # 1. 先检查现有投资是否需要结算
         investment = self.service.get_investing(stock, self.test_tracker['investing'])
         if investment:
             # 检查是否需要结算（止损或止盈）
-            should_settle = self.settle_investment(stock, investment, daily_record)
+            is_settled = self.settle_investment(stock, investment, record_of_today)
             # 如果结算了，扫描新机会
-            if should_settle:
+            if is_settled:
                 # 投资已结算（在settle_result中已清空投资状态），扫描新机会
-                opportunity = self.strategy.scan_single_stock(stock, daily_record, monthly_data)
-                if opportunity:
-                    self.invest(stock, opportunity)
-                    return True
+                self.find_opportunity(stock, record_of_today, monthly_K_lines)
             # 如果没结算，继续持有（不扫描新机会）
             return False
         else:
             # 2. 没有投资，扫描新机会
-            opportunity = self.strategy.scan_single_stock(stock, daily_record, monthly_data)
-            if opportunity:
-                self.invest(stock, opportunity)
-                return True
+            self.find_opportunity(stock, record_of_today, monthly_K_lines)
             return False
+
+    def find_opportunity(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_K_lines: List[Dict[str, Any]]) -> None:
+        opportunity = self.strategy.scan_single_stock(stock, record_of_today, monthly_K_lines)
+        if opportunity:
+            self.invest(stock, opportunity)
 
     def invest(self, stock: Dict[str, Any], opportunity: Dict[str, Any]) -> None:
         # 添加投资开始日期（投资当天的日期）
@@ -137,8 +121,8 @@ class HLSimulator:
         """结算投资，返回是否结算了"""
         # 转换数据类型，确保计算一致性
         current_close = float(latest_record['close'])
-        win_price = float(investment['goal']['win'])  # 使用已计算的止盈价格
-        loss_price = float(investment['goal']['loss'])  # 使用已计算的止损价格
+        loss_price = investment['goal']['loss']
+        win_price = investment['goal']['win']
         
         if current_close >= win_price:
             print(f"🎉 {stock['code']} 投资成功，止盈 {current_close:.2f} (目标: {win_price:.2f})")

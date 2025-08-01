@@ -1,6 +1,7 @@
 
 
 
+import pprint
 from typing import Dict, List, Any
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
@@ -38,7 +39,7 @@ class HLSimulator:
         for stock in stock_idx:
             monthly_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
             
-            if len(monthly_data) > self.service.get_min_required_monthly_records():
+            if len(monthly_data) > invest_settings['min_required_monthly_records']:
                 daily_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'daily')
                 jobs.append({
                     'id': f"scan_{stock['code']}",
@@ -73,7 +74,7 @@ class HLSimulator:
         for daily_record in data['daily_data']:
             monthly_K_lines = self.service.get_records_before_date(data['monthly_data'], daily_record['date'])
 
-            if len(monthly_K_lines) < self.service.get_min_required_monthly_records():
+            if not self.service.is_reached_min_required_monthly_records(monthly_K_lines):
                 continue
             else:
                 # debug code to check if get_records_before_date is correct
@@ -125,12 +126,13 @@ class HLSimulator:
         win_price = investment['goal']['win']
         
         if current_close >= win_price:
-            print(f"🎉 {stock['code']} 投资成功，止盈 {current_close:.2f} (目标: {win_price:.2f})")
+            print(f"🎉 {stock['code']} 投资成功，止盈 {current_close:.2f} (目标: {win_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
             self.settle_result(self.result_enum.WIN, stock, investment, latest_record)
             return True
         elif current_close <= loss_price:
-            print(f"❌ {stock['code']} 投资失败，止损 {current_close:.2f} (目标: {loss_price:.2f})")
+            print(f"❌ {stock['code']} 投资失败，止损 {current_close:.2f} (目标: {loss_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
             self.settle_result(self.result_enum.LOSS, stock, investment, latest_record)
+            print(f"参考数据: 日期 {investment['historic_low_ref']['record']['date']} 期数 {investment['historic_low_ref']['term']} 最低点 {investment['historic_low_ref']['record']['lowest']}")
             return True
         else:
             # print(f'投资中... 当前: {current_close:.2f}, 止盈: {win_price:.2f}, 止损: {loss_price:.2f}')

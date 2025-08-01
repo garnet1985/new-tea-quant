@@ -11,33 +11,29 @@ class HistoricLowService:
         """寻找最低点记录"""
         low_points = []
 
-        if len(records) < self.get_min_required_monthly_records():
+        if not self.is_reached_min_required_monthly_records(records):
             return []
 
-        # 为每个扫描周期寻找最低点
-        for term in invest_settings['scan_terms']:
-            if term <= 0:
-                # 处理全历史最低点
-                all_time_lowest = self.find_lowest(records)
-                if all_time_lowest is not None:  # 只添加有效的全历史最低点
-                    low_points.append({
-                        'term': 0,  # 0表示全历史
-                        'record': all_time_lowest
-                    })
-            else:
-                # 处理指定周期的最低点
-                data = records[-term:]  # 取最新的term条记录
-                lowest_record = self.find_lowest(data)
-                
-                if lowest_record is not None:  # 只添加有效的最低点记录
-                    low_points.append({
-                        'term': term,
-                        'record': lowest_record
-                    })
+        next_start = 0
+
+        # 计算每个区间的最低点
+        for divider in invest_settings['dividers']:
+            # 计算每个区间的最低点
+            end = int(len(records) * divider)
+            filtered_records = records[next_start:end]
+            next_start = end + 1
+            lowest_record = self.find_lowest(filtered_records)
+            if lowest_record is not None:
+                low_points.append({
+                    'divider': divider,
+                    'record': lowest_record
+                })
 
         # 对 low_points 进行合并，如果有不同周期下得到的最低值是一样的，则只保留一个
         low_points = self.merge_low_points(low_points)
-                
+
+        # pprint.pprint(low_points)
+        
         return low_points
 
     def merge_low_points(self, low_points):
@@ -120,12 +116,8 @@ class HistoricLowService:
         
     #     return result
 
-    def get_min_required_monthly_records(self):
-        minNum = float('inf')  # 使用 Python 的无穷大
-        for term in invest_settings['scan_terms']:
-            if term >= 0 and term < minNum:
-                minNum = term
-        return minNum
+    def is_reached_min_required_monthly_records(self, records):
+        return len(records) >= invest_settings['min_required_monthly_records']
 
     def get_max_required_monthly_records(self):
         return max(invest_settings['scan_terms'])

@@ -12,6 +12,8 @@ class BaseTableModel:
         self.table_name = table_name
         self.schema = self.load_schema()
         self.verbose = False
+        # 默认为策略表（需要前缀）
+        self.is_base_table = False
 
     def load_schema(self) -> dict:
         schema_path = os.path.join(os.path.dirname(__file__), 'tables', self.table_name, 'schema.json')

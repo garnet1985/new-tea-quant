@@ -34,8 +34,6 @@ class BaseStrategy(ABC):
         # 初始化策略
         self._check_required_fields()
 
-        self.initialize()
-
     def set_verbose(self, is_verbose: bool):
         """设置是否打印日志"""
         self.is_verbose = is_verbose

@@ -205,7 +205,7 @@ DB_CONFIG = {
 # 基础表映射
 TABLES = {
     'stock_index': 'stock_index',
-    'stock_kline': 'stock_kline',
+    'stock_kline': 'stock_kline_qfq',
     # ...
 }
 

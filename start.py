@@ -7,6 +7,10 @@ import os
 from loguru import logger
 import asyncio
 
+# 在导入其他模块之前设置警告抑制
+from utils.warning_suppressor import setup_warning_suppression
+setup_warning_suppression()
+
 from utils.db.db_manager import DatabaseManager
 from app.data_source.providers.tushare.main import Tushare
 from app.analyzer import Analyzer

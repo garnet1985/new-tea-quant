@@ -85,3 +85,15 @@ class StockIndexModel(BaseTableModel):
         except Exception as e:
             logger.error(f"获取股票列表失败: {e}")
             return []
+
+    def get_all_klines_by_term(self, stock_code: str, term: str, order_by: str = 'ASC'):
+        sql = f"""
+                SELECT * FROM stock_kline WHERE code = %s AND term = %s ORDER BY date {order_by}
+            """
+        return self.execute_raw_query(sql, (stock_code, term))
+
+    def get_most_recent_one_by_term(self, stock_code: str, term: str):
+        sql = f"""
+                SELECT * FROM stock_kline WHERE code = %s AND term = %s ORDER BY date DESC LIMIT 1
+            """
+        return self.execute_raw_query(sql, (stock_code, term))

@@ -47,3 +47,19 @@ class MetaInfoModel(BaseTableModel):
             update_sql = "UPDATE meta_info SET info = %s WHERE id = %s"
             self.db.execute_sync_update(update_sql, (txt, info['id']))
 
+    def get_meta_info_by_key(self, key: str):
+        info = self.load_one()
+        if info is None:
+            return None
+        else:
+            info_dict = self.toDict(info['info'])
+            return info_dict.get(key)
+    
+    def set_meta_info_by_key(self, key: str, value: str):
+        info = self.load_one()
+        if info is None:
+            self.insert_one({'info': f"{key}={value}"})
+        else:
+            txt = self.toStr(info['info'], key, value)
+            self.db.execute_sync_update("UPDATE meta_info SET info = %s WHERE id = %s", (txt, info['id']))
+

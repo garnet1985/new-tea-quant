@@ -65,7 +65,7 @@ class HistoricLowStrategy(BaseStrategy):
         
         self.required_tables = {
             "stock_index": self.db.get_table_instance("stock_index"),
-            "stock_kline": self.db.get_table_instance("stock_kline_qfq"),
+            "stock_kline": self.db.get_table_instance("stock_kline"),
 
             "meta": HLMetaModel(self.db),
             "opportunity_history": HLOpportunityHistoryModel(self.db),
@@ -199,28 +199,20 @@ class HistoricLowStrategy(BaseStrategy):
     def scan_single_stock(self, stock: Dict[str, Any], latest_daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]], daily_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """寻找投资机会"""
         # 1. 趋势过滤：检查股票趋势是否适合投资
+        # TODO: to be improved
         if daily_data and not self.service.is_trend_suitable_for_investment(monthly_data, daily_data):
-            # print(f"    ⚠️  {stock['code']} 趋势不适合投资，跳过")
             return None
         
         # 2. 寻找最低点记录
         low_points = self.service.find_lowest_records(monthly_data)
 
-        # print(f"    🔍 找到 {len(low_points)} 个最低点")
-        
         # 3. 从最低点寻找机会
         opportunity = self._find_opportunity_from_low_points(stock, low_points, latest_daily_record)
-        
-        # if opportunity:
-        #     print(f"    📈 {stock['code']} {latest_daily_record['date']} 发现投资机会")
-        # else:
-        #     print(f"    ❌ {stock['code']} {latest_daily_record['date']} 未发现投资机会")
         
         return opportunity
             
     def _find_opportunity_from_low_points(self, stock: Dict[str, Any], low_points: List[Dict[str, Any]], latest_record: Dict[str, Any]) -> Dict[str, Any]:
         """从最低点寻找投资机会（与JavaScript版本保持一致）"""
-        current_price = float(latest_record['close'])
         
         # 检查当前价格是否在投资范围内
         for low_point in low_points:

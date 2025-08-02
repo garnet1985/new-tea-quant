@@ -10,7 +10,7 @@ class TushareStorage:
         # 使用线程安全的数据库模型
         self.meta_info = connected_db.get_table_instance('meta_info')
         self.stock_index_table = connected_db.get_table_instance('stock_index')
-        self.stock_kline_table = connected_db.get_table_instance('stock_kline_qfq')
+        self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
     def save_stock_index(self, data):
         self.stock_index_table.clear()
@@ -61,7 +61,7 @@ class TushareStorage:
             # 使用SQL聚合查询获取所有股票所有周期的最新日期
             query = """
                 SELECT code, market, term, MAX(date) as latest_date 
-                FROM stock_kline_qfq 
+                FROM stock_kline 
                 GROUP BY code, market, term
             """
             result = self.stock_kline_table.execute_raw_query(query)

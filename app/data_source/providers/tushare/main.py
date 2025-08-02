@@ -1,3 +1,4 @@
+import pprint
 import tushare as ts
 from loguru import logger
 from utils.worker.futures_worker import FuturesWorker, ExecutionMode
@@ -5,6 +6,8 @@ from app.data_source.providers.tushare.main_settings import auth_token_file
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
 import warnings
+import time
+
 
 # 抑制tushare库的FutureWarning
 warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
@@ -17,40 +20,27 @@ class Tushare:
 
         self.is_verbose = is_verbose
 
-        self.latest_market_open_day = None
-        self.latest_stock_index = None
-
         self.use_token();
         self.api = ts.pro_api()
 
-
-    async def renew_data(self):
-        import time
-        start_time = time.time()
+    async def get_latest_market_open_day(self):
+        return self.service.get_latest_market_open_day(self.api)
 
 
-        self.latest_market_open_day = self.service.get_latest_market_open_day(self.api)
-        if self.latest_market_open_day != None:
-            self.latest_stock_index = self.renew_stock_index()
-            
-            # 如果股票指数是最新的（返回None），从数据库加载现有数据
-            if self.latest_stock_index is None:
-                self.latest_stock_index = self.storage.load_stock_index()
-            
-            # 统一股票指数数据格式
-            self.latest_stock_index = self.service.normalize_stock_index_data(self.latest_stock_index)
-            
-            await self.renew_stock_kline_by_batch()
-        else:
-            logger.error("Can not retrieve most recent market open date, renew job blocked!")
+    async def renew_stock_K_lines(self, latest_market_open_day: str = None, stock_index: list = None):
+       await self.renew_stock_K_lines_by_batch(latest_market_open_day, stock_index)
 
 
-        # 计算总耗时
-        total_time = time.time() - start_time
-        logger.info(f"✅ total time consuming: {total_time:.2f} seconds")
+    async def renew_global_economic_data(self):
+        # TODO: implement when necessary
+        pass
+
+    async def renew_corporate_finance_data(self):
+        # TODO: implement when necessary
+        pass
     
 
-    async def renew_stock_kline_by_batch(self):
+    async def renew_stock_K_lines_by_batch(self, latest_market_open_day: str = None, stock_index: list = None):
         """
         批量更新股票K线数据
         """
@@ -59,22 +49,22 @@ class Tushare:
         stock_list = []
         
         # 处理统一格式的股票指数数据
-        for row in self.latest_stock_index:
+        for row in stock_index:
             code = row['code']
             market = row['market']
             stock_list.append((code, market))
 
         # TODO: remove below slicing
-        # stock_list = stock_list[:100]
+        stock_list = stock_list[:1]
         
         # 生成按股票分组的更新任务
-        jobs = self.service.generate_kline_renew_jobs(stock_list, self.latest_market_open_day, self.storage)
+        jobs = self.service.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)
         
         # 统计各类型任务数量
         term_counts = {}
         total_jobs = 0
         
-        for stock_key, stock_jobs in jobs.items():
+        for stock_jobs in jobs.items():
             for job in stock_jobs:
                 term = job['term']
                 term_counts[term] = term_counts.get(term, 0) + 1
@@ -97,8 +87,6 @@ class Tushare:
         
 
 
-
-
     def execute_stock_kline_renew_jobs(self, jobs: dict):
         """
         使用FuturesWorker并行执行K线数据获取任务
@@ -115,7 +103,7 @@ class Tushare:
         
         # 创建并行执行器
         worker = FuturesWorker(
-            max_workers=5,
+            max_workers=10,
             execution_mode=ExecutionMode.PARALLEL,
             enable_monitoring=True,
             timeout=60.0,  # 增加超时时间，因为数据获取可能需要更长时间
@@ -216,43 +204,40 @@ class Tushare:
         import warnings
         
         # 临时抑制tushare的FutureWarning
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
-            
-            if job['term'] == 'daily':
-                return ts.pro_bar(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'], adj='qfq')
-            elif job['term'] == 'weekly':
-                return ts.pro_bar(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'], adj='qfq', freq='W')
-            elif job['term'] == 'monthly':
-                return ts.pro_bar(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'], adj='qfq', freq='M')
+        # with warnings.catch_warnings():
+        #     warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
 
+        if job['term'] == 'daily':
+            return ts.daily(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+        elif job['term'] == 'weekly':
+            return ts.weekly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+        elif job['term'] == 'monthly':
+            return ts.monthly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
 
-    def renew_stock_index(self, is_force=False):
-
+    def renew_stock_index(self, latest_market_open_day: str = None, is_force=False):
         meta_info_key = 'stock_index_last_update'
 
         if is_force:
             idx_data = self.request_stock_index()
             self.storage.save_stock_index(idx_data)
-            self.storage.save_meta_info(meta_info_key, self.latest_market_open_day)
-            return idx_data
+            self.storage.save_meta_info(meta_info_key, latest_market_open_day)
+            return self.service.to_stock_index_standard_data_format(idx_data)
 
         meta_info = self.storage.get_meta_info(meta_info_key)
-        if meta_info == None:
+        if meta_info is None:
             idx_data = self.request_stock_index()
             self.storage.save_stock_index(idx_data)
-            self.storage.save_meta_info(meta_info_key, self.latest_market_open_day)
-            return idx_data
+            self.storage.save_meta_info(meta_info_key, latest_market_open_day)
+            return self.service.to_stock_index_standard_data_format(idx_data)
         else:
-            if meta_info < self.latest_market_open_day:
+            if meta_info < latest_market_open_day:
                 idx_data = self.request_stock_index()
                 self.storage.save_stock_index(idx_data)
-                self.storage.save_meta_info(meta_info_key, self.latest_market_open_day)
-                return idx_data
+                self.storage.save_meta_info(meta_info_key, latest_market_open_day)
+                return self.service.to_stock_index_standard_data_format(idx_data)
             else:
                 logger.info('stock index is up to date, no need to renew')
                 return None
-
 
     def request_stock_index(self):
         fields = 'ts_code,name,area,industry,market,exchange,list_date'

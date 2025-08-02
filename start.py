@@ -12,7 +12,7 @@ from utils.warning_suppressor import setup_warning_suppression
 setup_warning_suppression()
 
 from utils.db.db_manager import DatabaseManager
-from app.data_source.providers.tushare.main import Tushare
+from app.data_source.data_source_manager import DataSourceManager
 from app.analyzer import Analyzer
 
 
@@ -28,7 +28,7 @@ class App:
         self.db.initialize()
         
         # 2. 然后创建数据源和策略管理器
-        self.data_source = Tushare(self.db, self.is_verbose)
+        self.data_source = DataSourceManager(self.db, self.is_verbose)
         self.analyzer = Analyzer(self.db, self.is_verbose)
         
         # 3. 初始化策略（这会注册表到数据库）
@@ -45,9 +45,9 @@ class App:
 async def main():
     app = App()
     
-    # await app.renew_data()
+    await app.renew_data()
 
-    app.scan_strategies()
+    # app.scan_strategies()
 
 
 if __name__ == "__main__":

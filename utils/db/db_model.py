@@ -3,6 +3,10 @@ from loguru import logger
 from .db_config import DB_CONFIG
 import json
 import os
+from enum import Enum
+class BaseTableNames(Enum):
+    stock_index = 'stock_index'
+    stock_kline = 'stock_kline'
 
 class BaseTableModel:
     """通用表操作模型基类"""

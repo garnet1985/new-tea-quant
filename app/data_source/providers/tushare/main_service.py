@@ -7,7 +7,7 @@ class TushareService:
     def __init__(self):
         self.latest_market_open_day_backward_checking_days = 15
 
-    def normalize_stock_index_data(self, stock_index_data: list) -> list:
+    def to_stock_index_standard_data_format(self, stock_index_data: list) -> list:
         """
         统一股票指数数据格式
         将API数据(包含ts_code)和数据库数据(包含code和market)统一为标准格式

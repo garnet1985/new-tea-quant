@@ -1,4 +1,7 @@
 import pprint
+from typing import Dict, List, Any
+
+from loguru import logger
 from .strategy_settings import invest_settings
 from datetime import datetime
 
@@ -24,6 +27,7 @@ class HistoricLowService:
                 })
 
         # 添加全局最低点（term=0表示所有历史数据）
+        # TODO: to be improved: not only low points, but need to see how long it stays at the lowest point
         lowest_record = self.find_lowest_record(records)
         if lowest_record:
             low_points.append({
@@ -37,12 +41,6 @@ class HistoricLowService:
         """寻找指定周期内的最低点记录 - 参照Node.js版本实现"""
         if not records or len(records) == 0:
             return None
-            
-        # 调试信息
-        # print(f"    🔍 find_lowest_record: records类型={type(records)}, 长度={len(records) if hasattr(records, '__len__') else 'N/A'}")
-        # if records and len(records) > 0:
-        #     print(f"    🔍 第一条记录: {records[0]}")
-        #     print(f"    🔍 最后一条记录: {records[-1]}")
             
         lowest_record = None
         
@@ -114,44 +112,38 @@ class HistoricLowService:
     def get_max_required_monthly_records(self):
         return max(invest_settings['terms'])
 
-    def get_records_before_date(self, records, date):
-        """
-        获取指定日期之前的所有记录（不包含本日）
+    def get_klines_before_date(self, target_date: str, klines: List[Dict[str, Any]]) -> Dict[str, Any]:
+        target_datetime = datetime.strptime(target_date, '%Y%m%d')
+        left = 0
+        right = len(klines) - 1
+        results = []
+        record_of_today = None
         
-        Args:
-            records: 记录列表，按日期升序排列（最早的在前，最新的在后）
-            date: 目标日期 (格式: YYYYMMDD)
+        while left <= right:
+            mid = (left + right) // 2
+            current_date = datetime.strptime(klines[mid]['date'], '%Y%m%d')
             
-        Returns:
-            list: 目标日期之前的所有记录
-        """
-        if not records or len(records) == 0:
-            return []
-            
-        target_date = datetime.strptime(date, '%Y%m%d')
+            if current_date == target_datetime:
+                # 找到匹配的记录
+                record_of_today = klines[mid]
+                results = klines[:mid]
+                break
+            elif current_date < target_datetime:
+                # 当前记录在目标日期之前，包含它并向右搜索
+                results = klines[:mid + 1]
+                left = mid + 1
+            else:
+                # 当前记录在目标日期之后，向左搜索
+                right = mid - 1
         
-        # 由于记录是按日期升序排列的，我们需要找到第一个日期大于等于目标日期的记录
-        # 然后返回从开始到该记录之前的所有记录
-        for i, record in enumerate(records):
-            if not isinstance(record, dict) or 'date' not in record:
-                continue
-                
-            record_date = datetime.strptime(record['date'], '%Y%m%d')
-            
-            # 如果记录日期大于等于目标日期，返回从开始到该记录之前的所有记录
-            if record_date >= target_date:
-                result = records[:i]
-                return result
-        
-        # 如果所有记录的日期都小于目标日期，返回所有记录
-        return records
+        return results
 
     def get_investing(self, stock, investing_stocks):
         return investing_stocks.get(stock['code'])
 
     def is_trend_suitable_for_investment(self, monthly_records, daily_records):
         """
-        检查股票趋势是否适合投资
+        检查股票趋势是否适合投资 - 优化版本
         只在股票处于横盘或上升趋势时投资
         
         Args:
@@ -161,23 +153,29 @@ class HistoricLowService:
         Returns:
             bool: True表示趋势适合投资，False表示不适合
         """
-        if not monthly_records or len(monthly_records) < 12:
+        # 降低数据要求：从12个月降低到6个月，从60天降低到30天
+        if not monthly_records or len(monthly_records) < 6:
             return False
-        if not daily_records or len(daily_records) < 60:
+        if not daily_records or len(daily_records) < 30:
             return False
             
         monthly_trend = self._analyze_monthly_trend(monthly_records)
         daily_trend = self._analyze_daily_trend(daily_records)
         
+        # 放宽投资条件：只要不是明显下跌就允许投资
         if monthly_trend == 'up':
             return True
         elif monthly_trend == 'sideways':
+            # 横盘时，只要日线不是明显下跌就允许投资
             return daily_trend != 'down'
+        elif monthly_trend == 'down':
+            # 月度下跌时，如果日线是上升或横盘，也允许投资（抄底机会）
+            return daily_trend in ['up', 'sideways']
         else:
             return False
 
     def _analyze_monthly_trend(self, monthly_records):
-        """分析月度趋势"""
+        """分析月度趋势 - 放宽条件"""
         if len(monthly_records) < 6:
             return 'sideways'
             
@@ -187,15 +185,16 @@ class HistoricLowService:
         slope = self._calculate_trend_slope(prices)
         price_change_pct = (prices[-1] - prices[0]) / prices[0] * 100
         
-        if slope > 0.01 and price_change_pct > 5:
+        # 放宽条件：只要不是明显下跌就允许投资
+        if slope > 0.005 and price_change_pct > 2:  # 从0.01/5%降低到0.005/2%
             return 'up'
-        elif slope < -0.01 and price_change_pct < -5:
+        elif slope < -0.01 and price_change_pct < -8:  # 只有明显下跌才拒绝
             return 'down'
         else:
             return 'sideways'
 
     def _analyze_daily_trend(self, daily_records):
-        """分析日线趋势"""
+        """分析日线趋势 - 放宽条件"""
         if len(daily_records) < 30:
             return 'sideways'
             
@@ -205,9 +204,10 @@ class HistoricLowService:
         slope = self._calculate_trend_slope(prices)
         price_change_pct = (prices[-1] - prices[0]) / prices[0] * 100
         
-        if slope > 0.005 and price_change_pct > 3:
+        # 放宽条件：只要不是明显下跌就允许投资
+        if slope > 0.002 and price_change_pct > 1:  # 从0.005/3%降低到0.002/1%
             return 'up'
-        elif slope < -0.005 and price_change_pct < -3:
+        elif slope < -0.005 and price_change_pct < -5:  # 只有明显下跌才拒绝
             return 'down'
         else:
             return 'sideways'

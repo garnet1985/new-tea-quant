@@ -1,3 +1,4 @@
+import json
 from utils.db.db_model import BaseTableModel
 
 class MetaInfoModel(BaseTableModel):
@@ -6,60 +7,75 @@ class MetaInfoModel(BaseTableModel):
         # 标记为基础表（不需要前缀）
         self.is_base_table = True
 
-    def toDict(self, info):
-        # info is a string like "key1=value1|key2=value2|key3=value3"
-        # return a dict like {'key1': 'value1', 'key2': 'value2', 'key3': 'value3'}
-        Dict = {}
-        items = info.split('|')
-        for item in items:
-            key, value = item.split('=')
-            Dict[key] = value
-        return Dict
+    def _parse_info(self, info_str):
+        """解析info字符串为字典"""
+        if not info_str:
+            return {}
+        
+        try:
+            # 尝试解析为JSON格式
+            return json.loads(info_str)
+        except json.JSONDecodeError:
+            # 如果不是JSON格式，尝试解析旧的管道分隔格式
+            info_dict = {}
+            items = info_str.split('|')
+            for item in items:
+                if '=' in item:
+                    key, value = item.split('=', 1)
+                    info_dict[key.strip()] = value.strip()
+            return info_dict
 
-    def toStr(self, info, key, value):
-        if info is None:
-            return f"{key}={value}"
-        # info is a string like "key1=value1|key2=value2|key3=value3"
-        # return a string like "key1=value1|key2=value2|key3=value3|newkey=newvalue"
-        info_dict = self.toDict(info)
-        info_dict[key] = value
-        return '|'.join([f"{k}={v}" for k, v in info_dict.items()])
+    def _serialize_info(self, info_dict):
+        """将字典序列化为JSON字符串"""
+        return json.dumps(info_dict, ensure_ascii=False)
 
     def get_meta_info(self, key: str):
+        """获取指定key的meta信息"""
         info = self.load_one()
         if info is None:
             return None
-        else:
-            info_dict = self.toDict(info['info'])
-            return info_dict.get(key)
+        
+        info_dict = self._parse_info(info['info'])
+        return info_dict.get(key)
 
     def set_meta_info(self, key: str, value: str):
-        # 获取第一条记录（如果存在）
+        """设置指定key的meta信息，保持其他key不变"""
         info = self.load_one()
+        
         if info is None:
             # 如果记录不存在，创建新记录
-            txt = f"{key}={value}"
-            self.insert_one({'info': txt})
+            info_dict = {key: value}
+            self.insert_one({'info': self._serialize_info(info_dict)})
         else:
-            # 如果记录存在，更新第一条记录
-            txt = self.toStr(info['info'], key, value)
-            # 使用UPDATE语句更新第一条记录，而不是replace_one
+            # 如果记录存在，更新指定key，保持其他key不变
+            info_dict = self._parse_info(info['info'])
+            info_dict[key] = value
+            
             update_sql = "UPDATE meta_info SET info = %s WHERE id = %s"
-            self.db.execute_sync_update(update_sql, (txt, info['id']))
+            self.db.execute_sync_update(update_sql, (self._serialize_info(info_dict), info['id']))
 
-    def get_meta_info_by_key(self, key: str):
+    def get_all_meta_info(self):
+        """获取所有meta信息"""
         info = self.load_one()
         if info is None:
-            return None
+            return {}
+        
+        return self._parse_info(info['info'])
+
+    def set_all_meta_info(self, info_dict):
+        """设置所有meta信息（会覆盖现有数据）"""
+        info = self.load_one()
+        
+        if info is None:
+            self.insert_one({'info': self._serialize_info(info_dict)})
         else:
-            info_dict = self.toDict(info['info'])
-            return info_dict.get(key)
+            update_sql = "UPDATE meta_info SET info = %s WHERE id = %s"
+            self.db.execute_sync_update(update_sql, (self._serialize_info(info_dict), info['id']))
+
+    # 为了向后兼容，保留旧的方法名
+    def get_meta_info_by_key(self, key: str):
+        return self.get_meta_info(key)
     
     def set_meta_info_by_key(self, key: str, value: str):
-        info = self.load_one()
-        if info is None:
-            self.insert_one({'info': f"{key}={value}"})
-        else:
-            txt = self.toStr(info['info'], key, value)
-            self.db.execute_sync_update("UPDATE meta_info SET info = %s WHERE id = %s", (txt, info['id']))
+        return self.set_meta_info(key, value)
 

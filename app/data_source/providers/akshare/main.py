@@ -1,109 +1,112 @@
+from app.data_source.data_source_service import DataSourceService
 from app.data_source.providers.akshare.main_service import AKShareService
 from app.data_source.providers.akshare.main_storage import AKShareStorage
+from app.data_source.providers.conf.conf import data_default_start_date
+from app.data_source.providers.tushare.main import Tushare
 from utils.worker import FuturesWorker
 from loguru import logger
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
-
+from akshare import stock_zh_a_hist
+import pandas as pd
 
 class AKShare:
     def __init__(self, connected_db, is_verbose: bool = False):
         self.storage = AKShareStorage(connected_db)
         self.service = AKShareService(is_verbose)
         self.is_verbose = is_verbose
+        self.tu = None;
+        self.api = stock_zh_a_hist
 
-    def renew_stock_K_line_factors(self, stock_index: list = None, force_update: bool = False):
+    def inject_dependency(self, tu: Tushare):
+        self.tu = tu
+        return self
+
+    def renew_stock_K_line_factors(self, latest_market_open_day: str, stock_index: list = None, force_update = False):
+        force_update = True
         if self.is_verbose:
             logger.info(f"Starting stock K-line factors renewal for {len(stock_index) if stock_index else 'all'} stocks")
         
         if not force_update and not self.storage.should_update_adj_factors():
             if self.is_verbose:
-                logger.info("距离上次更新未满1天，跳过更新")
+                logger.info("factor is up to date, skip.")
             return False
         
-        return self._daily_update(stock_index)
+        return self.update_adj_factors_by_batch(stock_index, latest_market_open_day)
 
-    def _daily_update(self, stock_index: list) -> bool:
-        if self.is_verbose:
-            logger.info("每日更新，获取所有股票的最新复权因子")
-        
-        # 获取最近5天的数据来计算最新因子
-        start_date, end_date = self.service.get_recent_date_range(5)
-        jobs = self._build_jobs(stock_index, start_date, end_date)
-        
-        success = self._execute_jobs(jobs)
-        if success:
-            self.storage.update_last_update_time()
-        
-        return success
+    def update_adj_factors_by_batch(self, stock_index: list, latest_market_open_day: str) -> bool:
+        jobs = self.build_jobs(stock_index, latest_market_open_day)
+        return self.execute_jobs(jobs)
 
-    def _build_jobs(self, stock_index: list, start_date: str, end_date: str) -> List[Dict]:
+    def build_jobs(self, stock_index: list, latest_market_open_day: str) -> List[Dict]:
         jobs = []
         for stock_info in stock_index:
+            # 构造ts_code
+            ts_code = f"{stock_info['code']}.{stock_info['market']}"
             jobs.append({
-                'stock_code': stock_info['code'],
-                'market': stock_info['market'],
-                'start_date': start_date,
-                'end_date': end_date
+                'id': f'fetch_{ts_code}_adjust_factors',
+                'data': {
+                    'code': stock_info['code'],
+                    'ts_code': ts_code,
+                    'name': stock_info['name'],
+                    'latest_market_open_day': latest_market_open_day
+                }
             })
         return jobs
 
-    def _execute_jobs(self, jobs: List[Dict]) -> bool:
-        worker = FuturesWorker(max_workers=5, is_verbose=self.is_verbose)
-        worker.set_job_executor(self._process_single_stock)
-        
-        job_list = []
-        for i, job in enumerate(jobs):
-            job_list.append({
-                'id': f"job_{i}",
-                'data': job
-            })
-        
-        stats = worker.run_jobs(job_list)
-        results = worker.get_results()
-        
-        success_count = sum(1 for result in results if result.status.value == 'completed')
-        success_rate = success_count / len(jobs) if jobs else 0
-        
-        if self.is_verbose:
-            logger.info(f"Batch execution completed: {success_count}/{len(jobs)} jobs successful ({success_rate:.1%})")
-        
-        return success_rate >= 0.8
+    def execute_jobs(self, jobs: List[Dict]) -> bool:
+        worker = FuturesWorker(max_workers=2, is_verbose=self.is_verbose)
+        worker.set_job_executor(self.renew_adj_factors_for_single_stock)
+        return worker.run_jobs(jobs)
 
-    def _process_single_stock(self, job: Dict) -> Dict:
-        stock_code = job['stock_code']
-        market = job['market']
-        start_date = job['start_date']
-        end_date = job['end_date']
-        
-        if self.is_verbose:
-            logger.info(f"Processing {stock_code}.{market}")
-        
-        merged_data = self.service.fetch_stock_factors(stock_code, start_date, end_date)
-        
-        if merged_data is None or merged_data.empty:
-            return {'status': 'failed', 'reason': 'no_data'}
-        
-        factors_data = self.service.prepare_factor_data(merged_data, stock_code, market)
-        success = self.storage.batch_upsert_adj_factors(factors_data)
-        
-        return {'status': 'completed' if success else 'failed'}
+    def renew_adj_factors_for_single_stock(self, job_data: Dict) -> None:
+        latest_market_open_day = job_data['latest_market_open_day']
 
-    def force_update_adj_factors(self, stock_index: list = None):
-        if self.is_verbose:
-            logger.info("Force updating adj factors")
-        return self.renew_stock_K_line_factors(stock_index, force_update=True)
+        existing_factors = self.storage.get_all_adj_factors(job_data['ts_code'])
 
-    def check_update_status(self) -> Dict:
-        return self.storage.get_update_status_info()
-
-    def get_update_info(self) -> str:
-        status = self.check_update_status()
-        if status['status'] == 'never_updated':
-            return "从未更新过复权因子"
-        elif status['status'] == 'needs_update':
-            return f"需要更新，距离上次更新已过去 {status['days_since_update']} 天"
+        if existing_factors is None or len(existing_factors) == 0:
+            db_latest_factor_change_date = data_default_start_date
         else:
-            return f"无需更新，距离上次更新仅过去 {status['days_since_update']} 天"
+            db_latest_factor_change_date = existing_factors[0]['date']
+
+        factors_events = self.tu.api.adj_factor(ts_code=job_data['ts_code'], start_date=db_latest_factor_change_date, end_date=latest_market_open_day)
+        factor_changing_dates = self.service.get_factor_changing_dates(factors_events)
+        qfq_k_lines = self.api(symbol=job_data['code'], period="daily", start_date=db_latest_factor_change_date, end_date=latest_market_open_day, adjust="qfq")
+        dates_need_to_renew = self.service.get_renew_dates(factor_changing_dates, db_latest_factor_change_date)
+        self.renew_factors(dates_need_to_renew, qfq_k_lines, job_data)
 
 
+    def renew_factors(self, dates: List[str], qfq_k_lines: pd.DataFrame, job_data: Dict):
+        factors = []
+        for date in dates:
+            factor = self.calc_factors(date, job_data, qfq_k_lines)
+            if factor:
+                factors.append(factor)
+        self.storage.batch_upsert_adj_factors(factors)
+        return factors
+    
+    def calc_factors(self, date: str, job_data: Dict, qfq_data: pd.DataFrame) -> Optional[Dict]:
+        # 从数据库获取不复权收盘价
+        raw_close = self.storage.get_close_price(job_data['ts_code'], date)
+
+        if raw_close is None or qfq_data.empty:
+            return None
+
+        # 将日期格式从 YYYYMMDD 转换为 datetime.date 对象
+        date_formatted = DataSourceService.to_hyphen_date_type(date)
+        
+        # 在DataFrame中查找对应日期的收盘价
+        matching_rows = qfq_data[qfq_data['日期'] == date_formatted]
+        
+        if matching_rows.empty:
+            return None
+            
+        qfq_close = float(matching_rows.iloc[0]['收盘'])
+        qfq_factor = qfq_close / raw_close
+
+        # todo: add hfq_factor later, now set it default to 0 means data is not available
+        return {
+            'date': date,
+            'qfq_factor': qfq_factor,
+            'hfq_factor': 0  # 后复权因子设为0，因为我们不计算它
+        }

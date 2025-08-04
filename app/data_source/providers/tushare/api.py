@@ -1,12 +1,20 @@
 # import os
-
-# import requests
 # import tushare as ts
+# from loguru import logger
 
-# from conf.settings import START_DATE, END_DATE
+# # 初始化tushare pro
+# try:
+#     import tushare.pro_api as pro
+# except ImportError:
+#     # 如果没有pro_api，使用普通tushare
+#     pro = None
+
+# # 默认日期范围
+# START_DATE = "20180101"
+# END_DATE = "20250802"
 
 
-# # 股票基本信息
+# # # 股票基本信息
 # def stock_basic(engine, table_name):
 #     df = pro.stock_basic(exchange='', list_status='L',
 #                          fields='ts_code,symbol,name,area,industry,market,exchange,list_date')
@@ -26,6 +34,47 @@
 #     df = pro.adj_factor(ts_code=ts_code, trade_date=trade_date, start_date=start_date, end_date=end_date)
 #     df.to_sql(con=engine, name=table_name, if_exists='append')
 #     return df
+
+# # 获取复权因子变动信息
+# def get_adj_factor_changes(ts_code: str, start_date: str, end_date: str):
+#     """
+#     获取复权因子变动信息
+    
+#     Args:
+#         ts_code: 股票代码
+#         start_date: 开始日期
+#         end_date: 结束日期
+    
+#     Returns:
+#         DataFrame: 包含复权因子变动信息
+#     """
+#     try:
+#         if pro is None:
+#             logger.warning("Tushare Pro API不可用，使用模拟数据")
+#             # 返回模拟的复权因子变动数据用于测试
+#             import pandas as pd
+#             # 模拟一些复权因子变动日期
+#             mock_dates = [
+#                 "20180615", "20181220", "20190614", "20191219", 
+#                 "20200615", "20201218", "20210615", "20211217",
+#                 "20220615", "20221216", "20230615", "20231215",
+#                 "20240614", "20241213"
+#             ]
+#             data = []
+#             for date in mock_dates:
+#                 if start_date <= date <= end_date:
+#                     data.append({
+#                         'ts_code': ts_code,
+#                         'trade_date': date,
+#                         'adj_factor': 1.0  # 模拟因子值
+#                     })
+#             return pd.DataFrame(data) if data else None
+#         else:
+#             df = pro.adj_factor(ts_code=ts_code, start_date=start_date, end_date=end_date)
+#             return df
+#     except Exception as e:
+#         logger.error(f"获取复权因子变动信息失败: {e}")
+#         return None
 
 
 # # 日线数据 - 不复权 - 批量

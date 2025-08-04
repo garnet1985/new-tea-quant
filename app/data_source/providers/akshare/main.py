@@ -62,17 +62,17 @@ class AKShare:
     def renew_adj_factors_for_single_stock(self, job_data: Dict) -> None:
         latest_market_open_day = job_data['latest_market_open_day']
 
-        existing_factors = self.storage.get_all_adj_factors(job_data['ts_code'])
+        latest_factor_in_db = self.storage.get_latest_factor(job_data['ts_code'])
 
-        if existing_factors is None or len(existing_factors) == 0:
+        if latest_factor_in_db is None or len(latest_factor_in_db) == 0:
             db_latest_factor_change_date = data_default_start_date
         else:
-            db_latest_factor_change_date = existing_factors[0]['date']
+            db_latest_factor_change_date = latest_factor_in_db['date']
 
         factors_events = self.tu.api.adj_factor(ts_code=job_data['ts_code'], start_date=db_latest_factor_change_date, end_date=latest_market_open_day)
         factor_changing_dates = self.service.get_factor_changing_dates(factors_events)
         qfq_k_lines = self.api(symbol=job_data['code'], period="daily", start_date=db_latest_factor_change_date, end_date=latest_market_open_day, adjust="qfq")
-        dates_need_to_renew = self.service.get_renew_dates(factor_changing_dates, db_latest_factor_change_date)
+        dates_need_to_renew = self.service.get_renew_dates(db_latest_factor_change_date, factor_changing_dates)
         self.renew_factors(dates_need_to_renew, qfq_k_lines, job_data)
 
 
@@ -82,7 +82,19 @@ class AKShare:
             factor = self.calc_factors(date, job_data, qfq_k_lines)
             if factor:
                 factors.append(factor)
-        self.storage.batch_upsert_adj_factors(factors)
+
+        # 转换为存储格式
+        if factors:
+            factors_data = []
+            for factor in factors:
+                factors_data.append((
+                    job_data['ts_code'],  # ts_code
+                    factor['date'],       # date
+                    factor['qfq_factor'], # qfq_factor
+                    factor['hfq_factor']  # hfq_factor
+                ))
+            self.storage.batch_upsert_adj_factors(factors_data)
+        
         return factors
     
     def calc_factors(self, date: str, job_data: Dict, qfq_data: pd.DataFrame) -> Optional[Dict]:

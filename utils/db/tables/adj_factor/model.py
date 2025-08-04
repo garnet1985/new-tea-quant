@@ -22,6 +22,19 @@ class AdjustFactor(BaseTableModel):
     def get_hfq_factor(self, ts_code: str, date: str = None) -> Optional[Dict]:
         return self.get_adj_factor(ts_code, 'hfq', date)
 
+    def get_latest_factor(self, ts_code: str) -> Optional[Dict]:
+        query = """
+            SELECT *
+            FROM adj_factor
+            WHERE ts_code = %s
+            ORDER BY date DESC
+            LIMIT 1
+        """
+        result = self.execute_raw_query(query, (ts_code,))
+        if result:
+            return result[0]
+        return None
+
     def get_adj_factor(self, ts_code: str, type: str = 'qfq', date: str = None) -> Optional[Dict]:
         """
         获取指定日期的复权因子

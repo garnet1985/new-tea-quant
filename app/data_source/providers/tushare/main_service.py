@@ -155,6 +155,7 @@ class TushareService:
 
     def to_single_stock_daily_kline_renew_job(self, code: str, market: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 只有当最新记录日期小于最后一次市场开放日期时才需要更新
+
         if formatted_latest_record_date < formatted_latest_market_open_date:
             start_date = (formatted_latest_record_date + timedelta(days=1)).strftime('%Y%m%d')
             return {

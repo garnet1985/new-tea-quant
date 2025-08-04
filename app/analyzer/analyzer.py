@@ -159,8 +159,6 @@ class Analyzer:
                     
                     if self.is_verbose:
                         logger.info(f"📋 注册表: {prefix}_{table_name}")
-                    else:
-                        logger.info(f"📋 注册表: {prefix}_{table_name}")
                         
         except Exception as e:
             logger.error(f"注册策略表失败: {e}")

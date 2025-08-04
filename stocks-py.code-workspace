@@ -10,7 +10,9 @@
 	"settings": {
 		"cSpell.words": [
 			"akshare",
+			"executemany",
 			"klines",
+			"lastrowid",
 			"Tushare"
 		]
 	}

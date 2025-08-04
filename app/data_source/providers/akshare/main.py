@@ -64,7 +64,7 @@ class AKShare:
 
         latest_factor_in_db = self.storage.get_latest_factor(job_data['ts_code'])
 
-        if latest_factor_in_db is None or len(latest_factor_in_db) == 0:
+        if latest_factor_in_db is None:
             db_latest_factor_change_date = data_default_start_date
         else:
             db_latest_factor_change_date = latest_factor_in_db['date']

@@ -240,7 +240,9 @@ class DatabaseManager:
             
             with temp_connection.cursor() as cursor:
                 cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_CONFIG['base']['database']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci")
-                logger.info(f"Database '{DB_CONFIG['base']['database']}' is ready")
+                # 只在详细模式下输出日志，减少重复日志
+                if self.is_verbose:
+                    logger.info(f"Database '{DB_CONFIG['base']['database']}' is ready")
             
             temp_connection.close()
             return True

@@ -21,13 +21,13 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class App:
     def __init__(self):
-
         self.is_verbose = False
-        # 1. 首先初始化数据库
+        
+        # 1. 首先初始化数据库（只初始化一次）
         self.db = DatabaseManager(self.is_verbose)
         self.db.initialize()
         
-        # 2. 然后创建数据源和策略管理器
+        # 2. 然后创建数据源和策略管理器（复用同一个数据库实例）
         self.data_source = DataSourceManager(self.db, self.is_verbose)
         self.analyzer = Analyzer(self.db, self.is_verbose)
         

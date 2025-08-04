@@ -22,6 +22,38 @@ class Tushare:
 
         self.use_token();
         self.api = ts.pro_api()
+        
+        # 添加Tushare K线数据API频率限制
+        self.kline_api_count = 0
+        self.kline_api_last_time = 0
+        self.kline_api_delay = 0.075  # 每分钟800次 = 每75毫秒一次
+        self.kline_api_max_per_minute = 750  # 降低到750，为多线程并发留出缓冲
+        
+        # 添加线程锁，确保多线程环境下的限流安全
+        import threading
+        self.kline_api_lock = threading.Lock()
+
+    def _kline_api_rate_limit(self):
+        """Tushare K线数据API频率限制（线程安全）"""
+        with self.kline_api_lock:
+            current_time = time.time()
+            time_since_last = current_time - self.kline_api_last_time
+            
+            # 如果距离上次请求时间太短，则等待
+            if time_since_last < self.kline_api_delay:
+                sleep_time = self.kline_api_delay - time_since_last
+                time.sleep(sleep_time)
+            
+            self.kline_api_last_time = time.time()
+            self.kline_api_count += 1
+            
+            # 每分钟重置计数器
+            if self.kline_api_count >= self.kline_api_max_per_minute:
+                logger.info(f"Tushare K线API: 已调用 {self.kline_api_count} 次，等待下一分钟...")
+                time.sleep(60)  # 等待一分钟
+                self.kline_api_count = 0
+                # 重置最后请求时间，确保等待后能继续处理
+                self.kline_api_last_time = time.time()
 
     async def get_latest_market_open_day(self):
         return self.service.get_latest_market_open_day(self.api)
@@ -56,12 +88,11 @@ class Tushare:
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)
-        
         # 统计各类型任务数量
         term_counts = {}
         total_jobs = 0
         
-        for stock_jobs in jobs.items():
+        for stock_key, stock_jobs in jobs.items():
             for job in stock_jobs:
                 term = job['term']
                 term_counts[term] = term_counts.get(term, 0) + 1
@@ -197,19 +228,21 @@ class Tushare:
             raise  # 重新抛出异常，让JobWorker捕获并记录
 
     def fetch_kline_data(self, job: dict):
-        import tushare as ts
-        import warnings
+        # 应用K线数据API频率限制
+        self._kline_api_rate_limit()
         
-        # 临时抑制tushare的FutureWarning
-        # with warnings.catch_warnings():
-        #     warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
+        try:
+            if job['term'] == 'daily':
+                return self.api.daily(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+            elif job['term'] == 'weekly':
+                return self.api.weekly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+            elif job['term'] == 'monthly':
+                return self.api.monthly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
+        except Exception as e:
+            if self.is_verbose:
+                logger.error(f"Tushare K线API调用失败: {e}")
+            raise e
 
-        if job['term'] == 'daily':
-            return ts.daily(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
-        elif job['term'] == 'weekly':
-            return ts.weekly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
-        elif job['term'] == 'monthly':
-            return ts.monthly(ts_code=job['ts_code'], start_date=job['start_date'], end_date=job['end_date'])
 
     def renew_stock_index(self, latest_market_open_day: str = None, is_force=False):
         meta_info_key = 'stock_index_last_update'

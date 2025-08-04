@@ -1,7 +1,7 @@
 from app.data_source.providers.akshare.main_settings import factor_update_interval_days
 from loguru import logger
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, Optional
 from app.data_source.data_source_service import DataSourceService
 
 class AKShareStorage:
@@ -10,26 +10,10 @@ class AKShareStorage:
         self.adj_factor_table = connected_db.get_table_instance('adj_factor')
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
-    def batch_upsert_adj_factors(self, factors_data: List[Tuple[str, str, float, float]]) -> bool:        
+    def batch_upsert_adj_factors(self, factors_data) -> bool:        
         # 插入新的因子记录
         return self.adj_factor_table.batch_upsert_adj_factors(factors_data)
 
-    def get_adj_factor(self, code: str, market: str, trade_date: str) -> Optional[Dict]:
-        ts_code = f"{code}.{market}"
-        return self.adj_factor_table.get_adj_factors(ts_code)
-
-    def get_adj_factors_by_date_range(self, code: str, market: str, start_date: str, end_date: str) -> List[Dict]:
-        ts_code = f"{code}.{market}"
-        return self.adj_factor_table.get_adj_factors(ts_code)
-
-    def get_latest_adj_factor(self, code: str, market: str) -> Optional[Dict]:
-        ts_code = f"{code}.{market}"
-        return self.adj_factor_table.get_adj_factors(ts_code)
-
-    def has_factor_changes(self, code: str, market: str, since_date: str) -> bool:
-        ts_code = f"{code}.{market}"
-        # 由于新设计只存储最新因子，所以总是返回False（没有变化）
-        return False
 
     def should_update_adj_factors(self, days_threshold: int = factor_update_interval_days) -> bool:
         last_update_str = self.meta_info_table.get_meta_info_by_key('akshare_adj_factors_last_update')

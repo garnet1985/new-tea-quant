@@ -53,9 +53,6 @@ class Tushare:
             code = row['code']
             market = row['market']
             stock_list.append((code, market))
-
-        # TODO: remove below slicing
-        stock_list = stock_list[:1]
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)
@@ -221,23 +218,25 @@ class Tushare:
             idx_data = self.request_stock_index()
             self.storage.save_stock_index(idx_data)
             self.storage.save_meta_info(meta_info_key, latest_market_open_day)
-            return self.service.to_stock_index_standard_data_format(idx_data)
+            return self.service.to_unified_stock_index_format(idx_data)
 
-        meta_info = self.storage.get_meta_info(meta_info_key)
-        if meta_info is None:
+        last_update = self.storage.get_meta_info_by_key(meta_info_key)
+
+        if last_update is None:
             idx_data = self.request_stock_index()
             self.storage.save_stock_index(idx_data)
-            self.storage.save_meta_info(meta_info_key, latest_market_open_day)
-            return self.service.to_stock_index_standard_data_format(idx_data)
+            self.storage.set_meta_info_by_key(meta_info_key, latest_market_open_day)
+            return self.service.to_unified_stock_index_format(idx_data)
         else:
-            if meta_info < latest_market_open_day:
+            if last_update < latest_market_open_day:
                 idx_data = self.request_stock_index()
                 self.storage.save_stock_index(idx_data)
-                self.storage.save_meta_info(meta_info_key, latest_market_open_day)
-                return self.service.to_stock_index_standard_data_format(idx_data)
+                self.storage.set_meta_info_by_key(meta_info_key, latest_market_open_day)
+                return self.service.to_unified_stock_index_format(idx_data)
             else:
                 logger.info('stock index is up to date, no need to renew')
-                return None
+                idx_data = self.storage.load_stock_index()  
+                return self.service.to_unified_stock_index_format(idx_data)
 
     def request_stock_index(self):
         fields = 'ts_code,name,area,industry,market,exchange,list_date'

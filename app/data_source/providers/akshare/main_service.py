@@ -100,30 +100,6 @@ class AKShareService:
         next_start_dt = current_end_dt + timedelta(days=1)
         return next_start_dt.strftime('%Y%m%d')
 
-    def prepare_factor_data(self, merged_data: pd.DataFrame, stock_code: str, market: str) -> List[Tuple]:
-        factors_data = []
-        ts_code = f"{stock_code}.{market}"
-        
-        # 处理每一天的复权因子数据
-        for _, row in merged_data.iterrows():
-            date_str = str(row['日期']).replace('-', '')  # 转换为YYYYMMDD格式
-            
-            factors_data.append((
-                ts_code,
-                date_str,
-                float(row['qfq_factor']),
-                float(row['hfq_factor'])
-            ))
-        
-        return factors_data
-
-    def get_today_date(self) -> str:
-        return datetime.now().strftime('%Y%m%d')
-    
-    def get_recent_date_range(self, days: int = 5) -> Tuple[str, str]:
-        end_date = self.get_today_date()
-        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y%m%d')
-        return start_date, end_date
 
     def get_factor_changing_dates(self, factors_df) -> List[str]:
         if factors_df is None or factors_df.empty:
@@ -153,25 +129,14 @@ class AKShareService:
         
         return changing_dates
 
-    def get_renew_dates(self, factor_changing_dates: pd.DataFrame, db_latest_factor_change_date: str) -> List[str]:
+    def get_renew_dates(self, db_latest_factor_change_date: str, factor_changing_dates: List[str]) -> List[str]:
+        if factor_changing_dates is None or len(factor_changing_dates) == 0:
+            return []
+        
+        # 过滤出在数据库最新日期之后的因子变化日期
         renew_dates = []
         for date in factor_changing_dates:
             if date > db_latest_factor_change_date:
                 renew_dates.append(date)
+        
         return renew_dates
-        
-
-    def find_latest_factor_changing_date(self, factors_df) -> Optional[str]:
-        if factors_df is None or factors_df.empty:
-            return None
-        
-        # 找到最新的交易日期
-        latest_date = None
-        for _, row in factors_df.iterrows():
-            trade_date = str(row['trade_date'])
-            date_str = trade_date.replace('-', '')
-            
-            if latest_date is None or date_str > latest_date:
-                latest_date = date_str
-        
-        return latest_date

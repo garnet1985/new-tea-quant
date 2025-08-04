@@ -10,12 +10,7 @@ class AKShareStorage:
         self.adj_factor_table = connected_db.get_table_instance('adj_factor')
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
-    def batch_upsert_adj_factors(self, factors_data: List[Tuple[str, str, float, float, bool]]) -> bool:
-        # 先删除该股票的所有旧因子记录
-        if factors_data:
-            ts_code = factors_data[0][0]  # 获取第一个记录的ts_code
-            self.adj_factor_table.delete_adj_factor(ts_code)
-        
+    def batch_upsert_adj_factors(self, factors_data: List[Tuple[str, str, float, float]]) -> bool:        
         # 插入新的因子记录
         return self.adj_factor_table.batch_upsert_adj_factors(factors_data)
 
@@ -80,9 +75,6 @@ class AKShareStorage:
             'needs_update': days_since_update >= factor_update_interval_days,
             'status': 'up_to_date' if days_since_update < factor_update_interval_days else 'needs_update'
         }
-
-    def get_all_adj_factors(self, ts_code: str) -> List[Dict]:
-        return self.adj_factor_table.get_all_adj_factors(ts_code)
     
     def get_adj_factor_for_date(self, ts_code: str, target_date: str) -> Optional[Dict]:
         """
@@ -112,3 +104,7 @@ class AKShareStorage:
             return float(result[0]['close'])
         else:
             return None
+
+    def get_latest_factor(self, ts_code: str) -> Optional[Dict]:
+        return self.adj_factor_table.get_latest_factor(ts_code)
+

@@ -48,6 +48,14 @@ class AKShareService:
                 adjust=""
             )
             
+            qfq_data = ak.stock_zh_a_hist(
+                symbol=stock_code,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq"
+            )
+            
             hfq_data = ak.stock_zh_a_hist(
                 symbol=stock_code,
                 period="daily",
@@ -56,12 +64,17 @@ class AKShareService:
                 adjust="hfq"
             )
             
-            if raw_data.empty or hfq_data.empty:
+            if raw_data.empty or qfq_data.empty or hfq_data.empty:
                 return None
             
-            merged_data = pd.merge(raw_data, hfq_data, on='日期', suffixes=('_raw', '_hfq'))
-            merged_data['hfq_factor'] = merged_data['收盘_hfq'] / merged_data['收盘_raw']
-            merged_data['qfq_factor'] = 1.0
+            # 合并原始数据和前复权数据
+            merged_data = pd.merge(raw_data, qfq_data, on='日期', suffixes=('_raw', '_qfq'))
+            # 再合并后复权数据
+            merged_data = pd.merge(merged_data, hfq_data, on='日期', suffixes=('', '_hfq'))
+            
+            # 计算复权因子
+            merged_data['qfq_factor'] = merged_data['收盘_qfq'] / merged_data['收盘_raw']
+            merged_data['hfq_factor'] = merged_data['收盘'] / merged_data['收盘_raw']
             
             return merged_data[['日期', 'qfq_factor', 'hfq_factor']]
         except Exception as e:
@@ -89,18 +102,18 @@ class AKShareService:
 
     def prepare_factor_data(self, merged_data: pd.DataFrame, stock_code: str, market: str) -> List[Tuple]:
         factors_data = []
+        ts_code = f"{stock_code}.{market}"
         
-        # 只取最新的因子数据，使用一个很早的日期作为通用因子
-        latest_data = merged_data.iloc[-1]
-        universal_date = '20080101'  # 使用一个很早的日期，这样查询任意日期都能找到
-        
-        factors_data.append((
-            stock_code,
-            market,
-            universal_date,
-            float(latest_data['qfq_factor']),
-            float(latest_data['hfq_factor'])
-        ))
+        # 处理每一天的复权因子数据
+        for _, row in merged_data.iterrows():
+            date_str = str(row['日期']).replace('-', '')  # 转换为YYYYMMDD格式
+            
+            factors_data.append((
+                ts_code,
+                date_str,
+                float(row['qfq_factor']),
+                float(row['hfq_factor'])
+            ))
         
         return factors_data
 
@@ -108,6 +121,57 @@ class AKShareService:
         return datetime.now().strftime('%Y%m%d')
     
     def get_recent_date_range(self, days: int = 5) -> Tuple[str, str]:
-        end_date = datetime.now().strftime('%Y%m%d')
+        end_date = self.get_today_date()
         start_date = (datetime.now() - timedelta(days=days)).strftime('%Y%m%d')
         return start_date, end_date
+
+    def get_factor_changing_dates(self, factors_df) -> List[str]:
+        if factors_df is None or factors_df.empty:
+            return []
+        
+        # 按日期排序，确保从新到旧
+        # the order must be ascending from old date to new date, otherwise the result will be wrong
+        factors_df = factors_df.sort_values('trade_date', ascending=True)
+        
+        # 提取复权因子发生变化的日期
+        changing_dates = []
+        prev_factor = None
+        
+        for _, row in factors_df.iterrows():
+            current_factor = float(row['adj_factor'])
+            trade_date = str(row['trade_date'])
+            date_str = trade_date.replace('-', '')
+            
+            # 如果因子发生变化，记录这个日期
+            if prev_factor is not None and current_factor != prev_factor:
+                changing_dates.append(date_str)
+            
+            prev_factor = current_factor
+        
+        # 反转列表，使其按时间顺序排列
+        changing_dates.reverse()
+        
+        return changing_dates
+
+    def get_renew_dates(self, factor_changing_dates: pd.DataFrame, db_latest_factor_change_date: str) -> List[str]:
+        renew_dates = []
+        for date in factor_changing_dates:
+            if date > db_latest_factor_change_date:
+                renew_dates.append(date)
+        return renew_dates
+        
+
+    def find_latest_factor_changing_date(self, factors_df) -> Optional[str]:
+        if factors_df is None or factors_df.empty:
+            return None
+        
+        # 找到最新的交易日期
+        latest_date = None
+        for _, row in factors_df.iterrows():
+            trade_date = str(row['trade_date'])
+            date_str = trade_date.replace('-', '')
+            
+            if latest_date is None or date_str > latest_date:
+                latest_date = date_str
+        
+        return latest_date

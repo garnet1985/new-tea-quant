@@ -2,31 +2,39 @@ from app.data_source.providers.akshare.main_settings import factor_update_interv
 from loguru import logger
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
+from app.data_source.data_source_service import DataSourceService
 
 class AKShareStorage:
     def __init__(self, connected_db):
         self.meta_info_table = connected_db.get_table_instance('meta_info')
         self.adj_factor_table = connected_db.get_table_instance('adj_factor')
+        self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
-    def batch_upsert_adj_factors(self, factors_data: List[Tuple]) -> bool:
+    def batch_upsert_adj_factors(self, factors_data: List[Tuple[str, str, float, float, bool]]) -> bool:
         # 先删除该股票的所有旧因子记录
-        for stock_code, market, _, _, _ in factors_data:
-            self.adj_factor_table.delete_adj_factor(stock_code, market, '20080101')
+        if factors_data:
+            ts_code = factors_data[0][0]  # 获取第一个记录的ts_code
+            self.adj_factor_table.delete_adj_factor(ts_code)
         
         # 插入新的因子记录
         return self.adj_factor_table.batch_upsert_adj_factors(factors_data)
 
     def get_adj_factor(self, code: str, market: str, trade_date: str) -> Optional[Dict]:
-        return self.adj_factor_table.get_adj_factor(code, market, trade_date)
+        ts_code = f"{code}.{market}"
+        return self.adj_factor_table.get_adj_factors(ts_code)
 
     def get_adj_factors_by_date_range(self, code: str, market: str, start_date: str, end_date: str) -> List[Dict]:
-        return self.adj_factor_table.get_adj_factors_by_date_range(code, market, start_date, end_date)
+        ts_code = f"{code}.{market}"
+        return self.adj_factor_table.get_adj_factors(ts_code)
 
     def get_latest_adj_factor(self, code: str, market: str) -> Optional[Dict]:
-        return self.adj_factor_table.get_latest_adj_factor(code, market)
+        ts_code = f"{code}.{market}"
+        return self.adj_factor_table.get_adj_factors(ts_code)
 
     def has_factor_changes(self, code: str, market: str, since_date: str) -> bool:
-        return self.adj_factor_table.has_factor_changes(code, market, since_date)
+        ts_code = f"{code}.{market}"
+        # 由于新设计只存储最新因子，所以总是返回False（没有变化）
+        return False
 
     def should_update_adj_factors(self, days_threshold: int = factor_update_interval_days) -> bool:
         last_update_str = self.meta_info_table.get_meta_info_by_key('akshare_adj_factors_last_update')
@@ -72,3 +80,35 @@ class AKShareStorage:
             'needs_update': days_since_update >= factor_update_interval_days,
             'status': 'up_to_date' if days_since_update < factor_update_interval_days else 'needs_update'
         }
+
+    def get_all_adj_factors(self, ts_code: str) -> List[Dict]:
+        return self.adj_factor_table.get_all_adj_factors(ts_code)
+    
+    def get_adj_factor_for_date(self, ts_code: str, target_date: str) -> Optional[Dict]:
+        """
+        获取指定日期的复权因子
+        如果目标日期不是复权事件日期，返回最近的前一个复权事件日期的因子
+        """
+        all_factors = self.get_all_adj_factors(ts_code)
+        if not all_factors:
+            return None
+        
+        # 找到小于等于目标日期的最近复权事件日期
+        applicable_factors = []
+        for factor in all_factors:
+            if factor['date'] <= target_date:
+                applicable_factors.append(factor)
+        
+        if applicable_factors:
+            # 返回最新的适用因子
+            return max(applicable_factors, key=lambda x: x['date'])
+        
+        return None
+    
+    def get_close_price(self, ts_code: str, trade_date: str) -> Optional[float]:
+        code, market = DataSourceService.parse_ts_code(ts_code)
+        result = self.stock_kline_table.get_by_date(code, market, trade_date)
+        if result:
+            return float(result[0]['close'])
+        else:
+            return None

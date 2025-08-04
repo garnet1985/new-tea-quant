@@ -26,3 +26,8 @@ class StockKlineModel(BaseTableModel):
             """
         return self.execute_raw_query(sql, (stock_code, term))
     
+    def get_by_date(self, code: str, market: str, trade_date: str):
+        sql = f"""
+                SELECT * FROM stock_kline WHERE code = %s AND market = %s AND date = %s
+            """
+        return self.execute_raw_query(sql, (code, market, trade_date))    

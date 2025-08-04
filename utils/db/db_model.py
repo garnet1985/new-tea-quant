@@ -37,7 +37,9 @@ class BaseTableModel:
         try:
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(sql)
-                logger.info(f"Table '{self.table_name}' is ready")
+                # 只在详细模式下输出日志，减少重复日志
+                if self.db.is_verbose:
+                    logger.info(f"Table '{self.table_name}' is ready")
             return True
         except Exception as e:
             logger.error(f"Failed to create table {self.table_name}: {e}")

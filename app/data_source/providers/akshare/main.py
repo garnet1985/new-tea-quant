@@ -73,20 +73,25 @@ class AKShare:
                 # 重置最后请求时间，确保等待后能继续处理
                 self.tushare_adj_factor_last_time = time.time()
 
-    def renew_stock_K_line_factors(self, latest_market_open_day: str, stock_index: list = None, force_update = False):
+    def renew_stock_K_line_factors(self, latest_market_open_day: str, stock_index: list = None):
         if self.is_verbose:
             logger.info(f"Starting stock K-line factors renewal for {len(stock_index) if stock_index else 'all'} stocks")
+
+        should_update, info = self.storage.should_update_adj_factors()
         
-        if not force_update and not self.storage.should_update_adj_factors():
-            if self.is_verbose:
-                logger.info("factor is up to date, skip.")
-            return False
+        if not should_update:   
+            permission = input(info)
+            if permission.lower() != 'y':
+                return
+        else:
+            logger.info(info)
         
         return self.update_adj_factors_by_batch(stock_index, latest_market_open_day)
 
-    def update_adj_factors_by_batch(self, stock_index: list, latest_market_open_day: str) -> bool:
+    def update_adj_factors_by_batch(self, stock_index: list, latest_market_open_day: str) -> None:
         jobs = self.build_jobs(stock_index, latest_market_open_day)
-        return self.execute_jobs(jobs)
+        self.execute_jobs(jobs)
+        self.storage.update_last_update_time()
 
     def build_jobs(self, stock_index: list, latest_market_open_day: str) -> List[Dict]:
         jobs = []

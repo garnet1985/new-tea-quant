@@ -26,7 +26,6 @@ class Tushare:
         # 添加Tushare K线数据API频率限制
         self.kline_api_count = 0
         self.kline_api_last_time = 0
-        self.kline_api_delay = 0.075  # 每分钟800次 = 每75毫秒一次
         self.kline_api_max_per_minute = 750  # 降低到750，为多线程并发留出缓冲
         
         # 添加线程锁，确保多线程环境下的限流安全
@@ -37,23 +36,23 @@ class Tushare:
         """Tushare K线数据API频率限制（线程安全）"""
         with self.kline_api_lock:
             current_time = time.time()
-            time_since_last = current_time - self.kline_api_last_time
             
-            # 如果距离上次请求时间太短，则等待
-            if time_since_last < self.kline_api_delay:
-                sleep_time = self.kline_api_delay - time_since_last
-                time.sleep(sleep_time)
-            
-            self.kline_api_last_time = time.time()
-            self.kline_api_count += 1
-            
-            # 每分钟重置计数器
-            if self.kline_api_count >= self.kline_api_max_per_minute:
-                logger.info(f"Tushare K线API: 已调用 {self.kline_api_count} 次，等待下一分钟...")
-                time.sleep(60)  # 等待一分钟
+            # 检查是否需要重置计数器（每分钟重置一次）
+            if current_time - self.kline_api_last_time >= 60:
                 self.kline_api_count = 0
-                # 重置最后请求时间，确保等待后能继续处理
-                self.kline_api_last_time = time.time()
+                self.kline_api_last_time = current_time
+            
+            # 如果当前分钟内的请求数已达到限制，则等待到下一分钟
+            if self.kline_api_count >= self.kline_api_max_per_minute:
+                wait_time = 60 - (current_time - self.kline_api_last_time)
+                if wait_time > 0:
+                    logger.info(f"Tushare K线API: 当前分钟已调用 {self.kline_api_count} 次，等待 {wait_time:.1f} 秒到下一分钟...")
+                    time.sleep(wait_time)
+                    self.kline_api_count = 0
+                    self.kline_api_last_time = time.time()
+            
+            # 增加请求计数
+            self.kline_api_count += 1
 
     async def get_latest_market_open_day(self):
         return self.service.get_latest_market_open_day(self.api)
@@ -91,6 +90,10 @@ class Tushare:
         # 统计各类型任务数量
         term_counts = {}
         total_jobs = 0
+
+        permission = input(f"共有 {len(jobs)} 个股票K线需要更新，是否更新? y:更新 | 其他任意键:不更新")
+        if permission.lower() != 'y':
+            return
         
         for stock_key, stock_jobs in jobs.items():
             for job in stock_jobs:
@@ -111,8 +114,7 @@ class Tushare:
         else:
             logger.info("All K-lines are up to date")
 
-        logger.info(f"✅ Renew stock kline jobs complete. total jobs: {len(jobs)}")
-        
+        logger.info(f"✅ Renew stock kline jobs complete. total jobs: {len(jobs)}")        
 
 
     def execute_stock_kline_renew_jobs(self, jobs: dict):

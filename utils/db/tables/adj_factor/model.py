@@ -16,12 +16,6 @@ class AdjustFactor(BaseTableModel):
         # 标记为基础表（不需要前缀）
         self.is_base_table = True
 
-    def get_qfq_factor(self, ts_code: str, date: str = None) -> Optional[Dict]:
-        return self.get_adj_factor(ts_code, 'qfq', date)
-    
-    def get_hfq_factor(self, ts_code: str, date: str = None) -> Optional[Dict]:
-        return self.get_adj_factor(ts_code, 'hfq', date)
-
     def get_latest_factor(self, ts_code: str) -> Optional[Dict]:
         query = """
             SELECT *

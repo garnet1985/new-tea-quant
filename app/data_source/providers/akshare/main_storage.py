@@ -14,29 +14,38 @@ class AKShareStorage:
         # 插入新的因子记录
         return self.adj_factor_table.batch_upsert_adj_factors(factors_data)
 
-
-    def should_update_adj_factors(self, days_threshold: int = factor_update_interval_days) -> bool:
+    def get_latest_factor_change_date(self) -> str:
         last_update_str = self.meta_info_table.get_meta_info_by_key('akshare_adj_factors_last_update')
-        
         if not last_update_str:
-            logger.info("没有找到上次更新时间记录，需要更新")
-            return True
+            return None
+        return last_update_str
+
+    def should_update_adj_factors(self):
+        info = ""
+        should_update = False
+        last_update_str = self.get_latest_factor_change_date()
+
+        if not last_update_str:
+            should_update = True
+            info = "没有任何复权因子的更新记录，需要更新"
+            return should_update, info
         
         last_update = datetime.strptime(last_update_str, '%Y-%m-%d %H:%M:%S')
         current_time = datetime.now()
         time_diff = current_time - last_update
         
-        if time_diff.days >= days_threshold:
-            logger.info(f"距离上次更新已过去 {time_diff.days} 天，需要更新")
-            return True
+        if time_diff.days > factor_update_interval_days:
+            should_update = True
+            info = f"复权因子距离上次更新已超过强制期限（{factor_update_interval_days}天），需要更新"
+            return should_update, info
         else:
-            logger.info(f"距离上次更新仅过去 {time_diff.days} 天，无需更新")
-            return False
+            info = f"距离上次更新仅过去 {time_diff.days} 天小于强制更新期限（{factor_update_interval_days}天），是否更新? y:更新 | 其他任意键:不更新"
+            should_update = False
+            return should_update, info
 
     def update_last_update_time(self):
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.meta_info_table.set_meta_info_by_key('akshare_adj_factors_last_update', current_time)
-        logger.info(f"更新复权因子最后更新时间: {current_time}")
 
     def get_update_status_info(self) -> Dict:
         last_update_str = self.meta_info_table.get_meta_info_by_key('akshare_adj_factors_last_update')

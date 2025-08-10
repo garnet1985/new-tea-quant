@@ -7,6 +7,7 @@ from app.analyzer.strategy.historicLow.strategy_service import HistoricLowServic
 from app.analyzer.analyzer_service import InvestmentResult
 from app.analyzer.strategy.historicLow.strategy_settings import invest_settings
 
+from app.data_source.data_source_service import DataSourceService
 from utils.worker.futures_worker import FuturesWorker
 
 class HLSimulator:
@@ -41,7 +42,6 @@ class HLSimulator:
         jobs = self._prepare_jobs_batch(stock_idx)
         
         print(f"📊 准备处理 {len(jobs)} 个有效任务...")
-
 
         worker = FuturesWorker(
             max_workers=5,  # 减少并发数，避免线程竞争
@@ -78,6 +78,7 @@ class HLSimulator:
         jobs = []
         
         print("📥 准备任务中...")
+
         
         # 分批处理，避免数据库连接超时
         batch_size = 50  # 每批处理50只股票
@@ -93,6 +94,7 @@ class HLSimulator:
             # 为每个股票单独准备数据
             for stock in batch_stocks:
                 # 单独查询每个股票的数据，避免大批量查询超时
+                qfq_factors = self.strategy.required_tables["adj_factor"].get_all_adj_factors(stock['ts_code'])
                 monthly_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
                 
                 if len(monthly_data) > invest_settings['min_required_monthly_records']:
@@ -103,8 +105,8 @@ class HLSimulator:
                             'id': f"scan_{stock['code']}",
                             'data': {
                                 'stock': stock,
-                                'monthly_data': monthly_data,
-                                'daily_data': daily_data
+                                'monthly_data': DataSourceService.to_qfq(monthly_data, qfq_factors),
+                                'daily_data': DataSourceService.to_qfq(daily_data, qfq_factors)
                             }
                         })
 
@@ -113,7 +115,6 @@ class HLSimulator:
         return jobs
 
     def test_job(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        stock_code = data['stock']['code']
         
         # 获取日线数据的日期范围
         if not data['daily_data']:

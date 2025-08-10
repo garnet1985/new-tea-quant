@@ -3,4 +3,4 @@
 
 
 
-factor_update_interval_days = 1
+factor_update_interval_days = 10

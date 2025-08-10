@@ -66,7 +66,7 @@ class HistoricLowStrategy(BaseStrategy):
         self.required_tables = {
             "stock_index": self.db.get_table_instance("stock_index"),
             "stock_kline": self.db.get_table_instance("stock_kline"),
-
+            "adj_factor": self.db.get_table_instance("adj_factor"),
             "meta": HLMetaModel(self.db),
             "opportunity_history": HLOpportunityHistoryModel(self.db),
             "strategy_summary": HLStrategySummaryModel(self.db)
@@ -165,7 +165,9 @@ class HistoricLowStrategy(BaseStrategy):
     def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 准备数据
 
-        monthly_data_result = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
+        # monthly_data_result = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
+        # monthly_data_result = self.ds.to_qfq_monthly_data(monthly_data_result)
+        monthly_data_result = self.ds.get_qfq_K_lines_data(stock['code'], 'monthly')
         
         # 确保monthly_data是列表格式
         if monthly_data_result:
@@ -177,7 +179,8 @@ class HistoricLowStrategy(BaseStrategy):
             return []
 
         # 获取最新的日线数据，添加错误处理
-        daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['code'], 'daily')
+        # daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['code'], 'daily')
+        daily_data_result = self.ds.get_qfq_K_lines_data(stock['code'], 'daily')
         
         # 确保daily_data是单个记录而不是列表
         if daily_data_result and len(daily_data_result) > 0:
@@ -280,4 +283,6 @@ class HistoricLowStrategy(BaseStrategy):
 
 
     def test(self) -> None:
-        self.simulator.test_strategy()
+        permission = input("是模拟策略? y:模拟 其他:不模拟")
+        if permission.lower() == 'y':
+            self.simulator.test_strategy()

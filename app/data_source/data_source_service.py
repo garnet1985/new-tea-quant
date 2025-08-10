@@ -24,4 +24,9 @@ class DataSourceService:
         # 2025-08-04 -> 20250804
         return date.replace('-', '')
 
+    @staticmethod
+    def to_qfq(k_lines: list, qfq_factors: list):
+        print(qfq_factors)
+        pass
+
     

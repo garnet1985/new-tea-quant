@@ -51,8 +51,12 @@ class MetaInfoModel(BaseTableModel):
             info_dict = self._parse_info(info['info'])
             info_dict[key] = value
             
-            update_sql = "UPDATE meta_info SET info = %s WHERE id = %s"
-            self.db.execute_sync_update(update_sql, (self._serialize_info(info_dict), info['id']))
+            # 使用基类的 update 方法
+            self.update(
+                {'info': self._serialize_info(info_dict)},
+                'id = %s',
+                (info['id'],)
+            )
 
     def get_all_meta_info(self):
         """获取所有meta信息"""
@@ -69,8 +73,12 @@ class MetaInfoModel(BaseTableModel):
         if info is None:
             self.insert_one({'info': self._serialize_info(info_dict)})
         else:
-            update_sql = "UPDATE meta_info SET info = %s WHERE id = %s"
-            self.db.execute_sync_update(update_sql, (self._serialize_info(info_dict), info['id']))
+            # 使用基类的 update 方法
+            self.update(
+                {'info': self._serialize_info(info_dict)},
+                'id = %s',
+                (info['id'],)
+            )
 
     # 为了向后兼容，保留旧的方法名
     def get_meta_info_by_key(self, key: str):

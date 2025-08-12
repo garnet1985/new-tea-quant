@@ -96,12 +96,11 @@ class AKShare:
     def build_jobs(self, stock_index: list, latest_market_open_day: str) -> List[Dict]:
         jobs = []
         for stock_info in stock_index:
-            # 构造ts_code
-            ts_code = f"{stock_info['code']}.{stock_info['market']}"
+            # 使用 ts_code 作为 id
+            ts_code = stock_info['id']
             jobs.append({
                 'id': f'fetch_{ts_code}_adjust_factors',
                 'data': {
-                    'code': stock_info['code'],
                     'ts_code': ts_code,
                     'name': stock_info['name'],
                     'latest_market_open_day': latest_market_open_day
@@ -141,7 +140,7 @@ class AKShare:
         
         # 使用robust的API调用方法
         qfq_k_lines = self._robust_stock_hist(
-            symbol=job_data['code'], 
+            symbol=job_data['ts_code'], 
             period="daily", 
             start_date=db_latest_factor_change_date, 
             end_date=latest_market_open_day, 

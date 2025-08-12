@@ -192,7 +192,7 @@ class Analyzer:
             for key, strategy in self._strategy_instances.items()
         ]
     
-    def scan_all_strategies(self) -> Dict[str, List[Dict[str, Any]]]:
+    def scan_opportunities(self) -> Dict[str, List[Dict[str, Any]]]:
         """
         扫描所有策略的投资机会
         

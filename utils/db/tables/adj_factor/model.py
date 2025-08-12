@@ -20,7 +20,7 @@ class AdjustFactor(BaseTableModel):
         query = """
             SELECT *
             FROM adj_factor
-            WHERE ts_code = %s
+            WHERE id = %s
             ORDER BY date DESC
             LIMIT 1
         """
@@ -38,14 +38,14 @@ class AdjustFactor(BaseTableModel):
             type: 复权类型 ('qfq' 或 'hfq')
             date: 查询日期，如果为None则返回最新的因子
         """
-        factor_type = type + '_factor'
+        factor_type = type
         
         if date:
             # 查询指定日期之前最近的复权因子
             query = f"""
                 SELECT {factor_type}, date, last_update
                 FROM adj_factor 
-                WHERE ts_code = %s AND date <= %s
+                WHERE id = %s AND date <= %s
                 ORDER BY date DESC
                 LIMIT 1
             """
@@ -55,7 +55,7 @@ class AdjustFactor(BaseTableModel):
             query = f"""
                 SELECT {factor_type}, date, last_update
                 FROM adj_factor 
-                WHERE ts_code = %s
+                WHERE id = %s
                 ORDER BY date DESC
                 LIMIT 1
             """
@@ -74,7 +74,7 @@ class AdjustFactor(BaseTableModel):
         query = """
             SELECT * 
             FROM adj_factor
-            WHERE ts_code = %s
+            WHERE id = %s
             ORDER BY date DESC
         """
         return self.execute_raw_query(query, (ts_code,))
@@ -89,18 +89,18 @@ class AdjustFactor(BaseTableModel):
         """
         if date:
             query = """
-                SELECT qfq_factor, hfq_factor, date, last_update
+                SELECT qfq, hfq, date, last_update
                 FROM adj_factor 
-                WHERE ts_code = %s AND date <= %s
+                WHERE id = %s AND date <= %s
                 ORDER BY date DESC
                 LIMIT 1
             """
             result = self.execute_raw_query(query, (ts_code, date))
         else:
             query = """
-                SELECT qfq_factor, hfq_factor, date, last_update
+                SELECT qfq, hfq, date, last_update
                 FROM adj_factor 
-                WHERE ts_code = %s
+                WHERE id = %s
                 ORDER BY date DESC
                 LIMIT 1
             """
@@ -108,8 +108,8 @@ class AdjustFactor(BaseTableModel):
         
         if result:
             return {
-                'qfq_factor': float(result[0]['qfq_factor']),
-                'hfq_factor': float(result[0]['hfq_factor']),
+                'qfq_factor': float(result[0]['qfq']),
+                'hfq_factor': float(result[0]['hfq']),
                 'date': result[0]['date'],
                 'last_update': result[0]['last_update']
             }
@@ -126,17 +126,18 @@ class AdjustFactor(BaseTableModel):
             hfq_factor: 后复权因子
         """
         try:
-            query = """
-                INSERT INTO adj_factor (ts_code, date, qfq_factor, hfq_factor, last_update)
-                VALUES (%s, %s, %s, %s, NOW())
-                ON DUPLICATE KEY UPDATE 
-                    qfq_factor = VALUES(qfq_factor),
-                    hfq_factor = VALUES(hfq_factor),
-                    last_update = NOW()
-            """
+            # 使用基类的 replace 方法进行 upsert 操作
+            data = {
+                'id': ts_code,
+                'date': date,
+                'qfq': qfq_factor,
+                'hfq': hfq_factor,
+                'last_update': datetime.now()
+            }
             
-            self.execute_raw_update(query, (ts_code, date, qfq_factor, hfq_factor))
-            return True
+            # 主键字段：['id', 'date']
+            result = self.replace([data], ['id', 'date'])
+            return result > 0
             
         except Exception as e:
             logger.error(f"插入复权因子失败: {e}")
@@ -150,13 +151,17 @@ class AdjustFactor(BaseTableModel):
             ts_code: 股票代码
             date: 复权事件日期，如果为None则删除该股票的所有复权因子
         """
-        if date:
-            query = "DELETE FROM adj_factor WHERE ts_code = %s AND date = %s"
-            self.execute_raw_update(query, (ts_code, date))
-        else:
-            query = "DELETE FROM adj_factor WHERE ts_code = %s"
-            self.execute_raw_update(query, (ts_code,))
-        return True
+        try:
+            if date:
+                # 删除指定日期的复权因子
+                result = self.delete_one("id = %s AND date = %s", (ts_code, date))
+            else:
+                # 删除该股票的所有复权因子
+                result = self.delete("id = %s", (ts_code,))
+            return result > 0
+        except Exception as e:
+            logger.error(f"删除复权因子失败: {e}")
+            return False
     
     def batch_upsert_adj_factors(self, factors_data: List[Tuple]) -> bool:
         """
@@ -169,10 +174,21 @@ class AdjustFactor(BaseTableModel):
             if not factors_data:
                 return True
             
+            # 转换为字典列表，使用基类的批量 replace 方法
+            data_list = []
             for ts_code, date, qfq_factor, hfq_factor in factors_data:
-                self.upsert_adj_factor(ts_code, date, qfq_factor, hfq_factor)
+                data = {
+                    'id': ts_code,
+                    'date': date,
+                    'qfq': qfq_factor,
+                    'hfq': hfq_factor,
+                    'last_update': datetime.now()
+                }
+                data_list.append(data)
             
-            return True
+            # 使用基类的批量 replace 方法，主键字段：['id', 'date']
+            result = self.replace(data_list, ['id', 'date'])
+            return result > 0
             
         except Exception as e:
             logger.error(f"批量插入复权因子失败: {e}")

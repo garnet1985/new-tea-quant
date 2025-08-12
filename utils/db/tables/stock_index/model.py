@@ -21,16 +21,12 @@ class StockIndexModel(BaseTableModel):
         idx = self.load_many()
         if exclude_expressions:
             for exclude_expression in exclude_expressions:
-                idx = [stock for stock in idx if not exclude_expression.match(stock['ts_code'])]
+                idx = [stock for stock in idx if not exclude_expression.match(stock['id'])]
         return idx
 
-    def get_stock_by_code(self, code: str) -> Optional[Dict[str, Any]]:
-        """根据股票代码获取股票信息"""
-        return self.load_one("code = %s", (code,))
-    
-    def get_stocks_by_market(self, market: str) -> List[Dict[str, Any]]:
-        """根据市场获取股票列表"""
-        return self.load_many("market = %s", (market,))
+    def get_stock_by_id(self, stock_id: str) -> Optional[Dict[str, Any]]:
+        """根据股票ID获取股票信息"""
+        return self.load_one("id = %s", (stock_id,))
     
     def get_stocks_by_industry(self, industry: str) -> List[Dict[str, Any]]:
         """根据行业获取股票列表"""
@@ -40,22 +36,18 @@ class StockIndexModel(BaseTableModel):
         """获取所有活跃股票"""
         return self.load_many("isAlive = 1")
     
-    def get_stock_count_by_market(self, market: str) -> int:
-        """获取指定市场的股票数量"""
-        return self.count("market = %s", (market,))
-    
-    def update_stock_status(self, code: str, is_alive: bool) -> int:
+    def update_stock_status(self, stock_id: str, is_alive: bool) -> int:
         """更新股票状态"""
-        return self.update_one(
+        return self.update(
             {"isAlive": 1 if is_alive else 0},
-            "code = %s",
-            (code,)
+            "id = %s",
+            (stock_id,)
         )
     
     def search_stocks(self, keyword: str) -> List[Dict[str, Any]]:
-        """搜索股票（按代码或名称）"""
+        """搜索股票（按ID或名称）"""
         return self.load_many(
-            "code LIKE %s OR name LIKE %s",
+            "id LIKE %s OR name LIKE %s",
             (f"%{keyword}%", f"%{keyword}%")
         )
     
@@ -67,33 +59,26 @@ class StockIndexModel(BaseTableModel):
             params = []
             
             for exclude_pattern in ts_code_exclude_list:
-                where_conditions.append("code NOT LIKE %s")
+                where_conditions.append("id NOT LIKE %s")
                 params.append(exclude_pattern)
             
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             
-            sql = f"""
-                SELECT code, name, market 
-                FROM stock_index 
-                WHERE {where_clause}
-                ORDER BY code
-            """
-            
-            result = self.db.execute_sync_query(sql, params)
-            return result
+            # 使用基类的 load 方法，指定需要的字段和排序
+            return self.load(
+                condition=where_clause,
+                params=tuple(params),
+                order_by="id"
+            )
             
         except Exception as e:
             logger.error(f"获取股票列表失败: {e}")
             return []
 
-    def get_all_klines_by_term(self, stock_code: str, term: str, order_by: str = 'ASC'):
-        sql = f"""
-                SELECT * FROM stock_kline WHERE code = %s AND term = %s ORDER BY date {order_by}
-            """
-        return self.execute_raw_query(sql, (stock_code, term))
+    def get_all_klines_by_term(self, stock_id: str, term: str, order_by: str = 'ASC'):
+        # 使用基类的 load 方法
+        return self.load("id = %s AND term = %s", (stock_id, term), order_by=f"date {order_by}")
 
-    def get_most_recent_one_by_term(self, stock_code: str, term: str):
-        sql = f"""
-                SELECT * FROM stock_kline WHERE code = %s AND term = %s ORDER BY date DESC LIMIT 1
-            """
-        return self.execute_raw_query(sql, (stock_code, term))
+    def get_most_recent_one_by_term(self, stock_id: str, term: str):
+        # 使用基类的 load_one 方法
+        return self.load_one("id = %s AND term = %s ORDER BY date DESC LIMIT 1", (stock_id, term))

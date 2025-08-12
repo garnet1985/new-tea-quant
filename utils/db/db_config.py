@@ -32,7 +32,12 @@ DB_CONFIG = {
         'write': 60,
     },
 
-
+    'thread_safety': {
+        'enable': True,
+        'queue_size': 1000,
+        'turn_to_batch_threshold': 1000,
+        'max_retries': 3,
+    },
 
     # 股票指数相关配置 - 在数据库中获取股票列表时，排除这些代码 688开头的科创板已经北交所的股票
     # 注意：这些股票仍然会在获取数据时存入数据库，只是在读取数据库时排除在外

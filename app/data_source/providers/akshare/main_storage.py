@@ -91,8 +91,7 @@ class AKShareStorage:
         return None
     
     def get_close_price(self, ts_code: str, trade_date: str) -> Optional[float]:
-        code, market = DataSourceService.parse_ts_code(ts_code)
-        result = self.stock_kline_table.get_by_date(code, market, trade_date)
+        result = self.stock_kline_table.get_by_date(ts_code, trade_date)
         if result:
             return float(result[0]['close'])
         else:

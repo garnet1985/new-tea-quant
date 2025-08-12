@@ -27,7 +27,7 @@ class DatabaseManager:
         self.is_async_initialized = False
 
         # 线程安全属性
-        self.enable_thread_safety = enable_thread_safety
+        self.enable_thread_safety = DB_CONFIG['thread_safety']['enable']
         self._local = threading.local() if enable_thread_safety else None
         self._connection_pool = queue.Queue(maxsize=10) if enable_thread_safety else None
         self._write_queue = queue.Queue() if enable_thread_safety else None

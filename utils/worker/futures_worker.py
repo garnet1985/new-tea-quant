@@ -276,18 +276,29 @@ class FuturesWorker:
         if self.debug:
             logger.info(f"Executing job {job_id}")
         
-        # 执行任务
-        job_result = self.job_executor(job_data)
-        
-        # 更新结果
-        result.status = JobStatus.COMPLETED
-        result.result = job_result
-        result.end_time = datetime.now()
-        result.duration = time.time() - start_time
-        
-        # 进度日志在 _update_stats 中处理，避免重复
-        if self.is_verbose:
-            logger.debug(f"Job {job_id} completed in {result.duration:.2f}s")
+        try:
+            # 执行任务
+            job_result = self.job_executor(job_data)
+            
+            # 更新结果
+            result.status = JobStatus.COMPLETED
+            result.result = job_result
+            result.end_time = datetime.now()
+            result.duration = time.time() - start_time
+            
+            # 进度日志在 _update_stats 中处理，避免重复
+            if self.is_verbose:
+                logger.debug(f"Job {job_id} completed in {result.duration:.2f}s")
+            
+        except Exception as e:
+            # 捕获任务执行异常
+            result.status = JobStatus.FAILED
+            result.error = e
+            result.end_time = datetime.now()
+            result.duration = time.time() - start_time
+            
+            if self.is_verbose:
+                logger.error(f"Job {job_id} failed: {e}")
         
         return result
     
@@ -349,8 +360,12 @@ class FuturesWorker:
                         self._update_stats(result)
                         self.results_queue.put(result)
                     except Exception as e:
-                        # 错误信息总是显示
-                        logger.error(f"Error in parallel execution: {e}")
+                        # 处理future.result()的异常（如超时等）
+                        logger.error(f"Error getting result for job: {e}")
+                        # 创建一个失败的结果对象
+                        failed_result = JobResult(job_id="unknown", status=JobStatus.FAILED, error=e)
+                        self._update_stats(failed_result)
+                        self.results_queue.put(failed_result)
                     finally:
                         if future in self.active_futures:
                             self.active_futures.remove(future)

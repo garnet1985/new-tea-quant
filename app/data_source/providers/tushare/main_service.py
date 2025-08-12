@@ -10,13 +10,13 @@ class TushareService:
     def to_unified_stock_index_format(self, stock_index_data: list) -> list:
         """
         统一股票指数数据格式
-        将API数据(包含ts_code)和数据库数据(包含code和market)统一为标准格式
+        将API数据和数据库数据统一为标准格式
         
         Args:
             stock_index_data: 股票指数数据列表
             
         Returns:
-            list: 统一格式的股票指数数据，每个元素包含 code, market, ts_code
+            list: 统一格式的股票指数数据，每个元素包含 id, name, industry 等字段
         """
         normalized_data = []
         
@@ -25,15 +25,9 @@ class TushareService:
                 if 'ts_code' in row and row['ts_code']:
                     # API数据格式：包含ts_code字段
                     ts_code = row['ts_code']
-                    if '.' in ts_code:
-                        code, market = ts_code.split('.', 1)
-                    else:
-                        # 如果ts_code没有市场后缀，跳过这条记录
-                        continue
-                        
+                    
                     normalized_row = {
-                        'code': code,
-                        'market': market,
+                        'id': ts_code,  # 使用 ts_code 作为 id
                         'ts_code': ts_code,
                         'name': row.get('name', ''),
                         'industry': row.get('industry', ''),
@@ -41,15 +35,12 @@ class TushareService:
                         'exchange': row.get('exchange', ''),
                         'list_date': row.get('list_date', '')
                     }
-                elif 'code' in row and 'market' in row and row['code'] and row['market']:
-                    # 数据库数据格式：包含code和market字段
-                    code = row['code']
-                    market = row['market']
-                    ts_code = f"{code}.{market}"
+                elif 'id' in row and row['id']:
+                    # 数据库数据格式：包含id字段
+                    stock_id = row['id']
                     normalized_row = {
-                        'code': code,
-                        'market': market,
-                        'ts_code': ts_code,
+                        'id': stock_id,
+                        'ts_code': stock_id,
                         'name': row.get('name', ''),
                         'industry': row.get('industry', ''),
                         'area': row.get('area', ''),
@@ -94,16 +85,13 @@ class TushareService:
         stock_groups = defaultdict(list)
         most_recent_records = storage.get_most_recent_stock_kline_record_dates()
         
-        for code, market in stock_idx_info:
-            stock_key = f"{code}.{market}"
+        for ts_code in stock_idx_info:
             stock_jobs = self.to_single_stock_kline_renew_job({
-                'ts_code': self.to_ts_code(code, market),
-                'code': code,
-                'market': market
+                'ts_code': ts_code
             }, most_recent_records, last_market_open_day)
             
             if stock_jobs:  # 只有当有任务时才添加到分组中
-                stock_groups[stock_key] = stock_jobs
+                stock_groups[ts_code] = stock_jobs
         
         return dict(stock_groups)
 
@@ -123,45 +111,41 @@ class TushareService:
 
         if not latest_date:
             # 没有数据，使用默认开始日期
-            return self.to_default_stock_kline_renew_job(stock_idx_info['code'], stock_idx_info['market'], term, latest_market_open_day)
+            return self.to_default_stock_kline_renew_job(stock_idx_info['ts_code'], term, latest_market_open_day)
             
         
         formatted_latest_record_date = datetime.strptime(latest_date, '%Y%m%d')
         formatted_latest_market_open_date = datetime.strptime(latest_market_open_day, '%Y%m%d')
 
         if term == 'daily':
-            return self.to_single_stock_daily_kline_renew_job(stock_idx_info['code'], stock_idx_info['market'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
+            return self.to_single_stock_daily_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
 
         
         elif term == 'weekly':
-            return self.to_single_stock_weekly_kline_renew_job(stock_idx_info['code'], stock_idx_info['market'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
+            return self.to_single_stock_weekly_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
 
                 
         elif term == 'monthly':
-            return self.to_single_stock_monthly_kline_renew_job(stock_idx_info['code'], stock_idx_info['market'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
+            return self.to_single_stock_monthly_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
         
         # 不需要更新
         return None
 
-    def to_default_stock_kline_renew_job(self, code: str, market: str, term: str, last_market_open_day: str):
+    def to_default_stock_kline_renew_job(self, ts_code: str, term: str, last_market_open_day: str):
         return {
-            'code': code,
-            'market': market,
-            'ts_code': self.to_ts_code(code, market),
+            'ts_code': ts_code,
             'term': term,
             'start_date': data_default_start_date,
             'end_date': last_market_open_day
         }
 
-    def to_single_stock_daily_kline_renew_job(self, code: str, market: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
+    def to_single_stock_daily_kline_renew_job(self, ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 只有当最新记录日期小于最后一次市场开放日期时才需要更新
 
         if formatted_latest_record_date < formatted_latest_market_open_date:
             start_date = (formatted_latest_record_date + timedelta(days=1)).strftime('%Y%m%d')
             return {
-                'code': code,
-                'market': market,
-                'ts_code': self.to_ts_code(code, market),
+                'ts_code': ts_code,
                 'term': 'daily',
                 'start_date': start_date,
                 'end_date': latest_market_open_day
@@ -169,7 +153,7 @@ class TushareService:
         else:
             return None
 
-    def to_single_stock_weekly_kline_renew_job(self, code: str, market: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
+    def to_single_stock_weekly_kline_renew_job(self, ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 周线数据通常在每周结束后更新（周五）
         # 只有当最新记录日期加两周后的周一已经到来时，才需要更新
         # 例如：如果最新记录是7月25日（周五），那么至少要到8月8日（周一）才考虑更新
@@ -183,9 +167,7 @@ class TushareService:
             next_week_start = formatted_latest_record_date + timedelta(days=7 - formatted_latest_record_date.weekday())
             start_date = next_week_start.strftime('%Y%m%d')
             return {
-                'code': code,
-                'market': market,
-                'ts_code': self.to_ts_code(code, market),
+                'ts_code': ts_code,
                 'term': 'weekly',
                 'start_date': start_date,
                 'end_date': latest_market_open_day
@@ -193,7 +175,7 @@ class TushareService:
         
         return None
 
-    def to_single_stock_monthly_kline_renew_job(self, code: str, market: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
+    def to_single_stock_monthly_kline_renew_job(self, ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 月线数据通常在月底生成，包含整个月的数据
         # 如果最新记录是某月30日，那么至少要到该月加两个月后的第一天才考虑更新
         # 例如：如果最新记录是6月30日，那么至少要到8月1日才考虑更新7月的月线数据
@@ -218,9 +200,7 @@ class TushareService:
                 next_month_start = formatted_latest_record_date.replace(month=formatted_latest_record_date.month + 1, day=1)
             start_date = next_month_start.strftime('%Y%m%d')
             return {
-                'code': code,
-                'market': market,
-                'ts_code': self.to_ts_code(code, market),
+                'ts_code': ts_code,
                 'term': 'monthly',
                 'start_date': start_date,
                 'end_date': latest_market_open_day

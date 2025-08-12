@@ -14,20 +14,11 @@ class StockKlineModel(BaseTableModel):
         # 标记为基础表（不需要前缀）
         self.is_base_table = True
 
-    def get_all_klines_by_term(self, stock_code: str, term: str, order_by: str = 'ASC'):
-        sql = f"""
-                SELECT * FROM stock_kline WHERE code = %s AND term = %s ORDER BY date {order_by}
-            """
-        return self.execute_raw_query(sql, (stock_code, term))
+    def get_all_klines_by_term(self, stock_id: str, term: str, order: str = 'ASC'):
+        return self.load("id = %s AND term = %s", (stock_id, term), order_by=f"date {order}")
 
-    def get_most_recent_one_by_term(self, stock_code: str, term: str):
-        sql = f"""
-                SELECT * FROM stock_kline WHERE code = %s AND term = %s ORDER BY date DESC LIMIT 1
-            """
-        return self.execute_raw_query(sql, (stock_code, term))
+    def get_most_recent_one_by_term(self, stock_id: str, term: str):
+        return self.load_one("id = %s AND term = %s ORDER BY date DESC LIMIT 1", (stock_id, term))
     
-    def get_by_date(self, code: str, market: str, trade_date: str):
-        sql = f"""
-                SELECT * FROM stock_kline WHERE code = %s AND market = %s AND date = %s
-            """
-        return self.execute_raw_query(sql, (code, market, trade_date))    
+    def get_by_date(self, stock_id: str, trade_date: str):
+        return self.load_one("id = %s AND date = %s", (stock_id, trade_date))    

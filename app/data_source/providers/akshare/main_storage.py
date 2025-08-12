@@ -92,10 +92,30 @@ class AKShareStorage:
     
     def get_close_price(self, ts_code: str, trade_date: str) -> Optional[float]:
         result = self.stock_kline_table.get_by_date(ts_code, trade_date)
-        if result:
-            return float(result[0]['close'])
+        if result and 'close' in result:
+            return float(result['close'])
         else:
             return None
+    
+    def clear_adj_factors_for_stock(self, ts_code: str) -> bool:
+        """清除指定股票的所有复权因子"""
+        try:
+            result = self.adj_factor_table.delete("id = %s", (ts_code,))
+            logger.info(f"🗑️  Cleared {result} adj factors for {ts_code}")
+            return result > 0
+        except Exception as e:
+            logger.error(f"Failed to clear adj factors for {ts_code}: {e}")
+            return False
+    
+    def clear_adj_factors_from_date(self, ts_code: str, from_date: str) -> bool:
+        """清除指定股票从指定日期开始的所有复权因子"""
+        try:
+            result = self.adj_factor_table.delete("id = %s AND date >= %s", (ts_code, from_date))
+            logger.info(f"🗑️  Cleared {result} adj factors for {ts_code} from {from_date}")
+            return result > 0
+        except Exception as e:
+            logger.error(f"Failed to clear adj factors for {ts_code} from {from_date}: {e}")
+            return False
 
     def get_latest_factor(self, ts_code: str) -> Optional[Dict]:
         return self.adj_factor_table.get_latest_factor(ts_code)

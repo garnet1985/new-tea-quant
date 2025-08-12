@@ -18,7 +18,7 @@ class StockKlineModel(BaseTableModel):
         return self.load("id = %s AND term = %s", (stock_id, term), order_by=f"date {order}")
 
     def get_most_recent_one_by_term(self, stock_id: str, term: str):
-        return self.load_one("id = %s AND term = %s ORDER BY date DESC LIMIT 1", (stock_id, term))
+        return self.load_one("id = %s AND term = %s", (stock_id, term), order_by="date DESC")
     
     def get_by_date(self, stock_id: str, trade_date: str):
         return self.load_one("id = %s AND date = %s", (stock_id, trade_date))    

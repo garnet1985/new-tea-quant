@@ -22,7 +22,7 @@ class DatabaseManager:
         self.sync_connection = None
         self.is_sync_connected = False
         
-        # 异步连接
+        # 异步连接y
         self.async_pool = None
         self.is_async_initialized = False
 

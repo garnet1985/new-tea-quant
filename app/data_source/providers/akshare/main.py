@@ -40,7 +40,7 @@ class AKShare:
         self.job_complete_counter = 0
         self.latest_market_open_day = None
     
-    def renew_stock_K_line_factors(self, latest_market_open_day: str, stock_index: list = None):
+    def renew_stock_k_line_factors(self, latest_market_open_day: str, stock_index: list = None):
 
         self.latest_market_open_day = latest_market_open_day
 
@@ -108,7 +108,7 @@ class AKShare:
         latest_market_open_day = self.latest_market_open_day
 
         tu_factors = self.tu.api.adj_factor(ts_code=ts_code, start_date=data_default_start_date, end_date=latest_market_open_day)
-        qfq_k_lines = self.api_modified.get_K_lines(stock_id=ts_code, start_date=data_default_start_date, end_date=latest_market_open_day)
+        qfq_k_lines = self.api_modified.get_k_lines(stock_id=ts_code, start_date=data_default_start_date, end_date=latest_market_open_day)
 
         if qfq_k_lines is None or qfq_k_lines.empty:
             is_abort = True

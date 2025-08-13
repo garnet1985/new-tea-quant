@@ -76,6 +76,9 @@ class HLOpportunityHistoryModel(BaseTableModel):
         else:
             # 如果记录存在，更新第一条记录
             txt = self.toStr(info['info'], key, value)
-            # 使用UPDATE语句更新第一条记录，而不是replace_one
-            update_sql = "UPDATE meta_info SET info = %s WHERE id = %s"
-            self.db.execute_sync_update(update_sql, (txt, info['id'])) 
+            # 使用基类的 update 方法
+            self.update(
+                {'info': txt},
+                'id = %s',
+                (info['id'],)
+            ) 

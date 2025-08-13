@@ -81,9 +81,8 @@ class Tushare:
         
         # 处理统一格式的股票指数数据
         for row in stock_index:
-            code = row['code']
-            market = row['market']
-            stock_list.append((code, market))
+            stock_id = row['id']
+            stock_list.append(stock_id)
         
         # 生成按股票分组的更新任务
         jobs = self.service.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)

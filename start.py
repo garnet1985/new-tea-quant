@@ -39,7 +39,7 @@ class App:
         await self.data_source.renew_data()
     
     def scan_strategies(self):
-        self.analyzer.scan_all_strategies()
+        self.analyzer.scan_opportunities()
         
 
 async def main():

@@ -121,26 +121,91 @@ class DatabaseManager:
         # 检查线程本地连接
         if hasattr(self._local, 'connection'):
             try:
+                # 验证连接是否有效
                 self._local.connection.ping(reconnect=True)
-                return self._local.connection
+                # 检查连接是否真的有效
+                if hasattr(self._local.connection, 'open') and self._local.connection.open:
+                    # 额外验证：尝试执行一个简单查询
+                    try:
+                        test_cursor = self._local.connection.cursor()
+                        test_cursor.execute("SELECT 1")
+                        test_cursor.fetchone()
+                        test_cursor.close()
+                        return self._local.connection
+                    except Exception as e:
+                        logger.warning(f"Thread local connection test query failed: {e}")
+                        try:
+                            self._local.connection.close()
+                        except:
+                            pass
+                        delattr(self._local, 'connection')
+                else:
+                    logger.warning("Thread local connection is closed, creating new one")
+                    try:
+                        self._local.connection.close()
+                    except:
+                        pass
+                    delattr(self._local, 'connection')
             except Exception as e:
                 logger.warning(f"Thread local connection invalid, creating new one: {e}")
                 try:
                     self._local.connection.close()
                 except:
                     pass
+                delattr(self._local, 'connection')
         
         # 尝试从连接池获取
-        try:
-            connection = self._connection_pool.get_nowait()
-            with self._stats_lock:
-                self._stats['connections_reused'] += 1
-            if self.is_verbose:
-                logger.debug("Reused connection from pool")
-        except queue.Empty:
-            # 池中没有可用连接，创建新的
-            connection = self._create_connection()
+        for pool_attempt in range(3):  # 最多尝试3次从池中获取
+            try:
+                connection = self._connection_pool.get_nowait()
+                # 验证池中连接的有效性
+                try:
+                    connection.ping(reconnect=True)
+                    if hasattr(connection, 'open') and connection.open:
+                        # 额外验证：尝试执行一个简单查询
+                        try:
+                            test_cursor = connection.cursor()
+                            test_cursor.execute("SELECT 1")
+                            test_cursor.fetchone()
+                            test_cursor.close()
+                            
+                            with self._stats_lock:
+                                self._stats['connections_reused'] += 1
+                            if self.is_verbose:
+                                logger.debug("Reused connection from pool")
+                            
+                            # 存储到线程本地
+                            self._local.connection = connection
+                            return connection
+                        except Exception as e:
+                            logger.warning(f"Pool connection test query failed: {e}")
+                            # 将无效连接放回池中
+                            try:
+                                self._connection_pool.put_nowait(connection)
+                            except queue.Full:
+                                pass
+                            continue
+                    else:
+                        logger.warning("Pool connection is closed, creating new one")
+                        # 将无效连接放回池中，让其他线程处理
+                        try:
+                            self._connection_pool.put_nowait(connection)
+                        except queue.Full:
+                            pass
+                        continue
+                except Exception as e:
+                    logger.warning(f"Pool connection validation failed: {e}")
+                    # 将无效连接放回池中
+                    try:
+                        self._connection_pool.put_nowait(connection)
+                    except queue.Full:
+                        pass
+                    continue
+            except queue.Empty:
+                break
         
+        # 创建新的连接
+        connection = self._create_connection()
         # 存储到线程本地
         self._local.connection = connection
         return connection
@@ -476,62 +541,107 @@ class DatabaseManager:
     @contextmanager
     def get_sync_cursor(self):
         """获取同步数据库游标的上下文管理器（支持线程安全）"""
-        if self.enable_thread_safety:
-            # 线程安全模式
-            connection = self._get_thread_safe_connection()
-            cursor = None
-            
+        max_retries = 3
+        retry_delay = 0.1
+        
+        for attempt in range(max_retries):
             try:
-                cursor = connection.cursor(pymysql.cursors.DictCursor)
-                yield cursor
-            except Exception as e:
-                logger.error(f"Database cursor error: {e}")
-                try:
-                    connection.rollback()
-                except:
-                    pass
-                raise
-            finally:
-                if cursor:
+                if self.enable_thread_safety:
+                    # 线程安全模式
+                    connection = self._get_thread_safe_connection()
+                    cursor = None
+                    
                     try:
-                        cursor.close()
-                    except:
-                        pass
-        else:
-            # 原有模式
-            if not self.is_sync_connected or self.sync_connection is None:
-                self.connect_sync()
-            
-            # 检查连接是否有效
-            try:
-                self.sync_connection.ping(reconnect=True)
-            except Exception as e:
-                logger.warning(f"Database connection lost, reconnecting: {e}")
-                self.connect_sync()
-            
-            cursor = None
-            try:
-                cursor = self.sync_connection.cursor(pymysql.cursors.DictCursor)
-                yield cursor
-            except Exception as e:
-                logger.error(f"Synchronous database cursor error: {e}")
-                if self.sync_connection:
+                        cursor = connection.cursor(pymysql.cursors.DictCursor)
+                        yield cursor
+                        return  # 成功执行，退出重试循环
+                    except Exception as e:
+                        logger.error(f"Database cursor error (attempt {attempt + 1}/{max_retries}): {e}")
+                        try:
+                            connection.rollback()
+                        except:
+                            pass
+                        
+                        # 如果是连接相关错误，标记连接无效
+                        if any(err_msg in str(e) for err_msg in [
+                            "Packet sequence number wrong", "settimeout", "Lost connection", 
+                            "index out of range", "(0, '')"
+                        ]):
+                            logger.warning(f"Connection error detected, marking connection invalid (attempt {attempt + 1})")
+                            # 清理线程本地连接
+                            if hasattr(self._local, 'connection'):
+                                try:
+                                    self._local.connection.close()
+                                except:
+                                    pass
+                                delattr(self._local, 'connection')
+                        
+                        if attempt == max_retries - 1:
+                            raise  # 最后一次尝试失败，抛出异常
+                        
+                        # 等待后重试
+                        import time
+                        time.sleep(retry_delay * (2 ** attempt))
+                        continue
+                    finally:
+                        if cursor:
+                            try:
+                                cursor.close()
+                            except:
+                                pass
+                else:
+                    # 原有模式
+                    if not self.is_sync_connected or self.sync_connection is None:
+                        self.connect_sync()
+                    
+                    # 检查连接是否有效
                     try:
-                        self.sync_connection.rollback()
-                    except:
-                        pass
-                # 如果是连接相关错误，尝试重连
-                if "Packet sequence number wrong" in str(e) or "settimeout" in str(e):
-                    logger.warning("Connection error detected, will reconnect on next use")
-                    self.is_sync_connected = False
-                    self.sync_connection = None
-                raise
-            finally:
-                if cursor:
+                        self.sync_connection.ping(reconnect=True)
+                    except Exception as e:
+                        logger.warning(f"Database connection lost, reconnecting: {e}")
+                        self.connect_sync()
+                    
+                    cursor = None
                     try:
-                        cursor.close()
-                    except:
-                        pass
+                        cursor = self.sync_connection.cursor(pymysql.cursors.DictCursor)
+                        yield cursor
+                        return  # 成功执行，退出重试循环
+                    except Exception as e:
+                        logger.error(f"Synchronous database cursor error (attempt {attempt + 1}/{max_retries}): {e}")
+                        if self.sync_connection:
+                            try:
+                                self.sync_connection.rollback()
+                            except:
+                                pass
+                        
+                        # 如果是连接相关错误，尝试重连
+                        if any(err_msg in str(e) for err_msg in [
+                            "Packet sequence number wrong", "settimeout", "Lost connection",
+                            "index out of range", "(0, '')"
+                        ]):
+                            logger.warning(f"Connection error detected, will reconnect on next use (attempt {attempt + 1})")
+                            self.is_sync_connected = False
+                            self.sync_connection = None
+                        
+                        if attempt == max_retries - 1:
+                            raise  # 最后一次尝试失败，抛出异常
+                        
+                        # 等待后重试
+                        import time
+                        time.sleep(retry_delay * (2 ** attempt))
+                        continue
+                    finally:
+                        if cursor:
+                            try:
+                                cursor.close()
+                            except:
+                                pass
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise  # 最后一次尝试失败，抛出异常
+                logger.warning(f"Retrying database operation (attempt {attempt + 1}/{max_retries})")
+                import time
+                time.sleep(retry_delay * (2 ** attempt))
     
     def execute_sync_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         """执行同步查询语句（支持线程安全）"""

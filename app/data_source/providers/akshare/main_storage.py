@@ -1,74 +1,46 @@
+import pandas as pd
 from app.data_source.providers.akshare.main_settings import factor_update_interval_days
 from loguru import logger
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from app.data_source.data_source_service import DataSourceService
 
 class AKShareStorage:
-    def __init__(self, connected_db):
-        self.meta_info_table = connected_db.get_table_instance('meta_info')
+    def __init__(self, connected_db, is_verbose: bool = False):
         self.adj_factor_table = connected_db.get_table_instance('adj_factor')
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
+        self.is_verbose = is_verbose
+        self.db = connected_db
 
-    def batch_upsert_adj_factors(self, factors_data) -> bool:        
-        # 插入新的因子记录
-        return self.adj_factor_table.batch_upsert_adj_factors(factors_data)
+    def get_all_stocks_latest_update_dates(self) -> list:   
+        return self.adj_factor_table.get_all_stocks_latest_update_dates()
 
-    def get_latest_factor_change_date(self) -> str:
-        last_update_str = self.meta_info_table.get_meta_info_by_key('akshare_adj_factors_last_update')
-        if not last_update_str:
-            return None
-        return last_update_str
+    def update_factor_last_update_date(self, ts_code: str) -> None:
+        """更新指定股票代码的所有复权因子的last_update时间为当前时间"""
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+        # 更新该股票所有复权因子的last_update时间
+        self.adj_factor_table.update(
+            data={'last_update': now_str},
+            condition="id = %s",
+            params=(ts_code,)
+        )
 
-    def should_update_adj_factors(self):
-        info = ""
-        should_update = False
-        last_update_str = self.get_latest_factor_change_date()
-
-        if not last_update_str:
-            should_update = True
-            info = "没有任何复权因子的更新记录，需要更新"
-            return should_update, info
-        
-        last_update = datetime.strptime(last_update_str, '%Y-%m-%d %H:%M:%S')
-        current_time = datetime.now()
-        time_diff = current_time - last_update
-        
-        if time_diff.days > factor_update_interval_days:
-            should_update = True
-            info = f"复权因子距离上次更新已超过强制期限（{factor_update_interval_days}天），需要更新"
-            return should_update, info
-        else:
-            info = f"距离上次更新仅过去 {time_diff.days} 天小于强制更新期限（{factor_update_interval_days}天），是否更新? y:更新 | 其他任意键:不更新"
-            should_update = False
-            return should_update, info
-
-    def update_last_update_time(self):
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self.meta_info_table.set_meta_info_by_key('akshare_adj_factors_last_update', current_time)
-
-    def get_update_status_info(self) -> Dict:
-        last_update_str = self.meta_info_table.get_meta_info_by_key('akshare_adj_factors_last_update')
-        
-        if not last_update_str:
-            return {
-                'last_update': None,
-                'days_since_update': None,
-                'needs_update': True,
-                'status': 'never_updated'
+    def fake_a_factor_record(self, ts_code: str) -> None:
+        now = datetime.now()
+        now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+        today = now.strftime('%Y%m%d')  # 使用 YYYYMMDD 格式匹配数据库
+        self.adj_factor_table.insert([
+            {
+                'id': ts_code, 
+                'date': today, 
+                'qfq': 1, 
+                'hfq': 0, 
+                'last_update': now_str
             }
-        
-        last_update = datetime.strptime(last_update_str, '%Y-%m-%d %H:%M:%S')
-        current_time = datetime.now()
-        days_since_update = (current_time - last_update).days
-        
-        return {
-            'last_update': last_update_str,
-            'days_since_update': days_since_update,
-            'needs_update': days_since_update >= factor_update_interval_days,
-            'status': 'up_to_date' if days_since_update < factor_update_interval_days else 'needs_update'
-        }
-    
+        ])
+
+
     def get_adj_factor_for_date(self, ts_code: str, target_date: str) -> Optional[Dict]:
         """
         获取指定日期的复权因子
@@ -90,33 +62,22 @@ class AKShareStorage:
         
         return None
     
-    def get_close_price(self, ts_code: str, trade_date: str) -> Optional[float]:
-        result = self.stock_kline_table.get_by_date(ts_code, trade_date)
-        if result and 'close' in result:
-            return float(result['close'])
+    def get_close_prices(self, ts_code: str, trade_dates: List[str]) -> List[Dict]:
+        result = self.stock_kline_table.get_by_dates(ts_code, trade_dates)
+        if result:
+            return result
         else:
-            return None
+            return []
     
-    def clear_adj_factors_for_stock(self, ts_code: str) -> bool:
-        """清除指定股票的所有复权因子"""
-        try:
-            result = self.adj_factor_table.delete("id = %s", (ts_code,))
-            logger.info(f"🗑️  Cleared {result} adj factors for {ts_code}")
-            return result > 0
-        except Exception as e:
-            logger.error(f"Failed to clear adj factors for {ts_code}: {e}")
-            return False
-    
-    def clear_adj_factors_from_date(self, ts_code: str, from_date: str) -> bool:
-        """清除指定股票从指定日期开始的所有复权因子"""
-        try:
-            result = self.adj_factor_table.delete("id = %s AND date >= %s", (ts_code, from_date))
-            logger.info(f"🗑️  Cleared {result} adj factors for {ts_code} from {from_date}")
-            return result > 0
-        except Exception as e:
-            logger.error(f"Failed to clear adj factors for {ts_code} from {from_date}: {e}")
-            return False
+    def save_factors(self, factors: List[Dict]) -> None:
+        if not factors or len(factors) == 0:
+            return
+        
+        ts_code = factors[0]['id']
+        
+        # 先删除该股票的所有复权因子
+        self.adj_factor_table.delete("id = %s", (ts_code,))
+        # 使用 insert 方法批量插入
+        self.adj_factor_table.insert(factors)
 
-    def get_latest_factor(self, ts_code: str) -> Optional[Dict]:
-        return self.adj_factor_table.get_latest_factor(ts_code)
 

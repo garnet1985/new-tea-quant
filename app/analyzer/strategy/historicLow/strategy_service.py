@@ -139,7 +139,7 @@ class HistoricLowService:
         return results
 
     def get_investing(self, stock, investing_stocks):
-        return investing_stocks.get(stock['code'])
+        return investing_stocks.get(stock['id'])
 
     def is_trend_suitable_for_investment(self, monthly_records, daily_records):
         """

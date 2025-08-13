@@ -58,15 +58,6 @@ class AdjustFactor(BaseTableModel):
                 'last_update': result[0]['last_update']
             }
         return None
-
-    def get_all_adj_factors(self, ts_code: str) -> List[Dict]:
-        query = """
-            SELECT * 
-            FROM adj_factor
-            WHERE id = %s
-            ORDER BY date DESC
-        """
-        return self.execute_raw_query(query, (ts_code,))
     
     def get_all_stocks_latest_update_dates(self) -> List[Dict]:
         """
@@ -167,5 +158,9 @@ class AdjustFactor(BaseTableModel):
             df['last_update'] = df['last_update'].astype(str)
         
         # 导出到CSV
-        df.to_csv(file_path, index=False, encoding='utf-8')            
+        df.to_csv(file_path, index=False, encoding='utf-8')     
 
+
+    def get_stock_factors(self, ts_code: str) -> List[Dict]:
+        """获取指定股票的复权因子"""
+        return self.load(condition="id = %s", params=(ts_code,))

@@ -37,7 +37,7 @@ def test_rate_limiting_strategy():
     logger.info("🧪 测试批量处理逻辑...")
     
     # 计算批次
-    batch_size = 750  # 安全限制
+    batch_size = 780  # 安全限制
     total_batches = (len(test_stocks) + batch_size - 1) // batch_size
     
     logger.info(f"📋 总批次: {total_batches}")

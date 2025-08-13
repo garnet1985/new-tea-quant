@@ -112,25 +112,25 @@ class HistoricLowService:
     def get_max_required_monthly_records(self):
         return max(invest_settings['terms'])
 
-    def get_klines_before_date(self, target_date: str, klines: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_k_lines_before_date(self, target_date: str, k_lines: List[Dict[str, Any]]) -> Dict[str, Any]:
         target_datetime = datetime.strptime(target_date, '%Y%m%d')
         left = 0
-        right = len(klines) - 1
+        right = len(k_lines) - 1
         results = []
         record_of_today = None
         
         while left <= right:
             mid = (left + right) // 2
-            current_date = datetime.strptime(klines[mid]['date'], '%Y%m%d')
+            current_date = datetime.strptime(k_lines[mid]['date'], '%Y%m%d')
             
             if current_date == target_datetime:
                 # 找到匹配的记录
-                record_of_today = klines[mid]
-                results = klines[:mid]
+                record_of_today = k_lines[mid]
+                results = k_lines[:mid]
                 break
             elif current_date < target_datetime:
                 # 当前记录在目标日期之前，包含它并向右搜索
-                results = klines[:mid + 1]
+                results = k_lines[:mid + 1]
                 left = mid + 1
             else:
                 # 当前记录在目标日期之后，向左搜索
@@ -231,23 +231,23 @@ class HistoricLowService:
             
         return numerator / denominator
 
-    def find_dividers(self, monthly_K_lines):
+    def find_dividers(self, monthly_k_lines):
         """
         找到K线数据中的三个最深的波谷作为divider
         
         Args:
-            monthly_K_lines: 月度K线数据列表，按时间升序排列
+            monthly_k_lines: 月度K线数据列表，按时间升序排列
             
         Returns:
             list: 三个最深的波谷位置（0-1之间的比例）
         """
-        if len(monthly_K_lines) < 10:
+        if len(monthly_k_lines) < 10:
             # 数据太少，返回默认divider
             # print("    📊 数据不足，使用默认divider: [0.3, 0.5, 0.7]")
             return [0.3, 0.5, 0.7]
         
         # 1. 找到所有的波谷（局部最低点）
-        valleys = self.find_valleys(monthly_K_lines)
+        valleys = self.find_valleys(monthly_k_lines)
         # print(f"    🔍 找到 {len(valleys)} 个波谷候选")
         
         if len(valleys) < 3:
@@ -256,10 +256,10 @@ class HistoricLowService:
             return [0.3, 0.5, 0.7]
         
         # 2. 计算每个波谷的深度
-        valley_depths = self.calculate_valley_depths(monthly_K_lines, valleys)
+        valley_depths = self.calculate_valley_depths(monthly_k_lines, valleys)
         
         # 3. 智能选择历史低点
-        selected_valleys = self.select_smart_historic_lows(valley_depths, monthly_K_lines)
+        selected_valleys = self.select_smart_historic_lows(valley_depths, monthly_k_lines)
         
         # 如果没有足够的智能选择结果，使用传统方法作为备选
         if len(selected_valleys) < 3:
@@ -270,7 +270,7 @@ class HistoricLowService:
         # 4. 转换为divider格式（0-1之间的比例）
         dividers = []
         for valley in selected_valleys:
-            divider = valley['position'] / len(monthly_K_lines)
+            divider = valley['position'] / len(monthly_k_lines)
             divider = round(divider, 2)
             dividers.append(divider)
         

@@ -7,7 +7,7 @@ class AkshareAPIModified:
     def __init__(self, is_verbose: bool = False):
         self.is_verbose = is_verbose
 
-    def get_K_lines(self, stock_id: str, period: str = "daily", 
+    def get_k_lines(self, stock_id: str, period: str = "daily", 
                           start_date: str = None, end_date: str = None, 
                           adjust: str = "qfq"):
         

@@ -15,7 +15,7 @@ class StockKlineModel(BaseTableModel):
         # 标记为基础表（不需要前缀）
         self.is_base_table = True
 
-    def get_all_klines_by_term(self, stock_id: str, term: str, order: str = 'ASC'):
+    def get_all_k_lines_by_term(self, stock_id: str, term: str, order: str = 'ASC'):
         return self.load("id = %s AND term = %s", (stock_id, term), order_by=f"date {order}")
 
     def get_most_recent_one_by_term(self, stock_id: str, term: str):

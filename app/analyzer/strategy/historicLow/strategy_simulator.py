@@ -44,8 +44,8 @@ class HLSimulator:
         print(f"📊 准备处理 {len(jobs)} 个有效任务...")
 
         worker = FuturesWorker(
-            max_workers=5,  # 减少并发数，避免线程竞争
-            enable_monitoring=False
+            max_workers=invest_settings['simulate']['max_workers'],  # 减少并发数，避免线程竞争
+            enable_monitoring=invest_settings['simulate']['enable_monitoring']
         )
 
         worker.set_job_executor(self.test_job)
@@ -81,7 +81,7 @@ class HLSimulator:
 
         
         # 分批处理，避免数据库连接超时
-        batch_size = 50  # 每批处理50只股票
+        batch_size = invest_settings['simulate']['batch_size']  # 每批处理50只股票
         total_batches = (len(stock_idx) + batch_size - 1) // batch_size
         
         for batch_idx in range(total_batches):
@@ -94,11 +94,11 @@ class HLSimulator:
             # 为每个股票单独准备数据
             for stock in batch_stocks:
                 # 单独查询每个股票的数据，避免大批量查询超时
-                qfq_factors = self.strategy.required_tables["adj_factor"].get_all_adj_factors(stock['ts_code'])
-                monthly_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
+                qfq_factors = self.strategy.required_tables["adj_factor"].get_stock_factors(stock['ts_code'])
+                monthly_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['code'], 'monthly')
                 
                 if len(monthly_data) > invest_settings['min_required_monthly_records']:
-                    daily_data = self.strategy.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'daily')
+                    daily_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['code'], 'daily')
                     
                     if len(daily_data) > 0:
                         jobs.append({
@@ -123,21 +123,21 @@ class HLSimulator:
         # 模拟每一天
         for daily_record in data['daily_data']:
             # 使用二分查找获取到当前日期为止的月线数据
-            monthly_K_lines = self.service.get_klines_before_date(daily_record['date'], data['monthly_data'])
+            monthly_k_lines = self.service.get_k_lines_before_date(daily_record['date'], data['monthly_data'])
             
-            if not self.service.is_reached_min_required_monthly_records(monthly_K_lines):
+            if not self.service.is_reached_min_required_monthly_records(monthly_k_lines):
                 continue
             else:
                 # 使用二分查找获取到当前日期为止的日线数据
-                daily_K_lines = self.service.get_klines_before_date(daily_record['date'], data['daily_data'])
+                daily_k_lines = self.service.get_k_lines_before_date(daily_record['date'], data['daily_data'])
                 
-                self.simulate_one_day_for_one_stock(data['stock'], daily_record, monthly_K_lines, daily_K_lines)
+                self.simulate_one_day_for_one_stock(data['stock'], daily_record, monthly_k_lines, daily_k_lines)
 
         # 结算当前股票的未完成投资
         self.settle_open_investments_for_stock(data['stock'], data['daily_data'][-1])
 
 
-    def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_K_lines: List[Dict[str, Any]], daily_data: List[Dict[str, Any]]) -> bool:
+    def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_k_lines: List[Dict[str, Any]], daily_data: List[Dict[str, Any]]) -> bool:
         """测试单个股票"""
         # 1. 先检查现有投资是否需要结算
         investment = self.service.get_investing(stock, self.test_tracker['investing'])
@@ -147,16 +147,16 @@ class HLSimulator:
             # 如果结算了，扫描新机会
             if is_settled:
                 # 投资已结算（在settle_result中已清空投资状态），扫描新机会
-                self.find_opportunity(stock, record_of_today, monthly_K_lines, daily_data)
+                self.find_opportunity(stock, record_of_today, monthly_k_lines, daily_data)
             # 如果没结算，继续持有（不扫描新机会）
             return False
         else:
             # 2. 没有投资，扫描新机会
-            self.find_opportunity(stock, record_of_today, monthly_K_lines, daily_data)
+            self.find_opportunity(stock, record_of_today, monthly_k_lines, daily_data)
             return False
 
-    def find_opportunity(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_K_lines: List[Dict[str, Any]], daily_K_lines: List[Dict[str, Any]] = None) -> None:
-        opportunity = self.strategy.scan_single_stock(stock, record_of_today, monthly_K_lines, daily_K_lines)
+    def find_opportunity(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_k_lines: List[Dict[str, Any]], daily_k_lines: List[Dict[str, Any]] = None) -> None:
+        opportunity = self.strategy.scan_single_stock(stock, record_of_today, monthly_k_lines, daily_k_lines)
         if opportunity:
             self.invest(stock, opportunity)
 

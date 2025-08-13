@@ -94,15 +94,15 @@ class HLSimulator:
             # 为每个股票单独准备数据
             for stock in batch_stocks:
                 # 单独查询每个股票的数据，避免大批量查询超时
-                qfq_factors = self.strategy.required_tables["adj_factor"].get_stock_factors(stock['ts_code'])
-                monthly_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['code'], 'monthly')
+                qfq_factors = self.strategy.required_tables["adj_factor"].get_stock_factors(stock['id'])
+                monthly_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
                 
                 if len(monthly_data) > invest_settings['min_required_monthly_records']:
-                    daily_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['code'], 'daily')
+                    daily_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'daily')
                     
                     if len(daily_data) > 0:
                         jobs.append({
-                            'id': f"scan_{stock['code']}",
+                            'id': f"scan_{stock['id']}",
                             'data': {
                                 'stock': stock,
                                 'monthly_data': DataSourceService.to_qfq(monthly_data, qfq_factors),
@@ -164,7 +164,7 @@ class HLSimulator:
         # 添加投资开始日期（投资当天的日期）
         opportunity['invest_start_date'] = opportunity['opportunity_record']['date']
         with self.tracker_lock:
-            self.test_tracker['investing'][stock['code']] = opportunity
+            self.test_tracker['investing'][stock['id']] = opportunity
 
 
     def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any]) -> bool:
@@ -175,14 +175,14 @@ class HLSimulator:
         win_price = investment['goal']['win']
         
         if current_close >= win_price:
-            print(f"🎉 {stock['code']} {stock['name']} 投资成功，止盈 {current_close:.2f} (目标: {win_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
+            print(f"🎉 {stock['id']} {stock['name']} 投资成功，止盈 {current_close:.2f} (目标: {win_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
             print(f"start price: {investment['goal']['purchase']}")
             print(f"参考数据: 日期 {investment['historic_low_ref']['record']['date']} 周期 {investment['historic_low_ref']['term']} 最低点 {investment['historic_low_ref']['record']['lowest']}")
             
             self.settle_result(self.result_enum.WIN, stock, investment, latest_record)
             return True
         elif current_close <= loss_price:
-            print(f"❌ {stock['code']} {stock['name']} 投资失败，止损 {current_close:.2f} (目标: {loss_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
+            print(f"❌ {stock['id']} {stock['name']} 投资失败，止损 {current_close:.2f} (目标: {loss_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
             print(f"start price: {investment['goal']['purchase']}")
             print(f"参考数据: 日期 {investment['historic_low_ref']['record']['date']} 周期 {investment['historic_low_ref']['term']} 最低点 {investment['historic_low_ref']['record']['lowest']}")
             
@@ -200,7 +200,7 @@ class HLSimulator:
         profit = float(latest_record['close']) - purchase_price
         
         # 为每次投资生成唯一标识符，避免同一股票多次投资被覆盖
-        investment_id = f"{stock['code']}_{investment['invest_start_date']}"
+        investment_id = f"{stock['id']}_{investment['invest_start_date']}"
         
         with self.tracker_lock:
             self.test_tracker['settled'][investment_id] = {
@@ -218,12 +218,12 @@ class HLSimulator:
                 }
             }
             # 删除投资状态，而不是设置为None
-            if stock['code'] in self.test_tracker['investing']:
-                del self.test_tracker['investing'][stock['code']]
+            if stock['id'] in self.test_tracker['investing']:
+                del self.test_tracker['investing'][stock['id']]
 
     def settle_open_investments_for_stock(self, stock: Dict[str, Any], latest_record: Dict[str, Any]) -> None:
         """结算特定股票的未结算投资"""
-        investment = self.test_tracker['investing'].get(stock['code'])
+        investment = self.test_tracker['investing'].get(stock['id'])
         if investment:
             self.settle_result(self.result_enum.OPEN, stock, investment, latest_record)
 

@@ -130,7 +130,7 @@ class HistoricLowStrategy(BaseStrategy):
         # 创建任务
         jobs = []
         for stock in stock_idx:
-            job_id = f"scan_{stock['code']}"
+            job_id = f"scan_{stock['id']}"
             jobs.append({
                 'id': job_id,
                 'data': stock
@@ -165,9 +165,7 @@ class HistoricLowStrategy(BaseStrategy):
     def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 准备数据
 
-        # monthly_data_result = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
-        # monthly_data_result = self.ds.to_qfq_monthly_data(monthly_data_result)
-        monthly_data_result = self.ds.get_qfq_k_lines_data(stock['code'], 'monthly')
+        monthly_data_result = self.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
         
         # 确保monthly_data是列表格式
         if monthly_data_result:
@@ -179,8 +177,7 @@ class HistoricLowStrategy(BaseStrategy):
             return []
 
         # 获取最新的日线数据，添加错误处理
-        # daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['code'], 'daily')
-        daily_data_result = self.ds.get_qfq_k_lines_data(stock['code'], 'daily')
+        daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['id'], 'daily')
         
         # 确保daily_data是单个记录而不是列表
         if daily_data_result and len(daily_data_result) > 0:
@@ -223,9 +220,9 @@ class HistoricLowStrategy(BaseStrategy):
                 # 找到匹配的历史低点，创建投资机会
                 opportunity = {
                     'stock': {
-                        'code': stock['code'],
+                        'code': stock['id'],
                         'name': stock['name'],
-                        'market': stock['market']
+                        'market': stock.get('market', '')
                     },
                     'opportunity_record': latest_record,
                     'goal': {

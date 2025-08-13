@@ -58,5 +58,5 @@ class HLMetaModel(BaseTableModel):
             'lastSuggestedStockCodes': json.dumps(last_suggested_stock_codes)
         }
         
-        # 使用replace确保唯一性（基于date字段）
+        # 使用基类的 replace_one 方法确保唯一性（基于date字段）
         return self.replace_one(data, unique_keys=['date'])

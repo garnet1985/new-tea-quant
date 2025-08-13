@@ -166,9 +166,7 @@ secrets.json
 
 # Data files (large files that should not be in version control)
 data/cache/
-data/downloads/
-*.csv
-*.xlsx
+data/downloads/*.xlsx
 *.json
 !config/*.json
 !data/example/*.json

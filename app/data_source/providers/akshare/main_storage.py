@@ -74,7 +74,7 @@ class AKShareStorage:
         获取指定日期的复权因子
         如果目标日期不是复权事件日期，返回最近的前一个复权事件日期的因子
         """
-        all_factors = self.get_all_adj_factors(ts_code)
+        all_factors = self.get_stock_factors(ts_code)
         if not all_factors:
             return None
         

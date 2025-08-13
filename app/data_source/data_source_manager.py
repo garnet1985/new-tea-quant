@@ -35,7 +35,7 @@ class DataSourceManager:
         self.latest_stock_index = tu.renew_stock_index(self.latest_market_open_day)
 
         # 限制测试数量，避免长时间运行
-        self.latest_stock_index = self.latest_stock_index[:3]
+        # self.latest_stock_index = self.latest_stock_index[:3]
         
         await tu.renew_stock_K_lines(self.latest_market_open_day, self.latest_stock_index)
         

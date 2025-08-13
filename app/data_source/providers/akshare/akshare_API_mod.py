@@ -41,18 +41,30 @@ class AkshareAPIModified:
         except Exception as e:
             error_msg = str(e)
             
-            # 检查是否是防火墙错误
-            if 'connection aborted' in error_msg.lower() or 'remote disconnected' in error_msg.lower():
+            # 检查是否是防火墙错误（包括代理错误和连接断开）
+            firewall_indicators = [
+                'connection aborted',
+                'remote disconnected', 
+                'cannot connect to proxy',
+                'remote end closed connection',
+                'max retries exceeded'
+            ]
+            
+            is_firewall_error = any(indicator in error_msg.lower() for indicator in firewall_indicators)
+            
+            if is_firewall_error:
                 logger.warning(f"🚨 检测EastMoney防火墙阻止了API")
+                logger.warning(f"错误详情: {error_msg}")
 
                 logger.info(f"建议解决方案：")
-                logger.info(f"1. 用浏览器打开任何一只股票的K线图的日线(e.g. https://quote.eastmoney.com/sz300719.html)")
-                logger.info(f"2. 刷新网页，会弹出手动移动滑块的机器人识别，完成识别刷新页面，即可正常访问")
-                logger.info(f"3. 如果上述方法不成功需等待一分钟然后重试")
+                logger.info(f"1. 安静地等待一分钟消消气")
+                logger.info(f"2. 用浏览器打开任何一只股票的K线图的日线(e.g. https://quote.eastmoney.com/sz300719.html)")
+                logger.info(f"3. 刷新网页，会弹出手动移动滑块的机器人识别（Recaptcha），完成识别刷新页面，即可正常访问")
+                logger.info(f"4. 重新开启复权因子计算，程序是支持断点计算的")
 
                 return None
             else:
-                # 其他错误，使用指数退避重试
+                # 其他错误
                 logger.warning(f"AKShare API调用失败: {error_msg}")
                 return None
         

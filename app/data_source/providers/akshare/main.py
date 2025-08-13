@@ -56,14 +56,18 @@ class AKShare:
         self.reset_state()
         logger.info(f"💾 复权因子更新完成. 耗时: {time.time() - start_time} 秒")
 
+        self.storage.backup_csv_if_needed()
+
 
     def get_renewable_stocks(self, stock_index: list = None) -> List[Dict]:
         factor_last_update_dates = self.storage.get_all_stocks_latest_update_dates()
 
         if len(factor_last_update_dates) == 0:
-            # todo: import from local CSV file firstly, and then re-run the check function
-            # return self.build_jobs(stock_index)
-            pass
+            logger.info(f"复权因子数据表为空, 需要从CSV文件中导入基础数据. 数据导入中...")
+            start_time = time.time()
+            self.storage.adj_factor_table.import_from_csv()
+            logger.info(f"从CSV文件中导入基础数据完成. 耗时: {time.time() - start_time} 秒")
+            return self.get_renewable_stocks(stock_index)
         
         jobs = self.service.get_stocks_needing_update_from_db(factor_last_update_dates)
         jobs += self.service.get_stocks_needing_update_from_stock_index(factor_last_update_dates, stock_index)
@@ -80,7 +84,9 @@ class AKShare:
         factor_changed_dates = self.service.get_factor_changing_dates(tu_factors)
 
         if len(factor_changed_dates) > 0:
-            factors = self.generate_factors(job_data)
+            factors, is_abort = self.generate_factors(job_data)
+            if is_abort:
+                return
             self.storage.save_factors(factors)
             logger.info(f"💾 {ts_code} 所有复权因子重新计算完成. total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
         else:
@@ -95,16 +101,23 @@ class AKShare:
         self.job_complete_counter += 1
 
     def generate_factors(self, job_data: Dict):
+
+        is_abort = False
+
         ts_code = job_data['id']
         latest_market_open_day = self.latest_market_open_day
 
         tu_factors = self.tu.api.adj_factor(ts_code=ts_code, start_date=data_default_start_date, end_date=latest_market_open_day)
         qfq_k_lines = self.api_modified.get_K_lines(stock_id=ts_code, start_date=data_default_start_date, end_date=latest_market_open_day)
 
+        if qfq_k_lines is None or qfq_k_lines.empty:
+            is_abort = True
+            return [], is_abort
+
         all_factor_changed_dates = self.service.get_factor_changing_dates(tu_factors)
         factors = self.calc_factors(all_factor_changed_dates, job_data, qfq_k_lines)
 
-        return factors
+        return factors, is_abort
 
 
     def calc_factors(self, dates: List[str], job_data: Dict, qfq_k_lines: pd.DataFrame):

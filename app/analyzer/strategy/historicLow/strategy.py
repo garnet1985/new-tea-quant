@@ -167,7 +167,7 @@ class HistoricLowStrategy(BaseStrategy):
 
         # monthly_data_result = self.required_tables["stock_kline"].get_all_klines_by_term(stock['code'], 'monthly')
         # monthly_data_result = self.ds.to_qfq_monthly_data(monthly_data_result)
-        monthly_data_result = self.ds.get_qfq_K_lines_data(stock['code'], 'monthly')
+        monthly_data_result = self.ds.get_qfq_k_lines_data(stock['code'], 'monthly')
         
         # 确保monthly_data是列表格式
         if monthly_data_result:
@@ -180,7 +180,7 @@ class HistoricLowStrategy(BaseStrategy):
 
         # 获取最新的日线数据，添加错误处理
         # daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['code'], 'daily')
-        daily_data_result = self.ds.get_qfq_K_lines_data(stock['code'], 'daily')
+        daily_data_result = self.ds.get_qfq_k_lines_data(stock['code'], 'daily')
         
         # 确保daily_data是单个记录而不是列表
         if daily_data_result and len(daily_data_result) > 0:

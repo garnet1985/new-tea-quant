@@ -75,7 +75,7 @@ class StockIndexModel(BaseTableModel):
             logger.error(f"获取股票列表失败: {e}")
             return []
 
-    def get_all_klines_by_term(self, stock_id: str, term: str, order_by: str = 'ASC'):
+    def get_all_k_lines_by_term(self, stock_id: str, term: str, order_by: str = 'ASC'):
         # 使用基类的 load 方法
         return self.load("id = %s AND term = %s", (stock_id, term), order_by=f"date {order_by}")
 

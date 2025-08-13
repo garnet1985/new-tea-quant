@@ -32,7 +32,7 @@ class Tushare:
         import threading
         self.kline_api_lock = threading.Lock()
 
-    def _kline_api_rate_limit(self):
+    def _k_line_api_rate_limit(self):
         """Tushare K线数据API频率限制（线程安全）"""
         with self.kline_api_lock:
             current_time = time.time()
@@ -58,8 +58,8 @@ class Tushare:
         return self.service.get_latest_market_open_day(self.api)
 
 
-    async def renew_stock_K_lines(self, latest_market_open_day: str = None, stock_index: list = None):
-       await self.renew_stock_K_lines_by_batch(latest_market_open_day, stock_index)
+    async def renew_stock_k_lines(self, latest_market_open_day: str = None, stock_index: list = None):
+        await self.renew_stock_k_lines_by_batch(latest_market_open_day, stock_index)
 
 
     async def renew_global_economic_data(self):
@@ -71,7 +71,7 @@ class Tushare:
         pass
     
 
-    async def renew_stock_K_lines_by_batch(self, latest_market_open_day: str = None, stock_index: list = None):
+    async def renew_stock_k_lines_by_batch(self, latest_market_open_day: str = None, stock_index: list = None):
         """
         批量更新股票K线数据
         """
@@ -230,7 +230,7 @@ class Tushare:
 
     def fetch_kline_data(self, job: dict):
         # 应用K线数据API频率限制
-        self._kline_api_rate_limit()
+        self._k_line_api_rate_limit()
         
         try:
             if job['term'] == 'daily':

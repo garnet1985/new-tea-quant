@@ -45,9 +45,9 @@ class App:
 async def main():
     app = App()
     
-    await app.renew_data()
+    # await app.renew_data()
 
-    # app.scan_strategies()
+    app.scan_strategies()
 
 
 if __name__ == "__main__":

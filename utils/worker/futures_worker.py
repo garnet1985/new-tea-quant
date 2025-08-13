@@ -297,8 +297,10 @@ class FuturesWorker:
             result.end_time = datetime.now()
             result.duration = time.time() - start_time
             
-            if self.is_verbose:
-                logger.error(f"Job {job_id} failed: {e}")
+            # 打印完整的错误堆栈，帮助调试
+            import traceback
+            logger.error(f"Job {job_id} failed: {e}")
+            logger.error(f"Error details: {traceback.format_exc()}")
         
         return result
     

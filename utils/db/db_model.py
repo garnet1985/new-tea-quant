@@ -134,23 +134,36 @@ class BaseTableModel:
     # ***********************************
     
     def delete(self, condition: str, params: tuple = (), limit: int = None) -> int:
-        """删除数据"""
-        try:
-            query = f"DELETE FROM {self.table_name} WHERE {condition}"
-            if limit:
-                query += f" LIMIT {limit}"
-            
-            with self.db.get_sync_cursor() as cursor:
-                cursor.execute(query, params)
-                self.db.sync_connection.commit()
-                return cursor.rowcount
-        except Exception as e:
-            logger.error(f"Failed to delete data from {self.table_name}: {e}")
-            return 0
+        """删除数据（带重试机制）"""
+        max_retries = 3
+        retry_delay = 0.1
+        
+        for attempt in range(max_retries):
+            try:
+                query = f"DELETE FROM {self.table_name} WHERE {condition}"
+                if limit:
+                    query += f" LIMIT {limit}"
+                
+                with self.db.get_sync_cursor() as cursor:
+                    cursor.execute(query, params)
+                    cursor.connection.commit()
+                    return cursor.rowcount
+            except Exception as e:
+                logger.error(f"Failed to delete data from {self.table_name} (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if attempt == max_retries - 1:
+                    return 0  # 最后一次尝试失败，返回0
+                
+                # 等待后重试
+                import time
+                time.sleep(retry_delay * (2 ** attempt))
+                continue
+        
+        return 0
 
     def delete_one(self, condition: str, params: tuple = ()) -> int:
         """删除单条数据"""
-        self.delete(condition, params, 1)
+        return self.delete(condition, params, 1)
 
 
 
@@ -216,7 +229,8 @@ class BaseTableModel:
         if DB_CONFIG['thread_safety']['enable']:
             # 对于大数据量，使用异步写入队列
             if len(data_list) > DB_CONFIG['thread_safety']['turn_to_batch_threshold']:
-                logger.info(f"Large dataset detected ({len(data_list)} records), using async write queue")
+                if self.db.is_verbose:
+                    logger.info(f"Large dataset detected ({len(data_list)} records), using async write queue")
                 
                 # 定义回调函数
                 def write_callback(result):

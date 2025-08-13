@@ -13,7 +13,7 @@ class TushareStorage:
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
     def save_stock_index(self, data):
-        self.stock_index_table.clear()
+        self.stock_index_table.clear_table()
 
         # 将 pandas DataFrame 转换为字典列表
         if hasattr(data, 'to_dict'):
@@ -31,18 +31,12 @@ class TushareStorage:
         from datetime import datetime
         
         for item in data_list:
-            # 分离 ts_code，例如 "000001.SZ" -> code="000001", market="SZ"
+            # 使用 ts_code 作为 id
             ts_code = item.get('ts_code', '')
-            if '.' in ts_code:
-                code, market = ts_code.split('.', 1)
-            else:
-                code = ts_code
-                market = item.get('market', '')
             
             converted_item = {
-                'code': code,  # 股票代码（不含市场后缀）
+                'id': ts_code,  # 股票代码（包含市场后缀）
                 'name': item.get('name', ''),
-                'market': market,  # 市场（.后的部分）
                 'industry': item.get('industry', ''),
                 'type': item.get('market', ''),  # market -> type
                 'exchangeCenter': item.get('exchange', ''),  # exchange -> exchangeCenter
@@ -60,24 +54,22 @@ class TushareStorage:
         try:
             # 使用SQL聚合查询获取所有股票所有周期的最新日期
             query = """
-                SELECT code, market, term, MAX(date) as latest_date 
+                SELECT id, term, MAX(date) as latest_date 
                 FROM stock_kline 
-                GROUP BY code, market, term
+                GROUP BY id, term
             """
             result = self.stock_kline_table.execute_raw_query(query)
             
             # 转换为字典格式
             latest_data = {}
             for row in result:
-                code = row['code']
-                market = row['market']
-                ts_code = code + '.' + market
+                stock_id = row['id']
                 term = row['term']
                 latest_date = row['latest_date']
                 
-                if ts_code not in latest_data:
-                    latest_data[ts_code] = {}
-                latest_data[ts_code][term] = latest_date
+                if stock_id not in latest_data:
+                    latest_data[stock_id] = {}
+                latest_data[stock_id][term] = latest_date
         
             return latest_data
             
@@ -99,8 +91,7 @@ class TushareStorage:
         
         try:
             # 从job中获取基本信息
-            code = job.get('code', '')
-            market = job.get('market', '')
+            stock_id = job.get('ts_code', '')  # 使用 ts_code 作为 id
             term = job.get('term', 'daily')
             
             # 将 pandas DataFrame 转换为字典列表
@@ -117,8 +108,7 @@ class TushareStorage:
             for item in data_list:
                 # 根据schema.json的字段定义转换数据
                 converted_item = {
-                    'code': code,  # 从job中获取
-                    'market': market,  # 从job中获取
+                    'id': stock_id,  # 从job中获取 ts_code
                     'term': term,  # 从job中获取
                     'date': item.get('trade_date', ''),  # 交易日期
                     'open': item.get('open', 0),  # 开盘价
@@ -144,7 +134,7 @@ class TushareStorage:
             
             # 批量插入数据
             if converted_data:
-                logger.info(f"保存 {len(converted_data)} 条 {term} K线数据 (股票: {code}.{market})")
+                logger.info(f"保存 {len(converted_data)} 条 {term} K线数据 (股票: {stock_id})")
                 self.stock_kline_table.insert(converted_data)
                 logger.info(f"✅ {term} K线数据保存成功")
             else:
@@ -160,7 +150,7 @@ class TushareStorage:
         
         Args:
             data: pandas.DataFrame K线数据
-            job: 任务信息，包含 code, market, term 等
+            job: 任务信息，包含 ts_code, term 等
             
         Returns:
             list: 转换后的数据列表
@@ -171,8 +161,7 @@ class TushareStorage:
             return []
         
         # 从job中获取基本信息
-        code = job['code']
-        market = job['market']
+        stock_id = job['ts_code']  # 使用 ts_code 作为 id
         term = job['term']
         
         # 转换DataFrame为字典列表
@@ -198,8 +187,7 @@ class TushareStorage:
             
             # 根据schema.json的字段定义转换数据
             converted_item = {
-                'code': code,  # 从job中获取
-                'market': market,  # 从job中获取
+                'id': stock_id,  # 从job中获取 ts_code
                 'term': term,  # 从job中获取
                 'date': item.get('trade_date', ''),  # 交易日期
                 'open': clean_value(item.get('open', 0)),  # 开盘价
@@ -214,7 +202,7 @@ class TushareStorage:
             }
             
             # 验证必填字段（排除NaN值的情况）
-            required_fields = ['code', 'market', 'term', 'date', 'open', 'close', 'highest', 'lowest']
+            required_fields = ['id', 'term', 'date', 'open', 'close', 'highest', 'lowest']
             missing_fields = []
             for field in required_fields:
                 value = converted_item.get(field)
@@ -255,7 +243,7 @@ class TushareStorage:
                         cleaned_item[key] = value
                 
                 # 验证必填字段
-                required_fields = ['code', 'market', 'term', 'date', 'open', 'close', 'highest', 'lowest']
+                required_fields = ['id', 'term', 'date', 'open', 'close', 'highest', 'lowest']
                 missing_fields = [field for field in required_fields if not cleaned_item.get(field)]
                 
                 if missing_fields:
@@ -270,13 +258,13 @@ class TushareStorage:
                 stock_counts = {}
                 for item in valid_data:
                     term = item['term']
-                    stock_key = f"{item['code']}.{item['market']}"
+                    stock_key = item['id']
                     term_counts[term] = term_counts.get(term, 0) + 1
                     stock_counts[stock_key] = stock_counts.get(stock_key, 0) + 1
                 
                 # 批量插入或更新数据（使用ON DUPLICATE KEY UPDATE）
-                # 主键字段: ['code', 'market', 'term', 'date']
-                primary_keys = ['code', 'market', 'term', 'date']
+                # 主键字段: ['id', 'term', 'date']
+                primary_keys = ['id', 'term', 'date']
                 self.stock_kline_table.replace(valid_data, primary_keys)
             else:
                 logger.warning("没有有效数据需要保存")

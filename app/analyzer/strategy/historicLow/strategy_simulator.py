@@ -45,7 +45,7 @@ class HLSimulator:
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        stock_idx = stock_idx[5:10]  # 测试前20只股票
+        stock_idx = stock_idx[0:200]  # 测试前20只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
 
         print(f"🚀 开始处理 {len(stock_idx)} 只股票...")
@@ -214,7 +214,7 @@ class HLSimulator:
         win_price = investment['goal']['win']
         
         if current_close >= win_price:
-            print(f"🎉 {stock['id']} {stock['name']} 投资成功，止盈 {current_close:.2f} (目标: {win_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
+            print(f"✅ {stock['id']} {stock['name']} 投资成功，止盈 {current_close:.2f} (目标: {win_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
             print(f"start price: {investment['goal']['purchase']}")
             print(f"参考数据: 日期 {investment['historic_low_ref']['record']['date']} 周期 {investment['historic_low_ref']['term']} 最低点 {investment['historic_low_ref']['record']['lowest']}")
             
@@ -454,15 +454,50 @@ class HLSimulator:
     
     def _print_investment_summary(self) -> None:
         """打印投资记录摘要"""
-        summary = self.investment_recorder.get_summary()
+        # 获取文件统计信息
+        file_summary = self.investment_recorder.get_summary()
+        
+        # 获取投资结果统计信息（从test_tracker中获取）
+        results_summary = {}
+        if hasattr(self, 'test_tracker') and self.test_tracker.get('settled'):
+            # 将test_tracker['settled']转换为aggregate_results需要的格式
+            settled_results = []
+            for investment_id, data in self.test_tracker['settled'].items():
+                settled_results.append(data['result'])
+            results_summary = self.aggregate_results(settled_results)
         
         print("\n" + "="*60)
         print("📁 投资记录摘要")
         print("="*60)
-        print(f"📂 会话目录: {summary.get('session_dir', 'N/A')}")
-        print(f"📊 总记录数: {summary.get('total_investment_count', 0)} 条")
-        print(f"✅ 成功投资: {summary.get('success_count', 0)} 条")
-        print(f"❌ 失败投资: {summary.get('fail_count', 0)} 条")
-        print(f"⏳ 未完成投资: {summary.get('open_count', 0)} 条")
-        print(f"🕐 创建时间: {summary.get('created_at', 'N/A')}")
+        print(f"📂 会话目录: {file_summary.get('session_dir', 'N/A')}")
+        print(f"📊 总记录数: {file_summary.get('total_investment_count', 0)} 条")
+        print(f"✅ 成功投资: {file_summary.get('success_count', 0)} 条")
+        print(f"❌ 失败投资: {file_summary.get('fail_count', 0)} 条")
+        print(f"⏳ 未完成投资: {file_summary.get('open_count', 0)} 条")
+        print(f"🕐 创建时间: {file_summary.get('created_at', 'N/A')}")
+        print("="*60)
+        
+        # 显示投资结果统计
+        if results_summary:
+            win_rate = results_summary.get('win_rate', 0)
+            annual_return = results_summary.get('annual_return', 0)
+            
+            # 使用绿色点显示胜率（胜率超过60%显示绿色）
+            win_rate_dot = "🟢" if win_rate >= 60 else "🔴"
+            print(f"🎯 胜率: {win_rate_dot} {win_rate}%")
+            
+            # 使用绿色点显示年化收益率（年化收益率超过10%显示绿色）
+            annual_return_dot = "🟢" if annual_return >= 10 else "🔴"
+            print(f"📈 平均年化收益率: {annual_return_dot} {annual_return}%")
+            
+            print(f"⏱️  平均投资时长: {results_summary.get('avg_duration_days', 0)} 天")
+            print(f"💰 平均ROI: {results_summary.get('avg_roi', 0)}%")
+            
+            # 添加投资数量统计
+            print(f"📊 总投资次数: {results_summary.get('total_investments', 0)}")
+            print(f"✅ 成功次数: {results_summary.get('win_count', 0)}")
+            print(f"❌ 失败次数: {results_summary.get('loss_count', 0)}")
+        else:
+            print("📊 投资结果统计: 暂无数据")
+        
         print("="*60)

@@ -231,9 +231,9 @@ class InvestmentRecorder:
                     "target_win": self._convert_decimal(investment.get('goal', {}).get('win')),
                     "target_loss": self._convert_decimal(investment.get('goal', {}).get('loss')),
                     "historic_low_ref": {
-                        "date": investment.get('historic_low_ref', {}).get('record', {}).get('date'),
-                        "term": investment.get('historic_low_ref', {}).get('term'),
-                        "lowest_price": self._convert_decimal(investment.get('historic_low_ref', {}).get('record', {}).get('lowest'))
+                        "date": investment.get('historic_low_ref', {}).get('lowest_date'),
+                        "term": investment.get('historic_low_ref', {}).get('period_name'),
+                        "lowest_price": self._convert_decimal(investment.get('historic_low_ref', {}).get('lowest_price'))
                     }
                 },
                 "settlement_info": {

@@ -134,6 +134,14 @@ class HistoricLowService:
     def is_reached_min_required_monthly_records(self, records):
         return len(records) >= invest_settings['min_required_monthly_records'] + invest_settings['goal']['invest_reference_day_distance_threshold'] / 30 + 1
 
+    def is_reached_min_required_daily_records(self, daily_records):
+        """
+        检查是否达到最小所需日线记录数
+        
+        新逻辑：需要至少2000条日线记录
+        """
+        return len(daily_records) >= invest_settings['daily_data_requirements']['min_required_daily_records']
+
     def get_max_required_monthly_records(self):
         return max(invest_settings['terms'])
 
@@ -142,7 +150,6 @@ class HistoricLowService:
         left = 0
         right = len(k_lines) - 1
         results = []
-        record_of_today = None
         
         while left <= right:
             mid = (left + right) // 2
@@ -150,7 +157,6 @@ class HistoricLowService:
             
             if current_date == target_datetime:
                 # 找到匹配的记录
-                record_of_today = k_lines[mid]
                 results = k_lines[:mid]
                 break
             elif current_date < target_datetime:
@@ -243,3 +249,72 @@ class HistoricLowService:
             return 0.0
         
         return numerator / denominator
+
+    def split_daily_data_for_analysis(self, daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        分割日线数据为冻结期和历史期
+        
+        Args:
+            daily_data: 完整的日线数据列表
+            
+        Returns:
+            Dict: 包含冻结期和历史期数据的分割结果
+        """
+        # 获取配置参数
+        freeze_days = invest_settings['daily_data_requirements']['freeze_period_days']
+        
+        # 按日期排序（从早到晚）
+        sorted_data = sorted(daily_data, key=lambda x: x['date'])
+        
+        # 分割数据
+        freeze_data = sorted_data[-freeze_days:]  # 最近200个交易日（冻结期）
+        history_data = sorted_data[:-freeze_days]  # 之前的数据（历史期）
+        
+        return {
+            'freeze_data': freeze_data,
+            'history_data': history_data,
+            'total_records': len(daily_data),
+            'freeze_records': len(freeze_data),
+            'history_records': len(history_data)
+        }
+
+    def find_historic_lows(self, history_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        在历史K线数据中寻找历史低点（跳过冻结期）
+        
+        Args:
+            history_data: 历史期日线数据列表
+            
+        Returns:
+            List: 历史低点列表
+        """
+        low_points = []
+        history_periods = invest_settings['daily_data_requirements']['history_periods']
+        freeze_days = invest_settings['daily_data_requirements']['freeze_period_days']
+        
+        for period_config in history_periods:
+            period_name = period_config['name']
+            trading_days = period_config['trading_days']
+            
+            # 计算在历史数据中需要取多少条
+            # 因为冻结期已经排除，所以只需要取 trading_days - freeze_days 条
+            history_days_needed = trading_days - freeze_days
+            
+            if len(history_data) < history_days_needed:
+                continue
+            
+            # 在历史数据中取最近 history_days_needed 天的数据
+            recent_history = history_data[-history_days_needed:]
+            
+            # 找到最低点
+            lowest_record = min(recent_history, key=lambda x: x['lowest'])
+            
+            low_points.append({
+                'record': lowest_record,
+                'period_name': period_name,
+                'trading_days': trading_days,
+                'lowest_price': lowest_record['lowest'],
+                'lowest_date': lowest_record['date']
+            })
+        
+        return low_points

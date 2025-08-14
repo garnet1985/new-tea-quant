@@ -45,7 +45,7 @@ class HLSimulator:
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        stock_idx = stock_idx[300:400]  # 测试前20只股票
+        stock_idx = stock_idx[3000:3100]  # 测试前20只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
         
         # 记录测试股票总数

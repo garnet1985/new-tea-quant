@@ -9,7 +9,8 @@ invest_settings = {
         "win": 1.5,  # 50% profit
         "loss": 0.8,  # 20% loss
         "opportunityRange": 0.05,
-        "kellyCriterionDivider": 5
+        "kellyCriterionDivider": 5,
+        "invest_reference_day_distance_threshold": 90
     },
     "terms": [60, 96],  # 60个月和96个月的历史低点，0表示全历史（在代码中单独处理）
     # 区间：整个月线的25%，40%，70%位置

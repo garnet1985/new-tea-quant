@@ -41,11 +41,19 @@ class HistoricLowService:
         """寻找指定周期内的最低点记录 - 参照Node.js版本实现"""
         if not records or len(records) == 0:
             return None
-            
+        
+        # 获取时间距离阈值
+        min_days = invest_settings.get('goal').get('invest_reference_day_distance_threshold')
+        
+        # 计算需要排除的记录数量（最近N天的记录）
+        # 假设月度数据，大约30天一条记录
+        exclude_count = int(min_days / 30) + 1
+        
         lowest_record = None
         
         # 从最新到最旧查找（与JavaScript版本一致）
-        for i in range(len(records) - 1, -1, -1):
+        # 跳过最近的exclude_count条记录
+        for i in range(len(records) - 1 - exclude_count, -1, -1):
             record = records[i]
             
             # 检查记录是否有效
@@ -104,10 +112,8 @@ class HistoricLowService:
     def set_win(self, record):
         return float(record['close']) * invest_settings['goal']['win']
 
-
-
     def is_reached_min_required_monthly_records(self, records):
-        return len(records) >= invest_settings['min_required_monthly_records']
+        return len(records) >= invest_settings['min_required_monthly_records'] + invest_settings['goal']['invest_reference_day_distance_threshold'] / 30 + 1
 
     def get_max_required_monthly_records(self):
         return max(invest_settings['terms'])

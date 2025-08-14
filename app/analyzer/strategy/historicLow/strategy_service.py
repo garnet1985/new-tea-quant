@@ -10,6 +10,9 @@ class HistoricLowService:
     def __init__(self):
         pass
 
+    def get_min_required_monthly_records(self):
+        return invest_settings['min_required_monthly_records'] + invest_settings['goal']['invest_reference_day_distance_threshold'] / 30 + 1
+
     def find_lowest_records(self, records):
         """寻找最低点记录 - 参照Node.js版本实现"""
         low_points = []
@@ -105,6 +108,21 @@ class HistoricLowService:
             return True
         else:
             return False
+
+    def has_lower_point_in_latest_daily_records(self, low_point: Dict[str, Any], daily_records: List[Dict[str, Any]]) -> bool:
+        # 获取历史低点价格
+        historic_low_price = float(low_point['record']['close'])
+        
+        # 计算opportunityRange的下限（下方5%）
+        opportunity_range = invest_settings['goal']['opportunityRange']
+        lower_bound = historic_low_price * (1 - opportunity_range)
+        
+        # 检查日线记录中是否有跌破下限的点位
+        for record in daily_records:
+            daily_low = float(record['close'])
+            if daily_low < lower_bound:
+                return True
+        return False
 
     def set_loss(self, record):
         return float(record['close']) * invest_settings['goal']['loss']

@@ -16,7 +16,7 @@ class AKShareStorage:
 
     def backup_csv_if_needed(self) -> None:
         """检查是否需要CSV备份，如果需要则自动备份"""
-        last_csv_backup_time_str = self.meta_table.get_meta_info_by_key(self.csv_key)
+        last_csv_backup_time_str = self.meta_table.get_meta_info(self.csv_key)
         
         should_backup = False
         
@@ -34,7 +34,7 @@ class AKShareStorage:
         if should_backup:
             logger.info(f"需要重新生成复权因子CSV...")
             self.adj_factor_table.export_to_csv()
-            self.meta_table.set_meta_info_by_key(self.csv_key, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            self.meta_table.set_meta_info(self.csv_key, datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             logger.info(f"重新生成复权因子CSV完成")
         else:
             logger.info(f"距离上次备份CSV文件 {days_since_backup} 天，未达到备份间隔 {csv_backup_interval_days} 天")

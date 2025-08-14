@@ -254,18 +254,18 @@ class Tushare:
             self.storage.save_meta_info(meta_info_key, latest_market_open_day)
             return self.service.to_unified_stock_index_format(idx_data)
 
-        last_update = self.storage.get_meta_info_by_key(meta_info_key)
+        last_update = self.storage.get_meta_info(meta_info_key)
 
         if last_update is None:
             idx_data = self.request_stock_index()
             self.storage.save_stock_index(idx_data)
-            self.storage.set_meta_info_by_key(meta_info_key, latest_market_open_day)
+            self.storage.set_meta_info(meta_info_key, latest_market_open_day)
             return self.service.to_unified_stock_index_format(idx_data)
         else:
             if last_update < latest_market_open_day:
                 idx_data = self.request_stock_index()
                 self.storage.save_stock_index(idx_data)
-                self.storage.set_meta_info_by_key(meta_info_key, latest_market_open_day)
+                self.storage.set_meta_info(meta_info_key, latest_market_open_day)
                 return self.service.to_unified_stock_index_format(idx_data)
             else:
                 logger.info('stock index is up to date, no need to renew')

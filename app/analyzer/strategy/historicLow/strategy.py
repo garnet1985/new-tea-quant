@@ -17,6 +17,7 @@ from .strategy_service import HistoricLowService
 from .strategy_settings import invest_settings
 from ...analyzer_service import AnalyzerService
 from .strategy_simulator import HLSimulator
+from app.data_source.data_source_service import DataSourceService
 
 class HistoricLowStrategy(BaseStrategy):
     """HistoricLow 策略实现"""
@@ -164,12 +165,16 @@ class HistoricLowStrategy(BaseStrategy):
     
     def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 准备数据
-
+        
+        # 获取复权因子
+        qfq_factors = self.required_tables["adj_factor"].get_stock_factors(stock['id'])
+        
+        # 获取月线数据并应用复权
         monthly_data_result = self.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
         
-        # 确保monthly_data是列表格式
+        # 确保monthly_data是列表格式并应用复权
         if monthly_data_result:
-            monthly_data = monthly_data_result
+            monthly_data = DataSourceService.to_qfq(monthly_data_result, qfq_factors)
         else:
             monthly_data = []
 
@@ -179,9 +184,11 @@ class HistoricLowStrategy(BaseStrategy):
         # 获取最新的日线数据，添加错误处理
         daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['id'], 'daily')
         
-        # 确保daily_data是单个记录而不是列表
+        # 确保daily_data是单个记录而不是列表并应用复权
         if daily_data_result and len(daily_data_result) > 0:
             daily_data = daily_data_result[0]  # 取第一个（最新的）记录
+            # 对单条日线数据应用复权
+            daily_data = DataSourceService.to_qfq([daily_data], qfq_factors)[0]
         else:
             # 如果没有日线数据，返回空列表
             return []
@@ -280,6 +287,7 @@ class HistoricLowStrategy(BaseStrategy):
 
 
     def test(self) -> None:
-        permission = input("是模拟策略? y:模拟 其他:不模拟")
-        if permission.lower() == 'y':
-            self.simulator.test_strategy()
+        self.simulator.test_strategy()
+        # permission = input("是模拟策略? y:模拟 其他:不模拟")
+        # if permission.lower() == 'y':
+        #     self.simulator.test_strategy()

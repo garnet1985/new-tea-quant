@@ -251,7 +251,7 @@ class InvestmentRecorder:
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(record_data, f, ensure_ascii=False, indent=2)
             
-            logger.info(f"📊 已记录投资结算: {stock_code} {stock_name} - {result} -> {sub_dir}/{file_name}")
+            # logger.info(f"📊 已记录投资结算: {stock_code} {stock_name} - {result} -> {sub_dir}/{file_name}")
             
         except Exception as e:
             logger.error(f"❌ 记录投资结算失败: {e}")

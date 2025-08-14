@@ -166,34 +166,29 @@ class HistoricLowStrategy(BaseStrategy):
     def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 准备数据
         
-        # 获取复权因子
+        # 先检查日线记录数是否满足要求
+        daily_k_lines_count = self.required_tables["stock_kline"].count("id = %s AND term = %s", (stock['id'], 'daily'))
+        min_required_daily_records = invest_settings['daily_data_requirements']['min_required_daily_records']
+        if daily_k_lines_count < min_required_daily_records:
+            return []
+        
+        # 获取日线数据并应用复权
+        daily_data_result = self.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'daily')
+         # 获取复权因子
         qfq_factors = self.required_tables["adj_factor"].get_stock_factors(stock['id'])
-        
-        # 获取月线数据并应用复权
-        monthly_data_result = self.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
-        
-        # 确保monthly_data是列表格式并应用复权
-        if monthly_data_result:
-            monthly_data = DataSourceService.to_qfq(monthly_data_result, qfq_factors)
-        else:
-            monthly_data = []
 
-        if(len(monthly_data) < self.settings["min_required_monthly_records"]):
-            return []
-
-        # 获取最新的日线数据，添加错误处理
-        daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['id'], 'daily')
+        # 应用复权
+        daily_records = DataSourceService.to_qfq(daily_data_result, qfq_factors)
         
-        # 确保daily_data是单个记录而不是列表并应用复权
-        if daily_data_result and len(daily_data_result) > 0:
-            daily_data = daily_data_result[0]  # 取第一个（最新的）记录
-            # 对单条日线数据应用复权
-            daily_data = DataSourceService.to_qfq([daily_data], qfq_factors)[0]
-        else:
-            # 如果没有日线数据，返回空列表
-            return []
+        # 分割数据为冻结期和历史期
+        data_split = self.service.split_daily_data_for_analysis(daily_records)
+        freeze_data = data_split['freeze_data']
+        history_data = data_split['history_data']
+        
+        # 在历史数据中寻找历史低点（跳过冻结期）
+        low_points = self.service.find_historic_lows(history_data)
 
-        opportunity = self.scan_single_stock(stock, daily_data, monthly_data)
+        opportunity = self.scan_single_stock(stock, freeze_data, low_points)
         
         # 返回列表格式以保持接口兼容性
         if opportunity:
@@ -203,39 +198,41 @@ class HistoricLowStrategy(BaseStrategy):
 
 
 
-    def scan_single_stock(self, stock: Dict[str, Any], latest_daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]], daily_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def scan_single_stock(self, stock: Dict[str, Any], freeze_data: List[Dict[str, Any]], low_points: List[Dict[str, Any]]) -> Dict[str, Any]:
         """寻找投资机会"""
+
         # 1. 趋势过滤：检查股票趋势是否适合投资
-        # TODO: to be improved
-        if daily_data and not self.service.is_trend_suitable_for_investment(monthly_data, daily_data):
+        if self.service.is_trend_too_steep(freeze_data):
             return None
         
-        # 2. 寻找最低点记录
-        low_points = self.service.find_lowest_records(monthly_data)
-
-        # 3. 从最低点寻找机会
-        opportunity = self._find_opportunity_from_low_points(stock, low_points, latest_daily_record)
+        # 2. 从历史低点寻找机会
+        opportunity = self._find_opportunity_from_low_points(stock, low_points, freeze_data)
         
         return opportunity
+
+
             
-    def _find_opportunity_from_low_points(self, stock: Dict[str, Any], low_points: List[Dict[str, Any]], latest_record: Dict[str, Any]) -> Dict[str, Any]:
-        """从最低点寻找投资机会（与JavaScript版本保持一致）"""
-        
+    def _find_opportunity_from_low_points(self, stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """从历史低点寻找投资机会"""
+        record_of_today = freeze_data[-1]
+    
         # 检查当前价格是否在投资范围内
         for low_point in low_points:
-            if self.service.is_in_invest_range(latest_record, low_point):
+            # 检查投资范围和新低
+            if (self.service.is_in_invest_range(record_of_today, low_point) and 
+                not self.service.has_lower_point_in_latest_daily_records(low_point, freeze_data)):
                 # 找到匹配的历史低点，创建投资机会
                 opportunity = {
                     'stock': {
                         'code': stock['id'],
                         'name': stock['name'],
-                        'market': stock.get('market', '')
+                        'market': DataSourceService.parse_ts_code(stock['id'])[1]
                     },
-                    'opportunity_record': latest_record,
+                    'opportunity_record': record_of_today,
                     'goal': {
-                        'loss': self.service.set_loss(latest_record),
-                        'win': self.service.set_win(latest_record),
-                        'purchase': latest_record['close']
+                        'loss': self.service.set_loss(record_of_today),
+                        'win': self.service.set_win(record_of_today),
+                        'purchase': record_of_today['close']
                     },
                     'historic_low_ref': low_point
                 }

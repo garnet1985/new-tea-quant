@@ -1,12 +1,6 @@
 from datetime import date as date_type
-import pprint
-from loguru import logger
 
 class DataSourceService:
-    @staticmethod
-    def to_ts_code(code: str, market: str):
-        return f"{code}.{market}"
-    
     @staticmethod
     def parse_ts_code(ts_code: str):
         code, market = ts_code.split('.', 1)

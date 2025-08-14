@@ -197,8 +197,8 @@ class HistoricLowStrategy(BaseStrategy):
 
         # 1. 趋势过滤：检查股票趋势是否适合投资
         # # TODO: to be improved
-        # if daily_data and not self.service.is_trend_suitable_for_investment(monthly_data, daily_data):
-        #     return None
+        if self.service.is_trend_too_steep(invest_frozen_window_daily_data):
+            return None
         
         # 2. 寻找最低点记录
         low_points = self.service.find_lowest_records(monthly_data)

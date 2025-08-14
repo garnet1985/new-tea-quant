@@ -79,11 +79,3 @@ class MetaInfoModel(BaseTableModel):
                 'id = %s',
                 (info['id'],)
             )
-
-    # 为了向后兼容，保留旧的方法名
-    def get_meta_info_by_key(self, key: str):
-        return self.get_meta_info(key)
-    
-    def set_meta_info_by_key(self, key: str, value: str):
-        return self.set_meta_info(key, value)
-

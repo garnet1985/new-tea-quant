@@ -8,6 +8,27 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from loguru import logger
 
+# 导入策略设置
+try:
+    from .strategy_settings import invest_settings
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    try:
+        from app.analyzer.strategy.historicLow.strategy_settings import invest_settings
+    except ImportError:
+        # 如果都失败，使用默认值
+        invest_settings = {
+            "goal": {
+                "win": 1.4,
+                "loss": 0.85,
+                "opportunityRange": 0.1,
+                "kellyCriterionDivider": 5,
+                "invest_reference_day_distance_threshold": 90
+            },
+            "terms": [60, 96],
+            "min_required_monthly_records": 100
+        }
+
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息"""
     
@@ -57,7 +78,26 @@ class InvestmentRecorder:
             "session_name": session_name,
             "created_at": datetime.now().isoformat(),
             "date": current_date,
-            "description": "HistoricLow策略投资记录会话"
+            "description": "HistoricLow策略投资记录会话",
+            "total_stocks_tested": 0,
+            "investment_summary": {
+                "total_investment_count": 0,
+                "success_count": 0,
+                "fail_count": 0,
+                "open_count": 0,
+                "win_rate": 0.0,
+                "annual_return": 0.0,
+                "avg_duration_days": 0.0,
+                "avg_roi": 0.0,
+                "total_investments": 0,
+                "win_count": 0,
+                "loss_count": 0
+            },
+            "strategy_settings": {
+                "goal": invest_settings["goal"],
+                "terms": invest_settings["terms"],
+                "min_required_monthly_records": invest_settings["min_required_monthly_records"]
+            }
         }
         
         session_info_file = os.path.join(self.current_session_dir, "session_info.json")
@@ -136,8 +176,7 @@ class InvestmentRecorder:
             return value
     
     def record_investment_settlement(self, stock: Dict[str, Any], investment: Dict[str, Any], 
-                                   result: str, exit_price: float, exit_date: str,
-                                   kline_data: Dict[str, List[Dict[str, Any]]] = None) -> None:
+                                   result: str, exit_price: float, exit_date: str) -> None:
         """
         记录投资结算信息
         
@@ -147,7 +186,6 @@ class InvestmentRecorder:
             result: 投资结果 ('win', 'loss', 'open')
             exit_price: 退出价格
             exit_date: 退出日期
-            kline_data: K线数据（可选，用于记录参考数据）
         """
         try:
             # 获取股票代码和名称
@@ -206,11 +244,6 @@ class InvestmentRecorder:
                     "profit_loss": (exit_price - self._convert_decimal(investment.get('goal', {}).get('purchase'))) if exit_price else None,
                     "profit_loss_rate": ((exit_price - self._convert_decimal(investment.get('goal', {}).get('purchase'))) / self._convert_decimal(investment.get('goal', {}).get('purchase')) * 100) if exit_price else None,
                     "settled_at": datetime.now().isoformat()
-                },
-                "kline_data_summary": {
-                    "daily_count": len(kline_data.get('daily', [])) if kline_data else 0,
-                    "monthly_count": len(kline_data.get('monthly', [])) if kline_data else 0,
-                    "data_available": kline_data is not None
                 }
             }
             
@@ -229,6 +262,64 @@ class InvestmentRecorder:
             "session_dir": self.current_session_dir,
             "created_at": datetime.now().isoformat()
         }
+    
+    def update_session_summary(self, summary_data: Dict[str, Any]) -> None:
+        """
+        更新会话信息文件中的投资摘要
+        
+        Args:
+            summary_data: 投资摘要数据
+        """
+        try:
+            session_info_file = os.path.join(self.current_session_dir, "session_info.json")
+            
+            if os.path.exists(session_info_file):
+                with open(session_info_file, "r", encoding="utf-8") as f:
+                    session_info = json.load(f)
+            else:
+                session_info = {}
+            
+            # 更新投资摘要信息
+            session_info["investment_summary"] = summary_data
+            session_info["last_updated"] = datetime.now().isoformat()
+            
+            # 写回文件
+            with open(session_info_file, "w", encoding="utf-8") as f:
+                json.dump(session_info, f, ensure_ascii=False, indent=2)
+                
+            logger.info(f"📝 已更新会话摘要信息: {self.current_session_dir}")
+            
+        except Exception as e:
+            logger.error(f"❌ 更新会话摘要失败: {e}")
+
+    def update_session_info(self, update_data: Dict[str, Any]) -> None:
+        """
+        更新会话信息文件中的外层字段
+        
+        Args:
+            update_data: 要更新的字段数据
+        """
+        try:
+            session_info_file = os.path.join(self.current_session_dir, "session_info.json")
+            
+            if os.path.exists(session_info_file):
+                with open(session_info_file, "r", encoding="utf-8") as f:
+                    session_info = json.load(f)
+            else:
+                session_info = {}
+            
+            # 更新外层字段
+            session_info.update(update_data)
+            session_info["last_updated"] = datetime.now().isoformat()
+            
+            # 写回文件
+            with open(session_info_file, "w", encoding="utf-8") as f:
+                json.dump(session_info, f, ensure_ascii=False, indent=2)
+                
+            logger.info(f"📝 已更新会话信息: {self.current_session_dir}")
+            
+        except Exception as e:
+            logger.error(f"❌ 更新会话信息失败: {e}")
     
     def get_summary(self) -> Dict[str, Any]:
         """获取投资记录摘要"""

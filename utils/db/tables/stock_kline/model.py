@@ -2,7 +2,7 @@
 Stock Kline 模型
 提供股票K线相关的特定方法
 """
-from typing import List
+from typing import Any, Dict, List
 from utils.db.db_model import BaseTableModel
 from loguru import logger
 
@@ -36,3 +36,19 @@ class StockKlineModel(BaseTableModel):
     
     def get_by_date(self, stock_id: str, trade_date: str, term: str = 'daily'):
         return self.load_one("id = %s AND term = %s AND date = %s", (stock_id, term, trade_date))
+
+    def get_most_recent_k_lines_by_term(self, stock_id: str, term: str, limit: int) -> List[Dict[str, Any]]:
+        try:
+            # 一个query搞定：直接获取最新的N条记录
+            condition = "id = %s AND term = %s"
+            params = (stock_id, term)
+            
+            # 使用DESC + LIMIT获取最近的N条数据，然后按时间升序返回
+            recent_records = self.load(condition, params, order_by="date DESC", limit=limit)
+            
+            # 对结果按日期升序排列
+            return sorted(recent_records, key=lambda x: x['date'])
+            
+        except Exception as e:
+            logger.error(f"获取最新K线数据失败: {e}")
+            return []

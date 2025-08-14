@@ -8,7 +8,7 @@ invest_settings = {
     "goal": {
         "win": 1.5,  # 50% profit
         "loss": 0.8,  # 20% loss
-        "opportunityRange": 0.05,
+        "opportunityRange": 0.1,
         "kellyCriterionDivider": 5,
         "invest_reference_day_distance_threshold": 90
     },

@@ -1,6 +1,8 @@
 import threading
 from typing import Dict, List, Any
 from datetime import datetime
+from loguru import logger
+
 
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
@@ -9,6 +11,7 @@ from app.analyzer.strategy.historicLow.strategy_settings import invest_settings
 
 from app.data_source.data_source_service import DataSourceService
 from utils.worker.futures_worker import FuturesWorker
+from app.analyzer.strategy.historicLow.investment_recorder import InvestmentRecorder
 
 class HLSimulator:
     def __init__(self, strategy):
@@ -28,13 +31,21 @@ class HLSimulator:
 
         self.common = AnalyzerService()
         self.service = HistoricLowService()
+        
+        # 初始化投资记录器，使用策略目录下的tmp文件夹
+        import os
+        strategy_tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
+        self.investment_recorder = InvestmentRecorder(tmp_dir=strategy_tmp_dir)
 
     def test_strategy(self) -> bool:
+        # 移除investment_recorder相关代码
+        # self.investment_recorder.start_new_session()
+        
         stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        # stock_idx = stock_idx[0:20]  # 测试前5只股票
+        stock_idx = stock_idx[0:5]  # 测试前20只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
 
         print(f"🚀 开始处理 {len(stock_idx)} 只股票...")
@@ -63,6 +74,9 @@ class HLSimulator:
 
         # 打印聚合结果
         self.print_aggregated_results(results)
+        
+        # 打印投资记录摘要
+        self._print_investment_summary()
         
         return True
 
@@ -166,6 +180,28 @@ class HLSimulator:
         opportunity['invest_start_date'] = opportunity['opportunity_record']['date']
         with self.tracker_lock:
             self.test_tracker['investing'][stock['id']] = opportunity
+        
+        # 记录投资信息（使用前复权数据）
+        try:
+            # 获取K线数据（使用前复权数据，与模拟器保持一致）
+            daily_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'daily')
+            monthly_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
+            
+            # 获取复权因子并转换为前复权数据
+            qfq_factors = self.strategy.required_tables["adj_factor"].get_stock_factors(stock['id'])
+            qfq_daily_data = DataSourceService.to_qfq(daily_data, qfq_factors)
+            qfq_monthly_data = DataSourceService.to_qfq(monthly_data, qfq_factors)
+            
+            kline_data = {
+                'daily': qfq_daily_data,
+                'monthly': qfq_monthly_data
+            }
+            
+            # TODO: 使用新的recorder记录投资信息
+            # self.investment_recorder.record_investment(opportunity, stock, kline_data)
+            
+        except Exception as e:
+            logger.error(f"❌ 记录投资信息失败: {e}")
 
 
     def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any]) -> bool:
@@ -180,6 +216,9 @@ class HLSimulator:
             print(f"start price: {investment['goal']['purchase']}")
             print(f"参考数据: 日期 {investment['historic_low_ref']['record']['date']} 周期 {investment['historic_low_ref']['term']} 最低点 {investment['historic_low_ref']['record']['lowest']}")
             
+            # 记录投资结算（成功）
+            self._record_investment_settlement(stock, investment, 'win', current_close, latest_record['date'])
+            
             self.settle_result(self.result_enum.WIN, stock, investment, latest_record)
             return True
         elif current_close <= loss_price:
@@ -187,6 +226,8 @@ class HLSimulator:
             print(f"start price: {investment['goal']['purchase']}")
             print(f"参考数据: 日期 {investment['historic_low_ref']['record']['date']} 周期 {investment['historic_low_ref']['term']} 最低点 {investment['historic_low_ref']['record']['lowest']}")
             
+            # 记录投资结算（失败）
+            self._record_investment_settlement(stock, investment, 'loss', current_close, latest_record['date'])
             
             self.settle_result(self.result_enum.LOSS, stock, investment, latest_record)
             return True
@@ -218,10 +259,11 @@ class HLSimulator:
                     )
                 }
             }
-            # 删除投资状态，而不是设置为None
-            if stock['id'] in self.test_tracker['investing']:
-                del self.test_tracker['investing'][stock['id']]
-
+                    # 删除投资状态，而不是设置为None
+        if stock['id'] in self.test_tracker['investing']:
+            del self.test_tracker['investing'][stock['id']]
+    
+    
     def settle_open_investments_for_stock(self, stock: Dict[str, Any], latest_record: Dict[str, Any]) -> None:
         """结算特定股票的未结算投资"""
         investment = self.test_tracker['investing'].get(stock['id'])
@@ -235,8 +277,35 @@ class HLSimulator:
                 # 使用投资开始日期作为结算日期，或者使用传入的最新日期
                 settle_date = latest_date or investment['invest_start_date']
                 stock_info = {'code': stock_code, 'name': 'Unknown'}
+                
+                # 记录open状态的投资结算
+                self._record_investment_settlement(stock_info, investment, 'open', investment['goal']['purchase'], settle_date)
+                
                 self.settle_result(self.result_enum.OPEN, stock_info, investment, {'date': settle_date, 'close': investment['goal']['purchase']})
     
+    def _record_investment_settlement(self, stock: Dict[str, Any], investment: Dict[str, Any], 
+                                    result: str, exit_price: float, exit_date: str) -> None:
+        """记录投资结算信息"""
+        try:
+            # 获取K线数据（使用前复权数据，与模拟器保持一致）
+            daily_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'daily')
+            monthly_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
+            
+            # 获取复权因子并转换为前复权数据
+            qfq_factors = self.strategy.required_tables["adj_factor"].get_stock_factors(stock['id'])
+            qfq_daily_data = DataSourceService.to_qfq(daily_data, qfq_factors)
+            qfq_monthly_data = DataSourceService.to_qfq(monthly_data, qfq_factors)
+            
+            kline_data = {
+                'daily': qfq_daily_data,
+                'monthly': qfq_monthly_data
+            }
+            
+            # 使用新的recorder记录投资结算
+            self.investment_recorder.record_investment_settlement(stock, investment, result, exit_price, exit_date, kline_data)
+            
+        except Exception as e:
+            logger.error(f"❌ 记录投资结算失败: {e}")
     
     def aggregate_results(self, results: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -380,44 +449,18 @@ class HLSimulator:
         print("\n" + "="*60)
         print("📊 HistoricLow 策略回测结果汇总")
         print("="*60)
+    
+    def _print_investment_summary(self) -> None:
+        """打印投资记录摘要"""
+        summary = self.investment_recorder.get_summary()
         
-        # 投资统计
-        print(f"📈 投资统计:")
-        print(f"   总投资次数: {aggregated['total_investments']}")
-        print(f"   已结算投资: {aggregated['settled_investments']}")
-        print(f"   未结算投资: {aggregated['open_count']}")
-        
-        # 胜负统计
-        print(f"\n🎯 胜负统计:")
-        print(f"   盈利次数: {aggregated['win_count']}")
-        print(f"   亏损次数: {aggregated['loss_count']}")
-        print(f"   胜率: {aggregated['win_rate']}%")
-        
-        # 收益统计
-        print(f"\n💰 收益统计:")
-        print(f"   总利润: {aggregated['total_profit']:.2f}")
-        print(f"   平均单笔利润: {aggregated['avg_profit_per_investment']:.2f}")
-        print(f"   平均ROI: {aggregated['avg_roi']:.2f}%")
-        print(f"   年化收益率: {aggregated['annual_return']:.2f}%")
-        
-        # 时间统计
-        print(f"\n⏱️  时间统计:")
-        print(f"   平均投资时长: {aggregated['avg_duration_days']:.1f} 天")
-        
-        # 策略评估
-        print(f"\n📋 策略评估:")
-        if aggregated['win_rate'] >= 60:
-            print(f"   🟢 胜率优秀 ({aggregated['win_rate']}%)")
-        elif aggregated['win_rate'] >= 50:
-            print(f"   🟡 胜率良好 ({aggregated['win_rate']}%)")
-        else:
-            print(f"   🔴 胜率偏低 ({aggregated['win_rate']}%)")
-            
-        if aggregated['avg_roi'] >= 20:
-            print(f"   🟢 收益率优秀 ({aggregated['avg_roi']:.2f}%)")
-        elif aggregated['avg_roi'] >= 10:
-            print(f"   🟡 收益率良好 ({aggregated['avg_roi']:.2f}%)")
-        else:
-            print(f"   🔴 收益率偏低 ({aggregated['avg_roi']:.2f}%)")
-        
+        print("\n" + "="*60)
+        print("📁 投资记录摘要")
+        print("="*60)
+        print(f"📂 会话目录: {summary.get('session_dir', 'N/A')}")
+        print(f"📊 总记录数: {summary.get('total_investment_count', 0)} 条")
+        print(f"✅ 成功投资: {summary.get('success_count', 0)} 条")
+        print(f"❌ 失败投资: {summary.get('fail_count', 0)} 条")
+        print(f"⏳ 未完成投资: {summary.get('open_count', 0)} 条")
+        print(f"🕐 创建时间: {summary.get('created_at', 'N/A')}")
         print("="*60)

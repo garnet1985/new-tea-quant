@@ -173,27 +173,16 @@ class HistoricLowStrategy(BaseStrategy):
         monthly_data_result = self.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
         
         # 确保monthly_data是列表格式并应用复权
-        if monthly_data_result:
-            monthly_data = DataSourceService.to_qfq(monthly_data_result, qfq_factors)
-        else:
-            monthly_data = []
+        monthly_data = DataSourceService.to_qfq(monthly_data_result, qfq_factors)
 
-        if(len(monthly_data) < self.settings["min_required_monthly_records"]):
+        if(len(monthly_data) < self.service.get_min_required_monthly_records()):
             return []
 
         # 获取最新的日线数据，添加错误处理
-        daily_data_result = self.required_tables["stock_kline"].get_most_recent_one_by_term(stock['id'], 'daily')
-        
-        # 确保daily_data是单个记录而不是列表并应用复权
-        if daily_data_result and len(daily_data_result) > 0:
-            daily_data = daily_data_result[0]  # 取第一个（最新的）记录
-            # 对单条日线数据应用复权
-            daily_data = DataSourceService.to_qfq([daily_data], qfq_factors)[0]
-        else:
-            # 如果没有日线数据，返回空列表
-            return []
+        daily_k_lines = self.required_tables["stock_kline"].get_most_recent_k_lines_by_term(stock['id'], 'daily', invest_settings['goal']['invest_reference_day_distance_threshold'])
+        invest_frozen_window_daily_data = DataSourceService.to_qfq(daily_k_lines, qfq_factors)
 
-        opportunity = self.scan_single_stock(stock, daily_data, monthly_data)
+        opportunity = self.scan_single_stock(stock, invest_frozen_window_daily_data, monthly_data)
         
         # 返回列表格式以保持接口兼容性
         if opportunity:
@@ -203,27 +192,31 @@ class HistoricLowStrategy(BaseStrategy):
 
 
 
-    def scan_single_stock(self, stock: Dict[str, Any], latest_daily_record: Dict[str, Any], monthly_data: List[Dict[str, Any]], daily_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def scan_single_stock(self, stock: Dict[str, Any], invest_frozen_window_daily_data: List[Dict[str, Any]], monthly_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """寻找投资机会"""
+
         # 1. 趋势过滤：检查股票趋势是否适合投资
-        # TODO: to be improved
-        if daily_data and not self.service.is_trend_suitable_for_investment(monthly_data, daily_data):
-            return None
+        # # TODO: to be improved
+        # if daily_data and not self.service.is_trend_suitable_for_investment(monthly_data, daily_data):
+        #     return None
         
         # 2. 寻找最低点记录
         low_points = self.service.find_lowest_records(monthly_data)
 
         # 3. 从最低点寻找机会
-        opportunity = self._find_opportunity_from_low_points(stock, low_points, latest_daily_record)
+        opportunity = self._find_opportunity_from_low_points(stock, low_points, invest_frozen_window_daily_data)
         
         return opportunity
             
-    def _find_opportunity_from_low_points(self, stock: Dict[str, Any], low_points: List[Dict[str, Any]], latest_record: Dict[str, Any]) -> Dict[str, Any]:
+    def _find_opportunity_from_low_points(self, stock: Dict[str, Any], low_points: List[Dict[str, Any]], invest_frozen_window_daily_data: Dict[str, Any]) -> Dict[str, Any]:
         """从最低点寻找投资机会（与JavaScript版本保持一致）"""
-        
+        record_of_today = invest_frozen_window_daily_data[-1]
+    
         # 检查当前价格是否在投资范围内
         for low_point in low_points:
-            if self.service.is_in_invest_range(latest_record, low_point):
+            # 检查投资范围和新低
+            if (self.service.is_in_invest_range(record_of_today, low_point) and 
+                not self.service.has_lower_point_in_latest_daily_records(low_point, invest_frozen_window_daily_data)):
                 # 找到匹配的历史低点，创建投资机会
                 opportunity = {
                     'stock': {
@@ -231,11 +224,11 @@ class HistoricLowStrategy(BaseStrategy):
                         'name': stock['name'],
                         'market': stock.get('market', '')
                     },
-                    'opportunity_record': latest_record,
+                    'opportunity_record': record_of_today,
                     'goal': {
-                        'loss': self.service.set_loss(latest_record),
-                        'win': self.service.set_win(latest_record),
-                        'purchase': latest_record['close']
+                        'loss': self.service.set_loss(record_of_today),
+                        'win': self.service.set_win(record_of_today),
+                        'purchase': record_of_today['close']
                     },
                     'historic_low_ref': low_point
                 }

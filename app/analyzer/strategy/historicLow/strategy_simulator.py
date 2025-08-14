@@ -45,7 +45,7 @@ class HLSimulator:
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        stock_idx = stock_idx[0:5]  # 测试前20只股票
+        stock_idx = stock_idx[5:10]  # 测试前20只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
 
         print(f"🚀 开始处理 {len(stock_idx)} 只股票...")
@@ -146,15 +146,16 @@ class HLSimulator:
                 # 使用二分查找获取到当前日期为止的日线数据
                 daily_k_lines = self.service.get_k_lines_before_date(daily_record['date'], data['daily_data'])
                 
-                self.simulate_one_day_for_one_stock(data['stock'], daily_record, monthly_k_lines, daily_k_lines)
+                self.simulate_one_day_for_one_stock(data['stock'], monthly_k_lines, daily_k_lines)
 
         # 结算当前股票的未完成投资
         self.settle_open_investments_for_stock(data['stock'], data['daily_data'][-1])
 
 
-    def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_k_lines: List[Dict[str, Any]], daily_data: List[Dict[str, Any]]) -> bool:
+    def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], monthly_k_lines: List[Dict[str, Any]], daily_k_lines: List[Dict[str, Any]]) -> bool:
         """测试单个股票"""
         # 1. 先检查现有投资是否需要结算
+        record_of_today = daily_k_lines[-1]
         investment = self.service.get_investing(stock, self.test_tracker['investing'])
         if investment:
             # 检查是否需要结算（止损或止盈）
@@ -162,16 +163,17 @@ class HLSimulator:
             # 如果结算了，扫描新机会
             if is_settled:
                 # 投资已结算（在settle_result中已清空投资状态），扫描新机会
-                self.find_opportunity(stock, record_of_today, monthly_k_lines, daily_data)
+                self.find_opportunity(stock, monthly_k_lines, daily_k_lines)
             # 如果没结算，继续持有（不扫描新机会）
             return False
         else:
             # 2. 没有投资，扫描新机会
-            self.find_opportunity(stock, record_of_today, monthly_k_lines, daily_data)
+            self.find_opportunity(stock, monthly_k_lines, daily_k_lines)
             return False
 
-    def find_opportunity(self, stock: Dict[str, Any], record_of_today: Dict[str, Any], monthly_k_lines: List[Dict[str, Any]], daily_k_lines: List[Dict[str, Any]] = None) -> None:
-        opportunity = self.strategy.scan_single_stock(stock, record_of_today, monthly_k_lines, daily_k_lines)
+    def find_opportunity(self, stock: Dict[str, Any], monthly_k_lines: List[Dict[str, Any]], daily_k_lines: List[Dict[str, Any]]) -> None:
+        invest_frozen_window_daily_data = daily_k_lines[-invest_settings['goal']['invest_reference_day_distance_threshold']:]
+        opportunity = self.strategy.scan_single_stock(stock, invest_frozen_window_daily_data, monthly_k_lines)
         if opportunity:
             self.invest(stock, opportunity)
 

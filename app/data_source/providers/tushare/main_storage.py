@@ -273,8 +273,8 @@ class TushareStorage:
             logger.error(f"批量保存K线数据失败: {e}")
             raise
 
-    def get_meta_info_by_key(self, key):
-        return self.meta_info.get_meta_info_by_key(key)
+    def get_meta_info(self, key):
+        return self.meta_info.get_meta_info(key)
 
-    def set_meta_info_by_key(self, key, value):
-        self.meta_info.set_meta_info_by_key(key, value)
+    def set_meta_info(self, key, value):
+        self.meta_info.set_meta_info(key, value)

@@ -207,12 +207,3 @@ class TushareService:
             }
         else:
             return None
-
-    def to_ts_code(self, code: str, market: str):
-        return code + '.' + market
-
-    def parse_ts_code(self, ts_code: str):
-        return {
-            'code': ts_code.split('.')[0],
-            'market': ts_code.split('.')[1]
-        }

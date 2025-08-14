@@ -182,8 +182,4 @@ yarn-error.log*
 docker-compose.override.yml
 
 # Authentication and sensitive files
-crawler/providers/*/auth/token.txt
-crawler/providers/*/auth/*.key
-crawler/providers/*/auth/*.pem
-crawler/providers/*/auth/credentials.json
-crawler/providers/*/auth/secrets.json
+app/data_source/providers/*/auth/token.txt

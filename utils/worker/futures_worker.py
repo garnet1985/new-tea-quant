@@ -404,7 +404,8 @@ class FuturesWorker:
                 
                 # 标记为已处理并打印进度
                 self._printed_progress.add(result.job_id)
-                logger.info(f"Job {result.job_id} completed. Progress: {current_completed} out of {total_jobs} - {current_completed/total_jobs * 100:.2f}%")
+                if self.is_verbose:
+                    logger.info(f"Job {result.job_id} completed. Progress: {current_completed} out of {total_jobs} - {current_completed/total_jobs * 100:.2f}%")
                     
             elif result.status == JobStatus.FAILED:
                 self.stats['failed_jobs'] += 1

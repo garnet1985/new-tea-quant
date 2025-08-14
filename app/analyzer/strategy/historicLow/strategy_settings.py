@@ -6,7 +6,7 @@ enabled = True
 
 invest_settings = {
     "goal": {
-        "win": 1.5,  # 50% profit
+        "win": 1.4,  # 50% profit
         "loss": 0.8,  # 20% loss
         "opportunityRange": 0.1,
         "kellyCriterionDivider": 5,

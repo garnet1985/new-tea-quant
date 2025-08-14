@@ -45,8 +45,11 @@ class HLSimulator:
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        stock_idx = stock_idx[0:200]  # 测试前20只股票
+        stock_idx = stock_idx[0:20]  # 测试前20只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
+        
+        # 记录测试股票总数
+        self.total_stocks_tested = len(stock_idx)
 
         print(f"🚀 开始处理 {len(stock_idx)} 只股票...")
         
@@ -182,28 +185,6 @@ class HLSimulator:
         opportunity['invest_start_date'] = opportunity['opportunity_record']['date']
         with self.tracker_lock:
             self.test_tracker['investing'][stock['id']] = opportunity
-        
-        # 记录投资信息（使用前复权数据）
-        try:
-            # 获取K线数据（使用前复权数据，与模拟器保持一致）
-            daily_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'daily')
-            monthly_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
-            
-            # 获取复权因子并转换为前复权数据
-            qfq_factors = self.strategy.required_tables["adj_factor"].get_stock_factors(stock['id'])
-            qfq_daily_data = DataSourceService.to_qfq(daily_data, qfq_factors)
-            qfq_monthly_data = DataSourceService.to_qfq(monthly_data, qfq_factors)
-            
-            kline_data = {
-                'daily': qfq_daily_data,
-                'monthly': qfq_monthly_data
-            }
-            
-            # TODO: 使用新的recorder记录投资信息
-            # self.investment_recorder.record_investment(opportunity, stock, kline_data)
-            
-        except Exception as e:
-            logger.error(f"❌ 记录投资信息失败: {e}")
 
 
     def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any]) -> bool:
@@ -289,22 +270,8 @@ class HLSimulator:
                                     result: str, exit_price: float, exit_date: str) -> None:
         """记录投资结算信息"""
         try:
-            # 获取K线数据（使用前复权数据，与模拟器保持一致）
-            daily_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'daily')
-            monthly_data = self.strategy.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'monthly')
-            
-            # 获取复权因子并转换为前复权数据
-            qfq_factors = self.strategy.required_tables["adj_factor"].get_stock_factors(stock['id'])
-            qfq_daily_data = DataSourceService.to_qfq(daily_data, qfq_factors)
-            qfq_monthly_data = DataSourceService.to_qfq(monthly_data, qfq_factors)
-            
-            kline_data = {
-                'daily': qfq_daily_data,
-                'monthly': qfq_monthly_data
-            }
-            
-            # 使用新的recorder记录投资结算
-            self.investment_recorder.record_investment_settlement(stock, investment, result, exit_price, exit_date, kline_data)
+            # 直接记录投资结算，不再获取K线数据
+            self.investment_recorder.record_investment_settlement(stock, investment, result, exit_price, exit_date)
             
         except Exception as e:
             logger.error(f"❌ 记录投资结算失败: {e}")
@@ -497,7 +464,61 @@ class HLSimulator:
             print(f"📊 总投资次数: {results_summary.get('total_investments', 0)}")
             print(f"✅ 成功次数: {results_summary.get('win_count', 0)}")
             print(f"❌ 失败次数: {results_summary.get('loss_count', 0)}")
+            
+            # 将投资摘要写入session_info.json
+            self._save_investment_summary_to_session(results_summary)
         else:
             print("📊 投资结果统计: 暂无数据")
         
         print("="*60)
+
+    def _save_investment_summary_to_session(self, results_summary: Dict[str, Any]) -> None:
+        """
+        将投资摘要信息保存到session_info.json中
+        
+        Args:
+            results_summary: 投资结果摘要
+        """
+        try:
+            # 获取文件统计信息
+            file_summary = self.investment_recorder.get_summary()
+            
+            # 构建完整的摘要数据
+            summary_data = {
+                # 文件统计信息
+                "total_investment_count": file_summary.get('total_investment_count', 0),
+                "success_count": file_summary.get('success_count', 0),
+                "fail_count": file_summary.get('fail_count', 0),
+                "open_count": file_summary.get('open_count', 0),
+                
+                # 投资结果统计
+                "win_rate": results_summary.get('win_rate', 0),
+                "annual_return": results_summary.get('annual_return', 0),
+                "avg_duration_days": results_summary.get('avg_duration_days', 0),
+                "avg_roi": results_summary.get('avg_roi', 0),
+                "total_investments": results_summary.get('total_investments', 0),
+                "win_count": results_summary.get('win_count', 0),
+                "loss_count": results_summary.get('loss_count', 0),
+                
+                # 额外信息
+                "total_profit": results_summary.get('total_profit', 0),
+                "avg_profit_per_investment": results_summary.get('avg_profit_per_investment', 0),
+                "total_stocks_with_opportunities": results_summary.get('total_stocks_with_opportunities', 0),
+                
+                # 时间戳
+                "summary_generated_at": datetime.now().isoformat()
+            }
+            
+            # 同时更新外层的total_stocks_tested
+            session_update_data = {
+                "total_stocks_tested": getattr(self, 'total_stocks_tested', 0)
+            }
+            
+            # 更新会话信息
+            self.investment_recorder.update_session_info(session_update_data)
+            
+            # 调用recorder的更新方法
+            self.investment_recorder.update_session_summary(summary_data)
+            
+        except Exception as e:
+            logger.error(f"❌ 保存投资摘要到会话失败: {e}")

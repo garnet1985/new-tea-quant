@@ -33,7 +33,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
 
         # todo: remove below line
-        stock_idx = stock_idx[0:1]  # 测试前5只股票
+        stock_idx = stock_idx[0:20]  # 测试前5只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
 
         print(f"🚀 开始处理 {len(stock_idx)} 只股票...")

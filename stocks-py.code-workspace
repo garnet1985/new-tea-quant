@@ -10,11 +10,18 @@
 	"settings": {
 		"cSpell.words": [
 			"akshare",
+			"arrowprops",
+			"arrowstyle",
 			"eastmoney",
+			"edgecolor",
 			"executemany",
+			"facecolor",
+			"fontsize",
 			"klines",
 			"lastrowid",
-			"Tushare"
+			"Tushare",
+			"xytext",
+			"zorder"
 		]
 	}
 }

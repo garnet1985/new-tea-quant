@@ -4,8 +4,7 @@ import KlineChart from '../components/KlineChart';
 import SimpleChart from '../components/SimpleChart';
 
 function StockKline() {
-  alert('StockKline组件被渲染');
-  
+
   const [stockId, setStockId] = useState('000002.SZ');
   const [term, setTerm] = useState('daily');
   const [data, setData] = useState(null);
@@ -19,10 +18,8 @@ function StockKline() {
     
     try {
       const result = await fetchStockKline(stockId, term);
-      alert('数据获取成功，数据条数: ' + (result.klines ? result.klines.length : 0));
       setData(result);
     } catch (err) {
-      alert('数据获取失败: ' + err.message);
       setError(err.message);
     } finally {
       setLoading(false);

@@ -167,10 +167,6 @@ function StockChart() {
     }
 
     const option = {
-      title: {
-        text: `${stockId} K线图与投资点位`,
-        left: 'center'
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -313,57 +309,55 @@ function StockChart() {
       <div className="card">
         <div className="card-header container">
           <h2>股票K线图与投资点位</h2>
-          <div style={{ marginBottom: '2rem' }}>
+          <div className="main-chart">
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'end' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label htmlFor="stockId">股票代码</label>
-                <input
-                  id="stockId"
-                  type="text"
-                  value={stockId}
-                  onChange={(e) => setStockId(e.target.value)}
-                  placeholder="例如: 000002.SZ"
-                  required
-                />
+                <div>
+                  <input
+                    id="stockId"
+                    type="text"
+                    value={stockId}
+                    onChange={(e) => setStockId(e.target.value)}
+                    placeholder="例如: 000002.SZ"
+                    required
+                    style={{ width: '60%', display: 'inline-block' }}
+                  />
+                  <div style={{ display: 'inline-block', marginLeft: '1rem' }}>
+                    <button 
+                      onClick={handleLoadData} 
+                      className="btn" 
+                      disabled={loading}
+                    >
+                      {loading ? '加载中...' : '加载数据'}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (chartRef.current) {
+                          chartRef.current.getEchartsInstance().setOption(getChartOption());
+                        }
+                      }} 
+                      className="btn" 
+                      style={{ backgroundColor: '#ff4d4f', marginLeft: '.5rem' }}
+                    >
+                      清除辅助线
+                    </button>
+                  </div>
+                </div>
               </div>
-              
-              <button 
-                onClick={handleLoadData} 
-                className="btn" 
-                disabled={loading}
-              >
-                {loading ? '加载中...' : '加载数据'}
-              </button>
-              
-              <button 
-                onClick={() => {
-                  if (chartRef.current) {
-                    chartRef.current.getEchartsInstance().setOption(getChartOption());
-                  }
-                }} 
-                className="btn" 
-                style={{ backgroundColor: '#ff4d4f' }}
-              >
-                清除辅助线
-              </button>
             </div>
           </div>
           {error && <div className="error">{error}</div>}
           {loading && <div className="loading">正在加载数据...</div>}
+
         </div>
-        
-        
         
         {klineData && hlData && (
           <div className="card">
-            <h3>分析结果</h3>
-            <p><strong>股票代码:</strong> {stockId}</p>
-            <p><strong>K线记录数:</strong> {klineData.total_records}</p>
-            <p><strong>成功投资:</strong> {hlData.success_investments?.length || 0}</p>
-            <p><strong>失败投资:</strong> {hlData.fail_investments?.length || 0}</p>
-            <p><strong>开放投资:</strong> {hlData.open_investments?.length || 0}</p>
-            
-            <div style={{ height: '600px', marginTop: '2rem' }}>
+            <div className="card-header container">
+              <p style={{ textAlign: 'center' }}>成功: <strong style={{ color: 'green', fontSize: '1.5rem' }}>{hlData.data?.statistics?.success_count || 0}</strong> | 失败: <strong style={{ color: 'red', fontSize: '1.5rem' }}>{hlData.data?.statistics?.fail_count || 0}</strong> | 模拟截止未完成: <strong style={{ color: '#333', fontSize: '1.5rem' }}>{hlData.data?.statistics?.open_count || 0}</strong></p>
+            </div>
+            <div style={{ height: '600px' }}>
               <ReactECharts
                 ref={chartRef}
                 option={getChartOption()}
@@ -373,9 +367,6 @@ function StockChart() {
                     if (params.seriesType === 'scatter') {
                       const pointDate = params.data[0];
                       const pointPrice = params.data[1];
-                      
-
-                      
                       // 查找对应的点位信息
                       let pointInfo = null;
                       for (const [key, info] of pointDetails.entries()) {
@@ -415,7 +406,7 @@ function StockChart() {
                             symbol: 'none',
                             lineStyle: {
                               color: '#ff4d4f',
-                              width: 3,
+                              width: 2,
                               type: 'dashed'
                             },
                             data: [
@@ -428,7 +419,7 @@ function StockChart() {
                                 name: '止盈线',
                                 lineStyle: {
                                   color: '#52c41a',
-                                  width: 3,
+                                  width: 2,
                                   type: 'dashed'
                                 }
                               },
@@ -474,7 +465,7 @@ function StockChart() {
                             symbol: 'none',
                             lineStyle: {
                               color: '#722ed1',
-                              width: 3,
+                              width: 2,
                               type: 'dashed'
                             },
                             data: [
@@ -514,6 +505,7 @@ function StockChart() {
                 }}
               />
             </div>
+            
           </div>
         )}
       </div>

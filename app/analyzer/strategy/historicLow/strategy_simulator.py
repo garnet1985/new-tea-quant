@@ -35,7 +35,7 @@ class HLSimulator:
         # 初始化投资记录器，使用策略目录下的tmp文件夹
         import os
         strategy_tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
-        self.investment_recorder = InvestmentRecorder(tmp_dir=strategy_tmp_dir)
+        self.investment_recorder = InvestmentRecorder(base_dir=strategy_tmp_dir)
 
     def test_strategy(self) -> bool:
         # 移除investment_recorder相关代码

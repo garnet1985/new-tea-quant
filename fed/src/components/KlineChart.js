@@ -2,17 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
 
 const KlineChart = ({ data, stockId }) => {
-  alert('KlineChart组件被渲染，props: ' + JSON.stringify({ data: data ? '有数据' : '无数据', stockId }));
-  
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
   useEffect(() => {
-    alert('=== KlineChart useEffect 开始 ===');
-    alert('数据: ' + (data ? '有数据' : '无数据') + ', 股票ID: ' + stockId);
     
     if (!data || !data.klines || data.klines.length === 0) {
-      alert('没有数据，退出');
       return;
     }
 

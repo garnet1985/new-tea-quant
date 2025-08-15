@@ -62,7 +62,6 @@ class DataSourceService:
             # 如果没有找到复权因子，使用默认因子
             if qfq_factor is None:
                 qfq_factor = default_factor
-                print(f"日期 {current_date} 使用默认复权因子: {default_factor}")
             
             if qfq_factor is not None:
                 # 计算前复权价格

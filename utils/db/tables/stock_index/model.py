@@ -82,3 +82,7 @@ class StockIndexModel(BaseTableModel):
     def get_most_recent_one_by_term(self, stock_id: str, term: str):
         # 使用基类的 load_one 方法
         return self.load_one("id = %s AND term = %s ORDER BY date DESC LIMIT 1", (stock_id, term))
+
+    def get_name_by_id(self, stock_id: str):
+        # 使用基类的 load_one 方法
+        return self.load_one("id = %s", (stock_id,))['name']

@@ -39,7 +39,7 @@ class StockKlineModel(BaseTableModel):
 
     def get_most_recent_k_lines_by_term(self, stock_id: str, term: str, limit: int) -> List[Dict[str, Any]]:
         try:
-            # 一个query搞定：直接获取最新的N条记录
+            # 一个query搞定：直接获取最新的K线数据
             condition = "id = %s AND term = %s"
             params = (stock_id, term)
             

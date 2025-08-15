@@ -61,11 +61,8 @@ class InvestmentRecorder:
         session_name = f"{current_date}-{next_id:03d}"
         self.current_session_dir = os.path.join(self.tmp_dir, session_name)
         
-        # 创建会话目录和子目录
+        # 创建会话目录
         os.makedirs(self.current_session_dir, exist_ok=True)
-        os.makedirs(os.path.join(self.current_session_dir, "success"), exist_ok=True)
-        os.makedirs(os.path.join(self.current_session_dir, "fail"), exist_ok=True)
-        os.makedirs(os.path.join(self.current_session_dir, "open"), exist_ok=True)
         
         # 更新meta.json
         self._update_meta_file(next_id, session_name)
@@ -175,86 +172,161 @@ class InvestmentRecorder:
         except (ValueError, TypeError):
             return value
     
-    def record_investment_settlement(self, stock: Dict[str, Any], investment: Dict[str, Any], 
-                                   result: str, exit_price: float, exit_date: str) -> None:
+    def record_investment(self, stock_info: Dict[str, Any], investment_data: Dict[str, Any], status: str):
         """
-        记录投资结算信息
+        记录投资信息
         
         Args:
-            stock: 股票基本信息
-            investment: 投资数据
-            result: 投资结果 ('win', 'loss', 'open')
-            exit_price: 退出价格
-            exit_date: 退出日期
+            stock_info: 股票基本信息
+            investment_data: 投资数据
+            status: 投资状态 (success/fail/open)
+        """
+        if not self.current_session_dir:
+            logger.warning("当前没有活跃的会话")
+            return
+        
+        # 创建股票投资记录文件
+        stock_id = stock_info.get('code', 'unknown')
+        stock_file_path = os.path.join(self.current_session_dir, f"{stock_id}.json")
+        
+        # 读取现有文件或创建新文件
+        stock_data = self._load_stock_data(stock_file_path, stock_info)
+        
+        # 添加新的投资记录
+        investment_record = {
+            'investment_info': investment_data.get('investment_info', {}),
+            'settlement_info': investment_data.get('settlement_info', {}),
+            'status': status,
+            'recorded_at': datetime.now().isoformat()
+        }
+        
+        stock_data['results'].append(investment_record)
+        
+        # 更新统计信息
+        self._update_stock_statistics(stock_data)
+        
+        # 保存文件
+        self._save_stock_data(stock_file_path, stock_data)
+        
+        logger.info(f"📝 记录 {stock_id} 的 {status} 投资: {investment_record['investment_info'].get('start_date', 'unknown')}")
+
+    def _load_stock_data(self, file_path: str, stock_info: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        加载股票数据文件，如果不存在则创建新的
+        
+        Args:
+            file_path: 文件路径
+            stock_info: 股票基本信息
+            
+        Returns:
+            dict: 股票数据
+        """
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"读取文件失败 {file_path}: {e}")
+        
+        # 创建新的股票数据结构
+        return {
+            'stock_info': {
+                'code': stock_info.get('code', ''),
+                'name': stock_info.get('name', ''),
+                'market': stock_info.get('market', ''),
+                'sector': stock_info.get('sector', ''),
+                'industry': stock_info.get('industry', '')
+            },
+            'session_info': {
+                'session_id': self.current_session_id,
+                'created_at': datetime.now().isoformat(),
+                'strategy': 'HistoricLow'
+            },
+            'results': [],
+            'statistics': {
+                'total_investments': 0,
+                'success_count': 0,
+                'fail_count': 0,
+                'open_count': 0,
+                'win_rate': 0.0,
+                'total_profit': 0.0,
+                'avg_profit': 0.0,
+                'avg_duration_days': 0.0
+            }
+        }
+
+    def _update_stock_statistics(self, stock_data: Dict[str, Any]):
+        """
+        更新股票统计信息
+        
+        Args:
+            stock_data: 股票数据
+        """
+        results = stock_data['results']
+        stats = stock_data['statistics']
+        
+        stats['total_investments'] = len(results)
+        stats['success_count'] = len([r for r in results if r['status'] == 'success'])
+        stats['fail_count'] = len([r for r in results if r['status'] == 'fail'])
+        stats['open_count'] = len([r for r in results if r['status'] == 'open'])
+        
+        if stats['total_investments'] > 0:
+            stats['win_rate'] = (stats['success_count'] / stats['total_investments']) * 100
+        
+        # 计算利润统计
+        total_profit = 0.0
+        total_duration = 0
+        settled_count = 0
+        
+        for result in results:
+            if result['status'] in ['success', 'fail']:
+                profit = result['settlement_info'].get('profit_loss', 0)
+                total_profit += profit
+                duration = result['settlement_info'].get('duration_days', 0)
+                total_duration += duration
+                settled_count += 1
+        
+        stats['total_profit'] = total_profit
+        if settled_count > 0:
+            stats['avg_profit'] = total_profit / settled_count
+            stats['avg_duration_days'] = total_duration / settled_count
+
+    def _save_stock_data(self, file_path: str, stock_data: Dict[str, Any]):
+        """
+        保存股票数据到文件
+        
+        Args:
+            file_path: 文件路径
+            stock_data: 股票数据
         """
         try:
-            # 获取股票代码和名称
-            stock_code = stock.get('id', 'Unknown')
-            stock_name = stock.get('name', 'Unknown')
-            
-            # 计算投资持续天数
-            start_date = investment.get('invest_start_date')
-            duration_days = None
-            if start_date and exit_date:
-                try:
-                    start_dt = datetime.strptime(start_date, "%Y%m%d")
-                    exit_dt = datetime.strptime(exit_date, "%Y%m%d")
-                    duration_days = (exit_dt - start_dt).days
-                except ValueError:
-                    logger.warning(f"⚠️ 日期格式错误，无法计算持续天数: start_date={start_date}, exit_date={exit_date}")
-            
-            # 生成文件名
-            file_name = f"{stock_code}_{exit_date}_{result}.json"
-            
-            # 根据结果选择子目录
-            if result == 'win':
-                sub_dir = "success"
-            elif result == 'loss':
-                sub_dir = "fail"
-            elif result == 'open':
-                sub_dir = "open"
-            else:
-                sub_dir = "unknown"
-            
-            file_path = os.path.join(self.current_session_dir, sub_dir, file_name)
-            
-            # 准备记录数据
-            record_data = {
-                "stock_info": {
-                    "code": stock_code,
-                    "name": stock_name,
-                    "market": stock.get('market', '')
-                },
-                "investment_info": {
-                    "start_date": start_date,
-                    "purchase_price": self._convert_decimal(investment.get('goal', {}).get('purchase')),
-                    "target_win": self._convert_decimal(investment.get('goal', {}).get('win')),
-                    "target_loss": self._convert_decimal(investment.get('goal', {}).get('loss')),
-                    "historic_low_ref": {
-                        "date": investment.get('historic_low_ref', {}).get('lowest_date'),
-                        "term": investment.get('historic_low_ref', {}).get('period_name'),
-                        "lowest_price": self._convert_decimal(investment.get('historic_low_ref', {}).get('lowest_price'))
-                    }
-                },
-                "settlement_info": {
-                    "result": result,
-                    "exit_price": exit_price,
-                    "exit_date": exit_date,
-                    "duration_days": duration_days,  # 添加投资持续天数
-                    "profit_loss": (exit_price - self._convert_decimal(investment.get('goal', {}).get('purchase'))) if exit_price else None,
-                    "profit_loss_rate": ((exit_price - self._convert_decimal(investment.get('goal', {}).get('purchase'))) / self._convert_decimal(investment.get('goal', {}).get('purchase')) * 100) if exit_price else None,
-                    "settled_at": datetime.now().isoformat()
-                }
-            }
-            
-            # 保存到文件
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(record_data, f, ensure_ascii=False, indent=2)
-            
-            # logger.info(f"📊 已记录投资结算: {stock_code} {stock_name} - {result} -> {sub_dir}/{file_name}")
-            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(stock_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.error(f"❌ 记录投资结算失败: {e}")
+            logger.error(f"保存文件失败 {file_path}: {e}")
+
+    def get_stock_results(self, stock_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取指定股票的投资结果
+        
+        Args:
+            stock_id: 股票ID
+            
+        Returns:
+            dict: 股票投资结果，如果不存在返回None
+        """
+        if not self.current_session_dir:
+            return None
+        
+        stock_file_path = os.path.join(self.current_session_dir, f"{stock_id}.json")
+        if os.path.exists(stock_file_path):
+            try:
+                with open(stock_file_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"读取股票结果失败 {stock_file_path}: {e}")
+        
+        return None
     
     def get_session_info(self) -> Dict[str, Any]:
         """获取当前会话信息"""

@@ -9,6 +9,7 @@ function StockChart() {
   const [hlData, setHlData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [pointDetails, setPointDetails] = useState(new Map());
   const chartRef = useRef(null);
 
   // 获取K线数据
@@ -24,14 +25,69 @@ function StockChart() {
   // 获取HL分析数据
   const fetchHLData = async () => {
     try {
-      console.log('开始获取HL分析数据...');
       const data = await fetchStockHLAnalysis(stockId);
-      console.log('获取到HL分析数据:', data);
       setHlData(data);
+      
+      // 更新点位详细信息
+      updatePointDetails(data);
     } catch (err) {
       console.error('获取HL分析数据失败:', err);
       setError(`获取HL分析数据失败: ${err.message}`);
     }
+  };
+
+  // 更新点位详细信息
+  const updatePointDetails = (hlData) => {
+    const newPointDetails = new Map();
+    
+    if (hlData && hlData.data) {
+      const stockData = hlData.data;
+      const results = stockData.results || [];
+      
+      // 处理所有投资记录
+      results.forEach(result => {
+        const investmentInfo = result.investment_info || {};
+        const settlementInfo = result.settlement_info || {};
+        
+        // 买入点
+        if (investmentInfo.start_date && investmentInfo.purchase_price) {
+          const pointKey = `buy_${investmentInfo.start_date}`;
+          newPointDetails.set(pointKey, {
+            type: 'buy',
+            date: investmentInfo.start_date,
+            price: investmentInfo.purchase_price,
+            target_win: investmentInfo.target_win,
+            target_loss: investmentInfo.target_loss,
+            stock_name: stockData.stock_info?.name || 'Unknown'
+          });
+        }
+        
+        // 卖出点（如果有结算信息）
+        if (settlementInfo.exit_date && settlementInfo.exit_price) {
+          const pointKey = `sell_${settlementInfo.exit_date}`;
+          newPointDetails.set(pointKey, {
+            type: result.status === 'win' ? 'sell_win' : 'sell_loss',
+            date: settlementInfo.exit_date,
+            price: settlementInfo.exit_price,
+            stock_name: stockData.stock_info?.name || 'Unknown'
+          });
+        }
+        
+        // 历史低点参考
+        if (investmentInfo.historic_low_ref?.date && investmentInfo.historic_low_ref?.lowest_price) {
+          const pointKey = `ref_${investmentInfo.historic_low_ref.date}`;
+          newPointDetails.set(pointKey, {
+            type: 'reference',
+            date: investmentInfo.historic_low_ref.date,
+            price: investmentInfo.historic_low_ref.lowest_price,
+            ref_price_7p: investmentInfo.historic_low_ref.lowest_price * 1.07, // 上7%
+            stock_name: stockData.stock_info?.name || 'Unknown'
+          });
+        }
+      });
+    }
+    
+    setPointDetails(newPointDetails);
   };
 
   // 加载数据
@@ -40,12 +96,8 @@ function StockChart() {
     setError(null);
     
     try {
-      console.log('开始加载数据...');
-      console.log('获取K线数据...');
       await fetchKlineData();
-      console.log('获取HL分析数据...');
       await fetchHLData();
-      console.log('数据加载完成');
     } catch (err) {
       console.error('数据加载失败:', err);
       setError(err.message);
@@ -80,52 +132,41 @@ function StockChart() {
     const sellLossPoints = []; // 卖出亏损点（红色）
     const referencePoints = []; // 历史低点（紫色菱形）
 
-    if (hlData) {
-      console.log('处理HL数据:', hlData);
+
+
+    if (hlData && hlData.data) {
+      const stockData = hlData.data;
+      const results = stockData.results || [];
       
-      // 处理成功投资
-      hlData.success_investments?.forEach(inv => {
-        console.log('处理成功投资:', inv);
-        if (inv.buy_date && inv.buy_price) {
-          buyPoints.push([inv.buy_date, inv.buy_price]);
+      // 处理所有投资记录
+      results.forEach(result => {
+        const investmentInfo = result.investment_info || {};
+        const settlementInfo = result.settlement_info || {};
+        
+        // 买入点
+        if (investmentInfo.start_date && investmentInfo.purchase_price) {
+          buyPoints.push([investmentInfo.start_date, investmentInfo.purchase_price]);
         }
-        if (inv.sell_date && inv.sell_price) {
-          sellWinPoints.push([inv.sell_date, inv.sell_price]);
+        
+        // 卖出点
+        if (settlementInfo.exit_date && settlementInfo.exit_price) {
+          if (result.status === 'win') {
+            sellWinPoints.push([settlementInfo.exit_date, settlementInfo.exit_price]);
+          } else if (result.status === 'loss') {
+            sellLossPoints.push([settlementInfo.exit_date, settlementInfo.exit_price]);
+          }
         }
-      });
-
-      // 处理失败投资
-      hlData.fail_investments?.forEach(inv => {
-        console.log('处理失败投资:', inv);
-        if (inv.buy_date && inv.buy_price) {
-          buyPoints.push([inv.buy_date, inv.buy_price]);
-        }
-        if (inv.sell_date && inv.sell_price) {
-          sellLossPoints.push([inv.sell_date, inv.sell_price]);
-        }
-      });
-
-      // 处理开放投资
-      hlData.open_investments?.forEach(inv => {
-        console.log('处理开放投资:', inv);
-        if (inv.buy_date && inv.buy_price) {
-          buyPoints.push([inv.buy_date, inv.buy_price]);
+        
+        // 历史低点参考
+        if (investmentInfo.historic_low_ref?.date && investmentInfo.historic_low_ref?.lowest_price) {
+          referencePoints.push([investmentInfo.historic_low_ref.date, investmentInfo.historic_low_ref.lowest_price]);
         }
       });
-
-      // 处理参考点位（历史低点）
-      [...(hlData.success_investments || []), ...(hlData.fail_investments || []), ...(hlData.open_investments || [])].forEach(inv => {
-        if (inv.historic_low_ref?.date && inv.historic_low_ref?.lowest_price) {
-          referencePoints.push([inv.historic_low_ref.date, inv.historic_low_ref.lowest_price]);
-        }
-      });
-      
-      console.log('生成的投资点位:', { buyPoints, sellWinPoints, sellLossPoints, referencePoints });
     } else {
-      console.log('没有HL数据');
+      // 没有HL数据
     }
 
-    return {
+    const option = {
       title: {
         text: `${stockId} K线图与投资点位`,
         left: 'center'
@@ -161,7 +202,7 @@ function StockChart() {
         }
       },
       legend: {
-        data: ['K线', '买入点', '卖出盈利', '卖出亏损', '历史低点'],
+        data: ['K线', '止损线', '止盈线', '买入点', '卖出盈利', '卖出亏损', '历史低点'],
         top: 30
       },
       grid: {
@@ -211,6 +252,19 @@ function StockChart() {
             borderColor0: '#0cf49b'
           }
         },
+        // 辅助线系列（动态显示）
+        {
+          name: '辅助线',
+          type: 'line',
+          data: [],
+          lineStyle: {
+            color: '#ffa500',
+            width: 2,
+            type: 'dashed'
+          },
+          symbol: 'none',
+          silent: true
+        },
         {
           name: '买入点',
           type: 'scatter',
@@ -250,40 +304,55 @@ function StockChart() {
         }
       ]
     };
+
+    return option;
   };
 
   return (
-    <div className="page">
+    <div className="page page-chart">
       <div className="card">
-        <h2>股票K线图与投资点位</h2>
-        
-        <div style={{ marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'end' }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label htmlFor="stockId">股票代码</label>
-              <input
-                id="stockId"
-                type="text"
-                value={stockId}
-                onChange={(e) => setStockId(e.target.value)}
-                placeholder="例如: 000002.SZ"
-                required
-              />
+        <div className="card-header container">
+          <h2>股票K线图与投资点位</h2>
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'end' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label htmlFor="stockId">股票代码</label>
+                <input
+                  id="stockId"
+                  type="text"
+                  value={stockId}
+                  onChange={(e) => setStockId(e.target.value)}
+                  placeholder="例如: 000002.SZ"
+                  required
+                />
+              </div>
+              
+              <button 
+                onClick={handleLoadData} 
+                className="btn" 
+                disabled={loading}
+              >
+                {loading ? '加载中...' : '加载数据'}
+              </button>
+              
+              <button 
+                onClick={() => {
+                  if (chartRef.current) {
+                    chartRef.current.getEchartsInstance().setOption(getChartOption());
+                  }
+                }} 
+                className="btn" 
+                style={{ backgroundColor: '#ff4d4f' }}
+              >
+                清除辅助线
+              </button>
             </div>
-            
-            <button 
-              onClick={handleLoadData} 
-              className="btn" 
-              disabled={loading}
-            >
-              {loading ? '加载中...' : '加载数据'}
-            </button>
           </div>
+          {error && <div className="error">{error}</div>}
+          {loading && <div className="loading">正在加载数据...</div>}
         </div>
-
-        {error && <div className="error">{error}</div>}
         
-        {loading && <div className="loading">正在加载数据...</div>}
+        
         
         {klineData && hlData && (
           <div className="card">
@@ -294,11 +363,155 @@ function StockChart() {
             <p><strong>失败投资:</strong> {hlData.fail_investments?.length || 0}</p>
             <p><strong>开放投资:</strong> {hlData.open_investments?.length || 0}</p>
             
-            <div style={{ marginTop: '2rem' }}>
+            <div style={{ height: '600px', marginTop: '2rem' }}>
               <ReactECharts
                 ref={chartRef}
                 option={getChartOption()}
-                style={{ height: '600px', width: '100%' }}
+                style={{ height: '100%' }}
+                onEvents={{
+                  click: (params) => {
+                    if (params.seriesType === 'scatter') {
+                      const pointDate = params.data[0];
+                      const pointPrice = params.data[1];
+                      
+
+                      
+                      // 查找对应的点位信息
+                      let pointInfo = null;
+                      for (const [key, info] of pointDetails.entries()) {
+                        if (info.date === pointDate && Math.abs(info.price - pointPrice) < 0.01) {
+                          pointInfo = info;
+                          break;
+                        }
+                      }
+                      
+                      if (pointInfo) {
+                        // 根据点位类型显示不同的辅助线
+                        if (pointInfo.type === 'buy' && pointInfo.target_win && pointInfo.target_loss) {
+                          
+                          // 买入点：显示止损止盈横线
+                          const stopLossData = [
+                            [pointInfo.date, pointInfo.target_loss], // 止损价格横线起点
+                            [pointInfo.date, pointInfo.target_loss]   // 止损价格横线终点
+                          ];
+                          const takeProfitData = [
+                            [pointInfo.date, pointInfo.target_win],  // 止盈价格横线起点
+                            [pointInfo.date, pointInfo.target_win]   // 止盈价格横线终点
+                          ];
+                          
+
+                          
+                          const newOption = {
+                            ...getChartOption(),
+                            series: [
+                              ...getChartOption().series.slice(0, 1), // K线
+                              ...getChartOption().series.slice(2) // 其他点位
+                            ]
+                          };
+                          
+                          // 为K线系列添加markLine
+                          newOption.series[0].markLine = {
+                            silent: true,
+                            symbol: 'none',
+                            lineStyle: {
+                              color: '#ff4d4f',
+                              width: 3,
+                              type: 'dashed'
+                            },
+                            data: [
+                              {
+                                yAxis: pointInfo.target_loss,
+                                name: '止损线'
+                              },
+                              {
+                                yAxis: pointInfo.target_win,
+                                name: '止盈线',
+                                lineStyle: {
+                                  color: '#52c41a',
+                                  width: 3,
+                                  type: 'dashed'
+                                }
+                              },
+                              // 添加当前点位线
+                              {
+                                yAxis: pointInfo.price,
+                                name: '当前点位',
+                                lineStyle: {
+                                  color: '#1890ff',
+                                  width: 2,
+                                  type: 'dashed'
+                                }
+                              }
+                            ]
+                          };
+                          
+                          if (chartRef.current) {
+                            const chart = chartRef.current.getEchartsInstance();
+                            chart.setOption(newOption);
+                          }
+                        } else if (pointInfo.type === 'reference') {
+
+                          
+                          // 历史低点：显示上7%横线
+                          const refLineData = [
+                            [pointInfo.date, pointInfo.ref_price_7p], // 上7%价格横线起点
+                            [pointInfo.date, pointInfo.ref_price_7p]  // 上7%价格横线终点
+                          ];
+                          
+
+                          
+                          const newOption = {
+                            ...getChartOption(),
+                            series: [
+                              ...getChartOption().series.slice(0, 1), // K线
+                              ...getChartOption().series.slice(2) // 其他点位
+                            ]
+                          };
+                          
+                          // 为K线系列添加markLine
+                          newOption.series[0].markLine = {
+                            silent: true,
+                            symbol: 'none',
+                            lineStyle: {
+                              color: '#722ed1',
+                              width: 3,
+                              type: 'dashed'
+                            },
+                            data: [
+                              {
+                                yAxis: pointInfo.ref_price_7p,
+                                name: '上7%线'
+                              },
+                              // 添加当前点位线
+                              {
+                                yAxis: pointInfo.price,
+                                name: '当前点位',
+                                lineStyle: {
+                                  color: '#1890ff',
+                                  width: 2,
+                                  type: 'dashed'
+                                }
+                              }
+                            ]
+                          };
+                          
+                          if (chartRef.current) {
+                            const chart = chartRef.current.getEchartsInstance();
+                            chart.setOption(newOption);
+                          }
+                        }
+                      } else {
+
+                      }
+                    }
+                  },
+                  dblclick: (params) => {
+                    // 双击清除辅助线
+                                      if (chartRef.current) {
+                    chartRef.current.getEchartsInstance().setOption(getChartOption());
+                  }
+                  }
+                }}
               />
             </div>
           </div>

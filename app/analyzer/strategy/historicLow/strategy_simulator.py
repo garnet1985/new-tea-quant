@@ -2,6 +2,8 @@ import threading
 from typing import Dict, List, Any
 from datetime import datetime
 from loguru import logger
+import json
+import os
 
 
 from app.analyzer.analyzer_service import AnalyzerService
@@ -35,6 +37,27 @@ class HLSimulator:
         # 延迟初始化投资记录器，避免在__init__时自动创建tmp目录
         self.investment_recorder = None
         self._investment_recorder_initialized = False
+        
+        # 添加投资记录收集器
+        self.stock_investment_records = {}  # 存储每只股票的投资记录
+
+    def _safe_float(self, value, default=0.0):
+        """
+        安全地将值转换为float类型
+        
+        Args:
+            value: 要转换的值
+            default: 默认值，如果转换失败则返回
+            
+        Returns:
+            float: 转换后的值
+        """
+        if value is None:
+            return default
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
 
     def _init_investment_recorder_if_needed(self):
         """延迟初始化投资记录器，只在需要时才创建"""
@@ -158,6 +181,14 @@ class HLSimulator:
 
         # 结算当前股票的未完成投资
         self.settle_open_investments_for_stock(data['stock'], data['daily_data'][-1])
+        
+        # 保存当前股票的所有投资记录
+        stock_id = data['stock']['id']
+        if stock_id in self.stock_investment_records:
+            self.save_stock_investment_records(stock_id, data['stock'])
+            logger.info(f"💾 股票 {stock_id} 模拟完成，已保存投资记录")
+        else:
+            logger.info(f"📝 股票 {stock_id} 模拟完成，无投资记录")
 
 
     def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> bool:
@@ -279,13 +310,158 @@ class HLSimulator:
     
     def _record_investment_settlement(self, stock: Dict[str, Any], investment: Dict[str, Any], 
                                     result: str, exit_price: float, exit_date: str) -> None:
-        """记录投资结算信息"""
+        """
+        收集投资结算信息到内存中
+        
+        Args:
+            stock: 股票基本信息
+            investment: 投资数据
+            result: 投资结果 ('win', 'loss', 'open')
+            exit_price: 退出价格
+            exit_date: 退出日期
+        """
         try:
-            # 直接记录投资结算，不再获取K线数据
-            self.investment_recorder.record_investment_settlement(stock, investment, result, exit_price, exit_date)
+            stock_id = stock.get('id', 'unknown')
+            
+            # 计算投资持续天数
+            start_date = investment.get('invest_start_date')
+            duration_days = None
+            if start_date and exit_date:
+                try:
+                    start_dt = datetime.strptime(start_date, "%Y%m%d")
+                    exit_dt = datetime.strptime(exit_date, "%Y%m%d")
+                    duration_days = (exit_dt - start_dt).days
+                except ValueError:
+                    logger.warning(f"⚠️ 日期格式错误，无法计算持续天数: start_date={start_date}, exit_date={exit_date}")
+            
+            # 准备投资记录
+            investment_record = {
+                'investment_info': {
+                    'start_date': start_date,
+                    'purchase_price': self._safe_float(investment.get('goal', {}).get('purchase')),
+                    'target_win': self._safe_float(investment.get('goal', {}).get('win')),
+                    'target_loss': self._safe_float(investment.get('goal', {}).get('loss')),
+                    'historic_low_ref': {
+                        'date': investment.get('historic_low_ref', {}).get('lowest_date'),
+                        'term': investment.get('historic_low_ref', {}).get('period_name'),
+                        'lowest_price': self._safe_float(investment.get('historic_low_ref', {}).get('lowest_price'))
+                    }
+                },
+                'settlement_info': {
+                    'result': result,
+                    'exit_price': self._safe_float(exit_price) if exit_price else None,
+                    'exit_date': exit_date,
+                    'duration_days': duration_days,
+                    'profit_loss': (self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) if exit_price else None,
+                    'profit_loss_rate': ((self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if exit_price and self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
+                    'settled_at': datetime.now().isoformat()
+                },
+                'status': result
+            }
+            
+            # 收集到内存中
+            if stock_id not in self.stock_investment_records:
+                self.stock_investment_records[stock_id] = []
+            self.stock_investment_records[stock_id].append(investment_record)
             
         except Exception as e:
-            logger.error(f"❌ 记录投资结算失败: {e}")
+            logger.error(f"❌ 收集投资记录失败: {e}")
+
+    def save_stock_investment_records(self, stock_id: str, stock_info: Dict[str, Any]):
+        """
+        保存指定股票的所有投资记录到JSON文件
+        
+        Args:
+            stock_id: 股票ID
+            stock_info: 股票基本信息
+        """
+        if stock_id not in self.stock_investment_records:
+            logger.warning(f"股票 {stock_id} 没有投资记录")
+            return
+        
+        try:
+            # 延迟初始化投资记录器
+            self._init_investment_recorder_if_needed()
+            
+            # 准备股票数据
+            stock_data = {
+                'stock_info': {
+                    'code': stock_info.get('id', stock_id),
+                    'name': stock_info.get('name', ''),
+                    'market': stock_info.get('market', ''),
+                    'sector': stock_info.get('sector', ''),
+                    'industry': stock_info.get('industry', '')
+                },
+                'session_info': {
+                    'session_id': os.path.basename(self.investment_recorder.current_session_dir) if self.investment_recorder and self.investment_recorder.current_session_dir else 'unknown',
+                    'created_at': datetime.now().isoformat(),
+                    'strategy': 'HistoricLow'
+                },
+                'results': self.stock_investment_records[stock_id],
+                'statistics': self._calculate_stock_statistics(stock_id)
+            }
+            
+            # 保存到文件
+            if self.investment_recorder and self.investment_recorder.current_session_dir:
+                stock_file_path = os.path.join(self.investment_recorder.current_session_dir, f"{stock_id}.json")
+                with open(stock_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(stock_data, f, ensure_ascii=False, indent=2)
+            else:
+                logger.error(f"❌ investment_recorder 未正确初始化或 current_session_dir 为空")
+                logger.error(f"  investment_recorder: {self.investment_recorder}")
+                if self.investment_recorder:
+                    logger.error(f"  current_session_dir: {self.investment_recorder.current_session_dir}")
+            
+        except Exception as e:
+            logger.error(f"❌ 保存股票投资记录失败 {stock_id}: {e}")
+            logger.error(f"  错误详情: {str(e)}")
+            import traceback
+            logger.error(f"  堆栈跟踪: {traceback.format_exc()}")
+
+    def _calculate_stock_statistics(self, stock_id: str) -> Dict[str, Any]:
+        """
+        计算指定股票的统计信息
+        
+        Args:
+            stock_id: 股票ID
+            
+        Returns:
+            dict: 统计信息
+        """
+        results = self.stock_investment_records.get(stock_id, [])
+        stats = {
+            'total_investments': len(results),
+            'success_count': len([r for r in results if r['status'] == 'win']),
+            'fail_count': len([r for r in results if r['status'] == 'loss']),
+            'open_count': len([r for r in results if r['status'] == 'open']),
+            'win_rate': 0.0,
+            'total_profit': 0.0,
+            'avg_profit': 0.0,
+            'avg_duration_days': 0.0
+        }
+        
+        if stats['total_investments'] > 0:
+            stats['win_rate'] = (stats['success_count'] / stats['total_investments']) * 100
+        
+        # 计算利润统计
+        total_profit = 0.0
+        total_duration = 0
+        settled_count = 0
+        
+        for result in results:
+            if result['status'] in ['win', 'loss']:
+                profit = result['settlement_info'].get('profit_loss', 0)
+                total_profit += profit
+                duration = result['settlement_info'].get('duration_days', 0)
+                total_duration += duration
+                settled_count += 1
+        
+        stats['total_profit'] = total_profit
+        if settled_count > 0:
+            stats['avg_profit'] = total_profit / settled_count
+            stats['avg_duration_days'] = total_duration / settled_count
+        
+        return stats
     
     def aggregate_results(self, results: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """

@@ -37,7 +37,7 @@ class BFFApi:
             "stock_index": self.db.get_table_instance("stock_index")
         }
         
-        logger.info("BFF API 初始化完成")
+
 
     def _init_hl_components_if_needed(self):
         """延迟初始化HL相关组件，只在需要时才创建"""
@@ -49,7 +49,7 @@ class BFFApi:
             # 注意：这里不会自动创建InvestmentRecorder，因为HLSimulator的__init__被注释了
             self.simulator = HLSimulator(self.strategy)
             self._hl_components_initialized = True
-            logger.info("HL策略组件已初始化")
+    
 
     def health_check(self):
         """健康检查"""
@@ -77,8 +77,6 @@ class BFFApi:
             # 获取原始K线数据
             klines = stock_kline_model.get_all_k_lines_by_term(stock_id, term)
 
-            print(f"klines: {klines}")
-            
             if not klines:
                 return jsonify({
                     "success": False,
@@ -88,14 +86,6 @@ class BFFApi:
 
             # 获取复权因子
             qfq_factors = adj_factor_model.get_stock_factors(stock_id)
-            print(f"获取到的复权因子数量: {len(qfq_factors) if qfq_factors else 0}")
-            
-            # 调试：检查2010年附近的复权因子
-            if qfq_factors:
-                print("2010年附近的复权因子:")
-                for factor in qfq_factors:
-                    if '2010' in factor['date'] or '2009' in factor['date'] or '2011' in factor['date']:
-                        print(f"  日期: {factor['date']}, qfq: {factor['qfq']}")
 
             # 处理复权因子：对于没有复权因子的时间段，使用第一个复权因子
             if qfq_factors:
@@ -115,24 +105,12 @@ class BFFApi:
                     # 如果没有找到复权因子，使用第一个（最早的）复权因子
                     if qfq_factor is None:
                         qfq_factor = first_factor['qfq']
-                        print(f"日期 {current_date} 没有复权因子，使用默认因子: {qfq_factor}")
                     
                     # 将复权因子添加到K线数据中，供to_qfq方法使用
                     kline['qfq_factor'] = qfq_factor
 
             # 使用DataSource类的to_qfq方法复权
             qfq_klines = DataSourceService.to_qfq(klines, qfq_factors)
-            
-            # 调试：检查2010年6月8日附近的数据
-            for kline in qfq_klines:
-                if '20100608' in kline.get('date', '') or '20100609' in kline.get('date', '') or '20100607' in kline.get('date', ''):
-                    print(f"=== 2010年6月8日附近数据 ===")
-                    print(f"日期: {kline.get('date')}")
-                    if 'raw' in kline:
-                        print(f"原始价格: O:{kline['raw'].get('open')} H:{kline['raw'].get('highest')} L:{kline['raw'].get('lowest')} C:{kline['raw'].get('close')}")
-                    print(f"复权后价格: O:{kline.get('open')} H:{kline.get('highest')} L:{kline.get('lowest')} C:{kline.get('close')}")
-            
-            print(f"数据处理完成，共处理 {len(qfq_klines)} 条K线数据")
             
             return jsonify({
                 "success": True,
@@ -306,9 +284,7 @@ class BFFApi:
             return {
                 "session_id": None,
                 "stock_id": stock_id,
-                "success_investments": [],
-                "fail_investments": [],
-                "reference_points": []
+                "data": None
             }
         
         # 找到最新的模拟会话
@@ -323,10 +299,7 @@ class BFFApi:
             return {
                 "session_id": None,
                 "stock_id": stock_id,
-                "success_investments": [],
-                "fail_investments": [],
-                "open_investments": [],
-                "reference_points": []
+                "data": None
             }
         
         # 按日期排序，获取最新会话
@@ -334,58 +307,33 @@ class BFFApi:
         latest_session = sessions[0]
         session_path = os.path.join(hl_tmp_path, latest_session)
         
-        # 读取该会话下的投资记录
-        investment_data = {
-            "session_id": latest_session,
-            "stock_id": stock_id,
-            "success_investments": [],
-            "fail_investments": [],
-            "open_investments": [],
-            "reference_points": []
-        }
+        # 直接查找股票ID对应的JSON文件
+        stock_file_path = os.path.join(session_path, f"{stock_id}.json")
         
-        # 读取success、fail、open文件夹
-        for status in ['success', 'fail', 'open']:
-            status_path = os.path.join(session_path, status)
-            if os.path.exists(status_path):
-                for file in os.listdir(status_path):
-                    if file.endswith('.json'):
-                        file_path = os.path.join(status_path, file)
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                                # 检查是否是目标股票
-                                if data.get('stock_info', {}).get('code') == stock_id:
-                                    # 标准化数据格式
-                                    standardized_data = {
-                                        'stock_id': data['stock_info']['code'],
-                                        'stock_name': data['stock_info']['name'],
-                                        'market': data['stock_info']['market'],
-                                        'buy_date': data['investment_info']['start_date'],
-                                        'buy_price': data['investment_info']['purchase_price'],
-                                        'sell_date': data['settlement_info'].get('exit_date'),
-                                        'sell_price': data['settlement_info'].get('exit_price'),
-                                        'result': data['settlement_info']['result'],
-                                        'duration_days': data['settlement_info'].get('duration_days'),
-                                        'profit_loss': data['settlement_info'].get('profit_loss'),
-                                        'profit_loss_rate': data['settlement_info'].get('profit_loss_rate'),
-                                        'historic_low_ref': data['investment_info'].get('historic_low_ref'),
-                                        'target_win': data['investment_info'].get('target_win'),
-                                        'target_loss': data['investment_info'].get('target_loss')
-                                    }
-                                    investment_data[f"{status}_investments"].append(standardized_data)
-                        except Exception as e:
-                            logger.warning(f"读取文件失败 {file_path}: {e}")
-        
-        # 如果没有找到数据，返回空数据
-        if not any([investment_data["success_investments"], investment_data["fail_investments"], investment_data["open_investments"]]):
+        if not os.path.exists(stock_file_path):
+            # 返回空数据，表示该股票没有投资记录
             return {
                 "session_id": latest_session,
                 "stock_id": stock_id,
-                "success_investments": [],
-                "fail_investments": [],
-                "open_investments": [],
-                "reference_points": []
+                "data": None
             }
         
-        return investment_data
+        try:
+            # 读取股票投资记录文件
+            with open(stock_file_path, 'r', encoding='utf-8') as f:
+                stock_data = json.load(f)
+            
+            # 直接返回原始数据，让前端处理分类
+            return {
+                "session_id": latest_session,
+                "stock_id": stock_id,
+                "data": stock_data  # 返回完整的原始数据
+            }
+            
+        except Exception as e:
+            logger.error(f"读取股票投资记录失败 {stock_file_path}: {e}")
+            return {
+                "session_id": latest_session,
+                "stock_id": stock_id,
+                "data": None
+            }

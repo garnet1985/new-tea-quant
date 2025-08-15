@@ -43,7 +43,7 @@ function App() {
     <Router>
       <div className="App">
         <Navigation />
-        <main className="container">
+        <main>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/kline" element={<StockKline />} />

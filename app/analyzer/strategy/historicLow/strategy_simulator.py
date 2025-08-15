@@ -32,20 +32,27 @@ class HLSimulator:
         self.common = AnalyzerService()
         self.service = HistoricLowService()
         
-        # 初始化投资记录器，使用策略目录下的tmp文件夹
-        import os
-        strategy_tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
-        self.investment_recorder = InvestmentRecorder(base_dir=strategy_tmp_dir)
+        # 延迟初始化投资记录器，避免在__init__时自动创建tmp目录
+        self.investment_recorder = None
+        self._investment_recorder_initialized = False
+
+    def _init_investment_recorder_if_needed(self):
+        """延迟初始化投资记录器，只在需要时才创建"""
+        if not self._investment_recorder_initialized:
+            import os
+            strategy_tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
+            self.investment_recorder = InvestmentRecorder(base_dir=strategy_tmp_dir)
+            self._investment_recorder_initialized = True
 
     def test_strategy(self) -> bool:
-        # 移除investment_recorder相关代码
-        # self.investment_recorder.start_new_session()
+        # 延迟初始化投资记录器
+        self._init_investment_recorder_if_needed()
         
         stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        stock_idx = stock_idx[3000:3100]  # 测试前20只股票
+        stock_idx = stock_idx[0:20]  # 测试前20只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
         
         # 记录测试股票总数

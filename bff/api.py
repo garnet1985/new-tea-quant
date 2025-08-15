@@ -24,9 +24,11 @@ class BFFApi:
         self.db = DatabaseManager()
         self.analyzer_service = AnalyzerService()
         
-        # 初始化策略相关
-        self.strategy = HistoricLowStrategy(self.db)
-        self.simulator = HLSimulator(self.strategy)
+        # 延迟初始化策略相关，避免自动创建tmp目录
+        self.strategy = None
+        self.simulator = None
+        # 分离HL相关组件的初始化
+        self._hl_components_initialized = False
 
 
         self.tables = {
@@ -36,6 +38,18 @@ class BFFApi:
         }
         
         logger.info("BFF API 初始化完成")
+
+    def _init_hl_components_if_needed(self):
+        """延迟初始化HL相关组件，只在需要时才创建"""
+        if not self._hl_components_initialized:
+            from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
+            from app.analyzer.strategy.historicLow.strategy_simulator import HLSimulator
+            
+            self.strategy = HistoricLowStrategy(self.db)
+            # 注意：这里不会自动创建InvestmentRecorder，因为HLSimulator的__init__被注释了
+            self.simulator = HLSimulator(self.strategy)
+            self._hl_components_initialized = True
+            logger.info("HL策略组件已初始化")
 
     def health_check(self):
         """健康检查"""
@@ -247,6 +261,9 @@ class BFFApi:
             dict: 包含HL分析结果的响应
         """
         try:
+            # 延迟初始化HL相关组件（如果需要）
+            self._init_hl_components_if_needed()
+            
             # 获取HL模拟结果和投资点位
             hl_data = self._get_hl_analysis_data(stock_id)
             
@@ -285,7 +302,14 @@ class BFFApi:
         )
         
         if not os.path.exists(hl_tmp_path):
-            return {"error": "HL tmp目录不存在"}
+            # 返回空数据，表示没有运行过策略
+            return {
+                "session_id": None,
+                "stock_id": stock_id,
+                "success_investments": [],
+                "fail_investments": [],
+                "reference_points": []
+            }
         
         # 找到最新的模拟会话
         sessions = []
@@ -295,7 +319,15 @@ class BFFApi:
                 sessions.append(item)
         
         if not sessions:
-            return {"error": "未找到模拟会话"}
+            # 返回空数据，表示没有运行过策略
+            return {
+                "session_id": None,
+                "stock_id": stock_id,
+                "success_investments": [],
+                "fail_investments": [],
+                "open_investments": [],
+                "reference_points": []
+            }
         
         # 按日期排序，获取最新会话
         sessions.sort(reverse=True)
@@ -344,5 +376,16 @@ class BFFApi:
                                     investment_data[f"{status}_investments"].append(standardized_data)
                         except Exception as e:
                             logger.warning(f"读取文件失败 {file_path}: {e}")
+        
+        # 如果没有找到数据，返回空数据
+        if not any([investment_data["success_investments"], investment_data["fail_investments"], investment_data["open_investments"]]):
+            return {
+                "session_id": latest_session,
+                "stock_id": stock_id,
+                "success_investments": [],
+                "fail_investments": [],
+                "open_investments": [],
+                "reference_points": []
+            }
         
         return investment_data

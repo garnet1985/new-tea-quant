@@ -2,12 +2,10 @@ import React, { useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
 
 const SimpleChart = () => {
-  alert('SimpleChart组件被渲染');
   
   const chartRef = useRef(null);
 
   useEffect(() => {
-    alert('SimpleChart useEffect 开始');
     
     try {
       // 创建ECharts实例

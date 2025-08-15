@@ -15,38 +15,6 @@ function StockChart() {
   const fetchKlineData = async () => {
     try {
       const data = await fetchStockKline(stockId, 'daily');
-      console.log('获取到的K线数据:', data);
-      
-      // 检查前几条数据
-      if (data.klines && data.klines.length > 0) {
-        console.log('前5条K线数据:');
-        data.klines.slice(0, 5).forEach((kline, index) => {
-          console.log(`第${index + 1}条:`, {
-            date: kline.date,
-            open: kline.open,
-            close: kline.close,
-            highest: kline.highest,
-            lowest: kline.lowest,
-            volume: kline.volume,
-            raw: kline.raw
-          });
-        });
-        
-        // 检查2010年6月8日附近的数据
-        console.log('=== 检查2010年6月8日附近数据 ===');
-        data.klines.forEach((kline, index) => {
-          if (kline.date.includes('20100608') || kline.date.includes('20100609') || kline.date.includes('20100607')) {
-            console.log(`第${index + 1}条 - 日期: ${kline.date}:`, {
-              open: kline.open,
-              close: kline.close,
-              highest: kline.highest,
-              lowest: kline.lowest,
-              raw: kline.raw
-            });
-          }
-        });
-      }
-      
       setKlineData(data);
     } catch (err) {
       setError(`获取K线数据失败: ${err.message}`);
@@ -56,9 +24,12 @@ function StockChart() {
   // 获取HL分析数据
   const fetchHLData = async () => {
     try {
+      console.log('开始获取HL分析数据...');
       const data = await fetchStockHLAnalysis(stockId);
+      console.log('获取到HL分析数据:', data);
       setHlData(data);
     } catch (err) {
+      console.error('获取HL分析数据失败:', err);
       setError(`获取HL分析数据失败: ${err.message}`);
     }
   };
@@ -69,8 +40,14 @@ function StockChart() {
     setError(null);
     
     try {
-      await Promise.all([fetchKlineData(), fetchHLData()]);
+      console.log('开始加载数据...');
+      console.log('获取K线数据...');
+      await fetchKlineData();
+      console.log('获取HL分析数据...');
+      await fetchHLData();
+      console.log('数据加载完成');
     } catch (err) {
+      console.error('数据加载失败:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -94,12 +71,6 @@ function StockChart() {
       parseInt(item.volume) || 0       // 成交量
     ]);
 
-    console.log('=== 前端K线数据处理 ===');
-    console.log('使用复权后的价格，前5条数据:');
-    data.slice(0, 5).forEach((item, index) => {
-      console.log(`第${index + 1}条: [${item[0]}, ${item[1]}, ${item[2]}, ${item[3]}, ${item[4]}]`);
-    });
-
     // 准备日期数据
     const dates = klines.map(item => item.date);
 
@@ -110,69 +81,48 @@ function StockChart() {
     const referencePoints = []; // 历史低点（紫色菱形）
 
     if (hlData) {
+      console.log('处理HL数据:', hlData);
+      
       // 处理成功投资
       hlData.success_investments?.forEach(inv => {
+        console.log('处理成功投资:', inv);
         if (inv.buy_date && inv.buy_price) {
-          buyPoints.push({
-            name: '买入点',
-            coord: [inv.buy_date, inv.buy_price],
-            value: `买入: ${inv.buy_price}`,
-            itemStyle: { color: '#1890ff' }
-          });
+          buyPoints.push([inv.buy_date, inv.buy_price]);
         }
         if (inv.sell_date && inv.sell_price) {
-          sellWinPoints.push({
-            name: '卖出盈利点',
-            coord: [inv.sell_date, inv.sell_price],
-            value: `卖出盈利: ${inv.sell_price}`,
-            itemStyle: { color: '#52c41a' }
-          });
+          sellWinPoints.push([inv.sell_date, inv.sell_price]);
         }
       });
 
       // 处理失败投资
       hlData.fail_investments?.forEach(inv => {
+        console.log('处理失败投资:', inv);
         if (inv.buy_date && inv.buy_price) {
-          buyPoints.push({
-            name: '买入点',
-            coord: [inv.buy_date, inv.buy_price],
-            value: `买入: ${inv.buy_price}`,
-            itemStyle: { color: '#1890ff' }
-          });
+          buyPoints.push([inv.buy_date, inv.buy_price]);
         }
         if (inv.sell_date && inv.sell_price) {
-          sellLossPoints.push({
-            name: '卖出亏损点',
-            coord: [inv.sell_date, inv.sell_price],
-            value: `卖出亏损: ${inv.sell_price}`,
-            itemStyle: { color: '#ff4d4f' }
-          });
+          sellLossPoints.push([inv.sell_date, inv.sell_price]);
         }
       });
 
       // 处理开放投资
       hlData.open_investments?.forEach(inv => {
+        console.log('处理开放投资:', inv);
         if (inv.buy_date && inv.buy_price) {
-          buyPoints.push({
-            name: '买入点',
-            coord: [inv.buy_date, inv.buy_price],
-            value: `买入: ${inv.buy_price}`,
-            itemStyle: { color: '#1890ff' }
-          });
+          buyPoints.push([inv.buy_date, inv.buy_price]);
         }
       });
 
       // 处理参考点位（历史低点）
       [...(hlData.success_investments || []), ...(hlData.fail_investments || []), ...(hlData.open_investments || [])].forEach(inv => {
         if (inv.historic_low_ref?.date && inv.historic_low_ref?.lowest_price) {
-          referencePoints.push({
-            name: '历史低点',
-            coord: [inv.historic_low_ref.date, inv.historic_low_ref.lowest_price],
-            value: `历史低点: ${inv.historic_low_ref.lowest_price}`,
-            itemStyle: { color: '#722ed1', symbol: 'diamond' }
-          });
+          referencePoints.push([inv.historic_low_ref.date, inv.historic_low_ref.lowest_price]);
         }
       });
+      
+      console.log('生成的投资点位:', { buyPoints, sellWinPoints, sellLossPoints, referencePoints });
+    } else {
+      console.log('没有HL数据');
     }
 
     return {
@@ -186,16 +136,28 @@ function StockChart() {
           type: 'cross'
         },
         formatter: function (params) {
-          const data = params[0];
-          if (data.seriesType === 'candlestick') {
-            return `${data.name}<br/>
-                    开盘: ${data.data[0]}<br/>
-                    收盘: ${data.data[1]}<br/>
-                    最低: ${data.data[2]}<br/>
-                    最高: ${data.data[3]}<br/>
-                    成交量: ${data.data[4]}`;
-          }
-          return data.name + '<br/>' + data.value;
+          let result = '';
+          params.forEach(param => {
+            if (param.seriesType === 'candlestick') {
+              result += `${param.name}<br/>
+                        开盘: ${param.data[0]}<br/>
+                        收盘: ${param.data[1]}<br/>
+                        最低: ${param.data[2]}<br/>
+                        最高: ${param.data[3]}<br/>
+                        成交量: ${param.data[4]}<br/>`;
+            } else if (param.seriesType === 'scatter') {
+              if (param.seriesName === '买入点') {
+                result += `${param.seriesName}: ${param.data[1]}<br/>`;
+              } else if (param.seriesName === '卖出盈利') {
+                result += `${param.seriesName}: ${param.data[1]}<br/>`;
+              } else if (param.seriesName === '卖出亏损') {
+                result += `${param.seriesName}: ${param.data[1]}<br/>`;
+              } else if (param.seriesName === '历史低点') {
+                result += `${param.seriesName}: ${param.data[1]}<br/>`;
+              }
+            }
+          });
+          return result;
         }
       },
       legend: {

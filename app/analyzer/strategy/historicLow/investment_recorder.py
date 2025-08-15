@@ -32,19 +32,19 @@ except ImportError:
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息"""
     
-    def __init__(self, tmp_dir: str = "tmp"):
+    def __init__(self, base_dir: str = "tmp"):
         """
         初始化投资记录器
         
         Args:
-            tmp_dir: 临时文件夹路径
+            base_dir: 基础目录路径
         """
-        self.tmp_dir = tmp_dir
+        self.tmp_dir = base_dir
         self.current_session_dir = None
-        self.meta_file = os.path.join(tmp_dir, "meta.json")
+        self.meta_file = os.path.join(base_dir, "meta.json")
         
-        # 确保tmp目录存在
-        os.makedirs(tmp_dir, exist_ok=True)
+        # 确保基础目录存在
+        os.makedirs(base_dir, exist_ok=True)
         
         # 创建新的会话目录
         self._create_new_session()

@@ -5,7 +5,6 @@ from loguru import logger
 import json
 import os
 
-
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.analyzer.analyzer_service import InvestmentResult
@@ -75,7 +74,7 @@ class HLSimulator:
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        stock_idx = stock_idx[0:20]  # 测试前20只股票
+        stock_idx = stock_idx[0:2]  # 测试前2只股票
         # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
         
         # 记录测试股票总数
@@ -168,6 +167,17 @@ class HLSimulator:
         if not data['daily_data']:
             return []
         
+        # 🚀 性能优化：一次性计算历史低点，避免重复计算
+        stock_id = data['stock']['id']
+        print(f"🔍 开始优化模拟 {stock_id}...")
+        
+        # 预处理：一次性计算所有历史低点
+        all_historic_lows = self._precompute_historic_lows(data['daily_data'])
+        print(f"   ✅ 历史低点预计算完成，共找到 {len(all_historic_lows)} 个低点")
+        
+        # 保存所有计算出的低点信息到股票数据中
+        data['stock']['all_historic_lows'] = all_historic_lows
+        
         # 模拟每一天
         for daily_record in data['daily_data']:
             # 使用二分查找获取到当前日期为止的日线数据
@@ -177,13 +187,12 @@ class HLSimulator:
             if not self.service.is_reached_min_required_daily_records(daily_k_lines):
                 continue
             else:
-                self.simulate_one_day_for_one_stock(data['stock'], daily_k_lines)
+                self.simulate_one_day_for_one_stock_optimized(data['stock'], daily_k_lines, all_historic_lows)
 
         # 结算当前股票的未完成投资
         self.settle_open_investments_for_stock(data['stock'], data['daily_data'][-1])
         
         # 保存当前股票的所有投资记录
-        stock_id = data['stock']['id']
         if stock_id in self.stock_investment_records:
             self.save_stock_investment_records(stock_id, data['stock'])
             logger.info(f"💾 股票 {stock_id} 模拟完成，已保存投资记录")
@@ -192,7 +201,7 @@ class HLSimulator:
 
 
     def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> bool:
-        """测试单个股票"""
+        """测试单个股票（旧版本，保留兼容性）"""
         # 1. 先检查现有投资是否需要结算
         record_of_today = daily_k_lines[-1]
         investment = self.service.get_investing(stock, self.test_tracker['investing'])
@@ -206,7 +215,31 @@ class HLSimulator:
             # 2. 没有投资，扫描新机会
             self.find_opportunity(stock, daily_k_lines)
 
+    def simulate_one_day_for_one_stock_optimized(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], 
+                                               all_historic_lows: List[Dict[str, Any]]) -> bool:
+        """
+        🚀 性能优化版本：使用预计算的历史低点
+        
+        Args:
+            stock: 股票信息
+            daily_k_lines: 到当前日期为止的日线数据
+            all_historic_lows: 预计算的历史低点列表
+        """
+        # 1. 先检查现有投资是否需要结算
+        record_of_today = daily_k_lines[-1]
+        investment = self.service.get_investing(stock, self.test_tracker['investing'])
+        if investment:
+            # 检查是否需要结算（止损或止盈）
+            is_settled = self.settle_investment(stock, investment, record_of_today)
+            if is_settled:
+                # 投资已结算，看看今天还有机会不
+                self.find_opportunity_optimized(stock, daily_k_lines, all_historic_lows)
+        else:
+            # 2. 没有投资，扫描新机会
+            self.find_opportunity_optimized(stock, daily_k_lines, all_historic_lows)
+
     def find_opportunity(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> None:
+        """查找投资机会（旧版本，保留兼容性）"""
         # 在simulator中重新划分数据，避免重复读取数据库
         data_split = self.service.split_daily_data_for_analysis(daily_k_lines)
         freeze_data = data_split['freeze_data']
@@ -218,6 +251,41 @@ class HLSimulator:
         # 调用策略扫描机会，使用划分后的数据
         opportunity = self.strategy.scan_single_stock(stock, freeze_data, low_points)
         if opportunity:
+            self.invest(stock, opportunity)
+
+    def find_opportunity_optimized(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], 
+                                 all_historic_lows: List[Dict[str, Any]]) -> None:
+        """
+        🚀 性能优化版本：使用预计算的历史低点
+        
+        Args:
+            stock: 股票信息
+            daily_k_lines: 到当前日期为止的日线数据
+            all_historic_lows: 预计算的历史低点列表
+        """
+        # 在simulator中重新划分数据，避免重复读取数据库
+        data_split = self.service.split_daily_data_for_analysis(daily_k_lines)
+        freeze_data = data_split['freeze_data']
+        
+        # 🚀 关键优化：直接使用预计算的历史低点，不再重复计算
+        # 过滤掉冻结期之后才出现的历史低点
+        current_date = daily_k_lines[-1]['date']
+        valid_low_points = []
+        
+        for low_point in all_historic_lows:
+            low_point_date = low_point['lowest_date']
+            # 只使用在当前日期之前的历史低点
+            if low_point_date < current_date:
+                valid_low_points.append(low_point)
+        
+        # 调用策略扫描机会，使用预计算的历史低点
+        opportunity = self.strategy.scan_single_stock(stock, freeze_data, valid_low_points)
+        if opportunity:
+            # 添加previous_low_points信息到投资记录中
+            if 'previous_low_points' not in opportunity:
+                opportunity['previous_low_points'] = self.service.get_previous_low_points(
+                    opportunity['opportunity_record'], valid_low_points
+                )
             self.invest(stock, opportunity)
 
     def invest(self, stock: Dict[str, Any], opportunity: Dict[str, Any]) -> None:
@@ -295,6 +363,40 @@ class HLSimulator:
         if investment:
             self.settle_result(self.result_enum.OPEN, stock, investment, latest_record)
 
+    def _precompute_historic_lows(self, daily_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        🚀 性能优化：一次性预计算所有历史低点
+        
+        Args:
+            daily_data: 完整的日线数据
+            
+        Returns:
+            List[Dict]: 预计算的历史低点列表
+        """
+        if not daily_data or len(daily_data) < 100:
+            return []
+        
+        # 使用所有数据一次性计算历史低点
+        all_historic_lows = self.service.find_merged_historic_lows(daily_data)
+        
+        # 转换为旧格式以保持兼容性
+        low_points = []
+        for low_point in all_historic_lows:
+            low_points.append({
+                'record': low_point['record'],
+                'period_name': 'merged_historic_low',
+                'trading_days': len(daily_data),
+                'lowest_price': low_point['price'],
+                'lowest_date': low_point['date'],
+                'price_range': low_point.get('price_range', {}),
+                'conclusion_from': low_point.get('conclusion_from', []),
+                'drop_rate': low_point.get('drop_rate', 0),
+                'left_peak': low_point.get('left_peak', 0),
+                'left_peak_date': low_point.get('left_peak_date', '')
+            })
+        
+        return low_points
+
     def settle_all_open_investments(self, latest_date: str) -> None:
         """结算所有未结算的投资（在整个模拟结束后调用）"""
         for stock_code, investment in self.test_tracker['investing'].items():
@@ -345,7 +447,9 @@ class HLSimulator:
                         'date': investment.get('historic_low_ref', {}).get('lowest_date'),
                         'term': investment.get('historic_low_ref', {}).get('period_name'),
                         'lowest_price': self._safe_float(investment.get('historic_low_ref', {}).get('lowest_price'))
-                    }
+                    },
+                    # 添加之前出现的历史低价点信息
+                    'previous_low_points': investment.get('previous_low_points', [])
                 },
                 'settlement_info': {
                     'result': result,
@@ -398,14 +502,30 @@ class HLSimulator:
                     'strategy': 'HistoricLow'
                 },
                 'results': self.stock_investment_records[stock_id],
-                'statistics': self._calculate_stock_statistics(stock_id)
+                'statistics': self._calculate_stock_statistics(stock_id),
+                # 添加所有计算出的历史低点信息
+                'all_historic_lows': stock_info.get('all_historic_lows', [])
             }
             
             # 保存到文件
             if self.investment_recorder and self.investment_recorder.current_session_dir:
                 stock_file_path = os.path.join(self.investment_recorder.current_session_dir, f"{stock_id}.json")
+                
+                # 转换Decimal类型为float，确保JSON序列化成功
+                def convert_decimal(obj):
+                    if hasattr(obj, '__float__'):
+                        return float(obj)
+                    elif isinstance(obj, dict):
+                        return {k: convert_decimal(v) for k, v in obj.items()}
+                    elif isinstance(obj, list):
+                        return [convert_decimal(item) for item in obj]
+                    else:
+                        return obj
+                
+                serializable_data = convert_decimal(stock_data)
+                
                 with open(stock_file_path, 'w', encoding='utf-8') as f:
-                    json.dump(stock_data, f, ensure_ascii=False, indent=2)
+                    json.dump(serializable_data, f, ensure_ascii=False, indent=2)
             else:
                 logger.error(f"❌ investment_recorder 未正确初始化或 current_session_dir 为空")
                 logger.error(f"  investment_recorder: {self.investment_recorder}")
@@ -621,14 +741,7 @@ class HLSimulator:
             results_summary = self.aggregate_results(settled_results)
         
         print("\n" + "="*60)
-        print("📁 投资记录摘要")
-        print("="*60)
-        print(f"📂 会话目录: {file_summary.get('session_dir', 'N/A')}")
-        print(f"📊 总记录数: {file_summary.get('total_investment_count', 0)} 条")
-        print(f"✅ 成功投资: {file_summary.get('success_count', 0)} 条")
-        print(f"❌ 失败投资: {file_summary.get('fail_count', 0)} 条")
-        print(f"⏳ 未完成投资: {file_summary.get('open_count', 0)} 条")
-        print(f"🕐 创建时间: {file_summary.get('created_at', 'N/A')}")
+        print(f"🕐 投资记录摘要创建时间: {file_summary.get('created_at', 'N/A')}")
         print("="*60)
         
         # 显示投资结果统计

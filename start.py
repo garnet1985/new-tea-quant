@@ -38,8 +38,9 @@ class App:
         """更新股票数据"""
         await self.data_source.renew_data()
     
-    def scan_strategies(self):
-        self.analyzer.scan_opportunities()
+    def simulate(self):
+        # 使用run_daily_scan来同时执行扫描和测试
+        self.analyzer.simulate()
         
 
 async def main():
@@ -47,7 +48,7 @@ async def main():
     
     # await app.renew_data()
 
-    app.scan_strategies()
+    app.simulate()
 
 
 if __name__ == "__main__":

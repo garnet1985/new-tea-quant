@@ -7,28 +7,8 @@ import json
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from loguru import logger
-
+from .strategy_settings import invest_settings
 # 导入策略设置
-try:
-    from .strategy_settings import invest_settings
-except ImportError:
-    # 如果相对导入失败，尝试绝对导入
-    try:
-        from app.analyzer.strategy.historicLow.strategy_settings import invest_settings
-    except ImportError:
-        # 如果都失败，使用默认值
-        invest_settings = {
-            "goal": {
-                "win": 1.4,
-                "loss": 0.85,
-                "opportunityRange": 0.1,
-                "kellyCriterionDivider": 5,
-                "invest_reference_day_distance_threshold": 90
-            },
-            "terms": [60, 96],
-            "min_required_monthly_records": 100
-        }
-
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息"""
     
@@ -91,9 +71,7 @@ class InvestmentRecorder:
                 "loss_count": 0
             },
             "strategy_settings": {
-                "goal": invest_settings["goal"],
-                "terms": invest_settings["terms"],
-                "min_required_monthly_records": invest_settings["min_required_monthly_records"]
+                "goal": invest_settings["goal"]
             }
         }
         

@@ -278,3 +278,6 @@ class TushareStorage:
 
     def set_meta_info(self, key, value):
         self.meta_info.set_meta_info(key, value)
+
+    def is_index_empty(self):
+        return self.stock_index_table.count() == 0

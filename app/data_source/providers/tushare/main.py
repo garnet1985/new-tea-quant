@@ -248,10 +248,16 @@ class Tushare:
     def renew_stock_index(self, latest_market_open_day: str = None, is_force=False):
         meta_info_key = 'stock_index_last_update'
 
+        is_index_empty = self.storage.is_index_empty()
+
+        if is_index_empty:
+            is_force = True
+
         if is_force:
             idx_data = self.request_stock_index()
+            logger.info(f"🔍 最新股票指数: {idx_data}")
             self.storage.save_stock_index(idx_data)
-            self.storage.save_meta_info(meta_info_key, latest_market_open_day)
+            self.storage.set_meta_info(meta_info_key, latest_market_open_day)
             return self.service.to_unified_stock_index_format(idx_data)
 
         last_update = self.storage.get_meta_info(meta_info_key)
@@ -276,7 +282,7 @@ class Tushare:
         fields = 'ts_code,name,area,industry,market,exchange,list_date'
         stock_status = 'L'
         data = self.api.stock_basic(exchange='', list_status=stock_status, fields=fields)
-        
+        logger.info(f"🔍 股票指数: {data}")
         # 统一转换为列表格式，保持数据格式一致
         if hasattr(data, 'to_dict'):
             return data.to_dict('records')

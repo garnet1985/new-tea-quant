@@ -48,12 +48,13 @@ class HLSimulator:
         self._init_investment_recorder_if_needed()
         
         stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
+
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
         stock_idx = stock_idx[0:2]  # 测试前2只股票
-        # print(f"🎯 测试股票: {stock_idx[0]['code']} - {stock_idx[0]['name']}")
-        
+
+
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
 
@@ -61,6 +62,7 @@ class HLSimulator:
         single_stock_jobs = self._prepare_single_stock_jobs_by_batch(stock_idx)
 
         results = self.run_jobs(single_stock_jobs)
+
 
         # 结算所有未完成的投资
         self.settle_all_open_investments(None)
@@ -132,21 +134,7 @@ class HLSimulator:
 
             low_points = self.service.find_historic_lows(daily_k_lines)
 
-            self.simulate_single_stock_by_day(data['stock'], daily_k_lines, low_points)
-
-
-    def simulate_single_stock_by_day(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], low_points: List[Dict[str, Any]]) -> None:
-        record_of_today = daily_k_lines[-1]
-        investment = self.service.get_investing(stock, self.tracker['investing'])
-        if investment:
-            # 检查是否需要结算（止损或止盈）
-            is_settled = self.settle_investment(stock, investment, record_of_today)
-            if is_settled:
-                # 投资已结算，看看今天还有机会不
-                self.find_opportunity(stock, daily_k_lines)
-        else:
-            self.find_opportunity(stock, daily_k_lines)
-
+            self.simulate_one_day_for_one_stock(data['stock'], daily_k_lines, low_points)
 
 
     def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> bool:

@@ -1,3 +1,4 @@
+from loguru import logger
 from app.data_source.providers.tushare.main import Tushare
 from app.data_source.providers.akshare.main import AKShare
 from app.data_source.providers.akshare.main_storage import AKShareStorage
@@ -34,12 +35,9 @@ class DataSourceManager:
         # 然后更新股票指数
         self.latest_stock_index = tu.renew_stock_index(self.latest_market_open_day)
 
-        # 限制测试数量，避免长时间运行
-        # self.latest_stock_index = self.latest_stock_index[:3]
+        # await tu.renew_stock_k_lines(self.latest_market_open_day, self.latest_stock_index)
         
-        await tu.renew_stock_k_lines(self.latest_market_open_day, self.latest_stock_index)
-        
-        ak.inject_dependency(tu).renew_stock_k_line_factors(self.latest_market_open_day, self.latest_stock_index)
+        # ak.inject_dependency(tu).renew_stock_k_line_factors(self.latest_market_open_day, self.latest_stock_index)
 
         # below are not implemented yet
         # tu.renew_global_economic_data()

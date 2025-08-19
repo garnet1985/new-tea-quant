@@ -24,16 +24,9 @@ class Analyzer:
         """
         self.db = connected_db
         self.is_verbose = is_verbose
-        
-        # 注册的策略类
-        # self._registered_strategies: Dict[str, Any] = {}
-        
-        # # 实例化的策略对象
-        # self._strategy_instances: Dict[str, BaseStrategy] = {}
 
         # grab all existing strategies no matter if they are enabled or not
         self._strategies = []
-
         # cache all enabled strategy instances
         self.ins = {}
         
@@ -145,10 +138,6 @@ class Analyzer:
                         schema=schema_path,
                         model_class=type(table_model)
                     )
-                    
-                    if self.is_verbose:
-                        logger.info(f"📋 注册表: {prefix}_{table_name}")
-                        
         except Exception as e:
             logger.error(f"注册策略表失败: {e}")
     

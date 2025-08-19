@@ -52,6 +52,11 @@ export async function fetchStockHLAnalysis(stockId) {
   return apiRequest(`/api/stock/hl-analysis/${stockId}`);
 }
 
+// 获取股票所有计算出的历史低点
+export async function fetchStockAllHistoricLows(stockId) {
+  return apiRequest(`/api/stock/all-historic-lows/${stockId}`);
+}
+
 // 健康检查
 export async function healthCheck() {
   return apiRequest('/api/health');

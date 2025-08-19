@@ -41,3 +41,8 @@ def get_stock_simulate(strategy, stock_id):
 def get_stock_hl_analysis(stock_id):
     """获取股票HL策略分析结果"""
     return get_bff_api().get_stock_hl_analysis(stock_id)
+
+@api_bp.route('/stock/all-historic-lows/<stock_id>', methods=['GET'])
+def get_stock_all_historic_lows(stock_id):
+    """获取股票所有计算出的历史低点"""
+    return get_bff_api().get_stock_all_historic_lows(stock_id)

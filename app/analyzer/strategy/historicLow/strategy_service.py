@@ -1,6 +1,6 @@
 import pprint
 import math
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 from loguru import logger
 from .strategy_settings import invest_settings
@@ -661,7 +661,7 @@ class HistoricLowService:
         else:
             return "较差"
 
-    def split_daily_data_for_analysis(self, daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def split_daily_data_for_analysis(self, daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         分割日线数据为冻结期和历史期
         
@@ -674,20 +674,11 @@ class HistoricLowService:
         # 获取配置参数
         freeze_days = invest_settings['daily_data_requirements']['freeze_period_days']
         
-        # 按日期排序（从早到晚）
-        sorted_data = sorted(daily_data, key=lambda x: x['date'])
-        
         # 分割数据
-        freeze_data = sorted_data[-freeze_days:]  # 最近200个交易日（冻结期）
-        history_data = sorted_data[:-freeze_days]  # 之前的数据（历史期）
-        
-        return {
-            'freeze_data': freeze_data,
-            'history_data': history_data,
-            'total_records': len(daily_data),
-            'freeze_records': len(freeze_data),
-            'history_records': len(history_data)
-        }
+        freeze_records = daily_data[-freeze_days:]  # 最近200个交易日（冻结期）
+        history_records = daily_data[:-freeze_days]  # 之前的数据（历史期）
+
+        return freeze_records, history_records
 
     def find_historic_lows(self, history_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

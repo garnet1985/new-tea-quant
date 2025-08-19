@@ -34,15 +34,15 @@ class HistoricLowStrategy(BaseStrategy):
             is_verbose: 是否显示详细日志
         """
         
-        description = "寻找股票的历史低点，识别可能的买入机会"
+        description = "从股票的历史价格的低点中寻找历史最低点和历史中波谷多次触及的低点，识别可能的买入机会"
         name = "Historic Low"
-        prefix = "HL"
+        abbreviation = "HL"
 
         super().__init__(
             db=db,
             is_verbose=is_verbose,
             name=name,
-            prefix=prefix,
+            abbreviation=abbreviation,
             description=description
         )
 
@@ -60,7 +60,7 @@ class HistoricLowStrategy(BaseStrategy):
 
         self._initialize_tables()
         pass
-    
+
     def _initialize_tables(self):
         """初始化策略所需的表模型"""
         
@@ -74,14 +74,6 @@ class HistoricLowStrategy(BaseStrategy):
         }
     
     def scan(self) -> List[Dict[str, Any]]:
-
-
-        # if self.service.should_test():
-        if True:
-            self.test()
-
-        return []
-
         """
         扫描投资机会
         
@@ -92,8 +84,14 @@ class HistoricLowStrategy(BaseStrategy):
         # 获取股票列表
         stock_idx = self.required_tables["stock_index"].get_stock_index()
         
-        # TODO: remove below line
-        stock_idx = stock_idx[1195:1197]
+        # 测试阶段：只扫描000001和000002
+        test_stocks = []
+        for stock in stock_idx:
+            if stock['id'] in ['000001.SZ', '000002.SZ']:
+                test_stocks.append(stock)
+        
+        stock_idx = test_stocks
+        print(f'🧪 测试模式：只扫描 {len(stock_idx)} 只股票: {[s["id"] for s in stock_idx]}')
 
         if not stock_idx:
             return []
@@ -102,16 +100,6 @@ class HistoricLowStrategy(BaseStrategy):
         opportunities = self._scan_stocks_with_worker(stock_idx)
         logger.info(f"🔍 扫描完成，共扫描 {len(stock_idx)} 只股票，发现 {len(opportunities)} 个投资机会")
 
-        print(opportunities)
-
-        # # print(opportunities)
-
-        # self.report(opportunities)
-        
-        # # 保存扫描结果
-        # if opportunities:
-        #     self._save_meta(opportunities)
-        
         return opportunities
     
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
@@ -122,6 +110,9 @@ class HistoricLowStrategy(BaseStrategy):
             opportunities: 投资机会列表
         """
         self._present_report(opportunities)
+
+    def simulate(self) -> None:
+        self.simulator.test_strategy()
 
     
     def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -165,10 +156,10 @@ class HistoricLowStrategy(BaseStrategy):
     
     def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 准备数据
-        
         # 先检查日线记录数是否满足要求
         daily_k_lines_count = self.required_tables["stock_kline"].count("id = %s AND term = %s", (stock['id'], 'daily'))
         min_required_daily_records = invest_settings['daily_data_requirements']['min_required_daily_records']
+        
         if daily_k_lines_count < min_required_daily_records:
             return []
         
@@ -200,7 +191,7 @@ class HistoricLowStrategy(BaseStrategy):
 
     def scan_single_stock(self, stock: Dict[str, Any], freeze_data: List[Dict[str, Any]], low_points: List[Dict[str, Any]]) -> Dict[str, Any]:
         """寻找投资机会"""
-
+        
         # 1. 趋势过滤：检查股票趋势是否适合投资
         if self.service.is_trend_too_steep(freeze_data):
             return None
@@ -222,6 +213,12 @@ class HistoricLowStrategy(BaseStrategy):
             if (self.service.is_in_invest_range(record_of_today, low_point) and 
                 not self.service.has_lower_point_in_latest_daily_records(low_point, freeze_data)):
                 # 找到匹配的历史低点，创建投资机会
+                # 使用新的动态止损止盈逻辑
+                investment_targets = self.service.calculate_investment_targets(record_of_today, low_point)
+                
+                # 获取之前出现的历史低价点
+                previous_low_points = self.service.get_previous_low_points(record_of_today, low_points)
+                
                 opportunity = {
                     'stock': {
                         'code': stock['id'],
@@ -230,11 +227,13 @@ class HistoricLowStrategy(BaseStrategy):
                     },
                     'opportunity_record': record_of_today,
                     'goal': {
-                        'loss': self.service.set_loss(record_of_today),
-                        'win': self.service.set_win(record_of_today),
+                        'loss': investment_targets['stop_loss_price'],
+                        'win': investment_targets['take_profit_price'],
                         'purchase': record_of_today['close']
                     },
-                    'historic_low_ref': low_point
+                    'historic_low_ref': low_point,
+                    'investment_targets': investment_targets,  # 保存完整的投资目标信息
+                    'previous_low_points': previous_low_points  # 添加之前出现的低价点
                 }
                 return opportunity
         
@@ -256,14 +255,17 @@ class HistoricLowStrategy(BaseStrategy):
         print("=" * 50)
         
         for i, opp in enumerate(opportunities, 1):
-            print(f"\n{i}. {opp['code']} - {opp['name']}")
-            print(f"   当前价格: {opp['close']:.2f}")
-            print(f"   历史低点: {opp['low_price']:.2f}")
-            print(f"   投资范围: {opp['opportunity_range']}")
-            print(f"   止损价格: {opp['loss']:.2f}")
-            print(f"   止盈价格: {opp['win']:.2f}")
-            print(f"   扫描周期: {', '.join(opp['scan_terms'])}")
-            print(f"   扫描日期: {opp['date']}")
+            stock_info = opp['stock']
+            opportunity_record = opp['opportunity_record']
+            goal = opp['goal']
+            historic_low = opp['historic_low_ref']
+            
+            print(f"\n{i}. {stock_info['code']} - {stock_info['name']}")
+            print(f"   当前价格: {opportunity_record['close']:.2f}")
+            print(f"   历史低点: {historic_low['lowest_price']:.2f}")
+            print(f"   止损价格: {goal['loss']:.2f}")
+            print(f"   止盈价格: {goal['win']:.2f}")
+            print(f"   扫描日期: {opportunity_record['date']}")
     
     def _save_meta(self, opportunities: List[Dict[str, Any]]) -> None:
         """保存扫描结果到元数据表"""
@@ -271,7 +273,7 @@ class HistoricLowStrategy(BaseStrategy):
         meta_data = {
             'date': datetime.now().strftime('%Y%m%d'),
             'lastOpportunityUpdateTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'lastSuggestedStockCodes': [opp['code'] for opp in opportunities]
+            'lastSuggestedStockCodes': [opp['stock']['code'] for opp in opportunities]
         }
         
         # 使用元数据表模型保存
@@ -281,10 +283,3 @@ class HistoricLowStrategy(BaseStrategy):
             last_opportunity_update_time=meta_data['lastOpportunityUpdateTime'],
             last_suggested_stock_codes=meta_data['lastSuggestedStockCodes']
         )
-
-
-    def test(self) -> None:
-        self.simulator.test_strategy()
-        # permission = input("是模拟策略? y:模拟 其他:不模拟")
-        # if permission.lower() == 'y':
-        #     self.simulator.test_strategy()

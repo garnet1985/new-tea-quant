@@ -11,7 +11,7 @@ from utils.db.db_manager import DatabaseManager
 class BaseStrategy(ABC):
     """策略基类 - 所有策略必须继承此类"""
     
-    def __init__(self, db: DatabaseManager, is_verbose: bool = False, name: str = None, description: str = None, prefix: str = None):
+    def __init__(self, db: DatabaseManager, is_verbose: bool = False, name: str = None, description: str = None, abbreviation: str = None):
         """
         初始化策略基类
         
@@ -26,7 +26,7 @@ class BaseStrategy(ABC):
 
         self.name = name
         self.description = description
-        self.prefix = prefix
+        self.abbreviation = abbreviation
         
         # 策略所需的表模型
         self.required_tables: Dict[str, Any] = {}
@@ -44,8 +44,8 @@ class BaseStrategy(ABC):
         if self.name is None:
             raise ValueError("strategy require a name.")
 
-        if self.prefix is None:
-            raise ValueError("strategy require a prefix.")
+        if self.abbreviation is None:
+            raise ValueError("strategy require a abbreviation. abbreviation is used to identify the strategy, it should be unique and machine readable.")
 
         if self.is_verbose:
             logger.info(f"🔧 初始化策略: {self.name}")
@@ -53,6 +53,9 @@ class BaseStrategy(ABC):
     def initialize(self):
         pass
     
+    def get_abbr(self) -> str:
+        """获取策略的缩写"""
+        return self.abbreviation
 
     @abstractmethod
     def scan(self) -> List[Dict[str, Any]]:
@@ -75,8 +78,8 @@ class BaseStrategy(ABC):
         pass
     
     @abstractmethod
-    def test(self) -> None:
+    def simulate(self) -> None:
         """
-        测试策略 - 使用历史数据模拟策略 - 抽象方法，子类必须实现
+        模拟策略 - 使用历史数据模拟策略 - 抽象方法，子类必须实现
         """
         pass

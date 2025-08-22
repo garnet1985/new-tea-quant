@@ -246,43 +246,36 @@ class Tushare:
 
 
     def renew_stock_index(self, latest_market_open_day: str = None, is_force=False):
-        meta_info_key = 'stock_index_last_update'
+
+        should_renew = False
 
         is_index_empty = self.storage.is_index_empty()
 
         if is_index_empty:
             is_force = True
 
-        if is_force:
-            idx_data = self.request_stock_index()
-            logger.info(f"🔍 最新股票指数: {idx_data}")
-            self.storage.save_stock_index(idx_data)
-            self.storage.set_meta_info(meta_info_key, latest_market_open_day)
-            return self.service.to_unified_stock_index_format(idx_data)
+        last_renew_time = self.storage.get_meta_info('stock_index_last_update')
 
-        last_update = self.storage.get_meta_info(meta_info_key)
+        should_renew = is_force or last_renew_time is None or last_renew_time < latest_market_open_day
 
-        if last_update is None:
-            idx_data = self.request_stock_index()
-            self.storage.save_stock_index(idx_data)
-            self.storage.set_meta_info(meta_info_key, latest_market_open_day)
-            return self.service.to_unified_stock_index_format(idx_data)
-        else:
-            if last_update < latest_market_open_day:
-                idx_data = self.request_stock_index()
-                self.storage.save_stock_index(idx_data)
-                self.storage.set_meta_info(meta_info_key, latest_market_open_day)
-                return self.service.to_unified_stock_index_format(idx_data)
+        if should_renew:
+            new_idx_data = self.request_stock_index()
+            if new_idx_data is not None:
+                self.storage.save_stock_index(new_idx_data, clear_table_first=True)
+                self.storage.set_meta_info('stock_index_last_update', latest_market_open_day)
+                return self.service.to_unified_stock_index_format(new_idx_data)
             else:
-                logger.info('stock index is up to date, no need to renew')
-                idx_data = self.storage.load_stock_index()  
-                return self.service.to_unified_stock_index_format(idx_data)
+                logger.info("❌ 股票列表返回结果为空, 检查tushare API是否正常")
+                return None
+        else:
+            logger.info(f"🔍 股票目录已经是最新，直接使用数据库数据:  {latest_market_open_day}")
+            return self.storage.load_stock_index()
+
 
     def request_stock_index(self):
         fields = 'ts_code,name,area,industry,market,exchange,list_date'
         stock_status = 'L'
         data = self.api.stock_basic(exchange='', list_status=stock_status, fields=fields)
-        logger.info(f"🔍 股票指数: {data}")
         # 统一转换为列表格式，保持数据格式一致
         if hasattr(data, 'to_dict'):
             return data.to_dict('records')

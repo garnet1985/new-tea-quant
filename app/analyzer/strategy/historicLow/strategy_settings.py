@@ -4,7 +4,7 @@
 # 策略启用状态
 enabled = True
 
-invest_settings = {
+strategy_settings = {
     "goal": {
         "win": 1.4,  # 40% profit
         "loss": 0.8,  # 20% loss

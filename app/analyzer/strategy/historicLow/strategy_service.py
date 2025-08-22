@@ -12,8 +12,6 @@ class HistoricLowService:
     def __init__(self):
         pass
 
-
-
     def is_in_invest_range(self, record, low_point):
         """
         检查是否在投资范围内（基于低点价格区间），并防止买在顶上

@@ -8,7 +8,6 @@ import os
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.analyzer.analyzer_service import InvestmentResult
-from app.analyzer.strategy.historicLow.strategy_settings import invest_settings
 
 from app.data_source.data_source_service import DataSourceService
 from utils.worker.futures_worker import FuturesWorker
@@ -17,73 +16,52 @@ from app.analyzer.strategy.historicLow.investment_recorder import InvestmentReco
 class HLSimulator:
     def __init__(self, strategy):
 
+        # import strategy
         self.strategy = strategy
 
+        # init tracker
+        self.invest_recorder = InvestmentRecorder()
         self.tracker = {
             'investing': {},
-            'settled': {}
+            'settled': {},
+            'all_invests': {}
         }
-        # 添加线程锁来保护共享数据
+
         self.tracker_lock = threading.Lock()
-
-        self.settings = invest_settings
-
-        self.result_enum = InvestmentResult
-
-        self.common = AnalyzerService()
-        self.service = HistoricLowService()
+        # 添加线程锁来保护共享数据
         
-        # 延迟初始化投资记录器，避免在__init__时自动创建tmp目录
-        self.investment_recorder = None
-        self._investment_recorder_initialized = False
-        
-        # 添加投资记录收集器
-        self.stock_investment_records = {}  # 存储每只股票的投资记录
-
 
 
     def test_strategy(self) -> bool:
-        logger.info("🎯 开始测试HistoricLow策略...")
-        
-        # 延迟初始化投资记录器
-        self._init_investment_recorder_if_needed()
-        
         stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
-        stock_idx = stock_idx[0:2]  # 测试前2只股票
+        stock_idx = stock_idx[0:1]  # 测试前1只股票
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
-        logger.info(f"📊 准备测试 {self.total_stocks_tested} 只股票")
 
         # 批量预加载数据以提高性能
         single_stock_jobs = self._prepare_single_stock_jobs_by_batch(stock_idx)
-        logger.info(f"📋 准备了 {len(single_stock_jobs)} 个模拟任务")
 
-        logger.info("🔄 开始执行模拟任务...")
         results = self.run_jobs(single_stock_jobs)
-        logger.info(f"✅ 模拟任务执行完成，获得 {len(results)} 个结果")
 
-        logger.info("💰 开始结算未完成的投资...")
         # 结算所有未完成的投资
         self.settle_all_open_investments(None)
-        logger.info("✅ 投资结算完成")
 
-        logger.info("📊 开始打印聚合结果...")
+        # 使用新的investment_recorder创建会话汇总
+        session_summary = self.invest_recorder.to_session(stock_idx)
+        
         # 打印聚合结果
         self.print_aggregated_results(results)
         
-        logger.info("📝 开始打印投资记录摘要...")
         # 打印投资记录摘要
         self._print_investment_summary()
         
-        logger.info("🎉 HistoricLow策略测试完成！")
         return True
 
     def run_jobs(self, single_stock_jobs: List[Dict[str, Any]]) -> None:
-        logger.info(f"🚀 开始执行 {len(single_stock_jobs)} 个股票模拟任务")
         
         worker = FuturesWorker(
             max_workers=invest_settings['simulate']['max_workers'],  # 减少并发数，避免线程竞争
@@ -94,12 +72,9 @@ class HLSimulator:
 
         worker.add_jobs(single_stock_jobs)
 
-        logger.info("📊 启动FuturesWorker执行任务...")
         worker.run_jobs()
-        logger.info("✅ FuturesWorker任务执行完成")
 
         results = worker.get_results()
-        logger.info(f"📋 获取到 {len(results)} 个任务结果")
         
         return results
 
@@ -147,6 +122,11 @@ class HLSimulator:
             daily_k_lines = self.service.get_k_lines_before_date(daily_record['date'], data['daily_data'])
 
             self.simulate_one_day_for_one_stock(data['stock'], daily_k_lines)
+        
+        # 模拟完成后，记录该股票的投资历史
+        self._record_stock_investments(data['stock'])
+        
+        return []
 
 
     def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> bool:
@@ -189,7 +169,6 @@ class HLSimulator:
         # 检查是否已经在投资
         with self.tracker_lock:
             if stock['id'] in self.tracker['investing']:
-                logger.warning(f"⚠️ 股票 {stock['id']} 已经在投资中，跳过重复投资")
                 return
             
             # 添加投资开始日期（投资当天的日期）
@@ -197,7 +176,6 @@ class HLSimulator:
             opportunity['previous_low_points'] = low_points
             
             self.tracker['investing'][stock['id']] = opportunity
-            logger.info(f"💰 开始投资 {stock['id']} {stock['name']}，投资日期: {opportunity['invest_start_date']}")
 
 
     def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any]) -> bool:
@@ -205,7 +183,6 @@ class HLSimulator:
         # 检查投资是否已经被结算过
         investment_id = f"{stock['id']}_{investment['invest_start_date']}"
         if investment_id in self.tracker['settled']:
-            logger.warning(f"⚠️ 投资 {investment_id} 已经被结算过，跳过重复结算")
             return False
         
         # 转换数据类型，确保计算一致性
@@ -214,13 +191,11 @@ class HLSimulator:
         win_price = investment['goal']['win']
         
         if current_close >= win_price:
-            logger.info(f"✅ {stock['id']} {stock['name']} 投资成功")
             
             self.settle_result(self.result_enum.WIN, stock, investment, latest_record)
             self._record_investment_settlement(stock, investment, 'win', current_close, latest_record['date'])
             return True
         if current_close <= loss_price:
-            logger.info(f"❌ {stock['id']} {stock['name']} 投资失败")
             
             self.settle_result(self.result_enum.LOSS, stock, investment, latest_record)
             self._record_investment_settlement(stock, investment, 'loss', current_close, latest_record['date'])
@@ -236,7 +211,6 @@ class HLSimulator:
         with self.tracker_lock:
             # 双重检查，确保在锁内再次验证
             if investment_id in self.tracker['settled']:
-                logger.warning(f"⚠️ 投资 {investment_id} 已经在 settle_result 中被结算过，跳过重复结算")
                 return
             
             invest_duration_days = self.common.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
@@ -314,7 +288,6 @@ class HLSimulator:
                 # 检查投资是否已经被结算过
                 investment_id = f"{stock_code}_{investment['invest_start_date']}"
                 if investment_id in self.tracker['settled']:
-                    logger.warning(f"⚠️ 投资 {investment_id} 在 settle_all_open_investments 中已经被结算过，跳过")
                     continue
                 
                 # 使用投资开始日期作为结算日期，或者使用传入的最新日期
@@ -333,39 +306,36 @@ class HLSimulator:
         start_date = investment.get('invest_start_date')
         duration_days = None
         if start_date and exit_date:
-            try:
-                start_dt = datetime.strptime(start_date, "%Y%m%d")
-                exit_dt = datetime.strptime(exit_date, "%Y%m%d")
-                duration_days = (exit_dt - start_dt).days
-            except ValueError:
-                logger.warning(f"⚠️ 日期格式错误，无法计算持续天数: start_date={start_date}, exit_date={exit_date}")
+            start_dt = datetime.strptime(start_date, "%Y%m%d")
+            exit_dt = datetime.strptime(exit_date, "%Y%m%d")
+            duration_days = (exit_dt - start_dt).days
         
-        # 准备投资记录
-        investment_record = {
-            'investment_info': {
-                'start_date': start_date,
-                'purchase_price': self._safe_float(investment.get('goal', {}).get('purchase')),
-                'target_win': self._safe_float(investment.get('goal', {}).get('win')),
-                'target_loss': self._safe_float(investment.get('goal', {}).get('loss')),
-                'selected_low_point': {
-                    'date': investment.get('historic_low_ref', {}).get('lowest_date'),
-                    'term': investment.get('historic_low_ref', {}).get('period_name'),
-                    'lowest_price': self._safe_float(investment.get('historic_low_ref', {}).get('lowest_price'))
+            # 准备投资记录
+            investment_record = {
+                'investment_info': {
+                    'start_date': start_date,
+                    'purchase_price': self._safe_float(investment.get('goal', {}).get('purchase')),
+                    'target_win': self._safe_float(investment.get('goal', {}).get('win')),
+                    'target_loss': self._safe_float(investment.get('goal', {}).get('loss')),
+                    'selected_low_point': {
+                        'date': investment.get('historic_low_ref', {}).get('lowest_date'),
+                        'term': investment.get('historic_low_ref', {}).get('period_name'),
+                        'lowest_price': self._safe_float(investment.get('historic_low_ref', {}).get('lowest_price'))
+                    },
+                    # 添加之前出现的历史低价点信息
+                    'all_historic_lows': investment.get('previous_low_points', [])
                 },
-                # 添加之前出现的历史低价点信息
-                'all_historic_lows': investment.get('previous_low_points', [])
-            },
-            'settlement_info': {
-                'result': result,
-                'exit_price': self._safe_float(exit_price) if exit_price else None,
-                'exit_date': exit_date,
-                'duration_days': duration_days,
-                'profit_loss': (self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) if exit_price else None,
-                'profit_loss_rate': ((self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if exit_price and self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
-                'settled_at': datetime.now().isoformat()
-            },
-            'status': result
-        }
+                'settlement_info': {
+                    'result': result,
+                    'exit_price': self._safe_float(exit_price) if exit_price else None,
+                    'exit_date': exit_date,
+                    'duration_days': duration_days,
+                    'profit_loss': (self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) if exit_price else None,
+                    'profit_loss_rate': ((self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if exit_price and self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
+                    'settled_at': datetime.now().isoformat()
+                },
+                'status': result
+            }
         
         stock_id = stock['id']
         # 收集到内存中
@@ -384,7 +354,6 @@ class HLSimulator:
             stock_info: 股票基本信息
         """
         if stock_id not in self.stock_investment_records:
-            logger.warning(f"股票 {stock_id} 没有投资记录")
             return
         
         try:
@@ -431,13 +400,11 @@ class HLSimulator:
                 with open(stock_file_path, 'w', encoding='utf-8') as f:
                     json.dump(serializable_data, f, ensure_ascii=False, indent=2)
             else:
-                logger.error(f"❌ investment_recorder 未正确初始化或 current_session_dir 为空")
                 logger.error(f"  investment_recorder: {self.investment_recorder}")
                 if self.investment_recorder:
                     logger.error(f"  current_session_dir: {self.investment_recorder.current_session_dir}")
             
         except Exception as e:
-            logger.error(f"❌ 保存股票投资记录失败 {stock_id}: {e}")
             logger.error(f"  错误详情: {str(e)}")
             import traceback
             logger.error(f"  堆栈跟踪: {traceback.format_exc()}")
@@ -499,11 +466,6 @@ class HLSimulator:
         """
         if results is None:
             results = []
-        
-        # 调试信息：查看实际数据结构（简化版）
-        print(f"\n🔍 调试信息:")
-        print(f"   settled 数据: {len(self.tracker['settled'])} 条")
-        print(f"   investing 数据: {len(self.tracker['investing'])} 条")
         
         # 统计变量 - 参照Node.js的aggregator结构
         aggregator = {
@@ -752,3 +714,41 @@ class HLSimulator:
             strategy_tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
             self.investment_recorder = InvestmentRecorder(base_dir=strategy_tmp_dir)
             self._investment_recorder_initialized = True
+
+    def _record_stock_investments(self, stock: Dict[str, Any]):
+        """记录单只股票的投资历史"""
+        stock_id = stock['id']
+        
+        # 收集该股票的所有投资记录
+        investment_history = []
+        
+        # 从settled中收集已结算的投资
+        for investment_id, investment_data in self.tracker['settled'].items():
+            if investment_id.startswith(f"{stock_id}_"):
+                # 构建投资记录
+                investment_record = {
+                    'status': investment_data['result']['result'],
+                    'settlement_info': {
+                        'profit_loss': investment_data['result']['profit'],
+                        'duration_days': investment_data['result']['invest_duration_days'],
+                        'exit_date': investment_data['result']['end_date']
+                    }
+                }
+                investment_history.append(investment_record)
+        
+        # 从investing中收集未结算的投资
+        if stock_id in self.tracker['investing']:
+            investment = self.tracker['investing'][stock_id]
+            investment_record = {
+                'status': 'open',
+                'settlement_info': {
+                    'profit_loss': 0,
+                    'duration_days': 0,
+                    'exit_date': investment['invest_start_date']
+                }
+            }
+            investment_history.append(investment_record)
+        
+        # 如果有投资记录，调用investment_recorder记录
+        if investment_history:
+            self.invest_recorder.to_record(stock, investment_history)

@@ -14,8 +14,7 @@ from .tables.opportunity_history.model import HLOpportunityHistoryModel
 from .tables.strategy_summary.model import HLStrategySummaryModel
 from ...libs.base_strategy import BaseStrategy
 from .strategy_service import HistoricLowService
-from .strategy_settings import invest_settings
-from ...analyzer_service import AnalyzerService
+from .strategy_settings import strategy_settings
 from .strategy_simulator import HLSimulator
 from app.data_source.data_source_service import DataSourceService
 
@@ -48,10 +47,12 @@ class HistoricLowStrategy(BaseStrategy):
 
         
         # 加载策略设置
-        self.settings = invest_settings
+        self.strategy_settings = strategy_settings
 
-        self.common = AnalyzerService()
+        # init service
         self.service = HistoricLowService()
+
+        # init simulator
         self.simulator = HLSimulator(self)
 
 
@@ -72,6 +73,12 @@ class HistoricLowStrategy(BaseStrategy):
             "opportunity_history": HLOpportunityHistoryModel(self.db),
             "strategy_summary": HLStrategySummaryModel(self.db)
         }
+
+    def get_service(self):
+        return self.service
+
+    def get_settings(self):
+        return self.strategy_settings
     
     def scan(self) -> List[Dict[str, Any]]:
         """
@@ -158,7 +165,7 @@ class HistoricLowStrategy(BaseStrategy):
         # 准备数据
         # 先检查日线记录数是否满足要求
         daily_k_lines_count = self.required_tables["stock_kline"].count("id = %s AND term = %s", (stock['id'], 'daily'))
-        min_required_daily_records = invest_settings['daily_data_requirements']['min_required_daily_records']
+        min_required_daily_records = self.strategy_settings['daily_data_requirements']['min_required_daily_records']
         
         if daily_k_lines_count < min_required_daily_records:
             return []

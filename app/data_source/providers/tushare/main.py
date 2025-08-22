@@ -261,7 +261,7 @@ class Tushare:
         if should_renew:
             new_idx_data = self.request_stock_index()
             if new_idx_data is not None:
-                self.storage.save_stock_index(new_idx_data, clear_table_first=True)
+                self.storage.save_stock_index(new_idx_data)
                 self.storage.set_meta_info('stock_index_last_update', latest_market_open_day)
                 return self.service.to_unified_stock_index_format(new_idx_data)
             else:

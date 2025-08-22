@@ -13,8 +13,13 @@ class TushareStorage:
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
     def save_stock_index(self, data):
-        self.stock_index_table.clear_table()
-
+        """
+        保存股票指数数据到数据库
+        
+        Args:
+            data: 股票指数数据
+            clear_table_first: 是否在插入前清空表，默认为True
+        """
         # 将 pandas DataFrame 转换为字典列表
         if hasattr(data, 'to_dict'):
             # 如果是 pandas DataFrame
@@ -44,7 +49,11 @@ class TushareStorage:
                 'lastUpdate': datetime.now().strftime('%Y-%m-%d')  # 当前日期
             }
             converted_data.append(converted_item)
+
+        if len(converted_data) == 0:
+            return
         
+        self.stock_index_table.clear_table()
         self.stock_index_table.insert(converted_data)
 
     def load_stock_index(self):

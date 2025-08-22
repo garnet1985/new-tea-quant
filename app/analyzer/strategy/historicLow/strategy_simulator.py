@@ -43,39 +43,48 @@ class HLSimulator:
 
 
     def test_strategy(self) -> bool:
+        logger.info("🎯 开始测试HistoricLow策略...")
+        
         # 延迟初始化投资记录器
-
         self._init_investment_recorder_if_needed()
         
         stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
-
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line
         stock_idx = stock_idx[0:2]  # 测试前2只股票
 
-
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
+        logger.info(f"📊 准备测试 {self.total_stocks_tested} 只股票")
 
         # 批量预加载数据以提高性能
         single_stock_jobs = self._prepare_single_stock_jobs_by_batch(stock_idx)
+        logger.info(f"📋 准备了 {len(single_stock_jobs)} 个模拟任务")
 
+        logger.info("🔄 开始执行模拟任务...")
         results = self.run_jobs(single_stock_jobs)
+        logger.info(f"✅ 模拟任务执行完成，获得 {len(results)} 个结果")
 
-
+        logger.info("💰 开始结算未完成的投资...")
         # 结算所有未完成的投资
         self.settle_all_open_investments(None)
+        logger.info("✅ 投资结算完成")
 
+        logger.info("📊 开始打印聚合结果...")
         # 打印聚合结果
         self.print_aggregated_results(results)
         
+        logger.info("📝 开始打印投资记录摘要...")
         # 打印投资记录摘要
         self._print_investment_summary()
         
+        logger.info("🎉 HistoricLow策略测试完成！")
         return True
 
     def run_jobs(self, single_stock_jobs: List[Dict[str, Any]]) -> None:
+        logger.info(f"🚀 开始执行 {len(single_stock_jobs)} 个股票模拟任务")
+        
         worker = FuturesWorker(
             max_workers=invest_settings['simulate']['max_workers'],  # 减少并发数，避免线程竞争
             enable_monitoring=invest_settings['simulate']['enable_monitoring']
@@ -85,9 +94,14 @@ class HLSimulator:
 
         worker.add_jobs(single_stock_jobs)
 
+        logger.info("📊 启动FuturesWorker执行任务...")
         worker.run_jobs()
+        logger.info("✅ FuturesWorker任务执行完成")
 
-        return worker.get_results()
+        results = worker.get_results()
+        logger.info(f"📋 获取到 {len(results)} 个任务结果")
+        
+        return results
 
 
     def _prepare_single_stock_jobs_by_batch(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -132,9 +146,7 @@ class HLSimulator:
 
             daily_k_lines = self.service.get_k_lines_before_date(daily_record['date'], data['daily_data'])
 
-            low_points = self.service.find_historic_lows(daily_k_lines)
-
-            self.simulate_one_day_for_one_stock(data['stock'], daily_k_lines, low_points)
+            self.simulate_one_day_for_one_stock(data['stock'], daily_k_lines)
 
 
     def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> bool:
@@ -149,11 +161,15 @@ class HLSimulator:
                 # 投资已结算，看看今天还有机会不
                 opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
         else:
-            # 2. 没有投资，扫描新机会
+            # 没有投资，扫描新机会
             opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
 
-        if opportunity:
+        # 只有在没有投资且找到机会时才投资
+        if opportunity and not investing_opportunity:
             self.invest(stock, opportunity, low_points)
+            return True
+        
+        return False
 
 
     def find_opportunity(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
@@ -170,34 +186,41 @@ class HLSimulator:
         return opportunity, low_points
 
     def invest(self, stock: Dict[str, Any], opportunity: Dict[str, Any], low_points: List[Dict[str, Any]]) -> None:
-        # 添加投资开始日期（投资当天的日期）
-        opportunity['invest_start_date'] = opportunity['opportunity_record']['date']
-        opportunity['previous_low_points'] = low_points
+        # 检查是否已经在投资
         with self.tracker_lock:
+            if stock['id'] in self.tracker['investing']:
+                logger.warning(f"⚠️ 股票 {stock['id']} 已经在投资中，跳过重复投资")
+                return
+            
+            # 添加投资开始日期（投资当天的日期）
+            opportunity['invest_start_date'] = opportunity['opportunity_record']['date']
+            opportunity['previous_low_points'] = low_points
+            
             self.tracker['investing'][stock['id']] = opportunity
+            logger.info(f"💰 开始投资 {stock['id']} {stock['name']}，投资日期: {opportunity['invest_start_date']}")
 
 
     def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any]) -> bool:
         """结算投资，返回是否结算了"""
+        # 检查投资是否已经被结算过
+        investment_id = f"{stock['id']}_{investment['invest_start_date']}"
+        if investment_id in self.tracker['settled']:
+            logger.warning(f"⚠️ 投资 {investment_id} 已经被结算过，跳过重复结算")
+            return False
+        
         # 转换数据类型，确保计算一致性
         current_close = float(latest_record['close'])
         loss_price = investment['goal']['loss']
         win_price = investment['goal']['win']
         
         if current_close >= win_price:
-            print(f"✅ {stock['id']} {stock['name']} 投资成功")
-            # print(f"止盈 {current_close:.2f} (目标: {win_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
-            # print(f"start price: {investment['goal']['purchase']}")
-            # print(f"参考数据: 日期 {investment['historic_low_ref']['lowest_date']} 周期 {investment['historic_low_ref']['period_name']} 最低点 {investment['historic_low_ref']['lowest_price']}")
+            logger.info(f"✅ {stock['id']} {stock['name']} 投资成功")
             
             self.settle_result(self.result_enum.WIN, stock, investment, latest_record)
             self._record_investment_settlement(stock, investment, 'win', current_close, latest_record['date'])
             return True
         if current_close <= loss_price:
-            print(f"❌ {stock['id']} {stock['name']} 投资失败")
-            # print(f"止损 {current_close:.2f} (目标: {loss_price:.2f}) start date: {investment['invest_start_date']} | end date: {latest_record['date']}")
-            # print(f"start price: {investment['goal']['purchase']}")
-            # print(f"参考数据: 日期 {investment['historic_low_ref']['lowest_date']} 周期 {investment['historic_low_ref']['period_name']} 最低点 {investment['historic_low_ref']['lowest_price']}")
+            logger.info(f"❌ {stock['id']} {stock['name']} 投资失败")
             
             self.settle_result(self.result_enum.LOSS, stock, investment, latest_record)
             self._record_investment_settlement(stock, investment, 'loss', current_close, latest_record['date'])
@@ -207,14 +230,20 @@ class HLSimulator:
 
     def settle_result(self, result: InvestmentResult, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any]) -> None:
         """结算投资结果"""
-        invest_duration_days = self.common.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
-        purchase_price = float(investment['goal']['purchase'])  # 使用已记录的购买价格
-        profit = float(latest_record['close']) - purchase_price
-        
-        # 为每次投资生成唯一标识符，避免同一股票多次投资被覆盖
+        # 检查投资是否已经被结算过
         investment_id = f"{stock['id']}_{investment['invest_start_date']}"
         
         with self.tracker_lock:
+            # 双重检查，确保在锁内再次验证
+            if investment_id in self.tracker['settled']:
+                logger.warning(f"⚠️ 投资 {investment_id} 已经在 settle_result 中被结算过，跳过重复结算")
+                return
+            
+            invest_duration_days = self.common.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
+            purchase_price = float(investment['goal']['purchase'])  # 使用已记录的购买价格
+            profit = float(latest_record['close']) - purchase_price
+            
+            # 为每次投资生成唯一标识符，避免同一股票多次投资被覆盖
             self.tracker['settled'][investment_id] = {
                 'investment_ref': investment,
                 'result': {
@@ -229,9 +258,10 @@ class HLSimulator:
                     )
                 }
             }
-                    # 删除投资状态，而不是设置为None
-        if stock['id'] in self.tracker['investing']:
-            del self.tracker['investing'][stock['id']]
+            
+            # 删除投资状态，而不是设置为None
+            if stock['id'] in self.tracker['investing']:
+                del self.tracker['investing'][stock['id']]
     
     
     def settle_open_investments_for_stock(self, stock: Dict[str, Any], latest_record: Dict[str, Any]) -> None:
@@ -276,11 +306,20 @@ class HLSimulator:
 
     def settle_all_open_investments(self, latest_date: str) -> None:
         """结算所有未结算的投资（在整个模拟结束后调用）"""
-        for stock_code, investment in self.tracker['investing'].items():
+        # 创建副本避免在迭代时修改字典
+        investing_items = list(self.tracker['investing'].items())
+        
+        for stock_code, investment in investing_items:
             if investment:
+                # 检查投资是否已经被结算过
+                investment_id = f"{stock_code}_{investment['invest_start_date']}"
+                if investment_id in self.tracker['settled']:
+                    logger.warning(f"⚠️ 投资 {investment_id} 在 settle_all_open_investments 中已经被结算过，跳过")
+                    continue
+                
                 # 使用投资开始日期作为结算日期，或者使用传入的最新日期
                 settle_date = latest_date or investment['invest_start_date']
-                stock_info = {'code': stock_code, 'name': 'Unknown'}
+                stock_info = {'id': stock_code, 'code': stock_code, 'name': 'Unknown'}
                 
                 # 记录open状态的投资结算
                 self._record_investment_settlement(stock_info, investment, 'open', investment['goal']['purchase'], settle_date)

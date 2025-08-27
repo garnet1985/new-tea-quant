@@ -46,7 +46,7 @@ class App:
 async def main():
     app = App()
     
-    await app.renew_data()
+    # await app.renew_data()
 
     app.simulate()
 

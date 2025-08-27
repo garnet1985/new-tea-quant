@@ -15,7 +15,6 @@ from .tables.strategy_summary.model import HLStrategySummaryModel
 from ...libs.base_strategy import BaseStrategy
 from .strategy_service import HistoricLowService
 from .strategy_settings import strategy_settings
-from .strategy_simulator import HLSimulator
 from app.data_source.data_source_service import DataSourceService
 
 class HistoricLowStrategy(BaseStrategy):
@@ -41,12 +40,6 @@ class HistoricLowStrategy(BaseStrategy):
         # 加载策略设置
         self.strategy_settings = strategy_settings
 
-        # init service
-        # self.service = HistoricLowService()  # No longer needed, now static
-
-        # init simulator
-        self.simulator = HLSimulator(self)
-
 
     def initialize(self):
         self._initialize_tables()
@@ -68,7 +61,7 @@ class HistoricLowStrategy(BaseStrategy):
         return self.strategy_settings
     
     def scan(self) -> List[Dict[str, Any]]:
-        stock_idx = self.required_tables["stock_index"].load_all_exclude()
+        stock_idx = self.required_tables["stock_index"].load_filtered_index()
         
         if not stock_idx:
             return []
@@ -82,7 +75,9 @@ class HistoricLowStrategy(BaseStrategy):
         self._present_report(opportunities)
 
     def simulate(self) -> None:
-        self.simulator.test_strategy()
+        # 延迟导入，避免与 simulator 的循环依赖
+        from .strategy_simulator import HLSimulator
+        HLSimulator(self).test_strategy()
 
     
     def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -155,7 +150,8 @@ class HistoricLowStrategy(BaseStrategy):
 
 
 
-    def scan_single_stock(self, stock: Dict[str, Any], freeze_data: List[Dict[str, Any]], low_points: List[Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def scan_single_stock(stock: Dict[str, Any], freeze_data: List[Dict[str, Any]], low_points: List[Dict[str, Any]]) -> Dict[str, Any]:
         """寻找投资机会"""
         
         # 1. 趋势过滤：检查股票趋势是否适合投资
@@ -163,13 +159,14 @@ class HistoricLowStrategy(BaseStrategy):
             return None
         
         # 2. 从历史低点寻找机会
-        opportunity = self._find_opportunity_from_low_points(stock, low_points, freeze_data)
+        opportunity = HistoricLowStrategy._find_opportunity_from_low_points(stock, low_points, freeze_data)
         
         return opportunity
 
 
             
-    def _find_opportunity_from_low_points(self, stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def _find_opportunity_from_low_points(stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """从历史低点寻找投资机会"""
         record_of_today = freeze_data[-1]
     
@@ -184,23 +181,13 @@ class HistoricLowStrategy(BaseStrategy):
                 
                 # 获取之前出现的历史低价点
                 previous_low_points = HistoricLowService.get_previous_low_points(record_of_today, low_points)
-                
-                opportunity = {
-                    'stock': {
-                        'code': stock['id'],
-                        'name': stock['name'],
-                        'market': DataSourceService.parse_ts_code(stock['id'])[1]
-                    },
-                    'opportunity_record': record_of_today,
-                    'goal': {
-                        'loss': investment_targets['stop_loss_price'],
-                        'win': investment_targets['take_profit_price'],
-                        'purchase': record_of_today['close']
-                    },
-                    'historic_low_ref': low_point,
-                    'investment_targets': investment_targets,  # 保存完整的投资目标信息
-                    'previous_low_points': previous_low_points  # 添加之前出现的低价点
-                }
+                opportunity = HistoricLowService.to_opportunity(
+                    stock=stock,
+                    record_of_today=record_of_today,
+                    investment_targets=investment_targets,
+                    low_point=low_point,
+                    previous_low_points=previous_low_points
+                )
                 return opportunity
         
         # 没有找到投资机会

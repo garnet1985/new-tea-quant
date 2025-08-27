@@ -207,3 +207,76 @@ class InvestmentRecorder:
         }
         with open(self.meta_file, "w", encoding="utf-8") as file:
             json.dump(meta, file, ensure_ascii=False, indent=2)
+
+    def get_summary(self) -> Dict[str, Any]:
+        """
+        获取投资记录摘要信息
+        
+        Returns:
+            Dict[str, Any]: 摘要信息
+        """
+        # 从cached_investments中计算统计信息
+        total_investments = 0
+        success_count = 0
+        fail_count = 0
+        open_count = 0
+        total_profit = 0.0
+        total_duration = 0
+        
+        for stock_id, investment_history in self.cached_investments.items():
+            for investment in investment_history:
+                total_investments += 1
+                status = investment.get('status', '')
+                
+                if status == 'win':
+                    success_count += 1
+                    total_profit += investment.get('settlement_info', {}).get('profit_loss', 0)
+                elif status == 'loss':
+                    fail_count += 1
+                    total_profit += investment.get('settlement_info', {}).get('profit_loss', 0)
+                elif status == 'open':
+                    open_count += 1
+                
+                # 累计投资时长
+                duration = investment.get('settlement_info', {}).get('duration_days', 0)
+                if duration:
+                    total_duration += duration
+        
+        # 计算统计信息
+        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
+        avg_duration = (total_duration / total_investments) if total_investments > 0 else 0.0
+        avg_profit = (total_profit / total_investments) if total_investments > 0 else 0.0
+        
+        return {
+            'created_at': datetime.now().isoformat(),
+            'total_investment_count': total_investments,
+            'success_count': success_count,
+            'fail_count': fail_count,
+            'open_count': open_count,
+            'win_rate': win_rate,
+            'total_profit': total_profit,
+            'avg_profit': avg_profit,
+            'avg_duration_days': avg_duration
+        }
+
+    def update_session_info(self, session_data: Dict[str, Any]) -> None:
+        """
+        更新会话信息
+        
+        Args:
+            session_data: 会话数据
+        """
+        # 这个方法可以用于更新会话级别的信息
+        # 目前暂时不实现具体逻辑，因为主要信息已经在to_session中处理
+        pass
+
+    def update_session_summary(self, summary_data: Dict[str, Any]) -> None:
+        """
+        更新会话摘要信息
+        
+        Args:
+            summary_data: 摘要数据
+        """
+        # 这个方法可以用于更新会话摘要
+        # 目前暂时不实现具体逻辑，因为主要信息已经在to_session中处理
+        pass

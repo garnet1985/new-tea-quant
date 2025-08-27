@@ -20,8 +20,8 @@ class HLSimulator:
         # import strategy
         self.strategy = strategy
 
-        # init service
-        self.service = HistoricLowService()
+        # init service (now static)
+        # self.service = HistoricLowService()  # No longer needed
 
         # init result enum
         from .strategy_enum import InvestmentResult
@@ -251,7 +251,7 @@ class HLSimulator:
             if day_counter < min_required_days:
                 continue
 
-            daily_k_lines = self.service.get_k_lines_before_date(daily_record['date'], data['daily_data'])
+            daily_k_lines = HistoricLowService.get_k_lines_before_date(daily_record['date'], data['daily_data'])
 
             self.simulate_one_day_for_one_stock(data['stock'], daily_k_lines, thread_tracker)
         
@@ -303,7 +303,7 @@ class HLSimulator:
         opportunity = None
         
         # 使用线程自己的tracker
-        investing_opportunity = self.service.get_investing(stock, thread_tracker['investing'])
+        investing_opportunity = HistoricLowService.get_investing(stock, thread_tracker['investing'])
         
         if investing_opportunity:
             # 检查是否需要结算（止损或止盈）
@@ -326,10 +326,10 @@ class HLSimulator:
     def find_opportunity(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """查找投资机会（旧版本，保留兼容性）"""
         # 在simulator中重新划分数据，避免重复读取数据库
-        freeze_records, history_records = self.service.split_daily_data_for_analysis(daily_k_lines)
+        freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(daily_k_lines)
         
         # 在历史数据中寻找历史低点（跳过冻结期）
-        low_points = self.service.find_historic_lows(history_records)
+        low_points = HistoricLowService.find_historic_lows(history_records)
         
         # 调用策略扫描机会，使用划分后的数据
         opportunity = self.strategy.scan_single_stock(stock, freeze_records, low_points)
@@ -424,7 +424,7 @@ class HLSimulator:
             return []
         
         # 使用所有数据一次性计算历史低点
-        all_historic_lows = self.service.find_merged_historic_lows(daily_data)
+        all_historic_lows = HistoricLowService.find_merged_historic_lows(daily_data)
         
         # 转换为旧格式以保持兼容性
         low_points = []
@@ -855,9 +855,3 @@ class HLSimulator:
             strategy_tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
             self.invest_recorder = InvestmentRecorder(base_dir=strategy_tmp_dir)
             self._investment_recorder_initialized = True
-
-    def _record_stock_investments(self, stock: Dict[str, Any]):
-        """记录单只股票的投资历史（已废弃，现在由_record_all_summaries统一处理）"""
-        # 这个方法现在由新的汇总架构替代
-        # 投资记录会在所有股票模拟完成后统一处理
-        pass

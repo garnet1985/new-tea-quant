@@ -9,10 +9,8 @@ from datetime import datetime
 
 
 class HistoricLowService:
-    def __init__(self):
-        pass
-
-    def is_in_invest_range(self, record, low_point):
+    @staticmethod
+    def is_in_invest_range(record, low_point):
         """
         检查是否在投资范围内（基于低点价格区间），并防止买在顶上
         
@@ -44,7 +42,8 @@ class HistoricLowService:
         
         return True
     
-    def get_previous_low_points(self, record, all_historic_lows):
+    @staticmethod    
+    def get_previous_low_points(record, all_historic_lows):
         """
         获取在指定记录之前出现的历史低价点
         
@@ -78,7 +77,8 @@ class HistoricLowService:
         
         return previous_lows
 
-    def calculate_investment_targets(self, record, low_point):
+    @staticmethod    
+    def calculate_investment_targets(record, low_point):
         """
         计算投资目标价格（止损和止盈）
         
@@ -120,7 +120,8 @@ class HistoricLowService:
             'take_profit_percentage': round(buffer_percentage * 200, 2)
         }
 
-    def should_stop_loss(self, current_price: float, entry_price: float, 
+    @staticmethod    
+    def should_stop_loss(current_price: float, entry_price: float, 
                          price_range_min: float, buffer_percentage: float = 0.03) -> bool:
         """
         判断是否应该止损（百分比缓冲机制）
@@ -143,7 +144,8 @@ class HistoricLowService:
         
             return False
 
-    def calculate_percentage_buffer_stop_loss(self, entry_price: float, price_range_min: float,
+    @staticmethod   
+    def calculate_percentage_buffer_stop_loss(entry_price: float, price_range_min: float,
                                             buffer_percentage: float = 0.03) -> dict:
         """
         计算百分比缓冲止损参数
@@ -179,7 +181,8 @@ class HistoricLowService:
             'price_range_min': round(price_range_min, 2)
         }
 
-    def has_lower_point_in_latest_daily_records(self, low_point: Dict[str, Any], daily_records: List[Dict[str, Any]]) -> bool:
+    @staticmethod    
+    def has_lower_point_in_latest_daily_records(low_point: Dict[str, Any], daily_records: List[Dict[str, Any]]) -> bool:
         # 获取历史低点价格
         historic_low_price = float(low_point['record']['close'])
         
@@ -194,15 +197,18 @@ class HistoricLowService:
                 return True
         return False
 
-    def set_loss(self, record):
+    @staticmethod
+    def set_loss(record):
         return float(record['close']) * invest_settings['goal']['loss']
     
-    def set_win(self, record):
+    @staticmethod
+    def set_win(record):
         return float(record['close']) * invest_settings['goal']['win']
 
 
 
-    def is_reached_min_required_daily_records(self, daily_records):
+    @staticmethod
+    def is_reached_min_required_daily_records(daily_records):
         """
         检查是否达到最小所需日线记录数
         
@@ -212,7 +218,8 @@ class HistoricLowService:
 
 
 
-    def get_k_lines_before_date(self, target_date: str, k_lines: List[Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def get_k_lines_before_date(target_date: str, k_lines: List[Dict[str, Any]]) -> Dict[str, Any]:
         target_datetime = datetime.strptime(target_date, '%Y%m%d')
         left = 0
         right = len(k_lines) - 1
@@ -236,11 +243,13 @@ class HistoricLowService:
         
         return results
 
-    def get_investing(self, stock, investing_stocks):
+    @staticmethod
+    def get_investing(stock, investing_stocks):
         return investing_stocks.get(stock['id'])
 
 
-    def is_trend_too_steep(self, frozen_window_daily_data):
+    @staticmethod
+    def is_trend_too_steep(frozen_window_daily_data):
         """
         检查趋势是否过于陡峭
         使用回归分析检查最近90条数据的斜率变化和最近10条数据的斜率角度
@@ -262,14 +271,14 @@ class HistoricLowService:
         prices_threshold = [float(record['close']) for record in recent_threshold_days]
         
         # 计算整个冻结窗口的整体斜率
-        slope_threshold = self._calculate_trend_slope(prices_threshold)
+        slope_threshold = HistoricLowService._calculate_trend_slope(prices_threshold)
         
         # 2. 检查最近10条数据的回归斜率角度是否超过30度
         recent_10_days = frozen_window_daily_data[-10:]
         prices_10 = [float(record['close']) for record in recent_10_days]
         
         # 计算10天的斜率
-        slope_10 = self._calculate_trend_slope(prices_10)
+        slope_10 = HistoricLowService._calculate_trend_slope(prices_10)
         
         # 将斜率转换为角度（弧度转角度）
         angle_10 = abs(math.atan(slope_10) * 180 / math.pi)
@@ -288,7 +297,8 @@ class HistoricLowService:
         # 只在趋势合适时输出一条简单日志
         return False
 
-    def _calculate_trend_slope(self, prices: List[float]) -> float:
+    @staticmethod
+    def _calculate_trend_slope(prices: List[float]) -> float:
         """
         计算价格序列的回归斜率
         
@@ -323,7 +333,8 @@ class HistoricLowService:
 
 
 
-    def find_frequently_touched_valleys(self, daily_data: List[Dict[str, Any]], 
+    @staticmethod
+    def find_frequently_touched_valleys(daily_data: List[Dict[str, Any]], 
                                       price_tolerance: float = 0.05,
                                       min_touch_count: int = 3) -> List[Dict[str, Any]]:
         """
@@ -404,7 +415,8 @@ class HistoricLowService:
 
 
 
-    def find_price_level_support_resistance(self, daily_data: List[Dict[str, Any]], 
+    @staticmethod
+    def find_price_level_support_resistance(daily_data: List[Dict[str, Any]], 
                                          price_tolerance: float = 0.10,
                                          min_touch_count: int = 3) -> List[Dict[str, Any]]:
         """
@@ -501,7 +513,8 @@ class HistoricLowService:
         
         return price_groups
 
-    def find_consolidation_valleys(self, daily_data: List[Dict[str, Any]], 
+    @staticmethod
+    def find_consolidation_valleys(daily_data: List[Dict[str, Any]], 
                                  consolidation_days: int = 20,
                                  price_tolerance: float = 0.08,
                                  min_touch_count: int = 3) -> List[Dict[str, Any]]:
@@ -542,7 +555,7 @@ class HistoricLowService:
                 continue
             
             # 检查波谷后的横盘整理
-            consolidation_info = self._check_consolidation_after_valley(
+            consolidation_info = HistoricLowService._check_consolidation_after_valley(
                 sorted_data, valley_idx, valley_price, 
                 consolidation_days, price_tolerance, min_touch_count
             )
@@ -559,7 +572,8 @@ class HistoricLowService:
         
         return consolidation_valleys
 
-    def _check_consolidation_after_valley(self, sorted_data: List[Dict[str, Any]], 
+    @staticmethod
+    def _check_consolidation_after_valley(sorted_data: List[Dict[str, Any]], 
                                         valley_idx: int, valley_price: float,
                                         consolidation_days: int, price_tolerance: float, 
                                         min_touch_count: int) -> Dict[str, Any]:
@@ -624,12 +638,13 @@ class HistoricLowService:
                     'avg_price': avg_price
                 },
                 'touches': touches,
-                'consolidation_quality': self._calculate_consolidation_quality(touches, valley_price)
+                'consolidation_quality': HistoricLowService._calculate_consolidation_quality(touches, valley_price)
             }
         
         return None
 
-    def _calculate_consolidation_quality(self, touches: List[Dict], valley_price: float) -> str:
+    @staticmethod
+    def _calculate_consolidation_quality(touches: List[Dict], valley_price: float) -> str:
         """
         计算横盘质量
         
@@ -659,7 +674,8 @@ class HistoricLowService:
         else:
             return "较差"
 
-    def split_daily_data_for_analysis(self, daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    @staticmethod
+    def split_daily_data_for_analysis(daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         分割日线数据为冻结期和历史期
         
@@ -678,7 +694,8 @@ class HistoricLowService:
 
         return freeze_records, history_records
 
-    def find_historic_lows(self, history_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    @staticmethod
+    def find_historic_lows(history_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         在历史K线数据中寻找历史低点（使用新的低点检测算法）
         
@@ -692,7 +709,7 @@ class HistoricLowService:
             return []
         
         # 使用新的低点检测算法
-        merged_lows = self.find_merged_historic_lows(history_data)
+        merged_lows = HistoricLowService.find_merged_historic_lows(history_data)
         
         # 转换为旧格式以保持兼容性
         low_points = []
@@ -714,7 +731,8 @@ class HistoricLowService:
 
 
 
-    def find_deepest_valley(self, daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def find_deepest_valley(daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         找到最深波谷 - 基于find_valleys的结果
         
@@ -743,7 +761,8 @@ class HistoricLowService:
             'left_peak_date': deepest_valley['left_peak_date']
         }
 
-    def _check_downtrend(self, data: List[Dict[str, Any]], current_idx: int, days: int) -> bool:
+    @staticmethod
+    def _check_downtrend(data: List[Dict[str, Any]], current_idx: int, days: int) -> bool:
         """检查左侧是否有连续下跌趋势"""
         if current_idx < days:
             return False
@@ -753,7 +772,8 @@ class HistoricLowService:
                 return False
         return True
 
-    def _check_uptrend(self, data: List[Dict[str, Any]], current_idx: int, days: int) -> bool:
+    @staticmethod
+    def _check_uptrend(data: List[Dict[str, Any]], current_idx: int, days: int) -> bool:
         """检查右侧是否有连续上涨趋势（确认波谷）"""
         if current_idx + days >= len(data):
             return False
@@ -763,7 +783,8 @@ class HistoricLowService:
                 return False
         return True
 
-    def _find_left_peak(self, data: List[Dict[str, Any]], current_idx: int, days: int) -> float:
+    @staticmethod
+    def _find_left_peak(data: List[Dict[str, Any]], current_idx: int, days: int) -> float:
         """找到左侧的高点"""
         if current_idx < days:
             return None
@@ -772,7 +793,8 @@ class HistoricLowService:
         peak_price = max(float(record['highest']) for record in left_section)
         return peak_price
 
-    def find_merged_historic_lows(self, daily_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    @staticmethod
+    def find_merged_historic_lows(daily_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         整合三种波谷检测方法，找到综合的历史低点
         
@@ -786,17 +808,17 @@ class HistoricLowService:
             return []
         
         # 1. 找到最深波谷（整个历史的最低点）
-        deepest_valley = self.find_deepest_valley(daily_data)
+        deepest_valley = HistoricLowService.find_deepest_valley(daily_data)
         
         # 2. 找到高频触及的低点（每组多次触及中的最低点）
-        frequently_touched = self.find_frequently_touched_valleys(
+        frequently_touched = HistoricLowService.find_frequently_touched_valleys(
             daily_data, 
             price_tolerance=0.04,  # 进一步降低价格容忍度，从6%到4%
             min_touch_count=3      # 提高最小触及次数，从2次到3次，减少噪声
         )
         
         # 3. 找到横盘确认的低点（每个横盘期间的最低点）
-        consolidation_valleys = self.find_consolidation_valleys(
+        consolidation_valleys = HistoricLowService.find_consolidation_valleys(
             daily_data, 
             consolidation_days=25,  # 提高横盘确认天数，从20天到25天，更严格
             price_tolerance=0.03,  # 进一步降低价格容忍度，从4%到3%
@@ -804,7 +826,7 @@ class HistoricLowService:
         )
         
         # 4. 找到价格区间支撑位（仅波谷触及，谷顶作为辅助信息）
-        price_level_support = self.find_price_level_support_resistance(
+        price_level_support = HistoricLowService.find_price_level_support_resistance(
             daily_data,
             price_tolerance=0.02,  # 进一步降低价格容忍度，从3%到2%
             min_touch_count=4      # 提高最小触及次数，从3次到4次，更严格
@@ -1063,7 +1085,8 @@ class HistoricLowService:
         
         return result
 
-    def get_historic_low_summary(self, daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def get_historic_low_summary(daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         获取历史低点的综合摘要信息
         
@@ -1073,7 +1096,7 @@ class HistoricLowService:
         Returns:
             Dict: 包含各种波谷检测结果的摘要
         """
-        merged_lows = self.find_merged_historic_lows(daily_data)
+        merged_lows = HistoricLowService.find_merged_historic_lows(daily_data)
         
         # 统计各种来源的波谷数量
         source_stats = {

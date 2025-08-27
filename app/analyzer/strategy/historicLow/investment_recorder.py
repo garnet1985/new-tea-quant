@@ -135,7 +135,9 @@ class InvestmentRecorder:
 
     def _save_session_summary(self, session_summary: Dict[str, Any]):
         """保存会话汇总信息"""
-        summary_file = os.path.join(self._get_session_dir(), "session_summary.json")
+        session_dir = self._get_session_dir()
+        os.makedirs(session_dir, exist_ok=True)
+        summary_file = os.path.join(session_dir, "session_summary.json")
         with open(summary_file, "w", encoding="utf-8") as f:
             json.dump(session_summary, f, ensure_ascii=False, indent=2)
         

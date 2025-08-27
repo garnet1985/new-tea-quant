@@ -10,6 +10,129 @@ from datetime import datetime
 
 class HistoricLowService:
     @staticmethod
+    def to_opportunity(stock: Dict[str, Any],
+                       record_of_today: Dict[str, Any],
+                       investment_targets: Dict[str, Any],
+                       low_point: Dict[str, Any],
+                       previous_low_points: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        构造统一的机会对象，保证结构一致。
+        """
+        opportunity = {
+            'stock': {
+                'id': stock.get('id') if stock else None,
+                'name': stock.get('name', '') if stock else ''
+            },
+            'opportunity_record': record_of_today,
+            'goal': {
+                'loss': investment_targets.get('stop_loss_price'),
+                'win': investment_targets.get('take_profit_price'),
+                'purchase': record_of_today.get('close') if record_of_today else None
+            },
+            'historic_low_ref': low_point,
+            'investment_targets': investment_targets,
+            'previous_low_points': previous_low_points or []
+        }
+        return opportunity
+
+    @staticmethod
+    def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        total = 0
+        win = 0
+        loss = 0
+        open_ = 0
+        total_duration = 0.0
+        total_roi = 0.0
+        total_profit = 0.0
+        total_investment_amount = 0.0
+        stocks_with_opps = 0
+
+        for stock_result in session_results or []:
+            investments = (stock_result.get('investments') or {}).values()
+            if not investments:
+                continue
+            stocks_with_opps += 1
+            for inv in investments:
+                res = inv.get('result') or {}
+                inv_ref = inv.get('investment_ref') or {}
+                goal = (inv_ref.get('goal') or {})
+                purchase = float(goal.get('purchase') or 0)
+                profit = float(res.get('profit') or 0)
+                duration = float(res.get('invest_duration_days') or 0)
+
+                total += 1
+                total_profit += profit
+                total_duration += duration
+                if purchase > 0:
+                    total_investment_amount += purchase
+                    total_roi += ((purchase + profit) / purchase) - 1
+
+                r = res.get('result')
+                if r == 'win':
+                    win += 1
+                elif r == 'loss':
+                    loss += 1
+                elif r == 'open':
+                    open_ += 1
+
+        avg_duration_days = (total_duration / total) if total > 0 else 0.0
+        avg_roi = (total_roi / total) if total > 0 else 0.0
+        settled = win + loss
+        win_rate = (win / settled * 100) if settled > 0 else 0.0
+        annual_return = ((1 + avg_roi) ** (365 / avg_duration_days) - 1) * 100 if avg_roi != 0 and avg_duration_days > 0 else 0.0
+        avg_profit_per_investment = (total_profit / total) if total > 0 else 0.0
+
+        return {
+            'total_investments': total,
+            'win_count': win,
+            'loss_count': loss,
+            'open_count': open_,
+            'settled_investments': settled,
+            'win_rate': round(win_rate, 2),
+            'avg_duration_days': round(avg_duration_days, 1),
+            'avg_roi': round(avg_roi * 100, 2),
+            'annual_return': round(annual_return, 2),
+            'total_profit': round(total_profit, 2),
+            'avg_profit_per_investment': round(avg_profit_per_investment, 2),
+            'total_stocks_with_opportunities': stocks_with_opps
+        }
+
+    @staticmethod
+    def to_stock_summary(stock_simulation_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        从单只股票的模拟结果构造统一的股票级汇总。
+        stock_result 形如 { 'stock_info': {..., 'id': ...}, 'investments': {...} }
+        """
+        stock_id = (stock_simulation_result.get('stock_info') or {}).get('id')
+        investments = list((stock_simulation_result.get('investments') or {}).values())
+
+        total_investments = len(investments)
+        success_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'win'])
+        fail_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'loss'])
+        open_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'open'])
+
+        total_profit = sum([float((inv.get('result') or {}).get('profit') or 0.0) for inv in investments])
+        avg_profit = (total_profit / total_investments) if total_investments > 0 else 0.0
+
+        total_duration = sum([float((inv.get('result') or {}).get('invest_duration_days') or 0.0) for inv in investments])
+        avg_duration = (total_duration / total_investments) if total_investments > 0 else 0.0
+
+        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
+
+        return {
+            'stock_id': stock_id,
+            'total_investments': total_investments,
+            'success_count': success_count,
+            'fail_count': fail_count,
+            'open_count': open_count,
+            'win_rate': win_rate,
+            'total_profit': total_profit,
+            'avg_profit': avg_profit,
+            'avg_duration_days': avg_duration,
+            'investments': investments
+        }
+
+    @staticmethod
     def is_in_invest_range(record, low_point):
         """
         检查是否在投资范围内（基于低点价格区间），并防止买在顶上

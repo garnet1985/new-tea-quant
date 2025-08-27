@@ -7,7 +7,7 @@ import os
 
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
-from app.analyzer.analyzer_service import InvestmentResult
+from .strategy_enum import InvestmentResult
 
 from app.data_source.data_source_service import DataSourceService
 from utils.worker import FuturesWorker
@@ -24,7 +24,7 @@ class HLSimulator:
         self.service = HistoricLowService()
 
         # init result enum
-        from app.analyzer.analyzer_service import InvestmentResult
+        from .strategy_enum import InvestmentResult
         self.result_enum = InvestmentResult
 
         # init common service

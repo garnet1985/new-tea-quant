@@ -1,0 +1,88 @@
+{
+    "name": "opportunity_history",
+    "primaryKey": ["code", "market", "startDate", "endDate"],
+    "fields": [
+        {
+            "name": "code",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "name",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "market",
+            "type": "int",
+            "length": 11,
+            "isRequired": true
+        },
+        {
+            "name": "profit",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "loss",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "detectRange",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "startDate",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "endDate",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "status",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "durationInDays",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "ROI",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "marginProfit",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "monthlyReturn",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "annuallyReturn",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "lastUpdateDate",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        }
+    ]
+}

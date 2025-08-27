@@ -47,7 +47,7 @@ class HLSimulator:
 
 
     def test_strategy(self) -> bool:
-        stock_idx = self.strategy.required_tables["stock_index"].get_stock_index()
+        stock_idx = self.strategy.required_tables["stock_index"].load_all_exclude()
         stock_idx = AnalyzerService.to_usable_stock_idx(stock_idx)
 
         # todo: remove below line

@@ -68,7 +68,7 @@ class HistoricLowStrategy(BaseStrategy):
         return self.strategy_settings
     
     def scan(self) -> List[Dict[str, Any]]:
-        stock_idx = self.required_tables["stock_index"].get_stock_index()
+        stock_idx = self.required_tables["stock_index"].load_all_exclude()
         
         if not stock_idx:
             return []

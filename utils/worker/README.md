@@ -1,302 +1,248 @@
-# JobWorker - 通用任务执行器
+# Worker - 通用任务执行器
 
 ## 概述
 
-`JobWorker` 是一个通用的任务执行器，专门为股票数据获取和策略计算而设计。它支持串行和并行执行模式，提供灵活的任务队列管理和详细的执行监控。
+本模块提供了两种任务执行器，分别针对不同类型的任务优化：
+- **ProcessWorker**: 基于多进程的CPU密集型任务执行器
+- **FuturesWorker**: 基于多线程的IO密集型任务执行器
 
-## 主要特性
+## 目录结构
 
-### 🚀 执行模式
-- **串行执行** (`ExecutionMode.SERIAL`): 逐个执行任务，适合需要严格控制执行顺序的场景
-- **并行执行** (`ExecutionMode.PARALLEL`): 多线程并行执行，适合I/O密集型任务（如API调用）
-
-### 🔧 可定制性
-- **自定义执行逻辑**: 通过 `set_job_executor()` 设置任务执行函数
-- **灵活的任务数据**: 支持任意类型的数据结构
-- **可配置的并发数**: 在并行模式下控制最大工作线程数
-
-### 📊 监控和统计
-- **实时统计**: 任务完成数、失败数、成功率等
-- **性能指标**: 执行时间、吞吐量、平均耗时
-- **详细日志**: 每个任务的执行状态和结果
-
-### 🎛️ 控制功能
-- **暂停/恢复**: 支持运行时暂停和恢复执行
-- **停止**: 优雅停止所有任务
-- **队列管理**: 清空任务队列和结果队列
-- **信号处理**: 自动处理 Ctrl+C 和系统信号
-- **优雅关闭**: 确保资源正确释放，避免线程泄漏
-
-## 核心类
-
-### JobWorker
-主要的任务执行器类，负责管理任务队列和执行流程。
-
-### JobResult
-任务执行结果类，包含执行状态、结果数据、错误信息等。
-
-### JobStatus
-任务状态枚举：
-- `PENDING`: 等待中
-- `RUNNING`: 执行中
-- `COMPLETED`: 已完成
-- `FAILED`: 失败
-- `CANCELLED`: 已取消
-
-### ExecutionMode
-执行模式枚举：
-- `SERIAL`: 串行执行
-- `PARALLEL`: 并行执行
-
-## 使用示例
-
-### 基本用法
-
-```python
-from utils.worker import JobWorker, ExecutionMode
-
-# 创建执行器
-worker = JobWorker(
-    max_workers=5,
-    execution_mode=ExecutionMode.PARALLEL
-)
-
-# 设置任务执行函数
-def my_task(job_data):
-    # 你的任务逻辑
-    return {"result": "success"}
-
-worker.set_job_executor(my_task)
-
-# 添加任务
-jobs = [
-    {'id': 'task_1', 'data': {'param': 'value1'}},
-    {'id': 'task_2', 'data': {'param': 'value2'}},
-]
-
-# 执行任务
-stats = worker.run_jobs(jobs)
-
-# 获取结果
-results = worker.get_results()
+```
+utils/worker/
+├── multi_process/          # 多进程执行器
+│   ├── process_worker.py   # ProcessWorker核心实现
+│   ├── process_worker_example.py  # 使用示例
+│   ├── test_process_worker.py     # 功能测试
+│   ├── PROCESS_WORKER_GUIDE.md    # 详细使用指南
+│   ├── example.py          # 简化示例
+│   └── README.md           # 多进程模块说明
+├── multi_thread/           # 多线程执行器
+│   ├── futures_worker.py   # FuturesWorker核心实现
+│   ├── example.py          # 使用示例
+│   └── README.md           # 多线程模块说明
+├── __init__.py             # 模块导入配置
+└── README.md               # 本文件
 ```
 
-### K线数据获取示例
+## 快速选择指南
+
+### 使用ProcessWorker的场景
+- **CPU密集型计算**: 数据分析、算法计算、策略分析
+- **需要充分利用多核CPU**: 自动使用CPU核心数
+- **任务执行时间较长**: >100ms的计算任务
+- **内存使用可控**: 特别是BATCH模式
+
+### 使用FuturesWorker的场景
+- **IO密集型操作**: API调用、文件读写、数据库查询
+- **任务执行时间较短**: <100ms的任务
+- **需要频繁的线程切换**: 大量小任务
+- **对内存使用要求不高**: 线程开销相对较小
+
+## 快速开始
+
+### ProcessWorker (多进程)
 
 ```python
-def kline_fetcher(job_data):
-    """K线数据获取任务"""
-    # 调用Tushare API
-    data = api.daily(
-        ts_code=job_data['ts_code'],
-        start_date=job_data['start_date'],
-        end_date=job_data['end_date']
-    )
-    return data
+from utils.worker import ProcessWorker, ExecutionMode
 
-# 创建执行器
-worker = JobWorker(max_workers=3, execution_mode=ExecutionMode.PARALLEL)
-worker.set_job_executor(kline_fetcher)
+# 创建多进程执行器
+worker = ProcessWorker(
+    max_workers=None,  # 自动使用CPU核心数
+    execution_mode=ExecutionMode.QUEUE,  # 队列模式
+    job_executor=my_cpu_task,
+    is_verbose=True
+)
 
-# 准备任务
-jobs = []
-for stock in stock_list:
-    jobs.append({
-        'id': f'kline_{stock["code"]}',
-        'data': {
-            'ts_code': stock['ts_code'],
-            'start_date': '20250101',
-            'end_date': '20250131'
-        }
-    })
-
-# 执行
+# 执行任务
 stats = worker.run_jobs(jobs)
 worker.print_stats()
 ```
 
-### 策略计算示例
+### FuturesWorker (多线程)
 
 ```python
-def strategy_calculator(job_data):
-    """策略计算任务"""
-    # 执行策略计算
-    signal = calculate_strategy(
-        job_data['strategy_name'],
-        job_data['stock_code']
-    )
-    return signal
+from utils.worker import FuturesWorker, ExecutionMode
 
-# 创建执行器
-worker = JobWorker(max_workers=5, execution_mode=ExecutionMode.PARALLEL)
-worker.set_job_executor(strategy_calculator)
+# 创建多线程执行器
+worker = FuturesWorker(
+    max_workers=10,
+    execution_mode=ExecutionMode.PARALLEL,
+    job_executor=my_io_task,
+    is_verbose=True
+)
 
-# 准备策略任务
-jobs = []
-strategies = ['MA', 'RSI', 'MACD']
-stocks = ['000001', '000002', '600000']
-
-for strategy in strategies:
-    for stock in stocks:
-        jobs.append({
-            'id': f'{strategy}_{stock}',
-            'data': {
-                'strategy_name': strategy,
-                'stock_code': stock
-            }
-        })
-
-# 执行
+# 执行任务
 stats = worker.run_jobs(jobs)
+worker.print_stats()
 ```
 
-## API 参考
+## 执行模式对比
 
-### JobWorker 构造函数
+### ProcessWorker 执行模式
 
+| 模式 | 特点 | 适用场景 |
+|------|------|----------|
+| QUEUE | 持续填充进程池，完成一个立即启动下一个 | 最大化CPU利用率 |
+| BATCH | batch间串行，batch内并行 | 控制内存使用，大数据量处理 |
+
+### FuturesWorker 执行模式
+
+| 模式 | 特点 | 适用场景 |
+|------|------|----------|
+| PARALLEL | 多线程并行执行 | IO密集型任务 |
+| SERIAL | 串行执行 | 需要严格控制执行顺序 |
+
+## 性能对比
+
+### CPU密集型任务
+- **ProcessWorker**: 可达到接近线性的性能提升
+- **FuturesWorker**: 受GIL限制，性能提升有限
+
+### IO密集型任务
+- **ProcessWorker**: 进程创建开销大，不适合
+- **FuturesWorker**: 线程切换开销小，性能优秀
+
+## 实际应用示例
+
+### 股票策略分析 (CPU密集型)
 ```python
-JobWorker(
-    max_workers: int = 5,                    # 最大并行工作线程数
-    execution_mode: ExecutionMode = ExecutionMode.PARALLEL,  # 执行模式
-    job_executor: Optional[Callable] = None, # 任务执行函数
-    enable_monitoring: bool = True           # 是否启用监控
+from utils.worker import ProcessWorker, ExecutionMode
+
+def analyze_stock_strategy(data):
+    """分析单只股票的策略"""
+    stock_code = data['stock_code']
+    
+    # 获取股票数据
+    stock_data = get_stock_data(stock_code)
+    
+    # 执行策略计算 (CPU密集型)
+    signals = calculate_signals(stock_data)
+    
+    return {
+        'stock_code': stock_code,
+        'signals': signals
+    }
+
+# 使用多进程执行器
+worker = ProcessWorker(
+    max_workers=None,  # 自动使用CPU核心数
+    execution_mode=ExecutionMode.QUEUE,
+    job_executor=analyze_stock_strategy
 )
 ```
 
-### 主要方法
-
-#### 任务管理
-- `add_job(job_id: str, job_data: Any)`: 添加单个任务
-- `add_jobs(jobs: List[Dict[str, Any]])`: 批量添加任务
-- `run_jobs(jobs: Optional[List[Dict[str, Any]]] = None)`: 执行任务队列
-- `run_job(job_id: str, job_data: Any)`: 执行单个任务
-
-#### 控制功能
-- `pause()`: 暂停执行
-- `resume()`: 恢复执行
-- `stop()`: 停止执行
-- `shutdown(timeout=5.0)`: 优雅关闭执行器
-- `clear_queue()`: 清空任务队列
-- `clear_results()`: 清空结果队列
-
-#### 监控和统计
-- `get_results() -> List[JobResult]`: 获取所有执行结果
-- `get_stats() -> Dict[str, Any]`: 获取执行统计信息
-- `print_stats()`: 打印统计信息
-- `reset_stats()`: 重置统计信息
-
-## 性能优化建议
-
-### 1. 选择合适的执行模式
-- **I/O密集型任务**（如API调用）: 使用并行模式
-- **CPU密集型任务**（如复杂计算）: 根据CPU核心数调整并行数
-- **顺序依赖任务**: 使用串行模式
-
-### 2. 调整并发数
+### API数据获取 (IO密集型)
 ```python
-# 对于API调用，可以设置较高的并发数
-worker = JobWorker(max_workers=10, execution_mode=ExecutionMode.PARALLEL)
+from utils.worker import FuturesWorker, ExecutionMode
 
-# 对于计算密集型任务，建议不超过CPU核心数
-worker = JobWorker(max_workers=4, execution_mode=ExecutionMode.PARALLEL)
+def fetch_api_data(data):
+    """获取API数据"""
+    url = data['url']
+    response = requests.get(url)  # IO密集型
+    return response.json()
+
+# 使用多线程执行器
+worker = FuturesWorker(
+    max_workers=20,
+    execution_mode=ExecutionMode.PARALLEL,
+    job_executor=fetch_api_data
+)
 ```
 
-### 3. 批量处理
-```python
-# 将大量任务分批处理，避免内存占用过高
-batch_size = 100
-for i in range(0, len(all_jobs), batch_size):
-    batch = all_jobs[i:i+batch_size]
-    worker.run_jobs(batch)
-```
+## 配置建议
 
-## 信号处理和优雅关闭
+### 进程数/线程数设置
 
-### 自动信号处理
-JobWorker 现在支持自动处理系统信号，确保在程序被中断时能够优雅地关闭：
+#### ProcessWorker
+- **CPU密集型**: 使用CPU核心数或略少于核心数
+- **内存受限**: 减少进程数避免内存不足
+- **I/O混合**: 可以适当增加进程数
 
-```python
-# 自动处理 Ctrl+C (SIGINT) 和 SIGTERM 信号
-worker = JobWorker(enable_monitoring=True)
+#### FuturesWorker
+- **纯IO密集型**: 设置为CPU核心数的2-4倍
+- **IO+计算混合**: 设置为CPU核心数的1-2倍
+- **网络延迟高**: 可以设置更多线程
 
-try:
-    stats = worker.run_jobs(jobs)
-except KeyboardInterrupt:
-    print("Gracefully shutting down...")
-    # 信号处理器会自动调用 shutdown()
-```
+### 执行模式选择
 
-### 手动关闭
-```python
-# 显式关闭执行器
-worker.shutdown(timeout=5.0)  # 等待最多5秒完成关闭
-```
+#### ProcessWorker
+- **大量任务**: 使用QUEUE模式最大化吞吐量
+- **内存敏感**: 使用BATCH模式控制内存使用
+- **任务依赖**: 使用BATCH模式确保执行顺序
 
-### 资源清理
-- 自动清理线程池资源
-- 清空任务和结果队列
-- 确保无资源泄漏
-
-## 错误处理
-
-### 任务执行错误
-```python
-def robust_task(job_data):
-    try:
-        # 任务逻辑
-        return result
-    except Exception as e:
-        logger.error(f"Task failed: {e}")
-        # 可以选择重试或返回默认值
-        return {"error": str(e), "status": "failed"}
-```
-
-### 获取失败的任务
-```python
-results = worker.get_results()
-failed_jobs = [r for r in results if r.status == JobStatus.FAILED]
-
-for failed in failed_jobs:
-    logger.error(f"Job {failed.job_id} failed: {failed.error}")
-```
+#### FuturesWorker
+- **IO密集型**: 使用PARALLEL模式
+- **需要顺序控制**: 使用SERIAL模式
+- **任务依赖**: 使用SERIAL模式
 
 ## 最佳实践
 
-### 1. 任务设计
-- 保持任务粒度适中，避免过大的单个任务
-- 确保任务之间无依赖关系（并行模式下）
-- 合理设计任务数据结构
+### 任务设计
+1. **任务粒度**: 确保每个任务有足够的工作量
+2. **数据序列化**: 确保任务数据可以被pickle序列化
+3. **资源管理**: 在任务函数中正确管理资源
+4. **错误处理**: 实现完善的异常处理
 
-### 2. 资源管理
-- 及时清理不需要的结果
-- 监控内存使用情况
-- 适当设置超时机制
+### 性能优化
+1. **选择合适的执行器**: 根据任务特性选择ProcessWorker或FuturesWorker
+2. **合理设置并发数**: 平衡性能和资源使用
+3. **监控执行状态**: 使用详细日志和统计信息
+4. **测试验证**: 在实际环境中测试和优化
 
-### 3. 监控和日志
-- 定期检查执行统计
-- 记录关键任务的执行结果
-- 设置适当的日志级别
+### 资源管理
+1. **数据库连接**: 使用连接池管理数据库连接
+2. **网络连接**: 合理管理HTTP连接和超时
+3. **内存使用**: 监控内存使用，避免内存泄漏
+4. **进程/线程清理**: 确保资源正确释放
 
-## 与现有代码集成
+## 示例和测试
 
-### 在 Tushare 数据获取中使用
-```python
-# 在 main.py 中集成
-def execute_stock_kline_renew_jobs_with_worker(self, jobs: dict):
-    worker = JobWorker(max_workers=5, execution_mode=ExecutionMode.PARALLEL)
-    worker.set_job_executor(self.fetch_kline_data)
-    
-    # 转换任务格式
-    worker_jobs = []
-    for stock_key, stock_jobs in jobs.items():
-        for job in stock_jobs:
-            worker_jobs.append({
-                'id': f"{stock_key}_{job['term']}",
-                'data': job
-            })
-    
-    stats = worker.run_jobs(worker_jobs)
-    return stats
+### 运行示例
+```bash
+# 多进程示例
+cd utils/worker/multi_process
+python example.py
+
+# 多线程示例
+cd utils/worker/multi_thread
+python example.py
 ```
 
-这个 `JobWorker` 为你的股票项目提供了一个强大而灵活的任务执行框架，可以显著提高数据获取和策略计算的效率！ 
+### 运行测试
+```bash
+# 多进程测试
+cd utils/worker/multi_process
+python test_process_worker.py
+```
+
+## 注意事项
+
+### ProcessWorker
+1. **函数序列化**: 任务函数必须在模块级别定义
+2. **数据传递**: 任务数据必须可序列化
+3. **资源管理**: 每个进程需要独立的资源
+4. **内存使用**: 多进程会增加内存开销
+
+### FuturesWorker
+1. **GIL限制**: Python的全局解释器锁限制了真正的并行计算
+2. **线程安全**: 确保共享资源的线程安全访问
+3. **资源管理**: 正确管理数据库连接、网络连接等资源
+4. **内存使用**: 大量线程会增加内存开销
+
+## 版本信息
+
+- **版本**: 2.0.0
+- **作者**: Stocks-Py Team
+- **描述**: 通用任务执行器模块 - 支持多进程和多线程执行
+
+## 更新日志
+
+### v2.0.0
+- 重新组织模块结构，分离多进程和多线程执行器
+- 新增ProcessWorker多进程执行器
+- 优化FuturesWorker多线程执行器
+- 完善文档和示例
+
+### v1.0.0
+- 初始版本，包含FuturesWorker多线程执行器

@@ -3,7 +3,7 @@ import math
 from typing import Dict, List, Any, Tuple
 
 from loguru import logger
-from .strategy_settings import invest_settings
+from .strategy_settings import strategy_settings as invest_settings
 from app.analyzer.analyzer_service import AnalyzerService
 from datetime import datetime
 

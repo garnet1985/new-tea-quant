@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import pprint
 from enum import Enum
 from loguru import logger
-from utils.worker.futures_worker import FuturesWorker
+from utils.worker import ProcessWorker, ProcessExecutionMode 
 from .tables.meta.model import HLMetaModel
 from .tables.opportunity_history.model import HLOpportunityHistoryModel
 from .tables.strategy_summary.model import HLStrategySummaryModel
@@ -25,14 +25,6 @@ class HistoricLowStrategy(BaseStrategy):
     is_enabled = True
     
     def __init__(self, db, is_verbose=False):
-        """
-        初始化 HistoricLow 策略
-        
-        Args:
-            db: 已初始化的数据库管理器实例
-            is_verbose: 是否显示详细日志
-        """
-        
         description = "从股票的历史价格的低点中寻找历史最低点和历史中波谷多次触及的低点，识别可能的买入机会"
         name = "Historic Low"
         abbreviation = "HL"
@@ -57,14 +49,9 @@ class HistoricLowStrategy(BaseStrategy):
 
 
     def initialize(self):
-        # this method is automatically called by base strategy class
-
         self._initialize_tables()
-        pass
 
     def _initialize_tables(self):
-        """初始化策略所需的表模型"""
-        
         self.required_tables = {
             "stock_index": self.db.get_table_instance("stock_index"),
             "stock_kline": self.db.get_table_instance("stock_kline"),
@@ -81,41 +68,17 @@ class HistoricLowStrategy(BaseStrategy):
         return self.strategy_settings
     
     def scan(self) -> List[Dict[str, Any]]:
-        """
-        扫描投资机会
-        
-        Returns:
-            List[Dict]: 投资机会列表
-        """
-        
-        # 获取股票列表
         stock_idx = self.required_tables["stock_index"].get_stock_index()
         
-        # 测试阶段：只扫描000001和000002
-        test_stocks = []
-        for stock in stock_idx:
-            if stock['id'] in ['000001.SZ', '000002.SZ']:
-                test_stocks.append(stock)
-        
-        stock_idx = test_stocks
-        print(f'🧪 测试模式：只扫描 {len(stock_idx)} 只股票: {[s["id"] for s in stock_idx]}')
-
         if not stock_idx:
             return []
 
-        # 使用多线程扫描
+        # 使用多进程扫描
         opportunities = self._scan_stocks_with_worker(stock_idx)
-        logger.info(f"🔍 扫描完成，共扫描 {len(stock_idx)} 只股票，发现 {len(opportunities)} 个投资机会")
 
         return opportunities
     
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
-        """
-        呈现扫描结果
-        
-        Args:
-            opportunities: 投资机会列表
-        """
         self._present_report(opportunities)
 
     def simulate(self) -> None:
@@ -123,7 +86,6 @@ class HistoricLowStrategy(BaseStrategy):
 
     
     def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """使用多线程扫描股票"""
         opportunities = []
         
         # 创建任务
@@ -135,35 +97,32 @@ class HistoricLowStrategy(BaseStrategy):
                 'data': stock
             })
         
-        # 使用 FuturesWorker 并行处理
-        worker = FuturesWorker(
-            max_workers=10,
-            enable_monitoring=False
+        # 使用 ProcessWorker 多进程处理
+        worker = ProcessWorker(
+            max_workers=None,  # 自动使用CPU核心数
+            execution_mode=ProcessExecutionMode.QUEUE,  # 队列模式，最大化CPU利用率
+            job_executor=self.scan_job,
+            is_verbose=self.is_verbose
         )
         
-        # 设置任务执行函数
-        worker.set_job_executor(self.scan_job)
-        
-        # 添加任务
-        for job in jobs:
-            worker.add_job(job['id'], job['data'])
-        
         # 执行任务
-        worker.run_jobs()
+        stats = worker.run_jobs(jobs)
         
         # 获取结果
-        results = worker.get_results()
+        results = worker.get_successful_results()
         
         # 收集结果
         for result in results:
-            if result.status.value == 'completed' and result.result:
+            if result.result:
                 opportunities.extend(result.result)
+        
+        # 打印执行统计
+        if self.is_verbose:
+            worker.print_stats()
         
         return opportunities
     
     def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
-        # 准备数据
-        # 先检查日线记录数是否满足要求
         daily_k_lines_count = self.required_tables["stock_kline"].count("id = %s AND term = %s", (stock['id'], 'daily'))
         min_required_daily_records = self.strategy_settings['daily_data_requirements']['min_required_daily_records']
         

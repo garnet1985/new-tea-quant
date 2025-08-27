@@ -16,7 +16,7 @@ class Tushare:
     def __init__(self, connected_db, is_verbose: bool = False):
         self.db = connected_db
         self.storage = TushareStorage(connected_db)
-        self.service = TushareService()
+
 
         self.is_verbose = is_verbose
 
@@ -55,7 +55,7 @@ class Tushare:
             self.kline_api_count += 1
 
     async def get_latest_market_open_day(self):
-        return self.service.get_latest_market_open_day(self.api)
+        return TushareService.get_latest_market_open_day(self.api)
 
 
     async def renew_stock_k_lines(self, latest_market_open_day: str = None, stock_index: list = None):
@@ -85,7 +85,7 @@ class Tushare:
             stock_list.append(stock_id)
         
         # 生成按股票分组的更新任务
-        jobs = self.service.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)
+        jobs = TushareService.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)
         # 统计各类型任务数量
         term_counts = {}
         total_jobs = 0
@@ -254,18 +254,18 @@ class Tushare:
         if is_index_empty:
             is_force = True
 
-        last_renew_time = self.storage.get_meta_info('stock_index_last_update')
+        # 直接从stock_index表获取最新的lastUpdate
+        last_renew_time = self.storage.stock_index_table.load_latest_last_update()
 
         should_renew = is_force or last_renew_time is None or last_renew_time < latest_market_open_day
 
         if should_renew:
             new_idx_data = self.request_stock_index()
             if new_idx_data is not None and len(new_idx_data) > 0:
-                # 只有在保存成功时才更新元数据和返回数据
+                # 保存成功后直接返回数据，不需要更新meta_info表
                 save_success = self.storage.save_stock_index(new_idx_data, is_verbose=self.is_verbose)
                 if save_success:
-                    self.storage.set_meta_info('stock_index_last_update', latest_market_open_day)
-                    return self.service.to_unified_stock_index_format(new_idx_data)
+                    return TushareService.to_unified_stock_index_format(new_idx_data)
                 else:
                     logger.error("❌ 股票指数数据保存失败，保持使用现有数据库数据")
                     return self.storage.load_stock_index()

@@ -1,7 +1,7 @@
 import pprint
 import tushare as ts
 from loguru import logger
-from utils.worker.futures_worker import FuturesWorker, ExecutionMode
+from utils.worker import FuturesWorker, ThreadExecutionMode
 from app.data_source.providers.tushare.main_settings import auth_token_file
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
@@ -133,7 +133,7 @@ class Tushare:
         # 创建并行执行器
         worker = FuturesWorker(
             max_workers=10,
-            execution_mode=ExecutionMode.PARALLEL,
+            execution_mode=ThreadExecutionMode.PARALLEL,
             enable_monitoring=True,
             timeout=60.0,  # 增加超时时间，因为数据获取可能需要更长时间
             is_verbose=self.is_verbose,  # 关闭详细日志，只保留进度信息

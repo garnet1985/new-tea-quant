@@ -36,12 +36,12 @@
 ### 基本用法
 
 ```python
-from utils.worker.multi_process import ProcessWorker, ExecutionMode
+from utils.worker import ProcessWorker, ProcessExecutionMode
 
 # 创建多进程执行器
 worker = ProcessWorker(
     max_workers=None,  # 自动使用CPU核心数
-    execution_mode=ExecutionMode.QUEUE,  # 队列模式
+    execution_mode=ProcessExecutionMode.QUEUE,  # 队列模式
     job_executor=my_cpu_task,
     is_verbose=True
 )
@@ -56,7 +56,7 @@ worker.print_stats()
 #### QUEUE模式（推荐用于CPU密集型）
 ```python
 worker = ProcessWorker(
-    execution_mode=ExecutionMode.QUEUE,  # 持续填充进程池
+    execution_mode=ProcessExecutionMode.QUEUE,  # 持续填充进程池
     job_executor=cpu_intensive_task
 )
 ```
@@ -64,7 +64,7 @@ worker = ProcessWorker(
 #### BATCH模式（推荐用于内存敏感场景）
 ```python
 worker = ProcessWorker(
-    execution_mode=ExecutionMode.BATCH,
+    execution_mode=ProcessExecutionMode.BATCH,
     batch_size=16,  # 每个batch 16个任务
     job_executor=cpu_intensive_task
 )

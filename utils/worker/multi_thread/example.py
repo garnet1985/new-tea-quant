@@ -8,7 +8,7 @@ FuturesWorker 使用示例
 
 import time
 import random
-from futures_worker import FuturesWorker, ExecutionMode
+from .futures_worker import FuturesWorker, ExecutionMode
 
 
 def io_intensive_task(data):

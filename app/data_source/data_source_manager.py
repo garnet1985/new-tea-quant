@@ -31,7 +31,8 @@ class DataSourceManager:
 
         # 先获取最新交易日
         self.latest_market_open_day = await tu.get_latest_market_open_day()
-
+        logger.info(f"🔍 最新交易日: {self.latest_market_open_day}")
+        
         # 然后更新股票指数
         self.latest_stock_index = tu.renew_stock_index(self.latest_market_open_day)
 

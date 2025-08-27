@@ -1,0 +1,101 @@
+{
+    "name": "stock_kline",
+    "primaryKey": ["id", "term", "date"],
+    "fields": [
+        {
+            "name": "id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股票代码ts_code"
+        },
+        {
+            "name": "term",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true
+        },
+        {
+            "name": "date",
+            "type": "varchar",
+            "length": 8,
+            "isRequired": true
+        },
+        {
+            "name": "open",
+            "type": "decimal",
+            "length": "12,4",
+            "isRequired": true
+        },
+        {
+            "name": "close",
+            "type": "decimal",
+            "length": "12,4",
+            "isRequired": true
+        },
+        {
+            "name": "highest",
+            "type": "decimal",
+            "length": "12,4",
+            "isRequired": true
+        },
+        {
+            "name": "lowest",
+            "type": "decimal",
+            "length": "12,4",
+            "isRequired": true
+        },
+        {
+            "name": "priceChangeDelta",
+            "type": "decimal",
+            "length": "12,4",
+            "isRequired": false
+        },
+        {
+            "name": "priceChangeRateDelta",
+            "type": "decimal",
+            "length": "8,4",
+            "isRequired": false
+        },
+        {
+            "name": "preClose",
+            "type": "decimal",
+            "length": "12,4",
+            "isRequired": false
+        },
+        {
+            "name": "volume",
+            "type": "bigint",
+            "isRequired": false
+        },
+        {
+            "name": "amount",
+            "type": "decimal",
+            "length": "20,2",
+            "isRequired": false
+        }
+    ],
+    "indexes": [
+        {
+            "name": "idx_id_term_date",
+            "fields": ["id", "term", "date"],
+            "unique": true
+        },
+        {
+            "name": "idx_id_date",
+            "fields": ["id", "date"]
+        },
+        {
+            "name": "idx_id_term",
+            "fields": ["id", "term"]
+        },
+        {
+            "name": "idx_date",
+            "fields": ["date"]
+        },
+        {
+            "name": "idx_term_date",
+            "fields": ["term", "date"]
+        }
+    ]
+}

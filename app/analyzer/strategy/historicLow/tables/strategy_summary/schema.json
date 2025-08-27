@@ -1,0 +1,111 @@
+{
+    "name": "strategy_summary",
+    "primaryKey": ["code", "market", "profit", "loss", "detectRange"],
+    "fields": [
+        {
+            "name": "code",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "market",
+            "type": "int",
+            "length": 11,
+            "isRequired": true
+        },
+        {
+            "name": "name",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "minInvestStartDate",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "total",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "success",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "fail",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "open",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "successRate",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "lossRate",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "averageROI",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "averageDuration",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "averageMarginProfit",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "expectedMarginProfit",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "monthlyReturn",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "annuallyReturn",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "profit",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "loss",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "detectRange",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "lastUpdateDate",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        }
+    ]
+}

@@ -35,6 +35,7 @@ class DataSourceManager:
         
         # 然后更新股票指数
         self.latest_stock_index = tu.renew_stock_index(self.latest_market_open_day)
+        logger.info(f"🔍 股票清单更新完成")
 
         # await tu.renew_stock_k_lines(self.latest_market_open_day, self.latest_stock_index)
         

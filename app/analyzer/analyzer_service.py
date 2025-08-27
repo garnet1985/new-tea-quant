@@ -13,13 +13,13 @@ class AnalyzerService:
         pass
 
     @staticmethod
-    def get_duration_in_days(self, start_date: str, end_date: str) -> int:
+    def get_duration_in_days(start_date: str, end_date: str) -> int:
         start = datetime.strptime(start_date, '%Y%m%d')
         end = datetime.strptime(end_date, '%Y%m%d')
         return (end - start).days
     
     @staticmethod
-    def get_annual_return(self, profit_rate: float, duration_in_days: int) -> float:
+    def get_annual_return(profit_rate: float, duration_in_days: int) -> float:
         if duration_in_days <= 0:
             return 0.0
         

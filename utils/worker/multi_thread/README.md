@@ -34,12 +34,12 @@
 ### 基本用法
 
 ```python
-from utils.worker.multi_thread import FuturesWorker, ExecutionMode
+from utils.worker import FuturesWorker, ThreadExecutionMode
 
 # 创建多线程执行器
 worker = FuturesWorker(
     max_workers=10,
-    execution_mode=ExecutionMode.PARALLEL,
+    execution_mode=ThreadExecutionMode.PARALLEL,
     job_executor=my_io_task,
     is_verbose=True
 )
@@ -54,7 +54,7 @@ worker.print_stats()
 #### 并行执行（推荐用于IO密集型）
 ```python
 worker = FuturesWorker(
-    execution_mode=ExecutionMode.PARALLEL,  # 多线程并行
+    execution_mode=ThreadExecutionMode.PARALLEL,  # 多线程并行
     job_executor=io_intensive_task
 )
 ```
@@ -62,7 +62,7 @@ worker = FuturesWorker(
 #### 串行执行（推荐用于需要顺序控制的场景）
 ```python
 worker = FuturesWorker(
-    execution_mode=ExecutionMode.SERIAL,  # 串行执行
+    execution_mode=ThreadExecutionMode.SERIAL,  # 串行执行
     job_executor=sequential_task
 )
 ```
@@ -99,7 +99,7 @@ def fetch_api_data(data):
 
 worker = FuturesWorker(
     max_workers=20,
-    execution_mode=ExecutionMode.PARALLEL,
+    execution_mode=ThreadExecutionMode.PARALLEL,
     job_executor=fetch_api_data
 )
 ```
@@ -115,7 +115,7 @@ def update_database(data):
 
 worker = FuturesWorker(
     max_workers=5,
-    execution_mode=ExecutionMode.PARALLEL,
+    execution_mode=ThreadExecutionMode.PARALLEL,
     job_executor=update_database
 )
 ```

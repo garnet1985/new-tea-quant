@@ -9,7 +9,7 @@ ProcessWorker 使用示例
 import time
 import random
 import multiprocessing as mp
-from process_worker import ProcessWorker, ExecutionMode
+from .process_worker import ProcessWorker, ExecutionMode
 
 
 def cpu_intensive_task(data):

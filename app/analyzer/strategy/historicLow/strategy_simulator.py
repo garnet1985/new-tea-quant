@@ -20,12 +20,29 @@ class HLSimulator:
         # import strategy
         self.strategy = strategy
 
+        # init service
+        self.service = HistoricLowService()
+
+        # init result enum
+        from app.analyzer.analyzer_service import InvestmentResult
+        self.result_enum = InvestmentResult
+
+        # init common service
+        from app.analyzer.analyzer_service import AnalyzerService
+        self.common = AnalyzerService()
+
         # init tracker
         self.invest_recorder = InvestmentRecorder()
 
         # 主线程的汇总收集器
         self.session_results = []
         self.session_lock = threading.Lock()
+        
+        # 股票投资记录存储
+        self.stock_investment_records = {}
+        
+        # 投资记录器初始化标志
+        self._investment_recorder_initialized = False
         
 
 

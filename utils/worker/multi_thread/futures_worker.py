@@ -216,7 +216,8 @@ class FuturesWorker:
             self.stats['total_jobs'] += 1
         
         if self.debug:
-            logger.info(f"Added job {job_id} to queue")
+            if self.is_verbose:
+                logger.info(f"Added job {job_id} to queue")
     
     def add_jobs(self, jobs: List[Dict[str, Any]]):
         """批量添加任务"""
@@ -229,7 +230,8 @@ class FuturesWorker:
             self.add_jobs(jobs)
         
         if self.job_queue.empty():
-            logger.warning("No jobs to execute")
+            if self.is_verbose:
+                logger.warning("No jobs to execute")
             return self.get_stats()
         
         if self.is_verbose:
@@ -246,7 +248,8 @@ class FuturesWorker:
             else:
                 self._run_parallel()
         except KeyboardInterrupt:
-            logger.info("Job execution interrupted by user")
+            if self.is_verbose:
+                logger.info("Job execution interrupted by user")
             self.should_stop = True
             raise
         except Exception as e:
@@ -274,7 +277,8 @@ class FuturesWorker:
         result.start_time = datetime.now()
         
         if self.debug:
-            logger.info(f"Executing job {job_id}")
+            if self.is_verbose:
+                logger.info(f"Executing job {job_id}")
         
         try:
             # 执行任务
@@ -359,7 +363,7 @@ class FuturesWorker:
                 
                 try:
                     result = future.result(timeout=30)
-                    if self.debug:
+                    if self.debug and self.is_verbose:
                         logger.debug(f"Processing result for job {result.job_id}")
                     self._update_stats(result)
                     self.results_queue.put(result)
@@ -374,14 +378,16 @@ class FuturesWorker:
             
             # 强制完成未完成的任务
             if not_done:
-                logger.warning(f"Some tasks did not complete within timeout: {len(not_done)} tasks remaining")
-                logger.info("Forcing completion of remaining tasks...")
+                if self.is_verbose:
+                    logger.warning(f"Some tasks did not complete within timeout: {len(not_done)} tasks remaining")
+                    logger.info("Forcing completion of remaining tasks...")
                 
                 for future in not_done:
                     try:
                         if not future.done():
                             future.cancel()
-                            logger.warning(f"Cancelled incomplete task")
+                            if self.is_verbose:
+                                logger.warning(f"Cancelled incomplete task")
                         else:
                             # 任务实际上完成了，只是超时了
                             result = future.result(timeout=5)
@@ -411,7 +417,7 @@ class FuturesWorker:
         with self.stats_lock:
             # 检查是否已经处理过这个任务
             if result.job_id in self._printed_progress:
-                if self.debug:
+                if self.debug and self.is_verbose:
                     logger.debug(f"Skipping duplicate result for job {result.job_id}")
                 return
             
@@ -562,7 +568,7 @@ class FuturesWorker:
                 self.job_queue.get_nowait()
             except Empty:
                 break
-        if self.debug:
+        if self.debug and self.is_verbose:
             logger.info("Job queue cleared")
     
     def clear_results(self):
@@ -572,7 +578,7 @@ class FuturesWorker:
                 self.results_queue.get_nowait()
             except Empty:
                 break
-        if self.debug:
+        if self.debug and self.is_verbose:
             logger.info("Results queue cleared")
     
     def reset_stats(self):
@@ -589,7 +595,7 @@ class FuturesWorker:
                 'avg_duration': 0,
                 'throughput': 0
             }
-        if self.debug:
+        if self.debug and self.is_verbose:
             logger.info("Statistics reset")
     
     def __del__(self):

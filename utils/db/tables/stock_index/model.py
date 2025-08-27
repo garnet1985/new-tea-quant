@@ -154,3 +154,8 @@ class StockIndexModel(BaseTableModel):
         placeholders = ','.join(['%s'] * len(stock_ids))
         stocks = self.load_many(f"id IN ({placeholders})", tuple(stock_ids))
         return {stock['id']: stock['name'] for stock in stocks}
+    
+    def load_latest_last_update(self) -> Optional[str]:
+        # 使用基类的load_one方法，按lastUpdate降序排序取第一条
+        latest_record = self.load_one("1=1", order_by="lastUpdate DESC")
+        return latest_record.get('lastUpdate') if latest_record else None

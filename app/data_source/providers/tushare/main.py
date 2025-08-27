@@ -260,13 +260,18 @@ class Tushare:
 
         if should_renew:
             new_idx_data = self.request_stock_index()
-            if new_idx_data is not None:
-                self.storage.save_stock_index(new_idx_data)
-                self.storage.set_meta_info('stock_index_last_update', latest_market_open_day)
-                return self.service.to_unified_stock_index_format(new_idx_data)
+            if new_idx_data is not None and len(new_idx_data) > 0:
+                # 只有在保存成功时才更新元数据和返回数据
+                save_success = self.storage.save_stock_index(new_idx_data, is_verbose=self.is_verbose)
+                if save_success:
+                    self.storage.set_meta_info('stock_index_last_update', latest_market_open_day)
+                    return self.service.to_unified_stock_index_format(new_idx_data)
+                else:
+                    logger.error("❌ 股票指数数据保存失败，保持使用现有数据库数据")
+                    return self.storage.load_stock_index()
             else:
-                logger.info("❌ 股票列表返回结果为空, 检查tushare API是否正常")
-                return None
+                logger.error("❌ 股票列表返回结果为空, 检查tushare API是否正常，保持使用现有数据库数据")
+                return self.storage.load_stock_index()
         else:
             logger.info(f"🔍 股票目录已经是最新，直接使用数据库数据:  {latest_market_open_day}")
             return self.storage.load_stock_index()

@@ -40,7 +40,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
 
         # todo: remove below line
-        stock_idx = stock_idx[0:2]  # 测试前1只股票
+        stock_idx = stock_idx[0:1]  # 测试前2只股票
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -96,6 +96,9 @@ class HLSimulator:
             if hasattr(result, 'result') and result.result:
                 actual_results.append(result.result)
 
+        # 保存结果到session_results
+        self.session_results = actual_results
+
         return actual_results
 
     def _record_all_summaries(self, stocks: List[Dict[str, Any]], stock_summaries: Dict[str, Dict[str, Any]], session_summary: Dict[str, Any]):
@@ -110,10 +113,25 @@ class HLSimulator:
             for investment in investments.values():
                 converted_investment = {
                     'status': investment['result']['result'],
+                    'start_date': investment['result']['start_date'],
+                    'end_date': investment['result']['end_date'],
+                    'ref': {
+                        'lowest_price': investment['investment_ref'].get('historic_low_ref', {}).get('lowest_price'),
+                        'lowest_date': investment['investment_ref'].get('historic_low_ref', {}).get('lowest_date'),
+                        'conclusion_from': investment['investment_ref'].get('historic_low_ref', {}).get('conclusion_from', [])
+                    },
+                    'target': {
+                        'purchase_price': investment['investment_ref']['goal']['purchase'],
+                        'win_price': investment['investment_ref']['goal']['win'],
+                        'loss_price': investment['investment_ref']['goal']['loss'],
+                        'stop_win_rate': investment['result'].get('win_percentage', 0),
+                        'stop_loss_rate': investment['result'].get('loss_percentage', 0)
+                    },
                     'settlement_info': {
                         'profit_loss': investment['result']['profit'],
                         'duration_days': investment['result']['invest_duration_days'],
-                        'exit_date': investment['result']['end_date']
+                        'exit_date': investment['result']['end_date'],
+                        'annual_return': investment['result'].get('annual_return', 0)
                     }
                 }
                 investment_history.append(converted_investment)
@@ -141,17 +159,38 @@ class HLSimulator:
             
             # 标记为open状态
             investment_id = f"{stock_id}_{investment['invest_start_date']}"
+            # 计算止损和止盈百分比
+            purchase_price = investment['goal']['purchase']
+            loss_price = investment['goal']['loss']
+            win_price = investment['goal']['win']
+            loss_percentage = ((loss_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
+            win_percentage = ((win_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
+            
+            # 构建open状态结算信息
+            open_settlement_result = {
+                'result': 'open',
+                'start_date': investment['opportunity_record']['date'],
+                'end_date': settle_date,
+                'profit': 0,
+                'invest_duration_days': 0,
+                'loss_percentage': round(loss_percentage, 2),
+                'win_percentage': round(win_percentage, 2),
+                'annual_return': 0
+            }
+            
             thread_tracker['settled'][investment_id] = {
                 'investment_ref': investment,
-                'result': {
-                    'result': 'open',
-                    'start_date': investment['opportunity_record']['date'],
-                    'end_date': settle_date,
-                    'profit': 0,
-                    'invest_duration_days': 0,
-                    'annual_return': 0
-                }
+                'result': open_settlement_result
             }
+            
+            # 通过investment_recorder生成统一格式的结算信息
+            try:
+                investment_recorder = InvestmentRecorder()
+                settlement_record = investment_recorder.to_settlement(stock, open_settlement_result)
+                # 将结算记录添加到settled中，保持原有格式
+                thread_tracker['settled'][investment_id]['settlement_record'] = settlement_record
+            except Exception as e:
+                logger.error(f"🔍 生成open状态结算信息失败: {e}")
             
             # 从investing中删除
             del thread_tracker['investing'][stock_id]
@@ -248,6 +287,8 @@ class HLSimulator:
                     'purchase_price': self._safe_float(investment.get('goal', {}).get('purchase')),
                     'target_win': self._safe_float(investment.get('goal', {}).get('win')),
                     'target_loss': self._safe_float(investment.get('goal', {}).get('loss')),
+                    'win_rate': ((self._safe_float(investment.get('goal', {}).get('win')) - self._safe_float(investment.get('goal', {}).get('purchase'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
+                    'loss_rate': ((self._safe_float(investment.get('goal', {}).get('purchase')) - self._safe_float(investment.get('goal', {}).get('loss'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
                     'selected_low_point': {
                         'date': investment.get('historic_low_ref', {}).get('lowest_date'),
                         'term': investment.get('historic_low_ref', {}).get('period_name'),
@@ -263,6 +304,11 @@ class HLSimulator:
                     'duration_days': duration_days,
                     'profit_loss': (self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) if exit_price else None,
                     'profit_loss_rate': ((self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if exit_price and self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
+                    'annual_return': self._calculate_annual_return(
+                        self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase')),
+                        duration_days,
+                        self._safe_float(investment.get('goal', {}).get('purchase'))
+                    ) if exit_price and duration_days else None,
                     'settled_at': datetime.now().isoformat()
                 },
                 'status': result
@@ -315,18 +361,7 @@ class HLSimulator:
             if self.invest_recorder and self.invest_recorder.current_session_dir:
                 stock_file_path = os.path.join(self.invest_recorder.current_session_dir, f"{stock_id}.json")
                 
-                # 转换Decimal类型为float，确保JSON序列化成功
-                def convert_decimal(obj):
-                    if hasattr(obj, '__float__'):
-                        return float(obj)
-                    elif isinstance(obj, dict):
-                        return {k: convert_decimal(v) for k, v in obj.items()}
-                    elif isinstance(obj, list):
-                        return [convert_decimal(item) for item in obj]
-                    else:
-                        return obj
-                
-                serializable_data = convert_decimal(stock_data)
+                serializable_data = stock_data
                 
                 with open(stock_file_path, 'w', encoding='utf-8') as f:
                     json.dump(serializable_data, f, ensure_ascii=False, indent=2)
@@ -447,14 +482,6 @@ class HLSimulator:
             results_summary: 投资结果摘要
         """
         try:
-            # 更新外层的 total_stocks_tested
-            session_update_data = {
-                "total_stocks_tested": getattr(self, 'total_stocks_tested', 0)
-            }
-            
-            # 更新会话信息
-            self.invest_recorder.update_session_info(session_update_data)
-            
             # 追加时间戳并写入统一的会话级统计
             summary_with_ts = dict(results_summary)
             summary_with_ts["summary_generated_at"] = datetime.now().isoformat()
@@ -481,6 +508,26 @@ class HLSimulator:
             return float(value)
         except (ValueError, TypeError):
             return default
+
+    def _calculate_annual_return(self, profit_loss: float, duration_days: int, purchase_price: float) -> float:
+        """
+        计算年化收益率
+        
+        Args:
+            profit_loss: 盈亏金额
+            duration_days: 投资天数
+            purchase_price: 购买价格
+            
+        Returns:
+            float: 年化收益率（百分比）
+        """
+        if duration_days <= 0 or purchase_price <= 0:
+            return 0.0
+        
+        # 年化收益率 = 收益率 * (365 / 投资天数) * 100
+        annual_return = (profit_loss / purchase_price) * (365 / duration_days) * 100
+        
+        return round(annual_return, 2)
 
     def _init_investment_recorder_if_needed(self):
         """延迟初始化投资记录器，只在需要时才创建"""
@@ -571,6 +618,8 @@ class HLSimulator:
             current_daily_data.append(daily_record)
             if len(current_daily_data) < min_required_days:
                 continue
+            
+            # 模拟每日交易
             cls.simulate_one_day(job_data, current_daily_data, tracker)
             
             
@@ -581,26 +630,51 @@ class HLSimulator:
             # 确保日期是字符串类型
             invest_start_date = str(inv['invest_start_date']) if inv.get('invest_start_date') else 'unknown'
             inv_id = f"{job_data['id']}_{invest_start_date}"
+            
+            # 计算止损和止盈百分比
+            purchase_price = inv['goal']['purchase']
+            loss_price = inv['goal']['loss']
+            win_price = inv['goal']['win']
+            loss_percentage = ((loss_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
+            win_percentage = ((win_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
+            
+            # 构建open状态结算信息
+            open_settlement_result = {
+                'result': 'open',
+                'start_date': inv['opportunity_record']['date'],
+                'end_date': invest_start_date,
+                'profit': 0.0,
+                'invest_duration_days': 0,
+                'loss_percentage': round(loss_percentage, 2),
+                'win_percentage': round(win_percentage, 2),
+                'annual_return': 0.0
+            }
+            
             tracker['settled'][inv_id] = {
                 'investment_ref': inv,
-                'result': {
-                    'result': 'open',
-                    'start_date': inv['opportunity_record']['date'],
-                    'end_date': invest_start_date,
-                    'profit': 0.0,
-                    'invest_duration_days': 0,
-                    'annual_return': 0.0
-                }
+                'result': open_settlement_result
             }
+            
+            # 生成统一格式的open状态结算信息
+            try:
+                investment_recorder = InvestmentRecorder()
+                settlement_record = investment_recorder.to_settlement(job_data, open_settlement_result)
+                # 将结算记录添加到settled中，保持原有格式
+                tracker['settled'][inv_id]['settlement_record'] = settlement_record
+            except Exception as e:
+                logger.error(f"🔍 生成open状态结算信息失败: {e}")
+            
             del tracker['investing'][job_data['id']]
+        
 
+        
         return {
             'stock_info': job_data,
             'investments': tracker['settled']
         }
 
     @staticmethod
-    def simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> Dict[str, Any]:
+    def simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
         record_of_today = daily_k_lines[-1]
 
         investing_opportunity = tracker['investing'].get(stock['id'])
@@ -616,6 +690,7 @@ class HLSimulator:
             # 结算后可继续寻找机会
             if stock['id'] not in tracker['investing']:
                 from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
+                
                 freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(daily_k_lines)
                 low_points = HistoricLowService.find_historic_lows(history_records)
                 opp = HistoricLowStrategy.scan_single_stock(stock, freeze_records, low_points)
@@ -623,6 +698,7 @@ class HLSimulator:
                     tracker['investing'][stock['id']] = opp
         else:
             from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
+            
             freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(daily_k_lines)
             low_points = HistoricLowService.find_historic_lows(history_records)
             opp = HistoricLowStrategy.scan_single_stock(stock, freeze_records, low_points)
@@ -649,25 +725,45 @@ class HLSimulator:
             investment_id = f"{stock['id']}_{start_date}"
 
 
+            # 计算止损和止盈百分比
+            loss_price = opportunity['goal']['loss']
+            win_price = opportunity['goal']['win']
+            loss_percentage = ((loss_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
+            win_percentage = ((win_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
+            
+            # 构建结算信息
+            settlement_result = {
+                'result': result_value,
+                'start_date': opportunity['opportunity_record']['date'],
+                'end_date': end_date,
+                'profit': profit,
+                'invest_duration_days': invest_duration_days,
+                'loss_percentage': round(loss_percentage, 2),
+                'win_percentage': round(win_percentage, 2),
+                'annual_return': AnalyzerService.get_annual_return(
+                    profit / purchase_price if purchase_price != 0 else 0.0,
+                    invest_duration_days
+                )
+            }
+            
             tracker['settled'][investment_id] = {
                 'investment_ref': opportunity,
-                'result': {
-                    'result': result_value,
-                    'start_date': opportunity['opportunity_record']['date'],
-                    'end_date': end_date,
-                    'profit': profit,
-                    'invest_duration_days': invest_duration_days,
-                    'annual_return': AnalyzerService.get_annual_return(
-                        profit / purchase_price if purchase_price != 0 else 0.0,
-                        invest_duration_days
-                    )
-                }
+                'result': settlement_result
             }
 
             if stock['id'] in tracker['investing']:
                 del tracker['investing'][stock['id']]
                 
-            logger.info(f"🔍  {stock['id']} investment {result_value}, duration: {invest_duration_days} days")
+            result_dot = "🟢" if result_value.upper() == "WIN" else "🔴"
+            logger.info(f" {result_dot} {stock['id']} investment {result_value}, duration: {invest_duration_days} days")
+            
+            # 生成统一格式的投资结算信息
+            try:
+                settlement_record = InvestmentRecorder().to_settlement(stock, settlement_result)
+                # 将结算记录添加到settled中，保持原有格式
+                tracker['settled'][investment_id]['settlement_record'] = settlement_record
+            except Exception as e:
+                logger.error(f"🔍 生成投资结算信息失败: {e}")
             
         except Exception as e:
             logger.error(f"🔍 settle_result 方法执行出错: {e}")

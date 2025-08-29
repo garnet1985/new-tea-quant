@@ -18,15 +18,13 @@
         },
         {
             "name": "qfq",
-            "type": "decimal",
-            "length": "12,6",
+            "type": "float",
             "isRequired": true,
             "description": "前复权因子"
         },
         {
             "name": "hfq",
-            "type": "decimal",
-            "length": "12,6",
+            "type": "float",
             "isRequired": true,
             "description": "后复权因子"
         },

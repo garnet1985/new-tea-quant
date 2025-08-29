@@ -97,6 +97,33 @@ class InvestmentRecorder:
         self._save_stock_record(record)
         
 
+    def to_settlement(self, stock_info: Dict[str, Any], settlement_info: Dict[str, Any]):
+        """
+        生成统一格式的投资结算信息字典
+        
+        Args:
+            stock_info: 股票信息
+            settlement_info: 结算信息
+            
+        Returns:
+            Dict[str, Any]: 统一格式的结算信息字典
+        """
+        code, market = DataSourceService.parse_ts_code(stock_info.get('id', ''))
+        
+        # 返回统一格式的结算信息，不生成文件
+        return {
+            'status': settlement_info.get('result', ''),
+            'start_date': settlement_info.get('start_date', ''),
+            'end_date': settlement_info.get('end_date', ''),
+            'settlement_info': {
+                'profit_loss': settlement_info.get('profit', 0),
+                'duration_days': settlement_info.get('invest_duration_days', 0),
+                'exit_date': settlement_info.get('end_date', ''),
+                'annual_return': settlement_info.get('annual_return', 0)
+            }
+        }
+        
+
     def to_session(self, stocks):
         """生成会话汇总"""
         # 统计所有投资记录
@@ -133,6 +160,8 @@ class InvestmentRecorder:
         with open(file_path, "w", encoding="utf-8") as file:
             json.dump(record, file, ensure_ascii=False, indent=2)
 
+
+
     def _save_session_summary(self, session_summary: Dict[str, Any]):
         """保存会话汇总信息"""
         session_dir = self._get_session_dir()
@@ -142,6 +171,15 @@ class InvestmentRecorder:
             json.dump(session_summary, f, ensure_ascii=False, indent=2)
         
         logger.info(f"📝 会话汇总已保存: {summary_file}")
+
+    def update_session_summary(self, session_summary: Dict[str, Any]):
+        """
+        更新会话汇总信息
+        
+        Args:
+            session_summary: 会话汇总数据
+        """
+        self._save_session_summary(session_summary)
 
     def _get_session_dir(self):
         """获取当前会话目录路径"""

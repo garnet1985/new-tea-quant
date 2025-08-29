@@ -32,7 +32,7 @@ class HLSimulator:
         self._investment_recorder_initialized = False
         
         # 是否启用详细日志
-        self.is_verbose = True
+        self.is_verbose = False
         
 
 
@@ -578,16 +578,18 @@ class HLSimulator:
         # 清算未结持仓为 open
         if job_data['id'] in tracker['investing']:
             inv = tracker['investing'][job_data['id']]
-            inv_id = f"{job_data['id']}_{inv['invest_start_date']}"
+            # 确保日期是字符串类型
+            invest_start_date = str(inv['invest_start_date']) if inv.get('invest_start_date') else 'unknown'
+            inv_id = f"{job_data['id']}_{invest_start_date}"
             tracker['settled'][inv_id] = {
                 'investment_ref': inv,
                 'result': {
                     'result': 'open',
                     'start_date': inv['opportunity_record']['date'],
-                    'end_date': inv['invest_start_date'],
-                    'profit': 0,
+                    'end_date': invest_start_date,
+                    'profit': 0.0,
                     'invest_duration_days': 0,
-                    'annual_return': 0
+                    'annual_return': 0.0
                 }
             }
             del tracker['investing'][job_data['id']]
@@ -601,15 +603,14 @@ class HLSimulator:
     def simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> Dict[str, Any]:
         record_of_today = daily_k_lines[-1]
 
-        investing = tracker['investing'].get(stock['id'])
+        investing_opportunity = tracker['investing'].get(stock['id'])
 
-        if investing:
-            current_close = float(record_of_today['close'])
-            if current_close >= investing['goal']['win']:
-                logger.info(f"🔍 settle_result: win - {investing['goal']}")
-                HLSimulator.settle_result('win', stock, investing, record_of_today, tracker)
-            elif current_close <= investing['goal']['loss']:
-                HLSimulator.settle_result('loss', stock, investing, record_of_today, tracker)
+        if investing_opportunity:
+            current_close = record_of_today['close']
+            if current_close >= investing_opportunity['goal']['win']:
+                HLSimulator.settle_result('win', stock, investing_opportunity, record_of_today, tracker)
+            elif current_close <= investing_opportunity['goal']['loss']:
+                HLSimulator.settle_result('loss', stock, investing_opportunity, record_of_today, tracker)
             else:
                 pass
             # 结算后可继续寻找机会
@@ -633,44 +634,45 @@ class HLSimulator:
 
 
     @staticmethod
-    def settle_result(result_value: str, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], tracker: Dict[str, Any]) -> None:
-        """
-        写入结算结果到传入的 tracker['settled']
-        """
+    def settle_result(result_value: str, stock: Dict[str, Any], opportunity: Dict[str, Any], record_of_today: Dict[str, Any], tracker: Dict[str, Any]) -> None:
+        try:
 
-        logger.info(f"🔍 start_date: {investment['invest_start_date']}")
-        logger.info(f"🔍 end_date: {latest_record['date']}")
+            start_date = opportunity['invest_start_date']
+            end_date = record_of_today['date']
 
-        invest_duration_days = AnalyzerService.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
-        logger.info(f"🔍 invest_duration_days: {invest_duration_days}")
-        
-        
-        
-        purchase_price = float(investment['goal']['purchase'])
-        profit = float(latest_record['close']) - purchase_price
+            invest_duration_days = AnalyzerService.get_duration_in_days(start_date, end_date)
+            
+            purchase_price = opportunity['goal']['purchase']
+            current_close = record_of_today['close']
+            profit = current_close - purchase_price
+
+            investment_id = f"{stock['id']}_{start_date}"
 
 
-        investment_id = f"{stock['id']}_{investment['invest_start_date']}"
-
-
-        tracker['settled'][investment_id] = {
-            'investment_ref': investment,
-            'result': {
-                'result': result_value,
-                'start_date': investment['opportunity_record']['date'],
-                'end_date': latest_record['date'],
-                'profit': profit,
-                'invest_duration_days': invest_duration_days,
-                'annual_return': AnalyzerService.get_annual_return(
-                    profit / purchase_price if purchase_price != 0 else 0.0,
-                    invest_duration_days
-                )
+            tracker['settled'][investment_id] = {
+                'investment_ref': opportunity,
+                'result': {
+                    'result': result_value,
+                    'start_date': opportunity['opportunity_record']['date'],
+                    'end_date': end_date,
+                    'profit': profit,
+                    'invest_duration_days': invest_duration_days,
+                    'annual_return': AnalyzerService.get_annual_return(
+                        profit / purchase_price if purchase_price != 0 else 0.0,
+                        invest_duration_days
+                    )
+                }
             }
-        }
 
-
-        if stock['id'] in tracker['investing']:
-            del tracker['investing'][stock['id']]
+            if stock['id'] in tracker['investing']:
+                del tracker['investing'][stock['id']]
+                
+            logger.info(f"🔍  {stock['id']} investment {result_value}, duration: {invest_duration_days} days")
+            
+        except Exception as e:
+            logger.error(f"🔍 settle_result 方法执行出错: {e}")
+            import traceback
+            logger.error(f"🔍 错误详情: {traceback.format_exc()}")
 
 
     # def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], thread_tracker: Dict[str, Any]) -> bool:

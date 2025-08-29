@@ -48,7 +48,8 @@ class HistoricLowService:
             },
             'historic_low_ref': low_point,
             'investment_targets': investment_targets,
-            'previous_low_points': previous_low_points or []
+            'previous_low_points': previous_low_points or [],
+            'invest_start_date': record_of_today.get('date') if record_of_today else None
         }
         
         # 递归转换所有Decimal为float，确保类型一致性

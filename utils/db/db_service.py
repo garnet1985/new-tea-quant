@@ -30,11 +30,16 @@ class DBService:
             elif field_type == 'DATETIME':
                 field_def = f"`{field_name}` {field_type}"
             elif field_type == 'DECIMAL' and 'length' in field:
-                field_def = f"`{field_name}` {field_type}({field['length']})"
+                # 若仍有老schema定义为DECIMAL，按DOUBLE创建，避免Decimal进入DB
+                field_def = f"`{field_name}` DOUBLE"
             elif field_type == 'BIGINT':
                 field_def = f"`{field_name}` {field_type}"
             else:
-                field_def = f"`{field_name}` {field_type}"
+                # 将任何残留的DECIMAL类型映射为DOUBLE，防止Decimal
+                if field_type == 'DECIMAL':
+                    field_def = f"`{field_name}` DOUBLE"
+                else:
+                    field_def = f"`{field_name}` {field_type}"
             
             # 添加约束
             if is_required:

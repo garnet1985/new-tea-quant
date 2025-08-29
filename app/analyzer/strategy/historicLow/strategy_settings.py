@@ -12,10 +12,21 @@ strategy_settings = {
         "kellyCriterionDivider": 5
     },
 
+    "valley_analysis": {
+        "min_drop_threshold": 0.15,    # 最小跌幅阈值（20%）
+        "local_range_days": 5,         # 局部最低点判断范围（前后5天）
+        "lookback_days": 60,
+
+        "cluster_threshold": 0.05,              # 在收集波谷聚合时，支撑位最大波动范围
+        "max_amplitude_range": 0.2,             # 最大波动范围 - 在收集波谷聚合时，支撑位最大波动范围%
+        "min_touch_count": 3,                   # 最小触及次数 - 至少3个valley触及过的低点才是支撑位
+    },
+
     
     # 新增：日线数据要求
     "daily_data_requirements": {
-        "freeze_period_days": 50,       # 冻结期：50个交易日（缩小，覆盖更多历史数据）
+        "freeze_period_days": 40, 
+        "low_points_ref_years": [3, 5, 8, 0],     # 冻结期：50个交易日（缩小，覆盖更多历史数据）
         "history_periods": [
             {"name": "5year", "trading_days": 1200, "description": "5年回溯"},
             {"name": "8year", "trading_days": 2000, "description": "8年回溯"},

@@ -40,7 +40,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
 
         # todo: remove below line
-        stock_idx = stock_idx[0:1]  # 测试前2只股票
+        stock_idx = stock_idx[1:2]  # 测试前2只股票
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -203,17 +203,10 @@ class HLSimulator:
 
 
     def find_opportunity(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """查找投资机会（旧版本，保留兼容性）"""
-        # 在simulator中重新划分数据，避免重复读取数据库
-        freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(daily_k_lines)
-        
-        # 在历史数据中寻找历史低点（跳过冻结期）
-        low_points = HistoricLowService.find_historic_lows(history_records)
-        
         # 调用策略扫描机会，使用划分后的数据
-        opportunity = self.strategy.scan_single_stock(stock, freeze_records, low_points)
+        opportunity = self.strategy.scan_single_stock(stock, daily_k_lines)
 
-        return opportunity, low_points
+        return opportunity
 
     def invest(self, stock: Dict[str, Any], opportunity: Dict[str, Any], low_points: List[Dict[str, Any]], thread_tracker: Dict[str, Any]) -> None:
         # 检查是否已经在投资
@@ -552,37 +545,6 @@ class HLSimulator:
         factors = adj_model.get_stock_factors(stock_id) if hasattr(adj_model, 'get_stock_factors') else []
         return DataSourceService.to_qfq(raw, factors)
 
-    @staticmethod
-    def is_daily_data_meet_simulation_requirements(daily_data: List[Dict[str, Any]]) -> bool:
-        """
-        规则：
-        1) 寻找最后一个包含负值价格的记录索引（close/highest/lowest 任一为负）
-        2) 取该索引之后的连续片段作为有效序列
-        3) 判断该连续片段长度是否满足配置中的最小所需日线数
-        """
-        if not daily_data:
-            return False
-
-        last_negative_idx = -1
-        for idx, rec in enumerate(daily_data):
-            try:
-                close_v = float(rec.get('close', 0))
-                high_v = float(rec.get('highest', close_v))
-                low_v = float(rec.get('lowest', close_v))
-            except Exception:
-                # 非法记录按负值处理，推动起点
-                last_negative_idx = idx
-                continue
-            if close_v < 0 or high_v < 0 or low_v < 0:
-                last_negative_idx = idx
-
-        # 取连续片段（最后一个负值之后）
-        continuous_slice = daily_data[last_negative_idx + 1:] if last_negative_idx + 1 < len(daily_data) else []
-
-        from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings as _settings
-        min_required = _settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
-        return len(continuous_slice) >= min_required
-
     # because the python does not share the class instance, we need to use static method to simulate the single stock
     @classmethod
     def simulate_single_stock(cls, job_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -594,10 +556,6 @@ class HLSimulator:
 
         # 在子进程内按需加载复权后的日线
         daily_data = cls.load_qfq_daily(job_data['id'])
-
-        # 使用配置的最小天数
-        if not cls.is_daily_data_meet_simulation_requirements(daily_data):
-            return {}
 
         # 本地tracker（仿照实例版）
         tracker: Dict[str, Any] = {
@@ -690,18 +648,12 @@ class HLSimulator:
             # 结算后可继续寻找机会
             if stock['id'] not in tracker['investing']:
                 from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
-                
-                freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(daily_k_lines)
-                low_points = HistoricLowService.find_historic_lows(history_records)
-                opp = HistoricLowStrategy.scan_single_stock(stock, freeze_records, low_points)
+                opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
                 if opp:
                     tracker['investing'][stock['id']] = opp
         else:
             from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
-            
-            freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(daily_k_lines)
-            low_points = HistoricLowService.find_historic_lows(history_records)
-            opp = HistoricLowStrategy.scan_single_stock(stock, freeze_records, low_points)
+            opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
             if opp:
                 tracker['investing'][stock['id']] = opp
 
@@ -769,54 +721,3 @@ class HLSimulator:
             logger.error(f"🔍 settle_result 方法执行出错: {e}")
             import traceback
             logger.error(f"🔍 错误详情: {traceback.format_exc()}")
-
-
-    # def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], thread_tracker: Dict[str, Any]) -> bool:
-    #     """结算投资，返回是否结算了"""
-    #     # 检查投资是否已经被结算过
-    #     investment_id = f"{stock['id']}_{investment['invest_start_date']}"
-
-    #     if investment_id in thread_tracker['settled']:
-    #         return False
-        
-    #     # 转换数据类型，确保计算一致性
-    #     current_close = float(latest_record['close'])
-    #     loss_price = investment['goal']['loss']
-    #     win_price = investment['goal']['win']
-        
-    #     if current_close >= win_price:
-    #         self.settle_result(self.result_enum.WIN, stock, investment, latest_record, thread_tracker)
-    #         self._record_investment_settlement(stock, investment, 'win', current_close, latest_record['date'])
-    #         return True
-    #     if current_close <= loss_price:
-    #         self.settle_result(self.result_enum.LOSS, stock, investment, latest_record, thread_tracker)
-    #         self._record_investment_settlement(stock, investment, 'loss', current_close, latest_record['date'])
-    #         return True
-
-    #     return False
-
-
-
-    # def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], thread_tracker: Dict[str, Any]) -> bool:
-    #     record_of_today = daily_k_lines[-1]
-    #     opportunity = None
-        
-    #     # 使用线程自己的tracker
-    #     investing_opportunity = HistoricLowService.get_investing(stock, thread_tracker['investing'])
-        
-    #     if investing_opportunity:
-    #         # 检查是否需要结算（止损或止盈）
-    #         is_settled = self.settle_investment(stock, investing_opportunity, record_of_today, thread_tracker)
-    #         if is_settled:
-    #             # 投资已结算，看看今天还有机会不
-    #             opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
-    #     else:
-    #         # 没有投资，扫描新机会
-    #         opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
-
-    #     # 只有在没有投资且找到机会时才投资
-    #     if opportunity and not investing_opportunity:
-    #         self.invest(stock, opportunity, low_points, thread_tracker)
-    #         return True
-        
-    #     return False

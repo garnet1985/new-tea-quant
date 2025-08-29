@@ -11,19 +11,7 @@ from datetime import datetime
 class HistoricLowService:
     """HistoricLow策略的静态服务类"""
     
-    @staticmethod
-    def convert_decimal_to_float(obj: Any) -> Any:
-        """
-        递归转换对象中的所有Decimal类型为float，确保类型一致性
-        """
-        if hasattr(obj, '__float__'):
-            return float(obj)
-        elif isinstance(obj, dict):
-            return {k: HistoricLowService.convert_decimal_to_float(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [HistoricLowService.convert_decimal_to_float(item) for item in obj]
-        else:
-            return obj
+
 
     @staticmethod
     def to_opportunity(stock: Dict[str, Any],
@@ -52,8 +40,7 @@ class HistoricLowService:
             'invest_start_date': record_of_today.get('date') if record_of_today else None
         }
         
-        # 递归转换所有Decimal为float，确保类型一致性
-        return HistoricLowService.convert_decimal_to_float(opportunity)
+        return opportunity
 
     @staticmethod
     def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -1204,29 +1191,6 @@ class HistoricLowService:
         
         # 更新result变量
         result = merged_result
-        
-
-        
-        def calculate_importance_score(low_point):
-            score = 0
-            confirmation_count = len(low_point['conclusion_from'])
-            score += confirmation_count * 1000  # 大幅提高触及次数的权重
-            if 'drop_rate' in low_point and low_point['drop_rate'] > 0:
-                score += low_point['drop_rate'] * 100
-            price = low_point['price']
-            if 5.0 <= price <= 50.0:
-                score += 50
-            elif 2.0 <= price < 5.0:
-                score += 30
-            elif 50.0 < price <= 100.0:
-                score += 40
-            if 'deepest_valley' in low_point['conclusion_from']:
-                score += 100
-            if 'multiple_touches' in low_point['conclusion_from']:
-                score += 80
-            if 'flaturation' in low_point['conclusion_from']:
-                score += 60
-            return score
         
         return result
 

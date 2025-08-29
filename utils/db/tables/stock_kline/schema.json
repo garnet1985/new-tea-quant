@@ -23,44 +23,37 @@
         },
         {
             "name": "open",
-            "type": "decimal",
-            "length": "12,4",
+            "type": "float",
             "isRequired": true
         },
         {
             "name": "close",
-            "type": "decimal",
-            "length": "12,4",
+            "type": "float",
             "isRequired": true
         },
         {
             "name": "highest",
-            "type": "decimal",
-            "length": "12,4",
+            "type": "float",
             "isRequired": true
         },
         {
             "name": "lowest",
-            "type": "decimal",
-            "length": "12,4",
+            "type": "float",
             "isRequired": true
         },
         {
             "name": "priceChangeDelta",
-            "type": "decimal",
-            "length": "12,4",
+            "type": "float",
             "isRequired": false
         },
         {
             "name": "priceChangeRateDelta",
-            "type": "decimal",
-            "length": "8,4",
+            "type": "float",
             "isRequired": false
         },
         {
             "name": "preClose",
-            "type": "decimal",
-            "length": "12,4",
+            "type": "float",
             "isRequired": false
         },
         {
@@ -70,8 +63,7 @@
         },
         {
             "name": "amount",
-            "type": "decimal",
-            "length": "20,2",
+            "type": "float",
             "isRequired": false
         }
     ],

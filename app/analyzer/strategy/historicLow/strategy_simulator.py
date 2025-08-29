@@ -1,9 +1,10 @@
-import threading
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 from loguru import logger
 import json
 import os
+from pprint import pprint
+
 
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
@@ -16,7 +17,6 @@ from app.analyzer.strategy.historicLow.strategy_settings import strategy_setting
 class HLSimulator:
     def __init__(self, strategy):
 
-        # import strategy
         self.strategy = strategy
 
         # init tracker
@@ -163,31 +163,6 @@ class HLSimulator:
         }
 
 
-    def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], thread_tracker: Dict[str, Any]) -> bool:
-        record_of_today = daily_k_lines[-1]
-        opportunity = None
-        
-        # 使用线程自己的tracker
-        investing_opportunity = HistoricLowService.get_investing(stock, thread_tracker['investing'])
-        
-        if investing_opportunity:
-            # 检查是否需要结算（止损或止盈）
-            is_settled = self.settle_investment(stock, investing_opportunity, record_of_today, thread_tracker)
-            if is_settled:
-                # 投资已结算，看看今天还有机会不
-                opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
-        else:
-            # 没有投资，扫描新机会
-            opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
-
-        # 只有在没有投资且找到机会时才投资
-        if opportunity and not investing_opportunity:
-            self.invest(stock, opportunity, low_points, thread_tracker)
-            return True
-        
-        return False
-
-
     def find_opportunity(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """查找投资机会（旧版本，保留兼容性）"""
         # 在simulator中重新划分数据，避免重复读取数据库
@@ -214,63 +189,44 @@ class HLSimulator:
         thread_tracker['investing'][stock['id']] = opportunity
 
 
-    def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], thread_tracker: Dict[str, Any]) -> bool:
-        """结算投资，返回是否结算了"""
-        # 检查投资是否已经被结算过
-        investment_id = f"{stock['id']}_{investment['invest_start_date']}"
-        if investment_id in thread_tracker['settled']:
-            return False
+    # def settle_result(self, result: InvestmentResult, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], thread_tracker: Dict[str, Any]) -> None:
+    #     """结算投资结果"""
         
-        # 转换数据类型，确保计算一致性
-        current_close = float(latest_record['close'])
-        loss_price = investment['goal']['loss']
-        win_price = investment['goal']['win']
-        
-        if current_close >= win_price:
-            
-            self.settle_result(self.result_enum.WIN, stock, investment, latest_record, thread_tracker)
-            self._record_investment_settlement(stock, investment, 'win', current_close, latest_record['date'])
-            return True
-        if current_close <= loss_price:
-            
-            self.settle_result(self.result_enum.LOSS, stock, investment, latest_record, thread_tracker)
-            self._record_investment_settlement(stock, investment, 'loss', current_close, latest_record['date'])
-            return True
+    #     logger.info(f"🔍 settle_result: {result.value}")
 
-        return False
+    #     # 检查投资是否已经被结算过
+    #     investment_id = f"{stock['id']}_{investment['invest_start_date']}"
+        
+    #     # 双重检查，确保在锁内再次验证
+    #     if investment_id in thread_tracker['settled']:
+    #         return
+        
+    #     invest_duration_days = AnalyzerService.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
+    #     purchase_price = float(investment['goal']['purchase'])  # 使用已记录的购买价格
+    #     profit = float(latest_record['close']) - purchase_price
+        
+    #     # 为每次投资生成唯一标识符，避免同一股票多次投资被覆盖
+    #     thread_tracker['settled'][investment_id] = {
+    #         'investment_ref': investment,
+    #         'result': {
+    #             'result': result.value,
+    #             'start_date': investment['opportunity_record']['date'],
+    #             'end_date': latest_record['date'],
+    #             'profit': profit,
+    #             'invest_duration_days': invest_duration_days,
+    #             'annual_return': AnalyzerService.get_annual_return(
+    #                 profit / purchase_price,
+    #                 invest_duration_days
+    #             )
+    #         }
+    #     }
 
-    def settle_result(self, result: InvestmentResult, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], thread_tracker: Dict[str, Any]) -> None:
-        """结算投资结果"""
-        # 检查投资是否已经被结算过
-        investment_id = f"{stock['id']}_{investment['invest_start_date']}"
+
+    #     print(f"🔍 investment {stock['id']} - {stock['name']} is settled. result: {result.value}")
         
-        # 双重检查，确保在锁内再次验证
-        if investment_id in thread_tracker['settled']:
-            return
-        
-        invest_duration_days = AnalyzerService.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
-        purchase_price = float(investment['goal']['purchase'])  # 使用已记录的购买价格
-        profit = float(latest_record['close']) - purchase_price
-        
-        # 为每次投资生成唯一标识符，避免同一股票多次投资被覆盖
-        thread_tracker['settled'][investment_id] = {
-            'investment_ref': investment,
-            'result': {
-                'result': result.value,
-                'start_date': investment['opportunity_record']['date'],
-                'end_date': latest_record['date'],
-                'profit': profit,
-                'invest_duration_days': invest_duration_days,
-                'annual_return': AnalyzerService.get_annual_return(
-                    profit / purchase_price,
-                    invest_duration_days
-                )
-            }
-        }
-        
-        # 删除投资状态，而不是设置为None
-        if stock['id'] in thread_tracker['investing']:
-            del thread_tracker['investing'][stock['id']]
+    #     # 删除投资状态，而不是设置为None
+    #     if stock['id'] in thread_tracker['investing']:
+    #         del thread_tracker['investing'][stock['id']]
     
     
     
@@ -588,10 +544,9 @@ class HLSimulator:
         不依赖实例状态，避免pickle问题
         """
         # 提取任务数据（仅包含stock信息），其余数据在子进程内加载
-        stock = job_data['data']
 
         # 在子进程内按需加载复权后的日线
-        daily_data = cls.load_qfq_daily(stock['id'])
+        daily_data = cls.load_qfq_daily(job_data['id'])
 
         # 使用配置的最小天数
         if not cls.is_daily_data_meet_simulation_requirements(daily_data):
@@ -616,15 +571,14 @@ class HLSimulator:
             current_daily_data.append(daily_record)
             if len(current_daily_data) < min_required_days:
                 continue
-
-            cls.simulate_one_day(stock, current_daily_data, tracker)
+            cls.simulate_one_day(job_data, current_daily_data, tracker)
             
             
 
         # 清算未结持仓为 open
-        if stock['id'] in tracker['investing']:
-            inv = tracker['investing'][stock['id']]
-            inv_id = f"{stock['id']}_{inv['invest_start_date']}"
+        if job_data['id'] in tracker['investing']:
+            inv = tracker['investing'][job_data['id']]
+            inv_id = f"{job_data['id']}_{inv['invest_start_date']}"
             tracker['settled'][inv_id] = {
                 'investment_ref': inv,
                 'result': {
@@ -636,10 +590,10 @@ class HLSimulator:
                     'annual_return': 0
                 }
             }
-            del tracker['investing'][stock['id']]
+            del tracker['investing'][job_data['id']]
 
         return {
-            'stock_info': stock,
+            'stock_info': job_data,
             'investments': tracker['settled']
         }
 
@@ -652,6 +606,7 @@ class HLSimulator:
         if investing:
             current_close = float(record_of_today['close'])
             if current_close >= investing['goal']['win']:
+                logger.info(f"🔍 settle_result: win - {investing['goal']}")
                 HLSimulator.settle_result('win', stock, investing, record_of_today, tracker)
             elif current_close <= investing['goal']['loss']:
                 HLSimulator.settle_result('loss', stock, investing, record_of_today, tracker)
@@ -677,28 +632,93 @@ class HLSimulator:
 
 
 
-    # @staticmethod
-    # def settle_result_static(result_value: str, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], tracker: Dict[str, Any]) -> None:
-    #     """
-    #     写入结算结果到传入的 tracker['settled']
-    #     """
-    #     invest_duration_days = AnalyzerService.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
-    #     purchase_price = float(investment['goal']['purchase'])
-    #     profit = float(latest_record['close']) - purchase_price
+    @staticmethod
+    def settle_result(result_value: str, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], tracker: Dict[str, Any]) -> None:
+        """
+        写入结算结果到传入的 tracker['settled']
+        """
+
+        logger.info(f"🔍 start_date: {investment['invest_start_date']}")
+        logger.info(f"🔍 end_date: {latest_record['date']}")
+
+        invest_duration_days = AnalyzerService.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
+        logger.info(f"🔍 invest_duration_days: {invest_duration_days}")
+        
+        
+        
+        purchase_price = float(investment['goal']['purchase'])
+        profit = float(latest_record['close']) - purchase_price
+
+
+        investment_id = f"{stock['id']}_{investment['invest_start_date']}"
+
+
+        tracker['settled'][investment_id] = {
+            'investment_ref': investment,
+            'result': {
+                'result': result_value,
+                'start_date': investment['opportunity_record']['date'],
+                'end_date': latest_record['date'],
+                'profit': profit,
+                'invest_duration_days': invest_duration_days,
+                'annual_return': AnalyzerService.get_annual_return(
+                    profit / purchase_price if purchase_price != 0 else 0.0,
+                    invest_duration_days
+                )
+            }
+        }
+
+
+        if stock['id'] in tracker['investing']:
+            del tracker['investing'][stock['id']]
+
+
+    # def settle_investment(self, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], thread_tracker: Dict[str, Any]) -> bool:
+    #     """结算投资，返回是否结算了"""
+    #     # 检查投资是否已经被结算过
     #     investment_id = f"{stock['id']}_{investment['invest_start_date']}"
-    #     tracker['settled'][investment_id] = {
-    #         'investment_ref': investment,
-    #         'result': {
-    #             'result': result_value,
-    #             'start_date': investment['opportunity_record']['date'],
-    #             'end_date': latest_record['date'],
-    #             'profit': profit,
-    #             'invest_duration_days': invest_duration_days,
-    #             'annual_return': AnalyzerService.get_annual_return(
-    #                 profit / purchase_price if purchase_price != 0 else 0.0,
-    #                 invest_duration_days
-    #             )
-    #         }
-    #     }
-    #     if stock['id'] in tracker['investing']:
-    #         del tracker['investing'][stock['id']]
+
+    #     if investment_id in thread_tracker['settled']:
+    #         return False
+        
+    #     # 转换数据类型，确保计算一致性
+    #     current_close = float(latest_record['close'])
+    #     loss_price = investment['goal']['loss']
+    #     win_price = investment['goal']['win']
+        
+    #     if current_close >= win_price:
+    #         self.settle_result(self.result_enum.WIN, stock, investment, latest_record, thread_tracker)
+    #         self._record_investment_settlement(stock, investment, 'win', current_close, latest_record['date'])
+    #         return True
+    #     if current_close <= loss_price:
+    #         self.settle_result(self.result_enum.LOSS, stock, investment, latest_record, thread_tracker)
+    #         self._record_investment_settlement(stock, investment, 'loss', current_close, latest_record['date'])
+    #         return True
+
+    #     return False
+
+
+
+    # def simulate_one_day_for_one_stock(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], thread_tracker: Dict[str, Any]) -> bool:
+    #     record_of_today = daily_k_lines[-1]
+    #     opportunity = None
+        
+    #     # 使用线程自己的tracker
+    #     investing_opportunity = HistoricLowService.get_investing(stock, thread_tracker['investing'])
+        
+    #     if investing_opportunity:
+    #         # 检查是否需要结算（止损或止盈）
+    #         is_settled = self.settle_investment(stock, investing_opportunity, record_of_today, thread_tracker)
+    #         if is_settled:
+    #             # 投资已结算，看看今天还有机会不
+    #             opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
+    #     else:
+    #         # 没有投资，扫描新机会
+    #         opportunity, low_points = self.find_opportunity(stock, daily_k_lines)
+
+    #     # 只有在没有投资且找到机会时才投资
+    #     if opportunity and not investing_opportunity:
+    #         self.invest(stock, opportunity, low_points, thread_tracker)
+    #         return True
+        
+    #     return False

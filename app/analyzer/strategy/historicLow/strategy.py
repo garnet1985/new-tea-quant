@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import pprint
 from enum import Enum
 from loguru import logger
+from app.analyzer.strategy.historicLow.strategy_simulator import HLSimulator
 from utils.worker import ProcessWorker, ProcessExecutionMode 
 from .tables.meta.model import HLMetaModel
 from .tables.opportunity_history.model import HLOpportunityHistoryModel
@@ -73,12 +74,6 @@ class HistoricLowStrategy(BaseStrategy):
     
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         self._present_report(opportunities)
-
-    def simulate(self) -> None:
-        # 延迟导入，避免与 simulator 的循环依赖
-        from .strategy_simulator import HLSimulator
-        HLSimulator(self).test_strategy()
-
     
     def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         opportunities = []
@@ -236,3 +231,9 @@ class HistoricLowStrategy(BaseStrategy):
             last_opportunity_update_time=meta_data['lastOpportunityUpdateTime'],
             last_suggested_stock_codes=meta_data['lastSuggestedStockCodes']
         )
+
+
+    def simulate(self) -> None:
+        # 延迟导入，避免与 simulator 的循环依赖
+        from .strategy_simulator import HLSimulator
+        HLSimulator(self).test_strategy()

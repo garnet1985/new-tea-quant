@@ -9,6 +9,22 @@ from datetime import datetime
 
 
 class HistoricLowService:
+    """HistoricLow策略的静态服务类"""
+    
+    @staticmethod
+    def convert_decimal_to_float(obj: Any) -> Any:
+        """
+        递归转换对象中的所有Decimal类型为float，确保类型一致性
+        """
+        if hasattr(obj, '__float__'):
+            return float(obj)
+        elif isinstance(obj, dict):
+            return {k: HistoricLowService.convert_decimal_to_float(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [HistoricLowService.convert_decimal_to_float(item) for item in obj]
+        else:
+            return obj
+
     @staticmethod
     def to_opportunity(stock: Dict[str, Any],
                        record_of_today: Dict[str, Any],
@@ -17,6 +33,7 @@ class HistoricLowService:
                        previous_low_points: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         构造统一的机会对象，保证结构一致。
+        所有数值字段统一转换为float类型。
         """
         opportunity = {
             'stock': {
@@ -33,7 +50,9 @@ class HistoricLowService:
             'investment_targets': investment_targets,
             'previous_low_points': previous_low_points or []
         }
-        return opportunity
+        
+        # 递归转换所有Decimal为float，确保类型一致性
+        return HistoricLowService.convert_decimal_to_float(opportunity)
 
     @staticmethod
     def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -235,6 +254,8 @@ class HistoricLowService:
         take_profit_price = current_price + (range_min * buffer_percentage * 2)
         
         return {
+            'loss': stop_loss_price,
+            'win': take_profit_price,
             'entry_price': current_price,
             'stop_loss_price': round(stop_loss_price, 2),
             'take_profit_price': round(take_profit_price, 2),

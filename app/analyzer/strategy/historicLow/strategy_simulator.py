@@ -351,6 +351,7 @@ class HLSimulator:
                 opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
                 if opp:
                     tracker['investing'][stock['id']] = opp
+                    logger.info(f"🎯 {stock['id']} 找到投资机会: {record_of_today['date']}")
         else:
             from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
             opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)

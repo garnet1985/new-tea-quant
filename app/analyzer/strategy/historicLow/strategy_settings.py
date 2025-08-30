@@ -18,7 +18,7 @@ strategy_settings = {
 
         "take_profit": {
             "max_ration": 1,  # 封顶100%
-            "profit_ratio": 0.2  # 取20%作为止盈
+            "profit_ratio": 0.4  # 取40%作为止盈
         }
     },
 
@@ -35,7 +35,7 @@ strategy_settings = {
     
     # 新增：日线数据要求
     "daily_data_requirements": {
-        "freeze_period_days": 40, 
+        "freeze_period_days": 100, 
         "low_points_ref_years": [3, 5, 8, 0],     # 冻结期：50个交易日（缩小，覆盖更多历史数据）
         "history_periods": [
             {"name": "5year", "trading_days": 1200, "description": "5年回溯"},

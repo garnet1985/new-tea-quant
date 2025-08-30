@@ -33,7 +33,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
 
         # todo: remove below line
-        stock_idx = stock_idx[1:2]  # 测试前2只股票
+        stock_idx = stock_idx[0:500]  # 测试前2只股票
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -407,7 +407,12 @@ class HLSimulator:
             if stock['id'] in tracker['investing']:
                 del tracker['investing'][stock['id']]
                 
-            result_dot = "🟢" if result_value.upper() == "WIN" else "🔴"
+            if result_value.upper() == "WIN":
+                result_dot = "🟢"
+            elif result_value.upper() == "LOSS":
+                result_dot = "🔴"
+            else:  # OPEN
+                result_dot = "🟡"
             logger.info(f" {result_dot} {stock['id']} investment {result_value}, duration: {invest_duration_days} days")
             
             # 生成统一格式的投资结算信息

@@ -33,7 +33,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
 
         # todo: remove below line
-        stock_idx = stock_idx[0:500]  # 测试前2只股票
+        stock_idx = stock_idx[200:240]  # 测试前2只股票
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -131,7 +131,9 @@ class HLSimulator:
                 }
                 investment_history.append(converted_investment)
             
-            self.invest_recorder.to_record(stock, investment_history)
+            # 只有当股票有投资记录时才生成文件
+            if investment_history:
+                self.invest_recorder.to_record(stock, investment_history)
         
         # 记录会话汇总
         self.invest_recorder._save_session_summary(session_summary)

@@ -168,7 +168,7 @@ class HistoricLowStrategy(BaseStrategy):
         # 检查当前价格是否在投资范围内
         for low_point in low_points:
             # 检查投资范围和新低
-            if HistoricLowService.is_in_invest_range(record_of_today, low_point):
+            if HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data):
                 # 找到匹配的历史低点，创建投资机会
                 # 使用新的动态止损止盈逻辑
                 investment_targets = HistoricLowService.calculate_investment_targets(record_of_today, low_point, freeze_data, history_data)

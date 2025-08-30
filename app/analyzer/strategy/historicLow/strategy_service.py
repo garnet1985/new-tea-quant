@@ -153,11 +153,151 @@ class HistoricLowService:
 
     
     @staticmethod
-    def is_in_invest_range(record, low_point):
+    def is_in_invest_range(record, low_point, freeze_data=None):
+        """
+        检查是否在投资范围内
+        新增条件：在freeze data内没有出现比历史低点更低的价格
+        """
         if low_point is None:
             return False
-        # return record['close'] < low_point['max'] and record['close'] > low_point['min']
-        return record['close'] < low_point['min'] * 1.05 and record['close'] > low_point['min'] * 0.95
+        
+        current_price = float(record['close'])
+        low_point_price = float(low_point['min'])  # 历史低点价格
+        
+        # 基本条件：当前价格在历史低点的10%范围内
+        basic_condition = current_price < low_point_price * 1.05 and current_price > low_point_price * 0.95
+        
+        if not basic_condition:
+            return False
+        
+        # 新增条件：检查freeze data内的情况
+        if freeze_data:
+            freeze_min_price = min(float(r['close']) for r in freeze_data)
+            
+            # 条件1：如果freeze data的最低点比当前价格还低，说明在冻结期内已经出现过更低的价格，不投资
+            if freeze_min_price < current_price:
+                return False
+            
+            # 条件2：如果freeze data的最低点已经在历史低点上方10%范围内，说明已经有过反弹，也不投资
+            if freeze_min_price > low_point_price * 1.10:
+                return False
+            
+            # 条件3：当前价格不应该比freeze data的最低点高出太多（超过5%）
+            if current_price > freeze_min_price * 1.05:
+                return False
+        
+        # 新增条件：检查当前是否在连续下跌过程中
+        if freeze_data and HistoricLowService.is_in_continuous_downtrend(record, freeze_data):
+            return False
+        
+        return True
+
+    @staticmethod
+    def is_in_continuous_downtrend(record: Dict[str, Any], freeze_data: List[Dict[str, Any]]) -> bool:
+        """
+        检查当前是否处于连续下跌过程中，分析整个freeze data期间的趋势变化
+        
+        Args:
+            record: 当前记录
+            freeze_data: 冻结期数据
+            
+        Returns:
+            bool: True表示在连续下跌中，False表示不在连续下跌中
+        """
+        if not freeze_data or len(freeze_data) < 10:
+            return False
+        
+        # 获取所有价格数据
+        all_prices = [float(r['close']) for r in freeze_data]
+        
+        # 1. 检查整个freeze data期间是否处于下跌趋势
+        start_price = all_prices[0]
+        end_price = all_prices[-1]
+        total_drop_rate = (start_price - end_price) / start_price
+        
+        # 如果整体跌幅超过20%，需要进一步分析趋势变化
+        if total_drop_rate > 0.20:
+            # 2. 分析趋势变化：将freeze data分为前1/3、中1/3、后1/3三段
+            segment_size = len(all_prices) // 3
+            if segment_size < 3:
+                return True  # 数据不足，保守处理
+            
+            first_segment = all_prices[:segment_size]
+            middle_segment = all_prices[segment_size:2*segment_size]
+            last_segment = all_prices[2*segment_size:]
+            
+            # 计算各段的平均价格
+            first_avg = sum(first_segment) / len(first_segment)
+            middle_avg = sum(middle_segment) / len(middle_segment)
+            last_avg = sum(last_segment) / len(last_segment)
+            
+            # 3. 检查趋势是否在变缓
+            first_to_middle_drop = (first_avg - middle_avg) / first_avg
+            middle_to_last_drop = (middle_avg - last_avg) / middle_avg
+            
+            # 如果中段到后段的跌幅明显小于前段到中段的跌幅，说明趋势在变缓
+            if middle_to_last_drop < first_to_middle_drop * 0.5:
+                # 趋势在变缓，进一步检查最近的表现
+                return HistoricLowService._check_recent_performance(all_prices)
+            else:
+                # 趋势仍在加速下跌
+                return True
+        
+        # 4. 检查最近的表现（最近5天）
+        return HistoricLowService._check_recent_performance(all_prices)
+    
+    @staticmethod
+    def _check_recent_performance(prices: List[float]) -> bool:
+        """
+        检查最近5天的表现
+        
+        Args:
+            prices: 价格列表
+            
+        Returns:
+            bool: True表示仍在下跌中，False表示可能企稳
+        """
+        if len(prices) < 5:
+            return False
+        
+        recent_prices = prices[-5:]
+        
+        # 计算下跌天数
+        down_days = 0
+        for i in range(1, len(recent_prices)):
+            if recent_prices[i] < recent_prices[i-1]:
+                down_days += 1
+        
+        # 如果最近5天中有3天或以上在下跌，认为是连续下跌趋势
+        if down_days >= 3:
+            return True
+        
+        # 检查最近3天是否连续下跌
+        if len(recent_prices) >= 3:
+            if (recent_prices[-3] > recent_prices[-2] > recent_prices[-1]):
+                return True
+        
+        # 检查最近两天的累计跌幅
+        if len(recent_prices) >= 2:
+            two_days_ago = recent_prices[-2]
+            today = recent_prices[-1]
+            two_day_drop_rate = (two_days_ago - today) / two_days_ago
+            
+            # 如果两天累计跌幅超过8%，认为是急速下跌
+            if two_day_drop_rate > 0.08:
+                return True
+        
+        # 检查最近5天的累计跌幅
+        if len(recent_prices) >= 5:
+            five_days_ago = recent_prices[0]
+            today = recent_prices[-1]
+            five_day_drop_rate = (five_days_ago - today) / five_days_ago
+            
+            # 如果5天累计跌幅超过15%，认为是明显下跌趋势
+            if five_day_drop_rate > 0.15:
+                return True
+        
+        return False
     
     @staticmethod    
     def get_previous_low_points(record, all_historic_lows):

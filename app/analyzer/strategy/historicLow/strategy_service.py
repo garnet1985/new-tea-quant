@@ -14,10 +14,53 @@ class HistoricLowService:
 
     @staticmethod
     def find_historic_low_points(daily_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-
-        valleys = AnalyzerService.find_valleys(daily_records, strategy_settings['valley_analysis']['min_drop_threshold'], strategy_settings['valley_analysis']['local_range_days'], strategy_settings['valley_analysis']['lookback_days']);
-
-        low_points = HistoricLowService.find_strong_valleys(valleys)
+        """
+        使用简单算法：从当前数据倒推指定年份，取到它们的最低点
+        """
+        if not daily_records or len(daily_records) < 2000:  # 至少需要足够的历史数据
+            return []
+        
+        low_points = []
+        current_date = daily_records[-1]['date']
+        
+        # 从settings获取回溯年份，过滤掉0
+        years_to_lookback = [year for year in strategy_settings['daily_data_requirements']['low_points_ref_years'] if year > 0]
+        
+        for years in years_to_lookback:
+            # 计算目标日期（years年前）
+            target_year = int(current_date[:4]) - years
+            target_date = f"{target_year}{current_date[4:]}"
+            
+            # 找到目标日期附近的数据
+            target_records = []
+            for record in daily_records:
+                if record['date'][:4] == str(target_year):
+                    target_records.append(record)
+            
+            if not target_records:
+                continue
+            
+            # 找到该年的最低点
+            min_record = min(target_records, key=lambda x: float(x['close']))
+            min_price = float(min_record['close'])
+            min_date = min_record['date']
+            
+            # 计算投资范围（上下5%）
+            range_min = min_price * 0.95
+            range_max = min_price * 1.05
+            
+            low_points.append({
+                'min': range_min,
+                'max': range_max,
+                'avg': min_price,
+                'valley_amplitude_range': 0.10,  # 5%上下 = 10%范围
+                'touch_count': 1,  # 每个年份只有一个最低点
+                'valley_dates': [min_date],
+                'valley_type': f'{years}year_low',
+                'target_year': target_year,
+                'lowest_price': min_price,
+                'lowest_date': min_date
+            })
         
         return low_points
 
@@ -199,12 +242,21 @@ class HistoricLowService:
 
 
     @staticmethod
-    def calculate_investment_targets(record_of_today: Dict[str, Any], low_point: Dict[str, Any], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def calculate_investment_targets(record_of_today: Dict[str, Any], low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         计算投资目标：止损和止盈价格
         先计算止盈，再计算止损
         """
         current_price = float(record_of_today['close'])
+
+        if not freeze_data or not daily_records:
+            return None
+
+        min_price = min(freeze_data, key=lambda x: float(x['close']))['close']
+        max_price = max(freeze_data, key=lambda x: float(x['close']))['close']
+
+        if min_price < low_point['min']:
+            return None
 
         # dates_touched_valley = low_point.get('valley_dates', [])
 

@@ -4,7 +4,7 @@ from typing import Dict, List, Any, Tuple
 from typing_extensions import Optional
 
 from loguru import logger
-from .strategy_settings import strategy_settings as invest_settings
+from .strategy_settings import strategy_settings
 from app.analyzer.analyzer_service import AnalyzerService
 from datetime import datetime
 
@@ -15,40 +15,32 @@ class HistoricLowService:
     @staticmethod
     def find_historic_low_points(daily_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
-        # # 1. 使用settings中的low_points_ref_years动态获取不同年限的低点
-        # from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
-        # low_points_ref_years = strategy_settings['daily_data_requirements']['low_points_ref_years']
-        
-        # low_points = []
-        # for years in low_points_ref_years:
-        #     valleys = HistoricLowService.find_valleys_fallback(daily_records, years)
-        #     low_points.extend(valleys)
-
-
-        valleys = AnalyzerService.find_valleys(daily_records, invest_settings['valley_analysis']['min_drop_threshold'], invest_settings['valley_analysis']['local_range_days'], invest_settings['valley_analysis']['lookback_days']);
+        valleys = AnalyzerService.find_valleys(daily_records, strategy_settings['valley_analysis']['min_drop_threshold'], strategy_settings['valley_analysis']['local_range_days'], strategy_settings['valley_analysis']['lookback_days']);
 
         low_points = HistoricLowService.find_strong_valleys(valleys)
+        
+        return low_points
 
 
 
     @staticmethod
     def find_strong_valleys(valleys: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not valleys:
+            return []
+            
         grouped_valleys = HistoricLowService.group_valleys(valleys)
 
         strong_valleys = HistoricLowService.filter_strong_valleys(grouped_valleys)
-
-        pprint.pprint(strong_valleys)
         
         return strong_valleys;
 
-        # return merged_lows;
 
     @staticmethod
     def filter_strong_valleys(grouped_valleys: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not grouped_valleys:
             return []
 
-        min_touch_count = invest_settings['valley_analysis']['min_touch_count']
+        min_touch_count = strategy_settings['valley_analysis']['min_touch_count']
 
         candidates = []
         for g in grouped_valleys:
@@ -60,7 +52,7 @@ class HistoricLowService:
             if touches < min_touch_count:
                 continue
 
-            if (vmax - vmin) / vmin > invest_settings['valley_analysis']['max_amplitude_range']:
+            if (vmax - vmin) / vmin > strategy_settings['valley_analysis']['max_amplitude_range']:
                 continue
 
             # 统一输出结构
@@ -84,10 +76,10 @@ class HistoricLowService:
     @staticmethod
     def group_valleys(valleys: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not valleys or len(valleys) == 0:
-            return None
+            return []
         
         # 单次遍历构建聚类（5%阈值），不排序
-        threshold = invest_settings['valley_analysis']['cluster_threshold']
+        threshold = strategy_settings['valley_analysis']['cluster_threshold']
 
         grouped_valleys: List[Dict[str, Any]] = []
         for v in valleys:
@@ -112,93 +104,19 @@ class HistoricLowService:
 
 
     @staticmethod
-    def calc_min_loss_rate(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        lowest, highest = HistoricLowService.find_extreme_price(records)
-        amplitude = highest / lowest - 1;
-        lowest_loss_rate = amplitude / 40;
-        return lowest_loss_rate;
-
-
-
-    @staticmethod
-    def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> Tuple[bool, List[Dict[str, Any]]]:
-        """
-        规则：
-        1) 寻找最后一个包含负值价格的记录索引（close/highest/lowest 任一为负）
-        2) 取该索引之后的连续片段作为有效序列
-        3) 判断该连续片段长度是否满足配置中的最小所需日线数
-        """
-        if not daily_data:
-            return False, []
-
-        last_negative_idx = -1
-        for idx, rec in enumerate(daily_data):
-            try:
-                close_v = float(rec.get('close', 0))
-                high_v = float(rec.get('highest', close_v))
-                low_v = float(rec.get('lowest', close_v))
-            except Exception:
-                # 非法记录按负值处理，推动起点
-                last_negative_idx = idx
-                continue
-            if close_v < 0 or high_v < 0 or low_v < 0:
-                last_negative_idx = idx
-
-        # 取连续片段（最后一个负值之后）
-        continuous_slice = daily_data[last_negative_idx + 1:] if last_negative_idx + 1 < len(daily_data) else []
-
-        from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings as _settings
-        min_required = _settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
-        return len(continuous_slice) >= min_required, continuous_slice
-
-
+    def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> bool:
+        min_required = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
+        return len(daily_data) >= min_required
 
     
     @staticmethod
     def is_in_invest_range(record, low_point):
-        """
-        检查是否在投资范围内（基于低点价格区间），并防止买在顶上
-        
-        Args:
-            record: 当前交易记录
-            low_point: 低点信息，包含price_range
-            
-        Returns:
-            bool: 是否在投资范围内
-        """
-        # 检查low_point是否有效
-        if low_point is None or 'price_range' not in low_point:
+        if low_point is None:
             return False
-            
-        current_price = float(record['close'])
-        price_range = low_point['price_range']
-        range_min = float(price_range['min'])
-        range_max = float(price_range['max'])
-        
-        # 基本范围检查
-        if not (range_min <= current_price <= range_max):
-            return False
-        
-        # 防止买在顶上：检查当前价格在区间中的位置
-        # 如果当前价格接近区间上限（超过80%），则避免买入
-        price_position_in_range = (current_price - range_min) / (range_max - range_min)
-        if price_position_in_range > 0.8:
-            return False
-        
-        return True
+        return record['close'] < low_point['max'] and record['close'] > low_point['min']
     
     @staticmethod    
     def get_previous_low_points(record, all_historic_lows):
-        """
-        获取在指定记录之前出现的历史低价点
-        
-        Args:
-            record: 当前交易记录
-            all_historic_lows: 所有历史低点列表
-            
-        Returns:
-            List: 之前出现的低价点列表，按价格从低到高排序
-        """
         if not all_historic_lows:
             return []
         
@@ -223,6 +141,29 @@ class HistoricLowService:
         return previous_lows
 
 
+    @staticmethod
+    def filter_out_negative_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # 取连续片段（最后一个负值之后）
+        if not records:
+            return []
+
+        last_negative_idx = -1
+        for idx, rec in enumerate(records):
+            try:
+                close_v = float(rec.get('close', 0))
+                high_v = float(rec.get('highest', close_v))
+                low_v = float(rec.get('lowest', close_v))
+            except Exception:
+                # 非法记录按负值处理，推动起点
+                last_negative_idx = idx
+                continue
+            if close_v < 0 or high_v < 0 or low_v < 0:
+                last_negative_idx = idx
+
+        
+        continuous_slice = records[last_negative_idx + 1:] if last_negative_idx + 1 < len(records) else []
+        
+        return continuous_slice
 
 
 
@@ -245,35 +186,33 @@ class HistoricLowService:
 
 
 
-
-    
 
 
     @staticmethod
-    def to_opportunity(stock: Dict[str, Any],
-                       record_of_today: Dict[str, Any],
-                       investment_targets: Dict[str, Any],
-                       low_point: Dict[str, Any],
-                       previous_low_points: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def set_goal(opportunity: Dict[str, Any], stop_loss: float, take_profit: float) -> Dict[str, Any]:
+        opportunity['goal'] = {
+            'loss': stop_loss,
+            'win': take_profit,
+            'purchase': opportunity['purchase']
+        }
+        return opportunity
+
+
+    @staticmethod
+    def to_opportunity(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], low_point: Dict[str, Any]) -> Dict[str, Any]:
         """
         构造统一的机会对象，保证结构一致。
         所有数值字段统一转换为float类型。
         """
         opportunity = {
-            'stock': {
-                'id': stock.get('id') if stock else None,
-                'name': stock.get('name', '') if stock else ''
-            },
+            'invest_start_date': record_of_today.get('date') if record_of_today else None,
+            'purchase': record_of_today.get('close'),
             'opportunity_record': record_of_today,
-            'goal': {
-                'loss': investment_targets.get('stop_loss_price'),
-                'win': investment_targets.get('take_profit_price'),
-                'purchase': record_of_today.get('close') if record_of_today else None
-            },
-            'historic_low_ref': low_point,
-            'investment_targets': investment_targets,
-            'previous_low_points': previous_low_points or [],
-            'invest_start_date': record_of_today.get('date') if record_of_today else None
+            'valley_ref': low_point,
+            'stock': {
+                'id': stock_info.get('id') if stock_info else None,
+                'name': stock_info.get('name', '') if stock_info else ''
+            }
         }
         
         return opportunity
@@ -376,27 +315,6 @@ class HistoricLowService:
         }
 
     @staticmethod
-    def set_loss(record):
-        return float(record['close']) * invest_settings['goal']['loss']
-    
-    @staticmethod
-    def set_win(record):
-        return float(record['close']) * invest_settings['goal']['win']
-
-
-
-    @staticmethod
-    def is_reached_min_required_daily_records(daily_records):
-        """
-        检查是否达到最小所需日线记录数
-        
-        新逻辑：需要至少2000条日线记录
-        """
-        return len(daily_records) >= invest_settings['daily_data_requirements']['min_required_daily_records']
-
-
-
-    @staticmethod
     def get_investing(stock, investing_stocks):
         return investing_stocks.get(stock['id'])
 
@@ -413,7 +331,7 @@ class HistoricLowService:
             Dict: 包含冻结期和历史期数据的分割结果
         """
         # 获取配置参数
-        freeze_days = invest_settings['daily_data_requirements']['freeze_period_days']
+        freeze_days = strategy_settings['daily_data_requirements']['freeze_period_days']
         
         # 分割数据
         freeze_records = daily_data[-freeze_days:]  # 最近200个交易日（冻结期）

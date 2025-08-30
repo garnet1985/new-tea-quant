@@ -17,7 +17,7 @@ strategy_settings = {
         "local_range_days": 5,         # 局部最低点判断范围（前后5天）
         "lookback_days": 60,
 
-        "cluster_threshold": 0.05,              # 在收集波谷聚合时，支撑位最大波动范围
+        "cluster_threshold": 0.08,              # 在收集波谷聚合时，支撑位最大波动范围
         "max_amplitude_range": 0.2,             # 最大波动范围 - 在收集波谷聚合时，支撑位最大波动范围%
         "min_touch_count": 3,                   # 最小触及次数 - 至少3个valley触及过的低点才是支撑位
     },

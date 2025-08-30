@@ -25,16 +25,9 @@ class HLSimulator:
         # 汇总收集器（单线程汇总，无需锁）
         self.session_results = []
         
-        # 股票投资记录存储
-        self.stock_investment_records = {}
-        
-        # 投资记录器初始化标志
-        self._investment_recorder_initialized = False
-        
         # 是否启用详细日志
         self.is_verbose = False
         
-
 
     def test_strategy(self) -> bool:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
@@ -72,14 +65,14 @@ class HLSimulator:
         jobs = []
         for i, stock in enumerate(stock_idx):
             jobs.append({
-                'id': f"stock_{i}_{stock['id']}",
+                'id': stock['id'],  # 直接使用股票ID
                 'data': stock
             })
         return jobs
 
     def run_jobs(self, jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         from utils.worker import ProcessWorker, ProcessExecutionMode
-
+        
         worker = ProcessWorker(
             max_workers=None,
             execution_mode=ProcessExecutionMode.QUEUE,
@@ -93,8 +86,10 @@ class HLSimulator:
 
         actual_results = []
         for result in results:
-            if hasattr(result, 'result') and result.result:
+            if result.status.value == 'completed' and result.result:
                 actual_results.append(result.result)
+            elif result.status.value == 'failed':
+                logger.error(f"❌ 任务 {result.job_id} 执行失败: {result.error}")
 
         # 保存结果到session_results
         self.session_results = actual_results
@@ -144,8 +139,6 @@ class HLSimulator:
         # 更新meta文件
         self.invest_recorder._update_meta_file()
 
-
-    # 删除未使用的实例版单股模拟（多进程版本已取代）
 
     def _settle_stock_investments(self, stock: Dict[str, Any], thread_tracker: Dict[str, Any]) -> Dict[str, Any]:
         """清算单只股票的所有投资"""
@@ -202,223 +195,6 @@ class HLSimulator:
         }
 
 
-    def find_opportunity(self, stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        # 调用策略扫描机会，使用划分后的数据
-        opportunity = self.strategy.scan_single_stock(stock, daily_k_lines)
-
-        return opportunity
-
-    def invest(self, stock: Dict[str, Any], opportunity: Dict[str, Any], low_points: List[Dict[str, Any]], thread_tracker: Dict[str, Any]) -> None:
-        # 检查是否已经在投资
-        if stock['id'] in thread_tracker['investing']:
-            return
-        
-        # 添加投资开始日期（投资当天的日期）
-        opportunity['invest_start_date'] = opportunity['opportunity_record']['date']
-        opportunity['previous_low_points'] = low_points
-        
-        # 记录到线程自己的tracker
-        thread_tracker['investing'][stock['id']] = opportunity
-
-
-    # def settle_result(self, result: InvestmentResult, stock: Dict[str, Any], investment: Dict[str, Any], latest_record: Dict[str, Any], thread_tracker: Dict[str, Any]) -> None:
-    #     """结算投资结果"""
-        
-    #     logger.info(f"🔍 settle_result: {result.value}")
-
-    #     # 检查投资是否已经被结算过
-    #     investment_id = f"{stock['id']}_{investment['invest_start_date']}"
-        
-    #     # 双重检查，确保在锁内再次验证
-    #     if investment_id in thread_tracker['settled']:
-    #         return
-        
-    #     invest_duration_days = AnalyzerService.get_duration_in_days(investment['invest_start_date'], latest_record['date'])
-    #     purchase_price = float(investment['goal']['purchase'])  # 使用已记录的购买价格
-    #     profit = float(latest_record['close']) - purchase_price
-        
-    #     # 为每次投资生成唯一标识符，避免同一股票多次投资被覆盖
-    #     thread_tracker['settled'][investment_id] = {
-    #         'investment_ref': investment,
-    #         'result': {
-    #             'result': result.value,
-    #             'start_date': investment['opportunity_record']['date'],
-    #             'end_date': latest_record['date'],
-    #             'profit': profit,
-    #             'invest_duration_days': invest_duration_days,
-    #             'annual_return': AnalyzerService.get_annual_return(
-    #                 profit / purchase_price,
-    #                 invest_duration_days
-    #             )
-    #         }
-    #     }
-
-
-    #     print(f"🔍 investment {stock['id']} - {stock['name']} is settled. result: {result.value}")
-        
-    #     # 删除投资状态，而不是设置为None
-    #     if stock['id'] in thread_tracker['investing']:
-    #         del thread_tracker['investing'][stock['id']]
-    
-    
-    
-    def _record_investment_settlement(self, stock: Dict[str, Any], investment: Dict[str, Any], 
-                                result: str, exit_price: float, exit_date: str) -> None:
-
-        # 计算投资持续天数
-        start_date = investment.get('invest_start_date')
-        duration_days = None
-        if start_date and exit_date:
-            start_dt = datetime.strptime(start_date, "%Y%m%d")
-            exit_dt = datetime.strptime(exit_date, "%Y%m%d")
-            duration_days = (exit_dt - start_dt).days
-        
-            # 准备投资记录
-            investment_record = {
-                'investment_info': {
-                    'start_date': start_date,
-                    'purchase_price': self._safe_float(investment.get('goal', {}).get('purchase')),
-                    'target_win': self._safe_float(investment.get('goal', {}).get('win')),
-                    'target_loss': self._safe_float(investment.get('goal', {}).get('loss')),
-                    'win_rate': ((self._safe_float(investment.get('goal', {}).get('win')) - self._safe_float(investment.get('goal', {}).get('purchase'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
-                    'loss_rate': ((self._safe_float(investment.get('goal', {}).get('purchase')) - self._safe_float(investment.get('goal', {}).get('loss'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
-                    'selected_low_point': {
-                        'date': investment.get('historic_low_ref', {}).get('lowest_date'),
-                        'term': investment.get('historic_low_ref', {}).get('period_name'),
-                        'lowest_price': self._safe_float(investment.get('historic_low_ref', {}).get('lowest_price'))
-                    },
-                    # 添加之前出现的历史低价点信息
-                    'all_historic_lows': investment.get('previous_low_points', [])
-                },
-                'settlement_info': {
-                    'result': result,
-                    'exit_price': self._safe_float(exit_price) if exit_price else None,
-                    'exit_date': exit_date,
-                    'duration_days': duration_days,
-                    'profit_loss': (self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) if exit_price else None,
-                    'profit_loss_rate': ((self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase'))) / self._safe_float(investment.get('goal', {}).get('purchase')) * 100) if exit_price and self._safe_float(investment.get('goal', {}).get('purchase')) != 0 else None,
-                    'annual_return': self._calculate_annual_return(
-                        self._safe_float(exit_price) - self._safe_float(investment.get('goal', {}).get('purchase')),
-                        duration_days,
-                        self._safe_float(investment.get('goal', {}).get('purchase'))
-                    ) if exit_price and duration_days else None,
-                    'settled_at': datetime.now().isoformat()
-                },
-                'status': result
-            }
-        
-        stock_id = stock['id']
-        # 收集到内存中
-        if stock_id not in self.stock_investment_records:
-            self.stock_investment_records[stock_id] = []
-        self.stock_investment_records[stock_id].append(investment_record)
-            
-
-
-    def save_stock_investment_records(self, stock_id: str, stock_info: Dict[str, Any]):
-        """
-        保存指定股票的所有投资记录到JSON文件
-        
-        Args:
-            stock_id: 股票ID
-            stock_info: 股票基本信息
-        """
-        if stock_id not in self.stock_investment_records:
-            return
-        
-        try:
-            # 延迟初始化投资记录器
-            self._init_investment_recorder_if_needed()
-            
-            # 准备股票数据
-            stock_data = {
-                'stock_info': {
-                    'code': stock_info.get('id', stock_id),
-                    'name': stock_info.get('name', ''),
-                    'market': stock_info.get('market', ''),
-                    'sector': stock_info.get('sector', ''),
-                    'industry': stock_info.get('industry', '')
-                },
-                'session_info': {
-                    'session_id': os.path.basename(self.invest_recorder.current_session_dir) if self.invest_recorder and self.invest_recorder.current_session_dir else 'unknown',
-                    'created_at': datetime.now().isoformat(),
-                    'strategy': 'HistoricLow'
-                },
-                'results': self.stock_investment_records[stock_id],
-                'statistics': self._calculate_stock_statistics(stock_id),
-                # 添加所有计算出的历史低点信息
-                'all_historic_lows': stock_info.get('all_historic_lows', [])
-            }
-            
-            # 保存到文件
-            if self.invest_recorder and self.invest_recorder.current_session_dir:
-                stock_file_path = os.path.join(self.invest_recorder.current_session_dir, f"{stock_id}.json")
-                
-                serializable_data = stock_data
-                
-                with open(stock_file_path, 'w', encoding='utf-8') as f:
-                    json.dump(serializable_data, f, ensure_ascii=False, indent=2)
-            else:
-                logger.error(f"  investment_recorder: {self.invest_recorder}")
-                if self.invest_recorder:
-                    logger.error(f"  current_session_dir: {self.invest_recorder.current_session_dir}")
-            
-        except Exception as e:
-            logger.error(f"  错误详情: {str(e)}")
-            import traceback
-            logger.error(f"  堆栈跟踪: {traceback.format_exc()}")
-
-    def _calculate_stock_statistics(self, stock_id: str) -> Dict[str, Any]:
-        """
-        计算指定股票的统计信息
-        
-        Args:
-            stock_id: 股票ID
-            
-        Returns:
-            dict: 统计信息
-        """
-        results = self.stock_investment_records.get(stock_id, [])
-        stats = {
-            'total_investments': len(results),
-            'success_count': len([r for r in results if r['status'] == 'win']),
-            'fail_count': len([r for r in results if r['status'] == 'loss']),
-            'open_count': len([r for r in results if r['status'] == 'open']),
-            'win_rate': 0.0,
-            'total_profit': 0.0,
-            'avg_profit': 0.0,
-            'avg_duration_days': 0.0
-        }
-        
-        if stats['total_investments'] > 0:
-            stats['win_rate'] = (stats['success_count'] / stats['total_investments']) * 100
-        
-        # 计算利润统计
-        total_profit = 0.0
-        total_duration = 0
-        settled_count = 0
-        
-        for result in results:
-            if result['status'] in ['win', 'loss']:
-                profit = result['settlement_info'].get('profit_loss', 0)
-                total_profit += profit
-                duration = result['settlement_info'].get('duration_days', 0)
-                total_duration += duration
-                settled_count += 1
-        
-        stats['total_profit'] = total_profit
-        if settled_count > 0:
-            stats['avg_profit'] = total_profit / settled_count
-            stats['avg_duration_days'] = total_duration / settled_count
-        
-        return stats
-    
-    def aggregate_results(self) -> Dict[str, Any]:
-        """
-        已弃用：请使用 HistoricLowService.to_session_summary(self.session_results)
-        """
-        return HistoricLowService.to_session_summary(self.session_results)
-
     def print_aggregated_results(self) -> None:
         """打印聚合的测试结果（使用 HistoricLowService 统一会话汇总）"""
         aggregated = HistoricLowService.to_session_summary(self.session_results)
@@ -426,7 +202,7 @@ class HLSimulator:
         print("\n" + "="*60)
         print("📊 HistoricLow 策略回测结果汇总")
         print("="*60)
-    
+
     def _print_investment_summary(self) -> None:
         """打印投资记录摘要"""
         # 获取投资结果统计信息（从session_results中获取）
@@ -484,54 +260,6 @@ class HLSimulator:
             logger.error(f"❌ 保存投资摘要到会话失败: {e}")
 
 
-    def _safe_float(self, value, default=0.0):
-        """
-        安全地将值转换为float类型
-        
-        Args:
-            value: 要转换的值
-            default: 默认值，如果转换失败则返回
-            
-        Returns:
-            float: 转换后的值
-        """
-        if value is None:
-            return default
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            return default
-
-    def _calculate_annual_return(self, profit_loss: float, duration_days: int, purchase_price: float) -> float:
-        """
-        计算年化收益率
-        
-        Args:
-            profit_loss: 盈亏金额
-            duration_days: 投资天数
-            purchase_price: 购买价格
-            
-        Returns:
-            float: 年化收益率（百分比）
-        """
-        if duration_days <= 0 or purchase_price <= 0:
-            return 0.0
-        
-        # 年化收益率 = 收益率 * (365 / 投资天数) * 100
-        annual_return = (profit_loss / purchase_price) * (365 / duration_days) * 100
-        
-        return round(annual_return, 2)
-
-    def _init_investment_recorder_if_needed(self):
-        """延迟初始化投资记录器，只在需要时才创建"""
-        if not self._investment_recorder_initialized:
-            import os
-            strategy_tmp_dir = os.path.join(os.path.dirname(__file__), "tmp")
-            self.invest_recorder = InvestmentRecorder(base_dir=strategy_tmp_dir)
-            self._investment_recorder_initialized = True
-
-
-
     @staticmethod
     def load_qfq_daily(stock_id: str) -> List[Dict[str, Any]]:
         """
@@ -552,10 +280,22 @@ class HLSimulator:
         类方法：独立的模拟函数，可以安全地用于多进程
         不依赖实例状态，避免pickle问题
         """
-        # 提取任务数据（仅包含stock信息），其余数据在子进程内加载
 
         # 在子进程内按需加载复权后的日线
         daily_data = cls.load_qfq_daily(job_data['id'])
+
+        # 过滤负值记录
+        daily_data = HistoricLowService.filter_out_negative_records(daily_data)
+
+        # 检查是否满足策略要求
+        is_valid = HistoricLowService.is_meet_strategy_requirements(daily_data)
+        
+        if not is_valid:
+            return {
+                'stock_info': job_data,
+                'investments': {}
+            }
+
 
         # 本地tracker（仿照实例版）
         tracker: Dict[str, Any] = {
@@ -563,14 +303,12 @@ class HLSimulator:
             'settled': {}
         }
 
-        # 使用类静态方法，避免函数内嵌定义
 
         # 累积分发K线，模拟
         current_daily_data: List[Dict[str, Any]] = []
-        
-        from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
 
         min_required_days = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records')
+        
 
         for daily_record in daily_data:
             current_daily_data.append(daily_record)
@@ -580,51 +318,13 @@ class HLSimulator:
             # 模拟每日交易
             cls.simulate_one_day(job_data, current_daily_data, tracker)
             
-            
-
-        # 清算未结持仓为 open
+        # 清算未结持仓为 open（重用settle_result方法）
         if job_data['id'] in tracker['investing']:
             inv = tracker['investing'][job_data['id']]
-            # 确保日期是字符串类型
-            invest_start_date = str(inv['invest_start_date']) if inv.get('invest_start_date') else 'unknown'
-            inv_id = f"{job_data['id']}_{invest_start_date}"
-            
-            # 计算止损和止盈百分比
-            purchase_price = inv['goal']['purchase']
-            loss_price = inv['goal']['loss']
-            win_price = inv['goal']['win']
-            loss_percentage = ((loss_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
-            win_percentage = ((win_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
-            
-            # 构建open状态结算信息
-            open_settlement_result = {
-                'result': 'open',
-                'start_date': inv['opportunity_record']['date'],
-                'end_date': invest_start_date,
-                'profit': 0.0,
-                'invest_duration_days': 0,
-                'loss_percentage': round(loss_percentage, 2),
-                'win_percentage': round(win_percentage, 2),
-                'annual_return': 0.0
-            }
-            
-            tracker['settled'][inv_id] = {
-                'investment_ref': inv,
-                'result': open_settlement_result
-            }
-            
-            # 生成统一格式的open状态结算信息
-            try:
-                investment_recorder = InvestmentRecorder()
-                settlement_record = investment_recorder.to_settlement(job_data, open_settlement_result)
-                # 将结算记录添加到settled中，保持原有格式
-                tracker['settled'][inv_id]['settlement_record'] = settlement_record
-            except Exception as e:
-                logger.error(f"🔍 生成open状态结算信息失败: {e}")
-            
-            del tracker['investing'][job_data['id']]
-        
-
+            # 使用最后一天的记录作为结算记录
+            last_record = daily_data[-1] if daily_data else None
+            if last_record:
+                cls.settle_result('open', job_data, inv, last_record, tracker)
         
         return {
             'stock_info': job_data,
@@ -656,7 +356,7 @@ class HLSimulator:
             opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
             if opp:
                 tracker['investing'][stock['id']] = opp
-
+                logger.info(f"🎯 {stock['id']} 找到投资机会: {record_of_today['date']}")
 
 
 

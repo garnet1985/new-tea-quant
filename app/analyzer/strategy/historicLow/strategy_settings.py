@@ -6,10 +6,20 @@ enabled = True
 
 strategy_settings = {
     "goal": {
-        "win": 1.4,  # 40% profit
-        "loss": 0.8,  # 20% loss
-        "opportunityRange": 0.07,
-        "kellyCriterionDivider": 5
+        # "win": 1.4,  # 40% profit
+        # "loss": 0.8,  # 20% loss
+        # "opportunityRange": 0.07,
+        "kellyCriterionDivider": 5,
+
+        "stop_loss": {
+            "min_ratio": 0.1,
+            "divider": 2  # 止损 = 止盈 ÷ 2
+        },
+
+        "take_profit": {
+            "max_ration": 1,  # 封顶100%
+            "profit_ratio": 0.2  # 取20%作为止盈
+        }
     },
 
     "valley_analysis": {
@@ -17,9 +27,9 @@ strategy_settings = {
         "local_range_days": 5,         # 局部最低点判断范围（前后5天）
         "lookback_days": 60,
 
-        "cluster_threshold": 0.08,              # 在收集波谷聚合时，支撑位最大波动范围
+        "cluster_threshold": 0.1,              # 在收集波谷聚合时，支撑位最大波动范围
         "max_amplitude_range": 0.2,             # 最大波动范围 - 在收集波谷聚合时，支撑位最大波动范围%
-        "min_touch_count": 3,                   # 最小触及次数 - 至少3个valley触及过的低点才是支撑位
+        "min_touch_count": 5,                   # 最小触及次数 - 至少3个valley触及过的低点才是支撑位
     },
 
     

@@ -121,11 +121,16 @@ class HistoricLowStrategy(BaseStrategy):
         
         # 获取日线数据并应用复权
         daily_data_result = self.required_tables["stock_kline"].get_all_k_lines_by_term(stock['id'], 'daily')
-         # 获取复权因子
+        # 获取复权因子
         qfq_factors = self.required_tables["adj_factor"].get_stock_factors(stock['id'])
 
         # 应用复权
         daily_records = DataSourceService.to_qfq(daily_data_result, qfq_factors)
+
+        daily_records = HistoricLowService.filter_out_negative_records(daily_records)
+
+        if not HistoricLowService.is_meet_strategy_requirements(daily_records):
+            return []
         
         # 分割数据为冻结期和历史期
         opportunity = self.scan_single_stock(stock, daily_records)
@@ -142,53 +147,64 @@ class HistoricLowStrategy(BaseStrategy):
     def scan_single_stock(stock: Dict[str, Any], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
         """寻找投资机会"""
 
-        is_valid, valid_daily_records = HistoricLowService.is_meet_strategy_requirements(daily_records)
+        freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(daily_records)
 
-        if not is_valid:
-            return None
-
-        freeze_records, history_records = HistoricLowService.split_daily_data_for_analysis(valid_daily_records)
-
-        logger.info(f"current stock: {stock['id']}")
-        logger.info(f"today: {valid_daily_records[-1]['date']}")
-        logger.info(f"daily_records_amount: {len(valid_daily_records)}")
-
-        # 在历史数据中寻找历史低点（跳过冻结期）
         low_points = HistoricLowService.find_historic_low_points(history_records)
-        
-        # 1. 趋势过滤：检查股票趋势是否适合投资
-        if HistoricLowService.is_trend_too_steep(freeze_records):
-            return None
-        
-        # 2. 从历史低点寻找机会
-        opportunity = HistoricLowStrategy._find_opportunity_from_low_points(stock, low_points, freeze_records)
+
+        opportunity = HistoricLowStrategy.find_opportunity_from_low_points(stock, low_points, freeze_records)
+
+        stop_loss = HistoricLowStrategy.define_stop_loss(opportunity, daily_records)
+
+        # opportunity = HistoricLowService.set_goal(opportunity, daily_records)
+
+        if len(daily_records) == 4000:
+            pprint.pprint(low_points)
         
         return opportunity
 
+    @staticmethod
+    def define_stop_loss(opportunity, daily_records):
 
+        logger.info(f"🎯 {opportunity}")
+
+        pass
+
+          # @staticmethod
+    # def calc_min_loss_rate(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    #     lowest, highest = HistoricLowService.find_extreme_price(records)
+    #     amplitude = highest / lowest - 1;
+    #     lowest_loss_rate = amplitude / 40;
+    #     return lowest_loss_rate;
             
     @staticmethod
-    def _find_opportunity_from_low_points(stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def find_opportunity_from_low_points(stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """从历史低点寻找投资机会"""
         record_of_today = freeze_data[-1]
+
+#         {'avg': 2.5674147200000004,
+#  'max': 2.6267528400000004,
+#  'min': 2.5080766,
+#  'touch_count': 9,
+#  'valley_amplitude_range': 0.04731762977255182,
+#  'valley_dates': ['20090819',
+#                   '20091029',
+#                   '20091222',
+#                   '20100111',
+#                   '20130315',
+#                   '20130328',
+#                   '20130426',
+#                   '20130509',
+#                   '20130729']}
+
     
         # 检查当前价格是否在投资范围内
         for low_point in low_points:
             # 检查投资范围和新低
-            if (HistoricLowService.is_in_invest_range(record_of_today, low_point) and 
-                not HistoricLowService.has_lower_point_in_latest_daily_records(low_point, freeze_data)):
-                # 找到匹配的历史低点，创建投资机会
-                # 使用新的动态止损止盈逻辑
-                investment_targets = HistoricLowService.calculate_investment_targets(record_of_today, low_point)
-                
-                # 获取之前出现的历史低价点
-                previous_low_points = HistoricLowService.get_previous_low_points(record_of_today, low_points)
+            if HistoricLowService.is_in_invest_range(record_of_today, low_point):
                 opportunity = HistoricLowService.to_opportunity(
                     stock=stock,
                     record_of_today=record_of_today,
-                    investment_targets=investment_targets,
                     low_point=low_point,
-                    previous_low_points=previous_low_points
                 )
                 return opportunity
         

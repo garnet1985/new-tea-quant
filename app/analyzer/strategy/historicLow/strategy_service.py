@@ -24,7 +24,7 @@ class HistoricLowService:
         current_date = daily_records[-1]['date']
         
         # 从settings获取回溯年份，过滤掉0
-        years_to_lookback = [year for year in strategy_settings['daily_data_requirements']['low_points_ref_years'] if year > 0]
+        years_to_lookback = [year for year in strategy_settings['daily_data_requirements']['low_points_ref_years']]
         
         for years in years_to_lookback:
             # 计算目标日期（years年前）

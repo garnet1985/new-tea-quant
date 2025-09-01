@@ -32,6 +32,14 @@ strategy_settings = {
         "min_touch_count": 5,                   # 最小触及次数 - 至少3个valley触及过的低点才是支撑位
     },
 
+    # 新增：价格区间配置
+    "price_range": {
+        "base_ratio": 0.025,           # 基础比例（2.5%，上下各2.5%）
+        "min_absolute_range": 0.2,     # 最小区间（上下各0.2元，总共0.4元）
+        "max_absolute_range": 10.0,    # 最大区间（上下各10元，总共20元）
+        "description": "动态价格区间：基础5%比例，最小区间0.4元，最大区间20元"
+    },
+
     
     # 新增：日线数据要求
     "daily_data_requirements": {

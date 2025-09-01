@@ -153,6 +153,40 @@ class HistoricLowService:
 
     
     @staticmethod
+    def calculate_dynamic_price_range(low_point_price: float) -> float:
+        """
+        计算动态价格区间比例
+        
+        Args:
+            low_point_price: 历史低点价格
+            
+        Returns:
+            float: 价格区间比例
+        """
+        # 从settings获取配置
+        price_range_config = strategy_settings.get('price_range', {})
+        base_ratio = price_range_config.get('base_ratio', 0.025)
+        min_absolute_range = price_range_config.get('min_absolute_range', 0.2)
+        max_absolute_range = price_range_config.get('max_absolute_range', 10.0)
+        
+        # 基础区间（上下各base_ratio）
+        base_absolute_range = low_point_price * base_ratio
+        
+        # 如果基础区间小于最小区间，则使用最小区间
+        if base_absolute_range < min_absolute_range:
+            absolute_range = min_absolute_range
+        # 如果基础区间大于最大区间，则使用最大区间
+        elif base_absolute_range > max_absolute_range:
+            absolute_range = max_absolute_range
+        else:
+            absolute_range = base_absolute_range
+        
+        # 计算对应的比例（上下各absolute_range，总共2*absolute_range）
+        price_range_ratio = absolute_range / low_point_price
+        
+        return price_range_ratio
+    
+    @staticmethod
     def is_in_invest_range(record, low_point, freeze_data=None):
         """
         检查是否在投资范围内
@@ -164,8 +198,13 @@ class HistoricLowService:
         current_price = float(record['close'])
         low_point_price = float(low_point['min'])  # 历史低点价格
         
-        # 基本条件：当前价格在历史低点的10%范围内
-        basic_condition = current_price < low_point_price * 1.05 and current_price > low_point_price * 0.95
+        # 计算动态价格区间
+        price_range_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
+        lower_bound = low_point_price * (1 - price_range_ratio)
+        upper_bound = low_point_price * (1 + price_range_ratio)
+        
+        # 基本条件：当前价格在动态价格区间内
+        basic_condition = current_price >= lower_bound and current_price <= upper_bound
         
         if not basic_condition:
             return False
@@ -179,8 +218,8 @@ class HistoricLowService:
                 return False
             
             # 条件2：如果freeze data的最低点已经在历史低点上方10%范围内，说明已经有过反弹，也不投资
-            if freeze_min_price > low_point_price * 1.10:
-                return False
+            # if freeze_min_price > low_point_price * 1.10:
+            #     return False
             
             # 条件3：当前价格不应该比freeze data的最低点高出太多（超过5%）
             if current_price > freeze_min_price * 1.05:

@@ -154,11 +154,6 @@ class HistoricLowStrategy(BaseStrategy):
         investment = HistoricLowStrategy.find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
 
         return investment
-
-        if len(daily_records) == 4000:
-            pprint.pprint(low_points)
-        
-        return opportunity
             
     @staticmethod
     def find_opportunity_from_low_points(stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]], history_data: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -218,24 +213,6 @@ class HistoricLowStrategy(BaseStrategy):
             print(f"   止盈价格: {goal['win']:.2f}")
             print(f"   扫描日期: {opportunity_record['date']}")
     
-    def _save_meta(self, opportunities: List[Dict[str, Any]]) -> None:
-        """保存扫描结果到元数据表"""
-        # 准备元数据
-        meta_data = {
-            'date': datetime.now().strftime('%Y%m%d'),
-            'lastOpportunityUpdateTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'lastSuggestedStockCodes': [opp['stock']['code'] for opp in opportunities]
-        }
-        
-        # 使用元数据表模型保存
-        meta_table = self.required_tables['meta']
-        meta_table.update_meta(
-            date=meta_data['date'],
-            last_opportunity_update_time=meta_data['lastOpportunityUpdateTime'],
-            last_suggested_stock_codes=meta_data['lastSuggestedStockCodes']
-        )
-
-
     def simulate(self) -> None:
         # 延迟导入，避免与 simulator 的循环依赖
         from .strategy_simulator import HLSimulator

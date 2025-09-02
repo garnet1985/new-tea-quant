@@ -1,112 +1,65 @@
 
 
 
-# 策略启用状态
-enabled = True
-
 strategy_settings = {
-    "goal": {
-        # "win": 1.4,  # 40% profit
-        # "loss": 0.8,  # 20% loss
-        # "opportunityRange": 0.07,
-        "kellyCriterionDivider": 5,
 
-        "stop_loss": {
-            "min_ratio": 0.1,
-            "divider": 2  # 止损 = 止盈 ÷ 2
-        },
-
-        "take_profit": {
-            "max_ration": 1,  # 封顶100%
-            "profit_ratio": 0.4  # 取40%作为止盈
-        }
-    },
-
-    "valley_analysis": {
-        "min_drop_threshold": 0.15,    # 最小跌幅阈值（20%）
-        "local_range_days": 5,         # 局部最低点判断范围（前后5天）
-        "lookback_days": 60,
-
-        "cluster_threshold": 0.1,              # 在收集波谷聚合时，支撑位最大波动范围
-        "max_amplitude_range": 0.2,             # 最大波动范围 - 在收集波谷聚合时，支撑位最大波动范围%
-        "min_touch_count": 5,                   # 最小触及次数 - 至少3个valley触及过的低点才是支撑位
-    },
-
-    # 新增：价格区间配置
-    "price_range": {
-        "base_ratio": 0.025,           # 基础比例（2.5%，上下各2.5%）
-        "min_absolute_range": 0.2,     # 最小区间（上下各0.2元，总共0.4元）
-        "max_absolute_range": 10.0,    # 最大区间（上下各10元，总共20元）
-        "description": "动态价格区间：基础5%比例，最小区间0.4元，最大区间20元"
-    },
-
-    
-    # 新增：日线数据要求
+    # 日线数据要求
     "daily_data_requirements": {
         "freeze_period_days": 100, 
-        "low_points_ref_years": [3],     # 冻结期：50个交易日（缩小，覆盖更多历史数据）
-        "history_periods": [
-            {"name": "5year", "trading_days": 1200, "description": "5年回溯"},
-            {"name": "8year", "trading_days": 2000, "description": "8年回溯"},
-            {"name": "10year", "trading_days": 2500, "description": "10年回溯"}
-        ],
-        "min_required_daily_records": 2000,  # 最小日线记录数（同时作为总需求）
-        
-        # 新增：波谷检测配置
-        "valley_detection": {
-            "min_drop_threshold": 0.10,    # 最小跌幅阈值（10%）
-            "local_range_days": 5,         # 局部最低点判断范围（前后5天）
-            "lookback_days": 60            # 寻找前期高点的回溯天数（60天）
+        "low_points_ref_years": [3, 5, 8],     # 冻结期：100个交易日
+        "min_required_daily_records": 2000,  # 最小日线记录数
+    },
+
+    # 投资目标
+    "goal": {
+        "stop_loss": {
+            "stages": [
+                {
+                    "win_ratio": 0,
+                    "is_dynamic_loss": False,
+                    "loss_ratio": 0.2
+                },
+                {
+                    "win_ratio": 0.1,
+                    "is_dynamic_loss": False,
+                    "loss_ratio": 0
+                },
+                {
+                    "win_ratio": 0.4,
+                    "is_dynamic_loss": True,
+                    "loss_ratio": 0.1  # 动态止损比例（10%）
+                }
+            ]
+        },
+        "take_profit": {
+            "stages": [
+                {
+                    "win_ratio": 0.15,
+                    "sell_ratio": 0.2
+                },
+                {
+                    "win_ratio": 0.25,
+                    "sell_ratio": 0.2
+                },
+                {
+                    "win_ratio": 0.3,
+                    "sell_ratio": 0.2
+                },
+                {
+                    "win_ratio": 0.4,
+                    "sell_ratio": 0.2
+                }
+            ]
         }
     },
 
-    "simulate": {
-        "max_workers": 5,
-        # if too large wll cause db connection pool exhausted
-        "batch_size": 50,
-        "enable_monitoring": False
-    },
-    
-    # 新增：分段平仓策略配置（优化版 - 基于用户逻辑重新设计）
-    "staged_exit_strategy": {
-        "enabled": True,
-        "description": "分段平仓策略：优化版 - 20%启动动态止损，简化止盈阶段",
-        "stages": [
-            {
-                "profit_rate": 0.1,  # 10%
-                "action": "move_stop_loss_to_breakeven",
-                "description": "涨幅10%时，将止损移到不亏不赚"
-            },
-            {
-                "profit_rate": 0.15,  # 15%
-                "action": "partial_exit",
-                "exit_ratio": 0.30,  # 平仓10%
-                "description": "涨幅15%时，平仓10%"
-            },
-            {
-                "profit_rate": 0.20,  # 20%
-                "action": "partial_exit",
-                "exit_ratio": 0.10,  # 平仓20%
-                "description": "涨幅20%时，平仓20%"
-            },
-            {
-                "profit_rate": 0.25,  # 25%
-                "action": "partial_exit",
-                "exit_ratio": 0.10,  # 平仓20%
-                "description": "涨幅25%时，平仓20%"
-            },
-            {
-                "profit_rate": 0.30,  # 30%
-                "action": "partial_exit",
-                "exit_ratio": 0.20,  # 平仓20%"
-                "description": "涨幅30%时，平仓20%"
-            },
-            {
-                "profit_rate": 0.40,  # 40%
-                "action": "partial_exit",
-                "exit_ratio": 0.20,  # 平仓30%"
-                "description": "涨幅40%时，平仓30%并启动动态止损"
-            }
-        ]
+    "low_point_invest_range": {
+        # when to invest: the price is reached range of low point up and down [base] percent range
+        # e.g. low point is 2, so the invest range is 2 * (1 - [base]) ~ 2 * (1 + [base])
+        "base": 0.05,
+        # if the invest range is less than [min]元, use [min]元 as the min range
+        "min": 0.2,
+        # if the invest range is greater than [max]元, use [max]元 as the max range
+        "max": 10.0
     }
 }

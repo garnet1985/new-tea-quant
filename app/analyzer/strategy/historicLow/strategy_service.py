@@ -11,7 +11,140 @@ from datetime import datetime
 
 class HistoricLowService:
     """HistoricLow策略的静态服务类"""
-
+    
+    @staticmethod
+    def calculate_volatility(daily_records: List[Dict[str, Any]], days: int = 100) -> float:
+        """
+        计算股票的历史波动率（年化）
+        
+        Args:
+            daily_records: 日线数据
+            days: 计算天数，默认100天
+            
+        Returns:
+            float: 年化波动率
+        """
+        if len(daily_records) < days:
+            days = len(daily_records)
+        
+        # 取最近days天的数据
+        recent_data = daily_records[-days:]
+        
+        # 计算日收益率
+        returns = []
+        for i in range(1, len(recent_data)):
+            prev_price = float(recent_data[i-1]['close'])
+            curr_price = float(recent_data[i]['close'])
+            daily_return = (curr_price - prev_price) / prev_price
+            returns.append(daily_return)
+        
+        if not returns:
+            return 0.0
+        
+        # 计算年化波动率
+        import statistics
+        daily_volatility = statistics.stdev(returns)
+        annual_volatility = daily_volatility * (252 ** 0.5)  # 年化
+        
+        return annual_volatility
+    
+    @staticmethod
+    def calculate_freeze_data_stats(freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        计算freeze data期间的涨跌幅统计信息
+        
+        Args:
+            freeze_data: 冻结期数据
+            
+        Returns:
+            Dict[str, Any]: 包含平均涨跌幅和标准差的统计信息
+        """
+        if not freeze_data:
+            return {
+                'mean_change_rate': 0.0,
+                'std_change_rate': 0.0,
+                'positive_days': 0,
+                'negative_days': 0,
+                'total_days': 0,
+                'max_close': 0.0,
+                'min_close': 0.0,
+                'close_range': 0.0,
+                'close_ratio': 0.0,
+                'range_to_invest_ratio': 0.0
+            }
+        
+        # 提取涨跌幅数据
+        change_rates = []
+        positive_days = 0
+        negative_days = 0
+        
+        # 记录收盘价的最大值和最小值
+        max_close = 0.0
+        min_close = float('inf')
+        max_close_date = ''
+        min_close_date = ''
+        
+        for record in freeze_data:
+            if 'priceChangeRateDelta' in record and record['priceChangeRateDelta'] is not None:
+                change_rate = float(record['priceChangeRateDelta']) / 100.0  # 转换为小数形式
+                change_rates.append(change_rate)
+                
+                if change_rate > 0:
+                    positive_days += 1
+                elif change_rate < 0:
+                    negative_days += 1
+            
+            # 记录收盘价的最大值和最小值
+            close_price = float(record['close'])
+            if close_price > max_close:
+                max_close = close_price
+                max_close_date = record['date']
+            if close_price < min_close:
+                min_close = close_price
+                min_close_date = record['date']
+        
+        if not change_rates:
+            return {
+                'mean_change_rate': 0.0,
+                'std_change_rate': 0.0,
+                'positive_days': 0,
+                'negative_days': 0,
+                'total_days': len(freeze_data),
+                'max_close': max_close,
+                'min_close': min_close,
+                'close_range': max_close - min_close,
+                'close_ratio': max_close / min_close if min_close > 0 else 0.0,
+                'range_to_invest_ratio': 0.0
+            }
+        
+        # 计算统计信息
+        import statistics
+        mean_change_rate = statistics.mean(change_rates)
+        std_change_rate = statistics.stdev(change_rates) if len(change_rates) > 1 else 0.0
+        
+        # 计算收盘价相关指标
+        close_range = max_close - min_close
+        close_ratio = max_close / min_close if min_close > 0 else 0.0
+        
+        # 投资时的价格（freeze data的最后一天）
+        invest_close = float(freeze_data[-1]['close'])
+        range_to_invest_ratio = close_range / invest_close if invest_close > 0 else 0.0
+        
+        return {
+            'mean_change_rate': round(mean_change_rate, 4),
+            'std_change_rate': round(std_change_rate, 4),
+            'positive_days': positive_days,
+            'negative_days': negative_days,
+            'total_days': len(freeze_data),
+            'max_close': round(max_close, 4),
+            'min_close': round(min_close, 4),
+            'max_close_date': max_close_date,
+            'min_close_date': min_close_date,
+            'close_range': round(close_range, 4),
+            'close_ratio': round(close_ratio, 4),
+            'range_to_invest_ratio': round(range_to_invest_ratio, 4)
+        }
+    
     @staticmethod
     def find_historic_low_points(daily_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -515,7 +648,7 @@ class HistoricLowService:
         return opportunity
 
     @staticmethod
-    def to_investment(opportunity: Dict[str, Any], investment_targets: Dict[str, Any]) -> Dict[str, Any]:
+    def to_investment(opportunity: Dict[str, Any], investment_targets: Dict[str, Any], freeze_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         将机会转换为投资对象，包含投资目标
         """
@@ -525,6 +658,9 @@ class HistoricLowService:
         
         if calculated_stop_loss_ratio < min_stop_loss_ratio:
             return None  # 止损太小，忽略这个投资
+        
+        # 计算freeze data统计信息
+        freeze_stats = HistoricLowService.calculate_freeze_data_stats(freeze_data) if freeze_data else {}
         
         investment = {
             'invest_start_date': opportunity['date'],
@@ -537,7 +673,31 @@ class HistoricLowService:
                 'win': investment_targets['take_profit_price'],
                 'purchase': opportunity['price']
             },
-            'investment_targets': investment_targets
+            'investment_targets': investment_targets,
+            # 新增：持有期间的最高/最低价追踪（初始值为买入价）
+            'period_max_close': opportunity['price'],
+            'period_max_close_date': opportunity['date'],
+            'period_min_close': opportunity['price'],
+            'period_min_close_date': opportunity['date'],
+            # 新增：历史低点信息，用于JSON记录
+            'historic_low_ref': {
+                'lowest_price': opportunity['valley_ref']['min'],
+                'lowest_date': opportunity['valley_ref'].get('min_date', ''),
+                'conclusion_from': opportunity['valley_ref'].get('valley_dates', [])
+            },
+            # 新增：freeze data统计信息
+            'freeze_data_stats': freeze_stats,
+            # 新增：分段平仓相关字段
+            'staged_exit': {
+                'enabled': True,
+                'current_position_ratio': 1.0,  # 当前持仓比例
+                'breakeven_stop_loss': False,  # 是否已移动到不亏不赚止损
+                'trailing_stop_price': None,  # 动态止损价格
+                'last_close_price': opportunity['price'],  # 前一次close价格
+                'exited_stages': [],  # 已执行的平仓阶段
+                'total_realized_profit': 0.0,  # 累计已实现收益
+                'total_realized_profit_rate': 0.0  # 累计已实现收益率
+            }
         }
         
         return investment

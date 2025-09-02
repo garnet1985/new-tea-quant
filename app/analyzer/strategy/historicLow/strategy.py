@@ -184,7 +184,7 @@ class HistoricLowStrategy(BaseStrategy):
                 )
 
                 # 转换为投资对象
-                investment = HistoricLowService.to_investment(opportunity, investment_targets)
+                investment = HistoricLowService.to_investment(opportunity, investment_targets, freeze_data)
 
                 return investment
         

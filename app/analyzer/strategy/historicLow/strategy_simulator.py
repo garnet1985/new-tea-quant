@@ -33,7 +33,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
 
         # todo: remove below line
-        stock_idx = stock_idx[200:240]  # 测试前2只股票
+        stock_idx = stock_idx[0:100]  # 测试前2只股票
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -103,7 +103,7 @@ class HLSimulator:
             stock = stock_result['stock_info']
             investments = stock_result['investments']
             
-            # 转换为investment_recorder期望的格式
+                                        # 转换为investment_recorder期望的格式
             investment_history = []
             for investment in investments.values():
                 converted_investment = {
@@ -120,14 +120,28 @@ class HLSimulator:
                         'win_price': investment['investment_ref']['goal']['win'],
                         'loss_price': investment['investment_ref']['goal']['loss'],
                         'stop_win_rate': investment['result'].get('win_percentage', 0),
-                        'stop_loss_rate': investment['result'].get('loss_percentage', 0)
+                        'stop_loss_rate': investment['result'].get('loss_percentage', 0),
+                        # 新增：持有期间的峰值/谷值收益率
+                        'max_close_rate': investment['result'].get('max_close_rate'),
+                        'min_close_rate': investment['result'].get('min_close_rate')
                     },
                     'settlement_info': {
                         'profit_loss': investment['result']['profit'],
                         'duration_days': investment['result']['invest_duration_days'],
                         'exit_date': investment['result']['end_date'],
-                        'annual_return': investment['result'].get('annual_return', 0)
-                    }
+                        'annual_return': investment['result'].get('annual_return', 0),
+                        # 新增：持有期间的峰值/谷值信息
+                        'max_close': investment['result'].get('max_close'),
+                        'max_close_date': investment['result'].get('max_close_date'),
+                        'max_close_rate': investment['result'].get('max_close_rate'),
+                        'min_close': investment['result'].get('min_close'),
+                        'min_close_date': investment['result'].get('min_close_date'),
+                        'min_close_rate': investment['result'].get('min_close_rate')
+                    },
+                    # 新增：freeze data统计信息
+                    'freeze_data_stats': investment['investment_ref'].get('freeze_data_stats', {}),
+                    # 新增：分段平仓信息
+                    'staged_exit': investment['result'].get('staged_exit', {})
                 }
                 investment_history.append(converted_investment)
             
@@ -341,6 +355,21 @@ class HLSimulator:
 
         if investing_opportunity:
             current_close = record_of_today['close']
+            current_date = record_of_today['date']
+            
+            # 更新持有期间的最高/最低价
+            if current_close > investing_opportunity['period_max_close']:
+                investing_opportunity['period_max_close'] = current_close
+                investing_opportunity['period_max_close_date'] = current_date
+            if current_close < investing_opportunity['period_min_close']:
+                investing_opportunity['period_min_close'] = current_close
+                investing_opportunity['period_min_close_date'] = current_date
+            
+            # 新增：分段平仓逻辑
+            if investing_opportunity.get('staged_exit', {}).get('enabled', False):
+                HLSimulator.process_staged_exit(stock, investing_opportunity, record_of_today, tracker)
+            
+            # 检查是否触发止损或止盈
             if current_close >= investing_opportunity['goal']['win']:
                 HLSimulator.settle_result('win', stock, investing_opportunity, record_of_today, tracker)
             elif current_close <= investing_opportunity['goal']['loss']:
@@ -373,9 +402,32 @@ class HLSimulator:
 
             invest_duration_days = AnalyzerService.get_duration_in_days(start_date, end_date)
             
+            # 计算综合收益（已实现收益 + 未实现收益）
             purchase_price = opportunity['goal']['purchase']
             current_close = record_of_today['close']
-            profit = current_close - purchase_price
+            staged_exit = opportunity.get('staged_exit', {})
+            total_realized_profit = staged_exit.get('total_realized_profit', 0.0)
+            remaining_position_ratio = staged_exit.get('current_position_ratio', 1.0)
+            
+            # 确保剩余仓位不为负数
+            remaining_position_ratio = max(0.0, remaining_position_ratio)
+            
+            # 调试信息
+            logger.info(f"🔍 {stock['id']} 结算时剩余仓位: {remaining_position_ratio:.2f}, 已实现收益: {total_realized_profit:.4f}")
+            
+            # 未实现收益 = 剩余持仓 * (当前价格 - 买入价格)
+            unrealized_profit = remaining_position_ratio * (current_close - purchase_price)
+            total_profit = total_realized_profit + unrealized_profit
+            
+            # 基于综合收益判断胜负
+            if total_profit > 0:
+                actual_result = 'win'
+            else:
+                actual_result = 'loss'
+            
+            # 计算综合收益率
+            total_profit_rate = total_profit / purchase_price if purchase_price != 0 else 0.0
+            total_realized_profit_rate = total_realized_profit / purchase_price if purchase_price != 0 else 0.0
 
             investment_id = f"{stock['id']}_{start_date}"
 
@@ -386,19 +438,45 @@ class HLSimulator:
             loss_percentage = ((loss_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
             win_percentage = ((win_price - purchase_price) / purchase_price * 100) if purchase_price != 0 else 0.0
             
+            # 计算期间最高/最低价的收益率
+            period_max_close = opportunity.get('period_max_close', purchase_price)
+            period_min_close = opportunity.get('period_min_close', purchase_price)
+            period_max_close_date = opportunity.get('period_max_close_date', start_date)
+            period_min_close_date = opportunity.get('period_min_close_date', start_date)
+            
+            max_close_rate = ((period_max_close / purchase_price) - 1.0) if purchase_price != 0 else 0.0
+            min_close_rate = ((period_min_close / purchase_price) - 1.0) if purchase_price != 0 else 0.0
+            
             # 构建结算信息
             settlement_result = {
-                'result': result_value,
+                'result': actual_result,  # 使用基于综合收益判断的结果
                 'start_date': opportunity['opportunity_record']['date'],
                 'end_date': end_date,
-                'profit': profit,
+                'profit': total_profit,  # 使用综合收益
                 'invest_duration_days': invest_duration_days,
                 'loss_percentage': round(loss_percentage, 2),
                 'win_percentage': round(win_percentage, 2),
                 'annual_return': AnalyzerService.get_annual_return(
-                    profit / purchase_price if purchase_price != 0 else 0.0,
+                    total_profit_rate,  # 使用综合收益率
                     invest_duration_days
-                )
+                ),
+                # 新增：持有期间的峰值/谷值信息
+                'max_close': period_max_close,
+                'max_close_date': period_max_close_date,
+                'max_close_rate': round(max_close_rate, 6),
+                'min_close': period_min_close,
+                'min_close_date': period_min_close_date,
+                'min_close_rate': round(min_close_rate, 6),
+                # 新增：分段平仓信息
+                'total_realized_profit': total_realized_profit,
+                'total_realized_profit_rate': round(total_realized_profit_rate, 6),
+                'unrealized_profit': unrealized_profit,
+                'remaining_position_ratio': remaining_position_ratio,
+                # 新增：完整的分段平仓信息
+                'staged_exit': staged_exit,
+                'ref': opportunity.get('ref', {}),
+                'target': opportunity.get('goal', {}),
+                'freeze_data_stats': opportunity.get('freeze_data_stats', {})
             }
             
             tracker['settled'][investment_id] = {
@@ -409,13 +487,13 @@ class HLSimulator:
             if stock['id'] in tracker['investing']:
                 del tracker['investing'][stock['id']]
                 
-            if result_value.upper() == "WIN":
+            if actual_result.upper() == "WIN":
                 result_dot = "🟢"
-            elif result_value.upper() == "LOSS":
+            elif actual_result.upper() == "LOSS":
                 result_dot = "🔴"
             else:  # OPEN
                 result_dot = "🟡"
-            logger.info(f" {result_dot} {stock['id']} investment {result_value}, duration: {invest_duration_days} days")
+            logger.info(f" {result_dot} {stock['id']} investment {actual_result} (综合收益{total_profit:.4f}, 已实现{total_realized_profit:.4f}), duration: {invest_duration_days} days")
             
             # 生成统一格式的投资结算信息
             try:
@@ -429,3 +507,157 @@ class HLSimulator:
             logger.error(f"🔍 settle_result 方法执行出错: {e}")
             import traceback
             logger.error(f"🔍 错误详情: {traceback.format_exc()}")
+    
+    @staticmethod
+    def process_staged_exit(stock: Dict[str, Any], investment: Dict[str, Any], record_of_today: Dict[str, Any], tracker: Dict[str, Any]) -> None:
+        """
+        处理分段平仓逻辑
+        """
+        current_close = float(record_of_today['close'])
+        purchase_price = float(investment['goal']['purchase'])
+        current_profit_rate = (current_close - purchase_price) / purchase_price
+        
+        staged_exit = investment.get('staged_exit', {})
+        exited_stages = staged_exit.get('exited_stages', [])
+        
+        # 获取分段平仓配置
+        staged_config = strategy_settings.get('staged_exit_strategy', {})
+        if not staged_config.get('enabled', False):
+            return
+        
+        stages = staged_config.get('stages', [])
+        
+        # 检查是否已经启动动态止损
+        if staged_exit.get('dynamic_trailing_enabled', False):
+            # 如果已经启动动态止损，只更新动态止损价格
+            HLSimulator.update_trailing_stop(stock, investment, record_of_today)
+            return
+        
+        # 按顺序检查每个阶段
+        for i, stage in enumerate(stages):
+            profit_rate = stage.get('profit_rate', 0)
+            action = stage.get('action', '')
+            stage_key = f"{profit_rate:.2f}"
+            
+            # 检查是否已经执行过这个阶段
+            if stage_key in exited_stages:
+                continue
+            
+            # 检查是否达到这个阶段的触发条件
+            if current_profit_rate >= profit_rate:
+                # 执行当前阶段动作
+                HLSimulator.execute_stage_action(stock, investment, stage, record_of_today, tracker)
+                exited_stages.append(stage_key)
+                staged_exit['exited_stages'] = exited_stages
+                
+                # 如果是最后一个阶段，启动动态止损
+                if i == len(stages) - 1:
+                    HLSimulator.start_dynamic_trailing_stop(stock, investment, stage, record_of_today)
+                    staged_exit['dynamic_trailing_enabled'] = True
+                # 移除20%启动动态止损，改为40%启动
+                # elif profit_rate == 0.2:
+                #     HLSimulator.start_dynamic_trailing_stop(stock, investment, stage, record_of_today)
+                #     staged_exit['dynamic_trailing_enabled'] = True
+                # 移除break，允许继续检查下一个阶段
+                # break
+    
+    @staticmethod
+    def start_dynamic_trailing_stop(stock: Dict[str, Any], investment: Dict[str, Any], stage: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
+        """
+        启动动态止损
+        """
+        action = stage.get('action', '')
+        profit_rate = stage.get('profit_rate', 0)
+        current_close = float(record_of_today['close'])
+        purchase_price = float(investment['goal']['purchase'])
+        
+        # 获取动态止损配置
+        staged_config = strategy_settings.get('staged_exit_strategy', {})
+        stages = staged_config.get('stages', [])
+        last_stage = stages[-1] if stages else {}
+        trailing_stop_ratio = last_stage.get('trailing_stop_ratio', 0.10)  # 改为10%，按照用户逻辑
+        
+        staged_exit = investment.get('staged_exit', {})
+        
+        # 设置动态止损价格
+        trailing_stop_price = current_close * (1 - trailing_stop_ratio)
+        staged_exit['trailing_stop_price'] = trailing_stop_price
+        staged_exit['last_close_price'] = current_close
+        
+        # 更新止损价格
+        investment['goal']['loss'] = trailing_stop_price
+        
+        logger.info(f"🎯 {stock['id']} 涨幅{profit_rate*100:.0f}%: 启动动态止损，止损价格{trailing_stop_price:.4f}")
+    
+    @staticmethod
+    def update_trailing_stop(stock: Dict[str, Any], investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
+        """
+        更新动态止损价格
+        """
+        current_close = float(record_of_today['close'])
+        staged_exit = investment.get('staged_exit', {})
+        last_close_price = staged_exit.get('last_close_price', current_close)
+        trailing_stop_price = staged_exit.get('trailing_stop_price', current_close)
+        
+        # 如果当前价格更高，更新动态止损价格
+        if current_close > last_close_price:
+            # 获取动态止损配置
+            staged_config = strategy_settings.get('staged_exit_strategy', {})
+            stages = staged_config.get('stages', [])
+            last_stage = stages[-1] if stages else {}
+            trailing_stop_ratio = last_stage.get('trailing_stop_ratio', 0.10)  # 改为10%，按照用户逻辑
+            
+            new_trailing_stop_price = current_close * (1 - trailing_stop_ratio)
+            
+            # 只有当新的止损价格更高时才更新
+            if new_trailing_stop_price > trailing_stop_price:
+                staged_exit['trailing_stop_price'] = new_trailing_stop_price
+                staged_exit['last_close_price'] = current_close
+                investment['goal']['loss'] = new_trailing_stop_price
+                
+                logger.info(f"🎯 {stock['id']} 更新动态止损: {trailing_stop_price:.4f} -> {new_trailing_stop_price:.4f}")
+    
+    @staticmethod
+    def execute_stage_action(stock: Dict[str, Any], investment: Dict[str, Any], stage: Dict[str, Any], record_of_today: Dict[str, Any], tracker: Dict[str, Any]) -> None:
+        """
+        执行分段平仓的具体动作
+        """
+        action = stage.get('action', '')
+        profit_rate = stage.get('profit_rate', 0)
+        current_close = float(record_of_today['close'])
+        purchase_price = float(investment['goal']['purchase'])
+        
+        if action == 'move_stop_loss_to_breakeven':
+            # 将止损移到不亏不赚
+            investment['goal']['loss'] = purchase_price
+            # logger.info(f"🎯 {stock['id']} 涨幅{profit_rate*100:.0f}%: 止损移到不亏不赚 {purchase_price:.4f}")
+            
+        elif action == 'partial_exit':
+            # 部分平仓 - 修正：平仓总仓位的20%，而不是剩余仓位的20%
+            exit_ratio = stage.get('exit_ratio', 0.2)
+            staged_exit = investment.get('staged_exit', {})
+            current_position_ratio = staged_exit.get('current_position_ratio', 1.0)
+            
+            # 计算平仓收益 - 基于总仓位计算
+            exit_profit = (current_close - purchase_price) * exit_ratio
+            remaining_position_ratio = current_position_ratio - exit_ratio  # 直接减去总仓位的比例
+            
+            # 更新累计已实现收益
+            total_realized_profit = staged_exit.get('total_realized_profit', 0.0) + exit_profit
+            total_realized_profit_rate = total_realized_profit / purchase_price
+            staged_exit['total_realized_profit'] = total_realized_profit
+            staged_exit['total_realized_profit_rate'] = total_realized_profit_rate
+            
+            # 更新持仓比例
+            staged_exit['current_position_ratio'] = remaining_position_ratio
+            
+            # 记录部分平仓
+            # logger.info(f"🎯 {stock['id']} 涨幅{profit_rate*100:.0f}%: 平仓总仓位{exit_ratio*100:.0f}%, 收益{exit_profit:.4f}, 累计收益{total_realized_profit:.4f}({total_realized_profit_rate*100:.1f}%), 剩余持仓{remaining_position_ratio*100:.0f}%")
+            
+            # 如果剩余持仓为0，完全平仓
+            if remaining_position_ratio <= 0:
+                HLSimulator.settle_result('win', stock, investment, record_of_today, tracker)
+                
+        elif action == 'dynamic_trailing_stop':
+            # 动态止盈 - 现在由专门的方法处理
+            pass

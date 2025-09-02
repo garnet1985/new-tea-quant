@@ -65,5 +65,48 @@ strategy_settings = {
         # if too large wll cause db connection pool exhausted
         "batch_size": 50,
         "enable_monitoring": False
+    },
+    
+    # 新增：分段平仓策略配置（优化版 - 基于用户逻辑重新设计）
+    "staged_exit_strategy": {
+        "enabled": True,
+        "description": "分段平仓策略：优化版 - 20%启动动态止损，简化止盈阶段",
+        "stages": [
+            {
+                "profit_rate": 0.1,  # 10%
+                "action": "move_stop_loss_to_breakeven",
+                "description": "涨幅10%时，将止损移到不亏不赚"
+            },
+            {
+                "profit_rate": 0.15,  # 15%
+                "action": "partial_exit",
+                "exit_ratio": 0.30,  # 平仓10%
+                "description": "涨幅15%时，平仓10%"
+            },
+            {
+                "profit_rate": 0.20,  # 20%
+                "action": "partial_exit",
+                "exit_ratio": 0.10,  # 平仓20%
+                "description": "涨幅20%时，平仓20%"
+            },
+            {
+                "profit_rate": 0.25,  # 25%
+                "action": "partial_exit",
+                "exit_ratio": 0.10,  # 平仓20%
+                "description": "涨幅25%时，平仓20%"
+            },
+            {
+                "profit_rate": 0.30,  # 30%
+                "action": "partial_exit",
+                "exit_ratio": 0.20,  # 平仓20%"
+                "description": "涨幅30%时，平仓20%"
+            },
+            {
+                "profit_rate": 0.40,  # 40%
+                "action": "partial_exit",
+                "exit_ratio": 0.20,  # 平仓30%"
+                "description": "涨幅40%时，平仓30%并启动动态止损"
+            }
+        ]
     }
 }

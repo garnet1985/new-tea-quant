@@ -51,43 +51,43 @@ class InvestmentRecorder:
         # 解析股票代码
         code, market = DataSourceService.parse_ts_code(stock_info.get('id', ''))
         
-        # 计算统计信息
+        # 计算统计信息（用于每条result内嵌的statistics）
         total_investments = len(investment_history)
         success_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.WIN.value])
         fail_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.LOSS.value])
         open_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.OPEN.value])
-        
-        # 计算胜率
         win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
-        
-        # 计算总收益和平均收益
         total_profit = sum([inv.get('settlement_info', {}).get('profit_loss', 0) for inv in investment_history])
         avg_profit = total_profit / total_investments if total_investments > 0 else 0.0
-        
-        # 计算平均投资时长
         durations = [inv.get('settlement_info', {}).get('duration_days', 0) for inv in investment_history if inv.get('settlement_info', {}).get('duration_days')]
         avg_duration_days = sum(durations) / len(durations) if durations else 0.0
+
+        per_stock_stats = {
+            'total_investments': total_investments,
+            'success_count': success_count,
+            'fail_count': fail_count,
+            'open_count': open_count,
+            'win_rate': win_rate,
+            'total_profit': total_profit,
+            'avg_profit': avg_profit,
+            'avg_duration_days': avg_duration_days
+        }
+
+        # 将统计信息内嵌到每个result中
+        enriched_history = []
+        for inv in investment_history:
+            inv_copy = dict(inv)
+            inv_copy['statistics'] = per_stock_stats
+            enriched_history.append(inv_copy)
         
         # 构建记录数据
         record = {
             'stock_info': {
                 'id': stock_info.get('id', ''),
                 'name': stock_info.get('name', ''),
-                'industry': stock_info.get('industry', ''),
-                'code': code,
-                'market': market,
+                'industry': stock_info.get('industry', '')
             },
-            'results': investment_history,
-            'statistics': {
-                'total_investments': total_investments,
-                'success_count': success_count,
-                'fail_count': fail_count,
-                'open_count': open_count,
-                'win_rate': win_rate,
-                'total_profit': total_profit,
-                'avg_profit': avg_profit,
-                'avg_duration_days': avg_duration_days
-            }
+            'results': enriched_history
         }
 
         # 缓存投资记录
@@ -115,24 +115,17 @@ class InvestmentRecorder:
             'status': settlement_info.get('result', ''),
             'start_date': settlement_info.get('start_date', ''),
             'end_date': settlement_info.get('end_date', ''),
-            'ref': settlement_info.get('ref', {}),
-            'target': settlement_info.get('target', {}),
-            'settlement_info': {
-                'profit_loss': settlement_info.get('profit', 0),
-                'duration_days': settlement_info.get('invest_duration_days', 0),
-                'exit_date': settlement_info.get('end_date', ''),
-                'annual_return': settlement_info.get('annual_return', 0),
-                # 新增：持有期间的峰值/谷值信息
-                'max_close': settlement_info.get('max_close'),
-                'max_close_date': settlement_info.get('max_close_date'),
-                'max_close_rate': settlement_info.get('max_close_rate'),
-                'min_close': settlement_info.get('min_close'),
-                'min_close_date': settlement_info.get('min_close_date'),
-                'min_close_rate': settlement_info.get('min_close_rate')
+            'overall_profit_rate': settlement_info.get('overall_profit_rate'),
+            'purchase_price': (settlement_info.get('investment') or {}).get('purchase_price'),
+            'investment': {
+                'targets': ((settlement_info.get('investment') or {}).get('targets') or [])
             },
-            # 新增：分段平仓信息
-            'staged_exit': settlement_info.get('staged_exit', {}),
-            'freeze_data_stats': settlement_info.get('freeze_data_stats', {})
+            'tracks': settlement_info.get('tracks', {}),
+            'historic_low_ref': {
+                'term': (settlement_info.get('historic_low_ref') or {}).get('term'),
+                'date': (settlement_info.get('historic_low_ref') or {}).get('date'),
+                'price': (settlement_info.get('historic_low_ref') or {}).get('price')
+            }
         }
         
 

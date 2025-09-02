@@ -50,42 +50,6 @@ class HistoricLowService:
         return len(errors) == 0, errors
     
     @staticmethod
-    def calculate_volatility(daily_records: List[Dict[str, Any]], days: int = 100) -> float:
-        """
-        计算股票的历史波动率（年化）
-        
-        Args:
-            daily_records: 日线数据
-            days: 计算天数，默认100天
-            
-        Returns:
-            float: 年化波动率
-        """
-        if len(daily_records) < days:
-            days = len(daily_records)
-        
-        # 取最近days天的数据
-        recent_data = daily_records[-days:]
-        
-        # 计算日收益率
-        returns = []
-        for i in range(1, len(recent_data)):
-            prev_price = float(recent_data[i-1]['close'])
-            curr_price = float(recent_data[i]['close'])
-            daily_return = (curr_price - prev_price) / prev_price
-            returns.append(daily_return)
-        
-        if not returns:
-            return 0.0
-        
-        # 计算年化波动率
-        import statistics
-        daily_volatility = statistics.stdev(returns)
-        annual_volatility = daily_volatility * (252 ** 0.5)  # 年化
-        
-        return annual_volatility
-    
-    @staticmethod
     def calculate_freeze_data_stats(freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         计算freeze data期间的涨跌幅统计信息
@@ -427,31 +391,6 @@ class HistoricLowService:
         
         return False
     
-    @staticmethod    
-    def get_previous_low_points(record, all_historic_lows):
-        if not all_historic_lows:
-            return []
-        
-        current_date = record['date']
-        previous_lows = []
-        
-        for low_point in all_historic_lows:
-            low_date = low_point['lowest_date']
-            low_price = float(low_point['lowest_price'])
-            
-            # 如果低点日期早于当前记录日期，则认为是之前出现的
-            if low_date < current_date:
-                previous_lows.append({
-                    'price': low_price,
-                    'date': low_date
-                })
-        
-        # 按价格从低到高排序
-        previous_lows.sort(key=lambda x: x['price'])
-        
-        return previous_lows
-
-
     @staticmethod
     def filter_out_negative_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # 取连续片段（最后一个负值之后）
@@ -475,37 +414,6 @@ class HistoricLowService:
         continuous_slice = records[last_negative_idx + 1:] if last_negative_idx + 1 < len(records) else []
         
         return continuous_slice
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    @staticmethod
-    def get_year_duration(start_date, end_date) -> Dict[str, Any]:
-        if not start_date or not end_date:
-            return 1
-
-        start_year = int(start_date[:4])
-        end_year = int(end_date[:4])
-        duration_in_years = end_year - start_year + 1
-
-        return duration_in_years
-
-
 
 
     @staticmethod
@@ -723,11 +631,6 @@ class HistoricLowService:
             'avg_duration_days': avg_duration,
             'investments': investments
         }
-
-    @staticmethod
-    def get_investing(stock, investing_stocks):
-        return investing_stocks.get(stock['id'])
-
 
     @staticmethod
     def split_daily_data_for_analysis(daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:

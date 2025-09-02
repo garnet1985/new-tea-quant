@@ -30,10 +30,19 @@ class HLSimulator:
         
 
     def test_strategy(self) -> bool:
+        # 验证策略配置
+        is_valid, validation_errors = HistoricLowService.validate_strategy_settings(strategy_settings)
+        if not is_valid:
+            logger.error("❌ 策略配置验证失败:")
+            for error in validation_errors:
+                logger.error(f"  - {error}")
+            raise ValueError("策略配置无效，请检查上述错误")
+        logger.info("✅ 策略配置验证通过")
+        
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
 
         # todo: remove below line
-        stock_idx = stock_idx[0:100]  # 测试前2只股票
+        stock_idx = stock_idx[0:10]  # 测试前2只股票
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)

@@ -13,6 +13,43 @@ class HistoricLowService:
     """HistoricLow策略的静态服务类"""
     
     @staticmethod
+    def validate_strategy_settings(settings: dict) -> tuple[bool, list[str]]:
+        """
+        验证策略设置的基本常识错误
+        
+        Returns:
+            tuple: (是否有效, 错误信息列表)
+        """
+        errors = []
+        
+        # 检查基本结构
+        if 'goal' not in settings:
+            errors.append("缺少goal配置")
+            return False, errors
+        
+        goal = settings['goal']
+        
+        # 检查止盈配置 - 主要检查总平仓比例不超过100%
+        if 'take_profit' in goal and 'stages' in goal['take_profit']:
+            total_sell_ratio = 0
+            for stage in goal['take_profit']['stages']:
+                sell_ratio = stage.get('sell_ratio', 0)
+                total_sell_ratio += sell_ratio
+            
+            if total_sell_ratio > 1:
+                errors.append(f"总平仓比例({total_sell_ratio:.1%})超过100%")
+        
+        # 检查止损配置 - 检查动态止损比例是否合理
+        if 'stop_loss' in goal and 'stages' in goal['stop_loss']:
+            for stage in goal['stop_loss']['stages']:
+                if stage.get('is_dynamic_loss', False):
+                    loss_ratio = stage.get('loss_ratio', 0)
+                    if loss_ratio > 0.5:  # 动态止损比例不应超过50%
+                        errors.append(f"动态止损比例({loss_ratio:.1%})过高")
+        
+        return len(errors) == 0, errors
+    
+    @staticmethod
     def calculate_volatility(daily_records: List[Dict[str, Any]], days: int = 100) -> float:
         """
         计算股票的历史波动率（年化）
@@ -198,87 +235,6 @@ class HistoricLowService:
         return low_points
 
 
-
-    @staticmethod
-    def find_strong_valleys(valleys: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not valleys:
-            return []
-            
-        grouped_valleys = HistoricLowService.group_valleys(valleys)
-
-        strong_valleys = HistoricLowService.filter_strong_valleys(grouped_valleys)
-        
-        return strong_valleys;
-
-
-    @staticmethod
-    def filter_strong_valleys(grouped_valleys: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not grouped_valleys:
-            return []
-
-        min_touch_count = strategy_settings['valley_analysis']['min_touch_count']
-
-        candidates = []
-        for g in grouped_valleys:
-            vmin = float(g['min'])
-            vmax = float(g['max'])
-            touches = len(g.get('items', [])) or len(g.get('values', []))
-
-            # 硬性过滤：触及次数和波动范围
-            if touches < min_touch_count:
-                continue
-
-            if (vmax - vmin) / vmin > strategy_settings['valley_analysis']['max_amplitude_range']:
-                continue
-
-            # 统一输出结构
-            items = g.get('items', [])
-            dates = [it.get('date') for it in items if 'date' in it]
-            candidates.append({
-                'min': vmin,
-                'max': vmax,
-                'avg': (vmin + vmax) / 2.0,
-                'valley_amplitude_range': (vmax - vmin) / vmin,
-                'touch_count': touches,
-                'valley_dates': dates,
-                # 'refs': items
-            })
-
-        # 排序并取前3
-        candidates.sort(key=lambda x: x['touch_count'], reverse=True)
-        return candidates[:3]
-
-
-    @staticmethod
-    def group_valleys(valleys: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not valleys or len(valleys) == 0:
-            return []
-        
-        # 单次遍历构建聚类（5%阈值），不排序
-        threshold = strategy_settings['valley_analysis']['cluster_threshold']
-
-        grouped_valleys: List[Dict[str, Any]] = []
-        for v in valleys:
-            p = float(v['price'])
-            placed = False
-            for group_valley in grouped_valleys:
-                # 试探加入后组跨度是否仍在阈值内
-                new_min = p if p < group_valley['min'] else group_valley['min']
-                new_max = p if p > group_valley['max'] else group_valley['max']
-                span_pct = ((new_max - new_min) / new_min) if new_min > 0 else 0.0
-                if span_pct <= threshold:
-                    group_valley['min'] = new_min
-                    group_valley['max'] = new_max
-                    group_valley['values'].append(p)
-                    group_valley['items'].append(v)
-                    placed = True
-                    break
-            if not placed:
-                grouped_valleys.append({'min': p, 'max': p, 'values': [p], 'items': [v]})
-
-        return grouped_valleys;
-
-
     @staticmethod
     def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> bool:
         min_required = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
@@ -297,20 +253,20 @@ class HistoricLowService:
             float: 价格区间比例
         """
         # 从settings获取配置
-        price_range_config = strategy_settings.get('price_range', {})
-        base_ratio = price_range_config.get('base_ratio', 0.025)
-        min_absolute_range = price_range_config.get('min_absolute_range', 0.2)
-        max_absolute_range = price_range_config.get('max_absolute_range', 10.0)
+        low_point_config = strategy_settings.get('low_point_invest_range', {})
+        base = low_point_config.get('base', 0.05)
+        min_range = low_point_config.get('min', 0.2)
+        max_range = low_point_config.get('max', 10.0)
         
-        # 基础区间（上下各base_ratio）
-        base_absolute_range = low_point_price * base_ratio
+        # 基础区间（上下各base比例）
+        base_absolute_range = low_point_price * base
         
         # 如果基础区间小于最小区间，则使用最小区间
-        if base_absolute_range < min_absolute_range:
-            absolute_range = min_absolute_range
+        if base_absolute_range < min_range:
+            absolute_range = min_range
         # 如果基础区间大于最大区间，则使用最大区间
-        elif base_absolute_range > max_absolute_range:
-            absolute_range = max_absolute_range
+        elif base_absolute_range > max_range:
+            absolute_range = max_range
         else:
             absolute_range = base_absolute_range
         
@@ -487,8 +443,7 @@ class HistoricLowService:
             if low_date < current_date:
                 previous_lows.append({
                     'price': low_price,
-                    'date': low_date,
-                    'price_range': low_point['price_range']
+                    'date': low_date
                 })
         
         # 按价格从低到高排序
@@ -557,7 +512,7 @@ class HistoricLowService:
     def calculate_investment_targets(record_of_today: Dict[str, Any], low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         计算投资目标：止损和止盈价格
-        先计算止盈，再计算止损
+        使用新的分段平仓策略配置
         """
         current_price = float(record_of_today['close'])
 
@@ -570,61 +525,29 @@ class HistoricLowService:
         if min_price < low_point['min']:
             return None
 
-        # dates_touched_valley = low_point.get('valley_dates', [])
-
-        # start_date = min(dates_touched_valley)
-        # end_date = max(dates_touched_valley)
-
-        # duration_in_years = HistoricLowService.get_year_duration(start_date, end_date)
+        # 使用新的配置结构
+        goal_config = strategy_settings['goal']
         
-        # if len(dates_touched_valley) > 1:
-            
-        #     # 在这个时间范围内找出所有日线的最高价和最低价
-        #     prices_in_range = []
-        #     for record in daily_records:
-        #         if start_date <= record['date'] <= end_date:
-        #             prices_in_range.append(float(record['close']))
-            
-        #     if prices_in_range:
-        #         min_price = min(prices_in_range)
-        #         max_price = max(prices_in_range)
-
-        # else:
-        #     min_price = float(low_point['min'])
-        #     max_price = float(low_point['max'])
+        # 获取初始止损配置（第一个阶段）
+        stop_loss_stages = goal_config['stop_loss']['stages']
+        initial_stop_loss_stage = stop_loss_stages[0]  # 初始阶段
+        initial_stop_loss_ratio = initial_stop_loss_stage['loss_ratio']
         
-
-        # amplitude_ratio = (max_price - min_price) / min_price
-
-        # logger.info(f"🎯 计算投资目标: {max_price} {min_price} {amplitude_ratio}")
-
-        # if amplitude_ratio > strategy_settings['goal']['take_profit']['max_ration']:
-        #     amplitude_ratio = strategy_settings['goal']['take_profit']['max_ration']
-
-        # logger.info(f"🎯 计算投资目标: {amplitude_ratio}")
-        
-        # # 计算止盈比例（历史波动率的某个百分比，但有封顶）
-        # calculated_win_ratio = amplitude_ratio * strategy_settings['goal']['take_profit']['profit_ratio']
-        
-        # # 应用封顶机制
-        # take_profit_ratio = min(calculated_win_ratio, amplitude_ratio)
-
-        take_profit_ratio = 0.4;
-        
-        # 计算止损比例（止盈除以divider）
-        stop_loss_divider = strategy_settings['goal']['stop_loss']['divider']
-        stop_loss_ratio = take_profit_ratio / stop_loss_divider
+        # 获取最后一个止盈阶段作为最大止盈目标
+        take_profit_stages = goal_config['take_profit']['stages']
+        max_take_profit_stage = take_profit_stages[-1]  # 最后一个阶段
+        max_take_profit_ratio = max_take_profit_stage['win_ratio']
         
         # 计算具体价格
-        stop_loss_price = current_price * (1 - stop_loss_ratio)
-        take_profit_price = current_price * (1 + take_profit_ratio)
+        stop_loss_price = current_price * (1 - initial_stop_loss_ratio)
+        take_profit_price = current_price * (1 + max_take_profit_ratio)
 
         
         return {
             'stop_loss_price': stop_loss_price,
             'take_profit_price': take_profit_price,
-            'stop_loss_ratio': stop_loss_ratio,
-            'take_profit_ratio': take_profit_ratio
+            'stop_loss_ratio': initial_stop_loss_ratio,
+            'take_profit_ratio': max_take_profit_ratio
         }
 
 
@@ -652,8 +575,10 @@ class HistoricLowService:
         """
         将机会转换为投资对象，包含投资目标
         """
-        # 检查止损是否满足最小要求
-        min_stop_loss_ratio = strategy_settings['goal']['stop_loss']['min_ratio']
+        # 检查止损是否满足最小要求（使用初始止损阶段）
+        goal_config = strategy_settings['goal']
+        initial_stop_loss_stage = goal_config['stop_loss']['stages'][0]
+        min_stop_loss_ratio = initial_stop_loss_stage['loss_ratio']
         calculated_stop_loss_ratio = investment_targets['stop_loss_ratio']
         
         if calculated_stop_loss_ratio < min_stop_loss_ratio:

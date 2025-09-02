@@ -187,9 +187,7 @@ class HistoricLowService:
                 'min': range_min,
                 'max': range_max,
                 'avg': min_price,
-                'valley_amplitude_range': 0.10,  # 5%上下 = 10%范围
-                'touch_count': 1,  # 每个年份只有一个最低点
-                'valley_dates': [min_date],
+                'term': years,
                 'valley_type': f'{years}year_low',
                 'target_year': target_year,
                 'lowest_price': min_price,

@@ -49,12 +49,30 @@ class AKShare:
         self.total_jobs = len(jobs)
         start_time = time.time()
 
-        worker = FuturesWorker(max_workers=self.max_workers, is_verbose=False)
+        worker = FuturesWorker(max_workers=self.max_workers, is_verbose=False, timeout=3600.0, enable_monitoring=True)
         worker.set_job_executor(self.renew_adj_factors_for_single_stock)
         worker.run_jobs(jobs)
 
+        # 总结执行情况
+        stats = worker.get_stats()
+        completed = stats.get('completed_jobs', 0)
+        total = stats.get('total_jobs', 0)
+        failed = stats.get('failed_jobs', 0)
+        cancelled = stats.get('cancelled_jobs', 0)
+        percent = (completed / total * 100) if total else 100
+
         self.reset_state()
-        logger.info(f"💾 复权因子更新完成. 耗时: {time.time() - start_time} 秒")
+
+        if stats.get('timed_out'):
+            logger.error(
+                f"💾 复权因子更新超时: 完成 {completed}/{total} ({percent:.1f}%), 未完成 {stats.get('not_done_count', 0)}, 失败 {failed}, 取消 {cancelled}. 耗时: {time.time() - start_time} 秒"
+            )
+        elif completed == total and failed == 0 and cancelled == 0:
+            logger.info(f"💾 复权因子更新完成. 共 {total} 个，耗时: {time.time() - start_time} 秒")
+        else:
+            logger.warning(
+                f"💾 复权因子更新部分完成: 完成 {completed}/{total} ({percent:.1f}%), 失败 {failed}, 取消 {cancelled}. 耗时: {time.time() - start_time} 秒"
+            )
 
         self.storage.backup_csv_if_needed()
 
@@ -140,6 +158,9 @@ class AKShare:
                 continue
             
             raw_close_price = float(matching_raw['close'])
+            if raw_close_price == 0:
+                logger.warning(f"{job_data['id']} 在 {date} 原始收盘价为0，跳过该日因子计算以避免除零")
+                continue
             
             # 在qfq_k_lines中查找对应日期的收盘价
             qfq_date = DataSourceService.to_hyphen_date_type(date)

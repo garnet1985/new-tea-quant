@@ -377,10 +377,8 @@ class HLSimulator:
     @staticmethod
     def settle_result(result_value: str, stock: Dict[str, Any], opportunity: Dict[str, Any], record_of_today: Dict[str, Any], tracker: Dict[str, Any]) -> None:
         try:
-
             start_date = opportunity['invest_start_date']
             end_date = record_of_today['date']
-
             invest_duration_days = AnalyzerService.get_duration_in_days(start_date, end_date)
             
             # 计算综合收益（已实现收益 + 未实现收益）
@@ -412,7 +410,6 @@ class HLSimulator:
 
             investment_id = f"{stock['id']}_{start_date}"
 
-
             # 计算止损和止盈百分比
             loss_price = opportunity['goal']['loss']
             win_price = opportunity['goal']['win']
@@ -428,9 +425,11 @@ class HLSimulator:
             max_close_rate = ((period_max_close / purchase_price) - 1.0) if purchase_price != 0 else 0.0
             min_close_rate = ((period_min_close / purchase_price) - 1.0) if purchase_price != 0 else 0.0
             
-            # 生成targets（分段平仓与动态止损）
+            # 生成targets（先止盈，后止损）
             targets: List[Dict[str, Any]] = []
             start_date_str = opportunity['invest_start_date']
+            
+            # 1. 先填入已实现的止盈targets
             exits = (staged_exit.get('exits') or [])
             for ex in exits:
                 sell_date = ex.get('sell_date') or end_date
@@ -446,55 +445,62 @@ class HLSimulator:
                     'sell_price': round(float(ex.get('sell_price') or record_of_today.get('close') or 0.0), 4)
                 })
 
-            # 如果是动态止损触发导致的结算（由止损路径触发），仅追加一个动态止损target，卖价以追踪止损价为准
-            if result_value == 'loss' and staged_exit.get('dynamic_trailing_enabled', False):
-                dynamic_profit_rate = (current_close / purchase_price) - 1.0 if purchase_price else 0.0
+            # 2. 检查是否触及止损，如果是则添加止损target
+            is_stop_loss_triggered = False
+            stop_loss_price = None
+            stop_loss_type = None
+            
+            # 检查是否触及动态止损
+            if staged_exit.get('dynamic_trailing_enabled', False):
+                trailing_stop_price = staged_exit.get('trailing_stop_price')
+                if current_close <= trailing_stop_price:
+                    is_stop_loss_triggered = True
+                    stop_loss_price = trailing_stop_price
+                    stop_loss_type = 'dynamic'
+            
+            # 检查是否触及普通止损
+            elif current_close <= loss_price:
+                is_stop_loss_triggered = True
+                stop_loss_price = current_close
+                stop_loss_type = 'normal'
+            
+            # 如果触及止损，添加止损target
+            if is_stop_loss_triggered and remaining_position_ratio > 0:
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
-                sell_price_at_trail = float(staged_exit.get('trailing_stop_price') or current_close)
-                # 保护：卖价不得低于初始0.4次日的理论下限（若记录得到）
-                min_allowed = float(staged_exit.get('first_dynamic_start_close') or sell_price_at_trail) * (1 - float(staged_exit.get('trail_ratio') or 0.1))
-                if sell_price_at_trail < min_allowed:
-                    sell_price_at_trail = min_allowed
-                targets.append({
-                    'target_win_ratio': 'dynamic',
-                    'is_achieved': True,
-                    'profit': round((sell_price_at_trail - purchase_price) * remaining_position_ratio, 4),
-                    'profit_rate': round(((sell_price_at_trail / purchase_price) - 1.0) if purchase_price else 0.0, 6),
-                    'profit_weight': 0.0,
-                    'duration': int(duration_days_for_target or 0),
-                    'sell_date': end_date,
-                    'sell_price': round(sell_price_at_trail, 4)
-                })
-                # 动态止损触发后，剩余仓位全部卖出，防止后续再追加一次最终target
-                staged_exit['current_position_ratio'] = 0.0
-                remaining_position_ratio = 0.0
-
-            # 如果直接触发初始止损且未进行任何阶段平仓，记录一个止损target
-            if actual_result == 'loss' and not exits and not staged_exit.get('dynamic_trailing_enabled', False):
+                stop_loss_profit_rate = (stop_loss_price / purchase_price) - 1.0 if purchase_price else 0.0
+                
+                if stop_loss_type == 'dynamic':
+                    targets.append({
+                        'target_win_ratio': 'dynamic',
+                        'is_achieved': True,
+                        'profit': round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
+                        'profit_rate': round(stop_loss_profit_rate, 6),
+                        'profit_weight': 0.0,
+                        'duration': int(duration_days_for_target or 0),
+                        'sell_date': end_date,
+                        'sell_price': round(stop_loss_price, 4)
+                    })
+                else:
+                    targets.append({
+                        'target_win_ratio': round(stop_loss_profit_rate, 6),
+                        'is_achieved': True,
+                        'profit': round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
+                        'profit_rate': round(stop_loss_profit_rate, 6),
+                        'profit_weight': 0.0,
+                        'duration': int(duration_days_for_target or 0),
+                        'sell_date': end_date,
+                        'sell_price': round(stop_loss_price, 4)
+                    })
+            
+            # 3. 如果没有任何targets且是loss，添加初始止损target
+            if not targets and actual_result == 'loss':
+                duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
                 loss_profit_rate = (current_close / purchase_price) - 1.0 if purchase_price else 0.0
-                duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
                 targets.append({
                     'target_win_ratio': round(loss_profit_rate, 6),
                     'is_achieved': True,
                     'profit': round((current_close - purchase_price) * 1.0, 4),
                     'profit_rate': round(loss_profit_rate, 6),
-                    'profit_weight': 0.0,
-                    'duration': int(duration_days_for_target or 0),
-                    'sell_date': end_date,
-                    'sell_price': round(current_close, 4)
-                })
-
-            # 只记录已达成的阶段，不补齐未达成阶段
-
-            # 若仍有剩余仓位（例如部分已卖出），且最终因止损结算时追加最终target；避免“直接初始止损”重复
-            if remaining_position_ratio > 0 and (result_value == 'loss') and not staged_exit.get('dynamic_trailing_enabled', False) and exits:
-                duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
-                final_profit_rate = (current_close / purchase_price) - 1.0 if purchase_price else 0.0
-                targets.append({
-                    'target_win_ratio': round(final_profit_rate, 6),
-                    'is_achieved': True,
-                    'profit': round((current_close - purchase_price) * remaining_position_ratio, 4),
-                    'profit_rate': round(final_profit_rate, 6),
                     'profit_weight': 0.0,
                     'duration': int(duration_days_for_target or 0),
                     'sell_date': end_date,
@@ -609,20 +615,30 @@ class HLSimulator:
         take_profit_stages = (goal_cfg.get('take_profit') or {}).get('stages') or []
         stop_loss_stages = (goal_cfg.get('stop_loss') or {}).get('stages') or []
         stages = []
+        
         # 1) 移动止损至不亏不赚：选择非动态且 loss_ratio==0 的阶段（例如 wr=0.1）
+        # 注意：如果 take_profit 中也有相同 win_ratio 的阶段，优先处理 take_profit，不添加保本阶段
         for s in stop_loss_stages:
             wr = float(s.get('win_ratio') or 0.0)
             is_dyn = bool(s.get('is_dynamic_loss', False))
             loss_ratio = float(s.get('loss_ratio') or 0.0)
             # 初始止损（wr==0 且 loss_ratio>0）不作为动作阶段，这在建仓时已设置
             if not is_dyn and loss_ratio == 0 and wr > 0:
-                stages.append({ 'profit_rate': wr, 'action': 'move_stop_loss_to_breakeven' })
+                # 检查 take_profit 中是否有相同 win_ratio 的阶段
+                has_take_profit_at_same_level = any(
+                    float(tp.get('win_ratio') or 0.0) == wr 
+                    for tp in take_profit_stages
+                )
+                if not has_take_profit_at_same_level:
+                    stages.append({ 'profit_rate': wr, 'action': 'move_stop_loss_to_breakeven' })
                 break
+        
         # 2) 分段止盈
         for s in take_profit_stages:
             wr = float(s.get('win_ratio') or 0.0)
             sr = float(s.get('sell_ratio') or 0.0)
             stages.append({ 'profit_rate': wr, 'action': 'partial_exit', 'exit_ratio': sr })
+        
         # 3) 动态止损触发（最后阶段）
         dyn = next((s for s in stop_loss_stages if s.get('is_dynamic_loss')), None)
         if dyn is not None:
@@ -730,7 +746,7 @@ class HLSimulator:
         purchase_price = float(investment['goal']['purchase'])
         
         if action == 'move_stop_loss_to_breakeven':
-            # 将止损移到不亏不赚
+            # 将止损移到不亏不赚 - 这只是止损价调整，不记录target
             investment['goal']['loss'] = purchase_price
             # logger.info(f"🎯 {stock['id']} 涨幅{profit_rate*100:.0f}%: 止损移到不亏不赚 {purchase_price:.4f}")
             
@@ -753,7 +769,7 @@ class HLSimulator:
             # 更新持仓比例
             staged_exit['current_position_ratio'] = remaining_position_ratio
             
-            # 记录本次分段平仓的target明细
+            # 记录本次分段平仓的target明细（只有真正的分段平仓才记录）
             exits = staged_exit.get('exits', [])
             exits.append({
                 'type': 'partial_exit',
@@ -771,6 +787,11 @@ class HLSimulator:
 
             # 记录部分平仓
             # logger.info(f"🎯 {stock['id']} 涨幅{profit_rate*100:.0f}%: 平仓总仓位{exit_ratio*100:.0f}%, 收益{exit_profit:.4f}, 累计收益{total_realized_profit:.4f}({total_realized_profit_rate*100:.1f}%), 剩余持仓{remaining_position_ratio*100:.0f}%")
+            
+            # 如果是10%止盈，将止损移到保本位置
+            if profit_rate == 0.1:
+                investment['goal']['loss'] = purchase_price
+                # logger.info(f"🎯 {stock['id']} 10%止盈后：止损移到保本位置 {purchase_price:.4f}")
             
             # 如果剩余持仓为0，完全平仓
             if remaining_position_ratio <= 0:

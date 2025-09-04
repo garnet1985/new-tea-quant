@@ -35,19 +35,19 @@ strategy_settings = {
             "stages": [
                 {
                     "win_ratio": 0.1,
-                    "sell_ratio": 0.2
+                    "sell_ratio": 0.2  # 从0.1增加到0.2
                 },
                 {
                     "win_ratio": 0.2,
-                    "sell_ratio": 0.2
+                    "sell_ratio": 0.2  # 从0.1增加到0.2
                 },
                 {
                     "win_ratio": 0.3,
-                    "sell_ratio": 0.2
+                    "sell_ratio": 0.2  # 从0.2增加到0.3
                 },
                 {
                     "win_ratio": 0.4,
-                    "sell_ratio": 0.2
+                    "sell_ratio": 0.2  # 保持0.3
                 }
             ]
         }

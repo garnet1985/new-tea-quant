@@ -7,6 +7,7 @@ from loguru import logger
 from .strategy_settings import strategy_settings
 from app.analyzer.analyzer_service import AnalyzerService
 from datetime import datetime
+from .strategy_entity import StrategyEntity
 
 
 class HistoricLowService:
@@ -459,176 +460,23 @@ class HistoricLowService:
 
     @staticmethod
     def to_opportunity(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], low_point: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        构造统一的机会对象，保证结构一致。
-        所有数值字段统一转换为float类型。
-        """
-        opportunity = {
-            'date': record_of_today.get('date') if record_of_today else None,
-            'price': record_of_today.get('close'),
-            'opportunity_record': record_of_today,
-            'valley_ref': low_point,
-            'stock': {
-                'id': stock_info.get('id') if stock_info else None,
-                'name': stock_info.get('name', '') if stock_info else ''
-            }
-        }
-        
-        return opportunity
+        """使用 StrategyEntity 生成机会对象"""
+        return StrategyEntity.to_opportunity(stock_info, record_of_today, low_point)
 
     @staticmethod
     def to_investment(opportunity: Dict[str, Any], investment_targets: Dict[str, Any], freeze_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        将机会转换为投资对象，包含投资目标
-        """
-        # 检查止损是否满足最小要求（使用初始止损阶段）
-        goal_config = strategy_settings['goal']
-        initial_stop_loss_stage = goal_config['stop_loss']['stages'][0]
-        min_stop_loss_ratio = initial_stop_loss_stage['loss_ratio']
-        calculated_stop_loss_ratio = investment_targets['stop_loss_ratio']
-        
-        if calculated_stop_loss_ratio < min_stop_loss_ratio:
-            return None  # 止损太小，忽略这个投资
-        
-        # 计算freeze data统计信息
-        freeze_stats = HistoricLowService.calculate_freeze_data_stats(freeze_data) if freeze_data else {}
-        
-        investment = {
-            'invest_start_date': opportunity['date'],
-            'purchase': opportunity['price'],
-            'opportunity_record': opportunity['opportunity_record'],
-            'valley_ref': opportunity['valley_ref'],
-            'stock': opportunity['stock'],
-            'goal': {
-                'loss': investment_targets['stop_loss_price'],
-                'win': investment_targets['take_profit_price'],
-                'purchase': opportunity['price']
-            },
-            'investment_targets': investment_targets,
-            # 新增：持有期间的最高/最低价追踪（初始值为买入价）
-            'period_max_close': opportunity['price'],
-            'period_max_close_date': opportunity['date'],
-            'period_min_close': opportunity['price'],
-            'period_min_close_date': opportunity['date'],
-            # 新增：历史低点信息，用于JSON记录
-            'historic_low_ref': {
-                'lowest_price': opportunity['valley_ref']['min'],
-                'lowest_date': opportunity['valley_ref'].get('min_date', ''),
-                'conclusion_from': opportunity['valley_ref'].get('valley_dates', [])
-            },
-            # 新增：freeze data统计信息
-            'freeze_data_stats': freeze_stats,
-            # 新增：分段平仓相关字段
-            'staged_exit': {
-                'enabled': True,
-                'current_position_ratio': 1.0,  # 当前持仓比例
-                'breakeven_stop_loss': False,  # 是否已移动到不亏不赚止损
-                'trailing_stop_price': None,  # 动态止损价格
-                'last_close_price': opportunity['price'],  # 前一次close价格
-                'exited_stages': [],  # 已执行的平仓阶段
-                'total_realized_profit': 0.0,  # 累计已实现收益
-                'total_realized_profit_rate': 0.0  # 累计已实现收益率
-            }
-        }
-        
-        return investment
+        """使用 StrategyEntity 生成投资对象"""
+        return StrategyEntity.to_investment(opportunity, investment_targets, freeze_data, calculate_freeze_stats=False)
 
     @staticmethod
     def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        total = 0
-        win = 0
-        loss = 0
-        open_ = 0
-        total_duration = 0.0
-        total_roi = 0.0
-        total_profit = 0.0
-        total_investment_amount = 0.0
-        stocks_with_opps = 0
-
-        for stock_result in session_results or []:
-            investments = (stock_result.get('investments') or {}).values()
-            if not investments:
-                continue
-            stocks_with_opps += 1
-            for inv in investments:
-                res = inv.get('result') or {}
-                inv_ref = inv.get('investment_ref') or {}
-                goal = (inv_ref.get('goal') or {})
-                purchase = float(goal.get('purchase') or 0)
-                profit = float(res.get('profit') or 0)
-                duration = float(res.get('invest_duration_days') or 0)
-
-                total += 1
-                total_profit += profit
-                total_duration += duration
-                if purchase > 0:
-                    total_investment_amount += purchase
-                    total_roi += ((purchase + profit) / purchase) - 1
-
-                r = res.get('result')
-                if r == 'win':
-                    win += 1
-                elif r == 'loss':
-                    loss += 1
-                elif r == 'open':
-                    open_ += 1
-
-        avg_duration_days = (total_duration / total) if total > 0 else 0.0
-        avg_roi = (total_roi / total) if total > 0 else 0.0
-        settled = win + loss
-        win_rate = (win / settled * 100) if settled > 0 else 0.0
-        annual_return = ((1 + avg_roi) ** (365 / avg_duration_days) - 1) * 100 if avg_roi != 0 and avg_duration_days > 0 else 0.0
-        avg_profit_per_investment = (total_profit / total) if total > 0 else 0.0
-
-        return {
-            'total_investments': total,
-            'win_count': win,
-            'loss_count': loss,
-            'open_count': open_,
-            'settled_investments': settled,
-            'win_rate': round(win_rate, 2),
-            'avg_duration_days': round(avg_duration_days, 1),
-            'avg_roi': round(avg_roi * 100, 2),
-            'annual_return': round(annual_return, 2),
-            'total_profit': round(total_profit, 2),
-            'avg_profit_per_investment': round(avg_profit_per_investment, 2),
-            'total_stocks_with_opportunities': stocks_with_opps
-        }
+        """使用 StrategyEntity 生成会话汇总"""
+        return StrategyEntity.to_session_summary(session_results)
 
     @staticmethod
     def to_stock_summary(stock_simulation_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        从单只股票的模拟结果构造统一的股票级汇总。
-        stock_result 形如 { 'stock_info': {..., 'id': ...}, 'investments': {...} }
-        """
-        stock_id = (stock_simulation_result.get('stock_info') or {}).get('id')
-        investments = list((stock_simulation_result.get('investments') or {}).values())
-
-        total_investments = len(investments)
-        success_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'win'])
-        fail_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'loss'])
-        open_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'open'])
-
-        total_profit = sum([float((inv.get('result') or {}).get('profit') or 0.0) for inv in investments])
-        avg_profit = (total_profit / total_investments) if total_investments > 0 else 0.0
-
-        total_duration = sum([float((inv.get('result') or {}).get('invest_duration_days') or 0.0) for inv in investments])
-        avg_duration = (total_duration / total_investments) if total_investments > 0 else 0.0
-
-        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
-
-        return {
-            'stock_id': stock_id,
-            'total_investments': total_investments,
-            'success_count': success_count,
-            'fail_count': fail_count,
-            'open_count': open_count,
-            'win_rate': win_rate,
-            'total_profit': total_profit,
-            'avg_profit': avg_profit,
-            'avg_duration_days': avg_duration,
-            'investments': investments
-        }
+        """使用 StrategyEntity 生成股票汇总"""
+        return StrategyEntity.to_stock_summary(stock_simulation_result)
 
     @staticmethod
     def split_daily_data_for_analysis(daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:

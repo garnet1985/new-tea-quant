@@ -73,9 +73,12 @@ class AdjustFactor(BaseTableModel):
         try:
             # 查询每只股票的因子状态
             query = """
-                SELECT MAX(date) AS last_factor_date, stock_id, last_update
+                SELECT 
+                    id,
+                    MAX(date) AS last_factor_date,
+                    MAX(last_update) AS last_update
                 FROM adj_factor 
-                GROUP BY stock_id
+                GROUP BY id
             """
             
             result = self.execute_raw_query(query)

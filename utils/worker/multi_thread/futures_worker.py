@@ -121,6 +121,8 @@ class FuturesWorker:
             'completed_jobs': 0,
             'failed_jobs': 0,
             'cancelled_jobs': 0,
+            'timed_out': False,
+            'not_done_count': 0,
             'start_time': None,
             'end_time': None,
             'total_duration': 0,
@@ -378,6 +380,9 @@ class FuturesWorker:
             
             # 强制完成未完成的任务
             if not_done:
+                with self.stats_lock:
+                    self.stats['timed_out'] = True
+                    self.stats['not_done_count'] = len(not_done)
                 if self.is_verbose:
                     logger.warning(f"Some tasks did not complete within timeout: {len(not_done)} tasks remaining")
                     logger.info("Forcing completion of remaining tasks...")

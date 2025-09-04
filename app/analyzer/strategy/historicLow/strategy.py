@@ -10,8 +10,8 @@ from enum import Enum
 from loguru import logger
 from app.analyzer.strategy.historicLow.strategy_simulator import HLSimulator
 from utils.worker import ProcessWorker, ProcessExecutionMode 
-from .tables.meta.model import HLMetaModel
-from .tables.opportunity_history.model import HLOpportunityHistoryModel
+from .tables.settings.model import HLMetaModel
+from .tables.targets.model import HLOpportunityHistoryModel
 from .tables.strategy_summary.model import HLStrategySummaryModel
 from ...libs.base_strategy import BaseStrategy
 from .strategy_service import HistoricLowService

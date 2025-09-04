@@ -13,6 +13,7 @@ from .strategy_enum import InvestmentResult
 from app.data_source.data_source_service import DataSourceService
 from app.analyzer.strategy.historicLow.investment_recorder import InvestmentRecorder
 from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
+from .strategy_entity import StrategyEntity
 
 class HLSimulator:
     def __init__(self, strategy):
@@ -42,7 +43,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
         # 使用完整索引（取消仅跑单支股票的限制）
 
-        stock_idx = stock_idx[170:200]
+        stock_idx = stock_idx[2950:3000]
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -55,9 +56,9 @@ class HLSimulator:
         # 创建两层汇总：股票级别和会话级别（统一用service汇总器）
         stock_summaries = {}
         for stock_result in self.session_results:
-            summary = HistoricLowService.to_stock_summary(stock_result)
+            summary = StrategyEntity.to_stock_summary(stock_result)
             stock_summaries[summary['stock_id']] = summary
-        session_summary = HistoricLowService.to_session_summary(self.session_results)
+        session_summary = StrategyEntity.to_session_summary(self.session_results)
         
         # 将汇总结果传递给investment_recorder进行记录
         self._record_all_summaries(stock_idx, stock_summaries, session_summary)
@@ -112,7 +113,7 @@ class HLSimulator:
             stock = stock_result['stock_info']
             investments = stock_result['investments']
             
-                                        # 转换为investment_recorder期望的格式
+            # 转换为investment_recorder期望的格式
             investment_history = []
             for investment in investments.values():
                 # 直接使用结算期望格式（包含targets等新字段）
@@ -187,8 +188,8 @@ class HLSimulator:
 
 
     def print_aggregated_results(self) -> None:
-        """打印聚合的测试结果（使用 HistoricLowService 统一会话汇总）"""
-        aggregated = HistoricLowService.to_session_summary(self.session_results)
+        """打印聚合的测试结果（使用 StrategyEntity 统一会话汇总）"""
+        aggregated = StrategyEntity.to_session_summary(self.session_results)
         
         print("\n" + "="*60)
         print("📊 HistoricLow 策略回测结果汇总")
@@ -200,7 +201,7 @@ class HLSimulator:
         results_summary = {}
         if hasattr(self, 'session_results') and self.session_results:
             # 使用统一的会话级汇总
-            results_summary = HistoricLowService.to_session_summary(self.session_results)
+            results_summary = StrategyEntity.to_session_summary(self.session_results)
         
         print("\n" + "="*60)
         print(f"🕐 投资记录摘要创建时间: {datetime.now().isoformat()}")
@@ -434,16 +435,16 @@ class HLSimulator:
             for ex in exits:
                 sell_date = ex.get('sell_date') or end_date
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, sell_date)
-                targets.append({
-                    'target_win_ratio': float(ex.get('win_ratio') or 0.0),
-                    'is_achieved': True,
-                    'profit': round(float(ex.get('profit') or 0.0), 4),
-                    'profit_rate': float(ex.get('profit_rate') or 0.0),
-                    'profit_weight': 0.0,  # 结算后统一回填
-                    'duration': int(duration_days_for_target or 0),
-                    'sell_date': sell_date,
-                    'sell_price': round(float(ex.get('sell_price') or record_of_today.get('close') or 0.0), 4)
-                })
+                targets.append(StrategyEntity.to_target(
+                    win_ratio=float(ex.get('win_ratio') or 0.0),
+                    is_achieved=True,
+                    profit=round(float(ex.get('profit') or 0.0), 4),
+                    profit_rate=float(ex.get('profit_rate') or 0.0),
+                    profit_weight=0.0,  # 结算后统一回填
+                    duration=int(duration_days_for_target or 0),
+                    sell_date=sell_date,
+                    sell_price=round(float(ex.get('sell_price') or record_of_today.get('close') or 0.0), 4)
+                ))
 
             # 2. 检查是否触及止损，如果是则添加止损target
             is_stop_loss_triggered = False
@@ -467,45 +468,45 @@ class HLSimulator:
             # 如果触及止损，添加止损target
             if is_stop_loss_triggered and remaining_position_ratio > 0:
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
-                stop_loss_profit_rate = (stop_loss_price / purchase_price) - 1.0 if purchase_price else 0.0
+                stop_loss_profit_rate = (stop_loss_price / purchase_price) - 1.0 if purchase_price != 0 else 0.0
                 
                 if stop_loss_type == 'dynamic':
-                    targets.append({
-                        'target_win_ratio': 'dynamic',
-                        'is_achieved': True,
-                        'profit': round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
-                        'profit_rate': round(stop_loss_profit_rate, 6),
-                        'profit_weight': 0.0,
-                        'duration': int(duration_days_for_target or 0),
-                        'sell_date': end_date,
-                        'sell_price': round(stop_loss_price, 4)
-                    })
+                    targets.append(StrategyEntity.to_target(
+                        win_ratio='dynamic',
+                        is_achieved=True,
+                        profit=round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
+                        profit_rate=round(stop_loss_profit_rate, 6),
+                        profit_weight=0.0,
+                        duration=int(duration_days_for_target or 0),
+                        sell_date=end_date,
+                        sell_price=round(stop_loss_price, 4)
+                    ))
                 else:
-                    targets.append({
-                        'target_win_ratio': round(stop_loss_profit_rate, 6),
-                        'is_achieved': True,
-                        'profit': round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
-                        'profit_rate': round(stop_loss_profit_rate, 6),
-                        'profit_weight': 0.0,
-                        'duration': int(duration_days_for_target or 0),
-                        'sell_date': end_date,
-                        'sell_price': round(stop_loss_price, 4)
-                    })
+                    targets.append(StrategyEntity.to_target(
+                        win_ratio=round(stop_loss_profit_rate, 6),
+                        is_achieved=True,
+                        profit=round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
+                        profit_rate=round(stop_loss_profit_rate, 6),
+                        profit_weight=0.0,
+                        duration=int(duration_days_for_target or 0),
+                        sell_date=end_date,
+                        sell_price=round(stop_loss_price, 4)
+                    ))
             
             # 3. 如果没有任何targets且是loss，添加初始止损target
             if not targets and actual_result == 'loss':
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
-                loss_profit_rate = (current_close / purchase_price) - 1.0 if purchase_price else 0.0
-                targets.append({
-                    'target_win_ratio': round(loss_profit_rate, 6),
-                    'is_achieved': True,
-                    'profit': round((current_close - purchase_price) * 1.0, 4),
-                    'profit_rate': round(loss_profit_rate, 6),
-                    'profit_weight': 0.0,
-                    'duration': int(duration_days_for_target or 0),
-                    'sell_date': end_date,
-                    'sell_price': round(current_close, 4)
-                })
+                loss_profit_rate = (current_close / purchase_price) - 1.0 if purchase_price != 0 else 0.0
+                targets.append(StrategyEntity.to_target(
+                    win_ratio=round(loss_profit_rate, 6),
+                    is_achieved=True,
+                    profit=round((current_close - purchase_price) * 1.0, 4),
+                    profit_rate=round(loss_profit_rate, 6),
+                    profit_weight=0.0,
+                    duration=int(duration_days_for_target or 0),
+                    sell_date=end_date,
+                    sell_price=round(current_close, 4)
+                ))
 
             # 回填profit_weight（基于总综合收益，如果为0则全部为0）
             if abs(total_profit) > 0:
@@ -605,7 +606,7 @@ class HLSimulator:
         """
         current_close = float(record_of_today['close'])
         purchase_price = float(investment['goal']['purchase'])
-        current_profit_rate = (current_close - purchase_price) / purchase_price
+        current_profit_rate = (current_close - purchase_price) / purchase_price if purchase_price != 0 else 0.0
         
         staged_exit = investment.get('staged_exit', {})
         exited_stages = staged_exit.get('exited_stages', [])
@@ -762,7 +763,7 @@ class HLSimulator:
             
             # 更新累计已实现收益
             total_realized_profit = staged_exit.get('total_realized_profit', 0.0) + exit_profit
-            total_realized_profit_rate = total_realized_profit / purchase_price
+            total_realized_profit_rate = total_realized_profit / purchase_price if purchase_price != 0 else 0.0
             staged_exit['total_realized_profit'] = total_realized_profit
             staged_exit['total_realized_profit_rate'] = total_realized_profit_rate
             
@@ -771,18 +772,16 @@ class HLSimulator:
             
             # 记录本次分段平仓的target明细（只有真正的分段平仓才记录）
             exits = staged_exit.get('exits', [])
-            exits.append({
-                'type': 'partial_exit',
-                'win_ratio': profit_rate,
-                'is_achieved': True,
-                'profit': round(exit_profit, 4),
-                'profit_rate': round((current_close / purchase_price) - 1.0, 6),
-                'profit_weight': 0.0,  # 结算时统一回填
-                'duration': 0,  # 结算时统一计算
-                'sell_date': record_of_today.get('date'),
-                'sell_price': round(current_close, 4),
-                'exit_ratio': exit_ratio
-            })
+            exits.append(StrategyEntity.to_target(
+                win_ratio=profit_rate,
+                is_achieved=True,
+                profit=round(exit_profit, 4),
+                profit_rate=round((current_close / purchase_price) - 1.0, 6) if purchase_price != 0 else 0.0,
+                profit_weight=0.0,  # 结算时统一回填
+                duration=0,  # 结算时统一计算
+                sell_date=record_of_today.get('date'),
+                sell_price=round(current_close, 4)
+            ))
             staged_exit['exits'] = exits
 
             # 记录部分平仓

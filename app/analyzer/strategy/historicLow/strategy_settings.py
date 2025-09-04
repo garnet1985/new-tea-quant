@@ -34,11 +34,11 @@ strategy_settings = {
         "take_profit": {
             "stages": [
                 {
-                    "win_ratio": 0.15,
+                    "win_ratio": 0.1,
                     "sell_ratio": 0.2
                 },
                 {
-                    "win_ratio": 0.25,
+                    "win_ratio": 0.2,
                     "sell_ratio": 0.2
                 },
                 {

@@ -11,6 +11,7 @@ from loguru import logger
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from .strategy_enum import InvestmentResult
+from .strategy_entity import StrategyEntity
 
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息"""
@@ -37,59 +38,14 @@ class InvestmentRecorder:
 
 
     def to_record(self, stock_info: Dict[str, Any], investment_history: List[Dict[str, Any]]):
-        """
-        记录单只股票的投资历史
-        
-        Args:
-            stock_info: 股票信息
-            investment_history: 投资历史记录
-        """
+        """使用 StrategyEntity 生成投资记录"""
         # 确保当前session文件夹存在
         session_dir = self._get_session_dir()
         os.makedirs(session_dir, exist_ok=True)
         
-        # 解析股票代码
-        code, market = DataSourceService.parse_ts_code(stock_info.get('id', ''))
+        # 使用 StrategyEntity 生成记录
+        record = StrategyEntity.to_record(stock_info, investment_history)
         
-        # 计算统计信息（用于每条result内嵌的statistics）
-        total_investments = len(investment_history)
-        success_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.WIN.value])
-        fail_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.LOSS.value])
-        open_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.OPEN.value])
-        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
-        total_profit = sum([inv.get('settlement_info', {}).get('profit_loss', 0) for inv in investment_history])
-        avg_profit = total_profit / total_investments if total_investments > 0 else 0.0
-        durations = [inv.get('settlement_info', {}).get('duration_days', 0) for inv in investment_history if inv.get('settlement_info', {}).get('duration_days')]
-        avg_duration_days = sum(durations) / len(durations) if durations else 0.0
-
-        per_stock_stats = {
-            'total_investments': total_investments,
-            'success_count': success_count,
-            'fail_count': fail_count,
-            'open_count': open_count,
-            'win_rate': win_rate,
-            'total_profit': total_profit,
-            'avg_profit': avg_profit,
-            'avg_duration_days': avg_duration_days
-        }
-
-        # 将统计信息内嵌到每个result中
-        enriched_history = []
-        for inv in investment_history:
-            inv_copy = dict(inv)
-            inv_copy['statistics'] = per_stock_stats
-            enriched_history.append(inv_copy)
-        
-        # 构建记录数据
-        record = {
-            'stock_info': {
-                'id': stock_info.get('id', ''),
-                'name': stock_info.get('name', ''),
-                'industry': stock_info.get('industry', '')
-            },
-            'results': enriched_history
-        }
-
         # 缓存投资记录
         self.cached_investments[stock_info.get('id', '')] = investment_history
 
@@ -98,35 +54,8 @@ class InvestmentRecorder:
         
 
     def to_settlement(self, stock_info: Dict[str, Any], settlement_info: Dict[str, Any]):
-        """
-        生成统一格式的投资结算信息字典
-        
-        Args:
-            stock_info: 股票信息
-            settlement_info: 结算信息
-            
-        Returns:
-            Dict[str, Any]: 统一格式的结算信息字典
-        """
-        code, market = DataSourceService.parse_ts_code(stock_info.get('id', ''))
-        
-        # 返回统一格式的结算信息，不生成文件
-        return {
-            'status': settlement_info.get('result', ''),
-            'start_date': settlement_info.get('start_date', ''),
-            'end_date': settlement_info.get('end_date', ''),
-            'overall_profit_rate': settlement_info.get('overall_profit_rate'),
-            'purchase_price': (settlement_info.get('investment') or {}).get('purchase_price'),
-            'investment': {
-                'targets': ((settlement_info.get('investment') or {}).get('targets') or [])
-            },
-            'tracks': settlement_info.get('tracks', {}),
-            'historic_low_ref': {
-                'term': (settlement_info.get('historic_low_ref') or {}).get('term'),
-                'date': (settlement_info.get('historic_low_ref') or {}).get('date'),
-                'price': (settlement_info.get('historic_low_ref') or {}).get('price')
-            }
-        }
+        """使用 StrategyEntity 生成结算信息"""
+        return StrategyEntity.to_settlement(stock_info, settlement_info)
         
 
     def to_session(self, stocks):

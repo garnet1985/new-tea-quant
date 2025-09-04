@@ -25,7 +25,7 @@ class HistoricLowStrategy(BaseStrategy):
     is_enabled = True
     
     def __init__(self, db, is_verbose=False):
-        description = "从股票的历史价格的低点中寻找历史最低点和历史中波谷多次触及的低点，识别可能的买入机会"
+        description = "历史低价策略: 使用某个周期前的历史最低点作为投资参考点，使用分段止盈来完成盈利"
         name = "Historic Low"
         abbreviation = "HL"
 
@@ -96,7 +96,7 @@ class HistoricLowStrategy(BaseStrategy):
         )
         
         # 执行任务
-        stats = worker.run_jobs(jobs)
+        worker.run_jobs(jobs)
         
         # 获取结果
         results = worker.get_successful_results()
@@ -105,10 +105,6 @@ class HistoricLowStrategy(BaseStrategy):
         for result in results:
             if result.result:
                 opportunities.extend(result.result)
-        
-        # 打印执行统计
-        if self.is_verbose:
-            worker.print_stats()
         
         return opportunities
     

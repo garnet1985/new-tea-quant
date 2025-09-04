@@ -1,23 +1,28 @@
 {
-    "name": "opportunity_history",
+    "name": "targets_history",
     "primaryKey": ["code", "market", "startDate", "endDate"],
     "fields": [
         {
-            "name": "code",
+            "name": "settings_id",
             "type": "varchar",
-            "length": 63,
+            "length": 8,
             "isRequired": true
         },
         {
-            "name": "name",
+            "name": "stock_id",
             "type": "varchar",
-            "length": 63,
+            "length": 16,
             "isRequired": true
         },
         {
-            "name": "market",
-            "type": "int",
-            "length": 11,
+            "name": "target_name",
+            "type": "varchar",
+            "length": 32,
+            "isRequired": true
+        },
+        {
+            "name": "target_threshold",
+            "type": "float",
             "isRequired": true
         },
         {
@@ -26,62 +31,40 @@
             "isRequired": true
         },
         {
-            "name": "loss",
+            "name": "profit_rate",
             "type": "float",
             "isRequired": true
         },
         {
-            "name": "detectRange",
+            "name": "profit_weight",
             "type": "float",
             "isRequired": true
         },
         {
-            "name": "startDate",
+            "name": "duration",
             "type": "varchar",
             "length": 63,
             "isRequired": true
         },
         {
-            "name": "endDate",
+            "name": "start_date",
             "type": "varchar",
             "length": 63,
             "isRequired": true
         },
         {
-            "name": "status",
-            "type": "varchar",
-            "length": 63,
-            "isRequired": true
-        },
-        {
-            "name": "durationInDays",
+            "name": "end_date",
             "type": "float",
             "isRequired": true
         },
         {
-            "name": "ROI",
+            "name": "purchase_price",
             "type": "float",
             "isRequired": true
         },
         {
-            "name": "marginProfit",
+            "name": "sell_price",
             "type": "float",
-            "isRequired": true
-        },
-        {
-            "name": "monthlyReturn",
-            "type": "float",
-            "isRequired": true
-        },
-        {
-            "name": "annuallyReturn",
-            "type": "float",
-            "isRequired": true
-        },
-        {
-            "name": "lastUpdateDate",
-            "type": "varchar",
-            "length": 63,
             "isRequired": true
         }
     ]

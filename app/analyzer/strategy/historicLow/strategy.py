@@ -3,6 +3,7 @@
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
 import math
+import time
 from typing import Dict, List, Any
 from datetime import datetime, timedelta
 import pprint
@@ -61,54 +62,38 @@ class HistoricLowStrategy(BaseStrategy):
     def get_settings(self):
         return self.strategy_settings
     
-    def scan(self) -> List[Dict[str, Any]]:
-        stock_idx = self.required_tables["stock_index"].load_filtered_index()
-        
-        if not stock_idx:
-            return []
-
-        # 使用多进程扫描
-        opportunities = self._scan_stocks_with_worker(stock_idx)
-
-        return opportunities
-    
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         self._present_report(opportunities)
     
     def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         opportunities = []
         
-        # 创建任务
-        jobs = []
-        for stock in stock_idx:
-            job_id = f"scan_{stock['id']}"
-            jobs.append({
-                'id': job_id,
-                'data': stock
-            })
+        # 使用单线程处理，避免数据库连接冲突
+        total_stocks = len(stock_idx)
+        logger.info(f"开始扫描 {total_stocks} 只股票...")
         
-        # 使用 ProcessWorker 多进程处理
-        worker = ProcessWorker(
-            max_workers=None,  # 自动使用CPU核心数
-            execution_mode=ProcessExecutionMode.QUEUE,  # 队列模式，最大化CPU利用率
-            job_executor=self.scan_job,
-            is_verbose=self.is_verbose
-        )
+        start_time = time.time()
+
+        for i, stock in enumerate(stock_idx, 1):
+            try:
+                # 直接调用原有的扫描方法
+                opportunity = self.scan_opportunity_for_single_stock(stock)
+                progress = (i / total_stocks * 100)
+                if opportunity:
+                    opportunities.extend(opportunity)
+                    logger.info(f"🔍 扫描股票 {stock['id']} {stock['name']} - ✅ 发现投资机会 {i}/{total_stocks} ({progress:.1f}%")
+                else:
+                    logger.info(f"🔍 扫描股票 {stock['id']} {stock['name']} - 没有投资机会 {i}/{total_stocks} ({progress:.1f}%")
+                    
+            except Exception as e:
+                logger.error(f"扫描股票 {stock['id']} 失败: {e}")
+                continue
         
-        # 执行任务
-        worker.run_jobs(jobs)
-        
-        # 获取结果
-        results = worker.get_successful_results()
-        
-        # 收集结果
-        for result in results:
-            if result.result:
-                opportunities.extend(result.result)
-        
+        logger.info(f"✅ 股票扫描完成: 共扫描 {total_stocks} 只股票，发现 {len(opportunities)} 个投资机会, 共耗时 {time.time() - start_time:.2f} 秒")
         return opportunities
-    
-    def scan_job(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
+
+    def scan_opportunity_for_single_stock(self, stock: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """扫描单只股票的投资机会"""
         daily_k_lines_count = self.required_tables["stock_kline"].count("id = %s AND term = %s", (stock['id'], 'daily'))
         min_required_daily_records = self.strategy_settings['daily_data_requirements']['min_required_daily_records']
         
@@ -127,7 +112,7 @@ class HistoricLowStrategy(BaseStrategy):
 
         if not HistoricLowService.is_meet_strategy_requirements(daily_records):
             return []
-        
+
         # 分割数据为冻结期和历史期
         opportunity = self.scan_single_stock(stock, daily_records)
         
@@ -136,8 +121,6 @@ class HistoricLowStrategy(BaseStrategy):
             return [opportunity]
         else:
             return []
-
-
 
     @staticmethod
     def scan_single_stock(stock: Dict[str, Any], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -213,3 +196,16 @@ class HistoricLowStrategy(BaseStrategy):
         # 延迟导入，避免与 simulator 的循环依赖
         from .strategy_simulator import HLSimulator
         HLSimulator(self).test_strategy()
+
+
+    def scan(self) -> List[Dict[str, Any]]:
+        stock_idx = self.required_tables["stock_index"].load_filtered_index()
+        
+        if not stock_idx:
+            return []
+
+        opportunities = self._scan_stocks_with_worker(stock_idx)
+
+        pprint.pprint(opportunities)
+
+        return opportunities

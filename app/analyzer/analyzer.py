@@ -170,12 +170,12 @@ class Analyzer:
             for key, strategy in self.ins.items()
         ]
     
-    def scan(self) -> Dict[str, List[Dict[str, Any]]]:
+    async def scan(self) -> Dict[str, List[Dict[str, Any]]]:
         results = {}
         for key, strategy in self.ins.items():
-            results[key] = strategy.scan()
+            results[key] = await strategy.scan()
         return results
 
-    def simulate(self):
+    async def simulate(self):
         for key, strategy in self.ins.items():
-            strategy.simulate()
+            await strategy.simulate()

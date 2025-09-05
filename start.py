@@ -41,6 +41,9 @@ class App:
     def simulate(self):
         # 使用run_daily_scan来同时执行扫描和测试
         self.analyzer.simulate()
+
+    async def scan(self):
+        await self.analyzer.scan()
         
 
 async def main():
@@ -48,7 +51,9 @@ async def main():
     
     await app.renew_data()
 
-    app.simulate()
+    await app.scan()
+
+    # app.simulate()
 
 
 if __name__ == "__main__":

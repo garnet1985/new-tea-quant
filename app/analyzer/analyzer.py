@@ -176,6 +176,6 @@ class Analyzer:
             results[key] = await strategy.scan()
         return results
 
-    async def simulate(self):
+    def simulate(self):
         for key, strategy in self.ins.items():
-            await strategy.simulate()
+            strategy.simulate()

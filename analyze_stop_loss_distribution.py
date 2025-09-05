@@ -40,7 +40,7 @@ def analyze_stop_loss_distribution():
                     
                     # 统计这只股票的止损情况
                     for target in targets:
-                        target_win_ratio = target.get('target_win_ratio')
+                        target_name = target.get('name')
                         is_achieved = target.get('is_achieved', False)
                         profit_rate = target.get('profit_rate', 0)
                         

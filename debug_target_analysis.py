@@ -6,7 +6,7 @@ import os
 from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
 
 def debug_target_analysis():
-    """调试target_win_ratio分析"""
+    """调试target_name分析"""
     base_dir = "app/analyzer/strategy/historicLow/tmp/2025_09_04-326"
     
     # 读取第一个JSON文件
@@ -36,53 +36,41 @@ def debug_target_analysis():
         
         for i, target in enumerate(targets):
             if target.get('is_achieved', False):
-                target_win_ratio = target.get('target_win_ratio', 0)
+                target_name = target.get('name', '')
                 profit_rate = target.get('profit_rate', 0)
                 profit_weight = target.get('profit_weight', 0)
                 sell_price = target.get('sell_price', 0)
                 
                 print(f"\nTarget {i+1}:")
-                print(f"  target_win_ratio: {target_win_ratio} (类型: {type(target_win_ratio)})")
+                print(f"  target_name: {target_name} (类型: {type(target_name)})")
                 print(f"  profit_rate: {profit_rate:.6f}")
                 print(f"  profit_weight: {profit_weight:.6f}")
                 print(f"  sell_price: {sell_price:.4f}")
                 
                 # 判断交易类型
                 trade_type = "未知"
-                if target_win_ratio == -0.2:
-                    trade_type = "止损"
-                elif target_win_ratio == 0:
-                    trade_type = "止损"
-                elif target_win_ratio == 'dynamic':
+                if target_name == "-20%":
+                    trade_type = "初始止损"
+                elif target_name == "break_even":
+                    trade_type = "保本止损"
+                elif target_name == 'dynamic':
                     trade_type = "动态止损"
-                elif isinstance(target_win_ratio, (int, float)) and target_win_ratio > 0:
-                    # 检查是否是动态止损
-                    is_dynamic = False
-                    for stage in strategy_settings["goal"]["stop_loss"]["stages"]:
-                        if stage.get("is_dynamic_loss", False) and abs(stage.get("win_ratio", 0) - target_win_ratio) < 0.001:
-                            is_dynamic = True
-                            break
-                    if is_dynamic:
-                        trade_type = "动态止损"
-                    else:
-                        trade_type = f"{target_win_ratio*100:.0f}%止盈"
+                elif target_name in ["10%", "20%", "30%", "40%"]:
+                    trade_type = f"{target_name}止盈"
+                elif isinstance(target_name, str) and target_name.endswith('%') and float(target_name[:-1]) > 0:
+                    trade_type = f"{target_name}止盈"
                 
                 print(f"  判断的交易类型: {trade_type}")
                 
                 # 检查策略设置
-                if isinstance(target_win_ratio, (int, float)) and target_win_ratio > 0:
+                if target_name in ["10%", "20%", "30%", "40%"]:
                     print("  检查策略设置:")
                     for stage in strategy_settings["goal"]["take_profit"]["stages"]:
-                        if abs(stage.get("win_ratio", 0) - target_win_ratio) < 0.001:
-                            print(f"    找到匹配的止盈阶段: {stage.get('win_ratio')*100:.0f}% -> {stage.get('sell_ratio')*100:.0f}%")
+                        if stage.get("name") == target_name:
+                            print(f"    找到匹配的止盈阶段: {stage.get('name')} -> {stage.get('sell_ratio')*100:.0f}%")
                             break
                     else:
                         print(f"    未找到匹配的止盈阶段")
-                    
-                    for stage in strategy_settings["goal"]["stop_loss"]["stages"]:
-                        if stage.get("is_dynamic_loss", False) and abs(stage.get("win_ratio", 0) - target_win_ratio) < 0.001:
-                            print(f"    找到匹配的动态止损阶段: {stage.get('win_ratio')*100:.0f}% -> {stage.get('loss_ratio')*100:.0f}%")
-                            break
 
 if __name__ == "__main__":
     debug_target_analysis()

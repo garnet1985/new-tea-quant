@@ -82,15 +82,15 @@ def analyze_sample_performance(base_dir, sample_count):
             remaining_shares = 1000
             for target in inv.get('targets', []):
                 if target.get('is_achieved', False):
-                    target_win_ratio = target.get('target_win_ratio')
+                    target_name = target.get('name')
                     profit_rate = target.get('profit_rate', 0)
                     sell_price = target.get('sell_price', 0)
                     
                     # 计算卖出股数
-                    if target_win_ratio == "dynamic":
+                    if target_name == "dynamic":
                         trade_type = '动态止损(盈利)'
                         exit_ratio = remaining_shares / 1000
-                    elif target_win_ratio == 0.0 and profit_rate > 0:
+                    elif target_name == "break_even" and profit_rate > 0:
                         trade_type = '止盈'
                         # 匹配止盈阶段
                         exit_ratio = 0

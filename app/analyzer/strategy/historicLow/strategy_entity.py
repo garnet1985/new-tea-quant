@@ -57,7 +57,7 @@ class StrategyEntity:
         # 检查止损是否满足最小要求（使用初始止损阶段）
         goal_config = strategy_settings['goal']
         initial_stop_loss_stage = goal_config['stop_loss']['stages'][0]
-        min_stop_loss_ratio = initial_stop_loss_stage['loss_ratio']
+        min_stop_loss_ratio = abs(float(initial_stop_loss_stage['ratio']))
         calculated_stop_loss_ratio = investment_targets['stop_loss_ratio']
         
         if calculated_stop_loss_ratio < min_stop_loss_ratio:
@@ -100,20 +100,21 @@ class StrategyEntity:
                 'last_close_price': opportunity['price'],  # 前一次close价格
                 'exited_stages': [],  # 已执行的平仓阶段
                 'total_realized_profit': 0.0,  # 累计已实现收益
-                'total_realized_profit_rate': 0.0  # 累计已实现收益率
+                'total_realized_profit_rate': 0.0,  # 累计已实现收益率
+                'current_stop_loss_stage': '-20%'  # 当前止损阶段名称
             }
         }
         
         return investment
 
     @staticmethod
-    def to_target(win_ratio: float, is_achieved: bool, profit: float, profit_rate: float, 
+    def to_target(target_name: str, is_achieved: bool, profit: float, profit_rate: float, 
                   profit_weight: float, duration: int, sell_date: str, sell_price: float) -> Dict[str, Any]:
         """
         生成统一的target对象
         
         Args:
-            win_ratio: 目标收益率
+            name: 目标收益率（字符串，如 "10%" 或 "break_even"）
             is_achieved: 是否达成
             profit: 利润
             profit_rate: 利润率
@@ -126,7 +127,7 @@ class StrategyEntity:
             Dict[str, Any]: 统一格式的target对象
         """
         return {
-            'target_win_ratio': win_ratio,
+            'name': target_name,
             'is_achieved': is_achieved,
             'profit': round(profit, 4),
             'profit_rate': round(profit_rate, 6),

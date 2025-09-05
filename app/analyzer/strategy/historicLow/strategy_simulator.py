@@ -17,9 +17,8 @@ from .strategy_entity import StrategyEntity
 
 class HLSimulator:
     def __init__(self, strategy):
-
         self.strategy = strategy
-
+        
         # init tracker
         self.invest_recorder = InvestmentRecorder()
 
@@ -28,6 +27,26 @@ class HLSimulator:
         
         # 是否启用详细日志
         self.is_verbose = False
+    
+    @staticmethod
+    def get_stage_info(stage: Dict[str, Any]) -> Dict[str, Any]:
+        """从stage配置中提取统一的信息"""
+        name = stage.get('name', '')
+        ratio = float(stage.get('ratio', 0.0))
+        sell_ratio = float(stage.get('sell_ratio', 1.0))
+        close_invest = stage.get('close_invest', False)  # 是否清仓
+        set_stop_loss = stage.get('set_stop_loss', None)
+        
+        return {
+            'name': name,
+            'ratio': ratio,
+            'sell_ratio': sell_ratio,
+            'close_invest': close_invest,
+            'set_stop_loss': set_stop_loss,
+            'is_dynamic': name == 'dynamic',
+            'is_stop_loss': ratio <= 0,
+            'is_take_profit': ratio > 0
+        }
         
 
     def test_strategy(self) -> bool:
@@ -436,7 +455,7 @@ class HLSimulator:
                 sell_date = ex.get('sell_date') or end_date
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, sell_date)
                 targets.append(StrategyEntity.to_target(
-                    win_ratio=float(ex.get('win_ratio') or 0.0),
+                    target_name=ex.get('name') or '0%',
                     is_achieved=True,
                     profit=round(float(ex.get('profit') or 0.0), 4),
                     profit_rate=float(ex.get('profit_rate') or 0.0),
@@ -472,7 +491,7 @@ class HLSimulator:
                 
                 if stop_loss_type == 'dynamic':
                     targets.append(StrategyEntity.to_target(
-                        win_ratio='dynamic',
+                        target_name='dynamic',
                         is_achieved=True,
                         profit=round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
                         profit_rate=round(stop_loss_profit_rate, 6),
@@ -482,14 +501,11 @@ class HLSimulator:
                         sell_price=round(stop_loss_price, 4)
                     ))
                 else:
-                    # 判断是否为保本止损（接近0的止损）
-                    if abs(stop_loss_profit_rate) < 0.01:  # 止损率小于1%认为是保本止损
-                        win_ratio_name = 'break_even'
-                    else:
-                        win_ratio_name = round(stop_loss_profit_rate, 6)
+                    # 使用记录的当前止损阶段名称
+                    target_name = staged_exit.get('current_stop_loss_stage', '-20%')
                     
                     targets.append(StrategyEntity.to_target(
-                        win_ratio=win_ratio_name,
+                        target_name=target_name,
                         is_achieved=True,
                         profit=round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
                         profit_rate=round(stop_loss_profit_rate, 6),
@@ -504,14 +520,11 @@ class HLSimulator:
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
                 loss_profit_rate = (current_close / purchase_price) - 1.0 if purchase_price != 0 else 0.0
                 
-                # 判断是否为保本止损
-                if abs(loss_profit_rate) < 0.01:  # 止损率小于1%认为是保本止损
-                    win_ratio_name = 'break_even'
-                else:
-                    win_ratio_name = round(loss_profit_rate, 6)
+                # 使用记录的当前止损阶段名称
+                target_name = staged_exit.get('current_stop_loss_stage', '-20%')
                 
                 targets.append(StrategyEntity.to_target(
-                    win_ratio=win_ratio_name,
+                    target_name=target_name,
                     is_achieved=True,
                     profit=round((current_close - purchase_price) * 1.0, 4),
                     profit_rate=round(loss_profit_rate, 6),
@@ -630,36 +643,20 @@ class HLSimulator:
         stop_loss_stages = (goal_cfg.get('stop_loss') or {}).get('stages') or []
         stages = []
         
-        # 1) 移动止损至不亏不赚：选择非动态且 loss_ratio==0 的阶段（例如 wr=0.1）
-        # 注意：如果 take_profit 中也有相同 win_ratio 的阶段，优先处理 take_profit，不添加保本阶段
-        for s in stop_loss_stages:
-            wr = float(s.get('win_ratio') or 0.0)
-            is_dyn = bool(s.get('is_dynamic_loss', False))
-            loss_ratio = float(s.get('loss_ratio') or 0.0)
-            # 初始止损（wr==0 且 loss_ratio>0）不作为动作阶段，这在建仓时已设置
-            if not is_dyn and loss_ratio == 0 and wr > 0:
-                # 检查 take_profit 中是否有相同 win_ratio 的阶段
-                has_take_profit_at_same_level = any(
-                    float(tp.get('win_ratio') or 0.0) == wr 
-                    for tp in take_profit_stages
-                )
-                if not has_take_profit_at_same_level:
-                    stages.append({ 'profit_rate': wr, 'action': 'move_stop_loss_to_breakeven' })
-                break
+        # 1) 移动止损至不亏不赚：这个动作应该由止盈阶段触发，而不是作为独立阶段
+        # 移除独立的break_even阶段，因为它会在价格下跌时错误触发
+        # break_even止损移动应该通过take_profit阶段的set_stop_loss="break_even"来触发
         
         # 2) 分段止盈
         for s in take_profit_stages:
-            wr = float(s.get('win_ratio') or 0.0)
-            sr = float(s.get('sell_ratio') or 0.0)
-            stages.append({ 'profit_rate': wr, 'action': 'partial_exit', 'exit_ratio': sr })
-        
-        # 3) 动态止损触发（最后阶段）
-        dyn = next((s for s in stop_loss_stages if s.get('is_dynamic_loss')), None)
-        if dyn is not None:
-            stages.append({
-                'profit_rate': float(dyn.get('win_ratio') or 0.0),
-                'action': 'dynamic_trailing_stop',
-                'trail_ratio': float(dyn.get('loss_ratio') or 0.1)
+            info = HLSimulator.get_stage_info(s)
+            stages.append({ 
+                'profit_rate': info['ratio'], 
+                'action': 'partial_exit', 
+                'exit_ratio': info['sell_ratio'], 
+                'close_invest': info['close_invest'],
+                'name': info['name'],
+                'set_stop_loss': info['set_stop_loss']
             })
         
         # 检查是否已经启动动态止损
@@ -680,7 +677,9 @@ class HLSimulator:
                 continue
             
             # 检查是否达到这个阶段的触发条件
-            if current_profit_rate >= profit_rate:
+            # 对于止盈阶段(profit_rate > 0)，检查 current_profit_rate >= profit_rate
+            # 对于止损阶段(profit_rate <= 0)，检查 current_profit_rate <= profit_rate
+            if (profit_rate > 0 and current_profit_rate >= profit_rate) or (profit_rate <= 0 and current_profit_rate <= profit_rate):
                 # 执行当前阶段动作
                 HLSimulator.execute_stage_action(stock, investment, stage, record_of_today, tracker)
                 exited_stages.append(stage_key)
@@ -765,14 +764,23 @@ class HLSimulator:
             # logger.info(f"🎯 {stock['id']} 涨幅{profit_rate*100:.0f}%: 止损移到不亏不赚 {purchase_price:.4f}")
             
         elif action == 'partial_exit':
-            # 部分平仓 - 修正：平仓总仓位的20%，而不是剩余仓位的20%
+            # 部分平仓 - sell_ratio始终代表卖出总仓位的比例
             exit_ratio = stage.get('exit_ratio', 0.2)
+            close_invest = stage.get('close_invest', False)
             staged_exit = investment.get('staged_exit', {})
             current_position_ratio = staged_exit.get('current_position_ratio', 1.0)
             
-            # 计算平仓收益 - 基于总仓位计算
-            exit_profit = (current_close - purchase_price) * exit_ratio
-            remaining_position_ratio = current_position_ratio - exit_ratio  # 直接减去总仓位的比例
+            if close_invest:
+                # 清仓：卖出所有剩余仓位
+                actual_exit_ratio = current_position_ratio
+                remaining_position_ratio = 0.0
+            else:
+                # 部分平仓：卖出总仓位的比例
+                actual_exit_ratio = exit_ratio
+                remaining_position_ratio = current_position_ratio - exit_ratio
+            
+            # 计算平仓收益 - 基于实际平仓比例计算
+            exit_profit = (current_close - purchase_price) * actual_exit_ratio
             
             # 更新累计已实现收益
             total_realized_profit = staged_exit.get('total_realized_profit', 0.0) + exit_profit
@@ -785,8 +793,9 @@ class HLSimulator:
             
             # 记录本次分段平仓的target明细（只有真正的分段平仓才记录）
             exits = staged_exit.get('exits', [])
+            stage_name = stage.get('name', str(profit_rate))
             exits.append(StrategyEntity.to_target(
-                win_ratio=profit_rate,
+                target_name=stage_name,
                 is_achieved=True,
                 profit=round(exit_profit, 4),
                 profit_rate=round((current_close / purchase_price) - 1.0, 6) if purchase_price != 0 else 0.0,
@@ -800,10 +809,18 @@ class HLSimulator:
             # 记录部分平仓
             # logger.info(f"🎯 {stock['id']} 涨幅{profit_rate*100:.0f}%: 平仓总仓位{exit_ratio*100:.0f}%, 收益{exit_profit:.4f}, 累计收益{total_realized_profit:.4f}({total_realized_profit_rate*100:.1f}%), 剩余持仓{remaining_position_ratio*100:.0f}%")
             
-            # 如果是10%止盈，将止损移到保本位置
-            if profit_rate == 0.1:
+            # 检查是否需要设置止损策略
+            set_stop_loss = stage.get('set_stop_loss')
+            if set_stop_loss == 'break_even':
                 investment['goal']['loss'] = purchase_price
-                # logger.info(f"🎯 {stock['id']} 10%止盈后：止损移到保本位置 {purchase_price:.4f}")
+                staged_exit['current_stop_loss_stage'] = 'break_even'
+                # logger.info(f"🎯 {stock['id']} {stage_name}止盈后：止损移到保本位置 {purchase_price:.4f}")
+            elif set_stop_loss == 'dynamic':
+                # 启动动态止损
+                HLSimulator.start_dynamic_trailing_stop(stock, investment, stage, record_of_today)
+                staged_exit['dynamic_trailing_enabled'] = True
+                staged_exit['current_stop_loss_stage'] = 'dynamic'
+                # logger.info(f"🎯 {stock['id']} {stage_name}止盈后：启动动态止损")
             
             # 如果剩余持仓为0，完全平仓
             if remaining_position_ratio <= 0:

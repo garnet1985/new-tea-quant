@@ -33,10 +33,10 @@ def analyze_direct_stop_loss():
                         # 检查是否是直接止损
                         targets = result.get('investment', {}).get('targets', [])
                         for target in targets:
-                            target_win_ratio = target.get('target_win_ratio')
-                            if isinstance(target_win_ratio, (int, float)) and target_win_ratio <= -0.19:
+                            target_name = target.get('name')
+                            if isinstance(target_name, str) and target_name == "-20%":
                                 direct_stop_loss_count += 1
-                                print(f"直接止损: {filename} - target_win_ratio: {target_win_ratio}")
+                                print(f"直接止损: {filename} - target_name: {target_name}")
                                 break
                                 
             except Exception as e:

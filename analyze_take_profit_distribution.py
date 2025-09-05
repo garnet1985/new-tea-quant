@@ -39,7 +39,7 @@ def analyze_take_profit_distribution():
                     
                     # 统计这只股票的平仓情况
                     for target in targets:
-                        target_win_ratio = target.get('target_win_ratio')
+                        target_name = target.get('name')
                         is_achieved = target.get('is_achieved', False)
                         profit_weight = target.get('profit_weight', 0)
                         profit_rate = target.get('profit_rate', 0)
@@ -50,7 +50,7 @@ def analyze_take_profit_distribution():
                             stock_exit_count += 1
                             
                             # 分类平仓类型
-                            if target_win_ratio == "dynamic":
+                            if target_name == "dynamic":
                                 exit_type = "动态止损"
                                 dynamic_stop_details.append({
                                     'stock_id': stock_id,
@@ -58,24 +58,26 @@ def analyze_take_profit_distribution():
                                     'profit_weight': profit_weight,
                                     'sell_price': target.get('sell_price', 0)
                                 })
-                            elif target_win_ratio == 0.0:
+                            elif target_name == "break_even":
                                 # 检查profit_rate来判断是否是止盈
                                 if profit_rate > 0.05:  # 如果收益率大于5%，认为是止盈
                                     exit_type = f"{profit_rate*100:.1f}%止盈"
                                 else:
                                     exit_type = "止损"
-                            elif target_win_ratio in [0.1, 0.2, 0.3, 0.4]:
-                                exit_type = f"{target_win_ratio*100:.0f}%止盈"
-                            elif isinstance(target_win_ratio, (int, float)) and target_win_ratio > 0:
-                                exit_type = f"{target_win_ratio*100:.1f}%止盈"
+                            elif target_name in ["10%", "20%", "30%", "40%"]:
+                                exit_type = f"{target_name}止盈"
+                            elif target_name == "-20%":
+                                exit_type = "初始止损"
+                            elif isinstance(target_name, str) and target_name.endswith('%') and float(target_name[:-1]) > 0:
+                                exit_type = f"{target_name}止盈"
                             else:
-                                exit_type = f"其他({target_win_ratio})"
+                                exit_type = f"其他({target_name})"
                             
                             exit_distribution[exit_type] += 1
                             
                             stock_exit_details.append({
                                 'type': exit_type,
-                                'win_ratio': target_win_ratio,
+                                'name': target_name,
                                 'profit_weight': profit_weight,
                                 'sell_price': target.get('sell_price', 0),
                                 'profit': target.get('profit', 0),

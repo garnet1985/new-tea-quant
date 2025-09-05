@@ -43,10 +43,10 @@ class HistoricLowService:
         # 检查止损配置 - 检查动态止损比例是否合理
         if 'stop_loss' in goal and 'stages' in goal['stop_loss']:
             for stage in goal['stop_loss']['stages']:
-                if stage.get('is_dynamic_loss', False):
-                    loss_ratio = stage.get('loss_ratio', 0)
-                    if loss_ratio > 0.5:  # 动态止损比例不应超过50%
-                        errors.append(f"动态止损比例({loss_ratio:.1%})过高")
+                if stage.get('name') == 'dynamic':
+                    ratio = abs(float(stage.get('ratio', 0)))
+                    if ratio > 0.5:  # 动态止损比例不应超过50%
+                        errors.append(f"动态止损比例({ratio:.1%})过高")
         
         return len(errors) == 0, errors
     
@@ -402,12 +402,12 @@ class HistoricLowService:
         # 获取初始止损配置（第一个阶段）
         stop_loss_stages = goal_config['stop_loss']['stages']
         initial_stop_loss_stage = stop_loss_stages[0]  # 初始阶段
-        initial_stop_loss_ratio = initial_stop_loss_stage['loss_ratio']
+        initial_stop_loss_ratio = abs(float(initial_stop_loss_stage['ratio']))
         
         # 获取最后一个止盈阶段作为最大止盈目标
         take_profit_stages = goal_config['take_profit']['stages']
         max_take_profit_stage = take_profit_stages[-1]  # 最后一个阶段
-        max_take_profit_ratio = max_take_profit_stage['win_ratio']
+        max_take_profit_ratio = float(max_take_profit_stage['ratio'])
         
         # 计算具体价格
         stop_loss_price = current_price * (1 - initial_stop_loss_ratio)

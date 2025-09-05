@@ -1,11 +1,12 @@
 import pprint
 import tushare as ts
 from loguru import logger
-from utils.worker.futures_worker import FuturesWorker, ExecutionMode
+from utils.worker import FuturesWorker, ThreadExecutionMode
 from app.data_source.providers.tushare.main_settings import auth_token_file
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
 import warnings
+from datetime import datetime, date
 import time
 
 
@@ -16,7 +17,7 @@ class Tushare:
     def __init__(self, connected_db, is_verbose: bool = False):
         self.db = connected_db
         self.storage = TushareStorage(connected_db)
-        self.service = TushareService()
+
 
         self.is_verbose = is_verbose
 
@@ -31,6 +32,10 @@ class Tushare:
         # 添加线程锁，确保多线程环境下的限流安全
         import threading
         self.kline_api_lock = threading.Lock()
+        # 进度统计
+        self.kline_total_jobs = 0
+        self.kline_completed_jobs = 0
+        self.kline_progress_lock = threading.Lock()
 
     def _k_line_api_rate_limit(self):
         """Tushare K线数据API频率限制（线程安全）"""
@@ -55,7 +60,7 @@ class Tushare:
             self.kline_api_count += 1
 
     async def get_latest_market_open_day(self):
-        return self.service.get_latest_market_open_day(self.api)
+        return TushareService.get_latest_market_open_day(self.api)
 
 
     async def renew_stock_k_lines(self, latest_market_open_day: str = None, stock_index: list = None):
@@ -85,7 +90,7 @@ class Tushare:
             stock_list.append(stock_id)
         
         # 生成按股票分组的更新任务
-        jobs = self.service.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)
+        jobs = TushareService.generate_kline_renew_jobs(stock_list, latest_market_open_day, self.storage)
         # 统计各类型任务数量
         term_counts = {}
         total_jobs = 0
@@ -129,13 +134,16 @@ class Tushare:
         
         total_stocks = len(jobs)
         logger.info(f"Start to execute {total_stocks} stocks with FuturesWorker")
+        # 初始化进度
+        self.kline_total_jobs = total_stocks
+        self.kline_completed_jobs = 0
         
         # 创建并行执行器
         worker = FuturesWorker(
             max_workers=10,
-            execution_mode=ExecutionMode.PARALLEL,
+            execution_mode=ThreadExecutionMode.PARALLEL,
             enable_monitoring=True,
-            timeout=60.0,  # 增加超时时间，因为数据获取可能需要更长时间
+            timeout=3600.0,  # 等待最长1小时，确保所有股票任务完成后再继续
             is_verbose=self.is_verbose,  # 关闭详细日志，只保留进度信息
             debug=False    # 关闭调试日志
         )
@@ -159,6 +167,8 @@ class Tushare:
         
         # 打印执行统计
         worker.print_stats()
+        if stats.get('timed_out'):
+            logger.error(f"📉 K线更新超时: 完成 {stats.get('completed_jobs', 0)}/{stats.get('total_jobs', 0)}, 未完成 {stats.get('not_done_count', 0)}, 失败 {stats.get('failed_jobs', 0)}, 取消 {stats.get('cancelled_jobs', 0)}")
         
         # 获取结果并分析
         results = worker.get_results()
@@ -210,22 +220,33 @@ class Tushare:
             if all_stock_data:
                 self.storage.batch_save_stock_kline(all_stock_data)
                 
-                return {
+                result = {
                     'stock_key': stock_key,
                     'status': 'success',
                     'records_count': len(all_stock_data),
                     'terms_processed': len(stock_jobs)
                 }
             else:
-                return {
+                result = {
                     'stock_key': stock_key,
                     'status': 'no_data',
                     'records_count': 0,
                     'terms_processed': len(stock_jobs)
                 }
+            # 更新并打印进度
+            with self.kline_progress_lock:
+                self.kline_completed_jobs += 1
+                progress = (self.kline_completed_jobs / self.kline_total_jobs * 100) if self.kline_total_jobs else 100
+                logger.info(f"📈 K线更新进度: {self.kline_completed_jobs}/{self.kline_total_jobs} ({progress:.1f}%) 完成; 当前股票: {stock_key}, 状态: {result['status']}")
+            return result
                 
         except Exception as e:
             logger.error(f"❌ 处理股票 {stock_key} 失败: {e}")
+            # 失败也计入进度
+            with self.kline_progress_lock:
+                self.kline_completed_jobs += 1
+                progress = (self.kline_completed_jobs / self.kline_total_jobs * 100) if self.kline_total_jobs else 100
+                logger.info(f"📈 K线更新进度: {self.kline_completed_jobs}/{self.kline_total_jobs} ({progress:.1f}%) 完成; 当前股票: {stock_key}, 状态: failed")
             raise  # 重新抛出异常，让JobWorker捕获并记录
 
     def fetch_kline_data(self, job: dict):
@@ -246,37 +267,63 @@ class Tushare:
 
 
     def renew_stock_index(self, latest_market_open_day: str = None, is_force=False):
-        meta_info_key = 'stock_index_last_update'
 
-        if is_force:
-            idx_data = self.request_stock_index()
-            self.storage.save_stock_index(idx_data)
-            self.storage.save_meta_info(meta_info_key, latest_market_open_day)
-            return self.service.to_unified_stock_index_format(idx_data)
+        should_renew = False
 
-        last_update = self.storage.get_meta_info(meta_info_key)
+        is_index_empty = self.storage.is_index_empty()
 
-        if last_update is None:
-            idx_data = self.request_stock_index()
-            self.storage.save_stock_index(idx_data)
-            self.storage.set_meta_info(meta_info_key, latest_market_open_day)
-            return self.service.to_unified_stock_index_format(idx_data)
-        else:
-            if last_update < latest_market_open_day:
-                idx_data = self.request_stock_index()
-                self.storage.save_stock_index(idx_data)
-                self.storage.set_meta_info(meta_info_key, latest_market_open_day)
-                return self.service.to_unified_stock_index_format(idx_data)
+        if is_index_empty:
+            is_force = True
+
+        # 直接从stock_index表获取最新的lastUpdate
+        last_renew_time = self.storage.stock_index_table.load_latest_last_update()
+
+        # 统一比较为日期类型
+        def _to_date(value):
+            if value is None:
+                return None
+            if isinstance(value, datetime):
+                return value.date()
+            if isinstance(value, date):
+                return value
+            if isinstance(value, str):
+                v = value.strip()
+                # 常见格式：YYYYMMDD 或 YYYY-MM-DD 或 YYYY/MM/DD
+                for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d'):
+                    try:
+                        return datetime.strptime(v, fmt).date()
+                    except ValueError:
+                        continue
+            # 无法解析则返回 None
+            return None
+
+        last_dt = _to_date(last_renew_time)
+        latest_dt = _to_date(latest_market_open_day)
+
+        should_renew = is_force or last_dt is None or (latest_dt is not None and last_dt < latest_dt)
+
+        if should_renew:
+            new_idx_data = self.request_stock_index()
+            if new_idx_data is not None and len(new_idx_data) > 0:
+                # 保存成功后直接返回数据，不需要更新meta_info表
+                save_success = self.storage.save_stock_index(new_idx_data)
+                if save_success:
+                    return TushareService.to_unified_stock_index_format(new_idx_data)
+                else:
+                    logger.error("❌ 股票指数数据保存失败，保持使用现有数据库数据")
+                    return self.storage.load_stock_index()
             else:
-                logger.info('stock index is up to date, no need to renew')
-                idx_data = self.storage.load_stock_index()  
-                return self.service.to_unified_stock_index_format(idx_data)
+                logger.error("❌ 股票列表返回结果为空, 检查tushare API是否正常，保持使用现有数据库数据")
+                return self.storage.load_stock_index()
+        else:
+            logger.info(f"🔍 股票目录已经是最新，直接使用数据库数据:  {latest_market_open_day}")
+            return self.storage.load_stock_index()
+
 
     def request_stock_index(self):
         fields = 'ts_code,name,area,industry,market,exchange,list_date'
         stock_status = 'L'
         data = self.api.stock_basic(exchange='', list_status=stock_status, fields=fields)
-        
         # 统一转换为列表格式，保持数据格式一致
         if hasattr(data, 'to_dict'):
             return data.to_dict('records')

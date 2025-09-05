@@ -2,9 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"path": "../stocks"
 		}
 	],
 	"settings": {
@@ -17,6 +14,8 @@
 			"executemany",
 			"facecolor",
 			"fontsize",
+			"historiclow",
+			"jsonify",
 			"klines",
 			"lastrowid",
 			"Tushare",

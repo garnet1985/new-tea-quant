@@ -38,6 +38,9 @@ class DataSourceService:
         # 确保因子按日期升序
         sorted_factors = sorted(qfq_factors, key=lambda x: x['date'])
         
+        # 获取第一个（最早的）复权因子作为默认值
+        default_factor = sorted_factors[0]['qfq'] if sorted_factors else 1.0
+        
         # 处理每条K线
         for k_line in k_lines:
             # 保存原始值到raw属性
@@ -53,8 +56,12 @@ class DataSourceService:
             if not current_date:
                 continue
                 
-            # 查找对应的复权因子（使用已排序的因子）
+            # 查找对应的复权因子
             qfq_factor = DataSourceService._find_qfq_factor(current_date, sorted_factors)
+            
+            # 如果没有找到复权因子，使用默认因子
+            if qfq_factor is None:
+                qfq_factor = default_factor
             
             if qfq_factor is not None:
                 # 计算前复权价格
@@ -90,28 +97,18 @@ class DataSourceService:
         if len(sorted_factors) == 1:
             return sorted_factors[0]['qfq']
         
-        # 遍历复权因子，找到目标日期所在的时间段
-        for i in range(len(sorted_factors)):
-            current_factor = sorted_factors[i]
-            current_factor_date = current_factor['date']
-            
-            # 如果是第一个因子，且目标日期小于等于第一个因子日期
-            if i == 0 and target_date <= current_factor_date:
-                return current_factor['qfq']
-            
-            # 如果是最后一个因子，且目标日期大于等于最后一个因子日期
-            if i == len(sorted_factors) - 1 and target_date >= current_factor_date:
-                return current_factor['qfq']
-            
-            # 检查是否在当前因子和下一个因子之间的时间段
-            if i < len(sorted_factors) - 1:
-                next_factor_date = sorted_factors[i + 1]['date']
-                
-                # 时间段：大于等于当前因子日期，小于下一个因子日期
-                if target_date >= current_factor_date and target_date < next_factor_date:
-                    return current_factor['qfq']
+        # 找到目标日期对应的复权因子
+        # 规则：使用小于等于目标日期的最近一个复权因子
+        result_factor = None
         
-        # 如果没有找到对应的时间段，返回None
-        return None
+        for factor in sorted_factors:
+            factor_date = factor['date']
+            if target_date >= factor_date:
+                result_factor = factor['qfq']
+            else:
+                # 如果目标日期小于因子日期，说明已经超过了，使用上一个因子
+                break
+        
+        return result_factor
 
     

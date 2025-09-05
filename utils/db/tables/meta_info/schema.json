@@ -1,0 +1,17 @@
+{
+    "name": "meta_info",
+    "primaryKey": "id",
+    "fields": [
+        {
+            "name": "id",
+            "type": "int",
+            "isRequired": true,
+            "autoIncrement": true
+        },
+        {
+            "name": "info",
+            "type": "text",
+            "isRequired": true
+        }
+    ]
+}

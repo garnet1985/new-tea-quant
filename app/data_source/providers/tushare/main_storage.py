@@ -13,39 +13,40 @@ class TushareStorage:
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
 
     def save_stock_index(self, data):
-        self.stock_index_table.clear_table()
-
-        # 将 pandas DataFrame 转换为字典列表
-        if hasattr(data, 'to_dict'):
-            # 如果是 pandas DataFrame
-            data_list = data.to_dict('records')
-        elif isinstance(data, list):
-            # 如果已经是列表
-            data_list = data
-        else:
-            # 其他情况，尝试转换
-            data_list = [data]
+        """
+        保存股票指数数据到数据库 - 使用upsert方式
         
+        Args:
+            data: 股票指数数据列表
+            is_verbose: 是否显示详细日志
+        """
         # 转换数据格式以匹配数据库表结构
-        converted_data = []
+        api_stocks = []
         from datetime import datetime
+        current_date = datetime.now().strftime('%Y-%m-%d')
         
-        for item in data_list:
+        for item in data:
             # 使用 ts_code 作为 id
             ts_code = item.get('ts_code', '')
             
-            converted_item = {
+            # 验证必填字段
+            if not ts_code or not item.get('name'):
+                continue
+            
+            api_stocks.append({
                 'id': ts_code,  # 股票代码（包含市场后缀）
                 'name': item.get('name', ''),
                 'industry': item.get('industry', ''),
                 'type': item.get('market', ''),  # market -> type
                 'exchangeCenter': item.get('exchange', ''),  # exchange -> exchangeCenter
-                'isAlive': 1,  # 默认活跃
-                'lastUpdate': datetime.now().strftime('%Y-%m-%d')  # 当前日期
-            }
-            converted_data.append(converted_item)
+                'isAlive': 1,  # API返回的股票都是活跃的
+                'lastUpdate': current_date
+            })
+
+        # 一次性更新：插入/更新活跃股票，标记未出现的股票为非活跃
+        self.stock_index_table.renew_index(api_stocks)
         
-        self.stock_index_table.insert(converted_data)
+        return True
 
     def load_stock_index(self):
         return self.stock_index_table.load_all()
@@ -278,3 +279,6 @@ class TushareStorage:
 
     def set_meta_info(self, key, value):
         self.meta_info.set_meta_info(key, value)
+
+    def is_index_empty(self):
+        return self.stock_index_table.count() == 0

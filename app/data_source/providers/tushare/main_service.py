@@ -2,12 +2,11 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from loguru import logger
 from app.data_source.providers.conf.conf import kline_terms, data_default_start_date
+from app.data_source.providers.tushare.main_settings import LATEST_MARKET_OPEN_DAY_BACKWARD_CHECKING_DAYS
 
 class TushareService:
-    def __init__(self):
-        self.latest_market_open_day_backward_checking_days = 15
-
-    def to_unified_stock_index_format(self, stock_index_data: list) -> list:
+    @staticmethod
+    def to_unified_stock_index_format(stock_index_data: list) -> list:
         """
         统一股票指数数据格式
         将API数据和数据库数据统一为标准格式
@@ -60,13 +59,14 @@ class TushareService:
                 
         return normalized_data
 
-    def get_latest_market_open_day(self, api):
+    @staticmethod
+    def get_latest_market_open_day(api):
         # 如果今天还没过去，那么最后一次交易日应该是昨天
         # 使用昨天作为结束日期来查询交易日历
         today = datetime.now()
         yesterday = today - timedelta(days=1)
         end_date = yesterday.strftime('%Y%m%d')
-        start_date = (yesterday - timedelta(days=self.latest_market_open_day_backward_checking_days)).strftime('%Y%m%d')
+        start_date = (yesterday - timedelta(days=LATEST_MARKET_OPEN_DAY_BACKWARD_CHECKING_DAYS)).strftime('%Y%m%d')
 
         dates = api.trade_cal(exchange='', start_date=start_date, end_date=end_date)
         # 检查返回的字段名
@@ -80,13 +80,14 @@ class TushareService:
             last_market_open_day = yesterday.strftime('%Y%m%d')
         return last_market_open_day
 
-    def generate_kline_renew_jobs(self, stock_idx_info: list, last_market_open_day: str, storage) -> dict:
+    @staticmethod
+    def generate_kline_renew_jobs(stock_idx_info: list, last_market_open_day: str, storage) -> dict:
         
         stock_groups = defaultdict(list)
         most_recent_records = storage.get_most_recent_stock_kline_record_dates()
         
         for ts_code in stock_idx_info:
-            stock_jobs = self.to_single_stock_kline_renew_job({
+            stock_jobs = TushareService.to_single_stock_kline_renew_job({
                 'ts_code': ts_code
             }, most_recent_records, last_market_open_day)
             
@@ -96,42 +97,45 @@ class TushareService:
         return dict(stock_groups)
 
 
-    def to_single_stock_kline_renew_job(self, stock_idx_info: dict, most_recent_records: dict, last_market_open_day: str) -> dict:
+    @staticmethod
+    def to_single_stock_kline_renew_job(stock_idx_info: dict, most_recent_records: dict, last_market_open_day: str) -> dict:
         jobs = []
         for term in kline_terms:
-            job = self.to_single_stock_kline_renew_job_by_term(term, stock_idx_info, most_recent_records, last_market_open_day)
+            job = TushareService.to_single_stock_kline_renew_job_by_term(term, stock_idx_info, most_recent_records, last_market_open_day)
             if job:
                 jobs.append(job)
         return jobs
 
 
-    def to_single_stock_kline_renew_job_by_term(self, term: str, stock_idx_info: dict, most_recent_records: dict, latest_market_open_day: str) -> dict:
+    @staticmethod
+    def to_single_stock_kline_renew_job_by_term(term: str, stock_idx_info: dict, most_recent_records: dict, latest_market_open_day: str) -> dict:
         # 获取该股票该周期的最新数据日期
         latest_date = most_recent_records.get(stock_idx_info['ts_code'], {}).get(term)
 
         if not latest_date:
             # 没有数据，使用默认开始日期
-            return self.to_default_stock_kline_renew_job(stock_idx_info['ts_code'], term, latest_market_open_day)
+            return TushareService.to_default_stock_kline_renew_job(stock_idx_info['ts_code'], term, latest_market_open_day)
             
         
         formatted_latest_record_date = datetime.strptime(latest_date, '%Y%m%d')
         formatted_latest_market_open_date = datetime.strptime(latest_market_open_day, '%Y%m%d')
 
         if term == 'daily':
-            return self.to_single_stock_daily_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
+            return TushareService.to_single_stock_daily_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
 
         
         elif term == 'weekly':
-            return self.to_single_stock_weekly_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
+            return TushareService.to_single_stock_weekly_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
 
                 
         elif term == 'monthly':
-            return self.to_single_stock_monthly_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
+            return TushareService.to_single_stock_monthly_kline_renew_job(stock_idx_info['ts_code'], latest_market_open_day, formatted_latest_record_date, formatted_latest_market_open_date)
         
         # 不需要更新
         return None
 
-    def to_default_stock_kline_renew_job(self, ts_code: str, term: str, last_market_open_day: str):
+    @staticmethod
+    def to_default_stock_kline_renew_job(ts_code: str, term: str, last_market_open_day: str):
         return {
             'ts_code': ts_code,
             'term': term,
@@ -139,7 +143,8 @@ class TushareService:
             'end_date': last_market_open_day
         }
 
-    def to_single_stock_daily_kline_renew_job(self, ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
+    @staticmethod
+    def to_single_stock_daily_kline_renew_job(ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 只有当最新记录日期小于最后一次市场开放日期时才需要更新
 
         if formatted_latest_record_date < formatted_latest_market_open_date:
@@ -153,7 +158,8 @@ class TushareService:
         else:
             return None
 
-    def to_single_stock_weekly_kline_renew_job(self, ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
+    @staticmethod
+    def to_single_stock_weekly_kline_renew_job(ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 周线数据通常在每周结束后更新（周五）
         # 只有当最新记录日期加两周后的周一已经到来时，才需要更新
         # 例如：如果最新记录是7月25日（周五），那么至少要到8月8日（周一）才考虑更新
@@ -175,7 +181,8 @@ class TushareService:
         
         return None
 
-    def to_single_stock_monthly_kline_renew_job(self, ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
+    @staticmethod
+    def to_single_stock_monthly_kline_renew_job(ts_code: str, latest_market_open_day: str, formatted_latest_record_date: datetime, formatted_latest_market_open_date: datetime):
         # 月线数据通常在月底生成，包含整个月的数据
         # 如果最新记录是某月30日，那么至少要到该月加两个月后的第一天才考虑更新
         # 例如：如果最新记录是6月30日，那么至少要到8月1日才考虑更新7月的月线数据

@@ -1,34 +1,65 @@
 
 
 
-# 策略启用状态
-enabled = True
+strategy_settings = {
 
-invest_settings = {
-    "goal": {
-        "win": 1.4,  # 40% profit
-        "loss": 0.8,  # 20% loss
-        "opportunityRange": 0.07,
-        "kellyCriterionDivider": 5,
-        "invest_reference_day_distance_threshold": 90
-    },
-    "terms": [60, 96],  # 保留月数信息（用于显示）
-    "min_required_monthly_records": 100,
-    
-    # 新增：日线数据要求
+    # 日线数据要求
     "daily_data_requirements": {
-        "freeze_period_days": 200,      # 冻结期：200个交易日
-        "history_periods": [
-            {"name": "5year", "trading_days": 1200, "description": "5年回溯"},
-            {"name": "8year", "trading_days": 2000, "description": "8年回溯"}
-        ],
-        "min_required_daily_records": 2000  # 最小日线记录数（同时作为总需求）
+        "freeze_period_days": 100, 
+        "low_points_ref_years": [3, 5, 8],     # 冻结期：100个交易日
+        "min_required_daily_records": 2000,  # 最小日线记录数
     },
 
-    "simulate": {
-        "max_workers": 5,
-        # if too large wll cause db connection pool exhausted
-        "batch_size": 50,
-        "enable_monitoring": False
+    # 投资目标
+    "goal": {
+        "stop_loss": {
+            "stages": [
+                {
+                    "win_ratio": 0,
+                    "is_dynamic_loss": False,
+                    "loss_ratio": 0.2
+                },
+                {
+                    "win_ratio": 0.1,
+                    "is_dynamic_loss": False,
+                    "loss_ratio": 0
+                },
+                {
+                    "win_ratio": 0.4,
+                    "is_dynamic_loss": True,
+                    "loss_ratio": 0.1  # 动态止损比例（10%）
+                }
+            ]
+        },
+        "take_profit": {
+            "stages": [
+                {
+                    "win_ratio": 0.1,
+                    "sell_ratio": 0.2  # 从0.1增加到0.2
+                },
+                {
+                    "win_ratio": 0.2,
+                    "sell_ratio": 0.2  # 从0.1增加到0.2
+                },
+                {
+                    "win_ratio": 0.3,
+                    "sell_ratio": 0.2  # 从0.2增加到0.3
+                },
+                {
+                    "win_ratio": 0.4,
+                    "sell_ratio": 0.2  # 保持0.3
+                }
+            ]
+        }
+    },
+
+    "low_point_invest_range": {
+        # when to invest: the price is reached range of low point up and down [base] percent range
+        # e.g. low point is 2, so the invest range is 2 * (1 - [base]) ~ 2 * (1 + [base])
+        "base": 0.05,
+        # if the invest range is less than [min]元, use [min]元 as the min range
+        "min": 0.2,
+        # if the invest range is greater than [max]元, use [max]元 as the max range
+        "max": 10.0
     }
 }

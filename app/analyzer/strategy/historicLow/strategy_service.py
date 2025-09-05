@@ -1,256 +1,485 @@
 import pprint
 import math
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
+from typing_extensions import Optional
 
 from loguru import logger
-from .strategy_settings import invest_settings
+from .strategy_settings import strategy_settings
+from app.analyzer.analyzer_service import AnalyzerService
 from datetime import datetime
+from .strategy_entity import StrategyEntity
 
 
 class HistoricLowService:
-    def __init__(self):
-        pass
-
-    def get_min_required_monthly_records(self):
-        return invest_settings['min_required_monthly_records'] + invest_settings['goal']['invest_reference_day_distance_threshold'] / 30 + 1
-
-    def find_lowest_records(self, records):
-        """寻找最低点记录 - 参照Node.js版本实现"""
-        low_points = []
-
-        if not self.is_reached_min_required_monthly_records(records):
-            return []
-
-        # 遍历所有扫描周期
-        for term in invest_settings['terms']:
-            lowest_record = self.find_lowest_record(records, term)
-            if lowest_record:
-                low_points.append({
-                    'term': term,
-                    'record': lowest_record
-                })
-
-        # 添加全局最低点（term=0表示所有历史数据）
-        # TODO: to be improved: not only low points, but need to see how long it stays at the lowest point
-        lowest_record = self.find_lowest_record(records)
-        if lowest_record:
-            low_points.append({
-                'term': 0,
-                'record': lowest_record
-            })
-
-        return low_points
-
-    def find_lowest_record(self, records, amount=None):
-        """寻找指定周期内的最低点记录 - 参照Node.js版本实现"""
-        if not records or len(records) == 0:
-            return None
-        
-        # 获取时间距离阈值
-        min_days = invest_settings.get('goal').get('invest_reference_day_distance_threshold')
-        
-        # 计算需要排除的记录数量（最近N天的记录）
-        # 假设月度数据，大约30天一条记录
-        exclude_count = int(min_days / 30) + 1
-        
-        lowest_record = None
-        
-        # 从最新到最旧查找（与JavaScript版本一致）
-        # 跳过最近的exclude_count条记录
-        for i in range(len(records) - 1 - exclude_count, -1, -1):
-            record = records[i]
-            
-            # 检查记录是否有效
-            if record is None or 'lowest' not in record:
-                continue
-                
-            if lowest_record is None or float(record['lowest']) < float(lowest_record['lowest']):
-                lowest_record = record
-                
-            # 如果指定了amount，检查是否达到指定数量
-            if amount and (len(records) - i) == amount:
-                break
-                
-        return lowest_record
-        
-    def find_lowest(self, records):
-        """寻找最低点记录（从最新到最旧查找，与JavaScript版本一致）"""
-        # 检查输入数据是否有效
-        if not records or len(records) == 0:
-            return None
-            
-        lowest_record = None
-        # 从最新到最旧查找（与JavaScript版本一致）
-        for i in range(len(records) - 1, -1, -1):
-            record = records[i]
-            # 检查记录是否有效
-            if record is None or 'lowest' not in record:
-                continue
-            if lowest_record is None or record['lowest'] < lowest_record['lowest']:
-                lowest_record = record
-        return lowest_record
-
-    def is_in_invest_range(self, record, low_point):
-        """检查是否在投资范围内"""
-        # 检查low_point是否有效
-        if low_point is None or low_point['record'] is None:
-            return False
-            
-        # 将Decimal转换为float进行计算
-        lowest = float(low_point['record']['lowest'])
-        close = float(record['close'])
-        
-        upper = lowest * (1 + invest_settings['goal']['opportunityRange'])
-        # lower = lowest * (1 - invest_settings['goal']['opportunityRange'])
-        
-        # print(f"      📊 投资范围检查: 最低点={lowest}, 当前价格={close}, 范围=[{lower:.2f}, {upper:.2f}]")
-
-        if close < upper:
-            return True
-        else:
-            return False
-
-    def has_lower_point_in_latest_daily_records(self, low_point: Dict[str, Any], daily_records: List[Dict[str, Any]]) -> bool:
-        # 获取历史低点价格
-        historic_low_price = float(low_point['record']['close'])
-        
-        # 计算opportunityRange的下限（下方5%）
-        opportunity_range = invest_settings['goal']['opportunityRange']
-        lower_bound = historic_low_price * (1 - opportunity_range)
-        
-        # 检查日线记录中是否有跌破下限的点位
-        for record in daily_records:
-            daily_low = float(record['close'])
-            if daily_low < lower_bound:
-                return True
-        return False
-
-    def set_loss(self, record):
-        return float(record['close']) * invest_settings['goal']['loss']
+    """HistoricLow策略的静态服务类"""
     
-    def set_win(self, record):
-        return float(record['close']) * invest_settings['goal']['win']
-
-    def is_reached_min_required_monthly_records(self, records):
-        return len(records) >= invest_settings['min_required_monthly_records'] + invest_settings['goal']['invest_reference_day_distance_threshold'] / 30 + 1
-
-    def is_reached_min_required_daily_records(self, daily_records):
+    @staticmethod
+    def validate_strategy_settings(settings: dict) -> tuple[bool, list[str]]:
         """
-        检查是否达到最小所需日线记录数
+        验证策略设置的基本常识错误
         
-        新逻辑：需要至少2000条日线记录
+        Returns:
+            tuple: (是否有效, 错误信息列表)
         """
-        return len(daily_records) >= invest_settings['daily_data_requirements']['min_required_daily_records']
-
-    def get_max_required_monthly_records(self):
-        return max(invest_settings['terms'])
-
-    def get_k_lines_before_date(self, target_date: str, k_lines: List[Dict[str, Any]]) -> Dict[str, Any]:
-        target_datetime = datetime.strptime(target_date, '%Y%m%d')
-        left = 0
-        right = len(k_lines) - 1
-        results = []
+        errors = []
         
-        while left <= right:
-            mid = (left + right) // 2
-            current_date = datetime.strptime(k_lines[mid]['date'], '%Y%m%d')
+        # 检查基本结构
+        if 'goal' not in settings:
+            errors.append("缺少goal配置")
+            return False, errors
+        
+        goal = settings['goal']
+        
+        # 检查止盈配置 - 主要检查总平仓比例不超过100%
+        if 'take_profit' in goal and 'stages' in goal['take_profit']:
+            total_sell_ratio = 0
+            for stage in goal['take_profit']['stages']:
+                sell_ratio = stage.get('sell_ratio', 0)
+                total_sell_ratio += sell_ratio
             
-            if current_date == target_datetime:
-                # 找到匹配的记录
-                results = k_lines[:mid]
-                break
-            elif current_date < target_datetime:
-                # 当前记录在目标日期之前，包含它并向右搜索
-                results = k_lines[:mid + 1]
-                left = mid + 1
-            else:
-                # 当前记录在目标日期之后，向左搜索
-                right = mid - 1
+            if total_sell_ratio > 1:
+                errors.append(f"总平仓比例({total_sell_ratio:.1%})超过100%")
         
-        return results
-
-    def get_investing(self, stock, investing_stocks):
-        return investing_stocks.get(stock['id'])
-
-
-    def is_trend_too_steep(self, frozen_window_daily_data):
+        # 检查止损配置 - 检查动态止损比例是否合理
+        if 'stop_loss' in goal and 'stages' in goal['stop_loss']:
+            for stage in goal['stop_loss']['stages']:
+                if stage.get('is_dynamic_loss', False):
+                    loss_ratio = stage.get('loss_ratio', 0)
+                    if loss_ratio > 0.5:  # 动态止损比例不应超过50%
+                        errors.append(f"动态止损比例({loss_ratio:.1%})过高")
+        
+        return len(errors) == 0, errors
+    
+    @staticmethod
+    def calculate_freeze_data_stats(freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        检查趋势是否过于陡峭
-        使用回归分析检查最近90条数据的斜率变化和最近10条数据的斜率角度
+        计算freeze data期间的涨跌幅统计信息
         
         Args:
-            daily_records: 日线数据列表
+            freeze_data: 冻结期数据
             
         Returns:
-            bool: True表示趋势过于陡峭，False表示趋势合适
+            Dict[str, Any]: 包含平均涨跌幅和标准差的统计信息
         """
-        # 获取投资冻结窗口的天数
-        threshold_days = invest_settings['goal']['invest_reference_day_distance_threshold']
+        if not freeze_data:
+            return {
+                'mean_change_rate': 0.0,
+                'std_change_rate': 0.0,
+                'positive_days': 0,
+                'negative_days': 0,
+                'total_days': 0,
+                'max_close': 0.0,
+                'min_close': 0.0,
+                'close_range': 0.0,
+                'close_ratio': 0.0,
+                'range_to_invest_ratio': 0.0
+            }
         
-        if not frozen_window_daily_data or len(frozen_window_daily_data) < threshold_days:
-            return True  # 数据不足，认为趋势过于陡峭
+        # 提取涨跌幅数据
+        change_rates = []
+        positive_days = 0
+        negative_days = 0
         
-        # 1. 检查整个冻结窗口的回归斜率是否在渐渐变平
-        recent_threshold_days = frozen_window_daily_data[-threshold_days:]
-        prices_threshold = [float(record['close']) for record in recent_threshold_days]
+        # 记录收盘价的最大值和最小值
+        max_close = 0.0
+        min_close = float('inf')
+        max_close_date = ''
+        min_close_date = ''
         
-        # 计算整个冻结窗口的整体斜率
-        slope_threshold = self._calculate_trend_slope(prices_threshold)
+        for record in freeze_data:
+            if 'priceChangeRateDelta' in record and record['priceChangeRateDelta'] is not None:
+                change_rate = float(record['priceChangeRateDelta']) / 100.0  # 转换为小数形式
+                change_rates.append(change_rate)
+                
+                if change_rate > 0:
+                    positive_days += 1
+                elif change_rate < 0:
+                    negative_days += 1
+            
+            # 记录收盘价的最大值和最小值
+            close_price = float(record['close'])
+            if close_price > max_close:
+                max_close = close_price
+                max_close_date = record['date']
+            if close_price < min_close:
+                min_close = close_price
+                min_close_date = record['date']
         
-        # 2. 检查最近10条数据的回归斜率角度是否超过30度
-        recent_10_days = frozen_window_daily_data[-10:]
-        prices_10 = [float(record['close']) for record in recent_10_days]
+        if not change_rates:
+            return {
+                'mean_change_rate': 0.0,
+                'std_change_rate': 0.0,
+                'positive_days': 0,
+                'negative_days': 0,
+                'total_days': len(freeze_data),
+                'max_close': max_close,
+                'min_close': min_close,
+                'close_range': max_close - min_close,
+                'close_ratio': max_close / min_close if min_close > 0 else 0.0,
+                'range_to_invest_ratio': 0.0
+            }
         
-        # 计算10天的斜率
-        slope_10 = self._calculate_trend_slope(prices_10)
+        # 计算统计信息
+        import statistics
+        mean_change_rate = statistics.mean(change_rates)
+        std_change_rate = statistics.stdev(change_rates) if len(change_rates) > 1 else 0.0
         
-        # 将斜率转换为角度（弧度转角度）
-        angle_10 = abs(math.atan(slope_10) * 180 / math.pi)
+        # 计算收盘价相关指标
+        close_range = max_close - min_close
+        close_ratio = max_close / min_close if min_close > 0 else 0.0
         
-        # 3. 判断条件
-        # 条件1: 冻结窗口斜率应该相对平缓（绝对值小于0.01，约0.57度）
-        slope_threshold_too_steep = abs(slope_threshold) > 0.01
+        # 投资时的价格（freeze data的最后一天）
+        invest_close = float(freeze_data[-1]['close'])
+        range_to_invest_ratio = close_range / invest_close if invest_close > 0 else 0.0
         
-        # 条件2: 10天斜率角度不能超过30度
-        angle_10_too_steep = angle_10 > 30
+        return {
+            'mean_change_rate': round(mean_change_rate, 4),
+            'std_change_rate': round(std_change_rate, 4),
+            'positive_days': positive_days,
+            'negative_days': negative_days,
+            'total_days': len(freeze_data),
+            'max_close': round(max_close, 4),
+            'min_close': round(min_close, 4),
+            'max_close_date': max_close_date,
+            'min_close_date': min_close_date,
+            'close_range': round(close_range, 4),
+            'close_ratio': round(close_ratio, 4),
+            'range_to_invest_ratio': round(range_to_invest_ratio, 4)
+        }
+    
+    @staticmethod
+    def find_historic_low_points(daily_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        使用简单算法：从当前数据倒推指定年份，取到它们的最低点
+        """
+        if not daily_records or len(daily_records) < 2000:  # 至少需要足够的历史数据
+            return []
         
-        # 如果任一条件满足，则认为趋势过于陡峭
-        if slope_threshold_too_steep or angle_10_too_steep:
-            return True
+        low_points = []
+        current_date = daily_records[-1]['date']
         
-        # 只在趋势合适时输出一条简单日志
-        return False
+        # 从settings获取回溯年份，过滤掉0
+        years_to_lookback = [year for year in strategy_settings['daily_data_requirements']['low_points_ref_years']]
+        
+        for years in years_to_lookback:
+            # 计算目标日期（years年前）
+            target_year = int(current_date[:4]) - years
+            target_date = f"{target_year}{current_date[4:]}"
+            
+            # 找到目标日期附近的数据
+            target_records = []
+            for record in daily_records:
+                if record['date'][:4] == str(target_year):
+                    target_records.append(record)
+            
+            if not target_records:
+                continue
+            
+            # 找到该年的最低点
+            min_record = min(target_records, key=lambda x: float(x['close']))
+            min_price = float(min_record['close'])
+            min_date = min_record['date']
+            
+            # 计算投资范围（上下5%）
+            range_min = min_price * 0.95
+            range_max = min_price * 1.05
+            
+            low_points.append({
+                'min': range_min,
+                'max': range_max,
+                'avg': min_price,
+                'term': years,
+                'valley_type': f'{years}year_low',
+                'target_year': target_year,
+                'lowest_price': min_price,
+                'lowest_date': min_date
+            })
+        
+        return low_points
 
-    def _calculate_trend_slope(self, prices: List[float]) -> float:
+
+    @staticmethod
+    def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> bool:
+        min_required = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
+        return len(daily_data) >= min_required
+
+    
+    @staticmethod
+    def calculate_dynamic_price_range(low_point_price: float) -> float:
         """
-        计算价格序列的回归斜率
+        计算动态价格区间比例
+        
+        Args:
+            low_point_price: 历史低点价格
+            
+        Returns:
+            float: 价格区间比例
+        """
+        # 从settings获取配置
+        low_point_config = strategy_settings.get('low_point_invest_range', {})
+        base = low_point_config.get('base', 0.05)
+        min_range = low_point_config.get('min', 0.2)
+        max_range = low_point_config.get('max', 10.0)
+        
+        # 基础区间（上下各base比例）
+        base_absolute_range = low_point_price * base
+        
+        # 如果基础区间小于最小区间，则使用最小区间
+        if base_absolute_range < min_range:
+            absolute_range = min_range
+        # 如果基础区间大于最大区间，则使用最大区间
+        elif base_absolute_range > max_range:
+            absolute_range = max_range
+        else:
+            absolute_range = base_absolute_range
+        
+        # 计算对应的比例（上下各absolute_range，总共2*absolute_range）
+        price_range_ratio = absolute_range / low_point_price
+        
+        return price_range_ratio
+    
+    @staticmethod
+    def is_in_invest_range(record, low_point, freeze_data=None):
+        """
+        检查是否在投资范围内
+        新增条件：在freeze data内没有出现比历史低点更低的价格
+        """
+        if low_point is None:
+            return False
+        
+        current_price = float(record['close'])
+        low_point_price = float(low_point['min'])  # 历史低点价格
+        
+        # 计算动态价格区间
+        price_range_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
+        lower_bound = low_point_price * (1 - price_range_ratio)
+        upper_bound = low_point_price * (1 + price_range_ratio)
+        
+        # 基本条件：当前价格在动态价格区间内
+        basic_condition = current_price >= lower_bound and current_price <= upper_bound
+        
+        if not basic_condition:
+            return False
+        
+        # 新增条件：检查freeze data内的情况
+        if freeze_data:
+            freeze_min_price = min(float(r['close']) for r in freeze_data)
+            
+            # 条件1：如果freeze data的最低点比当前价格还低，说明在冻结期内已经出现过更低的价格，不投资
+            if freeze_min_price < current_price:
+                return False
+            
+            # 条件2：如果freeze data的最低点已经在历史低点上方10%范围内，说明已经有过反弹，也不投资
+            # if freeze_min_price > low_point_price * 1.10:
+            #     return False
+            
+            # 条件3：当前价格不应该比freeze data的最低点高出太多（超过5%）
+            if current_price > freeze_min_price * 1.05:
+                return False
+        
+        # 新增条件：检查当前是否在连续下跌过程中
+        if freeze_data and HistoricLowService.is_in_continuous_downtrend(record, freeze_data):
+            return False
+        
+        return True
+
+    @staticmethod
+    def is_in_continuous_downtrend(record: Dict[str, Any], freeze_data: List[Dict[str, Any]]) -> bool:
+        """
+        检查当前是否处于连续下跌过程中，分析整个freeze data期间的趋势变化
+        
+        Args:
+            record: 当前记录
+            freeze_data: 冻结期数据
+            
+        Returns:
+            bool: True表示在连续下跌中，False表示不在连续下跌中
+        """
+        if not freeze_data or len(freeze_data) < 10:
+            return False
+        
+        # 获取所有价格数据
+        all_prices = [float(r['close']) for r in freeze_data]
+        
+        # 1. 检查整个freeze data期间是否处于下跌趋势
+        start_price = all_prices[0]
+        end_price = all_prices[-1]
+        total_drop_rate = (start_price - end_price) / start_price
+        
+        # 如果整体跌幅超过20%，需要进一步分析趋势变化
+        if total_drop_rate > 0.20:
+            # 2. 分析趋势变化：将freeze data分为前1/3、中1/3、后1/3三段
+            segment_size = len(all_prices) // 3
+            if segment_size < 3:
+                return True  # 数据不足，保守处理
+            
+            first_segment = all_prices[:segment_size]
+            middle_segment = all_prices[segment_size:2*segment_size]
+            last_segment = all_prices[2*segment_size:]
+            
+            # 计算各段的平均价格
+            first_avg = sum(first_segment) / len(first_segment)
+            middle_avg = sum(middle_segment) / len(middle_segment)
+            last_avg = sum(last_segment) / len(last_segment)
+            
+            # 3. 检查趋势是否在变缓
+            first_to_middle_drop = (first_avg - middle_avg) / first_avg
+            middle_to_last_drop = (middle_avg - last_avg) / middle_avg
+            
+            # 如果中段到后段的跌幅明显小于前段到中段的跌幅，说明趋势在变缓
+            if middle_to_last_drop < first_to_middle_drop * 0.5:
+                # 趋势在变缓，进一步检查最近的表现
+                return HistoricLowService._check_recent_performance(all_prices)
+            else:
+                # 趋势仍在加速下跌
+                return True
+        
+        # 4. 检查最近的表现（最近5天）
+        return HistoricLowService._check_recent_performance(all_prices)
+    
+    @staticmethod
+    def _check_recent_performance(prices: List[float]) -> bool:
+        """
+        检查最近5天的表现
         
         Args:
             prices: 价格列表
             
         Returns:
-            float: 回归斜率
+            bool: True表示仍在下跌中，False表示可能企稳
         """
-        if len(prices) < 2:
-            return 0.0
+        if len(prices) < 5:
+            return False
         
-        n = len(prices)
-        x = list(range(n))  # 时间序列 [0, 1, 2, ..., n-1]
+        recent_prices = prices[-5:]
         
-        # 计算均值
-        x_mean = sum(x) / n
-        y_mean = sum(prices) / n
+        # 计算下跌天数
+        down_days = 0
+        for i in range(1, len(recent_prices)):
+            if recent_prices[i] < recent_prices[i-1]:
+                down_days += 1
         
-        # 计算回归斜率: slope = Σ((x-x_mean)(y-y_mean)) / Σ((x-x_mean)²)
-        numerator = sum((x[i] - x_mean) * (prices[i] - y_mean) for i in range(n))
-        denominator = sum((x[i] - x_mean) ** 2 for i in range(n))
+        # 如果最近5天中有3天或以上在下跌，认为是连续下跌趋势
+        if down_days >= 3:
+            return True
         
-        if denominator == 0:
-            return 0.0
+        # 检查最近3天是否连续下跌
+        if len(recent_prices) >= 3:
+            if (recent_prices[-3] > recent_prices[-2] > recent_prices[-1]):
+                return True
         
-        return numerator / denominator
+        # 检查最近两天的累计跌幅
+        if len(recent_prices) >= 2:
+            two_days_ago = recent_prices[-2]
+            today = recent_prices[-1]
+            two_day_drop_rate = (two_days_ago - today) / two_days_ago
+            
+            # 如果两天累计跌幅超过8%，认为是急速下跌
+            if two_day_drop_rate > 0.08:
+                return True
+        
+        # 检查最近5天的累计跌幅
+        if len(recent_prices) >= 5:
+            five_days_ago = recent_prices[0]
+            today = recent_prices[-1]
+            five_day_drop_rate = (five_days_ago - today) / five_days_ago
+            
+            # 如果5天累计跌幅超过15%，认为是明显下跌趋势
+            if five_day_drop_rate > 0.15:
+                return True
+        
+        return False
+    
+    @staticmethod
+    def filter_out_negative_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # 取连续片段（最后一个负值之后）
+        if not records:
+            return []
 
-    def split_daily_data_for_analysis(self, daily_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        last_negative_idx = -1
+        for idx, rec in enumerate(records):
+            try:
+                close_v = float(rec.get('close', 0))
+                high_v = float(rec.get('highest', close_v))
+                low_v = float(rec.get('lowest', close_v))
+            except Exception:
+                # 非法记录按负值处理，推动起点
+                last_negative_idx = idx
+                continue
+            if close_v < 0 or high_v < 0 or low_v < 0:
+                last_negative_idx = idx
+
+        
+        continuous_slice = records[last_negative_idx + 1:] if last_negative_idx + 1 < len(records) else []
+        
+        return continuous_slice
+
+
+    @staticmethod
+    def calculate_investment_targets(record_of_today: Dict[str, Any], low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        计算投资目标：止损和止盈价格
+        使用新的分段平仓策略配置
+        """
+        current_price = float(record_of_today['close'])
+
+        if not freeze_data or not daily_records:
+            return None
+
+        min_price = min(freeze_data, key=lambda x: float(x['close']))['close']
+        max_price = max(freeze_data, key=lambda x: float(x['close']))['close']
+
+        if min_price < low_point['min']:
+            return None
+
+        # 使用新的配置结构
+        goal_config = strategy_settings['goal']
+        
+        # 获取初始止损配置（第一个阶段）
+        stop_loss_stages = goal_config['stop_loss']['stages']
+        initial_stop_loss_stage = stop_loss_stages[0]  # 初始阶段
+        initial_stop_loss_ratio = initial_stop_loss_stage['loss_ratio']
+        
+        # 获取最后一个止盈阶段作为最大止盈目标
+        take_profit_stages = goal_config['take_profit']['stages']
+        max_take_profit_stage = take_profit_stages[-1]  # 最后一个阶段
+        max_take_profit_ratio = max_take_profit_stage['win_ratio']
+        
+        # 计算具体价格
+        stop_loss_price = current_price * (1 - initial_stop_loss_ratio)
+        take_profit_price = current_price * (1 + max_take_profit_ratio)
+
+        
+        return {
+            'stop_loss_price': stop_loss_price,
+            'take_profit_price': take_profit_price,
+            'stop_loss_ratio': initial_stop_loss_ratio,
+            'take_profit_ratio': max_take_profit_ratio
+        }
+
+
+    @staticmethod
+    def to_opportunity(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], low_point: Dict[str, Any]) -> Dict[str, Any]:
+        """使用 StrategyEntity 生成机会对象"""
+        return StrategyEntity.to_opportunity(stock_info, record_of_today, low_point)
+
+    @staticmethod
+    def to_investment(opportunity: Dict[str, Any], investment_targets: Dict[str, Any], freeze_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """使用 StrategyEntity 生成投资对象"""
+        return StrategyEntity.to_investment(opportunity, investment_targets, freeze_data, calculate_freeze_stats=False)
+
+    @staticmethod
+    def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """使用 StrategyEntity 生成会话汇总"""
+        return StrategyEntity.to_session_summary(session_results)
+
+    @staticmethod
+    def to_stock_summary(stock_simulation_result: Dict[str, Any]) -> Dict[str, Any]:
+        """使用 StrategyEntity 生成股票汇总"""
+        return StrategyEntity.to_stock_summary(stock_simulation_result)
+
+    @staticmethod
+    def split_daily_data_for_analysis(daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         分割日线数据为冻结期和历史期
         
@@ -261,60 +490,10 @@ class HistoricLowService:
             Dict: 包含冻结期和历史期数据的分割结果
         """
         # 获取配置参数
-        freeze_days = invest_settings['daily_data_requirements']['freeze_period_days']
-        
-        # 按日期排序（从早到晚）
-        sorted_data = sorted(daily_data, key=lambda x: x['date'])
+        freeze_days = strategy_settings['daily_data_requirements']['freeze_period_days']
         
         # 分割数据
-        freeze_data = sorted_data[-freeze_days:]  # 最近200个交易日（冻结期）
-        history_data = sorted_data[:-freeze_days]  # 之前的数据（历史期）
-        
-        return {
-            'freeze_data': freeze_data,
-            'history_data': history_data,
-            'total_records': len(daily_data),
-            'freeze_records': len(freeze_data),
-            'history_records': len(history_data)
-        }
+        freeze_records = daily_data[-freeze_days:]  # 最近200个交易日（冻结期）
+        history_records = daily_data[:-freeze_days]  # 之前的数据（历史期）
 
-    def find_historic_lows(self, history_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        在历史K线数据中寻找历史低点（跳过冻结期）
-        
-        Args:
-            history_data: 历史期日线数据列表
-            
-        Returns:
-            List: 历史低点列表
-        """
-        low_points = []
-        history_periods = invest_settings['daily_data_requirements']['history_periods']
-        freeze_days = invest_settings['daily_data_requirements']['freeze_period_days']
-        
-        for period_config in history_periods:
-            period_name = period_config['name']
-            trading_days = period_config['trading_days']
-            
-            # 计算在历史数据中需要取多少条
-            # 因为冻结期已经排除，所以只需要取 trading_days - freeze_days 条
-            history_days_needed = trading_days - freeze_days
-            
-            if len(history_data) < history_days_needed:
-                continue
-            
-            # 在历史数据中取最近 history_days_needed 天的数据
-            recent_history = history_data[-history_days_needed:]
-            
-            # 找到最低点
-            lowest_record = min(recent_history, key=lambda x: x['lowest'])
-            
-            low_points.append({
-                'record': lowest_record,
-                'period_name': period_name,
-                'trading_days': trading_days,
-                'lowest_price': lowest_record['lowest'],
-                'lowest_date': lowest_record['date']
-            })
-        
-        return low_points
+        return freeze_records, history_records

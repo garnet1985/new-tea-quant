@@ -121,6 +121,8 @@ class FuturesWorker:
             'completed_jobs': 0,
             'failed_jobs': 0,
             'cancelled_jobs': 0,
+            'timed_out': False,
+            'not_done_count': 0,
             'start_time': None,
             'end_time': None,
             'total_duration': 0,
@@ -216,7 +218,8 @@ class FuturesWorker:
             self.stats['total_jobs'] += 1
         
         if self.debug:
-            logger.info(f"Added job {job_id} to queue")
+            if self.is_verbose:
+                logger.info(f"Added job {job_id} to queue")
     
     def add_jobs(self, jobs: List[Dict[str, Any]]):
         """批量添加任务"""
@@ -229,7 +232,8 @@ class FuturesWorker:
             self.add_jobs(jobs)
         
         if self.job_queue.empty():
-            logger.warning("No jobs to execute")
+            if self.is_verbose:
+                logger.warning("No jobs to execute")
             return self.get_stats()
         
         if self.is_verbose:
@@ -246,7 +250,8 @@ class FuturesWorker:
             else:
                 self._run_parallel()
         except KeyboardInterrupt:
-            logger.info("Job execution interrupted by user")
+            if self.is_verbose:
+                logger.info("Job execution interrupted by user")
             self.should_stop = True
             raise
         except Exception as e:
@@ -274,7 +279,8 @@ class FuturesWorker:
         result.start_time = datetime.now()
         
         if self.debug:
-            logger.info(f"Executing job {job_id}")
+            if self.is_verbose:
+                logger.info(f"Executing job {job_id}")
         
         try:
             # 执行任务
@@ -343,28 +349,57 @@ class FuturesWorker:
             except Empty:
                 break
         
-        # 等待所有任务完成
+        # 等待所有任务完成 - 添加超时和强制完成处理
         try:
-            # 使用wait而不是as_completed，避免重复处理
-            done, not_done = wait(futures, timeout=self.timeout, return_when=FIRST_COMPLETED)
+            # 设置合理的超时时间，避免无限等待
+            timeout = max(self.timeout, 300)  # 至少5分钟超时
             
-            while done and not self.should_stop:
-                for future in done:
-                    if self.should_stop:
-                        future.cancel()
-                        continue
-                    
+            # 等待所有任务完成
+            done, not_done = wait(futures, timeout=timeout, return_when="ALL_COMPLETED")
+            
+            # 处理所有完成的任务
+            for future in done:
+                if self.should_stop:
+                    future.cancel()
+                    continue
+                
+                try:
+                    result = future.result(timeout=30)
+                    if self.debug and self.is_verbose:
+                        logger.debug(f"Processing result for job {result.job_id}")
+                    self._update_stats(result)
+                    self.results_queue.put(result)
+                except Exception as e:
+                    logger.error(f"Error getting result for job: {e}")
+                    failed_result = JobResult(job_id="unknown", status=JobStatus.FAILED, error=e)
+                    self._update_stats(failed_result)
+                    self.results_queue.put(failed_result)
+                finally:
+                    if future in self.active_futures:
+                        self.active_futures.remove(future)
+            
+            # 强制完成未完成的任务
+            if not_done:
+                with self.stats_lock:
+                    self.stats['timed_out'] = True
+                    self.stats['not_done_count'] = len(not_done)
+                if self.is_verbose:
+                    logger.warning(f"Some tasks did not complete within timeout: {len(not_done)} tasks remaining")
+                    logger.info("Forcing completion of remaining tasks...")
+                
+                for future in not_done:
                     try:
-                        result = future.result(timeout=30)
-                        # 添加调试信息，检查是否重复调用
-                        if self.debug:
-                            logger.debug(f"Processing result for job {result.job_id}")
-                        self._update_stats(result)
-                        self.results_queue.put(result)
+                        if not future.done():
+                            future.cancel()
+                            if self.is_verbose:
+                                logger.warning(f"Cancelled incomplete task")
+                        else:
+                            # 任务实际上完成了，只是超时了
+                            result = future.result(timeout=5)
+                            self._update_stats(result)
+                            self.results_queue.put(result)
                     except Exception as e:
-                        # 处理future.result()的异常（如超时等）
-                        logger.error(f"Error getting result for job: {e}")
-                        # 创建一个失败的结果对象
+                        logger.error(f"Error handling incomplete task: {e}")
                         failed_result = JobResult(job_id="unknown", status=JobStatus.FAILED, error=e)
                         self._update_stats(failed_result)
                         self.results_queue.put(failed_result)
@@ -372,11 +407,6 @@ class FuturesWorker:
                         if future in self.active_futures:
                             self.active_futures.remove(future)
                 
-                # 继续等待剩余的任务
-                if not_done:
-                    done, not_done = wait(not_done, timeout=self.timeout, return_when=FIRST_COMPLETED)
-                else:
-                    break
         except KeyboardInterrupt:
             if self.is_verbose:
                 logger.info("Received interrupt signal, cancelling remaining tasks...")
@@ -392,7 +422,7 @@ class FuturesWorker:
         with self.stats_lock:
             # 检查是否已经处理过这个任务
             if result.job_id in self._printed_progress:
-                if self.debug:
+                if self.debug and self.is_verbose:
                     logger.debug(f"Skipping duplicate result for job {result.job_id}")
                 return
             
@@ -543,7 +573,7 @@ class FuturesWorker:
                 self.job_queue.get_nowait()
             except Empty:
                 break
-        if self.debug:
+        if self.debug and self.is_verbose:
             logger.info("Job queue cleared")
     
     def clear_results(self):
@@ -553,7 +583,7 @@ class FuturesWorker:
                 self.results_queue.get_nowait()
             except Empty:
                 break
-        if self.debug:
+        if self.debug and self.is_verbose:
             logger.info("Results queue cleared")
     
     def reset_stats(self):
@@ -570,7 +600,7 @@ class FuturesWorker:
                 'avg_duration': 0,
                 'throughput': 0
             }
-        if self.debug:
+        if self.debug and self.is_verbose:
             logger.info("Statistics reset")
     
     def __del__(self):

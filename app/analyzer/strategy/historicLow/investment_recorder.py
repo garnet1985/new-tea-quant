@@ -5,339 +5,192 @@
 import os
 import json
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from loguru import logger
 
-# 导入策略设置
-try:
-    from .strategy_settings import invest_settings
-except ImportError:
-    # 如果相对导入失败，尝试绝对导入
-    try:
-        from app.analyzer.strategy.historicLow.strategy_settings import invest_settings
-    except ImportError:
-        # 如果都失败，使用默认值
-        invest_settings = {
-            "goal": {
-                "win": 1.4,
-                "loss": 0.85,
-                "opportunityRange": 0.1,
-                "kellyCriterionDivider": 5,
-                "invest_reference_day_distance_threshold": 90
-            },
-            "terms": [60, 96],
-            "min_required_monthly_records": 100
-        }
+from app.data_source.data_source_service import DataSourceService
+from .strategy_settings import strategy_settings
+from .strategy_enum import InvestmentResult
+from .strategy_entity import StrategyEntity
 
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息"""
     
-    def __init__(self, tmp_dir: str = "tmp"):
-        """
-        初始化投资记录器
-        
-        Args:
-            tmp_dir: 临时文件夹路径
-        """
-        self.tmp_dir = tmp_dir
-        self.current_session_dir = None
-        self.meta_file = os.path.join(tmp_dir, "meta.json")
+    def __init__(self):
+        """初始化投资记录器"""
+        # 设置tmp目录路径（在historicLow策略目录下）
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.tmp_dir = os.path.join(current_dir, "tmp")
+        self.meta_file = os.path.join(self.tmp_dir, "meta.json")
         
         # 确保tmp目录存在
-        os.makedirs(tmp_dir, exist_ok=True)
+        os.makedirs(self.tmp_dir, exist_ok=True)
         
-        # 创建新的会话目录
-        self._create_new_session()
-    
-    def _create_new_session(self):
-        """创建新的会话目录"""
-        # 获取当前日期
-        current_date = datetime.now().strftime("%Y_%m_%d")
+        # 初始化meta.json文件
+        self._init_meta_file()
         
-        # 从meta.json获取下一个ID
-        next_id = self._get_next_session_id()
+        # 获取当前会话ID
+        self.current_session_id = self._get_next_session_id()
         
-        # 创建会话名称
-        session_name = f"{current_date}-{next_id:03d}"
-        self.current_session_dir = os.path.join(self.tmp_dir, session_name)
+        # 缓存投资记录
+        self.cached_investments = {}
         
-        # 创建会话目录和子目录
-        os.makedirs(self.current_session_dir, exist_ok=True)
-        os.makedirs(os.path.join(self.current_session_dir, "success"), exist_ok=True)
-        os.makedirs(os.path.join(self.current_session_dir, "fail"), exist_ok=True)
-        os.makedirs(os.path.join(self.current_session_dir, "open"), exist_ok=True)
-        
-        # 更新meta.json
-        self._update_meta_file(next_id, session_name)
-        
-        logger.info(f"📁 创建新的投资记录会话: {session_name}")
-        
-        # 创建会话信息文件
-        session_info = {
-            "session_id": next_id,
-            "session_name": session_name,
-            "created_at": datetime.now().isoformat(),
-            "date": current_date,
-            "description": "HistoricLow策略投资记录会话",
-            "total_stocks_tested": 0,
-            "investment_summary": {
-                "total_investment_count": 0,
-                "success_count": 0,
-                "fail_count": 0,
-                "open_count": 0,
-                "win_rate": 0.0,
-                "annual_return": 0.0,
-                "avg_duration_days": 0.0,
-                "avg_roi": 0.0,
-                "total_investments": 0,
-                "win_count": 0,
-                "loss_count": 0
-            },
-            "strategy_settings": {
-                "goal": invest_settings["goal"],
-                "terms": invest_settings["terms"],
-                "min_required_monthly_records": invest_settings["min_required_monthly_records"]
-            }
-        }
-        
-        session_info_file = os.path.join(self.current_session_dir, "session_info.json")
-        with open(session_info_file, "w", encoding="utf-8") as f:
-            json.dump(session_info, f, ensure_ascii=False, indent=2)
-    
-    def _get_next_session_id(self) -> int:
-        """从meta.json获取下一个会话ID"""
-        if not os.path.exists(self.meta_file):
-            # 如果meta.json不存在，创建初始文件
-            initial_meta = {
-                "current_max_id": 0,
-                "last_updated": datetime.now().isoformat(),
-                "sessions": []
-            }
-            with open(self.meta_file, "w", encoding="utf-8") as f:
-                json.dump(initial_meta, f, ensure_ascii=False, indent=2)
-            return 1
-        
-        try:
-            with open(self.meta_file, "r", encoding="utf-8") as f:
-                meta = json.load(f)
-            return meta.get("current_max_id", 0) + 1
-        except Exception as e:
-            logger.error(f"❌ 读取meta.json失败: {e}")
-            return 1
-    
-    def _update_meta_file(self, session_id: int, session_name: str):
-        """更新meta.json文件"""
-        try:
-            if os.path.exists(self.meta_file):
-                with open(self.meta_file, "r", encoding="utf-8") as f:
-                    meta = json.load(f)
-            else:
-                meta = {
-                    "current_max_id": 0,
-                    "last_updated": datetime.now().isoformat(),
-                    "sessions": []
-                }
-            
-            # 更新最大ID
-            meta["current_max_id"] = max(meta.get("current_max_id", 0), session_id)
-            meta["last_updated"] = datetime.now().isoformat()
-            
-            # 添加新会话信息
-            session_info = {
-                "id": session_id,
-                "name": session_name,
-                "created_at": datetime.now().isoformat(),
-                "path": self.current_session_dir
-            }
-            meta["sessions"].append(session_info)
-            
-            # 保存更新后的meta.json
-            with open(self.meta_file, "w", encoding="utf-8") as f:
-                json.dump(meta, f, ensure_ascii=False, indent=2)
-                
-        except Exception as e:
-            logger.error(f"❌ 更新meta.json失败: {e}")
-    
-    def _convert_decimal(self, value):
-        """转换Decimal类型为float，处理JSON序列化问题"""
-        if value is None:
-            return None
-        try:
-            # 如果是Decimal类型，转换为float
-            if hasattr(value, '__float__'):
-                return float(value)
-            # 如果是字符串，尝试转换为float
-            elif isinstance(value, str):
-                return float(value)
-            # 其他类型直接返回
-            else:
-                return value
-        except (ValueError, TypeError):
-            return value
-    
-    def record_investment_settlement(self, stock: Dict[str, Any], investment: Dict[str, Any], 
-                                   result: str, exit_price: float, exit_date: str) -> None:
-        """
-        记录投资结算信息
-        
-        Args:
-            stock: 股票基本信息
-            investment: 投资数据
-            result: 投资结果 ('win', 'loss', 'open')
-            exit_price: 退出价格
-            exit_date: 退出日期
-        """
-        try:
-            # 获取股票代码和名称
-            stock_code = stock.get('id', 'Unknown')
-            stock_name = stock.get('name', 'Unknown')
-            
-            # 计算投资持续天数
-            start_date = investment.get('invest_start_date')
-            duration_days = None
-            if start_date and exit_date:
-                try:
-                    start_dt = datetime.strptime(start_date, "%Y%m%d")
-                    exit_dt = datetime.strptime(exit_date, "%Y%m%d")
-                    duration_days = (exit_dt - start_dt).days
-                except ValueError:
-                    logger.warning(f"⚠️ 日期格式错误，无法计算持续天数: start_date={start_date}, exit_date={exit_date}")
-            
-            # 生成文件名
-            file_name = f"{stock_code}_{exit_date}_{result}.json"
-            
-            # 根据结果选择子目录
-            if result == 'win':
-                sub_dir = "success"
-            elif result == 'loss':
-                sub_dir = "fail"
-            elif result == 'open':
-                sub_dir = "open"
-            else:
-                sub_dir = "unknown"
-            
-            file_path = os.path.join(self.current_session_dir, sub_dir, file_name)
-            
-            # 准备记录数据
-            record_data = {
-                "stock_info": {
-                    "code": stock_code,
-                    "name": stock_name,
-                    "market": stock.get('market', '')
-                },
-                "investment_info": {
-                    "start_date": start_date,
-                    "purchase_price": self._convert_decimal(investment.get('goal', {}).get('purchase')),
-                    "target_win": self._convert_decimal(investment.get('goal', {}).get('win')),
-                    "target_loss": self._convert_decimal(investment.get('goal', {}).get('loss')),
-                    "historic_low_ref": {
-                        "date": investment.get('historic_low_ref', {}).get('lowest_date'),
-                        "term": investment.get('historic_low_ref', {}).get('period_name'),
-                        "lowest_price": self._convert_decimal(investment.get('historic_low_ref', {}).get('lowest_price'))
-                    }
-                },
-                "settlement_info": {
-                    "result": result,
-                    "exit_price": exit_price,
-                    "exit_date": exit_date,
-                    "duration_days": duration_days,  # 添加投资持续天数
-                    "profit_loss": (exit_price - self._convert_decimal(investment.get('goal', {}).get('purchase'))) if exit_price else None,
-                    "profit_loss_rate": ((exit_price - self._convert_decimal(investment.get('goal', {}).get('purchase'))) / self._convert_decimal(investment.get('goal', {}).get('purchase')) * 100) if exit_price else None,
-                    "settled_at": datetime.now().isoformat()
-                }
-            }
-            
-            # 保存到文件
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(record_data, f, ensure_ascii=False, indent=2)
-            
-            logger.info(f"📊 已记录投资结算: {stock_code} {stock_name} - {result} -> {sub_dir}/{file_name}")
-            
-        except Exception as e:
-            logger.error(f"❌ 记录投资结算失败: {e}")
-    
-    def get_session_info(self) -> Dict[str, Any]:
-        """获取当前会话信息"""
-        return {
-            "session_dir": self.current_session_dir,
-            "created_at": datetime.now().isoformat()
-        }
-    
-    def update_session_summary(self, summary_data: Dict[str, Any]) -> None:
-        """
-        更新会话信息文件中的投资摘要
-        
-        Args:
-            summary_data: 投资摘要数据
-        """
-        try:
-            session_info_file = os.path.join(self.current_session_dir, "session_info.json")
-            
-            if os.path.exists(session_info_file):
-                with open(session_info_file, "r", encoding="utf-8") as f:
-                    session_info = json.load(f)
-            else:
-                session_info = {}
-            
-            # 更新投资摘要信息
-            session_info["investment_summary"] = summary_data
-            session_info["last_updated"] = datetime.now().isoformat()
-            
-            # 写回文件
-            with open(session_info_file, "w", encoding="utf-8") as f:
-                json.dump(session_info, f, ensure_ascii=False, indent=2)
-                
-            logger.info(f"📝 已更新会话摘要信息: {self.current_session_dir}")
-            
-        except Exception as e:
-            logger.error(f"❌ 更新会话摘要失败: {e}")
 
-    def update_session_info(self, update_data: Dict[str, Any]) -> None:
+
+    def to_record(self, stock_info: Dict[str, Any], investment_history: List[Dict[str, Any]]):
+        """使用 StrategyEntity 生成投资记录"""
+        # 确保当前session文件夹存在
+        session_dir = self._get_session_dir()
+        os.makedirs(session_dir, exist_ok=True)
+        
+        # 使用 StrategyEntity 生成记录
+        record = StrategyEntity.to_record(stock_info, investment_history)
+        
+        # 缓存投资记录
+        self.cached_investments[stock_info.get('id', '')] = investment_history
+
+        # 保存到文件
+        self._save_stock_record(record)
+        
+
+    def to_settlement(self, stock_info: Dict[str, Any], settlement_info: Dict[str, Any]):
+        """使用 StrategyEntity 生成结算信息"""
+        return StrategyEntity.to_settlement(stock_info, settlement_info)
+        
+
+    def to_session(self, stocks):
+        """生成会话汇总"""
+        # 统计所有投资记录
+        stats = self._calculate_session_stats()
+        
+        # 创建会话汇总
+        session_summary = {
+            'session_id': self.current_session_id,
+            'session_name': self._get_session_folder_name(),
+            'created_at': datetime.now().isoformat(),
+            'date': datetime.now().strftime('%Y_%m_%d'),
+            'description': 'HistoricLow策略投资记录会话',
+            'total_stocks_tested': len(stocks),
+            'investment_summary': stats,
+            'strategy_settings': strategy_settings
+        }
+        
+        # 保存会话汇总
+        self._save_session_summary(session_summary)
+        
+        # 更新meta文件
+        self._update_meta_file()
+        
+        return session_summary
+
+
+
+    def _save_stock_record(self, record: Dict[str, Any]):
+        """保存单只股票的投资记录"""
+        stock_id = record.get('stock_info', {}).get('id', '')
+        file_name = f"{stock_id}.json"
+        file_path = os.path.join(self._get_session_dir(), file_name)
+        
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(record, file, ensure_ascii=False, indent=2)
+
+
+
+    def _save_session_summary(self, session_summary: Dict[str, Any]):
+        """保存会话汇总信息"""
+        session_dir = self._get_session_dir()
+        os.makedirs(session_dir, exist_ok=True)
+        summary_file = os.path.join(session_dir, "session_summary.json")
+        with open(summary_file, "w", encoding="utf-8") as f:
+            json.dump(session_summary, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"📝 会话汇总已保存: {summary_file}")
+
+    def update_session_summary(self, session_summary: Dict[str, Any]):
         """
-        更新会话信息文件中的外层字段
+        更新会话汇总信息
         
         Args:
-            update_data: 要更新的字段数据
+            session_summary: 会话汇总数据
         """
-        try:
-            session_info_file = os.path.join(self.current_session_dir, "session_info.json")
-            
-            if os.path.exists(session_info_file):
-                with open(session_info_file, "r", encoding="utf-8") as f:
-                    session_info = json.load(f)
-            else:
-                session_info = {}
-            
-            # 更新外层字段
-            session_info.update(update_data)
-            session_info["last_updated"] = datetime.now().isoformat()
-            
-            # 写回文件
-            with open(session_info_file, "w", encoding="utf-8") as f:
-                json.dump(session_info, f, ensure_ascii=False, indent=2)
+        self._save_session_summary(session_summary)
+
+    def _get_session_dir(self):
+        """获取当前会话目录路径"""
+        session_name = f"{datetime.now().strftime('%Y_%m_%d')}-{self.current_session_id}"
+        return os.path.join(self.tmp_dir, session_name)
+
+    def _get_session_folder_name(self):
+        """获取会话文件夹名称"""
+        return f"{datetime.now().strftime('%Y_%m_%d')}-{self.current_session_id}"
+
+    def _init_meta_file(self):
+        """初始化meta.json文件"""
+        if not os.path.exists(self.meta_file):
+            meta = {
+                "next_session_id": 1,
+                "last_updated": datetime.now().isoformat()
+            }
+            with open(self.meta_file, "w", encoding="utf-8") as file:
+                json.dump(meta, file, ensure_ascii=False, indent=2)
+
+    def _get_next_session_id(self):
+        """获取下一个会话ID"""
+        with open(self.meta_file, "r", encoding="utf-8") as file:
+            meta = json.load(file)
+        return meta.get("next_session_id", 1)
+
+    def _update_meta_file(self):
+        """更新meta.json文件"""
+        meta = {
+            "next_session_id": self.current_session_id + 1,
+            "last_updated": datetime.now().isoformat()
+        }
+        with open(self.meta_file, "w", encoding="utf-8") as file:
+            json.dump(meta, file, ensure_ascii=False, indent=2)
+
+    def _calculate_session_stats(self):
+        """计算会话统计信息"""
+        success_count = 0
+        fail_count = 0
+        open_count = 0
+        total_profit = 0.0
+        total_duration = 0
+        total_investments = 0
+        
+        # 统计每只股票的投资结果
+        for stock_id, investment_history in self.cached_investments.items():
+            for investment in investment_history:
+                total_investments += 1
+                status = investment.get('status', '')
                 
-            logger.info(f"📝 已更新会话信息: {self.current_session_dir}")
-            
-        except Exception as e:
-            logger.error(f"❌ 更新会话信息失败: {e}")
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """获取投资记录摘要"""
-        if not self.current_session_dir:
-            return {}
+                if status == InvestmentResult.WIN.value:
+                    success_count += 1
+                    total_profit += investment.get('settlement_info', {}).get('profit_loss', 0)
+                elif status == InvestmentResult.LOSS.value:
+                    fail_count += 1
+                    total_profit += investment.get('settlement_info', {}).get('profit_loss', 0)
+                elif status == InvestmentResult.OPEN.value:
+                    open_count += 1
+                
+                # 累计投资时长
+                duration = investment.get('settlement_info', {}).get('duration_days', 0)
+                if duration:
+                    total_duration += duration
         
-        # 统计各个子目录下的投资记录数量
-        success_count = len([f for f in os.listdir(os.path.join(self.current_session_dir, "success")) if f.endswith('.json')]) if os.path.exists(os.path.join(self.current_session_dir, "success")) else 0
-        fail_count = len([f for f in os.listdir(os.path.join(self.current_session_dir, "fail")) if f.endswith('.json')]) if os.path.exists(os.path.join(self.current_session_dir, "fail")) else 0
-        open_count = len([f for f in os.listdir(os.path.join(self.current_session_dir, "open")) if f.endswith('.json')]) if os.path.exists(os.path.join(self.current_session_dir, "open")) else 0
-        
-        total_count = success_count + fail_count + open_count
+        # 计算统计信息
+        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
+        avg_duration = (total_duration / total_investments) if total_investments > 0 else 0.0
+        avg_profit = (total_profit / total_investments) if total_investments > 0 else 0.0
         
         return {
-            "session_dir": self.current_session_dir,
-            "total_investment_count": total_count,
-            "success_count": success_count,
-            "fail_count": fail_count,
-            "open_count": open_count,
-            "created_at": datetime.now().isoformat()
+            'total_investment_count': total_investments,
+            'success_count': success_count,
+            'fail_count': fail_count,
+            'open_count': open_count,
+            'win_rate': win_rate,
+            'total_profit': total_profit,
+            'avg_profit': avg_profit,
+            'avg_duration_days': avg_duration
         }
+

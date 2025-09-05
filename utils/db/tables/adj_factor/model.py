@@ -18,12 +18,12 @@ class AdjustFactor(BaseTableModel):
         self.is_base_table = True
         self.csv_file_name = "factors.csv"
 
-    def get_adj_factor(self, ts_code: str, type: str = 'qfq', date: str = None) -> Optional[Dict]:
+    def get_adj_factor(self, stock_id: str, type: str = 'qfq', date: str = None) -> Optional[Dict]:
         """
         获取指定日期的复权因子
         
         Args:
-            ts_code: 股票代码
+            id: 股票代码
             type: 复权类型 ('qfq' 或 'hfq')
             date: 查询日期，如果为None则返回最新的因子
         """
@@ -38,7 +38,7 @@ class AdjustFactor(BaseTableModel):
                 ORDER BY date DESC
                 LIMIT 1
             """
-            result = self.execute_raw_query(query, (ts_code, date))
+            result = self.execute_raw_query(query, (stock_id, date))
         else:
             # 查询最新的复权因子
             query = f"""
@@ -48,7 +48,7 @@ class AdjustFactor(BaseTableModel):
                 ORDER BY date DESC
                 LIMIT 1
             """
-            result = self.execute_raw_query(query, (ts_code,))
+            result = self.execute_raw_query(query, (stock_id,))
             
         if result:
             return {
@@ -66,14 +66,17 @@ class AdjustFactor(BaseTableModel):
         
         Returns:
             所有股票的更新状态列表，包含：
-            - ts_code: 股票代码
+            - stock_id: 股票代码
             - last_factor_date: 最近的因子变化日期
             - last_update: 系统最后更新时间
         """
         try:
             # 查询每只股票的因子状态
             query = """
-                SELECT MAX(date) AS last_factor_date, id, last_update
+                SELECT 
+                    id,
+                    MAX(date) AS last_factor_date,
+                    MAX(last_update) AS last_update
                 FROM adj_factor 
                 GROUP BY id
             """
@@ -161,6 +164,6 @@ class AdjustFactor(BaseTableModel):
         df.to_csv(file_path, index=False, encoding='utf-8')     
 
 
-    def get_stock_factors(self, ts_code: str) -> List[Dict]:
+    def get_stock_factors(self, stock_id: str) -> List[Dict]:
         """获取指定股票的复权因子"""
-        return self.load(condition="id = %s", params=(ts_code,))
+        return self.load(condition="id = %s", params=(stock_id,))

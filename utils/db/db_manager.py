@@ -357,7 +357,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"创建表失败: {e}")
             raise
-    
+
     def _create_base_tables(self):
         """创建基础表"""
         import os

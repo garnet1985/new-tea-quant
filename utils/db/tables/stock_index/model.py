@@ -223,7 +223,7 @@ class StockIndexModel(BaseTableModel):
                 if not isinstance(keywords, list):
                     keywords = [keywords]
 
-                clean_words = [str(k).strip().replace('*', '') for k in keywords if str(k).strip()]
+                clean_words = [str(k).strip() for k in keywords if str(k).strip()]
                 if not clean_words:
                     continue
 

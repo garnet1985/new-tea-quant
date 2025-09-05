@@ -142,7 +142,20 @@ class HistoricLowStrategy(BaseStrategy):
         # 检查当前价格是否在投资范围内
         for low_point in low_points:
             # 检查投资范围和新低
-            if HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data):
+            # 1. 检查是否在投资范围内
+            # 2. 检查是否不在连续下跌趋势中
+            # 3. 检查是否存在连续跌停等无法操作的风险
+            # 注意：ST股票已在数据库层面通过load_filtered_index过滤
+
+            if (HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data) and 
+                not HistoricLowService.is_in_continuous_limit_down(freeze_data)):
+
+
+
+            # if (HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data) and 
+            #     not HistoricLowService.is_in_continuous_downtrend(freeze_data) and
+            #     not HistoricLowService.has_limit_down_risk(freeze_data)):
+
                 # 找到匹配的历史低点，创建投资机会
                 # 使用新的动态止损止盈逻辑
                 investment_targets = HistoricLowService.calculate_investment_targets(record_of_today, low_point, freeze_data, history_data)

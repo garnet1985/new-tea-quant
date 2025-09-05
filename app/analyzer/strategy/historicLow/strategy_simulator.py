@@ -43,7 +43,7 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
         # 使用完整索引（取消仅跑单支股票的限制）
 
-        stock_idx = stock_idx[2950:3000]
+        stock_idx = stock_idx[0:50]
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -482,8 +482,14 @@ class HLSimulator:
                         sell_price=round(stop_loss_price, 4)
                     ))
                 else:
+                    # 判断是否为保本止损（接近0的止损）
+                    if abs(stop_loss_profit_rate) < 0.01:  # 止损率小于1%认为是保本止损
+                        win_ratio_name = 'break_even'
+                    else:
+                        win_ratio_name = round(stop_loss_profit_rate, 6)
+                    
                     targets.append(StrategyEntity.to_target(
-                        win_ratio=round(stop_loss_profit_rate, 6),
+                        win_ratio=win_ratio_name,
                         is_achieved=True,
                         profit=round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
                         profit_rate=round(stop_loss_profit_rate, 6),
@@ -497,8 +503,15 @@ class HLSimulator:
             if not targets and actual_result == 'loss':
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, end_date)
                 loss_profit_rate = (current_close / purchase_price) - 1.0 if purchase_price != 0 else 0.0
+                
+                # 判断是否为保本止损
+                if abs(loss_profit_rate) < 0.01:  # 止损率小于1%认为是保本止损
+                    win_ratio_name = 'break_even'
+                else:
+                    win_ratio_name = round(loss_profit_rate, 6)
+                
                 targets.append(StrategyEntity.to_target(
-                    win_ratio=round(loss_profit_rate, 6),
+                    win_ratio=win_ratio_name,
                     is_achieved=True,
                     profit=round((current_close - purchase_price) * 1.0, 4),
                     profit_rate=round(loss_profit_rate, 6),

@@ -15,39 +15,45 @@ strategy_settings = {
         "stop_loss": {
             "stages": [
                 {
-                    "win_ratio": 0,
-                    "is_dynamic_loss": False,
-                    "loss_ratio": 0.2
+                    "name": "loss20%",
+                    "ratio": -0.2,
+                    "close_invest": True  # 止损时：清仓
                 },
                 {
-                    "win_ratio": 0.1,
-                    "is_dynamic_loss": False,
-                    "loss_ratio": 0
+                    "name": "break_even",
+                    "ratio": 0,
+                    "close_invest": True  # 止损时：清仓
                 },
                 {
-                    "win_ratio": 0.4,
-                    "is_dynamic_loss": True,
-                    "loss_ratio": 0.1  # 动态止损比例（10%）
+                    "name": "dynamic",
+                    "ratio": -0.1,
+                    "close_invest": True  # 动态止损时：清仓
                 }
             ]
         },
         "take_profit": {
             "stages": [
                 {
-                    "win_ratio": 0.1,
-                    "sell_ratio": 0.2  # 从0.1增加到0.2
+                    "name": "win10%",
+                    "ratio": 0.1,
+                    "sell_ratio": 0.2,  # 止盈时：卖出总仓位的20%
+                    "set_stop_loss": "break_even"
                 },
                 {
-                    "win_ratio": 0.2,
-                    "sell_ratio": 0.2  # 从0.1增加到0.2
+                    "name": "win20%",
+                    "ratio": 0.2,
+                    "sell_ratio": 0.2  # 止盈时：卖出总仓位的20%
                 },
                 {
-                    "win_ratio": 0.3,
-                    "sell_ratio": 0.2  # 从0.2增加到0.3
+                    "name": "win30%",
+                    "ratio": 0.3,
+                    "sell_ratio": 0.2  # 止盈时：卖出总仓位的20%
                 },
                 {
-                    "win_ratio": 0.4,
-                    "sell_ratio": 0.2  # 保持0.3
+                    "name": "win40%",
+                    "ratio": 0.4,
+                    "sell_ratio": 0.2,  # 止盈时：卖出总仓位的20%
+                    "set_stop_loss": "dynamic"
                 }
             ]
         }

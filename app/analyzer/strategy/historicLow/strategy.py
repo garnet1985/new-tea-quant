@@ -148,7 +148,8 @@ class HistoricLowStrategy(BaseStrategy):
             # 注意：ST股票已在数据库层面通过load_filtered_index过滤
 
             if (HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data) and 
-                not HistoricLowService.is_in_continuous_limit_down(freeze_data)):
+                not HistoricLowService.is_in_continuous_limit_down(freeze_data) and
+                HistoricLowService.is_amplitude_sufficient(freeze_data)):
 
 
 
@@ -211,7 +212,7 @@ class HistoricLowStrategy(BaseStrategy):
         HLSimulator(self).test_strategy()
 
 
-    def scan(self) -> List[Dict[str, Any]]:
+    async def scan(self) -> List[Dict[str, Any]]:
         stock_idx = self.required_tables["stock_index"].load_filtered_index()
         
         if not stock_idx:

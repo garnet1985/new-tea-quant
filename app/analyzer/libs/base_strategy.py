@@ -57,8 +57,22 @@ class BaseStrategy(ABC):
         """获取策略的缩写"""
         return self.abbreviation
 
+    def get_strategy_info(self) -> Dict[str, Any]:
+        """
+        获取策略信息 - 子类可以重写此方法
+        
+        Returns:
+            Dict: 策略信息字典
+        """
+        return {
+            'name': self.name,
+            'description': self.description,
+            'abbreviation': self.abbreviation,
+            'is_enabled': self.is_enabled
+        }
+
     @abstractmethod
-    def scan(self) -> List[Dict[str, Any]]:
+    async def scan(self) -> List[Dict[str, Any]]:
         """
         扫描投资机会 - 抽象方法，子类必须实现
         

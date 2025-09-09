@@ -150,7 +150,8 @@ class HistoricLowService:
     @staticmethod
     def find_historic_low_points(daily_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        使用简单算法：从当前数据倒推指定年份，取到它们的最低点
+        使用改进算法：从当前数据倒推指定年份，取到它们的最低点
+        增加敏感度，更早发现投资机会
         """
         if not daily_records or len(daily_records) < 2000:  # 至少需要足够的历史数据
             return []
@@ -180,9 +181,10 @@ class HistoricLowService:
             min_price = float(min_record['close'])
             min_date = min_record['date']
             
-            # 计算投资范围（上下5%）
-            range_min = min_price * 0.95
-            range_max = min_price * 1.05
+            # 使用新的投资范围设置（上方10%，下方5%）
+            upper_ratio, lower_ratio = HistoricLowService.calculate_dynamic_price_range(min_price)
+            range_min = min_price * (1 - lower_ratio)  # 下方5%
+            range_max = min_price * (1 + upper_ratio)  # 上方10%
             
             low_points.append({
                 'min': range_min,
@@ -205,44 +207,43 @@ class HistoricLowService:
 
     
     @staticmethod
-    def calculate_dynamic_price_range(low_point_price: float) -> float:
+    def calculate_dynamic_price_range(low_point_price: float) -> Tuple[float, float]:
         """
-        计算动态价格区间比例
+        计算动态价格区间比例（支持上下限不同）
         
         Args:
             low_point_price: 历史低点价格
             
         Returns:
-            float: 价格区间比例
+            Tuple[float, float]: (上方比例, 下方比例)
         """
         # 从settings获取配置
         low_point_config = strategy_settings.get('low_point_invest_range', {})
-        base = low_point_config.get('base', 0.05)
+        upper_bound_ratio = low_point_config.get('upper_bound', 0.1)  # 上方10%
+        lower_bound_ratio = low_point_config.get('lower_bound', 0.05)  # 下方5%
         min_range = low_point_config.get('min', 0.2)
         max_range = low_point_config.get('max', 10.0)
         
-        # 基础区间（上下各base比例）
-        base_absolute_range = low_point_price * base
+        # 计算上方和下方的绝对区间
+        upper_absolute_range = low_point_price * upper_bound_ratio
+        lower_absolute_range = low_point_price * lower_bound_ratio
         
-        # 如果基础区间小于最小区间，则使用最小区间
-        if base_absolute_range < min_range:
-            absolute_range = min_range
-        # 如果基础区间大于最大区间，则使用最大区间
-        elif base_absolute_range > max_range:
-            absolute_range = max_range
-        else:
-            absolute_range = base_absolute_range
+        # 应用最小/最大区间限制
+        upper_absolute_range = max(min(upper_absolute_range, max_range), min_range)
+        lower_absolute_range = max(min(lower_absolute_range, max_range), min_range)
         
-        # 计算对应的比例（上下各absolute_range，总共2*absolute_range）
-        price_range_ratio = absolute_range / low_point_price
+        # 计算对应的比例
+        upper_ratio = upper_absolute_range / low_point_price
+        lower_ratio = lower_absolute_range / low_point_price
         
-        return price_range_ratio
+        return upper_ratio, lower_ratio
     
     @staticmethod
     def is_in_invest_range(record, low_point, freeze_data=None):
         """
         检查是否在投资范围内
         新增条件：在freeze data内没有出现比历史低点更低的价格
+        新增条件：检查冻结期内是否已经触及过相同的投资点
         """
         if low_point is None:
             return False
@@ -250,10 +251,10 @@ class HistoricLowService:
         current_price = float(record['close'])
         low_point_price = float(low_point['min'])  # 历史低点价格
         
-        # 计算动态价格区间
-        price_range_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
-        lower_bound = low_point_price * (1 - price_range_ratio)
-        upper_bound = low_point_price * (1 + price_range_ratio)
+        # 计算动态价格区间（支持上下限不同）
+        upper_ratio, lower_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
+        lower_bound = low_point_price * (1 - lower_ratio)  # 下方5%
+        upper_bound = low_point_price * (1 + upper_ratio)  # 上方10%
         
         # 基本条件：当前价格在动态价格区间内
         basic_condition = current_price >= lower_bound and current_price <= upper_bound
@@ -272,8 +273,200 @@ class HistoricLowService:
             # 条件2：当前价格不应该比freeze data的最低点高出太多（超过5%）
             if current_price > freeze_min_price * 1.05:
                 return False
+            
+            # 条件3：检查是否为最佳投资时机（避免多次触底后的投资）
+            if not HistoricLowService.is_optimal_investment_timing(current_price, low_point, freeze_data):
+                return False
+            
         
         return True
+
+    @staticmethod
+    def is_amplitude_sufficient(freeze_data: List[Dict[str, Any]]) -> bool:
+        """
+        检查冻结期数据的振幅是否足够
+        过滤掉振幅小于阈值的投资
+        
+        Args:
+            freeze_data: 冻结期数据
+            
+        Returns:
+            bool: 振幅是否足够
+        """
+        # 从策略设置中获取振幅过滤配置
+        from .strategy_settings import strategy_settings
+        
+        amplitude_config = strategy_settings.get('amplitude_filter', {})
+        if not amplitude_config:
+            return True  # 如果没有配置振幅过滤，直接返回True
+        
+        min_amplitude = amplitude_config.get('min_amplitude', 0.10)
+        if not freeze_data or len(freeze_data) < 2:
+            return False
+        
+        # 计算冻结期内的价格变化百分比
+        prices = [float(r['close']) for r in freeze_data]
+        day_changes_pct = []
+        
+        for i in range(1, len(prices)):
+            prev_price = prices[i-1]
+            curr_price = prices[i]
+            change_pct = (curr_price - prev_price) / prev_price
+            day_changes_pct.append(change_pct)
+        
+        if not day_changes_pct:
+            return False
+        
+        # 计算振幅（最大值 - 最小值）
+        amplitude = max(day_changes_pct) - min(day_changes_pct)
+        
+        # 检查振幅是否达到最小阈值
+        return amplitude >= min_amplitude
+
+    @staticmethod
+    def is_optimal_investment_timing(current_price: float, low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]]) -> bool:
+        """
+        判断是否为最佳投资时机
+        优先选择第一次触底的机会，避免多次触底后的投资
+        
+        Args:
+            current_price: 当前价格
+            low_point: 历史低点信息
+            freeze_data: 冻结期数据
+            
+        Returns:
+            bool: 是否为最佳投资时机
+        """
+        if not freeze_data or len(freeze_data) < 2:
+            return True  # 没有冻结期数据，认为是第一次机会
+        
+        # 计算触底次数
+        touch_count = HistoricLowService._count_touch_times_in_freeze(current_price, low_point, freeze_data)
+        
+        # 获取最大触底次数限制
+        max_touch_times = strategy_settings.get('low_point_invest_range', {}).get('max_touch_times', 2)
+        
+        # 如果触底次数小于最大限制，可以投资
+        return touch_count < max_touch_times
+
+    @staticmethod
+    def _count_touch_times_in_freeze(current_price: float, low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]]) -> int:
+        """
+        计算冻结期内触及投资点的次数
+        
+        Args:
+            current_price: 当前价格
+            low_point: 历史低点信息
+            freeze_data: 冻结期数据
+            
+        Returns:
+            int: 触及投资点的次数
+        """
+        if not freeze_data or len(freeze_data) < 2:
+            return 0
+        
+        low_point_price = float(low_point['min'])
+        
+        # 计算投资价格区间（支持上下限不同）
+        upper_ratio, lower_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
+        lower_bound = low_point_price * (1 - lower_ratio)  # 下方5%
+        upper_bound = low_point_price * (1 + upper_ratio)  # 上方10%
+        
+        # 统计冻结期内触及投资点的次数
+        touch_count = 0
+        
+        for record in freeze_data[:-1]:  # 排除最后一天（当前天）
+            record_price = float(record['close'])
+            
+            # 检查是否在投资范围内
+            if lower_bound <= record_price <= upper_bound:
+                touch_count += 1
+        
+        return touch_count
+
+    @staticmethod
+    def _is_investment_point_already_touched_in_freeze(current_price: float, low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]]) -> bool:
+        """
+        检查冻结期内是否已经触及过相同的投资点
+        
+        Args:
+            current_price: 当前价格
+            low_point: 历史低点信息
+            freeze_data: 冻结期数据
+            
+        Returns:
+            bool: True表示该投资点已经在冻结期内触及过，False表示未触及过
+        """
+        # 获取最大触底次数限制
+        max_touch_times = strategy_settings.get('low_point_invest_range', {}).get('max_touch_times', 2)
+        
+        # 计算触底次数
+        touch_count = HistoricLowService._count_touch_times_in_freeze(current_price, low_point, freeze_data)
+        
+        # 如果触及次数超过限制，说明不应该再投资
+        return touch_count >= max_touch_times
+
+    @staticmethod
+    def is_slope_too_steep(klines: List[Dict[str, Any]]) -> bool:
+        """
+        检查近期股价斜率是否过于陡峭下跌
+        
+        Args:
+            klines: 股价数据列表
+            
+        Returns:
+            bool: True表示斜率过于陡峭，False表示正常
+        """
+        # 使用最后10个元素进行斜率检查
+        days = 10
+        max_slope = -20.0  # 调整为-30度，过滤33%以上下跌
+        
+        if len(klines) < days:
+            return False  # 数据不足，不检查
+        
+        # 取最近days天的数据
+        recent_data = klines[-days:]
+        
+        # 计算斜率（使用线性回归）
+        prices = [float(r['close']) for r in recent_data]
+        dates = [i for i in range(len(recent_data))]  # 使用索引作为x轴
+        
+        # 计算线性回归斜率
+        n = len(prices)
+        sum_x = sum(dates)
+        sum_y = sum(prices)
+        sum_xy = sum(x * y for x, y in zip(dates, prices))
+        sum_x2 = sum(x * x for x in dates)
+        
+        # 斜率公式: slope = (n*sum_xy - sum_x*sum_y) / (n*sum_x2 - sum_x^2)
+        denominator = n * sum_x2 - sum_x * sum_x
+        if denominator == 0:
+            return False  # 避免除零错误
+        
+        slope = (n * sum_xy - sum_x * sum_y) / denominator
+        
+        # 将斜率转换为角度（度）
+        # 使用价格变化率来计算角度
+        if len(prices) > 1:
+            price_change_ratio = (prices[-1] - prices[0]) / prices[0]
+            # 使用更直观的角度计算方式
+            # 将价格变化率映射到-90到90度的范围
+            # 例如：-50%变化率对应-45度，-100%变化率对应-90度
+            if price_change_ratio <= -1.0:
+                angle_degrees = -90.0  # 完全归零
+            else:
+                # 使用线性映射：-50% -> -45度，-100% -> -90度
+                angle_degrees = price_change_ratio * 90.0
+        else:
+            angle_degrees = 0
+        
+        # 检查是否过于陡峭下跌
+        is_too_steep = angle_degrees < max_slope
+        
+        if is_too_steep:
+            logger.debug(f"股价斜率过于陡峭: {angle_degrees:.2f}度 (限制: {max_slope}度)")
+        
+        return is_too_steep
 
     @staticmethod
     def is_in_continuous_limit_down(klines: List[Dict[str, Any]]) -> bool:
@@ -386,6 +579,10 @@ class HistoricLowService:
         使用新的分段平仓策略配置
         """
         current_price = float(record_of_today['close'])
+
+        # 检查价格是否有效
+        if current_price <= 0:
+            return None
 
         if not freeze_data or not daily_records:
             return None

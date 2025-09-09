@@ -62,7 +62,22 @@ class HLSimulator:
         stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
         # 使用完整索引（取消仅跑单支股票的限制）
 
-        stock_idx = stock_idx[0:50]
+        # 检查是否需要专门测试问题股票
+        test_problematic_only = self.strategy.strategy_settings.get('test_mode', {}).get('test_problematic_stocks_only', False)
+        
+        if test_problematic_only:
+            # 从设置文件中获取问题股票列表
+            problematic_stocks_config = self.strategy.strategy_settings.get('problematic_stocks', {})
+            problematic_stocks = problematic_stocks_config.get('list', [])
+            logger.info(f"🔍 专门测试问题股票模式，共{len(problematic_stocks)}只股票")
+            
+            # 过滤出问题股票
+            filtered_stocks = [stock for stock in stock_idx if stock.get('id') in problematic_stocks]
+            stock_idx = filtered_stocks
+            logger.info(f"✅ 找到{len(stock_idx)}只问题股票进行测试")
+        else:
+            # 正常模式，测试所有股票（包括黑名单股票）
+            logger.info(f"📈 正常模式，测试所有股票")
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -373,7 +388,6 @@ class HLSimulator:
                 # 若已启用动态止损，记录触发点日志
                 if investing_opportunity.get('staged_exit', {}).get('dynamic_trailing_enabled', False):
                     ts_price = investing_opportunity.get('staged_exit', {}).get('trailing_stop_price')
-                    logger.info(f"🔻 {stock['id']} 触发动态止损: close={current_close:.4f} ≤ trailing_stop_price={float(ts_price or 0):.4f}")
                 HLSimulator.settle_result('loss', stock, investing_opportunity, record_of_today, tracker)
             else:
                 pass
@@ -383,16 +397,11 @@ class HLSimulator:
                 opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
                 if opp:
                     tracker['investing'][stock['id']] = opp
-                    logger.info(f"🎯 {stock['id']} 找到投资机会: {record_of_today['date']}")
         else:
             from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
             opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
             if opp:
                 tracker['investing'][stock['id']] = opp
-                logger.info(f"🎯 {stock['id']} 找到投资机会: {record_of_today['date']}")
-
-
-
 
     @staticmethod
     def settle_result(result_value: str, stock: Dict[str, Any], opportunity: Dict[str, Any], record_of_today: Dict[str, Any], tracker: Dict[str, Any]) -> None:
@@ -404,15 +413,17 @@ class HLSimulator:
             # 计算综合收益（已实现收益 + 未实现收益）
             purchase_price = opportunity['goal']['purchase']
             current_close = record_of_today['close']
+            
+            # 检查价格是否有效，防止除零错误
+            if purchase_price <= 0 or current_close <= 0:
+                logger.error(f"❌ {stock['id']} 价格数据无效: purchase_price={purchase_price}, current_close={current_close}")
+                return
             staged_exit = opportunity.get('staged_exit', {})
             total_realized_profit = staged_exit.get('total_realized_profit', 0.0)
             remaining_position_ratio = staged_exit.get('current_position_ratio', 1.0)
             
             # 确保剩余仓位不为负数
             remaining_position_ratio = max(0.0, remaining_position_ratio)
-            
-            # 调试信息
-            logger.info(f"🔍 {stock['id']} 结算时剩余仓位: {remaining_position_ratio:.2f}, 已实现收益: {total_realized_profit:.4f}")
             
             # 未实现收益 = 剩余持仓 * (当前价格 - 买入价格)
             unrealized_profit = remaining_position_ratio * (current_close - purchase_price)
@@ -444,6 +455,38 @@ class HLSimulator:
             
             max_close_rate = ((period_max_close / purchase_price) - 1.0) if purchase_price != 0 else 0.0
             min_close_rate = ((period_min_close / purchase_price) - 1.0) if purchase_price != 0 else 0.0
+            
+            # 计算投资开始时的斜率 + 记录前10日日度涨跌情况
+            freeze_data = opportunity.get('freeze_data', [])
+            slope_angle = 0.0
+            pre_invest_series = {}
+            if len(freeze_data) >= 10:
+                from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
+                recent_10 = freeze_data[-10:]
+                start_price = float(recent_10[0]['close'])
+                end_price = float(recent_10[-1]['close'])
+                change_ratio = (end_price - start_price) / start_price if start_price != 0 else 0.0
+                # 使用相同的角度计算方式
+                if change_ratio <= -1.0:
+                    slope_angle = -90.0
+                else:
+                    slope_angle = change_ratio * 90.0
+
+                # 记录最近10天的收盘价与日度涨跌（相对前一日）
+                closes = [round(float(r.get('close', 0.0)), 4) for r in recent_10]
+                dates = [r.get('date') for r in recent_10]
+                day_changes_pct = []
+                for i in range(1, len(recent_10)):
+                    prev = float(recent_10[i-1].get('close', 0.0))
+                    cur = float(recent_10[i].get('close', 0.0))
+                    pct = ((cur - prev) / prev * 100.0) if prev != 0 else 0.0
+                    day_changes_pct.append(round(pct, 2))
+                pre_invest_series = {
+                    'start_date': dates[0],
+                    'end_date': dates[-1],
+                    'closes': closes,
+                    'day_changes_pct': day_changes_pct
+                }
             
             # 生成targets（先止盈，后止损）
             targets: List[Dict[str, Any]] = []
@@ -586,6 +629,15 @@ class HLSimulator:
                     'max_close_reached': { 'price': period_max_close, 'date': period_max_close_date, 'ratio': round(max_close_rate, 6) },
                     'min_close_reached': { 'price': period_min_close, 'date': period_min_close_date, 'ratio': round(min_close_rate, 6) }
                 },
+                # 斜率信息
+                'slope_info': {
+                    'angle_degrees': round(slope_angle, 2),
+                    'price_change_ratio': round(change_ratio, 4) if len(freeze_data) >= 10 else 0.0,
+                    'start_price': round(start_price, 4) if len(freeze_data) >= 10 else 0.0,
+                    'end_price': round(end_price, 4) if len(freeze_data) >= 10 else 0.0
+                },
+                # 投资前10天涨跌信息
+                'pre_invest_series': pre_invest_series,
                 # 投资条目（用于输出targets）
                 'investment': {
                     'purchase_price': round(purchase_price, 4),
@@ -610,7 +662,7 @@ class HLSimulator:
                 result_dot = "🔴"
             else:  # OPEN
                 result_dot = "🟡"
-            logger.info(f" {result_dot} {stock['id']} investment {actual_result} (综合收益{total_profit:.4f}, 已实现{total_realized_profit:.4f}), duration: {invest_duration_days} days")
+            logger.info(f" {result_dot} {stock['id']} investment {actual_result} (综合收益 {total_profit_rate*100:.1f}%), duration: {invest_duration_days} days, slope: {slope_angle:.1f}°")
             
             # 生成统一格式的投资结算信息
             try:

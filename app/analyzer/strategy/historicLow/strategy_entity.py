@@ -91,6 +91,8 @@ class StrategyEntity:
             },
             # 新增：freeze data统计信息
             'freeze_data_stats': freeze_stats,
+            # 新增：freeze data原始数据
+            'freeze_data': freeze_data or [],
             # 新增：分段平仓相关字段
             'staged_exit': {
                 'enabled': True,
@@ -171,7 +173,7 @@ class StrategyEntity:
                 total_roi += ((purchase_price + profit) / purchase_price) - 1
         
         avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_annual_return = ((1 + total_roi / total_investments) ** (365 / avg_duration_days) - 1) * 100 if total_roi != 0 and avg_duration_days > 0 else 0.0
+        avg_annual_return = ((1 + total_roi / total_investments) ** (365 / avg_duration_days) - 1) * 100 if total_investments > 0 and avg_duration_days > 0 else 0.0
 
         per_stock_stats = {
             'total_investments': total_investments,
@@ -230,6 +232,8 @@ class StrategyEntity:
                 'targets': ((settlement_info.get('investment') or {}).get('targets') or [])
             },
             'tracks': settlement_info.get('tracks', {}),
+            'slope_info': settlement_info.get('slope_info', {}),
+            'pre_invest_series': settlement_info.get('pre_invest_series', {}),
             'historic_low_ref': {
                 'term': (settlement_info.get('historic_low_ref') or {}).get('term'),
                 'date': (settlement_info.get('historic_low_ref') or {}).get('date'),
@@ -345,7 +349,7 @@ class StrategyEntity:
                 total_roi += ((purchase_price + profit) / purchase_price) - 1
         
         avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_annual_return = ((1 + total_roi / total_investments) ** (365 / avg_duration) - 1) * 100 if total_roi != 0 and avg_duration > 0 else 0.0
+        avg_annual_return = ((1 + total_roi / total_investments) ** (365 / avg_duration) - 1) * 100 if total_investments > 0 and avg_duration > 0 else 0.0
 
         return {
             'stock_id': stock_id,

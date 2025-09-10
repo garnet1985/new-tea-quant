@@ -257,11 +257,6 @@ class StrategyEntity:
         stocks_with_opps = 0
 
         for stock_result in session_results or []:
-            # 跳过黑名单股票
-            excluded_reason = stock_result.get('excluded_reason')
-            if excluded_reason == 'blacklisted':
-                continue
-                
             investments = (stock_result.get('investments') or {}).values()
             if not investments:
                 continue

@@ -881,3 +881,148 @@ class HLSimulator:
         elif action == 'dynamic_trailing_stop':
             # 动态止盈 - 现在由专门的方法处理
             pass
+
+    def simulate_capital_flow_from_results(self, session_dir: str, initial_capital: float, start_date: str = "20240101", min_shares: int = 1000, use_kelly: bool = False) -> Dict[str, Any]:
+        pool_capital: float = float(initial_capital)
+        invested_cost: float = 0.0
+        positions: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+        if not os.path.isdir(session_dir):
+            raise FileNotFoundError(f"session_dir not found: {session_dir}")
+
+        buy_events: List[Tuple[str, str, float]] = []
+        sell_events: List[Tuple[str, str, float, float, str, str]] = []
+        partial_sell_events: List[Tuple[str, str, str, float, float]] = []  # (sell_date, stock_id, start_date, exit_ratio, sell_price)
+        # 历史统计（用于凯利）
+        history: Dict[str, List[Tuple[float, str]]] = {}  # stock_id -> list of (overall_profit_rate, status) for s_date < start_date
+
+        for filename in os.listdir(session_dir):
+            if not filename.endswith('.json') or filename == 'session_summary.json':
+                continue
+            stock_id = filename[:-5]
+            file_path = os.path.join(session_dir, filename)
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+
+            results = data.get('results', [])
+            if not isinstance(results, list):
+                continue
+
+            for item in results:
+                s_date = item.get('start_date') or ""
+                e_date = item.get('end_date') or ""
+                try:
+                    purchase_price = float(item.get('purchase_price') or 0.0)
+                    profit_rate = float(item.get('overall_profit_rate') or 0.0)
+                except Exception:
+                    continue
+                status = str(item.get('status') or "")
+                if not purchase_price:
+                    continue
+                if s_date and s_date >= start_date:
+                    buy_events.append((s_date, stock_id, purchase_price))
+                    if e_date:
+                        sell_events.append((e_date, stock_id, purchase_price, profit_rate, status, s_date))
+
+                    # 解析分段平仓targets，生成部分卖出事件
+                    inv_obj = item.get('investment') or {}
+                    targets = inv_obj.get('targets') or []
+                    for t in targets:
+                        try:
+                            sell_date = t.get('sell_date') or ""
+                            sell_price = float(t.get('sell_price') or 0.0)
+                            tgt_profit = float(t.get('profit') or 0.0)
+                            # 通过 profit = (sell_price - purchase_price) * exit_ratio 推导 exit_ratio
+                            denom = (sell_price - float(purchase_price))
+                            if sell_date and sell_price > 0 and abs(denom) > 0:
+                                exit_ratio = tgt_profit / denom
+                                # 过滤异常数值
+                                if exit_ratio > 0 and exit_ratio <= 1.0001:
+                                    partial_sell_events.append((sell_date, stock_id, s_date, float(exit_ratio), sell_price))
+                        except Exception:
+                            continue
+                elif s_date:
+                    # 收集历史（用于凯利）
+                    try:
+                        history.setdefault(stock_id, []).append((float(item.get('overall_profit_rate') or 0.0), str(status)))
+                    except Exception:
+                        pass
+
+        buy_events.sort(key=lambda x: (x[0], x[1]))
+        sell_events.sort(key=lambda x: (x[0], x[1]))
+
+        # 同步处理：买入、部分卖出、最终卖出，按日期归并
+        partial_sell_events.sort(key=lambda x: (x[0], x[1]))
+        bi = 0
+        si = 0
+        psi = 0
+        while bi < len(buy_events) or si < len(sell_events) or psi < len(partial_sell_events):
+            next_buy_date = buy_events[bi][0] if bi < len(buy_events) else '99999999'
+            next_partial_sell_date = partial_sell_events[psi][0] if psi < len(partial_sell_events) else '99999999'
+            next_sell_date = sell_events[si][0] if si < len(sell_events) else '99999999'
+
+            if next_buy_date <= next_partial_sell_date and next_buy_date <= next_sell_date:
+                b_date, b_stock, b_price = buy_events[bi]
+                # 计算凯利倍数（仅支持1倍或2倍）
+                shares_multiple = 1
+                if use_kelly:
+                    hist = history.get(b_stock, [])
+                    wins = [r for r, st in hist if (st or (r > 0)) in ['win'] or r > 0]
+                    losses = [abs(r) for r, st in hist if (st or (r <= 0)) in ['loss'] or r <= 0]
+                    p = (len(wins) / len(hist)) if hist else 0.5
+                    avg_win = sum(wins) / len(wins) if wins else 0.1
+                    avg_loss = sum(losses) / len(losses) if losses else 0.1
+                    b_ratio = (avg_win / avg_loss) if avg_loss > 0 else 1.0
+                    f_star = p - (1 - p) / b_ratio
+                    # 简化映射：f* >= 0.5 -> 2倍，否则1倍
+                    if f_star >= 0.5:
+                        shares_multiple = 2
+                required_capital = float(min_shares * shares_multiple) * float(b_price)
+                if pool_capital >= required_capital:
+                    pool_capital -= required_capital
+                    invested_cost += required_capital
+                    positions[(b_stock, b_date)] = {
+                        'shares': min_shares * shares_multiple,
+                        'cost': required_capital,
+                        'purchase_price': b_price,
+                    }
+                bi += 1
+            elif next_partial_sell_date <= next_sell_date:
+                ps_date, ps_stock, ps_start, ps_ratio, ps_sell_price = partial_sell_events[psi]
+                key = (ps_stock, ps_start)
+                pos = positions.get(key)
+                if pos and ps_ratio > 0:
+                    # 以分段比例卖出对应份额
+                    shares_to_sell = float(pos['shares']) * float(ps_ratio)
+                    cost_to_remove = float(pos['cost']) * float(ps_ratio)
+                    cash_inflow = shares_to_sell * float(ps_sell_price)
+                    pool_capital += cash_inflow
+                    invested_cost -= cost_to_remove
+                    # 更新持仓剩余
+                    pos['shares'] = float(pos['shares']) - shares_to_sell
+                    pos['cost'] = float(pos['cost']) - cost_to_remove
+                    if pos['shares'] <= 1e-6:
+                        del positions[key]
+                psi += 1
+            else:
+                s_date, s_stock, s_price, s_profit_rate, s_status, s_start = sell_events[si]
+                key = (s_stock, s_start)
+                pos = positions.get(key)
+                if pos:
+                    sell_price = float(s_price) * (1.0 + float(s_profit_rate))
+                    sell_amount = float(pos['shares']) * sell_price
+                    pool_capital += sell_amount
+                    invested_cost -= float(pos['cost'])
+                    del positions[key]
+                si += 1
+
+        return {
+            'initial_capital': float(initial_capital),
+            'ending_pool': round(pool_capital, 2),
+            'ending_invested_cost': round(invested_cost, 2),
+            'ending_total_assets': round(pool_capital + invested_cost, 2),
+            'open_positions': len(positions),
+        }

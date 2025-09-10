@@ -81,9 +81,9 @@ class HistoricLowStrategy(BaseStrategy):
                 progress = (i / total_stocks * 100)
                 if opportunity:
                     opportunities.extend(opportunity)
-                    logger.info(f"🔍 扫描股票 {stock['id']} {stock['name']} - ✅ 发现投资机会 {i}/{total_stocks} ({progress:.1f}%")
+                    logger.info(f"🔍 扫描股票 {stock['id']} {stock['name']} - ✅ 发现投资机会 {i}/{total_stocks} ({progress:.1f}%)")
                 else:
-                    logger.info(f"🔍 扫描股票 {stock['id']} {stock['name']} - 没有投资机会 {i}/{total_stocks} ({progress:.1f}%")
+                    logger.info(f"🔍 扫描股票 {stock['id']} {stock['name']} - 没有投资机会 {i}/{total_stocks} ({progress:.1f}%)")
                     
             except Exception as e:
                 logger.error(f"扫描股票 {stock['id']} 失败: {e}")
@@ -150,6 +150,11 @@ class HistoricLowStrategy(BaseStrategy):
             if (HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data) and 
                 not HistoricLowService.is_in_continuous_limit_down(freeze_data) and
                 HistoricLowService.is_amplitude_sufficient(freeze_data)):
+
+                # 新增：波段完成过滤（参考低点后是否完成至少一个“谷-峰-回撤”）
+                full_series = history_data + freeze_data
+                if not HistoricLowService.is_wave_completed(full_series, low_point):
+                    continue
 
 
 

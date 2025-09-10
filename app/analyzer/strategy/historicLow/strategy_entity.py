@@ -151,7 +151,7 @@ class StrategyEntity:
         Returns:
             Dict[str, Any]: 统一格式的投资记录对象
         """
-        # 计算统计信息（用于每条result内嵌的statistics）
+        # 计算统计信息（顶层唯一 statistics）
         total_investments = len(investment_history)
         success_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.WIN.value])
         fail_count = len([inv for inv in investment_history if inv.get('status') == InvestmentResult.LOSS.value])
@@ -188,13 +188,6 @@ class StrategyEntity:
             'avg_annual_return': round(avg_annual_return, 2)
         }
 
-        # 将统计信息内嵌到每个result中
-        enriched_history = []
-        for inv in investment_history:
-            inv_copy = dict(inv)
-            inv_copy['statistics'] = per_stock_stats
-            enriched_history.append(inv_copy)
-        
         # 构建记录数据
         record = {
             'stock_info': {
@@ -202,7 +195,8 @@ class StrategyEntity:
                 'name': stock_info.get('name', ''),
                 'industry': stock_info.get('industry', '')
             },
-            'results': enriched_history
+            'results': investment_history,
+            'statistics': per_stock_stats
         }
         
         return record

@@ -658,3 +658,64 @@ class HistoricLowService:
         history_records = daily_data[:-freeze_days]  # 之前的数据（历史期）
 
         return freeze_records, history_records
+
+    @staticmethod
+    def is_wave_completed(all_daily_records: List[Dict[str, Any]], low_point: Dict[str, Any]) -> bool:
+        """
+        判定从参考低点之后，是否已完成至少一个“谷-峰-回撤”的完整波段：
+        - 谷->峰 涨幅 >= min_rise_ratio（默认30%）
+        - 峰->回撤 回撤幅度 >= min_retrace_ratio（默认10%）
+        - 可选窗口限制：从谷到今天不超过 max_window_days（默认3年≈756交易日），超出仍无完整波则视为长期衰退，返回 False
+        """
+        if not all_daily_records or not low_point:
+            return False
+        try:
+            min_rise_ratio = float(strategy_settings.get('wave_filter', {}).get('min_rise_ratio', 0.30))
+            min_retrace_ratio = float(strategy_settings.get('wave_filter', {}).get('min_retrace_ratio', 0.10))
+            max_window_days = int(strategy_settings.get('wave_filter', {}).get('max_window_days', 756))
+        except Exception:
+            min_rise_ratio, min_retrace_ratio, max_window_days = 0.30, 0.10, 756
+
+        # 找到参考低点日期在全量序列中的索引（取最接近的同日记录）
+        ref_date = str(low_point.get('lowest_date') or '')
+        if not ref_date:
+            return False
+        start_idx = None
+        for i, rec in enumerate(all_daily_records):
+            if str(rec.get('date')) == ref_date:
+                start_idx = i
+                break
+        if start_idx is None:
+            # 若找不到精确日期，使用最接近的日期（先前最近）
+            for i in range(len(all_daily_records)-1, -1, -1):
+                if str(all_daily_records[i].get('date', '')) < ref_date:
+                    start_idx = i
+                    break
+        if start_idx is None:
+            return False
+
+        # 限定窗口
+        end_idx = min(len(all_daily_records) - 1, start_idx + max_window_days)
+        window = all_daily_records[start_idx:end_idx+1]
+        if len(window) < 5:
+            return False
+
+        low_close = float(window[0].get('close') or 0.0)
+        if low_close <= 0:
+            return False
+
+        # 谷->峰：取窗口内最高价
+        peak_idx = max(range(len(window)), key=lambda k: float(window[k].get('close') or 0.0))
+        peak_close = float(window[peak_idx].get('close') or 0.0)
+        rise_ratio = (peak_close - low_close) / low_close if low_close > 0 else 0.0
+        if rise_ratio < min_rise_ratio:
+            return False
+
+        # 峰->回撤：峰后最低价
+        if peak_idx >= len(window) - 1:
+            return False
+        trough_after_peak_close = min(float(r.get('close') or 0.0) for r in window[peak_idx+1:])
+        if peak_close <= 0:
+            return False
+        retrace_ratio = (peak_close - trough_after_peak_close) / peak_close
+        return retrace_ratio >= min_retrace_ratio

@@ -77,7 +77,12 @@ class HLSimulator:
             logger.info(f"✅ 找到{len(stock_idx)}只问题股票进行测试")
         else:
             # 正常模式，测试所有股票（包括黑名单股票）
-            logger.info(f"📈 正常模式，测试所有股票")
+            max_test_stocks = self.strategy.strategy_settings.get('test_mode', {}).get('max_test_stocks', None)
+            if max_test_stocks and len(stock_idx) > max_test_stocks:
+                stock_idx = stock_idx[:max_test_stocks]
+                logger.info(f"📈 正常模式，测试前{max_test_stocks}只股票")
+            else:
+                logger.info(f"📈 正常模式，测试所有股票")
 
         # 记录测试股票总数
         self.total_stocks_tested = len(stock_idx)
@@ -164,7 +169,107 @@ class HLSimulator:
         
         # 更新meta文件
         self.invest_recorder._update_meta_file()
+        
+        # 模拟完成后更新黑名单
+        self._update_blacklist_after_simulation()
 
+    def _update_blacklist_after_simulation(self):
+        """模拟完成后更新黑名单"""
+        try:
+            from .strategy_analysis import HistoricLowAnalysis
+            
+            # 创建分析器实例
+            analyzer = HistoricLowAnalysis()
+            
+            # 获取最新的模拟结果目录
+            latest_session_dir = analyzer.get_latest_session_dir()
+            
+            # 加载投资数据
+            investments = analyzer.load_investment_data(latest_session_dir)
+            
+            if not investments:
+                print("⚠️  没有找到投资数据，跳过黑名单更新")
+                return
+            
+            # 定义新的黑名单
+            new_blacklist = analyzer.define_blacklist(
+                investments=investments,
+                min_investments=2,  # 最少2次投资
+                max_win_rate=50.0,  # 胜率低于50%
+                max_avg_profit=0.0  # 平均收益低于0%
+            )
+            
+            # 获取当前黑名单
+            current_blacklist = strategy_settings.get('problematic_stocks', {}).get('list', [])
+            
+            # 分析黑名单变化
+            changes = analyzer.analyze_blacklist_changes(current_blacklist, new_blacklist)
+            
+            # 打印黑名单更新报告
+            report = {
+                'changes': changes,
+                'new_blacklist': new_blacklist,
+                'current_blacklist': current_blacklist
+            }
+            analyzer.print_blacklist_report(report)
+            
+            # 更新配置文件中的黑名单
+            self._update_blacklist_in_settings(new_blacklist)
+            
+            print(f"✅ 黑名单更新完成！新黑名单包含 {len(new_blacklist)} 只股票")
+            
+        except Exception as e:
+            print(f"❌ 黑名单更新失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _update_blacklist_in_settings(self, new_blacklist: List[str]):
+        """更新配置文件中的黑名单"""
+        try:
+            # 读取当前配置文件
+            settings_file = "app/analyzer/strategy/historicLow/strategy_settings.py"
+            
+            with open(settings_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 构建新的黑名单配置
+            blacklist_lines = []
+            blacklist_lines.append('        "list": [')
+            
+            for i, stock in enumerate(new_blacklist):
+                # 获取股票名称（如果有的话）
+                stock_name = self._get_stock_name(stock)
+                comment = f"  # {stock_name}" if stock_name else ""
+                comma = "," if i < len(new_blacklist) - 1 else ""
+                blacklist_lines.append(f'            "{stock}",{comment}{comma}')
+            
+            blacklist_lines.append('        ],')
+            blacklist_lines.append(f'        "count": {len(new_blacklist)},  # 问题股票总数')
+            blacklist_lines.append('        "description": "基于最新模拟结果自动更新的黑名单"')
+            
+            new_blacklist_config = '\n'.join(blacklist_lines)
+            
+            # 替换黑名单配置
+            import re
+            pattern = r'"problematic_stocks":\s*\{[^}]*\}'
+            replacement = f'"problematic_stocks": {{\n{new_blacklist_config}\n    }}'
+            
+            new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+            
+            # 写回文件
+            with open(settings_file, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            
+            print(f"📝 已更新配置文件中的黑名单")
+            
+        except Exception as e:
+            print(f"❌ 更新配置文件失败: {e}")
+
+    def _get_stock_name(self, stock_id: str) -> str:
+        """获取股票名称（简化版本）"""
+        # 这里可以扩展为从数据库或API获取股票名称
+        # 目前返回空字符串
+        return ""
 
     def _settle_stock_investments(self, stock: Dict[str, Any], thread_tracker: Dict[str, Any]) -> Dict[str, Any]:
         """清算单只股票的所有投资"""
@@ -458,7 +563,7 @@ class HLSimulator:
             
             # 计算投资开始时的斜率 + 记录前10日日度涨跌情况
             freeze_data = opportunity.get('freeze_data', [])
-            slope_angle = 0.0
+            slope_ratio = 0.0
             pre_invest_series = {}
             if len(freeze_data) >= 10:
                 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
@@ -466,11 +571,8 @@ class HLSimulator:
                 start_price = float(recent_10[0]['close'])
                 end_price = float(recent_10[-1]['close'])
                 change_ratio = (end_price - start_price) / start_price if start_price != 0 else 0.0
-                # 使用相同的角度计算方式
-                if change_ratio <= -1.0:
-                    slope_angle = -90.0
-                else:
-                    slope_angle = change_ratio * 90.0
+                # 直接使用价格变化率
+                slope_ratio = change_ratio
 
                 # 记录最近10天的收盘价与日度涨跌（相对前一日）
                 closes = [round(float(r.get('close', 0.0)), 4) for r in recent_10]
@@ -631,7 +733,7 @@ class HLSimulator:
                 },
                 # 斜率信息
                 'slope_info': {
-                    'angle_degrees': round(slope_angle, 2),
+                    'slope_ratio': round(slope_ratio, 4),
                     'price_change_ratio': round(change_ratio, 4) if len(freeze_data) >= 10 else 0.0,
                     'start_price': round(start_price, 4) if len(freeze_data) >= 10 else 0.0,
                     'end_price': round(end_price, 4) if len(freeze_data) >= 10 else 0.0
@@ -662,7 +764,7 @@ class HLSimulator:
                 result_dot = "🔴"
             else:  # OPEN
                 result_dot = "🟡"
-            logger.info(f" {result_dot} {stock['id']} investment {actual_result} (综合收益 {total_profit_rate*100:.1f}%), duration: {invest_duration_days} days, slope: {slope_angle:.1f}°")
+            logger.info(f" {result_dot} {stock['id']} investment {actual_result} (综合收益 {total_profit_rate*100:.1f}%), duration: {invest_duration_days} days, slope: {slope_ratio*100:.1f}%")
             
             # 生成统一格式的投资结算信息
             try:

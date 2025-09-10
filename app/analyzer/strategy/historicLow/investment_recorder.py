@@ -11,7 +11,7 @@ from loguru import logger
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from .strategy_enum import InvestmentResult
-from .strategy_entity import StrategyEntity
+from .strategy_entity import HistoricLowEntity
 
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息"""
@@ -38,13 +38,13 @@ class InvestmentRecorder:
 
 
     def to_record(self, stock_info: Dict[str, Any], investment_history: List[Dict[str, Any]]):
-        """使用 StrategyEntity 生成投资记录"""
+        """使用 HistoricLowEntity 生成投资记录"""
         # 确保当前session文件夹存在
         session_dir = self._get_session_dir()
         os.makedirs(session_dir, exist_ok=True)
         
-        # 使用 StrategyEntity 生成记录
-        record = StrategyEntity.to_record(stock_info, investment_history)
+        # 使用 HistoricLowEntity 生成记录
+        record = HistoricLowEntity.to_record(stock_info, investment_history)
         
         # 缓存投资记录
         self.cached_investments[stock_info.get('id', '')] = investment_history
@@ -54,8 +54,8 @@ class InvestmentRecorder:
         
 
     def to_settlement(self, stock_info: Dict[str, Any], settlement_info: Dict[str, Any]):
-        """使用 StrategyEntity 生成结算信息"""
-        return StrategyEntity.to_settlement(stock_info, settlement_info)
+        """使用 HistoricLowEntity 生成结算信息"""
+        return HistoricLowEntity.to_settlement(stock_info, settlement_info)
         
 
     def to_session(self, stocks):

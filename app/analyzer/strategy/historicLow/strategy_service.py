@@ -150,34 +150,39 @@ class HistoricLowService:
     @staticmethod
     def find_historic_low_points(daily_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        使用改进算法：从当前数据倒推指定年份，取到它们的最低点
-        增加敏感度，更早发现投资机会
+        使用固定年份低点算法找到历史低点
+        算法：取3年、5年、8年的最低点作为参考低点
         """
         if not daily_records or len(daily_records) < 2000:  # 至少需要足够的历史数据
             return []
         
-        low_points = []
+        # 获取冻结期天数
+        freeze_days = strategy_settings['daily_data_requirements']['freeze_period_days']
+        freeze_start_idx = max(0, len(daily_records) - freeze_days - 1)
+        
+        # 只分析冻结期之前的数据
+        historical_records = daily_records[:freeze_start_idx]
+        
+        # 获取当前日期
         current_date = daily_records[-1]['date']
+        current_year = int(current_date[:4])
         
-        # 从settings获取回溯年份，过滤掉0
-        years_to_lookback = [year for year in strategy_settings['daily_data_requirements']['low_points_ref_years']]
+        # 从设置中获取要查找的年份
+        target_years = strategy_settings['daily_data_requirements']['low_points_ref_years']
+        low_points = []
         
-        for years in years_to_lookback:
-            # 计算目标日期（years年前）
-            target_year = int(current_date[:4]) - years
-            target_date = f"{target_year}{current_date[4:]}"
+        for years_back in target_years:
+            target_year = current_year - years_back
             
-            # 找到目标日期附近的数据
-            target_records = []
-            for record in daily_records:
-                if record['date'][:4] == str(target_year):
-                    target_records.append(record)
+            # 找到该年份的最低点
+            year_records = [record for record in historical_records 
+                          if record['date'].startswith(str(target_year))]
             
-            if not target_records:
+            if not year_records:
                 continue
-            
-            # 找到该年的最低点
-            min_record = min(target_records, key=lambda x: float(x['close']))
+                
+            # 找到该年份的最低价格
+            min_record = min(year_records, key=lambda x: float(x['close']))
             min_price = float(min_record['close'])
             min_date = min_record['date']
             
@@ -190,8 +195,8 @@ class HistoricLowService:
                 'min': range_min,
                 'max': range_max,
                 'avg': min_price,
-                'term': years,
-                'valley_type': f'{years}year_low',
+                'term': years_back,
+                'valley_type': f'{years_back}year_low',
                 'target_year': target_year,
                 'lowest_price': min_price,
                 'lowest_date': min_date
@@ -199,6 +204,266 @@ class HistoricLowService:
         
         return low_points
 
+    @staticmethod
+    def _find_simple_valleys(prices: List[float], dates: List[str], 
+                            window: int = 20, min_rebound: float = 0.15) -> List[Dict[str, Any]]:
+        """
+        简单的波谷识别算法
+        - window: 滑动窗口大小（20个交易日）
+        - min_rebound: 最小反弹幅度（15%）
+        """
+        valleys = []
+        
+        for i in range(window, len(prices) - window):
+            current_price = prices[i]
+            
+            # 检查是否为局部最低点
+            left_min = min(prices[i-window:i])
+            right_min = min(prices[i+1:i+window+1])
+            
+            if current_price <= left_min and current_price <= right_min:
+                # 检查后续是否有显著反弹
+                future_window = min(window * 2, len(prices) - i - 1)  # 看未来40天或到数据末尾
+                if future_window > 0:
+                    future_max = max(prices[i:i+future_window])
+                    rebound_ratio = (future_max - current_price) / current_price
+                    
+                    if rebound_ratio >= min_rebound:
+                        valleys.append({
+                            'index': i,
+                            'price': current_price,
+                            'date': dates[i],
+                            'rebound_ratio': rebound_ratio
+                        })
+        
+        return valleys
+
+    @staticmethod
+    def _select_diverse_low_points(low_points: List[Dict[str, Any]], max_count: int) -> List[Dict[str, Any]]:
+        """
+        选择多样化的低点，控制时间和价格密度
+        - 时间密度：不能都出自同一时间段（至少间隔1年）
+        - 价格密度：不能价格太接近（至少间隔10%）
+        """
+        if len(low_points) <= max_count:
+            return low_points
+        
+        selected_points = []
+        
+        for lp in low_points:
+            if len(selected_points) >= max_count:
+                break
+                
+            # 检查是否与已选择的点冲突
+            is_conflict = False
+            
+            for selected in selected_points:
+                # 检查时间密度（至少间隔1年）
+                time_diff = abs(int(lp['target_year']) - int(selected['target_year']))
+                if time_diff < 1:
+                    is_conflict = True
+                    break
+                
+                # 检查价格密度（至少间隔15%）
+                if selected['lowest_price'] > 0:
+                    price_diff = abs(lp['lowest_price'] - selected['lowest_price']) / selected['lowest_price']
+                else:
+                    price_diff = 0
+                if price_diff < 0.15:  # 15%
+                    is_conflict = True
+                    break
+            
+            # 如果没有冲突，则选择这个点
+            if not is_conflict:
+                selected_points.append(lp)
+        
+        return selected_points
+
+    @staticmethod
+    def _find_significant_valleys(prices: List[float], dates: List[str], 
+                                 window: int = 20, min_rebound: float = 0.15) -> List[Dict[str, Any]]:
+        """
+        找到有意义的低点
+        基于两个关键特征：
+        1. 多次测试的支撑位（多次触及后反弹）
+        2. 关键转折点（历史低点后趋势反转）
+        """
+        valleys = []
+        
+        # 第一步：找到所有候选低点（局部极值）
+        candidate_valleys = []
+        for i in range(window, len(prices) - window):
+            current_price = prices[i]
+            
+            # 检查是否为局部最低点
+            left_min = min(prices[i-window:i])
+            right_min = min(prices[i+1:i+window+1])
+            
+            if current_price <= left_min and current_price <= right_min:
+                candidate_valleys.append({
+                    'index': i,
+                    'price': current_price,
+                    'date': dates[i]
+                })
+        
+        # 第二步：对每个候选低点进行质量评估
+        for valley in candidate_valleys:
+            quality_score = HistoricLowService._evaluate_valley_quality(
+                valley, prices, dates, window
+            )
+            
+            if quality_score['is_significant']:
+                valleys.append({
+                    'index': valley['index'],
+                    'price': valley['price'],
+                    'date': valley['date'],
+                    'rebound_ratio': quality_score['rebound_ratio'],
+                    'touch_count': quality_score['touch_count'],
+                    'quality_score': quality_score  # 保存完整的质量评估结果
+                })
+        
+        return valleys
+
+    @staticmethod
+    def _evaluate_valley_quality(valley: Dict[str, Any], prices: List[float], 
+                                dates: List[str], window: int) -> Dict[str, Any]:
+        """
+        评估低点质量
+        基于两个关键指标：
+        1. 多次测试支撑位：计算触及后反弹的次数
+        2. 关键转折点：检查是否为历史低点后趋势反转
+        """
+        valley_price = valley['price']
+        valley_index = valley['index']
+        valley_date = valley['date']
+        
+        # 计算触及范围（±2%）
+        touch_range = 0.02
+        price_min = valley_price * (1 - touch_range)
+        price_max = valley_price * (1 + touch_range)
+        
+        # 指标1：多次测试支撑位
+        touch_rebound_count = 0
+        total_rebound_ratio = 0
+        
+        # 从低点之后开始检查
+        for i in range(valley_index + 1, len(prices)):
+            current_price = prices[i]
+            
+            # 检查是否触及低点范围
+            if price_min <= current_price <= price_max:
+                # 检查后续是否有反弹
+                future_window = min(20, len(prices) - i - 1)
+                if future_window > 0:
+                    future_max = max(prices[i:i+future_window])
+                    rebound_ratio = (future_max - valley_price) / valley_price
+                    
+                    if rebound_ratio >= 0.05:  # 至少5%反弹
+                        touch_rebound_count += 1
+                        total_rebound_ratio += rebound_ratio
+        
+        # 指标2：关键转折点（历史低点后趋势反转）
+        is_historical_low = False
+        trend_reversal_score = 0
+        
+        # 检查是否为历史低点
+        if valley_index > 0:
+            historical_min = min(prices[:valley_index])
+            if valley_price <= historical_min * 1.05:  # 在历史最低点5%范围内
+                is_historical_low = True
+        
+        # 检查趋势反转
+        if valley_index > 10 and valley_index < len(prices) - 10:
+            valley_price = prices[valley_index]
+            if valley_price > 0:
+                # 低点前的趋势
+                before_trend = (prices[valley_index-10] - valley_price) / valley_price
+                # 低点后的趋势
+                after_trend = (prices[valley_index+10] - valley_price) / valley_price
+            else:
+                before_trend = 0
+                after_trend = 0
+            
+            # 如果前跌后涨，说明是趋势反转
+            if before_trend < -0.1 and after_trend > 0.1:
+                trend_reversal_score = 1
+        
+        # 计算综合质量评分
+        touch_score = min(touch_rebound_count / 5.0, 1.0)  # 最多5次触及得满分
+        rebound_score = min(total_rebound_ratio / 2.0, 1.0)  # 最多200%反弹得满分
+        historical_score = 1.0 if is_historical_low else 0.0
+        reversal_score = trend_reversal_score
+        
+        total_score = (touch_score * 0.4 + rebound_score * 0.3 + 
+                      historical_score * 0.2 + reversal_score * 0.1)
+        
+        # 判断是否为有意义的低点
+        is_significant = (touch_rebound_count >= 2 or is_historical_low or 
+                         trend_reversal_score > 0) and total_score >= 0.3
+        
+        return {
+            'is_significant': is_significant,
+            'touch_count': touch_rebound_count,
+            'rebound_ratio': total_rebound_ratio / max(touch_rebound_count, 1),
+            'is_historical_low': is_historical_low,
+            'trend_reversal': trend_reversal_score > 0,
+            'total_score': total_score,
+            'touch_score': touch_score,
+            'rebound_score': rebound_score,
+            'historical_score': historical_score,
+            'reversal_score': reversal_score
+        }
+
+    @staticmethod
+    def _calculate_historical_volatility(prices: List[float]) -> float:
+        """
+        计算历史波动率
+        使用日收益率的标准差作为波动率指标
+        """
+        if len(prices) < 2:
+            return 0.0
+        
+        # 计算日收益率
+        returns = []
+        for i in range(1, len(prices)):
+            if prices[i-1] > 0:
+                daily_return = (prices[i] - prices[i-1]) / prices[i-1]
+                returns.append(daily_return)
+        
+        if len(returns) < 2:
+            return 0.0
+        
+        # 计算收益率的标准差（年化波动率）
+        import statistics
+        std_dev = statistics.stdev(returns)
+        annualized_volatility = std_dev * (252 ** 0.5)  # 252个交易日
+        
+        return annualized_volatility
+
+    @staticmethod
+    def _get_dynamic_params(volatility: float) -> Dict[str, Any]:
+        """
+        根据波动率动态调整参数
+        """
+        if volatility < 0.25:  # 低波动股票
+            min_rebound = max(0.08, volatility * 0.6)  # 至少8%，或波动率的60%
+            window = 40
+            volatility_type = "low"
+        elif volatility > 0.6:  # 高波动股票
+            min_rebound = 0.20
+            window = 15
+            volatility_type = "high"
+        else:  # 中等波动
+            min_rebound = 0.15
+            window = 20
+            volatility_type = "medium"
+        
+        return {
+            'min_rebound': min_rebound,
+            'window': window,
+            'volatility_type': volatility_type,
+            'volatility': volatility
+        }
 
     @staticmethod
     def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> bool:
@@ -407,6 +672,61 @@ class HistoricLowService:
         return touch_count >= max_touch_times
 
     @staticmethod
+    def is_slope_sufficient(freeze_data: List[Dict[str, Any]]) -> bool:
+        """
+        检查slope是否满足最小要求（小于max_invest_slope）
+        
+        Args:
+            freeze_data: 冻结期数据列表
+            
+        Returns:
+            bool: True表示slope满足要求，False表示不满足
+        """
+        from .strategy_settings import strategy_settings
+        
+        max_invest_slope = strategy_settings['daily_data_requirements'].get('max_invest_slope', -5)
+        
+        if len(freeze_data) < 10:
+            return False  # 数据不足，不检查
+        
+        # 计算slope
+        slope = HistoricLowService._calculate_slope(freeze_data)
+        
+        # 检查slope是否小于max_invest_slope（更负）
+        return slope < max_invest_slope
+
+    @staticmethod
+    def _calculate_slope(klines: List[Dict[str, Any]]) -> float:
+        """
+        计算股价斜率（价格变化率）
+        
+        Args:
+            klines: 股价数据列表
+            
+        Returns:
+            float: 价格变化率（小数，负数表示下跌）
+        """
+        if len(klines) < 2:
+            return 0.0
+        
+        # 使用最后10个元素进行斜率检查
+        days = min(10, len(klines))
+        recent_data = klines[-days:]
+        
+        # 计算价格变化率
+        prices = [float(r['close']) for r in recent_data]
+        if len(prices) < 2:
+            return 0.0
+        
+        start_price = prices[0]
+        if start_price == 0:
+            return 0.0  # 避免除零错误
+        
+        price_change_ratio = (prices[-1] - start_price) / start_price
+        
+        return price_change_ratio
+
+    @staticmethod
     def is_slope_too_steep(klines: List[Dict[str, Any]]) -> bool:
         """
         检查近期股价斜率是否过于陡峭下跌
@@ -445,26 +765,24 @@ class HistoricLowService:
         
         slope = (n * sum_xy - sum_x * sum_y) / denominator
         
-        # 将斜率转换为角度（度）
-        # 使用价格变化率来计算角度
+        # 直接使用价格变化率
         if len(prices) > 1:
-            price_change_ratio = (prices[-1] - prices[0]) / prices[0]
-            # 使用更直观的角度计算方式
-            # 将价格变化率映射到-90到90度的范围
-            # 例如：-50%变化率对应-45度，-100%变化率对应-90度
-            if price_change_ratio <= -1.0:
-                angle_degrees = -90.0  # 完全归零
+            start_price = prices[0]
+            if start_price == 0:
+                price_change_ratio = 0  # 避免除零错误
             else:
-                # 使用线性映射：-50% -> -45度，-100% -> -90度
-                angle_degrees = price_change_ratio * 90.0
+                price_change_ratio = (prices[-1] - start_price) / start_price
         else:
-            angle_degrees = 0
+            price_change_ratio = 0
         
-        # 检查是否过于陡峭下跌
-        is_too_steep = angle_degrees < max_slope
+        # 检查是否过于陡峭下跌（max_slope现在是价格变化率，不是角度）
+        # 需要将角度转换为对应的价格变化率
+        # 例如：-45度对应-0.5的价格变化率
+        max_slope_ratio = max_slope / 90.0  # 将角度转换为价格变化率
+        is_too_steep = price_change_ratio < max_slope_ratio
         
         if is_too_steep:
-            logger.debug(f"股价斜率过于陡峭: {angle_degrees:.2f}度 (限制: {max_slope}度)")
+            logger.debug(f"股价斜率过于陡峭: {price_change_ratio*100:.2f}% (限制: {max_slope_ratio*100:.2f}%)")
         
         return is_too_steep
 

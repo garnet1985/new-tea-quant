@@ -149,7 +149,8 @@ class HistoricLowStrategy(BaseStrategy):
 
             if (HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data) and 
                 not HistoricLowService.is_in_continuous_limit_down(freeze_data) and
-                HistoricLowService.is_amplitude_sufficient(freeze_data)):
+                HistoricLowService.is_amplitude_sufficient(freeze_data) and
+                HistoricLowService.is_slope_sufficient(freeze_data)):
 
                 # 新增：波段完成过滤（参考低点后是否完成至少一个“谷-峰-回撤”）
                 full_series = history_data + freeze_data

@@ -6,7 +6,7 @@ strategy_settings = {
     # 测试模式配置
     "test_mode": {
         "test_problematic_stocks_only": False,  # 是否专门测试问题股票
-        "max_test_stocks": None,  # 最大测试股票数量
+        "max_test_stocks": 1,  # 最大测试股票数量
     },
 
     # 日线数据要求
@@ -94,7 +94,7 @@ strategy_settings = {
 
     "amplitude_filter": {
         # 振幅过滤配置
-        "min_amplitude": 0.10,  # 最小振幅阈值，默认10%
+        "min_amplitude": 0.05,  # 最小振幅阈值，默认5%
         "description": "过滤掉冻结期内振幅小于阈值的投资机会"
     },
 

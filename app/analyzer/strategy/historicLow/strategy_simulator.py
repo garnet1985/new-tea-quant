@@ -13,7 +13,7 @@ from .strategy_enum import InvestmentResult
 from app.data_source.data_source_service import DataSourceService
 from app.analyzer.strategy.historicLow.investment_recorder import InvestmentRecorder
 from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
-from .strategy_entity import StrategyEntity
+from .strategy_entity import HistoricLowEntity
 
 class HLSimulator:
     def __init__(self, strategy):
@@ -95,9 +95,9 @@ class HLSimulator:
         # 创建两层汇总：股票级别和会话级别（统一用service汇总器）
         stock_summaries = {}
         for stock_result in self.session_results:
-            summary = StrategyEntity.to_stock_summary(stock_result)
+            summary = HistoricLowEntity.to_stock_summary(stock_result)  
             stock_summaries[summary['stock_id']] = summary
-        session_summary = StrategyEntity.to_session_summary(self.session_results)
+        session_summary = HistoricLowEntity.to_session_summary(self.session_results)
         
         # 将汇总结果传递给investment_recorder进行记录
         self._record_all_summaries(stock_idx, stock_summaries, session_summary)
@@ -339,8 +339,8 @@ class HLSimulator:
 
 
     def print_aggregated_results(self) -> None:
-        """打印聚合的测试结果（使用 StrategyEntity 统一会话汇总）"""
-        aggregated = StrategyEntity.to_session_summary(self.session_results)
+        """打印聚合的测试结果（使用 HistoricLowEntity 统一会话汇总）"""
+        aggregated = HistoricLowEntity.to_session_summary(self.session_results)
         
         print("\n" + "="*60)
         print("📊 HistoricLow 策略回测结果汇总")
@@ -352,7 +352,7 @@ class HLSimulator:
         results_summary = {}
         if hasattr(self, 'session_results') and self.session_results:
             # 使用统一的会话级汇总
-            results_summary = StrategyEntity.to_session_summary(self.session_results)
+            results_summary = HistoricLowEntity.to_session_summary(self.session_results)
         
         print("\n" + "="*60)
         print(f"🕐 投资记录摘要创建时间: {datetime.now().isoformat()}")
@@ -611,7 +611,7 @@ class HLSimulator:
             for ex in exits:
                 sell_date = ex.get('sell_date') or end_date
                 duration_days_for_target = AnalyzerService.get_duration_in_days(start_date_str, sell_date)
-                targets.append(StrategyEntity.to_target(
+                targets.append(HistoricLowEntity.to_target(
                     target_name=ex.get('name') or '0%',
                     is_achieved=True,
                     profit=round(float(ex.get('profit') or 0.0), 4),
@@ -647,7 +647,7 @@ class HLSimulator:
                 stop_loss_profit_rate = (stop_loss_price / purchase_price) - 1.0 if purchase_price != 0 else 0.0
                 
                 if stop_loss_type == 'dynamic':
-                    targets.append(StrategyEntity.to_target(
+                    targets.append(HistoricLowEntity.to_target(
                         target_name='dynamic',
                         is_achieved=True,
                         profit=round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
@@ -661,7 +661,7 @@ class HLSimulator:
                     # 使用记录的当前止损阶段名称
                     target_name = staged_exit.get('current_stop_loss_stage', '-20%')
                     
-                    targets.append(StrategyEntity.to_target(
+                    targets.append(HistoricLowEntity.to_target(
                         target_name=target_name,
                         is_achieved=True,
                         profit=round((stop_loss_price - purchase_price) * remaining_position_ratio, 4),
@@ -680,7 +680,7 @@ class HLSimulator:
                 # 使用记录的当前止损阶段名称
                 target_name = staged_exit.get('current_stop_loss_stage', '-20%')
                 
-                targets.append(StrategyEntity.to_target(
+                targets.append(HistoricLowEntity.to_target(
                     target_name=target_name,
                     is_achieved=True,
                     profit=round((current_close - purchase_price) * 1.0, 4),
@@ -705,7 +705,7 @@ class HLSimulator:
                 low_point = opportunity.get('valley_ref') or {}
                 op_record = opportunity.get('opportunity_record') or {}
                 low_point_price = float(low_point.get('lowest_price') or low_point.get('min') or purchase_price)
-                low_point_date = low_point.get('lowest_date') or op_record.get('date') or start_date
+                low_point_date = low_point.get('date') or op_record.get('date') or start_date
                 # term 直接取 low_point['term']（几年前的低点）
                 term_years = int(low_point.get('term') or 0)
                 # 过滤掉不需要的字段（如 min/max/avg）
@@ -960,7 +960,7 @@ class HLSimulator:
             # 记录本次分段平仓的target明细（只有真正的分段平仓才记录）
             exits = staged_exit.get('exits', [])
             stage_name = stage.get('name', str(profit_rate))
-            exits.append(StrategyEntity.to_target(
+            exits.append(HistoricLowEntity.to_target(
                 target_name=stage_name,
                 is_achieved=True,
                 profit=round(exit_profit, 4),

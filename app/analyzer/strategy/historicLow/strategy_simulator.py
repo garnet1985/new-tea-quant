@@ -191,12 +191,12 @@ class HLSimulator:
                 print("⚠️  没有找到投资数据，跳过黑名单更新")
                 return
             
-            # 定义新的黑名单
+            # 定义新的黑名单（使用更合理的标准）
             new_blacklist = analyzer.define_blacklist(
                 investments=investments,
-                min_investments=2,  # 最少2次投资
-                max_win_rate=50.0,  # 胜率低于50%
-                max_avg_profit=0.0  # 平均收益低于0%
+                min_investments=3,  # 最少3次投资
+                max_win_rate=30.0,  # 胜率低于30%（更严格）
+                max_avg_profit=-5.0  # 平均收益低于-5%（更严格）
             )
             
             # 获取当前黑名单
@@ -209,7 +209,19 @@ class HLSimulator:
             report = {
                 'changes': changes,
                 'new_blacklist': new_blacklist,
-                'current_blacklist': current_blacklist
+                'current_blacklist': current_blacklist,
+                'criteria': {
+                    'min_investments': 3,
+                    'max_win_rate': 30.0,
+                    'max_avg_profit': -5.0
+                },
+                'summary': {
+                    'current_count': len(current_blacklist),
+                    'new_count': len(new_blacklist),
+                    'removed_count': len(changes.get('removed', [])),
+                    'added_count': len(changes.get('added', [])),
+                    'kept_count': len(changes.get('kept', []))
+                }
             }
             analyzer.print_blacklist_report(report)
             
@@ -241,7 +253,7 @@ class HLSimulator:
                 stock_name = self._get_stock_name(stock)
                 comment = f"  # {stock_name}" if stock_name else ""
                 comma = "," if i < len(new_blacklist) - 1 else ""
-                blacklist_lines.append(f'            "{stock}",{comment}{comma}')
+                blacklist_lines.append(f'            "{stock}"{comma}{comment}')
             
             blacklist_lines.append('        ],')
             blacklist_lines.append(f'        "count": {len(new_blacklist)},  # 问题股票总数')

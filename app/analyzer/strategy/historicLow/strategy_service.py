@@ -498,6 +498,10 @@ class HistoricLowService:
         lower_absolute_range = max(min(lower_absolute_range, max_range), min_range)
         
         # 计算对应的比例
+        if low_point_price == 0:
+            # 如果低点价格为0，返回默认比例
+            return 0.1, 0.05  # 默认上10%下5%
+        
         upper_ratio = upper_absolute_range / low_point_price
         lower_ratio = lower_absolute_range / low_point_price
         

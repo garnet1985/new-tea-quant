@@ -7,7 +7,7 @@ from loguru import logger
 from .strategy_settings import strategy_settings
 from app.analyzer.analyzer_service import AnalyzerService
 from datetime import datetime
-from .strategy_entity import StrategyEntity
+from .strategy_entity import HistoricLowEntity
 
 
 class HistoricLowService:
@@ -469,86 +469,33 @@ class HistoricLowService:
     def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> bool:
         min_required = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
         return len(daily_data) >= min_required
-
     
     @staticmethod
-    def calculate_dynamic_price_range(low_point_price: float) -> Tuple[float, float]:
-        """
-        计算动态价格区间比例（支持上下限不同）
-        
-        Args:
-            low_point_price: 历史低点价格
-            
-        Returns:
-            Tuple[float, float]: (上方比例, 下方比例)
-        """
-        # 从settings获取配置
-        low_point_config = strategy_settings.get('low_point_invest_range', {})
-        upper_bound_ratio = low_point_config.get('upper_bound', 0.1)  # 上方10%
-        lower_bound_ratio = low_point_config.get('lower_bound', 0.05)  # 下方5%
-        min_range = low_point_config.get('min', 0.2)
-        max_range = low_point_config.get('max', 10.0)
-        
-        # 计算上方和下方的绝对区间
-        upper_absolute_range = low_point_price * upper_bound_ratio
-        lower_absolute_range = low_point_price * lower_bound_ratio
-        
-        # 应用最小/最大区间限制
-        upper_absolute_range = max(min(upper_absolute_range, max_range), min_range)
-        lower_absolute_range = max(min(lower_absolute_range, max_range), min_range)
-        
-        # 计算对应的比例
-        if low_point_price == 0:
-            # 如果低点价格为0，返回默认比例
-            return 0.1, 0.05  # 默认上10%下5%
-        
-        upper_ratio = upper_absolute_range / low_point_price
-        lower_ratio = lower_absolute_range / low_point_price
-        
-        return upper_ratio, lower_ratio
-    
-    @staticmethod
-    def is_in_invest_range(record, low_point, freeze_data=None):
+    def is_in_invest_range(record_of_today, low_point, freeze_data=None):
         """
         检查是否在投资范围内
         新增条件：在freeze data内没有出现比历史低点更低的价格
         新增条件：检查冻结期内是否已经触及过相同的投资点
         """
-        if low_point is None:
-            return False
+        current_price = record_of_today['close']
+        return current_price >= low_point['invest_lower_bound'] and current_price <= low_point['invest_upper_bound']
+
+    @staticmethod
+    def has_no_new_low_during_freeze(freeze_data):
+        """
+        检查冻结期内是否没有出现比今天收盘价更低的价格
+        排除今天的数据进行比较
+        """
+        today_price = float(freeze_data[-1]['close'])
+        # 排除今天的数据，只比较冻结期内的其他数据
+        freeze_data_except_today = freeze_data[:-1] if len(freeze_data) > 1 else []
         
-        current_price = float(record['close'])
-        low_point_price = float(low_point['min'])  # 历史低点价格
+        if not freeze_data_except_today:
+            return True  # 如果只有今天的数据，认为没有新低
         
-        # 计算动态价格区间（支持上下限不同）
-        upper_ratio, lower_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
-        lower_bound = low_point_price * (1 - lower_ratio)  # 下方5%
-        upper_bound = low_point_price * (1 + upper_ratio)  # 上方10%
+        min_price = min(float(r['close']) for r in freeze_data_except_today)
         
-        # 基本条件：当前价格在动态价格区间内
-        basic_condition = current_price >= lower_bound and current_price <= upper_bound
-        
-        if not basic_condition:
-            return False
-        
-        # 新增条件：检查freeze data内的情况
-        if freeze_data:
-            freeze_min_price = min(float(r['close']) for r in freeze_data)
-            
-            # 条件1：如果freeze data的最低点比当前价格还低，说明在冻结期内已经出现过更低的价格，不投资
-            if freeze_min_price < current_price:
-                return False
-            
-            # 条件2：当前价格不应该比freeze data的最低点高出太多（超过5%）
-            if current_price > freeze_min_price * 1.05:
-                return False
-            
-            # 条件3：检查是否为最佳投资时机（避免多次触底后的投资）
-            if not HistoricLowService.is_optimal_investment_timing(current_price, low_point, freeze_data):
-                return False
-            
-        
-        return True
+        return min_price >= today_price
 
     @staticmethod
     def is_amplitude_sufficient(freeze_data: List[Dict[str, Any]]) -> bool:
@@ -634,12 +581,20 @@ class HistoricLowService:
         if not freeze_data or len(freeze_data) < 2:
             return 0
         
-        low_point_price = float(low_point['min'])
-        
-        # 计算投资价格区间（支持上下限不同）
-        upper_ratio, lower_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
-        lower_bound = low_point_price * (1 - lower_ratio)  # 下方5%
-        upper_bound = low_point_price * (1 + upper_ratio)  # 上方10%
+        # 检查是否使用新格式（HistoricLowEntity.to_low_point）
+        if 'invest_lower_bound' in low_point and 'invest_upper_bound' in low_point:
+            # 新格式：直接使用计算好的投资范围
+            lower_bound = float(low_point['invest_lower_bound'])
+            upper_bound = float(low_point['invest_upper_bound'])
+            low_point_price = float(low_point['low_point_price'])
+        else:
+            # 旧格式：使用min字段计算
+            low_point_price = float(low_point['min'])
+            
+            # 计算投资价格区间（支持上下限不同）
+            upper_ratio, lower_ratio = HistoricLowService.calculate_dynamic_price_range(low_point_price)
+            lower_bound = low_point_price * (1 - lower_ratio)  # 下方5%
+            upper_bound = low_point_price * (1 + upper_ratio)  # 上方10%
         
         # 统计冻结期内触及投资点的次数
         touch_count = 0
@@ -791,33 +746,24 @@ class HistoricLowService:
         return is_too_steep
 
     @staticmethod
-    def is_in_continuous_limit_down(klines: List[Dict[str, Any]]) -> bool:
+    def is_out_of_continuous_limit_down(freeze_data: List[Dict[str, Any]]) -> bool:
         """
         检查当前是否处于连续跌停中
         
         Args:
-            klines: k线记录
+            freeze_data: 冻结期k线记录
+            low_point: 历史低点信息
             
         Returns:
-            bool: True表示在连续跌停中，False表示不在连续跌停中
+            bool: True表示不在连续跌停中，False表示在连续跌停中
         """
-        if not klines or len(klines) < 2:
-            return False
+        if not freeze_data or len(freeze_data) < 2:
+            return True
         
-        # 检查最近3天，专注于连续跌停识别
-        recent_klines = klines[-3:] if len(klines) >= 3 else klines
+        # 检查最近3天
+        recent_klines = freeze_data[-3:] if len(freeze_data) >= 3 else freeze_data
         
-        # 1. 检查投资前一天是否跌停（跌幅超过9%）
-        if len(recent_klines) >= 2:
-            prev_close = float(recent_klines[-2]['close'])
-            curr_close = float(recent_klines[-1]['close'])
-            prev_day_drop_rate = (prev_close - curr_close) / prev_close
-            
-            # 投资前一天跌停（跌幅超过9%），需要过滤
-            if prev_day_drop_rate > 0.09:
-                return True
-        
-        # 2. 检查是否有连续跌停（连续2天以上跌幅接近10%）
+        # 检查是否有连续跌停（连续2天以上跌幅超过9.5%）
         consecutive_limit_down = 0
         max_consecutive = 0
         
@@ -826,47 +772,15 @@ class HistoricLowService:
             curr_close = float(recent_klines[i]['close'])
             daily_drop_rate = (prev_close - curr_close) / prev_close
             
-            # 跌停判断：跌幅接近10%（考虑ST股票5%跌停）
-            if daily_drop_rate > 0.095:  # 9.5%以上认为是跌停
+            # 跌停判断：跌幅超过9.5%
+            if daily_drop_rate > 0.095:
                 consecutive_limit_down += 1
                 max_consecutive = max(max_consecutive, consecutive_limit_down)
             else:
                 consecutive_limit_down = 0
         
-        # 连续2天以上跌停认为是连续跌停
-        has_consecutive_limit_down = max_consecutive >= 2
-        
-        # 3. 检查是否有跌停且振幅接近0（典型的跌停特征）
-        has_limit_down_with_zero_amplitude = False
-        for kline in recent_klines:
-            high = float(kline.get('highest', kline['close']))
-            low = float(kline.get('lowest', kline['close']))
-            close = float(kline['close'])
-            amplitude = (high - low) / close if close > 0 else 0
-            
-            # 振幅小于0.5%且价格下跌，认为是跌停
-            if amplitude < 0.005:  # 振幅小于0.5%
-                has_limit_down_with_zero_amplitude = True
-                break
-        
-        # 4. 检查是否有跌停且成交量异常低（跌停特征）
-        has_limit_down_with_low_volume = False
-        if len(recent_klines) >= 2:
-            for i in range(1, len(recent_klines)):
-                prev_close = float(recent_klines[i-1]['close'])
-                curr_close = float(recent_klines[i]['close'])
-                daily_drop_rate = (prev_close - curr_close) / prev_close
-                
-                if daily_drop_rate > 0.095:  # 跌停
-                    volume = float(recent_klines[i].get('volume', 0))
-                    # 跌停且成交量异常低（小于500手）
-                    if volume < 500:
-                        has_limit_down_with_low_volume = True
-                        break
-        
-        # 综合判断：投资前一天跌停 或 连续跌停 或 跌停+零振幅 或 跌停+低成交量
-        return (has_consecutive_limit_down or has_limit_down_with_zero_amplitude or 
-                has_limit_down_with_low_volume)
+        # 连续2天以上跌停认为是连续跌停，需要过滤
+        return max_consecutive < 2
     
     
     @staticmethod
@@ -912,7 +826,15 @@ class HistoricLowService:
         min_price = min(freeze_data, key=lambda x: float(x['close']))['close']
         max_price = max(freeze_data, key=lambda x: float(x['close']))['close']
 
-        if min_price < low_point['min']:
+        # 检查是否使用新格式
+        if 'invest_lower_bound' in low_point and 'invest_upper_bound' in low_point:
+            # 新格式：使用low_point_price进行比较
+            low_point_price = float(low_point['low_point_price'])
+        else:
+            # 旧格式：使用min字段
+            low_point_price = float(low_point['min'])
+        
+        if min_price < low_point_price:
             return None
 
         # 使用新的配置结构
@@ -943,43 +865,43 @@ class HistoricLowService:
 
     @staticmethod
     def to_opportunity(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], low_point: Dict[str, Any]) -> Dict[str, Any]:
-        """使用 StrategyEntity 生成机会对象"""
-        return StrategyEntity.to_opportunity(stock_info, record_of_today, low_point)
+        """使用 HistoricLowEntity 生成机会对象"""
+        return HistoricLowEntity.to_opportunity(stock_info, record_of_today, low_point)
 
     @staticmethod
     def to_investment(opportunity: Dict[str, Any], investment_targets: Dict[str, Any], freeze_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """使用 StrategyEntity 生成投资对象"""
-        return StrategyEntity.to_investment(opportunity, investment_targets, freeze_data, calculate_freeze_stats=False)
+        """使用 HistoricLowEntity 生成投资对象"""
+        return HistoricLowEntity.to_investment(opportunity, investment_targets, freeze_data, calculate_freeze_stats=False)
 
     @staticmethod
     def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """使用 StrategyEntity 生成会话汇总"""
-        return StrategyEntity.to_session_summary(session_results)
+        """使用 HistoricLowEntity 生成会话汇总"""
+        return HistoricLowEntity.to_session_summary(session_results)
 
     @staticmethod
     def to_stock_summary(stock_simulation_result: Dict[str, Any]) -> Dict[str, Any]:
-        """使用 StrategyEntity 生成股票汇总"""
-        return StrategyEntity.to_stock_summary(stock_simulation_result)
+        """使用 HistoricLowEntity 生成股票汇总"""
+        return HistoricLowEntity.to_stock_summary(stock_simulation_result)
 
-    @staticmethod
-    def split_daily_data_for_analysis(daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """
-        分割日线数据为冻结期和历史期
+    # @staticmethod
+    # def split_daily_data_for_analysis(daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    #     """
+    #     分割日线数据为冻结期和历史期
         
-        Args:
-            daily_data: 完整的日线数据列表
+    #     Args:
+    #         daily_data: 完整的日线数据列表
             
-        Returns:
-            Dict: 包含冻结期和历史期数据的分割结果
-        """
-        # 获取配置参数
-        freeze_days = strategy_settings['daily_data_requirements']['freeze_period_days']
+    #     Returns:
+    #         Dict: 包含冻结期和历史期数据的分割结果
+    #     """
+    #     # 获取配置参数
+    #     freeze_days = strategy_settings['daily_data_requirements']['freeze_period_days']
         
-        # 分割数据
-        freeze_records = daily_data[-freeze_days:]  # 最近200个交易日（冻结期）
-        history_records = daily_data[:-freeze_days]  # 之前的数据（历史期）
+    #     # 分割数据
+    #     freeze_records = daily_data[-freeze_days:]  # 最近200个交易日（冻结期）
+    #     history_records = daily_data[:-freeze_days]  # 之前的数据（历史期）
 
-        return freeze_records, history_records
+    #     return freeze_records, history_records
 
     @staticmethod
     def is_wave_completed(all_daily_records: List[Dict[str, Any]], low_point: Dict[str, Any]) -> bool:

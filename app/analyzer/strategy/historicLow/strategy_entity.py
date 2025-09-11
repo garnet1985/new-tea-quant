@@ -2,12 +2,14 @@
 """
 策略实体生成器 - 集中管理所有entity的生成函数
 """
+import pprint
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from .strategy_enum import InvestmentResult
+from app.analyzer.strategy.historicLow import strategy_enum
 
 
 class HistoricLowEntity:
@@ -15,96 +17,45 @@ class HistoricLowEntity:
     
     @staticmethod
     def to_opportunity(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], low_point: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        构造统一的机会对象，保证结构一致。
-        所有数值字段统一转换为float类型。
-        
-        Args:
-            stock_info: 股票信息
-            record_of_today: 今日记录
-            low_point: 历史低点信息
-            
-        Returns:
-            Dict[str, Any]: 统一格式的机会对象
-        """
         opportunity = {
             'date': record_of_today.get('date') if record_of_today else None,
             'price': record_of_today.get('close'),
-            'opportunity_record': record_of_today,
-            'valley_ref': low_point,
+            'lower_bound': low_point.get('invest_lower_bound'),
+            'upper_bound': low_point.get('invest_upper_bound'),
             'stock': {
                 'id': stock_info.get('id') if stock_info else None,
                 'name': stock_info.get('name', '') if stock_info else ''
-            }
+            },
+            'opportunity_record': record_of_today,
+            'low_point_ref': low_point,
         }
         
         return opportunity
 
     @staticmethod
-    def to_investment(opportunity: Dict[str, Any], investment_targets: Dict[str, Any], freeze_data: List[Dict[str, Any]] = None, calculate_freeze_stats: bool = False) -> Dict[str, Any]:
-        """
-        将机会转换为投资对象，包含投资目标
-        
-        Args:
-            opportunity: 投资机会
-            investment_targets: 投资目标
-            freeze_data: 冻结期数据
-            calculate_freeze_stats: 是否计算冻结期统计信息（默认False以提高性能）
-            
-        Returns:
-            Dict[str, Any]: 投资对象，如果止损太小则返回None
-        """
-        # 检查止损是否满足最小要求（使用初始止损阶段）
-        goal_config = strategy_settings['goal']
-        initial_stop_loss_stage = goal_config['stop_loss']['stages'][0]
-        min_stop_loss_ratio = abs(float(initial_stop_loss_stage['ratio']))
-        calculated_stop_loss_ratio = investment_targets['stop_loss_ratio']
-        
-        if calculated_stop_loss_ratio < min_stop_loss_ratio:
-            return None  # 止损太小，忽略这个投资
-        
-        # 计算freeze data统计信息（仅在需要时计算）
-        freeze_stats = HistoricLowEntity._calculate_freeze_data_stats(freeze_data) if calculate_freeze_stats and freeze_data else {}
-        
+    def to_investment(opportunity: Dict[str, Any]) -> Dict[str, Any]:
+        if not opportunity:
+            return None
+
         investment = {
-            'invest_start_date': opportunity['date'],
-            'purchase': opportunity['price'],
-            'opportunity_record': opportunity['opportunity_record'],
-            'valley_ref': opportunity['valley_ref'],
+            'result': strategy_enum.InvestmentResult.OPEN.value,
             'stock': opportunity['stock'],
-            'goal': {
-                'loss': investment_targets['stop_loss_price'],
-                'win': investment_targets['take_profit_price'],
-                'purchase': opportunity['price']
+            'start_date': opportunity['date'],
+            'end_date': '',
+            'tracking': {
+                'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+                'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
             },
-            'investment_targets': investment_targets,
-            # 新增：持有期间的最高/最低价追踪（初始值为买入价）
-            'period_max_close': opportunity['price'],
-            'period_max_close_date': opportunity['date'],
-            'period_min_close': opportunity['price'],
-            'period_min_close_date': opportunity['date'],
-            # 新增：历史低点信息，用于JSON记录
-            'historic_low_ref': {
-                'lowest_price': opportunity['valley_ref']['min'],
-                'lowest_date': opportunity['valley_ref'].get('min_date', ''),
-                'conclusion_from': opportunity['valley_ref'].get('valley_dates', [])
+            'targets': {
+                'investment_ratio_left': 1.0,
+                'all': {
+                    'stop_loss': strategy_settings['goal']['stop_loss']['stages'],
+                    'take_profit': strategy_settings['goal']['take_profit']['stages']
+                },
+                'completed': [],
+                'ongoing': [],
             },
-            # 新增：freeze data统计信息
-            'freeze_data_stats': freeze_stats,
-            # 新增：freeze data原始数据
-            'freeze_data': freeze_data or [],
-            # 新增：分段平仓相关字段
-            'staged_exit': {
-                'enabled': True,
-                'current_position_ratio': 1.0,  # 当前持仓比例
-                'breakeven_stop_loss': False,  # 是否已移动到不亏不赚止损
-                'trailing_stop_price': None,  # 动态止损价格
-                'last_close_price': opportunity['price'],  # 前一次close价格
-                'exited_stages': [],  # 已执行的平仓阶段
-                'total_realized_profit': 0.0,  # 累计已实现收益
-                'total_realized_profit_rate': 0.0,  # 累计已实现收益率
-                'current_stop_loss_stage': '-20%'  # 当前止损阶段名称
-            }
+            'opportunity': opportunity
         }
         
         return investment

@@ -27,7 +27,7 @@ class Tushare:
         # 添加Tushare K线数据API频率限制
         self.kline_api_count = 0
         self.kline_api_last_time = 0
-        self.kline_api_max_per_minute = 750  # 降低到750，为多线程并发留出缓冲
+        self.kline_api_max_per_minute = 780  # Tushare 有 800 次每分钟限制
         
         # 添加线程锁，确保多线程环境下的限流安全
         import threading

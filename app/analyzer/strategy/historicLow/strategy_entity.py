@@ -6,6 +6,7 @@ import pprint
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
+from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from .strategy_enum import InvestmentResult
@@ -34,6 +35,8 @@ class HistoricLowEntity:
 
     @staticmethod
     def to_investment(opportunity: Dict[str, Any]) -> Dict[str, Any]:
+        import copy
+        
         if not opportunity:
             return None
 
@@ -52,45 +55,16 @@ class HistoricLowEntity:
                 'is_breakeven': False,
                 'is_dynamic_stop_loss': False,
                 'all': {
-                    'stop_loss': strategy_settings['goal']['stop_loss'],
-                    'take_profit': strategy_settings['goal']['take_profit']['stages']
+                    'stop_loss': copy.deepcopy(strategy_settings['goal']['stop_loss']),
+                    'take_profit': copy.deepcopy(strategy_settings['goal']['take_profit']['stages'])
                 },
+                'current_stop_loss': {},
                 'completed': [],
             },
             'opportunity': opportunity
         }
         
         return investment
-
-    # @staticmethod
-    # def to_target(target_name: str, is_achieved: bool, profit: float, profit_rate: float, 
-    #               profit_weight: float, duration: int, sell_date: str, sell_price: float) -> Dict[str, Any]:
-    #     """
-    #     生成统一的target对象
-        
-    #     Args:
-    #         name: 目标收益率（字符串，如 "10%" 或 "break_even"）
-    #         is_achieved: 是否达成
-    #         profit: 利润
-    #         profit_rate: 利润率
-    #         profit_weight: 利润权重
-    #         duration: 持续时间
-    #         sell_date: 卖出日期
-    #         sell_price: 卖出价格
-            
-    #     Returns:
-    #         Dict[str, Any]: 统一格式的target对象
-    #     """
-    #     return {
-    #         'name': target_name,
-    #         'is_achieved': is_achieved,
-    #         'profit': round(profit, 4),
-    #         'profit_rate': round(profit_rate, 6),
-    #         'profit_weight': round(profit_weight, 6),
-    #         'duration': duration,
-    #         'sell_date': sell_date,
-    #         'sell_price': round(sell_price, 4)
-    #     }
 
     @staticmethod
     def to_record(stock_info: Dict[str, Any], investment_history: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -205,6 +179,9 @@ class HistoricLowEntity:
         win_count = 0
         loss_count = 0
         open_count = 0
+        green_dot_count = 0  # 绿点：盈利 >= 10%
+        yellow_dot_count = 0  # 黄点：盈利 < 10% 或 平仓
+        red_dot_count = 0  # 红点：亏损
         total_duration = 0.0
         total_roi = 0.0
         total_profit = 0.0
@@ -220,6 +197,7 @@ class HistoricLowEntity:
                 purchase_price = float(inv.get('purchase_price', 0))
                 profit = float(inv.get('overall_profit', 0))
                 duration = float(inv.get('invest_duration_days', 0))
+                profit_rate = float(inv.get('overall_profit_rate', 0)) * 100  # 转换为百分比
 
                 total_investments += 1
                 total_profit += profit
@@ -231,17 +209,28 @@ class HistoricLowEntity:
                 result = inv.get('result')
                 if result == InvestmentResult.WIN.value:
                     win_count += 1
+                    if profit_rate >= 20:
+                        green_dot_count += 1
+                    else:
+                        yellow_dot_count += 1
                 elif result == InvestmentResult.LOSS.value:
                     loss_count += 1
+                    red_dot_count += 1
                 elif result == InvestmentResult.OPEN.value:
                     open_count += 1
+                    yellow_dot_count += 1
 
         settled_investments = win_count + loss_count
         avg_duration_days = (total_duration / total_investments) if total_investments > 0 else 0.0
         avg_roi = (total_roi / total_investments) if total_investments > 0 else 0.0
         win_rate = (win_count / settled_investments * 100) if settled_investments > 0 else 0.0
-        annual_return = ((1 + avg_roi) ** (365 / avg_duration_days) - 1) * 100 if avg_roi != 0 and avg_duration_days > 0 else 0.0
+        annual_return = HistoricLowService.calculate_annual_return(avg_roi, int(avg_duration_days)) if avg_roi != 0 and avg_duration_days > 0 else 0.0
         avg_profit_per_investment = (total_profit / total_investments) if total_investments > 0 else 0.0
+
+        # 计算各颜色点的百分比
+        green_dot_rate = (green_dot_count / total_investments * 100) if total_investments > 0 else 0.0
+        yellow_dot_rate = (yellow_dot_count / total_investments * 100) if total_investments > 0 else 0.0
+        red_dot_rate = (red_dot_count / total_investments * 100) if total_investments > 0 else 0.0
 
         return {
             'total_investments': total_investments,
@@ -257,6 +246,12 @@ class HistoricLowEntity:
             'total_profit': round(total_profit, 2),
             'avg_profit_per_investment': round(avg_profit_per_investment, 2),
             'total_stocks_with_opportunities': total_stocks_with_opportunities,
+            'green_dot_count': green_dot_count,
+            'yellow_dot_count': yellow_dot_count,
+            'red_dot_count': red_dot_count,
+            'green_dot_rate': round(green_dot_rate, 1),
+            'yellow_dot_rate': round(yellow_dot_rate, 1),
+            'red_dot_rate': round(red_dot_rate, 1),
             'summary_generated_at': datetime.now().isoformat()
         }
 
@@ -296,11 +291,13 @@ class HistoricLowEntity:
                 total_roi += ((purchase_price + profit) / purchase_price) - 1
         
         avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_annual_return = ((1 + total_roi / total_investments) ** (365 / avg_duration) - 1) * 100 if total_investments > 0 and avg_duration > 0 else 0.0
+        avg_annual_return = HistoricLowService.calculate_annual_return(total_roi / total_investments, int(avg_duration)) if total_investments > 0 and avg_duration > 0 else 0.0
 
+        import copy
+        
         return {
             'stock_info': stock_info,
-            'investments': investments,
+            'investments': copy.deepcopy(investments),  # 深拷贝避免修改原始数据
             'summary': {
                 'total_investments': total_investments,
                 'success_count': success_count,

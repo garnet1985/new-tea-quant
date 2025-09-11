@@ -44,9 +44,9 @@ class HLSimulator:
 
         results = self.run_jobs(jobs)
 
-        self.generate_summary(results)
+        session_summary = self.generate_summary(results)
         
-        # self.present_investment_summary(results)   
+        self.present_investment_summary(session_summary)   
 
 
 
@@ -68,6 +68,28 @@ class HLSimulator:
             if is_investment_ended:
                 HLSimulator.settle_investment(investment)
                 tracker['settled'].append(investment)  # 直接添加到数组中
+                
+                # 显示投资结果
+                result = investment.get('result', 'unknown')
+                profit_rate = investment.get('overall_profit_rate', 0) * 100
+                duration_days = investment.get('invest_duration_days', 0)
+                
+                if result == 'win':
+                    if profit_rate >= 20:
+                        result_dot = "🟢"
+                        result_text = "盈利"
+                    else:
+                        result_dot = "🟡"
+                        result_text = "微盈"
+                elif result == 'loss':
+                    result_dot = "🔴"
+                    result_text = "亏损"
+                else:
+                    result_dot = "🟡"
+                    result_text = "平仓"
+                
+                logger.info(f"🔍 投资结束: {stock['id']} {result_dot} {result_text} | 收益率: {profit_rate:+.2f}% | 时长: {duration_days}天")
+                
                 del tracker['investing'][stock['id']]
 
         # if no investment, scan to find an investment opportunity
@@ -104,15 +126,18 @@ class HLSimulator:
         purchase_price = investment['purchase_price']
         targets = investment['targets']['all']['take_profit']
         
-        for target in targets:
+        for i, target in enumerate(targets):
             if 'is_achieved' in target and target['is_achieved']:
                 continue
 
             if price_today >= purchase_price * (1 + target['ratio']):
                 investment['targets']['investment_ratio_left'] -= target['sell_ratio']
 
-                target = HLSimulator.to_settable_target(target, target['sell_ratio'], price_today - purchase_price, price_today, record_of_today['date'])
-                investment['targets']['completed'].append(target)
+                # 立即标记原始配置对象为已完成，避免重复触发
+                targets[i]['is_achieved'] = True
+                
+                settled_target = HLSimulator.to_settable_target(target, target['sell_ratio'], price_today - purchase_price, price_today, record_of_today['date'])
+                investment['targets']['completed'].append(settled_target)
 
                 if 'set_stop_loss' in target and target['set_stop_loss'] == 'break_even':
                     investment['targets']['is_breakeven'] = True
@@ -150,9 +175,6 @@ class HLSimulator:
                     investment['targets']['completed'].append(target)
 
 
-
-
-
         elif investment['targets']['is_breakeven']:
             # 检查break_even止损
             breakeven_target = stop_loss_config['break_even']
@@ -165,12 +187,9 @@ class HLSimulator:
                     investment['targets']['completed'].append(target)
 
 
-
-
-
         else:
             # 检查所有初始止损目标
-            for target in stop_loss_config['stages']:
+            for i, target in enumerate(stop_loss_config['stages']):
                 if 'is_achieved' in target and target['is_achieved']:
                     continue
 
@@ -178,8 +197,11 @@ class HLSimulator:
                     sell_ratio = investment['targets']['investment_ratio_left'] if target.get('close_invest') else target['sell_ratio']
                     investment['targets']['investment_ratio_left'] = 0 if target.get('close_invest') else investment['targets']['investment_ratio_left'] - target['sell_ratio']
                     
-                    target = HLSimulator.to_settable_target(target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
-                    investment['targets']['completed'].append(target)
+                    # 立即标记原始配置对象为已完成
+                    stop_loss_config['stages'][i]['is_achieved'] = True
+                    
+                    settled_target = HLSimulator.to_settable_target(target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
+                    investment['targets']['completed'].append(settled_target)
         
         return investment
 
@@ -187,13 +209,15 @@ class HLSimulator:
 
     @staticmethod
     def to_settable_target(target: Dict[str, Any], sell_ratio: float, profit: float, exit_price: float, exit_date: str) -> Dict[str, Any]:
-        target['is_achieved'] = True
-        if 'sell_ratio' not in target or target['sell_ratio'] <= 0:
-            target['sell_ratio'] = sell_ratio
-        target['profit'] = profit
-        target['exit_price'] = exit_price
-        target['exit_date'] = exit_date
-        return target;
+        # 创建配置对象的副本，避免修改原始配置
+        settled_target = target.copy()
+        settled_target['is_achieved'] = True
+        if 'sell_ratio' not in settled_target or settled_target['sell_ratio'] <= 0:
+            settled_target['sell_ratio'] = sell_ratio
+        settled_target['profit'] = profit
+        settled_target['exit_price'] = exit_price
+        settled_target['exit_date'] = exit_date
+        return settled_target
 
 
     @staticmethod
@@ -232,10 +256,8 @@ class HLSimulator:
         # 计算目标权重和贡献
         for target in achieved_targets:
             target['weighted_profit'] = target['profit'] * target['sell_ratio']
-            if overall_profit != 0:  # 避免除零
-                target['profit_contribution'] = target['profit'] / overall_profit
-            else:
-                target['profit_contribution'] = 0
+            # profit_contribution 表示该目标在总投资中的权重贡献，等于卖出比例
+            target['profit_contribution'] = target['sell_ratio']
 
         investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
 
@@ -262,10 +284,8 @@ class HLSimulator:
         # 计算目标权重和贡献（只对已完成的目标）
         for target in achieved_targets:
             target['weighted_profit'] = target['profit'] * target['sell_ratio']
-            if overall_profit != 0:  # 避免除零
-                target['profit_contribution'] = target['profit'] / overall_profit
-            else:
-                target['profit_contribution'] = 0
+            # profit_contribution 表示该目标在总投资中的权重贡献，等于卖出比例
+            target['profit_contribution'] = target['sell_ratio']
 
         investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
 
@@ -291,11 +311,15 @@ class HLSimulator:
     def get_stock_list_by_test_mode(self) -> List[Dict[str, Any]]:
         stock_list = []
         if self.strategy.strategy_settings.get('test_mode',{}).get('test_problematic_stocks_only', False):
-            stock_list = self.strategy.strategy_settings.get('problematic_stocks', {}).get('list', [])
+            # 获取问题股票ID列表
+            problematic_stock_ids = self.strategy.strategy_settings.get('problematic_stocks', {}).get('list', [])
+            
+            # 将字符串ID转换为字典格式
+            stock_list = [{'id': stock_id} for stock_id in problematic_stock_ids]
+            
             logger.info(f"🔍 测试模式: 问题股票，共{len(stock_list)}只股票")
 
         else:
-
             stock_list = self.strategy.required_tables["stock_index"].load_filtered_index()
 
             test_amount = self.strategy.strategy_settings.get('test_mode', {}).get('max_test_stocks', None)
@@ -311,8 +335,7 @@ class HLSimulator:
         return stock_list
 
 
-    def generate_summary(self, simulation_results: List[Dict[str, Any]]) -> None:
-
+    def generate_summary(self, simulation_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         stock_summaries = []
 
         for stock_result in simulation_results:
@@ -323,8 +346,9 @@ class HLSimulator:
             if stock_summary['summary']['total_investments'] > 0:
                 self.invest_recorder.save_stock_summary(stock_summary)
 
-        # 生成会话汇总
-        self.invest_recorder.to_session(simulation_results)
+        # 生成会话汇总并返回
+        session_summary = self.invest_recorder.to_session(simulation_results)
+        return session_summary
     
 
 
@@ -741,61 +765,49 @@ class HLSimulator:
         }
 
 
-    def present_investment_summary(self, results: List[Dict[str, Any]]) -> None:
+    def present_investment_summary(self, session_summary: Dict[str, Any]) -> None:
         """打印投资记录摘要"""
-        # 获取投资结果统计信息（从session_results中获取）
-        results_summary = {}
-        if results:
-            # 使用统一的会话级汇总
-            results_summary = HistoricLowEntity.to_session_summary(results)
-        
         print("\n" + "="*60)
-        print(f"🕐 投资记录摘要创建时间: {datetime.now().isoformat()}")
+        print("📊 HistoricLow 策略回测结果汇总")
         print("="*60)
         
         # 显示投资结果统计
-        if results_summary:
-            win_rate = results_summary.get('win_rate', 0)
-            annual_return = results_summary.get('annual_return', 0)
+        if session_summary:
+            win_rate = session_summary.get('win_rate', 0)
+            annual_return = session_summary.get('annual_return', 0)
             
             # 使用绿色点显示胜率（胜率超过60%显示绿色）
             win_rate_dot = "🟢" if win_rate >= 60 else "🔴"
             print(f"🎯 胜率: {win_rate_dot} {win_rate}%")
             
             # 使用绿色点显示年化收益率（年化收益率超过10%显示绿色）
-            annual_return_dot = "🟢" if annual_return >= 10 else "🔴"
+            annual_return_dot = "🟢" if annual_return >= 15 else "🔴"
             print(f"📈 平均年化收益率: {annual_return_dot} {annual_return}%")
             
-            print(f"⏱️  平均投资时长: {results_summary.get('avg_duration_days', 0)} 天")
-            print(f"💰 平均ROI: {results_summary.get('avg_roi', 0)}%")
+            print(f"⏱️  平均投资时长: {session_summary.get('avg_duration_days', 0)} 天")
+            print(f"💰 平均ROI: {session_summary.get('avg_roi', 0)}%")
             
             # 添加投资数量统计
-            print(f"📊 总投资次数: {results_summary.get('total_investments', 0)}")
-            print(f"✅ 成功次数: {results_summary.get('win_count', 0)}")
-            print(f"❌ 失败次数: {results_summary.get('loss_count', 0)}")
+            print(f"📊 总投资次数: {session_summary.get('total_investments', 0)}")
+            print(f"✅ 成功次数: {session_summary.get('win_count', 0)}")
+            print(f"❌ 失败次数: {session_summary.get('loss_count', 0)}")
             
-            # 将投资摘要写入session_info.json
-            self._save_investment_summary_to_session(results_summary)
+            # 添加颜色点统计
+            green_count = session_summary.get('green_dot_count', 0)
+            yellow_count = session_summary.get('yellow_dot_count', 0)
+            red_count = session_summary.get('red_dot_count', 0)
+            green_rate = session_summary.get('green_dot_rate', 0)
+            yellow_rate = session_summary.get('yellow_dot_rate', 0)
+            red_rate = session_summary.get('red_dot_rate', 0)
+            
+            print(f"🟢 盈利次数: {green_count} ({green_rate}%)")
+            print(f"🟡 微盈次数: {yellow_count} ({yellow_rate}%)")
+            print(f"🔴 亏损次数: {red_count} ({red_rate}%)")
         else:
             print("📊 投资结果统计: 暂无数据")
         
         print("="*60)
 
-    def _save_investment_summary_to_session(self, results_summary: Dict[str, Any]) -> None:
-        """
-        将投资摘要信息保存到session_info.json中
-        
-        Args:
-            results_summary: 投资结果摘要
-        """
-        try:
-            # 追加时间戳并写入统一的会话级统计
-            summary_with_ts = dict(results_summary)
-            summary_with_ts["summary_generated_at"] = datetime.now().isoformat()
-            self.invest_recorder.update_session_summary(summary_with_ts)
-            
-        except Exception as e:
-            logger.error(f"❌ 保存投资摘要到会话失败: {e}")
 
 
 

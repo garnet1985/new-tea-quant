@@ -6,14 +6,14 @@ strategy_settings = {
     # 测试模式配置
     "test_mode": {
         "test_problematic_stocks_only": False,  # 是否专门测试问题股票
-        "max_test_stocks": 3,  # 最大测试股票数量
+        "max_test_stocks": 200,  # 最大测试股票数量
         "start_idx": 0,  # 开始索引
     },
 
     # 日线数据要求
     "daily_data_requirements": {
         "freeze_period_days": 100,           # 冻结期：100个交易日
-        "low_points_ref_years": [2, 4, 6, 8],     
+        "low_points_ref_years": [3, 5, 8],     
         "max_invest_slope": -0.1,  # 对应约-5度的价格变化率
         "min_required_daily_records": 2000,  # 最小日线记录数
     },

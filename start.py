@@ -49,11 +49,11 @@ class App:
 async def main():
     app = App()
     
-    await app.renew_data()
+    # await app.renew_data()
 
-    await app.scan()
+    # await app.scan()
 
-    # app.simulate()
+    app.simulate()
 
 
 if __name__ == "__main__":

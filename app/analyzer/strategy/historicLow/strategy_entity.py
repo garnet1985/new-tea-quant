@@ -58,7 +58,6 @@ class HistoricLowEntity:
                     'stop_loss': copy.deepcopy(strategy_settings['goal']['stop_loss']),
                     'take_profit': copy.deepcopy(strategy_settings['goal']['take_profit']['stages'])
                 },
-                'current_stop_loss': {},
                 'completed': [],
             },
             'opportunity': opportunity

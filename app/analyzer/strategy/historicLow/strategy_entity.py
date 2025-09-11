@@ -42,53 +42,55 @@ class HistoricLowEntity:
             'stock': opportunity['stock'],
             'start_date': opportunity['date'],
             'end_date': '',
+            'purchase_price': opportunity['price'],
             'tracking': {
                 'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
                 'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
             },
             'targets': {
                 'investment_ratio_left': 1.0,
+                'is_breakeven': False,
+                'is_dynamic_stop_loss': False,
                 'all': {
                     'stop_loss': strategy_settings['goal']['stop_loss']['stages'],
                     'take_profit': strategy_settings['goal']['take_profit']['stages']
                 },
                 'completed': [],
-                'ongoing': [],
             },
             'opportunity': opportunity
         }
         
         return investment
 
-    @staticmethod
-    def to_target(target_name: str, is_achieved: bool, profit: float, profit_rate: float, 
-                  profit_weight: float, duration: int, sell_date: str, sell_price: float) -> Dict[str, Any]:
-        """
-        生成统一的target对象
+    # @staticmethod
+    # def to_target(target_name: str, is_achieved: bool, profit: float, profit_rate: float, 
+    #               profit_weight: float, duration: int, sell_date: str, sell_price: float) -> Dict[str, Any]:
+    #     """
+    #     生成统一的target对象
         
-        Args:
-            name: 目标收益率（字符串，如 "10%" 或 "break_even"）
-            is_achieved: 是否达成
-            profit: 利润
-            profit_rate: 利润率
-            profit_weight: 利润权重
-            duration: 持续时间
-            sell_date: 卖出日期
-            sell_price: 卖出价格
+    #     Args:
+    #         name: 目标收益率（字符串，如 "10%" 或 "break_even"）
+    #         is_achieved: 是否达成
+    #         profit: 利润
+    #         profit_rate: 利润率
+    #         profit_weight: 利润权重
+    #         duration: 持续时间
+    #         sell_date: 卖出日期
+    #         sell_price: 卖出价格
             
-        Returns:
-            Dict[str, Any]: 统一格式的target对象
-        """
-        return {
-            'name': target_name,
-            'is_achieved': is_achieved,
-            'profit': round(profit, 4),
-            'profit_rate': round(profit_rate, 6),
-            'profit_weight': round(profit_weight, 6),
-            'duration': duration,
-            'sell_date': sell_date,
-            'sell_price': round(sell_price, 4)
-        }
+    #     Returns:
+    #         Dict[str, Any]: 统一格式的target对象
+    #     """
+    #     return {
+    #         'name': target_name,
+    #         'is_achieved': is_achieved,
+    #         'profit': round(profit, 4),
+    #         'profit_rate': round(profit_rate, 6),
+    #         'profit_weight': round(profit_weight, 6),
+    #         'duration': duration,
+    #         'sell_date': sell_date,
+    #         'sell_price': round(sell_price, 4)
+    #     }
 
     @staticmethod
     def to_record(stock_info: Dict[str, Any], investment_history: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -213,12 +215,11 @@ class HistoricLowEntity:
                 continue
             stocks_with_opps += 1
             for inv in investments:
-                res = inv.get('result') or {}
                 inv_ref = inv.get('investment_ref') or {}
                 goal = (inv_ref.get('goal') or {})
                 purchase = float(goal.get('purchase') or 0)
-                profit = float(res.get('profit') or 0)
-                duration = float(res.get('invest_duration_days') or 0)
+                profit = float(inv.get('overall_profit') or 0)
+                duration = float(inv.get('invest_duration_days') or 0)
 
                 total += 1
                 total_profit += profit
@@ -227,7 +228,7 @@ class HistoricLowEntity:
                     total_investment_amount += purchase
                     total_roi += ((purchase + profit) / purchase) - 1
 
-                r = res.get('result')
+                r = inv.get('result')
                 if r == 'win':
                     win += 1
                 elif r == 'loss':
@@ -273,14 +274,14 @@ class HistoricLowEntity:
         investments = list((stock_simulation_result.get('investments') or {}).values())
 
         total_investments = len(investments)
-        success_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'win'])
-        fail_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'loss'])
-        open_count = len([inv for inv in investments if (inv.get('result') or {}).get('result') == 'open'])
+        success_count = len([inv for inv in investments if inv.get('result') == 'win'])
+        fail_count = len([inv for inv in investments if inv.get('result') == 'loss'])
+        open_count = len([inv for inv in investments if inv.get('result') == 'open'])
 
-        total_profit = sum([float((inv.get('result') or {}).get('profit') or 0.0) for inv in investments])
+        total_profit = sum([float(inv.get('overall_profit') or 0.0) for inv in investments])
         avg_profit = (total_profit / total_investments) if total_investments > 0 else 0.0
 
-        total_duration = sum([float((inv.get('result') or {}).get('invest_duration_days') or 0.0) for inv in investments])
+        total_duration = sum([float(inv.get('invest_duration_days') or 0.0) for inv in investments])
         avg_duration = (total_duration / total_investments) if total_investments > 0 else 0.0
 
         win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
@@ -288,8 +289,8 @@ class HistoricLowEntity:
         # 计算平均ROI和年化收益率
         total_roi = 0.0
         for inv in investments:
-            purchase_price = float((inv.get('result') or {}).get('purchase_price') or 0.0)
-            profit = float((inv.get('result') or {}).get('profit') or 0.0)
+            purchase_price = float(inv.get('purchase_price') or 0.0)
+            profit = float(inv.get('overall_profit') or 0.0)
             if purchase_price > 0:
                 total_roi += ((purchase_price + profit) / purchase_price) - 1
         

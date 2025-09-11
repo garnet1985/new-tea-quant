@@ -6,7 +6,7 @@ strategy_settings = {
     # 测试模式配置
     "test_mode": {
         "test_problematic_stocks_only": False,  # 是否专门测试问题股票
-        "max_test_stocks": 1,  # 最大测试股票数量
+        "max_test_stocks": 3,  # 最大测试股票数量
         "start_idx": 0,  # 开始索引
     },
 
@@ -21,21 +21,21 @@ strategy_settings = {
     # 投资目标
     "goal": {
         "stop_loss": {
+            "break_even": {
+                "name": "break_even",
+                "ratio": 0,
+                "close_invest": True  # 止损时：清仓
+            },
+            "dynamic": {
+                "name": "dynamic",
+                "ratio": -0.1,
+                "close_invest": True  # 动态止损时：清仓
+            },
             "stages": [
                 {
                     "name": "loss20%",
                     "ratio": -0.2,
                     "close_invest": True  # 止损时：清仓
-                },
-                {
-                    "name": "break_even",
-                    "ratio": 0,
-                    "close_invest": True  # 止损时：清仓
-                },
-                {
-                    "name": "dynamic",
-                    "ratio": -0.1,
-                    "close_invest": True  # 动态止损时：清仓
                 }
             ]
         },

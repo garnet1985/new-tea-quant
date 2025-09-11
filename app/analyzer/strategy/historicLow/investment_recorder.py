@@ -11,7 +11,7 @@ from loguru import logger
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from .strategy_enum import InvestmentResult
-from .strategy_entity import StrategyEntity
+from .strategy_entity import HistoricLowEntity
 
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息"""
@@ -38,13 +38,13 @@ class InvestmentRecorder:
 
 
     def to_record(self, stock_info: Dict[str, Any], investment_history: List[Dict[str, Any]]):
-        """使用 StrategyEntity 生成投资记录"""
+        """使用 HistoricLowEntity 生成投资记录"""
         # 确保当前session文件夹存在
         session_dir = self._get_session_dir()
         os.makedirs(session_dir, exist_ok=True)
         
-        # 使用 StrategyEntity 生成记录
-        record = StrategyEntity.to_record(stock_info, investment_history)
+        # 使用 HistoricLowEntity 生成记录
+        record = HistoricLowEntity.to_record(stock_info, investment_history)
         
         # 缓存投资记录
         self.cached_investments[stock_info.get('id', '')] = investment_history
@@ -54,26 +54,49 @@ class InvestmentRecorder:
         
 
     def to_settlement(self, stock_info: Dict[str, Any], settlement_info: Dict[str, Any]):
-        """使用 StrategyEntity 生成结算信息"""
-        return StrategyEntity.to_settlement(stock_info, settlement_info)
+        """使用 HistoricLowEntity 生成结算信息"""
+        return HistoricLowEntity.to_settlement(stock_info, settlement_info)
+    
+    def save_stock_summary(self, stock_summary: Dict[str, Any]) -> None:
+        """保存股票汇总信息到文件"""
+        from .strategy_entity import HistoricLowEntity
+        
+        # 使用entity类生成清理后的汇总数据
+        cleaned_summary = HistoricLowEntity.to_clean_stock_summary(stock_summary)
+        
+        # 获取当前session目录
+        session_dir = self._get_session_dir()
+        os.makedirs(session_dir, exist_ok=True)
+        
+        # 生成文件名
+        stock_id = cleaned_summary['stock_info']['id']
+        file_path = os.path.join(session_dir, f"{stock_id}.json")
+        
+        # 保存到文件
+        self._save_json_to_file(cleaned_summary, file_path)
+    
+    def _save_json_to_file(self, data: Dict[str, Any], file_path: str) -> None:
+        """通用的JSON保存方法，处理datetime序列化"""
+        import json
+        from datetime import datetime
+        
+        # 自定义JSON编码器，处理datetime对象
+        class DateTimeEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                return super().default(obj)
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
         
 
     def to_session(self, stocks):
         """生成会话汇总"""
-        # 统计所有投资记录
-        stats = self._calculate_session_stats()
+        from .strategy_entity import HistoricLowEntity
         
-        # 创建会话汇总
-        session_summary = {
-            'session_id': self.current_session_id,
-            'session_name': self._get_session_folder_name(),
-            'created_at': datetime.now().isoformat(),
-            'date': datetime.now().strftime('%Y_%m_%d'),
-            'description': 'HistoricLow策略投资记录会话',
-            'total_stocks_tested': len(stocks),
-            'investment_summary': stats,
-            'strategy_settings': strategy_settings
-        }
+        # 使用entity类生成标准格式的会话汇总
+        session_summary = HistoricLowEntity.to_session_summary(stocks)
         
         # 保存会话汇总
         self._save_session_summary(session_summary)
@@ -91,8 +114,7 @@ class InvestmentRecorder:
         file_name = f"{stock_id}.json"
         file_path = os.path.join(self._get_session_dir(), file_name)
         
-        with open(file_path, "w", encoding="utf-8") as file:
-            json.dump(record, file, ensure_ascii=False, indent=2)
+        self._save_json_to_file(record, file_path)
 
 
 
@@ -101,8 +123,7 @@ class InvestmentRecorder:
         session_dir = self._get_session_dir()
         os.makedirs(session_dir, exist_ok=True)
         summary_file = os.path.join(session_dir, "session_summary.json")
-        with open(summary_file, "w", encoding="utf-8") as f:
-            json.dump(session_summary, f, ensure_ascii=False, indent=2)
+        self._save_json_to_file(session_summary, summary_file)
         
         logger.info(f"📝 会话汇总已保存: {summary_file}")
 

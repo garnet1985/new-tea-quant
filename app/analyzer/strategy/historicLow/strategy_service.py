@@ -486,12 +486,12 @@ class HistoricLowService:
         检查冻结期内是否没有出现比今天收盘价更低的价格
         排除今天的数据进行比较
         """
+        if not freeze_data or len(freeze_data) < 2:
+            return True  # 如果数据不足，认为没有新低
+        
         today_price = float(freeze_data[-1]['close'])
         # 排除今天的数据，只比较冻结期内的其他数据
-        freeze_data_except_today = freeze_data[:-1] if len(freeze_data) > 1 else []
-        
-        if not freeze_data_except_today:
-            return True  # 如果只有今天的数据，认为没有新低
+        freeze_data_except_today = freeze_data[:-1]
         
         min_price = min(float(r['close']) for r in freeze_data_except_today)
         
@@ -808,80 +808,62 @@ class HistoricLowService:
         return continuous_slice
 
 
-    @staticmethod
-    def calculate_investment_targets(record_of_today: Dict[str, Any], low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        计算投资目标：止损和止盈价格
-        使用新的分段平仓策略配置
-        """
-        current_price = float(record_of_today['close'])
+    # @staticmethod
+    # def calculate_investment_targets(record_of_today: Dict[str, Any], low_point: Dict[str, Any], freeze_data: List[Dict[str, Any]], daily_records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    #     """
+    #     计算投资目标：止损和止盈价格
+    #     使用新的分段平仓策略配置
+    #     """
+    #     current_price = float(record_of_today['close'])
 
-        # 检查价格是否有效
-        if current_price <= 0:
-            return None
+    #     # 检查价格是否有效
+    #     if current_price <= 0:
+    #         return None
 
-        if not freeze_data or not daily_records:
-            return None
+    #     if not freeze_data or not daily_records:
+    #         return None
 
-        min_price = min(freeze_data, key=lambda x: float(x['close']))['close']
-        max_price = max(freeze_data, key=lambda x: float(x['close']))['close']
+    #     if not freeze_data:
+    #         return None
 
-        # 检查是否使用新格式
-        if 'invest_lower_bound' in low_point and 'invest_upper_bound' in low_point:
-            # 新格式：使用low_point_price进行比较
-            low_point_price = float(low_point['low_point_price'])
-        else:
-            # 旧格式：使用min字段
-            low_point_price = float(low_point['min'])
+    #     min_price = min(freeze_data, key=lambda x: float(x['close']))['close']
+    #     max_price = max(freeze_data, key=lambda x: float(x['close']))['close']
+
+    #     # 检查是否使用新格式
+    #     if 'invest_lower_bound' in low_point and 'invest_upper_bound' in low_point:
+    #         # 新格式：使用low_point_price进行比较
+    #         low_point_price = float(low_point['low_point_price'])
+    #     else:
+    #         # 旧格式：使用min字段
+    #         low_point_price = float(low_point['min'])
         
-        if min_price < low_point_price:
-            return None
+    #     if min_price < low_point_price:
+    #         return None
 
-        # 使用新的配置结构
-        goal_config = strategy_settings['goal']
+    #     # 使用新的配置结构
+    #     goal_config = strategy_settings['goal']
         
-        # 获取初始止损配置（第一个阶段）
-        stop_loss_stages = goal_config['stop_loss']['stages']
-        initial_stop_loss_stage = stop_loss_stages[0]  # 初始阶段
-        initial_stop_loss_ratio = abs(float(initial_stop_loss_stage['ratio']))
+    #     # 获取初始止损配置（第一个阶段）
+    #     stop_loss_stages = goal_config['stop_loss']['stages']
+    #     initial_stop_loss_stage = stop_loss_stages[0]  # 初始阶段
+    #     initial_stop_loss_ratio = abs(float(initial_stop_loss_stage['ratio']))
         
-        # 获取最后一个止盈阶段作为最大止盈目标
-        take_profit_stages = goal_config['take_profit']['stages']
-        max_take_profit_stage = take_profit_stages[-1]  # 最后一个阶段
-        max_take_profit_ratio = float(max_take_profit_stage['ratio'])
+    #     # 获取最后一个止盈阶段作为最大止盈目标
+    #     take_profit_stages = goal_config['take_profit']['stages']
+    #     max_take_profit_stage = take_profit_stages[-1]  # 最后一个阶段
+    #     max_take_profit_ratio = float(max_take_profit_stage['ratio'])
         
-        # 计算具体价格
-        stop_loss_price = current_price * (1 - initial_stop_loss_ratio)
-        take_profit_price = current_price * (1 + max_take_profit_ratio)
+    #     # 计算具体价格
+    #     stop_loss_price = current_price * (1 - initial_stop_loss_ratio)
+    #     take_profit_price = current_price * (1 + max_take_profit_ratio)
 
         
-        return {
-            'stop_loss_price': stop_loss_price,
-            'take_profit_price': take_profit_price,
-            'stop_loss_ratio': initial_stop_loss_ratio,
-            'take_profit_ratio': max_take_profit_ratio
-        }
-
-
-    @staticmethod
-    def to_opportunity(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], low_point: Dict[str, Any]) -> Dict[str, Any]:
-        """使用 HistoricLowEntity 生成机会对象"""
-        return HistoricLowEntity.to_opportunity(stock_info, record_of_today, low_point)
-
-    @staticmethod
-    def to_investment(opportunity: Dict[str, Any], investment_targets: Dict[str, Any], freeze_data: List[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """使用 HistoricLowEntity 生成投资对象"""
-        return HistoricLowEntity.to_investment(opportunity, investment_targets, freeze_data, calculate_freeze_stats=False)
-
-    @staticmethod
-    def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """使用 HistoricLowEntity 生成会话汇总"""
-        return HistoricLowEntity.to_session_summary(session_results)
-
-    @staticmethod
-    def to_stock_summary(stock_simulation_result: Dict[str, Any]) -> Dict[str, Any]:
-        """使用 HistoricLowEntity 生成股票汇总"""
-        return HistoricLowEntity.to_stock_summary(stock_simulation_result)
+    #     return {
+    #         'stop_loss_price': stop_loss_price,
+    #         'take_profit_price': take_profit_price,
+    #         'stop_loss_ratio': initial_stop_loss_ratio,
+    #         'take_profit_ratio': max_take_profit_ratio
+    #     }
 
     # @staticmethod
     # def split_daily_data_for_analysis(daily_data: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -958,7 +940,12 @@ class HistoricLowService:
         # 峰->回撤：峰后最低价
         if peak_idx >= len(window) - 1:
             return False
-        trough_after_peak_close = min(float(r.get('close') or 0.0) for r in window[peak_idx+1:])
+        
+        after_peak_window = window[peak_idx+1:]
+        if not after_peak_window:
+            return False
+            
+        trough_after_peak_close = min(float(r.get('close') or 0.0) for r in after_peak_window)
         if peak_close <= 0:
             return False
         retrace_ratio = (peak_close - trough_after_peak_close) / peak_close

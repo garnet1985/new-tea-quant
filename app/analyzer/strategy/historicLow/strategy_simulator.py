@@ -704,7 +704,7 @@ class HLSimulator:
             try:
                 low_point = opportunity.get('valley_ref') or {}
                 op_record = opportunity.get('opportunity_record') or {}
-                low_point_price = float(low_point.get('lowest_price') or low_point.get('min') or purchase_price)
+                low_point_price = float(low_point.get('lowest_price') or low_point.get('low_point_price') or low_point.get('min') or purchase_price)
                 low_point_date = low_point.get('date') or op_record.get('date') or start_date
                 # term 直接取 low_point['term']（几年前的低点）
                 term_years = int(low_point.get('term') or 0)

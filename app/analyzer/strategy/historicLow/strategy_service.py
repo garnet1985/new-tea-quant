@@ -465,10 +465,7 @@ class HistoricLowService:
             'volatility': volatility
         }
 
-    @staticmethod
-    def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> bool:
-        min_required = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
-        return len(daily_data) >= min_required
+    
     
     @staticmethod
     def is_in_invest_range(record_of_today, low_point, freeze_data=None):

@@ -7,6 +7,7 @@ strategy_settings = {
     "test_mode": {
         "test_problematic_stocks_only": False,  # 是否专门测试问题股票
         "max_test_stocks": 1,  # 最大测试股票数量
+        "start_idx": 0,  # 开始索引
     },
 
     # 日线数据要求

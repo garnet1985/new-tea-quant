@@ -24,91 +24,342 @@ class HLSimulator:
 
         # 汇总收集器（单线程汇总，无需锁）
         self.session_results = []
-        
+
         # 是否启用详细日志
         self.is_verbose = False
-    
-    @staticmethod
-    def get_stage_info(stage: Dict[str, Any]) -> Dict[str, Any]:
-        """从stage配置中提取统一的信息"""
-        name = stage.get('name', '')
-        ratio = float(stage.get('ratio', 0.0))
-        sell_ratio = float(stage.get('sell_ratio', 1.0))
-        close_invest = stage.get('close_invest', False)  # 是否清仓
-        set_stop_loss = stage.get('set_stop_loss', None)
+
+    # ========================================================
+    # External (Bridge) APIs:
+    # ========================================================
+
+    def test_strategy(self) -> None:
         
-        return {
-            'name': name,
-            'ratio': ratio,
-            'sell_ratio': sell_ratio,
-            'close_invest': close_invest,
-            'set_stop_loss': set_stop_loss,
-            'is_dynamic': name == 'dynamic',
-            'is_stop_loss': ratio <= 0,
-            'is_take_profit': ratio > 0
-        }
+        if not self.is_invest_settings_valid():
+            return
+
+        stock_idx = self.get_stock_list_by_test_mode()
+
+        jobs = self.build_jobs(stock_idx)
+
+        results = self.run_jobs(jobs)
+
+        self.consolidate_summaries(stock_idx, results)
+        
+        self.present_investment_summary(results)   
+
+
+
+    # ========================================================
+    # Core logic:
+    # ========================================================
+
+
+    #      'targets': {
+        #         'all': {
+        #             'stop_loss': [
+        #                 {
+        #                     'close_invest': True,
+        #                     'name': 'loss20%',
+        #                     'ratio': -0.2
+        #                 },
+        #                 {
+        #                     'close_invest': True,
+        #                     'name': 'break_even',
+        #                     'ratio': 0
+        #                 },
+        #                 {
+        #                     'close_invest': True,
+        #                     'name': 'dynamic',
+        #                     'ratio': -0.1
+        #                 }
+        #             ],
+        #             'take_profit': [
+        #                 {
+        #                     'name': 'win10%',
+        #                     'ratio': 0.1,
+        #                     'sell_ratio': 0.2,
+        #                     'set_stop_loss': 'break_even'
+        #                 },
+        #                 {
+        #                     'name': 'win20%',
+        #                     'ratio': 0.2,
+        #                     'sell_ratio': 0.2
+        #                 },
+        #                 {
+        #                     'name': 'win30%',
+        #                     'ratio': 0.3,
+        #                     'sell_ratio': 0.2
+        #                 },
+        #                 {
+        #                     'name': 'win40%',
+        #                     'ratio': 0.4,
+        #                     'sell_ratio': 0.2,
+        #                     'set_stop_loss': 'dynamic'
+        #                 }
+        #             ]
+        #         }
+        #     },
+        #     'investment_ratio_left': 1.0,
+        #     'completed': [],
+        #     'ongoing': []
+        # }
+
+
+
+
+
+    @staticmethod
+    def simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
+        record_of_today = daily_k_lines[-1]
+
+        investment = tracker['investing'].get(stock['id'])
+
+        # if there is an investing opportunity on going, try to settle it firstly
+        if investment:
+            is_investment_ended, investment = HLSimulator.check_targets(investment, record_of_today)
+
+            HLSimulator.update_investment_max_min_close(investment, record_of_today)
+
+            if is_investment_ended:
+                tracker['settled'][stock['id']] = investment
+                del tracker['investing'][stock['id']]
+
+        # if no investment, scan to find an investment opportunity
+        else:
+
+            from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
+            from app.analyzer.strategy.historicLow.strategy import HistoricLowEntity
+
+            opportunity = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
+
+            if opportunity:
+                tracker['investing'][stock['id']] = HistoricLowEntity.to_investment(opportunity)
         
 
-    def test_strategy(self) -> bool:
+
+
+
+
+            # current_close = record_of_today['close']
+            # current_date = record_of_today['date']
+            
+            # # 更新持有期间的最高/最低价
+            # if current_close > investing_opportunity['period_max_close']:
+            #     investing_opportunity['period_max_close'] = current_close
+            #     investing_opportunity['period_max_close_date'] = current_date
+            # if current_close < investing_opportunity['period_min_close']:
+            #     investing_opportunity['period_min_close'] = current_close
+            #     investing_opportunity['period_min_close_date'] = current_date
+            
+            # # 新增：分段平仓逻辑
+            # if investing_opportunity.get('staged_exit', {}).get('enabled', False):
+            #     HLSimulator.process_staged_exit(stock, investing_opportunity, record_of_today, tracker)
+            
+            # # 检查是否触发止损或止盈
+            # # 分段平仓启用时：达到止盈仅做分段处理，不整单结算；仅当触发止损（含动态止损）时才结算
+            # staged_enabled = investing_opportunity.get('staged_exit', {}).get('enabled', False)
+            # if not staged_enabled and current_close >= investing_opportunity['goal']['win']:
+            #     HLSimulator.settle_result('win', stock, investing_opportunity, record_of_today, tracker)
+            # elif current_close <= investing_opportunity['goal']['loss']:
+            #     # 若已启用动态止损，记录触发点日志
+            #     if investing_opportunity.get('staged_exit', {}).get('dynamic_trailing_enabled', False):
+            #         ts_price = investing_opportunity.get('staged_exit', {}).get('trailing_stop_price')
+            #     HLSimulator.settle_result('loss', stock, investing_opportunity, record_of_today, tracker)
+            # else:
+            #     pass
+            # # 结算后可继续寻找机会
+            # if stock['id'] not in tracker['investing']:
+            #     from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
+            #     opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
+            #     if opp:
+            #         tracker['investing'][stock['id']] = opp
+
+
+
+
+
+
+    @staticmethod
+    def check_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+        price_today = record_of_today['close']
+        purchase_price = investment['purchase_price']
+
+        to_be_achieved_stop_loss_targets = investment['targets']['all']['stop_loss']
+        to_be_achieved_take_profit_targets = investment['targets']['all']['take_profit']
+
+        is_investment_ended = False
+
+        for target in to_be_achieved_take_profit_targets:
+            if 'is_achieved' in target and target['is_achieved']:
+                continue
+
+            if price_today >= purchase_price * (1 + target['ratio']):
+                investment['targets']['investment_ratio_left'] -= target['sell_ratio']
+
+                target = HLSimulator.to_settable_target(target, target['sell_ratio'], price_today - purchase_price, price_today, record_of_today['date'])
+                investment['targets']['completed'].append(target)
+
+                if 'set_stop_loss' in target and target['set_stop_loss'] == 'break_even':
+                    investment['targets']['is_breakeven'] = True
+
+                if 'set_stop_loss' in target and target['set_stop_loss'] == 'dynamic':
+                    investment['targets']['is_dynamic_stop_loss'] = True
+
+        for target in to_be_achieved_stop_loss_targets:
+            if investment['targets']['is_dynamic_stop_loss']:
+                if price_today <= purchase_price * (1 + target['ratio']):
+                    if 'close_invest' in target and target['close_invest']:
+                        sell_ratio = investment['targets']['investment_ratio_left']
+                        investment['targets']['investment_ratio_left'] = 0
+                    else:
+                        sell_ratio = target['sell_ratio']
+                        investment['targets']['investment_ratio_left'] -= target['sell_ratio']
+
+                    target = HLSimulator.to_settable_target(target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
+                    investment['targets']['completed'].append(target)
+
+            elif investment['targets']['is_breakeven']:
+                if price_today <= purchase_price:
+                    if 'close_invest' in target and target['close_invest']:
+                        sell_ratio = investment['targets']['investment_ratio_left']
+                        investment['targets']['investment_ratio_left'] = 0
+                    else:
+                        sell_ratio = target['sell_ratio']
+                        investment['targets']['investment_ratio_left'] -= target['sell_ratio']
+
+                    target = HLSimulator.to_settable_target(target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
+                    investment['targets']['completed'].append(target)
+                    
+            else:
+                if price_today <= purchase_price * (1 + target['ratio']):
+                    if 'close_invest' in target and target['close_invest']:
+                        sell_ratio = investment['targets']['investment_ratio_left']
+                        investment['targets']['investment_ratio_left'] = 0
+                    else:
+                        sell_ratio = target['sell_ratio']
+                        investment['targets']['investment_ratio_left'] -= target['sell_ratio']
+
+                    target = HLSimulator.to_settable_target(target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
+                    investment['targets']['completed'].append(target)
+
+        # the invest run out of invested money, need to settle the result
+        if investment['targets']['investment_ratio_left'] <= 0:
+            is_investment_ended = True
+
+            achieved_targets = investment['targets']['completed']
+            overall_profit = 0
+            for target in achieved_targets:
+                overall_profit += target['profit'] * target['sell_ratio']
+
+            investment['overall_profit'] = overall_profit
+            investment['overall_profit_rate'] = overall_profit / purchase_price
+
+            if overall_profit > 0:
+                investment['result'] = InvestmentResult.WIN.value
+            else:
+                investment['result'] = InvestmentResult.LOSS.value
+
+            for target in achieved_targets:
+                target['weighted_profit'] = target['profit'] * target['sell_ratio']
+                target['profit_contribution'] = target['profit'] / overall_profit
+
+        return is_investment_ended, investment
+
+    
+
+    @staticmethod
+    def to_settable_target(target: Dict[str, Any], sell_ratio: float, profit: float, exit_price: float, exit_date: str) -> Dict[str, Any]:
+        target['is_achieved'] = True
+        if 'sell_ratio' not in target or target['sell_ratio'] <= 0:
+            target['sell_ratio'] = sell_ratio
+        target['profit'] = profit
+        target['exit_price'] = exit_price
+        target['exit_date'] = exit_date
+        return target;
+
+
+
+
+    @staticmethod
+    def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
+        if record_of_today['close'] > investment['tracking']['max_close_reached']['price']:
+            investment['tracking']['max_close_reached']['price'] = record_of_today['close']
+            investment['tracking']['max_close_reached']['date'] = record_of_today['date']
+            investment['tracking']['max_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
+        if record_of_today['close'] < investment['tracking']['min_close_reached']['price']:
+            investment['tracking']['min_close_reached']['price'] = record_of_today['close']
+            investment['tracking']['min_close_reached']['date'] = record_of_today['date']
+            investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
+
+
+
+
+    # ========================================================
+    # Main steps:
+    # ========================================================
+
+
+    def is_invest_settings_valid(self) -> bool:
         # 验证策略配置
         is_valid, validation_errors = HistoricLowService.validate_strategy_settings(strategy_settings)
+
         if not is_valid:
             logger.error("❌ 策略配置验证失败:")
             for error in validation_errors:
                 logger.error(f"  - {error}")
             raise ValueError("策略配置无效，请检查上述错误")
         logger.info("✅ 策略配置验证通过")
-        
-        stock_idx = self.strategy.required_tables["stock_index"].load_filtered_index()
-        # 使用完整索引（取消仅跑单支股票的限制）
 
-        # 检查是否需要专门测试问题股票
-        test_problematic_only = self.strategy.strategy_settings.get('test_mode', {}).get('test_problematic_stocks_only', False)
-        
-        if test_problematic_only:
-            # 从设置文件中获取问题股票列表
-            problematic_stocks_config = self.strategy.strategy_settings.get('problematic_stocks', {})
-            problematic_stocks = problematic_stocks_config.get('list', [])
-            logger.info(f"🔍 专门测试问题股票模式，共{len(problematic_stocks)}只股票")
-            
-            # 过滤出问题股票
-            filtered_stocks = [stock for stock in stock_idx if stock.get('id') in problematic_stocks]
-            stock_idx = filtered_stocks
-            logger.info(f"✅ 找到{len(stock_idx)}只问题股票进行测试")
+        return is_valid
+
+    def get_stock_list_by_test_mode(self) -> List[Dict[str, Any]]:
+        stock_list = []
+        if self.strategy.strategy_settings.get('test_mode',{}).get('test_problematic_stocks_only', False):
+            stock_list = self.strategy.strategy_settings.get('problematic_stocks', {}).get('list', [])
+            logger.info(f"🔍 测试模式: 问题股票，共{len(stock_list)}只股票")
+
         else:
-            # 正常模式，测试所有股票（包括黑名单股票）
-            max_test_stocks = self.strategy.strategy_settings.get('test_mode', {}).get('max_test_stocks', None)
-            if max_test_stocks and len(stock_idx) > max_test_stocks:
-                stock_idx = stock_idx[:max_test_stocks]
-                logger.info(f"📈 正常模式，测试前{max_test_stocks}只股票")
+
+            stock_list = self.strategy.required_tables["stock_index"].load_filtered_index()
+
+            test_amount = self.strategy.strategy_settings.get('test_mode', {}).get('max_test_stocks', None)
+
+            if test_amount:
+                start_idx = self.strategy.strategy_settings.get('test_mode', {}).get('start_idx', 0)
+                end_idx = start_idx + test_amount
+                stock_list = stock_list[start_idx : end_idx]
+                logger.info(f"🔍 测试模式: 部分模式，共{len(stock_list)}只股票")
             else:
-                logger.info(f"📈 正常模式，测试所有股票")
+                logger.info(f"🔍 测试模式: 全量模式，共{len(stock_list)}只股票")
 
-        # 记录测试股票总数
-        self.total_stocks_tested = len(stock_idx)
+        return stock_list
 
-        # 仅准备轻量任务（只包含stock信息，数据在子进程内加载）
-        jobs = self.build_jobs(stock_idx)
 
-        results = self.run_jobs(jobs)
+    def consolidate_summaries(self, stock_idx: List[Dict[str, Any]], results: List[Dict[str, Any]]) -> None:
+        stock_summaries = self.consolidate_stock_summaries(results)
+        session_summary =  HistoricLowEntity.to_session_summary(results)
+        self._record_all_summaries(stock_idx, stock_summaries, session_summary)
 
-        # 创建两层汇总：股票级别和会话级别（统一用service汇总器）
+
+
+    def consolidate_stock_summaries(self, stock_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         stock_summaries = {}
-        for stock_result in self.session_results:
+        for stock_result in stock_results:
             summary = HistoricLowEntity.to_stock_summary(stock_result)  
             stock_summaries[summary['stock_id']] = summary
-        session_summary = HistoricLowEntity.to_session_summary(self.session_results)
-        
-        # 将汇总结果传递给investment_recorder进行记录
-        self._record_all_summaries(stock_idx, stock_summaries, session_summary)
-        
-        # 打印聚合结果
-        self.print_aggregated_results()
-        
-        # 打印投资记录摘要
-        self._print_investment_summary()
-        
-        return True
+        return stock_summaries
+
+
+    
+
+
+
+
+
+
+    # ========================================================
+    # Workers:
+    # ========================================================
 
     def build_jobs(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         jobs = []
@@ -118,6 +369,7 @@ class HLSimulator:
                 'data': stock
             })
         return jobs
+
 
     def run_jobs(self, jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         from utils.worker import ProcessWorker, ProcessExecutionMode
@@ -140,10 +392,140 @@ class HLSimulator:
             elif result.status.value == 'failed':
                 logger.error(f"❌ 任务 {result.job_id} 执行失败: {result.error}")
 
-        # 保存结果到session_results
-        self.session_results = actual_results
-
         return actual_results
+
+
+    # because the python does not share the class instance, we need to use static method to simulate the single stock
+    @classmethod
+    def simulate_single_stock(cls, job_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        类方法：独立的模拟函数，可以安全地用于多进程
+        不依赖实例状态，避免pickle问题
+        """
+
+        # 在子进程内按需加载复权后的日线
+        daily_data = cls.load_qfq_daily(job_data['id'])
+
+        min_required_daily_records = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records')
+
+        if len(daily_data) < min_required_daily_records:
+            return {
+                'stock_info': job_data,
+                'investments': {}
+            }
+
+        # 本地tracker
+        tracker: Dict[str, Any] = {
+            'investing': {},
+            'settled': {}
+        }
+
+
+        # 累积分发K线，模拟
+        current_daily_data: List[Dict[str, Any]] = []
+
+        for record_of_today in daily_data:
+            current_daily_data.append(record_of_today)
+            if len(current_daily_data) < min_required_daily_records:
+                continue
+            
+            # 模拟每日交易
+            cls.simulate_one_day(job_data, current_daily_data, tracker)
+            
+
+        # 清算未结持仓为 open（重用settle_result方法）
+        if job_data['id'] in tracker['investing']:
+            inv = tracker['investing'][job_data['id']]
+            # 使用最后一天的记录作为结算记录
+            last_record = daily_data[-1] if daily_data else None
+            if last_record:
+                cls.settle_result('open', job_data, inv, last_record, tracker)
+        
+        return {
+            'stock_info': job_data,
+            'investments': tracker['settled']
+        }
+
+
+
+
+
+
+
+
+
+
+
+    # ========================================================
+    # Utils:
+    # ========================================================
+
+    @staticmethod
+    def load_qfq_daily(stock_id: str) -> List[Dict[str, Any]]:
+        """
+        加载指定股票的前复权日线
+        """
+        from utils.db.db_manager import get_db_manager
+        db = get_db_manager()
+        kline_table = db.get_table_instance('stock_kline')
+        adj_table = db.get_table_instance('adj_factor')
+        raw = kline_table.get_all_k_lines_by_term(stock_id, 'daily')
+        factors = adj_table.get_stock_factors(stock_id)
+
+        daily_data = DataSourceService.to_qfq(raw, factors)
+
+        daily_data = HistoricLowService.filter_out_negative_records(daily_data)
+
+        return daily_data
+
+    @staticmethod
+    def is_meet_strategy_requirements(daily_data: List[Dict[str, Any]]) -> bool:
+        min_required = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records', 2000)
+        return len(daily_data) >= min_required
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    @staticmethod
+    def get_stage_info(stage: Dict[str, Any]) -> Dict[str, Any]:
+        """从stage配置中提取统一的信息"""
+        name = stage.get('name', '')
+        ratio = float(stage.get('ratio', 0.0))
+        sell_ratio = float(stage.get('sell_ratio', 1.0))
+        close_invest = stage.get('close_invest', False)  # 是否清仓
+        set_stop_loss = stage.get('set_stop_loss', None)
+        
+        return {
+            'name': name,
+            'ratio': ratio,
+            'sell_ratio': sell_ratio,
+            'close_invest': close_invest,
+            'set_stop_loss': set_stop_loss,
+            'is_dynamic': name == 'dynamic',
+            'is_stop_loss': ratio <= 0,
+            'is_take_profit': ratio > 0
+        }
+        
+
+    
+
+
+
+
 
     def _record_all_summaries(self, stocks: List[Dict[str, Any]], stock_summaries: Dict[str, Dict[str, Any]], session_summary: Dict[str, Any]):
         """记录所有汇总结果到investment_recorder"""
@@ -338,21 +720,13 @@ class HLSimulator:
         }
 
 
-    def print_aggregated_results(self) -> None:
-        """打印聚合的测试结果（使用 HistoricLowEntity 统一会话汇总）"""
-        aggregated = HistoricLowEntity.to_session_summary(self.session_results)
-        
-        print("\n" + "="*60)
-        print("📊 HistoricLow 策略回测结果汇总")
-        print("="*60)
-
-    def _print_investment_summary(self) -> None:
+    def present_investment_summary(self, results: List[Dict[str, Any]]) -> None:
         """打印投资记录摘要"""
         # 获取投资结果统计信息（从session_results中获取）
         results_summary = {}
-        if hasattr(self, 'session_results') and self.session_results:
+        if results:
             # 使用统一的会话级汇总
-            results_summary = HistoricLowEntity.to_session_summary(self.session_results)
+            results_summary = HistoricLowEntity.to_session_summary(results)
         
         print("\n" + "="*60)
         print(f"🕐 投资记录摘要创建时间: {datetime.now().isoformat()}")
@@ -403,122 +777,10 @@ class HLSimulator:
             logger.error(f"❌ 保存投资摘要到会话失败: {e}")
 
 
-    @staticmethod
-    def load_qfq_daily(stock_id: str) -> List[Dict[str, Any]]:
-        """
-        加载指定股票的前复权日线
-        """
-        from utils.db.db_manager import get_db_manager
-        db = get_db_manager()
-        kline_model = db.get_table_instance('stock_kline')
-        adj_model = db.get_table_instance('adj_factor')
-        raw = kline_model.get_all_k_lines_by_term(stock_id, 'daily')
-        factors = adj_model.get_stock_factors(stock_id) if hasattr(adj_model, 'get_stock_factors') else []
-        return DataSourceService.to_qfq(raw, factors)
-
-    # because the python does not share the class instance, we need to use static method to simulate the single stock
-    @classmethod
-    def simulate_single_stock(cls, job_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        类方法：独立的模拟函数，可以安全地用于多进程
-        不依赖实例状态，避免pickle问题
-        """
-
-        # 在子进程内按需加载复权后的日线
-        daily_data = cls.load_qfq_daily(job_data['id'])
-
-        # 过滤负值记录
-        daily_data = HistoricLowService.filter_out_negative_records(daily_data)
-
-        # 检查是否满足策略要求
-        is_valid = HistoricLowService.is_meet_strategy_requirements(daily_data)
-        
-        if not is_valid:
-            return {
-                'stock_info': job_data,
-                'investments': {}
-            }
 
 
-        # 本地tracker（仿照实例版）
-        tracker: Dict[str, Any] = {
-            'investing': {},
-            'settled': {}
-        }
 
-
-        # 累积分发K线，模拟
-        current_daily_data: List[Dict[str, Any]] = []
-
-        min_required_days = strategy_settings.get('daily_data_requirements', {}).get('min_required_daily_records')
-        
-
-        for daily_record in daily_data:
-            current_daily_data.append(daily_record)
-            if len(current_daily_data) < min_required_days:
-                continue
-            
-            # 模拟每日交易
-            cls.simulate_one_day(job_data, current_daily_data, tracker)
-            
-        # 清算未结持仓为 open（重用settle_result方法）
-        if job_data['id'] in tracker['investing']:
-            inv = tracker['investing'][job_data['id']]
-            # 使用最后一天的记录作为结算记录
-            last_record = daily_data[-1] if daily_data else None
-            if last_record:
-                cls.settle_result('open', job_data, inv, last_record, tracker)
-        
-        return {
-            'stock_info': job_data,
-            'investments': tracker['settled']
-        }
-
-    @staticmethod
-    def simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
-        record_of_today = daily_k_lines[-1]
-
-        investing_opportunity = tracker['investing'].get(stock['id'])
-
-        if investing_opportunity:
-            current_close = record_of_today['close']
-            current_date = record_of_today['date']
-            
-            # 更新持有期间的最高/最低价
-            if current_close > investing_opportunity['period_max_close']:
-                investing_opportunity['period_max_close'] = current_close
-                investing_opportunity['period_max_close_date'] = current_date
-            if current_close < investing_opportunity['period_min_close']:
-                investing_opportunity['period_min_close'] = current_close
-                investing_opportunity['period_min_close_date'] = current_date
-            
-            # 新增：分段平仓逻辑
-            if investing_opportunity.get('staged_exit', {}).get('enabled', False):
-                HLSimulator.process_staged_exit(stock, investing_opportunity, record_of_today, tracker)
-            
-            # 检查是否触发止损或止盈
-            # 分段平仓启用时：达到止盈仅做分段处理，不整单结算；仅当触发止损（含动态止损）时才结算
-            staged_enabled = investing_opportunity.get('staged_exit', {}).get('enabled', False)
-            if not staged_enabled and current_close >= investing_opportunity['goal']['win']:
-                HLSimulator.settle_result('win', stock, investing_opportunity, record_of_today, tracker)
-            elif current_close <= investing_opportunity['goal']['loss']:
-                # 若已启用动态止损，记录触发点日志
-                if investing_opportunity.get('staged_exit', {}).get('dynamic_trailing_enabled', False):
-                    ts_price = investing_opportunity.get('staged_exit', {}).get('trailing_stop_price')
-                HLSimulator.settle_result('loss', stock, investing_opportunity, record_of_today, tracker)
-            else:
-                pass
-            # 结算后可继续寻找机会
-            if stock['id'] not in tracker['investing']:
-                from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
-                opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
-                if opp:
-                    tracker['investing'][stock['id']] = opp
-        else:
-            from app.analyzer.strategy.historicLow.strategy import HistoricLowStrategy
-            opp = HistoricLowStrategy.scan_single_stock(stock, daily_k_lines)
-            if opp:
-                tracker['investing'][stock['id']] = opp
+    
 
     @staticmethod
     def settle_result(result_value: str, stock: Dict[str, Any], opportunity: Dict[str, Any], record_of_today: Dict[str, Any], tracker: Dict[str, Any]) -> None:

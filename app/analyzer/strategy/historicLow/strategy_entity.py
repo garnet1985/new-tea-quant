@@ -52,7 +52,7 @@ class HistoricLowEntity:
                 'is_breakeven': False,
                 'is_dynamic_stop_loss': False,
                 'all': {
-                    'stop_loss': strategy_settings['goal']['stop_loss']['stages'],
+                    'stop_loss': strategy_settings['goal']['stop_loss'],
                     'take_profit': strategy_settings['goal']['take_profit']['stages']
                 },
                 'completed': [],

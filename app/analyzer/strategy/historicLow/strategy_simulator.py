@@ -44,7 +44,7 @@ class HLSimulator:
 
         results = self.run_jobs(jobs)
 
-        self.generate_summary(stock_idx, results)
+        self.generate_summary(results)
         
         # self.present_investment_summary(results)   
 
@@ -198,11 +198,15 @@ class HLSimulator:
 
     @staticmethod
     def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
+        # 更新最高价
         if record_of_today['close'] > investment['tracking']['max_close_reached']['price']:
             investment['tracking']['max_close_reached']['price'] = record_of_today['close']
             investment['tracking']['max_close_reached']['date'] = record_of_today['date']
             investment['tracking']['max_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
-        if record_of_today['close'] < investment['tracking']['min_close_reached']['price']:
+        
+        # 更新最低价（检查是否为初始值0，或者当前价格更低）
+        current_min_price = investment['tracking']['min_close_reached']['price']
+        if current_min_price == 0 or record_of_today['close'] < current_min_price:
             investment['tracking']['min_close_reached']['price'] = record_of_today['close']
             investment['tracking']['min_close_reached']['date'] = record_of_today['date']
             investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
@@ -307,27 +311,88 @@ class HLSimulator:
         return stock_list
 
 
-    def generate_summary(self, stock_idx: List[Dict[str, Any]], simulation_results: List[Dict[str, Any]]) -> None:
-        pprint(simulation_results)
+    def generate_summary(self, simulation_results: List[Dict[str, Any]]) -> None:
 
+        stock_summaries = []
 
+        for stock_result in simulation_results:
+            stock_summary = self.summarize_stock_result(stock_result)
+            stock_summaries.append(stock_summary)
+            
+            # 只保存有过投资的股票记录
+            if stock_summary['summary']['total_investments'] > 0:
+                self.invest_recorder.save_stock_summary(stock_summary)
 
-
-        # stock_summaries = self.consolidate_stock_summaries(results)
-        # session_summary =  HistoricLowEntity.to_session_summary(results)
-        # self._record_all_summaries(stock_idx, stock_summaries, session_summary)
-
-
-
-    # def consolidate_stock_summaries(self, stock_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    #     stock_summaries = {}
-    #     for stock_result in stock_results:
-    #         summary = HistoricLowEntity.to_stock_summary(stock_result)  
-    #         stock_summaries[summary['stock_id']] = summary
-    #     return stock_summaries
-
-
+        # 生成会话汇总
+        self.invest_recorder.to_session(simulation_results)
     
+
+
+    def summarize_stock_result(self, stock_result: Dict[str, Any]) -> Dict[str, Any]:
+        """生成单只股票的汇总信息"""
+        stock_info = stock_result['stock_info']
+        investments = stock_result['investments']
+        
+        # 统计投资数据
+        total_investments = len(investments)
+        success_count = 0
+        fail_count = 0
+        open_count = 0
+        total_profit = 0.0
+        total_duration_days = 0
+        total_roi = 0.0
+        total_annual_return = 0.0
+        
+        for investment in investments:
+            result = investment.get('result', '')
+            if result == InvestmentResult.WIN.value:
+                success_count += 1
+            elif result == InvestmentResult.LOSS.value:
+                fail_count += 1
+            elif result == InvestmentResult.OPEN.value:
+                open_count += 1
+            
+            # 累计收益和持续时间
+            total_profit += investment.get('overall_profit', 0.0)
+            total_duration_days += investment.get('invest_duration_days', 0)
+            total_roi += investment.get('overall_profit_rate', 0.0)
+            
+            # 计算年化收益率
+            duration_days = investment.get('invest_duration_days', 1)
+            profit_rate = investment.get('overall_profit_rate', 0.0)
+            from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
+            annual_return = HistoricLowService.calculate_annual_return(profit_rate, duration_days)
+            total_annual_return += annual_return
+        
+        # 计算平均值
+        avg_profit = total_profit / total_investments if total_investments > 0 else 0.0
+        avg_duration_days = total_duration_days / total_investments if total_investments > 0 else 0.0
+        avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
+        avg_annual_return = total_annual_return / total_investments if total_investments > 0 else 0.0
+        
+        # 计算胜率
+        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
+        
+        return {
+            'stock_info': stock_info,
+            'investments': investments,
+            'summary': {
+                'total_investments': total_investments,
+                'success_count': success_count,
+                'fail_count': fail_count,
+                'open_count': open_count,
+                'win_rate': round(win_rate, 1),
+                'total_profit': round(total_profit, 2),
+                'avg_profit': round(avg_profit, 2),
+                'avg_duration_days': round(avg_duration_days, 1),
+                'avg_roi': round(avg_roi, 2),
+                'avg_annual_return': round(avg_annual_return, 2)
+            }
+        }
+    
+
+    def summarize_session_result(self, simulation_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        pass
 
 
 

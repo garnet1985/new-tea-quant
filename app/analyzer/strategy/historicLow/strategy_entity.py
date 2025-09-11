@@ -194,69 +194,70 @@ class HistoricLowEntity:
         生成会话汇总对象
         
         Args:
-            session_results: 会话结果列表
+            session_results: 会话结果列表，每个元素包含 stock_info 和 investments 列表
             
         Returns:
             Dict[str, Any]: 统一格式的会话汇总对象
         """
-        total = 0
-        win = 0
-        loss = 0
-        open_ = 0
+        from datetime import datetime
+        
+        total_investments = 0
+        win_count = 0
+        loss_count = 0
+        open_count = 0
         total_duration = 0.0
         total_roi = 0.0
         total_profit = 0.0
-        total_investment_amount = 0.0
-        stocks_with_opps = 0
+        total_stocks_with_opportunities = 0
 
         for stock_result in session_results or []:
-            investments = (stock_result.get('investments') or {}).values()
+            investments = stock_result.get('investments', [])
             if not investments:
                 continue
-            stocks_with_opps += 1
+            total_stocks_with_opportunities += 1
+            
             for inv in investments:
-                inv_ref = inv.get('investment_ref') or {}
-                goal = (inv_ref.get('goal') or {})
-                purchase = float(goal.get('purchase') or 0)
-                profit = float(inv.get('overall_profit') or 0)
-                duration = float(inv.get('invest_duration_days') or 0)
+                purchase_price = float(inv.get('purchase_price', 0))
+                profit = float(inv.get('overall_profit', 0))
+                duration = float(inv.get('invest_duration_days', 0))
 
-                total += 1
+                total_investments += 1
                 total_profit += profit
                 total_duration += duration
-                if purchase > 0:
-                    total_investment_amount += purchase
-                    total_roi += ((purchase + profit) / purchase) - 1
+                
+                if purchase_price > 0:
+                    total_roi += ((purchase_price + profit) / purchase_price) - 1
 
-                r = inv.get('result')
-                if r == 'win':
-                    win += 1
-                elif r == 'loss':
-                    loss += 1
-                elif r == 'open':
-                    open_ += 1
+                result = inv.get('result')
+                if result == InvestmentResult.WIN.value:
+                    win_count += 1
+                elif result == InvestmentResult.LOSS.value:
+                    loss_count += 1
+                elif result == InvestmentResult.OPEN.value:
+                    open_count += 1
 
-        avg_duration_days = (total_duration / total) if total > 0 else 0.0
-        avg_roi = (total_roi / total) if total > 0 else 0.0
-        settled = win + loss
-        win_rate = (win / settled * 100) if settled > 0 else 0.0
+        settled_investments = win_count + loss_count
+        avg_duration_days = (total_duration / total_investments) if total_investments > 0 else 0.0
+        avg_roi = (total_roi / total_investments) if total_investments > 0 else 0.0
+        win_rate = (win_count / settled_investments * 100) if settled_investments > 0 else 0.0
         annual_return = ((1 + avg_roi) ** (365 / avg_duration_days) - 1) * 100 if avg_roi != 0 and avg_duration_days > 0 else 0.0
-        avg_profit_per_investment = (total_profit / total) if total > 0 else 0.0
+        avg_profit_per_investment = (total_profit / total_investments) if total_investments > 0 else 0.0
 
         return {
-            'total_investments': total,
-            'win_count': win,
-            'loss_count': loss,
-            'open_count': open_,
-            'settled_investments': settled,
+            'total_investments': total_investments,
+            'win_count': win_count,
+            'loss_count': loss_count,
+            'open_count': open_count,
+            'settled_investments': settled_investments,
             'win_rate': round(win_rate, 2),
             'avg_duration_days': round(avg_duration_days, 1),
             'avg_roi': round(avg_roi * 100, 2),
             'annual_return': round(annual_return, 2),
-            'avg_annual_return': round(annual_return, 2),  # 添加avg_annual_return字段
+            'avg_annual_return': round(annual_return, 2),
             'total_profit': round(total_profit, 2),
             'avg_profit_per_investment': round(avg_profit_per_investment, 2),
-            'total_stocks_with_opportunities': stocks_with_opps
+            'total_stocks_with_opportunities': total_stocks_with_opportunities,
+            'summary_generated_at': datetime.now().isoformat()
         }
 
     @staticmethod
@@ -265,18 +266,18 @@ class HistoricLowEntity:
         从单只股票的模拟结果构造统一的股票级汇总。
         
         Args:
-            stock_simulation_result: 股票模拟结果
+            stock_simulation_result: 股票模拟结果，包含 stock_info 和 investments 列表
             
         Returns:
             Dict[str, Any]: 统一格式的股票汇总对象
         """
-        stock_id = (stock_simulation_result.get('stock_info') or {}).get('id')
-        investments = list((stock_simulation_result.get('investments') or {}).values())
+        stock_info = stock_simulation_result.get('stock_info', {})
+        investments = stock_simulation_result.get('investments', [])
 
         total_investments = len(investments)
-        success_count = len([inv for inv in investments if inv.get('result') == 'win'])
-        fail_count = len([inv for inv in investments if inv.get('result') == 'loss'])
-        open_count = len([inv for inv in investments if inv.get('result') == 'open'])
+        success_count = len([inv for inv in investments if inv.get('result') == InvestmentResult.WIN.value])
+        fail_count = len([inv for inv in investments if inv.get('result') == InvestmentResult.LOSS.value])
+        open_count = len([inv for inv in investments if inv.get('result') == InvestmentResult.OPEN.value])
 
         total_profit = sum([float(inv.get('overall_profit') or 0.0) for inv in investments])
         avg_profit = (total_profit / total_investments) if total_investments > 0 else 0.0
@@ -298,19 +299,56 @@ class HistoricLowEntity:
         avg_annual_return = ((1 + total_roi / total_investments) ** (365 / avg_duration) - 1) * 100 if total_investments > 0 and avg_duration > 0 else 0.0
 
         return {
-            'stock_id': stock_id,
-            'total_investments': total_investments,
-            'success_count': success_count,
-            'fail_count': fail_count,
-            'open_count': open_count,
-            'win_rate': win_rate,
-            'total_profit': total_profit,
-            'avg_profit': avg_profit,
-            'avg_duration_days': avg_duration,
-            'avg_roi': round(avg_roi, 2),
-            'avg_annual_return': round(avg_annual_return, 2),
-            'investments': investments
+            'stock_info': stock_info,
+            'investments': investments,
+            'summary': {
+                'total_investments': total_investments,
+                'success_count': success_count,
+                'fail_count': fail_count,
+                'open_count': open_count,
+                'win_rate': round(win_rate, 1),
+                'total_profit': round(total_profit, 2),
+                'avg_profit': round(avg_profit, 2),
+                'avg_duration_days': round(avg_duration, 1),
+                'avg_roi': round(avg_roi, 2),
+                'avg_annual_return': round(avg_annual_return, 2)
+            }
         }
+    
+    @staticmethod
+    def to_clean_stock_summary(stock_simulation_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        生成清理后的股票汇总，移除不必要的字段用于JSON保存
+        
+        Args:
+            stock_simulation_result: 股票模拟结果
+            
+        Returns:
+            Dict[str, Any]: 清理后的股票汇总对象
+        """
+        import copy
+        
+        # 使用现有的to_stock_summary方法生成基础结构
+        base_summary = HistoricLowEntity.to_stock_summary(stock_simulation_result)
+        
+        # 深拷贝以避免修改原始数据
+        cleaned = copy.deepcopy(base_summary)
+        
+        # 清理每个投资记录
+        for investment in cleaned.get('investments', []):
+            # 清理 targets 中的 investment_ratio_left 和 all
+            if 'targets' in investment:
+                targets = investment['targets']
+                targets.pop('investment_ratio_left', None)
+                targets.pop('all', None)
+            
+            # 清理 opportunity 中的 stock 和 opportunity_record
+            if 'opportunity' in investment:
+                opportunity = investment['opportunity']
+                opportunity.pop('stock', None)
+                opportunity.pop('opportunity_record', None)
+        
+        return cleaned
 
     @staticmethod
     def to_job_data(stock_id: str, last_update: str, is_in_db: bool) -> Dict[str, Any]:

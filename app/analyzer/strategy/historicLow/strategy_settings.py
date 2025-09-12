@@ -8,6 +8,7 @@ strategy_settings = {
         "test_problematic_stocks_only": False,  # 是否专门测试问题股票
         "max_test_stocks": 10,  # 最大测试股票数量; None 表示测试所有股票
         "start_idx": 0,  # 开始索引
+        "simulation_ref_version": "524",  # 模拟参考版本
     },
 
     # 日线数据要求

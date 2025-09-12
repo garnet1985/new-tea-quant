@@ -2,22 +2,14 @@
 """
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
-import math
 import time
 from typing import Dict, List, Any, Tuple
-from datetime import datetime, timedelta
-import pprint
-from enum import Enum
 from loguru import logger
-from app.analyzer.strategy.historicLow.strategy_simulator import HLSimulator
-from utils.worker import ProcessWorker, ProcessExecutionMode 
-from .tables.settings.model import HLMetaModel
-from .tables.targets.model import HLOpportunityHistoryModel
-from .tables.strategy_summary.model import HLStrategySummaryModel
 from ...libs.base_strategy import BaseStrategy
 from .strategy_service import HistoricLowService
 from .strategy_entity import HistoricLowEntity
 from .strategy_settings import strategy_settings
+from .investment_recorder import InvestmentRecorder
 from app.data_source.data_source_service import DataSourceService
 
 class HistoricLowStrategy(BaseStrategy):
@@ -41,6 +33,9 @@ class HistoricLowStrategy(BaseStrategy):
         
         # 加载策略设置
         self.strategy_settings = strategy_settings
+        
+        # 初始化投资记录器
+        self.invest_recorder = InvestmentRecorder()
 
 
     def initialize(self):
@@ -62,13 +57,13 @@ class HistoricLowStrategy(BaseStrategy):
     # ========================================================
     async def scan(self) -> List[Dict[str, Any]]:
         stock_idx = self.required_tables["stock_index"].load_filtered_index()
-        
+
         if not stock_idx:
             return []
 
         opportunities = self._scan_stocks_with_worker(stock_idx)
 
-        pprint.pprint(opportunities)
+        self.report(opportunities)
 
         return opportunities
 
@@ -78,9 +73,14 @@ class HistoricLowStrategy(BaseStrategy):
         HLSimulator(self).test_strategy()
 
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
-        # todo: present the report
-        pass
-
+        reports = self.to_presentable_report(opportunities)
+        
+        print("\n📊 HistoricLow 策略投资报告")
+        print("=" * 60)
+        
+        self.print_investment_operations()
+        for report in reports:
+            self.present_report(report)
 
     # ========================================================
     # Core logic:
@@ -95,7 +95,6 @@ class HistoricLowStrategy(BaseStrategy):
         low_points = HistoricLowStrategy.find_low_points(history_records)
 
         opportunity = HistoricLowStrategy.find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
-        # investment = HistoricLowEntity.to_investment(opportunity)
 
         return opportunity
 
@@ -177,32 +176,213 @@ class HistoricLowStrategy(BaseStrategy):
     # ========================================================
 
     def to_presentable_report(self, opportunities: List[Dict[str, Any]]) -> None:
-        """呈现扫描报告"""
-        if not opportunities:
-            print("\n📊 HistoricLow 策略扫描报告")
-            print("=" * 50)
-            print("❌ 未发现投资机会")
-            return
+        """
+        将投资机会转换为可呈现的报告格式
         
-        print("\n📊 HistoricLow 策略扫描报告")
-        print("=" * 50)
-        print(f"🎯 发现 {len(opportunities)} 个投资机会")
-        print("=" * 50)
+        Args:
+            opportunities: 投资机会列表
+        """
+        from .strategy_settings import strategy_settings
         
-        for i, opp in enumerate(opportunities, 1):
-            stock_info = opp['stock']
-            opportunity_record = opp['opportunity_record']
-            goal = opp['goal']
-            historic_low = opp['historic_low_ref']
+        # 获取黑名单
+        blacklist = set(strategy_settings['problematic_stocks']['list'])
+        
+        # 遍历机会并添加模拟结果信息
+        for opportunity in opportunities:
+            stock_id = opportunity.get('stock', {}).get('id', '')
             
-            print(f"\n{i}. {stock_info['code']} - {stock_info['name']}")
-            print(f"   当前价格: {opportunity_record['close']:.2f}")
-            print(f"   历史低点: {historic_low['lowest_price']:.2f}")
-            print(f"   止损价格: {goal['loss']:.2f}")
-            print(f"   止盈价格: {goal['win']:.2f}")
-            print(f"   扫描日期: {opportunity_record['date']}")
+            # 检查是否在黑名单中
+            opportunity['is_in_blacklist'] = stock_id in blacklist
+            
+            # 获取该股票的完整模拟结果数据
+            stock_data = self.invest_recorder.get_stock_data(stock_id)
+            
+            if stock_data:
+                # 将模拟结果summary附加到机会上
+                opportunity['simulation_summary'] = stock_data.get('summary', {})
+                # 将投资记录附加到机会上
+                opportunity['investments'] = stock_data.get('investments', [])
+            else:
+                opportunity['simulation_summary'] = None
+                opportunity['investments'] = []
+
+        return opportunities
+
+    def print_investment_operations(self) -> None:
+        """
+        打印投资操作说明，从settings中动态获取策略信息
+        """
+        goal_settings = strategy_settings.get('goal', {})
+        stop_loss_settings = goal_settings.get('stop_loss', {})
+        take_profit_settings = goal_settings.get('take_profit', {})
+        
+        print(f"📍 投资策略说明:")
+        
+        # 初始止损
+        loss20_stage = stop_loss_settings.get('stages', [{}])[0]
+        loss20_ratio = loss20_stage.get('ratio', -0.2) * 100
+        print(f"   1. 初始投资止损: {loss20_ratio:.0f}%")
+        
+        # 止盈阶段
+        take_profit_stages = take_profit_settings.get('stages', [])
+        for i, stage in enumerate(take_profit_stages, 2):
+            stage_name = stage.get('name', '')
+            ratio = stage.get('ratio', 0) * 100
+            sell_ratio = stage.get('sell_ratio', 0) * 100
+            set_stop_loss = stage.get('set_stop_loss', '')
+            
+            if stage_name == 'win10%':
+                print(f"   {i}. 盈利{ratio:.0f}%后: 卖出{sell_ratio:.0f}%仓位，止损调整为买入价格(保本)")
+            elif stage_name == 'win20%':
+                print(f"   {i}. 盈利{ratio:.0f}%后: 卖出{sell_ratio:.0f}%仓位")
+            elif stage_name == 'win30%':
+                print(f"   {i}. 盈利{ratio:.0f}%后: 卖出{sell_ratio:.0f}%仓位")
+            elif stage_name == 'win40%':
+                print(f"   {i}. 盈利{ratio:.0f}%后: 卖出{sell_ratio:.0f}%仓位，启动动态止损")
+        
+        # 动态止损说明
+        dynamic_stop_loss = stop_loss_settings.get('dynamic', {})
+        dynamic_ratio = dynamic_stop_loss.get('ratio', -0.1) * 100
+        print(f"   6. 动态止损: 止损位置为之后日线出现过的最高值的下方{abs(dynamic_ratio):.0f}%")
+        print("============================================================")
+
     
 
+    def present_report(self, report: Dict[str, Any]) -> None:
+        """
+        呈现投资报告
+        
+        Args:
+            report: 单个投资机会报告
+        """
+        # 获取股票基本信息
+        stock = report.get('stock', {})
+        stock_id = stock.get('id', '')
+        stock_name = stock.get('name', '')
+        current_close = report.get('price', 0)  # 从opportunity的price字段获取收盘价
+        
+        # 获取低点参考信息
+        low_point_ref = report.get('low_point_ref', {})
+        low_point_price = low_point_ref.get('low_point_price', 0)
+        invest_upper_bound = low_point_ref.get('invest_upper_bound', 0)
+        invest_lower_bound = low_point_ref.get('invest_lower_bound', 0)
+        
+        # 获取模拟结果
+        simulation_summary = report.get('simulation_summary', {})
+        
+        # 检查收盘价数据
+        if current_close <= 0:
+            print(f"\n📈 股票: {stock_id} - {stock_name}")
+            print(f"💰 最新收盘价: {current_close:.2f} (数据异常)")
+            print("⚠️  收盘价数据异常，无法进行投资分析")
+            return
+        
+        # 计算当前价格在参考区间的百分比位置和投资建议
+        investment_comment = ""
+        if invest_upper_bound > invest_lower_bound > 0:
+            price_position = ((current_close - invest_lower_bound) / (invest_upper_bound - invest_lower_bound)) * 100
+            
+            # 判断投资时机
+            if price_position < 33:
+                investment_comment = "当前买入成本较低，是投资的好机会"
+            elif price_position > 66:
+                investment_comment = "当前买入成本较高，可能会削弱盈利，谨慎投资"
+            else:
+                investment_comment = "当前买入成本适中，是投资机会"
+        else:
+            investment_comment = "投资参考区间数据异常"
+        
+        # 检查是否在黑名单中
+        blacklist_status = ""
+        if report.get('is_in_blacklist', False):
+            blacklist_status = "此股票在当前策略的黑名单中，强烈建议谨慎投资！"
+        else:
+            blacklist_status = "此股票不在当前策略的黑名单中，可以考虑投资。"
+        
+        # 显示股票信息和结论
+        print(f"📍 建议:")
+        print(f"      - {blacklist_status}")
+        print(f"      - {investment_comment}")
+        
+        # 显示详细数据
+        print(f"\n📈 股票: {stock_id} - {stock_name}")
+        print(f"💰 最新收盘价: {current_close:.2f}")
+        
+        # 获取期数信息
+        term = low_point_ref.get('term', 0)
+        print(f"📍 历史低点: {low_point_price:.2f} （{term}年期）")
+        print(f"📍 投资参考区间: {invest_lower_bound:.2f} - {invest_upper_bound:.2f}")
+        
+        if invest_upper_bound > invest_lower_bound > 0:
+            print(f"📍 当前价格位置: {price_position:.1f}%")
+        else:
+            print("📍 投资参考区间: 数据异常")
+        
+        # 呈现模拟结果
+        if simulation_summary:
+            total_investments = simulation_summary.get('total_investments', 0)
+            success_count = simulation_summary.get('success_count', 0)
+            fail_count = simulation_summary.get('fail_count', 0)
+            open_count = simulation_summary.get('open_count', 0)
+            win_rate = simulation_summary.get('win_rate', 0)
+            avg_duration_days = simulation_summary.get('avg_duration_days', 0)
+            avg_roi = simulation_summary.get('avg_roi', 0)
+            avg_annual_return = simulation_summary.get('avg_annual_return', 0)
+            
+            print(f"\n📊 历史模拟结果:")
+            print(f"   📈 总投资次数: {total_investments}")
+            print(f"   ✅ 成功次数: {success_count}")
+            print(f"   ❌ 失败次数: {fail_count}")
+            print(f"   ⏳ 未结束次数: {open_count}")
+            print(f"   🎯 投资成功率: {win_rate:.1f}%")
+            print(f"   ⏰ 平均投资时间: {avg_duration_days:.1f}天")
+            print(f"   💰 平均投资收益: {avg_roi:.2f}%")
+            print(f"   📅 平均年化收益: {avg_annual_return:.2f}%")
+            
+            # 计算盈利分布 - 从investments中统计
+            investments = report.get('investments', [])
+            if investments:
+                green_count = 0    # 盈利 > 20%
+                yellow_count = 0  # 微盈 0-20%
+                orange_count = 0  # 微损 -20% to 0
+                red_count = 0     # 亏损 < -20%
+                
+                for investment in investments:
+                    overall_profit = investment.get('overall_profit', 0)
+                    purchase_price = investment.get('purchase_price', 0)
+                    
+                    if purchase_price > 0:
+                        profit_rate = (overall_profit / purchase_price) * 100
+                        
+                        if profit_rate > 20:
+                            green_count += 1
+                        elif profit_rate >= 0:
+                            yellow_count += 1
+                        elif profit_rate > -20:
+                            orange_count += 1
+                        else:
+                            red_count += 1
+                
+                if total_investments > 0:
+                    green_rate = (green_count / total_investments) * 100
+                    yellow_rate = (yellow_count / total_investments) * 100
+                    orange_rate = (orange_count / total_investments) * 100
+                    red_rate = (red_count / total_investments) * 100
+                    
+                    print(f"\n🎨 投资结果分布:")
+                    print(f"   🟢 盈利(>20%): {green_count}次 ({green_rate:.1f}%)")
+                    print(f"   🟡 微盈(0-20%): {yellow_count}次 ({yellow_rate:.1f}%)")
+                    print(f"   🟠 微损(-20%-0%): {orange_count}次 ({orange_rate:.1f}%)")
+                    print(f"   🔴 亏损(<-20%): {red_count}次 ({red_rate:.1f}%)")
+                else:
+                    print(f"\n🎨 投资结果分布: 无投资记录")
+            else:
+                print(f"\n🎨 投资结果分布: 无投资记录")
+        else:
+            print("\n📊 历史模拟结果: 无数据")
+        
+        print("-" * 60)
+       
     # ========================================================
     # Workers:
     # ========================================================

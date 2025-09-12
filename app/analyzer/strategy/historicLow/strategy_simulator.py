@@ -82,10 +82,14 @@ class HLSimulator:
                         result_dot = "🟡"
                         result_text = "微盈"
                 elif result == 'loss':
-                    result_dot = "🔴"
-                    result_text = "亏损"
+                    if profit_rate > -20:
+                        result_dot = "🟠"
+                        result_text = "微损"
+                    else:
+                        result_dot = "🔴"
+                        result_text = "亏损"
                 else:
-                    result_dot = "🟡"
+                    result_dot = "⚪️"
                     result_text = "平仓"
                 
                 logger.info(f"🔍 投资结束: {stock['id']} {result_dot} {result_text} | 收益率: {profit_rate:+.2f}% | 时长: {duration_days}天")
@@ -347,8 +351,8 @@ class HLSimulator:
                 self.invest_recorder.save_stock_summary(stock_summary)
 
         # 生成会话汇总并返回
-        session_summary = self.invest_recorder.to_session(simulation_results)
-        return session_summary
+        session_summary = HistoricLowEntity.to_session_summary(simulation_results)
+        return self.invest_recorder.save_session(session_summary)
     
 
 
@@ -579,20 +583,15 @@ class HLSimulator:
             stock = stock_result['stock_info']
             investments = stock_result['investments']
             
-            # 转换为investment_recorder期望的格式
-            investment_history = []
-            for investment in investments.values():
-                # 直接使用结算期望格式（包含targets等新字段）
-                settlement_record = investment.get('settlement_record')
-                if settlement_record:
-                    investment_history.append(settlement_record)
+            # 生成股票汇总（使用新的统一方法）
+            stock_summary = self.summarize_stock_result(stock_result)
             
             # 只有当股票有投资记录时才生成文件
-            if investment_history:
-                self.invest_recorder.to_record(stock, investment_history)
+            if stock_summary['summary']['total_investments'] > 0:
+                self.invest_recorder.save_stock_summary(stock_summary)
         
         # 记录会话汇总
-        self.invest_recorder._save_session_summary(session_summary)
+        self.invest_recorder.save_session(session_summary)
         
         # 更新meta文件
         self.invest_recorder._update_meta_file()
@@ -748,8 +747,7 @@ class HLSimulator:
             
             # 通过investment_recorder生成统一格式的结算信息
             try:
-                investment_recorder = InvestmentRecorder()
-                settlement_record = investment_recorder.to_settlement(stock, open_settlement_result)
+                settlement_record = HistoricLowEntity.to_settlement(stock, open_settlement_result)
                 # 将结算记录添加到settled中，保持原有格式
                 thread_tracker['settled'][investment_id]['settlement_record'] = settlement_record
             except Exception as e:
@@ -791,17 +789,22 @@ class HLSimulator:
             print(f"📊 总投资次数: {session_summary.get('total_investments', 0)}")
             print(f"✅ 成功次数: {session_summary.get('win_count', 0)}")
             print(f"❌ 失败次数: {session_summary.get('loss_count', 0)}")
+
+            print("<------------------------------------------->")
             
             # 添加颜色点统计
             green_count = session_summary.get('green_dot_count', 0)
             yellow_count = session_summary.get('yellow_dot_count', 0)
+            orange_count = session_summary.get('orange_dot_count', 0)
             red_count = session_summary.get('red_dot_count', 0)
             green_rate = session_summary.get('green_dot_rate', 0)
             yellow_rate = session_summary.get('yellow_dot_rate', 0)
+            orange_rate = session_summary.get('orange_dot_rate', 0)
             red_rate = session_summary.get('red_dot_rate', 0)
             
             print(f"🟢 盈利次数: {green_count} ({green_rate}%)")
             print(f"🟡 微盈次数: {yellow_count} ({yellow_rate}%)")
+            print(f"🟠 微损次数: {orange_count} ({orange_rate}%)")
             print(f"🔴 亏损次数: {red_count} ({red_rate}%)")
         else:
             print("📊 投资结果统计: 暂无数据")

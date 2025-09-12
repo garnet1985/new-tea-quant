@@ -348,6 +348,7 @@ class HLSimulator:
             
             # 只保存有过投资的股票记录
             if stock_summary['summary']['total_investments'] > 0:
+                stock_summary = HistoricLowEntity.to_stock_summary(stock_summary)
                 self.invest_recorder.save_stock_summary(stock_summary)
 
         # 生成会话汇总并返回
@@ -580,14 +581,12 @@ class HLSimulator:
         """记录所有汇总结果到investment_recorder"""
         # 从session_results中获取每只股票的原始数据
         for stock_result in self.session_results:
-            stock = stock_result['stock_info']
-            investments = stock_result['investments']
-            
             # 生成股票汇总（使用新的统一方法）
             stock_summary = self.summarize_stock_result(stock_result)
             
             # 只有当股票有投资记录时才生成文件
             if stock_summary['summary']['total_investments'] > 0:
+                stock_summary = HistoricLowEntity.to_stock_summary(stock_summary)
                 self.invest_recorder.save_stock_summary(stock_summary)
         
         # 记录会话汇总

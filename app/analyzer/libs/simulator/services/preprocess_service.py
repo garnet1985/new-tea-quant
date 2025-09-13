@@ -30,10 +30,14 @@ class PreprocessService:
         simulation_config = settings['simulation']
         
         # 设置默认值
+        from app.conf.conf import data_default_start_date
+        start_date = simulation_config.get('start_date', data_default_start_date)  # 使用全局默认日期
+        end_date = simulation_config.get('end_date', '')  # 空字符串表示到最后
+        
         validated_config = {
             'simulate_base_term': simulation_config.get('simulate_base_term', 'daily'),
-            'start_date': simulation_config.get('start_date', '2010-01-01'),
-            'end_date': simulation_config.get('end_date', '2024-12-31'),
+            'start_date': start_date,
+            'end_date': end_date,
             'max_stocks': simulation_config.get('max_stocks', 10),
             'start_idx': simulation_config.get('start_idx', 0),
         }

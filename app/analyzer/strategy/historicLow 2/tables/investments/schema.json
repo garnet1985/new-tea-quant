@@ -1,0 +1,71 @@
+{
+    "name": "targets_history",
+    "primaryKey": ["code", "market", "startDate", "endDate"],
+    "fields": [
+        {
+            "name": "settings_id",
+            "type": "varchar",
+            "length": 8,
+            "isRequired": true
+        },
+        {
+            "name": "stock_id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true
+        },
+        {
+            "name": "target_name",
+            "type": "varchar",
+            "length": 32,
+            "isRequired": true
+        },
+        {
+            "name": "target_threshold",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "profit",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "profit_rate",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "profit_weight",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "duration",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "start_date",
+            "type": "varchar",
+            "length": 63,
+            "isRequired": true
+        },
+        {
+            "name": "end_date",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "purchase_price",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "sell_price",
+            "type": "float",
+            "isRequired": true
+        }
+    ]
+}

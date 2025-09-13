@@ -3,7 +3,7 @@
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
 import time
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 from loguru import logger
 from ...libs.base_strategy import BaseStrategy
 from .strategy_service import HistoricLowService
@@ -68,10 +68,290 @@ class HistoricLowStrategy(BaseStrategy):
         return opportunities
 
     def simulate(self) -> None:
-        # 延迟导入，避免与 simulator 的循环依赖
+        """使用新的 simulator 框架进行模拟"""
+        from app.analyzer.libs.simulator import Simulator
+        
+        # 创建模拟器
+        simulator = Simulator()
+        
+        # 从策略设置中获取配置
+        test_mode = strategy_settings.get('test_mode', {})
+        simulate_settings = {
+            'simulate_base_term': 'daily',
+            'start_date': '2010-01-01',  # 使用足够长的历史数据
+            'end_date': '2024-12-31',
+            'max_stocks': test_mode.get('max_test_stocks', 10),
+            'start_idx': test_mode.get('start_idx', 0)
+        }
+        
+        # 构建正确的 settings 结构
+        settings = {
+            'simulation': simulate_settings
+        }
+        
+        # 运行模拟 - 传递单日模拟函数和自定义汇总函数
+        result = simulator.run(
+            settings=settings,
+            on_simulate_one_day=self.__class__.simulate_single_day,
+            on_single_stock_summary=self.__class__.summarize_single_stock,
+            on_session_summary=self.__class__.summarize_session,
+            on_simulate_complete=self.__class__.present_final_report
+        )
+        
+        logger.info(f"🎉 模拟完成，结果: {result}")
+    
+    @staticmethod
+    def simulate_single_day(stock_id: str, current_date: str, current_record: Dict[str, Any], 
+                           historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        模拟单日交易逻辑
+        
+        Args:
+            stock_id: 股票ID
+            current_date: 当前日期
+            current_record: 当前日K线数据
+            historical_data: 历史数据（到当前日之前）
+            current_investment: 当前投资状态
+            
+        Returns:
+            Dict[str, Any]: 包含以下字段的结果
+                - new_investment: 新的投资（如果有）
+                - settled_investments: 结算的投资列表
+                - current_investment: 更新后的当前投资状态
+        """
+        new_investment = None
+        settled_investments = []
+        
+        # 如果有投资，先检查是否需要结算
+        if current_investment:
+            # 更新投资的最大最小值跟踪
+            HistoricLowStrategy._update_investment_tracking(current_investment, current_record)
+            
+            # 检查止盈止损目标
+            should_settle, updated_investment = HistoricLowStrategy._check_investment_targets(current_investment, current_record)
+            
+            if should_settle:
+                # 结算投资
+                HistoricLowStrategy._settle_investment(updated_investment)
+                settled_investments.append(updated_investment)
+                current_investment = None  # 清空当前投资
+            else:
+                current_investment = updated_investment
+        
+        # 如果没有当前投资，尝试扫描机会
+        if current_investment is None:
+            # 检查数据是否足够
+            min_required_daily_records = strategy_settings['daily_data_requirements']['min_required_daily_records']
+            if len(historical_data) >= min_required_daily_records:
+                # 构建股票信息
+                stock_info = {'id': stock_id}
+                # 扫描投资机会
+                opportunity = HistoricLowStrategy.scan_single_stock(stock_info, historical_data)
+                if opportunity:
+                    # 创建投资
+                    new_investment = HistoricLowEntity.to_investment(opportunity)
+                    if new_investment:
+                        new_investment['start_date'] = current_date
+        
+        # 如果有新投资，更新当前投资状态
+        if new_investment:
+            current_investment = new_investment
+        
+        return {
+            'new_investment': new_investment,
+            'settled_investments': settled_investments,
+            'current_investment': current_investment
+        }
+    
+    @staticmethod
+    def _update_investment_tracking(investment: Dict[str, Any], current_record: Dict[str, Any]) -> None:
+        """更新投资的最大最小值跟踪"""
+        current_price = current_record['close']
+        tracking = investment['tracking']
+        
+        # 更新最大价格
+        if current_price > tracking['max_close_reached']['price']:
+            tracking['max_close_reached']['price'] = current_price
+            tracking['max_close_reached']['date'] = current_record['date']
+            tracking['max_close_reached']['ratio'] = (current_price - investment['purchase_price']) / investment['purchase_price']
+        
+        # 更新最小价格
+        if current_price < tracking['min_close_reached']['price'] or tracking['min_close_reached']['price'] == 0:
+            tracking['min_close_reached']['price'] = current_price
+            tracking['min_close_reached']['date'] = current_record['date']
+            tracking['min_close_reached']['ratio'] = (current_price - investment['purchase_price']) / investment['purchase_price']
+    
+    @staticmethod
+    def _check_investment_targets(investment: Dict[str, Any], current_record: Dict[str, Any]) -> tuple:
+        """检查投资目标，返回是否需要结算和更新后的投资"""
         from .strategy_simulator import HLSimulator
-        HLSimulator(self).test_strategy()
-
+        return HLSimulator.check_targets(investment, current_record)
+    
+    @staticmethod
+    def _settle_investment(investment: Dict[str, Any]) -> None:
+        """结算投资"""
+        from .strategy_simulator import HLSimulator
+        HLSimulator.settle_investment(investment)
+    
+    @staticmethod
+    def summarize_single_stock(result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        单股票汇总 - 从备份版本迁移
+        
+        Args:
+            result: 单股票模拟结果
+            
+        Returns:
+            Dict: 单股票汇总信息
+        """
+        stock_id = result.get('stock_id', 'unknown')
+        investments = result.get('investments', [])
+        settled_investments = result.get('settled_investments', [])
+        
+        # 统计投资数据
+        total_investments = len(investments) + len(settled_investments)
+        success_count = 0
+        fail_count = 0
+        open_count = len(investments)  # 未结算的投资
+        total_profit = 0.0
+        total_duration_days = 0
+        total_roi = 0.0
+        total_annual_return = 0.0
+        
+        # 处理已结算的投资
+        for investment in settled_investments:
+            result_type = investment.get('result', '')
+            if result_type == 'WIN':
+                success_count += 1
+            elif result_type == 'LOSS':
+                fail_count += 1
+            
+            # 累计收益和持续时间
+            total_profit += investment.get('overall_profit', 0.0)
+            total_duration_days += investment.get('invest_duration_days', 0)
+            total_roi += investment.get('overall_profit_rate', 0.0)
+            
+            # 计算年化收益率
+            duration_days = investment.get('invest_duration_days', 1)
+            profit_rate = investment.get('overall_profit_rate', 0.0)
+            # TODO: 实现年化收益率计算
+            annual_return = profit_rate * 365 / duration_days if duration_days > 0 else 0.0
+            total_annual_return += annual_return
+        
+        # 计算平均值
+        avg_profit = total_profit / total_investments if total_investments > 0 else 0.0
+        avg_duration_days = total_duration_days / total_investments if total_investments > 0 else 0.0
+        avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
+        avg_annual_return = total_annual_return / total_investments if total_investments > 0 else 0.0
+        
+        # 计算胜率
+        settled_count = success_count + fail_count
+        win_rate = (success_count / settled_count * 100) if settled_count > 0 else 0.0
+        
+        return {
+            'total_investments': total_investments,
+            'success_count': success_count,
+            'fail_count': fail_count,
+            'open_count': open_count,
+            'win_rate': round(win_rate, 1),
+            'total_profit': round(total_profit, 2),
+            'avg_profit': round(avg_profit, 2),
+            'avg_duration_days': round(avg_duration_days, 1),
+            'avg_roi': round(avg_roi, 2),
+            'avg_annual_return': round(avg_annual_return, 2)
+        }
+    
+    @staticmethod
+    def summarize_session(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        会话汇总 - 从备份版本迁移
+        
+        Args:
+            stock_summaries: 股票汇总列表
+            
+        Returns:
+            Dict: 会话汇总信息
+        """
+        total_investments = 0
+        win_count = 0
+        loss_count = 0
+        open_count = 0
+        total_profit = 0.0
+        total_duration = 0.0
+        total_roi = 0.0
+        total_stocks_with_opportunities = 0
+        
+        for stock_summary in stock_summaries:
+            summary = stock_summary.get('summary', {})
+            if summary.get('total_investments', 0) > 0:
+                total_stocks_with_opportunities += 1
+            
+            total_investments += summary.get('total_investments', 0)
+            win_count += summary.get('success_count', 0)
+            loss_count += summary.get('fail_count', 0)
+            open_count += summary.get('open_count', 0)
+            total_profit += summary.get('total_profit', 0.0)
+            total_duration += summary.get('avg_duration_days', 0.0) * summary.get('total_investments', 0)
+            total_roi += summary.get('avg_roi', 0.0) * summary.get('total_investments', 0)
+        
+        # 计算平均值
+        settled_investments = win_count + loss_count
+        avg_duration_days = (total_duration / total_investments) if total_investments > 0 else 0.0
+        avg_roi = (total_roi / total_investments) if total_investments > 0 else 0.0
+        win_rate = (win_count / settled_investments * 100) if settled_investments > 0 else 0.0
+        avg_profit_per_investment = (total_profit / total_investments) if total_investments > 0 else 0.0
+        
+        return {
+            'total_investments': total_investments,
+            'win_count': win_count,
+            'loss_count': loss_count,
+            'open_count': open_count,
+            'settled_investments': settled_investments,
+            'win_rate': round(win_rate, 2),
+            'avg_duration_days': round(avg_duration_days, 1),
+            'avg_roi': round(avg_roi, 2),
+            'total_profit': round(total_profit, 2),
+            'avg_profit_per_investment': round(avg_profit_per_investment, 2),
+            'total_stocks_with_opportunities': total_stocks_with_opportunities
+        }
+    
+    @staticmethod
+    def present_final_report(final_report: Dict[str, Any]) -> None:
+        """
+        呈现最终报告 - 从备份版本迁移
+        
+        Args:
+            final_report: 最终报告
+        """
+        session_summary = final_report.get('session_summary', {})
+        stock_summaries = final_report.get('stock_summaries', [])
+        
+        print("\n📊 HistoricLow 策略模拟报告")
+        print("=" * 60)
+        
+        # 显示会话汇总
+        print(f"📈 总投资次数: {session_summary.get('total_investments', 0)}")
+        print(f"✅ 成功次数: {session_summary.get('win_count', 0)}")
+        print(f"❌ 失败次数: {session_summary.get('loss_count', 0)}")
+        print(f"⏳ 未结束次数: {session_summary.get('open_count', 0)}")
+        print(f"🎯 投资成功率: {session_summary.get('win_rate', 0):.1f}%")
+        print(f"⏰ 平均投资时间: {session_summary.get('avg_duration_days', 0):.1f}天")
+        print(f"💰 平均投资收益: {session_summary.get('avg_roi', 0):.2f}%")
+        print(f"💵 总收益: {session_summary.get('total_profit', 0):.2f}")
+        print(f"📊 有投资机会的股票数: {session_summary.get('total_stocks_with_opportunities', 0)}")
+        
+        # 显示股票详情
+        print(f"\n📋 股票详情:")
+        for stock_summary in stock_summaries:
+            stock_id = stock_summary.get('stock_id', 'unknown')
+            summary = stock_summary.get('summary', {})
+            if summary.get('total_investments', 0) > 0:
+                print(f"  {stock_id}: {summary.get('total_investments', 0)}次投资, "
+                      f"成功率{summary.get('win_rate', 0):.1f}%, "
+                      f"平均收益{summary.get('avg_roi', 0):.2f}%")
+        
+        print("=" * 60)
+    
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         reports = self.to_presentable_report(opportunities)
         

@@ -187,7 +187,7 @@ class SimulatingService:
             settings: 策略设置
             
         Returns:
-            Dict: K线数据
+            Dict: 按时间周期分组的K线数据，格式为 {'daily': [...], 'weekly': [...]}
         """
         try:
             # 从数据库加载K线数据
@@ -200,40 +200,42 @@ class SimulatingService:
             # 获取K线表实例
             kline_table = db.get_table_instance('stock_kline')
             
-            # 从设置中获取日期范围
+            # 从设置中获取日期范围和时间周期（preprocess已验证）
             simulation_config = settings.get('simulation', {})
-            start_date = simulation_config.get('start_date', '2010-01-01')
-            end_date = simulation_config.get('end_date', '2024-12-31')
+            start_date = simulation_config['start_date']
+            end_date = simulation_config['end_date']
             
-            # 转换日期格式：YYYY-MM-DD -> YYYYMMDD
-            start_date_formatted = start_date.replace('-', '')
-            end_date_formatted = end_date.replace('-', '')
+            # 获取需要加载的时间周期
+            klines_config = simulation_config.get('klines', {})
+            terms = klines_config.get('terms', ['daily'])
             
-            # 构建查询条件
-            where_condition = "id = %s AND term = %s AND date >= %s AND date <= %s"
-            params = (stock_id, 'daily', start_date_formatted, end_date_formatted)
+            # 加载所有时间周期的数据
+            all_data = {}
+            for term in terms:
+                # 构建查询条件
+                if end_date:
+                    # 有结束日期，使用范围查询
+                    where_condition = "id = %s AND term = %s AND date >= %s AND date <= %s"
+                    params = (stock_id, term, start_date, end_date)
+                else:
+                    # 没有结束日期，查询到最后
+                    where_condition = "id = %s AND term = %s AND date >= %s"
+                    params = (stock_id, term, start_date)
+                
+                # 查询K线数据
+                term_data = kline_table.load(
+                    condition=where_condition,
+                    params=params,
+                    order_by='date ASC'
+                )
+                all_data[term] = term_data
             
-            # 查询K线数据
-            kline_data = kline_table.load(
-                condition=where_condition,
-                params=params,
-                order_by='date ASC'
-            )
-            
-            # 转换为框架期望的格式
-            return {
-                'daily': {
-                    stock_id: kline_data
-                }
-            }
+            # 返回按时间周期分组的数据
+            return all_data
             
         except Exception as e:
             logger.error(f"❌ 加载股票 {stock_id} 数据失败: {e}")
-            return {
-                'daily': {
-                    stock_id: []
-                }
-            }
+            return {}
     
     @staticmethod
     def _create_error_result(stock_id: str, error_message: str) -> Dict[str, Any]:

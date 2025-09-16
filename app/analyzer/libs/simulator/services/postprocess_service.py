@@ -18,9 +18,13 @@ class PostprocessService:
         """
         汇总单股票结果
         
+        逻辑：
+        1. 先执行默认汇总逻辑（投资成功率、平均ROI、平均年化收益、平均投资周期等）
+        2. 如果用户提供了自定义汇总函数，则调用它来添加额外的track值到默认summary中
+        
         Args:
             simulate_results: 模拟结果列表
-            on_single_stock_summary: 用户自定义的单股票汇总函数
+            on_single_stock_summary: 可选的单股票汇总回调函数，用于添加额外的track值
             
         Returns:
             List[Dict]: 股票汇总结果列表
@@ -30,28 +34,24 @@ class PostprocessService:
         for result in simulate_results:
             stock_id = result.get('stock_id', 'unknown')
             
-            # 调用用户自定义的单股票汇总函数
+            # 先执行默认汇总逻辑
+            summary = PostprocessService._default_stock_summary(result)
+            
+            # 如果用户提供了自定义汇总函数，则调用它来添加额外的track值
             if on_single_stock_summary:
                 try:
-                    summary = on_single_stock_summary(result)
-                    stock_summaries.append({
-                        'stock_id': stock_id,
-                        'summary': summary
-                    })
+                    additional_tracks = on_single_stock_summary(result)
+                    if additional_tracks:
+                        # 将用户自定义的track值合并到默认summary中
+                        summary.update(additional_tracks)
                 except Exception as e:
-                    logger.error(f"❌ 股票 {stock_id} 汇总失败: {e}")
-                    stock_summaries.append({
-                        'stock_id': stock_id,
-                        'summary': None,
-                        'error': str(e)
-                    })
-            else:
-                # 默认汇总逻辑 - 计算投资成功率、平均ROI、平均年化收益、平均投资周期等
-                summary = PostprocessService._default_stock_summary(result)
-                stock_summaries.append({
-                    'stock_id': stock_id,
-                    'summary': summary
-                })
+                    logger.error(f"❌ 股票 {stock_id} 自定义汇总失败: {e}")
+                    # 即使自定义汇总失败，也保留默认summary
+            
+            stock_summaries.append({
+                'stock_id': stock_id,
+                'summary': summary
+            })
         
         return stock_summaries
 

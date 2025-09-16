@@ -19,7 +19,6 @@ def to_opportunity(
     price: float,
     lower_bound: Optional[float] = None,
     upper_bound: Optional[float] = None,
-    extra: Optional[Dict[str, Any]] = None,
     extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Construct a standard opportunity entity.
@@ -36,9 +35,9 @@ def to_opportunity(
         entity['lower_bound'] = lower_bound
     if upper_bound is not None:
         entity['upper_bound'] = upper_bound
-    # prefer `extra` but keep compatibility with `extra_fields`
-    merged_extra = extra if isinstance(extra, dict) else extra_fields
-    return _merge_extra(entity, merged_extra)
+
+    merged_extra = extra_fields if isinstance(extra_fields, dict) else extra_fields
+    return _merge_extra_fields(entity, merged_extra)
 
 
 def to_investment(
@@ -61,7 +60,7 @@ def to_investment(
         'targets': _ensure_targets_schema(targets),
     }
     merged_extra = extra if isinstance(extra, dict) else extra_fields
-    return _merge_extra(entity, merged_extra)
+    return _merge_extra_fields(entity, merged_extra)
 
 
 def to_settled_investment(
@@ -98,9 +97,7 @@ def to_settled_investment(
 
     overall_profit_rate = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
 
-    start_dt = AnalyzerService.parse_yyyymmdd(investment.get('start_date'))
-    end_dt = AnalyzerService.parse_yyyymmdd(end_date)
-    invest_duration_days = (end_dt - start_dt).days if start_dt and end_dt else 0
+    invest_duration_days = AnalyzerService.get_duration_in_days(investment.get('start_date'), end_date)
 
     base = {
         'stock': investment.get('stock', {}),
@@ -119,7 +116,7 @@ def to_settled_investment(
         'overall_profit_rate': overall_profit_rate,
         'invest_duration_days': invest_duration_days,
     }
-    return _merge_extra(settled, extra_fields)
+    return _merge_extra_fields(settled, extra_fields)
 
 
 def to_stock_summary(
@@ -128,7 +125,7 @@ def to_stock_summary(
     extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     summary: Dict[str, Any] = dict(summary_core or {})
-    summary = _merge_extra(summary, extra_fields)
+    summary = _merge_extra_fields(summary, extra_fields)
     return {
         'stock_id': stock_id,
         'summary': summary,
@@ -144,14 +141,14 @@ def to_session_summary(
     investments = summary.get('investments', [])
     summary_core = compute_stock_summary_core(investments)
 
-    return _merge_extra(summary_core, extra_fields)
+    return _merge_extra_fields(summary_core, extra_fields)
 
 
 # ========================================================
 # Helper methods:
 # ========================================================
 
-def _merge_extra(base: Dict[str, Any], extra_fields: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _merge_extra_fields(base: Dict[str, Any], extra_fields: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if extra_fields and isinstance(extra_fields, dict):
         for k, v in extra_fields.items():
             if k not in base:

@@ -9,7 +9,7 @@ from pprint import pprint
 
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
-from .strategy_enum import InvestmentResult
+from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
 
 from app.data_source.data_source_service import DataSourceService
 from app.analyzer.strategy.historicLow.investment_recorder import InvestmentRecorder

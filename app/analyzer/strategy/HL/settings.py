@@ -2,7 +2,7 @@
 
 
 strategy_settings = {
-    'strategy_name': 'historicLow',  # 策略名称，用于投资记录器
+    'folder_name': 'HL',  # 策略文件夹名称，用于投资记录器
     
     'mode': {
         "blacklist_only": False,

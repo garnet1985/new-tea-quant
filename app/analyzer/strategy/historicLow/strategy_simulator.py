@@ -13,6 +13,7 @@ from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
 from app.analyzer.libs.investment import InvestmentGoalManager, InvestmentRecorder
+from app.analyzer.libs.simulator.simulator_entity_builder import to_settled_investment
 
 from app.data_source.data_source_service import DataSourceService
 from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
@@ -21,8 +22,9 @@ from .strategy_entity import HistoricLowEntity
 
 class HLSimulator:
     def __init__(self, strategy):
-        self.strategy = strategy
         
+        self.strategy = strategy
+
         # init tracker
         self.invest_recorder = InvestmentRecorder("historicLow")
 
@@ -35,17 +37,17 @@ class HLSimulator:
     # ========================================================
     # External (Bridge) APIs:
     # ========================================================
-
+	
     def test_strategy(self) -> None:
         if not self.is_invest_settings_valid():
             return
-
+		
         stock_idx = self.get_stock_list_by_test_mode()
         jobs = self.build_jobs(stock_idx)
         results = self.run_jobs(jobs)
         session_summary = self.generate_summary(results)
         self.present_investment_summary(session_summary)
-
+	
     # ========================================================
     # Core logic:
     # ========================================================
@@ -60,8 +62,8 @@ class HLSimulator:
             is_investment_ended, updated_investment = HLSimulator.check_targets(investment, record_of_today)
             
             if is_investment_ended:
-                HLSimulator.settle_investment(updated_investment)
-                tracker['settled'].append(updated_investment)
+                settled_entity = HLSimulator.settle_investment(updated_investment)
+                tracker['settled'].append(settled_entity)
                 del tracker['investing'][stock['id']]
             else:
                 tracker['investing'][stock['id']] = updated_investment
@@ -98,18 +100,23 @@ class HLSimulator:
             investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
 
     @staticmethod
-    def settle_investment(investment: Dict[str, Any]) -> None:
+    def settle_investment(investment: Dict[str, Any]) -> Dict[str, Any]:
         # 创建投资目标管理器
         goal_manager = InvestmentGoalManager(strategy_settings['goal'])
         
         # 使用目标管理器结算投资
         goal_manager.settle_investment(investment)
         
-        # 计算投资时长
-        investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
+        # 使用通用实体构造器生成标准结算实体
+        settled = to_settled_investment(
+            investment=investment,
+            end_date=investment.get('end_date'),
+            result=investment.get('result')
+        )
+        return settled
 
     @staticmethod
-    def settle_open_investment(investment: Dict[str, Any], final_price: float) -> None:
+    def settle_open_investment(investment: Dict[str, Any], final_price: float) -> Dict[str, Any]:
         """结算Open状态的投资（模拟结束时仍在持仓）"""
         # 创建投资目标管理器
         goal_manager = InvestmentGoalManager(strategy_settings['goal'])
@@ -117,8 +124,13 @@ class HLSimulator:
         # 使用目标管理器结算未结束的投资
         goal_manager.settle_open_investment(investment, final_price, '20241231')
         
-        # 计算投资时长
-        investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
+        # 使用通用实体构造器生成标准结算实体
+        settled = to_settled_investment(
+            investment=investment,
+            end_date=investment.get('end_date'),
+            result=investment.get('result')
+        )
+        return settled
 
     # ========================================================
     # Main steps:
@@ -143,13 +155,13 @@ class HLSimulator:
         except Exception as e:
             logger.error(f"投资设置验证失败: {e}")
             return False
-
+	
     def get_stock_list_by_test_mode(self) -> List[Dict[str, Any]]:
         """根据测试模式获取股票列表"""
         test_mode = strategy_settings.get('test_mode', {})
         test_amount = test_mode.get('test_amount', 10)
         start_idx = test_mode.get('start_idx', 0)
-        
+			
         # 获取股票列表
         stock_list = DataSourceService.get_filtered_stock_index()
         
@@ -183,10 +195,10 @@ class HLSimulator:
                 HLSimulator.simulate_one_day(stock, current_data, tracker)
             
             # 处理未结束的投资
-            for investment in tracker['investing'].values():
+            for investment in list(tracker['investing'].values()):
                 final_price = daily_k_lines[-1]['close'] if daily_k_lines else 0
-                HLSimulator.settle_open_investment(investment, final_price)
-                tracker['settled'].append(investment)
+                settled_entity = HLSimulator.settle_open_investment(investment, final_price)
+                tracker['settled'].append(settled_entity)
             
             # 保存结果
             result = {
@@ -239,11 +251,11 @@ class HLSimulator:
         logger.info(f"❌ 失败次数: {session_summary['loss_count']}")
         logger.info(f"⏳ 未结束次数: {session_summary['open_count']}")
         logger.info(f"🎯 投资成功率: {session_summary['win_rate']:.1%}")
-
-    # ========================================================
+	
+	# ========================================================
     # Simulator callback methods:
-    # ========================================================
-
+	# ========================================================
+	
     @staticmethod
     def simulate_single_day(stock_id: str, current_date: str, current_record: Dict[str, Any], 
                            all_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]], settings: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,13 +288,13 @@ class HLSimulator:
             
             if should_settle:
                 # 结算投资
-                HLSimulator.settle_investment(updated_investment)
-                settled_investments.append(updated_investment)
+                settled_entity = HLSimulator.settle_investment(updated_investment)
+                settled_investments.append(settled_entity)
                 
                 # 显示投资结果（模拟原HL simulator的行为）
-                result = updated_investment.get('result', 'unknown')
-                profit_rate = updated_investment.get('overall_profit_rate', 0) * 100
-                duration_days = updated_investment.get('invest_duration_days', 0)
+                result = settled_entity.get('result', 'unknown')
+                profit_rate = settled_entity.get('overall_profit_rate', 0) * 100
+                duration_days = settled_entity.get('invest_duration_days', 0)
                 
                 if result == 'win':
                     if profit_rate >= 20:
@@ -387,7 +399,7 @@ class HLSimulator:
             'avg_annual_return': avg_annual_return,
             'investments': settled_investments  # 返回投资列表供session汇总使用
         }
-
+	
     @staticmethod
     def summarize_session(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -407,7 +419,7 @@ class HLSimulator:
             })
         
         return HistoricLowEntity.to_session_summary(session_results)
-
+	
     @staticmethod
     def present_final_report(final_report: Dict[str, Any]) -> None:
         """
@@ -453,7 +465,7 @@ class HLSimulator:
     # ========================================================
     # Helper methods:
     # ========================================================
-
+	
     @staticmethod
     def _update_investment_tracking(investment: Dict[str, Any], current_record: Dict[str, Any]) -> None:
         """更新投资的最大最小值跟踪"""
@@ -462,14 +474,14 @@ class HLSimulator:
             investment['tracking']['max_close_reached']['price'] = current_record['close']
             investment['tracking']['max_close_reached']['date'] = current_record['date']
             investment['tracking']['max_close_reached']['ratio'] = (current_record['close'] - investment['purchase_price']) / investment['purchase_price']
-        
-        # 更新最低价
+		
+		# 更新最低价
         current_min_price = investment['tracking']['min_close_reached']['price']
         if current_min_price == 0 or current_record['close'] < current_min_price:
             investment['tracking']['min_close_reached']['price'] = current_record['close']
             investment['tracking']['min_close_reached']['date'] = current_record['date']
             investment['tracking']['min_close_reached']['ratio'] = (current_record['close'] - investment['purchase_price']) / investment['purchase_price']
-
+	
     @staticmethod
     def split_daily_data(daily_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
@@ -490,7 +502,7 @@ class HLSimulator:
         history_records = daily_records[:-freeze_days]  # 之前的数据（历史期）
         
         return freeze_records, history_records
-
+	
     @staticmethod
     def find_low_points(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """寻找历史低点"""

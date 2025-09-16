@@ -2,13 +2,11 @@
 """
 策略实体生成器 - 集中管理所有entity的生成函数
 """
-import pprint
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.analyzer.analyzer_service import AnalyzerService
-from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from app.analyzer.libs.enum.common_enum import InvestmentResult
 from app.analyzer.libs.investment.investment_goal_manager import InvestmentGoalManager
@@ -60,40 +58,6 @@ class HistoricLowEntity:
         
         return investment
 
-
-    @staticmethod
-    def to_settlement(stock_info: Dict[str, Any], settlement_info: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        生成统一格式的投资结算信息字典
-        
-        Args:
-            stock_info: 股票信息
-            settlement_info: 结算信息
-            
-        Returns:
-            Dict[str, Any]: 统一格式的结算信息字典
-        """
-        # 返回统一格式的结算信息，不生成文件
-        return {
-            'status': settlement_info.get('result', ''),
-            'start_date': settlement_info.get('start_date', ''),
-            'end_date': settlement_info.get('end_date', ''),
-            'profit': settlement_info.get('profit', 0),  # 添加profit字段
-            'invest_duration_days': settlement_info.get('invest_duration_days', 0),  # 添加duration字段
-            'overall_profit_rate': settlement_info.get('overall_profit_rate'),
-            'purchase_price': (settlement_info.get('investment') or {}).get('purchase_price'),
-            'investment': {
-                'targets': ((settlement_info.get('investment') or {}).get('targets') or [])
-            },
-            'tracks': settlement_info.get('tracks', {}),
-            'slope_info': settlement_info.get('slope_info', {}),
-            'pre_invest_series': settlement_info.get('pre_invest_series', {}),
-            'historic_low_ref': {
-                'term': (settlement_info.get('historic_low_ref') or {}).get('term'),
-                'date': (settlement_info.get('historic_low_ref') or {}).get('date'),
-                'price': (settlement_info.get('historic_low_ref') or {}).get('price')
-            }
-        }
 
     @staticmethod
     def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -193,126 +157,6 @@ class HistoricLowEntity:
             'orange_dot_rate': round(orange_dot_rate, 1),
             'red_dot_rate': round(red_dot_rate, 1),
             'summary_generated_at': datetime.now().isoformat()
-        }
-
-    @staticmethod
-    def to_stock_summary(stock_simulation_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        从单只股票的模拟结果构造统一的股票级汇总。
-        
-        Args:
-            stock_simulation_result: 股票模拟结果，包含 stock_info 和 investments 列表
-            
-        Returns:
-            Dict[str, Any]: 统一格式的股票汇总对象
-        """
-        stock_info = stock_simulation_result.get('stock_info', {})
-        investments = stock_simulation_result.get('investments', [])
-
-        total_investments = len(investments)
-        success_count = len([inv for inv in investments if inv.get('result') == InvestmentResult.WIN.value])
-        fail_count = len([inv for inv in investments if inv.get('result') == InvestmentResult.LOSS.value])
-        open_count = len([inv for inv in investments if inv.get('result') == InvestmentResult.OPEN.value])
-
-        total_profit = sum([float(inv.get('overall_profit') or 0.0) for inv in investments])
-        avg_profit = (total_profit / total_investments) if total_investments > 0 else 0.0
-
-        total_duration = sum([float(inv.get('invest_duration_days') or 0.0) for inv in investments])
-        avg_duration = (total_duration / total_investments) if total_investments > 0 else 0.0
-
-        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
-
-        # 计算平均ROI和年化收益率
-        total_roi = 0.0
-        for inv in investments:
-            purchase_price = float(inv.get('purchase_price') or 0.0)
-            profit = float(inv.get('overall_profit') or 0.0)
-            if purchase_price > 0:
-                total_roi += ((purchase_price + profit) / purchase_price) - 1
-        
-        avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_annual_return = AnalyzerService.get_annual_return(total_roi / total_investments, int(avg_duration)) if total_investments > 0 and avg_duration > 0 else 0.0
-
-        import copy
-
-        # 清理投资记录以用于输出保存：
-        cleaned_investments = copy.deepcopy(investments)
-        for inv in cleaned_investments:
-            # 清理 targets 中的无关字段
-            if 'targets' in inv:
-                inv_targets = inv['targets']
-                inv_targets.pop('investment_ratio_left', None)
-                inv_targets.pop('all', None)
-            # 将 opportunity 简化为 low_point_ref
-            if 'opportunity' in inv:
-                opp = inv.get('opportunity') or {}
-                low_point_ref = opp.get('low_point_ref') or {}
-                inv['low_point_ref'] = low_point_ref
-                # 移除原 opportunity 字段
-                inv.pop('opportunity', None)
-
-        return {
-            'stock_info': stock_info,
-            'investments': cleaned_investments,
-            'summary': {
-                'total_investments': total_investments,
-                'success_count': success_count,
-                'fail_count': fail_count,
-                'open_count': open_count,
-                'win_rate': round(win_rate, 1),
-                'total_profit': round(total_profit, 2),
-                'avg_profit': round(avg_profit, 2),
-                'avg_duration_days': round(avg_duration, 1),
-                'avg_roi': round(avg_roi, 2),
-                'avg_annual_return': round(avg_annual_return, 2)
-            }
-        }
-
-    @staticmethod
-    def to_job_data(stock_id: str, last_update: str, is_in_db: bool) -> Dict[str, Any]:
-        """
-        生成任务数据对象
-        
-        Args:
-            stock_id: 股票ID
-            last_update: 最后更新时间
-            is_in_db: 是否在数据库中
-            
-        Returns:
-            Dict[str, Any]: 统一格式的任务数据对象
-        """
-        return {
-            'id': f"fetch_{stock_id}_adjust_factors",
-            'data': {
-                'id': stock_id,
-                'last_update': last_update,
-                'is_in_db': is_in_db
-            },
-        }
-
-    @staticmethod
-    def _calculate_freeze_data_stats(freeze_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        计算冻结期数据的统计信息
-        
-        Args:
-            freeze_data: 冻结期数据列表
-            
-        Returns:
-            Dict[str, Any]: 统计信息
-        """
-        if not freeze_data:
-            return {}
-        
-        prices = [float(record.get('close', 0)) for record in freeze_data if record.get('close')]
-        if not prices:
-            return {}
-        
-        return {
-            'min': min(prices),
-            'max': max(prices),
-            'avg': sum(prices) / len(prices),
-            'count': len(prices)
         }
 
     @staticmethod

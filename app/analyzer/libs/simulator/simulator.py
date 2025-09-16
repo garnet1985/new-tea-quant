@@ -123,7 +123,7 @@ class Simulator:
         session_summary = PostprocessService.summarize_session(stock_summaries, on_session_summary)
         
         # 步骤3：生成最终报告
-        final_report = PostprocessService.generate_final_report(
+        final_report = PostprocessService.generate_quick_simulate_report(
             simulate_results=simulate_results,
             stock_summaries=stock_summaries,
             session_summary=session_summary,
@@ -131,5 +131,7 @@ class Simulator:
             processing_time=time.time() - start_time,
             on_simulate_complete=on_simulate_complete
         )
+
+        PostprocessService.log_quick_simulate_report(final_report)
         
         return final_report

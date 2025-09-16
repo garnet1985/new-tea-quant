@@ -14,6 +14,32 @@ class AnalyzerService:
         pass
 
     @staticmethod
+    def to_ratio(numerator: float, denominator: float, decimals: int = 2) -> float:
+        """
+        计算比率并按指定小数位四舍五入。只在分母为0时返回0.0；允许负值。
+        """
+        try:
+            value = float(numerator) / float(denominator)
+            return round(value, decimals)
+        except ZeroDivisionError:
+            return 0.0
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def to_percent(numerator: float, denominator: float, decimals: int = 2) -> float:
+        """
+        与 to_ratio 相同的入参，输出为百分比（ratio*100）。仅分母为0时返回0.0，允许负值。
+        """
+        try:
+            value = float(numerator) / float(denominator)
+            return round(value * 100.0, decimals)
+        except ZeroDivisionError:
+            return 0.0
+        except Exception:
+            return 0.0
+
+    @staticmethod
     def get_duration_in_days(start_date: str, end_date: str) -> int:
         start = datetime.strptime(start_date, '%Y%m%d')
         end = datetime.strptime(end_date, '%Y%m%d')

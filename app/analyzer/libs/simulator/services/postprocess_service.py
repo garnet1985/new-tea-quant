@@ -312,11 +312,36 @@ class PostprocessService:
                 # 保存股票汇总结果
                 if stock_summaries:
                     for stock_summary in stock_summaries:
-                        # 适配InvestmentRecorder期望的数据结构
+                        stock_id = stock_summary['stock_id']
+                        
+                        # 找到对应的原始模拟结果
+                        raw_result = None
+                        for result in simulate_results:
+                            if result.get('stock_id') == stock_id:
+                                raw_result = result
+                                break
+                        
+                        # 构建完整的数据结构，包含投资记录
                         adapted_summary = {
-                            'stock_info': {'id': stock_summary['stock_id']},
+                            'stock_info': {'id': stock_id},
                             'summary': stock_summary['summary']
                         }
+                        
+                        # 添加投资记录（如果有的话）
+                        if raw_result:
+                            all_investments = []
+                            
+                            # 添加已结算的投资
+                            if raw_result.get('settled_investments'):
+                                all_investments.extend(raw_result['settled_investments'])
+                            
+                            # 添加当前投资（如果有的话）
+                            if raw_result.get('investments'):
+                                all_investments.extend(raw_result['investments'])
+                            
+                            if all_investments:
+                                adapted_summary['investments'] = all_investments
+                        
                         invest_recorder.save_stock_summary(adapted_summary)
                     logger.info(f"💾 已保存 {len(stock_summaries)} 个股票汇总结果")
                 

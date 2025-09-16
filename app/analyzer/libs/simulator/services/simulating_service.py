@@ -205,8 +205,8 @@ class SimulatingService:
             start_date = simulation_config['start_date']
             end_date = simulation_config['end_date']
             
-            # 获取需要加载的时间周期
-            klines_config = simulation_config.get('klines', {})
+            # 获取需要加载的时间周期（从顶层klines配置读取）
+            klines_config = settings.get('klines', {})
             terms = klines_config.get('terms', ['daily'])
             
             # 加载所有时间周期的数据

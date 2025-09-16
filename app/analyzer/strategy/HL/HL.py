@@ -7,11 +7,11 @@ from loguru import logger
 
 from app.analyzer.libs.simulator.simulator import Simulator
 from ...libs.base_strategy import BaseStrategy
-from .strategy_simulator import HLSimulator
-from .strategy_settings import strategy_settings
+from .HL_simulator import HistoricLowSimulator
+from .settings import strategy_settings
 from app.analyzer.libs.investment import InvestmentRecorder
 
-class HistoricLowStrategy(BaseStrategy):
+class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""
     
     # 策略启用状态
@@ -29,7 +29,7 @@ class HistoricLowStrategy(BaseStrategy):
         self.strategy_settings = strategy_settings
         
         # 初始化投资记录器
-        self.invest_recorder = InvestmentRecorder("historicLow")
+        self.invest_recorder = InvestmentRecorder(self.strategy_settings['folder_name'])
 
         self.simulator = Simulator()
 
@@ -66,7 +66,7 @@ class HistoricLowStrategy(BaseStrategy):
         # 运行模拟 - 传递单日模拟函数和自定义汇总函数
         result = self.simulator.run(
             settings=strategy_settings,
-            on_simulate_one_day=HLSimulator.simulate_single_day,
+            on_simulate_one_day=HistoricLowSimulator.simulate_single_day,
             on_single_stock_summary=self.stock_summary,
             on_simulate_complete=None
         )
@@ -132,7 +132,7 @@ class HistoricLowStrategy(BaseStrategy):
         opportunities = []
         for i in range(len(daily_k_lines)):
             current_data = daily_k_lines[:i+1]
-            opportunity = HLSimulator.scan_single_stock(stock['id'], current_data)
+            opportunity = HistoricLowSimulator.scan_single_stock(stock['id'], current_data)
             if opportunity:
                 opportunities.append(opportunity)
         

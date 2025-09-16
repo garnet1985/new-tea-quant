@@ -6,14 +6,16 @@ HistoricLow 策略分析模块
 
 import json
 import os
-import statistics
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+from .settings import strategy_settings
+
+
 class HistoricLowAnalysis:
     def __init__(self):
-        self.tmp_dir = "app/analyzer/strategy/historicLow/tmp"
+        self.tmp_dir = "app/analyzer/strategy/HL/tmp"
     
     def get_latest_session_dir(self) -> str:
         """获取最新的模拟结果目录"""
@@ -130,7 +132,6 @@ class HistoricLowAnalysis:
         new_blacklist = self.define_blacklist(investments, min_investments, max_win_rate, max_avg_profit)
         
         # 获取当前黑名单
-        from .strategy_settings import strategy_settings
         current_blacklist = strategy_settings.get('problematic_stocks', [])
         
         # 分析变化
@@ -727,7 +728,6 @@ class HistoricLowAnalysis:
         print("🔍 开始对比投资方法...")
         
         # 加载配置
-        from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
         kelly_config = strategy_settings.get("kelly_formula", {})
         filter_config = strategy_settings.get("investment_filter", {})
         

@@ -303,11 +303,11 @@ class PostprocessService:
         record_summary = settings.get('mode', {}).get('record_summary', False)
         if record_summary:
             try:
-                # 从设置中获取策略名称，默认为 'historicLow'
-                strategy_name = settings.get('strategy_name', 'historicLow')
-                
-                # 创建投资记录器
-                invest_recorder = InvestmentRecorder(strategy_name)
+                # 创建投资记录器（严格要求 folder_name）
+                if 'folder_name' not in settings or not settings['folder_name']:
+                    raise KeyError("settings.folder_name is required for recording results")
+                folder_name = settings['folder_name']
+                invest_recorder = InvestmentRecorder(folder_name)
                 
                 # 保存股票汇总结果
                 if stock_summaries:

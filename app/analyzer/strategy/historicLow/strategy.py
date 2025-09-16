@@ -2,19 +2,14 @@
 """
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
-from doctest import debug
-import time
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any
 from loguru import logger
 
 from app.analyzer.libs.simulator.simulator import Simulator
 from ...libs.base_strategy import BaseStrategy
-from .strategy_service import HistoricLowService
-from .strategy_entity import HistoricLowEntity
 from .strategy_simulator import HLSimulator
 from .strategy_settings import strategy_settings
 from app.analyzer.libs.investment import InvestmentRecorder
-from app.data_source.data_source_service import DataSourceService
 
 class HistoricLowStrategy(BaseStrategy):
     """HistoricLow 策略实现"""

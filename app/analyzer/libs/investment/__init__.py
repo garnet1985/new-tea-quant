@@ -3,5 +3,6 @@
 """
 
 from .investment_goal_manager import InvestmentGoalManager
+from .investment_recorder import InvestmentRecorder
 
-__all__ = ['InvestmentGoalManager']
+__all__ = ['InvestmentGoalManager', 'InvestmentRecorder']

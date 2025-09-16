@@ -9,8 +9,7 @@ from datetime import datetime
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
-from .strategy_enum import InvestmentResult
-from app.analyzer.strategy.historicLow import strategy_enum
+from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
 
 
 class HistoricLowEntity:
@@ -41,7 +40,7 @@ class HistoricLowEntity:
             return None
 
         investment = {
-            'result': strategy_enum.InvestmentResult.OPEN.value,
+            'result': InvestmentResult.OPEN.value,
             'stock': opportunity['stock'],
             'start_date': opportunity['date'],
             'end_date': '',

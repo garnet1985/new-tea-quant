@@ -107,7 +107,7 @@ class SimulatingService:
             
             # 执行模拟
             result = SimulatingService._execute_simulation_with_func(
-                stock_id, klines, simulate_one_day_func, simulate_base_term
+                stock_id, klines, simulate_one_day_func, simulate_base_term, settings
             )
             
             return result
@@ -117,7 +117,7 @@ class SimulatingService:
     
     @staticmethod
     def _execute_simulation_with_func(stock_id: str, klines: Dict[str, Any], 
-                                      simulate_one_day_func: Callable, simulate_base_term: str) -> Dict[str, Any]:
+                                      simulate_one_day_func: Callable, simulate_base_term: str, settings: Dict[str, Any]) -> Dict[str, Any]:
         """
         使用单日模拟函数执行模拟
         
@@ -131,7 +131,7 @@ class SimulatingService:
             Dict: 模拟结果
         """
         # 获取基础K线数据
-        base_records = klines.get(simulate_base_term, {}).get(stock_id, [])
+        base_records = klines.get(simulate_base_term, [])
         
         if not base_records:
             return SimulatingService._create_error_result(stock_id, f'No {simulate_base_term} K-line data available')
@@ -149,13 +149,13 @@ class SimulatingService:
             if not current_date:
                 continue
             
-            # 获取历史数据
-            historical_data = base_records[:i]
+            # 获取所有数据（包含当前日及之前的所有数据）
+            all_data = base_records[:i+1]  # 包含当前记录
             
             # 调用单日模拟函数
             try:
                 result = simulate_one_day_func(
-                    stock_id, current_date, current_record, historical_data, current_investment
+                    stock_id, current_date, current_record, all_data, current_investment, settings
                 )
                 
                 # 更新投资状态

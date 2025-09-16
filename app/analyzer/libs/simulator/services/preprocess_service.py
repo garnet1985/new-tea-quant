@@ -34,16 +34,20 @@ class PreprocessService:
         start_date = simulation_config.get('start_date', data_default_start_date)  # 使用全局默认日期
         end_date = simulation_config.get('end_date', '')  # 空字符串表示到最后
         
+        # 获取klines配置（从顶层读取）
+        klines_config = settings.get('klines', {})
+        base_term = klines_config.get('base_term', 'daily')
+        
         validated_config = {
-            'simulate_base_term': simulation_config.get('simulate_base_term', 'daily'),
+            'simulate_base_term': base_term,
             'start_date': start_date,
             'end_date': end_date,
-            'max_stocks': simulation_config.get('max_stocks', 10),
-            'start_idx': simulation_config.get('start_idx', 0),
         }
         
         validated_settings = {
-            'simulation': validated_config
+            'simulation': validated_config,
+            'klines': klines_config,
+            'mode': settings.get('mode', {})
         }
         
         logger.info(f"✅ 设置验证完成: {validated_config}")
@@ -62,9 +66,10 @@ class PreprocessService:
         """
         logger.info("📋 获取股票列表...")
         
-        simulation_config = settings['simulation']
-        max_stocks = simulation_config.get('max_stocks', 10)
-        start_idx = simulation_config.get('start_idx', 0)
+        # 获取股票列表配置（从顶层mode配置读取）
+        mode_config = settings.get('mode', {})
+        max_stocks = mode_config.get('test_amount', 10)
+        start_idx = mode_config.get('start_idx', 0)
         
         try:
             # 从数据库获取股票列表
@@ -83,8 +88,6 @@ class PreprocessService:
             # 应用起始索引和数量限制
             end_idx = start_idx + max_stocks
             stock_list = stock_list[start_idx:end_idx]
-            
-            logger.info(f"📊 股票范围: {start_idx} 到 {end_idx-1}，共 {len(stock_list)} 只股票")
             
             logger.info(f"✅ 获取股票列表完成: {len(stock_list)} 只股票")
             return stock_list

@@ -5,6 +5,7 @@
 from typing import Dict, Any, List, Tuple
 from copy import deepcopy
 from app.analyzer.libs.enum.common_enum import InvestmentResult
+from app.analyzer.analyzer_service import AnalyzerService
 
 
 class InvestmentGoalManager:
@@ -255,7 +256,7 @@ class InvestmentGoalManager:
         
         # 设置收益信息
         investment['overall_profit'] = overall_profit
-        investment['overall_profit_rate'] = overall_profit / purchase_price
+        investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
         
         # 计算目标权重和贡献
         for target in achieved_targets:

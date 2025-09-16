@@ -36,7 +36,7 @@ class Simulator:
         # 执行三个步骤
         settings, stock_list = self.preprocess(settings, on_before_simulate, on_simulate_one_day)
         simulate_result = self.simulating(on_simulate_one_day, stock_list, settings)
-        report = self.postprocess(on_single_stock_summary, on_session_summary, on_simulate_complete, simulate_result)
+        report = self.postprocess(on_single_stock_summary, on_session_summary, on_simulate_complete, simulate_result, settings)
         
         total_time = time.time() - start_time
         logger.info(f"🎉 模拟流程完成！总耗时: {total_time:.2f}秒")
@@ -95,7 +95,8 @@ class Simulator:
     def postprocess(self, on_single_stock_summary: Optional[Callable] = None,
                     on_session_summary: Optional[Callable] = None,
                     on_simulate_complete: Optional[Callable] = None,
-                    simulate_results: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+                    simulate_results: List[Dict[str, Any]] = None,
+                    settings: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         后处理阶段 - 汇总和生成报告
         
@@ -126,7 +127,7 @@ class Simulator:
             simulate_results=simulate_results,
             stock_summaries=stock_summaries,
             session_summary=session_summary,
-            settings={},  # 暂时使用空字典，后续可以从preprocess阶段传递
+            settings=settings or {},
             processing_time=time.time() - start_time,
             on_simulate_complete=on_simulate_complete
         )

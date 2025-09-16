@@ -7,6 +7,7 @@
 from typing import Dict, List, Any, Optional, Callable
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
+from app.analyzer.libs.investment import InvestmentRecorder
 
 
 class PostprocessService:
@@ -297,6 +298,36 @@ class PostprocessService:
             'settings': settings,
             'processing_time': processing_time
         }
+        
+        # 检查是否需要保存投资结果
+        record_summary = settings.get('mode', {}).get('record_summary', False)
+        if record_summary:
+            try:
+                # 从设置中获取策略名称，默认为 'historicLow'
+                strategy_name = settings.get('strategy_name', 'historicLow')
+                
+                # 创建投资记录器
+                invest_recorder = InvestmentRecorder(strategy_name)
+                
+                # 保存股票汇总结果
+                if stock_summaries:
+                    for stock_summary in stock_summaries:
+                        # 适配InvestmentRecorder期望的数据结构
+                        adapted_summary = {
+                            'stock_info': {'id': stock_summary['stock_id']},
+                            'summary': stock_summary['summary']
+                        }
+                        invest_recorder.save_stock_summary(adapted_summary)
+                    logger.info(f"💾 已保存 {len(stock_summaries)} 个股票汇总结果")
+                
+                # 保存会话汇总结果
+                if session_summary:
+                    invest_recorder.save_session(session_summary)
+                    logger.info("💾 已保存会话汇总结果")
+                
+                logger.info(f"📁 投资结果已保存到: {invest_recorder.tmp_dir}")
+            except Exception as e:
+                logger.error(f"❌ 保存投资结果失败: {e}")
         
         # 调用用户自定义的完成回调函数
         if on_simulate_complete:

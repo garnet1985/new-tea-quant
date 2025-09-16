@@ -340,7 +340,31 @@ class PostprocessService:
                                 all_investments.extend(raw_result['investments'])
                             
                             if all_investments:
-                                adapted_summary['investments'] = all_investments
+                                # 简化投资记录结构（通用部分），opportunity 留给策略在 on_single_stock_summary 中扩展
+                                simplified_investments = []
+                                for investment in all_investments:
+                                    simplified_investment = {
+                                        'result': investment.get('result'),
+                                        'stock': investment.get('stock'),
+                                        'start_date': investment.get('start_date'),
+                                        'end_date': investment.get('end_date'),
+                                        'purchase_price': investment.get('purchase_price'),
+                                        'tracking': investment.get('tracking'),  # 保留tracking信息
+                                        'overall_profit': investment.get('overall_profit'),
+                                        'overall_profit_rate': investment.get('overall_profit_rate'),
+                                        'invest_duration_days': investment.get('invest_duration_days')
+                                    }
+                                    # 简化targets - 只保留completed结果
+                                    if investment.get('targets', {}).get('completed'):
+                                        simplified_investment['targets'] = {
+                                            'completed': investment['targets']['completed']
+                                        }
+                                    # 保留原始opportunity；策略可通过 on_single_stock_summary 增补或派生额外字段
+                                    if investment.get('opportunity'):
+                                        simplified_investment['opportunity'] = investment['opportunity']
+                                    
+                                    simplified_investments.append(simplified_investment)
+                                adapted_summary['investments'] = simplified_investments
                         
                         invest_recorder.save_stock_summary(adapted_summary)
                     logger.info(f"💾 已保存 {len(stock_summaries)} 个股票汇总结果")

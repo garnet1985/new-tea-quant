@@ -72,36 +72,10 @@ class HistoricLowStrategy(BaseStrategy):
         result = self.simulator.run(
             settings=strategy_settings,
             on_simulate_one_day=HLSimulator.simulate_single_day,
-            on_single_stock_summary=self._simplify_opportunity_structure,
-            on_simulate_complete=HLSimulator.present_final_report
+            on_single_stock_summary=self.stock_summary,
+            on_simulate_complete=None
         )
         return result
-
-    def _simplify_opportunity_structure(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        在HL策略中，按需简化每个投资的 opportunity 字段
-        
-        Args:
-            result: 单只股票的模拟结果（包含 investments/settled_investments）
-            
-        Returns:
-            Dict: 追加到默认summary的track（此处无额外统计，返回空）
-        """
-        # 就地简化：仅保留 HL 关键信息，避免污染通用框架
-        for key in ('settled_investments', 'investments'):
-            for inv in result.get(key, []) or []:
-                opp = inv.get('opportunity')
-                if not opp:
-                    continue
-                inv['opportunity'] = {
-                    'date': opp.get('date'),
-                    'price': opp.get('price'),
-                    'lower_bound': opp.get('lower_bound'),
-                    'upper_bound': opp.get('upper_bound'),
-                    'low_point_ref': opp.get('low_point_ref')
-                }
-        # 不新增额外summary字段
-        return {}
 
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         """报告投资机会"""
@@ -204,3 +178,31 @@ class HistoricLowStrategy(BaseStrategy):
             logger.info(f"  {stock_id}: {count} 个机会")
         
         logger.info("=" * 50)
+
+
+
+    def stock_summary(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        在HL策略中，按需简化每个投资的 opportunity 字段
+        
+        Args:
+            result: 单只股票的模拟结果（包含 investments/settled_investments）
+            
+        Returns:
+            Dict: 追加到默认summary的track（此处无额外统计，返回空）
+        """
+        # 就地简化：仅保留 HL 关键信息，避免污染通用框架
+        for key in ('settled_investments', 'investments'):
+            for inv in result.get(key, []) or []:
+                opp = inv.get('opportunity')
+                if not opp:
+                    continue
+                inv['opportunity'] = {
+                    'date': opp.get('date'),
+                    'price': opp.get('price'),
+                    'lower_bound': opp.get('lower_bound'),
+                    'upper_bound': opp.get('upper_bound'),
+                    'low_point_ref': opp.get('low_point_ref')
+                }
+        # 不新增额外summary字段
+        return {}

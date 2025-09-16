@@ -70,6 +70,19 @@ class SimulatingService:
         
         # 获取成功的结果
         successful_results = worker.get_successful_results()
+
+        # 记录失败的任务（如果可用）
+        try:
+            if hasattr(worker, 'get_failed_results'):
+                failed_results = worker.get_failed_results()
+                for fr in failed_results or []:
+                    job_id = getattr(fr, 'job_id', 'unknown')
+                    error_message = getattr(fr, 'error_message', '') or getattr(fr, 'result', '')
+                    tb = getattr(fr, 'traceback', '')
+                    logger.error("❌ 子进程任务失败 | job_id={} | error={}\n{}", job_id, error_message, tb)
+        except Exception:
+            # 忽略失败结果日志过程中的异常，避免影响主流程
+            pass
         
         # 提取实际的结果数据
         results = []
@@ -95,6 +108,8 @@ class SimulatingService:
             stock_id = data['stock_id']
             settings = data['settings']
             simulate_one_day_func = data['simulate_one_day_func']
+            if not callable(simulate_one_day_func) and hasattr(simulate_one_day_func, '__func__'):
+                simulate_one_day_func = simulate_one_day_func.__func__
             
             # 加载股票数据
             klines = SimulatingService._load_stock_data(stock_id, settings)
@@ -113,7 +128,10 @@ class SimulatingService:
             return result
             
         except Exception as e:
-            return SimulatingService._create_error_result(data.get('stock_id', 'unknown'), str(e))
+            import traceback
+            sid = data.get('stock_id', 'unknown')
+            logger.exception("❌ 子进程内部异常 | stock_id={} | error={}", sid, str(e))
+            return SimulatingService._create_error_result(sid, str(e))
     
     @staticmethod
     def _execute_simulation_with_func(stock_id: str, klines: Dict[str, Any], 
@@ -167,7 +185,19 @@ class SimulatingService:
                     current_investment = result.get('current_investment')
                 
             except Exception as e:
-                logger.error(f"❌ 股票 {stock_id} 单日模拟失败 ({current_date}): {e}")
+                import traceback
+                func_name = getattr(simulate_one_day_func, '__name__', str(simulate_one_day_func))
+                tb = traceback.format_exc()
+                logger.error(
+                    "❌ 单日模拟异常 | stock={} | date={} | func={} | record={} | current_investment_keys={} | error={}\n{}",
+                    stock_id,
+                    current_date,
+                    func_name,
+                    {k: current_record.get(k) for k in ('date','open','close','high','low','volume') if k in current_record},
+                    list(current_investment.keys()) if isinstance(current_investment, dict) else type(current_investment).__name__,
+                    str(e),
+                    tb,
+                )
                 continue
         
         # 返回结果

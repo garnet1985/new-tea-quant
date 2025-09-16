@@ -11,23 +11,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from app.analyzer.libs.enum.common_enum import InvestmentResult
-
-
-def _merge_extra(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    if extra and isinstance(extra, dict):
-        for k, v in extra.items():
-            if k not in base:
-                base[k] = v
-    return base
-
-
-def _ensure_targets_schema(targets: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    normalized = targets.copy() if isinstance(targets, dict) else {}
-    completed = normalized.get('completed')
-    if not isinstance(completed, list):
-        normalized['completed'] = []
-    return normalized
-
+from app.analyzer.analyzer_service import AnalyzerService
 
 def to_opportunity(
     stock: Dict[str, Any],
@@ -36,6 +20,7 @@ def to_opportunity(
     lower_bound: Optional[float] = None,
     upper_bound: Optional[float] = None,
     extra: Optional[Dict[str, Any]] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Construct a standard opportunity entity.
 
@@ -51,7 +36,9 @@ def to_opportunity(
         entity['lower_bound'] = lower_bound
     if upper_bound is not None:
         entity['upper_bound'] = upper_bound
-    return _merge_extra(entity, extra)
+    # prefer `extra` but keep compatibility with `extra_fields`
+    merged_extra = extra if isinstance(extra, dict) else extra_fields
+    return _merge_extra(entity, merged_extra)
 
 
 def to_investment(
@@ -60,6 +47,7 @@ def to_investment(
     purchase_price: float,
     targets: Optional[Dict[str, Any]] = None,
     extra: Optional[Dict[str, Any]] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Construct a standard investment entity (unsettled/base).
 
@@ -72,14 +60,15 @@ def to_investment(
         'purchase_price': purchase_price,
         'targets': _ensure_targets_schema(targets),
     }
-    return _merge_extra(entity, extra)
+    merged_extra = extra if isinstance(extra, dict) else extra_fields
+    return _merge_extra(entity, merged_extra)
 
 
 def to_settled_investment(
     investment: Dict[str, Any],
     end_date: str,
     result: Any,
-    extra: Optional[Dict[str, Any]] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Construct a standard settled investment entity.
 
@@ -107,7 +96,7 @@ def to_settled_investment(
                 elif 'sell_ratio' in stage:
                     overall_profit += profit * float(stage.get('sell_ratio') or 0.0)
 
-    overall_profit_rate = (overall_profit / purchase_price) if purchase_price > 0 else 0.0
+    overall_profit_rate = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
 
     def _parse(d: Optional[str]) -> Optional[datetime]:
         if not d:
@@ -138,16 +127,16 @@ def to_settled_investment(
         'overall_profit_rate': overall_profit_rate,
         'invest_duration_days': invest_duration_days,
     }
-    return _merge_extra(settled, extra)
+    return _merge_extra(settled, extra_fields)
 
 
 def to_stock_summary(
     stock_id: str,
     summary_core: Dict[str, Any],
-    extra: Optional[Dict[str, Any]] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     summary: Dict[str, Any] = dict(summary_core or {})
-    summary = _merge_extra(summary, extra)
+    summary = _merge_extra(summary, extra_fields)
     return {
         'stock_id': stock_id,
         'summary': summary,
@@ -156,9 +145,27 @@ def to_stock_summary(
 
 def to_session_summary(
     summary_core: Dict[str, Any],
-    extra: Optional[Dict[str, Any]] = None,
+    extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     summary: Dict[str, Any] = dict(summary_core or {})
-    return _merge_extra(summary, extra)
+    return _merge_extra(summary, extra_fields)
 
 
+# ========================================================
+# Helper methods:
+# ========================================================
+
+def _merge_extra(base: Dict[str, Any], extra_fields: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if extra_fields and isinstance(extra_fields, dict):
+        for k, v in extra_fields.items():
+            if k not in base:
+                base[k] = v
+    return base
+
+
+def _ensure_targets_schema(targets: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    normalized = targets.copy() if isinstance(targets, dict) else {}
+    completed = normalized.get('completed')
+    if not isinstance(completed, list):
+        normalized['completed'] = []
+    return normalized

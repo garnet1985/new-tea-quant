@@ -271,7 +271,7 @@ class PostprocessService:
         }
     
     @staticmethod
-    def generate_final_report(simulate_results: List[Dict[str, Any]], 
+    def generate_quick_simulate_report(simulate_results: List[Dict[str, Any]], 
                             stock_summaries: List[Dict[str, Any]], 
                             session_summary: Dict[str, Any],
                             settings: Dict[str, Any],
@@ -386,3 +386,31 @@ class PostprocessService:
                 logger.error(f"❌ 完成回调执行失败: {e}")
         
         return final_report
+
+    @staticmethod
+    def log_quick_simulate_report(final_report: Dict[str, Any]) -> None:
+        """
+        通用的控制台展示方法（与HL展示格式一致，可被各策略复用）
+        """
+        session_summary = final_report.get('session_summary', {})
+        print("\n" + "="*60)
+        print("📊 HistoricLow 策略回测结果汇总")
+        print("="*60)
+        if session_summary:
+            win_rate = session_summary.get('win_rate', 0)
+            avg_annual_return = session_summary.get('avg_annual_return', 0)
+            win_rate_dot = "🟢" if win_rate >= 60 else "🔴"
+            print(f"🎯 胜率: {win_rate_dot} {win_rate:.1f}%")
+            annual_return_dot = "🟢" if avg_annual_return >= 15 else "🔴"
+            print(f"📈 平均年化收益率: {annual_return_dot} {avg_annual_return:.1f}%")
+            print(f"⏱️  平均投资时长: {session_summary.get('avg_duration_days', 0):.1f} 天")
+            print(f"💰 平均ROI: {session_summary.get('avg_roi', 0):.1f}%")
+            print(f"📊 总投资次数: {session_summary.get('total_investments', 0)}")
+            print(f"✅ 成功次数: {session_summary.get('win_count', 0) + session_summary.get('small_profit_count', 0)}")
+            print(f"❌ 失败次数: {session_summary.get('loss_count', 0) + session_summary.get('small_loss_count', 0)}")
+            print("<------------------------------------------->")
+            print(f"🟢 盈利次数: {session_summary.get('win_count', 0)} ({session_summary.get('profit_ratio', 0):.1f}%)")
+            print(f"🟡 微盈次数: {session_summary.get('small_profit_count', 0)} ({session_summary.get('small_profit_ratio', 0):.1f}%)")
+            print(f"🟠 微损次数: {session_summary.get('small_loss_count', 0)} ({session_summary.get('small_loss_ratio', 0):.1f}%)")
+            print(f"🔴 亏损次数: {session_summary.get('loss_count', 0)} ({session_summary.get('loss_ratio', 0):.1f}%)")
+            print("="*60)

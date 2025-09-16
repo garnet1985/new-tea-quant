@@ -8,43 +8,6 @@ class HistoricLowService:
     """HistoricLow策略的静态服务类"""
     
     @staticmethod
-    def validate_strategy_settings(settings: dict) -> tuple[bool, list[str]]:
-        """
-        验证策略设置的基本常识错误
-        
-        Returns:
-            tuple: (是否有效, 错误信息列表)
-        """
-        errors = []
-        
-        # 检查基本结构
-        if 'goal' not in settings:
-            errors.append("缺少goal配置")
-            return False, errors
-        
-        goal = settings['goal']
-        
-        # 检查止盈配置 - 主要检查总平仓比例不超过100%
-        if 'take_profit' in goal and 'stages' in goal['take_profit']:
-            total_sell_ratio = 0
-            for stage in goal['take_profit']['stages']:
-                sell_ratio = stage.get('sell_ratio', 0)
-                total_sell_ratio += sell_ratio
-            
-            if total_sell_ratio > 1:
-                errors.append(f"总平仓比例({total_sell_ratio:.1%})超过100%")
-        
-        # 检查止损配置 - 检查动态止损比例是否合理
-        if 'stop_loss' in goal and 'stages' in goal['stop_loss']:
-            for stage in goal['stop_loss']['stages']:
-                if stage.get('name') == 'dynamic':
-                    ratio = abs(float(stage.get('ratio', 0)))
-                    if ratio > 0.5:  # 动态止损比例不应超过50%
-                        errors.append(f"动态止损比例({ratio:.1%})过高")
-        
-        return len(errors) == 0, errors
-    
-    @staticmethod
     def is_in_invest_range(record_of_today, low_point, freeze_data=None):
         """
         检查是否在投资范围内

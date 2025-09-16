@@ -12,7 +12,7 @@ from ...libs.base_strategy import BaseStrategy
 from .strategy_service import HistoricLowService
 from .strategy_entity import HistoricLowEntity
 from .strategy_settings import strategy_settings
-from .investment_recorder import InvestmentRecorder
+from app.analyzer.libs.investment import InvestmentRecorder
 from app.data_source.data_source_service import DataSourceService
 
 class HistoricLowStrategy(BaseStrategy):
@@ -38,7 +38,7 @@ class HistoricLowStrategy(BaseStrategy):
         self.strategy_settings = strategy_settings
         
         # 初始化投资记录器
-        self.invest_recorder = InvestmentRecorder()
+        self.invest_recorder = InvestmentRecorder("historicLow")
 
         self.simulator = Simulator()
 

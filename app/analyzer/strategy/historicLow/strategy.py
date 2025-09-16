@@ -72,7 +72,7 @@ class HistoricLowStrategy(BaseStrategy):
 
         return opportunities
 
-    def simulate(self) -> None:
+    def simulate(self) -> Dict[str, Any]:
         # 运行模拟 - 传递单日模拟函数和自定义汇总函数
         result = self.simulator.run(
             settings=strategy_settings,
@@ -81,6 +81,7 @@ class HistoricLowStrategy(BaseStrategy):
             on_session_summary=HistoricLowStrategy.summarize_session,
             on_simulate_complete=HistoricLowStrategy.present_final_report
         )
+        return result
 
 
     # ========================================================

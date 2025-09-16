@@ -110,21 +110,6 @@ class HLSimulator:
             investment['tracking']['min_close_reached']['date'] = record_of_today['date']
             investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
 
-    @staticmethod
-    def settle_investment(investment: Dict[str, Any]) -> Dict[str, Any]:
-        # 创建投资目标管理器
-        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
-        
-        # 使用目标管理器结算投资
-        goal_manager.settle_investment(investment)
-        
-        # 使用通用实体构造器生成标准结算实体
-        settled = to_settled_investment(
-            investment=investment,
-            end_date=investment.get('end_date'),
-            result=investment.get('result')
-        )
-        return settled
 
     @staticmethod
     def settle_open_investment(investment: Dict[str, Any], final_price: float) -> Dict[str, Any]:

@@ -72,11 +72,28 @@ class HistoricLowStrategy(BaseStrategy):
         result = self.simulator.run(
             settings=strategy_settings,
             on_simulate_one_day=HLSimulator.simulate_single_day,
-            on_single_stock_summary=HLSimulator.summarize_single_stock,
-            on_session_summary=HLSimulator.summarize_session,
             on_simulate_complete=HLSimulator.present_final_report
         )
         return result
+
+    def report(self, opportunities: List[Dict[str, Any]]) -> None:
+        """报告投资机会"""
+        if not opportunities:
+            logger.info("🔍 未发现投资机会")
+            return
+        
+        logger.info(f"🔍 发现 {len(opportunities)} 个投资机会")
+        
+        # 按股票分组显示
+        stock_opportunities = {}
+        for opp in opportunities:
+            stock_id = opp.get('stock', {}).get('id', 'unknown')
+            if stock_id not in stock_opportunities:
+                stock_opportunities[stock_id] = []
+            stock_opportunities[stock_id].append(opp)
+        
+        for stock_id, opps in stock_opportunities.items():
+            logger.info(f"📈 {stock_id}: {len(opps)} 个机会")
 
     # ========================================================
     # Core logic:
@@ -124,25 +141,6 @@ class HistoricLowStrategy(BaseStrategy):
                 opportunities.append(opportunity)
         
         return opportunities
-
-    def report(self, opportunities: List[Dict[str, Any]]) -> None:
-        """报告投资机会"""
-        if not opportunities:
-            logger.info("🔍 未发现投资机会")
-            return
-        
-        logger.info(f"🔍 发现 {len(opportunities)} 个投资机会")
-        
-        # 按股票分组显示
-        stock_opportunities = {}
-        for opp in opportunities:
-            stock_id = opp.get('stock', {}).get('id', 'unknown')
-            if stock_id not in stock_opportunities:
-                stock_opportunities[stock_id] = []
-            stock_opportunities[stock_id].append(opp)
-        
-        for stock_id, opps in stock_opportunities.items():
-            logger.info(f"📈 {stock_id}: {len(opps)} 个机会")
 
     # ========================================================
     # Result presentation:

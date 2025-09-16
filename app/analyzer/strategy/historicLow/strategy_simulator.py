@@ -425,29 +425,29 @@ class HLSimulator:
         # 显示投资结果统计
         if session_summary:
             win_rate = session_summary.get('win_rate', 0)
-            annual_return = session_summary.get('annual_return', 0)
+            avg_annual_return = session_summary.get('avg_annual_return', 0)
             
             # 使用绿色点显示胜率（胜率超过60%显示绿色）
             win_rate_dot = "🟢" if win_rate >= 60 else "🔴"
-            print(f"🎯 胜率: {win_rate_dot} {win_rate}%")
+            print(f"🎯 胜率: {win_rate_dot} {win_rate:.1f}%")
             
             # 使用绿色点显示年化收益率（年化收益率超过10%显示绿色）
-            annual_return_dot = "🟢" if annual_return >= 15 else "🔴"
-            print(f"📈 平均年化收益率: {annual_return_dot} {annual_return}%")
+            annual_return_dot = "🟢" if avg_annual_return >= 15 else "🔴"
+            print(f"📈 平均年化收益率: {annual_return_dot} {avg_annual_return:.1f}%")
             
-            print(f"⏱️  平均投资时长: {session_summary.get('avg_duration_days', 0)} 天")
-            print(f"💰 平均ROI: {session_summary.get('avg_roi', 0)}%")
+            print(f"⏱️  平均投资时长: {session_summary.get('avg_duration_days', 0):.1f} 天")
+            print(f"💰 平均ROI: {session_summary.get('avg_roi', 0):.1f}%")
             
             print(f"📊 总投资次数: {session_summary.get('total_investments', 0)}")
-            print(f"✅ 成功次数: {session_summary.get('win_count', 0)}")
-            print(f"❌ 失败次数: {session_summary.get('loss_count', 0)}")
+            print(f"✅ 成功次数: {session_summary.get('win_count', 0) + session_summary.get('small_profit_count', 0)}")
+            print(f"❌ 失败次数: {session_summary.get('loss_count', 0) + session_summary.get('small_loss_count', 0)}")
             
             # 显示详细统计
             print("<------------------------------------------->")
-            print(f"🟢 盈利次数: {session_summary.get('green_dots', 0)} ({session_summary.get('green_dots', 0)/session_summary.get('total_investments', 1)*100:.1f}%)")
-            print(f"🟡 微盈次数: {session_summary.get('yellow_dots', 0)} ({session_summary.get('yellow_dots', 0)/session_summary.get('total_investments', 1)*100:.1f}%)")
-            print(f"🟠 微损次数: {session_summary.get('orange_dots', 0)} ({session_summary.get('orange_dots', 0)/session_summary.get('total_investments', 1)*100:.1f}%)")
-            print(f"🔴 亏损次数: {session_summary.get('red_dots', 0)} ({session_summary.get('red_dots', 0)/session_summary.get('total_investments', 1)*100:.1f}%)")
+            print(f"🟢 盈利次数: {session_summary.get('win_count', 0)} ({session_summary.get('profit_ratio', 0):.1f}%)")
+            print(f"🟡 微盈次数: {session_summary.get('small_profit_count', 0)} ({session_summary.get('small_profit_ratio', 0):.1f}%)")
+            print(f"🟠 微损次数: {session_summary.get('small_loss_count', 0)} ({session_summary.get('small_loss_ratio', 0):.1f}%)")
+            print(f"🔴 亏损次数: {session_summary.get('loss_count', 0)} ({session_summary.get('loss_ratio', 0):.1f}%)")
             print("="*60)
 
     # ========================================================

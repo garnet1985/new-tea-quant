@@ -1,38 +1,70 @@
 #!/usr/bin/env python3
 """
-Simulator Entity Builder
+Analyzer-level Entity Builder
 
-Provides standard constructors for simulator entities to ensure
-uniform structure across strategies while allowing non-breaking
-extensions via the `extra` parameter.
-
-Scope (excludes opportunity building – strategy/domain-specific):
-- to_investment
-- to_settled_investment
-- to_stock_summary
-- to_session_summary
+Shared constructors for opportunity, investment, settled investment,
+stock summary, and session summary. Strategies can extend entities via
+the `extra` parameter without altering standard fields.
 """
 
 from typing import Dict, Any, Optional
 from datetime import datetime
-from .simulator_enum import InvestmentResult
 
-# ========================================================
-# Main entity builder APIs:
-# ========================================================
+from app.analyzer.libs.enum.common_enum import InvestmentResult
+
+
+def _merge_extra(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if extra and isinstance(extra, dict):
+        for k, v in extra.items():
+            if k not in base:
+                base[k] = v
+    return base
+
+
+def _ensure_targets_schema(targets: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    normalized = targets.copy() if isinstance(targets, dict) else {}
+    completed = normalized.get('completed')
+    if not isinstance(completed, list):
+        normalized['completed'] = []
+    return normalized
+
+
+def to_opportunity(
+    stock: Dict[str, Any],
+    date: str,
+    price: float,
+    lower_bound: Optional[float] = None,
+    upper_bound: Optional[float] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Construct a standard opportunity entity.
+
+    Required fields: stock{id[,name?]}, date, price
+    Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
+    """
+    entity: Dict[str, Any] = {
+        'stock': stock or {},
+        'date': date,
+        'price': price,
+    }
+    if lower_bound is not None:
+        entity['lower_bound'] = lower_bound
+    if upper_bound is not None:
+        entity['upper_bound'] = upper_bound
+    return _merge_extra(entity, extra)
+
 
 def to_investment(
     stock: Dict[str, Any],
     start_date: str,
     purchase_price: float,
     targets: Optional[Dict[str, Any]] = None,
-    # tracking: Optional[Dict[str, Any]] = None,
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Construct a standard investment entity (unsettled/base).
 
     Required fields: stock, start_date, purchase_price, targets.completed
-    Optional fields: tracking, extra
+    Optional fields: extra (strategy-specific fields like tracking/opportunity)
     """
     entity: Dict[str, Any] = {
         'stock': stock or {},
@@ -40,9 +72,8 @@ def to_investment(
         'purchase_price': purchase_price,
         'targets': _ensure_targets_schema(targets),
     }
-    # if tracking:
-    #     entity['tracking'] = tracking
     return _merge_extra(entity, extra)
+
 
 def to_settled_investment(
     investment: Dict[str, Any],
@@ -57,10 +88,7 @@ def to_settled_investment(
       (fallback: profit * profit_contribution or profit * sell_ratio)
     - overall_profit_rate = overall_profit / purchase_price
     - invest_duration_days = days between start_date and end_date (YYYYMMDD)
-
-    Inherits required base fields from the investment and does not mutate it.
     """
-    # normalize result string if enum provided
     result_value = getattr(result, 'value', result)
 
     purchase_price = float(investment.get('purchase_price') or 0.0)
@@ -81,7 +109,6 @@ def to_settled_investment(
 
     overall_profit_rate = (overall_profit / purchase_price) if purchase_price > 0 else 0.0
 
-    # compute duration days
     def _parse(d: Optional[str]) -> Optional[datetime]:
         if not d:
             return None
@@ -113,19 +140,12 @@ def to_settled_investment(
     }
     return _merge_extra(settled, extra)
 
+
 def to_stock_summary(
     stock_id: str,
     summary_core: Dict[str, Any],
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Construct a standard stock summary wrapper.
-
-    Expected summary_core keys (at minimum):
-    - total_investments, current_investments, win_rate,
-      avg_roi, avg_annual_return, avg_duration_days,
-      profit_ratio, loss_ratio, small_profit_ratio, small_loss_ratio,
-      win_count, loss_count, small_profit_count, small_loss_count
-    """
     summary: Dict[str, Any] = dict(summary_core or {})
     summary = _merge_extra(summary, extra)
     return {
@@ -138,34 +158,7 @@ def to_session_summary(
     summary_core: Dict[str, Any],
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Construct a standard session summary."""
     summary: Dict[str, Any] = dict(summary_core or {})
     return _merge_extra(summary, extra)
-
-
-# ========================================================
-# Internal helper functions:
-# ========================================================
-
-def _merge_extra(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    if extra and isinstance(extra, dict):
-        for k, v in extra.items():
-            # avoid overwriting standard keys
-            if k not in base:
-                base[k] = v
-    return base
-
-
-def _ensure_targets_schema(targets: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    normalized = targets.copy() if isinstance(targets, dict) else {}
-    completed = normalized.get('completed')
-    if not isinstance(completed, list):
-        normalized['completed'] = []
-    return normalized
-
-
-
-
-
 
 

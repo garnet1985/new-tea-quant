@@ -122,11 +122,11 @@ class PreprocessService:
             params = list(sig.parameters.keys())
             
             # 检查参数数量
-            if len(params) != 5:
-                raise ValueError(f"函数参数数量错误: 期望5个参数，实际{len(params)}个")
+            if len(params) != 6:
+                raise ValueError(f"函数参数数量错误: 期望6个参数，实际{len(params)}个")
             
             # 检查参数名称
-            expected_params = ['stock_id', 'current_date', 'current_record', 'historical_data', 'current_investment']
+            expected_params = ['stock_id', 'current_date', 'current_record', 'all_data', 'current_investment', 'settings']
             if params != expected_params:
                 raise ValueError(f"函数参数名称错误: 期望{expected_params}，实际{params}")
             

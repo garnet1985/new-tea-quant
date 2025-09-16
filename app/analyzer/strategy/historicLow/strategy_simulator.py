@@ -41,21 +41,7 @@ class HLSimulator:
         
         # 是否启用详细日志
         self.is_verbose = False
-    
-    # ========================================================
-    # External (Bridge) APIs:
-    # ========================================================
-	
-    def test_strategy(self) -> None:
-        if not self.is_invest_settings_valid():
-            return
-		
-        stock_idx = self.get_stock_list_by_test_mode()
-        jobs = self.build_jobs(stock_idx)
-        results = self.run_jobs(jobs)
-        session_summary = self.generate_summary(results)
-        self.present_investment_summary(session_summary)
-	
+
     # ========================================================
     # Core logic:
     # ========================================================
@@ -67,10 +53,17 @@ class HLSimulator:
         # 检查现有投资的目标
         if stock['id'] in tracker['investing']:
             investment = tracker['investing'][stock['id']]
-            is_investment_ended, updated_investment = HLSimulator.check_targets(investment, record_of_today)
+            goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+            is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
             
             if is_investment_ended:
-                settled_entity = HLSimulator.settle_investment(updated_investment)
+                goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+                goal_manager.settle_investment(updated_investment)
+                settled_entity = to_settled_investment(
+                    investment=updated_investment,
+                    end_date=updated_investment.get('end_date'),
+                    result=updated_investment.get('result')
+                )
                 tracker['settled'].append(settled_entity)
                 del tracker['investing'][stock['id']]
             else:
@@ -80,7 +73,7 @@ class HLSimulator:
         # 扫描新的投资机会
         opportunity = HLSimulator.scan_single_stock(stock, daily_k_lines)
         if opportunity:
-            # 使用通用构造器创建基础投资实体，策略层通过 extra 注入 tracking/opportunity 等自定义字段
+            # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
             goal_manager = InvestmentGoalManager(strategy_settings['goal'])
             targets = goal_manager.create_investment_targets()
             extra_fields = {
@@ -97,18 +90,10 @@ class HLSimulator:
                 start_date=opportunity['date'],
                 purchase_price=opportunity['price'],
                 targets=targets,
-                extra=extra_fields
+                extra_fields=extra_fields
             )
 
-    @staticmethod
-    def check_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
-        # 创建投资目标管理器
-        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
-        
-        # 使用目标管理器检查目标
-        is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
-        
-        return is_investment_ended, updated_investment
+    
 
     @staticmethod
     def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
@@ -310,11 +295,18 @@ class HLSimulator:
             HLSimulator._update_investment_tracking(current_investment, current_record)
             
             # 检查止盈止损目标
-            should_settle, updated_investment = HLSimulator.check_targets(current_investment, current_record)
+            goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+            should_settle, updated_investment = goal_manager.check_targets(current_investment, current_record)
             
             if should_settle:
-                # 结算投资
-                settled_entity = HLSimulator.settle_investment(updated_investment)
+                # 结算投资（直接调用公用方法）
+                goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+                goal_manager.settle_investment(updated_investment)
+                settled_entity = to_settled_investment(
+                    investment=updated_investment,
+                    end_date=updated_investment.get('end_date'),
+                    result=updated_investment.get('result')
+                )
                 settled_investments.append(settled_entity)
                 
                 # 显示投资结果（模拟原HL simulator的行为）
@@ -350,7 +342,7 @@ class HLSimulator:
         if not current_investment:
             opportunity = HLSimulator.scan_single_stock(stock_id, all_data)
             if opportunity:
-                # 使用通用构造器创建基础投资实体，策略层通过 extra 注入 tracking/opportunity 等自定义字段
+                # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
                 goal_manager = InvestmentGoalManager(strategy_settings['goal'])
                 targets = goal_manager.create_investment_targets()
                 extra_fields = {
@@ -367,7 +359,7 @@ class HLSimulator:
                     start_date=opportunity['date'],
                     purchase_price=opportunity['price'],
                     targets=targets,
-                    extra=extra_fields
+                    extra_fields=extra_fields
                 )
                 current_investment = new_investment
         
@@ -538,7 +530,7 @@ class HLSimulator:
                     price=record_of_today.get('close'),
                     lower_bound=low_point.get('invest_lower_bound'),
                     upper_bound=low_point.get('invest_upper_bound'),
-                    extra={
+                    extra_fields={
                         'opportunity_record': record_of_today,
                         'low_point_ref': low_point,
                     }

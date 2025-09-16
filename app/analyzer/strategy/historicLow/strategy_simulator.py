@@ -12,7 +12,15 @@ from pprint import pprint
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.analyzer.libs.investment import InvestmentGoalManager, InvestmentRecorder
-from app.analyzer.libs.entity.entity_builder import to_settled_investment, to_investment
+from app.analyzer.libs.entity.entity_builder import (
+    to_settled_investment,
+    to_investment,
+    to_opportunity,
+    to_session_summary as build_session_summary,
+    compute_session_summary_core,
+    compute_stock_summary_core,
+    to_stock_summary,
+)
 from app.analyzer.libs.enum.common_enum import InvestmentResult
 
 from app.data_source.data_source_service import DataSourceService
@@ -72,7 +80,25 @@ class HLSimulator:
         # 扫描新的投资机会
         opportunity = HLSimulator.scan_single_stock(stock, daily_k_lines)
         if opportunity:
-            tracker['investing'][stock['id']] = HistoricLowEntity.to_investment(opportunity)
+            # 使用通用构造器创建基础投资实体，策略层通过 extra 注入 tracking/opportunity 等自定义字段
+            goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+            targets = goal_manager.create_investment_targets()
+            extra_fields = {
+                'result': InvestmentResult.OPEN.value,
+                'end_date': '',
+                'tracking': {
+                    'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+                    'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+                },
+                'opportunity': opportunity
+            }
+            tracker['investing'][stock['id']] = to_investment(
+                stock={'id': stock['id'], 'name': opportunity.get('stock', {}).get('name', '')},
+                start_date=opportunity['date'],
+                purchase_price=opportunity['price'],
+                targets=targets,
+                extra=extra_fields
+            )
 
     @staticmethod
     def check_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
@@ -354,69 +380,26 @@ class HLSimulator:
     @staticmethod
     def summarize_single_stock(result: Dict[str, Any]) -> Dict[str, Any]:
         """
-        单股票汇总 - 从备份版本迁移
+        单股票汇总 - 使用通用计算 + entity builder 封装
         
         Args:
             result: 单股票模拟结果
             
         Returns:
-            Dict: 单股票汇总信息
+            Dict: 标准结构 { 'stock_id', 'summary': {...} }
         """
         stock_id = result.get('stock_id', 'unknown')
-        investments = result.get('investments', [])
         settled_investments = result.get('settled_investments', [])
-        
-        # 统计投资数据
-        total_investments = len(settled_investments)  # 只统计已结算的投资
-        success_count = 0
-        fail_count = 0
-        open_count = len(investments)  # 未结算的投资
-        total_profit = 0.0
-        total_duration_days = 0
-        total_roi = 0.0
-        total_annual_return = 0.0
-        
-        # 处理已结算的投资
-        for investment in settled_investments:
-            result_type = investment.get('result', '')
-            if result_type == 'win':
-                success_count += 1
-            elif result_type == 'loss':
-                fail_count += 1
-            
-            # 累计收益和持续时间
-            total_profit += investment.get('overall_profit', 0.0)
-            total_duration_days += investment.get('invest_duration_days', 0)
-            total_roi += investment.get('overall_profit_rate', 0.0)
-            
-            # 计算年化收益率
-            duration_days = investment.get('invest_duration_days', 1)
-            profit_rate = investment.get('overall_profit_rate', 0.0)
-            annual_return = profit_rate * 365 / duration_days if duration_days > 0 else 0.0
-            total_annual_return += annual_return
-        
-        # 计算平均值
-        avg_profit = total_profit / total_investments if total_investments > 0 else 0.0
-        avg_duration_days = total_duration_days / total_investments if total_investments > 0 else 0.0
-        avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_annual_return = total_annual_return / total_investments if total_investments > 0 else 0.0
-        
-        # 计算胜率
-        win_rate = (success_count / total_investments * 100) if total_investments > 0 else 0.0
-        
-        return {
-            'total_investments': total_investments,
-            'success_count': success_count,
-            'fail_count': fail_count,
-            'open_count': open_count,
-            'win_rate': win_rate,
-            'total_profit': total_profit,
-            'avg_profit': avg_profit,
-            'avg_duration_days': avg_duration_days,
-            'avg_roi': avg_roi,
-            'avg_annual_return': avg_annual_return,
-            'investments': settled_investments  # 返回投资列表供session汇总使用
-        }
+
+        # 用通用计算产出核心字段
+        summary_core = compute_stock_summary_core(settled_investments)
+
+        # 通过 entity builder 生成标准结构，并保留 investments 供 session 汇总使用
+        return to_stock_summary(
+            stock_id=stock_id,
+            summary_core=summary_core,
+            extra_fields={'investments': settled_investments},
+        )
 	
     @staticmethod
     def summarize_session(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -429,14 +412,38 @@ class HLSimulator:
         Returns:
             Dict: 会话汇总信息
         """
-        # 构建session_results格式
+        # 构建 session_results（标准输入格式）
         session_results = []
         for stock_summary in stock_summaries:
             session_results.append({
                 'investments': stock_summary.get('summary', {}).get('investments', [])
             })
-        
-        return HistoricLowEntity.to_session_summary(session_results)
+
+        # 计算一个基础汇总核心字段（可复用的通用逻辑）
+        summary_core = compute_session_summary_core(session_results)
+
+        # 用通用 Entity Builder 生成一个基础的 session summary
+        base_summary = build_session_summary(summary_core)
+
+        # 暴露一个自定义扩展点：允许策略在保存前做二次加工
+        return HLSimulator.customize_session_summary(base_summary, session_results)
+
+    @staticmethod
+    def customize_session_summary(base_summary: Dict[str, Any], session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """策略级自定义汇总扩展点。
+
+        默认实现：复用 HistoricLowEntity.to_session_summary 的详细统计，并与基础汇总合并。
+        外部可替换为其他计算逻辑。
+        """
+        try:
+            advanced = HistoricLowEntity.to_session_summary(session_results)
+            # 合并：以 advanced 为主，保留 base_summary 中未覆盖字段
+            merged = dict(base_summary)
+            merged.update(advanced or {})
+            return merged
+        except Exception:
+            # 回退：出现异常则直接返回基础汇总
+            return base_summary
 	
     # ========================================================
     # Helper methods:
@@ -524,8 +531,18 @@ class HLSimulator:
         # 检查是否在投资范围内
         for low_point in low_points:
             if HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data):
-                # 创建投资机会
-                opportunity = HistoricLowEntity.to_opportunity(stock, record_of_today, low_point)
+                # 创建投资机会（使用通用实体构造器）
+                opportunity = to_opportunity(
+                    stock=stock,
+                    date=record_of_today.get('date'),
+                    price=record_of_today.get('close'),
+                    lower_bound=low_point.get('invest_lower_bound'),
+                    upper_bound=low_point.get('invest_upper_bound'),
+                    extra={
+                        'opportunity_record': record_of_today,
+                        'low_point_ref': low_point,
+                    }
+                )
                 return opportunity
         
         return None

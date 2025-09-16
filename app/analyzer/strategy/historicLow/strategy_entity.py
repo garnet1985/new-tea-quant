@@ -16,50 +16,6 @@ class HistoricLowEntity:
     """策略实体生成器 - 集中管理所有entity的生成函数"""
     
     @staticmethod
-    def to_opportunity(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], low_point: Dict[str, Any]) -> Dict[str, Any]:
-        opportunity = {
-            'date': record_of_today.get('date') if record_of_today else None,
-            'price': record_of_today.get('close'),
-            'lower_bound': low_point.get('invest_lower_bound'),
-            'upper_bound': low_point.get('invest_upper_bound'),
-            'stock': {
-                'id': stock_info.get('id') if stock_info else None,
-                'name': stock_info.get('name', '') if stock_info else ''
-            },
-            'opportunity_record': record_of_today,
-            'low_point_ref': low_point,
-        }
-        
-        return opportunity
-
-    @staticmethod
-    def to_investment(opportunity: Dict[str, Any]) -> Dict[str, Any]:
-        import copy
-        
-        if not opportunity:
-            return None
-
-        # 创建投资目标管理器
-        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
-
-        investment = {
-            'result': InvestmentResult.OPEN.value,
-            'stock': opportunity['stock'],
-            'start_date': opportunity['date'],
-            'end_date': '',
-            'purchase_price': opportunity['price'],
-            'tracking': {
-                'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-                'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-            },
-            'targets': goal_manager.create_investment_targets(),
-            'opportunity': opportunity
-        }
-        
-        return investment
-
-
-    @staticmethod
     def to_session_summary(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         生成会话汇总对象

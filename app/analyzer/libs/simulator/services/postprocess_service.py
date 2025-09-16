@@ -105,17 +105,12 @@ class PostprocessService:
         small_loss_count = 0
         
         total_roi = 0.0
-        total_annual_return = 0.0
         total_duration_days = 0.0
         
         for investment in settled_investments:
             result_type = investment.get('result', '')
             profit_rate = investment.get('overall_profit_rate', 0.0)
             duration_days = investment.get('invest_duration_days', 0)
-            
-            # 计算年化收益率
-            annual_return = AnalyzerService.get_annual_return(profit_rate, duration_days)
-            total_annual_return += annual_return
             
             # 累计ROI和投资周期
             total_roi += profit_rate
@@ -135,8 +130,10 @@ class PostprocessService:
         
         # 计算平均值
         avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_annual_return = (total_annual_return / total_investments) if total_investments > 0 else 0.0
         avg_duration_days = (total_duration_days / total_investments) if total_investments > 0 else 0.0
+        
+        # 计算年化收益率 - 使用原来的逻辑：基于平均ROI和平均投资周期
+        avg_annual_return = AnalyzerService.get_annual_return(total_roi / total_investments, int(avg_duration_days)) if total_investments > 0 and avg_duration_days > 0 else 0.0
         
         # 计算成功率
         win_rate = ((win_count + small_profit_count) / total_investments * 100) if total_investments > 0 else 0.0
@@ -237,8 +234,11 @@ class PostprocessService:
         
         # 计算整体平均值
         avg_roi = (total_roi / total_investments) if total_investments > 0 else 0.0
-        avg_annual_return = (total_annual_return / total_investments) if total_investments > 0 else 0.0
         avg_duration_days = (total_duration_days / total_investments) if total_investments > 0 else 0.0
+        
+        # 对于会话级别的年化收益率，我们使用加权平均
+        # 因为每只股票的年化收益率已经基于其整体表现计算
+        avg_annual_return = (total_annual_return / total_investments) if total_investments > 0 else 0.0
         
         # 计算整体成功率
         total_successful = total_win_count + total_small_profit_count

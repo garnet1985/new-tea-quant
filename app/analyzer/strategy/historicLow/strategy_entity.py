@@ -10,6 +10,7 @@ from app.analyzer.strategy.historicLow.strategy_service import HistoricLowServic
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
+from app.analyzer.libs.simulator.investment_goal_manager import InvestmentGoalManager
 
 
 class HistoricLowEntity:
@@ -39,6 +40,9 @@ class HistoricLowEntity:
         if not opportunity:
             return None
 
+        # 创建投资目标管理器
+        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+
         investment = {
             'result': InvestmentResult.OPEN.value,
             'stock': opportunity['stock'],
@@ -49,16 +53,7 @@ class HistoricLowEntity:
                 'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
                 'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
             },
-            'targets': {
-                'investment_ratio_left': 1.0,
-                'is_breakeven': False,
-                'is_dynamic_stop_loss': False,
-                'all': {
-                    'stop_loss': copy.deepcopy(strategy_settings['goal']['stop_loss']),
-                    'take_profit': copy.deepcopy(strategy_settings['goal']['take_profit']['stages'])
-                },
-                'completed': [],
-            },
+            'targets': goal_manager.create_investment_targets(),
             'opportunity': opportunity
         }
         

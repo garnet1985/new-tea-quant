@@ -11,9 +11,9 @@ from pprint import pprint
 
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
-from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
 from app.analyzer.libs.investment import InvestmentGoalManager, InvestmentRecorder
-from app.analyzer.libs.simulator.simulator_entity_builder import to_settled_investment
+from app.analyzer.libs.entity.entity_builder import to_settled_investment, to_investment
+from app.analyzer.libs.enum.common_enum import InvestmentResult
 
 from app.data_source.data_source_service import DataSourceService
 from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
@@ -324,7 +324,25 @@ class HLSimulator:
         if not current_investment:
             opportunity = HLSimulator.scan_single_stock(stock_id, all_data)
             if opportunity:
-                new_investment = HistoricLowEntity.to_investment(opportunity)
+                # 使用通用构造器创建基础投资实体，策略层通过 extra 注入 tracking/opportunity 等自定义字段
+                goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+                targets = goal_manager.create_investment_targets()
+                extra_fields = {
+                    'result': InvestmentResult.OPEN.value,
+                    'end_date': '',
+                    'tracking': {
+                        'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+                        'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+                    },
+                    'opportunity': opportunity
+                }
+                new_investment = to_investment(
+                    stock={'id': stock_id, 'name': opportunity.get('stock', {}).get('name', '')},
+                    start_date=opportunity['date'],
+                    purchase_price=opportunity['price'],
+                    targets=targets,
+                    extra=extra_fields
+                )
                 current_investment = new_investment
         
         return {

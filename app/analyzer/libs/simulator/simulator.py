@@ -126,7 +126,7 @@ class Simulator:
             simulate_results=simulate_results,
             stock_summaries=stock_summaries,
             session_summary=session_summary,
-            settings=self.settings,
+            settings={},  # 暂时使用空字典，后续可以从preprocess阶段传递
             processing_time=time.time() - start_time,
             on_simulate_complete=on_simulate_complete
         )

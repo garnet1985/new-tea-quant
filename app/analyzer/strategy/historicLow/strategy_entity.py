@@ -10,7 +10,7 @@ from app.analyzer.strategy.historicLow.strategy_service import HistoricLowServic
 from app.analyzer.analyzer_service import AnalyzerService
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
-from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
+from app.analyzer.libs.enum.common_enum import InvestmentResult
 from app.analyzer.libs.investment.investment_goal_manager import InvestmentGoalManager
 
 

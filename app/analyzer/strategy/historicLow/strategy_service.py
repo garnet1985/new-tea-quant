@@ -169,17 +169,3 @@ class HistoricLowService:
         
         return filtered_records
     
-    @staticmethod
-    def calculate_annual_return(profit_rate: float, duration_days: int) -> float:
-        """
-        计算年化收益率
-        """
-        if duration_days <= 0 or profit_rate == 0:
-            return 0.0
-        
-        years = duration_days / 365.0
-        if years <= 0:
-            return 0.0
-        
-        annual_return = ((1 + profit_rate) ** (1 / years)) - 1
-        return annual_return * 100  # 转换为百分比

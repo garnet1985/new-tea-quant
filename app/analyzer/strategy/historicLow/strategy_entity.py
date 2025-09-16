@@ -7,6 +7,7 @@ from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
+from app.analyzer.analyzer_service import AnalyzerService
 from app.data_source.data_source_service import DataSourceService
 from .strategy_settings import strategy_settings
 from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
@@ -160,7 +161,7 @@ class HistoricLowEntity:
         avg_duration_days = (total_duration / total_investments) if total_investments > 0 else 0.0
         avg_roi = (total_roi / total_investments) if total_investments > 0 else 0.0
         win_rate = (win_count / settled_investments * 100) if settled_investments > 0 else 0.0
-        annual_return = HistoricLowService.calculate_annual_return(avg_roi, int(avg_duration_days)) if avg_roi != 0 and avg_duration_days > 0 else 0.0
+        annual_return = AnalyzerService.get_annual_return(avg_roi, int(avg_duration_days)) if avg_roi != 0 and avg_duration_days > 0 else 0.0
         avg_profit_per_investment = (total_profit / total_investments) if total_investments > 0 else 0.0
 
         # 计算各颜色点的百分比
@@ -230,7 +231,7 @@ class HistoricLowEntity:
                 total_roi += ((purchase_price + profit) / purchase_price) - 1
         
         avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_annual_return = HistoricLowService.calculate_annual_return(total_roi / total_investments, int(avg_duration)) if total_investments > 0 and avg_duration > 0 else 0.0
+        avg_annual_return = AnalyzerService.get_annual_return(total_roi / total_investments, int(avg_duration)) if total_investments > 0 and avg_duration > 0 else 0.0
 
         import copy
 

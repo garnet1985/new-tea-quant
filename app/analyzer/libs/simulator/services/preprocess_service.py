@@ -44,11 +44,16 @@ class PreprocessService:
             'end_date': end_date,
         }
         
+        # 透传顶层关键信息（如策略文件夹名、兼容旧字段）
         validated_settings = {
             'simulation': validated_config,
             'klines': klines_config,
-            'mode': settings.get('mode', {})
+            'mode': settings.get('mode', {}),
         }
+        if 'folder_name' in settings:
+            validated_settings['folder_name'] = settings['folder_name']
+        if 'strategy_name' in settings:
+            validated_settings['strategy_name'] = settings['strategy_name']
         
         logger.info(f"✅ 设置验证完成: {validated_config}")
         return validated_settings

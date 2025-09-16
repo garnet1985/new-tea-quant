@@ -50,22 +50,22 @@ class Analyzer:
             logger.warning(f"策略目录不存在: {strategy_dir}")
             return
         
-        # 遍历策略文件夹
+        # 遍历策略文件夹（仅第一级目录）
         for strategy_folder in strategy_dir.iterdir():
             if not strategy_folder.is_dir() or strategy_folder.name.startswith('_'):
                 continue
                 
-            # 检查是否存在 strategy.py 文件
-            strategy_file = strategy_folder / "strategy.py"
+            # 入口文件应与文件夹同名，如 HL/HL.py, historicLow/historicLow.py
+            entry_file = strategy_folder / f"{strategy_folder.name}.py"
             
-            if not strategy_file.exists():
+            if not entry_file.exists():
                 if self.is_verbose:
-                    logger.info(f"跳过 {strategy_folder.name}: 未找到 strategy.py 文件")
+                    logger.info(f"跳过 {strategy_folder.name}: 未找到入口文件 {strategy_folder.name}.py")
                 continue
             
             # 尝试导入策略模块
             try:
-                module_path = f"app.analyzer.strategy.{strategy_folder.name}.strategy"
+                module_path = f"app.analyzer.strategy.{strategy_folder.name}.{strategy_folder.name}"
                 strategy_module = importlib.import_module(module_path)
                 
                 # 查找继承 BaseStrategy 的策略类

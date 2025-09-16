@@ -12,7 +12,7 @@ from loguru import logger
 class InvestmentRecorder:
     """投资记录器 - 记录投资结算信息，支持基于策略和会话ID的存储管理"""
     
-    def __init__(self, strategy_name: str, session_id: Optional[str] = None):
+    def __init__(self, strategy_folder_name: str, session_id: Optional[str] = None):
         """
         初始化投资记录器
         
@@ -20,14 +20,14 @@ class InvestmentRecorder:
             strategy_name: 策略名称，用于确定存储路径
             session_id: 会话ID，如果为None则自动生成
         """
-        self.strategy_name = strategy_name
+        self.strategy_folder_name = strategy_folder_name
         
         # 设置tmp目录路径（在策略目录下）
         current_dir = os.path.dirname(os.path.abspath(__file__))
         # 向上找到项目根目录，然后找到对应策略的tmp目录
         # 从 app/analyzer/libs/investment/ 向上到项目根目录
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
-        strategy_dir = os.path.join(project_root, "app", "analyzer", "strategy", strategy_name)
+        strategy_dir = os.path.join(project_root, "app", "analyzer", "strategy", strategy_folder_name)
         self.tmp_dir = os.path.join(strategy_dir, "tmp")
         self.meta_file = os.path.join(self.tmp_dir, "meta.json")
         
@@ -46,7 +46,7 @@ class InvestmentRecorder:
             meta = {
                 "next_session_id": 1,
                 "last_updated": datetime.now().isoformat(),
-                "strategy_name": self.strategy_name
+                "strategy_name": self.strategy_folder_name
             }
             with open(self.meta_file, "w", encoding="utf-8") as file:
                 json.dump(meta, file, ensure_ascii=False, indent=2)
@@ -109,7 +109,7 @@ class InvestmentRecorder:
         meta = {
             "next_session_id": self.current_session_id + 1,
             "last_updated": datetime.now().isoformat(),
-            "strategy_name": self.strategy_name
+            "strategy_name": self.strategy_folder_name
         }
         with open(self.meta_file, "w", encoding="utf-8") as file:
             json.dump(meta, file, ensure_ascii=False, indent=2)

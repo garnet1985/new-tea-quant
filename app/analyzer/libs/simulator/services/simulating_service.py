@@ -70,19 +70,6 @@ class SimulatingService:
         
         # 获取成功的结果
         successful_results = worker.get_successful_results()
-
-        # 记录失败的任务（如果可用）
-        try:
-            if hasattr(worker, 'get_failed_results'):
-                failed_results = worker.get_failed_results()
-                for fr in failed_results or []:
-                    job_id = getattr(fr, 'job_id', 'unknown')
-                    error_message = getattr(fr, 'error_message', '') or getattr(fr, 'result', '')
-                    tb = getattr(fr, 'traceback', '')
-                    logger.error("❌ 子进程任务失败 | job_id={} | error={}\n{}", job_id, error_message, tb)
-        except Exception:
-            # 忽略失败结果日志过程中的异常，避免影响主流程
-            pass
         
         # 提取实际的结果数据
         results = []

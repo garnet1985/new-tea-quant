@@ -7,7 +7,7 @@ stock summary, and session summary. Strategies can extend entities via
 the `extra` parameter without altering standard fields.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from app.analyzer.libs.enum.common_enum import InvestmentResult
@@ -148,7 +148,11 @@ def to_session_summary(
     extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     summary: Dict[str, Any] = dict(summary_core or {})
-    return _merge_extra(summary, extra_fields)
+
+    investments = summary.get('investments', [])
+    summary_core = compute_stock_summary_core(investments)
+
+    return _merge_extra(summary_core, extra_fields)
 
 
 # ========================================================
@@ -169,3 +173,186 @@ def _ensure_targets_schema(targets: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not isinstance(completed, list):
         normalized['completed'] = []
     return normalized
+
+
+# ========================================================
+# Summary calculators (centralized here as requested)
+# ========================================================
+
+def compute_stock_summary_core(investments: List[Dict[str, Any]]) -> Dict[str, Any]:
+    total_investments = 0
+    win_count = 0
+    loss_count = 0
+    open_count = 0
+
+    total_duration = 0.0
+    total_roi = 0.0
+    total_profit = 0.0
+    total_annual_return = 0.0
+
+    green_dot_count = 0
+    yellow_dot_count = 0
+    orange_dot_count = 0
+    red_dot_count = 0
+
+    for inv in investments or []:
+        total_investments += 1
+
+        purchase_price = float(inv.get('purchase_price') or 0.0)
+        profit = float(inv.get('overall_profit') or 0.0)
+        duration = float(inv.get('invest_duration_days') or 0.0)
+        profit_rate = float(inv.get('overall_profit_rate') or 0.0) * 100.0
+
+        total_profit += profit
+        total_duration += duration
+        if purchase_price > 0:
+            total_roi += AnalyzerService.to_ratio(purchase_price + profit, purchase_price) - 1
+
+        result = inv.get('result')
+        if result == InvestmentResult.WIN.value:
+            win_count += 1
+            if profit_rate >= 20:
+                green_dot_count += 1
+            else:
+                yellow_dot_count += 1
+        elif result == InvestmentResult.LOSS.value:
+            loss_count += 1
+            if profit_rate > -20:
+                orange_dot_count += 1
+            else:
+                red_dot_count += 1
+        elif result == InvestmentResult.OPEN.value:
+            open_count += 1
+            yellow_dot_count += 1
+
+        if duration > 0:
+            total_annual_return += (inv.get('overall_profit_rate') or 0.0) * 365.0 / duration
+
+    settled_investments = win_count + loss_count
+    win_rate = AnalyzerService.to_ratio(win_count, settled_investments, 4) if settled_investments > 0 else 0.0
+    avg_duration_days = AnalyzerService.to_ratio(total_duration, total_investments) if total_investments > 0 else 0.0
+    avg_roi = AnalyzerService.to_ratio(total_roi, total_investments) if total_investments > 0 else 0.0
+    avg_annual_return = AnalyzerService.to_ratio(total_annual_return, total_investments) if total_investments > 0 else 0.0
+    avg_profit_per_investment = AnalyzerService.to_ratio(total_profit, total_investments) if total_investments > 0 else 0.0
+
+    return {
+        'total_investments': total_investments,
+        'win_count': win_count,
+        'loss_count': loss_count,
+        'open_count': open_count,
+        'settled_investments': settled_investments,
+        'win_rate': round(win_rate, 2),
+        'avg_duration_days': round(avg_duration_days, 1),
+        'avg_roi': round(avg_roi, 4),
+        'avg_annual_return': round(avg_annual_return, 4),
+        'total_profit': round(total_profit, 2),
+        'avg_profit_per_investment': round(avg_profit_per_investment, 2),
+        'green_dot_count': green_dot_count,
+        'yellow_dot_count': yellow_dot_count,
+        'orange_dot_count': orange_dot_count,
+        'red_dot_count': red_dot_count,
+        'green_dot_rate': AnalyzerService.to_ratio(green_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'yellow_dot_rate': AnalyzerService.to_ratio(yellow_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'orange_dot_rate': AnalyzerService.to_ratio(orange_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'red_dot_rate': AnalyzerService.to_ratio(red_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'summary_generated_at': datetime.now().isoformat(),
+    }
+
+
+def compute_session_summary_core(session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    total_investments = 0
+    win_count = 0
+    loss_count = 0
+    open_count = 0
+    green_dot_count = 0
+    yellow_dot_count = 0
+    orange_dot_count = 0
+    red_dot_count = 0
+    total_duration = 0.0
+    total_roi = 0.0
+    total_profit = 0.0
+    total_stocks_with_opportunities = 0
+
+    for stock_result in session_results or []:
+        investments = stock_result.get('investments', [])
+        if not investments:
+            continue
+        total_stocks_with_opportunities += 1
+
+        for inv in investments:
+            purchase_price = float(inv.get('purchase_price') or 0.0)
+            profit = float(inv.get('overall_profit') or 0.0)
+            duration = float(inv.get('invest_duration_days') or 0.0)
+            profit_rate = float(inv.get('overall_profit_rate') or 0.0) * 100.0
+
+            total_investments += 1
+            total_profit += profit
+            total_duration += duration
+            if purchase_price > 0:
+                total_roi += ((purchase_price + profit) / purchase_price) - 1
+
+            result = inv.get('result')
+            if result == InvestmentResult.WIN.value:
+                win_count += 1
+                if profit_rate >= 20:
+                    green_dot_count += 1
+                else:
+                    yellow_dot_count += 1
+            elif result == InvestmentResult.LOSS.value:
+                loss_count += 1
+                if profit_rate > -20:
+                    orange_dot_count += 1
+                else:
+                    red_dot_count += 1
+            elif result == InvestmentResult.OPEN.value:
+                open_count += 1
+                yellow_dot_count += 1
+
+    settled_investments = win_count + loss_count
+    avg_duration_days = (total_duration / total_investments) if total_investments > 0 else 0.0
+    avg_roi = (total_roi / total_investments) if total_investments > 0 else 0.0
+    win_rate = (win_count / settled_investments * 100.0) if settled_investments > 0 else 0.0
+    annual_return = AnalyzerService.get_annual_return(avg_roi, int(avg_duration_days)) if avg_roi != 0 and avg_duration_days > 0 else 0.0
+    avg_profit_per_investment = (total_profit / total_investments) if total_investments > 0 else 0.0
+
+    return {
+        'total_investments': total_investments,
+        'win_count': win_count,
+        'loss_count': loss_count,
+        'open_count': open_count,
+        'settled_investments': settled_investments,
+        'win_rate': round(win_rate, 2),
+        'avg_duration_days': round(avg_duration_days, 1),
+        'avg_roi': round(avg_roi, 4),
+        'annual_return': round(annual_return, 4),
+        'avg_annual_return': round(annual_return, 4),
+        'total_profit': round(total_profit, 2),
+        'avg_profit_per_investment': round(avg_profit_per_investment, 2),
+        'total_stocks_with_opportunities': total_stocks_with_opportunities,
+        'green_dot_count': green_dot_count,
+        'yellow_dot_count': yellow_dot_count,
+        'orange_dot_count': orange_dot_count,
+        'red_dot_count': red_dot_count,
+        'green_dot_rate': AnalyzerService.to_ratio(green_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'yellow_dot_rate': AnalyzerService.to_ratio(yellow_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'orange_dot_rate': AnalyzerService.to_ratio(orange_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'red_dot_rate': AnalyzerService.to_ratio(red_dot_count, total_investments, 4) if total_investments > 0 else 0.0,
+        'summary_generated_at': datetime.now().isoformat(),
+    }
+
+
+def to_stock_summary_from_investments(
+    stock_id: str,
+    investments: List[Dict[str, Any]],
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    core = compute_stock_summary_core(investments)
+    return to_stock_summary(stock_id, core, extra)
+
+
+def to_session_summary_from_results(
+    session_results: List[Dict[str, Any]],
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    core = compute_session_summary_core(session_results)
+    return to_session_summary(core, extra)

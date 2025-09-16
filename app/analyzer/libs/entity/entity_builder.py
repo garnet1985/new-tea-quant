@@ -98,16 +98,8 @@ def to_settled_investment(
 
     overall_profit_rate = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
 
-    def _parse(d: Optional[str]) -> Optional[datetime]:
-        if not d:
-            return None
-        try:
-            return datetime.strptime(str(d), '%Y%m%d')
-        except Exception:
-            return None
-
-    start_dt = _parse(investment.get('start_date'))
-    end_dt = _parse(end_date)
+    start_dt = AnalyzerService.parse_yyyymmdd(investment.get('start_date'))
+    end_dt = AnalyzerService.parse_yyyymmdd(end_date)
     invest_duration_days = (end_dt - start_dt).days if start_dt and end_dt else 0
 
     base = {

@@ -69,6 +69,18 @@ class AnalyzerService:
         return annual_return * 100  # 转换为百分比
 
     @staticmethod
+    def parse_yyyymmdd(date_str: str):
+        """
+        安全解析 YYYYMMDD，失败返回 None。
+        """
+        if not date_str:
+            return None
+        try:
+            return datetime.strptime(str(date_str), '%Y%m%d')
+        except Exception:
+            return None
+
+    @staticmethod
     def find_valleys(daily_data: list, min_drop_threshold: float = 0.20, 
                      local_range_days: int = 5, lookback_days: int = 60) -> list:
         """

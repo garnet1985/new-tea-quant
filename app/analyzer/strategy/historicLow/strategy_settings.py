@@ -2,6 +2,8 @@
 
 
 strategy_settings = {
+    'strategy_name': 'historicLow',  # 策略名称，用于投资记录器
+    
     'mode': {
         "blacklist_only": False,
         "test_amount": 10,

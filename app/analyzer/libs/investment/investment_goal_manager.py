@@ -4,7 +4,7 @@
 """
 from typing import Dict, Any, List, Tuple
 from copy import deepcopy
-from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
+from app.analyzer.libs.enum.common_enum import InvestmentResult
 
 
 class InvestmentGoalManager:

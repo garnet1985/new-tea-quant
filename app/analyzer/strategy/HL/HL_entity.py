@@ -4,7 +4,7 @@
 """
 from typing import Dict, Any
 
-from .strategy_settings import strategy_settings
+from .settings import strategy_settings
 
 
 class HistoricLowEntity:

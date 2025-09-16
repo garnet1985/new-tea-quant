@@ -1,7 +1,7 @@
 import math
 from typing import Dict, List, Any, Tuple
 from loguru import logger
-from .strategy_settings import strategy_settings
+from .settings import strategy_settings
 
 
 class HistoricLowService:

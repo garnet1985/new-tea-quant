@@ -10,31 +10,23 @@ import os
 from pprint import pprint
 
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
+from app.analyzer.strategy.HL.HL_service import HistoricLowService
 from app.analyzer.libs.investment import InvestmentGoalManager, InvestmentRecorder
-from app.analyzer.libs.entity.entity_builder import (
-    to_settled_investment,
-    to_investment,
-    to_opportunity,
-    to_session_summary as build_session_summary,
-    compute_session_summary_core,
-    compute_stock_summary_core,
-    to_stock_summary,
-)
+from app.analyzer.libs.entity import EntityBuilder
 from app.analyzer.libs.enum.common_enum import InvestmentResult
 
 from app.data_source.data_source_service import DataSourceService
-from app.analyzer.strategy.historicLow.strategy_settings import strategy_settings
-from .strategy_entity import HistoricLowEntity
+from app.analyzer.strategy.HL.settings import strategy_settings
+from .HL_entity import HistoricLowEntity
 
 
-class HLSimulator:
+class HistoricLowSimulator:
     def __init__(self, strategy):
         
         self.strategy = strategy
 
         # init tracker
-        self.invest_recorder = InvestmentRecorder("historicLow")
+        self.invest_recorder = InvestmentRecorder(strategy_settings['folder_name'])
 
         # 汇总收集器（单线程汇总，无需锁）
         self.session_results = []
@@ -59,7 +51,7 @@ class HLSimulator:
             if is_investment_ended:
                 goal_manager = InvestmentGoalManager(strategy_settings['goal'])
                 goal_manager.settle_investment(updated_investment)
-                settled_entity = to_settled_investment(
+                settled_entity = EntityBuilder.to_settled_investment(
                     investment=updated_investment,
                     end_date=updated_investment.get('end_date'),
                     result=updated_investment.get('result')
@@ -68,10 +60,10 @@ class HLSimulator:
                 del tracker['investing'][stock['id']]
             else:
                 tracker['investing'][stock['id']] = updated_investment
-                HLSimulator.update_investment_max_min_close(updated_investment, record_of_today)
+                HistoricLowSimulator.update_investment_max_min_close(updated_investment, record_of_today)
 
         # 扫描新的投资机会
-        opportunity = HLSimulator.scan_single_stock(stock, daily_k_lines)
+        opportunity = HistoricLowSimulator.scan_single_stock(stock, daily_k_lines)
         if opportunity:
             # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
             goal_manager = InvestmentGoalManager(strategy_settings['goal'])
@@ -85,7 +77,7 @@ class HLSimulator:
                 },
                 'opportunity': opportunity
             }
-            tracker['investing'][stock['id']] = to_investment(
+            tracker['investing'][stock['id']] = EntityBuilder.to_investment(
                 stock={'id': stock['id'], 'name': opportunity.get('stock', {}).get('name', '')},
                 start_date=opportunity['date'],
                 purchase_price=opportunity['price'],
@@ -121,7 +113,7 @@ class HLSimulator:
         goal_manager.settle_open_investment(investment, final_price, '20241231')
         
         # 使用通用实体构造器生成标准结算实体
-        settled = to_settled_investment(
+        settled = EntityBuilder.to_settled_investment(
             investment=investment,
             end_date=investment.get('end_date'),
             result=investment.get('result')
@@ -135,6 +127,11 @@ class HLSimulator:
     def is_invest_settings_valid(self) -> bool:
         """检查投资设置是否有效"""
         try:
+            # 必须提供文件夹名用于结果存储
+            if 'folder_name' not in strategy_settings or not strategy_settings['folder_name']:
+                logger.error("缺少策略文件夹名配置 folder_name")
+                return False
+
             goal_config = strategy_settings.get('goal', {})
             if not goal_config:
                 logger.error("缺少投资目标配置")
@@ -188,12 +185,12 @@ class HLSimulator:
             # 模拟每一天
             for i in range(len(daily_k_lines)):
                 current_data = daily_k_lines[:i+1]
-                HLSimulator.simulate_one_day(stock, current_data, tracker)
+                HistoricLowSimulator.simulate_one_day(stock, current_data, tracker)
             
             # 处理未结束的投资
             for investment in list(tracker['investing'].values()):
                 final_price = daily_k_lines[-1]['close'] if daily_k_lines else 0
-                settled_entity = HLSimulator.settle_open_investment(investment, final_price)
+                settled_entity = HistoricLowSimulator.settle_open_investment(investment, final_price)
                 tracker['settled'].append(settled_entity)
             
             # 保存结果
@@ -277,7 +274,7 @@ class HLSimulator:
         # 如果有投资，先检查是否需要结算
         if current_investment:
             # 更新投资的最大最小值跟踪
-            HLSimulator._update_investment_tracking(current_investment, current_record)
+            HistoricLowSimulator._update_investment_tracking(current_investment, current_record)
             
             # 检查止盈止损目标
             goal_manager = InvestmentGoalManager(strategy_settings['goal'])
@@ -287,7 +284,7 @@ class HLSimulator:
                 # 结算投资（直接调用公用方法）
                 goal_manager = InvestmentGoalManager(strategy_settings['goal'])
                 goal_manager.settle_investment(updated_investment)
-                settled_entity = to_settled_investment(
+                settled_entity = EntityBuilder.to_settled_investment(
                     investment=updated_investment,
                     end_date=updated_investment.get('end_date'),
                     result=updated_investment.get('result')
@@ -325,7 +322,7 @@ class HLSimulator:
         
         # 如果没有投资，扫描新的投资机会
         if not current_investment:
-            opportunity = HLSimulator.scan_single_stock(stock_id, all_data)
+            opportunity = HistoricLowSimulator.scan_single_stock(stock_id, all_data)
             if opportunity:
                 # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
                 goal_manager = InvestmentGoalManager(strategy_settings['goal'])
@@ -339,7 +336,7 @@ class HLSimulator:
                     },
                     'opportunity': opportunity
                 }
-                new_investment = to_investment(
+                new_investment = EntityBuilder.to_investment(
                     stock={'id': stock_id, 'name': opportunity.get('stock', {}).get('name', '')},
                     start_date=opportunity['date'],
                     purchase_price=opportunity['price'],
@@ -369,10 +366,10 @@ class HLSimulator:
         settled_investments = result.get('settled_investments', [])
 
         # 用通用计算产出核心字段
-        summary_core = compute_stock_summary_core(settled_investments)
+        summary_core = EntityBuilder.compute_stock_summary_core(settled_investments)
 
         # 通过 entity builder 生成标准结构，并保留 investments 供 session 汇总使用
-        return to_stock_summary(
+        return EntityBuilder.to_stock_summary(
             stock_id=stock_id,
             summary_core=summary_core,
             extra_fields={'investments': settled_investments},
@@ -397,13 +394,13 @@ class HLSimulator:
             })
 
         # 计算一个基础汇总核心字段（可复用的通用逻辑）
-        summary_core = compute_session_summary_core(session_results)
+        summary_core = EntityBuilder.compute_session_summary_core(session_results)
 
         # 用通用 Entity Builder 生成一个基础的 session summary
-        base_summary = build_session_summary(summary_core)
+        base_summary = EntityBuilder.to_session_summary(summary_core)
 
         # 暴露一个自定义扩展点：允许策略在保存前做二次加工
-        return HLSimulator.customize_session_summary(base_summary, session_results)
+        return HistoricLowSimulator.customize_session_summary(base_summary, session_results)
 
     @staticmethod
     def customize_session_summary(base_summary: Dict[str, Any], session_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -509,7 +506,7 @@ class HLSimulator:
         for low_point in low_points:
             if HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data):
                 # 创建投资机会（使用通用实体构造器）
-                opportunity = to_opportunity(
+                opportunity = EntityBuilder.to_opportunity(
                     stock=stock,
                     date=record_of_today.get('date'),
                     price=record_of_today.get('close'),
@@ -534,13 +531,13 @@ class HLSimulator:
         stock = {'id': stock_id}
         
         # 分割数据为冻结期和历史期
-        freeze_records, history_records = HLSimulator.split_daily_data(all_data)
+        freeze_records, history_records = HistoricLowSimulator.split_daily_data(all_data)
         
         # 寻找历史低点
-        low_points = HLSimulator.find_low_points(history_records)
+        low_points = HistoricLowSimulator.find_low_points(history_records)
         
         # 从低点中寻找投资机会
-        opportunity = HLSimulator.find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
+        opportunity = HistoricLowSimulator.find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
         
         return opportunity
 

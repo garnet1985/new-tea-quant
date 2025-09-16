@@ -10,6 +10,7 @@ from pprint import pprint
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.historicLow.strategy_service import HistoricLowService
 from app.analyzer.libs.simulator.simulator_enum import InvestmentResult
+from app.analyzer.libs.simulator.investment_goal_manager import InvestmentGoalManager
 
 from app.data_source.data_source_service import DataSourceService
 from app.analyzer.strategy.historicLow.investment_recorder import InvestmentRecorder
@@ -110,119 +111,13 @@ class HLSimulator:
 
     @staticmethod
     def check_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
-        is_investment_ended = False
-
-        # warning: order is important!!! - take profit will drive stop loss strategy, so take profit need to go first
-        investment = HLSimulator.check_take_profit_target(investment, record_of_today)
-
-        investment = HLSimulator.check_stop_loss_target(investment, record_of_today)
+        # 创建投资目标管理器
+        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
         
-        # the invest run out of invested money, need to settle the result
-        if investment['targets']['investment_ratio_left'] <= 0:
-            is_investment_ended = True
-            investment['end_date'] = record_of_today['date']
-
-        return is_investment_ended, investment
-
-    @staticmethod
-    def check_take_profit_target(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Dict[str, Any]:
-        price_today = record_of_today['close']
-        purchase_price = investment['purchase_price']
-        targets = investment['targets']['all']['take_profit']
+        # 使用目标管理器检查目标
+        is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
         
-        for i, target in enumerate(targets):
-            if 'is_achieved' in target and target['is_achieved']:
-                continue
-
-            if price_today >= purchase_price * (1 + target['ratio']):
-                investment['targets']['investment_ratio_left'] -= target['sell_ratio']
-
-                # 立即标记原始配置对象为已完成，避免重复触发
-                targets[i]['is_achieved'] = True
-                
-                settled_target = HLSimulator.to_settable_target(target, target['sell_ratio'], price_today - purchase_price, price_today, record_of_today['date'])
-                investment['targets']['completed'].append(settled_target)
-
-                if 'set_stop_loss' in target and target['set_stop_loss'] == 'break_even':
-                    investment['targets']['is_breakeven'] = True
-
-                if 'set_stop_loss' in target and target['set_stop_loss'] == 'dynamic':
-                    investment['targets']['is_dynamic_stop_loss'] = True
-                    investment['targets']['last_highest_close'] = price_today
-
-        return investment
-    
-
-
-    @staticmethod
-    def check_stop_loss_target(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Dict[str, Any]:
-        price_today = record_of_today['close']
-        purchase_price = investment['purchase_price']
-        stop_loss_config = investment['targets']['all']['stop_loss']
-
-        # 根据当前状态检查对应的止损目标
-        if investment['targets']['is_dynamic_stop_loss']:
-            # 更新最高价
-            if 'last_highest_close' not in investment['targets']:
-                investment['targets']['last_highest_close'] = price_today
-            else:
-                investment['targets']['last_highest_close'] = max(investment['targets']['last_highest_close'], price_today)
-            
-            # 检查dynamic止损
-            dynamic_target = stop_loss_config['dynamic']
-            if 'is_achieved' not in dynamic_target or not dynamic_target['is_achieved']:
-                if price_today <= investment['targets']['last_highest_close'] * (1 + dynamic_target['ratio']):
-                    sell_ratio = investment['targets']['investment_ratio_left'] if dynamic_target.get('close_invest') else dynamic_target['sell_ratio']
-                    investment['targets']['investment_ratio_left'] = 0 if dynamic_target.get('close_invest') else investment['targets']['investment_ratio_left'] - dynamic_target['sell_ratio']
-                    
-                    target = HLSimulator.to_settable_target(dynamic_target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
-                    investment['targets']['completed'].append(target)
-
-
-        elif investment['targets']['is_breakeven']:
-            # 检查break_even止损
-            breakeven_target = stop_loss_config['break_even']
-            if 'is_achieved' not in breakeven_target or not breakeven_target['is_achieved']:
-                if price_today <= purchase_price:
-                    sell_ratio = investment['targets']['investment_ratio_left'] if breakeven_target.get('close_invest') else breakeven_target['sell_ratio']
-                    investment['targets']['investment_ratio_left'] = 0 if breakeven_target.get('close_invest') else investment['targets']['investment_ratio_left'] - breakeven_target['sell_ratio']
-                    
-                    target = HLSimulator.to_settable_target(breakeven_target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
-                    investment['targets']['completed'].append(target)
-
-
-        else:
-            # 检查所有初始止损目标
-            for i, target in enumerate(stop_loss_config['stages']):
-                if 'is_achieved' in target and target['is_achieved']:
-                    continue
-
-                if price_today <= purchase_price * (1 + target['ratio']):
-                    sell_ratio = investment['targets']['investment_ratio_left'] if target.get('close_invest') else target['sell_ratio']
-                    investment['targets']['investment_ratio_left'] = 0 if target.get('close_invest') else investment['targets']['investment_ratio_left'] - target['sell_ratio']
-                    
-                    # 立即标记原始配置对象为已完成
-                    stop_loss_config['stages'][i]['is_achieved'] = True
-                    
-                    settled_target = HLSimulator.to_settable_target(target, sell_ratio, price_today - purchase_price, price_today, record_of_today['date'])
-                    investment['targets']['completed'].append(settled_target)
-        
-        return investment
-
-
-
-    @staticmethod
-    def to_settable_target(target: Dict[str, Any], sell_ratio: float, profit: float, exit_price: float, exit_date: str) -> Dict[str, Any]:
-        # 创建配置对象的副本，避免修改原始配置
-        settled_target = target.copy()
-        settled_target['is_achieved'] = True
-        if 'sell_ratio' not in settled_target or settled_target['sell_ratio'] <= 0:
-            settled_target['sell_ratio'] = sell_ratio
-        settled_target['profit'] = profit
-        settled_target['exit_price'] = exit_price
-        settled_target['exit_date'] = exit_date
-        return settled_target
-
+        return is_investment_ended, updated_investment
 
     @staticmethod
     def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
@@ -241,56 +136,25 @@ class HLSimulator:
 
     @staticmethod
     def settle_investment(investment: Dict[str, Any]) -> None:
-        purchase_price = investment['purchase_price']
-        achieved_targets = investment['targets']['completed']
+        # 创建投资目标管理器
+        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
         
-        # 完成状态：基于已完成的止盈/止损计算收益
-        overall_profit = 0
-        for target in achieved_targets:
-            overall_profit += target['profit'] * target['sell_ratio']
-
-        if overall_profit > 0:
-            investment['result'] = InvestmentResult.WIN.value
-        else:
-            investment['result'] = InvestmentResult.LOSS.value
-
-        investment['overall_profit'] = overall_profit
-        investment['overall_profit_rate'] = overall_profit / purchase_price
-
-        # 计算目标权重和贡献
-        for target in achieved_targets:
-            target['weighted_profit'] = target['profit'] * target['sell_ratio']
-            # profit_contribution 表示该目标在总投资中的权重贡献，等于卖出比例
-            target['profit_contribution'] = target['sell_ratio']
-
+        # 使用目标管理器结算投资
+        goal_manager.settle_investment(investment)
+        
+        # 计算投资时长
         investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
 
     @staticmethod
     def settle_open_investment(investment: Dict[str, Any], final_price: float) -> None:
         """结算Open状态的投资（模拟结束时仍在持仓）"""
-        purchase_price = investment['purchase_price']
-        achieved_targets = investment['targets']['completed']
+        # 创建投资目标管理器
+        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
         
-        # 计算未实现收益（基于剩余仓位）
-        remaining_ratio = investment['targets']['investment_ratio_left']
-        unrealized_profit = remaining_ratio * (final_price - purchase_price)
+        # 使用目标管理器结算未结束的投资
+        goal_manager.settle_open_investment(investment, final_price, '20241231')
         
-        # 计算已实现收益
-        realized_profit = 0
-        for target in achieved_targets:
-            realized_profit += target['profit'] * target['sell_ratio']
-        
-        overall_profit = realized_profit + unrealized_profit
-        investment['result'] = InvestmentResult.OPEN.value
-        investment['overall_profit'] = overall_profit
-        investment['overall_profit_rate'] = overall_profit / purchase_price
-
-        # 计算目标权重和贡献（只对已完成的目标）
-        for target in achieved_targets:
-            target['weighted_profit'] = target['profit'] * target['sell_ratio']
-            # profit_contribution 表示该目标在总投资中的权重贡献，等于卖出比例
-            target['profit_contribution'] = target['sell_ratio']
-
+        # 计算投资时长
         investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
 
 

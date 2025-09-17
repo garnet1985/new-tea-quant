@@ -14,6 +14,32 @@ class AnalyzerService:
         pass
 
     @staticmethod
+    def to_ratio(numerator: float, denominator: float, decimals: int = 2) -> float:
+        """
+        计算比率并按指定小数位四舍五入。只在分母为0时返回0.0；允许负值。
+        """
+        try:
+            value = float(numerator) / float(denominator)
+            return round(value, decimals)
+        except ZeroDivisionError:
+            return 0.0
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def to_percent(numerator: float, denominator: float, decimals: int = 2) -> float:
+        """
+        与 to_ratio 相同的入参，输出为百分比（ratio*100）。仅分母为0时返回0.0，允许负值。
+        """
+        try:
+            value = float(numerator) / float(denominator)
+            return round(value * 100.0, decimals)
+        except ZeroDivisionError:
+            return 0.0
+        except Exception:
+            return 0.0
+
+    @staticmethod
     def get_duration_in_days(start_date: str, end_date: str) -> int:
         start = datetime.strptime(start_date, '%Y%m%d')
         end = datetime.strptime(end_date, '%Y%m%d')
@@ -21,13 +47,38 @@ class AnalyzerService:
     
     @staticmethod
     def get_annual_return(profit_rate: float, duration_in_days: int) -> float:
-        if duration_in_days <= 0:
+        """
+        计算年化收益率（使用复利公式）
+        
+        Args:
+            profit_rate: 总收益率（小数形式，如0.1表示10%）
+            duration_in_days: 投资持续天数
+            
+        Returns:
+            float: 年化收益率（百分比形式）
+        """
+        if duration_in_days <= 0 or profit_rate == 0:
             return 0.0
         
-        # 对于短期投资，使用简单的年化公式：年化收益率 = 总收益率 * (365/投资天数)
-        # 这样可以避免短期投资产生极其夸张的年化收益率
-        annual_return = profit_rate * (365 / duration_in_days)
-        return annual_return
+        years = duration_in_days / 365.0
+        if years <= 0:
+            return 0.0
+        
+        # 使用复利公式：年化收益率 = ((1 + 总收益率) ^ (1/年数)) - 1
+        annual_return = ((1 + profit_rate) ** (1 / years)) - 1
+        return annual_return * 100  # 转换为百分比
+
+    @staticmethod
+    def parse_yyyymmdd(date_str: str):
+        """
+        安全解析 YYYYMMDD，失败返回 None。
+        """
+        if not date_str:
+            return None
+        try:
+            return datetime.strptime(str(date_str), '%Y%m%d')
+        except Exception:
+            return None
 
     @staticmethod
     def find_valleys(daily_data: list, min_drop_threshold: float = 0.20, 

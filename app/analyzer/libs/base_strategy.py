@@ -97,3 +97,29 @@ class BaseStrategy(ABC):
         模拟策略 - 使用历史数据模拟策略 - 抽象方法，子类必须实现
         """
         pass
+    
+    @staticmethod
+    def simulate_single_day(stock_id: str, current_date: str, current_record: Dict[str, Any], 
+                           historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        模拟单日交易逻辑 - 子类可以重写此方法
+        
+        Args:
+            stock_id: 股票ID
+            current_date: 当前日期
+            current_record: 当前日K线数据
+            historical_data: 历史数据（到当前日之前）
+            current_investment: 当前投资状态
+            
+        Returns:
+            Dict[str, Any]: 包含以下字段的结果
+                - new_investment: 新的投资（如果有）
+                - settled_investments: 结算的投资列表
+                - current_investment: 更新后的当前投资状态
+        """
+        # 默认实现：返回空结果，子类可以重写
+        return {
+            'new_investment': None,
+            'settled_investments': [],
+            'current_investment': current_investment
+        }

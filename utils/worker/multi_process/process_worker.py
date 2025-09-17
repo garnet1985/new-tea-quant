@@ -278,7 +278,11 @@ class ProcessWorker:
                         )
                         all_results.append(error_result)
                         self.stats['failed_jobs'] += 1
-                        logger.error(f"Job {job['id']} failed: {e}")
+                        try:
+                            data_keys = list(job['data'].keys()) if isinstance(job.get('data'), dict) else type(job.get('data')).__name__
+                        except Exception:
+                            data_keys = 'unknown'
+                        logger.exception(f"Job {job['id']} failed: {e} | data_keys={data_keys}")
                     
                     # 提交新任务（如果还有待处理的任务）
                     if submitted_count < len(self.job_queue):
@@ -347,7 +351,11 @@ class ProcessWorker:
                         end_time=datetime.now()
                     )
                     batch_results.append(error_result)
-                    logger.error(f"Job {job['id']} failed: {e}")
+                    try:
+                        data_keys = list(job['data'].keys()) if isinstance(job.get('data'), dict) else type(job.get('data')).__name__
+                    except Exception:
+                        data_keys = 'unknown'
+                    logger.exception(f"Job {job['id']} failed: {e} | data_keys={data_keys}")
         
         return batch_results
     
@@ -387,8 +395,16 @@ class ProcessWorker:
                 duration=duration
             )
             
-            if self.debug:
-                logger.error(f"Job {job['id']} failed with error: {e}")
+            # 始终输出包含trace的异常日志，便于跨服务复用时排查
+            try:
+                data_summary = job.get('data')
+                if isinstance(data_summary, dict):
+                    data_summary = {k: type(v).__name__ for k, v in list(data_summary.items())[:10]}
+                else:
+                    data_summary = type(data_summary).__name__
+            except Exception:
+                data_summary = 'unavailable'
+            logger.exception(f"Job {job['id']} failed with error: {e} | data_summary={data_summary}")
             
             return error_result
     

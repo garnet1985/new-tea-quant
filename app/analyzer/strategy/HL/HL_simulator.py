@@ -496,16 +496,29 @@ class HistoricLowSimulator:
 
     @staticmethod
     def find_opportunity_from_low_points(stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]], history_data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """从历史低点中寻找投资机会"""
+        """从历史低点中寻找投资机会（恢复风控过滤：跌停/新低/振幅/斜率）"""
         if not low_points or not freeze_data:
             return None
-        
+
         record_of_today = freeze_data[-1]
-        
-        # 检查是否在投资范围内
+
+        # 风控过滤（与旧算法一致的语义）：
+        # 1) 不处于连续跌停
+        if not HistoricLowService.is_out_of_continuous_limit_down(freeze_data):
+            return None
+        # 2) 冻结期无新低
+        if not HistoricLowService.has_no_new_low_during_freeze(freeze_data):
+            return None
+        # 3) 振幅足够
+        if not HistoricLowService.is_amplitude_sufficient(freeze_data):
+            return None
+        # 4) 斜率不过陡（满足上升/止跌的斜率阈值）
+        if not HistoricLowService.is_slope_sufficient(freeze_data):
+            return None
+
+        # 核心入场条件：当前价位位于以历史低点为参考的投资区间内
         for low_point in low_points:
             if HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data):
-                # 创建投资机会（使用通用实体构造器）
                 opportunity = EntityBuilder.to_opportunity(
                     stock=stock,
                     date=record_of_today.get('date'),
@@ -518,7 +531,7 @@ class HistoricLowSimulator:
                     }
                 )
                 return opportunity
-        
+
         return None
 
     @staticmethod

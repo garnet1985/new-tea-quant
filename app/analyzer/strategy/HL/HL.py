@@ -15,7 +15,7 @@ class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""
     
     # 策略启用状态
-    is_enabled = False
+    is_enabled = True
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
@@ -98,44 +98,71 @@ class HistoricLow(BaseStrategy):
     def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """使用多进程扫描股票"""
         from utils.worker.multi_process.process_worker import ProcessWorker
-        
-        # 构建任务
+
+        # 构建任务（仅携带最小信息，避免主进程加载大批量K线）
         jobs = []
-        for stock in stock_idx:
-            job = {
-                'stock': stock,
-                'data': self.required_tables["stock_kline"].load_stock_kline_data(stock['id'], 'daily')
-            }
-            jobs.append(job)
-        
-        # 使用多进程执行
-        worker = ProcessWorker(job_executor=self._scan_single_stock)
-        results = worker.run_jobs(jobs)
-        
+        for idx, stock in enumerate(stock_idx, start=1):
+            jobs.append({
+                'id': f"hl_scan_{stock['id']}",
+                'data': {
+                    'stock_id': stock['id']
+                }
+            })
+            # 构建进度日志（每200只打印一次）
+            if idx % 200 == 0:
+                logger.info(f"[HL] building jobs progress: {idx}/{len(stock_idx)} ({idx/len(stock_idx)*100:.2f}%)")
+
+        # 开启详细日志，ProcessWorker 会输出提交进度
+        worker = ProcessWorker(job_executor=HistoricLow._scan_single_stock, is_verbose=True)
+        worker.run_jobs(jobs)
+        successful_results = worker.get_successful_results()
+        # 汇总进度
+        stats = worker.stats or {}
+        logger.info(f"[HL] executed jobs: total={stats.get('total_jobs', len(jobs))} success={len(successful_results)} failed={len(worker.get_failed_results())} duration={stats.get('total_duration', 0):.2f}s")
+
         # 提取投资机会
-        opportunities = []
-        for result in results:
-            if result.success and result.result_data:
-                opportunities.extend(result.result_data)
-        
+        opportunities: List[Dict[str, Any]] = []
+        total = len(successful_results)
+        for i, jr in enumerate(successful_results, start=1):
+            payload = getattr(jr, 'result', None)
+            if isinstance(payload, list):
+                opportunities.extend(payload)
+            # 每完成一个任务，打印一次简短进度
+            logger.info(f"[HL] progress: {i}/{total}")
+
         return opportunities
 
-    def _scan_single_stock(self, job: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """扫描单只股票的投资机会"""
-        stock = job['stock']
-        daily_k_lines = job['data']
-        
-        if not daily_k_lines:
+    @staticmethod
+    def _scan_single_stock(job_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """扫描单只股票的投资机会（增强数据结构校验）"""
+        if not isinstance(job_payload, dict):
             return []
-        
-        # 使用HLSimulator的扫描逻辑
-        opportunities = []
+        # 兼容早期形状
+        stock_id = job_payload.get('stock_id')
+        if not isinstance(stock_id, str) or not stock_id:
+            if isinstance(job_payload.get('stock'), dict):
+                stock_id = job_payload['stock'].get('id')
+        if not isinstance(stock_id, str) or not stock_id:
+            return []
+        # 在子进程中加载K线数据
+        try:
+            from utils.db.db_manager import DatabaseManager
+            db = DatabaseManager(False)
+            db.initialize()
+            kline_table = db.get_table_instance('stock_kline')
+            daily_k_lines = kline_table.get_all_k_lines_by_term(stock_id, 'daily')
+        except Exception:
+            return []
+        if not isinstance(daily_k_lines, list) or not daily_k_lines:
+            return []
+
+        opportunities: List[Dict[str, Any]] = []
         for i in range(len(daily_k_lines)):
             current_data = daily_k_lines[:i+1]
-            opportunity = HistoricLowSimulator.scan_single_stock(stock['id'], current_data)
+            opportunity = HistoricLowSimulator.scan_single_stock(stock_id, current_data)
             if opportunity:
                 opportunities.append(opportunity)
-        
+
         return opportunities
 
     # ========================================================

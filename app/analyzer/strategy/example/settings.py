@@ -1,4 +1,4 @@
-example_settings = {
+settings = {
     # 用来存放你的模拟产生文件的父文件夹名称，一般和你的strategy文件夹同名
     'folder_name': 'example',
 
@@ -22,6 +22,16 @@ example_settings = {
         "terms": ["daily", "weekly", "monthly"],
         # 日线数据要求 - 例子中指代模拟器基于日线来进行一日日的模拟（交易日）
         "base_term": "daily",
+        # 最小要求的基础周期记录数
+        "min_required_base_records": 0,
+        # 复权方式
+        "adjust": "qfq",
+        # 要在K线上增加的技术指标
+        "indicators": {
+            "moving_average": {
+                "periods": [5, 10, 20, 60],
+            },
+        },
     },
 
     # 模拟时间范围 - 日期格式YYYYMMDD （例如：20080101）

@@ -8,7 +8,7 @@ from loguru import logger
 from app.analyzer.libs.simulator.simulator import Simulator
 from ...libs.base_strategy import BaseStrategy
 from .example_simulator import ExampleSimulator
-from .example_settings import strategy_settings
+from .settings import settings
 from app.analyzer.libs.investment import InvestmentRecorder
 
 class Example(BaseStrategy):
@@ -27,10 +27,10 @@ class Example(BaseStrategy):
         )
         
         # 加载策略设置
-        self.strategy_settings = strategy_settings
+        self.settings = settings
         
         # 初始化投资记录器
-        self.invest_recorder = InvestmentRecorder(self.strategy_settings['folder_name'])
+        self.invest_recorder = InvestmentRecorder(self.settings['folder_name'])
 
         # 这个simulator是simulator库，当前文件夹下的simulator（ExampleSimulator）是存放simulator所有逻辑的主文件
         self.simulator = Simulator()
@@ -72,7 +72,7 @@ class Example(BaseStrategy):
         # 注意：模拟过程默认使用多进程，如果是使用类函数，函数必须是静态
         
         result = self.simulator.run(
-            settings=strategy_settings,
+            settings=settings,
             on_simulate_one_day=ExampleSimulator.simulate_single_day,
             on_single_stock_summary=self.stock_summary,
             on_simulate_complete=None

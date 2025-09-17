@@ -80,8 +80,8 @@ class DataLoader:
         raw = self.kline_table.load(condition=where, params=params, order_by='date ASC')
         if adjust_factor == 'qfq':
             factors = self.fetch_adjust_factors(stock_id)
-            adjusted = DataSourceService.to_qfq({term: raw}, factors)
-            return adjusted[term]
+            adjusted_list = DataSourceService.to_qfq(raw, factors)
+            return adjusted_list
         return raw
 
     def fetch_multi_kline_ranges(self, stock_id: str, terms: List[str], start_date: str, end_date: Optional[str]) -> Dict[str, List[Dict[str, Any]]]:
@@ -138,7 +138,7 @@ class DataLoader:
 
         return result
 
-        
+
     def _parse_kline_setting(self, settings: Dict[str, Any]) -> Tuple[str, Optional[str], List[str], str]:
         """
         解析 settings.kline 相关配置，返回 (start_date, end_date, terms, adjust_factor)

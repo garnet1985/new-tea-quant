@@ -15,7 +15,7 @@ class ReverseTrendBet(BaseStrategy):
     """ReverseTrendBet 策略实现"""
     
     # 策略启用状态
-    is_enabled = True
+    is_enabled = False
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
@@ -76,11 +76,27 @@ class ReverseTrendBet(BaseStrategy):
 
     @staticmethod
     def scan_opportunity(stock_id: str, all_data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """扫描单只股票的投资机会"""
-        daily_k_lines = all_data
-        logger.info(f"扫描单只股票的投资机会 {daily_k_lines[0]}")
+        """扫描单只股票的投资机会 - Debug版：安全打印入参结构"""
+        try:
+            data_type = type(all_data).__name__
+            data_len = len(all_data) if hasattr(all_data, '__len__') else 'NA'
+            logger.info(f"[RTB] scan_opportunity | stock={stock_id} | all_data_type={data_type} | len={data_len}")
+            if isinstance(all_data, list) and all_data:
+                sample = all_data[0]
+                if isinstance(sample, dict):
+                    keys_preview = list(sample.keys())[:10]
+                    logger.info(f"[RTB] sample_keys={keys_preview}")
+                    logger.debug(f"[RTB] sample_pick={{'date': {sample.get('date')}, 'open': {sample.get('open')}, 'close': {sample.get('close')}}}")
+                else:
+                    logger.info(f"[RTB] sample_type={type(sample).__name__}")
+            elif isinstance(all_data, dict):
+                logger.info(f"[RTB] dict_keys={list(all_data.keys())[:10]}")
+        except Exception as e:
+            logger.error(f"[RTB] scan_opportunity debug failed: {e}")
+            return None
 
-        pass
+        # TODO: 在这里加入实际的机会识别逻辑
+        return None
 
 
 
@@ -207,13 +223,24 @@ class ReverseTrendBet(BaseStrategy):
         for stock in stock_idx:
             job = {
                 'stock': stock,
-                'data': self.loader.load_stock_klines_by_setting(stock['id'], self.settings)
+                'data': self.loader.load_stock_klines_by_setting(stock['id'], self.settings),
+                'settings': self.settings,
             }
             jobs.append(job)
         
-        # 使用多进程执行
-        worker = ProcessWorker(job_executor=self.scan_opportunity_job)
-        results = worker.run_jobs(jobs)
+        # 调试模式：串行执行，确保日志可见
+        debug_serial = ((self.settings.get('mode') or {}).get('debug_serial')) is True
+        if debug_serial:
+            logger.info(f"[RTB] debug_serial is ON | jobs={len(jobs)}")
+            results = []
+            for job in jobs:
+                res = ReverseTrendBet.scan_opportunity_job(job)
+                # 组装一个与并行结果结构兼容的对象
+                results.append(type('R', (), {'success': True, 'result_data': res})())
+        else:
+            # 使用多进程执行
+            worker = ProcessWorker(job_executor=ReverseTrendBet.scan_opportunity_job)
+            results = worker.run_jobs(jobs)
         
         # 提取投资机会
         opportunities = []
@@ -223,17 +250,26 @@ class ReverseTrendBet(BaseStrategy):
         
         return opportunities
 
-    def scan_opportunity_job(self, job: Dict[str, Any]) -> List[Dict[str, Any]]:
+    @staticmethod
+    def scan_opportunity_job(job: Dict[str, Any]) -> List[Dict[str, Any]]:
         """扫描单只股票的投资机会"""
         stock = job['stock']
         term_to_k = job['data']
+        settings = job.get('settings') or {}
         
         if not term_to_k:
             return []
         
         # 基础周期数据
-        base_term = (self.settings.get('klines') or {}).get('base_term', 'daily')
+        base_term = ((settings.get('klines') or {}).get('base_term')) or 'daily'
         daily_k_lines = term_to_k.get(base_term, [])
+
+        # Debug：打印当前股票与样本结构（仅首条）
+        try:
+            first_keys = list(daily_k_lines[0].keys())[:10] if daily_k_lines else []
+            logger.info(f"[RTB] job | stock={stock.get('id')} | base_term={base_term} | len={len(daily_k_lines)} | first_keys={first_keys}")
+        except Exception:
+            pass
 
         # 扫描逻辑（占位）
         opportunities = []

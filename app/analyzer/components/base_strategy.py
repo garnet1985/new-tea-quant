@@ -22,7 +22,6 @@ class BaseStrategy(ABC):
         """
         self.db = db
         self.is_verbose = is_verbose
-        self.is_enabled = True
 
         self.name = name
         self.description = description
@@ -34,11 +33,6 @@ class BaseStrategy(ABC):
         # 初始化策略
         self._check_required_fields()
 
-    def set_verbose(self, is_verbose: bool):
-        """设置是否打印日志"""
-        self.is_verbose = is_verbose
-    
-    
     def _check_required_fields(self):
         """检查策略所需的必要字段"""
         if self.name is None:
@@ -51,25 +45,140 @@ class BaseStrategy(ABC):
             logger.info(f"🔧 初始化策略: {self.name}")
     
     def initialize(self):
-        pass
+        """初始化策略 - 自动检测和注册表，返回统一的tables字典"""
+        try:
+            # 获取基础表实例
+            self._initialize_base_tables()
+            
+            # 自动检测和注册策略特有的表
+            self._auto_register_strategy_tables()
+            
+            # 创建所有注册的表
+            self.db.create_registered_tables()
+            
+            # 返回统一的tables字典
+            self.tables = self._build_tables_dict()
+        except Exception as e:
+            logger.error(f"❌ 策略 {self.name} initialize() 失败: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    def _initialize_base_tables(self):
+        """初始化基础表实例"""
+        self.required_tables = {
+            "stock_index": self.db.get_table_instance("stock_index"),
+            "stock_kline": self.db.get_table_instance("stock_kline"),
+            "adj_factor": self.db.get_table_instance("adj_factor"),
+        }
+    
+    def _auto_register_strategy_tables(self):
+        """自动检测tables文件夹并注册策略特有的表"""
+        import os
+        import importlib
+        
+        # 构建tables文件夹路径 - 使用绝对路径
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        tables_dir = os.path.join(current_file_dir, '..', 'strategy', self.abbreviation, 'tables')
+        tables_dir = os.path.abspath(tables_dir)
+        
+        if self.is_verbose:
+            logger.info(f"🔍 检查策略 {self.name} 的tables文件夹: {tables_dir}")
+        
+        if not os.path.exists(tables_dir):
+            if self.is_verbose:
+                logger.info(f"策略 {self.name} 没有tables文件夹，跳过自定义表注册")
+            return
+        
+        # 扫描tables文件夹下的所有子文件夹
+        for table_name in os.listdir(tables_dir):
+            table_path = os.path.join(tables_dir, table_name)
+            if not os.path.isdir(table_path):
+                continue
+            
+            # 检查是否有model.py文件
+            model_file = os.path.join(table_path, 'model.py')
+            if not os.path.exists(model_file):
+                continue
+            
+            try:
+                # 动态导入表模型
+                module_name = f"app.analyzer.strategy.{self.abbreviation}.tables.{table_name}.model"
+                table_module = importlib.import_module(module_name)
+                
+                # 获取模型类（通常是模块中唯一的类）
+                model_class = None
+                for attr_name in dir(table_module):
+                    attr = getattr(table_module, attr_name)
+                    if (isinstance(attr, type) and 
+                        hasattr(attr, '__bases__') and 
+                        any('BaseTableModel' in str(base) for base in attr.__bases__)):
+                        model_class = attr
+                        break
+                
+                if model_class:
+                    # 只注册表信息，不立即创建表实例
+                    # 这样可以避免在错误的上下文中调用load_schema()
+                    schema_path = os.path.join(table_path, 'schema.json')
+                    
+                    # 读取schema文件
+                    import json
+                    try:
+                        with open(schema_path, 'r', encoding='utf-8') as f:
+                            schema = json.load(f)
+                    except Exception as e:
+                        logger.error(f"❌ 策略 {self.name} 读取schema文件失败 {schema_path}: {e}")
+                        continue
+                    
+                    # 注册表到数据库管理器
+                    self.db.register_table(
+                        table_name=table_name,
+                        prefix=self.abbreviation,
+                        schema=schema,
+                        model_class=model_class
+                    )
+                    
+                    if self.is_verbose:
+                        logger.info(f"✅ 策略 {self.name} 自动注册表: {table_name}")
+                        
+            except Exception as e:
+                logger.error(f"❌ 策略 {self.name} 注册表 {table_name} 失败: {e}")
+                import traceback
+                traceback.print_exc()
+    
+    def _build_tables_dict(self):
+        """构建统一的tables字典，包含基础表和自定义表"""
+        tables = {}
+        
+        # 添加基础表
+        tables.update(self.required_tables)
+        
+        # 添加自定义表（从数据库管理器的tables中获取已创建的表实例）
+        # 使用list()创建副本，避免在迭代时修改字典
+        for full_table_name, table_info in list(self.db.registered_tables.items()):
+            # 检查是否是当前策略的表（通过表名前缀判断）
+            if full_table_name.startswith(f"{self.abbreviation}_"):
+                # 这是策略的自定义表
+                # 从schema中获取原始表名
+                schema = table_info.get('schema', {})
+                original_table_name = schema.get('name', full_table_name.replace(f"{self.abbreviation}_", ""))
+                
+                # 直接使用已创建的表实例，而不是重新创建
+                if full_table_name in self.db.tables:
+                    table_instance = self.db.tables[full_table_name]
+                    tables[original_table_name] = table_instance
+                    
+                    if self.is_verbose:
+                        logger.info(f"✅ 策略 {self.name} 添加表到tables字典: {original_table_name}")
+                else:
+                    if self.is_verbose:
+                        logger.warning(f"⚠️ 策略 {self.name} 表 {full_table_name} 未在db.tables中找到")
+        
+        return tables
     
     def get_abbr(self) -> str:
         """获取策略的缩写"""
         return self.abbreviation
-
-    def get_strategy_info(self) -> Dict[str, Any]:
-        """
-        获取策略信息 - 子类可以重写此方法
-        
-        Returns:
-            Dict: 策略信息字典
-        """
-        return {
-            'name': self.name,
-            'description': self.description,
-            'abbreviation': self.abbreviation,
-            'is_enabled': self.is_enabled
-        }
 
     @abstractmethod
     def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:

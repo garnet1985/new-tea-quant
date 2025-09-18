@@ -52,7 +52,7 @@ async def test_connection_pool_solution():
         analyzer.initialize()
         
         # 获取策略实例
-        strategies = analyzer.get_all_strategies()
+        strategies = analyzer.enabled_strategies
         logger.info(f"✅ 成功初始化 {len(strategies)} 个策略")
         
         # 测试每个策略的扫描功能

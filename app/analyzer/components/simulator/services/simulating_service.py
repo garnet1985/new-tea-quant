@@ -211,7 +211,7 @@ class SimulatingService:
             from utils.db.db_manager import DatabaseManager
             
             # 创建数据库连接
-            db = DatabaseManager(False)
+            db = DatabaseManager()
             db.initialize()
             
             # 获取K线表实例

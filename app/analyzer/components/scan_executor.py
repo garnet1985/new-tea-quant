@@ -97,14 +97,6 @@ def _scan_single_stock_standalone(job_payload: Dict[str, Any]) -> Dict[str, Any]
         logger.error(f"❌ 子进程加载股票 {stock_id}({stock_name}) 数据失败: {e}")
         return {'stock_id': stock_id, 'stock_name': stock_name, 'opportunities': [], 'has_opportunities': False}
     
-    # 获取基础周期数据
-    kline_config = settings.get('klines', {})
-    base_term = kline_config.get('base_term', 'daily')
-    daily_k_lines = stock_data.get(base_term, [])
-    
-    if not daily_k_lines:
-        return {'stock_id': stock_id, 'stock_name': stock_name, 'opportunities': [], 'has_opportunities': False}
-    
     # 步骤4: 在子进程中重新创建策略实例，避免pickle问题
     try:
         import importlib
@@ -121,6 +113,20 @@ def _scan_single_stock_standalone(job_payload: Dict[str, Any]) -> Dict[str, Any]
         
     except Exception as e:
         logger.error(f"❌ 子进程创建策略实例失败: {e}")
+        return {'stock_id': stock_id, 'stock_name': stock_name, 'opportunities': [], 'has_opportunities': False}
+    
+    # 统一settings来源：优先任务payload，其次实例上的settings；确保为dict
+    if not isinstance(settings, dict):
+        settings = getattr(strategy_instance, 'settings', {}) or {}
+    if not isinstance(settings, dict):
+        settings = {}
+    
+    # 获取基础周期数据
+    kline_config = settings.get('klines', {}) if isinstance(settings, dict) else {}
+    base_term = kline_config.get('base_term', 'daily')
+    daily_k_lines = stock_data.get(base_term, [])
+    
+    if not daily_k_lines:
         return {'stock_id': stock_id, 'stock_name': stock_name, 'opportunities': [], 'has_opportunities': False}
     
     # 使用用户定义的scan_opportunity逻辑寻找机会
@@ -295,10 +301,6 @@ class ScanExecutor:
                 'id': f"{self.strategy.get_abbr()}_scan_{stock['id']}",
                 'data': job_data
             })
-            
-            # 构建进度日志（每200只打印一次）
-            if idx % 200 == 0:
-                logger.info(f"[{self.strategy.get_abbr()}] building jobs progress: {idx}/{len(stock_list)} ({idx/len(stock_list)*100:.2f}%)")
         
         return jobs
     

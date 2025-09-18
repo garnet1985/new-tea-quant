@@ -1,7 +1,7 @@
 import math
 from typing import Dict, List, Any, Tuple
 from loguru import logger
-from .settings import strategy_settings
+from .settings import settings
 
 
 class HistoricLowService:
@@ -59,7 +59,7 @@ class HistoricLowService:
         if not freeze_data or len(freeze_data) < 2:
             return False
         
-        min_amplitude = strategy_settings.get('amplitude_filter', {}).get('min_amplitude', 0.1)
+        min_amplitude = settings.get('amplitude_filter', {}).get('min_amplitude', 0.1)
         
         # 计算冻结期内的振幅
         prices = [record.get('close', 0) for record in freeze_data if record.get('close')]
@@ -84,7 +84,7 @@ class HistoricLowService:
             return False
         
         slope = HistoricLowService.calculate_slope(freeze_data)
-        max_slope_degrees = strategy_settings.get('slope_check', {}).get('max_slope_degrees', -45.0)
+        max_slope_degrees = settings.get('slope_check', {}).get('max_slope_degrees', -45.0)
         
         return slope >= max_slope_degrees
     

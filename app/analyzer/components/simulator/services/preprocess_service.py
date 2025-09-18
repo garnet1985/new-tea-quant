@@ -81,7 +81,7 @@ class PreprocessService:
             from utils.db.db_manager import DatabaseManager
             
             # 创建数据库连接
-            db = DatabaseManager(False)
+            db = DatabaseManager()
             db.initialize()
             
             # 获取股票指数表实例

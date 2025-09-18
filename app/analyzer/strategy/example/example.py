@@ -36,14 +36,8 @@ class Example(BaseStrategy):
         self.simulator = Simulator()
 
     def initialize(self):
-        self._initialize_tables()
-
-    def _initialize_tables(self):
-        self.required_tables = {
-            "stock_index": self.db.get_table_instance("stock_index"),
-            "stock_kline": self.db.get_table_instance("stock_kline"),
-            "adj_factor": self.db.get_table_instance("adj_factor"),
-        }
+        """初始化策略 - 调用父类的自动表管理"""
+        super().initialize()
 
     # ========================================================
     # External (Bridge) APIs:

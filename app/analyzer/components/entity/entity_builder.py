@@ -9,7 +9,7 @@ stock summary, and session summary. Exposed as static methods on EntityBuilder.
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from app.analyzer.libs.enum.common_enum import InvestmentResult
+from app.analyzer.components.enum.common_enum import InvestmentResult
 from app.analyzer.analyzer_service import AnalyzerService
 
 

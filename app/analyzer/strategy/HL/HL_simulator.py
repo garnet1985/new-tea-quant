@@ -11,9 +11,9 @@ from pprint import pprint
 
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.HL.HL_service import HistoricLowService
-from app.analyzer.libs.investment import InvestmentGoalManager, InvestmentRecorder
-from app.analyzer.libs.entity import EntityBuilder
-from app.analyzer.libs.enum.common_enum import InvestmentResult
+from app.analyzer.components.investment import InvestmentGoalManager, InvestmentRecorder
+from app.analyzer.components.entity import EntityBuilder
+from app.analyzer.components.enum.common_enum import InvestmentResult
 
 from app.data_source.data_source_service import DataSourceService
 from app.analyzer.strategy.HL.settings import strategy_settings

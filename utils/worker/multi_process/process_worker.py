@@ -87,7 +87,8 @@ class ProcessWorker:
                  enable_monitoring: bool = True,
                  timeout: float = 300.0,
                  is_verbose: bool = False,
-                 debug: bool = False):
+                 debug: bool = False,
+                 start_method: str = "fork"):
         """
         初始化多进程任务执行器
         
@@ -124,6 +125,8 @@ class ProcessWorker:
         self.timeout = timeout
         self.is_verbose = is_verbose
         self.debug = debug
+        # 进程启动方式：fork/spawn/forkserver
+        self.start_method = start_method
         
         # 任务队列
         self.job_queue = []
@@ -237,7 +240,8 @@ class ProcessWorker:
         if self.is_verbose:
             logger.info(f"Executing in QUEUE mode: {len(self.job_queue)} jobs, max_workers={self.max_workers}")
         
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+        ctx = mp.get_context(self.start_method)
+        with ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx) as executor:
             # 提交初始任务到进程池
             future_to_job = {}
             submitted_count = 0
@@ -325,7 +329,8 @@ class ProcessWorker:
         """并行执行单个batch内的任务"""
         batch_results = []
         
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+        ctx = mp.get_context(self.start_method)
+        with ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx) as executor:
             # 提交所有任务到进程池
             future_to_job = {
                 executor.submit(self._execute_single_job, job): job 

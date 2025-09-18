@@ -5,7 +5,8 @@
 from typing import Dict, List, Any, Type
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
-from .libs.base_strategy import BaseStrategy
+from .components.base_strategy import BaseStrategy
+from .components.settings_validator import SettingsValidator
 import importlib
 from pathlib import Path
 import os
@@ -15,20 +16,30 @@ import os
 class Analyzer:
     """策略管理器 - 统一管理所有策略"""
     
-    def __init__(self, connected_db: DatabaseManager, is_verbose: bool = False):
+    def __init__(self, connected_db: DatabaseManager = None, is_verbose: bool = False):
         """
         初始化策略管理器
         
         Args:
-            db_manager: 已初始化的数据库管理器实例
+            connected_db: 已初始化的数据库管理器实例（可选，如果不提供则使用全局实例）
+            is_verbose: 是否启用详细日志
         """
-        self.db = connected_db
+        if connected_db is None:
+            # 使用连接池的DatabaseManager
+            from utils.db.db_manager import DatabaseManager
+            self.db = DatabaseManager(use_connection_pool=True, is_verbose=is_verbose)
+            self.db.initialize()
+        else:
+            self.db = connected_db
         self.is_verbose = is_verbose
 
         # grab all existing strategies no matter if they are enabled or not
         self._strategies = []
         # cache all enabled strategy instances
         self.ins = {}
+        
+        # 初始化设置验证器
+        self.settings_validator = SettingsValidator()
         
     def initialize(self):
         """初始化策略管理器"""
@@ -73,7 +84,8 @@ class Analyzer:
                 for attr_name in dir(strategy_module):
                     attr = getattr(strategy_module, attr_name)
                     if (isinstance(attr, type) and 
-                        issubclass(attr, BaseStrategy) and 
+                        hasattr(attr, '__bases__') and
+                        any(base.__name__ == 'BaseStrategy' for base in attr.__bases__) and 
                         attr != BaseStrategy):
                         strategy_class = attr
                         break
@@ -96,24 +108,93 @@ class Analyzer:
     
     def _initialize_enabled_strategies(self) -> None:
         """初始化所有启用的策略"""
+        failed_strategies = []  # 记录验证失败的策略
+        
         for strategy_class in self._strategies:
             # 检查策略是否启用
             if strategy_class.is_enabled:
-                # 先创建策略实例（不调用initialize）
-                strategy_instance = strategy_class(db=self.db, is_verbose=self.is_verbose)
-                
-                # 现在调用策略的初始化方法
-                strategy_instance.initialize()
-                
-                # 注册策略的表到数据库管理器
-                self._register_strategy_tables(strategy_instance)
-                
-                # 创建所有注册的表
-                self.db.create_tables()
-                
-                self.ins[strategy_instance.get_abbr()] = strategy_instance
+                try:
+                    # 先创建策略实例（不调用initialize）
+                    strategy_instance = strategy_class(db=self.db, is_verbose=self.is_verbose)
+                    
+                    # 验证策略设置（在初始化之前）
+                    self._validate_strategy_settings(strategy_instance)
+                    
+                    # 现在调用策略的初始化方法
+                    strategy_instance.initialize()
+                    
+                    # 注册策略的表到数据库管理器
+                    self._register_strategy_tables(strategy_instance)
+                    
+                    # 创建所有注册的表
+                    self.db.create_tables()
+                    
+                    self.ins[strategy_instance.get_abbr()] = strategy_instance
+                    
+                    if self.is_verbose:
+                        logger.info(f"✅ 策略 {strategy_instance.name} 初始化成功")
+                        
+                except ValueError as e:
+                    # Settings验证失败
+                    failed_strategies.append(strategy_class.__name__)
+                    logger.error(f"❌ 策略 {strategy_class.__name__} 设置验证失败: {e}")
+                    logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
+                    
+                except Exception as e:
+                    # 其他初始化错误
+                    failed_strategies.append(strategy_class.__name__)
+                    logger.error(f"❌ 策略 {strategy_class.__name__} 初始化失败: {e}")
+                    logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
             else:
                 logger.info(f"跳过 {strategy_class.__name__}: 策略已禁用")
+        
+        # 如果有策略验证失败，明确告知用户
+        if failed_strategies:
+            logger.error(f"⚠️  以下策略因设置验证失败或初始化错误被跳过: {', '.join(failed_strategies)}")
+            logger.error(f"   请检查这些策略的设置文件，修正错误后重新运行")
+            
+            # 如果没有策略成功初始化，抛出异常阻止程序继续运行
+            if not self.ins:
+                error_msg = "❌ 所有启用的策略都初始化失败，程序无法继续运行"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+    
+    def _validate_strategy_settings(self, strategy_instance: BaseStrategy) -> None:
+        """
+        验证策略设置 - 在策略初始化之前验证
+        
+        Args:
+            strategy_instance: 策略实例
+            
+        Raises:
+            ValueError: 如果设置验证失败
+        """
+        # 获取策略设置
+        settings = getattr(strategy_instance, 'strategy_settings', None) or getattr(strategy_instance, 'settings', None)
+        
+        if settings is None:
+            error_msg = f"策略 {strategy_instance.name} 没有设置文件，无法进行验证"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # 验证设置
+        is_valid, errors = self.settings_validator.validate_settings(settings, strategy_instance.name)
+        
+        if not is_valid:
+            # 构建详细的错误信息
+            error_details = []
+            for error in errors:
+                error_details.append(f"  - {error}")
+            
+            error_msg = f"策略 {strategy_instance.name} 设置验证失败:\n" + "\n".join(error_details)
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # 将验证后的设置存储到策略实例中
+        strategy_instance._validated_settings = self.settings_validator.merge_with_defaults(settings)
+        
+        if self.is_verbose:
+            logger.info(f"✅ 策略 {strategy_instance.name} 设置验证通过")
     
 
     def _register_strategy_tables(self, strategy_instance: BaseStrategy) -> None:
@@ -173,7 +254,7 @@ class Analyzer:
     async def scan(self) -> Dict[str, List[Dict[str, Any]]]:
         results = {}
         for key, strategy in self.ins.items():
-            results[key] = await strategy.scan()
+            results[key] = strategy.scan()
         return results
 
     def simulate(self):

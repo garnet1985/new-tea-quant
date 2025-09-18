@@ -12,12 +12,13 @@ from contextlib import contextmanager
 from loguru import logger
 
 from .db_config import DB_CONFIG
+from .connection_pool import get_connection_pool, get_connection, return_connection
 
 
 class DatabaseManager:
     """统一的MySQL数据库管理器 - 支持同步和异步操作，默认线程安全"""
     
-    def __init__(self, is_verbose: bool = False, enable_thread_safety: bool = True):
+    def __init__(self, is_verbose: bool = False, enable_thread_safety: bool = True, use_connection_pool: bool = False):
         # 原有属性（保持兼容性）
         self.sync_connection = None
         self.is_sync_connected = False
@@ -28,8 +29,9 @@ class DatabaseManager:
 
         # 线程安全属性
         self.enable_thread_safety = DB_CONFIG['thread_safety']['enable']
+        self.use_connection_pool = use_connection_pool
         self._local = threading.local() if enable_thread_safety else None
-        self._connection_pool = queue.Queue(maxsize=10) if enable_thread_safety else None
+        self._connection_pool = queue.Queue(maxsize=10) if enable_thread_safety and not use_connection_pool else None
         self._write_queue = queue.Queue() if enable_thread_safety else None
         self._write_thread = None
         self._write_thread_running = False
@@ -118,6 +120,14 @@ class DatabaseManager:
     
     def _get_thread_safe_connection(self) -> pymysql.Connection:
         """获取线程安全的数据库连接"""
+        # 如果使用连接池，直接从连接池获取
+        if self.use_connection_pool:
+            conn = get_connection()
+            if conn:
+                return conn
+            else:
+                raise Exception("无法从连接池获取数据库连接")
+        
         # 检查线程本地连接
         if hasattr(self._local, 'connection'):
             try:
@@ -568,13 +578,17 @@ class DatabaseManager:
                             "index out of range", "(0, '')"
                         ]):
                             logger.warning(f"Connection error detected, marking connection invalid (attempt {attempt + 1})")
-                            # 清理线程本地连接
-                            if hasattr(self._local, 'connection'):
-                                try:
-                                    self._local.connection.close()
-                                except:
-                                    pass
-                                delattr(self._local, 'connection')
+                            # 如果使用连接池，归还连接
+                            if self.use_connection_pool:
+                                return_connection(connection)
+                            else:
+                                # 清理线程本地连接
+                                if hasattr(self._local, 'connection'):
+                                    try:
+                                        self._local.connection.close()
+                                    except:
+                                        pass
+                                    delattr(self._local, 'connection')
                         
                         if attempt == max_retries - 1:
                             raise  # 最后一次尝试失败，抛出异常
@@ -589,6 +603,9 @@ class DatabaseManager:
                                 cursor.close()
                             except:
                                 pass
+                        # 如果使用连接池，归还连接
+                        if self.use_connection_pool:
+                            return_connection(connection)
                 else:
                     # 原有模式
                     if not self.is_sync_connected or self.sync_connection is None:

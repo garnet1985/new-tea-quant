@@ -2,14 +2,14 @@
 """
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from app.analyzer.libs.simulator.simulator import Simulator
-from ...libs.base_strategy import BaseStrategy
+from app.analyzer.components.simulator.simulator import Simulator
+from ...components.base_strategy import BaseStrategy
 from .HL_simulator import HistoricLowSimulator
 from .settings import strategy_settings
-from app.analyzer.libs.investment import InvestmentRecorder
+from app.analyzer.components.investment import InvestmentRecorder
 
 class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""
@@ -50,27 +50,14 @@ class HistoricLow(BaseStrategy):
     # ========================================================
     # External (Bridge) APIs:
     # ========================================================
-    async def scan(self) -> List[Dict[str, Any]]:
-        stock_idx = self.required_tables["stock_index"].load_filtered_index()
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """扫描单只股票的投资机会"""
+        return HistoricLowSimulator.scan_single_stock(stock_id, data)
 
-        if not stock_idx:
-            return []
-
-        opportunities = self._scan_stocks_with_worker(stock_idx)
-
-        self.report(opportunities)
-
-        return opportunities
-
-    def simulate(self) -> Dict[str, Any]:
-        # 运行模拟 - 传递单日模拟函数和自定义汇总函数
-        result = self.simulator.run(
-            settings=strategy_settings,
-            on_simulate_one_day=HistoricLowSimulator.simulate_single_day,
-            on_single_stock_summary=self.stock_summary,
-            on_simulate_complete=None
-        )
-        return result
+    def simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
+                        historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """模拟单日交易逻辑"""
+        return HistoricLowSimulator.simulate_single_day(stock_id, current_date, current_record, historical_data, current_investment)
 
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         """报告投资机会"""
@@ -94,76 +81,7 @@ class HistoricLow(BaseStrategy):
     # ========================================================
     # Core logic:
     # ========================================================
-
-    def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """使用多进程扫描股票"""
-        from utils.worker.multi_process.process_worker import ProcessWorker
-
-        # 构建任务（仅携带最小信息，避免主进程加载大批量K线）
-        jobs = []
-        for idx, stock in enumerate(stock_idx, start=1):
-            jobs.append({
-                'id': f"hl_scan_{stock['id']}",
-                'data': {
-                    'stock_id': stock['id']
-                }
-            })
-            # 构建进度日志（每200只打印一次）
-            if idx % 200 == 0:
-                logger.info(f"[HL] building jobs progress: {idx}/{len(stock_idx)} ({idx/len(stock_idx)*100:.2f}%)")
-
-        # 开启详细日志，ProcessWorker 会输出提交进度
-        worker = ProcessWorker(job_executor=HistoricLow._scan_single_stock, is_verbose=True)
-        worker.run_jobs(jobs)
-        successful_results = worker.get_successful_results()
-        # 汇总进度
-        stats = worker.stats or {}
-        logger.info(f"[HL] executed jobs: total={stats.get('total_jobs', len(jobs))} success={len(successful_results)} failed={len(worker.get_failed_results())} duration={stats.get('total_duration', 0):.2f}s")
-
-        # 提取投资机会
-        opportunities: List[Dict[str, Any]] = []
-        total = len(successful_results)
-        for i, jr in enumerate(successful_results, start=1):
-            payload = getattr(jr, 'result', None)
-            if isinstance(payload, list):
-                opportunities.extend(payload)
-            # 每完成一个任务，打印一次简短进度
-            logger.info(f"[HL] progress: {i}/{total}")
-
-        return opportunities
-
-    @staticmethod
-    def _scan_single_stock(job_payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """扫描单只股票的投资机会（增强数据结构校验）"""
-        if not isinstance(job_payload, dict):
-            return []
-        # 兼容早期形状
-        stock_id = job_payload.get('stock_id')
-        if not isinstance(stock_id, str) or not stock_id:
-            if isinstance(job_payload.get('stock'), dict):
-                stock_id = job_payload['stock'].get('id')
-        if not isinstance(stock_id, str) or not stock_id:
-            return []
-        # 在子进程中加载K线数据
-        try:
-            from utils.db.db_manager import DatabaseManager
-            db = DatabaseManager(False)
-            db.initialize()
-            kline_table = db.get_table_instance('stock_kline')
-            daily_k_lines = kline_table.get_all_k_lines_by_term(stock_id, 'daily')
-        except Exception:
-            return []
-        if not isinstance(daily_k_lines, list) or not daily_k_lines:
-            return []
-
-        opportunities: List[Dict[str, Any]] = []
-        for i in range(len(daily_k_lines)):
-            current_data = daily_k_lines[:i+1]
-            opportunity = HistoricLowSimulator.scan_single_stock(stock_id, current_data)
-            if opportunity:
-                opportunities.append(opportunity)
-
-        return opportunities
+    # 多进程扫描逻辑已移至StrategyExecutor中
 
     # ========================================================
     # Result presentation:

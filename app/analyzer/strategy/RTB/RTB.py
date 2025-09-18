@@ -5,11 +5,11 @@ HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from app.analyzer.libs.data_processor.data_loader import DataLoader
-from app.analyzer.libs.simulator.simulator import Simulator
+from app.analyzer.components.data_loader import DataLoader
+from app.analyzer.components.simulator.simulator import Simulator
 from app.analyzer.strategy.RTB.settings import settings
-from ...libs.base_strategy import BaseStrategy
-from app.analyzer.libs.investment import InvestmentRecorder
+from ...components.base_strategy import BaseStrategy
+from app.analyzer.components.investment import InvestmentRecorder
 
 class ReverseTrendBet(BaseStrategy):
     """ReverseTrendBet 策略实现"""
@@ -45,27 +45,18 @@ class ReverseTrendBet(BaseStrategy):
     # ========================================================
     # External (Bridge) APIs:
     # ========================================================
-    async def scan(self) -> List[Dict[str, Any]]:
-        stock_idx = self.required_tables["stock_index"].load_filtered_index()
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """扫描单只股票的投资机会"""
+        return ReverseTrendBet.scan_opportunity(stock_id, data)
 
-        if not stock_idx:
-            return []
+    def simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
+                        historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """模拟单日交易逻辑"""
+        return ReverseTrendBet.simulate_single_day(stock_id, current_date, current_record, historical_data, current_investment, self.settings)
 
-        opportunities = self.scan_stocks_on_parallel(stock_idx)
-
-        # self.report(opportunities)
-
-        return opportunities
-
-    def simulate(self) -> Dict[str, Any]:
-        # 运行模拟 - 传递单日模拟函数和自定义汇总函数
-        result = self.simulator.run(
-            settings=settings,
-            on_simulate_one_day=ReverseTrendBet.simulate_single_day,
-            on_single_stock_summary=None,
-            on_simulate_complete=None
-        )
-        return result
+    def stock_summary(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """单只股票模拟结果汇总"""
+        return {}
 
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         pass
@@ -212,71 +203,6 @@ class ReverseTrendBet(BaseStrategy):
 
 
     # ========================================================
-    # Worker:
+    # Core logic:
     # ========================================================
-    def scan_stocks_on_parallel(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """使用多进程扫描股票"""
-        from utils.worker.multi_process.process_worker import ProcessWorker
-        
-        # 构建任务
-        jobs = []
-        for stock in stock_idx:
-            job = {
-                'stock': stock,
-                'data': self.loader.load_stock_klines_by_setting(stock['id'], self.settings),
-                'settings': self.settings,
-            }
-            jobs.append(job)
-        
-        # 调试模式：串行执行，确保日志可见
-        debug_serial = ((self.settings.get('mode') or {}).get('debug_serial')) is True
-        if debug_serial:
-            logger.info(f"[RTB] debug_serial is ON | jobs={len(jobs)}")
-            results = []
-            for job in jobs:
-                res = ReverseTrendBet.scan_opportunity_job(job)
-                # 组装一个与并行结果结构兼容的对象
-                results.append(type('R', (), {'success': True, 'result_data': res})())
-        else:
-            # 使用多进程执行
-            worker = ProcessWorker(job_executor=ReverseTrendBet.scan_opportunity_job)
-            results = worker.run_jobs(jobs)
-        
-        # 提取投资机会
-        opportunities = []
-        for result in results:
-            if result.success and result.result_data:
-                opportunities.extend(result.result_data)
-        
-        return opportunities
-
-    @staticmethod
-    def scan_opportunity_job(job: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """扫描单只股票的投资机会"""
-        stock = job['stock']
-        term_to_k = job['data']
-        settings = job.get('settings') or {}
-        
-        if not term_to_k:
-            return []
-        
-        # 基础周期数据
-        base_term = ((settings.get('klines') or {}).get('base_term')) or 'daily'
-        daily_k_lines = term_to_k.get(base_term, [])
-
-        # Debug：打印当前股票与样本结构（仅首条）
-        try:
-            first_keys = list(daily_k_lines[0].keys())[:10] if daily_k_lines else []
-            logger.info(f"[RTB] job | stock={stock.get('id')} | base_term={base_term} | len={len(daily_k_lines)} | first_keys={first_keys}")
-        except Exception:
-            pass
-
-        # 扫描逻辑（占位）
-        opportunities = []
-        for i in range(len(daily_k_lines)):
-            current_data = daily_k_lines[:i+1]
-            opportunity = ReverseTrendBet.scan_opportunity(stock['id'], current_data)
-            if opportunity:
-                opportunities.append(opportunity)
-        
-        return opportunities
+    # 多进程扫描逻辑已移至StrategyExecutor中

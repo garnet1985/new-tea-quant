@@ -2,27 +2,27 @@
 """
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from app.analyzer.libs.simulator.simulator import Simulator
-from ...libs.base_strategy import BaseStrategy
+from app.analyzer.components.simulator.simulator import Simulator
+from ...components.base_strategy import BaseStrategy
 from .example_simulator import ExampleSimulator
 from .settings import settings
-from app.analyzer.libs.investment import InvestmentRecorder
+from app.analyzer.components.investment import InvestmentRecorder
 
 class Example(BaseStrategy):
     """HistoricLow 策略实现"""
     
     # 策略启用状态
     # 如果不启用，在start.py运行时则会自动跳过这个策略的机会扫描和模拟
-    is_enabled = False
+    is_enabled = True
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
             db=db, 
             is_verbose=is_verbose,
-            name="example strategy",
+            name="example",
             abbreviation="EXAMPLE"
         )
         
@@ -48,37 +48,28 @@ class Example(BaseStrategy):
     # ========================================================
     # External (Bridge) APIs:
     # ========================================================
-    async def scan(self) -> List[Dict[str, Any]]:
-        # 这个函数会在策略启用时自动调用，是用来扫描当前数据下的投资机会的
-
-        # 这里可以添加一些策略的逻辑，比如：
-        # 1. 根据策略的设置，加载一些数据
-        # 2. 根据数据，生成一些投资机会
-        # 3. 返回投资机会
-
-        stock_idx = self.required_tables["stock_index"].load_filtered_index()
-
-        if not stock_idx:
-            return []
-
-        opportunities = self._scan_stocks_with_worker(stock_idx)
-
-        self.report(opportunities)
-
-        return opportunities
-
-    def simulate(self) -> Dict[str, Any]:
-        # 这个函数会在策略启用时自动调用，是用来模拟策略的
-        # 注意：模拟过程默认使用多进程，如果是使用类函数，函数必须是静态
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """扫描单只股票的投资机会"""
+        # 示例：简单的机会识别逻辑
+        if len(data) < 10:  # 需要至少10天的数据
+            return None
         
-        result = self.simulator.run(
-            settings=settings,
-            on_simulate_one_day=ExampleSimulator.simulate_single_day,
-            on_single_stock_summary=self.stock_summary,
-            on_simulate_complete=None
-        )
+        # 简单的示例逻辑：如果最近3天都是上涨，则认为是机会
+        recent_data = data[-3:]
+        if all(day.get('close', 0) > day.get('open', 0) for day in recent_data):
+            return {
+                'stock': {'id': stock_id},
+                'date': recent_data[-1].get('date'),
+                'price': recent_data[-1].get('close'),
+                'reason': '连续3天上涨'
+            }
         
-        return result
+        return None
+
+    def simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
+                        historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """模拟单日交易逻辑"""
+        return ExampleSimulator.simulate_single_day(stock_id, current_date, current_record, historical_data, current_investment)
 
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         # 这个函数会在策略启用时自动调用，是用来报告策略的扫描结果的
@@ -95,39 +86,7 @@ class Example(BaseStrategy):
     # ========================================================
     # Core logic:
     # ========================================================
-
-    def _scan_stocks_with_worker(self, stock_idx: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        from utils.worker.multi_process.process_worker import ProcessWorker
-        
-        # 构建任务
-        jobs = []
-        for stock in stock_idx:
-            job = {
-                'stock': stock,
-                'data': self.required_tables["stock_kline"].load_stock_kline_data(stock['id'], 'daily')
-            }
-            jobs.append(job)
-        
-        # 使用多进程执行
-        worker = ProcessWorker(job_executor=self._scan_single_stock)
-        results = worker.run_jobs(jobs)
-        
-        # 提取投资机会
-        opportunities = []
-        for result in results:
-            if result.success and result.result_data:
-                opportunities.extend(result.result_data)
-        
-        return opportunities
-
-    def _scan_single_stock(self, job: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """扫描单只股票的投资机会"""
-        stock = job['stock']
-        daily_k_lines = job['data']
-        # 使用ExampleSimulator的扫描逻辑
-        # 这里可以添加一些策略的逻辑
-        opportunities = []
-        return opportunities
+    # 多进程扫描逻辑已移至StrategyExecutor中
 
 
     # ========================================================

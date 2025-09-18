@@ -126,12 +126,11 @@ def _scan_single_stock_standalone(job_payload: Dict[str, Any]) -> Dict[str, Any]
     # 使用用户定义的scan_opportunity逻辑寻找机会
     opportunities: List[Dict[str, Any]] = []
     
-    # 扫描每一天的投资机会
-    for i in range(len(daily_k_lines)):
-        current_data = daily_k_lines[:i+1]
-        
-        # 调用用户定义的scan_opportunity方法
-        opportunity = strategy_instance.scan_opportunity(stock_id, current_data)
+    # 优化：只扫描最新日期，而不是每一天
+    # 这样可以避免重复计算历史低点，大幅提升性能
+    if daily_k_lines:
+        # 只检查当前是否有投资机会
+        opportunity = strategy_instance.scan_opportunity(stock_id, daily_k_lines)
         
         if opportunity:
             # 确保机会包含股票信息

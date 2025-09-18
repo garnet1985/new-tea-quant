@@ -160,7 +160,7 @@ class ProcessWorker:
                 logger.info(f"Received signal {signum}, stopping worker...")
             self.should_stop = True
         
-        signal.signal(signal.SIGINT, signal_handler)
+        # 让 Ctrl+C 保持默认行为（抛出 KeyboardInterrupt），避免需要多次 Ctrl+C
         signal.signal(signal.SIGTERM, signal_handler)
         atexit.register(self._cleanup)
     
@@ -241,7 +241,9 @@ class ProcessWorker:
             logger.info(f"Executing in QUEUE mode: {len(self.job_queue)} jobs, max_workers={self.max_workers}")
         
         ctx = mp.get_context(self.start_method)
-        with ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx) as executor:
+        executor = None
+        try:
+            executor = ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx)
             # 提交初始任务到进程池
             future_to_job = {}
             submitted_count = 0
@@ -322,6 +324,14 @@ class ProcessWorker:
                         all_results.append(error_result)
                         self.stats['failed_jobs'] += 1
                         logger.error(f"Job {job['id']} failed: {e}")
+        except KeyboardInterrupt:
+            self.should_stop = True
+            if executor is not None:
+                executor.shutdown(cancel_futures=True)
+            raise
+        finally:
+            if executor is not None:
+                executor.shutdown(cancel_futures=True)
         
         return all_results
     
@@ -330,7 +340,9 @@ class ProcessWorker:
         batch_results = []
         
         ctx = mp.get_context(self.start_method)
-        with ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx) as executor:
+        executor = None
+        try:
+            executor = ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx)
             # 提交所有任务到进程池
             future_to_job = {
                 executor.submit(self._execute_single_job, job): job 
@@ -361,6 +373,14 @@ class ProcessWorker:
                     except Exception:
                         data_keys = 'unknown'
                     logger.exception(f"Job {job['id']} failed: {e} | data_keys={data_keys}")
+        except KeyboardInterrupt:
+            self.should_stop = True
+            if executor is not None:
+                executor.shutdown(cancel_futures=True)
+            raise
+        finally:
+            if executor is not None:
+                executor.shutdown(cancel_futures=True)
         
         return batch_results
     

@@ -233,11 +233,12 @@ class BaseStrategy(ABC):
         from utils.worker.multi_process.process_worker import ProcessWorker
 
         # 使用静态执行函数，避免pickle绑定到实例
-        worker = ProcessWorker(job_executor=BaseStrategy._scan_multiprocess_executor, start_method="spawn")
+        worker = ProcessWorker(job_executor=BaseStrategy._scan_multiprocess_executor, start_method="spawn", is_verbose=True)
 
         worker.run_jobs(jobs)
-        
-        return worker.get_results()
+        # 提取成功且有结果的机会
+        successful = worker.get_successful_results()
+        return [r.result for r in successful if r.result]
 
 
     @staticmethod

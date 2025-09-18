@@ -58,7 +58,7 @@ class DataLoader:
             base_term = kline_config.get('base_term', 'daily')
             additional_terms = kline_config.get('additional_terms', []) if isinstance(kline_config, dict) else []
 
-            db = DatabaseManager(use_connection_pool=False, is_verbose=False)
+            db = DatabaseManager()
             db.initialize()
             kline_table = db.get_table_instance('stock_kline')
 

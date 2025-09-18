@@ -18,7 +18,7 @@ from .connection_pool import get_connection_pool, get_connection, return_connect
 class DatabaseManager:
     """统一的MySQL数据库管理器 - 支持同步和异步操作，默认线程安全"""
     
-    def __init__(self, is_verbose: bool = False, enable_thread_safety: bool = True, use_connection_pool: bool = False):
+    def __init__(self, is_verbose: bool = False, enable_thread_safety: bool = False, use_connection_pool: bool = False):
         # 原有属性（保持兼容性）
         self.sync_connection = None
         self.is_sync_connected = False
@@ -27,8 +27,8 @@ class DatabaseManager:
         self.async_pool = None
         self.is_async_initialized = False
 
-        # 线程安全属性
-        self.enable_thread_safety = DB_CONFIG['thread_safety']['enable']
+        # 线程安全属性（以传入参数为准）
+        self.enable_thread_safety = enable_thread_safety
         self.use_connection_pool = use_connection_pool
         self._local = threading.local() if enable_thread_safety else None
         self._connection_pool = queue.Queue(maxsize=10) if enable_thread_safety and not use_connection_pool else None
@@ -65,8 +65,6 @@ class DatabaseManager:
         # 启动写入线程（如果启用线程安全）
         if enable_thread_safety:
             self._start_write_thread()
-
-        self.initialize()
     
     # ==================== 线程安全相关方法 ====================
     
@@ -163,6 +161,8 @@ class DatabaseManager:
         
         # 尝试从连接池获取
         for pool_attempt in range(3):  # 最多尝试3次从池中获取
+            if self._connection_pool is None:
+                break
             try:
                 connection = self._connection_pool.get_nowait()
                 # 验证池中连接的有效性
@@ -835,8 +835,8 @@ class DatabaseManager:
             stats = self._stats.copy()
         
         if self.enable_thread_safety:
-            stats['queue_size'] = self._write_queue.qsize()
-            stats['pool_size'] = self._connection_pool.qsize()
+            stats['queue_size'] = self._write_queue.qsize() if self._write_queue is not None else 0
+            stats['pool_size'] = self._connection_pool.qsize() if self._connection_pool is not None else 0
         
         return stats
     

@@ -4,7 +4,7 @@
 """
 from typing import Dict, Any
 
-from .settings import strategy_settings
+from .settings import settings
 
 
 class HistoricLowEntity:
@@ -23,7 +23,7 @@ class HistoricLowEntity:
             Dict[str, Any]: 统一格式的历史低点对象
         """
 
-        low_point_config = strategy_settings.get('low_point_invest_range')
+        low_point_config = settings.get('low_point_invest_range')
 
         if not low_point_config:
             raise Exception("low_point_invest_range is not set in strategy_settings.")

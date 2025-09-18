@@ -16,6 +16,7 @@ class ReverseTrendBet(BaseStrategy):
     
     # 策略启用状态
     is_enabled = False
+    settings = settings
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
@@ -25,7 +26,7 @@ class ReverseTrendBet(BaseStrategy):
             abbreviation="RTB"
         )
         
-        # 加载策略设置（字典）
+        # 实例级引用
         self.settings = settings
         
         # 初始化投资记录器

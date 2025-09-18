@@ -16,7 +16,7 @@ from app.analyzer.components.entity import EntityBuilder
 from app.analyzer.components.enum.common_enum import InvestmentResult
 
 from app.data_source.data_source_service import DataSourceService
-from app.analyzer.strategy.HL.settings import strategy_settings
+from app.analyzer.strategy.HL.settings import settings
 from .HL_entity import HistoricLowEntity
 
 
@@ -26,7 +26,7 @@ class HistoricLowSimulator:
         self.strategy = strategy
 
         # init tracker
-        self.invest_recorder = InvestmentRecorder(strategy_settings['folder_name'])
+        self.invest_recorder = InvestmentRecorder(settings['folder_name'])
 
         # 汇总收集器（单线程汇总，无需锁）
         self.session_results = []
@@ -45,11 +45,11 @@ class HistoricLowSimulator:
         # 检查现有投资的目标
         if stock['id'] in tracker['investing']:
             investment = tracker['investing'][stock['id']]
-            goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+            goal_manager = InvestmentGoalManager(settings['goal'])
             is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
             
             if is_investment_ended:
-                goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+                goal_manager = InvestmentGoalManager(settings['goal'])
                 goal_manager.settle_investment(updated_investment)
                 settled_entity = EntityBuilder.to_settled_investment(
                     investment=updated_investment,
@@ -66,7 +66,7 @@ class HistoricLowSimulator:
         opportunity = HistoricLowSimulator.scan_single_stock(stock, daily_k_lines)
         if opportunity:
             # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
-            goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+            goal_manager = InvestmentGoalManager(settings['goal'])
             targets = goal_manager.create_investment_targets()
             extra_fields = {
                 'result': InvestmentResult.OPEN.value,
@@ -107,7 +107,7 @@ class HistoricLowSimulator:
     def settle_open_investment(investment: Dict[str, Any], final_price: float) -> Dict[str, Any]:
         """结算Open状态的投资（模拟结束时仍在持仓）"""
         # 创建投资目标管理器
-        goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+        goal_manager = InvestmentGoalManager(settings['goal'])
         
         # 使用目标管理器结算未结束的投资
         goal_manager.settle_open_investment(investment, final_price, '20241231')
@@ -128,11 +128,11 @@ class HistoricLowSimulator:
         """检查投资设置是否有效"""
         try:
             # 必须提供文件夹名用于结果存储
-            if 'folder_name' not in strategy_settings or not strategy_settings['folder_name']:
+            if 'folder_name' not in settings or not settings['folder_name']:
                 logger.error("缺少策略文件夹名配置 folder_name")
                 return False
 
-            goal_config = strategy_settings.get('goal', {})
+            goal_config = settings.get('goal', {})
             if not goal_config:
                 logger.error("缺少投资目标配置")
                 return False
@@ -151,7 +151,7 @@ class HistoricLowSimulator:
 	
     def get_stock_list_by_test_mode(self) -> List[Dict[str, Any]]:
         """根据测试模式获取股票列表"""
-        test_mode = strategy_settings.get('test_mode', {})
+        test_mode = settings.get('test_mode', {})
         test_amount = test_mode.get('test_amount', 10)
         start_idx = test_mode.get('start_idx', 0)
 			
@@ -277,12 +277,12 @@ class HistoricLowSimulator:
             HistoricLowSimulator._update_investment_tracking(current_investment, current_record)
             
             # 检查止盈止损目标
-            goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+            goal_manager = InvestmentGoalManager(settings['goal'])
             should_settle, updated_investment = goal_manager.check_targets(current_investment, current_record)
             
             if should_settle:
                 # 结算投资（直接调用公用方法）
-                goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+                goal_manager = InvestmentGoalManager(settings['goal'])
                 goal_manager.settle_investment(updated_investment)
                 settled_entity = EntityBuilder.to_settled_investment(
                     investment=updated_investment,
@@ -325,7 +325,7 @@ class HistoricLowSimulator:
             opportunity = HistoricLowSimulator.scan_single_stock(stock_id, all_data)
             if opportunity:
                 # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
-                goal_manager = InvestmentGoalManager(strategy_settings['goal'])
+                goal_manager = InvestmentGoalManager(settings['goal'])
                 targets = goal_manager.create_investment_targets()
                 extra_fields = {
                     'result': InvestmentResult.OPEN.value,
@@ -452,7 +452,7 @@ class HistoricLowSimulator:
             history_records: 可以用来寻找机会的日线数据
         """
         # 获取配置参数
-        freeze_days = strategy_settings['daily_data_requirements']['freeze_period_days']
+        freeze_days = settings['daily_data_requirements']['freeze_period_days']
         
         # 分割数据
         freeze_records = daily_records[-freeze_days:]  # 最近N个交易日（冻结期）
@@ -464,7 +464,7 @@ class HistoricLowSimulator:
     def find_low_points(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """寻找历史低点"""
         low_points = []
-        target_years = strategy_settings['daily_data_requirements']['low_points_ref_years']
+        target_years = settings['daily_data_requirements']['low_points_ref_years']
         
         if not records:
             return low_points

@@ -897,25 +897,3 @@ class DatabaseManager:
     def execute_update(self, query: str, params: Optional[tuple] = None) -> int:
         """兼容性方法：执行同步更新"""
         return self.execute_sync_update(query, params)
-    
-
-# 全局数据库管理器实例（默认启用线程安全）
-db_manager = DatabaseManager(enable_thread_safety=True)
-
-
-def get_db_manager() -> DatabaseManager:
-    """获取数据库管理器实例（默认线程安全）"""
-    return db_manager
-
-
-def get_sync_db_manager() -> DatabaseManager:
-    """获取同步数据库管理器实例（兼容性函数）"""
-    return db_manager
-
-
-def close_db_manager():
-    """关闭数据库管理器"""
-    global db_manager
-    if db_manager:
-        db_manager.close()
-        db_manager = None 

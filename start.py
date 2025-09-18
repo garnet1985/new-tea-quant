@@ -42,20 +42,20 @@ class App:
         # 使用run_daily_scan来同时执行扫描和测试
         self.analyzer.simulate()
 
-    async def scan(self):
-        await self.analyzer.scan()
+    def scan(self):
+        self.analyzer.scan()
         
 
-async def main():
+def main():
     app = App()
     
-    # await app.renew_data()
+    # app.renew_data()  # 数据更新仍为异步接口时再启用
 
-    await app.scan()
+    app.scan()
 
     # app.simulate()
 
 
 if __name__ == "__main__":
     logger.info("🚀 启动股票分析应用...")
-    asyncio.run(main())
+    main()

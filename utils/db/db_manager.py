@@ -69,9 +69,6 @@ class DatabaseManager:
         self.initialize()
     
     # ==================== 线程安全相关方法 ====================
-
-    def set_verbose(self, is_verbose: bool):
-        self.is_verbose = is_verbose
     
     def _start_write_thread(self):
         """启动写入线程"""
@@ -232,7 +229,7 @@ class DatabaseManager:
             self.create_db()
             
             # 创建所有表（包括注册的策略表）
-            self.create_tables()
+            self.create_base_tables()
             
             if self.is_verbose:
                 logger.info("Database manager fully initialized")
@@ -357,10 +354,10 @@ class DatabaseManager:
         """创建所有表（基础表和注册表）"""
         try:
             # 创建基础表
-            self._create_base_tables()
+            self.create_base_tables()
             
             # 创建注册的自定义表
-            self._create_registered_tables()
+            self.create_registered_tables()
             
             if self.is_verbose:
                 logger.info("All tables created")
@@ -368,7 +365,7 @@ class DatabaseManager:
             logger.error(f"创建表失败: {e}")
             raise
 
-    def _create_base_tables(self):
+    def create_base_tables(self):
         """创建基础表"""
         import os
         
@@ -387,10 +384,17 @@ class DatabaseManager:
                         if self.is_verbose:
                             logger.info(f"created base table: {table_name}")
     
-    def _create_registered_tables(self):
+    def create_registered_tables(self):
         """创建注册的自定义表"""
-        for table_name, table_info in self.registered_tables.items():
+        # 使用list()创建副本，避免在迭代时修改字典
+        for table_name, table_info in list(self.registered_tables.items()):
             try:
+                # 检查表是否已经存在
+                if table_name in self.tables:
+                    if self.is_verbose:
+                        logger.info(f"表 {table_name} 已存在，跳过创建")
+                    continue
+                
                 # 创建自定义表模型
                 if table_info['model_class']:
                     # 检查是否是BaseTableModel的子类

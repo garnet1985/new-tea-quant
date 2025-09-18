@@ -8,7 +8,7 @@ from loguru import logger
 from app.analyzer.components.simulator.simulator import Simulator
 from ...components.base_strategy import BaseStrategy
 from .HL_simulator import HistoricLowSimulator
-from .settings import strategy_settings
+from .settings import settings
 from app.analyzer.components.investment import InvestmentRecorder
 
 class HistoricLow(BaseStrategy):
@@ -16,6 +16,8 @@ class HistoricLow(BaseStrategy):
     
     # 策略启用状态
     is_enabled = True
+    # 类级配置，供 Analyzer 在实例化前验证
+    settings = settings
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
@@ -26,10 +28,10 @@ class HistoricLow(BaseStrategy):
         )
         
         # 加载策略设置
-        self.strategy_settings = strategy_settings
+        self.settings = settings
         
         # 初始化投资记录器
-        self.invest_recorder = InvestmentRecorder(self.strategy_settings['folder_name'])
+        self.invest_recorder = InvestmentRecorder(self.settings['folder_name'])
 
         self.simulator = Simulator()
 

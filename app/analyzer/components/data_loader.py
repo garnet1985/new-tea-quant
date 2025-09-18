@@ -19,7 +19,7 @@ class DataLoader:
         """
         self.db = db
     
-    def load_stock_data(self, stock_id: str, settings: Dict[str, Any], strategy_name: str = "Unknown") -> Dict[str, List[Dict[str, Any]]]:
+    def load_stock_data(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         """
         根据策略设置加载股票数据
         
@@ -45,6 +45,34 @@ class DataLoader:
             term_data[term] = self._load_kline_data(stock_id, term)
         
         return term_data
+
+    @staticmethod
+    def load_stock_data_in_child(stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        子进程安全：在子进程内创建独立 DatabaseManager(use_connection_pool=False)，
+        通过表 model API 加载所需周期数据，返回 { term: List[Dict] }。
+        """
+        try:
+            from utils.db.db_manager import DatabaseManager
+            kline_config = settings.get('klines', {}) if isinstance(settings, dict) else {}
+            base_term = kline_config.get('base_term', 'daily')
+            additional_terms = kline_config.get('additional_terms', []) if isinstance(kline_config, dict) else []
+
+            db = DatabaseManager(use_connection_pool=False, is_verbose=False)
+            db.initialize()
+            kline_table = db.get_table_instance('stock_kline')
+
+            term_data: Dict[str, List[Dict[str, Any]]] = {}
+            # 加载基础周期
+            term_data[base_term] = kline_table.get_all_k_lines_by_term(stock_id, base_term)
+            # 加载额外周期
+            if isinstance(additional_terms, list):
+                for term in additional_terms:
+                    term_data[term] = kline_table.get_all_k_lines_by_term(stock_id, term)
+
+            return term_data
+        except Exception:
+            return {}
     
     def _load_kline_data(self, stock_id: str, term: str) -> List[Dict[str, Any]]:
         """
@@ -64,7 +92,7 @@ class DataLoader:
             logger.error(f"❌ 加载股票 {stock_id} {term} 数据失败: {e}")
             return []
     
-    def load_stock_list(self, settings: Dict[str, Any], strategy_name: str = "Unknown") -> List[Dict[str, Any]]:
+    def load_stock_list(self) -> List[Dict[str, Any]]:
         """
         根据策略设置加载股票列表
         

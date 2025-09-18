@@ -11,7 +11,7 @@ import pandas as pd
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
-from utils.db.db_manager import get_sync_db_manager
+from utils.db.db_manager import DatabaseManager
 from app.data_source.data_source_service import DataSourceService
 from app.data_source.providers.akshare.akshare_API_mod import AkshareAPIModified
 
@@ -50,7 +50,7 @@ def get_quarter_key(date_str_hyphen: str) -> str:
 
 def compare_quarterly(ts_code: str, start_date: str, end_date: str, samples_per_quarter: int = 1, seed: int = 42, output_csv: str = None):
     random.seed(seed)
-    db = get_sync_db_manager()
+    db = DatabaseManager()
 
     k_lines = load_daily_k_lines(db, ts_code, start_date, end_date)
     factors = load_qfq_factors(db, ts_code, start_date, end_date)

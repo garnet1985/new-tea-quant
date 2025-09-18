@@ -173,16 +173,6 @@ class BaseStrategy(ABC):
         """获取策略的缩写"""
         return self.abbreviation
     
-    def get_validated_settings(self) -> Dict[str, Any]:
-        """
-        获取验证后的设置
-        
-        Returns:
-            Dict: 验证后的设置
-        """
-        # 约定：验证通过后的设置应存放在 self.settings，由外部或调用方负责
-        return getattr(self, 'settings', None)
-
     @staticmethod
     def validate_and_merge_settings(settings: Dict[str, Any], strategy_name: str) -> Dict[str, Any]:
         """校验并合并默认值，返回可用配置；无副作用，不写入实例。"""
@@ -193,26 +183,100 @@ class BaseStrategy(ABC):
             raise ValueError(f"策略 {strategy_name} 设置验证失败:\n{details}")
         return validator.merge_with_defaults(settings)
     
-    def scan(self, settings: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def scan(self) -> List[Dict[str, Any]]:
         """
         扫描所有股票的投资机会 - 框架方法，内部使用多进程
         用户不需要复写此方法，只需要实现 scan_opportunity 方法
-        
-        Args:
-            settings: 策略设置，如果为None则使用策略的默认设置
             
         Returns:
             List[Dict]: 所有发现的投资机会列表
         """
-        from .strategy_executor import StrategyExecutor
+
+        stock_list = self.table["stock_index"].load_filtered_index()
+
+        if not stock_list:
+            logger.info("❌ 未找到可扫描的股票")
+            return []
+
+        jobs = self._build_scan_jobs(stock_list)
+
+        opportunities = self._execute_scan_jobs(jobs)
+
+        self.report(opportunities)
         
-        executor = StrategyExecutor(self)
+        return opportunities
+
+    def _build_scan_jobs(self, stock_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        构建扫描任务
+        """
+        jobs: List[Dict[str, Any]] = []
+        strategy_class_name = self.__class__.__name__
+        strategy_module_path = f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}"
+        for stock in stock_list:
+            jobs.append({
+                'id': f"{self.get_abbr()}_{stock.get('id')}",
+                'data': {
+                    'stock': stock,
+                    'settings': self.settings.copy(),
+                    'strategy_class_name': strategy_class_name,
+                    'strategy_module_path': strategy_module_path,
+                }
+            })
+        return jobs
+
+
+    def _execute_scan_jobs(self, jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        执行扫描任务
+        """
+        from utils.worker.multi_process.process_worker import ProcessWorker
+
+        # 使用静态执行函数，避免pickle绑定到实例
+        worker = ProcessWorker(job_executor=BaseStrategy._scan_multiprocess_executor, start_method="spawn")
+
+        worker.run_jobs(jobs)
         
-        # 使用传入的settings或策略的验证后设置
-        if settings is None:
-            settings = self.get_validated_settings()
-        
-        return executor.scan_all_stocks(settings)
+        return worker.get_results()
+
+
+    @staticmethod
+    def _scan_multiprocess_executor(job: Dict[str, Any]) -> Dict[str, Any]:
+        """子进程执行扫描：避免引用实例属性以绕过pickle问题"""
+        stock = job.get('stock', {}) or {}
+        stock_id = stock.get('id')
+        settings = job.get('settings', {}) or {}
+        strategy_class_name = job.get('strategy_class_name', '')
+        strategy_module_path = job.get('strategy_module_path', '')
+
+        if not stock_id or not strategy_class_name or not strategy_module_path:
+            return None
+
+        # 子进程内直接使用 DataLoader 的静态方法，避免初始化 DatabaseManager
+        from app.analyzer.components.data_loader import DataLoader
+        data = DataLoader.load_stock_data_in_child(stock_id, settings)
+
+        # 动态导入策略类并实例化轻量对象，仅用于调用scan_opportunity
+        import importlib
+        try:
+            strategy_module = importlib.import_module(strategy_module_path)
+            strategy_class = getattr(strategy_module, strategy_class_name)
+        except Exception:
+            return None
+
+        class _MockDB:
+            def get_table_instance(self, name):
+                return None
+
+        strategy_instance = strategy_class(db=_MockDB(), is_verbose=False)
+
+        # 获取基础周期数据
+        kline_cfg = settings.get('klines', {}) if isinstance(settings, dict) else {}
+        base_term = kline_cfg.get('base_term', 'daily')
+        base_klines = data.get(base_term, [])
+        return strategy_instance.scan_opportunity(stock_id, base_klines)
+
+
     
     def simulate(self) -> Dict[str, Any]:
         """
@@ -226,12 +290,9 @@ class BaseStrategy(ABC):
         
         simulator = Simulator()
         
-        # 获取策略设置
-        settings = self.get_validated_settings()
-        
         # 运行模拟 - 使用用户定义的 simulate_one_day 方法
         result = simulator.run(
-            settings=settings,
+            settings=self.settings.copy(),
             on_simulate_one_day=self.simulate_one_day,
             on_single_stock_summary=self.stock_summary,
             on_simulate_complete=None

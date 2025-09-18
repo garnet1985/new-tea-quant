@@ -17,6 +17,7 @@ class Example(BaseStrategy):
     # 策略启用状态
     # 如果不启用，在start.py运行时则会自动跳过这个策略的机会扫描和模拟
     is_enabled = True
+    settings = settings
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
@@ -26,8 +27,8 @@ class Example(BaseStrategy):
             abbreviation="EXAMPLE"
         )
         
-        # 加载策略设置
-        self.settings = settings
+        # 实例级引用（Analyzer 会把校验后的结果放入 class.settings 并在实例化后赋回）
+        self.settings = self.settings or settings
         
         # 初始化投资记录器
         self.invest_recorder = InvestmentRecorder(self.settings['folder_name'])

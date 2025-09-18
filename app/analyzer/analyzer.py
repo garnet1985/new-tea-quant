@@ -105,14 +105,22 @@ class Analyzer:
         
         for strategy_class in self.all_strategies:
             # 检查策略是否启用
+
             if strategy_class.is_enabled:
+                
                 try:
                     # 创建策略实例
                     strategy_instance = strategy_class(db=self.db, is_verbose=self.is_verbose)
+
+                    is_valid, validated_settings = self.settings_validator.validate_settings(strategy_instance.settings, strategy_class.__name__)
                     
-                    # 验证策略设置
-                    self._validate_strategy_settings(strategy_instance)
+                    if not is_valid:
+                        logger.error(f"❌ 策略 {strategy_class.__name__} 设置验证失败: {strategy_instance.settings}")
+                        logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
+                        continue
                     
+                    strategy_instance.settings = validated_settings
+
                     # 初始化策略（策略自己负责表的注册和创建）
                     strategy_instance.initialize()
                     
@@ -127,11 +135,6 @@ class Analyzer:
                     logger.error(f"❌ 策略 {strategy_class.__name__} 设置验证失败: {e}")
                     logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
                     
-                except Exception as e:
-                    # 其他初始化错误
-                    failed_strategies.append(strategy_class.__name__)
-                    logger.error(f"❌ 策略 {strategy_class.__name__} 初始化失败: {e}")
-                    logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
             else:
                 logger.info(f"跳过 {strategy_class.__name__}: 策略已禁用")
         
@@ -145,60 +148,7 @@ class Analyzer:
                 error_msg = "❌ 所有启用的策略都初始化失败，程序无法继续运行"
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
-    
-    def _validate_strategy_settings(self, strategy_instance: BaseStrategy) -> None:
-        """
-        验证策略设置 - 在策略初始化之前验证
-        
-        Args:
-            strategy_instance: 策略实例
-            
-        Raises:
-            ValueError: 如果设置验证失败
-        """
-        # 获取策略设置
-        settings = getattr(strategy_instance, 'strategy_settings', None) or getattr(strategy_instance, 'settings', None)
-        
-        if settings is None:
-            error_msg = f"策略 {strategy_instance.name} 没有设置文件，无法进行验证"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-        
-        # 验证设置
-        is_valid, errors = self.settings_validator.validate_settings(settings, strategy_instance.name)
-        
-        if not is_valid:
-            # 构建详细的错误信息
-            error_details = []
-            for error in errors:
-                error_details.append(f"  - {error}")
-            
-            error_msg = f"策略 {strategy_instance.name} 设置验证失败:\n" + "\n".join(error_details)
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-        
-        # 将验证后的设置存储到策略实例中
-        strategy_instance._validated_settings = self.settings_validator.merge_with_defaults(settings)
-        
-        if self.is_verbose:
-            logger.info(f"✅ 策略 {strategy_instance.name} 设置验证通过")
-    
 
-    def get_strategy(self, strategy_key: str) -> BaseStrategy:
-        """
-        获取策略实例
-        
-        Args:
-            strategy_key: 策略标识符
-            
-        Returns:
-            BaseStrategy: 策略实例
-        """
-        if strategy_key not in self.enabled_strategies:
-            raise KeyError(f"策略 {strategy_key} 未找到，请确保已初始化")
-        
-        return self.enabled_strategies[strategy_key]
-    
     def scan(self) -> Dict[str, List[Dict[str, Any]]]:
         """扫描所有策略的投资机会"""
         results = {}

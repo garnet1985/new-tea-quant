@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
+from .settings_validator import SettingsValidator
 
 
 class BaseStrategy(ABC):
@@ -28,7 +29,7 @@ class BaseStrategy(ABC):
         self.abbreviation = abbreviation
         
         # 策略所需的表模型
-        self.required_tables: Dict[str, Any] = {}
+        self.table: Dict[str, Any] = {}
         
         # 初始化策略
         self._check_required_fields()
@@ -47,32 +48,22 @@ class BaseStrategy(ABC):
     def initialize(self):
         """初始化策略 - 自动检测和注册表，返回统一的tables字典"""
         try:
-            # 获取基础表实例
-            self._initialize_base_tables()
-            
             # 自动检测和注册策略特有的表
-            self._auto_register_strategy_tables()
+            self._register_strategy_tables()
             
             # 创建所有注册的表
             self.db.create_registered_tables()
             
             # 返回统一的tables字典
-            self.tables = self._build_tables_dict()
+            self.table = self._get_required_tables()
+            
         except Exception as e:
             logger.error(f"❌ 策略 {self.name} initialize() 失败: {e}")
             import traceback
             traceback.print_exc()
             raise
     
-    def _initialize_base_tables(self):
-        """初始化基础表实例"""
-        self.required_tables = {
-            "stock_index": self.db.get_table_instance("stock_index"),
-            "stock_kline": self.db.get_table_instance("stock_kline"),
-            "adj_factor": self.db.get_table_instance("adj_factor"),
-        }
-    
-    def _auto_register_strategy_tables(self):
+    def _register_strategy_tables(self):
         """自动检测tables文件夹并注册策略特有的表"""
         import os
         import importlib
@@ -146,12 +137,14 @@ class BaseStrategy(ABC):
                 import traceback
                 traceback.print_exc()
     
-    def _build_tables_dict(self):
+    def _get_required_tables(self):
         """构建统一的tables字典，包含基础表和自定义表"""
-        tables = {}
-        
-        # 添加基础表
-        tables.update(self.required_tables)
+        # 直接构建基础表
+        tables = {
+            "stock_index": self.db.get_table_instance("stock_index"),
+            "stock_kline": self.db.get_table_instance("stock_kline"),
+            "adj_factor": self.db.get_table_instance("adj_factor"),
+        }
         
         # 添加自定义表（从数据库管理器的tables中获取已创建的表实例）
         # 使用list()创建副本，避免在迭代时修改字典
@@ -179,20 +172,6 @@ class BaseStrategy(ABC):
     def get_abbr(self) -> str:
         """获取策略的缩写"""
         return self.abbreviation
-
-    @abstractmethod
-    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """
-        扫描单只股票的投资机会 - 抽象方法，子类必须实现
-        
-        Args:
-            stock_id: 股票ID
-            data: 股票的历史K线数据（到当前日期为止）
-            
-        Returns:
-            Optional[Dict]: 如果发现投资机会则返回机会字典，否则返回None
-        """
-        pass
     
     def get_validated_settings(self) -> Dict[str, Any]:
         """
@@ -201,11 +180,18 @@ class BaseStrategy(ABC):
         Returns:
             Dict: 验证后的设置
         """
-        if hasattr(self, '_validated_settings'):
-            return self._validated_settings
-        
-        # 如果没有验证后的设置，返回原始设置
-        return getattr(self, 'strategy_settings', None) or getattr(self, 'settings', {})
+        # 约定：验证通过后的设置应存放在 self.settings，由外部或调用方负责
+        return getattr(self, 'settings', None)
+
+    @staticmethod
+    def validate_and_merge_settings(settings: Dict[str, Any], strategy_name: str) -> Dict[str, Any]:
+        """校验并合并默认值，返回可用配置；无副作用，不写入实例。"""
+        validator = SettingsValidator()
+        is_valid, errors = validator.validate_settings(settings, strategy_name)
+        if not is_valid:
+            details = "\n".join([f"  - {e}" for e in errors])
+            raise ValueError(f"策略 {strategy_name} 设置验证失败:\n{details}")
+        return validator.merge_with_defaults(settings)
     
     def scan(self, settings: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
@@ -227,16 +213,6 @@ class BaseStrategy(ABC):
             settings = self.get_validated_settings()
         
         return executor.scan_all_stocks(settings)
-    
-    @abstractmethod
-    def report(self, opportunities: List[Dict[str, Any]]) -> None:
-        """
-        呈现扫描结果 - 抽象方法，子类必须实现
-        
-        Args:
-            opportunities: 投资机会列表
-        """
-        pass
     
     def simulate(self) -> Dict[str, Any]:
         """
@@ -296,4 +272,27 @@ class BaseStrategy(ABC):
             Dict: 追加到默认summary的track（可以返回空字典）
         """
         pass
+
+    @abstractmethod
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        扫描单只股票的投资机会 - 抽象方法，子类必须实现
+        
+        Args:
+            stock_id: 股票ID
+            data: 股票的历史K线数据（到当前日期为止）
+            
+        Returns:
+            Optional[Dict]: 如果发现投资机会则返回机会字典，否则返回None
+        """
+        pass
     
+    @abstractmethod
+    def report(self, opportunities: List[Dict[str, Any]]) -> None:
+        """
+        呈现扫描结果 - 抽象方法，子类必须实现
+        
+        Args:
+            opportunities: 投资机会列表
+        """
+        pass

@@ -7,7 +7,7 @@
 from typing import Dict, List, Any, Optional, Callable
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.libs.investment import InvestmentRecorder
+from app.analyzer.components.investment import InvestmentRecorder
 
 
 class PostprocessService:

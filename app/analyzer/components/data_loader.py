@@ -10,7 +10,7 @@ from utils.db.db_manager import DatabaseManager
 class DataLoader:
     """数据加载器 - 根据策略设置加载和准备数据"""
     
-    def __init__(self, db: DatabaseManager):
+    def __init__(self, db: DatabaseManager = None):
         """
         初始化数据加载器
         

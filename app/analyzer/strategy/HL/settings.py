@@ -6,7 +6,7 @@ settings = {
     
     'mode': {
         "blacklist_only": False,
-        "test_amount": 10,
+        "test_amount": 2,
         "start_idx": 0,
         "simulation_ref_version": "524",
         "record_summary" : True
@@ -15,6 +15,7 @@ settings = {
     "klines": {
         "terms": ["daily"],
         "base_term": "daily",
+        "min_required_kline": 1000,
     },
 
     "simulation": {

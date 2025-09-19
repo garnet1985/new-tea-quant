@@ -12,6 +12,7 @@ from ...components.base_strategy import BaseStrategy
 from .HL_simulator import HistoricLowSimulator
 from .settings import settings
 from app.analyzer.components.investment import InvestmentRecorder
+from utils.icon.icon_service import IconService
 
 class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""
@@ -245,10 +246,10 @@ class HistoricLow(BaseStrategy):
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         """报告投资机会"""
         if not opportunities:
-            logger.info("🔍 未发现投资机会")
+            logger.info(f"{IconService.get('search')} 未发现投资机会")
             return
         
-        logger.info(f"🔍 发现 {len(opportunities)} 个投资机会")
+        logger.info(f"{IconService.get('search')} 发现 {len(opportunities)} 个投资机会")
         
         # 按股票分组显示
         stock_opportunities = {}
@@ -259,7 +260,7 @@ class HistoricLow(BaseStrategy):
             stock_opportunities[stock_id].append(opp)
         
         for stock_id, opps in stock_opportunities.items():
-            logger.info(f"📈 {stock_id}: {len(opps)} 个机会")
+            logger.info(f"{IconService.get('upward_trend')} {stock_id}: {len(opps)} 个机会")
 
     # ========================================================
     # Core logic:
@@ -278,10 +279,10 @@ class HistoricLow(BaseStrategy):
             opportunities: 投资机会列表
         """
         if not opportunities:
-            logger.info("📊 无投资机会可报告")
+            logger.info(f"{IconService.get('bar_chart')} 无投资机会可报告")
             return
         
-        logger.info("📊 HistoricLow 策略扫描报告")
+        logger.info(f"{IconService.get('bar_chart')} HistoricLow 策略扫描报告")
         logger.info("=" * 50)
         
         # 按股票分组统计
@@ -293,8 +294,8 @@ class HistoricLow(BaseStrategy):
             stock_stats[stock_id] += 1
         
         # 显示统计信息
-        logger.info(f"📈 发现投资机会: {len(opportunities)} 个")
-        logger.info(f"📊 涉及股票: {len(stock_stats)} 只")
+        logger.info(f"{IconService.get('upward_trend')} 发现投资机会: {len(opportunities)} 个")
+        logger.info(f"{IconService.get('bar_chart')} 涉及股票: {len(stock_stats)} 只")
         
         # 显示每只股票的详细信息
         for stock_id, count in sorted(stock_stats.items()):

@@ -14,6 +14,7 @@ setup_warning_suppression()
 from utils.db.db_manager import DatabaseManager
 from app.data_source.data_source_manager import DataSourceManager
 from app.analyzer import Analyzer
+from utils.icon.icon_service import IconService
 
 
 # 添加项目根目录到Python路径
@@ -58,5 +59,5 @@ def main():
 
 
 if __name__ == "__main__":
-    logger.info("🚀 启动股票分析应用...")
+    logger.info(f"{IconService.get('rocket')} 启动股票分析应用...")
     main()

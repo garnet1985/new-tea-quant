@@ -12,7 +12,7 @@ from .settings_validator import SettingsValidator
 class BaseStrategy(ABC):
     """策略基类 - 所有策略必须继承此类"""
     
-    def __init__(self, db: DatabaseManager, is_verbose: bool = False, name: str = None, description: str = None, abbreviation: str = None):
+    def __init__(self, db: DatabaseManager = None, is_verbose: bool = False, name: str = None, description: str = None, abbreviation: str = None):
         """
         初始化策略基类
         
@@ -182,6 +182,12 @@ class BaseStrategy(ABC):
             details = "\n".join([f"  - {e}" for e in errors])
             raise ValueError(f"策略 {strategy_name} 设置验证失败:\n{details}")
         return validator.merge_with_defaults(settings)
+
+
+
+    # ========================================================
+    # Scan jobs:
+    # ========================================================
     
     def scan(self) -> List[Dict[str, Any]]:
         """
@@ -192,13 +198,22 @@ class BaseStrategy(ABC):
             List[Dict]: 所有发现的投资机会列表
         """
 
+        import importlib
+        strategy_setting_path = f"app.analyzer.strategy.{self.get_abbr()}.settings"
+        settings_module = importlib.import_module(strategy_setting_path)
+        strategy_settings = getattr(settings_module, "settings")
+
+        
         stock_list = self.table["stock_index"].load_filtered_index()
+
+        # TODO: 测试用，删除
+        stock_list = stock_list[:2]
 
         if not stock_list:
             logger.info("❌ 未找到可扫描的股票")
             return []
 
-        jobs = self._build_scan_jobs(stock_list)
+        jobs = self._build_scan_jobs(stock_list, strategy_settings)
 
         opportunities = self._execute_scan_jobs(jobs)
 
@@ -206,19 +221,20 @@ class BaseStrategy(ABC):
         
         return opportunities
 
-    def _build_scan_jobs(self, stock_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _build_scan_jobs(self, stock_list: List[Dict[str, Any]], strategy_settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         构建扫描任务
         """
         jobs: List[Dict[str, Any]] = []
         strategy_class_name = self.__class__.__name__
         strategy_module_path = f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}"
+
         for stock in stock_list:
             jobs.append({
                 'id': f"{self.get_abbr()}_{stock.get('id')}",
-                'data': {
+                'payload': {
                     'stock': stock,
-                    'settings': self.settings.copy(),
+                    'settings': strategy_settings.copy(),
                     'strategy_class_name': strategy_class_name,
                     'strategy_module_path': strategy_module_path,
                 }
@@ -233,7 +249,11 @@ class BaseStrategy(ABC):
         from utils.worker.multi_process.process_worker import ProcessWorker
 
         # 使用静态执行函数，避免pickle绑定到实例
-        worker = ProcessWorker(job_executor=BaseStrategy._scan_multiprocess_executor, start_method="spawn", is_verbose=True)
+        worker = ProcessWorker(
+            job_executor=BaseStrategy._scan_multiprocess_executor, 
+            start_method="spawn", 
+            is_verbose=False
+        )
 
         worker.run_jobs(jobs)
         # 提取成功且有结果的机会
@@ -250,32 +270,23 @@ class BaseStrategy(ABC):
         strategy_class_name = job.get('strategy_class_name', '')
         strategy_module_path = job.get('strategy_module_path', '')
 
-        if not stock_id or not strategy_class_name or not strategy_module_path:
-            return None
+        data = {}
 
         # 子进程内直接使用 DataLoader 的静态方法，避免初始化 DatabaseManager
         from app.analyzer.components.data_loader import DataLoader
-        data = DataLoader.load_stock_data_in_child(stock_id, settings)
+        data['klines'] = DataLoader.load_stock_data_in_child_process(stock_id, settings)
 
-        # 动态导入策略类并实例化轻量对象，仅用于调用scan_opportunity
+        # 传入setting中配置的参数并且调用子类中的scan_opportunity方法
         import importlib
         try:
             strategy_module = importlib.import_module(strategy_module_path)
             strategy_class = getattr(strategy_module, strategy_class_name)
         except Exception:
-            return None
+            raise Exception(f"❌ 策略 {strategy_class_name} 导入失败! strategy_module_path: {strategy_module_path} strategy_class_name: {strategy_class_name}")
 
-        class _MockDB:
-            def get_table_instance(self, name):
-                return None
+        strategy_instance = strategy_class(db=None)
 
-        strategy_instance = strategy_class(db=_MockDB(), is_verbose=False)
-
-        # 获取基础周期数据
-        kline_cfg = settings.get('klines', {}) if isinstance(settings, dict) else {}
-        base_term = kline_cfg.get('base_term', 'daily')
-        base_klines = data.get(base_term, [])
-        return strategy_instance.scan_opportunity(stock_id, base_klines)
+        return strategy_instance.scan_opportunity(stock, data, settings)
 
 
     
@@ -336,7 +347,7 @@ class BaseStrategy(ABC):
         pass
 
     @abstractmethod
-    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         扫描单只股票的投资机会 - 抽象方法，子类必须实现
         

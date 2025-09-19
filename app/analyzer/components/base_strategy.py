@@ -7,6 +7,7 @@ from typing import Dict, List, Any, Optional
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
 from .settings_validator import SettingsValidator
+from utils.icon.icon_service import IconService
 
 
 class BaseStrategy(ABC):
@@ -58,7 +59,7 @@ class BaseStrategy(ABC):
             self.table = self._get_required_tables()
             
         except Exception as e:
-            logger.error(f"❌ 策略 {self.name} initialize() 失败: {e}")
+            logger.error(f"{IconService.get('error')} 策略 {self.name} initialize() 失败: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -74,7 +75,7 @@ class BaseStrategy(ABC):
         tables_dir = os.path.abspath(tables_dir)
         
         if self.is_verbose:
-            logger.info(f"🔍 检查策略 {self.name} 的tables文件夹: {tables_dir}")
+            logger.info(f"{IconService.get('search')} 检查策略 {self.name} 的tables文件夹: {tables_dir}")
         
         if not os.path.exists(tables_dir):
             if self.is_verbose:
@@ -130,10 +131,10 @@ class BaseStrategy(ABC):
                     )
                     
                     if self.is_verbose:
-                        logger.info(f"✅ 策略 {self.name} 自动注册表: {table_name}")
+                        logger.info(f"{IconService.get('success')} 策略 {self.name} 自动注册表: {table_name}")
                         
             except Exception as e:
-                logger.error(f"❌ 策略 {self.name} 注册表 {table_name} 失败: {e}")
+                logger.error(f"{IconService.get('error')} 策略 {self.name} 注册表 {table_name} 失败: {e}")
                 import traceback
                 traceback.print_exc()
     
@@ -210,7 +211,7 @@ class BaseStrategy(ABC):
         stock_list = stock_list[:2]
 
         if not stock_list:
-            logger.info("❌ 未找到可扫描的股票")
+            logger.info(f"{IconService.get('error')} 未找到可扫描的股票")
             return []
 
         jobs = self._build_scan_jobs(stock_list, strategy_settings)

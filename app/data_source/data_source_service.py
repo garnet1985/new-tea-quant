@@ -1,4 +1,5 @@
 from datetime import date as date_type
+from typing import Any, Dict, List
 
 class DataSourceService:
     @staticmethod
@@ -74,6 +75,22 @@ class DataSourceService:
                 pass
         
         return k_lines
+
+    @staticmethod
+    def filter_out_negative_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        过滤掉价格为负或无效的记录
+        """
+        if not records:
+            return []
+        
+        filtered_records = []
+        for record in records:
+            close_price = record.get('close', 0)
+            if close_price and close_price > 0:
+                filtered_records.append(record)
+        
+        return filtered_records
     
     @staticmethod
     def _find_qfq_factor(target_date: str, sorted_factors: list) -> float:

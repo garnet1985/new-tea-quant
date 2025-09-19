@@ -60,16 +60,24 @@ class DataLoader:
             db = DatabaseManager()
             db.initialize()
             kline_table = db.get_table_instance('stock_kline')
+            adj_factor_table = db.get_table_instance('adj_factor')
 
+            from app.data_source.data_source_service import DataSourceService
             data: Dict[str, List[Dict[str, Any]]] = {}
+            
             # 加载基础周期
             for term in kline_config.get('terms', []):
-                    data[term] = kline_table.get_all_k_lines_by_term(stock_id, term)
+                records = kline_table.get_all_k_lines_by_term(stock_id, term)
+                qfq_factors = adj_factor_table.get_stock_factors(stock_id)
+                DataSourceService.to_qfq(records, qfq_factors)
+                data[term] = DataSourceService.filter_out_negative_records(records)
 
             return data
         except Exception as e:
             logger.error(f"❌ 加载股票 {stock_id} 数据失败: {e}")
             return {}
+
+
     
     def _load_kline_data(self, stock_id: str, term: str) -> List[Dict[str, Any]]:
         """
@@ -88,4 +96,3 @@ class DataLoader:
         except Exception as e:
             logger.error(f"❌ 加载股票 {stock_id} {term} 数据失败: {e}")
             return []
-    

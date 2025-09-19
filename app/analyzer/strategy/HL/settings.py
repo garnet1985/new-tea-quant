@@ -18,7 +18,7 @@ settings = {
     },
 
     "simulation": {
-        "start_date": "",
+        "start_date": "20080101",
         "end_date": ""
     },
 

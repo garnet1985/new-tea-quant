@@ -53,9 +53,9 @@ def main():
     
     # app.renew_data()  # 数据更新仍为异步接口时再启用
 
-    app.scan()
+    # app.scan()
 
-    # app.simulate()
+    app.simulate()
 
 
 if __name__ == "__main__":

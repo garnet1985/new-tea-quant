@@ -302,20 +302,40 @@ class BaseStrategy(ABC):
         from .simulator.simulator import Simulator
         
         simulator = Simulator()
-        
-        # 运行模拟 - 使用用户定义的 simulate_one_day 方法
+
+        # 运行模拟 - 传入所有回调方法
         result = simulator.run(
             settings=self.settings.copy(),
-            on_simulate_one_day=self.simulate_one_day,
-            on_single_stock_summary=self.stock_summary,
-            on_simulate_complete=None
+            on_before_simulate=self.on_before_simulate,
+            on_simulate_one_day=self.on_simulate_one_day,
+            on_summarize_stock=self.on_summarize_stock,
+            on_summarize_session=self.on_summarize_session,
+            on_before_report=self.on_before_report
         )
         
         return result
-    
+
+
+
+    # ========================================================
+    # abstract API for simulating:
+    # ========================================================
+
     @abstractmethod
-    def simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
-                        historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def on_before_simulate(self, stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> None:
+        """
+        模拟开始前的回调 - 可选重写
+        
+        Args:
+            settings: 验证后的策略设置
+            stock_list: 股票列表
+        """
+        pass
+
+    @abstractmethod
+    def on_simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
+                        all_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]], 
+                        settings: Dict[str, Any]) -> Dict[str, Any]:
         """
         模拟单日交易逻辑 - 抽象方法，子类必须实现
         
@@ -323,8 +343,9 @@ class BaseStrategy(ABC):
             stock_id: 股票ID
             current_date: 当前日期
             current_record: 当前日K线数据
-            historical_data: 历史数据（到当前日之前）
+            all_data: 所有历史数据（到当前日为止）
             current_investment: 当前投资状态
+            settings: 策略设置
             
         Returns:
             Dict[str, Any]: 包含以下字段的结果
@@ -335,7 +356,7 @@ class BaseStrategy(ABC):
         pass
     
     @abstractmethod
-    def stock_summary(self, result: Dict[str, Any]) -> Dict[str, Any]:
+    def on_summarize_stock(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """
         单只股票模拟结果汇总 - 抽象方法，子类必须实现
         
@@ -346,6 +367,36 @@ class BaseStrategy(ABC):
             Dict: 追加到默认summary的track（可以返回空字典）
         """
         pass
+
+    
+    def on_summarize_session(self, stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        整个会话汇总 - 可选重写
+        
+        Args:
+            stock_summaries: 所有股票的汇总结果
+            
+        Returns:
+            Dict: 追加到默认session summary的字段（可以返回空字典）
+        """
+        return {}
+    
+    def on_before_report(self, final_report: Dict[str, Any]) -> None:
+        """
+        模拟完成后的最终回调 - 可选重写
+        
+        Args:
+            final_report: 最终报告
+        """
+        pass
+
+
+
+
+
+    # ========================================================
+    # abstract API for opportunity scanning:
+    # ========================================================
 
     @abstractmethod
     def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:

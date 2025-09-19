@@ -8,6 +8,7 @@ from loguru import logger
 from .services.simulating_service import SimulatingService
 from .services.preprocess_service import PreprocessService
 from .services.postprocess_service import PostprocessService
+from utils.icon.icon_service import IconService
 
 
 class Simulator:
@@ -27,20 +28,20 @@ class Simulator:
     def run(self, settings: Dict[str, Any], 
             on_before_simulate: Optional[Callable] = None, 
             on_simulate_one_day: Optional[Callable] = None,
-            on_single_stock_summary: Optional[Callable] = None,
-            on_session_summary: Optional[Callable] = None,
-            on_simulate_complete: Optional[Callable] = None) -> Dict[str, Any]:
+            on_summarize_stock: Optional[Callable] = None,
+            on_summarize_session: Optional[Callable] = None,
+            on_before_report: Optional[Callable] = None) -> Dict[str, Any]:
         
         start_time = time.time()
         
         # 执行三个步骤
-        settings, stock_list = self.preprocess(settings, on_before_simulate, on_simulate_one_day)
-        simulate_result = self.simulating(on_simulate_one_day, stock_list, settings)
-        report = self.postprocess(on_single_stock_summary, on_session_summary, on_simulate_complete, simulate_result, settings)
+        stock_list = self.preprocess(settings, on_before_simulate)
+        simulate_result = self.simulating(stock_list, settings, on_simulate_one_day)
+        # report = self.postprocess(on_single_stock_summary, on_session_summary, on_simulate_complete, simulate_result, settings)
         
         total_time = time.time() - start_time
-        logger.info(f"🎉 模拟流程完成！总耗时: {total_time:.2f}秒")
-        return report
+        logger.info(f"{IconService.get('success')} 模拟流程完成！总耗时: {total_time:.2f}秒")
+        # return report
     
     # 预处理阶段 - 验证设置，获取股票列表
     
@@ -55,12 +56,14 @@ class Simulator:
                    on_simulate_one_day: Optional[Callable] = None) -> tuple:
 
         # 使用 PreprocessService 进行预处理（包含函数校验）
-        validated_settings, stock_list = PreprocessService.preprocess(settings, on_simulate_one_day)
+        stock_list = PreprocessService.preprocess(settings)
         
         if on_before_simulate:
-            on_before_simulate(validated_settings, stock_list)
+            stock_list = on_before_simulate(stock_list, settings)
         
-        return validated_settings, stock_list
+        # logger.info(f"{IconService.get('success')} 获取股票列表完成: {len(stock_list)} 只股票")
+
+        return stock_list, settings
 
     
     # 模拟阶段 - 执行单日模拟流程
@@ -70,11 +73,13 @@ class Simulator:
     
     # Returns:
     #     List[Dict]: 模拟结果列表
-    def simulating(self, on_simulate_one_day: Optional[Callable] = None, stock_list: List[Dict[str, Any]] = None, settings: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    def simulating(self, stock_list: List[Dict[str, Any]], settings: Dict[str, Any], on_simulate_one_day: Optional[Callable] = None) -> List[Dict[str, Any]]:
         # 构建多进程任务 - 传递单日模拟函数
         jobs = SimulatingService.build_simulation_jobs_from_stock_list(
             stock_list, settings, on_simulate_one_day
         )
+
+        logger.info(f"aabbcc构建多进程任务: {len(jobs)} 个任务")
         
         # 使用多进程执行
         simulate_results = SimulatingService.run_multiprocess_simulation(jobs)
@@ -113,7 +118,7 @@ class Simulator:
         
         # 获取模拟结果
         if not simulate_results:
-            logger.warning("⚠️ 没有模拟结果需要处理")
+            logger.warning(f"{IconService.get('warning')} 没有模拟结果需要处理")
             return {}
         
         # 步骤1：单股票汇总

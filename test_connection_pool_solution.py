@@ -32,7 +32,7 @@ async def test_connection_pool_solution():
     
     # 测试多进程安全的数据库管理器
     logger.info("📊 测试多进程安全数据库管理器")
-    db = ProcessSafeDatabaseManager(is_verbose=True)
+    db = ProcessSafeDatabaseManager(is_verbose=False)
     db.initialize()
     
     # 测试查询
@@ -44,7 +44,7 @@ async def test_connection_pool_solution():
     
     # 测试分析器
     logger.info("📊 测试分析器（使用连接池）")
-    analyzer = Analyzer(db, is_verbose=True)
+    analyzer = Analyzer(db, is_verbose=False)
     
     try:
         # 初始化分析器

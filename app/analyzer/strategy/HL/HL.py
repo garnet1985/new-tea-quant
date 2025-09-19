@@ -2,10 +2,12 @@
 """
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from loguru import logger
 
+from app.analyzer.components.entity.entity_builder import EntityBuilder
 from app.analyzer.components.simulator.simulator import Simulator
+from app.analyzer.strategy.HL.HL_service import HistoricLowService
 from ...components.base_strategy import BaseStrategy
 from .HL_simulator import HistoricLowSimulator
 from .settings import settings
@@ -16,8 +18,6 @@ class HistoricLow(BaseStrategy):
     
     # 策略启用状态
     is_enabled = True
-    # 类级配置，供 Analyzer 在实例化前验证
-    settings = settings
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
@@ -40,11 +40,115 @@ class HistoricLow(BaseStrategy):
         super().initialize()
 
     # ========================================================
-    # External (Bridge) APIs:
+    # Core API: Scan opportunity
     # ========================================================
-    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    def scan_opportunity(stock: Dict[str, Any], data: List[Dict[str, Any]], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        # """扫描单只股票的投资机会"""
+        # return HistoricLowSimulator.scan_single_stock(stock_id, data)
+
+        daily_klines = data.get('klines', {}).get('daily', [])
+
         """扫描单只股票的投资机会"""
-        return HistoricLowSimulator.scan_single_stock(stock_id, data)
+        if not data:
+            return None
+        
+        # 分割数据为冻结期和历史期
+        freeze_records, history_records = HistoricLowService.split_freeze_and_history_data(daily_klines)
+        
+        # 寻找历史低点
+        low_points = HistoricLowService.find_low_points(history_records)
+        
+        # 从低点中寻找投资机会
+        opportunity = HistoricLow._find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
+        
+        return opportunity
+
+    @staticmethod
+    def _find_opportunity_from_low_points(stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]], history_data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """从历史低点中寻找投资机会（恢复风控过滤：跌停/新低/振幅/斜率）"""
+        if not low_points or not freeze_data:
+            return None
+
+        record_of_today = freeze_data[-1]
+
+        # 风控过滤（与旧算法一致的语义）：
+        # 1) 不处于连续跌停
+        if not HistoricLowService.is_out_of_continuous_limit_down(freeze_data):
+            return None
+        # 2) 冻结期无新低
+        if not HistoricLowService.has_no_new_low_during_freeze(freeze_data):
+            return None
+        # 3) 振幅足够
+        if not HistoricLowService.is_amplitude_sufficient(freeze_data):
+            return None
+        # 4) 斜率不过陡（满足上升/止跌的斜率阈值）
+        if not HistoricLowService.is_slope_sufficient(freeze_data):
+            return None
+
+        # 核心入场条件：当前价位位于以历史低点为参考的投资区间内
+        for low_point in low_points:
+            if HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data):
+                opportunity = EntityBuilder.to_opportunity(
+                    stock=stock,
+                    date=record_of_today.get('date'),
+                    price=record_of_today.get('close'),
+                    lower_bound=low_point.get('invest_lower_bound'),
+                    upper_bound=low_point.get('invest_upper_bound'),
+                    extra_fields={
+                        'opportunity_record': record_of_today,
+                        'low_point_ref': low_point,
+                    }
+                )
+                return opportunity
+
+        return None
+
+
+
+
+    # ========================================================
+    # Core API: Simulate
+    # ========================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
                         historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:

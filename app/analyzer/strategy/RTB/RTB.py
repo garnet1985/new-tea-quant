@@ -42,7 +42,7 @@ class ReverseTrendBet(BaseStrategy):
     # ========================================================
     # External (Bridge) APIs:
     # ========================================================
-    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """扫描单只股票的投资机会"""
         return ReverseTrendBet.scan_opportunity(stock_id, data)
 

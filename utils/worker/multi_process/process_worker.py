@@ -177,17 +177,19 @@ class ProcessWorker:
         if self.is_verbose:
             logger.info(f"Job executor set: {job_executor.__name__}")
     
-    def add_job(self, job_id: str, job_data: Any):
+    def add_job(self, job_id: str, job_payload: Any):
         """添加单个任务"""
         self.job_queue.append({
             'id': job_id,
-            'data': job_data
+            'payload': job_payload
         })
     
     def add_jobs(self, jobs: List[Dict[str, Any]]):
         """批量添加任务"""
         for job in jobs:
-            self.add_job(job['id'], job['data'])
+            # 兼容旧字段名
+            payload = job.get('payload') if 'payload' in job else job.get('data')
+            self.add_job(job['id'], payload)
     
     def _create_batches(self) -> List[List[Dict[str, Any]]]:
         """将任务分割成batch"""
@@ -285,7 +287,7 @@ class ProcessWorker:
                         all_results.append(error_result)
                         self.stats['failed_jobs'] += 1
                         try:
-                            data_keys = list(job['data'].keys()) if isinstance(job.get('data'), dict) else type(job.get('data')).__name__
+                            data_keys = list(job['payload'].keys()) if isinstance(job.get('payload'), dict) else type(job.get('payload')).__name__
                         except Exception:
                             data_keys = 'unknown'
                         logger.exception(f"Job {job['id']} failed: {e} | data_keys={data_keys}")
@@ -369,7 +371,7 @@ class ProcessWorker:
                     )
                     batch_results.append(error_result)
                     try:
-                        data_keys = list(job['data'].keys()) if isinstance(job.get('data'), dict) else type(job.get('data')).__name__
+                        data_keys = list(job['payload'].keys()) if isinstance(job.get('payload'), dict) else type(job.get('payload')).__name__
                     except Exception:
                         data_keys = 'unknown'
                     logger.exception(f"Job {job['id']} failed: {e} | data_keys={data_keys}")
@@ -393,7 +395,7 @@ class ProcessWorker:
                 raise ValueError("Job executor not set")
             
             # 执行任务
-            result_data = self.job_executor(job['data'])
+            result_data = self.job_executor(job['payload'])
             
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
@@ -422,7 +424,7 @@ class ProcessWorker:
             
             # 始终输出包含trace的异常日志，便于跨服务复用时排查
             try:
-                data_summary = job.get('data')
+                data_summary = job.get('payload')
                 if isinstance(data_summary, dict):
                     data_summary = {k: type(v).__name__ for k, v in list(data_summary.items())[:10]}
                 else:

@@ -369,3 +369,4 @@ class BaseStrategy(ABC):
             opportunities: 投资机会列表
         """
         pass
+

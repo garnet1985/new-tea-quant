@@ -16,7 +16,7 @@ class Example(BaseStrategy):
     
     # 策略启用状态
     # 如果不启用，在start.py运行时则会自动跳过这个策略的机会扫描和模拟
-    is_enabled = True
+    is_enabled = False
     settings = settings
     
     def __init__(self, db, is_verbose: bool = False):

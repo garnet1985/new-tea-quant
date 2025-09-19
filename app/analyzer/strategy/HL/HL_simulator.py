@@ -439,120 +439,63 @@ class HistoricLowSimulator:
             investment['tracking']['min_close_reached']['date'] = current_record['date']
             investment['tracking']['min_close_reached']['ratio'] = (current_record['close'] - investment['purchase_price']) / investment['purchase_price']
 	
-    @staticmethod
-    def split_daily_data(daily_records: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """
-        分割日线数据为冻结期和历史期
-        
-        Args:
-            daily_data: 完整的日线数据列表
-            
-        Returns:
-            freeze_records: 投资冻结期的数据
-            history_records: 可以用来寻找机会的日线数据
-        """
-        # 获取配置参数
-        freeze_days = settings['daily_data_requirements']['freeze_period_days']
-        
-        # 分割数据
-        freeze_records = daily_records[-freeze_days:]  # 最近N个交易日（冻结期）
-        history_records = daily_records[:-freeze_days]  # 之前的数据（历史期）
-        
-        return freeze_records, history_records
+
 	
-    @staticmethod
-    def find_low_points(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """寻找历史低点"""
-        low_points = []
-        target_years = settings['daily_data_requirements']['low_points_ref_years']
+    # @staticmethod
+    # def find_low_points(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    #     """寻找历史低点"""
+    #     low_points = []
+    #     target_years = settings['daily_data_requirements']['low_points_ref_years']
         
-        if not records:
-            return low_points
+    #     if not records:
+    #         return low_points
         
-        date_of_today = records[-1]['date']
+    #     date_of_today = records[-1]['date']
         
-        # 解析今天的日期
-        from datetime import datetime, timedelta
-        today = datetime.strptime(date_of_today, '%Y%m%d')
+    #     # 解析今天的日期
+    #     from datetime import datetime, timedelta
+    #     today = datetime.strptime(date_of_today, '%Y%m%d')
         
-        for years_back in target_years:
-            # 计算时间区间的开始日期（往前推years_back年）
-            start_date = today - timedelta(days=years_back * 365)
-            start_date_str = start_date.strftime('%Y%m%d')
+    #     for years_back in target_years:
+    #         # 计算时间区间的开始日期（往前推years_back年）
+    #         start_date = today - timedelta(days=years_back * 365)
+    #         start_date_str = start_date.strftime('%Y%m%d')
             
-            # 找到该时间区间内的所有记录
-            period_records = [record for record in records 
-                            if record['date'] >= start_date_str and record['date'] < date_of_today]
+    #         # 找到该时间区间内的所有记录
+    #         period_records = [record for record in records 
+    #                         if record['date'] >= start_date_str and record['date'] < date_of_today]
             
-            if not period_records:
-                continue
+    #         if not period_records:
+    #             continue
                 
-            # 找到该时间区间内的最低价格
-            min_record = min(period_records, key=lambda x: float(x['close']))
+    #         # 找到该时间区间内的最低价格
+    #         min_record = min(period_records, key=lambda x: float(x['close']))
             
-            low_points.append(HistoricLowEntity.to_low_point(years_back, min_record))
+    #         low_points.append(HistoricLowEntity.to_low_point(years_back, min_record))
         
-        return low_points
+    #     return low_points
 
-    @staticmethod
-    def find_opportunity_from_low_points(stock: Dict[str, Any], low_points: List[Dict[str, Any]], freeze_data: List[Dict[str, Any]], history_data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """从历史低点中寻找投资机会（恢复风控过滤：跌停/新低/振幅/斜率）"""
-        if not low_points or not freeze_data:
-            return None
+   
 
-        record_of_today = freeze_data[-1]
-
-        # 风控过滤（与旧算法一致的语义）：
-        # 1) 不处于连续跌停
-        if not HistoricLowService.is_out_of_continuous_limit_down(freeze_data):
-            return None
-        # 2) 冻结期无新低
-        if not HistoricLowService.has_no_new_low_during_freeze(freeze_data):
-            return None
-        # 3) 振幅足够
-        if not HistoricLowService.is_amplitude_sufficient(freeze_data):
-            return None
-        # 4) 斜率不过陡（满足上升/止跌的斜率阈值）
-        if not HistoricLowService.is_slope_sufficient(freeze_data):
-            return None
-
-        # 核心入场条件：当前价位位于以历史低点为参考的投资区间内
-        for low_point in low_points:
-            if HistoricLowService.is_in_invest_range(record_of_today, low_point, freeze_data):
-                opportunity = EntityBuilder.to_opportunity(
-                    stock=stock,
-                    date=record_of_today.get('date'),
-                    price=record_of_today.get('close'),
-                    lower_bound=low_point.get('invest_lower_bound'),
-                    upper_bound=low_point.get('invest_upper_bound'),
-                    extra_fields={
-                        'opportunity_record': record_of_today,
-                        'low_point_ref': low_point,
-                    }
-                )
-                return opportunity
-
-        return None
-
-    @staticmethod
-    def scan_single_stock(stock_id: str, all_data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """扫描单只股票的投资机会"""
-        if not all_data:
-            return None
+    # @staticmethod
+    # def scan_single_stock(stock_id: str, all_data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    #     """扫描单只股票的投资机会"""
+    #     if not all_data:
+    #         return None
         
-        # 创建股票信息
-        stock = {'id': stock_id}
+    #     # 创建股票信息
+    #     stock = {'id': stock_id}
         
-        # 分割数据为冻结期和历史期
-        freeze_records, history_records = HistoricLowSimulator.split_daily_data(all_data)
+    #     # 分割数据为冻结期和历史期
+    #     freeze_records, history_records = HistoricLowSimulator.split_daily_data(all_data)
         
-        # 寻找历史低点
-        low_points = HistoricLowSimulator.find_low_points(history_records)
+    #     # 寻找历史低点
+    #     low_points = HistoricLowSimulator.find_low_points(history_records)
         
-        # 从低点中寻找投资机会
-        opportunity = HistoricLowSimulator.find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
+    #     # 从低点中寻找投资机会
+    #     opportunity = HistoricLowSimulator.find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
         
-        return opportunity
+    #     return opportunity
 
 
  

@@ -277,7 +277,7 @@ def get_connection_pool() -> ConnectionPool:
     if _global_pool is None:
         with _pool_lock:
             if _global_pool is None:
-                _global_pool = ConnectionPool(max_connections=20, is_verbose=True)
+                _global_pool = ConnectionPool(max_connections=20, is_verbose=False)
     
     return _global_pool
 

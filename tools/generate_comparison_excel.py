@@ -9,7 +9,7 @@ from datetime import datetime
 def generate_comparison_excel(ts_code='000001.SZ', code='000001', stock_name='平安银行'):
     # 初始化
     db = DatabaseManager()
-    dsm = DataSourceManager(db, is_verbose=True)
+    dsm = DataSourceManager(db, is_verbose=False)
     tu = dsm.sources['tushare']
     ak = dsm.sources['akshare']
     ak.inject_dependency(tu)

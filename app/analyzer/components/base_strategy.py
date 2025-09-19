@@ -185,6 +185,12 @@ class BaseStrategy(ABC):
         return validator.merge_with_defaults(settings)
 
 
+    def get_module_info(self) -> Dict[str, Any]:
+        """获取模块信息"""
+        return {
+            'strategy_class_name': self.__class__.__name__,
+            'strategy_module_path': f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}"
+        }
 
     # ========================================================
     # Scan jobs:
@@ -227,8 +233,7 @@ class BaseStrategy(ABC):
         构建扫描任务
         """
         jobs: List[Dict[str, Any]] = []
-        strategy_class_name = self.__class__.__name__
-        strategy_module_path = f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}"
+        module_info = self.get_module_info()
 
         for stock in stock_list:
             jobs.append({
@@ -236,8 +241,7 @@ class BaseStrategy(ABC):
                 'payload': {
                     'stock': stock,
                     'settings': strategy_settings.copy(),
-                    'strategy_class_name': strategy_class_name,
-                    'strategy_module_path': strategy_module_path,
+                    'module_info': module_info,
                 }
             })
         return jobs
@@ -268,8 +272,7 @@ class BaseStrategy(ABC):
         stock = job.get('stock', {}) or {}
         stock_id = stock.get('id')
         settings = job.get('settings', {}) or {}
-        strategy_class_name = job.get('strategy_class_name', '')
-        strategy_module_path = job.get('strategy_module_path', '')
+        module_info = job.get('module_info', {}) or {}
 
         data = {}
 
@@ -280,12 +283,12 @@ class BaseStrategy(ABC):
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法
         import importlib
         try:
-            strategy_module = importlib.import_module(strategy_module_path)
-            strategy_class = getattr(strategy_module, strategy_class_name)
+            strategy_module = importlib.import_module(module_info.get('strategy_module_path', ''))
+            strategy_class = getattr(strategy_module, module_info.get('strategy_class_name', ''))
         except Exception:
-            raise Exception(f"❌ 策略 {strategy_class_name} 导入失败! strategy_module_path: {strategy_module_path} strategy_class_name: {strategy_class_name}")
+            raise Exception(f"❌ 策略 {module_info.get('strategy_class_name', '')} 导入失败! strategy_module_path: {module_info.get('strategy_module_path', '')} strategy_class_name: {module_info.get('strategy_class_name', '')}")
 
-        strategy_instance = strategy_class(db=None)
+        strategy_instance = strategy_class(db=None, is_verbose=False)
 
         return strategy_instance.scan_opportunity(stock, data, settings)
 
@@ -306,11 +309,7 @@ class BaseStrategy(ABC):
         # 运行模拟 - 传入所有回调方法
         result = simulator.run(
             settings=self.settings.copy(),
-            on_before_simulate=self.on_before_simulate,
-            on_simulate_one_day=self.on_simulate_one_day,
-            on_summarize_stock=self.on_summarize_stock,
-            on_summarize_session=self.on_summarize_session,
-            on_before_report=self.on_before_report
+            module_info=self.get_module_info(),
         )
         
         return result

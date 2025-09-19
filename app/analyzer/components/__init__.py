@@ -8,7 +8,7 @@ from .data_loader import DataLoader
 from .settings_validator import SettingsValidator
 
 # 数据处理器组件
-from .data_processor.indicators import Indicators
+from .indicators import Indicators
 
 # 实体组件
 from .entity.entity_builder import EntityBuilder
@@ -29,9 +29,7 @@ from .simulator.services.postprocess_service import PostprocessService
 __all__ = [
     # 核心组件
     'DataLoader',
-    'ScanExecutor', 
     'SettingsValidator',
-    'StrategyExecutor', 
     
     # 数据处理器组件
     'Indicators',

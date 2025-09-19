@@ -112,14 +112,12 @@ class Analyzer:
                     # 创建策略实例
                     strategy_instance = strategy_class(db=self.db, is_verbose=self.is_verbose)
 
-                    is_valid, validated_settings = self.settings_validator.validate_settings(strategy_instance.settings, strategy_class.__name__)
+                    is_valid, errors = self.settings_validator.validate_settings(strategy_instance.settings, strategy_class.__name__)
                     
                     if not is_valid:
                         logger.error(f"❌ 策略 {strategy_class.__name__} 设置验证失败: {strategy_instance.settings}")
                         logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
                         continue
-                    
-                    strategy_instance.settings = validated_settings
 
                     # 初始化策略（策略自己负责表的注册和创建）
                     strategy_instance.initialize()

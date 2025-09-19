@@ -3,10 +3,6 @@ from enum import Enum
 from typing import Dict, List
 from .analyzer_settings import conf
 
-class InvestmentResult(Enum):
-    WIN = 'win'
-    LOSS = 'loss'
-    OPEN = 'open'
 
 
 class AnalyzerService:

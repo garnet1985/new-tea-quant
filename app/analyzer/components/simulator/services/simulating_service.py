@@ -129,6 +129,7 @@ class SimulatingService:
 
         # 初始化单只股票投资状态
         tracker = {
+            'stock': stock_info,
             'passed_dates': [],
             'investing': None,
             'settled': [],
@@ -157,15 +158,13 @@ class SimulatingService:
         del tracker['passed_dates']
         del tracker['investing']
         # 返回结果
+
         return tracker
 
 
     @staticmethod
     def _execute_single_day(tracker: Dict[str, Any], record_of_today: str, stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
-        
         investment = tracker['investing']
-        # logger.info(f"日期: {record_of_today}")
-
 
         import importlib
         strategy_class_name = module_info.get('strategy_class_name', '')

@@ -38,159 +38,159 @@ class HistoricLowSimulator:
     # Core logic:
     # ========================================================
     
-    @staticmethod
-    def simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
-        record_of_today = daily_k_lines[-1]
+    # @staticmethod
+    # def simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
+    #     record_of_today = daily_k_lines[-1]
 
-        # 检查现有投资的目标
-        if stock['id'] in tracker['investing']:
-            investment = tracker['investing'][stock['id']]
-            goal_manager = InvestmentGoalManager(settings['goal'])
-            is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
+    #     # 检查现有投资的目标
+    #     if stock['id'] in tracker['investing']:
+    #         investment = tracker['investing'][stock['id']]
+    #         goal_manager = InvestmentGoalManager(settings['goal'])
+    #         is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
             
-            if is_investment_ended:
-                goal_manager = InvestmentGoalManager(settings['goal'])
-                goal_manager.settle_investment(updated_investment)
-                settled_entity = EntityBuilder.to_settled_investment(
-                    investment=updated_investment,
-                    end_date=updated_investment.get('end_date'),
-                    result=updated_investment.get('result')
-                )
-                tracker['settled'].append(settled_entity)
-                del tracker['investing'][stock['id']]
-            else:
-                tracker['investing'][stock['id']] = updated_investment
-                HistoricLowSimulator.update_investment_max_min_close(updated_investment, record_of_today)
+    #         if is_investment_ended:
+    #             goal_manager = InvestmentGoalManager(settings['goal'])
+    #             goal_manager.settle_investment(updated_investment)
+    #             settled_entity = EntityBuilder.to_settled_investment(
+    #                 investment=updated_investment,
+    #                 end_date=updated_investment.get('end_date'),
+    #                 result=updated_investment.get('result')
+    #             )
+    #             tracker['settled'].append(settled_entity)
+    #             del tracker['investing'][stock['id']]
+    #         else:
+    #             tracker['investing'][stock['id']] = updated_investment
+    #             HistoricLowSimulator.update_investment_max_min_close(updated_investment, record_of_today)
 
-        # 扫描新的投资机会
-        opportunity = HistoricLowSimulator.scan_single_stock(stock, daily_k_lines)
-        if opportunity:
-            # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
-            goal_manager = InvestmentGoalManager(settings['goal'])
-            targets = goal_manager.create_investment_targets()
-            extra_fields = {
-                'result': InvestmentResult.OPEN.value,
-                'end_date': '',
-                'tracking': {
-                    'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-                    'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-                },
-                'opportunity': opportunity
-            }
-            tracker['investing'][stock['id']] = EntityBuilder.to_investment(
-                stock={'id': stock['id'], 'name': opportunity.get('stock', {}).get('name', '')},
-                start_date=opportunity['date'],
-                purchase_price=opportunity['price'],
-                targets=targets,
-                extra_fields=extra_fields
-            )
+    #     # 扫描新的投资机会
+    #     opportunity = HistoricLowSimulator.scan_single_stock(stock, daily_k_lines)
+    #     if opportunity:
+    #         # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
+    #         goal_manager = InvestmentGoalManager(settings['goal'])
+    #         targets = goal_manager.create_investment_targets()
+    #         extra_fields = {
+    #             'result': InvestmentResult.OPEN.value,
+    #             'end_date': '',
+    #             'tracking': {
+    #                 'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #                 'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #             },
+    #             'opportunity': opportunity
+    #         }
+    #         tracker['investing'][stock['id']] = EntityBuilder.to_investment(
+    #             stock={'id': stock['id'], 'name': opportunity.get('stock', {}).get('name', '')},
+    #             start_date=opportunity['date'],
+    #             purchase_price=opportunity['price'],
+    #             targets=targets,
+    #             extra_fields=extra_fields
+    #         )
 
     
 
 
 
-    @staticmethod
-    def settle_open_investment(investment: Dict[str, Any], final_price: float) -> Dict[str, Any]:
-        """结算Open状态的投资（模拟结束时仍在持仓）"""
-        # 创建投资目标管理器
-        goal_manager = InvestmentGoalManager(settings['goal'])
+    # @staticmethod
+    # def settle_open_investment(investment: Dict[str, Any], final_price: float) -> Dict[str, Any]:
+    #     """结算Open状态的投资（模拟结束时仍在持仓）"""
+    #     # 创建投资目标管理器
+    #     goal_manager = InvestmentGoalManager(settings['goal'])
         
-        # 使用目标管理器结算未结束的投资
-        goal_manager.settle_open_investment(investment, final_price, '20241231')
+    #     # 使用目标管理器结算未结束的投资
+    #     goal_manager.settle_open_investment(investment, final_price, '20241231')
         
-        # 使用通用实体构造器生成标准结算实体
-        settled = EntityBuilder.to_settled_investment(
-            investment=investment,
-            end_date=investment.get('end_date'),
-            result=investment.get('result')
-        )
-        return settled
+    #     # 使用通用实体构造器生成标准结算实体
+    #     settled = EntityBuilder.to_settled_investment(
+    #         investment=investment,
+    #         end_date=investment.get('end_date'),
+    #         result=investment.get('result')
+    #     )
+    #     return settled
 
     # ========================================================
     # Main steps:
     # ========================================================
 
-    def is_invest_settings_valid(self) -> bool:
-        """检查投资设置是否有效"""
-        try:
-            # 必须提供文件夹名用于结果存储
-            if 'folder_name' not in settings or not settings['folder_name']:
-                logger.error("缺少策略文件夹名配置 folder_name")
-                return False
+    # def is_invest_settings_valid(self) -> bool:
+    #     """检查投资设置是否有效"""
+    #     try:
+    #         # 必须提供文件夹名用于结果存储
+    #         if 'folder_name' not in settings or not settings['folder_name']:
+    #             logger.error("缺少策略文件夹名配置 folder_name")
+    #             return False
 
-            goal_config = settings.get('goal', {})
-            if not goal_config:
-                logger.error("缺少投资目标配置")
-                return False
+    #         goal_config = settings.get('goal', {})
+    #         if not goal_config:
+    #             logger.error("缺少投资目标配置")
+    #             return False
             
-            take_profit = goal_config.get('take_profit', {})
-            stop_loss = goal_config.get('stop_loss', {})
+    #         take_profit = goal_config.get('take_profit', {})
+    #         stop_loss = goal_config.get('stop_loss', {})
             
-            if not take_profit or not stop_loss:
-                logger.error("缺少止盈或止损配置")
-                return False
+    #         if not take_profit or not stop_loss:
+    #             logger.error("缺少止盈或止损配置")
+    #             return False
             
-            return True
-        except Exception as e:
-            logger.error(f"投资设置验证失败: {e}")
-            return False
+    #         return True
+    #     except Exception as e:
+    #         logger.error(f"投资设置验证失败: {e}")
+    #         return False
 	
-    def get_stock_list_by_test_mode(self) -> List[Dict[str, Any]]:
-        """根据测试模式获取股票列表"""
-        test_mode = settings.get('test_mode', {})
-        test_amount = test_mode.get('test_amount', 10)
-        start_idx = test_mode.get('start_idx', 0)
+    # def get_stock_list_by_test_mode(self) -> List[Dict[str, Any]]:
+    #     """根据测试模式获取股票列表"""
+    #     test_mode = settings.get('test_mode', {})
+    #     test_amount = test_mode.get('test_amount', 10)
+    #     start_idx = test_mode.get('start_idx', 0)
 			
-        # 获取股票列表
-        stock_list = DataSourceService.get_filtered_stock_index()
+    #     # 获取股票列表
+    #     stock_list = DataSourceService.get_filtered_stock_index()
         
-        # 根据测试模式截取
-        end_idx = start_idx + test_amount
-        return stock_list[start_idx:end_idx]
+    #     # 根据测试模式截取
+    #     end_idx = start_idx + test_amount
+    #     return stock_list[start_idx:end_idx]
 
-    def build_jobs(self, stock_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """构建模拟任务"""
-        jobs = []
-        for stock in stock_list:
-            job = {
-                'stock': stock,
-                'data': DataSourceService.get_stock_kline_data(stock['id'], 'daily')
-            }
-            jobs.append(job)
-        return jobs
+    # def build_jobs(self, stock_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    #     """构建模拟任务"""
+    #     jobs = []
+    #     for stock in stock_list:
+    #         job = {
+    #             'stock': stock,
+    #             'data': DataSourceService.get_stock_kline_data(stock['id'], 'daily')
+    #         }
+    #         jobs.append(job)
+    #     return jobs
 
-    def run_jobs(self, jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """运行模拟任务"""
-        results = []
-        tracker = {'investing': {}, 'settled': []}
+    # def run_jobs(self, jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    #     """运行模拟任务"""
+    #     results = []
+    #     tracker = {'investing': {}, 'settled': []}
         
-        for job in jobs:
-            stock = job['stock']
-            daily_k_lines = job['data']
+    #     for job in jobs:
+    #         stock = job['stock']
+    #         daily_k_lines = job['data']
             
-            # 模拟每一天
-            for i in range(len(daily_k_lines)):
-                current_data = daily_k_lines[:i+1]
-                HistoricLowSimulator.simulate_one_day(stock, current_data, tracker)
+    #         # 模拟每一天
+    #         for i in range(len(daily_k_lines)):
+    #             current_data = daily_k_lines[:i+1]
+    #             HistoricLowSimulator.simulate_one_day(stock, current_data, tracker)
             
-            # 处理未结束的投资
-            for investment in list(tracker['investing'].values()):
-                final_price = daily_k_lines[-1]['close'] if daily_k_lines else 0
-                settled_entity = HistoricLowSimulator.settle_open_investment(investment, final_price)
-                tracker['settled'].append(settled_entity)
+    #         # 处理未结束的投资
+    #         for investment in list(tracker['investing'].values()):
+    #             final_price = daily_k_lines[-1]['close'] if daily_k_lines else 0
+    #             settled_entity = HistoricLowSimulator.settle_open_investment(investment, final_price)
+    #             tracker['settled'].append(settled_entity)
             
-            # 保存结果
-            result = {
-                'stock_id': stock['id'],
-                'investments': tracker['investing'].get(stock['id'], {}),
-                'settled_investments': [inv for inv in tracker['settled'] if inv.get('stock', {}).get('id') == stock['id']]
-            }
-            results.append(result)
+    #         # 保存结果
+    #         result = {
+    #             'stock_id': stock['id'],
+    #             'investments': tracker['investing'].get(stock['id'], {}),
+    #             'settled_investments': [inv for inv in tracker['settled'] if inv.get('stock', {}).get('id') == stock['id']]
+    #         }
+    #         results.append(result)
             
-            # 重置tracker
-            tracker = {'investing': {}, 'settled': []}
+    #         # 重置tracker
+    #         tracker = {'investing': {}, 'settled': []}
         
-        return results
+    #     return results
 
     def generate_summary(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """生成汇总信息"""
@@ -424,64 +424,3 @@ class HistoricLowSimulator:
             investment['tracking']['min_close_reached']['price'] = current_record['close']
             investment['tracking']['min_close_reached']['date'] = current_record['date']
             investment['tracking']['min_close_reached']['ratio'] = (current_record['close'] - investment['purchase_price']) / investment['purchase_price']
-	
-
-	
-    # @staticmethod
-    # def find_low_points(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    #     """寻找历史低点"""
-    #     low_points = []
-    #     target_years = settings['daily_data_requirements']['low_points_ref_years']
-        
-    #     if not records:
-    #         return low_points
-        
-    #     date_of_today = records[-1]['date']
-        
-    #     # 解析今天的日期
-    #     from datetime import datetime, timedelta
-    #     today = datetime.strptime(date_of_today, '%Y%m%d')
-        
-    #     for years_back in target_years:
-    #         # 计算时间区间的开始日期（往前推years_back年）
-    #         start_date = today - timedelta(days=years_back * 365)
-    #         start_date_str = start_date.strftime('%Y%m%d')
-            
-    #         # 找到该时间区间内的所有记录
-    #         period_records = [record for record in records 
-    #                         if record['date'] >= start_date_str and record['date'] < date_of_today]
-            
-    #         if not period_records:
-    #             continue
-                
-    #         # 找到该时间区间内的最低价格
-    #         min_record = min(period_records, key=lambda x: float(x['close']))
-            
-    #         low_points.append(HistoricLowEntity.to_low_point(years_back, min_record))
-        
-    #     return low_points
-
-   
-
-    # @staticmethod
-    # def scan_single_stock(stock_id: str, all_data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    #     """扫描单只股票的投资机会"""
-    #     if not all_data:
-    #         return None
-        
-    #     # 创建股票信息
-    #     stock = {'id': stock_id}
-        
-    #     # 分割数据为冻结期和历史期
-    #     freeze_records, history_records = HistoricLowSimulator.split_daily_data(all_data)
-        
-    #     # 寻找历史低点
-    #     low_points = HistoricLowSimulator.find_low_points(history_records)
-        
-    #     # 从低点中寻找投资机会
-    #     opportunity = HistoricLowSimulator.find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
-        
-    #     return opportunity
-
-
- 

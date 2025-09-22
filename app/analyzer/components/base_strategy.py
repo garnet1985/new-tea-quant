@@ -353,19 +353,27 @@ class BaseStrategy(ABC):
                 - current_investment: 更新后的当前投资状态
         """
         pass
+
+    @staticmethod
+    def on_summarize_stock_investment(base_investment_summary: Dict[str, Any], original_investment: Dict[str, Any], stock_info: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        单只股票投资机会汇总 - 抽象方法，子类必须实现
+        """
+        return base_investment_summary
     
-    @abstractmethod
-    def on_summarize_stock(self, result: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def on_summarize_stock(base_summary: Dict[str, Any], simulate_result: Dict[str, Any]) -> Dict[str, Any]:
         """
         单只股票模拟结果汇总 - 抽象方法，子类必须实现
         
         Args:
-            result: 单只股票的模拟结果（包含 investments/settled_investments）
+            base_summary: 默认的汇总结果
+            simulate_result: 单只股票的模拟结果
             
         Returns:
             Dict: 追加到默认summary的track（可以返回空字典）
         """
-        pass
+        return base_summary
 
     
     def on_summarize_session(self, stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:

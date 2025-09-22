@@ -28,88 +28,92 @@ class EntityBuilder:
         Required fields: stock{id[,name?]}, date, price
         Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
         """
-        entity: Dict[str, Any] = {
+        opportunity: Dict[str, Any] = {
             'stock': stock or {},
             'date': date,
             'price': price,
         }
         if lower_bound is not None:
-            entity['lower_bound'] = lower_bound
+            opportunity['lower_bound'] = lower_bound
         if upper_bound is not None:
-            entity['upper_bound'] = upper_bound
+            opportunity['upper_bound'] = upper_bound
 
-        merged_extra = extra_fields if isinstance(extra_fields, dict) else extra_fields
-        return EntityBuilder._merge_extra_fields(entity, merged_extra)
+        opportunity['extra_fields'] = extra_fields
 
+        return opportunity
 
-    @staticmethod
-    def to_investment(
-        stock: Dict[str, Any],
-        start_date: str,
-        purchase_price: float,
-        targets: Optional[Dict[str, Any]] = None,
-        extra: Optional[Dict[str, Any]] = None,
-        extra_fields: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Construct a standard investment entity (unsettled/base)."""
-        entity: Dict[str, Any] = {
-            'stock': stock or {},
-            'start_date': start_date,
-            'purchase_price': purchase_price,
-            'targets': EntityBuilder._ensure_targets_schema(targets),
-        }
-        merged_extra = extra if isinstance(extra, dict) else extra_fields
-        return EntityBuilder._merge_extra_fields(entity, merged_extra)
+        # merged_extra = extra_fields if isinstance(extra_fields, dict) else extra_fields
+        # return EntityBuilder._merge_extra_fields(opportunity, merged_extra)
 
 
-    @staticmethod
-    def to_settled_investment(
-        investment: Dict[str, Any],
-        end_date: str,
-        result: Any,
-        extra_fields: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Construct a standard settled investment entity."""
-        result_value = getattr(result, 'value', result)
+    # @staticmethod
+    # def to_investment(
+    #     stock: Dict[str, Any],
+    #     start_date: str,
+    #     purchase_price: float,
+    #     targets: Optional[Dict[str, Any]] = None,
+    #     extra: Optional[Dict[str, Any]] = None,
+    #     extra_fields: Optional[Dict[str, Any]] = None,
+    # ) -> Dict[str, Any]:
+    #     """Construct a standard investment entity (unsettled/base)."""
+    #     entity: Dict[str, Any] = {
+    #         'stock': stock or {},
+    #         'start_date': start_date,
+    #         'purchase_price': purchase_price,
+    #         'targets': EntityBuilder._ensure_targets_schema(targets),
+    #     }
+    #     merged_extra = extra if isinstance(extra, dict) else extra_fields
+    #     return EntityBuilder._merge_extra_fields(entity, merged_extra)
 
-        purchase_price = float(investment.get('purchase_price') or 0.0)
-        targets = EntityBuilder._ensure_targets_schema(investment.get('targets'))
-        completed = targets.get('completed') or []
 
-        overall_profit = 0.0
-        for stage in completed:
-            if isinstance(stage, dict):
-                if 'weighted_profit' in stage and isinstance(stage['weighted_profit'], (int, float)):
-                    overall_profit += float(stage['weighted_profit'])
-                elif 'profit' in stage:
-                    profit = float(stage.get('profit') or 0.0)
-                    if 'profit_contribution' in stage:
-                        overall_profit += profit * float(stage.get('profit_contribution') or 0.0)
-                    elif 'sell_ratio' in stage:
-                        overall_profit += profit * float(stage.get('sell_ratio') or 0.0)
+    # @staticmethod
+    # def to_settled_investment(
+    #     investment: Dict[str, Any],
+    #     end_date: str,
+    #     result: Any,
+    #     extra_fields: Optional[Dict[str, Any]] = None,
+    # ) -> Dict[str, Any]:
+    #     """Construct a standard settled investment entity."""
+    #     result_value = getattr(result, 'value', result)
 
-        overall_profit_rate = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
+    #     purchase_price = float(investment.get('purchase_price') or 0.0)
+    #     targets = EntityBuilder._ensure_targets_schema(investment.get('targets'))
+    #     completed = targets.get('completed') or []
 
-        invest_duration_days = AnalyzerService.get_duration_in_days(investment.get('start_date'), end_date)
+    #     overall_profit = 0.0
+    #     for stage in completed:
+    #         if isinstance(stage, dict):
+    #             if 'weighted_profit' in stage and isinstance(stage['weighted_profit'], (int, float)):
+    #                 overall_profit += float(stage['weighted_profit'])
+    #             elif 'profit' in stage:
+    #                 profit = float(stage.get('profit') or 0.0)
+    #                 if 'profit_contribution' in stage:
+    #                     overall_profit += profit * float(stage.get('profit_contribution') or 0.0)
+    #                 elif 'sell_ratio' in stage:
+    #                     overall_profit += profit * float(stage.get('sell_ratio') or 0.0)
 
-        base = {
-            'stock': investment.get('stock', {}),
-            'start_date': investment.get('start_date'),
-            'purchase_price': purchase_price,
-            'targets': targets,
-        }
-        if 'tracking' in investment:
-            base['tracking'] = investment['tracking']
+    #     overall_profit_rate = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
 
-        settled = {
-            **base,
-            'result': result_value,
-            'end_date': end_date,
-            'overall_profit': overall_profit,
-            'overall_profit_rate': overall_profit_rate,
-            'invest_duration_days': invest_duration_days,
-        }
-        return EntityBuilder._merge_extra_fields(settled, extra_fields)
+    #     invest_duration_days = AnalyzerService.get_duration_in_days(investment.get('start_date'), end_date)
+
+    #     base = {
+    #         'stock': investment.get('stock', {}),
+    #         'start_date': investment.get('start_date'),
+    #         'purchase_price': purchase_price,
+    #         'targets': targets,
+    #     }
+    #     if 'tracking' in investment:
+    #         base['tracking'] = investment['tracking']
+
+    #     settled = {
+    #         **base,
+    #         'result': result_value,
+    #         'end_date': end_date,
+    #         'overall_profit': overall_profit,
+    #         'overall_profit_rate': overall_profit_rate,
+    #         'invest_duration_days': invest_duration_days,
+    #     }
+    #     return EntityBuilder._merge_extra_fields(settled, extra_fields)
 
 
     @staticmethod

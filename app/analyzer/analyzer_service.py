@@ -15,6 +15,8 @@ class AnalyzerService:
         计算比率并按指定小数位四舍五入。只在分母为0时返回0.0；允许负值。
         """
         try:
+            if denominator == 0:
+                return 0.0
             value = float(numerator) / float(denominator)
             return round(value, decimals)
         except ZeroDivisionError:
@@ -28,6 +30,8 @@ class AnalyzerService:
         与 to_ratio 相同的入参，输出为百分比（ratio*100）。仅分母为0时返回0.0，允许负值。
         """
         try:
+            if denominator == 0:
+                return 0.0
             value = float(numerator) / float(denominator)
             return round(value * 100.0, decimals)
         except ZeroDivisionError:

@@ -235,131 +235,131 @@ class HistoricLowSimulator:
     # Simulator callback methods:
 	# ========================================================
 	
-    @staticmethod
-    def simulate_single_day(stock_id: str, current_date: str, current_record: Dict[str, Any], 
-                           all_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]], settings: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        模拟单日交易逻辑
+    # @staticmethod
+    # def simulate_single_day(stock_id: str, current_date: str, current_record: Dict[str, Any], 
+    #                        all_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]], settings: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     模拟单日交易逻辑
         
-        Args:
-            stock_id: 股票ID
-            current_date: 当前日期
-            current_record: 当前日K线数据
-            all_data: 所有数据（包含当前日及之前的所有数据）
-            current_investment: 当前投资状态
+    #     Args:
+    #         stock_id: 股票ID
+    #         current_date: 当前日期
+    #         current_record: 当前日K线数据
+    #         all_data: 所有数据（包含当前日及之前的所有数据）
+    #         current_investment: 当前投资状态
             
-        Returns:
-            Dict[str, Any]: 包含以下字段的结果
-                - new_investment: 新的投资（如果有）
-                - settled_investments: 结算的投资列表
-                - current_investment: 更新后的当前投资状态
-        """
-        new_investment = None
-        settled_investments = []
+    #     Returns:
+    #         Dict[str, Any]: 包含以下字段的结果
+    #             - new_investment: 新的投资（如果有）
+    #             - settled_investments: 结算的投资列表
+    #             - current_investment: 更新后的当前投资状态
+    #     """
+    #     new_investment = None
+    #     settled_investments = []
         
-        # 如果有投资，先检查是否需要结算
-        if current_investment:
-            # 更新投资的最大最小值跟踪
-            HistoricLowSimulator._update_investment_tracking(current_investment, current_record)
+    #     # 如果有投资，先检查是否需要结算
+    #     if current_investment:
+    #         # 更新投资的最大最小值跟踪
+    #         HistoricLowSimulator._update_investment_tracking(current_investment, current_record)
             
-            # 检查止盈止损目标
-            goal_manager = InvestmentGoalManager(settings['goal'])
-            should_settle, updated_investment = goal_manager.check_targets(current_investment, current_record)
+    #         # 检查止盈止损目标
+    #         goal_manager = InvestmentGoalManager(settings['goal'])
+    #         should_settle, updated_investment = goal_manager.check_targets(current_investment, current_record)
             
-            if should_settle:
-                # 结算投资（直接调用公用方法）
-                goal_manager = InvestmentGoalManager(settings['goal'])
-                goal_manager.settle_investment(updated_investment)
-                settled_entity = EntityBuilder.to_settled_investment(
-                    investment=updated_investment,
-                    end_date=updated_investment.get('end_date'),
-                    result=updated_investment.get('result')
-                )
-                settled_investments.append(settled_entity)
+    #         if should_settle:
+    #             # 结算投资（直接调用公用方法）
+    #             goal_manager = InvestmentGoalManager(settings['goal'])
+    #             goal_manager.settle_investment(updated_investment)
+    #             settled_entity = EntityBuilder.to_settled_investment(
+    #                 investment=updated_investment,
+    #                 end_date=updated_investment.get('end_date'),
+    #                 result=updated_investment.get('result')
+    #             )
+    #             settled_investments.append(settled_entity)
                 
-                # 显示投资结果（模拟原HL simulator的行为）
-                result = settled_entity.get('result', 'unknown')
-                profit_rate = settled_entity.get('overall_profit_rate', 0) * 100
-                duration_days = settled_entity.get('invest_duration_days', 0)
+    #             # 显示投资结果（模拟原HL simulator的行为）
+    #             result = settled_entity.get('result', 'unknown')
+    #             profit_rate = settled_entity.get('overall_profit_rate', 0) * 100
+    #             duration_days = settled_entity.get('invest_duration_days', 0)
                 
-                if result == 'win':
-                    if profit_rate >= 20:
-                        result_dot = "🟢"
-                        result_text = "盈利"
-                    else:
-                        result_dot = "🟡"
-                        result_text = "微盈"
-                elif result == 'loss':
-                    if profit_rate <= -20:
-                        result_dot = "🔴"
-                        result_text = "亏损"
-                    else:
-                        result_dot = "🟠"
-                        result_text = "微损"
-                else:
-                    result_dot = "⚪"
-                    result_text = "未知"
+    #             if result == 'win':
+    #                 if profit_rate >= 20:
+    #                     result_dot = "🟢"
+    #                     result_text = "盈利"
+    #                 else:
+    #                     result_dot = "🟡"
+    #                     result_text = "微盈"
+    #             elif result == 'loss':
+    #                 if profit_rate <= -20:
+    #                     result_dot = "🔴"
+    #                     result_text = "亏损"
+    #                 else:
+    #                     result_dot = "🟠"
+    #                     result_text = "微损"
+    #             else:
+    #                 result_dot = "⚪"
+    #                 result_text = "未知"
                 
-                logger.info(f"🔍 投资结束: {stock_id} {result_dot} {result_text} | 收益率: {profit_rate:+.2f}% | 时长: {duration_days}天")
+    #             logger.info(f"🔍 投资结束: {stock_id} {result_dot} {result_text} | 收益率: {profit_rate:+.2f}% | 时长: {duration_days}天")
                 
-                current_investment = None  # 投资已结束
-            else:
-                current_investment = updated_investment
+    #             current_investment = None  # 投资已结束
+    #         else:
+    #             current_investment = updated_investment
         
-        # 如果没有投资，扫描新的投资机会
-        if not current_investment:
-            opportunity = HistoricLowSimulator.scan_single_stock(stock_id, all_data)
-            if opportunity:
-                # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
-                goal_manager = InvestmentGoalManager(settings['goal'])
-                targets = goal_manager.create_investment_targets()
-                extra_fields = {
-                    'result': InvestmentResult.OPEN.value,
-                    'end_date': '',
-                    'tracking': {
-                        'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-                        'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-                    },
-                    'opportunity': opportunity
-                }
-                new_investment = EntityBuilder.to_investment(
-                    stock={'id': stock_id, 'name': opportunity.get('stock', {}).get('name', '')},
-                    start_date=opportunity['date'],
-                    purchase_price=opportunity['price'],
-                    targets=targets,
-                    extra_fields=extra_fields
-                )
-                current_investment = new_investment
+    #     # 如果没有投资，扫描新的投资机会
+    #     if not current_investment:
+    #         opportunity = HistoricLowSimulator.scan_single_stock(stock_id, all_data)
+    #         if opportunity:
+    #             # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
+    #             goal_manager = InvestmentGoalManager(settings['goal'])
+    #             targets = goal_manager.create_investment_targets()
+    #             extra_fields = {
+    #                 'result': InvestmentResult.OPEN.value,
+    #                 'end_date': '',
+    #                 'tracking': {
+    #                     'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #                     'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #                 },
+    #                 'opportunity': opportunity
+    #             }
+    #             new_investment = EntityBuilder.to_investment(
+    #                 stock={'id': stock_id, 'name': opportunity.get('stock', {}).get('name', '')},
+    #                 start_date=opportunity['date'],
+    #                 purchase_price=opportunity['price'],
+    #                 targets=targets,
+    #                 extra_fields=extra_fields
+    #             )
+    #             current_investment = new_investment
         
-        return {
-            'new_investment': new_investment,
-            'settled_investments': settled_investments,
-            'current_investment': current_investment
-        }
+    #     return {
+    #         'new_investment': new_investment,
+    #         'settled_investments': settled_investments,
+    #         'current_investment': current_investment
+    #     }
 
-    @staticmethod
-    def summarize_single_stock(result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        单股票汇总 - 使用通用计算 + entity builder 封装
+    # @staticmethod
+    # def summarize_single_stock(result: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     单股票汇总 - 使用通用计算 + entity builder 封装
         
-        Args:
-            result: 单股票模拟结果
+    #     Args:
+    #         result: 单股票模拟结果
             
-        Returns:
-            Dict: 标准结构 { 'stock_id', 'summary': {...} }
-        """
-        stock_id = result.get('stock_id', 'unknown')
-        settled_investments = result.get('settled_investments', [])
+    #     Returns:
+    #         Dict: 标准结构 { 'stock_id', 'summary': {...} }
+    #     """
+    #     stock_id = result.get('stock_id', 'unknown')
+    #     settled_investments = result.get('settled_investments', [])
 
-        # 用通用计算产出核心字段
-        summary_core = EntityBuilder.compute_stock_summary_core(settled_investments)
+    #     # 用通用计算产出核心字段
+    #     summary_core = EntityBuilder.compute_stock_summary_core(settled_investments)
 
-        # 通过 entity builder 生成标准结构，并保留 investments 供 session 汇总使用
-        return EntityBuilder.to_stock_summary(
-            stock_id=stock_id,
-            summary_core=summary_core,
-            extra_fields={'investments': settled_investments},
-        )
+    #     # 通过 entity builder 生成标准结构，并保留 investments 供 session 汇总使用
+    #     return EntityBuilder.to_stock_summary(
+    #         stock_id=stock_id,
+    #         summary_core=summary_core,
+    #         extra_fields={'investments': settled_investments},
+    #     )
 	
     @staticmethod
     def summarize_session(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:

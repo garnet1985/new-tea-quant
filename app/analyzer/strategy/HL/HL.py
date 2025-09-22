@@ -99,7 +99,6 @@ class HistoricLow(BaseStrategy):
                     lower_bound=low_point.get('invest_lower_bound'),
                     upper_bound=low_point.get('invest_upper_bound'),
                     extra_fields={
-                        'opportunity_record': record_of_today,
                         'low_point_ref': low_point,
                     }
                 )
@@ -354,31 +353,3 @@ class HistoricLow(BaseStrategy):
             logger.info(f"  {stock_id}: {count} 个机会")
         
         logger.info("=" * 50)
-
-
-
-    def on_summarize_stock(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        在HL策略中，按需简化每个投资的 opportunity 字段
-        
-        Args:
-            result: 单只股票的模拟结果（包含 investments/settled_investments）
-            
-        Returns:
-            Dict: 追加到默认summary的track（此处无额外统计，返回空）
-        """
-        # 就地简化：仅保留 HL 关键信息，避免污染通用框架
-        for key in ('settled_investments', 'investments'):
-            for inv in result.get(key, []) or []:
-                opp = inv.get('opportunity')
-                if not opp:
-                    continue
-                inv['opportunity'] = {
-                    'date': opp.get('date'),
-                    'price': opp.get('price'),
-                    'lower_bound': opp.get('lower_bound'),
-                    'upper_bound': opp.get('upper_bound'),
-                    'low_point_ref': opp.get('low_point_ref')
-                }
-        # 不新增额外summary字段
-        return {}

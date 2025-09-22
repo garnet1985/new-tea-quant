@@ -9,158 +9,249 @@ from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.investment import InvestmentRecorder
 
-
 class PostprocessService:
     """后处理服务类"""
-    
-    @staticmethod
-    def summarize_stocks(simulate_results: List[Dict[str, Any]], 
-                        on_single_stock_summary: Optional[Callable] = None) -> List[Dict[str, Any]]:
-        """
-        汇总单股票结果
-        
-        逻辑：
-        1. 先执行默认汇总逻辑（投资成功率、平均ROI、平均年化收益、平均投资周期等）
-        2. 如果用户提供了自定义汇总函数，则调用它来添加额外的track值到默认summary中
-        
-        Args:
-            simulate_results: 模拟结果列表
-            on_single_stock_summary: 可选的单股票汇总回调函数，用于添加额外的track值
-            
-        Returns:
-            List[Dict]: 股票汇总结果列表
-        """
-        
-        stock_summaries = []
-        for result in simulate_results:
-            stock_id = result.get('stock_id', 'unknown')
-            
-            # 先执行默认汇总逻辑
-            summary = PostprocessService._default_stock_summary(result)
-            
-            # 如果用户提供了自定义汇总函数，则调用它来添加额外的track值
-            if on_single_stock_summary:
-                try:
-                    additional_tracks = on_single_stock_summary(result)
-                    if additional_tracks:
-                        # 将用户自定义的track值合并到默认summary中
-                        summary.update(additional_tracks)
-                except Exception as e:
-                    logger.error(f"❌ 股票 {stock_id} 自定义汇总失败: {e}")
-                    # 即使自定义汇总失败，也保留默认summary
-            
-            stock_summaries.append({
-                'stock_id': stock_id,
-                'summary': summary
-            })
-        
-        return stock_summaries
+
 
     @staticmethod
-    def _default_stock_summary(result: Dict[str, Any]) -> Dict[str, Any]:
+    def summarize_stock(simulate_result: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
         """
-        默认的股票汇总逻辑
-        
-        计算：
-        - 投资成功率
-        - 平均ROI
-        - 平均年化收益
-        - 平均投资周期
-        - 盈利、亏损、微盈、微亏的比例
-        
-        Args:
-            result: 单股票模拟结果
-            
-        Returns:
-            Dict: 股票汇总信息
+        汇总单股票结果
         """
-        investments = result.get('investments', [])
-        settled_investments = result.get('settled_investments', [])
+        stock_summary = PostprocessService.summarize_stock_by_default_way(simulate_result, module_info)
+
+        # stock_summary = strategy_class.on_summarize_stock(stock_summary, simulate_result)
+
+        # return stock_summary
+
+    @staticmethod
+    def summarize_stock_by_default_way(simulate_result: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
+        import importlib
+        strategy_class_name = module_info.get('strategy_class_name', '')
+        strategy_module_path = module_info.get('strategy_module_path', '')
+        # expose to strategy class to add any extra fields
+        strategy_module = importlib.import_module(strategy_module_path)
+        strategy_class = getattr(strategy_module, strategy_class_name)
+
+
+        logger.info(f"simulate_result: {simulate_result}")
+
+        stock_info = simulate_result.get('stock') or {}
+        # 兼容不同阶段的字段命名：优先 settled_investments，其次 settled
+
+        settled = simulate_result.get('settled') or []
+
+        total = len(settled)
+        success_count = 0
+        fail_count = 0
+        open_count = 0
+        total_profit = 0.0
+        total_duration = 0.0
+        roi_sum_pct = 0.0
+        annual_sum_pct = 0.0
+
+        investment_records = []
+
+        for inv in settled:
+            pass
+
+            # inv['weighted_profit'] = inv['profit'] * inv['sell_ratio']
+            # overall_profit += inv['weighted_profit']
+
+            # result = inv.get('result')
+            # if result == 'win':
+            #     success_count += 1
+            # elif result == 'loss':
+            #     fail_count += 1
+            # elif result == 'open':
+            #     open_count += 1
+
+            # profit = float(inv.get('overall_profit') or 0.0)
+            # total_profit += profit
+
+            # duration_days = float(inv.get('invest_duration_days') or 0.0)
+            # total_duration += duration_days
+
+            # roi = float(inv.get('overall_profit_rate') or 0.0)
+            # roi_sum_pct += roi * 100.0
+
+            # annual_sum_pct += AnalyzerService.get_annual_return(roi, int(duration_days))
+
+            # summarized_inv = {
+            #     'result': result,
+            #     'overall_profit': profit,
+            #     'overall_profit_rate': roi,
+            #     'invest_duration_days': duration_days,
+            #     'start_date': inv.get('start_date'),
+            #     'end_date': inv.get('end_date'),
+            #     'purchase_price': inv.get('purchase_price'),
+            #     'tracking': inv.get('tracking'),
+            #     'completed_targets': inv.get('targets', {}).get('completed', []),
+            # }
+
+            # summarized_inv = strategy_class.on_summarize_stock_investment(summarized_inv, inv, stock_info)
+
+            # investment_records.append(summarized_inv)
+
+            # logger.info(f"investment_records: {summarized_inv}, inv: {inv}")
+
+
+
+
+        # avg_profit = AnalyzerService.to_ratio(total_profit, total)
+        # avg_duration_days = AnalyzerService.to_ratio(total_duration, total)
+        # avg_roi = AnalyzerService.to_ratio(roi_sum_pct, total)
+        # avg_annual_return = AnalyzerService.to_ratio(annual_sum_pct, total)
+
+        # # HL 输出的胜率按总投资数计算（包含 open）
+        # win_rate = AnalyzerService.to_ratio(success_count, total, 3)
+
+        # summary = {
+        #     'total_investments': total,
+        #     'success_count': success_count,
+        #     'fail_count': fail_count,
+        #     'open_count': open_count,
+        #     'win_rate': round(win_rate, 1),
+        #     'total_profit': round(total_profit, 2),
+        #     'avg_profit': round(avg_profit, 2),
+        #     'avg_duration_days': round(avg_duration_days, 1),
+        #     'avg_roi': round(avg_roi, 2),
+        #     'avg_annual_return': round(avg_annual_return, 2),
+        # }
+
+        # summarized_stock = {
+        #     'stock_info': stock_info,
+        #     'investments': investment_records,
+        #     'summary': summary,
+        # }
+
+        # summarized_stock = strategy_class.on_summarize_stock(summarized_stock, simulate_result)
+
+
+        # return summarized_stock
+
+
+
+    # @staticmethod
+    # def summarize_stock_by_default_way(simulate_result: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     默认的股票汇总逻辑
         
-        # 基本统计
-        total_investments = len(settled_investments)
-        current_investments = len(investments)
+    #     计算：
+    #     - 投资成功率
+    #     - 平均ROI
+    #     - 平均年化收益
+    #     - 平均投资周期
+    #     - 盈利、亏损、微盈、微亏的比例
         
-        if total_investments == 0:
-            return {
-                'total_investments': 0,
-                'current_investments': current_investments,
-                'win_rate': 0.0,
-                'avg_roi': 0.0,
-                'avg_annual_return': 0.0,
-                'avg_duration_days': 0.0,
-                'profit_ratio': 0.0,
-                'loss_ratio': 0.0,
-                'small_profit_ratio': 0.0,
-                'small_loss_ratio': 0.0,
-                'win_count': 0,
-                'loss_count': 0,
-                'small_profit_count': 0,
-                'small_loss_count': 0
-            }
-        
-        # 统计各种结果
-        win_count = 0
-        loss_count = 0
-        small_profit_count = 0
-        small_loss_count = 0
-        
-        total_roi = 0.0
-        total_duration_days = 0.0
-        
-        for investment in settled_investments:
-            result_type = investment.get('result', '')
-            profit_rate = investment.get('overall_profit_rate', 0.0)
-            duration_days = investment.get('invest_duration_days', 0)
+    #     Args:
+    #         result: 单股票模拟结果
             
-            # 累计ROI和投资周期
-            total_roi += profit_rate
-            total_duration_days += duration_days
+    #     Returns:
+    #         Dict: 股票汇总信息
+    #     """
+    #     investments = simulate_result.get('investments', [])
+    #     settled_investments = simulate_result.get('settled_investments', [])
+        
+    #     # 基本统计
+    #     total_investments = len(settled_investments)
+    #     current_investments = len(investments)
+        
+    #     if total_investments == 0:
+    #         return {
+    #             'total_investments': 0,
+    #             'current_investments': current_investments,
+    #             'win_rate': 0.0,
+    #             'avg_roi': 0.0,
+    #             'avg_annual_return': 0.0,
+    #             'avg_duration_days': 0.0,
+    #             'profit_ratio': 0.0,
+    #             'loss_ratio': 0.0,
+    #             'small_profit_ratio': 0.0,
+    #             'small_loss_ratio': 0.0,
+    #             'win_count': 0,
+    #             'loss_count': 0,
+    #             'small_profit_count': 0,
+    #             'small_loss_count': 0
+    #         }
+        
+    #     # 统计各种结果
+    #     win_count = 0
+    #     loss_count = 0
+    #     small_profit_count = 0
+    #     small_loss_count = 0
+        
+    #     total_roi = 0.0
+    #     total_duration_days = 0.0
+        
+    #     for investment in settled_investments:
+    #         result_type = investment.get('result', '')
+    #         profit_rate = investment.get('overall_profit_rate', 0.0)
+    #         duration_days = investment.get('invest_duration_days', 0)
             
-            # 分类统计
-            if result_type == 'win':
-                if profit_rate >= 0.2:  # 20%以上为盈利
-                    win_count += 1
-                else:  # 20%以下为微盈
-                    small_profit_count += 1
-            elif result_type == 'loss':
-                if profit_rate <= -0.2:  # -20%以下为亏损
-                    loss_count += 1
-                else:  # -20%以上为微亏
-                    small_loss_count += 1
+    #         # 累计ROI和投资周期
+    #         total_roi += profit_rate
+    #         total_duration_days += duration_days
+            
+    #         # 分类统计
+    #         if result_type == 'win':
+    #             if profit_rate >= 0.2:  # 20%以上为盈利
+    #                 win_count += 1
+    #             else:  # 20%以下为微盈
+    #                 small_profit_count += 1
+    #         elif result_type == 'loss':
+    #             if profit_rate <= -0.2:  # -20%以下为亏损
+    #                 loss_count += 1
+    #             else:  # -20%以上为微亏
+    #                 small_loss_count += 1
         
-        # 计算平均值
-        avg_roi = (total_roi / total_investments * 100) if total_investments > 0 else 0.0
-        avg_duration_days = (total_duration_days / total_investments) if total_investments > 0 else 0.0
+    #     # 计算平均值
+    #     avg_roi = AnalyzerService.to_ratio(total_roi, total_investments)
+    #     avg_duration_days = AnalyzerService.to_ratio(total_duration_days, total_investments)
         
-        # 计算年化收益率 - 使用原来的逻辑：基于平均ROI和平均投资周期
-        avg_annual_return = AnalyzerService.get_annual_return(total_roi / total_investments, int(avg_duration_days)) if total_investments > 0 and avg_duration_days > 0 else 0.0
+    #     # 计算年化收益率 - 使用原来的逻辑：基于平均ROI和平均投资周期
+    #     avg_annual_return = AnalyzerService.get_annual_return(avg_roi, int(avg_duration_days))
         
-        # 计算成功率
-        win_rate = ((win_count + small_profit_count) / total_investments * 100) if total_investments > 0 else 0.0
+    #     # 计算成功率
+    #     win_rate = AnalyzerService.to_ratio(win_count + small_profit_count, total_investments)
         
-        # 计算各种比例
-        profit_ratio = (win_count / total_investments * 100) if total_investments > 0 else 0.0
-        loss_ratio = (loss_count / total_investments * 100) if total_investments > 0 else 0.0
-        small_profit_ratio = (small_profit_count / total_investments * 100) if total_investments > 0 else 0.0
-        small_loss_ratio = (small_loss_count / total_investments * 100) if total_investments > 0 else 0.0
+    #     # 计算各种比例
+    #     profit_ratio = AnalyzerService.to_ratio(win_count, total_investments)
+    #     loss_ratio = AnalyzerService.to_ratio(loss_count, total_investments)
+    #     small_profit_ratio = AnalyzerService.to_ratio(small_profit_count, total_investments)
+    #     small_loss_ratio = AnalyzerService.to_ratio(small_loss_count, total_investments)
         
-        return {
-            'total_investments': total_investments,
-            'current_investments': current_investments,
-            'win_rate': win_rate,
-            'avg_roi': avg_roi,
-            'avg_annual_return': avg_annual_return,
-            'avg_duration_days': avg_duration_days,
-            'profit_ratio': profit_ratio,
-            'loss_ratio': loss_ratio,
-            'small_profit_ratio': small_profit_ratio,
-            'small_loss_ratio': small_loss_ratio,
-            'win_count': win_count,
-            'loss_count': loss_count,
-            'small_profit_count': small_profit_count,
-            'small_loss_count': small_loss_count
-        }
+    #     return {
+    #         'total_investments': total_investments,
+    #         'current_investments': current_investments,
+    #         'win_rate': win_rate,
+    #         'avg_roi': avg_roi,
+    #         'avg_annual_return': avg_annual_return,
+    #         'avg_duration_days': avg_duration_days,
+    #         'profit_ratio': profit_ratio,
+    #         'loss_ratio': loss_ratio,
+    #         'small_profit_ratio': small_profit_ratio,
+    #         'small_loss_ratio': small_loss_ratio,
+    #         'win_count': win_count,
+    #         'loss_count': loss_count,
+    #         'small_profit_count': small_profit_count,
+    #         'small_loss_count': small_loss_count
+    #     }
+
+    # @staticmethod
+    # def to_stock_summary(simulate_result: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     生成与 HL/tmp/524 输出一致的单股汇总结构：
+    #     { 'stock_id': str, 'summary': { ...metrics... } }
+    #     不依赖 EntityBuilder。
+    #     """
+    #     stock = simulate_result.get('stock') or {}
+    #     stock_id = stock.get('id', '')
+    #     summary = PostprocessService.summarize_stock_by_default_way(simulate_result)
+    #     return {
+    #         'stock_id': stock_id,
+    #         'summary': summary,
+    #     }
     
     @staticmethod
     def summarize_session(stock_summaries: List[Dict[str, Any]], 

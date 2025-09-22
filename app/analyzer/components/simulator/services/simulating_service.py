@@ -4,7 +4,9 @@ SimulatingService - 多进程模拟服务
 """
 from typing import Callable, Dict, List, Any, Optional
 from loguru import logger
+from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.entity.entity_builder import EntityBuilder
+from app.analyzer.components.enum import InvestmentResult
 from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
 from utils.worker.multi_process.process_worker import ProcessWorker
 
@@ -177,7 +179,7 @@ class SimulatingService:
         if investment:
             is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
             if is_settled:
-                settled_investment = strategy_class.to_settled_investment(investment)
+                settled_investment = SimulatingService.to_settled_investment(investment, strategy_class)
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None
             else:
@@ -253,7 +255,18 @@ class SimulatingService:
         """
         将机会转换为投资
         """
-        investment = opportunity.copy()
+        investment = {
+            'stock': opportunity['stock'],
+            'opportunity_ref': {
+                'date': opportunity['date'],
+                'price': opportunity['price'],
+                'lower_bound': opportunity['lower_bound'],
+                'upper_bound': opportunity['upper_bound'],
+            }
+        }
+
+        if opportunity['extra_fields']:
+            investment['extra_fields'] = opportunity['extra_fields']
 
         # 基础字段
         investment['start_date'] = record_of_today['date']
@@ -304,7 +317,8 @@ class SimulatingService:
         strategy_module = importlib.import_module(strategy_module_path)
         strategy_class = getattr(strategy_module, strategy_class_name)
 
-        settled_investment = strategy_class.to_settled_investment(inv)
+        settled_investment = SimulatingService.to_settled_investment(inv, strategy_class, is_open=True)
+        # expose to strategy class to add any extra fields
         tracker['settled'].append(settled_investment)
         tracker['investing'] = None
 
@@ -322,3 +336,34 @@ class SimulatingService:
             investment['tracking']['min_close_reached']['price'] = record_of_today['close']
             investment['tracking']['min_close_reached']['date'] = record_of_today['date']
             investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
+
+
+    @staticmethod
+    def to_settled_investment(investment: Dict[str, Any], strategy_class: Any, is_open: bool = False) -> Dict[str, Any]:
+        """
+        将投资转换为已结算投资
+        """
+        completed_targets = investment['targets']['completed']
+        overall_profit = 0.0
+
+        for target in completed_targets:
+            target['weighted_profit'] = target['profit'] * target['sell_ratio']
+            target['profit_contribution'] = target['sell_ratio']
+            overall_profit += target['weighted_profit']
+
+        if overall_profit >= 0:
+            investment['result'] = InvestmentResult.WIN.value
+        else:
+            investment['result'] = InvestmentResult.LOSS.value
+
+        if is_open:
+            investment['result'] = InvestmentResult.OPEN.value
+
+        investment['overall_profit'] = overall_profit
+        investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], 2)
+        investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
+        investment['overall_annual_return'] = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
+
+        logger.info(f"investment: {investment}")
+
+        return strategy_class.to_settled_investment(investment)

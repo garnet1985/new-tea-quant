@@ -41,9 +41,6 @@ class Simulator:
     
     def simulating(self, stock_list: List[Dict[str, Any]], module_info: Dict[str, Any], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         jobs = SimulatingService.build_jobs(stock_list, module_info, settings)
-
-        logger.info(f"aabbcc构建多进程任务: {len(jobs)} 个任务")
-        
         # 使用多进程执行
         simulate_results = SimulatingService.run_multiprocess_simulation(jobs, module_info)
         return simulate_results

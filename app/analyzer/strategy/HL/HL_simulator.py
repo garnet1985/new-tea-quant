@@ -87,20 +87,6 @@ class HistoricLowSimulator:
 
     
 
-    @staticmethod
-    def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
-        # 更新最高价
-        if record_of_today['close'] > investment['tracking']['max_close_reached']['price']:
-            investment['tracking']['max_close_reached']['price'] = record_of_today['close']
-            investment['tracking']['max_close_reached']['date'] = record_of_today['date']
-            investment['tracking']['max_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
-        
-        # 更新最低价
-        current_min_price = investment['tracking']['min_close_reached']['price']
-        if current_min_price == 0 or record_of_today['close'] < current_min_price:
-            investment['tracking']['min_close_reached']['price'] = record_of_today['close']
-            investment['tracking']['min_close_reached']['date'] = record_of_today['date']
-            investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
 
 
     @staticmethod

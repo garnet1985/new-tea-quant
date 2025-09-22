@@ -390,7 +390,19 @@ class BaseStrategy(ABC):
         pass
 
 
+    @staticmethod
+    def to_investment(investment: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        将投资机会转换为投资
+        """
+        return investment
 
+    @staticmethod
+    def to_settled_investment(investment: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        将投资转换为已结算投资
+        """
+        return investment
 
 
     # ========================================================

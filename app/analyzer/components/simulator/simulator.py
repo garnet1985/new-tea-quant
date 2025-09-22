@@ -19,8 +19,10 @@ class Simulator:
         start_time = time.time()
         
         stock_list = self.preprocess(settings, module_info)
-        simulate_result = self.simulating(stock_list, module_info, settings)
-        # report = self.postprocess(on_single_stock_summary, on_session_summary, on_simulate_complete, simulate_result, settings)
+        simulate_results = self.simulating(stock_list, module_info, settings)
+
+        # logger.info(f"simulate_results: {simulate_results[0]['stock']}")
+        report = self.postprocess(simulate_results, module_info, settings)
         
         total_time = time.time() - start_time
         logger.info(f"{IconService.get('success')} 模拟流程完成！总耗时: {total_time:.2f}秒")
@@ -46,46 +48,35 @@ class Simulator:
         return simulate_results
 
 
-    def postprocess(self, on_single_stock_summary: Optional[Callable] = None,
-                    on_session_summary: Optional[Callable] = None,
-                    on_simulate_complete: Optional[Callable] = None,
-                    simulate_results: List[Dict[str, Any]] = None,
-                    settings: Dict[str, Any] = None) -> Dict[str, Any]:
+    def postprocess(self, simulate_results: List[Dict[str, Any]], module_info: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
         """
         后处理阶段 - 汇总和生成报告
         
         Args:
-            on_single_stock_summary: 单股票汇总回调函数
-            on_session_summary: 会话汇总回调函数
-            on_simulate_complete: 完成回调函数
             simulate_results: 模拟结果列表
+            module_info: 模块信息
+            settings: 设置
             
         Returns:
             Dict: 最终报告
         """
-        start_time = time.time()
         
         # 获取模拟结果
-        if not simulate_results:
+        if not simulate_results or len(simulate_results) == 0:
             logger.warning(f"{IconService.get('warning')} 没有模拟结果需要处理")
             return {}
-        
-        # 步骤1：单股票汇总
-        stock_summaries = PostprocessService.summarize_stocks(simulate_results, on_single_stock_summary)
-        
-        # 步骤2：会话汇总
-        session_summary = PostprocessService.summarize_session(stock_summaries, on_session_summary)
-        
-        # 步骤3：生成最终报告
-        final_report = PostprocessService.generate_quick_simulate_report(
-            simulate_results=simulate_results,
-            stock_summaries=stock_summaries,
-            session_summary=session_summary,
-            settings=settings or {},
-            processing_time=time.time() - start_time,
-            on_simulate_complete=on_simulate_complete
-        )
 
-        PostprocessService.log_quick_simulate_report(final_report)
+        stock_summaries = []
+
+        for simulate_result in simulate_results:
+            stock_summary = PostprocessService.summarize_stock(simulate_result)
+            logger.info(f"stock_summary: {stock_summary}")
+            stock_summaries.append(stock_summary)
         
-        return final_report
+        session_summary = PostprocessService.summarize_session(stock_summaries)
+
+        PostprocessService.record_summaries(session_summary, stock_summaries)
+
+        PostprocessService.present_session_report(session_summary)
+
+

@@ -19,10 +19,10 @@ class Simulator:
         start_time = time.time()
         
         stock_list = self.preprocess(settings, module_info)
+
         simulate_results = self.simulating(stock_list, module_info, settings)
 
-        # logger.info(f"simulate_results: {simulate_results[0]['stock']}")
-        # report = self.postprocess(simulate_results, module_info, settings)
+        report = self.postprocess(simulate_results, module_info, settings)
         
         total_time = time.time() - start_time
         logger.info(f"{IconService.get('success')} 模拟流程完成！总耗时: {total_time:.2f}秒")
@@ -72,7 +72,7 @@ class Simulator:
             stock_summary = PostprocessService.summarize_stock(simulate_result, module_info)
             stock_summaries.append(stock_summary)
 
-        logger.info(f"stock_summaries: {stock_summaries[0]}")
+        # logger.info(f"stock_summaries: {stock_summaries[0]}")
         
         # session_summary = PostprocessService.summarize_session(stock_summaries)
 

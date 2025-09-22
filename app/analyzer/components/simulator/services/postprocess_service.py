@@ -8,6 +8,7 @@ from typing import Dict, List, Any, Optional, Callable
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.investment import InvestmentRecorder
+from app.analyzer.components.enum import InvestmentResult
 
 class PostprocessService:
     """后处理服务类"""
@@ -18,14 +19,8 @@ class PostprocessService:
         """
         汇总单股票结果
         """
-        stock_summary = PostprocessService.summarize_stock_by_default_way(simulate_result, module_info)
+        stock_summary = PostprocessService.summarize_stock_by_default_way(simulate_result)
 
-        # stock_summary = strategy_class.on_summarize_stock(stock_summary, simulate_result)
-
-        # return stock_summary
-
-    @staticmethod
-    def summarize_stock_by_default_way(simulate_result: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
         import importlib
         strategy_class_name = module_info.get('strategy_class_name', '')
         strategy_module_path = module_info.get('strategy_module_path', '')
@@ -33,11 +28,12 @@ class PostprocessService:
         strategy_module = importlib.import_module(strategy_module_path)
         strategy_class = getattr(strategy_module, strategy_class_name)
 
+        stock_summary = strategy_class.on_summarize_stock(stock_summary, simulate_result)
 
-        logger.info(f"simulate_result: {simulate_result}")
+        return stock_summary
 
-        stock_info = simulate_result.get('stock') or {}
-        # 兼容不同阶段的字段命名：优先 settled_investments，其次 settled
+    @staticmethod
+    def summarize_stock_by_default_way(simulate_result: Dict[str, Any]) -> Dict[str, Any]:
 
         settled = simulate_result.get('settled') or []
 
@@ -50,85 +46,69 @@ class PostprocessService:
         roi_sum_pct = 0.0
         annual_sum_pct = 0.0
 
-        investment_records = []
+        investments = []
 
         for inv in settled:
-            pass
 
-            # inv['weighted_profit'] = inv['profit'] * inv['sell_ratio']
-            # overall_profit += inv['weighted_profit']
+            result = inv.get('result')
+            if result == InvestmentResult.WIN.value:
+                success_count += 1
+            elif result == InvestmentResult.LOSS.value:
+                fail_count += 1
+            elif result == InvestmentResult.OPEN.value:
+                open_count += 1
 
-            # result = inv.get('result')
-            # if result == 'win':
-            #     success_count += 1
-            # elif result == 'loss':
-            #     fail_count += 1
-            # elif result == 'open':
-            #     open_count += 1
+            total_profit += inv['overall_profit']
+            total_duration += inv['invest_duration_days']   
+            roi_sum_pct += inv['overall_profit_rate'] * 100.0
+            annual_sum_pct += AnalyzerService.get_annual_return(inv['overall_profit_rate'], inv['invest_duration_days'])
 
-            # profit = float(inv.get('overall_profit') or 0.0)
-            # total_profit += profit
+            investments.append({
+                'result': result,
 
-            # duration_days = float(inv.get('invest_duration_days') or 0.0)
-            # total_duration += duration_days
+                'start_date': inv['start_date'],
+                'end_date': inv['end_date'],
+                'purchase_price': inv['purchase_price'],
+                'duration_in_days': inv['invest_duration_days'],
 
-            # roi = float(inv.get('overall_profit_rate') or 0.0)
-            # roi_sum_pct += roi * 100.0
+                'overall_profit': inv['overall_profit'],
+                'overall_profit_rate': inv['overall_profit_rate'],
+                
+                'tracking': inv['tracking'],
 
-            # annual_sum_pct += AnalyzerService.get_annual_return(roi, int(duration_days))
+                'completed_targets': inv['targets']['completed'],
 
-            # summarized_inv = {
-            #     'result': result,
-            #     'overall_profit': profit,
-            #     'overall_profit_rate': roi,
-            #     'invest_duration_days': duration_days,
-            #     'start_date': inv.get('start_date'),
-            #     'end_date': inv.get('end_date'),
-            #     'purchase_price': inv.get('purchase_price'),
-            #     'tracking': inv.get('tracking'),
-            #     'completed_targets': inv.get('targets', {}).get('completed', []),
-            # }
+                'extra_fields': inv['extra_fields'],
+            })
 
-            # summarized_inv = strategy_class.on_summarize_stock_investment(summarized_inv, inv, stock_info)
-
-            # investment_records.append(summarized_inv)
-
-            # logger.info(f"investment_records: {summarized_inv}, inv: {inv}")
-
-
-
-
-        # avg_profit = AnalyzerService.to_ratio(total_profit, total)
-        # avg_duration_days = AnalyzerService.to_ratio(total_duration, total)
-        # avg_roi = AnalyzerService.to_ratio(roi_sum_pct, total)
-        # avg_annual_return = AnalyzerService.to_ratio(annual_sum_pct, total)
+        avg_profit = AnalyzerService.to_ratio(total_profit, total)
+        avg_duration_in_days = AnalyzerService.to_ratio(total_duration, total)
+        avg_roi = AnalyzerService.to_ratio(roi_sum_pct, total)
+        avg_annual_return = AnalyzerService.to_ratio(annual_sum_pct, total)
 
         # # HL 输出的胜率按总投资数计算（包含 open）
-        # win_rate = AnalyzerService.to_ratio(success_count, total, 3)
+        win_rate = AnalyzerService.to_ratio(success_count, total, 3)
 
-        # summary = {
-        #     'total_investments': total,
-        #     'success_count': success_count,
-        #     'fail_count': fail_count,
-        #     'open_count': open_count,
-        #     'win_rate': round(win_rate, 1),
-        #     'total_profit': round(total_profit, 2),
-        #     'avg_profit': round(avg_profit, 2),
-        #     'avg_duration_days': round(avg_duration_days, 1),
-        #     'avg_roi': round(avg_roi, 2),
-        #     'avg_annual_return': round(avg_annual_return, 2),
-        # }
+        summary = {
+            'total_investments': total,
+            'success_count': success_count,
+            'fail_count': fail_count,
+            'open_count': open_count,
+            'win_rate': round(win_rate, 1),
+            'total_profit': round(total_profit, 2),
+            'avg_profit': round(avg_profit, 2),
+            'avg_duration_in_days': round(avg_duration_in_days, 1),
+            'avg_roi': round(avg_roi, 2),
+            'avg_annual_return': round(avg_annual_return, 2),
+        }
 
-        # summarized_stock = {
-        #     'stock_info': stock_info,
-        #     'investments': investment_records,
-        #     'summary': summary,
-        # }
+        summarized_stock = {
+            'stock': simulate_result['stock'],
+            'investments': investments,
+            'summary': summary,
+        }
 
-        # summarized_stock = strategy_class.on_summarize_stock(summarized_stock, simulate_result)
-
-
-        # return summarized_stock
+        return summarized_stock
 
 
 

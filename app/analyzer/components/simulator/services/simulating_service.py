@@ -4,6 +4,8 @@ SimulatingService - 多进程模拟服务
 """
 from typing import Callable, Dict, List, Any, Optional
 from loguru import logger
+from app.analyzer.components.entity.entity_builder import EntityBuilder
+from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
 from utils.worker.multi_process.process_worker import ProcessWorker
 
 
@@ -125,62 +127,70 @@ class SimulatingService:
 
         base_records = required_data[simulate_base_term]
 
-        # 初始化投资状态
+        # 初始化单只股票投资状态
         tracker = {
             'passed_dates': [],
+            'investing': None,
+            'settled': [],
         }
-        
-        # current_investment = None
-        # settled_investments = []
 
         min_required_kline = settings.get('klines').get('min_required_kline', 0)
 
         # 逐个base term的日期进行模拟
+        last_record_of_today: Dict[str, Any] = None
         for i, current_record in enumerate(base_records):
-            virtual_today = current_record['date']
-            tracker['passed_dates'].append(virtual_today)
+            virtual_date_of_today = current_record['date']
+            tracker['passed_dates'].append(virtual_date_of_today)
             
             # 如果未达到最小所需K线数，则跳过
             if len(tracker['passed_dates']) < min_required_kline:
                 continue
 
-            data_of_today = SimulatingService.get_data_of_today(virtual_today, required_data, settings)
+            data_of_today = SimulatingService.get_data_of_today(virtual_date_of_today, required_data, settings)
 
-            SimulatingService._execute_single_day(tracker, stock_info, data_of_today, settings, module_info)
-            
+            SimulatingService._execute_single_day(tracker, current_record, stock_info, data_of_today, settings, module_info)
+            last_record_of_today = current_record
+        
+        # 回测结束清算未结投资
+        SimulatingService.settle_open_investment(tracker, last_record_of_today, module_info)
+
+        del tracker['passed_dates']
+        del tracker['investing']
         # 返回结果
-        return
-        return {
-            'stock': stock_info,
-            'investments': [current_investment] if current_investment else [],
-            'settled_investments': settled_investments
-        }
+        return tracker
 
 
     @staticmethod
-    def _execute_single_day(tracker: Dict[str, Any], stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_single_day(tracker: Dict[str, Any], record_of_today: str, stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
         
-        investment = tracker['investing'].get(stock_info['id'], None)
+        investment = tracker['investing']
+        # logger.info(f"日期: {record_of_today}")
+
 
         import importlib
         strategy_class_name = module_info.get('strategy_class_name', '')
-        strategy_class = importlib.import_module(strategy_class_name)
-
+        strategy_module_path = module_info.get('strategy_module_path', '')
+        
+        # 动态导入策略模块并获取类
+        strategy_module = importlib.import_module(strategy_module_path)
+        strategy_class = getattr(strategy_module, strategy_class_name)
+        
         if investment:
-            is_settled, settled_investment = SimulatingService.settle_investment(investment, required_data)
+            is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
             if is_settled:
-                settled_investment = strategy_class.to_settled_investment(settled_investment)
+                settled_investment = strategy_class.to_settled_investment(investment)
                 tracker['settled'].append(settled_investment)
-                del tracker['investing'][stock_info['id']]
+                tracker['investing'] = None
             else:
-                SimulatingService.update_investment_max_min_close(settled_investment, required_data)
+                SimulatingService.update_investment_max_min_close(investment, record_of_today)
         else:
-            opportunity = strategy_class.scan_single_stock(stock_info, required_data)
+            opportunity = strategy_class.scan_opportunity(stock_info, required_data, settings)
             if opportunity:
-                investment = SimulatingService.to_investment(opportunity)
+                investment = SimulatingService.to_investment(record_of_today, opportunity, settings)
+                # expose to strategy class to add any extra fields
                 investment = strategy_class.to_investment(investment)
-                tracker['investing'][stock_info['id']] = investment
-        return tracker;
+                tracker['investing'] = investment
+        # return tracker;
 
 
     @staticmethod
@@ -235,4 +245,81 @@ class SimulatingService:
             st['cursor'] = i - 1
             result[term] = acc
         
-        return result
+        return {
+            'klines': result
+        }
+
+    @staticmethod
+    def to_investment(record_of_today: Dict[str, Any], opportunity: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        将机会转换为投资
+        """
+        investment = opportunity.copy()
+
+        # 基础字段
+        investment['start_date'] = record_of_today['date']
+        investment['purchase_price'] = record_of_today['close']
+
+        # 目标结构（基于 settings['goal']）
+        goal_cfg = settings.get('goal', {}) if isinstance(settings, dict) else {}
+        targets = InvestmentGoalManager(goal_cfg).create_investment_targets()
+        investment['targets'] = targets
+
+        investment['tracking'] = {
+            'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+            'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+        }
+
+        return investment
+
+
+    @staticmethod
+    def settle_open_investment(tracker: Dict[str, Any], last_record_of_today: Dict[str, Any], module_info: Dict[str, Any]) -> None:
+        """
+        回测结束时清算未结投资：按最后一个交易日价格结算剩余仓位，并转为settled结构。
+        """
+        if not tracker or not isinstance(tracker.get('investing'), dict) or not isinstance(last_record_of_today, dict):
+            return
+
+        inv = tracker['investing']
+        remaining = float(inv.get('targets', {}).get('investment_ratio_left', 0) or 0.0)
+        final_close = float(last_record_of_today.get('close') or 0.0)
+        final_date = last_record_of_today.get('date')
+        purchase_price = float(inv.get('purchase_price') or 0.0)
+        if remaining > 0 and final_date:
+            final_target = {
+                'name': 'final_settlement',
+                'sell_ratio': remaining,
+                'profit': (final_close - purchase_price) * remaining,
+                'exit_price': final_close,
+                'exit_date': final_date,
+                'is_achieved': True,
+            }
+            inv['targets']['completed'].append(final_target)
+            inv['targets']['investment_ratio_left'] = 0
+            inv['end_date'] = final_date
+
+        import importlib
+        strategy_class_name = module_info.get('strategy_class_name', '')
+        strategy_module_path = module_info.get('strategy_module_path', '')
+        strategy_module = importlib.import_module(strategy_module_path)
+        strategy_class = getattr(strategy_module, strategy_class_name)
+
+        settled_investment = strategy_class.to_settled_investment(inv)
+        tracker['settled'].append(settled_investment)
+        tracker['investing'] = None
+
+    @staticmethod
+    def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
+        # 更新最高价
+        if record_of_today['close'] > investment['tracking']['max_close_reached']['price']:
+            investment['tracking']['max_close_reached']['price'] = record_of_today['close']
+            investment['tracking']['max_close_reached']['date'] = record_of_today['date']
+            investment['tracking']['max_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
+        
+        # 更新最低价
+        current_min_price = investment['tracking']['min_close_reached']['price']
+        if current_min_price == 0 or record_of_today['close'] < current_min_price:
+            investment['tracking']['min_close_reached']['price'] = record_of_today['close']
+            investment['tracking']['min_close_reached']['date'] = record_of_today['date']
+            investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']

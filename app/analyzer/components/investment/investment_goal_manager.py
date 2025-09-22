@@ -4,6 +4,8 @@
 """
 from typing import Dict, Any, List, Tuple
 from copy import deepcopy
+
+from loguru import logger
 from app.analyzer.components.enum.common_enum import InvestmentResult
 from app.analyzer.analyzer_service import AnalyzerService
 
@@ -41,7 +43,8 @@ class InvestmentGoalManager:
             'completed': [],  # 已触发的目标
         }
     
-    def check_targets(self, investment: Dict[str, Any], current_record: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+    @staticmethod
+    def check_targets(investment: Dict[str, Any], current_record: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         """
         检查投资目标是否触发
         
@@ -53,10 +56,10 @@ class InvestmentGoalManager:
             (是否投资结束, 更新后的投资对象)
         """
         # 先检查止盈目标（重要：止盈会触发止损策略）
-        investment = self._check_take_profit_targets(investment, current_record)
+        investment = InvestmentGoalManager._check_take_profit_targets(investment, current_record)
         
         # 再检查止损目标
-        investment = self._check_stop_loss_targets(investment, current_record)
+        investment = InvestmentGoalManager._check_stop_loss_targets(investment, current_record)
         
         # 检查是否投资结束
         is_investment_ended = investment['targets']['investment_ratio_left'] <= 0
@@ -65,7 +68,8 @@ class InvestmentGoalManager:
         
         return is_investment_ended, investment
     
-    def _check_take_profit_targets(self, investment: Dict[str, Any], current_record: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _check_take_profit_targets(investment: Dict[str, Any], current_record: Dict[str, Any]) -> Dict[str, Any]:
         """检查止盈目标"""
         price_today = current_record['close']
         purchase_price = investment['purchase_price']
@@ -89,7 +93,7 @@ class InvestmentGoalManager:
                 targets[i]['is_achieved'] = True
                 
                 # 创建已结算目标
-                settled_target = self._create_settled_target(
+                settled_target = InvestmentGoalManager._create_settled_target(
                     target, sell_ratio, price_today - purchase_price, 
                     price_today, current_record['date']
                 )
@@ -104,7 +108,8 @@ class InvestmentGoalManager:
         
         return investment
     
-    def _check_stop_loss_targets(self, investment: Dict[str, Any], current_record: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _check_stop_loss_targets(investment: Dict[str, Any], current_record: Dict[str, Any]) -> Dict[str, Any]:
         """检查止损目标"""
         price_today = current_record['close']
         purchase_price = investment['purchase_price']
@@ -112,19 +117,20 @@ class InvestmentGoalManager:
         
         # 检查动态止损
         if investment['targets']['is_dynamic_stop_loss']:
-            investment = self._check_dynamic_stop_loss(investment, current_record, stop_loss_config)
+            investment = InvestmentGoalManager._check_dynamic_stop_loss(investment, current_record, stop_loss_config)
         
         # 检查保本止损
         elif investment['targets']['is_breakeven']:
-            investment = self._check_breakeven_stop_loss(investment, current_record, stop_loss_config)
+            investment = InvestmentGoalManager._check_breakeven_stop_loss(investment, current_record, stop_loss_config)
         
         # 检查普通止损阶段
         else:
-            investment = self._check_stage_stop_loss(investment, current_record, stop_loss_config)
+            investment = InvestmentGoalManager._check_stage_stop_loss(investment, current_record, stop_loss_config)
         
         return investment
     
-    def _check_dynamic_stop_loss(self, investment: Dict[str, Any], current_record: Dict[str, Any], stop_loss_config: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _check_dynamic_stop_loss(investment: Dict[str, Any], current_record: Dict[str, Any], stop_loss_config: Dict[str, Any]) -> Dict[str, Any]:
         """检查动态止损"""
         price_today = current_record['close']
         purchase_price = investment['purchase_price']
@@ -151,7 +157,7 @@ class InvestmentGoalManager:
                 dynamic_config['is_achieved'] = True
                 
                 # 创建已结算目标
-                settled_target = self._create_settled_target(
+                settled_target = InvestmentGoalManager._create_settled_target(
                     dynamic_config, sell_ratio, price_today - purchase_price,
                     price_today, current_record['date']
                 )
@@ -159,7 +165,8 @@ class InvestmentGoalManager:
         
         return investment
     
-    def _check_breakeven_stop_loss(self, investment: Dict[str, Any], current_record: Dict[str, Any], stop_loss_config: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _check_breakeven_stop_loss(investment: Dict[str, Any], current_record: Dict[str, Any], stop_loss_config: Dict[str, Any]) -> Dict[str, Any]:
         """检查保本止损"""
         price_today = current_record['close']
         purchase_price = investment['purchase_price']
@@ -174,7 +181,7 @@ class InvestmentGoalManager:
                 breakeven_config['is_achieved'] = True
                 
                 # 创建已结算目标
-                settled_target = self._create_settled_target(
+                settled_target = InvestmentGoalManager._create_settled_target(
                     breakeven_config, sell_ratio, price_today - purchase_price,
                     price_today, current_record['date']
                 )
@@ -182,7 +189,8 @@ class InvestmentGoalManager:
         
         return investment
     
-    def _check_stage_stop_loss(self, investment: Dict[str, Any], current_record: Dict[str, Any], stop_loss_config: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def _check_stage_stop_loss(investment: Dict[str, Any], current_record: Dict[str, Any], stop_loss_config: Dict[str, Any]) -> Dict[str, Any]:
         """检查普通止损阶段"""
         price_today = current_record['close']
         purchase_price = investment['purchase_price']
@@ -201,7 +209,7 @@ class InvestmentGoalManager:
                 stages[i]['is_achieved'] = True
                 
                 # 创建已结算目标
-                settled_target = self._create_settled_target(
+                settled_target = InvestmentGoalManager._create_settled_target(
                     stage, sell_ratio, price_today - purchase_price,
                     price_today, current_record['date']
                 )
@@ -210,7 +218,8 @@ class InvestmentGoalManager:
         
         return investment
     
-    def _create_settled_target(self, target_config: Dict[str, Any], sell_ratio: float, 
+    @staticmethod
+    def _create_settled_target(target_config: Dict[str, Any], sell_ratio: float, 
                              profit: float, exit_price: float, exit_date: str) -> Dict[str, Any]:
         """
         创建已结算的目标对象
@@ -232,64 +241,110 @@ class InvestmentGoalManager:
         settled_target['exit_price'] = exit_price
         settled_target['exit_date'] = exit_date
         return settled_target
+
+
+    # @staticmethod
+    # def settle_investment(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> tuple[bool, Dict[str, Any]]:
+    #     """
+    #     结算投资，计算最终收益和结果
+    #     """
+    #     logger.info(f"结算投资: {investment}")
+    #     if not isinstance(investment, dict):
+    #         return False, investment
+
+    #     # 判定是否已结束（比例是否卖完）
+    #     targets = investment.get('targets', {})
+    #     investment_ratio_left = targets.get('investment_ratio_left', 0)
+    #     is_settled = investment_ratio_left <= 0
+
+    #     # 如果结束且没有结束日期，则补充
+    #     if is_settled and 'end_date' not in investment and isinstance(record_of_today, dict):
+    #         end_date = record_of_today.get('date')
+    #         if end_date:
+    #             investment['end_date'] = end_date
+
+    #     # 汇总已完成目标收益
+    #     achieved_targets = targets.get('completed', []) if isinstance(targets, dict) else []
+    #     overall_profit = 0.0
+    #     for t in achieved_targets:
+    #         try:
+    #             profit = float(t.get('profit', 0.0))
+    #             sell_ratio = float(t.get('sell_ratio', 0.0))
+    #             overall_profit += profit * sell_ratio
+    #         except Exception:
+    #             continue
+
+    #     # 设置收益信息与结果
+    #     investment['overall_profit'] = overall_profit
+    #     purchase_price = float(investment.get('purchase_price', 0) or 0)
+    #     investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
+
+    #     if overall_profit > 0:
+    #         investment['result'] = InvestmentResult.WIN.value
+    #     elif overall_profit < 0:
+    #         investment['result'] = InvestmentResult.LOSS.value
+    #     else:
+    #         investment['result'] = InvestmentResult.DRAW.value if hasattr(InvestmentResult, 'DRAW') else 0
+
+    #     return is_settled, investment
     
-    def settle_investment(self, investment: Dict[str, Any]) -> None:
-        """
-        结算投资，计算最终收益和结果
+    # def settle_investment(self, investment: Dict[str, Any]) -> None:
+    #     """
+    #     结算投资，计算最终收益和结果
         
-        Args:
-            investment: 投资对象
-        """
-        purchase_price = investment['purchase_price']
-        achieved_targets = investment['targets']['completed']
+    #     Args:
+    #         investment: 投资对象
+    #     """
+    #     purchase_price = investment['purchase_price']
+    #     achieved_targets = investment['targets']['completed']
         
-        # 计算总体收益
-        overall_profit = 0
-        for target in achieved_targets:
-            overall_profit += target['profit'] * target['sell_ratio']
+    #     # 计算总体收益
+    #     overall_profit = 0
+    #     for target in achieved_targets:
+    #         overall_profit += target['profit'] * target['sell_ratio']
         
-        # 确定投资结果
-        if overall_profit > 0:
-            investment['result'] = InvestmentResult.WIN.value
-        else:
-            investment['result'] = InvestmentResult.LOSS.value
+    #     # 确定投资结果
+    #     if overall_profit > 0:
+    #         investment['result'] = InvestmentResult.WIN.value
+    #     else:
+    #         investment['result'] = InvestmentResult.LOSS.value
         
-        # 设置收益信息
-        investment['overall_profit'] = overall_profit
-        investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
+    #     # 设置收益信息
+    #     investment['overall_profit'] = overall_profit
+    #     investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, purchase_price, 2)
         
-        # 计算目标权重和贡献
-        for target in achieved_targets:
-            target['weighted_profit'] = target['profit'] * target['sell_ratio']
-            target['profit_contribution'] = target['sell_ratio']
+    #     # 计算目标权重和贡献
+    #     for target in achieved_targets:
+    #         target['weighted_profit'] = target['profit'] * target['sell_ratio']
+    #         target['profit_contribution'] = target['sell_ratio']
     
-    def settle_open_investment(self, investment: Dict[str, Any], final_price: float, final_date: str) -> None:
-        """
-        结算未结束的投资（用于回测结束时的处理）
+    # def settle_open_investment(self, investment: Dict[str, Any], final_price: float, final_date: str) -> None:
+    #     """
+    #     结算未结束的投资（用于回测结束时的处理）
         
-        Args:
-            investment: 投资对象
-            final_price: 最终价格
-            final_date: 最终日期
-        """
-        if investment['targets']['investment_ratio_left'] > 0:
-            purchase_price = investment['purchase_price']
-            remaining_ratio = investment['targets']['investment_ratio_left']
-            profit = (final_price - purchase_price) * remaining_ratio
+    #     Args:
+    #         investment: 投资对象
+    #         final_price: 最终价格
+    #         final_date: 最终日期
+    #     """
+    #     if investment['targets']['investment_ratio_left'] > 0:
+    #         purchase_price = investment['purchase_price']
+    #         remaining_ratio = investment['targets']['investment_ratio_left']
+    #         profit = (final_price - purchase_price) * remaining_ratio
             
-            # 创建最终结算目标
-            final_target = {
-                'name': 'final_settlement',
-                'sell_ratio': remaining_ratio,
-                'profit': profit,
-                'exit_price': final_price,
-                'exit_date': final_date,
-                'is_achieved': True
-            }
+    #         # 创建最终结算目标
+    #         final_target = {
+    #             'name': 'final_settlement',
+    #             'sell_ratio': remaining_ratio,
+    #             'profit': profit,
+    #             'exit_price': final_price,
+    #             'exit_date': final_date,
+    #             'is_achieved': True
+    #         }
             
-            investment['targets']['completed'].append(final_target)
-            investment['targets']['investment_ratio_left'] = 0
-            investment['end_date'] = final_date
+    #         investment['targets']['completed'].append(final_target)
+    #         investment['targets']['investment_ratio_left'] = 0
+    #         investment['end_date'] = final_date
             
-            # 重新结算投资
-            self.settle_investment(investment)
+    #         # 重新结算投资
+    #         self.settle_investment(investment)

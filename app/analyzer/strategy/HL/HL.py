@@ -204,49 +204,54 @@ class HistoricLow(BaseStrategy):
     @staticmethod
     def on_simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
         record_of_today = daily_k_lines[-1]
+        return HistoricLowSimulator.simulate_single_day(stock, record_of_today, daily_k_lines, tracker)
 
-        # 检查现有投资的目标
-        if stock['id'] in tracker['investing']:
-            investment = tracker['investing'][stock['id']]
-            goal_manager = InvestmentGoalManager(settings['goal'])
-            is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
+    # @staticmethod
+    # def on_simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
+    #     record_of_today = daily_k_lines[-1]
+
+    #     # 检查现有投资的目标
+    #     if stock['id'] in tracker['investing']:
+    #         investment = tracker['investing'][stock['id']]
+    #         goal_manager = InvestmentGoalManager(settings['goal'])
+    #         is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
             
-            if is_investment_ended:
-                goal_manager = InvestmentGoalManager(settings['goal'])
-                goal_manager.settle_investment(updated_investment)
-                settled_entity = EntityBuilder.to_settled_investment(
-                    investment=updated_investment,
-                    end_date=updated_investment.get('end_date'),
-                    result=updated_investment.get('result')
-                )
-                tracker['settled'].append(settled_entity)
-                del tracker['investing'][stock['id']]
-            else:
-                tracker['investing'][stock['id']] = updated_investment
-                HistoricLowSimulator.update_investment_max_min_close(updated_investment, record_of_today)
+    #         if is_investment_ended:
+    #             goal_manager = InvestmentGoalManager(settings['goal'])
+    #             goal_manager.settle_investment(updated_investment)
+    #             settled_entity = EntityBuilder.to_settled_investment(
+    #                 investment=updated_investment,
+    #                 end_date=updated_investment.get('end_date'),
+    #                 result=updated_investment.get('result')
+    #             )
+    #             tracker['settled'].append(settled_entity)
+    #             del tracker['investing'][stock['id']]
+    #         else:
+    #             tracker['investing'][stock['id']] = updated_investment
+    #             HistoricLowSimulator.update_investment_max_min_close(updated_investment, record_of_today)
 
-        # 扫描新的投资机会
-        opportunity = HistoricLowSimulator.scan_single_stock(stock, daily_k_lines)
-        if opportunity:
-            # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
-            goal_manager = InvestmentGoalManager(settings['goal'])
-            targets = goal_manager.create_investment_targets()
-            extra_fields = {
-                'result': common_enum.InvestmentResult.OPEN.value,
-                'end_date': '',
-                'tracking': {
-                    'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-                    'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-                },
-                'opportunity': opportunity
-            }
-            tracker['investing'][stock['id']] = EntityBuilder.to_investment(
-                stock={'id': stock['id'], 'name': opportunity.get('stock', {}).get('name', '')},
-                start_date=opportunity['date'],
-                purchase_price=opportunity['price'],
-                targets=targets,
-                extra_fields=extra_fields
-            )
+    #     # 扫描新的投资机会
+    #     opportunity = HistoricLowSimulator.scan_single_stock(stock, daily_k_lines)
+    #     if opportunity:
+    #         # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
+    #         goal_manager = InvestmentGoalManager(settings['goal'])
+    #         targets = goal_manager.create_investment_targets()
+    #         extra_fields = {
+    #             'result': common_enum.InvestmentResult.OPEN.value,
+    #             'end_date': '',
+    #             'tracking': {
+    #                 'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #                 'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #             },
+    #             'opportunity': opportunity
+    #         }
+    #         tracker['investing'][stock['id']] = EntityBuilder.to_investment(
+    #             stock={'id': stock['id'], 'name': opportunity.get('stock', {}).get('name', '')},
+    #             start_date=opportunity['date'],
+    #             purchase_price=opportunity['price'],
+    #             targets=targets,
+    #             extra_fields=extra_fields
+    #         )
 
 
     @staticmethod

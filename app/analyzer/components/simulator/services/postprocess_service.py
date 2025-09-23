@@ -139,12 +139,12 @@ class PostprocessService:
         
         Args:
             stock_summaries: 股票汇总结果列表
-            on_session_summary: 用户自定义的会话汇总函数
+            module_info: 模块信息
             
         Returns:
             Dict: 会话汇总结果
         """
-        session_summary = PostprocessService.summarize_session_by_default_way(stock_summaries)
+        base_session_summary = PostprocessService.summarize_session_by_default_way(stock_summaries)
 
         import importlib
         strategy_class_name = module_info.get('strategy_class_name', '')
@@ -153,7 +153,7 @@ class PostprocessService:
         strategy_module = importlib.import_module(strategy_module_path)
         strategy_class = getattr(strategy_module, strategy_class_name)
 
-        session_summary = strategy_class.on_summarize_session(session_summary, stock_summaries)
+        session_summary = strategy_class.on_summarize_session(base_session_summary)
 
         return session_summary
 
@@ -250,14 +250,19 @@ class PostprocessService:
             'stocks_have_opportunities': stocks_with_opportunities,
         }
 
-        PostprocessService.report_session(default_session_summary)
-
         return default_session_summary
     
     @staticmethod
-    def report_session(session_summary: Dict[str, Any], strategy_name: str = '当前') -> None:
+    def present_session_report(session_summary: Dict[str, Any], strategy_name: str = '当前') -> None:
         """
-        通用的控制台展示方法（与HL展示格式一致，可被各策略复用）
+        通用的控制台展示方法
+
+        Args:
+            session_summary: 会话汇总结果
+            strategy_name: 策略名称
+            
+        Returns:
+            None
         """
         print("\n" + "="*60)
         print(f"📊 {strategy_name}策略回测结果")

@@ -189,7 +189,8 @@ class BaseStrategy(ABC):
         """获取模块信息"""
         return {
             'strategy_class_name': self.__class__.__name__,
-            'strategy_module_path': f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}"
+            'strategy_module_path': f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}",
+            'strategy_folder_name': self.get_abbr()
         }
 
     # ========================================================
@@ -309,7 +310,7 @@ class BaseStrategy(ABC):
         # 运行模拟 - 传入所有回调方法
         result = simulator.run(
             settings=self.settings.copy(),
-            module_info=self.get_module_info(),
+            module_info=self.get_module_info()
         )
         
         return result
@@ -375,8 +376,8 @@ class BaseStrategy(ABC):
         """
         return base_summary
 
-    
-    def on_summarize_session(self, stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    @staticmethod
+    def on_summarize_session(base_session_summary: Dict[str, Any]) -> Dict[str, Any]:
         """
         整个会话汇总 - 可选重写
         
@@ -386,16 +387,17 @@ class BaseStrategy(ABC):
         Returns:
             Dict: 追加到默认session summary的字段（可以返回空字典）
         """
-        return {}
+        return base_session_summary
     
-    def on_before_report(self, final_report: Dict[str, Any]) -> None:
+    @staticmethod
+    def on_before_report(base_report: Dict[str, Any]) -> None:
         """
         模拟完成后的最终回调 - 可选重写
         
         Args:
-            final_report: 最终报告
+            base_report: 最终报告
         """
-        pass
+        return base_report
 
 
     @staticmethod

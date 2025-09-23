@@ -72,9 +72,7 @@ class Simulator:
             stock_summary = PostprocessService.summarize_stock(simulate_result, module_info)
             stock_summaries.append(stock_summary)
 
-        # logger.info(f"stock_summaries: {stock_summaries[0]}")
-        
-        # session_summary = PostprocessService.summarize_session(stock_summaries)
+        session_summary = PostprocessService.summarize_session(stock_summaries, module_info)
 
         # PostprocessService.record_summaries(session_summary, stock_summaries)
 

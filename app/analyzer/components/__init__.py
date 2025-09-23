@@ -11,8 +11,6 @@ from .settings_validator import SettingsValidator
 from .indicators import Indicators
 
 # 实体组件
-from .entity.entity_builder import EntityBuilder
-
 # 枚举组件
 from .enum.common_enum import InvestmentResult
 
@@ -33,9 +31,6 @@ __all__ = [
     
     # 数据处理器组件
     'Indicators',
-    
-    # 实体组件
-    'EntityBuilder',
     
     # 枚举组件
     'InvestmentResult',

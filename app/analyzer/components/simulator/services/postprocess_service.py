@@ -184,7 +184,7 @@ class PostprocessService:
         total_duration_days = 0.0
         
         stocks_with_opportunities = len(stock_summaries)
-        
+
         for stock_summary in stock_summaries:
 
             summary = stock_summary.get('summary', {})
@@ -265,6 +265,7 @@ class PostprocessService:
         if session_summary:
             win_rate = session_summary.get('win_rate', 0)
             avg_annual_return = session_summary.get('avg_annual_return', 0)
+            avg_roi = session_summary.get('avg_roi', 0)
 
             if win_rate >= 60:
                 win_rate_dot = IconService.get('green_dot')
@@ -272,14 +273,19 @@ class PostprocessService:
                 win_rate_dot = IconService.get('red_dot')
             print(f"🎯 胜率: {win_rate_dot} {win_rate:.1f}%")
 
+            if avg_roi >= 5:
+                avg_roi_dot = IconService.get('green_dot')
+            else:
+                avg_roi_dot = IconService.get('red_dot')
+            print(f"{IconService.get('money')} 平均每笔投资回报率(ROI): {avg_roi_dot} {avg_roi:.1f}%")
+
             if avg_annual_return >= 15:
                 annual_return_dot = IconService.get('green_dot')
             else:
                 annual_return_dot = IconService.get('red_dot')
-
             print(f"{IconService.get('upward_trend')} 平均年化收益率: {annual_return_dot} {avg_annual_return:.1f}%")
+            
             print(f"{IconService.get('clock')} 平均投资时长: {session_summary.get('avg_duration_in_days', 0):.1f} 天")
-            print(f"{IconService.get('money')} 平均ROI: {session_summary.get('avg_roi', 0):.1f}%")
             print(f"{IconService.get('bar_chart')} 总投资次数: {session_summary.get('total_investments', 0)}")
             print(f"{IconService.get('success')} 成功次数: {session_summary.get('total_win_investments', 0)}")
             print(f"{IconService.get('error')} 失败次数: {session_summary.get('total_loss_investments', 0)}")

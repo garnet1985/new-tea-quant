@@ -9,6 +9,7 @@ from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.investment import InvestmentRecorder
 from app.analyzer.components.enum import InvestmentResult
+from utils.icon.icon_service import IconService
 
 class PostprocessService:
     """后处理服务类"""
@@ -249,151 +250,43 @@ class PostprocessService:
             'stocks_have_opportunities': stocks_with_opportunities,
         }
 
-        logger.info(f"default_session_summary: {default_session_summary}")
+        PostprocessService.report_session(default_session_summary)
 
         return default_session_summary
     
     @staticmethod
-    def generate_quick_simulate_report(simulate_results: List[Dict[str, Any]], 
-                            stock_summaries: List[Dict[str, Any]], 
-                            session_summary: Dict[str, Any],
-                            settings: Dict[str, Any],
-                            processing_time: float,
-                            on_simulate_complete: Optional[Callable] = None) -> Dict[str, Any]:
-        """
-        生成最终报告
-        
-        Args:
-            simulate_results: 模拟结果列表
-            stock_summaries: 股票汇总结果列表
-            session_summary: 会话汇总结果
-            settings: 策略设置
-            processing_time: 处理时间
-            on_simulate_complete: 用户自定义的完成回调函数
-            
-        Returns:
-            Dict: 最终报告
-        """
-        final_report = {
-            'session_summary': session_summary,
-            'stock_summaries': stock_summaries,
-            'raw_results': simulate_results,
-            'settings': settings,
-            'processing_time': processing_time
-        }
-        
-        # 检查是否需要保存投资结果
-        record_summary = settings.get('mode', {}).get('record_summary', False)
-        if record_summary:
-            try:
-                # 创建投资记录器（严格要求 folder_name）
-                if 'folder_name' not in settings or not settings['folder_name']:
-                    raise KeyError("settings.folder_name is required for recording results")
-                folder_name = settings['folder_name']
-                invest_recorder = InvestmentRecorder(folder_name)
-                
-                # 保存股票汇总结果
-                if stock_summaries:
-                    for stock_summary in stock_summaries:
-                        stock_id = stock_summary['stock_id']
-                        
-                        # 找到对应的原始模拟结果
-                        raw_result = None
-                        for result in simulate_results:
-                            if result.get('stock_id') == stock_id:
-                                raw_result = result
-                                break
-                        
-                        # 构建完整的数据结构，包含投资记录
-                        adapted_summary = {
-                            'stock_info': {'id': stock_id},
-                            'summary': stock_summary['summary']
-                        }
-                        
-                        # 添加投资记录（如果有的话）
-                        if raw_result:
-                            all_investments = []
-                            
-                            # 添加已结算的投资
-                            if raw_result.get('settled_investments'):
-                                all_investments.extend(raw_result['settled_investments'])
-                            
-                            # 添加当前投资（如果有的话）
-                            if raw_result.get('investments'):
-                                all_investments.extend(raw_result['investments'])
-                            
-                            if all_investments:
-                                # 简化投资记录结构（通用部分），opportunity 留给策略在 on_single_stock_summary 中扩展
-                                simplified_investments = []
-                                for investment in all_investments:
-                                    simplified_investment = {
-                                        'result': investment.get('result'),
-                                        'stock': investment.get('stock'),
-                                        'start_date': investment.get('start_date'),
-                                        'end_date': investment.get('end_date'),
-                                        'purchase_price': investment.get('purchase_price'),
-                                        'tracking': investment.get('tracking'),  # 保留tracking信息
-                                        'overall_profit': investment.get('overall_profit'),
-                                        'overall_profit_rate': investment.get('overall_profit_rate'),
-                                        'invest_duration_days': investment.get('invest_duration_days')
-                                    }
-                                    # 简化targets - 只保留completed结果
-                                    if investment.get('targets', {}).get('completed'):
-                                        simplified_investment['targets'] = {
-                                            'completed': investment['targets']['completed']
-                                        }
-                                    # 保留原始opportunity；策略可通过 on_single_stock_summary 增补或派生额外字段
-                                    if investment.get('opportunity'):
-                                        simplified_investment['opportunity'] = investment['opportunity']
-                                    
-                                    simplified_investments.append(simplified_investment)
-                                adapted_summary['investments'] = simplified_investments
-                        
-                        invest_recorder.save_stock_summary(adapted_summary)
-                    logger.info(f"💾 已保存 {len(stock_summaries)} 个股票汇总结果")
-                
-                # 保存会话汇总结果
-                if session_summary:
-                    invest_recorder.save_session(session_summary)
-                    logger.info("💾 已保存会话汇总结果")
-                
-                logger.info(f"📁 投资结果已保存到: {invest_recorder.tmp_dir}")
-            except Exception as e:
-                logger.error(f"❌ 保存投资结果失败: {e}")
-        
-        # 调用用户自定义的完成回调函数
-        if on_simulate_complete:
-            try:
-                on_simulate_complete(final_report)
-            except Exception as e:
-                logger.error(f"❌ 完成回调执行失败: {e}")
-        
-        return final_report
-
-    @staticmethod
-    def log_quick_simulate_report(final_report: Dict[str, Any]) -> None:
+    def report_session(session_summary: Dict[str, Any], strategy_name: str = '当前') -> None:
         """
         通用的控制台展示方法（与HL展示格式一致，可被各策略复用）
         """
-        session_summary = final_report.get('session_summary', {})
         print("\n" + "="*60)
-        print("📊 HistoricLow 策略回测结果汇总")
+        print(f"📊 {strategy_name}策略回测结果")
         print("="*60)
         if session_summary:
             win_rate = session_summary.get('win_rate', 0)
             avg_annual_return = session_summary.get('avg_annual_return', 0)
-            win_rate_dot = "🟢" if win_rate >= 60 else "🔴"
+
+            if win_rate >= 60:
+                win_rate_dot = IconService.get('green_dot')
+            else:
+                win_rate_dot = IconService.get('red_dot')
             print(f"🎯 胜率: {win_rate_dot} {win_rate:.1f}%")
-            annual_return_dot = "🟢" if avg_annual_return >= 15 else "🔴"
-            print(f"📈 平均年化收益率: {annual_return_dot} {avg_annual_return:.1f}%")
-            print(f"⏱️  平均投资时长: {session_summary.get('avg_duration_days', 0):.1f} 天")
-            print(f"💰 平均ROI: {session_summary.get('avg_roi', 0):.1f}%")
-            print(f"📊 总投资次数: {session_summary.get('total_investments', 0)}")
-            print(f"✅ 成功次数: {session_summary.get('win_count', 0) + session_summary.get('small_profit_count', 0)}")
-            print(f"❌ 失败次数: {session_summary.get('loss_count', 0) + session_summary.get('small_loss_count', 0)}")
+
+            if avg_annual_return >= 15:
+                annual_return_dot = IconService.get('green_dot')
+            else:
+                annual_return_dot = IconService.get('red_dot')
+
+            print(f"{IconService.get('upward_trend')} 平均年化收益率: {annual_return_dot} {avg_annual_return:.1f}%")
+            print(f"{IconService.get('clock')} 平均投资时长: {session_summary.get('avg_duration_in_days', 0):.1f} 天")
+            print(f"{IconService.get('money')} 平均ROI: {session_summary.get('avg_roi', 0):.1f}%")
+            print(f"{IconService.get('bar_chart')} 总投资次数: {session_summary.get('total_investments', 0)}")
+            print(f"{IconService.get('success')} 成功次数: {session_summary.get('total_win_investments', 0)}")
+            print(f"{IconService.get('error')} 失败次数: {session_summary.get('total_loss_investments', 0)}")
+            print(f"{IconService.get('ongoing')} 未完成次数: {session_summary.get('total_open_investments', 0)}")
             print("<------------------------------------------->")
-            print(f"🟢 盈利次数: {session_summary.get('win_count', 0)} ({session_summary.get('profit_ratio', 0):.1f}%)")
-            print(f"🟡 微盈次数: {session_summary.get('small_profit_count', 0)} ({session_summary.get('small_profit_ratio', 0):.1f}%)")
-            print(f"🟠 微损次数: {session_summary.get('small_loss_count', 0)} ({session_summary.get('small_loss_ratio', 0):.1f}%)")
-            print(f"🔴 亏损次数: {session_summary.get('loss_count', 0)} ({session_summary.get('loss_ratio', 0):.1f}%)")
+            print(f"{IconService.get('green_dot')} 盈利次数: {session_summary.get('profitable_count', 0)} ({session_summary.get('profitable_ratio', 0):.1f}%)")
+            print(f"{IconService.get('yellow_dot')} 微盈次数: {session_summary.get('minor_profitable_count', 0)} ({session_summary.get('minor_profit_ratio', 0):.1f}%)")
+            print(f"{IconService.get('orange_dot')} 微损次数: {session_summary.get('minor_unprofitable_count', 0)} ({session_summary.get('minor_loss_ratio', 0):.1f}%)")
+            print(f"{IconService.get('red_dot')} 亏损次数: {session_summary.get('unprofitable_count', 0)} ({session_summary.get('unprofitable_ratio', 0):.1f}%)")
             print("="*60)

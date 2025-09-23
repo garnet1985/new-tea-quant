@@ -6,7 +6,7 @@ settings = {
     
     'mode': {
         "blacklist_only": False,
-        "test_amount": 10,
+        "test_amount": 1,
         "start_idx": 0,
         "simulation_ref_version": "524",
         "record_summary" : True

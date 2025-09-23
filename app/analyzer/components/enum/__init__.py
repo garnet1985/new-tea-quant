@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-from enum import Enum
-
-
-class InvestmentResult(Enum):
-    WIN = 'win'
-    LOSS = 'loss'
-    OPEN = 'open'
-
+from .common_enum import InvestmentResult
 
 __all__ = ['InvestmentResult']
 

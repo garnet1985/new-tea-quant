@@ -59,7 +59,12 @@ class IconService:
             return '🚀'
         elif icon_name == 'gear':
             return '🔧'
-
+        elif icon_name == 'clock':
+            return '🕙'
+        elif icon_name == 'target':
+            return '🎯'
+        elif icon_name == 'ongoing':
+            return '🔄'
 
         # for dot
         elif (icon_name == 'green_dot' 

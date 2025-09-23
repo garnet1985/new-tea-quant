@@ -193,6 +193,49 @@ class BaseStrategy(ABC):
             'strategy_folder_name': self.get_abbr()
         }
 
+
+    @staticmethod
+    def to_opportunity(
+        stock: Dict[str, Any],
+        record_of_today: Dict[str, Any],
+        extra_fields: Optional[Dict[str, Any]] = None,
+        lower_bound: Optional[float] = None,
+        upper_bound: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Construct a standard opportunity entity.
+
+        Required fields: stock{id[,name?]}, record_of_today
+        Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
+        """
+        opportunity: Dict[str, Any] = {
+            'stock': stock or {},
+            'date': record_of_today.get('date'),
+            'price': record_of_today.get('close'),
+        }
+        if lower_bound is not None:
+            opportunity['lower_bound'] = lower_bound
+        if upper_bound is not None:
+            opportunity['upper_bound'] = upper_bound
+
+        opportunity['extra_fields'] = extra_fields
+
+        return opportunity
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     # ========================================================
     # Scan jobs:
     # ========================================================
@@ -318,11 +361,10 @@ class BaseStrategy(ABC):
 
 
     # ========================================================
-    # abstract API for simulating:
+    # public API for simulating:
     # ========================================================
 
-    @abstractmethod
-    def on_before_simulate(self, stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> None:
+    def on_before_simulate(self, stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         模拟开始前的回调 - 可选重写
         
@@ -330,14 +372,13 @@ class BaseStrategy(ABC):
             settings: 验证后的策略设置
             stock_list: 股票列表
         """
-        pass
+        return stock_list
 
-    @abstractmethod
     def on_simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
-                        all_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]], 
-                        settings: Dict[str, Any]) -> Dict[str, Any]:
+                       all_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]], 
+                       settings: Dict[str, Any]) -> Dict[str, Any]:
         """
-        模拟单日交易逻辑 - 抽象方法，子类必须实现
+        模拟单日交易逻辑 - 可选重写（当前框架默认不强制调用该接口）
         
         Args:
             stock_id: 股票ID
@@ -353,7 +394,11 @@ class BaseStrategy(ABC):
                 - settled_investments: 结算的投资列表
                 - current_investment: 更新后的当前投资状态
         """
-        pass
+        return {
+            'new_investment': None,
+            'settled_investments': [],
+            'current_investment': current_investment,
+        }
 
     @staticmethod
     def on_summarize_stock_investment(base_investment_summary: Dict[str, Any], original_investment: Dict[str, Any], stock_info: Dict[str, Any]) -> Dict[str, Any]:

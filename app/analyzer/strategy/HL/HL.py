@@ -33,9 +33,6 @@ class HistoricLow(BaseStrategy):
         # 加载策略设置
         self.settings = settings
         
-        # 初始化投资记录器
-        self.invest_recorder = InvestmentRecorder(self.settings['folder_name'])
-
         self.simulator = Simulator()
 
     def initialize(self):

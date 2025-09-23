@@ -5,6 +5,8 @@ Simulator 核心类 - 提供统一的策略模拟接口
 import time
 from typing import Dict, List, Any, Optional, Callable
 from loguru import logger
+
+from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
 from .services.simulating_service import SimulatingService
 from .services.preprocess_service import PreprocessService
 from .services.postprocess_service import PostprocessService
@@ -13,11 +15,13 @@ from utils.icon.icon_service import IconService
 
 class Simulator:
     def __init__(self):
-        pass
+        self.invest_recorder = InvestmentRecorder()
 
     def run(self, settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
         start_time = time.time()
-        
+
+        self.invest_recorder.set_strategy_folder_name(module_info.get('strategy_folder_name', ''))
+
         stock_list = self.preprocess(settings, module_info)
 
         simulate_results = self.simulating(stock_list, module_info, settings)
@@ -74,8 +78,8 @@ class Simulator:
 
         session_summary = PostprocessService.summarize_session(stock_summaries, module_info)
 
-        # PostprocessService.record_summaries(session_summary, stock_summaries)
+        self.invest_recorder.save_simulation_results(stock_summaries, session_summary)
 
-        # PostprocessService.present_session_report(session_summary)
+        PostprocessService.present_session_report(session_summary)
 
 

@@ -364,6 +364,4 @@ class SimulatingService:
         investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
         investment['overall_annual_return'] = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
 
-        logger.info(f"investment: {investment}")
-
         return strategy_class.to_settled_investment(investment)

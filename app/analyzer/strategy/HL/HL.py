@@ -6,12 +6,10 @@ from app.analyzer.components.enum import common_enum
 from typing import Dict, List, Any, Optional, Tuple
 from loguru import logger
 
-from app.analyzer.components.entity.entity_builder import EntityBuilder
 from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
 from app.analyzer.components.simulator.simulator import Simulator
 from app.analyzer.strategy.HL.HL_service import HistoricLowService
 from ...components.base_strategy import BaseStrategy
-from .HL_simulator import HistoricLowSimulator
 from .settings import settings
 from app.analyzer.components.investment import InvestmentRecorder
 from utils.icon.icon_service import IconService
@@ -89,15 +87,24 @@ class HistoricLow(BaseStrategy):
         # 核心入场条件：当前价位位于以历史低点为参考的投资区间内
         for low_point in low_points:
             if HistoricLowService.is_in_invest_range(record_of_today, low_point):
-                opportunity = EntityBuilder.to_opportunity(
+                # opportunity = EntityBuilder.to_opportunity(
+                #     stock=stock,
+                #     date=record_of_today.get('date'),
+                #     price=record_of_today.get('close'),
+                #     lower_bound=low_point.get('invest_lower_bound'),
+                #     upper_bound=low_point.get('invest_upper_bound'),
+                #     extra_fields={
+                #         'low_point_ref': low_point,
+                #     }
+                # )
+                opportunity = BaseStrategy.to_opportunity(
                     stock=stock,
-                    date=record_of_today.get('date'),
-                    price=record_of_today.get('close'),
-                    lower_bound=low_point.get('invest_lower_bound'),
-                    upper_bound=low_point.get('invest_upper_bound'),
+                    record_of_today=record_of_today,
                     extra_fields={
                         'low_point_ref': low_point,
-                    }
+                    },
+                    lower_bound=low_point.get('invest_lower_bound'),
+                    upper_bound=low_point.get('invest_upper_bound'),
                 )
                 return opportunity
 
@@ -197,103 +204,15 @@ class HistoricLow(BaseStrategy):
     # Core API: Simulate
     # ========================================================
 
-    @staticmethod
-    def on_simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
-        record_of_today = daily_k_lines[-1]
-        return HistoricLowSimulator.simulate_single_day(stock, record_of_today, daily_k_lines, tracker)
-
     # @staticmethod
     # def on_simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
     #     record_of_today = daily_k_lines[-1]
-
-    #     # 检查现有投资的目标
-    #     if stock['id'] in tracker['investing']:
-    #         investment = tracker['investing'][stock['id']]
-    #         goal_manager = InvestmentGoalManager(settings['goal'])
-    #         is_investment_ended, updated_investment = goal_manager.check_targets(investment, record_of_today)
-            
-    #         if is_investment_ended:
-    #             goal_manager = InvestmentGoalManager(settings['goal'])
-    #             goal_manager.settle_investment(updated_investment)
-    #             settled_entity = EntityBuilder.to_settled_investment(
-    #                 investment=updated_investment,
-    #                 end_date=updated_investment.get('end_date'),
-    #                 result=updated_investment.get('result')
-    #             )
-    #             tracker['settled'].append(settled_entity)
-    #             del tracker['investing'][stock['id']]
-    #         else:
-    #             tracker['investing'][stock['id']] = updated_investment
-    #             HistoricLowSimulator.update_investment_max_min_close(updated_investment, record_of_today)
-
-    #     # 扫描新的投资机会
-    #     opportunity = HistoricLowSimulator.scan_single_stock(stock, daily_k_lines)
-    #     if opportunity:
-    #         # 使用通用构造器创建基础投资实体，策略层通过 extra_fields 注入 tracking/opportunity 等自定义字段
-    #         goal_manager = InvestmentGoalManager(settings['goal'])
-    #         targets = goal_manager.create_investment_targets()
-    #         extra_fields = {
-    #             'result': common_enum.InvestmentResult.OPEN.value,
-    #             'end_date': '',
-    #             'tracking': {
-    #                 'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-    #                 'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-    #             },
-    #             'opportunity': opportunity
-    #         }
-    #         tracker['investing'][stock['id']] = EntityBuilder.to_investment(
-    #             stock={'id': stock['id'], 'name': opportunity.get('stock', {}).get('name', '')},
-    #             start_date=opportunity['date'],
-    #             purchase_price=opportunity['price'],
-    #             targets=targets,
-    #             extra_fields=extra_fields
-    #         )
-
+    #     return HistoricLowSimulator.simulate_single_day(stock, record_of_today, daily_k_lines, tracker)
 
     @staticmethod
     def on_before_simulate(stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         return stock_list
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # def simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
-    #                     historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    #     """模拟单日交易逻辑"""
-    #     return HistoricLowSimulator.simulate_single_day(stock_id, current_date, current_record, historical_data, current_investment)
 
     def report(self, opportunities: List[Dict[str, Any]]) -> None:
         """报告投资机会"""

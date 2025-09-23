@@ -5,7 +5,6 @@ SimulatingService - 多进程模拟服务
 from typing import Callable, Dict, List, Any, Optional
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.components.entity.entity_builder import EntityBuilder
 from app.analyzer.components.enum import InvestmentResult
 from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
 from utils.worker.multi_process.process_worker import ProcessWorker

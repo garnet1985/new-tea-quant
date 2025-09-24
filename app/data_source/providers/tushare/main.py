@@ -526,8 +526,8 @@ class Tushare:
         except Exception as e:
             logger.error(f"❌ 价格指数 更新失败: {e}")
 
-    # ================================ interest rates ================================
-    def renew_interest_rates(self, latest_market_open_day: str = None):
+    # ================================ LPR ================================
+    def renew_LPR(self, latest_market_open_day: str = None):
         """
         刷新利率指标（LPR）到 `interest_rates` 基础表。
         """
@@ -570,3 +570,56 @@ class Tushare:
             logger.info(f"✅ 基准利率LPR 刷新完成: {len(records)} 条")
         except Exception as e:
             logger.error(f"❌ 基准利率LPR 更新失败: {e}")
+
+
+    # ================================ GDP ================================
+    def renew_GDP(self, latest_market_open_day: str = None):
+        start_quarter = TushareService.to_quarter(data_default_start_date)
+        last_quarter = TushareService.to_quarter(latest_market_open_day)
+
+        try:
+            df_gdp = self.api.cn_gdp(
+                start_m=start_quarter,
+                end_m=last_quarter,
+                fields='quarter,gdp,gdp_yoy,pi,pi_yoy,si,si_yoy,ti,ti_yoy'
+            )
+        except Exception as e:
+            logger.error(f"gdp fetch failed: {e}")
+            return
+
+        if df_gdp is None or df_gdp.empty:
+            logger.info("gdp: no records returned")
+            return
+
+        records = []
+        for _, r in df_gdp.iterrows():
+            quarter_str = str(r.get('quarter') or r.get('QUARTER') or '').strip()
+            gdp = r.get('gdp') if 'gdp' in r else r.get('GDP')
+            gdp_yoy = r.get('gdp_yoy') if 'gdp_yoy' in r else r.get('GDP_YOY')
+            primary_industry = r.get('pi') if 'pi' in r else r.get('PI')
+            primary_industry_yoy = r.get('pi_yoy') if 'pi_yoy' in r else r.get('PI_YOY')
+            secondary_industry = r.get('si') if 'si' in r else r.get('SI')
+            secondary_industry_yoy = r.get('si_yoy') if 'si_yoy' in r else r.get('SI_YOY')
+            tertiary_industry = r.get('ti') if 'ti' in r else r.get('TI')
+            tertiary_industry_yoy = r.get('ti_yoy') if 'ti_yoy' in r else r.get('TI_YOY')
+            records.append({
+                'quarter': quarter_str,
+                'gdp': TushareService.safe_to_float(gdp),
+                'gdp_yoy': TushareService.safe_to_float(gdp_yoy),
+                'primary_industry': TushareService.safe_to_float(primary_industry),
+                'primary_industry_yoy': TushareService.safe_to_float(primary_industry_yoy),
+                'secondary_industry': TushareService.safe_to_float(secondary_industry),
+                'secondary_industry_yoy': TushareService.safe_to_float(secondary_industry_yoy),
+                'tertiary_industry': TushareService.safe_to_float(tertiary_industry),
+                'tertiary_industry_yoy': TushareService.safe_to_float(tertiary_industry_yoy),
+            })
+
+        if not records:
+            return
+
+        try:
+            table = self.db.get_table_instance('gdp')
+            table.replace(records, ['quarter'])
+            logger.info(f"✅ GDP 刷新完成: {len(records)} 条")
+        except Exception as e:
+            logger.error(f"❌ GDP 更新失败: {e}")

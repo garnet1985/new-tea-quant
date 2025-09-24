@@ -42,6 +42,19 @@ class Tushare:
         self._thread_dbs = []
         self._thread_dbs_lock = threading.Lock()
 
+    
+    # ================================ auth related ================================
+    def get_token(self):
+        try:
+            with open(auth_token_file, 'r') as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Token file not found at: {auth_token_file}. Please create file with token string inside.")
+
+    def use_token(self):
+        ts.set_token(self.get_token())
+
+    # ================================ k line api rate limit ================================
     def _k_line_api_rate_limit(self):
         """Tushare K线数据API频率限制（线程安全）"""
         with self.kline_api_lock:
@@ -64,6 +77,7 @@ class Tushare:
             # 增加请求计数
             self.kline_api_count += 1
 
+    # ================================ get latest market open day ================================
     async def get_latest_market_open_day(self):
         return TushareService.get_latest_market_open_day(self.api)
 
@@ -357,21 +371,202 @@ class Tushare:
         else:
             return [data]
 
-
     # ================================ price indexes ================================
-    def renew_price_indexes(self):
-        # TODO: implement when necessary
-        pass
+    def renew_price_indexes(self, latest_market_open_day: str = None):
+        """
+        刷新宏观价格/景气度指标（CPI/PPI/PMI/货币供应量M0/M1/M2）到 `price_indexes` 基础表。
+        - 主键: ['id', 'date']，此处 id 固定为 'CN'
+        - date 取每月第一天，格式 YYYY-MM-01
+        数据来源：
+        - 货币供应量: cn_m（money supply） [tushare: doc_id=242]
+        - CPI: cpi [tushare: doc_id=228]
+        - PPI: ppi [tushare: doc_id=245]
+        - PMI: pmi [tushare: doc_id=325]
+        参考: `https://tushare.pro/document/2?doc_id=242`, `https://tushare.pro/document/2?doc_id=228`, `https://tushare.pro/document/2?doc_id=245`, `https://tushare.pro/document/2?doc_id=325`
+        """
+        from datetime import datetime
+        import math
+        from app.data_source.providers.conf.conf import data_default_start_date
+
+        # 统一起止区间（与K线一致）：若未显式传入，则用配置默认起点 → 最新交易日
+        def to_yyyymm(d: str) -> str:
+            d = (d or '').strip()
+            if not d:
+                return ''
+            # 支持 YYYYMMDD / YYYY-MM-DD / YYYY/MM/DD / YYYYMM
+            for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%m'):
+                try:
+                    return datetime.strptime(d, fmt).strftime('%Y%m')
+                except ValueError:
+                    continue
+            return ''
+
+        start_m = to_yyyymm(data_default_start_date)
+        end_m = to_yyyymm(latest_market_open_day) or datetime.now().strftime('%Y%m')
+
+        def safe_to_float(x, default=0.0):
+            try:
+                if x is None or (isinstance(x, float) and math.isnan(x)):
+                    return default
+                return float(x)
+            except Exception:
+                return default
+
+        # month -> row dict
+        by_month = {}
+
+        # 小工具：调试打印
+        def _log_df(name: str, df):
+            if not self.is_verbose:
+                return
+            try:
+                cols = list(df.columns) if df is not None else []
+                logger.info(f"price_indexes | {name} cols: {cols}")
+                if df is not None and not df.empty:
+                    logger.info(f"price_indexes | {name} head: {df.head(3).to_dict('records')}")
+            except Exception:
+                pass
+
+        # 1) Money Supply: cn_m
+        try:
+            df_m = self.api.cn_m(start_m=start_m, end_m=end_m)
+            _log_df('cn_m', df_m)
+            if df_m is not None and not df_m.empty:
+                for _, r in df_m.iterrows():
+                    m = str(r.get('month') or r.get('date') or '')
+                    if not m:
+                        continue
+                    row = by_month.setdefault(m, {})
+                    row['M0'] = safe_to_float(r.get('m0'))
+                    row['M0_yoy'] = safe_to_float(r.get('m0_yoy'))
+                    row['M0_mom'] = safe_to_float(r.get('m0_mom'))
+                    row['M1'] = safe_to_float(r.get('m1'))
+                    row['M1_yoy'] = safe_to_float(r.get('m1_yoy'))
+                    row['M1_mom'] = safe_to_float(r.get('m1_mom'))
+                    row['M2'] = safe_to_float(r.get('m2'))
+                    row['M2_yoy'] = safe_to_float(r.get('m2_yoy'))
+                    row['M2_mom'] = safe_to_float(r.get('m2_mom'))
+        except Exception as e:
+            if self.is_verbose:
+                logger.error(f"cn_m fetch failed: {e}")
+
+        # 2) CPI
+        try:
+            df_cpi = self.api.cn_cpi(
+                start_m=start_m,
+                end_m=end_m,
+                fields='month,nt_val,nt_yoy,nt_mom'
+            )
+            _log_df('cpi', df_cpi)
+
+            if df_cpi is not None and not df_cpi.empty:
+                for _, r in df_cpi.iterrows():
+                    m = str(r.get('month') or r.get('date') or '')
+                    if not m:
+                        continue
+                    row = by_month.setdefault(m, {})
+                    # Fields per user: nt_val, nt_val_yoy, nt_val_mom
+                    row['CPI'] = safe_to_float(r.get('nt_val'))
+                    row['CPI_yoy'] = safe_to_float(r.get('nt_yoy'))
+                    row['CPI_mom'] = safe_to_float(r.get('nt_mom'))
+        except Exception as e:
+            logger.error(f"cpi fetch failed: {e}")
+
+        # 3) PPI
+        try:
+            df_ppi = self.api.cn_ppi(
+                start_m=start_m,
+                end_m=end_m,
+                fields='month,ppi_accu,ppi_yoy,ppi_mom'
+            )
+            _log_df('ppi', df_ppi)
+            if df_ppi is not None and not df_ppi.empty:
+                for _, r in df_ppi.iterrows():
+                    m = str(r.get('month') or r.get('date') or '')
+                    if not m:
+                        continue
+                    row = by_month.setdefault(m, {})
+                    # Fields per user: ppi_accu, ppi_mom, ppi_yoy
+
+                    row['PPI'] = safe_to_float(r.get('ppi_accu'))
+                    row['PPI_yoy'] = safe_to_float(r.get('ppi_yoy'))
+                    row['PPI_mom'] = safe_to_float(r.get('ppi_mom'))
+        except Exception as e:
+            logger.error(f"ppi fetch failed: {e}")
+
+        # 4) PMI
+        try:
+            # 限定返回字段，确保含 month 和四个指标
+            df_pmi = self.api.cn_pmi(
+                start_m=start_m,
+                end_m=end_m,
+                fields='month,pmi010000,pmi010100,pmi010200,pmi010300'
+            )
+            _log_df('pmi', df_pmi)
+
+            if df_pmi is not None and not df_pmi.empty:
+                for _, r in df_pmi.iterrows():
+                    # month 可能为 'month' 或 'MONTH'
+                    m = r.get('month') if 'month' in r else r.get('MONTH')
+                    m = '' if m is None else str(m).strip()
+                    if not m:
+                        continue
+                    row = by_month.setdefault(m, {})
+                    row['PMI'] = safe_to_float(r.get('pmi010000') or r.get('PMI010000'))
+                    row['PMI_l_scale'] = safe_to_float(r.get('pmi010100') or r.get('PMI010100'))
+                    row['PMI_m_scale'] = safe_to_float(r.get('pmi010200') or r.get('PMI010200'))
+                    row['PMI_s_scale'] = safe_to_float(r.get('pmi010300') or r.get('PMI010300'))
+        except Exception as e:
+            logger.error(f"pmi fetch failed: {e}")
+
+        # Assemble rows
+        records = []
+        for m, vals in by_month.items():
+            # 解析月份为 YYYY-MM-01
+            dt = None
+            for fmt in ('%Y%m', '%Y-%m', '%Y-%m-%d', '%Y/%m/%d'):
+                try:
+                    dt = datetime.strptime(m, fmt).strftime('%Y-%m-01')
+                    break
+                except ValueError:
+                    continue
+            if not dt:
+                continue
+            rec = {
+                # per user: use YYYYMM string as id
+                'id': m,
+                'date': dt,
+                'CPI': vals.get('CPI', 0.0),
+                'CPI_yoy': vals.get('CPI_yoy', 0.0),
+                'CPI_mom': vals.get('CPI_mom', 0.0),
+                'PPI': vals.get('PPI', 0.0),
+                'PPI_yoy': vals.get('PPI_yoy', 0.0),
+                'PPI_mom': vals.get('PPI_mom', 0.0),
+                'PMI': vals.get('PMI', 0.0),
+                'PMI_l_scale': vals.get('PMI_l_scale', 0.0),
+                'PMI_m_scale': vals.get('PMI_m_scale', 0.0),
+                'PMI_s_scale': vals.get('PMI_s_scale', 0.0),
+                'M0': vals.get('M0', 0.0),
+                'M0_yoy': vals.get('M0_yoy', 0.0),
+                'M0_mom': vals.get('M0_mom', 0.0),
+                'M1': vals.get('M1', 0.0),
+                'M1_yoy': vals.get('M1_yoy', 0.0),
+                'M1_mom': vals.get('M1_mom', 0.0),
+                'M2': vals.get('M2', 0.0),
+                'M2_yoy': vals.get('M2_yoy', 0.0),
+                'M2_mom': vals.get('M2_mom', 0.0)
+            }
+            records.append(rec)
+
+        if not records:
+            logger.info("price_indexes: no records to update")
+            return
+
+        try:
+            table = self.db.get_table_instance('price_indexes')
+            table.replace(records, ['id', 'date'])
+            logger.info(f"✅ price_indexes 刷新完成: {len(records)} 条")
+        except Exception as e:
+            logger.error(f"❌ price_indexes 刷新失败: {e}")
 
     
-
-    # ================================ auth related ================================
-    def get_token(self):
-        try:
-            with open(auth_token_file, 'r') as f:
-                return f.read().strip()
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Token file not found at: {auth_token_file}. Please create file with token string inside.")
-
-    def use_token(self):
-        ts.set_token(self.get_token())

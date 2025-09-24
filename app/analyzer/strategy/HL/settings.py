@@ -1,12 +1,10 @@
 
 
 
-strategy_settings = {
-    'folder_name': 'HL',  # 策略文件夹名称，用于投资记录器
-    
+settings = {
     'mode': {
         "blacklist_only": False,
-        "test_amount": 10,
+        "test_amount": 1,
         "start_idx": 0,
         "simulation_ref_version": "524",
         "record_summary" : True
@@ -15,10 +13,11 @@ strategy_settings = {
     "klines": {
         "terms": ["daily"],
         "base_term": "daily",
+        "min_required_kline": 1000,
     },
 
     "simulation": {
-        "start_date": "",
+        "start_date": "20080101",
         "end_date": ""
     },
 

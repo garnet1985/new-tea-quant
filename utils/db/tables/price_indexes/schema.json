@@ -7,7 +7,7 @@
             "type": "varchar",
             "length": 16,
             "isRequired": true,
-            "description": "股票代码（含市场后缀，如000001.SZ）"
+            "description": "发布时间 YYYY-MM 格式"
         },
         {
             "name": "date",
@@ -132,14 +132,6 @@
             "type": "float",
             "isRequired": true,
             "description": "money supply of M2 month to month"
-        },
-
-        {
-            "name": "last_update",
-            "type": "timestamp",
-            "isRequired": true,
-            "default": "CURRENT_TIMESTAMP",
-            "description": "记录创建时间"
         }
     ],
     "description": "价格指数表，存储价格指数的详细信息"

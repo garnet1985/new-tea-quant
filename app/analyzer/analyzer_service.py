@@ -3,10 +3,6 @@ from enum import Enum
 from typing import Dict, List
 from .analyzer_settings import conf
 
-class InvestmentResult(Enum):
-    WIN = 'win'
-    LOSS = 'loss'
-    OPEN = 'open'
 
 
 class AnalyzerService:
@@ -19,6 +15,8 @@ class AnalyzerService:
         计算比率并按指定小数位四舍五入。只在分母为0时返回0.0；允许负值。
         """
         try:
+            if denominator == 0:
+                return 0.0
             value = float(numerator) / float(denominator)
             return round(value, decimals)
         except ZeroDivisionError:
@@ -32,6 +30,8 @@ class AnalyzerService:
         与 to_ratio 相同的入参，输出为百分比（ratio*100）。仅分母为0时返回0.0，允许负值。
         """
         try:
+            if denominator == 0:
+                return 0.0
             value = float(numerator) / float(denominator)
             return round(value * 100.0, decimals)
         except ZeroDivisionError:
@@ -46,21 +46,27 @@ class AnalyzerService:
         return (end - start).days
     
     @staticmethod
-    def get_annual_return(profit_rate: float, duration_in_days: int) -> float:
+    def get_annual_return(profit_rate: float, duration_in_days: int, is_trading_days: bool = True) -> float:
         """
         计算年化收益率（使用复利公式）
         
         Args:
             profit_rate: 总收益率（小数形式，如0.1表示10%）
             duration_in_days: 投资持续天数
+            is_trading_days: 是否使用交易日计算
             
         Returns:
             float: 年化收益率（百分比形式）
         """
+    
+        if is_trading_days:
+            years = duration_in_days / 250.0
+        else:
+            years = duration_in_days / 365.0
+
         if duration_in_days <= 0 or profit_rate == 0:
             return 0.0
         
-        years = duration_in_days / 365.0
         if years <= 0:
             return 0.0
         

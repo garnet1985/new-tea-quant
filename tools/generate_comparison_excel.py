@@ -3,13 +3,13 @@
 
 import pandas as pd
 from app.data_source.data_source_manager import DataSourceManager
-from utils.db.db_manager import get_sync_db_manager
+from utils.db.db_manager import DatabaseManager
 from datetime import datetime
 
 def generate_comparison_excel(ts_code='000001.SZ', code='000001', stock_name='平安银行'):
     # 初始化
-    db = get_sync_db_manager()
-    dsm = DataSourceManager(db, is_verbose=True)
+    db = DatabaseManager()
+    dsm = DataSourceManager(db, is_verbose=False)
     tu = dsm.sources['tushare']
     ak = dsm.sources['akshare']
     ak.inject_dependency(tu)

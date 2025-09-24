@@ -44,6 +44,8 @@ class DataSourceManager:
         # macro economic indexes
         tu.renew_price_indexes(self.latest_market_open_day)
 
+        tu.renew_interest_rates(self.latest_market_open_day)
+
         # below are not implemented yet
         # tu.renew_global_economic_data()
         # tu.renew_corporate_finance_data()

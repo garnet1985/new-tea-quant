@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
+import math
 from loguru import logger
 from app.data_source.providers.conf.conf import kline_terms, data_default_start_date
 from app.data_source.providers.tushare.main_settings import LATEST_MARKET_OPEN_DAY_BACKWARD_CHECKING_DAYS
@@ -214,3 +215,36 @@ class TushareService:
             }
         else:
             return None
+
+
+    @staticmethod
+    def to_yyyymm(d: str) -> str:
+        d = (d or '').strip()
+        if not d:
+            return ''
+        for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%m'):
+            try:
+                return datetime.strptime(d, fmt).strftime('%Y%m')
+            except ValueError:
+                continue
+        return ''
+
+    @staticmethod
+    def to_date(d: str) -> datetime:
+        if d is None:
+            return None
+        if isinstance(d, datetime):
+            return d
+        s = str(d).strip()
+        if not s:
+            return None
+        return datetime.strptime(s, '%Y%m%d')
+
+    @staticmethod
+    def safe_to_float(x, default=0.0):
+        try:
+            if x is None or (isinstance(x, float) and math.isnan(x)):
+                return default
+            return float(x)
+        except Exception:
+            return default

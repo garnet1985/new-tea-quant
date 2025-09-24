@@ -26,7 +26,6 @@ class DataLoader:
         Args:
             stock_id: 股票ID
             settings: 策略设置（应该已经验证过）
-            strategy_name: 策略名称
             
         Returns:
             Dict: 包含不同周期K线数据的字典

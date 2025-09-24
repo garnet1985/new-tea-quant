@@ -1,7 +1,4 @@
 settings = {
-    # 用来存放你的模拟产生文件的父文件夹名称，一般和你的strategy文件夹同名
-    'folder_name': 'example',
-
     # 模拟模式
     'mode': {
         # 是不是只模拟黑名单中的股票

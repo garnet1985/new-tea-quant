@@ -3,7 +3,7 @@
 Simulator 核心类 - 提供统一的策略模拟接口
 """
 import time
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any
 from loguru import logger
 
 from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
@@ -17,12 +17,13 @@ class Simulator:
     def __init__(self):
         self.invest_recorder = InvestmentRecorder()
 
-    def run(self, settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
+    def run(self, module_info: Dict[str, Any]) -> Dict[str, Any]:
         start_time = time.time()
 
         import importlib
         strategy_module = importlib.import_module(module_info.get('strategy_module_path', ''))
         strategy_class = getattr(strategy_module, module_info.get('strategy_class_name', ''))
+        settings = importlib.import_module(module_info.get('strategy_settings_path')).settings
 
         self.invest_recorder.set_strategy_folder_name(module_info.get('strategy_folder_name', ''))
 

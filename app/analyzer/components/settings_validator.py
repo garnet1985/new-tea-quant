@@ -13,7 +13,6 @@ class SettingsValidator:
         """初始化设置验证器"""
         self.required_fields = {
             'klines.base_term': str,  # 基础周期，如 'daily'
-            'folder_name': str,       # 策略文件夹名称
         }
         
         self.optional_fields = {
@@ -37,20 +36,22 @@ class SettingsValidator:
             Tuple[bool, List[str]]: (是否有效, 错误信息列表)
         """
         errors = []
-        
-        # 检查settings是否为字典
-        if not isinstance(settings, dict):
-            errors.append(f"Settings must be a dictionary, got {type(settings).__name__}")
+
+
+        # step1: settings must be a dictionary variable called settings
+        if not settings:
+            errors.append(f"Settings is not set, need to create a file called settings.py in the strategy root folder.")
             return False, errors
+
         
-        # 验证必需字段
+        # step2: validate required fields
         errors.extend(self._validate_required_fields(settings))
         
-        # 验证字段类型和值
+        # step3: validate field types and values
         errors.extend(self._validate_field_types(settings))
         errors.extend(self._validate_field_values(settings))
         
-        # 验证字段依赖关系
+        # step4: validate field dependencies
         errors.extend(self._validate_field_dependencies(settings))
         
         is_valid = len(errors) == 0
@@ -140,15 +141,6 @@ class SettingsValidator:
                 for term in klines['additional_terms']:
                     if term not in self.valid_additional_terms:
                         errors.append(f"Invalid additional_term '{term}', must be one of: {self.valid_additional_terms}")
-        
-        # 验证folder_name值
-        if 'folder_name' in settings:
-            folder_name = settings['folder_name']
-            if not isinstance(folder_name, str) or not folder_name.strip():
-                errors.append("folder_name must be a non-empty string")
-            elif not folder_name.replace('_', '').replace('-', '').isalnum():
-                errors.append("folder_name must contain only alphanumeric characters, underscores, and hyphens")
-        
         return errors
     
     def _validate_field_dependencies(self, settings: Dict[str, Any]) -> List[str]:
@@ -179,7 +171,6 @@ class SettingsValidator:
                 'base_term': 'daily',
                 'additional_terms': []
             },
-            'folder_name': 'strategy',
             'goal': {},
             'mode': {}
         }

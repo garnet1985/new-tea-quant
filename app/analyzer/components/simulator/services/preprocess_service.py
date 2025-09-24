@@ -2,10 +2,8 @@
 """
 PreprocessService - 预处理服务
 """
-import inspect
-from typing import Dict, List, Any, Tuple, Callable, Optional
+from typing import Dict, List, Any
 from loguru import logger
-from app.analyzer.components.settings_validator import SettingsValidator
 from utils.icon.icon_service import IconService
 
 
@@ -51,19 +49,3 @@ class PreprocessService:
         except Exception as e:
             logger.error(f"{IconService.get('error')} 获取股票列表失败: {e}")
             return []
-    
-    # @staticmethod
-    # def get_module_info(module_static_func: Dict[str, Any]) -> Dict[str, Any]:
-    #     """
-    #     获取模块信息
-    #     """
-    #             # 未绑定方法：从函数中获取类信息
-    #     qualname = getattr(module_static_func, '__qualname__', '')
-    #     strategy_class_name = qualname.split('.')[0] if '.' in qualname else qualname
-    #     # 从函数对象中获取模块信息
-    #     strategy_module_path = getattr(module_static_func, '__module__', '')
-
-    #     return {
-    #         'strategy_class_name': strategy_class_name,
-    #         'strategy_module_path': strategy_module_path
-    #     }

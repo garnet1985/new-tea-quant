@@ -17,7 +17,6 @@ class Example(BaseStrategy):
     # 策略启用状态
     # 如果不启用，在start.py运行时则会自动跳过这个策略的机会扫描和模拟
     is_enabled = False
-    settings = settings
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
@@ -26,70 +25,16 @@ class Example(BaseStrategy):
             name="example",
             abbreviation="EXAMPLE"
         )
-        
-        # 实例级引用（Analyzer 会把校验后的结果放入 class.settings 并在实例化后赋回）
-        self.settings = self.settings or settings
-        
-        # 初始化投资记录器
-        self.invest_recorder = InvestmentRecorder(self.settings['folder_name'])
-
-        # 这个simulator是simulator库，当前文件夹下的simulator（ExampleSimulator）是存放simulator所有逻辑的主文件
-        self.simulator = Simulator()
-
-    def initialize(self):
-        """初始化策略 - 调用父类的自动表管理"""
         super().initialize()
 
-    # ========================================================
-    # External (Bridge) APIs:
-    # ========================================================
     def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """扫描单只股票的投资机会"""
-        # 示例：简单的机会识别逻辑
-        if len(data) < 10:  # 需要至少10天的数据
-            return None
-        
-        # 简单的示例逻辑：如果最近3天都是上涨，则认为是机会
-        recent_data = data[-3:]
-        if all(day.get('close', 0) > day.get('open', 0) for day in recent_data):
-            return {
-                'stock': {'id': stock_id},
-                'date': recent_data[-1].get('date'),
-                'price': recent_data[-1].get('close'),
-                'reason': '连续3天上涨'
-            }
-        
+        # define your opportunity identification logic here...
+        # the opportunity need to call BaseStrategy.to_opportunity to convert to a standard opportunity entity
         return None
 
-    def simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
-                        historical_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        """模拟单日交易逻辑"""
-        return ExampleSimulator.simulate_single_day(stock_id, current_date, current_record, historical_data, current_investment)
+    # other event methods can be overridden here...
+    # on_before_simulate, on_summarize_stock, on_summarize_session, on_before_report
 
-    def report(self, opportunities: List[Dict[str, Any]]) -> None:
-        # 这个函数会在策略启用时自动调用，是用来报告策略的扫描结果的
-        # 这里可以添加一些汇总的逻辑，比如：
-        # - 为找到的机会加上历史模拟结果
-
-        if not opportunities:
-            logger.info("🔍 未发现投资机会")
-            return
-        
-        logger.info(f"🔍 发现 {len(opportunities)} 个投资机会")
-        
-
-    # ========================================================
-    # Core logic:
-    # ========================================================
-    # 多进程扫描逻辑已移至StrategyExecutor中
-
-
-    # ========================================================
-    # Result presentation:
-    # ========================================================
-
-    def stock_summary(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        # 这个函数会在策略启用时自动调用，是用来汇总单只股票的模拟结果的
-        # 这里可以添加一些汇总的逻辑，比如：
-        # - 为找到的机会加上历史模拟结果
-        return {}
+    # if any extra field need to be added to the opportunity, you can override the to_opportunity method
+    # to_investment, to_settled_investment

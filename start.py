@@ -14,6 +14,7 @@ setup_warning_suppression()
 from utils.db.db_manager import DatabaseManager
 from app.data_source.data_source_manager import DataSourceManager
 from app.analyzer import Analyzer
+from utils.icon.icon_service import IconService
 
 
 # 添加项目根目录到Python路径
@@ -24,7 +25,8 @@ class App:
         self.is_verbose = False
         
         # 1. 首先初始化数据库（只初始化一次）
-        self.db = DatabaseManager(self.is_verbose)
+        # 在主进程中禁用线程安全与连接池，避免早期连接干扰
+        self.db = DatabaseManager(is_verbose=self.is_verbose)
         self.db.initialize()
         
         # 2. 然后创建数据源和策略管理器（复用同一个数据库实例）
@@ -42,20 +44,20 @@ class App:
         # 使用run_daily_scan来同时执行扫描和测试
         self.analyzer.simulate()
 
-    async def scan(self):
-        await self.analyzer.scan()
+    def scan(self):
+        self.analyzer.scan()
         
 
-async def main():
+def main():
     app = App()
     
-    # await app.renew_data()
+    # app.renew_data()  # 数据更新仍为异步接口时再启用
 
-    # await app.scan()
+    # app.scan()
 
     app.simulate()
 
 
 if __name__ == "__main__":
-    logger.info("🚀 启动股票分析应用...")
-    asyncio.run(main())
+    logger.info(f"{IconService.get('rocket')} 启动股票分析应用...")
+    main()

@@ -35,17 +35,11 @@ class BaseStrategy(ABC):
         # 初始化策略
         self._check_required_fields()
 
-    def _check_required_fields(self):
-        """检查策略所需的必要字段"""
-        if self.name is None:
-            raise ValueError("strategy require a name.")
 
-        if self.abbreviation is None:
-            raise ValueError("strategy require a abbreviation. abbreviation is used to identify the strategy, it should be unique and machine readable.")
+    # ========================================================
+    # init:
+    # ========================================================
 
-        if self.is_verbose:
-            logger.info(f"🔧 初始化策略: {self.name}")
-    
     def initialize(self):
         """初始化策略 - 自动检测和注册表，返回统一的tables字典"""
         try:
@@ -63,7 +57,19 @@ class BaseStrategy(ABC):
             import traceback
             traceback.print_exc()
             raise
+
+    def _check_required_fields(self):
+        """检查策略所需的必要字段"""
+        if self.name is None:
+            raise ValueError("strategy require a name.")
+
+        if self.abbreviation is None:
+            raise ValueError("strategy require a abbreviation. abbreviation is used to identify the strategy, it should be unique and machine readable.")
+
+        if self.is_verbose:
+            logger.info(f"🔧 初始化策略: {self.name}")
     
+
     def _register_strategy_tables(self):
         """自动检测tables文件夹并注册策略特有的表"""
         import os
@@ -169,77 +175,33 @@ class BaseStrategy(ABC):
                         logger.warning(f"⚠️ 策略 {self.name} 表 {full_table_name} 未在db.tables中找到")
         
         return tables
-    
-    def get_abbr(self) -> str:
-        """获取策略的缩写"""
-        return self.abbreviation
-    
-    @staticmethod
-    def validate_and_merge_settings(settings: Dict[str, Any], strategy_name: str) -> Dict[str, Any]:
-        """校验并合并默认值，返回可用配置；无副作用，不写入实例。"""
-        validator = SettingsValidator()
-        is_valid, errors = validator.validate_settings(settings, strategy_name)
-        if not is_valid:
-            details = "\n".join([f"  - {e}" for e in errors])
-            raise ValueError(f"策略 {strategy_name} 设置验证失败:\n{details}")
-        return validator.merge_with_defaults(settings)
 
 
-    def get_module_info(self) -> Dict[str, Any]:
-        """获取模块信息"""
-        return {
-            'strategy_class_name': self.__class__.__name__,
-            'strategy_module_path': f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}",
-            'strategy_folder_name': self.get_abbr()
-        }
 
 
-    @staticmethod
-    def to_opportunity(
-        stock: Dict[str, Any],
-        record_of_today: Dict[str, Any],
-        extra_fields: Optional[Dict[str, Any]] = None,
-        lower_bound: Optional[float] = None,
-        upper_bound: Optional[float] = None,
-    ) -> Dict[str, Any]:
-        """Construct a standard opportunity entity.
+    # ================================================================
+    # Core 1 - identify opportunity: should be override by subclass:
+    # ================================================================
 
-        Required fields: stock{id[,name?]}, record_of_today
-        Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
+    # this method should be override by subclass - to define the opportunity identification logic
+    @abstractmethod
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        opportunity: Dict[str, Any] = {
-            'stock': stock or {},
-            'date': record_of_today.get('date'),
-            'price': record_of_today.get('close'),
-        }
-        if lower_bound is not None:
-            opportunity['lower_bound'] = lower_bound
-        if upper_bound is not None:
-            opportunity['upper_bound'] = upper_bound
-
-        opportunity['extra_fields'] = extra_fields
-
-        return opportunity
+        扫描单只股票的投资机会 - 抽象方法，子类必须实现
+        
+        Args:
+            stock_id: 股票ID
+            data: 股票的历史K线数据（到当前日期为止）
+            
+        Returns:
+            Optional[Dict]: 如果发现投资机会则返回机会字典，否则返回None
+        """
+        pass
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # ========================================================
-    # Scan jobs:
-    # ========================================================
-    
+    # this method is used to scan today's opportunities for all the stocks by using multi-process
+    # this is a public API method to Analyzer module
+    # TODO: make this inherit from Analyzer module
     def scan(self) -> List[Dict[str, Any]]:
         """
         扫描所有股票的投资机会 - 框架方法，内部使用多进程
@@ -253,12 +215,8 @@ class BaseStrategy(ABC):
         strategy_setting_path = f"app.analyzer.strategy.{self.get_abbr()}.settings"
         settings_module = importlib.import_module(strategy_setting_path)
         strategy_settings = getattr(settings_module, "settings")
-
         
         stock_list = self.table["stock_index"].load_filtered_index()
-
-        # TODO: 测试用，删除
-        stock_list = stock_list[:2]
 
         if not stock_list:
             logger.info(f"{IconService.get('error')} 未找到可扫描的股票")
@@ -271,6 +229,7 @@ class BaseStrategy(ABC):
         self.report(opportunities)
         
         return opportunities
+
 
     def _build_scan_jobs(self, stock_list: List[Dict[str, Any]], strategy_settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -310,6 +269,7 @@ class BaseStrategy(ABC):
         return [r.result for r in successful if r.result]
 
 
+    # multiprocess executor for scan_opportunity - must be static method otherwise it will be pickle error
     @staticmethod
     def _scan_multiprocess_executor(job: Dict[str, Any]) -> Dict[str, Any]:
         """子进程执行扫描：避免引用实例属性以绕过pickle问题"""
@@ -337,7 +297,45 @@ class BaseStrategy(ABC):
         return strategy_instance.scan_opportunity(stock, data, settings)
 
 
-    
+    # this method is used to convert the opportunity to a standard opportunity entity
+    @staticmethod
+    def to_opportunity(
+        stock: Dict[str, Any],
+        record_of_today: Dict[str, Any],
+        extra_fields: Optional[Dict[str, Any]] = None,
+        lower_bound: Optional[float] = None,
+        upper_bound: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Construct a standard opportunity entity.
+
+        Required fields: stock{id[,name?]}, record_of_today
+        Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
+        """
+        opportunity: Dict[str, Any] = {
+            'stock': stock or {},
+            'date': record_of_today.get('date'),
+            'price': record_of_today.get('close'),
+        }
+        if lower_bound is not None:
+            opportunity['lower_bound'] = lower_bound
+        if upper_bound is not None:
+            opportunity['upper_bound'] = upper_bound
+
+        opportunity['extra_fields'] = extra_fields
+
+        return opportunity
+
+
+
+
+
+    # ================================================================
+    # Core 2 - simulate strategy: should be override by subclass:
+    # ================================================================
+
+
+    # this method is used to scan today's opportunities for all the stocks by using multi-process
+    # this is a public API method to Analyzer module
     def simulate(self) -> Dict[str, Any]:
         """
         模拟策略 - 使用历史数据模拟策略
@@ -358,16 +356,12 @@ class BaseStrategy(ABC):
         
         return result
 
-
-
-    # ========================================================
-    # public API for simulating:
-    # ========================================================
-
-    def on_before_simulate(self, stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
+    # Below methods are the event API to modify the simulate data structure and process, it all has a simple default implementation
+    @staticmethod
+    def on_before_simulate(stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        模拟开始前的回调 - 可选重写
-        
+        用来修改股票列表 - 可选重写
+
         Args:
             settings: 验证后的策略设置
             stock_list: 股票列表
@@ -406,43 +400,6 @@ class BaseStrategy(ABC):
         单只股票投资机会汇总 - 抽象方法，子类必须实现
         """
         return base_investment_summary
-    
-    @staticmethod
-    def on_summarize_stock(base_summary: Dict[str, Any], simulate_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        单只股票模拟结果汇总 - 抽象方法，子类必须实现
-        
-        Args:
-            base_summary: 默认的汇总结果
-            simulate_result: 单只股票的模拟结果
-            
-        Returns:
-            Dict: 追加到默认summary的track（可以返回空字典）
-        """
-        return base_summary
-
-    @staticmethod
-    def on_summarize_session(base_session_summary: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        整个会话汇总 - 可选重写
-        
-        Args:
-            stock_summaries: 所有股票的汇总结果
-            
-        Returns:
-            Dict: 追加到默认session summary的字段（可以返回空字典）
-        """
-        return base_session_summary
-    
-    @staticmethod
-    def on_before_report(base_report: Dict[str, Any]) -> None:
-        """
-        模拟完成后的最终回调 - 可选重写
-        
-        Args:
-            base_report: 最终报告
-        """
-        return base_report
 
 
     @staticmethod
@@ -464,27 +421,67 @@ class BaseStrategy(ABC):
     # abstract API for opportunity scanning:
     # ========================================================
 
-    @abstractmethod
-    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    def report(session_summary: List[Dict[str, Any]], stock_summaries: List[Dict[str, Any]]) -> None:
         """
-        扫描单只股票的投资机会 - 抽象方法，子类必须实现
-        
-        Args:
-            stock_id: 股票ID
-            data: 股票的历史K线数据（到当前日期为止）
-            
-        Returns:
-            Optional[Dict]: 如果发现投资机会则返回机会字典，否则返回None
-        """
-        pass
-    
-    @abstractmethod
-    def report(self, opportunities: List[Dict[str, Any]]) -> None:
-        """
-        呈现扫描结果 - 抽象方法，子类必须实现
+        呈现扫描结果 - 可选重写
         
         Args:
             opportunities: 投资机会列表
         """
         pass
 
+    @staticmethod
+    def on_summarize_stock(base_summary: Dict[str, Any], simulate_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        单只股票模拟结果汇总 - 可选重写
+        
+        Args:
+            base_summary: 默认的汇总结果
+            simulate_result: 单只股票的模拟结果
+            
+        Returns:
+            Dict: 追加到默认summary的track（可以返回空字典）
+        """
+        return base_summary
+
+    @staticmethod
+    def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        整个会话汇总 - 可选重写
+        
+        Args:
+            base_session_summary: 默认的汇总结果
+            stock_summaries: 所有股票的汇总结果
+            
+        Returns:
+            Dict: 追加到默认session summary的字段（可以返回空字典）
+        """
+        return base_session_summary
+    
+    @staticmethod
+    def on_before_report(base_report: Dict[str, Any]) -> None:
+        """
+        模拟完成后的最终回调 - 可选重写
+        
+        Args:
+            base_report: 最终报告
+        """
+        return base_report
+
+
+    # ========================================================
+    # utils:
+    # ========================================================
+    
+    def get_abbr(self) -> str:
+        """获取策略的缩写"""
+        return self.abbreviation
+
+    def get_module_info(self) -> Dict[str, Any]:
+        """获取模块信息"""
+        return {
+            'strategy_class_name': self.__class__.__name__,
+            'strategy_module_path': f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}",
+            'strategy_folder_name': self.get_abbr()
+        }

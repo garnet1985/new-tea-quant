@@ -3,7 +3,7 @@ Database Package - 匹配Node.js项目表结构
 """
 from .db_config import DB_CONFIG
 from .db_enum import BaseTableNames
-from .db_manager import DatabaseManager, get_db_manager, get_sync_db_manager
+from .db_manager import DatabaseManager
 
 __all__ = [
     # Config
@@ -14,6 +14,4 @@ __all__ = [
     
     # Database Manager
     'DatabaseManager',
-    'get_db_manager',
-    'get_sync_db_manager',
 ] 

@@ -65,7 +65,7 @@ def demo_basic_usage():
         max_workers=4,
         execution_mode=ExecutionMode.QUEUE,
         job_executor=cpu_intensive_task,
-        is_verbose=True
+        is_verbose=False
     )
     
     # 执行任务
@@ -105,7 +105,7 @@ def demo_batch_mode():
         execution_mode=ExecutionMode.BATCH,
         batch_size=8,  # 每个batch 8个任务
         job_executor=cpu_intensive_task,
-        is_verbose=True
+        is_verbose=False
     )
     
     # 执行任务
@@ -137,7 +137,7 @@ def demo_queue_mode():
         max_workers=4,
         execution_mode=ExecutionMode.QUEUE,
         job_executor=cpu_intensive_task,
-        is_verbose=True
+        is_verbose=False
     )
     
     # 执行任务
@@ -170,7 +170,7 @@ def demo_auto_workers():
     worker = ProcessWorker(
         execution_mode=ExecutionMode.QUEUE,
         job_executor=cpu_intensive_task,
-        is_verbose=True
+        is_verbose=False
     )
     
     print(f"自动设置的进程数: {worker.max_workers}")

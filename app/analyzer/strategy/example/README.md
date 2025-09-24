@@ -1,11 +1,12 @@
 ### 如何添加一个自定义投资策略（示例指引）
 
-这个目录提供了最小可运行的示例：`example.py`（策略入口）、`example_settings.py`（策略配置）、`example_simulator.py`（单日模拟逻辑）。参考它们即可快速创建你自己的策略。
+这个目录提供了最小可运行的示例：`example.py`（策略入口）、`settings.py`（策略配置）。参考它们即可快速创建你自己的策略。
 
 ### 目录结构与命名约定
 
-- **策略目录**: 在 `app/analyzer/strategy/` 下新建你的策略文件夹，例如 `MyStrategy/`
-- **入口文件命名**: 入口文件需与文件夹同名，例如 `MyStrategy/MyStrategy.py`
+- **策略目录**: 在 `app/analyzer/strategy/` 下新建你的策略文件夹，例如 `MYST/`。注意：你的策略文件夹必须是你的基类里的`abbreviation`的值
+- **策略设置**: 在 `app/analyzer/strategy/` 下新建你的策略设置文件，名字必须是`settings.py`, 并且里边的变量名必须叫`settings`
+- **入口文件命名**: 入口文件需与文件夹同名，例如 `MyStrategy/MYST.py`。注意：你的策略文件名必须是你的基类里的`abbreviation`的值
 - **策略类**: 在入口文件中定义一个继承自 `BaseStrategy` 的类（类名不限）
 - **是否启用**: 通过类属性 `is_enabled: bool` 控制是否参与扫描/模拟
 
@@ -27,29 +28,19 @@ class MyStrategy(BaseStrategy):
             name="My Strategy",
             abbreviation="MYST"  # 短、唯一、机器可读（表前缀/标识）
         )
-        self.strategy_settings = {...}  # 可从单独 settings.py 导入
-        self.simulator = Simulator()
+        super().initialize()
 
-    def initialize(self):
-        self.required_tables = {
-            "stock_index": self.db.get_table_instance("stock_index"),
-            "stock_kline": self.db.get_table_instance("stock_kline"),
-            "adj_factor": self.db.get_table_instance("adj_factor"),
-        }
+    def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """扫描单只股票的投资机会"""
+        # define your opportunity identification logic here...
+        # the opportunity need to call BaseStrategy.to_opportunity to convert to a standard opportunity entity
+        return None
 
-    async def scan(self):
-        # 返回机会列表：List[Dict[str, Any]]
-        return []
+    # other event methods can be overridden here...
+    # on_before_simulate, on_summarize_stock, on_summarize_session, on_before_report
 
-    def simulate(self):
-        return self.simulator.run(
-            settings=self.strategy_settings,
-            on_simulate_one_day=MySimulator.simulate_single_day,
-            on_single_stock_summary=self.stock_summary,
-        )
-
-    def stock_summary(self, result):
-        return {}
+    # if any extra field need to be added to the opportunity, you can override the to_opportunity method
+    # to_investment, to_settled_investment
 ```
 
 2) 提供单日模拟函数（可放在同文件或独立 `MySimulator.py`）
@@ -73,7 +64,6 @@ class MySimulator:
 
 可直接复用 `example/example_settings.py` 结构：
 
-- **folder_name**: 用于存放该策略产物的父目录名（与策略目录同名更直观）
 - **mode**: 是否只跑黑名单、测试股票数量等
 - **klines**: 模拟所需的 K 线周期与基础周期（`base_term`）
 - **simulation**: 回测起止日期

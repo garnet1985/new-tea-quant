@@ -99,7 +99,7 @@ def demo_basic_usage():
         max_workers=5,
         execution_mode=ExecutionMode.PARALLEL,
         job_executor=io_intensive_task,
-        is_verbose=True
+        is_verbose=False
     )
     
     # 执行任务
@@ -264,7 +264,7 @@ def demo_mixed_task_types():
             'db': database_query_task,
             'file': file_processing_task
         }[data['id'].split('_')[0]](data),
-        is_verbose=True
+        is_verbose=False
     )
     
     # 执行任务
@@ -321,7 +321,7 @@ def demo_error_handling():
         max_workers=3,
         execution_mode=ExecutionMode.PARALLEL,
         job_executor=error_prone_task,
-        is_verbose=True
+        is_verbose=False
     )
     
     # 执行任务

@@ -37,6 +37,11 @@ class Tushare:
         self.kline_completed_jobs = 0
         self.kline_progress_lock = threading.Lock()
 
+        # 线程局部 DB（用于每个工作线程独立复用同一个 DatabaseManager 与 Storage）
+        self._thread_local = threading.local()
+        self._thread_dbs = []
+        self._thread_dbs_lock = threading.Lock()
+
     def _k_line_api_rate_limit(self):
         """Tushare K线数据API频率限制（线程安全）"""
         with self.kline_api_lock:
@@ -62,19 +67,9 @@ class Tushare:
     async def get_latest_market_open_day(self):
         return TushareService.get_latest_market_open_day(self.api)
 
-
+    # ================================ stock kline ================================
     async def renew_stock_k_lines(self, latest_market_open_day: str = None, stock_index: list = None):
         await self.renew_stock_k_lines_by_batch(latest_market_open_day, stock_index)
-
-
-    async def renew_global_economic_data(self):
-        # TODO: implement when necessary
-        pass
-
-    async def renew_corporate_finance_data(self):
-        # TODO: implement when necessary
-        pass
-    
 
     async def renew_stock_k_lines_by_batch(self, latest_market_open_day: str = None, stock_index: list = None):
         """
@@ -183,6 +178,8 @@ class Tushare:
             for failed in failed_jobs:
                 logger.error(f"❌ 股票 {failed.job_id} 处理失败: {failed.error}")
         
+        # 所有任务完成后，关闭各线程数据库，确保写入落盘
+        self._close_thread_dbs()
         return stats
 
     def process_single_stock_jobs(self, job_data: dict):
@@ -198,6 +195,9 @@ class Tushare:
         stock_key = job_data['stock_key']
         stock_jobs = job_data['stock_jobs']
 
+        # 获取线程局部的数据库与存储实例（开启线程安全与连接池），并在整个线程生命周期内复用
+        local_storage = self._get_thread_storage()
+
         try:
             # 收集该股票的所有数据
             all_stock_data = []
@@ -209,7 +209,7 @@ class Tushare:
                     
                     if data is not None and not data.empty:
                         # 转换数据格式并添加到批量数据中
-                        converted_data = self.storage.convert_kline_data_for_storage(data, job)
+                        converted_data = local_storage.convert_kline_data_for_storage(data, job)
                         all_stock_data.extend(converted_data)
 
                 except Exception as e:
@@ -218,7 +218,7 @@ class Tushare:
             
             # 当单只股票全部数据请求完成，存储一次
             if all_stock_data:
-                self.storage.batch_save_stock_kline(all_stock_data)
+                local_storage.batch_save_stock_kline(all_stock_data)
                 
                 result = {
                     'stock_key': stock_key,
@@ -248,6 +248,31 @@ class Tushare:
                 progress = (self.kline_completed_jobs / self.kline_total_jobs * 100) if self.kline_total_jobs else 100
                 logger.info(f"📈 K线更新进度: {self.kline_completed_jobs}/{self.kline_total_jobs} ({progress:.1f}%) 完成; 当前股票: {stock_key}, 状态: failed")
             raise  # 重新抛出异常，让JobWorker捕获并记录
+        finally:
+            # 不在每只股票结束时关闭，保持异步写入；统一在批次结束后关闭
+            pass
+
+    def _get_thread_storage(self) -> TushareStorage:
+        if getattr(self._thread_local, 'storage', None) is not None:
+            return self._thread_local.storage
+        from utils.db.db_manager import DatabaseManager
+        local_db = DatabaseManager(is_verbose=False, enable_thread_safety=True, use_connection_pool=True)
+        local_storage = TushareStorage(local_db)
+        self._thread_local.db = local_db
+        self._thread_local.storage = local_storage
+        with self._thread_dbs_lock:
+            self._thread_dbs.append(local_db)
+        return local_storage
+
+    def _close_thread_dbs(self):
+        with self._thread_dbs_lock:
+            dbs = list(self._thread_dbs)
+            self._thread_dbs.clear()
+        for db in dbs:
+            try:
+                db.close()
+            except Exception:
+                pass
 
     def fetch_kline_data(self, job: dict):
         # 应用K线数据API频率限制
@@ -265,7 +290,7 @@ class Tushare:
                 logger.error(f"Tushare K线API调用失败: {e}")
             raise e
 
-
+    # ================================ stock index ================================
     def renew_stock_index(self, latest_market_open_day: str = None, is_force=False):
 
         should_renew = False
@@ -332,8 +357,15 @@ class Tushare:
         else:
             return [data]
 
+
+    # ================================ price indexes ================================
+    def renew_price_indexes(self):
+        # TODO: implement when necessary
+        pass
+
     
-    # auth related
+
+    # ================================ auth related ================================
     def get_token(self):
         try:
             with open(auth_token_file, 'r') as f:

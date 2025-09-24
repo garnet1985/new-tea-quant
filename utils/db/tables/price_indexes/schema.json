@@ -1,0 +1,146 @@
+{
+    "name": "price_indexes",
+    "primaryKey": ["id", "date"],
+    "fields": [
+        {
+            "name": "id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股票代码（含市场后缀，如000001.SZ）"
+        },
+        {
+            "name": "date",
+            "type": "datetime",
+            "isRequired": true,
+            "description": "日期"
+        },
+
+        {
+            "name": "CPI",
+            "type": "float",
+            "isRequired": true,
+            "description": "Consumer Price Index"
+        },
+        {
+            "name": "CPI_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "CPI同比 year to year"
+        },
+        {
+            "name": "CPI_mom",
+            "type": "float",
+            "isRequired": true,
+            "description": "CPI环比 month to month"
+        },
+
+        {
+            "name": "PPI",
+            "type": "float",
+            "isRequired": true,
+            "description": "Producer Price Index"
+        },
+        {
+            "name": "PPI_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "PPI同比 year to year"
+        },
+        {
+            "name": "PPI_mom",
+            "type": "float",
+            "isRequired": true,
+            "description": "PPI环比 month to month"
+        },
+
+        {
+            "name": "PMI",
+            "type": "float",
+            "isRequired": true,
+            "description": "Purchasing Managers' Index"
+        },
+        {
+            "name": "PMI_l_scale",
+            "type": "float",
+            "isRequired": true,
+            "description": "Purchasing Managers' Index of large scale enterprises"
+        },
+        {
+            "name": "PMI_m_scale",
+            "type": "float",
+            "isRequired": true,
+            "description": "Purchasing Managers' Index of medium scale enterprises"
+        },
+        {
+            "name": "PMI_s_scale",
+            "type": "float",
+            "isRequired": true,
+            "description": "Purchasing Managers' Index of small scale enterprises"
+        },
+
+        {
+            "name": "M0",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M0"
+        },
+        {
+            "name": "M0_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M0 year to year"
+        },
+        {
+            "name": "M0_mom",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M0 month to month"
+        },
+        {
+            "name": "M1",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M1"
+        },
+        {
+            "name": "M1_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M1 year to year"
+        },
+        {
+            "name": "M1_mom",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M1 month to month"
+        },
+        {
+            "name": "M2",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M2"
+        },
+        {
+            "name": "M2_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M2 year to year"
+        },
+        {
+            "name": "M2_mom",
+            "type": "float",
+            "isRequired": true,
+            "description": "money supply of M2 month to month"
+        },
+
+        {
+            "name": "last_update",
+            "type": "timestamp",
+            "isRequired": true,
+            "default": "CURRENT_TIMESTAMP",
+            "description": "记录创建时间"
+        }
+    ],
+    "description": "价格指数表，存储价格指数的详细信息"
+}

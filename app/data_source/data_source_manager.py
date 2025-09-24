@@ -39,7 +39,10 @@ class DataSourceManager:
 
         await tu.renew_stock_k_lines(self.latest_market_open_day, self.latest_stock_index)
         
-        ak.inject_dependency(tu).renew_stock_k_line_factors(self.latest_market_open_day, self.latest_stock_index)
+        # ak.inject_dependency(tu).renew_stock_k_line_factors(self.latest_market_open_day, self.latest_stock_index)
+
+        # macro economic indexes
+        # tu.renew_price_indexes(self.latest_market_open_day)
 
         # below are not implemented yet
         # tu.renew_global_economic_data()

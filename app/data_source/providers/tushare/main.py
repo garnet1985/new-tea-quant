@@ -5,8 +5,9 @@ from utils.worker import FuturesWorker, ThreadExecutionMode
 from app.data_source.providers.tushare.main_settings import auth_token_file
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
+from app.data_source.providers.conf.conf import data_default_start_date
 import warnings
-from datetime import datetime, date
+from datetime import datetime
 import time
 
 
@@ -317,27 +318,8 @@ class Tushare:
         # 直接从stock_index表获取最新的lastUpdate
         last_renew_time = self.storage.stock_index_table.load_latest_last_update()
 
-        # 统一比较为日期类型
-        def _to_date(value):
-            if value is None:
-                return None
-            if isinstance(value, datetime):
-                return value.date()
-            if isinstance(value, date):
-                return value
-            if isinstance(value, str):
-                v = value.strip()
-                # 常见格式：YYYYMMDD 或 YYYY-MM-DD 或 YYYY/MM/DD
-                for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d'):
-                    try:
-                        return datetime.strptime(v, fmt).date()
-                    except ValueError:
-                        continue
-            # 无法解析则返回 None
-            return None
-
-        last_dt = _to_date(last_renew_time)
-        latest_dt = _to_date(latest_market_open_day)
+        last_dt = TushareService.to_date(last_renew_time)
+        latest_dt = TushareService.to_date(latest_market_open_day)
 
         should_renew = is_force or last_dt is None or (latest_dt is not None and last_dt < latest_dt)
 
@@ -384,35 +366,10 @@ class Tushare:
         - PMI: pmi [tushare: doc_id=325]
         参考: `https://tushare.pro/document/2?doc_id=242`, `https://tushare.pro/document/2?doc_id=228`, `https://tushare.pro/document/2?doc_id=245`, `https://tushare.pro/document/2?doc_id=325`
         """
-        from datetime import datetime
-        import math
-        from app.data_source.providers.conf.conf import data_default_start_date
-
         # 统一起止区间（与K线一致）：若未显式传入，则用配置默认起点 → 最新交易日
-        def to_yyyymm(d: str) -> str:
-            d = (d or '').strip()
-            if not d:
-                return ''
-            # 支持 YYYYMMDD / YYYY-MM-DD / YYYY/MM/DD / YYYYMM
-            for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%m'):
-                try:
-                    return datetime.strptime(d, fmt).strftime('%Y%m')
-                except ValueError:
-                    continue
-            return ''
+        start_m = TushareService.to_yyyymm(data_default_start_date)
+        end_m = TushareService.to_yyyymm(latest_market_open_day) or datetime.now().strftime('%Y%m')
 
-        start_m = to_yyyymm(data_default_start_date)
-        end_m = to_yyyymm(latest_market_open_day) or datetime.now().strftime('%Y%m')
-
-        def safe_to_float(x, default=0.0):
-            try:
-                if x is None or (isinstance(x, float) and math.isnan(x)):
-                    return default
-                return float(x)
-            except Exception:
-                return default
-
-        # month -> row dict
         by_month = {}
 
         # 小工具：调试打印
@@ -437,15 +394,15 @@ class Tushare:
                     if not m:
                         continue
                     row = by_month.setdefault(m, {})
-                    row['M0'] = safe_to_float(r.get('m0'))
-                    row['M0_yoy'] = safe_to_float(r.get('m0_yoy'))
-                    row['M0_mom'] = safe_to_float(r.get('m0_mom'))
-                    row['M1'] = safe_to_float(r.get('m1'))
-                    row['M1_yoy'] = safe_to_float(r.get('m1_yoy'))
-                    row['M1_mom'] = safe_to_float(r.get('m1_mom'))
-                    row['M2'] = safe_to_float(r.get('m2'))
-                    row['M2_yoy'] = safe_to_float(r.get('m2_yoy'))
-                    row['M2_mom'] = safe_to_float(r.get('m2_mom'))
+                    row['M0'] = TushareService.safe_to_float(r.get('m0'))
+                    row['M0_yoy'] = TushareService.safe_to_float(r.get('m0_yoy'))
+                    row['M0_mom'] = TushareService.safe_to_float(r.get('m0_mom'))
+                    row['M1'] = TushareService.safe_to_float(r.get('m1'))
+                    row['M1_yoy'] = TushareService.safe_to_float(r.get('m1_yoy'))
+                    row['M1_mom'] = TushareService.safe_to_float(r.get('m1_mom'))
+                    row['M2'] = TushareService.safe_to_float(r.get('m2'))
+                    row['M2_yoy'] = TushareService.safe_to_float(r.get('m2_yoy'))
+                    row['M2_mom'] = TushareService.safe_to_float(r.get('m2_mom'))
         except Exception as e:
             if self.is_verbose:
                 logger.error(f"cn_m fetch failed: {e}")
@@ -466,9 +423,9 @@ class Tushare:
                         continue
                     row = by_month.setdefault(m, {})
                     # Fields per user: nt_val, nt_val_yoy, nt_val_mom
-                    row['CPI'] = safe_to_float(r.get('nt_val'))
-                    row['CPI_yoy'] = safe_to_float(r.get('nt_yoy'))
-                    row['CPI_mom'] = safe_to_float(r.get('nt_mom'))
+                    row['CPI'] = TushareService.safe_to_float(r.get('nt_val'))
+                    row['CPI_yoy'] = TushareService.safe_to_float(r.get('nt_yoy'))
+                    row['CPI_mom'] = TushareService.safe_to_float(r.get('nt_mom'))
         except Exception as e:
             logger.error(f"cpi fetch failed: {e}")
 
@@ -488,9 +445,9 @@ class Tushare:
                     row = by_month.setdefault(m, {})
                     # Fields per user: ppi_accu, ppi_mom, ppi_yoy
 
-                    row['PPI'] = safe_to_float(r.get('ppi_accu'))
-                    row['PPI_yoy'] = safe_to_float(r.get('ppi_yoy'))
-                    row['PPI_mom'] = safe_to_float(r.get('ppi_mom'))
+                    row['PPI'] = TushareService.safe_to_float(r.get('ppi_accu'))
+                    row['PPI_yoy'] = TushareService.safe_to_float(r.get('ppi_yoy'))
+                    row['PPI_mom'] = TushareService.safe_to_float(r.get('ppi_mom'))
         except Exception as e:
             logger.error(f"ppi fetch failed: {e}")
 
@@ -512,10 +469,10 @@ class Tushare:
                     if not m:
                         continue
                     row = by_month.setdefault(m, {})
-                    row['PMI'] = safe_to_float(r.get('pmi010000') or r.get('PMI010000'))
-                    row['PMI_l_scale'] = safe_to_float(r.get('pmi010100') or r.get('PMI010100'))
-                    row['PMI_m_scale'] = safe_to_float(r.get('pmi010200') or r.get('PMI010200'))
-                    row['PMI_s_scale'] = safe_to_float(r.get('pmi010300') or r.get('PMI010300'))
+                    row['PMI'] = TushareService.safe_to_float(r.get('pmi010000') or r.get('PMI010000'))
+                    row['PMI_l_scale'] = TushareService.safe_to_float(r.get('pmi010100') or r.get('PMI010100'))
+                    row['PMI_m_scale'] = TushareService.safe_to_float(r.get('pmi010200') or r.get('PMI010200'))
+                    row['PMI_s_scale'] = TushareService.safe_to_float(r.get('pmi010300') or r.get('PMI010300'))
         except Exception as e:
             logger.error(f"pmi fetch failed: {e}")
 
@@ -559,14 +516,57 @@ class Tushare:
             records.append(rec)
 
         if not records:
-            logger.info("price_indexes: no records to update")
+            logger.info("价格指数: 没有数据需要更新")
             return
 
         try:
             table = self.db.get_table_instance('price_indexes')
             table.replace(records, ['id', 'date'])
-            logger.info(f"✅ price_indexes 刷新完成: {len(records)} 条")
+            logger.info(f"✅ 价格指数 更新完成: {len(records)} 条")
         except Exception as e:
-            logger.error(f"❌ price_indexes 刷新失败: {e}")
+            logger.error(f"❌ 价格指数 更新失败: {e}")
 
-    
+    # ================================ interest rates ================================
+    def renew_interest_rates(self, latest_market_open_day: str = None):
+        """
+        刷新利率指标（LPR）到 `interest_rates` 基础表。
+        """
+
+        start_m = data_default_start_date
+        end_m = latest_market_open_day
+
+        try:
+            df_lpr = self.api.shibor_lpr(
+                start_m=start_m, 
+                end_m=end_m,
+                fields='date,1y,5y'
+            )
+        except Exception as e:
+            logger.error(f"lpr fetch failed: {e}")
+            return
+
+        if df_lpr is None or df_lpr.empty:
+            logger.info("lpr: no records returned")
+            return
+
+        records = []
+        for _, r in df_lpr.iterrows():
+            date_str = str(r.get('date') or r.get('DATE') or '').strip()
+            lpr_1y = r.get('1y') if '1y' in r else r.get('lpr_1y') or r.get('LPR_1Y')
+            lpr_5y = r.get('5y') if '5y' in r else r.get('lpr_5y') or r.get('LPR_5Y')
+
+            records.append({
+                'date': date_str,
+                'LPR_1Y': TushareService.safe_to_float(lpr_1y),
+                'LPR_5Y': TushareService.safe_to_float(lpr_5y),
+            })
+
+        if not records:
+            return
+
+        try:
+            table = self.db.get_table_instance('lpr')
+            table.replace(records, ['date'])
+            logger.info(f"✅ 基准利率LPR 刷新完成: {len(records)} 条")
+        except Exception as e:
+            logger.error(f"❌ 基准利率LPR 更新失败: {e}")

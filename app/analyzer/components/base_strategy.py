@@ -214,6 +214,7 @@ class BaseStrategy(ABC):
         import importlib
         strategy_setting_path = f"app.analyzer.strategy.{self.get_abbr()}.settings"
         settings_module = importlib.import_module(strategy_setting_path)
+        
         strategy_settings = getattr(settings_module, "settings")
         
         stock_list = self.table["stock_index"].load_filtered_index()
@@ -345,12 +346,11 @@ class BaseStrategy(ABC):
             Dict[str, Any]: 模拟结果
         """
         from .simulator.simulator import Simulator
-        
+
         simulator = Simulator()
 
         # 运行模拟 - 传入所有回调方法
         result = simulator.run(
-            settings=self.settings.copy(),
             module_info=self.get_module_info()
         )
         
@@ -368,32 +368,6 @@ class BaseStrategy(ABC):
         """
         return stock_list
 
-    def on_simulate_one_day(self, stock_id: str, current_date: str, current_record: Dict[str, Any], 
-                       all_data: List[Dict[str, Any]], current_investment: Optional[Dict[str, Any]], 
-                       settings: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        模拟单日交易逻辑 - 可选重写（当前框架默认不强制调用该接口）
-        
-        Args:
-            stock_id: 股票ID
-            current_date: 当前日期
-            current_record: 当前日K线数据
-            all_data: 所有历史数据（到当前日为止）
-            current_investment: 当前投资状态
-            settings: 策略设置
-            
-        Returns:
-            Dict[str, Any]: 包含以下字段的结果
-                - new_investment: 新的投资（如果有）
-                - settled_investments: 结算的投资列表
-                - current_investment: 更新后的当前投资状态
-        """
-        return {
-            'new_investment': None,
-            'settled_investments': [],
-            'current_investment': current_investment,
-        }
-
     @staticmethod
     def on_summarize_stock_investment(base_investment_summary: Dict[str, Any], original_investment: Dict[str, Any], stock_info: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -403,18 +377,18 @@ class BaseStrategy(ABC):
 
 
     @staticmethod
-    def to_investment(investment: Dict[str, Any]) -> Dict[str, Any]:
+    def to_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """
         将投资机会转换为投资
         """
-        return investment
+        return base_investment
 
     @staticmethod
-    def to_settled_investment(investment: Dict[str, Any]) -> Dict[str, Any]:
+    def to_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """
         将投资转换为已结算投资
         """
-        return investment
+        return base_investment
 
 
     # ========================================================
@@ -480,8 +454,10 @@ class BaseStrategy(ABC):
 
     def get_module_info(self) -> Dict[str, Any]:
         """获取模块信息"""
+        abbreviation = self.get_abbr()
         return {
             'strategy_class_name': self.__class__.__name__,
-            'strategy_module_path': f"app.analyzer.strategy.{self.get_abbr()}.{self.get_abbr()}",
-            'strategy_folder_name': self.get_abbr()
+            'strategy_folder_name': abbreviation,
+            'strategy_module_path': f"app.analyzer.strategy.{abbreviation}.{abbreviation}",
+            'strategy_settings_path': f"app.analyzer.strategy.{abbreviation}.settings"
         }

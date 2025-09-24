@@ -248,3 +248,27 @@ class TushareService:
             return float(x)
         except Exception:
             return default
+
+    @staticmethod
+    def to_quarter(d: str) -> str:
+        """
+        将日期转换为季度标识。输入支持：YYYYMMDD 或 YYYY-MM-DD 或 YYYY/MM/DD 或 YYYYMM
+        输出：YYYYQ{N}，N∈{1,2,3,4}
+        """
+        from datetime import datetime
+        s = (d or '').strip()
+        if not s:
+            return ''
+        # 规范化为 datetime
+        dt = None
+        for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%m'):
+            try:
+                dt = datetime.strptime(s, fmt)
+                break
+            except ValueError:
+                continue
+        if dt is None:
+            return ''
+        month = dt.month
+        q = (month - 1) // 3 + 1
+        return f"{dt.year}Q{q}"

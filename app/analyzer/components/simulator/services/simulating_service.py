@@ -2,11 +2,13 @@
 """
 SimulatingService - 多进程模拟服务
 """
+from tkinter import N
 from typing import Callable, Dict, List, Any, Optional
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.enum import InvestmentResult
 from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
+from utils.icon.icon_service import IconService
 from utils.worker.multi_process.process_worker import ProcessWorker
 
 
@@ -14,7 +16,7 @@ class SimulatingService:
     """静态模拟方法，支持多进程"""
 
     @staticmethod
-    def build_jobs(stock_list: List[Dict[str, Any]], module_info: Dict[str, Any], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def build_jobs(stock_list: List[Dict[str, Any]], strategy_class: Any, settings: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         构建多进程模拟任务 - 基于股票列表的简化版本
         每个进程按需加载K线数据和计算指标，避免内存爆炸
@@ -36,7 +38,7 @@ class SimulatingService:
                 'payload': {
                     'stock': stock,
                     'settings': settings,
-                    'module_info': module_info
+                    'strategy_class': strategy_class
                 }
             }
             jobs.append(job)
@@ -47,7 +49,7 @@ class SimulatingService:
     
 
     @staticmethod
-    def run_multiprocess_simulation(jobs: List[Dict[str, Any]], module_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def run_multiprocess_simulation(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         使用多进程执行模拟任务
         
@@ -94,14 +96,14 @@ class SimulatingService:
         try:
             stock = payload['stock']
             settings = payload['settings']
-            module_info = payload['module_info']
+            strategy_class = payload['strategy_class']
 
             from app.analyzer.components.data_loader import DataLoader
             data = DataLoader.load_stock_data_in_child_process(stock['id'], settings)
 
             # 执行模拟 - 直接调用子类的simulate_one_day方法
             result = SimulatingService._execute_simulation(
-                stock, data, settings, module_info
+                stock, data, settings, strategy_class
             )
 
             return result
@@ -111,14 +113,14 @@ class SimulatingService:
             return {}
 
     @staticmethod
-    def _execute_simulation(stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_simulation(stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], strategy_class: Any) -> Dict[str, Any]:
         """
         使用单日模拟函数执行模拟
         
         Args:
             stock_info: 股票信息
             required_data: 所需数据
-            module_info: 模块信息
+            strategy_class: 策略类
             
         Returns:
             Dict: 模拟结果
@@ -150,11 +152,11 @@ class SimulatingService:
 
             data_of_today = SimulatingService.get_data_of_today(virtual_date_of_today, required_data, settings)
 
-            SimulatingService._execute_single_day(tracker, current_record, stock_info, data_of_today, settings, module_info)
+            SimulatingService._execute_single_day(tracker, current_record, stock_info, data_of_today, settings, strategy_class)
             last_record_of_today = current_record
         
         # 回测结束清算未结投资
-        SimulatingService.settle_open_investment(tracker, last_record_of_today, module_info)
+        SimulatingService.settle_open_investment(tracker, last_record_of_today, strategy_class)
 
         del tracker['passed_dates']
         del tracker['investing']
@@ -164,17 +166,9 @@ class SimulatingService:
 
 
     @staticmethod
-    def _execute_single_day(tracker: Dict[str, Any], record_of_today: str, stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_single_day(tracker: Dict[str, Any], record_of_today: str, stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], strategy_class: Any) -> None:
         investment = tracker['investing']
 
-        import importlib
-        strategy_class_name = module_info.get('strategy_class_name', '')
-        strategy_module_path = module_info.get('strategy_module_path', '')
-        
-        # 动态导入策略模块并获取类
-        strategy_module = importlib.import_module(strategy_module_path)
-        strategy_class = getattr(strategy_module, strategy_class_name)
-        
         if investment:
             is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
             if is_settled:
@@ -190,7 +184,7 @@ class SimulatingService:
                 # expose to strategy class to add any extra fields
                 investment = strategy_class.to_investment(investment)
                 tracker['investing'] = investment
-        # return tracker;
+
 
 
     @staticmethod
@@ -285,7 +279,7 @@ class SimulatingService:
 
 
     @staticmethod
-    def settle_open_investment(tracker: Dict[str, Any], last_record_of_today: Dict[str, Any], module_info: Dict[str, Any]) -> None:
+    def settle_open_investment(tracker: Dict[str, Any], last_record_of_today: Dict[str, Any], strategy_class: Any) -> None:
         """
         回测结束时清算未结投资：按最后一个交易日价格结算剩余仓位，并转为settled结构。
         """
@@ -309,12 +303,6 @@ class SimulatingService:
             inv['targets']['completed'].append(final_target)
             inv['targets']['investment_ratio_left'] = 0
             inv['end_date'] = final_date
-
-        import importlib
-        strategy_class_name = module_info.get('strategy_class_name', '')
-        strategy_module_path = module_info.get('strategy_module_path', '')
-        strategy_module = importlib.import_module(strategy_module_path)
-        strategy_class = getattr(strategy_module, strategy_class_name)
 
         settled_investment = SimulatingService.to_settled_investment(inv, strategy_class, is_open=True)
         # expose to strategy class to add any extra fields
@@ -350,17 +338,24 @@ class SimulatingService:
             target['profit_contribution'] = target['sell_ratio']
             overall_profit += target['weighted_profit']
 
+        icon = "";
+
         if overall_profit >= 0:
             investment['result'] = InvestmentResult.WIN.value
+            icon = IconService.get('check') + ' 投资成功'
         else:
             investment['result'] = InvestmentResult.LOSS.value
+            icon = IconService.get('cross') + ' 投资失败'
 
         if is_open:
             investment['result'] = InvestmentResult.OPEN.value
+            icon = IconService.get('ongoing') + ' 投资未完成'
 
         investment['overall_profit'] = overall_profit
         investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], 2)
         investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
         investment['overall_annual_return'] = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
+
+        logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
 
         return strategy_class.to_settled_investment(investment)

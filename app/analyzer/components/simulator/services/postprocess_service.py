@@ -16,18 +16,11 @@ class PostprocessService:
 
 
     @staticmethod
-    def summarize_stock(simulate_result: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
+    def summarize_stock(simulate_result: Dict[str, Any], strategy_class: Any) -> Dict[str, Any]:
         """
         汇总单股票结果
         """
         stock_summary = PostprocessService.summarize_stock_by_default_way(simulate_result)
-
-        import importlib
-        strategy_class_name = module_info.get('strategy_class_name', '')
-        strategy_module_path = module_info.get('strategy_module_path', '')
-        # expose to strategy class to add any extra fields
-        strategy_module = importlib.import_module(strategy_module_path)
-        strategy_class = getattr(strategy_module, strategy_class_name)
 
         stock_summary = strategy_class.on_summarize_stock(stock_summary, simulate_result)
 
@@ -133,27 +126,20 @@ class PostprocessService:
         return summarized_stock
     
     @staticmethod
-    def summarize_session(stock_summaries: List[Dict[str, Any]], module_info: Dict[str, Any]) -> Dict[str, Any]:
+    def summarize_session(stock_summaries: List[Dict[str, Any]], strategy_class: Any) -> Dict[str, Any]:
         """
         汇总整个会话结果
         
         Args:
             stock_summaries: 股票汇总结果列表
-            module_info: 模块信息
+            strategy_class: 策略类
             
         Returns:
             Dict: 会话汇总结果
         """
         base_session_summary = PostprocessService.summarize_session_by_default_way(stock_summaries)
 
-        import importlib
-        strategy_class_name = module_info.get('strategy_class_name', '')
-        strategy_module_path = module_info.get('strategy_module_path', '')
-        # expose to strategy class to add any extra fields
-        strategy_module = importlib.import_module(strategy_module_path)
-        strategy_class = getattr(strategy_module, strategy_class_name)
-
-        session_summary = strategy_class.on_summarize_session(base_session_summary)
+        session_summary = strategy_class.on_summarize_session(base_session_summary, stock_summaries)
 
         return session_summary
 

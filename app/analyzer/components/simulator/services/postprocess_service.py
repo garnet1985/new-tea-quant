@@ -4,10 +4,9 @@
 负责模拟结果的汇总、统计和报告生成
 """
 
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.components.investment import InvestmentRecorder
 from app.analyzer.components.enum import InvestmentResult
 from utils.icon.icon_service import IconService
 

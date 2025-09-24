@@ -70,9 +70,12 @@ class Analyzer:
             # 尝试导入策略模块
             try:
                 module_path = f"app.analyzer.strategy.{strategy_folder.name}.{strategy_folder.name}"
+                settings_path = f"app.analyzer.strategy.{strategy_folder.name}.settings"
                 strategy_module = importlib.import_module(module_path)
-                
-                # 查找继承 BaseStrategy 的策略类
+
+                settings_module = importlib.import_module(settings_path)
+                settings = getattr(settings_module, "settings")
+
                 strategy_class = None
                 for attr_name in dir(strategy_module):
                     attr = getattr(strategy_module, attr_name)
@@ -92,8 +95,11 @@ class Analyzer:
                     logger.warning(f"跳过 {strategy_folder.name}: 未找到 is_enabled 属性")
                     continue
                 
-                self.all_strategies.append(strategy_class)
-                        
+                self.all_strategies.append({
+                    'strategy_class': strategy_class,
+                    'strategy_settings': settings
+                })
+
             except ImportError as e:
                 logger.warning(f"⚠️ 导入策略模块 {strategy_folder.name} 失败: {e}")
             except Exception as e:
@@ -103,7 +109,9 @@ class Analyzer:
         """初始化所有启用的策略"""
         failed_strategies = []  # 记录验证失败的策略
         
-        for strategy_class in self.all_strategies:
+        for strategy in self.all_strategies:
+            strategy_class = strategy['strategy_class']
+            strategy_settings = strategy['strategy_settings']
             # 检查策略是否启用
 
             if strategy_class.is_enabled:
@@ -112,16 +120,13 @@ class Analyzer:
                     # 创建策略实例
                     strategy_instance = strategy_class(db=self.db, is_verbose=self.is_verbose)
 
-                    is_valid, errors = self.settings_validator.validate_settings(strategy_instance.settings, strategy_class.__name__)
+                    is_valid, errors = self.settings_validator.validate_settings(strategy_settings, strategy_class.__name__)
                     
                     if not is_valid:
-                        logger.error(f"❌ 策略 {strategy_class.__name__} 设置验证失败: {strategy_instance.settings}")
+                        logger.error(f"❌ 策略 {strategy_class.__name__} 设置验证失败: {strategy_settings}")
                         logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
                         continue
 
-                    # 初始化策略（策略自己负责表的注册和创建）
-                    strategy_instance.initialize()
-                    
                     self.enabled_strategies[strategy_instance.get_abbr()] = strategy_instance
                     
                     if self.is_verbose:

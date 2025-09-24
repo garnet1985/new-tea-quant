@@ -2,16 +2,12 @@
 """
 HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 """
-from app.analyzer.components.enum import common_enum
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
-from app.analyzer.components.simulator.simulator import Simulator
 from app.analyzer.strategy.HL.HL_service import HistoricLowService
 from ...components.base_strategy import BaseStrategy
 from .settings import settings
-from app.analyzer.components.investment import InvestmentRecorder
 from utils.icon.icon_service import IconService
 
 class HistoricLow(BaseStrategy):
@@ -27,16 +23,8 @@ class HistoricLow(BaseStrategy):
             name="HistoricLow",
             abbreviation="HL"
         )
-        
-        # 加载策略设置
-        self.settings = settings
-        
-        self.simulator = Simulator()
-
-    def initialize(self):
-        """初始化策略 - 调用父类的自动表管理"""
         super().initialize()
-
+        
     # ========================================================
     # Core API: Scan opportunity
     # ========================================================
@@ -87,16 +75,6 @@ class HistoricLow(BaseStrategy):
         # 核心入场条件：当前价位位于以历史低点为参考的投资区间内
         for low_point in low_points:
             if HistoricLowService.is_in_invest_range(record_of_today, low_point):
-                # opportunity = EntityBuilder.to_opportunity(
-                #     stock=stock,
-                #     date=record_of_today.get('date'),
-                #     price=record_of_today.get('close'),
-                #     lower_bound=low_point.get('invest_lower_bound'),
-                #     upper_bound=low_point.get('invest_upper_bound'),
-                #     extra_fields={
-                #         'low_point_ref': low_point,
-                #     }
-                # )
                 opportunity = BaseStrategy.to_opportunity(
                     stock=stock,
                     record_of_today=record_of_today,
@@ -198,74 +176,3 @@ class HistoricLow(BaseStrategy):
         max_slope_degrees = settings.get('slope_check', {}).get('max_slope_degrees', -45.0)
         
         return slope >= max_slope_degrees
-
-
-    # ========================================================
-    # Core API: Simulate
-    # ========================================================
-
-    # @staticmethod
-    # def on_simulate_one_day(stock: Dict[str, Any], daily_k_lines: List[Dict[str, Any]], tracker: Dict[str, Any]) -> None:
-    #     record_of_today = daily_k_lines[-1]
-    #     return HistoricLowSimulator.simulate_single_day(stock, record_of_today, daily_k_lines, tracker)
-
-    @staticmethod
-    def on_before_simulate(stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return stock_list
-
-
-    def report(self, opportunities: List[Dict[str, Any]]) -> None:
-        """报告投资机会"""
-        if not opportunities:
-            logger.info(f"{IconService.get('search')} 未发现投资机会")
-            return
-        
-        logger.info(f"{IconService.get('search')} 发现 {len(opportunities)} 个投资机会")
-        
-        # 按股票分组显示
-        stock_opportunities = {}
-        for opp in opportunities:
-            stock_id = opp.get('stock', {}).get('id', 'unknown')
-            if stock_id not in stock_opportunities:
-                stock_opportunities[stock_id] = []
-            stock_opportunities[stock_id].append(opp)
-        
-        for stock_id, opps in stock_opportunities.items():
-            logger.info(f"{IconService.get('upward_trend')} {stock_id}: {len(opps)} 个机会")
-
-
-    # ========================================================
-    # Result presentation:
-    # ========================================================
-
-    def to_presentable_report(self, opportunities: List[Dict[str, Any]]) -> None:
-        """
-        将投资机会转换为可呈现的报告格式
-        
-        Args:
-            opportunities: 投资机会列表
-        """
-        if not opportunities:
-            logger.info(f"{IconService.get('bar_chart')} 无投资机会可报告")
-            return
-        
-        logger.info(f"{IconService.get('bar_chart')} HistoricLow 策略扫描报告")
-        logger.info("=" * 50)
-        
-        # 按股票分组统计
-        stock_stats = {}
-        for opp in opportunities:
-            stock_id = opp.get('stock', {}).get('id', 'unknown')
-            if stock_id not in stock_stats:
-                stock_stats[stock_id] = 0
-            stock_stats[stock_id] += 1
-        
-        # 显示统计信息
-        logger.info(f"{IconService.get('upward_trend')} 发现投资机会: {len(opportunities)} 个")
-        logger.info(f"{IconService.get('bar_chart')} 涉及股票: {len(stock_stats)} 只")
-        
-        # 显示每只股票的详细信息
-        for stock_id, count in sorted(stock_stats.items()):
-            logger.info(f"  {stock_id}: {count} 个机会")
-        
-        logger.info("=" * 50)

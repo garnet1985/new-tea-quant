@@ -2,8 +2,7 @@
 """
 SimulatingService - 多进程模拟服务
 """
-from tkinter import N
-from typing import Callable, Dict, List, Any, Optional
+from typing import Dict, List, Any
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.enum import InvestmentResult
@@ -60,7 +59,7 @@ class SimulatingService:
             List[Dict]: 模拟结果列表
         """
         if not jobs:
-            logger.warning("⚠️ 没有模拟任务需要执行")
+            logger.warning(f"{IconService.get('warning')} 没有模拟任务需要执行")
             return []
         
         worker = ProcessWorker(
@@ -78,7 +77,7 @@ class SimulatingService:
             if job_result.result:
                 results.append(job_result.result)
         
-        logger.info(f"✅ 多进程模拟完成，结果数: {len(results)}")
+        logger.info(f"{IconService.get('rocket')} 多进程模拟完成，总投资过的股票数: {len(results)}")
         return results
     
 

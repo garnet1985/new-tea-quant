@@ -3,7 +3,7 @@ from collections import defaultdict
 import math
 from loguru import logger
 from app.data_source.providers.conf.conf import kline_terms, data_default_start_date
-from app.data_source.providers.tushare.main_settings import LATEST_MARKET_OPEN_DAY_BACKWARD_CHECKING_DAYS
+from .config import TushareConfig
 
 class TushareService:
     @staticmethod
@@ -67,7 +67,7 @@ class TushareService:
         today = datetime.now()
         yesterday = today - timedelta(days=1)
         end_date = yesterday.strftime('%Y%m%d')
-        start_date = (yesterday - timedelta(days=LATEST_MARKET_OPEN_DAY_BACKWARD_CHECKING_DAYS)).strftime('%Y%m%d')
+        start_date = (yesterday - timedelta(days=TushareConfig.latest_market_open_day_backward_checking_days)).strftime('%Y%m%d')
 
         dates = api.trade_cal(exchange='', start_date=start_date, end_date=end_date)
         # 检查返回的字段名
@@ -272,3 +272,137 @@ class TushareService:
         month = dt.month
         q = (month - 1) // 3 + 1
         return f"{dt.year}Q{q}"
+    
+    @staticmethod
+    def generate_quarter_range(start_quarter: str, end_quarter: str) -> list:
+        """
+        生成季度范围列表
+        
+        Args:
+            start_quarter: 开始季度，格式 YYYYQ{N}
+            end_quarter: 结束季度，格式 YYYYQ{N}
+            
+        Returns:
+            list: 季度列表
+        """
+        quarters = []
+        current = start_quarter
+        
+        while current <= end_quarter:
+            quarters.append(current)
+            current = TushareService.get_next_quarter(current)
+            if not current:
+                break
+        
+        return quarters
+
+    @staticmethod
+    def get_next_quarter(quarter: str) -> str:
+        """
+        获取下一个季度
+        
+        Args:
+            quarter: 季度，格式 YYYYQ{N}
+            
+        Returns:
+            str: 下一个季度，格式 YYYYQ{N}
+        """
+        if not quarter or len(quarter) != 6:
+            return None
+        
+        try:
+            year = int(quarter[:4])
+            q_num = int(quarter[5])
+            
+            # 如果是第四季度，则返回下一年的第一季度
+            if q_num == 4:
+                next_year = year + 1
+                return f"{next_year}Q1"
+            else:
+                next_q = q_num + 1
+                return f"{year}Q{next_q}"
+                
+        except (ValueError, IndexError):
+            return None
+
+    @staticmethod
+    def get_previous_quarter(quarter: str) -> str:
+        """
+        获取上一个季度
+        
+        Args:
+            quarter: 季度，格式 YYYYQ{N}
+            
+        Returns:
+            str: 上一个季度，格式 YYYYQ{N}
+        """
+        if not quarter or len(quarter) != 6:
+            return None
+        
+        try:
+            year = int(quarter[:4])
+            q_num = int(quarter[5])
+            
+            # 如果是第一季度，则返回上一年的第四季度
+            if q_num == 1:
+                prev_year = year - 1
+                return f"{prev_year}Q4"
+            else:
+                prev_q = q_num - 1
+                return f"{year}Q{prev_q}"
+                
+        except (ValueError, IndexError):
+            return None
+
+    @staticmethod
+    def quarter_to_date_range(quarter: str):
+        """
+        将季度转换为日期范围
+        
+        Args:
+            quarter: 季度，格式 YYYYQ{N}
+            
+        Returns:
+            tuple: (start_date, end_date) 格式为 YYYYMMDD
+        """
+        if not quarter or len(quarter) != 6:
+            return None, None
+        
+        try:
+            year = int(quarter[:4])
+            q_num = int(quarter[5])
+            
+            # 计算季度的开始和结束月份
+            if q_num == 1:
+                start_month = 1
+                end_month = 3
+            elif q_num == 2:
+                start_month = 4
+                end_month = 6
+            elif q_num == 3:
+                start_month = 7
+                end_month = 9
+            elif q_num == 4:
+                start_month = 10
+                end_month = 12
+            else:
+                return None, None
+            
+            # 计算日期
+            start_date = f"{year}{start_month:02d}01"
+            
+            # 计算结束月份的最后一天
+            if end_month in [1, 3, 5, 7, 8, 10, 12]:
+                last_day = 31
+            elif end_month in [4, 6, 9, 11]:
+                last_day = 30
+            else:  # 2月
+                # 简单处理，不考虑闰年
+                last_day = 28
+            
+            end_date = f"{year}{end_month:02d}{last_day:02d}"
+            
+            return start_date, end_date
+            
+        except (ValueError, IndexError):
+            return None, None

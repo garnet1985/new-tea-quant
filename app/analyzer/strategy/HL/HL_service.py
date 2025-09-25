@@ -39,6 +39,7 @@ class HistoricLowService:
         if not records:
             return low_points
         
+        # 兼容旧实现：records 被认为已经裁剪为“历史期”，其最后一天即为冻结期开始前一天
         date_of_today = records[-1]['date']
         
         # 解析今天的日期
@@ -62,6 +63,46 @@ class HistoricLowService:
             
             low_points.append(HistoricLowService.to_low_point(years_back, min_record))
         
+        return low_points
+
+    @staticmethod
+    def find_low_points_with_freeze(daily_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        基于“冻结期”严格确定低点搜索的结束日期：
+        - 结束日期 = 冻结期开始前一天（即第 len(daily_records) - freeze_days - 1 条记录）
+        - 开始日期 = 结束日期往前推 N 年（3/5/8...）
+        仅在 [开始日期, 结束日期] 间寻找最低点
+        """
+        low_points: List[Dict[str, Any]] = []
+        if not daily_records:
+            return low_points
+        freeze_days = settings['daily_data_requirements']['freeze_period_days']
+        target_years = settings['daily_data_requirements']['low_points_ref_years']
+
+        # 结束索引 = 冻结期开始前一天
+        end_index = max(0, len(daily_records) - freeze_days - 1)
+        end_date_str = daily_records[end_index]['date']
+
+        # 解析结束日期
+        from datetime import datetime, timedelta
+        end_date = datetime.strptime(end_date_str, '%Y%m%d')
+
+        # 仅考虑结束日期之前的数据
+        eligible_records = [r for r in daily_records if r['date'] <= end_date_str]
+        if not eligible_records:
+            return low_points
+
+        for years_back in target_years:
+            start_date = end_date - timedelta(days=years_back * 365)
+            start_date_str = start_date.strftime('%Y%m%d')
+
+            # 区间过滤（闭区间包含 end_date）
+            period_records = [r for r in eligible_records if start_date_str <= r['date'] <= end_date_str]
+            if not period_records:
+                continue
+            min_record = min(period_records, key=lambda x: float(x['close']))
+            low_points.append(HistoricLowService.to_low_point(years_back, min_record))
+
         return low_points
     
     @staticmethod

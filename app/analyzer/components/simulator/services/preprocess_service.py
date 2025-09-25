@@ -40,9 +40,8 @@ class PreprocessService:
             # 使用 load_filtered_index 获取过滤后的股票列表
             stock_list = stock_index_table.load_filtered_index()
             
-            # 应用起始索引和数量限制
-            end_idx = start_idx + max_stocks
-            stock_list = stock_list[start_idx:end_idx]
+            if max_stocks > 0:
+                stock_list = stock_list[start_idx:start_idx + max_stocks]
             
             return stock_list
             

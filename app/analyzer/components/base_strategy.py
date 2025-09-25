@@ -36,13 +36,16 @@ class BaseStrategy(ABC):
         # 初始化策略
         self._check_required_fields()
 
-        self.scan_ids = [
-            "603198.SH",
-            "600720.SH",
-            "002832.SZ",
-            "002557.SZ"
-        ]
-        
+        # scan white list, config this when during test specific stocks purpose
+        # self.scan_ids = [
+        #     "603198.SH",
+        #     "600720.SH",
+        #     "002832.SZ",
+        #     "002557.SZ"
+        # ]
+        self.scan_ids = []
+
+        # scan range, config this when during quick test scan_opportunity function purpose
         self.scan_range = {
             "start": 0, 
             "amount": 0

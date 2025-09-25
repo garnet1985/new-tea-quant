@@ -38,6 +38,11 @@ class Tushare:
         self.kline_completed_jobs = 0
         self.kline_progress_lock = threading.Lock()
 
+        # 企业财务数据进度统计
+        self.corp_finance_total_jobs = 0
+        self.corp_finance_completed_jobs = 0
+        self.corp_finance_progress_lock = threading.Lock()
+
         # 线程局部 DB（用于每个工作线程独立复用同一个 DatabaseManager 与 Storage）
         self._thread_local = threading.local()
         self._thread_dbs = []
@@ -627,4 +632,422 @@ class Tushare:
 
     # ================================ corporate financial data ================================
     def renew_corporate_finance(self, latest_market_open_day: str = None):
-        pass
+        """
+        更新企业财务数据
+        
+        Args:
+            latest_market_open_day: 最新交易日，格式 YYYYMMDD
+        """
+        if not latest_market_open_day:
+            latest_market_open_day = self.get_latest_market_open_day()
+        
+        logger.info(f"📊 开始更新企业财务数据，最新交易日: {latest_market_open_day}")
+        
+        # 获取数据更新范围：从默认开始日期到最近一个季度
+        current_quarter = TushareService.to_quarter(latest_market_open_day)
+        if not current_quarter:
+            logger.warning(f"❌ 无法解析当前季度: {latest_market_open_day}")
+            return
+        
+        # 计算上一个季度（因为当前季度的数据要等季度结束后才有）
+        latest_quarter = self._get_previous_quarter(current_quarter)
+        if not latest_quarter:
+            logger.warning(f"❌ 无法计算上一个季度: {current_quarter}")
+            return
+        
+        # 获取默认开始日期的季度
+        from app.data_source.providers.conf.conf import data_default_start_date
+        start_quarter = TushareService.to_quarter(data_default_start_date)
+        if not start_quarter:
+            logger.warning(f"❌ 无法解析默认开始季度: {data_default_start_date}")
+            return
+        
+        logger.info(f"📅 数据更新范围: {start_quarter} 到 {latest_quarter} (当前季度: {current_quarter})")
+        
+        # 获取股票列表
+        stock_index = self.storage.load_stock_index()
+        if not stock_index:
+            logger.warning("❌ 没有股票数据，跳过企业财务更新")
+            return
+        
+        # 构建更新任务
+        jobs = self._build_corporate_finance_jobs(stock_index, start_quarter, latest_quarter)
+        
+        if not jobs:
+            logger.info("✅ 所有股票的企业财务数据都是最新的")
+            return
+        
+        logger.info(f"📊 企业财务数据更新任务: {len(jobs)} 个任务需要执行")
+        
+        # 初始化进度统计
+        self.corp_finance_total_jobs = len(jobs)
+        self.corp_finance_completed_jobs = 0
+        
+        # 执行多线程更新
+        self._execute_corporate_finance_jobs(jobs)
+        
+        logger.info("✅ 企业财务数据更新完成")
+
+    def _build_corporate_finance_jobs(self, stock_index: list, start_quarter: str, end_quarter: str) -> list:
+        """
+        构建企业财务数据更新任务
+        
+        Args:
+            stock_index: 股票列表
+            start_quarter: 开始季度，格式 YYYYQ{N}
+            end_quarter: 结束季度，格式 YYYYQ{N}
+            
+        Returns:
+            list: 需要更新的股票任务列表
+        """
+        jobs = []
+        
+        # 获取数据库中每只股票的最新财务数据季度
+        latest_quarters = self._get_latest_corporate_finance_quarters()
+        
+        # 将季度转换为日期范围
+        start_date, _ = self._quarter_to_date_range(start_quarter)
+        _, end_date = self._quarter_to_date_range(end_quarter)
+        
+        for stock in stock_index:
+            stock_id = stock['id']
+            latest_quarter = latest_quarters.get(stock_id)
+            
+            # 如果股票没有数据或数据落后，则需要更新
+            if not latest_quarter or latest_quarter < end_quarter:
+                jobs.append({
+                    'stock_id': stock_id,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'start_quarter': start_quarter,
+                    'end_quarter': end_quarter,
+                    'latest_quarter': latest_quarter
+                })
+        
+        return jobs
+
+    def _get_latest_corporate_finance_quarters(self) -> dict:
+        """
+        获取每只股票的最新财务数据季度
+        
+        Returns:
+            dict: {stock_id: latest_quarter}
+        """
+        try:
+            table = self.db.get_table_instance('corporate_finance')
+            query = """
+                SELECT id, MAX(quarter) as latest_quarter 
+                FROM corporate_finance 
+                GROUP BY id
+            """
+            
+            with self.db.get_sync_cursor() as cursor:
+                cursor.execute(query)
+                results = cursor.fetchall()
+                
+            return {row['id']: row['latest_quarter'] for row in results}
+            
+        except Exception as e:
+            logger.error(f"❌ 获取最新财务数据季度失败: {e}")
+            return {}
+
+    def _execute_corporate_finance_jobs(self, jobs: list):
+        """
+        使用多线程执行企业财务数据更新任务
+        
+        Args:
+            jobs: 更新任务列表
+        """
+        if not jobs:
+            return
+        
+        logger.info(f"🚀 开始执行 {len(jobs)} 个企业财务数据更新任务")
+        
+        # 创建并行执行器
+        worker = FuturesWorker(
+            max_workers=5,  # 企业财务数据API限制较严格，使用较少线程
+            execution_mode=ThreadExecutionMode.PARALLEL,
+            enable_monitoring=True,
+            timeout=1800.0,  # 30分钟超时
+            is_verbose=self.is_verbose,
+            debug=False
+        )
+        
+        # 设置任务执行函数
+        worker.set_job_executor(self._process_single_corporate_finance_job)
+        
+        # 准备任务数据
+        worker_jobs = []
+        for i, job in enumerate(jobs):
+            worker_jobs.append({
+                'id': f"corp_fin_{i}",
+                'data': job
+            })
+        
+        # 执行任务
+        stats = worker.run_jobs(worker_jobs)
+        
+        # 打印执行统计
+        worker.print_stats()
+        if stats.get('timed_out'):
+            logger.error(f"📉 企业财务数据更新超时: 完成 {stats.get('completed_jobs', 0)}/{stats.get('total_jobs', 0)}")
+        
+        # 关闭线程局部数据库
+        self._close_thread_dbs()
+
+    def _process_single_corporate_finance_job(self, job_data: dict):
+        """
+        处理单个股票的企业财务数据更新任务
+        
+        Args:
+            job_data: 任务数据
+            
+        Returns:
+            dict: 处理结果
+        """
+        stock_id = job_data['stock_id']
+        start_date = job_data['start_date']
+        end_date = job_data['end_date']
+        start_quarter = job_data['start_quarter']
+        end_quarter = job_data['end_quarter']
+        latest_quarter = job_data.get('latest_quarter')
+        
+        # 获取线程局部的数据库与存储实例
+        local_storage = self._get_thread_storage()
+        
+        try:
+            # 获取企业财务数据
+            data = self._fetch_corporate_finance_data(stock_id, start_date, end_date)
+            
+            if data is not None and not data.empty:
+                # 转换并保存数据
+                converted_data = local_storage.convert_corporate_finance_data_for_storage(data)
+                local_storage.batch_save_corporate_finance(converted_data)
+                
+                result = {
+                    'stock_id': stock_id,
+                    'status': 'success',
+                    'records_count': len(converted_data),
+                    'quarter_range': f"{start_quarter}~{end_quarter}"
+                }
+                
+                # 更新进度
+                with self.corp_finance_progress_lock:
+                    self.corp_finance_completed_jobs += 1
+                    progress = (self.corp_finance_completed_jobs / self.corp_finance_total_jobs) * 100
+                    if self.corp_finance_completed_jobs % 100 == 0 or progress >= 100:
+                        logger.info(f"📊 企业财务数据更新进度: {self.corp_finance_completed_jobs}/{self.corp_finance_total_jobs} ({progress:.1f}%)")
+                
+                logger.info(f"✅ {stock_id} 企业财务数据更新成功: {start_quarter}~{end_quarter} ({len(converted_data)}条记录)")
+            else:
+                result = {
+                    'stock_id': stock_id,
+                    'status': 'no_data',
+                    'records_count': 0,
+                    'quarter_range': f"{start_quarter}~{end_quarter}"
+                }
+                logger.warning(f"⚠️ {stock_id} 企业财务数据为空: {start_quarter}~{end_quarter}")
+                
+                # 更新进度（即使没有数据也算完成）
+                with self.corp_finance_progress_lock:
+                    self.corp_finance_completed_jobs += 1
+                    progress = (self.corp_finance_completed_jobs / self.corp_finance_total_jobs) * 100
+                    if self.corp_finance_completed_jobs % 100 == 0 or progress >= 100:
+                        logger.info(f"📊 企业财务数据更新进度: {self.corp_finance_completed_jobs}/{self.corp_finance_total_jobs} ({progress:.1f}%)")
+                
+        except Exception as e:
+            logger.error(f"❌ {stock_id} 企业财务数据更新失败: {e}")
+            result = {
+                'stock_id': stock_id,
+                'status': 'error',
+                'error': str(e),
+                'quarter_range': f"{start_quarter}~{end_quarter}"
+            }
+            
+            # 更新进度（即使出错也算完成）
+            with self.corp_finance_progress_lock:
+                self.corp_finance_completed_jobs += 1
+                progress = (self.corp_finance_completed_jobs / self.corp_finance_total_jobs) * 100
+                if self.corp_finance_completed_jobs % 100 == 0 or progress >= 100:
+                    logger.info(f"📊 企业财务数据更新进度: {self.corp_finance_completed_jobs}/{self.corp_finance_total_jobs} ({progress:.1f}%)")
+        
+        return result
+
+    def _fetch_corporate_finance_data(self, stock_id: str, start_date: str, end_date: str):
+        """
+        获取企业财务数据
+        
+        Args:
+            stock_id: 股票代码
+            start_date: 开始日期，格式 YYYYMMDD
+            end_date: 结束日期，格式 YYYYMMDD
+            
+        Returns:
+            DataFrame: 企业财务数据
+        """
+        # 应用API频率限制
+        self._corporate_finance_api_rate_limit()
+        
+        try:
+            # 调用Tushare企业财务数据API
+            data = self.api.fina_indicator(
+                ts_code=stock_id,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f"❌ 获取 {stock_id} 企业财务数据失败: {e}")
+            return None
+
+    def _generate_quarter_range(self, start_quarter: str, end_quarter: str) -> list:
+        """
+        生成季度范围列表
+        
+        Args:
+            start_quarter: 开始季度，格式 YYYYQ{N}
+            end_quarter: 结束季度，格式 YYYYQ{N}
+            
+        Returns:
+            list: 季度列表
+        """
+        quarters = []
+        current = start_quarter
+        
+        while current <= end_quarter:
+            quarters.append(current)
+            current = self._get_next_quarter(current)
+            if not current:
+                break
+        
+        return quarters
+
+    def _get_next_quarter(self, quarter: str) -> str:
+        """
+        获取下一个季度
+        
+        Args:
+            quarter: 季度，格式 YYYYQ{N}
+            
+        Returns:
+            str: 下一个季度，格式 YYYYQ{N}
+        """
+        if not quarter or len(quarter) != 6:
+            return None
+        
+        try:
+            year = int(quarter[:4])
+            q_num = int(quarter[5])
+            
+            # 如果是第四季度，则返回下一年的第一季度
+            if q_num == 4:
+                next_year = year + 1
+                return f"{next_year}Q1"
+            else:
+                next_q = q_num + 1
+                return f"{year}Q{next_q}"
+                
+        except (ValueError, IndexError):
+            return None
+
+    def _quarter_needs_update(self, stock_id: str, quarter: str, latest_quarters: dict) -> bool:
+        """
+        检查特定股票的特定季度是否需要更新
+        
+        Args:
+            stock_id: 股票代码
+            quarter: 季度
+            latest_quarters: 最新季度字典
+            
+        Returns:
+            bool: 是否需要更新
+        """
+        # 简化逻辑：如果股票没有该季度的数据，则需要更新
+        # 这里可以扩展更复杂的逻辑，比如检查数据完整性等
+        return True
+
+    def _get_previous_quarter(self, quarter: str) -> str:
+        """
+        获取上一个季度
+        
+        Args:
+            quarter: 季度，格式 YYYYQ{N}
+            
+        Returns:
+            str: 上一个季度，格式 YYYYQ{N}
+        """
+        if not quarter or len(quarter) != 6:
+            return None
+        
+        try:
+            year = int(quarter[:4])
+            q_num = int(quarter[5])
+            
+            # 如果是第一季度，则返回上一年的第四季度
+            if q_num == 1:
+                prev_year = year - 1
+                return f"{prev_year}Q4"
+            else:
+                prev_q = q_num - 1
+                return f"{year}Q{prev_q}"
+                
+        except (ValueError, IndexError):
+            return None
+
+    def _quarter_to_date_range(self, quarter: str):
+        """
+        将季度转换为日期范围
+        
+        Args:
+            quarter: 季度，格式 YYYYQ{N}
+            
+        Returns:
+            tuple: (start_date, end_date) 格式 YYYYMMDD
+        """
+        if not quarter or len(quarter) != 6:
+            return None, None
+        
+        try:
+            year = int(quarter[:4])
+            q_num = int(quarter[5])
+            
+            # 计算季度开始和结束月份
+            start_month = (q_num - 1) * 3 + 1
+            end_month = q_num * 3
+            
+            # 构建日期
+            start_date = f"{year}{start_month:02d}01"
+            
+            # 计算季度最后一天
+            if end_month == 3:
+                end_day = 31
+            elif end_month == 6:
+                end_day = 30
+            elif end_month == 9:
+                end_day = 30
+            else:  # end_month == 12
+                end_day = 31
+            
+            end_date = f"{year}{end_month:02d}{end_day}"
+            
+            return start_date, end_date
+            
+        except (ValueError, IndexError):
+            return None, None
+
+    def _corporate_finance_api_rate_limit(self):
+        """
+        企业财务数据API频率限制
+        """
+        import time
+        
+        with self.kline_api_lock:  # 复用K线API的锁
+            current_time = time.time()
+            
+            # 如果距离上次请求不足1秒，则等待
+            if current_time - self.kline_api_last_time < 1.0:
+                time.sleep(1.0 - (current_time - self.kline_api_last_time))
+            
+            self.kline_api_last_time = time.time()

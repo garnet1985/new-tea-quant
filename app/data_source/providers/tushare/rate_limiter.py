@@ -7,10 +7,8 @@ Tushare API 限流器
 
 import time
 import threading
-import logging
 from typing import Optional, Dict, Any
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class APIRateLimiter:

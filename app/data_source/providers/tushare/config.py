@@ -33,6 +33,18 @@ class WorkerConfig:
 class TushareConfig:
     """Tushare API 统一配置"""
     
+    # Token配置
+    auth_token_file = 'app/data_source/providers/tushare/auth/token.txt'
+    
+    # 市场日历设置
+    latest_market_open_day_backward_checking_days = 15
+    
+    # 排除表达式
+    exclude_expression = {
+        'BJ': '',
+        'KeChuangBan': ''
+    }
+    
     # API限流配置
     kline_rate_limit = APIRateLimit(max_per_minute=800, buffer=20)  # 780次/分钟
     corp_finance_rate_limit = APIRateLimit(max_per_minute=500, buffer=20)  # 480次/分钟

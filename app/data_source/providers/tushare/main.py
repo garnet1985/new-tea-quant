@@ -623,3 +623,8 @@ class Tushare:
             logger.info(f"✅ GDP 刷新完成: {len(records)} 条")
         except Exception as e:
             logger.error(f"❌ GDP 更新失败: {e}")
+
+
+    # ================================ corporate financial data ================================
+    def renew_corporate_finance(self, latest_market_open_day: str = None):
+        pass

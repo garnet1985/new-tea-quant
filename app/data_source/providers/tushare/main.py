@@ -2,7 +2,7 @@ import pprint
 import tushare as ts
 from loguru import logger
 from utils.worker import FuturesWorker, ThreadExecutionMode
-from app.data_source.providers.tushare.main_settings import auth_token_file
+# auth_token_file 现在从 config 中获取
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
 from app.data_source.providers.conf.conf import data_default_start_date
@@ -25,12 +25,12 @@ class Tushare:
         self.storage = TushareStorage(connected_db)
         self.is_verbose = is_verbose
 
+        # 初始化配置管理器
+        self.config = TushareConfig()
+        
         # 初始化API
         self.use_token()
         self.api = ts.pro_api()
-        
-        # 初始化配置管理器
-        self.config = TushareConfig()
         
         # 初始化限流器管理器
         self.rate_limiter_manager = RateLimiterManager()
@@ -61,10 +61,10 @@ class Tushare:
     # ================================ auth related ================================
     def get_token(self):
         try:
-            with open(auth_token_file, 'r') as f:
+            with open(self.config.auth_token_file, 'r') as f:
                 return f.read().strip()
         except FileNotFoundError:
-            raise FileNotFoundError(f"Token file not found at: {auth_token_file}. Please create file with token string inside.")
+            raise FileNotFoundError(f"Token file not found at: {self.config.auth_token_file}. Please create file with token string inside.")
 
     def use_token(self):
         ts.set_token(self.get_token())
@@ -646,7 +646,7 @@ class Tushare:
             return
         
         # 计算上一个季度（因为当前季度的数据要等季度结束后才有）
-        latest_quarter = self._get_previous_quarter(current_quarter)
+        latest_quarter = TushareService.get_previous_quarter(current_quarter)
         if not latest_quarter:
             logger.warning(f"❌ 无法计算上一个季度: {current_quarter}")
             return
@@ -704,8 +704,8 @@ class Tushare:
         latest_quarters = self._get_latest_corporate_finance_quarters()
         
         # 将季度转换为日期范围
-        start_date, _ = self._quarter_to_date_range(start_quarter)
-        _, end_date = self._quarter_to_date_range(end_quarter)
+        start_date, _ = TushareService.quarter_to_date_range(start_quarter)
+        _, end_date = TushareService.quarter_to_date_range(end_quarter)
         
         for stock in stock_index:
             stock_id = stock['id']
@@ -882,7 +882,7 @@ class Tushare:
             DataFrame: 企业财务数据
         """
         # 应用API频率限制
-        self._corporate_finance_api_rate_limit()
+        self.corp_finance_rate_limiter.acquire()
         
         try:
             # 调用Tushare企业财务数据API
@@ -897,144 +897,3 @@ class Tushare:
         except Exception as e:
             logger.error(f"❌ 获取 {stock_id} 企业财务数据失败: {e}")
             return None
-
-    def _generate_quarter_range(self, start_quarter: str, end_quarter: str) -> list:
-        """
-        生成季度范围列表
-        
-        Args:
-            start_quarter: 开始季度，格式 YYYYQ{N}
-            end_quarter: 结束季度，格式 YYYYQ{N}
-            
-        Returns:
-            list: 季度列表
-        """
-        quarters = []
-        current = start_quarter
-        
-        while current <= end_quarter:
-            quarters.append(current)
-            current = self._get_next_quarter(current)
-            if not current:
-                break
-        
-        return quarters
-
-    def _get_next_quarter(self, quarter: str) -> str:
-        """
-        获取下一个季度
-        
-        Args:
-            quarter: 季度，格式 YYYYQ{N}
-            
-        Returns:
-            str: 下一个季度，格式 YYYYQ{N}
-        """
-        if not quarter or len(quarter) != 6:
-            return None
-        
-        try:
-            year = int(quarter[:4])
-            q_num = int(quarter[5])
-            
-            # 如果是第四季度，则返回下一年的第一季度
-            if q_num == 4:
-                next_year = year + 1
-                return f"{next_year}Q1"
-            else:
-                next_q = q_num + 1
-                return f"{year}Q{next_q}"
-                
-        except (ValueError, IndexError):
-            return None
-
-    def _quarter_needs_update(self, stock_id: str, quarter: str, latest_quarters: dict) -> bool:
-        """
-        检查特定股票的特定季度是否需要更新
-        
-        Args:
-            stock_id: 股票代码
-            quarter: 季度
-            latest_quarters: 最新季度字典
-            
-        Returns:
-            bool: 是否需要更新
-        """
-        # 简化逻辑：如果股票没有该季度的数据，则需要更新
-        # 这里可以扩展更复杂的逻辑，比如检查数据完整性等
-        return True
-
-    def _get_previous_quarter(self, quarter: str) -> str:
-        """
-        获取上一个季度
-        
-        Args:
-            quarter: 季度，格式 YYYYQ{N}
-            
-        Returns:
-            str: 上一个季度，格式 YYYYQ{N}
-        """
-        if not quarter or len(quarter) != 6:
-            return None
-        
-        try:
-            year = int(quarter[:4])
-            q_num = int(quarter[5])
-            
-            # 如果是第一季度，则返回上一年的第四季度
-            if q_num == 1:
-                prev_year = year - 1
-                return f"{prev_year}Q4"
-            else:
-                prev_q = q_num - 1
-                return f"{year}Q{prev_q}"
-                
-        except (ValueError, IndexError):
-            return None
-
-    def _quarter_to_date_range(self, quarter: str):
-        """
-        将季度转换为日期范围
-        
-        Args:
-            quarter: 季度，格式 YYYYQ{N}
-            
-        Returns:
-            tuple: (start_date, end_date) 格式 YYYYMMDD
-        """
-        if not quarter or len(quarter) != 6:
-            return None, None
-        
-        try:
-            year = int(quarter[:4])
-            q_num = int(quarter[5])
-            
-            # 计算季度开始和结束月份
-            start_month = (q_num - 1) * 3 + 1
-            end_month = q_num * 3
-            
-            # 构建日期
-            start_date = f"{year}{start_month:02d}01"
-            
-            # 计算季度最后一天
-            if end_month == 3:
-                end_day = 31
-            elif end_month == 6:
-                end_day = 30
-            elif end_month == 9:
-                end_day = 30
-            else:  # end_month == 12
-                end_day = 31
-            
-            end_date = f"{year}{end_month:02d}{end_day}"
-            
-            return start_date, end_date
-            
-        except (ValueError, IndexError):
-            return None, None
-
-    def _corporate_finance_api_rate_limit(self):
-        """
-        企业财务数据API频率限制（使用新的限流器）
-        """
-        self.corp_finance_rate_limiter.acquire()

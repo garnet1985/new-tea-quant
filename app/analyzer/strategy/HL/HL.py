@@ -38,7 +38,7 @@ class HistoricLow(BaseStrategy):
         freeze_records, history_records = HistoricLowService.split_freeze_and_history_data(daily_klines)
         
         # 寻找历史低点：结束日为冻结期开始前一日
-        low_points = HistoricLowService.find_low_points_with_freeze(daily_klines)
+        low_points = HistoricLowService.find_low_points(daily_klines)
         
         # 从低点中寻找投资机会
         opportunity = HistoricLow._find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)

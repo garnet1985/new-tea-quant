@@ -38,7 +38,6 @@ class PostprocessService:
         total_profit = 0.0
         total_duration = 0.0
         total_roi = 0.0
-        total_annual_return = 0.0
 
         profitable_count = 0
         minor_profitable_count = 0
@@ -59,8 +58,7 @@ class PostprocessService:
 
             total_profit += inv['overall_profit']
             total_duration += inv['invest_duration_days']   
-            total_roi += inv['overall_profit_rate'] * 100.0
-            total_annual_return += inv['overall_annual_return']
+            total_roi += inv['overall_profit_rate']
 
             if inv['overall_profit_rate'] >= 0.2:
                 profitable_count += 1
@@ -93,7 +91,8 @@ class PostprocessService:
         avg_profit = AnalyzerService.to_ratio(total_profit, total)
         avg_duration_in_days = AnalyzerService.to_ratio(total_duration, total)
         avg_roi = AnalyzerService.to_ratio(total_roi, total)
-        avg_annual_return = AnalyzerService.to_ratio(total_annual_return, total)
+        annual_return = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days)
+        annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days, is_trading_days=True)
 
         win_rate = AnalyzerService.to_ratio((profitable_count + minor_profitable_count), total, 3)
 
@@ -113,7 +112,8 @@ class PostprocessService:
             'avg_profit': round(avg_profit, 2),
             'avg_duration_in_days': round(avg_duration_in_days, 1),
             'avg_roi': round(avg_roi, 2),
-            'avg_annual_return': round(avg_annual_return, 2),
+            'annual_return': round(annual_return, 2),
+            'annual_return_in_trading_days': round(annual_return_in_trading_days, 2),
         }
 
         summarized_stock = {
@@ -165,7 +165,6 @@ class PostprocessService:
         minor_unprofitable = 0
         
         total_roi = 0.0
-        total_annual_return = 0.0
         total_duration_days = 0.0
         
         stocks_with_opportunities = len(stock_summaries)
@@ -190,15 +189,15 @@ class PostprocessService:
 
                 # 加权平均计算
                 total_roi += summary.get('avg_roi', 0) * investment_count
-                total_annual_return += summary.get('avg_annual_return', 0) * investment_count
                 total_duration_days += summary.get('avg_duration_in_days', 0) * investment_count
         
         # 计算整体平均值
         avg_roi = AnalyzerService.to_ratio(total_roi, total_investments)
         avg_duration_days = AnalyzerService.to_ratio(total_duration_days, total_investments)
         
-        # 因为每只股票的年化收益率已经基于其整体表现计算
-        avg_annual_return = AnalyzerService.to_ratio(total_annual_return, total_investments)
+        # 使用“平均ROI + 平均持有期”推导会话级平均年化，更稳健
+        annual_return = AnalyzerService.get_annual_return(avg_roi, avg_duration_days)
+        annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration_days, is_trading_days=True)
         
         # 计算整体成功率
         total_successful = profitable + minor_profitable
@@ -214,7 +213,8 @@ class PostprocessService:
             'win_rate': win_rate,
 
             'avg_roi': avg_roi,
-            'avg_annual_return': avg_annual_return,
+            'annual_return': annual_return,
+            'annual_return_in_trading_days': annual_return_in_trading_days,
             'avg_duration_in_days': avg_duration_days,
 
             'total_investments': total_investments,
@@ -254,28 +254,38 @@ class PostprocessService:
         print("="*60)
         if session_summary:
             win_rate = session_summary.get('win_rate', 0)
-            avg_annual_return = session_summary.get('avg_annual_return', 0)
-            avg_roi = session_summary.get('avg_roi', 0)
+            annual_return = session_summary.get('annual_return', 0)
+            annual_return_in_trading_days = session_summary.get('annual_return_in_trading_days', 0)
+            avg_roi = session_summary.get('avg_roi', 0) * 100.0
 
             if win_rate >= 60:
                 win_rate_dot = IconService.get('green_dot')
             else:
                 win_rate_dot = IconService.get('red_dot')
-            print(f"🎯 胜率: {win_rate_dot} {win_rate:.1f}%")
+            print(f"{win_rate_dot} 胜率: {win_rate:.1f}%")
 
             if avg_roi >= 5:
                 avg_roi_dot = IconService.get('green_dot')
             else:
                 avg_roi_dot = IconService.get('red_dot')
-            print(f"{IconService.get('money')} 平均每笔投资回报率(ROI): {avg_roi_dot} {avg_roi:.1f}%")
+            print(f"{avg_roi_dot} 平均每笔投资回报率(ROI): {avg_roi:.1f}%")
 
-            if avg_annual_return >= 15:
+            if annual_return >= 15:
                 annual_return_dot = IconService.get('green_dot')
             else:
                 annual_return_dot = IconService.get('red_dot')
-            print(f"{IconService.get('upward_trend')} 平均年化收益率: {annual_return_dot} {avg_annual_return:.1f}%")
+
+
+            if annual_return_in_trading_days >= 10:
+                annual_return_in_trading_days_dot = IconService.get('green_dot')
+            else:
+                annual_return_in_trading_days_dot = IconService.get('red_dot')
+
+            print(f"折算后平均每笔投资年化收益率: ")
+            print(f" - {annual_return_dot} 按自然日: {annual_return:.1f}%")
+            print(f" - {annual_return_in_trading_days_dot} 按交易日: {annual_return_in_trading_days:.1f}%")
             
-            print(f"{IconService.get('clock')} 平均投资时长: {session_summary.get('avg_duration_in_days', 0):.1f} 天")
+            print(f"{IconService.get('clock')} 平均投资时长: {session_summary.get('avg_duration_in_days', 0):.1f} 自然日")
             print(f"{IconService.get('bar_chart')} 总投资次数: {session_summary.get('total_investments', 0)}")
             print(f"{IconService.get('success')} 成功次数: {session_summary.get('total_win_investments', 0)}")
             print(f"{IconService.get('error')} 失败次数: {session_summary.get('total_loss_investments', 0)}")

@@ -282,3 +282,150 @@ class TushareStorage:
 
     def is_index_empty(self):
         return self.stock_index_table.count() == 0
+
+    def convert_corporate_finance_data_for_storage(self, data):
+        """
+        转换企业财务数据为存储格式
+        
+        Args:
+            data: Tushare API返回的企业财务数据DataFrame
+            
+        Returns:
+            list: 转换后的数据列表
+        """
+        converted_data = []
+        
+        for _, row in data.iterrows():
+            # 提取季度信息
+            end_date = row.get('end_date', '')
+            quarter = self._extract_quarter_from_date(end_date)
+            
+            if not quarter:
+                continue
+            
+            # 构建存储记录
+            record = {
+                'id': row.get('ts_code', ''),
+                'quarter': quarter,
+                'eps': self._safe_float(row.get('eps')),
+                'dt_eps': self._safe_float(row.get('dt_eps')),
+                'roe_dt': self._safe_float(row.get('roe_dt')),
+                'roe': self._safe_float(row.get('roe')),
+                'roa': self._safe_float(row.get('roa')),
+                'netprofit_margin': self._safe_float(row.get('netprofit_margin')),
+                'gross_profit_margin': self._safe_float(row.get('grossprofit_margin')),
+                'op_income': self._safe_float(row.get('op_income')),
+                'roic': self._safe_float(row.get('roic')),
+                'ebit': self._safe_float(row.get('ebit')),
+                'ebitda': self._safe_float(row.get('ebitda')),
+                'dtprofit_to_profit': self._safe_float(row.get('profit_dedt')),
+                'profit_dedt': self._safe_float(row.get('profit_dedt')),
+                'or_yoy': self._safe_float(row.get('or_yoy')),
+                'netprofit_yoy': self._safe_float(row.get('netprofit_yoy')),
+                'basic_eps_yoy': self._safe_float(row.get('basic_eps_yoy')),
+                'dt_eps_yoy': self._safe_float(row.get('dt_eps_yoy')),
+                'tr_yoy': self._safe_float(row.get('tr_yoy')),
+                'netdebt': self._safe_float(row.get('netdebt')),
+                'debt_to_eqt': self._safe_float(row.get('debt_to_eqt')),
+                'debt_to_assets': self._safe_float(row.get('debt_to_assets')),
+                'interestdebt': self._safe_float(row.get('interestdebt')),
+                'assets_to_eqt': self._safe_float(row.get('assets_to_eqt')),
+                'quick_ratio': self._safe_float(row.get('quick_ratio')),
+                'current_ratio': self._safe_float(row.get('current_ratio')),
+                'ar_turn': self._safe_float(row.get('ar_turn')),
+                'bps': self._safe_float(row.get('bps')),
+                'ocfps': self._safe_float(row.get('ocfps')),
+                'fcff': self._safe_float(row.get('fcff')),
+                'fcfe': self._safe_float(row.get('fcfe'))
+            }
+            
+            converted_data.append(record)
+        
+        return converted_data
+
+    def batch_save_corporate_finance(self, data_list):
+        """
+        批量保存企业财务数据到数据库
+        
+        Args:
+            data_list: 数据列表，每个元素都是字典格式
+        """
+        import math
+        
+        if not data_list:
+            logger.warning("没有企业财务数据需要保存")
+            return
+        
+        try:
+            # 验证数据格式并清理NaN值
+            valid_data = []
+            for item in data_list:
+                # 清理NaN值
+                cleaned_item = {}
+                for key, value in item.items():
+                    if isinstance(value, float) and math.isnan(value):
+                        cleaned_item[key] = 0
+                    else:
+                        cleaned_item[key] = value
+                
+                # 验证必填字段
+                required_fields = ['id', 'quarter']
+                missing_fields = [field for field in required_fields if not cleaned_item.get(field)]
+                
+                if missing_fields:
+                    logger.warning(f"跳过缺少必填字段的企业财务数据: {missing_fields}")
+                    continue
+                
+                valid_data.append(cleaned_item)
+            
+            if valid_data:
+                # 批量插入或更新数据（使用ON DUPLICATE KEY UPDATE）
+                # 主键字段: ['id', 'quarter']
+                primary_keys = ['id', 'quarter']
+                table = self.db.get_table_instance('corporate_finance')
+                table.replace(valid_data, primary_keys)
+                logger.info(f"✅ 企业财务数据保存成功: {len(valid_data)} 条记录")
+            else:
+                logger.warning("没有有效的企业财务数据需要保存")
+                
+        except Exception as e:
+            logger.error(f"批量保存企业财务数据失败: {e}")
+            raise
+
+    def _extract_quarter_from_date(self, date_str: str) -> str:
+        """
+        从日期字符串提取季度信息
+        
+        Args:
+            date_str: 日期字符串，格式 YYYYMMDD
+            
+        Returns:
+            str: 季度字符串，格式 YYYYQ{N}
+        """
+        if not date_str or len(date_str) != 8:
+            return ''
+        
+        try:
+            year = date_str[:4]
+            month = int(date_str[4:6])
+            quarter = (month - 1) // 3 + 1
+            return f"{year}Q{quarter}"
+        except (ValueError, IndexError):
+            return ''
+
+    def _safe_float(self, value):
+        """
+        安全转换为浮点数
+        
+        Args:
+            value: 输入值
+            
+        Returns:
+            float: 转换后的浮点数，无效值返回0
+        """
+        try:
+            if value is None or value == '':
+                return 0.0
+            return float(value)
+        except (ValueError, TypeError):
+            return 0.0

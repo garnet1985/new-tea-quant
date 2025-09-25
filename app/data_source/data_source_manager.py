@@ -35,12 +35,18 @@ class DataSourceManager:
         
         # 然后更新股票指数
         self.latest_stock_index = tu.renew_stock_index(self.latest_market_open_day)
-        logger.info(f"🔍 股票清单更新完成")
+        # logger.info(f"🔍 股票清单更新完成")
 
-        await tu.renew_stock_k_lines(self.latest_market_open_day, self.latest_stock_index)
+        # await tu.renew_stock_k_lines(self.latest_market_open_day, self.latest_stock_index)
         
-        ak.inject_dependency(tu).renew_stock_k_line_factors(self.latest_market_open_day, self.latest_stock_index)
+        # ak.inject_dependency(tu).renew_stock_k_line_factors(self.latest_market_open_day, self.latest_stock_index)
 
-        # below are not implemented yet
-        # tu.renew_global_economic_data()
-        # tu.renew_corporate_finance_data()
+        # macro economic indexes
+        # tu.renew_price_indexes(self.latest_market_open_day)
+
+        # tu.renew_LPR(self.latest_market_open_day)
+
+        # tu.renew_GDP(self.latest_market_open_day)
+
+        # corporate financial data
+        tu.renew_corporate_finance(self.latest_market_open_day)

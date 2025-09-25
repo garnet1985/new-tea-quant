@@ -293,9 +293,13 @@ class BaseStrategy(ABC):
         except Exception:
             raise Exception(f"❌ 策略 {module_info.get('strategy_class_name', '')} 导入失败! strategy_module_path: {module_info.get('strategy_module_path', '')} strategy_class_name: {module_info.get('strategy_class_name', '')}")
 
-        strategy_instance = strategy_class(db=None, is_verbose=False)
-
-        return strategy_instance.scan_opportunity(stock, data, settings)
+        # 直接调用静态方法，避免实例化导致的表注册/DB依赖
+        opportunity = strategy_class.scan_opportunity(stock, data, settings)
+        if opportunity:
+            logger.info(f"{IconService.get('success')} 股票 {stock['name']} ({stock_id}) 扫描完成, 发现投资机会")
+        else:
+            logger.info(f"{IconService.get('error')} 股票 {stock['name']} ({stock_id}) 扫描完成, 没有投资机会")
+        return opportunity
 
 
     # this method is used to convert the opportunity to a standard opportunity entity

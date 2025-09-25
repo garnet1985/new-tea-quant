@@ -769,8 +769,8 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"Write worker error: {e}")
                 time.sleep(0.1)
-        
-        logger.info("Database write worker stopped")
+        if self.is_verbose:
+            logger.info("Database write worker stopped")
     
     def _execute_batch_write(self, table_name: str, data_list: List[Dict[str, Any]], 
                            unique_keys: List[str]) -> int:
@@ -814,7 +814,8 @@ class DatabaseManager:
         try:
             # 使用 asyncio.to_thread 在线程池中运行同步的 join 操作
             await asyncio.to_thread(self._write_queue.join)
-            logger.info("All write tasks completed")
+            if self.is_verbose:
+                logger.info("All write tasks completed")
             
             # 执行全局回调
             with self._callbacks_lock:
@@ -829,6 +830,25 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error waiting for writes: {e}")
     
+    def wait_for_writes_sync(self, timeout: Optional[float] = None):
+        """同步等待所有写入任务完成，并执行全局回调（用于非异步上下文）"""
+        if not self.enable_thread_safety:
+            return
+        try:
+            if self._write_queue is not None:
+                self._write_queue.join()
+            if self.is_verbose:
+                logger.info("All write tasks completed")
+            with self._callbacks_lock:
+                callbacks_to_execute = self._global_callbacks.copy()
+            for callback in callbacks_to_execute:
+                try:
+                    callback()
+                except Exception as e:
+                    logger.error(f"Global callback error: {e}")
+        except Exception as e:
+            logger.error(f"Error waiting for writes (sync): {e}")
+    
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
         with self._stats_lock:
@@ -842,14 +862,16 @@ class DatabaseManager:
     
     def close(self):
         """关闭数据库管理器"""
-        logger.info("Closing DatabaseManager...")
+        if self.is_verbose:
+            logger.info("Closing DatabaseManager...")
         
         # 停止写入线程
         if self.enable_thread_safety:
             self._stop_write_thread()
             
             # 等待写入完成
-            self.wait_for_writes(timeout=10)
+            # 此处处于同步上下文，不应 await 协程
+            self.wait_for_writes_sync(timeout=10)
             
             # 关闭所有连接
             while not self._connection_pool.empty():

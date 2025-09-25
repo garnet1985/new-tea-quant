@@ -49,5 +49,4 @@ class DataSourceManager:
         # tu.renew_GDP(self.latest_market_open_day)
 
         # corporate financial data
-        # tu.renew_global_economic_data()
-        # tu.renew_corporate_finance_data()
+        tu.renew_corporate_finance(self.latest_market_open_day)

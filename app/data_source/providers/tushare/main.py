@@ -13,7 +13,7 @@ import time
 # 导入新的组件
 from .config import TushareConfig
 from .rate_limiter import RateLimiterManager
-from .progress_tracker import ProgressTrackerManager
+from utils.progress.progress_tracker import ProgressTrackerManager
 
 
 # 抑制tushare库的FutureWarning
@@ -146,7 +146,9 @@ class Tushare:
             'kline',
             total_stocks,
             'K线数据',
-            self.config.progress_show_details
+            self.config.progress_show_details,
+            True,  # 启用进度条模式
+            True   # 启用固定位置模式
         )
         
         # 创建并行执行器
@@ -678,7 +680,9 @@ class Tushare:
             'corp_finance',
             len(jobs),
             '企业财务数据',
-            self.config.progress_show_details
+            self.config.progress_show_details,
+            True,  # 启用进度条模式
+            True   # 启用固定位置模式
         )
         
         # 执行多线程更新

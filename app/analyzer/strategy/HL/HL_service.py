@@ -39,20 +39,22 @@ class HistoricLowService:
         if not records:
             return low_points
         
-        date_of_today = records[-1]['date']
+        # 结束日期取传入 records 的最后一天（兼容：若已裁剪为历史期，该日即冻结期开启前一天）
+        end_date_str = records[-1]['date']
         
-        # 解析今天的日期
+        # 解析结束日期
         from datetime import datetime, timedelta
-        today = datetime.strptime(date_of_today, '%Y%m%d')
-        
+        end_date = datetime.strptime(end_date_str, '%Y%m%d') - timedelta(days=settings['daily_data_requirements']['low_points_locked_days'])
+        scan_end_date_str = end_date.strftime('%Y%m%d')
+
         for years_back in target_years:
             # 计算时间区间的开始日期（往前推years_back年）
-            start_date = today - timedelta(days=years_back * 365)
-            start_date_str = start_date.strftime('%Y%m%d')
+            scan_start_date = end_date - timedelta(days=years_back * 365)
+            scan_start_date_str = scan_start_date.strftime('%Y%m%d')
             
             # 找到该时间区间内的所有记录
             period_records = [record for record in records 
-                            if record['date'] >= start_date_str and record['date'] < date_of_today]
+                            if record['date'] >= scan_start_date_str and record['date'] < scan_end_date_str]
             
             if not period_records:
                 continue

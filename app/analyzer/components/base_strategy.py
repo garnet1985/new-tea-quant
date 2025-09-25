@@ -5,6 +5,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 from loguru import logger
+from app.analyzer.analyzer_service import AnalyzerService
 from utils.db.db_manager import DatabaseManager
 from .settings_validator import SettingsValidator
 from utils.icon.icon_service import IconService
@@ -34,6 +35,18 @@ class BaseStrategy(ABC):
         
         # 初始化策略
         self._check_required_fields()
+
+        self.scan_ids = [
+            "603198.SH",
+            "600720.SH",
+            "002832.SZ",
+            "002557.SZ"
+        ]
+        
+        self.scan_range = {
+            "start": 0, 
+            "amount": 0
+        }
 
 
     # ========================================================
@@ -177,7 +190,33 @@ class BaseStrategy(ABC):
         return tables
 
 
+    def set_scan_ids(self, ids: List[str]):
+        """
+        设置扫描的ID集合
+        """
+        self.scan_ids = ids
 
+    def clear_scan_ids(self):
+        """
+        清空扫描的ID集合
+        """
+        self.scan_ids = []
+    
+    def clear_scan_range(self):
+        """
+        清空扫描的索引范围
+        """
+        self.scan_range = {
+            "start": 0, 
+            "amount": 0
+        }
+
+    def set_scan_range(self, amount, start = 0):
+        """
+        设置扫描的索引范围
+        """
+        self.scan_range['start'] = start
+        self.scan_range['amount'] = amount
 
     # ================================================================
     # Core 1 - identify opportunity: should be override by subclass:
@@ -201,7 +240,6 @@ class BaseStrategy(ABC):
 
     # this method is used to scan today's opportunities for all the stocks by using multi-process
     # this is a public API method to Analyzer module
-    # TODO: make this inherit from Analyzer module
     def scan(self) -> List[Dict[str, Any]]:
         """
         扫描所有股票的投资机会 - 框架方法，内部使用多进程
@@ -219,6 +257,11 @@ class BaseStrategy(ABC):
         
         stock_list = self.table["stock_index"].load_filtered_index()
 
+        if len(self.scan_ids):
+            stock_list = self.filter_list_by_ids(stock_list, self.scan_ids)
+        if self.scan_range.get('amount') > 0:
+            stock_list = self.filter_list_by_range(stock_list, self.scan_range)
+
         if not stock_list:
             logger.info(f"{IconService.get('error')} 未找到可扫描的股票")
             return []
@@ -230,6 +273,26 @@ class BaseStrategy(ABC):
         self.report(opportunities)
         
         return opportunities
+
+    def filter_list_by_ids(self, stock_list: List[Dict[str, Any]], stock_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        扫描指定ID的股票的投资机会
+        """
+        new_list = []
+        for stock in stock_list:
+            if stock.get('id') in stock_ids:
+                new_list.append(stock)
+        return new_list
+
+
+    def filter_list_by_range(self, stock_list: List[Dict[str, Any]], scan_range: Any) -> List[Dict[str, Any]]:
+        """
+        扫描指定ID的股票的投资机会
+        """
+        start = scan_range.get('start', 0)
+        amount = scan_range.get('amount', 10)
+        new_list = stock_list[start:start+amount]
+        return new_list
 
 
     def _build_scan_jobs(self, stock_list: List[Dict[str, Any]], strategy_settings: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -284,6 +347,14 @@ class BaseStrategy(ABC):
         # 子进程内直接使用 DataLoader 的静态方法，避免初始化 DatabaseManager
         from app.analyzer.components.data_loader import DataLoader
         data['klines'] = DataLoader.load_stock_data_in_child_process(stock_id, settings)
+
+        klines_settings = settings.get('klines')
+        min_required_klines = klines_settings.get('min_required_klines', 0)
+        min_required_kline_term = klines_settings.get('base_term')
+
+        if klines_settings and klines_settings.get('min_required_klines', 0) > 0:
+            if len(data['klines'][min_required_kline_term]) < min_required_klines:
+                return None
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法
         import importlib
@@ -400,14 +471,23 @@ class BaseStrategy(ABC):
     # ========================================================
 
     @staticmethod
-    def report(session_summary: List[Dict[str, Any]], stock_summaries: List[Dict[str, Any]]) -> None:
+    def report(opportunities: List[Dict[str, Any]]) -> None:
         """
-        呈现扫描结果 - 可选重写
+        呈现扫描/模拟结果 - 可选重写
         
         Args:
-            opportunities: 投资机会列表
+            opportunities: 扫描阶段的投资机会列表（scan 使用）
+            stock_summaries: 模拟阶段的按股票汇总（simulate 使用，可选）
         """
-        pass
+        for opportunity in opportunities:
+            logger.info(f"="*80)
+            logger.info(f"股票 {opportunity['stock']['name']} ({opportunity['stock']['id']})")
+            logger.info(f"="*80)
+            logger.info(f"扫描日期: {opportunity['date']}")
+            logger.info(f"当前价格: {opportunity['price']}")
+            logger.info(f"机会价格区间: {round(opportunity['lower_bound'], 2)} - {round(opportunity['upper_bound'], 2)}")
+            logger.info(f"当前价格在区间位置: {AnalyzerService.to_percent(opportunity['price'] - opportunity['lower_bound'], (opportunity['upper_bound'] - opportunity['lower_bound']))}%")
+        return None
 
     @staticmethod
     def on_summarize_stock(base_summary: Dict[str, Any], simulate_result: Dict[str, Any]) -> Dict[str, Any]:

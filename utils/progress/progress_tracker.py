@@ -9,12 +9,13 @@ import threading
 from typing import Dict, Any, Optional
 from datetime import datetime
 from loguru import logger
+from utils.progress.progress_bar import ProgressBarManager
 
 
 class ProgressTracker:
     """通用的进度跟踪器"""
     
-    def __init__(self, total_jobs: int, job_name: str, show_details: bool = True):
+    def __init__(self, total_jobs: int, job_name: str, show_details: bool = True, use_progress_bar: bool = False, fixed_position: bool = True):
         """
         初始化进度跟踪器
         
@@ -22,10 +23,14 @@ class ProgressTracker:
             total_jobs: 总任务数
             job_name: 任务名称
             show_details: 是否显示详细信息
+            use_progress_bar: 是否使用进度条模式
+            fixed_position: 进度条是否固定在窗口底部
         """
         self.total_jobs = total_jobs
         self.job_name = job_name
         self.show_details = show_details
+        self.use_progress_bar = use_progress_bar
+        self.fixed_position = fixed_position
         
         # 计数器
         self.completed_jobs = 0
@@ -34,6 +39,17 @@ class ProgressTracker:
         
         # 线程锁
         self.lock = threading.Lock()
+        
+        # 进度条管理器
+        if self.use_progress_bar:
+            self.bar_manager = ProgressBarManager()
+            self.progress_bar = self.bar_manager.create_bar(
+                f"{job_name}_bar",
+                total_jobs,
+                width=50,
+                show_details=show_details,
+                fixed_position=fixed_position
+            )
     
     def update(self, job_id: str, status: str, details: Optional[str] = None) -> None:
         """
@@ -53,13 +69,39 @@ class ProgressTracker:
             # 计算进度
             progress = (self.completed_jobs / self.total_jobs * 100) if self.total_jobs > 0 else 100
             
-            # 构建日志消息
+            # 构建日志消息（简化版本，避免与进度条冲突）
             if self.show_details and details:
-                message = f"📊 {self.job_name}更新进度: {self.completed_jobs}/{self.total_jobs} ({progress:.1f}%) - {job_id} {status}: {details}"
+                message = f"{job_id} {status}: {details}"
             else:
-                message = f"📊 {self.job_name}更新进度: {self.completed_jobs}/{self.total_jobs} ({progress:.1f}%)"
+                message = f"{job_id} {status}"
             
+            # 输出详细日志（保持原有输出）
             logger.info(message)
+            
+            # 更新进度条（每当小格子增加时更新）
+            if self.use_progress_bar:
+                # 计算当前进度条应该有多少个格子
+                current_filled_length = int(self.progress_bar.width * self.completed_jobs // self.total_jobs)
+                previous_filled_length = int(self.progress_bar.width * (self.completed_jobs - 1) // self.total_jobs)
+                
+                # 如果格子数量增加了，就更新进度条
+                should_update_bar = (
+                    current_filled_length > previous_filled_length or  # 格子增加时更新
+                    status in ['failed', 'error'] or  # 失败时立即更新
+                    self.completed_jobs >= self.total_jobs  # 完成时更新
+                )
+                
+                if should_update_bar:
+                    self.progress_bar.update(status, details)
+                else:
+                    # 即使不更新进度条，也要更新统计数字
+                    self.progress_bar.current = self.completed_jobs
+                    if status == 'success':
+                        self.progress_bar.success_count += 1
+                    elif status in ['failed', 'error']:
+                        self.progress_bar.failed_count += 1
+                    elif status == 'no_data':
+                        self.progress_bar.no_data_count += 1
     
     def get_status(self) -> Dict[str, Any]:
         """
@@ -109,6 +151,10 @@ class ProgressTracker:
         
         if status['estimated_remaining_time'] > 0:
             logger.info(f"   ⏳ 预计剩余: {status['estimated_remaining_time']:.1f}秒")
+        
+        # 完成进度条
+        if self.use_progress_bar:
+            self.bar_manager.finish_bar(f"{self.job_name}_bar")
 
 
 class ProgressTrackerManager:
@@ -119,7 +165,7 @@ class ProgressTrackerManager:
         self.trackers: Dict[str, ProgressTracker] = {}
         self._lock = threading.Lock()
     
-    def create_tracker(self, tracker_id: str, total_jobs: int, job_name: str, show_details: bool = True) -> ProgressTracker:
+    def create_tracker(self, tracker_id: str, total_jobs: int, job_name: str, show_details: bool = True, use_progress_bar: bool = False, fixed_position: bool = True) -> ProgressTracker:
         """
         创建新的进度跟踪器
         
@@ -128,12 +174,14 @@ class ProgressTrackerManager:
             total_jobs: 总任务数
             job_name: 任务名称
             show_details: 是否显示详细信息
+            use_progress_bar: 是否使用进度条模式
+            fixed_position: 进度条是否固定在窗口底部
             
         Returns:
             ProgressTracker实例
         """
         with self._lock:
-            tracker = ProgressTracker(total_jobs, job_name, show_details)
+            tracker = ProgressTracker(total_jobs, job_name, show_details, use_progress_bar, fixed_position)
             self.trackers[tracker_id] = tracker
             return tracker
     

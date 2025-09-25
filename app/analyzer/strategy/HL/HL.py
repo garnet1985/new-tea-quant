@@ -5,6 +5,7 @@ HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 from typing import Dict, List, Any, Optional
 from loguru import logger
 
+from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.strategy.HL.HL_service import HistoricLowService
 from ...components.base_strategy import BaseStrategy
 from .settings import settings
@@ -30,20 +31,14 @@ class HistoricLow(BaseStrategy):
     # ========================================================
     @staticmethod
     def scan_opportunity(stock: Dict[str, Any], data: List[Dict[str, Any]], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        # """扫描单只股票的投资机会"""
-        # return HistoricLowSimulator.scan_single_stock(stock_id, data)
-
-        daily_klines = data.get('klines', {}).get('daily', [])
-
         """扫描单只股票的投资机会"""
-        if not data:
-            return None
+        daily_klines = data.get('klines', {}).get('daily', [])
         
         # 分割数据为冻结期和历史期
         freeze_records, history_records = HistoricLowService.split_freeze_and_history_data(daily_klines)
         
-        # 寻找历史低点
-        low_points = HistoricLowService.find_low_points(history_records)
+        # 寻找历史低点：结束日为冻结期开始前一日
+        low_points = HistoricLowService.find_low_points(daily_klines)
         
         # 从低点中寻找投资机会
         opportunity = HistoricLow._find_opportunity_from_low_points(stock, low_points, freeze_records, history_records)
@@ -176,3 +171,39 @@ class HistoricLow(BaseStrategy):
         max_slope_degrees = settings.get('slope_check', {}).get('max_slope_degrees', -45.0)
         
         return slope >= max_slope_degrees
+
+
+    @staticmethod
+    def report(opportunities: List[Dict[str, Any]]) -> None:
+        """
+        呈现扫描/模拟结果 - 可选重写
+        
+        Args:
+            opportunities: 扫描阶段的投资机会列表（scan 使用）
+            stock_summaries: 模拟阶段的按股票汇总（simulate 使用，可选）
+        """
+        for opportunity in opportunities:
+            logger.info(f"="*80)
+            logger.info(f"股票 {opportunity['stock']['name']} ({opportunity['stock']['id']})")
+            logger.info(f"="*80)
+            logger.info(f"扫描日期: {opportunity['date']}")
+            logger.info(f"当前价格: {opportunity['price']}")
+            logger.info(f"机会价格区间: {round(opportunity['lower_bound'], 2)} - {round(opportunity['upper_bound'], 2)}")
+            position = AnalyzerService.to_percent(opportunity['price'] - opportunity['lower_bound'], (opportunity['upper_bound'] - opportunity['lower_bound']))
+            
+            icon = ""
+            if position > 90:
+                icon = IconService.get('red_dot')
+            elif position > 75:
+                icon = IconService.get('orange_dot')
+            elif position > 60:
+                icon = IconService.get('yellow_dot')
+            else:
+                icon = IconService.get('green_dot')
+            
+            logger.info(f"当前价格在区间位置: {icon} {position}%")
+
+            low_point_ref = opportunity['extra_fields'].get('low_point_ref', {})
+            logger.info(f"参考低点: {low_point_ref.get('date', '无') } 期数：{low_point_ref.get('term')} 价格：{round(low_point_ref.get('low_point_price', '无'), 2)}")
+            logger.info(f"="*80)
+        return None

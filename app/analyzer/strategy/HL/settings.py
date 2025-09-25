@@ -4,9 +4,9 @@
 settings = {
     'mode': {
         "blacklist_only": False,
-        "test_amount": 1,
+        "test_amount": 20,
         "start_idx": 0,
-        "simulation_ref_version": "524",
+        "simulation_ref_version": "599",
         "record_summary" : True
     },
     
@@ -23,7 +23,8 @@ settings = {
 
     # 日线数据要求
     "daily_data_requirements": {
-        "freeze_period_days": 100,           # 冻结期：100个交易日
+        "freeze_period_days": 100, 
+        "low_points_locked_days": 365, # 找低点的时候从1年前开始找，预防找到的低点是最近的低点从而导致持续下跌
         "low_points_ref_years": [3, 5, 8],     
         "max_invest_slope": -0.1,  # 对应约-5度的价格变化率
         "min_required_daily_records": 2000,  # 最小日线记录数

@@ -190,7 +190,7 @@
             "description": "现金流状况 - 企业自由现金流量 - 高影响"
         },
         {
-            "name": "fcfe_yoy",
+            "name": "fcfe",
             "type": "float",
             "isRequired": true,
             "description": "现金流状况 - 股东自由现金流量 - 高影响"

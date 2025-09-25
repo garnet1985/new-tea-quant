@@ -10,11 +10,6 @@ import warnings
 from datetime import datetime
 import time
 
-# 导入新的组件
-from .config import TushareConfig
-from .rate_limiter import RateLimiterManager
-from .progress_tracker import ProgressTrackerManager
-
 
 # 抑制tushare库的FutureWarning
 warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
@@ -23,36 +18,38 @@ class Tushare:
     def __init__(self, connected_db, is_verbose: bool = False):
         self.db = connected_db
         self.storage = TushareStorage(connected_db)
+
+
         self.is_verbose = is_verbose
 
-        # 初始化API
-        self.use_token()
+        self.use_token();
         self.api = ts.pro_api()
         
-        # 初始化配置管理器
-        self.config = TushareConfig()
+        # 添加Tushare K线数据API频率限制
+        self.kline_api_count = 0
+        self.kline_api_last_time = 0
+        self.kline_api_max_per_minute = 780  # Tushare K线接口限制 800 次每分钟
         
-        # 初始化限流器管理器
-        self.rate_limiter_manager = RateLimiterManager()
+        # 添加Tushare企业财务数据API频率限制
+        self.corp_finance_api_count = 0
+        self.corp_finance_api_last_time = 0
+        self.corp_finance_api_max_per_minute = 480  # Tushare 企业财务接口限制 500 次每分钟
         
-        # 初始化进度跟踪器管理器
-        self.progress_tracker_manager = ProgressTrackerManager()
-        
-        # 获取限流器实例
-        self.kline_rate_limiter = self.rate_limiter_manager.get_limiter(
-            'K线数据',
-            self.config.kline_rate_limit.max_per_minute,
-            self.config.kline_rate_limit.buffer
-        )
-        
-        self.corp_finance_rate_limiter = self.rate_limiter_manager.get_limiter(
-            '企业财务数据',
-            self.config.corp_finance_rate_limit.max_per_minute,
-            self.config.corp_finance_rate_limit.buffer
-        )
-        
-        # 线程局部 DB（用于每个工作线程独立复用同一个 DatabaseManager 与 Storage）
+        # 添加线程锁，确保多线程环境下的限流安全
         import threading
+        self.kline_api_lock = threading.Lock()
+        self.corp_finance_api_lock = threading.Lock()
+        # 进度统计
+        self.kline_total_jobs = 0
+        self.kline_completed_jobs = 0
+        self.kline_progress_lock = threading.Lock()
+
+        # 企业财务数据进度统计
+        self.corp_finance_total_jobs = 0
+        self.corp_finance_completed_jobs = 0
+        self.corp_finance_progress_lock = threading.Lock()
+
+        # 线程局部 DB（用于每个工作线程独立复用同一个 DatabaseManager 与 Storage）
         self._thread_local = threading.local()
         self._thread_dbs = []
         self._thread_dbs_lock = threading.Lock()
@@ -71,8 +68,26 @@ class Tushare:
 
     # ================================ k line api rate limit ================================
     def _k_line_api_rate_limit(self):
-        """Tushare K线数据API频率限制（使用新的限流器）"""
-        self.kline_rate_limiter.acquire()
+        """Tushare K线数据API频率限制（线程安全）"""
+        with self.kline_api_lock:
+            current_time = time.time()
+            
+            # 检查是否需要重置计数器（每分钟重置一次）
+            if current_time - self.kline_api_last_time >= 60:
+                self.kline_api_count = 0
+                self.kline_api_last_time = current_time
+            
+            # 如果当前分钟内的请求数已达到限制，则等待到下一分钟
+            if self.kline_api_count >= self.kline_api_max_per_minute:
+                wait_time = 60 - (current_time - self.kline_api_last_time)
+                if wait_time > 0:
+                    logger.info(f"Tushare K线API: 当前分钟已调用 {self.kline_api_count} 次，等待 {wait_time:.1f} 秒到下一分钟...")
+                    time.sleep(wait_time)
+                    self.kline_api_count = 0
+                    self.kline_api_last_time = time.time()
+            
+            # 增加请求计数
+            self.kline_api_count += 1
 
     # ================================ get latest market open day ================================
     async def get_latest_market_open_day(self):
@@ -140,14 +155,9 @@ class Tushare:
         
         total_stocks = len(jobs)
         logger.info(f"Start to execute {total_stocks} stocks with FuturesWorker")
-        
-        # 初始化K线数据进度跟踪器
-        self.kline_progress_tracker = self.progress_tracker_manager.create_tracker(
-            'kline',
-            total_stocks,
-            'K线数据',
-            self.config.progress_show_details
-        )
+        # 初始化进度
+        self.kline_total_jobs = total_stocks
+        self.kline_completed_jobs = 0
         
         # 创建并行执行器
         worker = FuturesWorker(
@@ -250,21 +260,19 @@ class Tushare:
                     'terms_processed': len(stock_jobs)
                 }
             # 更新并打印进度
-            self.kline_progress_tracker.update(
-                stock_key,
-                result['status'],
-                f"状态: {result['status']}"
-            )
+            with self.kline_progress_lock:
+                self.kline_completed_jobs += 1
+                progress = (self.kline_completed_jobs / self.kline_total_jobs * 100) if self.kline_total_jobs else 100
+                logger.info(f"📈 K线更新进度: {self.kline_completed_jobs}/{self.kline_total_jobs} ({progress:.1f}%) 完成; 当前股票: {stock_key}, 状态: {result['status']}")
             return result
                 
         except Exception as e:
             logger.error(f"❌ 处理股票 {stock_key} 失败: {e}")
             # 失败也计入进度
-            self.kline_progress_tracker.update(
-                stock_key,
-                'failed',
-                f"失败: {e}"
-            )
+            with self.kline_progress_lock:
+                self.kline_completed_jobs += 1
+                progress = (self.kline_completed_jobs / self.kline_total_jobs * 100) if self.kline_total_jobs else 100
+                logger.info(f"📈 K线更新进度: {self.kline_completed_jobs}/{self.kline_total_jobs} ({progress:.1f}%) 完成; 当前股票: {stock_key}, 状态: failed")
             raise  # 重新抛出异常，让JobWorker捕获并记录
         finally:
             # 不在每只股票结束时关闭，保持异步写入；统一在批次结束后关闭
@@ -639,6 +647,8 @@ class Tushare:
         if not latest_market_open_day:
             latest_market_open_day = self.get_latest_market_open_day()
         
+        logger.info(f"📊 开始更新企业财务数据，最新交易日: {latest_market_open_day}")
+        
         # 获取数据更新范围：从默认开始日期到最近一个季度
         current_quarter = TushareService.to_quarter(latest_market_open_day)
         if not current_quarter:
@@ -673,13 +683,9 @@ class Tushare:
         
         logger.info(f"📊 企业财务数据更新任务: {len(jobs)} 个任务需要执行")
         
-        # 初始化进度跟踪器
-        self.corp_finance_progress_tracker = self.progress_tracker_manager.create_tracker(
-            'corp_finance',
-            len(jobs),
-            '企业财务数据',
-            self.config.progress_show_details
-        )
+        # 初始化进度统计
+        self.corp_finance_total_jobs = len(jobs)
+        self.corp_finance_completed_jobs = 0
         
         # 执行多线程更新
         self._execute_corporate_finance_jobs(jobs)
@@ -760,12 +766,11 @@ class Tushare:
             return
         
         # 创建并行执行器
-        corp_finance_config = self.config.get_corp_finance_config()
         worker = FuturesWorker(
-            max_workers=corp_finance_config['worker'].max_workers,
+            max_workers=5,
             execution_mode=ThreadExecutionMode.PARALLEL,
             enable_monitoring=True,
-            timeout=corp_finance_config['worker'].timeout,
+            timeout=3600.0,  # 整体批次1小时超时（单个任务30秒超时）
             is_verbose=self.is_verbose,
             debug=False
         )
@@ -782,7 +787,8 @@ class Tushare:
             })
         
         # 执行任务
-        logger.info(f"📊 开始公司财务数据更新 配置: {worker.max_workers}个线程并行，限流每分钟请求{corp_finance_config['rate_limit'].actual_limit}次.")
+        logger.info(f"📊 配置: {worker.max_workers}个线程并行，整体批次超时{worker.timeout/60:.0f}分钟，单个任务30秒超时")
+        logger.info(f"🚀 API限流: 每分钟480次请求（500次限制），快速完成限制次数后等待下一分钟")
         stats = worker.run_jobs(worker_jobs)
         
         # 打印执行统计
@@ -830,11 +836,10 @@ class Tushare:
                 }
                 
                 # 更新进度
-                self.corp_finance_progress_tracker.update(
-                    stock_id,
-                    'success',
-                    f"完成: {start_quarter}~{end_quarter} ({len(converted_data)}条记录)"
-                )
+                with self.corp_finance_progress_lock:
+                    self.corp_finance_completed_jobs += 1
+                    progress = (self.corp_finance_completed_jobs / self.corp_finance_total_jobs) * 100
+                    logger.info(f"📊 企业财务数据更新进度: {self.corp_finance_completed_jobs}/{self.corp_finance_total_jobs} ({progress:.1f}%) - {stock_id} 完成: {start_quarter}~{end_quarter} ({len(converted_data)}条记录)")
             else:
                 result = {
                     'stock_id': stock_id,
@@ -845,11 +850,10 @@ class Tushare:
                 logger.warning(f"⚠️ {stock_id} 企业财务数据为空: {start_quarter}~{end_quarter}")
                 
                 # 更新进度（即使没有数据也算完成）
-                self.corp_finance_progress_tracker.update(
-                    stock_id,
-                    'no_data',
-                    f"无数据: {start_quarter}~{end_quarter}"
-                )
+                with self.corp_finance_progress_lock:
+                    self.corp_finance_completed_jobs += 1
+                    progress = (self.corp_finance_completed_jobs / self.corp_finance_total_jobs) * 100
+                    logger.info(f"📊 企业财务数据更新进度: {self.corp_finance_completed_jobs}/{self.corp_finance_total_jobs} ({progress:.1f}%) - {stock_id} 无数据: {start_quarter}~{end_quarter}")
                 
         except Exception as e:
             logger.error(f"❌ {stock_id} 企业财务数据更新失败: {e}")
@@ -861,11 +865,10 @@ class Tushare:
             }
             
             # 更新进度（即使出错也算完成）
-            self.corp_finance_progress_tracker.update(
-                stock_id,
-                'error',
-                f"失败: {e}"
-            )
+            with self.corp_finance_progress_lock:
+                self.corp_finance_completed_jobs += 1
+                progress = (self.corp_finance_completed_jobs / self.corp_finance_total_jobs) * 100
+                logger.info(f"📊 企业财务数据更新进度: {self.corp_finance_completed_jobs}/{self.corp_finance_total_jobs} ({progress:.1f}%) - {stock_id} 失败: {e}")
         
         return result
 
@@ -1035,6 +1038,26 @@ class Tushare:
 
     def _corporate_finance_api_rate_limit(self):
         """
-        企业财务数据API频率限制（使用新的限流器）
+        企业财务数据API频率限制（每分钟480次）
         """
-        self.corp_finance_rate_limiter.acquire()
+        import time
+        
+        with self.corp_finance_api_lock:  # 使用企业财务API的独立锁
+            current_time = time.time()
+            
+            # 检查是否需要重置计数器（每分钟重置一次）
+            if current_time - self.corp_finance_api_last_time >= 60:
+                self.corp_finance_api_count = 0
+                self.corp_finance_api_last_time = current_time
+            
+            # 如果当前分钟内的请求数已达到限制，则等待到下一分钟
+            if self.corp_finance_api_count >= self.corp_finance_api_max_per_minute:
+                wait_time = 60 - (current_time - self.corp_finance_api_last_time)
+                if wait_time > 0:
+                    logger.info(f"Tushare 企业财务API: 当前分钟已调用 {self.corp_finance_api_count} 次，等待 {wait_time:.1f} 秒到下一分钟...")
+                    time.sleep(wait_time)
+                    self.corp_finance_api_count = 0
+                    self.corp_finance_api_last_time = time.time()
+            
+            # 增加请求计数
+            self.corp_finance_api_count += 1

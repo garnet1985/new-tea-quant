@@ -53,7 +53,7 @@ class APIRateLimiter:
             if self.request_count >= self.actual_limit:
                 wait_time = 60 - (current_time - self.last_reset_time)
                 if wait_time > 0:
-                    logger.info(f"Tushare {self.api_name}API: 当前分钟已调用 {self.request_count} 次，等待 {wait_time:.1f} 秒到下一分钟...")
+                    logger.info(f"Tushare {self.api_name}API: 当前分钟已调用 {self.request_count} 次，为防止供应商API限流，等待 {wait_time:.1f} 秒到下一分钟...")
                     time.sleep(wait_time)
                     self.request_count = 0
                     self.last_reset_time = time.time()

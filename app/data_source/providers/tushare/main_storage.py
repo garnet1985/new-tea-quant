@@ -18,7 +18,6 @@ class TushareStorage:
         
         Args:
             data: 股票指数数据列表
-            is_verbose: 是否显示详细日志
         """
         # 转换数据格式以匹配数据库表结构
         api_stocks = []
@@ -384,7 +383,6 @@ class TushareStorage:
                 primary_keys = ['id', 'quarter']
                 table = self.db.get_table_instance('corporate_finance')
                 table.replace(valid_data, primary_keys)
-                logger.info(f"✅ 企业财务数据保存成功: {len(valid_data)} 条记录")
             else:
                 logger.warning("没有有效的企业财务数据需要保存")
                 

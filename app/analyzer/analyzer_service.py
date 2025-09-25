@@ -46,7 +46,7 @@ class AnalyzerService:
         return (end - start).days
     
     @staticmethod
-    def get_annual_return(profit_rate: float, duration_in_days: int, is_trading_days: bool = True) -> float:
+    def get_annual_return(profit_rate: float, duration_in_days: int, is_trading_days: bool = False) -> float:
         """
         计算年化收益率（使用复利公式）
         

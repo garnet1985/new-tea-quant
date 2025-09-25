@@ -51,13 +51,12 @@ class App:
 def main():
     app = App()
     
-    # app.renew_data()  # 数据更新仍为异步接口时再启用
+    asyncio.run(app.renew_data())
 
     # app.scan()
 
-    app.simulate()
+    # app.simulate()
 
 
 if __name__ == "__main__":
-    logger.info(f"{IconService.get('rocket')} 启动股票分析应用...")
     main()

@@ -31,6 +31,11 @@ class AKShare:
         self.job_complete_counter = 0
         self.latest_market_open_day = None
 
+        # 线程局部 DB（用于每个工作线程独立复用同一个 DatabaseManager 与 Storage）
+        self._thread_local = threading.local()
+        self._thread_dbs = []
+        self._thread_dbs_lock = threading.Lock()
+
     def inject_dependency(self, tu: Tushare):
         self.tu = tu
         return self
@@ -75,6 +80,8 @@ class AKShare:
             )
 
         self.storage.backup_csv_if_needed()
+        # 所有任务完成后，关闭各线程数据库，确保写入落盘
+        self._close_thread_dbs()
 
 
     def get_renewable_stocks(self, stock_index: list = None) -> List[Dict]:
@@ -102,23 +109,27 @@ class AKShare:
         factor_changed_dates = self.service.get_factor_changing_dates(tu_factors)
 
         if len(factor_changed_dates) > 0:
-            factors, is_abort = self.generate_factors(job_data)
+            # 使用线程局部存储与数据库
+            local_storage = self._get_thread_storage()
+            factors, is_abort = self.generate_factors(job_data, local_storage)
             if is_abort:
                 return
-            self.storage.save_factors(factors)
+            local_storage.save_factors(factors)
             logger.info(f"💾 {ts_code} 所有复权因子重新计算完成. total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
         else:
             if job_data['is_in_db']:
-                self.storage.update_factor_last_update_date(ts_code)
+                local_storage = self._get_thread_storage()
+                local_storage.update_factor_last_update_date(ts_code)
                 logger.info(f"💾 {ts_code} 没有检查到新的复权因子，更新所有复权因子最后更新时间 total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
             else:
-                self.storage.fake_a_factor_record(ts_code)
+                local_storage = self._get_thread_storage()
+                local_storage.fake_a_factor_record(ts_code)
                 logger.info(f"💾 {ts_code} 数据库里暂时没有当前复权因子的记录，存入一个初始复权因子. total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
         
         # 在方法结束时增加计数器
         self.job_complete_counter += 1
 
-    def generate_factors(self, job_data: Dict):
+    def generate_factors(self, job_data: Dict, storage: AKShareStorage):
 
         is_abort = False
 
@@ -133,13 +144,13 @@ class AKShare:
             return [], is_abort
 
         all_factor_changed_dates = self.service.get_factor_changing_dates(tu_factors)
-        factors = self.calc_factors(all_factor_changed_dates, job_data, qfq_k_lines)
+        factors = self.calc_factors(all_factor_changed_dates, job_data, qfq_k_lines, storage)
 
         return factors, is_abort
 
 
-    def calc_factors(self, dates: List[str], job_data: Dict, qfq_k_lines: pd.DataFrame):
-        raw_close_prices = self.storage.get_close_prices(job_data['id'], dates)
+    def calc_factors(self, dates: List[str], job_data: Dict, qfq_k_lines: pd.DataFrame, storage: AKShareStorage):
+        raw_close_prices = storage.get_close_prices(job_data['id'], dates)
         results = []
 
         if not raw_close_prices:  # 检查列表是否为空
@@ -183,3 +194,25 @@ class AKShare:
             })
 
         return results
+
+    def _get_thread_storage(self) -> AKShareStorage:
+        if getattr(self._thread_local, 'storage', None) is not None:
+            return self._thread_local.storage
+        from utils.db.db_manager import DatabaseManager
+        local_db = DatabaseManager(is_verbose=False, enable_thread_safety=True, use_connection_pool=True)
+        local_storage = AKShareStorage(local_db)
+        self._thread_local.db = local_db
+        self._thread_local.storage = local_storage
+        with self._thread_dbs_lock:
+            self._thread_dbs.append(local_db)
+        return local_storage
+
+    def _close_thread_dbs(self):
+        with self._thread_dbs_lock:
+            dbs = list(self._thread_dbs)
+            self._thread_dbs.clear()
+        for db in dbs:
+            try:
+                db.close()
+            except Exception:
+                pass

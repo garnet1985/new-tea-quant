@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
+import math
 from loguru import logger
 from app.data_source.providers.conf.conf import kline_terms, data_default_start_date
 from app.data_source.providers.tushare.main_settings import LATEST_MARKET_OPEN_DAY_BACKWARD_CHECKING_DAYS
@@ -214,3 +215,60 @@ class TushareService:
             }
         else:
             return None
+
+
+    @staticmethod
+    def to_yyyymm(d: str) -> str:
+        d = (d or '').strip()
+        if not d:
+            return ''
+        for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%m'):
+            try:
+                return datetime.strptime(d, fmt).strftime('%Y%m')
+            except ValueError:
+                continue
+        return ''
+
+    @staticmethod
+    def to_date(d: str) -> datetime:
+        if d is None:
+            return None
+        if isinstance(d, datetime):
+            return d
+        s = str(d).strip()
+        if not s:
+            return None
+        return datetime.strptime(s, '%Y%m%d')
+
+    @staticmethod
+    def safe_to_float(x, default=0.0):
+        try:
+            if x is None or (isinstance(x, float) and math.isnan(x)):
+                return default
+            return float(x)
+        except Exception:
+            return default
+
+    @staticmethod
+    def to_quarter(d: str) -> str:
+        """
+        将日期转换为季度标识。输入支持：YYYYMMDD 或 YYYY-MM-DD 或 YYYY/MM/DD 或 YYYYMM
+        输出：YYYYQ{N}，N∈{1,2,3,4}
+        """
+        from datetime import datetime
+        s = (d or '').strip()
+        if not s:
+            return ''
+        # 规范化为 datetime
+        dt = None
+        for fmt in ('%Y%m%d', '%Y-%m-%d', '%Y/%m/%d', '%Y%m'):
+            try:
+                dt = datetime.strptime(s, fmt)
+                break
+            except ValueError:
+                continue
+        if dt is None:
+            return ''
+        month = dt.month
+        q = (month - 1) // 3 + 1
+        return f"{dt.year}Q{q}"

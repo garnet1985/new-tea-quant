@@ -1,0 +1,61 @@
+{
+    "name": "gdp",
+    "primaryKey": ["quarter"],
+    "fields": [
+        {
+            "name": "quarter",
+            "type": "varchar",
+            "length": 16,
+            "description": "季度 YYYYQ[1-4] 格式"
+        },
+        {
+            "name": "gdp",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP"
+        },
+        {
+            "name": "gdp_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP同比 year to year"
+        },
+        {
+            "name": "primary_industry",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP第一产业"
+        },
+        {
+            "name": "primary_industry_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP第一产业同比 year to year"
+        },
+        {
+            "name": "secondary_industry",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP第二产业"
+        },
+        {
+            "name": "secondary_industry_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP第二产业同比 year to year"
+        },
+        {
+            "name": "tertiary_industry",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP第三产业"
+        },
+        {
+            "name": "tertiary_industry_yoy",
+            "type": "float",
+            "isRequired": true,
+            "description": "GDP第三产业同比 year to year"
+        }
+    ],
+    "description": "GDP - 国内生产总值"
+}

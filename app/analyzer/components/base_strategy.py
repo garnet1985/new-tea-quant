@@ -48,7 +48,7 @@ class BaseStrategy(ABC):
         # scan range, config this when during quick test scan_opportunity function purpose
         self.scan_range = {
             "start": 0, 
-            "amount": 0
+            "amount": 5
         }
 
 
@@ -349,15 +349,7 @@ class BaseStrategy(ABC):
 
         # 子进程内直接使用 DataLoader 的静态方法，避免初始化 DatabaseManager
         from app.analyzer.components.data_loader import DataLoader
-        data['klines'] = DataLoader.load_stock_data_in_child_process(stock_id, settings)
-
-        klines_settings = settings.get('klines')
-        min_required_klines = klines_settings.get('min_required_klines', 0)
-        min_required_kline_term = klines_settings.get('base_term')
-
-        if klines_settings and klines_settings.get('min_required_klines', 0) > 0:
-            if len(data['klines'][min_required_kline_term]) < min_required_klines:
-                return None
+        DataLoader.prepare_data(stock, settings)
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法
         import importlib

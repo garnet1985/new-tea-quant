@@ -98,7 +98,7 @@ class SimulatingService:
             strategy_class = payload['strategy_class']
 
             from app.analyzer.components.data_loader import DataLoader
-            data = DataLoader.load_stock_data_in_child_process(stock['id'], settings)
+            data = DataLoader.prepare_data(stock, settings)
 
             # 执行模拟 - 直接调用子类的simulate_one_day方法
             result = SimulatingService._execute_simulation(
@@ -127,7 +127,7 @@ class SimulatingService:
         # 获取基础K线数据
         simulate_base_term = settings.get('klines').get('base_term')
 
-        base_records = required_data[simulate_base_term]
+        base_records = required_data['klines'][simulate_base_term]
 
         # 初始化单只股票投资状态
         tracker = {
@@ -195,7 +195,7 @@ class SimulatingService:
         - 每次调用仅将新增（date <= date_of_today）的记录 append 到 acc，避免切片复制
         - 返回仅包含这些 term 的字典；若 term 不存在或无数据则返回空列表
         """
-        # 读取需要分发的时间序列键
+        # 读取需要分发的时间序列键（klines）
         kl_cfg = settings.get('klines', {}) if isinstance(settings, dict) else {}
         terms = kl_cfg.get('terms', []) or []
         if not isinstance(terms, list):
@@ -209,7 +209,7 @@ class SimulatingService:
         
         result: Dict[str, Any] = {}
         for term in terms:
-            records = all_data.get(term)
+            records = (all_data.get('klines') or {}).get(term)
             if not isinstance(records, list) or not records:
                 st = state.get(term)
                 if st is None:
@@ -238,9 +238,81 @@ class SimulatingService:
             st['cursor'] = i - 1
             result[term] = acc
         
-        return {
-            'klines': result
-        }
+        data_today: Dict[str, Any] = { 'klines': result }
+
+        # 可选：指数指标（以 categories 列表为键）
+        idx_cfg = settings.get('index_indicators') or {}
+        idx_cats = idx_cfg.get('categories') if isinstance(idx_cfg, dict) else None
+        if isinstance(idx_cats, list) and len(idx_cats) > 0 and isinstance(all_data.get('index_indicators'), dict):
+            if '__state__' not in all_data:
+                all_data['__state__'] = {}
+            idx_state = all_data['__state__'].setdefault('index_indicators', {})
+            idx_today = {}
+            for cat in idx_cats:
+                series = (all_data['index_indicators'] or {}).get(cat) or []
+                st = idx_state.get(cat)
+                if st is None:
+                    st = {'cursor': -1, 'acc': []}
+                    idx_state[cat] = st
+                i = st['cursor'] + 1
+                acc = st['acc']
+                n = len(series)
+                while i < n:
+                    rec = series[i]
+                    d = rec.get('date') if isinstance(rec, dict) else None
+                    if not d or d > date_of_today:
+                        break
+                    acc.append(rec)
+                    i += 1
+                st['cursor'] = i - 1
+                idx_today[cat] = acc
+            data_today['index_indicators'] = idx_today
+
+        # 可选：行业资金流（全部一组，键'all'）
+        icf_cfg = settings.get('industry_capital_flow') or {}
+        if isinstance(icf_cfg, dict) and all_data.get('industry_capital_flow'):
+            icf_series = (all_data['industry_capital_flow'] or {}).get('all') or []
+            icf_state = all_data['__state__'].setdefault('industry_capital_flow', {'cursor': -1, 'acc': []})
+            i = icf_state['cursor'] + 1
+            acc = icf_state['acc']
+            n = len(icf_series)
+            while i < n:
+                rec = icf_series[i]
+                d = rec.get('date') if isinstance(rec, dict) else None
+                if not d or d > date_of_today:
+                    break
+                acc.append(rec)
+                i += 1
+            icf_state['cursor'] = i - 1
+            data_today['industry_capital_flow'] = acc
+
+        # 可选：公司财务（分组类别）
+        cf_cfg = settings.get('corporate_finance') or {}
+        cf_cats = cf_cfg.get('categories') if isinstance(cf_cfg, dict) else None
+        if isinstance(cf_cats, list) and len(cf_cats) > 0 and isinstance(all_data.get('corporate_finance'), dict):
+            cf_state = all_data['__state__'].setdefault('corporate_finance', {})
+            cf_today = {}
+            for cat in cf_cats:
+                series = (all_data['corporate_finance'] or {}).get(cat) or []
+                st = cf_state.get(cat)
+                if st is None:
+                    st = {'cursor': -1, 'acc': []}
+                    cf_state[cat] = st
+                i = st['cursor'] + 1
+                acc = st['acc']
+                n = len(series)
+                while i < n:
+                    rec = series[i]
+                    d = rec.get('quarter') or rec.get('date')
+                    if not d or d > date_of_today:
+                        break
+                    acc.append(rec)
+                    i += 1
+                st['cursor'] = i - 1
+                cf_today[cat] = acc
+            data_today['corporate_finance'] = cf_today
+
+        return data_today
 
     @staticmethod
     def to_investment(record_of_today: Dict[str, Any], opportunity: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:

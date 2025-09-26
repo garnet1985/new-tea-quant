@@ -537,13 +537,13 @@ class Tushare:
         刷新利率指标（LPR）到 `interest_rates` 基础表。
         """
 
-        start_m = data_default_start_date
-        end_m = latest_market_open_day
+        start_date = data_default_start_date
+        end_date = latest_market_open_day
 
         try:
             df_lpr = self.api.shibor_lpr(
-                start_m=start_m, 
-                end_m=end_m,
+                start_date=start_date, 
+                end_date=end_date,
                 fields='date,1y,5y'
             )
         except Exception as e:
@@ -575,6 +575,53 @@ class Tushare:
             logger.info(f"✅ 基准利率LPR 刷新完成: {len(records)} 条")
         except Exception as e:
             logger.error(f"❌ 基准利率LPR 更新失败: {e}")
+
+
+
+    # ================================ Shibor ================================
+    def renew_Shibor(self, latest_market_open_day: str = None):
+        """
+        刷新利率指标（Shibor）到 `interest_rates` 基础表。
+        """
+        
+        start_date = data_default_start_date
+        end_date = latest_market_open_day
+
+        try:
+            df_shibor = self.api.shibor(
+                start_date=start_date,
+                end_date=end_date,
+                fields='date,on,1w,1m,3m,12m'
+            )
+        except Exception as e:
+            logger.error(f"shibor fetch failed: {e}")
+            return
+
+        records = []
+        for _, r in df_shibor.iterrows():
+            date_str = str(r.get('date') or r.get('DATE') or '').strip()
+            shibor_on = r.get('on') if 'on' in r else r.get('ON')
+            shibor_1w = r.get('1w') if '1w' in r else r.get('1W')
+            shibor_1m = r.get('1m') if '1m' in r else r.get('1M')
+            shibor_3m = r.get('3m') if '3m' in r else r.get('3M')
+            shibor_12m = r.get('12m') if '12m' in r else r.get('12M')
+            records.append({
+                'date': date_str,
+                'one_night': TushareService.safe_to_float(shibor_on),
+                'one_week': TushareService.safe_to_float(shibor_1w),
+                'one_month': TushareService.safe_to_float(shibor_1m),
+                'three_month': TushareService.safe_to_float(shibor_3m),
+                'one_year': TushareService.safe_to_float(shibor_12m),
+            })
+        if not records:
+            return
+        
+        try:
+            table = self.db.get_table_instance('shibor')
+            table.replace(records, ['date'])
+            logger.info(f"✅ Shibor 刷新完成: {len(records)} 条")
+        except Exception as e:
+            logger.error(f"❌ Shibor 更新失败: {e}")
 
 
     # ================================ GDP ================================

@@ -16,7 +16,7 @@ settings = {
     # 日线数据要求
     "klines": {
         # 日线数据要求 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
-        "terms": ["daily"],
+        "terms": ["daily", "weekly", "monthly"],
         # 日线数据要求 - 例子中指代模拟器基于日线来进行一日日的模拟（交易日）
         "base_term": "daily",
         # 最小要求的基础周期记录数
@@ -35,7 +35,8 @@ settings = {
         "GDP": True,
         "LPR": True,
         "Shibor": True,
-        "price_indexes": ["CPI", "PPI", "PMI", "M0", "M1", "M2"],
+        # 价格指数 - 空意味着取所有; 可用参数为: CPI, PPI, PMI, MoneySupply 
+        "price_indexes": ["CPI", "PPI", "PMI", "MoneySupply"],
         "start_date": "",
         "end_date": "",
     },

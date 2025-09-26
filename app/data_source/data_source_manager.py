@@ -50,7 +50,13 @@ class DataSourceManager:
 
         # tu.renew_GDP(self.latest_market_open_day)
 
-        tu.renew_Shibor(self.latest_market_open_day)
+        # tu.renew_Shibor(self.latest_market_open_day)
+
+        # stock index indicators and weights
+
+        tu.renew_stock_index_indicator(self.latest_market_open_day)
+
+        tu.renew_stock_index_indicator_weight(self.latest_market_open_day)
 
         # corporate financial data
         # tu.renew_corporate_finance(self.latest_market_open_day)

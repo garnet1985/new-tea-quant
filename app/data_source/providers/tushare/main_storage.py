@@ -11,6 +11,9 @@ class TushareStorage:
         self.meta_info = connected_db.get_table_instance('meta_info')
         self.stock_index_table = connected_db.get_table_instance('stock_index')
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
+        self.stock_index_indicator_table = connected_db.get_table_instance('stock_index_indicator')
+        self.stock_index_indicator_weight_table = connected_db.get_table_instance('stock_index_indicator_weight')
+        self.industry_capital_flow_table = connected_db.get_table_instance('industry_capital_flow')
 
     def save_stock_index(self, data):
         """
@@ -75,6 +78,64 @@ class TushareStorage:
             
         except Exception as e:
             logger.error(f"获取最新数据状态失败: {e}")
+            return {}
+
+    def get_most_recent_stock_index_indicator_record_dates(self) -> dict:
+        """
+        获取股票指数指标数据的最新记录日期
+        返回格式: {index_id: {term: latest_date}}
+        """
+        try:
+            # 使用SQL聚合查询获取所有指数所有周期的最新日期
+            query = """
+                SELECT id, term, MAX(date) as latest_date 
+                FROM stock_index_indicator 
+                GROUP BY id, term
+            """
+            result = self.stock_index_indicator_table.execute_raw_query(query)
+            
+            # 转换为字典格式
+            latest_data = {}
+            for row in result:
+                index_id = row['id']
+                term = row['term']
+                latest_date = row['latest_date']
+                
+                if index_id not in latest_data:
+                    latest_data[index_id] = {}
+                latest_data[index_id][term] = latest_date
+        
+            return latest_data
+            
+        except Exception as e:
+            logger.error(f"获取股票指数指标最新数据状态失败: {e}")
+            return {}
+
+    def get_most_recent_stock_index_indicator_weight_record_dates(self) -> dict:
+        """
+        获取股票指数指标权重数据的最新记录日期
+        返回格式: {index_id: latest_date}
+        """
+        try:
+            # 使用SQL聚合查询获取所有指数的最新日期
+            query = """
+                SELECT id, MAX(date) as latest_date 
+                FROM stock_index_indicator_weight 
+                GROUP BY id
+            """
+            result = self.stock_index_indicator_weight_table.execute_raw_query(query)
+            
+            # 转换为字典格式
+            latest_data = {}
+            for row in result:
+                index_id = row['id']
+                latest_date = row['latest_date']
+                latest_data[index_id] = latest_date
+        
+            return latest_data
+            
+        except Exception as e:
+            logger.error(f"获取股票指数指标权重最新数据状态失败: {e}")
             return {}
 
     def save_stock_kline(self, data, job):
@@ -427,3 +488,158 @@ class TushareStorage:
             return float(value)
         except (ValueError, TypeError):
             return 0.0
+
+    def convert_stock_index_indicator_data_for_storage(self, data, term='daily'):
+        """
+        转换股票指数指标数据格式以匹配数据库schema
+        
+        Args:
+            data: Tushare API返回的DataFrame或列表
+            term: 数据周期，如 'daily', 'weekly', 'monthly'
+            
+        Returns:
+            list: 转换后的数据列表
+        """
+        converted_data = []
+        
+        # 确保data是列表格式
+        if hasattr(data, 'to_dict'):
+            data = data.to_dict('records')
+        elif not isinstance(data, list):
+            data = [data]
+        
+        for item in data:
+            try:
+                # 根据schema.json的字段定义转换数据
+                converted_item = {
+                    'id': item.get('ts_code', ''),  # 股指代码
+                    'term': term,  # 数据周期
+                    'date': item.get('trade_date', ''),  # 交易日期
+                    'open': self._safe_float(item.get('open', 0)),  # 开盘价
+                    'close': self._safe_float(item.get('close', 0)),  # 收盘价
+                    'highest': self._safe_float(item.get('high', 0)),  # 最高价
+                    'lowest': self._safe_float(item.get('low', 0)),  # 最低价
+                    'priceChangeDelta': self._safe_float(item.get('change', 0)),  # 价格变动
+                    'priceChangeRateDelta': self._safe_float(item.get('pct_chg', 0)),  # 价格变动率
+                    'preClose': self._safe_float(item.get('pre_close', 0)),  # 前日收盘价
+                    'volume': self._safe_float(item.get('vol', 0)),  # 成交量
+                    'amount': self._safe_float(item.get('amount', 0))  # 成交额
+                }
+                
+                # 验证必填字段
+                required_fields = ['id', 'term', 'date', 'open', 'close', 'highest', 'lowest']
+                if all(converted_item.get(field) is not None and converted_item.get(field) != '' 
+                       for field in required_fields):
+                    converted_data.append(converted_item)
+                else:
+                    logger.warning(f"跳过缺少必填字段的股票指数指标数据: {item}")
+                    
+            except Exception as e:
+                logger.warning(f"转换股票指数指标数据时出错: {e}, 数据: {item}")
+                continue
+        
+        return converted_data
+
+    def batch_save_stock_index_indicator(self, data_list, term='daily'):
+        """
+        批量保存股票指数指标数据
+        
+        Args:
+            data_list: 数据列表
+            term: 数据周期
+        """
+        try:
+            converted_data = self.convert_stock_index_indicator_data_for_storage(data_list, term)
+            
+            if converted_data:
+                # 使用replace方法进行upsert操作
+                primary_keys = ['id', 'term', 'date']
+                self.stock_index_indicator_table.replace(converted_data, primary_keys)
+                logger.info(f"✅ 成功保存 {len(converted_data)} 条股票指数指标数据 (周期: {term})")
+            else:
+                logger.warning(f"没有有效的股票指数指标数据需要保存 (周期: {term})")
+                
+        except Exception as e:
+            logger.error(f"批量保存股票指数指标数据失败: {e}")
+            raise
+
+    def convert_stock_index_indicator_weight_data_for_storage(self, data):
+        """
+        转换股票指数指标权重数据格式以匹配数据库schema
+        
+        Args:
+            data: Tushare API返回的DataFrame或列表
+            
+        Returns:
+            list: 转换后的数据列表
+        """
+        converted_data = []
+        
+        # 确保data是列表格式
+        if hasattr(data, 'to_dict'):
+            data = data.to_dict('records')
+        elif not isinstance(data, list):
+            data = [data]
+        
+        logger.info(f"🔍 开始转换权重数据，原始数据条数: {len(data)}")
+        
+        # 记录前几条数据的字段名，用于调试
+        if data and len(data) > 0:
+            sample_item = data[0]
+            logger.info(f"🔍 权重数据字段名示例: {list(sample_item.keys())}")
+            logger.info(f"🔍 第一条权重数据示例: {sample_item}")
+        
+        skipped_count = 0
+        for item in data:
+            try:
+                # 根据schema.json的字段定义转换数据
+                # 注意：Tushare API的字段名可能与预期不同，需要调试确定
+                converted_item = {
+                    'id': item.get('index_code', ''),  # 股指代码
+                    'date': item.get('trade_date', ''),  # 交易日期
+                    'stock_id': item.get('con_code', ''),  # 成分股代码
+                    'weight': self._safe_float(item.get('weight', 0))  # 权重
+                }
+                
+                # 检查权重值是否有效（不为0）
+                weight_value = converted_item.get('weight', 0)
+                if weight_value > 0:
+                    converted_data.append(converted_item)
+                else:
+                    skipped_count += 1
+                    if skipped_count <= 5:
+                        logger.warning(f"跳过权重为0的数据: {item}")
+                    
+            except Exception as e:
+                skipped_count += 1
+                if skipped_count <= 5:
+                    logger.warning(f"转换权重数据时出错: {e}, 数据: {item}")
+                continue
+        
+        logger.info(f"🔍 权重数据转换完成: 原始 {len(data)} 条，转换后 {len(converted_data)} 条，跳过 {skipped_count} 条")
+        
+        return converted_data
+
+    def batch_save_stock_index_indicator_weight(self, data_list):
+        """
+        批量保存股票指数指标权重数据
+        
+        Args:
+            data_list: 数据列表
+        """
+        try:
+            converted_data = self.convert_stock_index_indicator_weight_data_for_storage(data_list)
+            
+            if converted_data:
+                # 使用replace方法进行upsert操作
+                primary_keys = ['id', 'date', 'stock_id']
+                self.stock_index_indicator_weight_table.replace(converted_data, primary_keys)
+                logger.info(f"✅ 成功保存 {len(converted_data)} 条股票指数指标权重数据")
+            else:
+                logger.warning("没有有效的股票指数指标权重数据需要保存")
+                
+        except Exception as e:
+            logger.error(f"批量保存股票指数指标权重数据失败: {e}")
+            raise
+
+    # 行业资金流向数据存储方法已迁移到基础类中

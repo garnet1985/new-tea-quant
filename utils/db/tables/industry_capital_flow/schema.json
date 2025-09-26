@@ -1,0 +1,57 @@
+{
+    "name": "industry_capital_flow",
+    "primaryKey": ["date"],
+    "fields": [
+        {
+            "name": "date",
+            "type": "varchar",
+            "length": 16,
+            "description": "日期 YYYYMMDD 格式"
+        },
+        {
+            "name": "industry",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "行业名称"
+        },
+        {
+            "name": "industry_id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "行业代码"
+        },
+        {
+            "name": "company_number",
+            "type": "float",
+            "isRequired": true,
+            "description": "行业公司数量"
+        },
+        {
+            "name": "net_buy_amount",
+            "type": "float",
+            "isRequired": true,
+            "description": "行业净买入金额"
+        },
+        {
+            "name": "net_sell_amount",
+            "type": "float",
+            "isRequired": true,
+            "description": "行业净卖出金额"
+        },
+        {
+            "name": "net_amount",
+            "type": "float",
+            "isRequired": true,
+            "description": "行业净金额"
+        },
+        {
+            "name": "index_change_percent",
+            "type": "float",
+            "isRequired": true,
+            "description": "行业指数涨跌幅"
+        }
+    ],
+    "description": "行业资金流入比例，包括行业指数涨跌幅、行业公司数量、行业净买入金额、行业净卖出金额、行业净金额"
+}

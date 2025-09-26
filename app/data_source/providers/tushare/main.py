@@ -591,8 +591,10 @@ class Tushare:
             df_shibor = self.api.shibor(
                 start_date=start_date,
                 end_date=end_date,
-                fields='date,on,1w,1m,3m,12m'
+                fields='date,on,1w,1m,3m,1y'
             )
+
+            logger.info(f"shibor fetch success: {df_shibor}")
         except Exception as e:
             logger.error(f"shibor fetch failed: {e}")
             return
@@ -604,14 +606,14 @@ class Tushare:
             shibor_1w = r.get('1w') if '1w' in r else r.get('1W')
             shibor_1m = r.get('1m') if '1m' in r else r.get('1M')
             shibor_3m = r.get('3m') if '3m' in r else r.get('3M')
-            shibor_12m = r.get('12m') if '12m' in r else r.get('12M')
+            shibor_1y = r.get('1y') if '1y' in r else r.get('1Y')
             records.append({
                 'date': date_str,
                 'one_night': TushareService.safe_to_float(shibor_on),
                 'one_week': TushareService.safe_to_float(shibor_1w),
                 'one_month': TushareService.safe_to_float(shibor_1m),
                 'three_month': TushareService.safe_to_float(shibor_3m),
-                'one_year': TushareService.safe_to_float(shibor_12m),
+                'one_year': TushareService.safe_to_float(shibor_1y),
             })
         if not records:
             return

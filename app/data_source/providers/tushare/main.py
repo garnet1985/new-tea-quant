@@ -6,7 +6,7 @@ from utils.worker import FuturesWorker, ThreadExecutionMode
 # auth_token_file 现在从 config 中获取
 from app.data_source.providers.tushare.main_service import TushareService
 from app.data_source.providers.tushare.main_storage import TushareStorage
-from app.data_source.providers.conf.conf import data_default_start_date
+from app.conf.conf import data_default_start_date
 import warnings
 from datetime import datetime
 import time

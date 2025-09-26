@@ -42,7 +42,22 @@ settings = {
     },
 
     "corporate_finance": {
+        # 公司财务指标 - 空意味着取所有; 可用参数为: growth, profit, cashflow, solvency, operation, asset
         "categories": ["growth", "profit", "cashflow", "solvency", "operation", "asset"],
+        "start_date": "",
+        "end_date": "",
+    },
+
+
+    "index_indicators": {
+        # 指数指标 - 空意味着取所有; 可用参数为: sh_index(上证), sz_index(深证), hs_300(沪深300), cyb_index(创业板), kc_50(科创50)
+        "categories": ["sh_index", "sz_index", "hs_300", "cyb_index", "kc_50"],
+        "start_date": "",
+        "end_date": "",
+    },
+
+    "industry_capital_flow": {
+        # 行业资本流动
         "start_date": "",
         "end_date": "",
     },

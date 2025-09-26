@@ -1064,3 +1064,61 @@ class Tushare:
         
         logger.info("📊 股票指数指标权重数据更新完成")
 
+    # ================================ industry capital flow ================================
+    def renew_industry_capital_flow(self, latest_market_open_day: str = None):
+        """
+        刷新行业资金流向数据
+        获取同花顺行业资金流向数据
+        """
+        from datetime import datetime, timedelta
+        
+        end_date = latest_market_open_day
+
+        logger.info(f"📊 开始更新行业资金流向数据，目标日期: {end_date}")
+        
+        # 获取现有数据的最新日期
+        try:
+            with self.db.get_sync_cursor() as cursor:
+                cursor.execute('SELECT MAX(date) as latest_date FROM industry_capital_flow')
+                result = cursor.fetchone()
+                latest_date = result['latest_date'] if result and result['latest_date'] else None
+        except Exception as e:
+            logger.warning(f"获取行业资金流向最新数据日期失败: {e}")
+            latest_date = None
+        
+        # 检查是否需要更新
+        if latest_date:
+            formatted_latest_date = datetime.strptime(latest_date, '%Y%m%d')
+            formatted_end_date = datetime.strptime(end_date, '%Y%m%d')
+            
+            if formatted_latest_date >= formatted_end_date:
+                logger.info(f"⏭️ 行业资金流向数据已是最新，跳过更新")
+                return
+            
+            # 需要更新，从最新日期的下一天开始
+            start_date = (formatted_latest_date + timedelta(days=1)).strftime('%Y%m%d')
+            logger.info(f"🔄 更新行业资金流向数据从 {start_date} 到 {end_date}")
+        else:
+            # 没有现有数据，从默认开始日期获取
+            start_date = data_default_start_date
+            logger.info(f"🔄 首次获取行业资金流向数据从 {start_date} 到 {end_date}")
+        
+        try:
+            # 调用Tushare API获取行业资金流向数据
+            df_industry_flow = self.api.moneyflow_ind_ths(
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            if df_industry_flow is not None and not df_industry_flow.empty:
+                # 保存到数据库
+                self.storage.batch_save_industry_capital_flow(df_industry_flow)
+                logger.info(f"✅ 行业资金流向数据更新完成，共 {len(df_industry_flow)} 条记录")
+            else:
+                logger.warning(f"⚠️ 没有获取到行业资金流向数据")
+                
+        except Exception as e:
+            logger.error(f"❌ 获取行业资金流向数据失败: {e}")
+        
+        logger.info("📊 行业资金流向数据更新完成")
+

@@ -1,6 +1,7 @@
 import pprint
 import tushare as ts
 from loguru import logger
+from app.conf.conf import stock_index_indicators
 from utils.worker import FuturesWorker, ThreadExecutionMode
 # auth_token_file 现在从 config 中获取
 from app.data_source.providers.tushare.main_service import TushareService
@@ -14,6 +15,10 @@ import time
 from .config import TushareConfig
 from .rate_limiter import RateLimiterManager
 from utils.progress.progress_tracker import ProgressTrackerManager
+from .renewers import (
+    PriceIndexesRenewer,
+    UniversalRenewerManager
+)
 
 
 # 抑制tushare库的FutureWarning
@@ -37,6 +42,16 @@ class Tushare:
         
         # 初始化进度跟踪器管理器
         self.progress_tracker_manager = ProgressTrackerManager()
+        
+        # 初始化数据更新器（保留未被通用更新器替代的）
+        self.price_indexes_renewer = PriceIndexesRenewer(
+            db=connected_db, api=self.api, storage=self.storage, is_verbose=is_verbose
+        )
+        
+        # 初始化通用更新器管理器
+        self.universal_renewer_manager = UniversalRenewerManager(
+            db=connected_db, api=self.api, storage=self.storage, is_verbose=is_verbose
+        )
         
         # 获取限流器实例
         self.kline_rate_limiter = self.rate_limiter_manager.get_limiter(
@@ -101,9 +116,7 @@ class Tushare:
         term_counts = {}
         total_jobs = 0
 
-        permission = input(f"共有 {len(jobs)} 个股票K线需要更新，是否更新? y:更新 | 其他任意键:不更新")
-        if permission.lower() != 'y':
-            return
+        # 取消交互式确认，由调用方通过 actions 决定是否执行
         
         for stock_key, stock_jobs in jobs.items():
             for job in stock_jobs:
@@ -311,52 +324,13 @@ class Tushare:
             raise e
 
     # ================================ stock index ================================
-    def renew_stock_index(self, latest_market_open_day: str = None, is_force=False):
-
-        should_renew = False
-
-        is_index_empty = self.storage.is_index_empty()
-
-        if is_index_empty:
-            is_force = True
-
-        # 直接从stock_index表获取最新的lastUpdate
-        last_renew_time = self.storage.stock_index_table.load_latest_last_update()
-
-        last_dt = TushareService.to_date(last_renew_time)
-        latest_dt = TushareService.to_date(latest_market_open_day)
-
-        should_renew = is_force or last_dt is None or (latest_dt is not None and last_dt < latest_dt)
-
-        if should_renew:
-            new_idx_data = self.request_stock_index()
-            if new_idx_data is not None and len(new_idx_data) > 0:
-                # 保存成功后直接返回数据，不需要更新meta_info表
-                save_success = self.storage.save_stock_index(new_idx_data)
-                if save_success:
-                    return TushareService.to_unified_stock_index_format(new_idx_data)
-                else:
-                    logger.error("❌ 股票指数数据保存失败，保持使用现有数据库数据")
-                    return self.storage.load_stock_index()
-            else:
-                logger.error("❌ 股票列表返回结果为空, 检查tushare API是否正常，保持使用现有数据库数据")
-                return self.storage.load_stock_index()
-        else:
-            logger.info(f"🔍 股票目录已经是最新，直接使用数据库数据:  {latest_market_open_day}")
-            return self.storage.load_stock_index()
+    def renew_stock_index(self, latest_market_open_day: str = None):
+        """
+        更新股票指数数据
+        """
+        return self.universal_renewer_manager.renew('stock_index', latest_market_open_day)
 
 
-    def request_stock_index(self):
-        fields = 'ts_code,name,area,industry,market,exchange,list_date'
-        stock_status = 'L'
-        data = self.api.stock_basic(exchange='', list_status=stock_status, fields=fields)
-        # 统一转换为列表格式，保持数据格式一致
-        if hasattr(data, 'to_dict'):
-            return data.to_dict('records')
-        elif isinstance(data, list):
-            return data
-        else:
-            return [data]
 
     # ================================ price indexes ================================
     def renew_price_indexes(self, latest_market_open_day: str = None):
@@ -369,265 +343,32 @@ class Tushare:
         - CPI: cpi [tushare: doc_id=228]
         - PPI: ppi [tushare: doc_id=245]
         - PMI: pmi [tushare: doc_id=325]
-        参考: `https://tushare.pro/document/2?doc_id=242`, `https://tushare.pro/document/2?doc_id=228`, `https://tushare.pro/document/2?doc_id=245`, `https://tushare.pro/document/2?doc_id=325`
         """
-        # 统一起止区间（与K线一致）：若未显式传入，则用配置默认起点 → 最新交易日
-        start_m = TushareService.to_yyyymm(data_default_start_date)
-        end_m = TushareService.to_yyyymm(latest_market_open_day) or datetime.now().strftime('%Y%m')
-
-        by_month = {}
-
-        # 小工具：调试打印
-        def _log_df(name: str, df):
-            if not self.is_verbose:
-                return
-            try:
-                cols = list(df.columns) if df is not None else []
-                logger.info(f"price_indexes | {name} cols: {cols}")
-                if df is not None and not df.empty:
-                    logger.info(f"price_indexes | {name} head: {df.head(3).to_dict('records')}")
-            except Exception:
-                pass
-
-        # 1) Money Supply: cn_m
-        try:
-            df_m = self.api.cn_m(start_m=start_m, end_m=end_m)
-            _log_df('cn_m', df_m)
-            if df_m is not None and not df_m.empty:
-                for _, r in df_m.iterrows():
-                    m = str(r.get('month') or r.get('date') or '')
-                    if not m:
-                        continue
-                    row = by_month.setdefault(m, {})
-                    row['M0'] = TushareService.safe_to_float(r.get('m0'))
-                    row['M0_yoy'] = TushareService.safe_to_float(r.get('m0_yoy'))
-                    row['M0_mom'] = TushareService.safe_to_float(r.get('m0_mom'))
-                    row['M1'] = TushareService.safe_to_float(r.get('m1'))
-                    row['M1_yoy'] = TushareService.safe_to_float(r.get('m1_yoy'))
-                    row['M1_mom'] = TushareService.safe_to_float(r.get('m1_mom'))
-                    row['M2'] = TushareService.safe_to_float(r.get('m2'))
-                    row['M2_yoy'] = TushareService.safe_to_float(r.get('m2_yoy'))
-                    row['M2_mom'] = TushareService.safe_to_float(r.get('m2_mom'))
-        except Exception as e:
-            if self.is_verbose:
-                logger.error(f"cn_m fetch failed: {e}")
-
-        # 2) CPI
-        try:
-            df_cpi = self.api.cn_cpi(
-                start_m=start_m,
-                end_m=end_m,
-                fields='month,nt_val,nt_yoy,nt_mom'
-            )
-            _log_df('cpi', df_cpi)
-
-            if df_cpi is not None and not df_cpi.empty:
-                for _, r in df_cpi.iterrows():
-                    m = str(r.get('month') or r.get('date') or '')
-                    if not m:
-                        continue
-                    row = by_month.setdefault(m, {})
-                    # Fields per user: nt_val, nt_val_yoy, nt_val_mom
-                    row['CPI'] = TushareService.safe_to_float(r.get('nt_val'))
-                    row['CPI_yoy'] = TushareService.safe_to_float(r.get('nt_yoy'))
-                    row['CPI_mom'] = TushareService.safe_to_float(r.get('nt_mom'))
-        except Exception as e:
-            logger.error(f"cpi fetch failed: {e}")
-
-        # 3) PPI
-        try:
-            df_ppi = self.api.cn_ppi(
-                start_m=start_m,
-                end_m=end_m,
-                fields='month,ppi_accu,ppi_yoy,ppi_mom'
-            )
-            _log_df('ppi', df_ppi)
-            if df_ppi is not None and not df_ppi.empty:
-                for _, r in df_ppi.iterrows():
-                    m = str(r.get('month') or r.get('date') or '')
-                    if not m:
-                        continue
-                    row = by_month.setdefault(m, {})
-                    # Fields per user: ppi_accu, ppi_mom, ppi_yoy
-
-                    row['PPI'] = TushareService.safe_to_float(r.get('ppi_accu'))
-                    row['PPI_yoy'] = TushareService.safe_to_float(r.get('ppi_yoy'))
-                    row['PPI_mom'] = TushareService.safe_to_float(r.get('ppi_mom'))
-        except Exception as e:
-            logger.error(f"ppi fetch failed: {e}")
-
-        # 4) PMI
-        try:
-            # 限定返回字段，确保含 month 和四个指标
-            df_pmi = self.api.cn_pmi(
-                start_m=start_m,
-                end_m=end_m,
-                fields='month,pmi010000,pmi010100,pmi010200,pmi010300'
-            )
-            _log_df('pmi', df_pmi)
-
-            if df_pmi is not None and not df_pmi.empty:
-                for _, r in df_pmi.iterrows():
-                    # month 可能为 'month' 或 'MONTH'
-                    m = r.get('month') if 'month' in r else r.get('MONTH')
-                    m = '' if m is None else str(m).strip()
-                    if not m:
-                        continue
-                    row = by_month.setdefault(m, {})
-                    row['PMI'] = TushareService.safe_to_float(r.get('pmi010000') or r.get('PMI010000'))
-                    row['PMI_l_scale'] = TushareService.safe_to_float(r.get('pmi010100') or r.get('PMI010100'))
-                    row['PMI_m_scale'] = TushareService.safe_to_float(r.get('pmi010200') or r.get('PMI010200'))
-                    row['PMI_s_scale'] = TushareService.safe_to_float(r.get('pmi010300') or r.get('PMI010300'))
-        except Exception as e:
-            logger.error(f"pmi fetch failed: {e}")
-
-        # Assemble rows
-        records = []
-        for m, vals in by_month.items():
-            # 解析月份为 YYYY-MM-01
-            dt = None
-            for fmt in ('%Y%m', '%Y-%m', '%Y-%m-%d', '%Y/%m/%d'):
-                try:
-                    dt = datetime.strptime(m, fmt).strftime('%Y-%m-01')
-                    break
-                except ValueError:
-                    continue
-            if not dt:
-                continue
-            rec = {
-                # per user: use YYYYMM string as id
-                'id': m,
-                'date': dt,
-                'CPI': vals.get('CPI', 0.0),
-                'CPI_yoy': vals.get('CPI_yoy', 0.0),
-                'CPI_mom': vals.get('CPI_mom', 0.0),
-                'PPI': vals.get('PPI', 0.0),
-                'PPI_yoy': vals.get('PPI_yoy', 0.0),
-                'PPI_mom': vals.get('PPI_mom', 0.0),
-                'PMI': vals.get('PMI', 0.0),
-                'PMI_l_scale': vals.get('PMI_l_scale', 0.0),
-                'PMI_m_scale': vals.get('PMI_m_scale', 0.0),
-                'PMI_s_scale': vals.get('PMI_s_scale', 0.0),
-                'M0': vals.get('M0', 0.0),
-                'M0_yoy': vals.get('M0_yoy', 0.0),
-                'M0_mom': vals.get('M0_mom', 0.0),
-                'M1': vals.get('M1', 0.0),
-                'M1_yoy': vals.get('M1_yoy', 0.0),
-                'M1_mom': vals.get('M1_mom', 0.0),
-                'M2': vals.get('M2', 0.0),
-                'M2_yoy': vals.get('M2_yoy', 0.0),
-                'M2_mom': vals.get('M2_mom', 0.0)
-            }
-            records.append(rec)
-
-        if not records:
-            logger.info("价格指数: 没有数据需要更新")
-            return
-
-        try:
-            table = self.db.get_table_instance('price_indexes')
-            table.replace(records, ['id', 'date'])
-            logger.info(f"✅ 价格指数 更新完成: {len(records)} 条")
-        except Exception as e:
-            logger.error(f"❌ 价格指数 更新失败: {e}")
+        return self.price_indexes_renewer.renew(latest_market_open_day)
 
     # ================================ LPR ================================
     def renew_LPR(self, latest_market_open_day: str = None):
         """
         刷新利率指标（LPR）到 `interest_rates` 基础表。
         """
+        return self.universal_renewer_manager.renew('lpr', latest_market_open_day)
 
-        start_m = data_default_start_date
-        end_m = latest_market_open_day
 
-        try:
-            df_lpr = self.api.shibor_lpr(
-                start_m=start_m, 
-                end_m=end_m,
-                fields='date,1y,5y'
-            )
-        except Exception as e:
-            logger.error(f"lpr fetch failed: {e}")
-            return
 
-        if df_lpr is None or df_lpr.empty:
-            logger.info("lpr: no records returned")
-            return
-
-        records = []
-        for _, r in df_lpr.iterrows():
-            date_str = str(r.get('date') or r.get('DATE') or '').strip()
-            lpr_1y = r.get('1y') if '1y' in r else r.get('lpr_1y') or r.get('LPR_1Y')
-            lpr_5y = r.get('5y') if '5y' in r else r.get('lpr_5y') or r.get('LPR_5Y')
-
-            records.append({
-                'date': date_str,
-                'LPR_1Y': TushareService.safe_to_float(lpr_1y),
-                'LPR_5Y': TushareService.safe_to_float(lpr_5y),
-            })
-
-        if not records:
-            return
-
-        try:
-            table = self.db.get_table_instance('lpr')
-            table.replace(records, ['date'])
-            logger.info(f"✅ 基准利率LPR 刷新完成: {len(records)} 条")
-        except Exception as e:
-            logger.error(f"❌ 基准利率LPR 更新失败: {e}")
+    # ================================ Shibor ================================
+    def renew_Shibor(self, latest_market_open_day: str = None):
+        """
+        刷新利率指标（Shibor）到 `interest_rates` 基础表。
+        """
+        return self.universal_renewer_manager.renew('shibor', latest_market_open_day)
 
 
     # ================================ GDP ================================
     def renew_GDP(self, latest_market_open_day: str = None):
-        start_quarter = TushareService.to_quarter(data_default_start_date)
-        last_quarter = TushareService.to_quarter(latest_market_open_day)
-
-        try:
-            df_gdp = self.api.cn_gdp(
-                start_m=start_quarter,
-                end_m=last_quarter,
-                fields='quarter,gdp,gdp_yoy,pi,pi_yoy,si,si_yoy,ti,ti_yoy'
-            )
-        except Exception as e:
-            logger.error(f"gdp fetch failed: {e}")
-            return
-
-        if df_gdp is None or df_gdp.empty:
-            logger.info("gdp: no records returned")
-            return
-
-        records = []
-        for _, r in df_gdp.iterrows():
-            quarter_str = str(r.get('quarter') or r.get('QUARTER') or '').strip()
-            gdp = r.get('gdp') if 'gdp' in r else r.get('GDP')
-            gdp_yoy = r.get('gdp_yoy') if 'gdp_yoy' in r else r.get('GDP_YOY')
-            primary_industry = r.get('pi') if 'pi' in r else r.get('PI')
-            primary_industry_yoy = r.get('pi_yoy') if 'pi_yoy' in r else r.get('PI_YOY')
-            secondary_industry = r.get('si') if 'si' in r else r.get('SI')
-            secondary_industry_yoy = r.get('si_yoy') if 'si_yoy' in r else r.get('SI_YOY')
-            tertiary_industry = r.get('ti') if 'ti' in r else r.get('TI')
-            tertiary_industry_yoy = r.get('ti_yoy') if 'ti_yoy' in r else r.get('TI_YOY')
-            records.append({
-                'quarter': quarter_str,
-                'gdp': TushareService.safe_to_float(gdp),
-                'gdp_yoy': TushareService.safe_to_float(gdp_yoy),
-                'primary_industry': TushareService.safe_to_float(primary_industry),
-                'primary_industry_yoy': TushareService.safe_to_float(primary_industry_yoy),
-                'secondary_industry': TushareService.safe_to_float(secondary_industry),
-                'secondary_industry_yoy': TushareService.safe_to_float(secondary_industry_yoy),
-                'tertiary_industry': TushareService.safe_to_float(tertiary_industry),
-                'tertiary_industry_yoy': TushareService.safe_to_float(tertiary_industry_yoy),
-            })
-
-        if not records:
-            return
-
-        try:
-            table = self.db.get_table_instance('gdp')
-            table.replace(records, ['quarter'])
-            logger.info(f"✅ GDP 刷新完成: {len(records)} 条")
-        except Exception as e:
-            logger.error(f"❌ GDP 更新失败: {e}")
+        """
+        刷新GDP数据
+        """
+        return self.universal_renewer_manager.renew('gdp', latest_market_open_day)
 
 
     # ================================ corporate financial data ================================
@@ -901,3 +642,28 @@ class Tushare:
         except Exception as e:
             logger.error(f"❌ 获取 {stock_id} 企业财务数据失败: {e}")
             return None
+
+    # ================================ stock index indicator ================================
+    def renew_stock_index_indicator(self, latest_market_open_day: str = None):
+        """
+        刷新股票指数指标数据
+        获取主要股票指数的日K线数据（上证指数、深证成指、沪深300、创业板指、科创50）
+        """
+        return self.universal_renewer_manager.renew('stock_index_indicator', latest_market_open_day)
+
+    # ================================ stock index indicator weight ================================
+    def renew_stock_index_indicator_weight(self, latest_market_open_day: str = None):
+        """
+        刷新股票指数指标权重数据
+        获取主要股票指数的成分股权重数据
+        """
+        return self.universal_renewer_manager.renew('stock_index_indicator_weight', latest_market_open_day)
+
+    # ================================ industry capital flow ================================
+    def renew_industry_capital_flow(self, latest_market_open_day: str = None):
+        """
+        刷新行业资金流向数据
+        获取同花顺行业资金流向数据
+        """
+        return self.universal_renewer_manager.renew('industry_capital_flow', latest_market_open_day)
+

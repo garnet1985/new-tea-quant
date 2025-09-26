@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import math
 from loguru import logger
-from app.data_source.providers.conf.conf import kline_terms, data_default_start_date
+from app.conf.conf import kline_terms, data_default_start_date
 from .config import TushareConfig
 
 class TushareService:

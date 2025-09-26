@@ -41,7 +41,7 @@ settings = {
     },
 
     "corporate_finance": {
-        "categories": ["growth", "profit", "cashflow", "payable"],
+        "categories": ["growth", "profit", "cashflow", "solvency", "operation", "asset"],
         "start_date": "",
         "end_date": "",
     },

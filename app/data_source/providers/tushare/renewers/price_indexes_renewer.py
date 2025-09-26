@@ -4,7 +4,7 @@
 """
 from app.data_source.providers.tushare.base_renewer import BaseRenewer
 from app.data_source.providers.tushare.main_service import TushareService
-from app.data_source.providers.conf.conf import data_default_start_date
+from app.conf.conf import data_default_start_date
 from datetime import datetime
 from loguru import logger
 from utils.icon.icon_service import IconService

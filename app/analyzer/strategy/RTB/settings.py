@@ -31,6 +31,21 @@ settings = {
         },
     },
 
+    "macro": {
+        "GDP": True,
+        "LPR": True,
+        "Shibor": True,
+        "price_indexes": ["CPI", "PPI", "PMI", "M0", "M1", "M2"],
+        "start_date": "",
+        "end_date": "",
+    },
+
+    "corporate_finance": {
+        "categories": ["growth", "profit", "cashflow", "payable"],
+        "start_date": "",
+        "end_date": "",
+    },
+
     # 模拟时间范围 - 日期格式YYYYMMDD （例如：20080101）
     "simulation": {
         # 模拟开始日期 - 空指代2008-01-01

@@ -13,7 +13,7 @@ settings = {
     "klines": {
         "terms": ["daily"],
         "base_term": "daily",
-        "min_required_kline": 1000,
+        "min_required_base_records": 1000,
     },
 
     "simulation": {

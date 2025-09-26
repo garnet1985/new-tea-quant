@@ -79,7 +79,11 @@ class BaseRenewer(ABC):
     
     def get_default_start_date(self) -> str:
         """获取默认开始日期"""
-        return "20080101"  # 可以根据需要调整
+        try:
+            from app.conf.conf import data_default_start_date
+            return data_default_start_date
+        except Exception:
+            return "20080101"
     
     def renew_simple_data(
         self, 

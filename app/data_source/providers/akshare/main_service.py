@@ -5,7 +5,7 @@ from loguru import logger
 
 
 from app.data_source.providers.akshare.main_settings import factor_update_interval_days
-from app.data_source.providers.conf.conf import data_default_start_date
+from app.conf.conf import data_default_start_date
 
 
 class AKShareService:

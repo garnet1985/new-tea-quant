@@ -3,7 +3,7 @@ from app.data_source.data_source_service import DataSourceService
 from app.data_source.providers.akshare.akshare_API_mod import AkshareAPIModified
 from app.data_source.providers.akshare.main_service import AKShareService
 from app.data_source.providers.akshare.main_storage import AKShareStorage
-from app.data_source.providers.conf.conf import data_default_start_date
+from app.conf.conf import data_default_start_date
 from app.data_source.providers.tushare.main import Tushare
 from utils.worker import FuturesWorker
 from loguru import logger

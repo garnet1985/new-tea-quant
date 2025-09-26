@@ -3,11 +3,19 @@
 数据加载器组件 - 根据策略设置加载和准备数据
 """
 from typing import Dict, List, Any, Optional
+import copy
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
 
 
 class DataLoader:
+    # 进程内只读缓存（非个股数据）
+    _shared_cache: Dict[str, Any] = {}
+
+    @staticmethod
+    def _make_cache_key(dataset: str, start: Optional[str], end: Optional[str], categories: Optional[List[str]] = None) -> str:
+        cats = tuple(sorted(categories)) if isinstance(categories, list) else None
+        return f"{dataset}|{start or ''}|{end or ''}|{cats}"
     """数据加载器 - 根据策略设置加载和准备数据"""
     
     def __init__(self, db: DatabaseManager = None):
@@ -270,6 +278,12 @@ class DataLoader:
         if isinstance(categories, list) and len(categories) == 0:
             categories = list(all_map.keys())
 
+        # 缓存命中
+        cache_key = DataLoader._make_cache_key('index_indicators', start_date, end_date, categories)
+        cached = DataLoader._shared_cache.get(cache_key)
+        if cached is not None:
+            return copy.deepcopy(cached)
+
         table = db.get_table_instance('stock_index_indicator')
 
         for cat in categories:
@@ -280,7 +294,9 @@ class DataLoader:
                 # 允许直接传入具体指数代码
                 data[cat] = table.load_index(cat, start_date, end_date) or []
 
-        return data
+        # 写入缓存（深拷贝，确保只读语义）
+        DataLoader._shared_cache[cache_key] = copy.deepcopy(data)
+        return copy.deepcopy(data)
     
     @staticmethod
     def load_industry_capital_flow_data(settings: Dict[str, Any], db: DatabaseManager = None) -> Dict[str, List[Dict[str, Any]]]:
@@ -292,6 +308,12 @@ class DataLoader:
 
         start_date = settings.get('start_date')
         end_date = settings.get('end_date')
+
+        # 缓存命中
+        cache_key = DataLoader._make_cache_key('industry_capital_flow', start_date, end_date)
+        cached = DataLoader._shared_cache.get(cache_key)
+        if cached is not None:
+            return copy.deepcopy(cached)
 
         table = db.get_table_instance('industry_capital_flow')
         # 简单按日期范围拉取全部行业记录
@@ -306,7 +328,10 @@ class DataLoader:
         condition = " AND ".join(condition_parts) if condition_parts else "1=1"
 
         records = table.load(condition=condition, params=tuple(params), order_by="date ASC") or []
-        return { 'all': records }
+        result = { 'all': records }
+        # 写入缓存（深拷贝）
+        DataLoader._shared_cache[cache_key] = copy.deepcopy(result)
+        return copy.deepcopy(result)
 
     @staticmethod
     def prepare_data(stock: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:

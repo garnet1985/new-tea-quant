@@ -13,6 +13,7 @@ class TushareStorage:
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
         self.stock_index_indicator_table = connected_db.get_table_instance('stock_index_indicator')
         self.stock_index_indicator_weight_table = connected_db.get_table_instance('stock_index_indicator_weight')
+        self.industry_capital_flow_table = connected_db.get_table_instance('industry_capital_flow')
 
     def save_stock_index(self, data):
         """
@@ -600,27 +601,14 @@ class TushareStorage:
                     'weight': self._safe_float(item.get('weight', 0))  # 权重
                 }
                 
-                # 验证必填字段
-                required_fields = ['id', 'date', 'stock_id']
-                missing_fields = []
-                for field in required_fields:
-                    value = converted_item.get(field)
-                    if value is None or value == '':
-                        missing_fields.append(field)
-                
-                if missing_fields:
-                    skipped_count += 1
-                    if skipped_count <= 5:  # 只记录前5条被跳过的数据
-                        logger.warning(f"跳过缺少必填字段的权重数据，缺少字段: {missing_fields}, 数据: {item}")
+                # 检查权重值是否有效（不为0）
+                weight_value = converted_item.get('weight', 0)
+                if weight_value > 0:
+                    converted_data.append(converted_item)
                 else:
-                    # 检查权重值是否有效（不为0）
-                    weight_value = converted_item.get('weight', 0)
-                    if weight_value > 0:
-                        converted_data.append(converted_item)
-                    else:
-                        skipped_count += 1
-                        if skipped_count <= 5:
-                            logger.warning(f"跳过权重为0的数据: {item}")
+                    skipped_count += 1
+                    if skipped_count <= 5:
+                        logger.warning(f"跳过权重为0的数据: {item}")
                     
             except Exception as e:
                 skipped_count += 1
@@ -652,4 +640,78 @@ class TushareStorage:
                 
         except Exception as e:
             logger.error(f"批量保存股票指数指标权重数据失败: {e}")
+            raise
+
+    def convert_industry_capital_flow_data_for_storage(self, data):
+        """
+        转换行业资金流向数据格式以匹配数据库schema
+        
+        Args:
+            data: Tushare API返回的DataFrame或列表
+            
+        Returns:
+            list: 转换后的数据列表
+        """
+        converted_data = []
+        
+        # 确保data是列表格式
+        if hasattr(data, 'to_dict'):
+            data = data.to_dict('records')
+        elif not isinstance(data, list):
+            data = [data]
+        
+        logger.info(f"🔍 开始转换行业资金流向数据，原始数据条数: {len(data)}")
+        
+        # 记录前几条数据的字段名，用于调试
+        if data and len(data) > 0:
+            sample_item = data[0]
+            logger.info(f"🔍 行业资金流向数据字段名示例: {list(sample_item.keys())}")
+            logger.info(f"🔍 第一条行业资金流向数据示例: {sample_item}")
+        
+        skipped_count = 0
+        for item in data:
+            try:
+                # 根据schema.json的字段定义转换数据
+                converted_item = {
+                    'date': item.get('trade_date', ''),  # 交易日期
+                    'industry': item.get('industry', ''),  # 行业名称
+                    'industry_id': item.get('ts_code', ''),  # 行业代码
+                    'company_number': self._safe_float(item.get('company_num', 0)),  # 行业公司数量
+                    'net_buy_amount': self._safe_float(item.get('net_buy_amount', 0)),  # 行业净买入金额
+                    'net_sell_amount': self._safe_float(item.get('net_sell_amount', 0)),  # 行业净卖出金额
+                    'net_amount': self._safe_float(item.get('net_amount', 0)),  # 行业净金额
+                    'index_change_percent': self._safe_float(item.get('pct_change', 0))  # 行业指数涨跌幅
+                }
+                converted_data.append(converted_item)
+                    
+            except Exception as e:
+                skipped_count += 1
+                if skipped_count <= 5:
+                    logger.warning(f"转换行业资金流向数据时出错: {e}, 数据: {item}")
+                continue
+        
+        logger.info(f"🔍 行业资金流向数据转换完成: 原始 {len(data)} 条，转换后 {len(converted_data)} 条，跳过 {skipped_count} 条")
+        
+        return converted_data
+
+    def batch_save_industry_capital_flow(self, data_list):
+        """
+        批量保存行业资金流向数据
+        
+        Args:
+            data_list: 数据列表
+        """
+        try:
+            converted_data = self.convert_industry_capital_flow_data_for_storage(data_list)
+            
+            if converted_data:
+                # 使用replace方法进行upsert操作
+                primary_keys = ['date', 'industry_id']
+                self.industry_capital_flow_table.replace(converted_data, primary_keys)
+                logger.info(f"✅ 成功保存 {len(converted_data)} 条行业资金流向数据")
+            else:
+                logger.warning("没有有效的行业资金流向数据需要保存")
+                
+        except Exception as e:
+            logger.error(f"批量保存行业资金流向数据失败: {e}")
             raise

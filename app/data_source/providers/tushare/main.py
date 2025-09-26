@@ -1,6 +1,7 @@
 import pprint
 import tushare as ts
 from loguru import logger
+from app.conf.conf import stock_index_indicators
 from utils.worker import FuturesWorker, ThreadExecutionMode
 # auth_token_file 现在从 config 中获取
 from app.data_source.providers.tushare.main_service import TushareService
@@ -950,3 +951,116 @@ class Tushare:
         except Exception as e:
             logger.error(f"❌ 获取 {stock_id} 企业财务数据失败: {e}")
             return None
+
+    # ================================ stock index indicator ================================
+    def renew_stock_index_indicator(self, latest_market_open_day: str = None):
+        """
+        刷新股票指数指标数据
+        获取主要股票指数的日K线数据（上证指数、深证成指、沪深300、创业板指、科创50）
+        """
+        from datetime import datetime, timedelta
+        
+        end_date = latest_market_open_day
+        stock_indicator_ids = stock_index_indicators.keys()
+
+        logger.info(f"📊 开始更新股票指数指标数据，目标日期: {end_date}")
+        
+        # 获取现有数据的最新日期
+        most_recent_records = self.storage.get_most_recent_stock_index_indicator_record_dates()
+        
+        # 为每个股票指数检查是否需要更新
+        for index_id in stock_indicator_ids:
+            try:
+                # 检查该指数是否有现有数据
+                latest_date = most_recent_records.get(index_id, {}).get('daily')
+                
+                if latest_date:
+                    # 有现有数据，检查是否需要更新
+                    formatted_latest_date = datetime.strptime(latest_date, '%Y%m%d')
+                    formatted_end_date = datetime.strptime(end_date, '%Y%m%d')
+                    
+                    if formatted_latest_date >= formatted_end_date:
+                        logger.info(f"⏭️ {index_id} ({stock_index_indicators[index_id]}) 数据已是最新，跳过更新")
+                        continue
+                    
+                    # 需要更新，从最新日期的下一天开始
+                    start_date = (formatted_latest_date + timedelta(days=1)).strftime('%Y%m%d')
+                    logger.info(f"🔄 更新 {index_id} ({stock_index_indicators[index_id]}) 从 {start_date} 到 {end_date}")
+                else:
+                    # 没有现有数据，从默认开始日期获取
+                    start_date = data_default_start_date
+                    logger.info(f"🔄 首次获取 {index_id} ({stock_index_indicators[index_id]}) 从 {start_date} 到 {end_date}")
+                
+                # 调用Tushare API获取指数日K线数据
+                df_index_daily = self.api.index_daily(
+                    ts_code=index_id,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                
+                if df_index_daily is not None and not df_index_daily.empty:
+                    # 保存到数据库
+                    self.storage.batch_save_stock_index_indicator(df_index_daily, term='daily')
+                    logger.info(f"✅ {index_id} 日K线数据更新完成，共 {len(df_index_daily)} 条记录")
+                    
+            except Exception as e:
+                logger.error(f"❌ 获取 {index_id} 股票指数指标失败: {e}")
+                continue
+        
+        logger.info("📊 股票指数指标数据更新完成")
+
+    # ================================ stock index indicator weight ================================
+    def renew_stock_index_indicator_weight(self, latest_market_open_day: str = None):
+        """
+        刷新股票指数指标权重数据
+        获取主要股票指数的成分股权重数据
+        """
+        from datetime import datetime, timedelta
+        
+        end_date = latest_market_open_day
+        stock_indicator_ids = stock_index_indicators.keys()
+
+        logger.info(f"📊 开始更新股票指数指标权重数据，目标日期: {end_date}")
+        # 获取现有数据的最新日期
+        most_recent_records = self.storage.get_most_recent_stock_index_indicator_weight_record_dates()
+        
+        # 为每个股票指数检查是否需要更新
+        for index_id in stock_indicator_ids:
+            try:
+                # 检查该指数是否有现有权重数据
+                latest_date = most_recent_records.get(index_id)
+                
+                if latest_date:
+                    # 有现有数据，检查是否需要更新
+                    formatted_latest_date = datetime.strptime(latest_date, '%Y%m%d')
+                    formatted_end_date = datetime.strptime(end_date, '%Y%m%d')
+                    
+                    if formatted_latest_date >= formatted_end_date:
+                        logger.info(f"⏭️ {index_id} ({stock_index_indicators[index_id]}) 权重数据已是最新，跳过更新")
+                        continue
+                    
+                    # 需要更新，从最新日期的下一天开始
+                    start_date = (formatted_latest_date + timedelta(days=1)).strftime('%Y%m%d')
+                    logger.info(f"🔄 更新 {index_id} ({stock_index_indicators[index_id]})")
+                else:
+                    # 没有现有数据，从默认开始日期获取
+                    start_date = data_default_start_date
+                    logger.info(f"🔄 首次获取 {index_id} ({stock_index_indicators[index_id]})")
+                
+                # 调用Tushare API获取指数权重数据
+                df_index_weight = self.api.index_weight(
+                    index_code=index_id,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                
+                if df_index_weight is not None and not df_index_weight.empty:
+                    # 保存到数据库
+                    self.storage.batch_save_stock_index_indicator_weight(df_index_weight)
+                    logger.info(f"✅ {index_id} 成分股权重数据更新完成，共 {len(df_index_weight)} 条记录")
+            except Exception as e:
+                logger.error(f"❌ 获取 {index_id} 股票指数指标权重失败: {e}")
+                continue
+        
+        logger.info("📊 股票指数指标权重数据更新完成")
+

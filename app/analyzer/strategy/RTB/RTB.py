@@ -37,5 +37,5 @@ class ReverseTrendBet(BaseStrategy):
 
         # TODO: 在这里加入实际的机会识别逻辑
 
-        logger.info(f"{IconService.get('check')} {data.keys()}")
+        # logger.info(f"{IconService.get('check')} {data.keys()}")
         return None

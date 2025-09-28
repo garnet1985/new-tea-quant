@@ -159,6 +159,13 @@ class Analyzer:
             results[key] = strategy.scan()
         return results
 
+    def analysis(self, session_id: str = None) -> Dict[str, Dict[str, Any]]:
+        """分析所有策略的模拟结果"""
+        results = {}
+        for key, strategy in self.enabled_strategies.items():
+            results[key] = strategy.analysis(session_id)
+        return results
+
     def simulate(self):
         for key, strategy in self.enabled_strategies.items():
             strategy.simulate()

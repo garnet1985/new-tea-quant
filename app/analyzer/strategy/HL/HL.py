@@ -15,7 +15,7 @@ class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""
     
     # 策略启用状态
-    is_enabled = False
+    is_enabled = True
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(

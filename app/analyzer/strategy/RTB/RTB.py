@@ -16,7 +16,7 @@ class ReverseTrendBet(BaseStrategy):
     """ReverseTrendBet 策略实现"""
     
     # 策略启用状态
-    is_enabled = True
+    is_enabled = False
     
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(

@@ -79,7 +79,11 @@ settings = {
         # 模拟参考版本号
         "simulation_ref_version": "524",
         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
-        "record_summary" : True
+        "record_summary" : True,
+        # 是否分析模拟结果，结果会自动存在{folder_name}的analysis文件夹下
+        "analysis" : True,
+        # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
+        "scan_stock_pool" : ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ", "000007.SZ", "000008.SZ", "000009.SZ", "000010.SZ"]
     },
 
     # 模拟时间范围 - 日期格式YYYYMMDD （例如：20080101）

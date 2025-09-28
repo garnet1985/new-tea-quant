@@ -269,10 +269,35 @@ class BaseStrategy(ABC):
         
         stock_list = self.table["stock_index"].load_filtered_index()
 
-        if len(self.scan_ids):
-            stock_list = self.filter_list_by_ids(stock_list, self.scan_ids)
-        if self.scan_range.get('amount') > 0:
-            stock_list = self.filter_list_by_range(stock_list, self.scan_range)
+        # 根据 settings 的 mode 配置确定扫描范围
+        mode_config = strategy_settings.get('mode', {})
+        
+        # 优先级1: 如果开启 blacklist_only，扫描黑名单股票
+        if mode_config.get('blacklist_only', False):
+            blacklist = strategy_settings.get('goal', {}).get('blacklist', {}).get('list', [])
+            if blacklist:
+                stock_list = self.filter_list_by_ids(stock_list, blacklist)
+                logger.info(f"📋 使用黑名单模式，扫描 {len(stock_list)} 只股票")
+            else:
+                logger.warning("⚠️ 启用了黑名单模式但黑名单为空，将使用其他模式")
+        
+        # 优先级2: 使用 scan_stock_pool 指定的股票列表
+        elif mode_config.get('scan_stock_pool'):
+            scan_pool = mode_config.get('scan_stock_pool', [])
+            if scan_pool:
+                stock_list = self.filter_list_by_ids(stock_list, scan_pool)
+                logger.info(f"🎯 使用股票池模式，扫描 {len(stock_list)} 只股票")
+        
+        # 优先级3: 使用 start_idx 和 test_amount 进行范围测试
+        elif mode_config.get('test_amount', 0) > 0:
+            start_idx = mode_config.get('start_idx', 0)
+            test_amount = mode_config.get('test_amount', 0)
+            stock_list = stock_list[start_idx:start_idx + test_amount]
+            logger.info(f"🔢 使用范围测试模式，从索引 {start_idx} 开始扫描 {len(stock_list)} 只股票")
+        
+        # 优先级4: 扫描全部股票
+        else:
+            logger.info(f"🌐 使用全量扫描模式，扫描 {len(stock_list)} 只股票")
 
         if not stock_list:
             logger.info(f"{IconService.get('error')} 未找到可扫描的股票")

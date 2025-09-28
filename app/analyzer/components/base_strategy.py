@@ -50,7 +50,7 @@ class BaseStrategy(ABC):
         # scan range, config this when during quick test scan_opportunity function purpose
         self.scan_range = {
             "start": 0, 
-            "amount": 5
+            "amount": 1
         }
 
 
@@ -354,11 +354,9 @@ class BaseStrategy(ABC):
         settings = job.get('settings', {}) or {}
         module_info = job.get('module_info', {}) or {}
 
-        data = {}
-
         # 子进程内直接使用 DataLoader 的静态方法，避免初始化 DatabaseManager
         from app.analyzer.components.data_loader import DataLoader
-        DataLoader.prepare_data(stock, settings)
+        data = DataLoader.prepare_data(stock, settings)
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法
         import importlib

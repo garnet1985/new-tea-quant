@@ -13,6 +13,48 @@ from collections import deque
 
 
 class Indicators:
+
+    @staticmethod
+    def add_indicators(kline_data: Dict[str, List[Dict[str, Any]]], indicators_config: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        为K线数据添加技术指标
+        
+        Args:
+            kline_data: 包含不同周期K线数据的字典，格式为 {term: List[Dict]}
+            indicators_config: 指标配置字典
+            
+        Returns:
+            Dict[str, List[Dict]]: 添加了指标后的K线数据
+        """
+        result = {}
+        
+        for term, k_lines in kline_data.items():
+            # 为每个周期的K线数据添加指标
+            result[term] = k_lines.copy()  # 浅拷贝，避免修改原数据
+            
+            for indicator_name, indicator_config in indicators_config.items():
+                if indicator_name == 'moving_average':
+                    # 移动平均线
+                    for period in indicator_config.get('periods', []):
+                        result[term] = Indicators.moving_average(result[term], period)
+                        
+                elif indicator_name == 'macd':
+                    # MACD指标
+                    result[term] = Indicators.macd(result[term])
+                    
+                elif indicator_name == 'rsi':
+                    # RSI指标
+                    period = indicator_config.get('period', 14)
+                    result[term] = Indicators.rsi(result[term], period)
+                    
+                elif indicator_name == 'bollinger':
+                    # 布林带指标
+                    period = indicator_config.get('period', 20)
+                    std_multiplier = indicator_config.get('std_multiplier', 2.0)
+                    result[term] = Indicators.bollinger(result[term], period, std_multiplier=std_multiplier)
+        
+        return result
+
     @staticmethod
     def moving_average(k_lines: List[Dict[str, Any]], period: int, *, price_field: str = 'close', output_field: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -71,6 +113,47 @@ class Indicators:
 
             result.append(new_rec)
 
+        return result
+
+    @staticmethod
+    def add_indicators(kline_data: Dict[str, List[Dict[str, Any]]], indicators_config: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        为K线数据添加技术指标
+        
+        Args:
+            kline_data: 包含不同周期K线数据的字典，格式为 {term: List[Dict]}
+            indicators_config: 指标配置字典
+            
+        Returns:
+            Dict[str, List[Dict]]: 添加了指标后的K线数据
+        """
+        result = {}
+        
+        for term, k_lines in kline_data.items():
+            # 为每个周期的K线数据添加指标
+            result[term] = k_lines.copy()  # 浅拷贝，避免修改原数据
+            
+            for indicator_name, indicator_config in indicators_config.items():
+                if indicator_name == 'moving_average':
+                    # 移动平均线
+                    for period in indicator_config.get('periods', []):
+                        result[term] = Indicators.moving_average(result[term], period)
+                        
+                elif indicator_name == 'macd':
+                    # MACD指标
+                    result[term] = Indicators.macd(result[term])
+                    
+                elif indicator_name == 'rsi':
+                    # RSI指标
+                    period = indicator_config.get('period', 14)
+                    result[term] = Indicators.rsi(result[term], period)
+                    
+                elif indicator_name == 'bollinger':
+                    # 布林带指标
+                    period = indicator_config.get('period', 20)
+                    std_multiplier = indicator_config.get('std_multiplier', 2.0)
+                    result[term] = Indicators.bollinger(result[term], period, std_multiplier=std_multiplier)
+        
         return result
 
     # -----------------------------
@@ -242,6 +325,47 @@ class Indicators:
 
         return result
 
+    @staticmethod
+    def add_indicators(kline_data: Dict[str, List[Dict[str, Any]]], indicators_config: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        为K线数据添加技术指标
+        
+        Args:
+            kline_data: 包含不同周期K线数据的字典，格式为 {term: List[Dict]}
+            indicators_config: 指标配置字典
+            
+        Returns:
+            Dict[str, List[Dict]]: 添加了指标后的K线数据
+        """
+        result = {}
+        
+        for term, k_lines in kline_data.items():
+            # 为每个周期的K线数据添加指标
+            result[term] = k_lines.copy()  # 浅拷贝，避免修改原数据
+            
+            for indicator_name, indicator_config in indicators_config.items():
+                if indicator_name == 'moving_average':
+                    # 移动平均线
+                    for period in indicator_config.get('periods', []):
+                        result[term] = Indicators.moving_average(result[term], period)
+                        
+                elif indicator_name == 'macd':
+                    # MACD指标
+                    result[term] = Indicators.macd(result[term])
+                    
+                elif indicator_name == 'rsi':
+                    # RSI指标
+                    period = indicator_config.get('period', 14)
+                    result[term] = Indicators.rsi(result[term], period)
+                    
+                elif indicator_name == 'bollinger':
+                    # 布林带指标
+                    period = indicator_config.get('period', 20)
+                    std_multiplier = indicator_config.get('std_multiplier', 2.0)
+                    result[term] = Indicators.bollinger(result[term], period, std_multiplier=std_multiplier)
+        
+        return result
+
     # -----------------------------
     # Bollinger Bands (SMA ± k*STD)
     # -----------------------------
@@ -326,6 +450,47 @@ class Indicators:
 
             result.append(new_rec)
 
+        return result
+
+    @staticmethod
+    def add_indicators(kline_data: Dict[str, List[Dict[str, Any]]], indicators_config: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        为K线数据添加技术指标
+        
+        Args:
+            kline_data: 包含不同周期K线数据的字典，格式为 {term: List[Dict]}
+            indicators_config: 指标配置字典
+            
+        Returns:
+            Dict[str, List[Dict]]: 添加了指标后的K线数据
+        """
+        result = {}
+        
+        for term, k_lines in kline_data.items():
+            # 为每个周期的K线数据添加指标
+            result[term] = k_lines.copy()  # 浅拷贝，避免修改原数据
+            
+            for indicator_name, indicator_config in indicators_config.items():
+                if indicator_name == 'moving_average':
+                    # 移动平均线
+                    for period in indicator_config.get('periods', []):
+                        result[term] = Indicators.moving_average(result[term], period)
+                        
+                elif indicator_name == 'macd':
+                    # MACD指标
+                    result[term] = Indicators.macd(result[term])
+                    
+                elif indicator_name == 'rsi':
+                    # RSI指标
+                    period = indicator_config.get('period', 14)
+                    result[term] = Indicators.rsi(result[term], period)
+                    
+                elif indicator_name == 'bollinger':
+                    # 布林带指标
+                    period = indicator_config.get('period', 20)
+                    std_multiplier = indicator_config.get('std_multiplier', 2.0)
+                    result[term] = Indicators.bollinger(result[term], period, std_multiplier=std_multiplier)
+        
         return result
 
 

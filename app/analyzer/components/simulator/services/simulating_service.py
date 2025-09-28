@@ -169,7 +169,10 @@ class SimulatingService:
         investment = tracker['investing']
 
         if investment:
-            is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
+            if settings.get('goal').get('is_customized', False):
+                is_settled = strategy_class.should_settle_investment(stock_info, record_of_today, investment, required_data, settings)
+            else:
+                is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
             if is_settled:
                 settled_investment = SimulatingService.to_settled_investment(investment, strategy_class)
                 tracker['settled'].append(settled_investment)

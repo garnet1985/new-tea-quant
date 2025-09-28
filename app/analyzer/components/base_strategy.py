@@ -240,6 +240,13 @@ class BaseStrategy(ABC):
         """
         pass
 
+    @staticmethod
+    def should_settle_investment(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> bool:
+        """
+        判断是否应该结算投资 - 可选重写
+        """
+        return False
+
 
     # this method is used to scan today's opportunities for all the stocks by using multi-process
     # this is a public API method to Analyzer module

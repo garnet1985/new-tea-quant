@@ -6,7 +6,7 @@ settings = {
         "blacklist_only": False,
         "test_amount": 0,
         "start_idx": 0,
-        "simulation_ref_version": "599",
+        "simulation_ref_version": "603",
         "record_summary" : True
     },
     

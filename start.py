@@ -57,11 +57,11 @@ def main():
     
     # asyncio.run(app.renew_data())
 
-    # app.scan()
+    app.scan()
 
     # app.simulate()
 
-    app.analysis()
+    # app.analysis()
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ settings = {
         # 日线数据要求 - 例子中指代模拟器基于日线来进行一日日的模拟（交易日）
         "base_term": "daily",
         # 最小要求的基础周期记录数
-        "min_required_base_records": 1000,
+        "min_required_base_records": 100,
         # 复权方式
         "adjust": "qfq",
         # 要在K线上增加的技术指标
@@ -29,37 +29,6 @@ settings = {
                 "periods": [5, 10, 20, 60],
             },
         },
-    },
-
-    "macro": {
-        "GDP": True,
-        "LPR": True,
-        "Shibor": True,
-        # 价格指数 - 空意味着取所有; 可用参数为: CPI, PPI, PMI, MoneySupply 
-        "price_indexes": ["CPI", "PPI", "PMI", "MoneySupply"],
-        "start_date": "",
-        "end_date": "",
-    },
-
-    "corporate_finance": {
-        # 公司财务指标 - 空意味着取所有; 可用参数为: growth, profit, cashflow, solvency, operation, asset
-        "categories": ["growth", "profit", "cashflow", "solvency", "operation", "asset"],
-        "start_date": "",
-        "end_date": "",
-    },
-
-
-    "index_indicators": {
-        # 指数指标 - 空意味着取所有; 可用参数为: sh_index(上证), sz_index(深证), hs_300(沪深300), cyb_index(创业板), kc_50(科创50)
-        "categories": ["sh_index", "sz_index", "hs_300", "cyb_index", "kc_50"],
-        "start_date": "",
-        "end_date": "",
-    },
-
-    "industry_capital_flow": {
-        # 行业资本流动
-        "start_date": "",
-        "end_date": "",
     },
 
     # 模拟时间范围 - 日期格式YYYYMMDD （例如：20080101）

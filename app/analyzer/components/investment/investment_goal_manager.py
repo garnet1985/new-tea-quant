@@ -75,6 +75,9 @@ class InvestmentGoalManager:
         purchase_price = investment['purchase_price']
         targets = investment['targets']['all']['take_profit']
         
+        # 检查固定天数到期
+        investment = InvestmentGoalManager._check_fixed_days_expiry(investment, current_record)
+        
         for i, target in enumerate(targets):
             # 跳过已触发的目标
             if target.get('is_achieved', False):
@@ -114,6 +117,9 @@ class InvestmentGoalManager:
         price_today = current_record['close']
         purchase_price = investment['purchase_price']
         stop_loss_config = investment['targets']['all']['stop_loss']
+        
+        # 检查固定天数到期
+        investment = InvestmentGoalManager._check_fixed_days_expiry(investment, current_record)
         
         # 检查动态止损
         if investment['targets']['is_dynamic_stop_loss']:
@@ -241,3 +247,76 @@ class InvestmentGoalManager:
         settled_target['exit_price'] = exit_price
         settled_target['exit_date'] = exit_date
         return settled_target
+    
+    @staticmethod
+    def _check_fixed_days_expiry(investment: Dict[str, Any], current_record: Dict[str, Any]) -> Dict[str, Any]:
+        """检查固定天数到期"""
+        # 检查是否已经设置了固定天数到期标记
+        if investment['targets'].get('is_fixed_days_expired', False):
+            return investment
+        
+        # 获取投资开始日期和当前日期
+        start_date = investment['start_date']
+        current_date = current_record['date']
+        
+        # 计算投资天数
+        days_elapsed = InvestmentGoalManager._calculate_days_between(start_date, current_date)
+        
+        # 检查stages配置中的fixed_days
+        stages_config = investment['targets']['all'].get('stages', {})
+        fixed_days = stages_config.get('fixed_days')
+        
+        if fixed_days and days_elapsed >= fixed_days:
+            
+            # 获取结算配置 - sell_ratio 和 close_invest 只能出现一个
+            close_invest = stages_config.get('close_invest', False)  # 布尔值，默认不全额结算
+            sell_ratio = stages_config.get('sell_ratio', 0.0)  # 数值，默认不结算
+            
+            # 确定实际结算比例
+            if close_invest:
+                # close_invest 为 True 时，全额结算
+                actual_sell_ratio = 1.0
+            elif sell_ratio > 0:
+                # 使用指定的 sell_ratio
+                actual_sell_ratio = sell_ratio
+            else:
+                # 默认不结算
+                actual_sell_ratio = 0.0
+            
+            # 计算当前价格和利润
+            price_today = current_record['close']
+            purchase_price = investment['purchase_price']
+            profit = (price_today - purchase_price) * actual_sell_ratio
+            
+            # 更新剩余投资比例
+            investment['targets']['investment_ratio_left'] -= actual_sell_ratio
+            
+            # 创建固定天数到期的结算目标
+            fixed_days_target = {
+                'type': 'fixed_days_expiry',
+                'ratio': 0,  # 固定天数到期不基于价格比例
+                'sell_ratio': actual_sell_ratio,
+                'is_achieved': True
+            }
+            
+            # 使用统一的结算目标创建函数
+            settled_target = InvestmentGoalManager._create_settled_target(
+                fixed_days_target, actual_sell_ratio, profit,
+                price_today, current_date
+            )
+            investment['targets']['completed'].append(settled_target)
+        
+        return investment
+    
+    @staticmethod
+    def _calculate_days_between(start_date: str, end_date: str) -> int:
+        """计算两个日期之间的天数"""
+        from datetime import datetime
+        
+        try:
+            start = datetime.strptime(start_date, '%Y%m%d')
+            end = datetime.strptime(end_date, '%Y%m%d')
+            return (end - start).days
+        except ValueError:
+            logger.warning(f"日期格式错误: {start_date} 或 {end_date}")
+            return 0

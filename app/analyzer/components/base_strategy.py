@@ -547,3 +547,4 @@ class BaseStrategy(ABC):
             'strategy_module_path': f"app.analyzer.strategy.{abbreviation}.{abbreviation}",
             'strategy_settings_path': f"app.analyzer.strategy.{abbreviation}.settings"
         }
+

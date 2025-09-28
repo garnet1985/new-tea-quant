@@ -155,10 +155,12 @@ class InvestmentRecorder:
         session_dirs.sort(reverse=True)
         latest_dir = session_dirs[0]
         
-        # 从目录名中提取会话ID (格式: YYYY_MM_DD-session_id)
+        # 从目录名中提取会话ID (格式: YYYY_MM_DD-session_id 或 YYYY_MM_DD-session_id-backup)
         if '-' in latest_dir:
-            session_id = latest_dir.split('-')[1]
-            return session_id
+            parts = latest_dir.split('-')
+            if len(parts) >= 2:
+                session_id = parts[1]
+                return session_id
         
         return None
 
@@ -171,6 +173,12 @@ class InvestmentRecorder:
         for item in os.listdir(self.tmp_dir):
             item_path = os.path.join(self.tmp_dir, item)
             if os.path.isdir(item_path) and item.endswith(f"-{session_id}"):
+                return item_path
+        
+        # 如果没找到，尝试查找backup目录
+        for item in os.listdir(self.tmp_dir):
+            item_path = os.path.join(self.tmp_dir, item)
+            if os.path.isdir(item_path) and item.endswith(f"-{session_id}-backup"):
                 return item_path
         
         return None

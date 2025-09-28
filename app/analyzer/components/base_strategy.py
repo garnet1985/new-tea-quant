@@ -4,11 +4,12 @@
 """
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
+from datetime import datetime
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from utils.db.db_manager import DatabaseManager
-from .settings_validator import SettingsValidator
 from utils.icon.icon_service import IconService
+from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
 
 
 class BaseStrategy(ABC):
@@ -33,6 +34,7 @@ class BaseStrategy(ABC):
         # 策略所需的表模型
         self.table: Dict[str, Any] = {}
         
+        self.investment_recorder = InvestmentRecorder()
         # 初始化策略
         self._check_required_fields()
 
@@ -239,6 +241,13 @@ class BaseStrategy(ABC):
             Optional[Dict]: 如果发现投资机会则返回机会字典，否则返回None
         """
         pass
+    
+    @staticmethod
+    def should_settle_investment(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> bool:
+        """
+        判断是否应该结算投资 - 可选重写
+        """
+        return False
 
 
     # this method is used to scan today's opportunities for all the stocks by using multi-process
@@ -522,6 +531,575 @@ class BaseStrategy(ABC):
         """
         return base_report
 
+    # ========================================================
+    # base analysis to simulation result:
+    # ========================================================
+
+    # 时间段	市场类型	主要特征/背景
+    # 2008.01 ~ 2008.10	熊市	金融危机，指数暴跌
+    # 2008.11 ~ 2009.07	牛市	四万亿刺激，市场反弹
+    # 2009.08 ~ 2014.06	震荡市	经济回落，政策不明朗，宽幅震荡
+    # 2014.07 ~ 2015.06	牛市	改革预期，杠杆资金，快速上涨
+    # 2015.07 ~ 2019.01	熊市	杠杆去化，监管加强，持续回落
+    # 2019.02 ~ 2021.02	牛市	科技创新，外资流入，结构性牛市
+    # 2021.03 ~ 2022.10	震荡市	板块分化，指数横盘
+    # 2022.11 ~ 2023.04	牛市	疫后修复，资金推动，反弹
+    # 2023.05 ~ 2024.01	熊市	经济压力，市场信心不足
+    # 2024.02 ~ 2025.09	震荡市	政策托底，市场反复
+
+    # 市场周期定义
+    MARKET_PERIODS = [
+        ("20080101", "20081031", "bear"),      # 熊市：金融危机
+        ("20081101", "20090731", "bull"),      # 牛市：四万亿刺激
+        ("20090801", "20140630", "stable"),    # 震荡市：经济回落
+        ("20140701", "20150630", "bull"),      # 牛市：改革预期
+        ("20150701", "20190131", "bear"),      # 熊市：杠杆去化
+        ("20190201", "20210228", "bull"),      # 牛市：科技创新
+        ("20210301", "20221031", "stable"),    # 震荡市：板块分化
+        ("20221101", "20230430", "bull"),      # 牛市：疫后修复
+        ("20230501", "20240131", "bear"),      # 熊市：经济压力
+        ("20240201", "20250930", "stable"),    # 震荡市：政策托底
+    ]
+
+    def _get_market_type(self, date_str: str) -> str:
+        """根据日期获取市场类型"""
+        date_num = int(date_str[:8])  # YYYYMMDD
+        
+        for start_date, end_date, market_type in self.MARKET_PERIODS:
+            start_num = int(start_date)
+            end_num = int(end_date)
+            if start_num <= date_num <= end_num:
+                return market_type
+        
+        return "unknown"
+
+    def _parse_date_for_grouping(self, date_str: str) -> tuple:
+        """解析日期用于分组"""
+        if len(date_str) >= 8:
+            year = date_str[:4]
+            month = date_str[4:6]
+            return year, month
+        return None, None
+
+    def _group_by_time_period(self, data_list: List[Dict[str, Any]], date_field: str) -> Dict[str, Any]:
+        """按时间段分组数据"""
+        by_year = {}
+        by_month = {}
+        
+        for item in data_list:
+            date_str = item.get(date_field, "")
+            if not date_str:
+                continue
+                
+            year, month = self._parse_date_for_grouping(date_str)
+            if not year or not month:
+                continue
+            
+            year_key = year
+            month_key = f"{year}-{month}"
+            
+            if year_key not in by_year:
+                by_year[year_key] = []
+            by_year[year_key].append(item)
+            
+            if month_key not in by_month:
+                by_month[month_key] = []
+            by_month[month_key].append(item)
+        
+        return {
+            'by_year': by_year,
+            'by_month': by_month
+        }
+
+    def get_opportunity_distribution(self, opportunities: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        获取投资机会分布
+        
+        Args:
+            opportunities: 投资机会列表
+            
+        Returns:
+            Dict[str, Any]: 按年份和月份分组的投资机会分布
+        """
+        return self._group_by_time_period(opportunities, 'date')
+
+    def get_performance_in_every_period(self, investments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        获取每个时期的投资表现
+        
+        Args:
+            investments: 投资记录列表
+            
+        Returns:
+            Dict[str, Any]: 按年份和月份分组的投资表现
+        """
+        return self._group_by_time_period(investments, 'invest_date')
+
+    def get_successful_investment_distribution(self, investments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        获取成功投资分布
+        
+        Args:
+            investments: 投资记录列表
+            
+        Returns:
+            Dict[str, Any]: 按年份和月份分组的成功投资分布
+        """
+        # 过滤成功投资（假设有roi字段，>0为成功）
+        successful_investments = [
+            inv for inv in investments 
+            if inv.get('roi', 0) > 0
+        ]
+        return self._group_by_time_period(successful_investments, 'invest_date')
+
+    def get_failed_investment_distribution(self, investments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        获取失败投资分布
+        
+        Args:
+            investments: 投资记录列表
+            
+        Returns:
+            Dict[str, Any]: 按年份和月份分组的失败投资分布
+        """
+        # 过滤失败投资（假设有roi字段，<=0为失败）
+        failed_investments = [
+            inv for inv in investments 
+            if inv.get('roi', 0) <= 0
+        ]
+        return self._group_by_time_period(failed_investments, 'invest_date')
+
+    def _get_performance_by_market_type(self, investments: List[Dict[str, Any]], market_type: str) -> Dict[str, Any]:
+        """根据市场类型获取投资表现"""
+        filtered_investments = []
+        
+        for inv in investments:
+            invest_date = inv.get('invest_date', '')
+            if invest_date and self._get_market_type(invest_date) == market_type:
+                filtered_investments.append(inv)
+        
+        if not filtered_investments:
+            return {
+                'total_investments': 0,
+                'successful_investments': 0,
+                'failed_investments': 0,
+                'win_rate': 0.0,
+                'avg_roi': 0.0,
+                'total_roi': 0.0,
+                'investments': []
+            }
+        
+        # 计算统计信息
+        total_investments = len(filtered_investments)
+        successful_investments = len([inv for inv in filtered_investments if inv.get('roi', 0) > 0])
+        failed_investments = total_investments - successful_investments
+        win_rate = (successful_investments / total_investments * 100) if total_investments > 0 else 0.0
+        total_roi = sum(inv.get('roi', 0) for inv in filtered_investments)
+        avg_roi = total_roi / total_investments if total_investments > 0 else 0.0
+        
+        return {
+            'total_investments': total_investments,
+            'successful_investments': successful_investments,
+            'failed_investments': failed_investments,
+            'win_rate': win_rate,
+            'avg_roi': avg_roi,
+            'total_roi': total_roi,
+            'investments': filtered_investments
+        }
+
+    def get_strategy_performance_in_uptrend_market(self, investments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        获取策略在牛市的表现
+        
+        Args:
+            investments: 投资记录列表
+            
+        Returns:
+            Dict[str, Any]: 牛市中的投资表现统计
+        """
+        return self._get_performance_by_market_type(investments, 'bull')
+
+    def get_strategy_performance_in_downtrend_market(self, investments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        获取策略在熊市的表现
+        
+        Args:
+            investments: 投资记录列表
+            
+        Returns:
+            Dict[str, Any]: 熊市中的投资表现统计
+        """
+        return self._get_performance_by_market_type(investments, 'bear')
+
+    def get_strategy_performance_in_stable_market(self, investments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        获取策略在震荡市的表现
+        
+        Args:
+            investments: 投资记录列表
+            
+        Returns:
+            Dict[str, Any]: 震荡市中的投资表现统计
+        """
+        return self._get_performance_by_market_type(investments, 'stable')
+
+    def _extract_investments_from_simulation_results(self, simulation_results: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        从模拟结果中提取投资记录（适配多种数据结构）
+        
+        Args:
+            simulation_results: 模拟结果数据
+            
+        Returns:
+            List[Dict[str, Any]]: 投资记录列表
+        """
+        investments = []
+        stocks = simulation_results.get('stocks', [])
+        
+        for stock_data in stocks:
+            # 适配不同的数据结构：HL策略使用'stock'，其他策略可能使用'stock_info'
+            stock_id = stock_data.get('stock', {}).get('id', '') or stock_data.get('stock_info', {}).get('id', '')
+            summary = stock_data.get('summary', {})
+            
+            # 从汇总中提取投资信息
+            total_investments = summary.get('total_investments', 0)
+            avg_roi = summary.get('avg_roi', 0)
+            
+            # 如果有具体的投资记录，使用实际记录
+            if 'investments' in stock_data:
+                for inv in stock_data['investments']:
+                    # 适配HL策略的字段：start_date/end_date, overall_profit_rate, duration_in_days
+                    investment_record = {
+                        'stock_id': stock_id,
+                        'invest_date': inv.get('start_date', '') or inv.get('invest_date', ''),
+                        'sell_date': inv.get('end_date', '') or inv.get('sell_date', ''),
+                        'roi': inv.get('overall_profit_rate', 0) * 100 if inv.get('overall_profit_rate') is not None else inv.get('roi', 0),  # 转换为百分比
+                        'duration_days': inv.get('duration_in_days', 0) or inv.get('duration_days', 0),
+                    }
+                    investments.append(investment_record)
+            else:
+                # 如果没有具体记录，创建汇总记录
+                if total_investments > 0:
+                    investment_record = {
+                        'stock_id': stock_id,
+                        'invest_date': 'unknown',  # 如果没有具体日期
+                        'sell_date': 'unknown',
+                        'roi': avg_roi,
+                        'duration_days': summary.get('avg_duration_days', 0),
+                    }
+                    investments.append(investment_record)
+        
+        return investments
+
+    def _extract_opportunities_from_simulation_results(self, simulation_results: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        从模拟结果中提取投资机会记录
+        
+        Args:
+            simulation_results: 模拟结果数据
+            
+        Returns:
+            List[Dict[str, Any]]: 投资机会列表
+        """
+        opportunities = []
+        stocks = simulation_results.get('stocks', [])
+        
+        for stock_data in stocks:
+            # 适配不同的数据结构：HL策略使用'stock'，其他策略可能使用'stock_info'
+            stock_id = stock_data.get('stock', {}).get('id', '') or stock_data.get('stock_info', {}).get('id', '')
+            
+            # 如果有具体的投资记录，提取投资日期作为机会日期
+            if 'investments' in stock_data:
+                for inv in stock_data['investments']:
+                    # 适配HL策略的字段：start_date
+                    opportunity_record = {
+                        'stock_id': stock_id,
+                        'date': inv.get('start_date', '') or inv.get('invest_date', ''),
+                        'roi': inv.get('overall_profit_rate', 0) * 100 if inv.get('overall_profit_rate') is not None else inv.get('roi', 0),
+                    }
+                    opportunities.append(opportunity_record)
+            else:
+                # 如果没有具体记录，使用汇总信息
+                summary = stock_data.get('summary', {})
+                total_investments = summary.get('total_investments', 0)
+                if total_investments > 0:
+                    opportunity_record = {
+                        'stock_id': stock_id,
+                        'date': 'unknown',
+                        'roi': summary.get('avg_roi', 0),
+                    }
+                    opportunities.append(opportunity_record)
+        
+        return opportunities
+
+    def analyze_simulation_results(self, simulation_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        分析模拟结果，生成完整的分析报告
+        
+        Args:
+            simulation_results: 模拟结果数据
+            
+        Returns:
+            Dict[str, Any]: 完整的分析报告
+        """
+        investments = self._extract_investments_from_simulation_results(simulation_results)
+        opportunities = self._extract_opportunities_from_simulation_results(simulation_results)
+        
+        analysis = {
+            'session_summary': simulation_results.get('session', {}),
+            'opportunity_distribution': self.get_opportunity_distribution(opportunities),
+            'performance_in_every_period': self.get_performance_in_every_period(investments),
+            'successful_investment_distribution': self.get_successful_investment_distribution(investments),
+            'failed_investment_distribution': self.get_failed_investment_distribution(investments),
+            'bull_market_performance': self.get_strategy_performance_in_uptrend_market(investments),
+            'bear_market_performance': self.get_strategy_performance_in_downtrend_market(investments),
+            'stable_market_performance': self.get_strategy_performance_in_stable_market(investments),
+        }
+        
+        return analysis
+
+    def get_base_analysis(self, strategy_folder_name: str = "HL", session_id: str = None) -> Dict[str, Any]:
+        """
+        获取基础分析报告
+        
+        Args:
+            strategy_folder_name: 策略文件夹名称，默认为"HL"
+            session_id: 会话ID，如果为None则使用最新的会话ID
+            
+        Returns:
+            Dict[str, Any]: 完整的分析报告
+        """
+        try:
+            # 设置投资记录器的策略文件夹
+            self.investment_recorder.set_strategy_folder_name(strategy_folder_name)
+            
+            # 获取模拟结果
+            simulation_results = self.investment_recorder.get_simulation_results(session_id)
+            
+            if not simulation_results.get('session') or not simulation_results.get('stocks'):
+                logger.warning(f"策略 {strategy_folder_name} 没有找到模拟结果数据")
+                return {
+                    'error': 'No simulation data found',
+                    'strategy': strategy_folder_name,
+                    'session_id': session_id
+                }
+            
+            # 分析模拟结果
+            analysis = self.analyze_simulation_results(simulation_results)
+            
+            # 添加策略信息
+            analysis['strategy_info'] = {
+                'strategy_name': strategy_folder_name,
+                'session_id': session_id or self.investment_recorder.get_latest_session_id(),
+                'analysis_time': datetime.now().isoformat(),
+                'total_stocks': len(simulation_results.get('stocks', [])),
+            }
+            
+            logger.info(f"✅ 成功生成策略 {strategy_folder_name} 的基础分析报告")
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"❌ 生成策略 {strategy_folder_name} 基础分析报告失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'error': str(e),
+                'strategy': strategy_folder_name,
+                'session_id': session_id
+            }
+
+    def analysis(self, session_id: str = None) -> Dict[str, Any]:
+        """
+        策略分析接口 - 自动调用基础分析并打印结果
+        
+        Args:
+            session_id: 会话ID，如果为None则使用最新的会话ID
+            
+        Returns:
+            Dict[str, Any]: 完整的分析报告
+        """
+        logger.info(f"🔍 开始分析策略 {self.name} 的模拟结果")
+        
+        # 调用基础分析，使用abbreviation作为策略文件夹名称
+        analysis_result = self.get_base_analysis(self.abbreviation, session_id)
+        
+        if 'error' in analysis_result:
+            logger.error(f"❌ 策略分析失败: {analysis_result['error']}")
+            return analysis_result
+        
+        # 打印分析结果
+        self._print_analysis_results(analysis_result)
+        
+        return analysis_result
+
+    def _print_analysis_results(self, analysis: Dict[str, Any]) -> None:
+        """
+        打印分析结果
+        
+        Args:
+            analysis: 分析结果字典
+        """
+        print(f"\n{'='*60}")
+        print(f"📊 策略分析报告")
+        print(f"{'='*60}")
+        
+        # 策略信息
+        strategy_info = analysis.get('strategy_info', {})
+        print(f"策略名称: {strategy_info.get('strategy_name', 'Unknown')}")
+        print(f"会话ID: {strategy_info.get('session_id', 'Unknown')}")
+        print(f"分析时间: {strategy_info.get('analysis_time', 'Unknown')}")
+        print(f"股票数量: {strategy_info.get('total_stocks', 0)}")
+        
+        # 会话汇总
+        session = analysis.get('session_summary', {})
+        print(f"\n📈 整体表现:")
+        print(f"  总投资次数: {session.get('total_investments', 0)}")
+        print(f"  当前投资次数: {session.get('total_open_investments', 0)}")
+        print(f"  总股票数: {session.get('stocks_have_opportunities', 0)}")
+        print(f"  有投资的股票数: {session.get('stocks_have_opportunities', 0)}")
+        print(f"  胜率: {session.get('win_rate', 0):.1f}%")
+        
+        # 统一ROI格式：session summary中的avg_roi是小数形式，转换为百分比
+        avg_roi = session.get('avg_roi', 0)
+        avg_roi_percent = avg_roi * 100  # 转换为百分比
+        print(f"  平均ROI: {avg_roi_percent:.2f}%")
+        
+        # 年化收益：session summary中的annual_return已经是百分比形式
+        annual_return = session.get('annual_return', 0)
+        print(f"  平均年化收益: {annual_return:.2f}%")
+        print(f"  平均持有时长: {session.get('avg_duration_in_days', 0):.0f}天")
+        
+        # 各市场表现
+        bull_perf = analysis['bull_market_performance']
+        bear_perf = analysis['bear_market_performance']
+        stable_perf = analysis['stable_market_performance']
+        
+        print(f"\n🎯 各市场表现:")
+        print(f"  🐂 牛市: 投资{bull_perf['total_investments']}次, 胜率{bull_perf['win_rate']:.1f}%, 平均ROI {bull_perf['avg_roi']:.2f}%")
+        print(f"  🐻 熊市: 投资{bear_perf['total_investments']}次, 胜率{bear_perf['win_rate']:.1f}%, 平均ROI {bear_perf['avg_roi']:.2f}%")
+        print(f"  📈 震荡市: 投资{stable_perf['total_investments']}次, 胜率{stable_perf['win_rate']:.1f}%, 平均ROI {stable_perf['avg_roi']:.2f}%")
+        
+        # 投资分布分析（合并显示）
+        opp_dist = analysis['opportunity_distribution']
+        perf_dist = analysis['performance_in_every_period']
+        success_dist = analysis['successful_investment_distribution']
+        failed_dist = analysis['failed_investment_distribution']
+        
+        print(f"\n📅 投资分布分析:")
+        
+        # 按年份合并显示
+        print(f"  按年份分布:")
+        if opp_dist['by_year']:
+            # 计算总数
+            total_opportunities = sum(len(opps) for opps in opp_dist['by_year'].values())
+            total_investments = sum(len(invs) for invs in perf_dist['by_year'].values())
+            total_success = sum(len(invs) for invs in success_dist['by_year'].values())
+            total_failed = sum(len(invs) for invs in failed_dist['by_year'].values())
+            
+            # 显示所有年份
+            for year in sorted(opp_dist['by_year'].keys()):
+                # 机会数据
+                opps = opp_dist['by_year'].get(year, [])
+                opp_count = len(opps)
+                opp_percentage = (opp_count / total_opportunities * 100) if total_opportunities > 0 else 0
+                
+                # 投资表现数据
+                invs = perf_dist['by_year'].get(year, [])
+                inv_count = len(invs)
+                avg_roi = sum(inv.get('roi', 0) for inv in invs) / len(invs) if invs else 0
+                
+                # 成功投资数据
+                success_invs = success_dist['by_year'].get(year, [])
+                success_count = len(success_invs)
+                success_percentage = (success_count / total_success * 100) if total_success > 0 else 0
+                success_rate_in_year = (success_count / inv_count * 100) if inv_count > 0 else 0
+                
+                # 失败投资数据
+                failed_invs = failed_dist['by_year'].get(year, [])
+                failed_count = len(failed_invs)
+                failed_percentage = (failed_count / total_failed * 100) if total_failed > 0 else 0
+                failed_rate_in_year = (failed_count / inv_count * 100) if inv_count > 0 else 0
+                
+                print(f"\n    {year}年: {opp_count}个机会 (总占比{opp_percentage:.1f}%) - 平均ROI {avg_roi:.2f}% 其中:")
+                print(f"      - {IconService.get('success')}成功投资: {success_count}次 占比{success_rate_in_year:.1f}% | (总占比{success_percentage:.1f}%)")
+                print(f"      - {IconService.get('failed')}失败投资: {failed_count}次 占比{failed_rate_in_year:.1f}% | (总占比{failed_percentage:.1f}%)")
+        
+        # 按月份合并显示
+        print(f"\n  按月份分布 (1-12月):")
+        if opp_dist['by_month']:
+            # 统计月份数据
+            month_opp_stats = {}
+            month_success_stats = {}
+            month_failed_stats = {}
+            month_roi_stats = {}  # 添加ROI统计
+            
+            # 机会月份统计
+            for month_key, opps in opp_dist['by_month'].items():
+                if '-' in month_key:
+                    month = month_key.split('-')[1]
+                    if month not in month_opp_stats:
+                        month_opp_stats[month] = 0
+                    month_opp_stats[month] += len(opps)
+            
+            # 成功投资月份统计
+            for month_key, invs in success_dist['by_month'].items():
+                if '-' in month_key:
+                    month = month_key.split('-')[1]
+                    if month not in month_success_stats:
+                        month_success_stats[month] = 0
+                    month_success_stats[month] += len(invs)
+            
+            # 失败投资月份统计
+            for month_key, invs in failed_dist['by_month'].items():
+                if '-' in month_key:
+                    month = month_key.split('-')[1]
+                    if month not in month_failed_stats:
+                        month_failed_stats[month] = 0
+                    month_failed_stats[month] += len(invs)
+            
+            # 计算月份平均ROI
+            for month_key, invs in perf_dist['by_month'].items():
+                if '-' in month_key:
+                    month = month_key.split('-')[1]
+                    if month not in month_roi_stats:
+                        month_roi_stats[month] = []
+                    month_roi_stats[month].extend(invs)
+            
+            # 计算总数
+            total_month_opp = sum(month_opp_stats.values())
+            total_month_success = sum(month_success_stats.values())
+            total_month_failed = sum(month_failed_stats.values())
+            
+            # 显示1-12月分布
+            for month in ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']:
+                opp_count = month_opp_stats.get(month, 0)
+                opp_percentage = (opp_count / total_month_opp * 100) if total_month_opp > 0 else 0
+                
+                success_count = month_success_stats.get(month, 0)
+                success_percentage = (success_count / total_month_success * 100) if total_month_success > 0 else 0
+                
+                failed_count = month_failed_stats.get(month, 0)
+                failed_percentage = (failed_count / total_month_failed * 100) if total_month_failed > 0 else 0
+                
+                # 计算该月份内的成功/失败率
+                month_total_inv = success_count + failed_count
+                success_rate_in_month = (success_count / month_total_inv * 100) if month_total_inv > 0 else 0
+                failed_rate_in_month = (failed_count / month_total_inv * 100) if month_total_inv > 0 else 0
+                
+                # 计算该月份平均ROI
+                month_invs = month_roi_stats.get(month, [])
+                avg_roi = sum(inv.get('roi', 0) for inv in month_invs) / len(month_invs) if month_invs else 0
+                
+                print(f"\n    {month}月: {opp_count}个机会 (总占比{opp_percentage:.1f}%) - 平均ROI {avg_roi:.2f}% 其中:")
+                print(f"      - {IconService.get('success')} 成功投资: {success_count}次 占比{success_rate_in_month:.1f}% | (总占比{success_percentage:.1f}%)")
+                print(f"      - {IconService.get('failed')} 失败投资: {failed_count}次 占比{failed_rate_in_month:.1f}% | (总占比{failed_percentage:.1f}%)")
+        
+        print(f"\n{'='*60}")
+        print(f"✅ 策略分析完成")
+        print(f"{'='*60}")
+
+
+
 
     # ========================================================
     # utils:
@@ -540,3 +1118,4 @@ class BaseStrategy(ABC):
             'strategy_module_path': f"app.analyzer.strategy.{abbreviation}.{abbreviation}",
             'strategy_settings_path': f"app.analyzer.strategy.{abbreviation}.settings"
         }
+

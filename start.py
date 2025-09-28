@@ -46,6 +46,10 @@ class App:
 
     def scan(self):
         self.analyzer.scan()
+
+    def analysis(self, session_id: str = None):
+        """分析所有策略的模拟结果"""
+        self.analyzer.analysis(session_id)
         
 
 def main():
@@ -53,9 +57,11 @@ def main():
     
     # asyncio.run(app.renew_data())
 
-    app.scan()
+    # app.scan()
 
     # app.simulate()
+
+    app.analysis()
 
 
 if __name__ == "__main__":

@@ -94,16 +94,14 @@ settings = {
         "end_date": ""
     },
 
-    # 模拟时间范围 - 日期格式YYYYMMDD （例如：20080101）
-    "simulation": {
-        # 模拟开始日期 - 空指代2008-01-01
-        "start_date": "",
-        # 模拟结束日期 - 空指代到最新的记录
-        "end_date": ""
-    },
-
     # 投资目标设置
     "goal": {
+        # 固定期限强制平仓（可选，仅用于到期平仓，不属于止盈/止损）。
+        # 如不配置，框架不会进行“到期平仓”判断；可同时配置自然日与交易日。
+        # 到期时默认对剩余仓位执行结算。
+        "fixed_days": 30,
+        # "fixed_trading_days": 20,
+
         # 止损目标设置
         "stop_loss": {
             # 保本止损 - 可选
@@ -129,7 +127,13 @@ settings = {
                     # 当前价格低于买入价格的20%时触发止损
                     "ratio": -0.2,
                     # 止损行为是卖出所有仓位
-                    "sell_ratio": 0.5  # 止损时：卖出50%仓位
+                    "sell_ratio": 0.5,
+                    # 新增（可选）：阶段触发时调整到期平仓规则
+                    # 正为增加，负为减少；取消为 True 则不再生效
+                    # "extend_fixed_days": 5,
+                    # "cancel_fixed_days": false,
+                    # "extend_fixed_trading_days": -2,
+                    # "cancel_fixed_trading_days": false
                 },
                 # 止损阶段
                 {
@@ -162,7 +166,12 @@ settings = {
                     # 止盈时：卖出总仓位的20%
                     "sell_ratio": 0.2,  
                     # 止盈时：启动保本止损
-                    "set_stop_loss": "break_even"
+                    "set_stop_loss": "break_even",
+                    # 新增（可选）：阶段触发时调整到期平仓规则
+                    # "extend_fixed_days": 3,
+                    # "cancel_fixed_days": false,
+                    # "extend_fixed_trading_days": 0,
+                    # "cancel_fixed_trading_days": false
                 },
                 {
                     "name": "win20%",
@@ -174,16 +183,9 @@ settings = {
                     "ratio": 0.3,
                     # 止盈时：启动动态止损
                     "set_stop_loss": "dynamic",
+                    # 例如：达到 30% 后，取消自然日 fixed_days 到期
+                    # "cancel_fixed_days": true
                 }
-                # 止盈阶段
-                # {
-                #     # 名字随便取，只负责展示
-                #     "name": "fixed_days_expiry%",
-                #     # 固定天数到期时触发止盈
-                #     "fixed_days": 30,
-                #     # 止盈行为是卖出所有剩余仓位
-                #     "close_invest": True
-                # }
             ]
         },
 

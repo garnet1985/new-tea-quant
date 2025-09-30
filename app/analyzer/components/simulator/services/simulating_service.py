@@ -332,7 +332,8 @@ class SimulatingService:
             }
         }
 
-        if opportunity['extra_fields']:
+        # 只在 opportunity 有 extra_fields 且不为空时才添加
+        if 'extra_fields' in opportunity and opportunity['extra_fields']:
             investment['extra_fields'] = opportunity['extra_fields']
 
         # 基础字段
@@ -426,7 +427,8 @@ class SimulatingService:
             icon = IconService.get('ongoing') + ' 投资未完成'
 
         investment['overall_profit'] = overall_profit
-        investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], 2)
+        # ROI 统一使用小数格式存储（如 0.20 = 20%），使用 4 位精度避免小 ROI 被舍入为 0
+        investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], decimals=4)
         investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
         investment['overall_annual_return'] = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
 

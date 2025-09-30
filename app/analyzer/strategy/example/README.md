@@ -67,7 +67,7 @@ class MySimulator:
 - **mode**: 是否只跑黑名单、测试股票数量等
 - **klines**: 模拟所需的 K 线周期与基础周期（`base_term`）
 - **simulation**: 回测起止日期
-- **goal**: 止盈/止损目标及阶段配置
+- **goal**: 止盈/止损目标及阶段配置，支持“到期平仓（固定自然日/交易日）”与阶段对到期规则的调整
 - **blacklist**: 黑名单配置（配合 `mode.blacklist_only` 使用）
 
 ### 自动发现与注册
@@ -90,6 +90,47 @@ python start.py
 ```
 
 默认会执行模拟流程（见 `start.py` 的 `app.simulate()`）。如需只扫描，可在 `start.py` 中改为调用 `await app.scan()`。
+
+### goal 配置：固定期限强制平仓（可选）
+
+在 `goal` 下新增以下字段以启用到期平仓能力（不配置则不生效）：
+
+```python
+"goal": {
+  # 自然日到期；例如 30 天后强制对剩余仓位平仓
+  "fixed_days": 30,
+
+  # 交易日到期（可选，计数逻辑为遇到新日期 +1）
+  # "fixed_trading_days": 20,
+
+  # 止损与止盈配置（可为空；若均为空，仅按 fixed_* 到期平仓）
+  "stop_loss": { ... },
+  "take_profit": { ... }
+}
+```
+
+### 阶段对到期规则的动态调整（可选）
+
+当某个止盈/止损阶段触发时，支持动态调整或取消到期规则：
+
+```python
+{
+  "name": "win10%",
+  "ratio": 0.10,
+  "sell_ratio": 0.2,
+  # 调整 fixed_days / fixed_trading_days（正为增加，负为减少）
+  # "extend_fixed_days": 3,
+  # "extend_fixed_trading_days": -2,
+  # 取消到期规则
+  # "cancel_fixed_days": true,
+  # "cancel_fixed_trading_days": true
+}
+```
+
+行为说明：
+- 若仅配置 fixed_*（无止盈止损），则只按到期平仓；
+- 若同时存在 fixed_* 与阶段，任一条件达成即对剩余仓位平仓；
+- 阶段触发时的 extend/cancel 仅在对应字段存在时才生效。
 
 ### 示例文件对照
 

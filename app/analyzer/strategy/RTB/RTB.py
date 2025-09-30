@@ -32,530 +32,235 @@ class ReverseTrendBet(BaseStrategy):
     @staticmethod
     def scan_opportunity(stock: Dict[str, Any], data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        扫描单只股票的投资机会 - RTB策略
+        扫描单只股票的投资机会 - RTB 超短线策略
         
-        新逻辑：
-        1. 首先找到价格波动较为平稳的段落
-        2. 在平稳段落中寻找收盘价站上所有均线的机会
+        策略逻辑：
+        1. 当日收盘价刚刚站上5日均线
+        2. 周线和月线也都在5日均线以上
+        3. 满足以上条件时买入
+        
+        Args:
+            stock: 股票信息
+            data: K线数据
+            settings: 策略设置
+            
+        Returns:
+            Optional[Dict]: 机会信息或None
         """
-
-
         daily_klines = data.get('klines', {}).get('daily', [])
-        if not daily_klines or len(daily_klines) < 60:  # 至少需要60天数据
+        weekly_klines = data.get('klines', {}).get('weekly', [])
+        monthly_klines = data.get('klines', {}).get('monthly', [])
+        
+        # 检查数据是否充足
+        if not daily_klines or len(daily_klines) < 10:
             return None
-
-        # 1. 检查均线是否收敛
-        is_ma_converged = ReverseTrendBet._is_ma_converged(daily_klines)
-        if not is_ma_converged:
+        if not weekly_klines or len(weekly_klines) < 1:
             return None
-
-        record_of_today = daily_klines[-1]  
-
-        is_close_above_ma5 = ReverseTrendBet._is_close_above_ma(record_of_today, 5)
-        is_close_above_ma10 = ReverseTrendBet._is_close_above_ma(record_of_today, 10)
-
-        if not is_close_above_ma5 or not is_close_above_ma10:
+        if not monthly_klines or len(monthly_klines) < 1:
             return None
-
-        logger.info(f"{IconService.get('green_dot')} 股票 {stock['name']} ({stock['id']}) 扫描完成, 发现RTB机会: {record_of_today['date']}")
+        
+        record_of_today = daily_klines[-1]
+        record_of_yesterday = daily_klines[-2] if len(daily_klines) >= 2 else None
+        latest_weekly = weekly_klines[-1]
+        latest_monthly = monthly_klines[-1]
+        
+        # 获取当日价格和MA5
+        today_close = record_of_today.get('close')
+        today_ma5 = record_of_today.get('ma5')
+        
+        if today_close is None or today_ma5 is None:
+            return None
+        
+        # 条件1：当日收盘价站上5日均线
+        is_above_ma5_today = today_close > today_ma5
+        
+        if not is_above_ma5_today:
+            return None
+        
+        # 条件2：前一日收盘价在5日均线下方（刚刚站上）
+        if record_of_yesterday:
+            yesterday_close = record_of_yesterday.get('close')
+            yesterday_ma5 = record_of_yesterday.get('ma5')
+            
+            if yesterday_close is not None and yesterday_ma5 is not None:
+                was_below_ma5_yesterday = yesterday_close <= yesterday_ma5
+                
+                if not was_below_ma5_yesterday:
+                    # 不是"刚刚"站上，而是已经在上方了
+                    return None
+        
+        # 条件3：周线收盘价在5日均线以上
+        weekly_close = latest_weekly.get('close')
+        if weekly_close is None or weekly_close <= today_ma5:
+            return None
+        
+        # 条件4：月线收盘价在5日均线以上
+        monthly_close = latest_monthly.get('close')
+        if monthly_close is None or monthly_close <= today_ma5:
+            return None
+        
+        # 条件5：趋势过滤 - 只在上升趋势中操作
+        is_uptrend = ReverseTrendBet._check_uptrend(daily_klines, weekly_klines, monthly_klines)
+        if not is_uptrend:
+            return None
+        
+        # 条件6：成交量放大 - 站上MA5时应该放量，避免假突破
+        is_volume_increased = ReverseTrendBet._check_volume_increase(daily_klines)
+        if not is_volume_increased:
+            return None
+        
         opportunity = BaseStrategy.to_opportunity(
             stock=stock,
             record_of_today=record_of_today,
-            lower_bound=record_of_today['close'] * 0.98,
-            upper_bound=record_of_today['close'] * 1.02,
+            extra_fields={
+                'ma5': today_ma5,
+                'weekly_close': weekly_close,
+                'monthly_close': monthly_close,
+                'reason': '日线刚站上MA5，周线月线均在MA5上方',
+            },
+            lower_bound=today_close * 0.98,
+            upper_bound=today_close * 1.02,
         )
         
         return opportunity
-
-    @staticmethod
-    def _is_close_above_ma(record_of_today: Dict[str, Any], ma_days: int) -> bool:
-        """
-        检查收盘价是否站上指定均线的收盘价
-        """
-        return record_of_today.get('close') > record_of_today.get(f'ma{ma_days}')
     
     @staticmethod
-    def _is_ma_converged(klines: List[Dict[str, Any]]) -> bool:
+    def _check_uptrend(daily_klines: List[Dict[str, Any]], 
+                      weekly_klines: List[Dict[str, Any]], 
+                      monthly_klines: List[Dict[str, Any]]) -> bool:
         """
-        检查段落内移动平均线是否收敛
+        检查是否处于上升趋势
+        
+        判断标准：
+        1. 日线MA5 > MA10 > MA20 (短期均线多头排列)
+        2. 周线价格呈上升趋势（最近几周）
+        3. 月线价格呈上升趋势（最近几个月）
         
         Args:
-            klines: K线数据段落
+            daily_klines: 日线数据
+            weekly_klines: 周线数据
+            monthly_klines: 月线数据
             
         Returns:
-            bool: 是否收敛
+            bool: 是否处于上升趋势
         """
-        conf = settings.get('core', {})
-        
-        if len(klines) < conf['convergence']['days']:
+        if not daily_klines or not weekly_klines or not monthly_klines:
             return False
         
-        # 获取最新的K线数据
-        latest_kline = klines[-1]
+        latest_daily = daily_klines[-1]
         
-        # 检查是否有移动平均线数据
-        ma_fields = [field for field in latest_kline.keys() if field.startswith('ma')]
-        if len(ma_fields) < 3:  # 至少需要3条均线
+        # 1. 检查日线均线多头排列（MA5 > MA10 > MA20）
+        ma5 = latest_daily.get('ma5')
+        ma10 = latest_daily.get('ma10')
+        ma20 = latest_daily.get('ma20')
+        
+        if ma5 is None or ma10 is None or ma20 is None:
             return False
         
-        # 获取所有移动平均线值
-        ma_values = []
-        for field in ma_fields:
-            ma_value = latest_kline.get(field)
-            if ma_value is not None:
-                ma_values.append(ma_value)
-        
-        if len(ma_values) < 3:
+        # MA5 应该在最上方，MA20 在最下方
+        if not (ma5 > ma10 > ma20):
             return False
         
-        # 使用 AnalyzerService 计算均线的统计指标
-        mean_ma = AnalyzerService.get_mean(ma_values)
-        std = AnalyzerService.get_standard_deviation(ma_values)
+        # 2. 检查周线上升趋势（最近4周）
+        if len(weekly_klines) >= 4:
+            recent_weekly_closes = [w.get('close') for w in weekly_klines[-4:] if w.get('close') is not None]
+            if len(recent_weekly_closes) >= 3:
+                weekly_slope = AnalyzerService.get_slope(recent_weekly_closes)
+                # 周线斜率应该为正（上升）
+                if weekly_slope <= 0:
+                    return False
         
-        # 均线标准差不能超过均价的1%（非常严格）
-        if std > mean_ma * 0.01:
-            return False
-        
-        # 检查最大最小均线差距
-        max_ma = max(ma_values)
-        min_ma = min(ma_values)
-        
-        # 最大最小均线差距不能超过均价的2%
-        if (max_ma - min_ma) > mean_ma * 0.02:
-            return False
+        # 3. 检查月线上升趋势（最近3个月）
+        if len(monthly_klines) >= 3:
+            recent_monthly_closes = [m.get('close') for m in monthly_klines[-3:] if m.get('close') is not None]
+            if len(recent_monthly_closes) >= 2:
+                monthly_slope = AnalyzerService.get_slope(recent_monthly_closes)
+                # 月线斜率应该为正（上升）
+                if monthly_slope <= 0:
+                    return False
         
         return True
-
-
-
-
     
-    # @staticmethod
-    # def _find_stable_periods(klines: List[Dict[str, Any]], min_period_days: int = 20) -> List[tuple]:
-    #     """
-    #     寻找价格波动较为平稳的段落
+    @staticmethod
+    def _check_volume_increase(daily_klines: List[Dict[str, Any]], lookback_days: int = 5) -> bool:
+        """
+        检查当日成交量是否放大
         
-    #     Args:
-    #         klines: K线数据
-    #         min_period_days: 最小平稳段落长度
+        判断标准：
+        1. 当日成交量 > 最近5日平均成交量的 1.2 倍
+        2. 避免无量突破（假突破）
+        
+        Args:
+            daily_klines: 日线数据
+            lookback_days: 回看天数计算平均成交量
             
-    #     Returns:
-    #         List[tuple]: 平稳段落的起止索引列表 [(start_idx, end_idx), ...]
-    #     """
-    #     if len(klines) < min_period_days:
-    #         return []
+        Returns:
+            bool: 成交量是否放大
+        """
+        if len(daily_klines) < lookback_days + 1:
+            return False
         
-    #     stable_periods = []
-    #     current_start = None
+        # 获取当日成交量
+        today_volume = daily_klines[-1].get('volume')
+        if today_volume is None or today_volume == 0:
+            # 没有成交量数据，不做限制（容错处理）
+            return True
         
-    #     for i in range(min_period_days, len(klines)):
-    #         # 检查从i-min_period_days到i的段落是否平稳
-    #         period_klines = klines[i-min_period_days:i+1]
-            
-    #         if ReverseTrendBet._is_stable_period(period_klines):
-    #             if current_start is None:
-    #                 current_start = i - min_period_days
-    #         else:
-    #             # 当前段落不平稳，结束之前的平稳段落
-    #             if current_start is not None:
-    #                 stable_periods.append((current_start, i-1))
-    #                 current_start = None
+        # 获取最近5天的成交量（不包括今天）
+        recent_volumes = []
+        for kline in daily_klines[-(lookback_days+1):-1]:
+            volume = kline.get('volume')
+            if volume is not None and volume > 0:
+                recent_volumes.append(volume)
         
-    #     # 处理最后一个平稳段落
-    #     if current_start is not None:
-    #         stable_periods.append((current_start, len(klines)-1))
+        if len(recent_volumes) < lookback_days:
+            # 成交量数据不足，不做限制
+            return True
         
-    #     return stable_periods
+        # 计算平均成交量
+        avg_volume = AnalyzerService.get_mean(recent_volumes)
+        
+        # 当日成交量应该 > 平均成交量的 1.2 倍（放量20%）
+        volume_ratio = today_volume / avg_volume if avg_volume > 0 else 0
+        
+        return volume_ratio >= 1.2
     
-    # @staticmethod
-    # def _is_stable_period(klines: List[Dict[str, Any]]) -> bool:
-    #     """
-    #     判断一个段落是否平稳
+    @staticmethod
+    def _check_rsi_range(daily_klines: List[Dict[str, Any]]) -> bool:
+        """
+        检查 RSI 是否在合适的区间且呈上升趋势
         
-    #     更严格的平稳判断标准：
-    #     1. 价格波动幅度很小
-    #     2. 没有明显的趋势性
-    #     3. 移动平均线收敛
-    #     4. 价格围绕均线波动
+        判断标准：
+        1. RSI 在 30-70 区间内（避免超买和极度弱势）
+        2. RSI 呈上升趋势（今天 RSI > 昨天 RSI）- 确保动能向上
         
-    #     Args:
-    #         klines: K线数据段落
+        Args:
+            daily_klines: 日线数据
             
-    #     Returns:
-    #         bool: 是否平稳
-    #     """
-    #     if len(klines) < 20:  # 至少需要20天数据
-    #         return False
+        Returns:
+            bool: RSI 是否在合适区间且上升
+        """
+        if len(daily_klines) < 2:
+            return False
         
-    #     # 获取收盘价
-    #     closes = [kline.get('close') for kline in klines if kline.get('close') is not None]
-    #     if len(closes) < len(klines) * 0.9:  # 至少90%的数据有效
-    #         return False
+        today_kline = daily_klines[-1]
+        yesterday_kline = daily_klines[-2]
         
-    #     # 使用 AnalyzerService 计算价格统计指标
-    #     avg_price = AnalyzerService.get_mean(closes)
-    #     std = AnalyzerService.get_standard_deviation(closes)
-    #     slope = AnalyzerService.get_slope(closes)
+        # 获取今天和昨天的 RSI 值
+        today_rsi = today_kline.get('rsi')
+        yesterday_rsi = yesterday_kline.get('rsi')
         
-    #     # 1. 检查价格波动幅度（更严格）
-    #     max_price = max(closes)
-    #     min_price = min(closes)
-    #     price_range = max_price - min_price
+        if today_rsi is None:
+            # 没有 RSI 数据，不做限制（容错处理）
+            return True
         
-    #     # 价格波动幅度不能超过平均价格的5%（更严格）
-    #     if price_range > avg_price * 0.05:
-    #         return False
+        # 条件1：RSI 应该在 30-70 区间内
+        if not (30 <= today_rsi <= 70):
+            return False
         
-    #     # 2. 检查价格标准差（更严格）
-    #     # 标准差不能超过平均价格的2%（更严格）
-    #     if std > avg_price * 0.02:
-    #         return False
+        # 条件2：RSI 呈上升趋势（可选，如果没有昨天的数据就只检查区间）
+        if yesterday_rsi is not None:
+            if today_rsi <= yesterday_rsi:
+                return False
         
-    #     # 3. 检查趋势斜率（更严格）
-    #     # 斜率不能超过平均值的±0.1%（每天，更严格）
-    #     if abs(slope) > avg_price * 0.001:
-    #         return False
-        
-    #     # 4. 检查移动平均线是否收敛
-    #     if not ReverseTrendBet._check_ma_convergence_in_period(klines):
-    #         return False
-        
-    #     # 5. 检查价格是否围绕均线波动
-    #     if not ReverseTrendBet._check_price_around_ma(klines):
-    #         return False
-        
-    #     return True
-    
-    # @staticmethod
-    # def _check_price_around_ma(klines: List[Dict[str, Any]]) -> bool:
-    #     """
-    #     检查价格是否围绕均线波动
-        
-    #     Args:
-    #         klines: K线数据段落
-            
-    #     Returns:
-    #         bool: 是否围绕均线波动
-    #     """
-    #     if len(klines) < 10:
-    #         return False
-        
-    #     # 检查最近10天的数据
-    #     recent_klines = klines[-10:]
-        
-    #     above_ma_count = 0
-    #     below_ma_count = 0
-        
-    #     for kline in recent_klines:
-    #         close_price = kline.get('close')
-    #         if close_price is None:
-    #             continue
-            
-    #         # 获取MA20作为参考均线
-    #         ma20 = kline.get('ma20')
-    #         if ma20 is None:
-    #             continue
-            
-    #         if close_price > ma20:
-    #             above_ma_count += 1
-    #         else:
-    #             below_ma_count += 1
-        
-    #     # 价格应该在均线上下波动，不能长期在均线一侧
-    #     # 上下波动次数应该相对均衡
-    #     total_count = above_ma_count + below_ma_count
-    #     if total_count < 8:  # 至少需要8个有效数据点
-    #         return False
-        
-    #     # 上下波动比例不能过于极端（如90%以上在均线一侧）
-    #     above_ratio = above_ma_count / total_count
-    #     if above_ratio > 0.8 or above_ratio < 0.2:
-    #         return False
-        
-    #     return True
-    
-    # @staticmethod
-    # def _find_opportunity_in_stable_period(stock: Dict[str, Any], klines: List[Dict[str, Any]], 
-    #                                      start_idx: int, end_idx: int) -> Optional[Dict[str, Any]]:
-    #     """
-    #     在平稳段落中寻找投资机会
-        
-    #     Args:
-    #         stock: 股票信息
-    #         klines: K线数据
-    #         start_idx: 平稳段落开始索引
-    #         end_idx: 平稳段落结束索引
-            
-    #     Returns:
-    #         Optional[Dict]: 机会信息或None
-    #     """
-    #     # 在平稳段落的最后几天中寻找机会
-    #     search_start = max(start_idx, end_idx - 5)  # 在最后5天内寻找
-        
-    #     for i in range(search_start, end_idx + 1):
-    #         kline = klines[i]
-    #         current_close = kline.get('close')
-    #         current_date = kline.get('date')
-            
-    #         if not current_close or not current_date:
-    #             continue
-            
-    #         # 检查是否有移动平均线数据
-    #         ma_fields = [field for field in kline.keys() if field.startswith('ma')]
-    #         if not ma_fields:
-    #             continue
-            
-    #         # 获取所有移动平均线值
-    #         ma_values = []
-    #         for field in ma_fields:
-    #             ma_value = kline.get(field)
-    #             if ma_value is not None:
-    #                 ma_values.append(ma_value)
-            
-    #         if not ma_values:
-    #             continue
-            
-    #         # 检查当前收盘价是否站上所有均线
-    #         if current_close > max(ma_values):
-    #             # 找到机会，打印平稳段落信息
-    #             start_date = klines[start_idx].get('date')
-    #             # logger.info(f"{IconService.get('info')} 发现平稳段落: {stock.get('name')} ({stock.get('id')})")
-    #             # logger.info(f"  平稳段落: {start_date} 到 {current_date}")
-    #             # logger.info(f"  段落长度: {end_idx - start_idx + 1} 天")
-                
-    #             # 计算上下1%的价格浮动
-    #             lower_bound = current_close * 0.99
-    #             upper_bound = current_close * 1.01
-                
-    #             # 创建机会对象
-    #             opportunity = BaseStrategy.to_opportunity(
-    #                 stock=stock,
-    #                 record_of_today=kline,
-    #                 extra_fields={
-    #                     'ma_values': {field: kline.get(field) for field in ma_fields},
-    #                     'stable_period_start': start_date,
-    #                     'stable_period_end': current_date,
-    #                     'stable_period_length': end_idx - start_idx + 1,
-    #                     'reason': f'在平稳段落中收盘价{current_close}站上所有均线'
-    #                 },
-    #                 lower_bound=lower_bound,
-    #                 upper_bound=upper_bound,
-    #             )
-                
-    #             logger.info(f"{current_date}: {IconService.get('success')} 发现RTB机会: {stock.get('name')} ({stock.get('id')})")
-    #             return opportunity
-        
-    #     return None
-
-    # @staticmethod
-    # def _check_ma_convergence(klines: List[Dict[str, Any]], ma_fields: List[str], lookback_days: int = 20) -> bool:
-    #     """
-    #     检查移动平均线是否在收敛
-        
-    #     改进的收敛判断：
-    #     1. 标准差必须在减小（趋势收敛）
-    #     2. 当前标准差必须小于均价的指定百分比（绝对收敛）
-    #     3. 最长期均线（MA60）与最短期均线的差距不能过大
-        
-    #     Args:
-    #         klines: K线数据
-    #         ma_fields: 移动平均线字段名列表
-    #         lookback_days: 回看天数
-            
-    #     Returns:
-    #         bool: 是否收敛
-    #     """
-    #     if len(klines) < lookback_days:
-    #         return False
-        
-    #     # 获取最新的K线数据
-    #     latest_kline = klines[-1]
-        
-    #     # 获取最近lookback_days天的数据
-    #     recent_klines = klines[-lookback_days:]
-        
-    #     # 计算每天所有均线的标准差
-    #     daily_std = []
-    #     for kline in recent_klines:
-    #         ma_values = []
-    #         for field in ma_fields:
-    #             ma_value = kline.get(field)
-    #             if ma_value is not None:
-    #                 ma_values.append(ma_value)
-            
-    #         if len(ma_values) >= 2:
-    #             # 使用 AnalyzerService 计算标准差
-    #             std = AnalyzerService.get_standard_deviation(ma_values)
-    #             daily_std.append(std)
-        
-    #     if len(daily_std) < 10:  # 至少需要10个数据点
-    #         return False
-        
-    #     # 1. 检查标准差是否在减小（趋势收敛）
-    #     recent_avg_std = AnalyzerService.get_mean(daily_std[-5:])
-    #     earlier_avg_std = AnalyzerService.get_mean(daily_std[-10:-5])
-        
-    #     if recent_avg_std >= earlier_avg_std:
-    #         return False
-        
-    #     # 2. 检查当前绝对收敛程度
-    #     current_ma_values = []
-    #     current_close = latest_kline.get('close')
-        
-    #     for field in ma_fields:
-    #         ma_value = latest_kline.get(field)
-    #         if ma_value is not None:
-    #             current_ma_values.append(ma_value)
-        
-    #     if len(current_ma_values) < 2 or not current_close:
-    #         return False
-        
-    #     # 使用 AnalyzerService 计算当前均线统计指标
-    #     mean_ma = AnalyzerService.get_mean(current_ma_values)
-    #     current_std = AnalyzerService.get_standard_deviation(current_ma_values)
-        
-    #     # 标准差必须小于收盘价的3%（绝对收敛条件）
-    #     if current_std > current_close * 0.03:
-    #         return False
-        
-    #     # 3. 检查最长期与最短期均线的差距
-    #     max_ma = max(current_ma_values)
-    #     min_ma = min(current_ma_values)
-        
-    #     # 最大最小均线差距不能超过均价的5%
-    #     if (max_ma - min_ma) > mean_ma * 0.05:
-    #         return False
-        
-    #     return True
-
-    # @staticmethod
-    # def _check_price_stability(klines: List[Dict[str, Any]], lookback_days: int = 10) -> bool:
-    #     """
-    #     检查价格是否趋于平稳
-        
-    #     Args:
-    #         klines: K线数据
-    #         lookback_days: 回看天数
-            
-    #     Returns:
-    #         bool: 是否趋于平稳
-    #     """
-    #     if len(klines) < lookback_days:
-    #         return False
-        
-    #     # 获取最近lookback_days天的收盘价
-    #     recent_closes = []
-    #     for kline in klines[-lookback_days:]:
-    #         close_price = kline.get('close')
-    #         if close_price is not None:
-    #             recent_closes.append(close_price)
-        
-    #     if len(recent_closes) < lookback_days:
-    #         return False
-        
-    #     # 使用 AnalyzerService 计算价格统计指标
-    #     mean_price = AnalyzerService.get_mean(recent_closes)
-    #     std = AnalyzerService.get_standard_deviation(recent_closes)
-        
-    #     # 波动率小于均价的2%认为趋于平稳
-    #     return std < mean_price * 0.02
-    
-    # @staticmethod
-    # def _check_ma20_slope(klines: List[Dict[str, Any]], lookback_days: int = 10) -> bool:
-    #     """
-    #     检查MA20斜率不能向下太多
-        
-    #     Args:
-    #         klines: K线数据
-    #         lookback_days: 回看天数
-            
-    #     Returns:
-    #         bool: MA20斜率是否可接受（不是大幅向下）
-    #     """
-    #     if len(klines) < lookback_days:
-    #         return False
-        
-    #     # 获取最近lookback_days天的MA20数据
-    #     ma20_values = []
-    #     for kline in klines[-lookback_days:]:
-    #         ma20_value = kline.get('ma20')
-    #         if ma20_value is not None:
-    #             ma20_values.append(ma20_value)
-        
-    #     if len(ma20_values) < lookback_days:
-    #         return False
-        
-    #     # 使用 AnalyzerService 计算MA20的斜率
-    #     slope = AnalyzerService.get_slope(ma20_values)
-    #     avg_ma20 = AnalyzerService.get_mean(ma20_values)
-        
-    #     # 斜率不能向下超过平均值的-0.5%（每天）
-    #     # 即10天内MA20下降不能超过5%
-    #     max_negative_slope = -avg_ma20 * 0.005  # -0.5% per day
-        
-    #     return slope >= max_negative_slope
-
-    # @staticmethod
-    # def _check_gentle_trend(klines: List[Dict[str, Any]], lookback_days: int = 20) -> bool:
-    #     """
-    #     检查价格是否处于平缓趋势
-        
-    #     平缓趋势的判断标准：
-    #     1. 价格整体趋势不能太陡峭（上升或下降）
-    #     2. 价格波动不能太剧烈
-    #     3. 价格应该在一个相对稳定的区间内波动
-        
-    #     Args:
-    #         klines: K线数据
-    #         lookback_days: 回看天数
-            
-    #     Returns:
-    #         bool: 是否处于平缓趋势
-    #     """
-    #     if len(klines) < lookback_days:
-    #         return False
-        
-    #     # 获取最近lookback_days天的收盘价
-    #     recent_closes = []
-    #     for kline in klines[-lookback_days:]:
-    #         close_price = kline.get('close')
-    #         if close_price is not None:
-    #             recent_closes.append(close_price)
-        
-    #     if len(recent_closes) < lookback_days:
-    #         return False
-        
-    #     # 使用 AnalyzerService 计算价格统计指标
-    #     avg_price = AnalyzerService.get_mean(recent_closes)
-    #     std = AnalyzerService.get_standard_deviation(recent_closes)
-    #     median_price = AnalyzerService.get_median(recent_closes)
-    #     price_slope = AnalyzerService.get_slope(recent_closes)
-        
-    #     # 1. 检查整体趋势斜率（线性回归）
-    #     # 价格趋势斜率不能超过平均值的±0.3%（每天）
-    #     # 即20天内价格变化不能超过±6%
-    #     max_abs_slope = avg_price * 0.003  # ±0.3% per day
-        
-    #     if abs(price_slope) > max_abs_slope:
-    #         return False
-        
-    #     # 2. 检查价格波动幅度
-    #     max_price = max(recent_closes)
-    #     min_price = min(recent_closes)
-    #     price_range = max_price - min_price
-        
-    #     # 价格波动幅度不能超过平均价格的15%
-    #     if price_range > avg_price * 0.15:
-    #         return False
-        
-    #     # 3. 检查价格是否在相对稳定的区间内
-    #     # 标准差不能超过平均价格的5%
-    #     if std > avg_price * 0.05:
-    #         return False
-        
-    #     # 4. 检查价格是否围绕某个中心值波动
-    #     # 中位数与平均值的差距不能太大
-    #     if abs(median_price - avg_price) > avg_price * 0.02:  # 2%
-    #         return False
-        
-    #     return True
+        return True

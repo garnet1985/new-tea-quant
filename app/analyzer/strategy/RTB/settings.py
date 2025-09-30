@@ -1,12 +1,25 @@
 settings = {
+    "core": {
+        "convergence": {
+            "days": 20,
+        },
+        "stability": {
+            "days": 10,
+        },
+        "invest_range": {
+            "lower_bound": 0.01,
+            "upper_bound": 0.01,
+        },
+    },
+
     # 模拟模式
     'mode': {
         # 是不是只模拟黑名单中的股票
         "blacklist_only": False,
         # 测试股票数量
-        "test_amount": 1,
+        "test_amount": 100,
         # 测试股票起始索引
-        "start_idx": 0,
+        "start_idx": 1000,
         # 模拟参考版本号
         "simulation_ref_version": "",
         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
@@ -28,6 +41,9 @@ settings = {
             "moving_average": {
                 "periods": [5, 10, 20, 60],
             },
+            "rsi": {
+                "period": 14,  # 14日RSI
+            },
         },
     },
 
@@ -41,6 +57,11 @@ settings = {
 
     # 投资目标设置
     "goal": {
+        # 固定期限强制平仓（可选）：自然日 与 交易日 二选一或同时配置
+        # 仅用于到期平仓，不属于止盈/止损；若配置则即便无止盈止损也会在到期时平仓
+        "fixed_days": 10,
+        # "fixed_trading_days": 7,
+
         # 是否自定义止损目标 - 如果有此属性且为true，则完全使用此属性来判断是否应该结算投资，以下属性均不生效
         'is_customized': False,
         
@@ -65,38 +86,29 @@ settings = {
                 # 止损阶段
                 {
                     # 名字随便取，只负责展示
-                    "name": "loss20%",
+                    "name": "loss5%",
                     # 当前价格低于买入价格的20%时触发止损
-                    "ratio": -0.2,
+                    "ratio": -0.05,
                     # 止损行为是卖出所有仓位
-                    "sell_ratio": 0.5  # 止损时：卖出50%仓位
+                    "close_invest": True  # 止损时：清仓
                 }
             ]
         },
-        # 止盈目标设置
+        # 止盈目标设置（超短线配置：快速止盈）
         "take_profit": {
-            # 分段止盈
+            # 止盈阶段（按比例分批卖出）；可为空
             "stages": [
                 {
-                    "name": "win10%",
-                    # 当前价格高于买入价格的10%时触发止盈
-                    "ratio": 0.1,
-                    # 止盈时：卖出总仓位的20%
-                    "sell_ratio": 0.2,  
-                    # 止盈时：启动保本止损
+                    "name": "win3%",
+                    "ratio": 0.03,
+                    "sell_ratio": 0.5,
                     "set_stop_loss": "break_even"
                 },
                 {
-                    "name": "win25%",
-                    "ratio": 0.25,
-                    "sell_ratio": 0.2,
-                },
-                {
-                    "name": "win50%",
-                    "ratio": 0.50,
-                    "sell_ratio": 0.2,
-                    "set_stop_loss": "dynamic",
-                },
+                    "name": "win5%",
+                    "ratio": 0.05,
+                    "sell_ratio": 0.5
+                }
             ]
         },
 

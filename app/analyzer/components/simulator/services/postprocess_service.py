@@ -58,8 +58,10 @@ class PostprocessService:
 
             total_profit += inv['overall_profit']
             total_duration += inv['invest_duration_days']   
+            # ROI 统一标准：内部存储为小数（0.20 = 20%），显示时转换为百分比
             total_roi += inv['overall_profit_rate']
 
+            # 盈亏分类：使用小数比较（0.2 = 20%）
             if inv['overall_profit_rate'] >= 0.2:
                 profitable_count += 1
             elif inv['overall_profit_rate'] >= 0 and inv['overall_profit_rate'] < 0.2:
@@ -69,7 +71,7 @@ class PostprocessService:
             else:
                 unprofitable_count += 1
 
-            investments.append({
+            investment_data = {
                 'result': result,
 
                 'start_date': inv['start_date'],
@@ -84,13 +86,18 @@ class PostprocessService:
                 'tracking': inv['tracking'],
 
                 'completed_targets': inv['targets']['completed'],
-
-                'extra_fields': inv['extra_fields'],
-            })
+            }
+            
+            # 只在有 extra_fields 时才添加
+            if 'extra_fields' in inv and inv['extra_fields']:
+                investment_data['extra_fields'] = inv['extra_fields']
+            
+            investments.append(investment_data)
 
         avg_profit = AnalyzerService.to_ratio(total_profit, total)
         avg_duration_in_days = AnalyzerService.to_ratio(total_duration, total)
         avg_roi = AnalyzerService.to_ratio(total_roi, total)
+        
         annual_return = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days)
         annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days, is_trading_days=True)
 
@@ -111,7 +118,7 @@ class PostprocessService:
             'total_profit': round(total_profit, 2),
             'avg_profit': round(avg_profit, 2),
             'avg_duration_in_days': round(avg_duration_in_days, 1),
-            'avg_roi': round(avg_roi, 2),
+            'avg_roi': round(avg_roi, 4),  # 从 2 位改为 4 位小数，避免小 ROI 被四舍五入为 0
             'annual_return': round(annual_return, 2),
             'annual_return_in_trading_days': round(annual_return_in_trading_days, 2),
         }
@@ -172,6 +179,7 @@ class PostprocessService:
         for stock_summary in stock_summaries:
 
             summary = stock_summary.get('summary', {})
+            stock_name = stock_summary.get('stock', {}).get('name', 'Unknown')
             
             investment_count = summary.get('total_investments', 0)
 
@@ -188,14 +196,16 @@ class PostprocessService:
                 minor_unprofitable += summary.get('minor_unprofitable', 0)
 
                 # 加权平均计算
-                total_roi += summary.get('avg_roi', 0) * investment_count
+                stock_avg_roi = summary.get('avg_roi', 0)
+                stock_roi_contribution = stock_avg_roi * investment_count
+                total_roi += stock_roi_contribution
                 total_duration_days += summary.get('avg_duration_in_days', 0) * investment_count
         
-        # 计算整体平均值
-        avg_roi = AnalyzerService.to_ratio(total_roi, total_investments)
+        # 计算整体平均值 - avg_roi 需要更高精度（4位小数）以避免小ROI被舍入为0
+        avg_roi = AnalyzerService.to_ratio(total_roi, total_investments, decimals=4)
         avg_duration_days = AnalyzerService.to_ratio(total_duration_days, total_investments)
         
-        # 使用“平均ROI + 平均持有期”推导会话级平均年化，更稳健
+        # 使用"平均ROI + 平均持有期"推导会话级平均年化，更稳健
         annual_return = AnalyzerService.get_annual_return(avg_roi, avg_duration_days)
         annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration_days, is_trading_days=True)
         
@@ -256,6 +266,7 @@ class PostprocessService:
             win_rate = session_summary.get('win_rate', 0)
             annual_return = session_summary.get('annual_return', 0)
             annual_return_in_trading_days = session_summary.get('annual_return_in_trading_days', 0)
+            # ROI 显示：从小数格式（0.0026）转换为百分比格式（0.26%）
             avg_roi = session_summary.get('avg_roi', 0) * 100.0
 
             if win_rate >= 60:

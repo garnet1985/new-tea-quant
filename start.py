@@ -57,9 +57,9 @@ def main():
     
     # asyncio.run(app.renew_data())
 
-    app.scan()
+    # app.scan()
 
-    # app.simulate()
+    app.simulate()
 
     # app.analysis()
 

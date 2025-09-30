@@ -424,7 +424,8 @@ class BaseStrategy(ABC):
         if upper_bound is not None:
             opportunity['upper_bound'] = upper_bound
 
-        opportunity['extra_fields'] = extra_fields
+        if extra_fields is not None:
+            opportunity['extra_fields'] = extra_fields
 
         return opportunity
 

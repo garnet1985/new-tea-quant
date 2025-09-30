@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List
+import math
+from typing import Any, Dict, List
 from .analyzer_settings import conf
 
 
@@ -252,6 +253,102 @@ class AnalyzerService:
         return peaks
 
     @staticmethod
+    def get_mean(values: List[float]) -> float:
+        """
+        获得数值的平均值
+        
+        Args:
+            values: 数值列表
+            
+        Returns:
+            float: 平均值
+        """
+        if not values:
+            return 0.0
+        return sum(values) / len(values)
+    
+    @staticmethod
+    def get_median(values: List[float]) -> float:
+        """
+        获得数值的中位数
+        
+        Args:
+            values: 数值列表
+            
+        Returns:
+            float: 中位数
+        """
+        if not values:
+            return 0.0
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+        # 如果是偶数个，取中间两个的平均值
+        if n % 2 == 0:
+            return (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2.0
+        else:
+            return sorted_values[n // 2]
+
+    @staticmethod
+    def get_standard_deviation(values: List[float]) -> float:
+        """
+        获得数值的标准差
+        
+        Args:
+            values: 数值列表
+            
+        Returns:
+            float: 标准差
+        """
+        if not values:
+            return 0.0
+        
+        mean = AnalyzerService.get_mean(values)
+        variance = sum((x - mean) ** 2 for x in values) / len(values)
+        
+        return math.sqrt(variance)
+
+    @staticmethod
+    def get_slope(values: List[float]) -> float:
+        """
+        获得数值的趋势斜率（使用线性回归）
+        
+        Args:
+            values: 数值列表（按时间顺序排列）
+            
+        Returns:
+            float: 斜率（表示每个时间单位的变化量）
+        """
+        if not values or len(values) < 2:
+            return 0.0
+        
+        n = len(values)
+        # x轴为索引序列：0, 1, 2, ..., n-1
+        x_sum = sum(range(n))
+        y_sum = sum(values)
+        xy_sum = sum(i * values[i] for i in range(n))
+        x2_sum = sum(i * i for i in range(n))
+        
+        # 线性回归斜率公式: slope = (n*Σxy - Σx*Σy) / (n*Σx² - (Σx)²)
+        denominator = n * x2_sum - x_sum * x_sum
+        if denominator == 0:
+            return 0.0
+        
+        slope = (n * xy_sum - x_sum * y_sum) / denominator
+        
+        return slope
+
+
+
+
+
+
+
+
+
+
+    # =======================    Utils    =================================
+
+    @staticmethod
     def _is_local_minimum(data: list, current_idx: int, range_days: int) -> bool:
         """检查是否为局部最低点"""
         if current_idx < range_days or current_idx >= len(data) - range_days:
@@ -330,3 +427,6 @@ class AnalyzerService:
                 min_date = data[i]['date']
         
         return min_date
+
+
+    

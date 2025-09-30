@@ -1,12 +1,25 @@
 settings = {
+    "core": {
+        "convergence": {
+            "days": 20,
+        },
+        "stability": {
+            "days": 10,
+        },
+        "invest_range": {
+            "lower_bound": 0.01,
+            "upper_bound": 0.01,
+        },
+    },
+
     # 模拟模式
     'mode': {
         # 是不是只模拟黑名单中的股票
         "blacklist_only": False,
         # 测试股票数量
-        "test_amount": 1,
+        "test_amount": 10,
         # 测试股票起始索引
-        "start_idx": 0,
+        "start_idx": 1000,
         # 模拟参考版本号
         "simulation_ref_version": "",
         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
@@ -65,11 +78,11 @@ settings = {
                 # 止损阶段
                 {
                     # 名字随便取，只负责展示
-                    "name": "loss20%",
+                    "name": "loss10%",
                     # 当前价格低于买入价格的20%时触发止损
-                    "ratio": -0.2,
+                    "ratio": -0.1,
                     # 止损行为是卖出所有仓位
-                    "sell_ratio": 0.5  # 止损时：卖出50%仓位
+                    "close_invest": True  # 止损时：清仓
                 }
             ]
         },
@@ -87,13 +100,13 @@ settings = {
                     "set_stop_loss": "break_even"
                 },
                 {
-                    "name": "win25%",
-                    "ratio": 0.25,
+                    "name": "win20%",
+                    "ratio": 0.2,
                     "sell_ratio": 0.2,
                 },
                 {
-                    "name": "win50%",
-                    "ratio": 0.50,
+                    "name": "win30%",
+                    "ratio": 0.30,
                     "sell_ratio": 0.2,
                     "set_stop_loss": "dynamic",
                 },

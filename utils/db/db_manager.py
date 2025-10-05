@@ -438,6 +438,14 @@ class DatabaseManager:
         else:
             return self._get_table_instance_internal(table_name)
     
+    def get_table_description(self, table_name: str) -> Dict[str, Any]:
+        """获取表描述信息（schema）"""
+        table_instance = self.get_table_instance(table_name)
+        if table_instance and hasattr(table_instance, 'schema'):
+            return table_instance.schema
+        else:
+            raise ValueError(f"无法获取表 {table_name} 的描述信息")
+    
     def _get_table_instance_internal(self, table_name: str):
         """获取表实例的内部实现"""
         # 首先检查缓存

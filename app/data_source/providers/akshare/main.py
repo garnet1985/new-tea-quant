@@ -39,12 +39,36 @@ class AKShare:
     def inject_dependency(self, tu: Tushare):
         self.tu = tu
         return self
+    
+    async def renew(self, latest_market_open_day: str = None, latest_stock_index: list = None):
+        """
+        AKShare 数据源统一更新入口
+        内部处理所有 AKShare 相关的数据更新
+        
+        Args:
+            latest_market_open_day: 最新市场开放日
+            latest_stock_index: 股票指数列表（用于依赖关系）
+            
+        Returns:
+            更新结果
+        """
+        if latest_market_open_day is None:
+            latest_market_open_day = "20250101"  # 默认日期
+        
+        try:
+            # 1. 更新复权因子（依赖K线数据）
+            self.renew_stock_k_line_factors(latest_market_open_day, latest_stock_index)
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ AKShare 数据源更新失败: {e}")
+            raise
 
     def reset_state(self):
         self.total_jobs = 0
         self.job_complete_counter = 0
         self.latest_market_open_day = None
-    
+
     def renew_stock_k_line_factors(self, latest_market_open_day: str, stock_index: list = None):
 
         self.latest_market_open_day = latest_market_open_day

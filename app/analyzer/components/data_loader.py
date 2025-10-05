@@ -74,8 +74,9 @@ class DataLoader:
                 records = DataSourceService.filter_out_negative_records(records)
             kline_data[term] = records
 
-        if min_required_base_records > 0 and len(kline_data[min_required_kline_term]) < min_required_base_records:
-            return None
+        if min_required_base_records > 0 and len(kline_data.get(min_required_kline_term, [])) < min_required_base_records:
+            # 返回包含所有请求term的空列表，避免上游KeyError
+            return {term: [] for term in settings.get('terms', [])}
 
         return kline_data
 
@@ -275,8 +276,12 @@ class DataLoader:
 
         # load klines data
         data['klines'] = DataLoader.load_stock_klines_data(stock_id, klines_settings, db)
+        # guard against None or unexpected types
+        if not isinstance(data.get('klines'), dict):
+            data['klines'] = {}
 
-        if settings.get('klines', {}).get('indicators'):
+        # apply indicators only when klines exist and indicators configured
+        if data['klines'] and settings.get('klines', {}).get('indicators'):
             from app.analyzer.components.indicators import Indicators
             data['klines'] = Indicators.add_indicators(data['klines'], klines_settings['indicators'])
 

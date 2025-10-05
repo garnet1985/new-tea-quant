@@ -14,6 +14,7 @@ class TushareStorage:
         self.stock_index_indicator_table = connected_db.get_table_instance('stock_index_indicator')
         self.stock_index_indicator_weight_table = connected_db.get_table_instance('stock_index_indicator_weight')
         self.industry_capital_flow_table = connected_db.get_table_instance('industry_capital_flow')
+        self.share_info_table = connected_db.get_table_instance('share_info')
 
     def save_stock_index(self, data):
         """
@@ -35,12 +36,17 @@ class TushareStorage:
             if not ts_code or not item.get('name'):
                 continue
             
+            # 处理可能为空的字段，确保必填字段不为空
+            industry = item.get('industry', '') or '未知行业'
+            market_type = item.get('market', '') or '未知类型'
+            exchange = item.get('exchange', '') or '未知交易所'
+            
             api_stocks.append({
                 'id': ts_code,  # 股票代码（包含市场后缀）
                 'name': item.get('name', ''),
-                'industry': item.get('industry', ''),
-                'type': item.get('market', ''),  # market -> type
-                'exchangeCenter': item.get('exchange', ''),  # exchange -> exchangeCenter
+                'industry': industry,
+                'type': market_type,  # market -> type
+                'exchangeCenter': exchange,  # exchange -> exchangeCenter
                 'isAlive': 1,  # API返回的股票都是活跃的
                 'lastUpdate': current_date
             })

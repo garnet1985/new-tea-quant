@@ -1,0 +1,56 @@
+{
+    "name": "share_info",
+    "primaryKey": ["id", "quarter"],
+    "fields": [
+        {
+            "name": "id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股票代码"
+        },
+        {
+            "name": "quarter",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股本变化季度 YYYYQ[1-4] 格式"
+        },
+        {
+            "name": "total_share",
+            "type": "bigint",
+            "isRequired": true,
+            "description": "总股本(股)"
+        },
+        {
+            "name": "float_share",
+            "type": "bigint",
+            "isRequired": false,
+            "description": "流通股本(股)"
+        },
+        {
+            "name": "change_type",
+            "type": "varchar",
+            "length": 32,
+            "isRequired": false,
+            "description": "变化类型：送股、配股、增发、回购等"
+        }
+    ],
+    "indexes": [
+        {
+            "name": "idx_id_quarter",
+            "fields": ["id", "quarter"],
+            "unique": true
+        },
+        {
+            "name": "idx_id",
+            "fields": ["id"]
+        },
+        {
+            "name": "idx_quarter",
+            "fields": ["quarter"]
+        }
+    ],
+    "description": "股票股本变化记录表 - 只存储股本发生变化的季度数据，用于市值计算"
+}
+

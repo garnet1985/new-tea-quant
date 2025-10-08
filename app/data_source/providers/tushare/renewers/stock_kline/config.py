@@ -20,7 +20,11 @@ CONFIG = {
     'job_mode': 'multithread',
     
     'multithread': {
-        'workers': 6
+        'workers': 6,
+        'log': {
+            'success': '✅ 股票 {stock_name} {id} [{term}] 更新完毕 - 进度 {progress}%',
+            'failure': '❌ 股票 {stock_name} {id} [{term}] 更新失败'
+        }
     },
     
     'rate_limit': {

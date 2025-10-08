@@ -25,8 +25,8 @@ class App:
         self.is_verbose = False
         
         # 1. 首先初始化数据库（只初始化一次）
-        # 在主进程中禁用线程安全与连接池，避免早期连接干扰
-        self.db = DatabaseManager(is_verbose=self.is_verbose)
+        # 启用线程安全，支持多线程数据更新
+        self.db = DatabaseManager(is_verbose=self.is_verbose, enable_thread_safety=True)
         self.db.initialize()
         
         # 2. 然后创建数据源和策略管理器（复用同一个数据库实例）

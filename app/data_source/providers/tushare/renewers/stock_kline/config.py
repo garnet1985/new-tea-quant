@@ -20,7 +20,7 @@ CONFIG = {
     'job_mode': 'multithread',
     
     'multithread': {
-        'workers': 10,
+        'workers': 4,  # 降低并发，减少限流压力
         'log': {
             'success': '✅ 股票 {stock_name} {id} [{term}] 更新完毕 - 进度 {progress}%',
             'failure': '❌ 股票 {stock_name} {id} [{term}] 更新失败'
@@ -30,7 +30,8 @@ CONFIG = {
     'rate_limit': {
         # 因为 daily_basic 限制为 700 次/分钟
         # daily, weekly, monthly 限制为 800 次/分钟
-        'max_per_minute': 700
+        # 保守配置600，避免瞬时并发压力
+        'max_per_minute': 600
     },
     
     'apis': [

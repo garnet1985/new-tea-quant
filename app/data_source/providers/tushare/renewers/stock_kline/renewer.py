@@ -68,18 +68,29 @@ class StockKlineRenewer(BaseRenewer):
         重写：为3个term（日/周/月）分别构建任务
         
         特殊逻辑：
-        1. 截止日期为latest_market_open_day的前一天
-        2. 日线：每天更新
-        3. 周线：只有当形成新的周线时才更新（时间间隔>1周）
-        4. 月线：只有当形成新的月线时才更新（时间间隔>1月）
+        1. 日线：
+           - end_date: latest_market_open_day - 1
+           - start_date: 数据库最新日期 + 1天
+           
+        2. 周线：
+           - end_date: 上个完整周的周日
+           - start_date: 数据库最新日期所在周的下一周周一
+           - 只有跨周时才更新
+           
+        3. 月线：
+           - end_date: 上个完整月份的最后一天
+           - start_date: 数据库最新日期所在月的下一月第一天
+           - 只有跨月时才更新
         """
         jobs = []
         date_field = self.config['date']['field']
         
-        # 截止日期为市场开放日的前一天
-        # 因为latest_market_open_day当天数据可能还未更新
+        # 截止日期计算
         from datetime import timedelta
         market_date_obj = DataSourceService.to_hyphen_date_type(latest_market_open_day)
+        
+        # 对于日线和周线：使用市场开放日的前一天
+        # 对于月线：使用上个完整月份的最后一天
         actual_end_date = (market_date_obj - timedelta(days=1)).strftime('%Y%m%d')
         
         try:
@@ -92,25 +103,144 @@ class StockKlineRenewer(BaseRenewer):
             return jobs
 
         # 为3个term分别构建任务
+        # 注意：weekly和monthly的end_date使用上个完整周期的最后一天
         terms_config = [
-            {'term': 'daily', 'interval': 'day', 'min_gap': 1},
-            {'term': 'weekly', 'interval': 'week', 'min_gap': 1},
-            {'term': 'monthly', 'interval': 'month', 'min_gap': 1}
+            {'term': 'daily', 'interval': 'day', 'min_gap': 1, 'end_date': actual_end_date},
+            {'term': 'weekly', 'interval': 'week', 'min_gap': 0, 'end_date': self._get_last_complete_week_end()},
+            {'term': 'monthly', 'interval': 'month', 'min_gap': 0, 'end_date': self._get_last_complete_month_end()}
         ]
         
         for term_config in terms_config:
             term = term_config['term']
             interval = term_config['interval']
             min_gap = term_config['min_gap']
+            term_end_date = term_config['end_date']
             
             # 为每个term构建jobs
             term_jobs = self._build_jobs_for_term(
-                term, interval, min_gap, actual_end_date, 
+                term, interval, min_gap, term_end_date, 
                 stock_list, db_records, date_field
             )
             jobs.extend(term_jobs)
         
         return jobs
+    
+    def _get_last_complete_week_end(self) -> str:
+        """
+        获取上个完整周的最后一天（周日）
+        
+        逻辑：
+        - 如果今天是周一(0)，上周日是昨天
+        - 如果今天是周二(1)，上周日是前天
+        - ...
+        - 如果今天是周日(6)，上周日是7天前
+        
+        例如：
+        - 当前：2025-10-08 (周三) → 返回 2025-10-05 (上周日)
+        - 当前：2025-10-06 (周一) → 返回 2025-10-05 (上周日)
+        
+        Returns:
+            str: 上个完整周的最后一天（周日），格式YYYYMMDD
+        """
+        from datetime import date as date_type, timedelta
+        
+        today = date_type.today()
+        
+        # 计算距离上周日的天数
+        # weekday(): 周一=0, 周二=1, ..., 周日=6
+        days_since_last_sunday = today.weekday() + 1
+        
+        # 上周日的日期
+        last_sunday = today - timedelta(days=days_since_last_sunday)
+        
+        return last_sunday.strftime('%Y%m%d')
+    
+    def _get_last_complete_month_end(self) -> str:
+        """
+        获取上个完整月份的最后一天
+        
+        例如：
+        - 当前日期：2025-10-08 → 返回 20250930 (9月最后一天)
+        - 当前日期：2025-11-01 → 返回 20251031 (10月最后一天)
+        
+        Returns:
+            str: 上个完整月份的最后一天，格式YYYYMMDD
+        """
+        from datetime import date as date_type
+        import calendar
+        
+        today = date_type.today()
+        
+        # 上个月的年月
+        if today.month == 1:
+            last_month_year = today.year - 1
+            last_month = 12
+        else:
+            last_month_year = today.year
+            last_month = today.month - 1
+        
+        # 获取上个月的最后一天
+        last_day = calendar.monthrange(last_month_year, last_month)[1]
+        
+        return f"{last_month_year:04d}{last_month:02d}{last_day:02d}"
+    
+    def _get_next_week_start(self, date_str: str) -> str:
+        """
+        获取指定日期所在周的下一周的周一
+        
+        逻辑：
+        1. 找到date_str所在周的周一
+        2. 返回下一周的周一（+7天）
+        
+        例如：
+        - 输入：20250829 (周五) → 所在周周一=20250825 → 返回 20250901 (下周一)
+        - 输入：20251003 (周五) → 所在周周一=20250929 → 返回 20251006 (下周一)
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 下周的周一，格式YYYYMMDD
+        """
+        from datetime import timedelta
+        
+        date_obj = DataSourceService.to_hyphen_date_type(date_str)
+        
+        # 计算本周的周一
+        days_since_monday = date_obj.weekday()  # 周一=0, 周日=6
+        this_week_monday = date_obj - timedelta(days=days_since_monday)
+        
+        # 下周的周一 = 本周周一 + 7天
+        next_week_monday = this_week_monday + timedelta(days=7)
+        
+        return next_week_monday.strftime('%Y%m%d')
+    
+    def _get_next_month_start(self, date_str: str) -> str:
+        """
+        获取指定日期的下个月的第一天
+        
+        例如：
+        - 输入：20250829 → 返回 20250901 (9月1日)
+        - 输入：20251231 → 返回 20260101 (次年1月1日)
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 下个月的第一天，格式YYYYMMDD
+        """
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        
+        # 计算下个月
+        if month == 12:
+            next_year = year + 1
+            next_month = 1
+        else:
+            next_year = year
+            next_month = month + 1
+        
+        return f"{next_year:04d}{next_month:02d}01"
     
     def _build_jobs_for_term(self, term: str, interval: str, min_gap: int,
                             end_date: str, stock_list: list, db_records: list,
@@ -150,11 +280,24 @@ class StockKlineRenewer(BaseRenewer):
                     time_gap = DataSourceService.time_gap_by(interval, latest_date, end_date)
                     
                     if time_gap >= min_gap:
+                        # 计算start_date，按照term使用不同的逻辑
+                        if term == 'daily':
+                            # 日线：下一天
+                            start_date = DataSourceService.to_next(interval, latest_date)
+                        elif term == 'weekly':
+                            # 周线：下周的周一
+                            start_date = self._get_next_week_start(latest_date)
+                        elif term == 'monthly':
+                            # 月线：下个月的第一天
+                            start_date = self._get_next_month_start(latest_date)
+                        else:
+                            start_date = DataSourceService.to_next(interval, latest_date)
+                        
                         jobs.append({
                             'id': stock_id,
                             'ts_code': stock_id,
                             'term': term,
-                            'start_date': DataSourceService.to_next(interval, latest_date),
+                            'start_date': start_date,
                             'end_date': end_date,
                             '_log_vars': {
                                 'stock_name': stock.get('name'),

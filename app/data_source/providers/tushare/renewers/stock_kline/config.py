@@ -9,7 +9,10 @@ stock_kline（富含 daily_basic 字段）更新配置
 
 CONFIG = {
     'table_name': 'stock_kline',
-    'renew_mode': 'incremental',  # 增量更新，基于数据库最新记录（save时用replace避免冲突）
+    # renew_mode说明：
+    # incremental = 业务逻辑上的增量（只加载最新记录做判断，内存占用小）
+    # 保存时使用replace方法（支持幂等性，可重复运行）
+    'renew_mode': 'incremental',
     
     'date': {
         'type': 'date',

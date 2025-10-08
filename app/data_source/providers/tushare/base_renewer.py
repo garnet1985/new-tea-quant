@@ -110,7 +110,7 @@ class BaseRenewer(ABC):
 
     
     # ==================== 可重写的方法 ====================
-
+    
     def build_jobs(self, latest_market_open_day: str, stock_list: list = None, db_records: list = None) -> List[Dict]:
         """
         构建任务列表 - 子类可以重写
@@ -165,7 +165,7 @@ class BaseRenewer(ABC):
                             for primary_key in primary_keys:
                                 job[primary_key] = latest_record[primary_key]
                             jobs.append(job)
-                    else:
+                else:
                         # 新股票，从默认日期开始拉取
                         job = {
                             'start_date': data_default_start_date,
@@ -186,7 +186,7 @@ class BaseRenewer(ABC):
                     jobs.append(job)
 
         # 场景2: 宏观数据（GDP、利率等）
-        else:
+                else:
             if db_records and len(db_records) > 0:
                 # 有数据库记录：增量更新
                 latest_record = db_records[-1]
@@ -227,12 +227,13 @@ class BaseRenewer(ABC):
         renew_mode = self.config['renew_mode'].lower()
         table = self.db.get_table_instance(self.config['table_name'])
 
-        # overwrite/upsert 模式：总是从头开始更新
-        if renew_mode in ['overwrite', 'upsert']:
+        # overwrite 模式：清空重建，不需要查询已有数据
+        if renew_mode == 'overwrite':
             return self.build_jobs(latest_market_open_day, stock_list, db_records=None)
 
-        # incremental 模式：根据数据库中的最新数据判断
-        elif renew_mode == 'incremental':
+        # incremental/upsert 模式：都需要查询已有数据来判断增量
+        # 区别在于save_data时的行为：incremental用insert，upsert用replace
+        elif renew_mode in ['incremental', 'upsert']:
             db_records = table.load_latest_records()
             return self.build_jobs(latest_market_open_day, stock_list, db_records)
         
@@ -662,7 +663,7 @@ class BaseRenewer(ABC):
                 logger.info(f"{task_name} 任务完成 - 进度: {progress_percent:.1f}%")
             else:
                 logger.error(f"{task_name} 任务失败 - 进度: {progress_percent:.1f}%")
-        
+    
     def _execute_single_job(self, job: Dict) -> bool:
         """
         执行单个任务（多线程模式下的单个job）
@@ -677,7 +678,7 @@ class BaseRenewer(ABC):
             # 应用限流
             if self.rate_limiter:
                 self.rate_limiter.acquire()
-
+            
             # 1. 请求所有API
             api_results = self._request_apis(job)
 
@@ -698,7 +699,7 @@ class BaseRenewer(ABC):
             import traceback
             logger.debug(f"详细错误: {traceback.format_exc()}")
             return False
-
+    
     def _request_apis(self, job: Dict) -> Dict[str, Any]:
         """
         执行所有配置的API并收集结果
@@ -776,8 +777,8 @@ class BaseRenewer(ABC):
             
             # 2. 获取可调用的API方法
             api_method_name = api['method']
-            api_method = getattr(self.api, api_method_name)
-            
+        api_method = getattr(self.api, api_method_name)
+        
             # 3. 调用API（获取原始数据）
             result = api_method(**api_params)
             
@@ -835,7 +836,7 @@ class BaseRenewer(ABC):
                     df['turnover_rate'] = (df['vol'] / df['float_share']) * 100
                     return self.apply_single_api_mapping(df, api['mapping'])
                 
-                else:
+            else:
                     # 其他API使用默认行为
                     return super().map_api_data(data, api)
         """
@@ -874,15 +875,15 @@ class BaseRenewer(ABC):
                 try:
                     value = self._map_single_field(record, db_field, mapping_config)
                     mapped_record[db_field] = value
-                except Exception as e:
+        except Exception as e:
                     logger.warning(f"字段映射失败 [{db_field}]: {e}")
                     mapped_record[db_field] = None
             mapped_list.append(mapped_record)
         
         # 如果原数据是DataFrame，转回DataFrame
         if hasattr(data, 'to_dict'):
-            try:
-                import pandas as pd
+                try:
+                    import pandas as pd
                 return pd.DataFrame(mapped_list)
             except Exception as e:
                 logger.error(f"转换为DataFrame失败: {e}")
@@ -1018,7 +1019,7 @@ class BaseRenewer(ABC):
         if isinstance(data, list):
             data_list = data
         elif hasattr(data, 'to_dict'):
-            data_list = data.to_dict('records')
+                data_list = data.to_dict('records')
         else:
             data_list = list(data) if data else []
         
@@ -1036,12 +1037,12 @@ class BaseRenewer(ABC):
         field_types = self._get_field_types_from_schema()
         
         # 处理NaN值
-        import pandas as pd
+                import pandas as pd
         cleaned_list = []
-        for record in data_list:
+                for record in data_list:
             cleaned_record = {}
-            for key, value in record.items():
-                if pd.isna(value):
+                    for key, value in record.items():
+                        if pd.isna(value):
                     # 检查是否允许NULL
                     if key in allow_null_fields:
                         # 允许NULL的字段，保留None
@@ -1053,7 +1054,7 @@ class BaseRenewer(ABC):
                         cleaned_record[key] = field_defaults[key]
                     
                     # 使用schema类型决定默认值
-                    else:
+                            else:
                         field_type = field_types.get(key, 'unknown').lower()
                         
                         if field_type in ['float', 'double', 'int', 'bigint', 'decimal']:
@@ -1062,7 +1063,7 @@ class BaseRenewer(ABC):
                         elif field_type in ['varchar', 'text']:
                             # 字符串类型 → 空字符串
                             cleaned_record[key] = ''
-                        else:
+            else:
                             # 其他类型 → None
                             cleaned_record[key] = None
                 else:

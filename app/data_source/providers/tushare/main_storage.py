@@ -10,11 +10,12 @@ class TushareStorage:
         # 使用线程安全的数据库模型
         self.meta_info = connected_db.get_table_instance('meta_info')
         self.stock_index_table = connected_db.get_table_instance('stock_index')
-        self.stock_kline_table = connected_db.get_table_instance('stock_kline')
+        self.stock_kline_table = connected_db.get_table_instance('stock_klines')
         self.stock_index_indicator_table = connected_db.get_table_instance('stock_index_indicator')
         self.stock_index_indicator_weight_table = connected_db.get_table_instance('stock_index_indicator_weight')
         self.industry_capital_flow_table = connected_db.get_table_instance('industry_capital_flow')
         self.share_info_table = connected_db.get_table_instance('share_info')
+        self.stock_list_table = connected_db.get_table_instance('stock_list')
 
     def save_stock_index(self, data):
         """
@@ -59,12 +60,23 @@ class TushareStorage:
     def load_stock_index(self):
         return self.stock_index_table.load_all()
 
+    def load_stock_list(self, exclude_patterns=None, order_by: str = 'id'):
+        try:
+            # 依赖 StockListModel.load_filtered_stock_list
+            if hasattr(self.stock_list_table, 'load_filtered_stock_list'):
+                return self.stock_list_table.load_filtered_stock_list(exclude_patterns=exclude_patterns, order_by=order_by)
+            # 兜底：仅返回活跃
+            return self.stock_list_table.load("isActive = 1", params=(), order_by=order_by)
+        except Exception as e:
+            logger.error(f"加载 stock_list 失败: {e}")
+            return []
+
     def get_most_recent_stock_kline_record_dates(self) -> dict:
         try:
             # 使用SQL聚合查询获取所有股票所有周期的最新日期
             query = """
                 SELECT id, term, MAX(date) as latest_date 
-                FROM stock_kline 
+                FROM stock_klines 
                 GROUP BY id, term
             """
             result = self.stock_kline_table.execute_raw_query(query)

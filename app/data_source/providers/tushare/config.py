@@ -24,7 +24,7 @@ class APIRateLimit:
 @dataclass
 class WorkerConfig:
     """工作线程配置"""
-    max_workers: int
+    workers: int  # 工作线程数量
     timeout: float  # 秒
     execution_mode: str = "PARALLEL"
 
@@ -44,8 +44,8 @@ class TushareConfig:
     corp_finance_rate_limit = APIRateLimit(max_per_minute=500, buffer=20)  # 480次/分钟
     
     # 工作线程配置
-    kline_worker = WorkerConfig(max_workers=5, timeout=3600.0)  # 1小时
-    corp_finance_worker = WorkerConfig(max_workers=5, timeout=3600.0)  # 1小时
+    kline_worker = WorkerConfig(workers=5, timeout=3600.0)  # 1小时
+    corp_finance_worker = WorkerConfig(workers=5, timeout=3600.0)  # 1小时
     
     # 进度显示配置
     progress_update_interval = 1  # 每完成1个任务更新进度

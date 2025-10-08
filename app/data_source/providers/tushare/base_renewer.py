@@ -8,12 +8,14 @@
 
 import time
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from loguru import logger
 from abc import ABC
 
+from app.data_source.data_source_service import DataSourceService
 from utils.worker.multi_thread.futures_worker import FuturesWorker, ExecutionMode
 from utils.icon.icon_service import IconService
+from app.conf.conf import data_default_start_date
 
 
 class BaseRenewer(ABC):
@@ -39,92 +41,270 @@ class BaseRenewer(ABC):
         # 初始化组件
         self._init_rate_limiter()
         self._init_multithread_config()
+
+    def _init_rate_limiter(self):
+        """初始化限流器"""
+        rate_limit_config = self.config.get('rate_limit')
+        if rate_limit_config:
+            from .rate_limiter import APIRateLimiter
+            # buffer自动使用workers数量，确保多线程环境下的限流安全
+            buffer = self.config.get('multithread', {}).get('workers', 10)
+            self.rate_limiter = APIRateLimiter(
+                max_per_minute=rate_limit_config.get('max_per_minute', 200),
+                api_name=self.config['table_name'],
+                buffer=buffer
+            )
+        else:
+            self.rate_limiter = None
+
+    def _init_multithread_config(self):
+        """初始化多线程配置"""
+        self.multithread_config = self.config.get('multithread', {})
+        self.workers = self.multithread_config.get('workers', 4)
         
     # ==================== 主要入口方法 ====================
     
-    def renew(self, latest_market_open_day: str = None):
+    def renew(self, latest_market_open_day: str, stock_list: list = None):
         """
         主要更新入口 - 子类通常不需要重写
         
         Args:
             latest_market_open_day: 最新市场开放日
+            stock_list: 可选的股票列表（当需要基于股票的更新时传入；宏观无需）
             
         Returns:
             更新结果
         """
-        start_date = self.should_renew(latest_market_open_day, latest_market_open_day)
-        if not start_date:
-            logger.info(f"⏭️ {self.config['table_name']} 无需更新")
-            return None
-        
-        if self.config['job_mode'] == 'simple':
-            return self._renew_simple(start_date, latest_market_open_day)
-        elif self.config['job_mode'] == 'multithread':
-            return self._renew_multithread(start_date, latest_market_open_day)
+        # 判断是否需要更新，并构建任务列表
+        jobs = self.should_renew(latest_market_open_day, stock_list)
+
+        if len(jobs) > 0:
+            logger.info(f"🔄 开始更新 {self.config['table_name']}，共 {len(jobs)} 个任务")
+            
+            if self.config['job_mode'].lower() == 'simple':
+                return self._simple_renew(jobs)
+            elif self.config['job_mode'].lower() == 'multithread':
+                return self._multithread_renew(jobs)
+            else:
+                raise ValueError(f"不支持的作业模式: {self.config['job_mode']}")
         else:
-            raise ValueError(f"不支持的作业模式: {self.config['job_mode']}")
+            logger.info(f"⏭️  {self.config['table_name']} 无需更新")
+
     
     # ==================== 可重写的方法 ====================
-    
-    def should_renew(self, start_date: str = None, end_date: str = None) -> Optional[str]:
+
+    def build_jobs(self, latest_market_open_day: str, stock_list: list = None, db_records: list = None) -> List[Dict]:
         """
-        判断是否需要更新 - 子类可重写
+        构建任务列表 - 子类可以重写
         
         Args:
-            start_date: 开始日期
-            end_date: 结束日期
+            latest_market_open_day: 最新市场开放日
+            stock_list: 股票列表（可选，股票相关表需要）
+            db_records: 数据库中的最新记录（可选，用于增量更新）
             
         Returns:
-            str: 开始日期，如果不需要更新返回 None
+            List[Dict]: 任务列表，每个任务包含 start_date, end_date 和主键字段
         """
-        table_name = self.config['table_name']
-        date_field = self.config.get('date_field', 'date')
+        jobs = []
+        date_field = self.config['date']['field']
         
-        # 获取最新数据日期
-        latest_date = self._get_latest_date(table_name, date_field)
+        try:
+            primary_keys = self.db.get_table_primary_keys(self.config['table_name'])
+        except ValueError as e:
+            logger.error(f"❌ 构建任务失败: {e}")
+            return []
         
-        # 默认逻辑：如果最新日期早于结束日期，则需要更新
-        if end_date and latest_date < end_date:
-            return latest_date
-        
-        return None
-    
-    def build_jobs(self, start_date: str, end_date: str) -> List[Dict]:
+        renew_interval = self.config['date']['interval']
+
+        # 场景1: 股票相关数据（K线、财务数据等）
+        if stock_list:
+            if db_records:
+                # 有数据库记录：增量更新
+                # 为每个股票检查是否需要更新
+                db_records_map = {self._get_record_key(record, primary_keys): record for record in db_records}
+                
+                for stock in stock_list:
+                    stock_key = self._get_record_key(stock, primary_keys)
+                    
+                    if stock_key in db_records_map:
+                        # 股票在数据库中已存在，检查是否需要增量更新
+                        latest_record = db_records_map[stock_key]
+                        latest_date = latest_record[date_field]
+                        
+                        if DataSourceService.time_gap_by(renew_interval, latest_date, latest_market_open_day) > 0:
+                            # 需要更新
+                            job = {
+                                'start_date': DataSourceService.to_next(renew_interval, latest_date),
+                                'end_date': latest_market_open_day
+                            }
+                            for primary_key in primary_keys:
+                                job[primary_key] = latest_record[primary_key]
+                            jobs.append(job)
+                    else:
+                        # 新股票，从默认日期开始拉取
+                        job = {
+                            'start_date': data_default_start_date,
+                            'end_date': latest_market_open_day
+                        }
+                        for primary_key in primary_keys:
+                            job[primary_key] = stock[primary_key]
+                        jobs.append(job)
+            else:
+                # 数据库无记录：全量拉取
+                for stock in stock_list:
+                    job = {
+                        'start_date': data_default_start_date,
+                        'end_date': latest_market_open_day
+                    }
+                    for primary_key in primary_keys:
+                        job[primary_key] = stock[primary_key]
+                    jobs.append(job)
+
+        # 场景2: 宏观数据（GDP、利率等）
+        else:
+            if db_records and len(db_records) > 0:
+                # 有数据库记录：增量更新
+                latest_record = db_records[-1]
+                latest_date = latest_record[date_field]
+                
+                if DataSourceService.time_gap_by(renew_interval, latest_date, latest_market_open_day) > 0:
+                    # 需要更新
+                    start_date = DataSourceService.to_next(renew_interval, latest_date)
+                else:
+                    # 已是最新，不需要更新
+                    return jobs
+            else:
+                # 数据库无记录：全量拉取
+                start_date = data_default_start_date
+            
+            # 宏观数据只有一个job
+            job = {
+                'start_date': start_date,
+                'end_date': latest_market_open_day
+            }
+            jobs.append(job)
+
+        return jobs
+
+    def should_renew(self, latest_market_open_day: str = None, stock_list: list = None) -> List[Dict]:
         """
-        构建任务列表 - 子类可以重写（如果是 multithread 模式）
-        简单模式不需要此方法，默认返回空列表
+        判断是否需要更新并构建任务列表 - 子类可重写
         
         Args:
-            start_date: 开始日期
-            end_date: 结束日期
+            latest_market_open_day: 最新市场开放日
+            stock_list: 可选的股票列表（股票相关表需要）
             
         Returns:
-            List[Dict]: 任务列表（简单模式返回空列表）
+            List[Dict]: 任务列表
+            - 如果不需要更新，返回空列表 []
+            - 如果需要更新，返回任务列表，每个任务包含 start_date, end_date 和主键字段
         """
-        return []
-    
-    def combine_apis_data(self, api_results: Dict[str, Any]) -> Any:
+        renew_mode = self.config['renew_mode'].lower()
+        table = self.db.get_table_instance(self.config['table_name'])
+
+        # overwrite/upsert 模式：总是从头开始更新
+        if renew_mode in ['overwrite', 'upsert']:
+            return self.build_jobs(latest_market_open_day, stock_list, db_records=None)
+
+        # incremental 模式：根据数据库中的最新数据判断
+        elif renew_mode == 'incremental':
+            db_records = table.load_latest_records()
+            return self.build_jobs(latest_market_open_day, stock_list, db_records)
+        
+        else:
+            logger.warning(f"未知的renew_mode: {renew_mode}，默认使用增量模式")
+            db_records = table.load_latest_records()
+            return self.build_jobs(latest_market_open_day, stock_list, db_records)
+
+    def prepare_data_for_save(self, api_results: Dict[str, Any], job: Dict = None) -> Any:
         """
-        合并多个 API 数据 - 子类可重写
+        准备要保存的数据 - ⭐⭐⭐⭐⭐ 子类最常重写的方法
+        
+        职责：
+        1. 合并多个API的数据（如果有多个）
+        2. 数据清洗和验证
+        3. 计算衍生字段
+        4. 任何保存前的业务逻辑处理
+        
+        注意：
+        - api_results 中的数据已经过字段映射，使用DB字段名
+        - 适用于单API和多API场景
+        - 这是保存前最后的数据处理机会
         
         Args:
-            api_results: API 结果字典
+            api_results: API结果字典 {api_name: mapped_data}
+                        数据已映射为DB字段名
             
         Returns:
-            合并后的数据
+            准备好保存的数据（DataFrame或list）
+            
+        示例1: 单API + 数据清洗
+            def prepare_data_for_save(self, api_results):
+                import pandas as pd
+                
+                # 单个API，直接处理
+                data = list(api_results.values())[0]
+                df = pd.DataFrame(data)
+                
+                # 数据清洗
+                df = df[df['price'] > 0]
+                df = df.drop_duplicates(subset=['id', 'date'])
+                
+                return df
+        
+        示例2: 多API合并 + 计算
+            def prepare_data_for_save(self, api_results):
+                import pandas as pd
+                
+                # 合并多个API
+                df_price = pd.DataFrame(api_results['price'])
+                df_volume = pd.DataFrame(api_results['volume'])
+                merged = pd.merge(df_price, df_volume, on=['date', 'id'])
+                
+                # 计算衍生字段
+                merged['total_value'] = merged['close'] * merged['volume']
+                
+                # 数据清洗
+                merged = merged.dropna()
+                
+                return merged
+        
+        示例3: 使用默认合并 + 自定义处理
+            def prepare_data_for_save(self, api_results):
+                # 使用基类的默认合并
+                data = self._default_merge_api_results(api_results)
+                
+                # 自定义处理
+                df = pd.DataFrame(data)
+                df['processed_field'] = df['raw_field'] * 100
+                
+                return df
         """
+        # 默认实现
         if len(api_results) == 1:
+            # 单个API，直接返回
             return list(api_results.values())[0]
         
-        # 默认合并逻辑：简单拼接
+        # 多个API，使用默认合并逻辑
+        return self.default_merge_api_results(api_results)
+    
+    def default_merge_api_results(self, api_results: Dict[str, Any]) -> Any:
+        """
+        默认的API合并逻辑（辅助方法，供子类调用）
+        
+        子类可以在 prepare_data_for_save 中调用此方法来使用默认合并
+        
+        Args:
+            api_results: API结果字典
+            
+        Returns:
+            简单拼接后的数据
+        """
         combined_data = []
         for result in api_results.values():
             if result is None:
                 continue
-            if hasattr(result, 'to_dict'):
-                combined_data.extend(result.to_dict('records'))
-            else:
-                combined_data.extend(result)
+            combined_data.extend(self.to_records(result))
         
         return combined_data
     
@@ -169,18 +349,6 @@ class BaseRenewer(ABC):
         
         return params
     
-    def process_data_before_save(self, data: Any) -> Any:
-        """
-        数据保存前的处理 - 子类可重写
-        
-        Args:
-            data: 原始数据
-            
-        Returns:
-            处理后的数据
-        """
-        return data
-    
     def get_renew_mode(self) -> str:
         """
         获取更新模式 - 子类可重写
@@ -191,131 +359,99 @@ class BaseRenewer(ABC):
         return self.config.get('renew_mode', 'upsert')
     
     
+    # ==================== 辅助工具方法（供子类使用）====================
+    
+    def to_records(self, data: Any) -> List[Dict]:
+        """
+        将数据转换为字典列表
+        
+        Args:
+            data: 数据（DataFrame或list）
+            
+        Returns:
+            List[Dict]: 字典列表
+        """
+        if data is None:
+            return []
+        if isinstance(data, list):
+            return data
+        if hasattr(data, 'to_dict'):
+            return data.to_dict('records')
+        return []
+    
+    def to_df(self, data: Any) -> Any:
+        """
+        将数据转换为DataFrame
+        子类重写prepare_data_for_save时常用
+        
+        Args:
+            data: 数据（list或DataFrame）
+            
+        Returns:
+            pd.DataFrame
+        """
+        import pandas as pd
+        if data is None:
+            return pd.DataFrame()
+        if isinstance(data, list):
+            return pd.DataFrame(data)
+        if hasattr(data, 'to_dict'):
+            return data
+        return pd.DataFrame()
+    
     # ==================== 内部实现方法 ====================
     
-    def _init_rate_limiter(self):
-        """初始化限流器"""
-        rate_limit_config = self.config.get('rate_limit')
-        if rate_limit_config:
-            from .rate_limiter import APIRateLimiter
-            # buffer自动使用max_workers，确保多线程环境下的限流安全
-            buffer = self.config.get('multithread', {}).get('max_workers', 10)
-            self.rate_limiter = APIRateLimiter(
-                max_per_minute=rate_limit_config.get('max_per_minute', 200),
-                api_name=self.config['table_name'],
-                buffer=buffer
-            )
-        else:
-            self.rate_limiter = None
+    def _get_record_key(self, record: Dict, primary_keys: List[str]) -> str:
+        """
+        根据主键生成记录的唯一标识
+        
+        Args:
+            record: 记录字典
+            primary_keys: 主键列表
+            
+        Returns:
+            str: 记录的唯一标识
+        """
+        return '_'.join([str(record.get(key, '')) for key in primary_keys if key != self.config['date']['field']])
     
-    def _init_multithread_config(self):
-        """初始化多线程配置"""
-        self.multithread_config = self.config.get('multithread', {})
-        self.max_workers = self.multithread_config.get('workers', 4)
+
     
-    def _renew_simple(self, start_date: str, end_date: str):
-        """简单模式更新"""
+    def _simple_renew(self, jobs: List[Dict]):
+        """
+        简单模式更新
+        适用于：宏观数据等无需并发的场景
+        """
         logger.info(f"🔄 开始更新 {self.config['table_name']}")
-        
-        # 1. 解析依赖关系
-        api_execution_order = self._resolve_dependencies()
-        
-        # 2. 按顺序执行 API
-        api_results = {}
-        for api_config in api_execution_order:
-            if self.should_execute_api(api_config, api_results):
-                result = self._execute_single_api(api_config, start_date, end_date, api_results)
-                api_results[api_config['name']] = result
-        
-        # 3. 合并数据
-        combined_data = self.combine_apis_data(api_results)
-        
-        # 4. 处理数据
-        processed_data = self.process_data_before_save(combined_data)
-        
-        # 5. 保存数据
-        return self._save_data(processed_data)
-    
-    def _renew_multithread(self, start_date: str, end_date: str):
-        """多线程模式更新"""
+
+        for job in jobs:
+            # 1. 请求所有API并收集结果
+            api_results = self._request_apis(job)
+            
+            if not api_results:
+                logger.warning(f"⚠️  任务 {job} 未获取到数据")
+                continue
+            
+            # 2. 准备要保存的数据（合并、清洗、计算等）
+            data = self.prepare_data_for_save(api_results, job)
+            
+            # 3. 保存数据
+            if data is not None:
+                self.save_data(data)
+
+
+    def _multithread_renew(self, jobs: List[Dict]):
+        """
+        多线程模式更新
+        适用于：股票K线等需要大量并发请求的场景
+        """
         logger.info(f"🔄 开始多线程更新 {self.config['table_name']}")
-        
-        # 1. 构建任务
-        jobs = self.build_jobs(start_date, end_date)
-        
-        # 2. 执行多线程任务
-        return self._execute_multithread_jobs(jobs)
-    
-    def _resolve_dependencies(self):
-        """解析 API 依赖关系"""
-        if 'apis' not in self.config:
-            return []
-        
-        api_map = {api['name']: api for api in self.config['apis']}
-        in_degree = {name: 0 for name in api_map}
-        
-        # 计算入度
-        for api in self.config['apis']:
-            for dep in api.get('depends_on', []):
-                in_degree[api['name']] += 1
-        
-        # 拓扑排序
-        queue = [name for name, degree in in_degree.items() if degree == 0]
-        result = []
-        
-        while queue:
-            current = queue.pop(0)
-            result.append(api_map[current])
-            
-            # 更新依赖此 API 的其他 API
-            for api in self.config['apis']:
-                if current in api.get('depends_on', []):
-                    in_degree[api['name']] -= 1
-                    if in_degree[api['name']] == 0:
-                        queue.append(api['name'])
-        
-        return result
-    
-    def _execute_single_api(self, api_config: Dict, start_date: str, end_date: str, previous_results: Dict):
-        """执行单个 API"""
-        try:
-            # 准备参数
-            params = self.prepare_api_params(api_config, start_date, end_date, previous_results)
-            
-            # 应用限流
-            if self.rate_limiter:
-                self.rate_limiter.acquire()
-            
-            # 调用 API
-            api_method = getattr(self.api, api_config['method'])
-            return api_method(**params)
-            
-        except Exception as e:
-            logger.error(f"❌ API 调用失败 {api_config['name']}: {e}")
-            return None
-    
-    def _check_api_condition(self, condition: str, previous_results: Dict) -> bool:
-        """检查 API 执行条件"""
-        if condition == 'if_adj_needed':
-            # 检查是否有复权事件
-            check_result = previous_results.get('check_adj')
-            if check_result is None:
-                return False
-            # 安全的 DataFrame 空检查
-            if hasattr(check_result, 'empty'):
-                return not check_result.empty
-            return bool(check_result)
-        
-        return True
-    
-    def _execute_multithread_jobs(self, jobs: List[Dict]):
-        """执行多线程任务"""
+
         if not jobs:
             return True
         
         # 创建多线程工作器（使用智能超时机制）
         worker = FuturesWorker(
-            max_workers=self.max_workers,
+            max_workers=self.workers,  # FuturesWorker的参数名是max_workers，传入我们的workers配置
             execution_mode=ExecutionMode.PARALLEL,
             enable_monitoring=True,
             timeout=3600,  # 设置一个很长的超时时间，实际超时由智能机制控制
@@ -355,7 +491,6 @@ class BaseRenewer(ABC):
         
         # 初始化进度计数器
         import threading
-        import time
         self._progress_lock = threading.Lock()
         self._completed_jobs = 0
         self._total_jobs = len(jobs)
@@ -378,191 +513,487 @@ class BaseRenewer(ABC):
         except Exception as e:
             logger.error(f"❌ {self.config['table_name']}多线程执行失败: {e}")
             return False
-    
+        
     def _execute_single_job(self, job: Dict) -> bool:
-        """执行单个多线程任务"""
+        """
+        执行单个任务（多线程模式下的单个job）
+        
+        Args:
+            job: 任务字典，包含 start_date, end_date 和其他参数
+            
+        Returns:
+            bool: 是否成功
+        """
         try:
             # 应用限流
             if self.rate_limiter:
                 self.rate_limiter.acquire()
+
+            # 1. 请求所有API
+            api_results = self._request_apis(job)
+
+            if not api_results:
+                return True  # 没有数据是正常情况
             
-            # 获取数据
-            api_data = self._fetch_job_data(job)
-            if api_data is None:
-                logger.error(f"❌ 多线程任务API调用失败")
-                return False
+            # 2. 准备要保存的数据（合并、清洗、计算等）
+            data = self.prepare_data_for_save(api_results, job)
             
-            # 检查DataFrame是否为空
-            if hasattr(api_data, 'empty') and api_data.empty:
-                return True  # 没有新数据是正常的业务情况
+            # 3. 保存数据
+            if data is not None:
+                return self.save_data(data)
             
-            # 处理需要合并的数据（如price_indexes）
-            if hasattr(self, 'combine_apis_data') and callable(self.combine_apis_data):
-                # 对于需要合并的数据，将单个API结果包装成字典
-                api_name = job.get('api_method', 'unknown')
-                api_results = {api_name: api_data}
-                processed_data = self.combine_apis_data(api_results)
-            else:
-                processed_data = api_data
-            
-            # 保存数据
-            return self._save_data(processed_data)
+            return True
             
         except Exception as e:
-            logger.error(f"❌ 多线程任务执行失败: {e}")
+            logger.error(f"❌ 任务执行失败: {e}")
+            import traceback
+            logger.debug(f"详细错误: {traceback.format_exc()}")
             return False
-    
-    
-    def _fetch_job_data(self, job: Dict):
-        """从任务中获取数据"""
-        api_method_name = job.get('api_method', self.config.get('api_method', 'unknown'))
-        api_method = getattr(self.api, api_method_name)
+
+    def _request_apis(self, job: Dict) -> Dict[str, Any]:
+        """
+        执行所有配置的API并收集结果
         
-        # 使用任务中的参数
-        api_params = job.get('api_params', {})
-        
-        # 确保所有参数都是可序列化的字符串
-        serialized_params = {}
-        for key, value in api_params.items():
-            if hasattr(value, 'strftime'):  # datetime对象
-                serialized_params[key] = value.strftime('%Y%m%d')
-            elif isinstance(value, (int, float)):
-                serialized_params[key] = str(value)
-            else:
-                serialized_params[key] = str(value)
-        
-        try:
-            return api_method(**serialized_params)
-        except Exception as e:
-            msg = str(e)
-            if any(k in msg for k in ["查询数据失败", "无数据", "no data", "空数据", "not found"]):
-                try:
-                    import pandas as pd
-                    return pd.DataFrame()
-                except:
-                    return []
-            else:
-                logger.error(f"❌ API调用失败: {e}")
-                return None
-    
-    def _save_data(self, data: Any) -> bool:
-        """保存数据到数据库"""
-        # 安全的 None 检查，避免 DataFrame 的布尔判断错误
-        if data is None:
-            return True
-        
-        # 检查 DataFrame 是否为空
-        if hasattr(data, 'empty') and data.empty:
-            logger.info(f"ℹ️ {self.config['table_name']} 数据为空，跳过保存")
-            return True
-        
-        try:
-            # 获取表实例
-            table_name = self.config['table_name']
-            table_instance = self.db.get_table_instance(table_name)
+        Args:
+            job: 任务字典，包含API所需的参数
             
-            if table_instance is None:
+        Returns:
+            Dict[str, Any]: API结果字典，格式为 {api_name: api_result}
+        """
+        apis = self.config.get('apis', [])
+        api_results = {}
+        
+        # 设置当前job信息（供should_execute_api使用）
+        self._current_job = job
+        
+        for api in apis:
+            api_name = api.get('name', api['method'])
+            
+            # 检查是否需要执行此API
+            if not self.should_execute_api(api, api_results):
+                continue
+            
+            result = self._request_single_api(job, api)
+            api_results[api_name] = result
+        
+        # 清理临时变量
+        self._current_job = None
+            
+        return api_results
+
+    def _request_single_api(self, job: Dict, api: Dict) -> Any:
+        """
+        执行单个API调用并映射字段
+        
+        Args:
+            job: 任务字典，包含start_date, end_date, ts_code等参数
+            api: API配置字典，包含method, params, mapping等
+            
+        Returns:
+            Any: 映射后的数据（DB字段名）
+        """
+        try:
+            # 1. 准备API参数
+            api_params = self._prepare_api_params(job, api)
+            
+            # 2. 获取可调用的API方法
+            api_method_name = api['method']
+            api_method = getattr(self.api, api_method_name)
+            
+            # 3. 调用API（获取原始数据）
+            result = api_method(**api_params)
+            
+            # 4. 立即映射字段 ✨
+            if result is not None:
+                result = self.map_api_data(result, api)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ API调用失败 [{api.get('name', api['method'])}]: {e}")
+            # 返回空DataFrame
+            import pandas as pd
+            return pd.DataFrame()
+    
+    def map_api_data(self, data: Any, api: Dict) -> Any:
+        """
+        映射单个API的数据 - 子类可重写
+        
+        这是方案A的核心：在API级别进行字段映射
+        子类可以针对特定API自定义映射逻辑
+        
+        何时重写：
+        - 需要在映射前使用原始字段计算衍生字段
+        - 需要针对特定API的特殊处理
+        - 需要访问API返回的所有原始字段（包括未配置mapping的字段）
+        
+        Args:
+            data: 原始API数据（包含所有字段，使用API字段名）
+            api: API配置字典（包含name, mapping等）
+            
+        Returns:
+            映射后的数据（使用DB字段名）
+            
+        示例1: 使用默认行为（不重写）
+            # 自动应用配置中的mapping
+            
+        示例2: 针对特定API自定义
+            def map_api_data(self, data, api):
+                api_name = api.get('name')
+                
+                if api_name == 'price':
+                    # 访问原始字段
+                    df = pd.DataFrame(data)
+                    
+                    # 使用原始字段计算（这些字段可能不在mapping中）
+                    df['market_cap'] = df['close'] * df['total_share']
+                    df['pe_ttm'] = df['pe']
+                    
+                    # 应用mapping
+                    return self.apply_single_api_mapping(df, api['mapping'])
+                
+                elif api_name == 'volume':
+                    df = pd.DataFrame(data)
+                    df['turnover_rate'] = (df['vol'] / df['float_share']) * 100
+                    return self.apply_single_api_mapping(df, api['mapping'])
+                
+                else:
+                    # 其他API使用默认行为
+                    return super().map_api_data(data, api)
+        """
+        mapping = api.get('mapping', {})
+        if not mapping:
+            logger.debug(f"API [{api.get('name')}] 未配置mapping，返回原始数据")
+            return data
+        
+        # 默认行为：应用配置的mapping
+        return self.apply_single_api_mapping(data, mapping)
+    
+    def apply_single_api_mapping(self, data: Any, mapping: Dict) -> Any:
+        """
+        为单个API的数据应用字段映射（辅助方法，供子类调用）
+        
+        Args:
+            data: API返回的数据（DataFrame或list）
+            mapping: 字段映射配置 {db_field: api_field_config}
+            
+        Returns:
+            映射后的数据（保持原类型）
+        """
+        if not mapping:
+            return data
+        
+        # 转换为列表格式处理
+        data_list = self.to_records(data)
+        if not data_list:
+            return data
+        
+        # 应用映射
+        mapped_list = []
+        for record in data_list:
+            mapped_record = {}
+            for db_field, mapping_config in mapping.items():
+                try:
+                    value = self._map_single_field(record, db_field, mapping_config)
+                    mapped_record[db_field] = value
+                except Exception as e:
+                    logger.warning(f"字段映射失败 [{db_field}]: {e}")
+                    mapped_record[db_field] = None
+            mapped_list.append(mapped_record)
+        
+        # 如果原数据是DataFrame，转回DataFrame
+        if hasattr(data, 'to_dict'):
+            try:
+                import pandas as pd
+                return pd.DataFrame(mapped_list)
+            except Exception as e:
+                logger.error(f"转换为DataFrame失败: {e}")
+                return mapped_list
+        
+        return mapped_list
+
+    def _prepare_api_params(self, job: Dict, api: Dict) -> Dict:
+        """
+        准备API参数
+        
+        Args:
+            job: 任务字典
+            api: API配置字典
+            
+        Returns:
+            Dict: 准备好的API参数
+        """
+        # 从api配置中获取基础参数
+        params = api.get('params', {}).copy()
+        
+        # 用job中的值替换参数中的变量
+        for key, value in params.items():
+            if isinstance(value, str):
+                # 替换变量占位符
+                value = value.replace('{start_date}', job.get('start_date', ''))
+                value = value.replace('{end_date}', job.get('end_date', ''))
+                value = value.replace('{ts_code}', job.get('ts_code', ''))
+                params[key] = value
+        
+        # job中的参数可以直接覆盖（如果同名）
+        for key in ['start_date', 'end_date', 'ts_code']:
+            if key in job and key not in params:
+                params[key] = job[key]
+        
+        return params
+    
+    def save_data(self, data: Any) -> bool:
+        """
+        保存数据到数据库 - 子类可重写
+        
+        默认行为：
+        - overwrite: 删除表数据后插入
+        - incremental: 直接插入（假设无冲突）
+        - upsert: 基于主键更新或插入
+        
+        何时重写：
+        - 需要特殊的保存逻辑（如stock_list的is_active更新）
+        - 需要在保存前/后执行额外操作
+        - 需要自定义冲突处理逻辑
+        
+        Args:
+            data: 已映射和处理后的数据（DB字段名）
+            
+        Returns:
+            bool: 是否保存成功
+            
+        示例1: 使用默认行为（不重写）
+            # 根据renew_mode自动选择保存方式
+            
+        示例2: 特殊逻辑（如stock_list的is_active）
+            def save_data(self, data):
+                # 先保存新数据
+                super().save_data(data)
+                
+                # 特殊逻辑：标记不活跃的股票
+                table = self.db.get_table_instance(self.config['table_name'])
+                new_codes = [r['ts_code'] for r in data]
+                table.execute_raw_update(
+                    f"UPDATE {self.config['table_name']} "
+                    f"SET is_active = 0 "
+                    f"WHERE ts_code NOT IN ({','.join(new_codes)})"
+                )
+                return True
+        """
+        # 安全检查
+        if data is None:
+            logger.info(f"ℹ️  {self.config['table_name']} 数据为空，跳过保存")
+            return True
+        
+        # 检查DataFrame是否为空
+        if hasattr(data, 'empty') and data.empty:
+            logger.info(f"ℹ️  {self.config['table_name']} 数据为空，跳过保存")
+            return True
+        
+        try:
+            # 1. 获取表实例
+            table_name = self.config['table_name']
+            table = self.db.get_table_instance(table_name)
+            
+            if table is None:
                 logger.error(f"❌ 无法获取表实例: {table_name}")
                 return False
             
-            # 将 DataFrame 转换为列表（如果需要）
-            if hasattr(data, 'to_dict'):
-                # DataFrame 转换为字典列表
-                data_list = data.to_dict('records')
-                
-                # 处理 DataFrame 中的 NaN 值
-                import pandas as pd
-                for record in data_list:
-                    for key, value in record.items():
-                        if pd.isna(value):
-                            # 对于数值字段，将 NaN 转换为 0.0
-                            if isinstance(value, (int, float)) or (isinstance(value, str) and value.replace('.', '').replace('-', '').isdigit()):
-                                record[key] = 0.0
-                            else:
-                                record[key] = None
-            elif isinstance(data, list):
-                # 已经是列表
-                data_list = data
-            else:
-                # 其他类型，尝试转换为列表
-                data_list = list(data) if data else []
+            # 2. 转换数据格式
+            data_list = self._convert_to_list(data)
+            if not data_list:
+                logger.info(f"ℹ️  {self.config['table_name']} 转换后数据为空，跳过保存")
+                return True
             
-            # 应用字段映射（如果有配置且不是简单模式）
-            # 简单模式下，combine_apis_data 已经处理了字段映射，不需要再次应用
-            if self.config.get('job_mode') != 'simple':
-                data_list = self._apply_field_mapping(data_list)
-            
-            # 根据插入模式保存数据
-            renew_mode = self.get_renew_mode()
-            
-            # 否则从数据库API中自动获取主键
-            primary_key = self.db.get_table_description(table_name)["primaryKey"]
-            # 处理单个主键和复合主键的情况
-            if isinstance(primary_key, str):
-                unique_keys = [primary_key]
-            elif isinstance(primary_key, list):
-                unique_keys = primary_key
-            else:
-                raise ValueError(f"表 {table_name} 的主键格式不正确: {primary_key}")
+            # 3. 根据renew_mode保存数据
+            renew_mode = self.get_renew_mode().lower()
             
             if renew_mode == 'overwrite':
-                # 覆盖模式：清空表，写入全量新数据
-                # 先清空表
-                table_instance.execute_raw_update(f"DELETE FROM {table_name}")
-                # 然后插入新数据
-                return table_instance.insert(data_list)
+                return self._save_with_overwrite(table, table_name, data_list)
             elif renew_mode == 'incremental':
-                # 增量模式：追加数据，不删除现有数据
-                return table_instance.insert(data_list)
-            else:
-                # 默认upsert模式：基于唯一键更新或插入
-                return table_instance.replace(data_list, unique_keys=unique_keys)
-                
+                return self._save_with_incremental(table, data_list)
+            else:  # upsert
+                return self._save_with_upsert(table, table_name, data_list)
+        
         except Exception as e:
-            logger.error(f"❌ {self.config['table_name']}数据保存失败: {e}")
+            logger.error(f"❌ {self.config['table_name']} 数据保存失败: {e}")
             import traceback
-            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            logger.error(f"详细错误: {traceback.format_exc()}")
             return False
     
-    def _apply_field_mapping(self, data_list: List[Dict]) -> List[Dict]:
-        """应用字段映射"""
-        if not data_list:
+    def _convert_to_list(self, data: Any) -> List[Dict]:
+        """
+        将数据转换为字典列表
+        处理DataFrame的NaN值
+        
+        默认行为（根据表schema自动决定）：
+        - 数值类型（float/double/int/bigint）→ 0
+        - 字符串类型（varchar/text）→ ''
+        - 其他类型 → None
+        
+        可配置项（config['nan_handling']）：
+        - auto_convert: False → 关闭自动转换，所有NaN保留为None
+        - allow_null_fields: [...] → 指定字段保留NULL
+        - field_defaults: {field: value} → 指定字段的自定义默认值
+        """
+        # 转换为列表
+        if isinstance(data, list):
+            data_list = data
+        elif hasattr(data, 'to_dict'):
+            data_list = data.to_dict('records')
+        else:
+            data_list = list(data) if data else []
+        
+        # 获取NaN处理配置
+        nan_config = self.config.get('nan_handling', {})
+        auto_convert = nan_config.get('auto_convert', True)
+        allow_null_fields = nan_config.get('allow_null_fields', [])
+        field_defaults = nan_config.get('field_defaults', {})
+        
+        # 如果关闭自动转换，直接返回（保留所有NaN为None）
+        if not auto_convert:
             return data_list
         
-        # 获取第一个 API 的映射配置
-        apis = self.config.get('apis', [])
-        if not apis or 'mapping' not in apis[0]:
-            return data_list
+        # 获取字段类型映射（从schema）
+        field_types = self._get_field_types_from_schema()
         
-        mapping = apis[0]['mapping']
-        mapped_data = []
-        
+        # 处理NaN值
+        import pandas as pd
+        cleaned_list = []
         for record in data_list:
-            mapped_record = {}
-            for db_field, api_field in mapping.items():
-                if callable(api_field):
-                    # 如果是函数，调用函数进行转换
-                    value = api_field(record)
-                elif isinstance(api_field, str):
-                    # 如果是字符串，直接映射
-                    value = record.get(api_field)
+            cleaned_record = {}
+            for key, value in record.items():
+                if pd.isna(value):
+                    # 检查是否允许NULL
+                    if key in allow_null_fields:
+                        # 允许NULL的字段，保留None
+                        cleaned_record[key] = None
+                    
+                    # 检查是否有自定义默认值
+                    elif key in field_defaults:
+                        # 使用自定义默认值
+                        cleaned_record[key] = field_defaults[key]
+                    
+                    # 使用schema类型决定默认值
+                    else:
+                        field_type = field_types.get(key, 'unknown').lower()
+                        
+                        if field_type in ['float', 'double', 'int', 'bigint', 'decimal']:
+                            # 数值类型 → 0
+                            cleaned_record[key] = 0
+                        elif field_type in ['varchar', 'text']:
+                            # 字符串类型 → 空字符串
+                            cleaned_record[key] = ''
+                        else:
+                            # 其他类型 → None
+                            cleaned_record[key] = None
                 else:
-                    # 其他情况，直接使用原值
-                    value = api_field
-                
-                mapped_record[db_field] = value
-            
-            mapped_data.append(mapped_record)
-        return mapped_data
+                    cleaned_record[key] = value
+            cleaned_list.append(cleaned_record)
+        
+        return cleaned_list
     
-    def _get_latest_date(self, table_name: str, date_field: str = 'date') -> str:
-        """获取最新数据日期"""
+    def _get_field_types_from_schema(self) -> Dict[str, str]:
+        """
+        从表schema中获取字段类型映射
+        
+        Returns:
+            Dict[str, str]: {field_name: field_type}
+        """
         try:
-            table_instance = self.db.get_table_instance(table_name)
-            if table_instance and hasattr(table_instance, 'get_latest_date'):
-                return table_instance.get_latest_date()
-            else:
-                return "20080101"  # 默认开始日期
+            schema = self.db.get_table_description(self.config['table_name'])
+            fields = schema.get('fields', [])
+            
+            field_types = {}
+            for field in fields:
+                field_name = field.get('name')
+                field_type = field.get('type', 'unknown')
+                if field_name:
+                    field_types[field_name] = field_type
+            
+            return field_types
         except Exception as e:
-            logger.warning(f"❌ 获取最新日期失败: {e}")
-            return "20080101"
+            logger.warning(f"⚠️  无法获取schema字段类型: {e}")
+            return {}
+    
+    def _save_with_overwrite(self, table, table_name: str, data_list: List[Dict]) -> bool:
+        """
+        覆盖模式：清空表后插入
+        """
+        logger.info(f"🔄 覆盖模式：清空表 {table_name}")
+        
+        # 先清空表
+        table.execute_raw_update(f"DELETE FROM {table_name}")
+        
+        # 插入新数据
+        return table.insert(data_list)
+    
+    def _save_with_incremental(self, table, data_list: List[Dict]) -> bool:
+        """
+        增量模式：直接插入（假设无冲突）
+        """
+        return table.insert(data_list)
+    
+    def _save_with_upsert(self, table, table_name: str, data_list: List[Dict]) -> bool:
+        """
+        Upsert模式：基于主键更新或插入
+        """
+        try:
+            # 获取主键（可能抛出异常）
+            primary_keys = self.db.get_table_primary_keys(table_name)
+            
+            # 使用replace方法（基于主键upsert）
+            return table.replace(data_list, unique_keys=primary_keys)
+        except ValueError as e:
+            logger.error(f"❌ 获取表主键失败: {e}")
+            return False
+    
+    def _map_single_field(self, record: Dict, db_field: str, mapping_config: Any) -> Any:
+        """
+        映射单个字段
+        
+        Args:
+            record: 原始记录
+            db_field: 数据库字段名
+            mapping_config: 映射配置（可以是字符串、字典或函数）
+            
+        Returns:
+            Any: 映射后的值
+        """
+        # 情况1: 简单字符串映射 'db_field': 'api_field'
+        if isinstance(mapping_config, str):
+            return record.get(mapping_config)
+        
+        # 情况2: 可调用函数 'db_field': lambda x: transform(x)
+        elif callable(mapping_config):
+            return mapping_config(record)
+        
+        # 情况3: 完整配置对象
+        elif isinstance(mapping_config, dict):
+            # 常量值
+            if 'value' in mapping_config:
+                return mapping_config['value']
+            
+            # 从source字段获取值
+            source_field = mapping_config.get('source')
+            if source_field:
+                value = record.get(source_field)
+                
+                # 如果值为None或不存在，使用默认值
+                if value is None and 'default' in mapping_config:
+                    return mapping_config['default']
+                
+                # 应用转换函数
+                if 'transform' in mapping_config and value is not None:
+                    transform_func = mapping_config['transform']
+                    if callable(transform_func):
+                        return transform_func(value)
+                
+                return value
+            
+            # 如果没有source，但有default
+            if 'default' in mapping_config:
+                return mapping_config['default']
+        
+        # 默认返回None
+        return None

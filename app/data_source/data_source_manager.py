@@ -18,10 +18,6 @@ class DataSourceManager:
         # 初始化复权服务
         self.adj_factor_storage = AKShareStorage(connected_db)
 
-        # global data memory cache
-        self.latest_market_open_day = None
-        self.latest_stock_index = None
-
     def get_source(self, source_name: str):
         return self.sources[source_name]()
 
@@ -32,16 +28,17 @@ class DataSourceManager:
         """
         tu = self.sources['tushare']
         # 1. 获取最新交易日
-        self.latest_market_open_day = await tu.get_latest_market_open_day()
-        logger.info(f"🔍 最新交易日: {self.latest_market_open_day}")
+        latest_market_open_day = await tu.get_latest_market_open_day()
+        logger.info(f"🔍 最新交易日: {latest_market_open_day}")
         
-        # 2. 更新股票指数（基础数据，其他模块依赖）
-        tu.stock_index_renewer.renew(self.latest_market_open_day)
+        # 2. 更新股票列表（替代 stock_index，排除北交所）
+        tu.stock_list_renewer.renew(latest_market_open_day)
 
-        self.latest_stock_index = tu.storage.load_stock_index()
+        # 3. 加载最新股票列表（排除规则在模型内处理）
+        latest_stock_list = tu.load_filtered_stock_list()
         
-        # 3. 更新 Tushare 数据源（包含K线、宏观经济、企业财务、股本信息等）
-        await tu.renew(self.latest_market_open_day, self.latest_stock_index)
+        # # 3. 更新 Tushare 数据源（包含K线、宏观经济、企业财务、股本信息等）
+        await tu.renew(latest_market_open_day, latest_stock_list)
 
 
         # ak = self.sources['akshare']

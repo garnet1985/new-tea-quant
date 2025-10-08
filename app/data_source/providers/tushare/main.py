@@ -23,8 +23,12 @@ from .renewers.share_info.renewer import ShareInfoRenewer
 from .renewers.share_info.config import CONFIG as SHARE_INFO_CONFIG
 from .renewers.stock_index.renewer import StockIndexRenewer
 from .renewers.stock_index.config import CONFIG as STOCK_INDEX_CONFIG
+from .renewers.stock_list.renewer import StockListRenewer
+from .renewers.stock_list.config import CONFIG as STOCK_LIST_CONFIG
 from .renewers.stock_k_lines.renewer import StockKLinesRenewer
 from .renewers.stock_k_lines.config import CONFIG as STOCK_K_LINES_CONFIG
+from .renewers.stock_kline.renewer import NewStockKlineRenewer
+from .renewers.stock_kline.config import CONFIG as NEW_STOCK_KLINE_CONFIG
 from .renewers.price_indexes.renewer import PriceIndexesRenewer
 from .renewers.price_indexes.config import CONFIG as PRICE_INDEXES_CONFIG
 from .renewers.lpr.renewer import LPRRenewer
@@ -95,6 +99,12 @@ class Tushare:
         self._thread_dbs = []
         self._thread_dbs_lock = threading.Lock()
 
+        self.stock_list_table = self.db.get_table_instance('stock_list')
+
+    def load_filtered_stock_list(self):
+        return self.stock_list_table.load_filtered_stock_list()
+
+
     def _init_renewers(self):
         """初始化所有 renewer 实例"""
         renewer_params = {
@@ -110,8 +120,14 @@ class Tushare:
         self.stock_index_renewer = StockIndexRenewer(
             config=STOCK_INDEX_CONFIG, **renewer_params
         )
+        self.stock_list_renewer = StockListRenewer(
+            config=STOCK_LIST_CONFIG, **renewer_params
+        )
         self.stock_k_lines_renewer = StockKLinesRenewer(
             config=STOCK_K_LINES_CONFIG, **renewer_params
+        )
+        self.new_stock_kline_renewer = NewStockKlineRenewer(
+            config=NEW_STOCK_KLINE_CONFIG, **renewer_params
         )
         self.price_indexes_renewer = PriceIndexesRenewer(
             config=PRICE_INDEXES_CONFIG, **renewer_params
@@ -132,7 +148,7 @@ class Tushare:
     
     # ================================ 主要API ================================
     
-    async def renew(self, latest_market_open_day: str = None, latest_stock_index: list = None):
+    async def renew(self, latest_market_open_day: str = None, stock_list: list = None):
         """
         Tushare 数据源统一更新入口
         内部处理所有 Tushare 相关的数据更新
@@ -151,12 +167,12 @@ class Tushare:
         
         try:
             # 更新K线数据（依赖股票指数）
-            # logger.info("📈 更新股票K线数据...")
-            # self.stock_k_lines_renewer.renew(latest_market_open_day)
+            logger.info("📈 更新股票K线数据...")
+            self.stock_k_lines_renewer.renew(latest_market_open_day)
             
             # 更新宏观经济数据（独立并行）
-            logger.info("🌍 更新宏观经济数据...")
-            self.price_indexes_renewer.renew(latest_market_open_day)
+            # logger.info("🌍 更新宏观经济数据...")
+            # self.price_indexes_renewer.renew(latest_market_open_day)
             # self.lpr_renewer.renew(latest_market_open_day)
             # self.gdp_renewer.renew(latest_market_open_day)
             # self.shibor_renewer.renew(latest_market_open_day)
@@ -165,9 +181,12 @@ class Tushare:
             # logger.info("💼 更新企业财务数据...")
             # self.corporate_finance_renewer.renew(latest_market_open_day)
 
-            # # 更新股本信息（依赖股票指数）
+            # 更新股本信息（依赖股票指数）
             # logger.info("📋 更新股本信息数据...")
             # self.share_info_renewer.renew(latest_market_open_day)
+
+            # 实验：新 stock_kline（日线，前10支）使用传入的股票列表
+            self.new_stock_kline_renewer.renew(latest_market_open_day, stock_list)
             
             # logger.info("✅ Tushare 数据源更新完成")
             # return True

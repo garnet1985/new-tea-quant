@@ -186,7 +186,7 @@ class BaseRenewer(ABC):
                     jobs.append(job)
 
         # 场景2: 宏观数据（GDP、利率等）
-                else:
+        else:
             if db_records and len(db_records) > 0:
                 # 有数据库记录：增量更新
                 latest_record = db_records[-1]
@@ -777,8 +777,8 @@ class BaseRenewer(ABC):
             
             # 2. 获取可调用的API方法
             api_method_name = api['method']
-        api_method = getattr(self.api, api_method_name)
-        
+            api_method = getattr(self.api, api_method_name)
+            
             # 3. 调用API（获取原始数据）
             result = api_method(**api_params)
             
@@ -875,15 +875,15 @@ class BaseRenewer(ABC):
                 try:
                     value = self._map_single_field(record, db_field, mapping_config)
                     mapped_record[db_field] = value
-        except Exception as e:
+                except Exception as e:
                     logger.warning(f"字段映射失败 [{db_field}]: {e}")
                     mapped_record[db_field] = None
             mapped_list.append(mapped_record)
         
         # 如果原数据是DataFrame，转回DataFrame
         if hasattr(data, 'to_dict'):
-                try:
-                    import pandas as pd
+            try:
+                import pandas as pd
                 return pd.DataFrame(mapped_list)
             except Exception as e:
                 logger.error(f"转换为DataFrame失败: {e}")
@@ -1037,12 +1037,12 @@ class BaseRenewer(ABC):
         field_types = self._get_field_types_from_schema()
         
         # 处理NaN值
-                import pandas as pd
+        import pandas as pd
         cleaned_list = []
-                for record in data_list:
+        for record in data_list:
             cleaned_record = {}
-                    for key, value in record.items():
-                        if pd.isna(value):
+            for key, value in record.items():
+                if pd.isna(value):
                     # 检查是否允许NULL
                     if key in allow_null_fields:
                         # 允许NULL的字段，保留None
@@ -1054,7 +1054,7 @@ class BaseRenewer(ABC):
                         cleaned_record[key] = field_defaults[key]
                     
                     # 使用schema类型决定默认值
-                            else:
+                    else:
                         field_type = field_types.get(key, 'unknown').lower()
                         
                         if field_type in ['float', 'double', 'int', 'bigint', 'decimal']:
@@ -1063,7 +1063,7 @@ class BaseRenewer(ABC):
                         elif field_type in ['varchar', 'text']:
                             # 字符串类型 → 空字符串
                             cleaned_record[key] = ''
-            else:
+                        else:
                             # 其他类型 → None
                             cleaned_record[key] = None
                 else:

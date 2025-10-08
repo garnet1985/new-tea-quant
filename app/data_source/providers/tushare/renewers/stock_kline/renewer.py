@@ -107,8 +107,8 @@ class StockKlineRenewer(BaseRenewer):
         # min_gap=1 表示至少跨越1个完整周期才更新
         terms_config = [
             {'term': 'daily', 'interval': 'day', 'min_gap': 1, 'end_date': actual_end_date},
-            {'term': 'weekly', 'interval': 'week', 'min_gap': 1, 'end_date': self._get_last_complete_week_end(latest_market_open_day)},
-            {'term': 'monthly', 'interval': 'month', 'min_gap': 1, 'end_date': self._get_last_complete_month_end(latest_market_open_day)}
+            {'term': 'weekly', 'interval': 'week', 'min_gap': 1, 'end_date': DataSourceService.get_previous_week_end(latest_market_open_day)},
+            {'term': 'monthly', 'interval': 'month', 'min_gap': 1, 'end_date': DataSourceService.get_previous_month_end(latest_market_open_day)}
         ]
         
         for term_config in terms_config:
@@ -125,73 +125,6 @@ class StockKlineRenewer(BaseRenewer):
             jobs.extend(term_jobs)
         
         return jobs
-    
-    def _get_last_complete_week_end(self, market_date_str: str) -> str:
-        """
-        获取market_date所在周的前一个完整周的最后一天（周日）
-        
-        逻辑：
-        1. 找到market_date所在周的周一
-        2. 前一周的周日 = 本周周一 - 1天
-        
-        例如：
-        - market_date: 20250930 (周二) → 所在周周一=20250929 → 前一周日=20250928
-        - market_date: 20251006 (周一) → 所在周周一=20251006 → 前一周日=20251005
-        
-        Args:
-            market_date_str: 最后交易日，格式YYYYMMDD
-            
-        Returns:
-            str: 前一个完整周的最后一天（周日），格式YYYYMMDD
-        """
-        from datetime import timedelta
-        
-        market_date = DataSourceService.to_hyphen_date_type(market_date_str)
-        
-        # 计算本周的周一
-        days_since_monday = market_date.weekday()  # 周一=0, 周日=6
-        this_week_monday = market_date - timedelta(days=days_since_monday)
-        
-        # 前一周的周日 = 本周周一 - 1天
-        last_week_sunday = this_week_monday - timedelta(days=1)
-        
-        return last_week_sunday.strftime('%Y%m%d')
-    
-    def _get_last_complete_month_end(self, market_date_str: str) -> str:
-        """
-        获取market_date所在月的前一个完整月份的最后一天
-        
-        逻辑：
-        1. market_date所在月
-        2. 前一个月的最后一天
-        
-        例如：
-        - market_date: 20250930 → 所在月=9月 → 前一月=8月 → 返回 20250831
-        - market_date: 20251105 → 所在月=11月 → 前一月=10月 → 返回 20251031
-        
-        Args:
-            market_date_str: 最后交易日，格式YYYYMMDD
-            
-        Returns:
-            str: 前一个完整月份的最后一天，格式YYYYMMDD
-        """
-        import calendar
-        
-        year = int(market_date_str[:4])
-        month = int(market_date_str[4:6])
-        
-        # 前一个月的年月
-        if month == 1:
-            last_month_year = year - 1
-            last_month = 12
-        else:
-            last_month_year = year
-            last_month = month - 1
-        
-        # 获取前一个月的最后一天
-        last_day = calendar.monthrange(last_month_year, last_month)[1]
-        
-        return f"{last_month_year:04d}{last_month:02d}{last_day:02d}"
     
     def _build_jobs_for_term(self, term: str, interval: str, min_gap: int,
                             end_date: str, stock_list: list, db_records: list,

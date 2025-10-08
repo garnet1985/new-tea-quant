@@ -104,10 +104,11 @@ class StockKlineRenewer(BaseRenewer):
 
         # 为3个term分别构建任务
         # 注意：weekly和monthly的end_date使用上个完整周期的最后一天
+        # min_gap=1 表示至少跨越1个完整周期才更新
         terms_config = [
             {'term': 'daily', 'interval': 'day', 'min_gap': 1, 'end_date': actual_end_date},
-            {'term': 'weekly', 'interval': 'week', 'min_gap': 0, 'end_date': self._get_last_complete_week_end()},
-            {'term': 'monthly', 'interval': 'month', 'min_gap': 0, 'end_date': self._get_last_complete_month_end()}
+            {'term': 'weekly', 'interval': 'week', 'min_gap': 1, 'end_date': self._get_last_complete_week_end()},
+            {'term': 'monthly', 'interval': 'month', 'min_gap': 1, 'end_date': self._get_last_complete_month_end()}
         ]
         
         for term_config in terms_config:

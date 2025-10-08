@@ -618,19 +618,165 @@ self.my_renewer = MyRenewer(self.db, self.api, self.storage, CONFIG)
 
 ---
 
-## 📚 相关文档
+## 📋 NaN/NULL 处理
 
-- `base_renewer.py` - 框架源码
-- `FIELD_MAPPING_DESIGN.md` - 详细的设计文档
-- `BASE_RENEWER_SUMMARY.md` - 框架总结
+### 默认行为
+
+**无需任何配置**，框架会自动从表schema获取字段类型，并根据类型处理NaN：
+
+| 字段类型 | NaN → 默认值 | 示例 |
+|---------|-------------|------|
+| float, double, decimal | 0 | price: NaN → 0.0 |
+| int, bigint, tinyint | 0 | volume: NaN → 0 |
+| varchar, text | '' (空字符串) | name: NaN → '' |
+| datetime, date | None | date: NaN → None |
+
+**目的：** 确保所有表中不出现NaN/NULL，避免数据库错误。
+
+### 扩展配置
+
+如果需要特殊处理，可以在config中添加 `nan_handling` 配置：
+
+#### 场景1: 关闭自动转换（保留所有NaN为NULL）
+
+```python
+CONFIG = {
+    'nan_handling': {
+        'auto_convert': False  # 关闭自动转换
+    }
+}
+```
+
+#### 场景2: 指定某些字段允许NULL
+
+```python
+CONFIG = {
+    'nan_handling': {
+        'allow_null_fields': ['optional_indicator', 'beta', 'alpha']
+    }
+}
+```
+
+#### 场景3: 自定义字段的默认值
+
+```python
+CONFIG = {
+    'nan_handling': {
+        'field_defaults': {
+            'risk_score': -1,
+            'grade': 'unrated'
+        }
+    }
+}
+```
+
+### 处理优先级
+
+```
+1. field_defaults (最高优先级)
+   ↓ 如果字段在field_defaults中，使用自定义值
+   
+2. allow_null_fields
+   ↓ 如果字段在allow_null_fields中，保留None
+   
+3. schema类型 (默认行为)
+   ↓ 根据字段类型自动决定
+```
 
 ---
 
-## 🎯 下一步
+## 📊 多线程日志配置
 
-框架已完成，可以开始修复各个renewer：
+### 默认日志
 
-1. ✅ 框架设计完成
-2. ⏳ 修复各个renewer适配新框架
-3. ⏳ 测试验证
+不配置时使用默认格式：
+```
+000001.SZ (平安银行) 更新完毕 - 进度: 3.3%
+```
+
+### 自定义日志模板
+
+```python
+CONFIG = {
+    'multithread': {
+        'workers': 6,  # 可选，默认4
+        'log': {
+            'success': '✅ 股票 {stock_name} {id} [{term}] 更新完毕 - 进度 {progress}%',
+            'failure': '❌ 股票 {stock_name} {id} [{term}] 更新失败'
+        }
+    }
+}
+```
+
+### 可用变量
+
+- **内置变量**: `progress` (数字，不含%符号), `table_name`
+- **job字段**: job中所有非下划线开头的字段（如 `id`, `ts_code`, `term`, `start_date`, `end_date`）
+- **自定义变量**: 在`build_jobs`中通过`_log_vars`添加
+
+### 在build_jobs中添加日志变量
+
+```python
+def build_jobs(self, ...):
+    jobs.append({
+        'id': stock_id,
+        'term': 'daily',
+        '_log_vars': {  # 自定义日志变量
+            'stock_name': stock.get('name'),
+            'market': stock.get('market')
+        }
+    })
+```
+
+### 完全自定义日志
+
+子类可以重写`log_job_completion`方法：
+
+```python
+class MyRenewer(BaseRenewer):
+    def log_job_completion(self, job: Dict, is_success: bool, progress_percent: float):
+        """完全自定义日志"""
+        if is_success and progress_percent >= 100:
+            logger.success("🎉 所有任务完成！")
+        else:
+            # 使用默认格式
+            self.log_default(job, is_success, progress_percent)
+```
+
+---
+
+## ⚡ 限流配置
+
+### Buffer设计
+
+```python
+CONFIG = {
+    'rate_limit': {
+        'max_per_minute': 800  # 供应商限流
+    }
+}
+```
+
+**Buffer自动计算：**
+- 简单模式: `buffer = 5`
+- 多线程模式: `buffer = workers + 5`
+
+**原理：**
+- 当触发限流时，可能有N个worker的请求正在路上
+- Buffer = worker数 + 安全余量
+
+**实际限流：**
+```
+6 workers, 800次/分钟限流:
+  → buffer = 6 + 5 = 11
+  → 实际限流 = 800 - 11 = 789次/分钟
+  → 利用率 = 98.6% 🚀
+```
+
+---
+
+## 📚 相关文档
+
+- `base_renewer.py` - 框架源码
+- `renewers/stock_kline/` - Stock K-line实现示例
 

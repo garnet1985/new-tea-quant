@@ -165,7 +165,7 @@ class BaseRenewer(ABC):
                             for primary_key in primary_keys:
                                 job[primary_key] = latest_record[primary_key]
                             jobs.append(job)
-                else:
+                    else:
                         # 新股票，从默认日期开始拉取
                         job = {
                             'start_date': data_default_start_date,
@@ -1018,7 +1018,7 @@ class BaseRenewer(ABC):
             if renew_mode == 'overwrite':
                 return self._save_with_overwrite(table, table_name, data_list)
             elif renew_mode == 'incremental':
-                return self._save_with_incremental(table, data_list)
+                return self._save_with_incremental(table, table_name, data_list)
             else:  # upsert
                 return self._save_with_upsert(table, table_name, data_list)
         
@@ -1135,11 +1135,23 @@ class BaseRenewer(ABC):
         # 插入新数据
         return table.insert(data_list)
     
-    def _save_with_incremental(self, table, data_list: List[Dict]) -> bool:
+    def _save_with_incremental(self, table, table_name: str, data_list: List[Dict]) -> bool:
         """
-        增量模式：直接插入（假设无冲突）
+        增量模式：增量请求数据，使用replace保存（避免主键冲突）
+        
+        说明：
+        - incremental的含义是"增量请求"（只请求需要的数据）
+        - 但保存时使用replace（upsert），允许覆盖已存在数据
+        - 这样既减少API调用，又支持幂等性（可重复运行）
         """
-        return table.insert(data_list)
+        try:
+            # 获取主键
+            primary_keys = self.db.get_table_primary_keys(table_name)
+            # 使用replace方法（基于主键upsert）
+            return table.replace(data_list, unique_keys=primary_keys)
+        except ValueError as e:
+            logger.error(f"❌ 获取表主键失败: {e}")
+            return False
     
     def _save_with_upsert(self, table, table_name: str, data_list: List[Dict]) -> bool:
         """

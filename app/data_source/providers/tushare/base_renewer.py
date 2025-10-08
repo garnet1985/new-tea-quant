@@ -682,10 +682,16 @@ class BaseRenewer(ABC):
             # 1. 请求所有API
             api_results = self._request_apis(job)
 
-            if not api_results:
-                # API失败（_request_apis返回None表示有API失败）
+            if api_results is None:
+                # API调用失败（_request_apis返回None表示有API真正失败）
                 # 返回False，job失败，下次会重试
                 return False
+            
+            if api_results == {}:
+                # 所有API都返回空（停牌/未交易等正常情况）
+                # 返回True，job成功，不保存数据，下次不会重试
+                logger.debug(f"Job无数据（可能停牌），标记为成功")
+                return True
             
             # 2. 准备要保存的数据（合并、清洗、计算等）
             data = self.prepare_data_for_save(api_results, job)
@@ -694,7 +700,7 @@ class BaseRenewer(ABC):
             if data is not None:
                 return self.save_data(data)
             
-            # prepare_data_for_save返回None（数据不完整）
+            # prepare_data_for_save返回None（数据不完整，如只有K线没有basic）
             # 返回False，job失败，下次会重试
             return False
             
@@ -733,9 +739,11 @@ class BaseRenewer(ABC):
             
             result = self._request_single_api(job, api)
             
-            # 检查API是否成功（返回有效数据）
-            if result is None or (hasattr(result, 'empty') and result.empty):
-                # API失败或返回空数据
+            # 检查API是否成功
+            # 注意：返回空DataFrame可能是正常的（如停牌期间无交易数据）
+            # 只有返回None才认为是真正的API失败
+            if result is None:
+                # API调用失败（网络错误、限流报错等）
                 failed_apis.append(api_name)
                 
                 # 提取job信息用于日志
@@ -744,14 +752,15 @@ class BaseRenewer(ABC):
                 if '_log_vars' in job and job['_log_vars'].get('stock_name'):
                     job_info = f"[{job_id} {job['_log_vars']['stock_name']}]"
                 
-                logger.warning(f"⚠️  {job_info} API [{api_name}] 失败或返回空数据")
+                logger.warning(f"⚠️  {job_info} API [{api_name}] 调用失败")
             
+            # 返回空DataFrame视为成功（可能是停牌、未交易等正常情况）
             api_results[api_name] = result
         
         # 清理临时变量
         self._current_job = None
         
-        # 如果有API失败，返回None（整个job失败）
+        # 如果有API失败（返回None），返回None（整个job失败）
         if failed_apis:
             # 提取job信息
             job_id = job.get('ts_code') or job.get('id', 'unknown')
@@ -759,8 +768,20 @@ class BaseRenewer(ABC):
             if '_log_vars' in job and job['_log_vars'].get('stock_name'):
                 job_info = f"[{job_id} {job['_log_vars']['stock_name']}]"
             
-            logger.warning(f"⚠️  {job_info} Job执行失败，以下API未成功: {', '.join(failed_apis)}，数据不会保存")
+            logger.warning(f"⚠️  {job_info} Job执行失败，以下API调用失败: {', '.join(failed_apis)}，数据不会保存")
             return None
+        
+        # 检查是否所有API都返回空（停牌/未交易等正常情况）
+        all_empty = True
+        for api_name, result in api_results.items():
+            if result is not None and not (hasattr(result, 'empty') and result.empty):
+                all_empty = False
+                break
+        
+        if all_empty:
+            # 所有API都返回空，说明这个时间范围确实无数据（停牌等）
+            # 返回特殊标记，让job成功但不保存数据
+            return {}  # 空字典表示"无数据但正常"
             
         return api_results
 
@@ -782,6 +803,9 @@ class BaseRenewer(ABC):
             # 2. 获取可调用的API方法
             api_method_name = api['method']
             api_method = getattr(self.api, api_method_name)
+            
+            # DEBUG: 记录API调用参数（仅在失败时有用）
+            # logger.debug(f"API调用: {api_method_name}, 参数: {api_params}")
             
             # 3. 调用API（获取原始数据）
             result = api_method(**api_params)

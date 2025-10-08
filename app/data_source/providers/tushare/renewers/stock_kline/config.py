@@ -31,7 +31,7 @@ CONFIG = {
         # 因为 daily_basic 限制为 700 次/分钟
         # daily, weekly, monthly 限制为 800 次/分钟
         # 保守配置600，避免瞬时并发压力
-        'max_per_minute': 600
+        'max_per_minute': 700
     },
     
     'apis': [

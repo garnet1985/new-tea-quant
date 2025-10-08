@@ -683,7 +683,9 @@ class BaseRenewer(ABC):
             api_results = self._request_apis(job)
 
             if not api_results:
-                return True  # 没有数据是正常情况
+                # API失败（_request_apis返回None表示有API失败）
+                # 返回False，job失败，下次会重试
+                return False
             
             # 2. 准备要保存的数据（合并、清洗、计算等）
             data = self.prepare_data_for_save(api_results, job)
@@ -692,7 +694,9 @@ class BaseRenewer(ABC):
             if data is not None:
                 return self.save_data(data)
             
-            return True
+            # prepare_data_for_save返回None（数据不完整）
+            # 返回False，job失败，下次会重试
+            return False
             
         except Exception as e:
             logger.error(f"❌ 任务执行失败: {e}")

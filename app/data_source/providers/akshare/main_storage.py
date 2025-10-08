@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 class AKShareStorage:
     def __init__(self, connected_db, is_verbose: bool = False):
         self.adj_factor_table = connected_db.get_table_instance('adj_factor')
-        self.stock_kline_table = connected_db.get_table_instance('stock_kline')
+        self.stock_kline_table = connected_db.get_table_instance('stock_klines')
         self.meta_table = connected_db.get_table_instance('meta_info')
         self.is_verbose = is_verbose
         self.db = connected_db

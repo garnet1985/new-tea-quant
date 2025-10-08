@@ -27,8 +27,8 @@ from .renewers.stock_list.renewer import StockListRenewer
 from .renewers.stock_list.config import CONFIG as STOCK_LIST_CONFIG
 from .renewers.stock_k_lines.renewer import StockKLinesRenewer
 from .renewers.stock_k_lines.config import CONFIG as STOCK_K_LINES_CONFIG
-from .renewers.stock_kline.renewer import NewStockKlineRenewer
-from .renewers.stock_kline.config import CONFIG as NEW_STOCK_KLINE_CONFIG
+from .renewers.stock_kline.renewer import StockKlineRenewer
+from .renewers.stock_kline.config import CONFIG as STOCK_KLINE_CONFIG
 from .renewers.price_indexes.renewer import PriceIndexesRenewer
 from .renewers.price_indexes.config import CONFIG as PRICE_INDEXES_CONFIG
 from .renewers.lpr.renewer import LPRRenewer
@@ -126,8 +126,8 @@ class Tushare:
         self.stock_k_lines_renewer = StockKLinesRenewer(
             config=STOCK_K_LINES_CONFIG, **renewer_params
         )
-        self.new_stock_kline_renewer = NewStockKlineRenewer(
-            config=NEW_STOCK_KLINE_CONFIG, **renewer_params
+        self.stock_kline_renewer = StockKlineRenewer(
+            config=STOCK_KLINE_CONFIG, **renewer_params
         )
         self.price_indexes_renewer = PriceIndexesRenewer(
             config=PRICE_INDEXES_CONFIG, **renewer_params
@@ -168,7 +168,7 @@ class Tushare:
         try:
             # 更新K线数据（依赖股票指数）
             logger.info("📈 更新股票K线数据...")
-            self.stock_k_lines_renewer.renew(latest_market_open_day)
+            # self.stock_k_lines_renewer.renew(latest_market_open_day)
             
             # 更新宏观经济数据（独立并行）
             # logger.info("🌍 更新宏观经济数据...")

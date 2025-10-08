@@ -9,7 +9,7 @@ stock_kline（富含 daily_basic 字段）更新配置
 
 CONFIG = {
     'table_name': 'stock_kline',
-    'renew_mode': 'incremental',  # 增量更新，基于数据库最新记录
+    'renew_mode': 'upsert',  # upsert模式，允许重复运行和数据修正
     
     'date': {
         'type': 'date',

@@ -38,17 +38,40 @@ class BaseRenewer(ABC):
         self.config = config
         self.is_verbose = is_verbose
         
-        # 初始化组件
-        self._init_rate_limiter()
+        # 初始化组件（注意顺序：先初始化multithread，因为rate_limiter依赖workers）
         self._init_multithread_config()
+        self._init_rate_limiter()
 
+    def _init_multithread_config(self):
+        """
+        初始化多线程配置
+        
+        workers默认值：4（可在config['multithread']['workers']中配置）
+        """
+        self.multithread_config = self.config.get('multithread', {})
+        self.workers = self.multithread_config.get('workers', 4)  # 默认4个worker
+    
     def _init_rate_limiter(self):
-        """初始化限流器"""
+        """
+        初始化限流器
+        
+        Buffer设计原理：
+        - 多线程环境：当触发限流时，可能有N个线程的请求正在路上
+        - Buffer = workers + 5（激进配置，追求高性能）
+        - 简单模式：固定buffer=5（够用即可）
+        """
         rate_limit_config = self.config.get('rate_limit')
         if rate_limit_config:
             from .rate_limiter import APIRateLimiter
-            # buffer自动使用workers数量，确保多线程环境下的限流安全
-            buffer = self.config.get('multithread', {}).get('workers', 10)
+            
+            # 根据运行模式计算buffer
+            if self.config.get('job_mode') == 'multithread':
+                # 多线程：使用self.workers（已在_init_multithread_config中设置默认值）
+                buffer = self.workers + 5
+            else:
+                # 简单模式：固定buffer
+                buffer = 5
+            
             self.rate_limiter = APIRateLimiter(
                 max_per_minute=rate_limit_config.get('max_per_minute', 200),
                 api_name=self.config['table_name'],
@@ -56,11 +79,6 @@ class BaseRenewer(ABC):
             )
         else:
             self.rate_limiter = None
-
-    def _init_multithread_config(self):
-        """初始化多线程配置"""
-        self.multithread_config = self.config.get('multithread', {})
-        self.workers = self.multithread_config.get('workers', 4)
         
     # ==================== 主要入口方法 ====================
     

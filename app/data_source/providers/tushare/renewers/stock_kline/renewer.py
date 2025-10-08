@@ -233,7 +233,14 @@ class StockKlineRenewer(BaseRenewer):
         # 事务性原则：K线和daily_basic必须都成功，才能保存
         if df_basic.empty:
             # daily_basic失败，不保存数据，下次重试
-            logger.warning(f"⚠️  daily_basic数据为空，跳过保存，等待下次重试")
+            stock_id = job.get('id') if job else 'unknown'
+            stock_name = job.get('_log_vars', {}).get('stock_name', '') if job else ''
+            term = job.get('term', 'unknown') if job else 'unknown'
+            
+            if stock_name:
+                logger.warning(f"⚠️  [{stock_id} {stock_name}] [{term}] daily_basic数据为空，跳过保存，等待下次重试")
+            else:
+                logger.warning(f"⚠️  [{stock_id}] [{term}] daily_basic数据为空，跳过保存，等待下次重试")
             return None
         
         # 合并数据

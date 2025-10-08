@@ -446,6 +446,33 @@ class DatabaseManager:
         else:
             raise ValueError(f"无法获取表 {table_name} 的描述信息")
     
+    def get_table_primary_keys(self, table_name: str) -> List[str]:
+        """
+        获取表的主键列表
+        
+        Args:
+            table_name: 表名
+            
+        Returns:
+            List[str]: 主键列表
+            
+        Raises:
+            ValueError: 如果无法获取主键或主键格式不正确
+        """
+        schema = self.get_table_description(table_name)
+        primary_key = schema.get('primaryKey')
+        
+        if not primary_key:
+            raise ValueError(f"表 {table_name} 未配置主键")
+        
+        # 处理单个主键和复合主键
+        if isinstance(primary_key, str):
+            return [primary_key]
+        elif isinstance(primary_key, list):
+            return primary_key
+        else:
+            raise ValueError(f"表 {table_name} 的主键格式不正确: {primary_key}，应为字符串或列表")
+    
     def _get_table_instance_internal(self, table_name: str):
         """获取表实例的内部实现"""
         # 首先检查缓存

@@ -75,10 +75,10 @@ class StockKLinesRenewer(BaseRenewer):
         stocks_needing_update = []
         
         try:
-            # 获取 stock_kline 表实例
-            table_instance = self.db.get_table_instance('stock_kline')
+            # 获取 stock_klines 表实例
+            table_instance = self.db.get_table_instance('stock_klines')
             if not table_instance:
-                logger.warning("⚠️ 无法获取 stock_kline 表实例")
+                logger.warning("⚠️ 无法获取 stock_klines 表实例")
                 return []
             
             # 批量查询所有股票的最新日期

@@ -13,58 +13,160 @@
             "name": "term",
             "type": "varchar",
             "length": 16,
-            "isRequired": true
+            "isRequired": true,
+            "description": "K线周期"
         },
         {
             "name": "date",
             "type": "varchar",
             "length": 8,
-            "isRequired": true
+            "isRequired": true,
+            "description": "交易日期"
+
         },
         {
             "name": "open",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "开盘价"
         },
         {
             "name": "close",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "收盘价"
         },
         {
             "name": "highest",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "最高价"
         },
         {
             "name": "lowest",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "最低价"
         },
         {
             "name": "priceChangeDelta",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "涨跌额"
         },
         {
             "name": "priceChangeRateDelta",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "涨跌额(基于除权后的昨收计算的涨跌幅：（今收-除权昨收）/除权昨收)"
         },
         {
             "name": "preClose",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "昨收价(除权价，前复权)"
         },
         {
             "name": "volume",
             "type": "bigint",
-            "isRequired": false
+            "isRequired": true,
+            "description": "成交量"
         },
         {
             "name": "amount",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "成交额"
+        },
+        {
+            "name": "turnoverRate",
+            "type": "float",
+            "isRequired": true,
+            "description": "换手率"
+        },
+        {
+            "name": "freeTurnoverRate",
+            "type": "float",
+            "isRequired": true,
+            "description": "自由流通股比例"
+        },
+        {
+            "name": "volumeRatio",
+            "type": "float",
+            "isRequired": true,
+            "description": "量比"
+        },
+        {
+            "name": "pe",
+            "type": "float",
+            "isRequired": true,
+            "description": "市盈率"
+        },
+        {
+            "name": "peTTM",
+            "type": "float",
+            "isRequired": true,
+            "description": "市盈率(Trailing Twelve Months)"
+        },
+        {
+            "name": "pb",
+            "type": "float",
+            "isRequired": true,
+            "description": "市净率"
+        },
+        {
+            "name": "ps",
+            "type": "float",
+            "isRequired": true,
+            "description": "市销率"
+        },
+        {
+            "name": "psTTM",
+            "type": "float",
+            "isRequired": true,
+            "description": "市销率(Trailing Twelve Months)"
+        },
+        {
+            "name": "dvRatio",
+            "type": "float",
+            "isRequired": true,
+            "description": "分红比例"
+        },
+        {
+            "name": "dvTTM",
+            "type": "float",
+            "isRequired": true,
+            "description": "分红比例(Trailing Twelve Months)"
+        },
+        {
+            "name": "totalShare",
+            "type": "bigint",
+            "isRequired": true,
+            "description": "总股本"
+        },
+        {
+            "name": "floatShare",
+            "type": "bigint",
+            "isRequired": true,
+            "description": "流通股本"
+        },
+        {
+            "name": "freeShare",
+            "type": "bigint",
+            "isRequired": true,
+            "description": "自由流通股本"
+        },
+        {
+            "name": "totalMarketValue",
+            "type": "float",
+            "isRequired": true,
+            "description": "总市值"
+        },
+        {
+            "name": "circMarketValue",
+            "type": "float",
+            "isRequired": true,
+            "description": "流通市值"
         }
     ],
     "indexes": [

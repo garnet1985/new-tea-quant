@@ -732,7 +732,14 @@ class BaseRenewer(ABC):
             if result is None or (hasattr(result, 'empty') and result.empty):
                 # API失败或返回空数据
                 failed_apis.append(api_name)
-                logger.warning(f"⚠️  API [{api_name}] 失败或返回空数据")
+                
+                # 提取job信息用于日志
+                job_id = job.get('ts_code') or job.get('id', 'unknown')
+                job_info = f"[{job_id}]"
+                if '_log_vars' in job and job['_log_vars'].get('stock_name'):
+                    job_info = f"[{job_id} {job['_log_vars']['stock_name']}]"
+                
+                logger.warning(f"⚠️  {job_info} API [{api_name}] 失败或返回空数据")
             
             api_results[api_name] = result
         
@@ -741,7 +748,13 @@ class BaseRenewer(ABC):
         
         # 如果有API失败，返回None（整个job失败）
         if failed_apis:
-            logger.warning(f"⚠️  Job执行失败，以下API未成功: {', '.join(failed_apis)}，数据不会保存")
+            # 提取job信息
+            job_id = job.get('ts_code') or job.get('id', 'unknown')
+            job_info = f"[{job_id}]"
+            if '_log_vars' in job and job['_log_vars'].get('stock_name'):
+                job_info = f"[{job_id} {job['_log_vars']['stock_name']}]"
+            
+            logger.warning(f"⚠️  {job_info} Job执行失败，以下API未成功: {', '.join(failed_apis)}，数据不会保存")
             return None
             
         return api_results

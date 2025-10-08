@@ -230,11 +230,14 @@ class StockKlineRenewer(BaseRenewer):
             return df_kline
         
         # 合并K线和daily_basic
+        # 事务性原则：K线和daily_basic必须都成功，才能保存
         if df_basic.empty:
-            logger.warning(f"⚠️  daily_basic数据为空，{term}只保存K线数据")
-            merged = df_kline
-        else:
-            merged = self._merge_kline_and_basic(df_kline, df_basic, term)
+            # daily_basic失败，不保存数据，下次重试
+            logger.warning(f"⚠️  daily_basic数据为空，跳过保存，等待下次重试")
+            return None
+        
+        # 合并数据
+        merged = self._merge_kline_and_basic(df_kline, df_basic, term)
         
         # 添加term字段
         merged['term'] = term

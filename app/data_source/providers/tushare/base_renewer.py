@@ -703,14 +703,18 @@ class BaseRenewer(ABC):
         """
         执行所有配置的API并收集结果
         
+        事务性原则：如果任何一个必需的API失败，整个job失败
+        
         Args:
             job: 任务字典，包含API所需的参数
             
         Returns:
             Dict[str, Any]: API结果字典，格式为 {api_name: api_result}
+            None: 如果有任何必需的API失败
         """
         apis = self.config.get('apis', [])
         api_results = {}
+        failed_apis = []
         
         # 设置当前job信息（供should_execute_api使用）
         self._current_job = job
@@ -723,10 +727,22 @@ class BaseRenewer(ABC):
                 continue
             
             result = self._request_single_api(job, api)
+            
+            # 检查API是否成功（返回有效数据）
+            if result is None or (hasattr(result, 'empty') and result.empty):
+                # API失败或返回空数据
+                failed_apis.append(api_name)
+                logger.warning(f"⚠️  API [{api_name}] 失败或返回空数据")
+            
             api_results[api_name] = result
         
         # 清理临时变量
         self._current_job = None
+        
+        # 如果有API失败，返回None（整个job失败）
+        if failed_apis:
+            logger.warning(f"⚠️  Job执行失败，以下API未成功: {', '.join(failed_apis)}，数据不会保存")
+            return None
             
         return api_results
 

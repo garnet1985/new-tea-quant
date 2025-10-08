@@ -186,7 +186,7 @@ class Tushare:
             # self.share_info_renewer.renew(latest_market_open_day)
 
             # 实验：新 stock_kline（日线，前10支）使用传入的股票列表
-            self.new_stock_kline_renewer.renew(latest_market_open_day, stock_list)
+            self.stock_kline_renewer.renew(latest_market_open_day, stock_list)
             
             # logger.info("✅ Tushare 数据源更新完成")
             # return True

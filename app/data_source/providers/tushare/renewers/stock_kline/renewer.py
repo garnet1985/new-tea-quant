@@ -74,13 +74,13 @@ class StockKlineRenewer(BaseRenewer):
            
         2. 周线：
            - end_date: 上个完整周的周日
-           - start_date: 数据库最新日期所在周的下一周周一
-           - 只有跨周时才更新
+           - start_date: 数据库最新日期 + 1天
+           - 注意：Tushare的weekly trade_date记录的是该周的最后交易日
            
         3. 月线：
            - end_date: 上个完整月份的最后一天
-           - start_date: 数据库最新日期所在月的下一月第一天
-           - 只有跨月时才更新
+           - start_date: 数据库最新日期 + 1天
+           - 注意：Tushare的monthly trade_date记录的是该月的最后交易日
         """
         jobs = []
         date_field = self.config['date']['field']
@@ -184,64 +184,6 @@ class StockKlineRenewer(BaseRenewer):
         
         return f"{last_month_year:04d}{last_month:02d}{last_day:02d}"
     
-    def _get_next_week_start(self, date_str: str) -> str:
-        """
-        获取指定日期所在周的下一周的周一
-        
-        逻辑：
-        1. 找到date_str所在周的周一
-        2. 返回下一周的周一（+7天）
-        
-        例如：
-        - 输入：20250829 (周五) → 所在周周一=20250825 → 返回 20250901 (下周一)
-        - 输入：20251003 (周五) → 所在周周一=20250929 → 返回 20251006 (下周一)
-        
-        Args:
-            date_str: 日期字符串，格式YYYYMMDD
-            
-        Returns:
-            str: 下周的周一，格式YYYYMMDD
-        """
-        from datetime import timedelta
-        
-        date_obj = DataSourceService.to_hyphen_date_type(date_str)
-        
-        # 计算本周的周一
-        days_since_monday = date_obj.weekday()  # 周一=0, 周日=6
-        this_week_monday = date_obj - timedelta(days=days_since_monday)
-        
-        # 下周的周一 = 本周周一 + 7天
-        next_week_monday = this_week_monday + timedelta(days=7)
-        
-        return next_week_monday.strftime('%Y%m%d')
-    
-    def _get_next_month_start(self, date_str: str) -> str:
-        """
-        获取指定日期的下个月的第一天
-        
-        例如：
-        - 输入：20250829 → 返回 20250901 (9月1日)
-        - 输入：20251231 → 返回 20260101 (次年1月1日)
-        
-        Args:
-            date_str: 日期字符串，格式YYYYMMDD
-            
-        Returns:
-            str: 下个月的第一天，格式YYYYMMDD
-        """
-        year = int(date_str[:4])
-        month = int(date_str[4:6])
-        
-        # 计算下个月
-        if month == 12:
-            next_year = year + 1
-            next_month = 1
-        else:
-            next_year = year
-            next_month = month + 1
-        
-        return f"{next_year:04d}{next_month:02d}01"
-    
     def _build_jobs_for_term(self, term: str, interval: str, min_gap: int,
                             end_date: str, stock_list: list, db_records: list,
                             date_field: str) -> List[Dict]:
@@ -280,18 +222,10 @@ class StockKlineRenewer(BaseRenewer):
                     time_gap = DataSourceService.time_gap_by(interval, latest_date, end_date)
                     
                     if time_gap >= min_gap:
-                        # 计算start_date，按照term使用不同的逻辑
-                        if term == 'daily':
-                            # 日线：下一天
-                            start_date = DataSourceService.to_next(interval, latest_date)
-                        elif term == 'weekly':
-                            # 周线：下周的周一
-                            start_date = self._get_next_week_start(latest_date)
-                        elif term == 'monthly':
-                            # 月线：下个月的第一天
-                            start_date = self._get_next_month_start(latest_date)
-                        else:
-                            start_date = DataSourceService.to_next(interval, latest_date)
+                        # 计算start_date
+                        # 注意：weekly/monthly的trade_date记录的是"该周期的最后交易日"
+                        # 所以start_date = latest_date + 1天即可
+                        start_date = DataSourceService.to_next('day', latest_date)
                         
                         jobs.append({
                             'id': stock_id,

@@ -104,6 +104,13 @@ class BaseRenewer(ABC):
             
         Returns:
             List[Dict]: 任务列表，每个任务包含 start_date, end_date 和主键字段
+            
+        注意：
+            - 子类可以在job中添加 '_log_vars' 字段（字典类型），
+              用于为日志模板提供额外的变量（如股票名称、季度、地区等）
+            - '_log_vars' 中的所有key-value会直接添加到日志变量中
+            - 示例：{'stock_name': '平安银行', 'market': 'SZ'}
+            - '_log_vars' 是内部字段，以下划线开头，本身不会暴露给日志变量
         """
         jobs = []
         date_field = self.config['date']['field']
@@ -480,13 +487,8 @@ class BaseRenewer(ABC):
                     else:
                         logger.warning(f"任务执行时间过长: {execution_time:.1f}秒")
                 
-                # 根据数据类型显示不同的进度信息
-                if stock_name and stock_id:
-                    logger.info(f"股票 {stock_id} ({stock_name})更新完毕 - progress: {progress_percent:.1f}%")
-                else:
-                    # 非股票数据的进度显示
-                    task_name = job.get('api_method', self.config['table_name'])
-                    logger.info(f"{task_name} 任务完成 - progress: {progress_percent:.1f}%")
+                # 输出可配置的日志（子类可重写）
+                self.log_job_completion(job, result, progress_percent)
             return result
         
         # 初始化进度计数器
@@ -513,6 +515,135 @@ class BaseRenewer(ABC):
         except Exception as e:
             logger.error(f"❌ {self.config['table_name']}多线程执行失败: {e}")
             return False
+    
+    def log_job_completion(self, job: Dict, is_success: bool, progress_percent: float):
+        """
+        输出任务完成日志 - 子类可重写
+        
+        子类可以完全自定义日志输出逻辑，也可以调用log_default使用默认格式
+        
+        Args:
+            job: 任务字典，包含所有任务参数和_log_vars
+            is_success: 是否成功
+            progress_percent: 进度百分比（保留原始数字，如3.333）
+            
+        何时重写：
+            - 需要完全自定义日志格式
+            - 需要根据特殊条件决定是否输出日志
+            - 需要输出到其他日志系统
+        """
+        # 获取日志配置
+        multithread_config = self.config.get('multithread', {})
+        log_config = multithread_config.get('log', {})
+        
+        # 如果没有配置log或配置为空，使用默认日志
+        if not log_config:
+            self.log_default(job, is_success, progress_percent)
+            return
+        
+        # 根据成功/失败选择日志模板
+        log_template = None
+        if is_success and 'success' in log_config:
+            log_template = log_config['success']
+        elif not is_success and 'failure' in log_config:
+            log_template = log_config['failure']
+        
+        # 如果没有配置对应的日志模板，不输出日志
+        if not log_template:
+            return
+        
+        # 准备变量字典
+        variables = self._extract_log_variables(job, progress_percent)
+        
+        # 替换变量并输出日志
+        try:
+            log_message = log_template.format(**variables)
+            if is_success:
+                logger.info(log_message)
+            else:
+                logger.error(log_message)
+        except KeyError as e:
+            logger.warning(f"⚠️  日志模板变量错误: {e}, 模板: {log_template}")
+            self.log_default(job, is_success, progress_percent)
+    
+    def _extract_log_variables(self, job: Dict, progress_percent: float) -> Dict[str, Any]:
+        """
+        从job中提取日志变量（灵活设计，不hard code特殊字段）
+        
+        提供的变量：
+        1. progress: 内置变量，格式化为 "N" (N保留1位小数，不含%符号)
+        2. job中的所有字段（如 id, ts_code, start_date, end_date, term 等）
+        3. _log_vars: 如果job中包含'_log_vars'字段（由build_jobs设置），
+           会直接添加其中的所有变量
+           例如: {'stock_name': '平安银行', 'quarter': '2024Q1'}
+        
+        Args:
+            job: 任务字典
+            progress_percent: 进度百分比
+            
+        Returns:
+            Dict: 变量字典，用于日志模板替换
+        """
+        # 基础变量
+        variables = {
+            'progress': f"{progress_percent:.1f}",  # 内置变量（数字，不含%符号）
+            'table_name': self.config.get('table_name', 'unknown'),
+        }
+        
+        # 添加job中的所有字段作为变量（跳过内部字段）
+        for key, value in job.items():
+            if not key.startswith('_'):
+                variables[key] = value
+        
+        # 添加自定义日志变量（由子类在build_jobs中设置）
+        if '_log_vars' in job and isinstance(job['_log_vars'], dict):
+            variables.update(job['_log_vars'])
+        
+        return variables
+    
+    def log_default(self, job: Dict, success: bool, progress_percent: float):
+        """
+        输出默认日志格式 - 子类可调用
+        
+        当子类重写log_job_completion时，可以调用此方法使用默认格式
+        
+        Args:
+            job: 任务字典
+            success: 是否成功
+            progress_percent: 进度百分比（保留原始数字，如3.333）
+        """
+        # 提取常用信息
+        ts_code = job.get('ts_code') or job.get('id')
+        task_name = self.config['table_name']
+        
+        # 尝试从_log_vars中获取名称信息（适配多种数据类型）
+        display_name = None
+        if '_log_vars' in job and isinstance(job['_log_vars'], dict):
+            # 优先查找常见的名称字段
+            for name_key in ['stock_name', 'name', 'region', 'category']:
+                if name_key in job['_log_vars']:
+                    display_name = job['_log_vars'][name_key]
+                    break
+        
+        # 输出日志
+        if display_name and ts_code:
+            # 有代码和名称
+            if success:
+                logger.info(f"{ts_code} ({display_name}) 更新完毕 - 进度: {progress_percent:.1f}%")
+            else:
+                logger.error(f"{ts_code} ({display_name}) 更新失败 - 进度: {progress_percent:.1f}%")
+        elif ts_code:
+            # 只有代码
+            if success:
+                logger.info(f"{ts_code} 更新完毕 - 进度: {progress_percent:.1f}%")
+            else:
+                logger.error(f"{ts_code} 更新失败 - 进度: {progress_percent:.1f}%")
+        else:
+            # 非股票数据（宏观数据等）
+            if success:
+                logger.info(f"{task_name} 任务完成 - 进度: {progress_percent:.1f}%")
+            else:
+                logger.error(f"{task_name} 任务失败 - 进度: {progress_percent:.1f}%")
         
     def _execute_single_job(self, job: Dict) -> bool:
         """

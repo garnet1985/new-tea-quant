@@ -155,7 +155,11 @@ class StockKlineRenewer(BaseRenewer):
                             'ts_code': stock_id,
                             'term': term,
                             'start_date': DataSourceService.to_next(interval, latest_date),
-                            'end_date': end_date
+                            'end_date': end_date,
+                            '_log_vars': {
+                                'stock_name': stock.get('name'),
+                                'market': stock.get('market')
+                            }
                         })
                 else:
                     # 新股票，从默认日期开始
@@ -164,7 +168,11 @@ class StockKlineRenewer(BaseRenewer):
                         'ts_code': stock_id,
                         'term': term,
                         'start_date': data_default_start_date,
-                        'end_date': end_date
+                        'end_date': end_date,
+                        '_log_vars': {
+                            'stock_name': stock.get('name'),
+                            'market': stock.get('market')
+                        }
                     })
         else:
             # 数据库无记录：全量拉取
@@ -175,7 +183,11 @@ class StockKlineRenewer(BaseRenewer):
                     'ts_code': stock_id,
                     'term': term,
                     'start_date': data_default_start_date,
-                    'end_date': end_date
+                    'end_date': end_date,
+                    '_log_vars': {
+                        'stock_name': stock.get('name'),
+                        'market': stock.get('market')
+                    }
                 })
         
         return jobs

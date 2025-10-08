@@ -1017,10 +1017,12 @@ class BaseRenewer(ABC):
             
             if renew_mode == 'overwrite':
                 return self._save_with_overwrite(table, table_name, data_list)
-            elif renew_mode == 'incremental':
-                return self._save_with_incremental(table, table_name, data_list)
-            else:  # upsert
-                return self._save_with_upsert(table, table_name, data_list)
+            else:  # incremental 或 upsert
+                # 注意：incremental和upsert的区别在于should_renew的加载策略：
+                # - incremental: 只加载最新记录，内存占用小
+                # - upsert: 加载所有记录，适合需要全量对比的场景
+                # 但保存时都使用replace方法（支持幂等性，可重复运行）
+                return self._save_with_replace(table, table_name, data_list)
         
         except Exception as e:
             logger.error(f"❌ {self.config['table_name']} 数据保存失败: {e}")
@@ -1135,32 +1137,32 @@ class BaseRenewer(ABC):
         # 插入新数据
         return table.insert(data_list)
     
-    def _save_with_incremental(self, table, table_name: str, data_list: List[Dict]) -> bool:
+    def _save_with_replace(self, table, table_name: str, data_list: List[Dict]) -> bool:
         """
-        增量模式：增量请求数据，使用replace保存（避免主键冲突）
+        Replace保存（用于incremental和upsert模式）
         
-        说明：
-        - incremental的含义是"增量请求"（只请求需要的数据）
-        - 但保存时使用replace（upsert），允许覆盖已存在数据
-        - 这样既减少API调用，又支持幂等性（可重复运行）
+        重要概念澄清：
+        ==================
+        incremental ≠ 只能用insert
+        incremental = 业务逻辑上的增量（只请求需要的数据）
+        
+        renew_mode的含义：
+        - overwrite: 全量删除后插入
+        - incremental: 增量请求 + replace保存（推荐，内存占用小）
+        - upsert: 全量加载 + replace保存（适合需要全量对比的场景）
+        
+        为什么incremental和upsert都用replace？
+        - 支持幂等性：同一数据重复运行不会报错
+        - 支持数据修正：API数据更新时可以覆盖旧数据
+        - 避免主键冲突：测试、调试时可以安全重复运行
+        
+        应用场景：
+        - K线数据：incremental模式，只加载最新日期，replace保存
+        - 股票列表：upsert模式，加载全部进行状态对比，replace保存
         """
         try:
             # 获取主键
             primary_keys = self.db.get_table_primary_keys(table_name)
-            # 使用replace方法（基于主键upsert）
-            return table.replace(data_list, unique_keys=primary_keys)
-        except ValueError as e:
-            logger.error(f"❌ 获取表主键失败: {e}")
-            return False
-    
-    def _save_with_upsert(self, table, table_name: str, data_list: List[Dict]) -> bool:
-        """
-        Upsert模式：基于主键更新或插入
-        """
-        try:
-            # 获取主键（可能抛出异常）
-            primary_keys = self.db.get_table_primary_keys(table_name)
-            
             # 使用replace方法（基于主键upsert）
             return table.replace(data_list, unique_keys=primary_keys)
         except ValueError as e:

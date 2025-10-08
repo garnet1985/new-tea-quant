@@ -3,12 +3,12 @@
 """
 
 CONFIG = {
-    'table_name': 'stock_kline',
+    'table_name': 'stock_klines',
     'job_mode': 'multithread',
     'date_field': 'date',
     'renew_mode': 'incremental',
     'multithread': {
-        'max_workers': 10,
+        'workers': 10,
         'enable_monitoring': True
     },
     'rate_limit': {

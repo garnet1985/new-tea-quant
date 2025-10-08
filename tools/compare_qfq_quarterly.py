@@ -17,7 +17,7 @@ from app.data_source.providers.akshare.akshare_API_mod import AkshareAPIModified
 
 
 def load_daily_k_lines(db, ts_code: str, start_date: str, end_date: str):
-    stock_kline = db.get_table_instance('stock_kline')
+    stock_kline = db.get_table_instance('stock_klines')
     condition = "id = %s AND term = %s AND date >= %s AND date <= %s"
     params = (ts_code, 'daily', start_date, end_date)
     return stock_kline.load(condition, params, order_by="date ASC")

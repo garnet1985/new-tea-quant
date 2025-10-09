@@ -428,6 +428,162 @@ class BaseTableModel:
     
     
     # ***********************************
+    #        DataFrame Support Methods
+    # ***********************************
+    
+    def load_many_df(self, condition: str = "1=1", params: tuple = (), 
+                     limit: int = None, order_by: str = None, offset: int = None):
+        """
+        加载多条记录，返回DataFrame
+        
+        适用场景：
+        - 需要数据分析（merge、groupby、rolling等）
+        - 需要批量计算（向量化操作）
+        - 需要处理时间序列
+        - 需要数据清洗和转换
+        
+        Args:
+            condition: 查询条件
+            params: 查询参数
+            limit: 返回记录数限制
+            order_by: 排序字段
+            offset: 偏移量
+            
+        Returns:
+            pd.DataFrame: 查询结果（如果无数据返回空DataFrame）
+            
+        示例：
+            # 加载K线数据
+            df = table.load_many_df(
+                condition="id=%s AND term=%s",
+                params=('000001.SZ', 'daily'),
+                order_by='date'
+            )
+            
+            # 计算移动平均
+            df['ma5'] = df['close'].rolling(5).mean()
+            
+            # 分组聚合
+            stats = df.groupby('id')['close'].agg(['mean', 'std'])
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用load_many_df方法")
+            return None
+        
+        records = self.load_many(condition, params, limit, order_by, offset)
+        return pd.DataFrame(records) if records else pd.DataFrame()
+    
+    def load_all_df(self, condition: str = "1=1", params: tuple = (), order_by: str = None):
+        """
+        加载所有记录，返回DataFrame
+        
+        适用场景：需要对整表进行分析时使用
+        
+        Returns:
+            pd.DataFrame: 查询结果
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用load_all_df方法")
+            return None
+        
+        records = self.load_all(condition, params, order_by)
+        return pd.DataFrame(records) if records else pd.DataFrame()
+    
+    def insert_df(self, df) -> int:
+        """
+        插入DataFrame数据
+        
+        说明：
+        - 内部转换为list后调用insert方法
+        - 保留所有自定义逻辑（批量插入、错误处理等）
+        - 支持大数据量的批量插入
+        
+        Args:
+            df: pandas DataFrame，列名应与数据库字段名一致
+            
+        Returns:
+            int: 插入的记录数
+            
+        示例：
+            import pandas as pd
+            
+            df = pd.DataFrame({
+                'id': ['000001.SZ', '000002.SZ'],
+                'name': ['平安银行', '万科A'],
+                'date': ['20250930', '20250930']
+            })
+            
+            count = table.insert_df(df)
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用insert_df方法")
+            return 0
+        
+        if not isinstance(df, pd.DataFrame):
+            logger.error(f"insert_df expects pandas DataFrame, got {type(df)}")
+            return 0
+        
+        if df.empty:
+            logger.debug("DataFrame is empty, skipping insert")
+            return 0
+        
+        # 转换为dict列表后调用原insert方法
+        data_list = df.to_dict('records')
+        return self.insert(data_list)
+    
+    def replace_df(self, df, unique_keys: List[str]) -> int:
+        """
+        Upsert DataFrame数据（基于主键更新或插入）
+        
+        说明：
+        - 内部转换为list后调用replace方法
+        - 保留所有自定义逻辑（异步队列、线程安全、错误重试等）
+        - 支持大数据量的批量upsert
+        
+        Args:
+            df: pandas DataFrame，列名应与数据库字段名一致
+            unique_keys: 用于判断记录唯一性的字段列表（通常是主键）
+            
+        Returns:
+            int: 影响的记录数
+            
+        示例：
+            # 更新K线数据（如果存在则更新，不存在则插入）
+            df = pd.DataFrame({
+                'id': ['000001.SZ', '000001.SZ'],
+                'term': ['daily', 'daily'],
+                'date': ['20250929', '20250930'],
+                'close': [11.34, 11.40]
+            })
+            
+            count = table.replace_df(df, unique_keys=['id', 'term', 'date'])
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用replace_df方法")
+            return 0
+        
+        if not isinstance(df, pd.DataFrame):
+            logger.error(f"replace_df expects pandas DataFrame, got {type(df)}")
+            return 0
+        
+        if df.empty:
+            logger.debug("DataFrame is empty, skipping replace")
+            return 0
+        
+        # 转换为dict列表后调用原replace方法
+        data_list = df.to_dict('records')
+        return self.replace(data_list, unique_keys)
+    
+    
+    # ***********************************
     #        support raw query operations
     # ***********************************
     def execute_raw_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:

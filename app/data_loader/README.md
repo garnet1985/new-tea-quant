@@ -69,22 +69,64 @@ records = loader.load_klines(
 
 ### 多进程支持
 
+#### 场景1：子进程只取数据（简单场景）
+
 ```python
 from concurrent.futures import ProcessPoolExecutor
 
-def process_stock(stock_id, db_config):
-    # 在子进程中创建DataLoader
-    loader = DataLoader.create_for_child_process(db_config)
-    return loader.load_daily_qfq(stock_id)
-
-# 或使用静态方法
+# 使用静态方法（每次创建新连接）
 with ProcessPoolExecutor() as executor:
-    future = executor.submit(
-        DataLoader.load_klines_in_child,
-        '000001.SZ', 'daily', 'qfq', {'is_verbose': False}
-    )
-    result = future.result()
+    futures = [
+        executor.submit(
+            DataLoader.load_klines_in_child,
+            stock_id, 'daily', 'qfq', {'is_verbose': False}
+        )
+        for stock_id in stock_list
+    ]
+    results = [f.result() for f in futures]
 ```
+
+**适用场景**：子进程只负责取数据，取完就结束
+
+---
+
+#### 场景2：子进程做复杂任务（推荐，回测场景）
+
+```python
+from concurrent.futures import ProcessPoolExecutor
+
+def simulate_stock(stock_id, db_config, strategy_params):
+    """在子进程中模拟一个股票的交易"""
+    
+    # ✅ 在子进程开始时创建一次loader
+    loader = DataLoader.create_for_child_process(db_config)
+    
+    # 加载数据（复用连接，多次调用）
+    klines = loader.load_daily_qfq(stock_id)
+    macro_data = loader.load_gdp_data(...)
+    
+    # 执行策略回测（很多步骤）
+    strategy = Strategy(strategy_params)
+    for date in trading_dates:
+        signal = strategy.generate_signal(klines, date)
+        # ... 执行交易模拟
+    
+    return portfolio.get_performance()
+
+# 主进程
+with ProcessPoolExecutor(max_workers=8) as executor:
+    futures = [
+        executor.submit(simulate_stock, stock_id, db_config, strategy_params)
+        for stock_id in stock_list
+    ]
+    results = [f.result() for f in futures]
+```
+
+**适用场景**：子进程需要执行复杂任务（如回测），数据加载只是其中一步
+
+**关键差异**：
+- 场景1：每次调用都创建新连接（开销大）
+- 场景2：创建一次，复用连接（性能好）✅
 
 ## 📚 API速查
 

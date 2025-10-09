@@ -183,7 +183,7 @@ self.default_merge_api_results(api_results)    # 使用默认合并逻辑
 
 ```python
 CONFIG = {
-    'table_name': 'stock_klines',
+    'table_name': 'stock_kline',
     'job_mode': 'multithread',  # 'simple' or 'multithread'
     'renew_mode': 'incremental',  # 'incremental', 'upsert', 'overwrite'
     
@@ -368,7 +368,7 @@ class StockListRenewer(BaseRenewer):
 ```python
 # ============ config.py ============
 CONFIG = {
-    'table_name': 'stock_klines',
+    'table_name': 'stock_kline',
     'job_mode': 'multithread',
     'apis': [
         {

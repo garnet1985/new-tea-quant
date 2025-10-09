@@ -57,7 +57,7 @@ class DataLoader:
         from app.data_source.data_source_service import DataSourceService
         kline_data: Dict[str, List[Dict[str, Any]]] = {}
 
-        kline_table = db.get_table_instance('stock_klines')
+        kline_table = db.get_table_instance('stock_kline')
         adj_factor_table = db.get_table_instance('adj_factor')
 
         for term in settings.get('terms', []):

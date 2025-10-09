@@ -16,12 +16,44 @@ class StockKlineModel(BaseTableModel):
         self.is_base_table = True
 
     def get_all_k_lines_by_term(self, stock_id: str, term: str, order: str = 'ASC'):
+        """
+        获取某只股票某个term的所有K线数据
+        
+        Args:
+            stock_id: 股票代码，如 '000001.SZ'
+            term: K线周期，'daily', 'weekly', 'monthly'
+            order: 排序方式，'ASC' 或 'DESC'
+            
+        Returns:
+            List[Dict]: K线数据列表
+        """
         return self.load("id = %s AND term = %s", (stock_id, term), order_by=f"date {order}")
 
     def get_most_recent_one_by_term(self, stock_id: str, term: str):
+        """
+        获取某只股票某个term的最新一条K线数据
+        
+        Args:
+            stock_id: 股票代码
+            term: K线周期
+            
+        Returns:
+            Dict: 最新的K线记录
+        """
         return self.load_one("id = %s AND term = %s", (stock_id, term), order_by="date DESC")
     
     def get_by_dates(self, stock_id: str, trade_dates: List[str], term: str = 'daily'):
+        """
+        根据日期列表获取K线数据
+        
+        Args:
+            stock_id: 股票代码
+            trade_dates: 日期列表，如 ['20250930', '20251001']
+            term: K线周期
+            
+        Returns:
+            List[Dict]: K线数据列表
+        """
         if not trade_dates:
             return []
         
@@ -29,15 +61,37 @@ class StockKlineModel(BaseTableModel):
         placeholders = ','.join(['%s'] * len(trade_dates))
         condition = f"id = %s AND term = %s AND date IN ({placeholders})"
         
-        # 构建参数：stock_id + 所有日期
+        # 构建参数：stock_id + term + 所有日期
         params = [stock_id, term] + trade_dates
         
         return self.load(condition, params, order_by="date")    
     
     def get_by_date(self, stock_id: str, trade_date: str, term: str = 'daily'):
+        """
+        获取某只股票某个日期的K线数据
+        
+        Args:
+            stock_id: 股票代码
+            trade_date: 交易日期
+            term: K线周期
+            
+        Returns:
+            Dict: K线记录
+        """
         return self.load_one("id = %s AND term = %s AND date = %s", (stock_id, term, trade_date))
 
     def get_most_recent_k_lines_by_term(self, stock_id: str, term: str, limit: int) -> List[Dict[str, Any]]:
+        """
+        获取某只股票某个term的最近N条K线数据
+        
+        Args:
+            stock_id: 股票代码
+            term: K线周期
+            limit: 获取的记录数
+            
+        Returns:
+            List[Dict]: K线数据列表（按日期升序）
+        """
         try:
             # 一个query搞定：直接获取最新的K线数据
             condition = "id = %s AND term = %s"
@@ -101,3 +155,4 @@ class StockKlineModel(BaseTableModel):
             import traceback
             logger.error(f"详细错误: {traceback.format_exc()}")
             return {}
+

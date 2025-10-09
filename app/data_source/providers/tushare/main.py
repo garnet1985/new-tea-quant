@@ -25,8 +25,6 @@ from .renewers.stock_index.renewer import StockIndexRenewer
 from .renewers.stock_index.config import CONFIG as STOCK_INDEX_CONFIG
 from .renewers.stock_list.renewer import StockListRenewer
 from .renewers.stock_list.config import CONFIG as STOCK_LIST_CONFIG
-from .renewers.stock_k_lines.renewer import StockKLinesRenewer
-from .renewers.stock_k_lines.config import CONFIG as STOCK_K_LINES_CONFIG
 from .renewers.stock_kline.renewer import StockKlineRenewer
 from .renewers.stock_kline.config import CONFIG as STOCK_KLINE_CONFIG
 from .renewers.price_indexes.renewer import PriceIndexesRenewer
@@ -123,9 +121,6 @@ class Tushare:
         self.stock_list_renewer = StockListRenewer(
             config=STOCK_LIST_CONFIG, **renewer_params
         )
-        self.stock_k_lines_renewer = StockKLinesRenewer(
-            config=STOCK_K_LINES_CONFIG, **renewer_params
-        )
         self.stock_kline_renewer = StockKlineRenewer(
             config=STOCK_KLINE_CONFIG, **renewer_params
         )
@@ -166,9 +161,9 @@ class Tushare:
         logger.info("🔄 开始更新 Tushare 数据源")
         
         try:
-            # 更新K线数据（依赖股票指数）
+            # 更新K线数据（使用新的stock_kline renewer）
             logger.info("📈 更新股票K线数据...")
-            # self.stock_k_lines_renewer.renew(latest_market_open_day)
+            self.stock_kline_renewer.renew(latest_market_open_day, stock_list)
             
             # 更新宏观经济数据（独立并行）
             # logger.info("🌍 更新宏观经济数据...")
@@ -184,9 +179,6 @@ class Tushare:
             # 更新股本信息（依赖股票指数）
             # logger.info("📋 更新股本信息数据...")
             # self.share_info_renewer.renew(latest_market_open_day)
-
-            # 实验：新 stock_kline（日线，前10支）使用传入的股票列表
-            self.stock_kline_renewer.renew(latest_market_open_day, stock_list)
             
             # logger.info("✅ Tushare 数据源更新完成")
             # return True
@@ -215,23 +207,3 @@ class Tushare:
         """获取最新市场开放日"""
         return TushareService.get_latest_market_open_day(self.api)
     
-    def _k_line_api_rate_limit(self):
-        """K线数据API频率限制"""
-        self.kline_rate_limiter.acquire()
-    
-    # ================================ K线数据更新（保留传统方法） ================================
-    
-    async def renew_stock_k_lines(self, latest_market_open_day: str = None, stock_index: list = None):
-        """
-        更新股票K线数据（传统方法，保留向后兼容）
-        
-        Args:
-            latest_market_open_day: 最新市场开放日
-            stock_index: 股票列表
-            
-        Returns:
-            更新结果
-        """
-        # TODO: 将 K线更新迁移到独立的 renewer 模块
-        logger.warning("⚠️ renew_stock_k_lines 方法还未完全迁移到新架构，暂时跳过")
-        return True

@@ -52,7 +52,7 @@ class BFFApi:
             db_manager.connect()
             
             # 获取K线数据
-            stock_kline_table = db_manager.get_table_instance("stock_klines")
+            stock_kline_table = db_manager.get_table_instance("stock_kline")
             kline_data = stock_kline_table.get_all_k_lines_by_term(stock_id, term, order='ASC')
             
             if not kline_data:

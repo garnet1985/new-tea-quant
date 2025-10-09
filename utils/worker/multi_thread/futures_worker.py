@@ -630,13 +630,13 @@ class FuturesWorker:
                 while not self.job_queue.empty():
                     try:
                         self.job_queue.get_nowait()
-                    except:
+                    except Exception:
                         break
                         
                 while not self.results_queue.empty():
                     try:
                         self.results_queue.get_nowait()
-                    except:
+                    except Exception:
                         break
         except Exception:
             pass 

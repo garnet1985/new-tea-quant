@@ -9,17 +9,26 @@
 - 处理跨表操作和数据聚合
 - 封装数据处理逻辑（复权、过滤、指标计算等）
 
-设计：
-- 统一的DataLoader类（包含stock、macro等所有数据服务）
-- 按需扩展（未来如果方法太多可以拆分文件）
-- 工具类风格（不是Repository模式，不需要基类）
+架构：
+- DataLoader: 主入口，统一API
+- KlineLoader: K线数据专用加载器
+- MacroLoader: 宏观数据加载器（待实现）
+- Helpers: 工具类（复权、过滤等）
+
+设计原则：
+- 按业务领域分层（stock/macro/finance）
+- 提供便捷方法（80%场景零配置）
+- 保留灵活方法（20%场景全配置）
+- 支持多进程（静态工厂方法）
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 import copy
 import pandas as pd
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
 from app.data_source.data_source_service import DataSourceService
+
+from .loaders import KlineLoader
 
 
 class DataLoader:
@@ -55,9 +64,10 @@ class DataLoader:
         
         self.db = db
         
+        # 专用加载器（委托模式）
+        self.kline_loader = KlineLoader(db)
+        
         # 懒加载的表实例（按需创建）
-        self._kline_table = None
-        self._adj_factor_table = None
         self._stock_list_table = None
         self._gdp_table = None
         self._lpr_table = None
@@ -67,19 +77,75 @@ class DataLoader:
         self._stock_index_indicator_table = None
         self._industry_capital_flow_table = None
     
+    # ============ 多进程支持（静态工厂方法）============
+    
+    @staticmethod
+    def create_for_child_process(db_config: Optional[Dict] = None) -> 'DataLoader':
+        """
+        在子进程中创建DataLoader实例
+        
+        由于进程隔离，子进程无法共享主进程的数据库连接，
+        需要在子进程中重新初始化DatabaseManager。
+        
+        Args:
+            db_config: 数据库配置（可选）
+                {
+                    'is_verbose': False,
+                    'enable_thread_safety': False  # 子进程通常不需要线程安全
+                }
+        
+        Returns:
+            DataLoader: 新的DataLoader实例
+            
+        Example:
+            # 在子进程中使用
+            def process_stock(stock_id, db_config):
+                loader = DataLoader.create_for_child_process(db_config)
+                return loader.load_daily_qfq(stock_id)
+            
+            with ProcessPoolExecutor() as executor:
+                futures = [
+                    executor.submit(process_stock, sid, {'is_verbose': False})
+                    for sid in stock_ids
+                ]
+        """
+        if db_config is None:
+            db_config = {'is_verbose': False, 'enable_thread_safety': False}
+        
+        db = DatabaseManager(**db_config)
+        db.initialize()
+        return DataLoader(db)
+    
+    @staticmethod
+    def load_klines_in_child(stock_id: str, term: str = 'daily', adjust: str = 'qfq',
+                             db_config: Optional[Dict] = None, as_dataframe: bool = False):
+        """
+        在子进程中加载K线数据（静态方法）
+        
+        适合多进程场景，每次调用都会创建新的数据库连接。
+        
+        Args:
+            stock_id: 股票代码
+            term: 周期（daily/weekly/monthly）
+            adjust: 复权方式（qfq/hfq/none）
+            db_config: 数据库配置
+            as_dataframe: 是否返回DataFrame
+            
+        Returns:
+            DataFrame or List[Dict]: K线数据
+            
+        Example:
+            with ProcessPoolExecutor() as executor:
+                future = executor.submit(
+                    DataLoader.load_klines_in_child,
+                    '000001.SZ', 'daily', 'qfq', {'is_verbose': False}
+                )
+                result = future.result()
+        """
+        loader = DataLoader.create_for_child_process(db_config)
+        return loader.load_klines(stock_id, term, adjust=adjust, as_dataframe=as_dataframe)
+    
     # ============ 表实例懒加载（性能优化）============
-    
-    @property
-    def kline_table(self):
-        if self._kline_table is None:
-            self._kline_table = self.db.get_table_instance('stock_kline')
-        return self._kline_table
-    
-    @property
-    def adj_factor_table(self):
-        if self._adj_factor_table is None:
-            self._adj_factor_table = self.db.get_table_instance('adj_factor')
-        return self._adj_factor_table
     
     @property
     def stock_list_table(self):
@@ -89,16 +155,72 @@ class DataLoader:
     
     # ============ 股票数据服务 ============
     
-    def load_klines(self, 
-                    stock_id: str,
-                    term: str = 'daily',
-                    start_date: str = None,
-                    end_date: str = None,
-                    adjust: str = 'qfq',
-                    as_dataframe: bool = False,
-                    filter_negative: bool = True) -> Any:
+    # ------------ K线快捷方法（80%场景，零配置）------------
+    
+    def load_daily_qfq(self, stock_id: str, start_date: Optional[str] = None,
+                       end_date: Optional[str] = None) -> List[Dict]:
         """
-        加载K线数据（最常用方法）
+        加载日线前复权数据（最常用，零配置）
+        
+        Args:
+            stock_id: 股票代码
+            start_date: 开始日期（可选）
+            end_date: 结束日期（可选）
+            
+        Returns:
+            List[Dict]: 日线前复权数据
+            
+        Example:
+            loader = DataLoader(db)
+            records = loader.load_daily_qfq('000001.SZ')  # 最简单！
+        """
+        return self.kline_loader.load_daily_qfq(stock_id, start_date, end_date)
+    
+    def load_weekly_qfq(self, stock_id: str, start_date: Optional[str] = None,
+                        end_date: Optional[str] = None) -> List[Dict]:
+        """加载周线前复权数据"""
+        return self.kline_loader.load_weekly_qfq(stock_id, start_date, end_date)
+    
+    def load_monthly_qfq(self, stock_id: str, start_date: Optional[str] = None,
+                         end_date: Optional[str] = None) -> List[Dict]:
+        """加载月线前复权数据"""
+        return self.kline_loader.load_monthly_qfq(stock_id, start_date, end_date)
+    
+    def load_daily_qfq_df(self, stock_id: str, start_date: Optional[str] = None,
+                          end_date: Optional[str] = None) -> pd.DataFrame:
+        """加载日线前复权数据（DataFrame版本，分析用）"""
+        return self.kline_loader.load_daily_qfq_df(stock_id, start_date, end_date)
+    
+    def load_weekly_qfq_df(self, stock_id: str, start_date: Optional[str] = None,
+                           end_date: Optional[str] = None) -> pd.DataFrame:
+        """加载周线前复权数据（DataFrame版本）"""
+        return self.kline_loader.load_weekly_qfq_df(stock_id, start_date, end_date)
+    
+    def load_monthly_qfq_df(self, stock_id: str, start_date: Optional[str] = None,
+                            end_date: Optional[str] = None) -> pd.DataFrame:
+        """加载月线前复权数据（DataFrame版本）"""
+        return self.kline_loader.load_monthly_qfq_df(stock_id, start_date, end_date)
+    
+    def load_raw_klines(self, stock_id: str, term: str = 'daily',
+                       start_date: Optional[str] = None,
+                       end_date: Optional[str] = None) -> List[Dict]:
+        """加载原始K线数据（不复权，调试用）"""
+        return self.kline_loader.load_raw_klines(stock_id, term, start_date, end_date)
+    
+    def load_raw_klines_df(self, stock_id: str, term: str = 'daily',
+                          start_date: Optional[str] = None,
+                          end_date: Optional[str] = None) -> pd.DataFrame:
+        """加载原始K线数据（不复权，DataFrame版本）"""
+        return self.kline_loader.load_raw_klines_df(stock_id, term, start_date, end_date)
+    
+    # ------------ K线完整方法（20%场景，全配置）------------
+    
+    def load_klines(self, stock_id: str, term: str = 'daily',
+                    start_date: Optional[str] = None, end_date: Optional[str] = None,
+                    adjust: str = 'qfq', filter_negative: bool = True,
+                    as_dataframe: bool = False) -> Union[pd.DataFrame, List[Dict]]:
+        """
+        加载K线数据（完整方法，支持所有参数）
         
         跨表操作：stock_kline + adj_factor
         
@@ -108,65 +230,30 @@ class DataLoader:
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
             adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
-            as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
             filter_negative: 是否过滤负值（默认True）
+            as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
             
         Returns:
             DataFrame or List[Dict]: K线数据
-        """
-        # 1. 构建查询条件
-        condition = "id=%s AND term=%s"
-        params = [stock_id, term]
-        
-        if start_date:
-            condition += " AND date>=%s"
-            params.append(start_date)
-        
-        if end_date:
-            condition += " AND date<=%s"
-            params.append(end_date)
-        
-        # 2. 加载K线
-        if as_dataframe:
-            df = self.kline_table.load_many_df(
-                condition=condition,
-                params=tuple(params),
-                order_by='date'
+            
+        Example:
+            # 简单用法（推荐）
+            records = loader.load_daily_qfq('000001.SZ')
+            
+            # 完整用法（需要灵活配置）
+            records = loader.load_klines(
+                stock_id='000001.SZ',
+                term='weekly',
+                start_date='20200101',
+                end_date='20231231',
+                adjust='hfq',
+                filter_negative=False,
+                as_dataframe=True
             )
-            
-            if df.empty:
-                return df
-            
-            # 应用复权（使用优化的DataFrame方法）
-            if adjust != 'none':
-                # 直接获取DataFrame格式的复权因子（已排序，无需转换）
-                df_factors = self.adj_factor_table.get_stock_factors_df(stock_id)
-                if not df_factors.empty:
-                    df = self._apply_adjustment_df(df, df_factors, adjust)
-            
-            # 过滤负值（DataFrame方法，一行搞定）
-            if filter_negative:
-                df = df[df['close'] > 0].reset_index(drop=True)
-            
-            return df
-        else:
-            # 返回List[Dict]（向后兼容，使用for循环保证性能）
-            records = self.kline_table.get_all_k_lines_by_term(stock_id, term)
-            
-            if not records:
-                return []
-            
-            # 应用复权（使用内部方法，不依赖DataSourceService）
-            if adjust in ['qfq', 'hfq']:
-                factors = self.adj_factor_table.get_stock_factors(stock_id)
-                if factors:
-                    records = self._apply_adjustment_list(records, factors, adjust)
-            
-            # 过滤负值（使用内部方法）
-            if filter_negative:
-                records = self._filter_negative_records(records)
-            
-            return records
+        """
+        return self.kline_loader.load(
+            stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
+        )
     
     def load_stock_klines_data(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         """
@@ -181,31 +268,7 @@ class DataLoader:
         Returns:
             Dict[term, List[Dict]]: 各周期的K线数据
         """
-        min_required_base_records = settings.get('min_required_base_records', 0)
-        min_required_kline_term = settings.get('base_term')
-        adjust = settings.get('adjust', 'qfq')
-        allow_negative_records = settings.get('allow_negative_records', False)
-        
-        kline_data = {}
-        
-        for term in settings.get('terms', []):
-            records = self.load_klines(
-                stock_id=stock_id,
-                term=term,
-                adjust=adjust,
-                as_dataframe=False,
-                filter_negative=not allow_negative_records
-            )
-            kline_data[term] = records
-        
-        # 检查最小记录数要求
-        if min_required_base_records > 0:
-            base_records = kline_data.get(min_required_kline_term, [])
-            if len(base_records) < min_required_base_records:
-                # 返回包含所有请求term的空列表
-                return {term: [] for term in settings.get('terms', [])}
-        
-        return kline_data
+        return self.kline_loader.load_multiple_terms(stock_id, settings)
     
     def load_stock_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -496,142 +559,6 @@ class DataLoader:
         return data
     
     # ============ 内部工具方法 ============
-    
-    @staticmethod
-    def _apply_adjustment_list(records: List[Dict], factors: List[Dict], adjust_type: str) -> List[Dict]:
-        """
-        应用复权计算（List版本，for循环）
-        
-        用于List[Dict]格式的数据，性能优于DataFrame（~0.006秒 vs ~0.1秒）
-        
-        Args:
-            records: K线数据列表
-            factors: 复权因子列表
-            adjust_type: 'qfq'前复权 或 'hfq'后复权
-            
-        Returns:
-            List[Dict]: 复权后的K线数据（原地修改）
-        """
-        if not records or not factors:
-            return records
-        
-        # 确保因子按日期升序
-        sorted_factors = sorted(factors, key=lambda x: x['date'])
-        
-        # 确定使用哪个因子字段
-        factor_field = 'qfq' if adjust_type == 'qfq' else 'hfq'
-        
-        # 获取默认因子
-        default_factor = sorted_factors[0].get(factor_field, 1.0) if sorted_factors else 1.0
-        
-        # 处理每条K线
-        for k_line in records:
-            # 保存原始值
-            k_line['raw'] = {
-                'open': k_line.get('open'),
-                'close': k_line.get('close'),
-                'highest': k_line.get('highest'),
-                'lowest': k_line.get('lowest')
-            }
-            
-            # 获取当前K线的日期
-            current_date = k_line.get('date')
-            if not current_date:
-                continue
-            
-            # 查找对应的复权因子（向后查找）
-            factor_value = default_factor
-            for factor in sorted_factors:
-                if factor['date'] <= current_date:
-                    factor_value = factor.get(factor_field, factor_value)
-                else:
-                    break
-            
-            # 计算复权价格
-            if factor_value:
-                for price_col in ['open', 'close', 'highest', 'lowest']:
-                    if k_line['raw'][price_col] is not None:
-                        k_line[price_col] = k_line['raw'][price_col] * factor_value
-        
-        return records
-    
-    @staticmethod
-    def _filter_negative_records(records: List[Dict]) -> List[Dict]:
-        """
-        过滤负值记录
-        
-        Args:
-            records: K线数据列表
-            
-        Returns:
-            List[Dict]: 过滤后的数据
-        """
-        if not records:
-            return []
-        
-        return [r for r in records if r.get('close', 0) and r.get('close') > 0]
-    
-    def _apply_adjustment_df(self, df: pd.DataFrame, df_factors: pd.DataFrame, adjust_type: str) -> pd.DataFrame:
-        """
-        应用复权计算（DataFrame优化版本）
-        
-        优化：
-        - 接受DataFrame格式的factors（避免dict→DataFrame转换）
-        - 数据库已排序，不需要再sort（避免排序开销）
-        - 使用merge_asof自动匹配复权因子
-        
-        Args:
-            df: K线DataFrame，包含date、open、close、highest、lowest列（已按date排序）
-            df_factors: 复权因子DataFrame，包含date和qfq/hfq字段（已按date排序）
-            adjust_type: 'qfq'前复权 或 'hfq'后复权
-            
-        Returns:
-            pd.DataFrame: 复权后的K线数据
-        """
-        if df_factors.empty:
-            logger.debug("复权因子为空，返回原始数据")
-            return df
-        
-        # 1. 确定使用哪个复权因子字段
-        factor_field = 'qfq' if adjust_type == 'qfq' else 'hfq'
-        
-        if factor_field not in df_factors.columns:
-            logger.warning(f"复权因子中没有{factor_field}字段，返回原始数据")
-            return df
-        
-        # 2. 准备复权因子（重命名，避免冲突）
-        df_factor = df_factors[['date', factor_field]].copy()
-        df_factor = df_factor.rename(columns={factor_field: 'factor'})
-        
-        # 3. 将date转换为数值类型（merge_asof要求）
-        df = df.copy()  # 避免修改原DataFrame
-        df['date_int'] = df['date'].astype(str).astype(int)
-        df_factor['date_int'] = df_factor['date'].astype(str).astype(int)
-        
-        # 4. 保存原始价格（用于回溯分析）
-        price_columns = ['open', 'close', 'highest', 'lowest']
-        for col in price_columns:
-            if col in df.columns:
-                df[f'raw_{col}'] = df[col]
-        
-        # 5. 使用merge_asof匹配复权因子
-        # 注意：df和df_factor都来自数据库，已按date排序，不需要sort
-        merged = pd.merge_asof(
-            df,  # 已排序（数据库order_by='date'）
-            df_factor[['date_int', 'factor']],  # 已排序（数据库order_by='date ASC'）
-            on='date_int',
-            direction='backward'  # 向后查找：使用小于等于当前日期的最近因子
-        )
-        
-        # 6. 向量化计算复权价格（批量乘法）
-        for col in price_columns:
-            if col in merged.columns and 'factor' in merged.columns:
-                merged[col] = merged[col] * merged['factor']
-        
-        # 7. 删除临时列
-        merged = merged.drop(columns=['date_int', 'factor'])
-        
-        return merged
     
     @staticmethod
     def _make_cache_key(dataset: str, start: Optional[str], end: Optional[str], 

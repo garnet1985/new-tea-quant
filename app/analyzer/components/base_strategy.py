@@ -167,7 +167,7 @@ class BaseStrategy(ABC):
         # 直接构建基础表
         tables = {
             "stock_index": self.db.get_table_instance("stock_index"),
-            "stock_kline": self.db.get_table_instance("stock_klines"),
+            "stock_kline": self.db.get_table_instance("stock_kline"),
             "adj_factor": self.db.get_table_instance("adj_factor"),
         }
         

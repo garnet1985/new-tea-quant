@@ -141,22 +141,22 @@ class DatabaseManager:
                         logger.warning(f"Thread local connection test query failed: {e}")
                         try:
                             self._local.connection.close()
-                        except:
-                            pass
+                        except Exception as close_error:
+                            logger.debug(f"Failed to close invalid connection: {close_error}")
                         delattr(self._local, 'connection')
                 else:
                     logger.warning("Thread local connection is closed, creating new one")
                     try:
                         self._local.connection.close()
-                    except:
-                        pass
+                    except Exception as close_error:
+                        logger.debug(f"Failed to close closed connection: {close_error}")
                     delattr(self._local, 'connection')
             except Exception as e:
                 logger.warning(f"Thread local connection invalid, creating new one: {e}")
                 try:
                     self._local.connection.close()
-                except:
-                    pass
+                except Exception as close_error:
+                    logger.debug(f"Failed to close invalid connection: {close_error}")
                 delattr(self._local, 'connection')
         
         # 尝试从连接池获取
@@ -608,8 +608,8 @@ class DatabaseManager:
                         logger.error(f"Database cursor error (attempt {attempt + 1}/{max_retries}): {e}")
                         try:
                             connection.rollback()
-                        except:
-                            pass
+                        except Exception as rollback_error:
+                            logger.debug(f"Failed to rollback transaction: {rollback_error}")
                         
                         # 如果是连接相关错误，标记连接无效
                         if any(err_msg in str(e) for err_msg in [
@@ -625,8 +625,8 @@ class DatabaseManager:
                                 if hasattr(self._local, 'connection'):
                                     try:
                                         self._local.connection.close()
-                                    except:
-                                        pass
+                                    except Exception as close_error:
+                                        logger.debug(f"Failed to close thread-local connection: {close_error}")
                                     delattr(self._local, 'connection')
                         
                         if attempt == max_retries - 1:
@@ -640,8 +640,8 @@ class DatabaseManager:
                         if cursor:
                             try:
                                 cursor.close()
-                            except:
-                                pass
+                            except Exception as close_error:
+                                logger.debug(f"Failed to close cursor: {close_error}")
                         # 如果使用连接池，归还连接
                         if self.use_connection_pool:
                             return_connection(connection)
@@ -667,8 +667,8 @@ class DatabaseManager:
                         if self.sync_connection:
                             try:
                                 self.sync_connection.rollback()
-                            except:
-                                pass
+                            except Exception as rollback_error:
+                                logger.debug(f"Failed to rollback sync connection: {rollback_error}")
                         
                         # 如果是连接相关错误，尝试重连
                         if any(err_msg in str(e) for err_msg in [
@@ -690,8 +690,8 @@ class DatabaseManager:
                         if cursor:
                             try:
                                 cursor.close()
-                            except:
-                                pass
+                            except Exception as close_error:
+                                logger.debug(f"Failed to close sync cursor: {close_error}")
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise  # 最后一次尝试失败，抛出异常
@@ -913,22 +913,22 @@ class DatabaseManager:
                 try:
                     connection = self._connection_pool.get_nowait()
                     connection.close()
-                except:
-                    pass
+                except Exception as close_error:
+                    logger.debug(f"Failed to close pooled connection: {close_error}")
             
             # 关闭线程本地连接
             if hasattr(self._local, 'connection'):
                 try:
                     self._local.connection.close()
-                except:
-                    pass
+                except Exception as close_error:
+                    logger.debug(f"Failed to close thread-local connection: {close_error}")
         
         # 关闭原有连接
         if self.sync_connection:
             try:
                 self.sync_connection.close()
-            except:
-                pass
+            except Exception as close_error:
+                logger.debug(f"Failed to close sync connection: {close_error}")
         
         logger.info("DatabaseManager closed")
     

@@ -129,7 +129,8 @@ class AdjustFactor(BaseTableModel):
                     try:
                         # 尝试解析日期时间字符串
                         record['last_update'] = pd.to_datetime(record['last_update'])
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Failed to parse last_update datetime: {e}")
                         record['last_update'] = datetime.now()
 
             # 插入数据

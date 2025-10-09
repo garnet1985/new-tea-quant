@@ -379,9 +379,10 @@ class BaseStrategy(ABC):
         settings = job.get('settings', {}) or {}
         module_info = job.get('module_info', {}) or {}
 
-        # 子进程内直接使用 DataLoader 的静态方法，避免初始化 DatabaseManager
-        from app.analyzer.components.data_loader import DataLoader
-        data = DataLoader.prepare_data(stock, settings)
+        # 子进程内直接使用 DataLoader，避免初始化 DatabaseManager
+        from app.data_loader import DataLoader
+        loader = DataLoader()
+        data = loader.prepare_data(stock, settings)
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法
         import importlib

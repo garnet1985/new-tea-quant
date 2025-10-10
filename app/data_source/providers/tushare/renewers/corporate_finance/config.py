@@ -10,8 +10,10 @@ CONFIG = {
     'table_name': 'corporate_finance',
     'renew_mode': 'incremental',  # 增量更新
     'date': {
-        'field': 'quarter',  # 使用quarter作为日期字段（格式：YYYYQ1-4）
-        'interval': 'quarter'  # 按季度更新
+        'field': 'quarter',         # 数据库字段名
+        'storage_format': 'quarter', # 数据库存储格式（YYYYQ[1-4]）
+        'interval': 'quarter',      # 更新间隔
+        'api_format': 'date'        # API需要date格式（YYYYMMDD）
     },
     
     'job_mode': 'multithread',

@@ -9,7 +9,7 @@ CONFIG = {
     'date': {
         'field': 'date',           # 数据库字段名
         'storage_format': 'date',   # 数据库存储格式（YYYYMMDD）
-        'interval': 'day',         # 更新间隔
+        'interval': 'month',       # 更新间隔（指数成分股不常变化，月度更新即可）
         'api_format': 'date'       # API需要日期格式（YYYYMMDD）
     },
     

@@ -20,9 +20,9 @@ CONFIG = {
                 'name': 'name',
                 'industry': lambda x: x.get('industry') or '未知行业',
                 'type': lambda x: x.get('market') or '未知类型',
-                'exchangeCenter': lambda x: x.get('exchange') or '未知交易所',
+                'exchange_center': lambda x: x.get('exchange') or '未知交易所',
                 'isAlive': lambda x: 1,  # API返回的股票都是活跃的
-                'lastUpdate': lambda x: datetime.now().strftime('%Y-%m-%d')  # 当前更新日期
+                'last_update': lambda x: datetime.now().strftime('%Y-%m-%d')  # 当前更新日期
             }
         }
     ]

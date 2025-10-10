@@ -293,11 +293,11 @@ class StockKlineRenewer(BaseRenewer):
         
         # 2. 对basic的字段进行前向填充（ffill）
         basic_columns = [
-            'turnoverRate', 'freeTurnoverRate', 'volumeRatio',
-            'pe', 'peTTM', 'pb', 'ps', 'psTTM',
-            'dvRatio', 'dvTTM',
-            'totalShare', 'floatShare', 'freeShare',
-            'totalMarketValue', 'circMarketValue'
+            'turnover_rate', 'free_turnover_rate', 'volume_ratio',
+            'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm',
+            'dv_ratio', 'dv_ttm',
+            'total_share', 'float_share', 'free_share',
+            'total_market_value', 'circ_market_value'
         ]
         
         # 按日期排序后前向填充（处理缺失值）

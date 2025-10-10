@@ -55,9 +55,9 @@ CONFIG = {
                 'highest': 'high',
                 'lowest': 'low',
                 'close': 'close',
-                'preClose': 'pre_close',
-                'priceChangeDelta': 'change',
-                'priceChangeRateDelta': 'pct_chg',
+                'pre_close': 'pre_close',
+                'price_change_delta': 'change',
+                'price_change_rate_delta': 'pct_chg',
                 'volume': 'vol',
                 'amount': 'amount'
             }
@@ -78,9 +78,9 @@ CONFIG = {
                 'highest': 'high',
                 'lowest': 'low',
                 'close': 'close',
-                'preClose': 'pre_close',
-                'priceChangeDelta': 'change',
-                'priceChangeRateDelta': 'pct_chg',
+                'pre_close': 'pre_close',
+                'price_change_delta': 'change',
+                'price_change_rate_delta': 'pct_chg',
                 'volume': 'vol',
                 'amount': 'amount'
             }
@@ -101,9 +101,9 @@ CONFIG = {
                 'highest': 'high',
                 'lowest': 'low',
                 'close': 'close',
-                'preClose': 'pre_close',
-                'priceChangeDelta': 'change',
-                'priceChangeRateDelta': 'pct_chg',
+                'pre_close': 'pre_close',
+                'price_change_delta': 'change',
+                'price_change_rate_delta': 'pct_chg',
                 'volume': 'vol',
                 'amount': 'amount'
             }
@@ -120,21 +120,21 @@ CONFIG = {
             'mapping': {
                 'id': 'ts_code',
                 'date': 'trade_date',
-                'turnoverRate': 'turnover_rate',
-                'freeTurnoverRate': 'turnover_rate_f',
-                'volumeRatio': 'volume_ratio',
+                'turnover_rate': 'turnover_rate',
+                'free_turnover_rate': 'turnover_rate_f',
+                'volume_ratio': 'volume_ratio',
                 'pe': 'pe',
-                'peTTM': 'pe_ttm',
+                'pe_ttm': 'pe_ttm',
                 'pb': 'pb',
                 'ps': 'ps',
-                'psTTM': 'ps_ttm',
-                'dvRatio': 'dv_ratio',
-                'dvTTM': 'dv_ttm',
-                'totalShare': 'total_share',
-                'floatShare': 'float_share',
-                'freeShare': 'free_share',
-                'totalMarketValue': 'total_mv',
-                'circMarketValue': 'circ_mv'
+                'ps_ttm': 'ps_ttm',
+                'dv_ratio': 'dv_ratio',
+                'dv_ttm': 'dv_ttm',
+                'total_share': 'total_share',
+                'float_share': 'float_share',
+                'free_share': 'free_share',
+                'total_market_value': 'total_mv',
+                'circ_market_value': 'circ_mv'
             }
         }
     ]

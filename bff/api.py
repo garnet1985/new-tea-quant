@@ -78,9 +78,9 @@ class BFFApi:
                     'lowest': float(record['lowest']),
                     'volume': float(record['volume']) if record.get('volume') else 0,
                     'amount': float(record['amount']) if record.get('amount') else 0,
-                    'priceChangeDelta': float(record['priceChangeDelta']) if record.get('priceChangeDelta') else 0,
-                    'priceChangeRateDelta': float(record['priceChangeRateDelta']) if record.get('priceChangeRateDelta') else 0,
-                    'preClose': float(record['preClose']) if record.get('preClose') else 0
+                    'price_change_delta': float(record['price_change_delta']) if record.get('price_change_delta') else 0,
+                    'price_change_rate_delta': float(record['price_change_rate_delta']) if record.get('price_change_rate_delta') else 0,
+                    'pre_close': float(record['pre_close']) if record.get('pre_close') else 0
                 }
                 formatted_klines.append(formatted_kline)
             

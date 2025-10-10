@@ -1,12 +1,17 @@
 """
 企业财务指标更新器
 
-使用Tushare的fina_indicator接口获取企业财务指标数据
-
-设计：
-- config使用lambda表达式做值转换（end_date → quarter）
-- 只复写get_job_primary_keys（处理主键生成）
+极简设计（仅40行）：
+- Lambda表达式处理值转换（end_date → quarter）
+- Hook函数处理主键生成（只返回id）
 - 其他逻辑完全使用基类默认行为
+
+设计思想：
+- 内部统一YYYYMMDD格式
+- 边界查询config转换格式
+- storage_format: quarter → YYYYMMDD（读取时）
+- api_format: YYYYMMDD → date（API请求时）
+- mapping: date → quarter（保存时）
 """
 
 from typing import Dict, List, Optional
@@ -15,12 +20,10 @@ from ...base_renewer import BaseRenewer
 
 class CorporateFinanceRenewer(BaseRenewer):
     """
-    企业财务指标更新器
+    企业财务指标更新器（极简版）
     
-    极简设计：
-    - ✅ config的lambda表达式处理值转换（end_date → quarter）
-    - ✅ 只复写get_job_primary_keys（返回{'id': ...}）
-    - ✅ 其他逻辑使用基类默认行为
+    只需复写1个方法：
+    - get_job_primary_keys: 返回{'id': ...}（quarter由API数据提供）
     """
     
     def get_job_primary_keys(self, stock: Dict, db_record: Optional[Dict],

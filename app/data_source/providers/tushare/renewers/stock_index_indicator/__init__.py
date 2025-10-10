@@ -1,2 +1,0 @@
-# Stock Index Indicator Renewer
-

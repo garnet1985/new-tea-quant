@@ -9,55 +9,12 @@ class TushareStorage:
         self.db = connected_db
         # 使用线程安全的数据库模型
         self.meta_info = connected_db.get_table_instance('meta_info')
-        self.stock_index_table = connected_db.get_table_instance('stock_index')
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
         self.stock_index_indicator_table = connected_db.get_table_instance('stock_index_indicator')
         self.stock_index_indicator_weight_table = connected_db.get_table_instance('stock_index_indicator_weight')
         self.industry_capital_flow_table = connected_db.get_table_instance('industry_capital_flow')
         self.stock_list_table = connected_db.get_table_instance('stock_list')
 
-    def save_stock_index(self, data):
-        """
-        保存股票指数数据到数据库 - 使用upsert方式
-        
-        Args:
-            data: 股票指数数据列表
-        """
-        # 转换数据格式以匹配数据库表结构
-        api_stocks = []
-        from datetime import datetime
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        
-        for item in data:
-            # 使用 ts_code 作为 id
-            ts_code = item.get('ts_code', '')
-            
-            # 验证必填字段
-            if not ts_code or not item.get('name'):
-                continue
-            
-            # 处理可能为空的字段，确保必填字段不为空
-            industry = item.get('industry', '') or '未知行业'
-            market_type = item.get('market', '') or '未知类型'
-            exchange = item.get('exchange', '') or '未知交易所'
-            
-            api_stocks.append({
-                'id': ts_code,  # 股票代码（包含市场后缀）
-                'name': item.get('name', ''),
-                'industry': industry,
-                'type': market_type,  # market -> type
-                'exchange_center': exchange,  # exchange -> exchange_center
-                'is_alive': 1,  # API返回的股票都是活跃的
-                'last_update': current_date
-            })
-
-        # 一次性更新：插入/更新活跃股票，标记未出现的股票为非活跃
-        self.stock_index_table.renew_index(api_stocks)
-        
-        return True
-
-    def load_stock_index(self):
-        return self.stock_index_table.load_all()
 
     def load_stock_list(self, exclude_patterns=None, order_by: str = 'id'):
         try:

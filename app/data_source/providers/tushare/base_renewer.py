@@ -93,6 +93,13 @@ class BaseRenewer(ABC):
         Returns:
             更新结果
         """
+        # 检查是否启用此 renewer
+        is_enabled = self.config.get('is_enabled', True)
+        if not is_enabled:
+            table_name = self.config.get('table_name', 'unknown')
+            logger.info(f"⏸️  {table_name} renewer 已禁用，跳过更新")
+            return True  # 返回 True 表示"成功"跳过
+        
         # 判断是否需要更新，并构建任务列表
         jobs = self.should_renew(latest_market_open_day, stock_list)
 

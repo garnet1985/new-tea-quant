@@ -3,6 +3,7 @@ LPR利率更新配置
 """
 
 CONFIG = {
+    'is_enabled': True,  # 是否启用此 renewer
     'table_name': 'lpr',
     'renew_mode': 'incremental',  # 增量更新
     

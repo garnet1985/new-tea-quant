@@ -3,6 +3,7 @@
 """
 
 CONFIG = {
+    'is_enabled': True,  # 是否启用此 renewer
     'table_name': 'industry_capital_flow',
     'renew_mode': 'incremental',  # 增量更新
     

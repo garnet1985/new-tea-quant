@@ -8,6 +8,7 @@ stock_kline（富含 daily_basic 字段）更新配置
 """
 
 CONFIG = {
+    'is_enabled': True,  # 是否启用此 renewer
     'table_name': 'stock_kline',
     # renew_mode说明：
     # incremental = 业务逻辑上的增量（只加载最新记录做判断，内存占用小）

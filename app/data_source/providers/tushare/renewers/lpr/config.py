@@ -18,8 +18,8 @@ CONFIG = {
             },
             'mapping': {
                 'date': 'date',
-                'LPR_1Y': '1y',
-                'LPR_5Y': '5y'
+                'lpr_1_y': '1y',
+                'lpr_5_y': '5y'
             }
         }
     ]

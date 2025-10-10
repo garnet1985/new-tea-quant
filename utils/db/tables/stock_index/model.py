@@ -35,12 +35,12 @@ class StockIndexModel(BaseTableModel):
         active_stock_ids = [stock['id'] for stock in stock_data]
         if active_stock_ids:
             placeholders = ','.join(['%s'] * len(active_stock_ids))
-            condition = f"id NOT IN ({placeholders}) AND isAlive = 1"
+            condition = f"id NOT IN ({placeholders}) AND is_alive = 1"
             params = tuple(active_stock_ids)
             
             update_data = {
-                'isAlive': 0,
-                'lastUpdate': stock_data[0]['lastUpdate']  # 使用第一条数据的lastUpdate
+                'is_alive': 0,
+                'last_update': stock_data[0]['last_update']  # 使用第一条数据的lastUpdate
             }
             
             self.update(update_data, condition, params)
@@ -77,9 +77,9 @@ class StockIndexModel(BaseTableModel):
             
             # 根据load_type添加isAlive条件
             if load_type == 'alive':
-                where_conditions.append("isAlive = 1")
+                where_conditions.append("is_alive = 1")
             elif load_type == 'inactive':
-                where_conditions.append("isAlive = 0")
+                where_conditions.append("is_alive = 0")
             # load_type == 'all' 时不添加isAlive条件
             
             # 添加行业筛选
@@ -94,7 +94,7 @@ class StockIndexModel(BaseTableModel):
             
             # 添加交易所筛选
             if exchange_center:
-                where_conditions.append("exchangeCenter = %s")
+                where_conditions.append("exchange_center = %s")
                 params.append(exchange_center)
             
             # 添加排除模式
@@ -156,12 +156,12 @@ class StockIndexModel(BaseTableModel):
     def load_latest_last_update(self) -> Optional[str]:
         # 使用基类的load_one方法，按lastUpdate降序排序取第一条
         latest_record = self.load_one("1=1", order_by="lastUpdate DESC")
-        return latest_record.get('lastUpdate') if latest_record else None
+        return latest_record.get('last_update') if latest_record else None
 
     def load_filtered_index(self, exclude_patterns: Optional[Dict[str, List[Any]]] = None, order_by: str = 'id') -> List[Dict[str, Any]]:
         """
         返回默认可用股票集合：
-        - 只加载 isAlive=1
+        - 只加载 is_alive =1
         - 通用排除语法（来自 analyzer_settings.conf['stock_idx']['exclude']）：
             exclude = {
                 [how_to_exclude]: {  # start_with | contains | end_with | equals | in
@@ -173,7 +173,7 @@ class StockIndexModel(BaseTableModel):
         """
         try:
             # 基础条件：仅活跃
-            where_conditions = ["isAlive = 1"]
+            where_conditions = ["is_alive = 1"]
             params: List[Any] = []
 
             # 从设置读取通用 exclude 配置
@@ -208,7 +208,7 @@ class StockIndexModel(BaseTableModel):
         if not isinstance(exclude_conf, dict):
             return [], []
 
-        allowed_fields = { 'id', 'name', 'industry', 'type', 'exchangeCenter', 'market' }
+        allowed_fields = { 'id', 'name', 'industry', 'type', 'exchange_center', 'market' }
         conditions: List[str] = []
         params: List[Any] = []
 

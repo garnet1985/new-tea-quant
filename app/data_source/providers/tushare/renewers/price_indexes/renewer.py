@@ -24,7 +24,7 @@ class PriceIndexesRenewer(BaseRenewer):
         # 检查关键字段是否为空或0（宏观经济数据的关键字段）
         # 检查是否有缺失数据的记录
         has_missing_data = False
-        for field in ['CPI', 'PPI', 'PMI']:
+        for field in ['cpi', 'ppi', 'pmi']:
             field_value = last_record.get(field)
             if not field_value or field_value == 0:
                 has_missing_data = True
@@ -206,10 +206,10 @@ class PriceIndexesRenewer(BaseRenewer):
                         # 处理 NaN 值
                         if pd.isna(value):
                             # 对于数值字段，将 NaN 转换为 0.0
-                            if db_field in ['CPI', 'CPI_yoy', 'CPI_mom', 'PPI', 'PPI_yoy', 'PPI_mom', 
-                                           'PMI', 'PMI_l_scale', 'PMI_m_scale', 'PMI_s_scale',
-                                           'M0', 'M0_yoy', 'M0_mom', 'M1', 'M1_yoy', 'M1_mom', 
-                                           'M2', 'M2_yoy', 'M2_mom']:
+                            if db_field in ['cpi', 'cpi_yoy', 'cpi_mom', 'ppi', 'ppi_yoy', 'ppi_mom', 
+                                           'pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale',
+                                           'm0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 
+                                           'm2', 'm2_yoy', 'm2_mom']:
                                 combined_data[month][db_field] = 0.0
                             else:
                                 combined_data[month][db_field] = None
@@ -217,10 +217,10 @@ class PriceIndexesRenewer(BaseRenewer):
                             combined_data[month][db_field] = value
                     else:
                         # 如果字段不存在，设置默认值（对于必填字段）
-                        if db_field in ['CPI', 'CPI_yoy', 'CPI_mom', 'PPI', 'PPI_yoy', 'PPI_mom', 
-                                       'PMI', 'PMI_l_scale', 'PMI_m_scale', 'PMI_s_scale',
-                                       'M0', 'M0_yoy', 'M0_mom', 'M1', 'M1_yoy', 'M1_mom', 
-                                       'M2', 'M2_yoy', 'M2_mom']:
+                        if db_field in ['cpi', 'cpi_yoy', 'cpi_mom', 'ppi', 'ppi_yoy', 'ppi_mom', 
+                                       'pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale',
+                                       'm0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 
+                                       'm2', 'm2_yoy', 'm2_mom']:
                             combined_data[month][db_field] = 0.0  # 设置默认值为 0.0
         
         result_df = pd.DataFrame(list(combined_data.values()))

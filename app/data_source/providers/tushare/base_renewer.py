@@ -288,8 +288,15 @@ class BaseRenewer(ABC):
             start_val, end_val = self._convert_to_api_format(start_val, end_val)
             
             job = {'start_date': start_val, 'end_date': end_val}
+            
+            # 添加主键
             job_keys = self.get_job_primary_keys(stock, latest_record, primary_keys)
             job.update(job_keys)
+            
+            # 添加日志变量
+            log_vars = self.get_job_log_vars(stock, latest_record)
+            if log_vars:
+                job['_log_vars'] = log_vars
             
             return job
         
@@ -314,8 +321,15 @@ class BaseRenewer(ABC):
         start_val, end_val = self._convert_to_api_format(start_val, end_val)
         
         job = {'start_date': start_val, 'end_date': end_val}
+        
+        # 添加主键
         job_keys = self.get_job_primary_keys(stock, None, primary_keys)
         job.update(job_keys)
+        
+        # 添加日志变量
+        log_vars = self.get_job_log_vars(stock, None)
+        if log_vars:
+            job['_log_vars'] = log_vars
         
         return job
     
@@ -530,6 +544,33 @@ class BaseRenewer(ABC):
                     job_keys[key] = db_record[key]
         
         return job_keys
+    
+    def get_job_log_vars(self, stock: Dict, db_record: Optional[Dict]) -> Dict:
+        """
+        生成job的日志变量 - 子类可复写
+        
+        默认行为：提取id和name
+        
+        Args:
+            stock: 股票信息（来自stock_list）
+            db_record: 数据库中的最新记录（可能为None）
+            
+        Returns:
+            Dict: 日志变量，如 {'id': '000001.SZ', 'stock_name': '平安银行'}
+            
+        示例：
+            def get_job_log_vars(self, stock, db_record):
+                return {
+                    'id': stock['id'],
+                    'stock_name': stock.get('name', ''),
+                    'market': stock.get('exchangeCenter', '')
+                }
+        """
+        # 默认行为：提取常用字段
+        return {
+            'id': stock.get('id', ''),
+            'stock_name': stock.get('name', '')
+        }
     
     def should_execute_api(self, api_config: Dict, previous_results: Dict) -> bool:
         """

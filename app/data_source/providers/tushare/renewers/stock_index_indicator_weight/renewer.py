@@ -52,9 +52,7 @@ class StockIndexIndicatorWeightRenewer(BaseRenewer):
                 db_map[record['id']] = record
         
         # 计算实际结束日期（前一个交易日）
-        from datetime import datetime, timedelta
-        market_date_obj = datetime.strptime(latest_market_open_day, '%Y%m%d')
-        actual_end_date = (market_date_obj - timedelta(days=1)).strftime('%Y%m%d')
+        actual_end_date = DataSourceService.to_previous_day(latest_market_open_day)
         
         # 为每个指数生成任务
         for index_info in index_list:
@@ -66,8 +64,8 @@ class StockIndexIndicatorWeightRenewer(BaseRenewer):
                 latest_record = db_map[index_id]
                 latest_date = latest_record['date']
                 
-                # 计算时间gap
-                time_gap = DataSourceService.time_gap_by('day', latest_date, actual_end_date)
+                # 计算时间gap（指数成分股不常变化，至少1个月才更新）
+                time_gap = DataSourceService.time_gap_by('month', latest_date, actual_end_date)
                 
                 if time_gap >= 1:
                     # 需要更新

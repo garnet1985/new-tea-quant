@@ -44,7 +44,7 @@ class TushareService:
                         'name': row.get('name', ''),
                         'industry': row.get('industry', ''),
                         'area': row.get('area', ''),
-                        'exchange': row.get('exchangeCenter', ''),  # 数据库字段名不同
+                        'exchange': row.get('exchange_center', ''),  # 数据库字段名不同
                         'list_date': row.get('list_date', '')
                     }
                 else:

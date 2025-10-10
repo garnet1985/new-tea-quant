@@ -40,14 +40,14 @@ class AKShare:
         self.tu = tu
         return self
     
-    async def renew(self, latest_market_open_day: str = None, latest_stock_index: list = None):
+    async def renew(self, latest_market_open_day: str = None, stock_list: list = None):
         """
         AKShare 数据源统一更新入口
         内部处理所有 AKShare 相关的数据更新
         
         Args:
             latest_market_open_day: 最新市场开放日
-            latest_stock_index: 股票指数列表（用于依赖关系）
+            stock_list: 股票列表（用于依赖关系）
             
         Returns:
             更新结果
@@ -57,7 +57,7 @@ class AKShare:
         
         try:
             # 1. 更新复权因子（依赖K线数据）
-            self.renew_stock_k_line_factors(latest_market_open_day, latest_stock_index)
+            self.renew_stock_k_line_factors(latest_market_open_day, stock_list)
             return True
             
         except Exception as e:
@@ -69,11 +69,11 @@ class AKShare:
         self.job_complete_counter = 0
         self.latest_market_open_day = None
 
-    def renew_stock_k_line_factors(self, latest_market_open_day: str, stock_index: list = None):
+    def renew_stock_k_line_factors(self, latest_market_open_day: str, stock_list: list = None):
 
         self.latest_market_open_day = latest_market_open_day
 
-        jobs = self.get_renewable_stocks(stock_index)
+        jobs = self.get_renewable_stocks(stock_list)
 
         self.total_jobs = len(jobs)
         start_time = time.time()
@@ -108,7 +108,7 @@ class AKShare:
         self._close_thread_dbs()
 
 
-    def get_renewable_stocks(self, stock_index: list = None) -> List[Dict]:
+    def get_renewable_stocks(self, stock_list: list = None) -> List[Dict]:
         factor_last_update_dates = self.storage.get_all_stocks_latest_update_dates()
 
         if len(factor_last_update_dates) == 0:
@@ -116,10 +116,10 @@ class AKShare:
             start_time = time.time()
             self.storage.adj_factor_table.import_from_csv()
             logger.info(f"从CSV文件中导入基础数据完成. 耗时: {time.time() - start_time} 秒")
-            return self.get_renewable_stocks(stock_index)
+            return self.get_renewable_stocks(stock_list)
         
         jobs = self.service.get_stocks_needing_update_from_db(factor_last_update_dates)
-        jobs += self.service.get_stocks_needing_update_from_stock_index(factor_last_update_dates, stock_index)
+        jobs += self.service.get_stocks_needing_update_from_stock_list(factor_last_update_dates, stock_list)
 
         return jobs
 

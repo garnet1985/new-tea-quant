@@ -156,21 +156,65 @@ class BaseRenewer(ABC):
         
         确保获取的数据是完整的、已经产生过的
         
+        考虑披露延迟：
+        - 如果配置了disclosure_delay_months，会检查当前日期是否已过披露截止日期
+        - 如果未到截止日期，会再往前推一个周期
+        
+        示例（季度报告，delay=1个月）：
+        - latest_market_open_day = 20251015（Q4第一个月）
+          → 前一季度 = Q3（20250930）
+          → 披露截止 = 20251031
+          → 当前 < 截止 → 返回 Q2（20250630）
+        
+        - latest_market_open_day = 20251115（Q4第二个月）
+          → 前一季度 = Q3（20250930）
+          → 披露截止 = 20251031
+          → 当前 > 截止 → 返回 Q3（20250930）
+        
         Returns:
             str: 目标end_date（YYYYMMDD格式）
         """
+        from datetime import datetime, timedelta
+        
         renew_interval = self.config['date']['interval']
         
+        # 计算前一个完整周期
         if renew_interval == 'day':
-            return latest_market_open_day  # day类型可以用当天（数据已结算）
+            target_end = latest_market_open_day  # day类型可以用当天（数据已结算）
         elif renew_interval == 'week':
-            return DataSourceService.get_previous_week_end(latest_market_open_day)
+            target_end = DataSourceService.get_previous_week_end(latest_market_open_day)
         elif renew_interval == 'month':
-            return DataSourceService.get_previous_month_end(latest_market_open_day)
+            target_end = DataSourceService.get_previous_month_end(latest_market_open_day)
         elif renew_interval == 'quarter':
-            return DataSourceService.get_previous_quarter_end(latest_market_open_day)
+            target_end = DataSourceService.get_previous_quarter_end(latest_market_open_day)
         else:
-            return latest_market_open_day  # 默认使用latest_market_open_day
+            target_end = latest_market_open_day  # 默认使用latest_market_open_day
+        
+        # 检查是否需要考虑披露延迟
+        disclosure_delay_months = self.config['date'].get('disclosure_delay_months', 0)
+        if disclosure_delay_months > 0:
+            # 计算披露截止日期
+            target_end_date = datetime.strptime(target_end, '%Y%m%d')
+            disclosure_deadline_date = target_end_date + timedelta(days=disclosure_delay_months * 31)  # 简化计算，用31天近似1个月
+            
+            # 当前日期
+            current_date = datetime.strptime(latest_market_open_day, '%Y%m%d')
+            
+            # 如果还没到披露截止日期，往前推一个周期
+            if current_date < disclosure_deadline_date:
+                logger.info(f"📅 当前日期 {latest_market_open_day} 未到披露截止日期 {disclosure_deadline_date.strftime('%Y%m%d')}，"
+                           f"将 target_end 从 {target_end} 往前推一个 {renew_interval}")
+                
+                # 往前推一个周期
+                if renew_interval == 'quarter':
+                    target_end = DataSourceService.get_previous_quarter_end(target_end)
+                elif renew_interval == 'month':
+                    target_end = DataSourceService.get_previous_month_end(target_end)
+                elif renew_interval == 'week':
+                    target_end = DataSourceService.get_previous_week_end(target_end)
+                # day类型不需要往前推
+        
+        return target_end
     
     def _build_stock_jobs(self, stock_list: list, db_records: Optional[list],
                          target_end: str, primary_keys: List[str], date_field: str) -> List[Dict]:

@@ -55,9 +55,7 @@ class StockIndexIndicatorRenewer(BaseRenewer):
                 db_map[key] = record
         
         # 计算实际结束日期（前一个交易日）
-        from datetime import datetime, timedelta
-        market_date_obj = datetime.strptime(latest_market_open_day, '%Y%m%d')
-        actual_end_date = (market_date_obj - timedelta(days=1)).strftime('%Y%m%d')
+        actual_end_date = DataSourceService.to_previous_day(latest_market_open_day)
         
         # 为每个指数×每个term生成任务
         terms_config = [

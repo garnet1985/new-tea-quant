@@ -169,15 +169,19 @@ class BaseRenewer(ABC):
                         latest_record = db_records_map[stock_key]
                         latest_date = latest_record[date_field]
                         
-                        if DataSourceService.time_gap_by(renew_interval, latest_date, target_end) > 0:
-                            # 需要更新
-                            start_val = DataSourceService.to_next(renew_interval, latest_date)
-                            end_val = target_end
+                        # 边界转换1：从存储格式 → 标准date格式（YYYYMMDD）
+                        storage_format = self.config['date'].get('storage_format', 'date')
+                        latest_date_std = DataSourceService.to_standard_date(latest_date, storage_format)
+                        
+                        # 内部统一用YYYYMMDD比较
+                        if DataSourceService.time_gap_by('day', latest_date_std, target_end) > 0:
+                            # 计算下一个值（用语义格式计算，然后转为YYYYMMDD）
+                            next_val = DataSourceService.to_next(renew_interval, latest_date)
+                            start_val = DataSourceService.to_standard_date(next_val, storage_format)
+                            end_val = target_end  # 已经是YYYYMMDD
                             
-                            # 如果是quarter，需要转换为日期格式（API需要）
-                            if renew_interval == 'quarter':
-                                start_val = DataSourceService.quarter_to_date(start_val)
-                                end_val = DataSourceService.quarter_to_date(end_val)
+                            # 边界转换2：YYYYMMDD → API格式
+                            start_val, end_val = self._convert_to_api_format(start_val, end_val)
                             
                             job = {
                                 'start_date': start_val,
@@ -189,12 +193,11 @@ class BaseRenewer(ABC):
                             jobs.append(job)
                     else:
                         # 新股票，从默认日期开始拉取
-                        start_val = data_default_start_date
-                        end_val = target_end
+                        start_val = data_default_start_date  # 已经是YYYYMMDD
+                        end_val = target_end  # 已经是YYYYMMDD
                         
-                        # 如果是quarter，需要转换为日期格式（API需要）
-                        if renew_interval == 'quarter':
-                            end_val = DataSourceService.quarter_to_date(end_val)
+                        # 边界转换：YYYYMMDD → API格式
+                        start_val, end_val = self._convert_to_api_format(start_val, end_val)
                         
                         job = {
                             'start_date': start_val,
@@ -207,12 +210,11 @@ class BaseRenewer(ABC):
             else:
                 # 数据库无记录：全量拉取
                 for stock in stock_list:
-                    start_val = data_default_start_date
-                    end_val = target_end
+                    start_val = data_default_start_date  # 已经是YYYYMMDD
+                    end_val = target_end  # 已经是YYYYMMDD
                     
-                    # 如果是quarter，需要转换为日期格式（API需要）
-                    if renew_interval == 'quarter':
-                        end_val = DataSourceService.quarter_to_date(end_val)
+                    # 边界转换：YYYYMMDD → API格式
+                    start_val, end_val = self._convert_to_api_format(start_val, end_val)
                     
                     job = {
                         'start_date': start_val,
@@ -230,20 +232,31 @@ class BaseRenewer(ABC):
                 latest_record = db_records[-1]
                 latest_date = latest_record[date_field]
                 
-                if DataSourceService.time_gap_by(renew_interval, latest_date, target_end) > 0:
-                    # 需要更新
-                    start_date = DataSourceService.to_next(renew_interval, latest_date)
+                # 边界转换1：从存储格式 → 标准date格式（YYYYMMDD）
+                storage_format = self.config['date'].get('storage_format', 'date')
+                latest_date_std = DataSourceService.to_standard_date(latest_date, storage_format)
+                
+                # 内部统一用YYYYMMDD比较
+                if DataSourceService.time_gap_by('day', latest_date_std, target_end) > 0:
+                    # 计算下一个值（用语义格式计算，然后转为YYYYMMDD）
+                    next_val = DataSourceService.to_next(renew_interval, latest_date)
+                    start_val = DataSourceService.to_standard_date(next_val, storage_format)
+                    end_val = target_end  # 已经是YYYYMMDD
                 else:
                     # 已是最新，不需要更新
                     return jobs
             else:
                 # 数据库无记录：全量拉取
-                start_date = data_default_start_date
+                start_val = data_default_start_date  # 已经是YYYYMMDD
+                end_val = target_end  # 已经是YYYYMMDD
+            
+            # 边界转换2：YYYYMMDD → API格式
+            start_val, end_val = self._convert_to_api_format(start_val, end_val)
             
             # 宏观数据只有一个job
             job = {
-                'start_date': start_date,
-                'end_date': target_end  # 使用target_end（确保数据完整）
+                'start_date': start_val,
+                'end_date': end_val
             }
             jobs.append(job)
 
@@ -371,6 +384,39 @@ class BaseRenewer(ABC):
             combined_data.extend(self.to_records(result))
         
         return combined_data
+    
+    def _convert_to_api_format(self, start_val: str, end_val: str) -> tuple:
+        """
+        根据api_format配置自动转换日期格式
+        
+        设计思想：
+        - 内部统一使用YYYYMMDD格式
+        - 只在API边界转换为API需要的格式
+        
+        Args:
+            start_val: 开始值（标准date格式YYYYMMDD）
+            end_val: 结束值（标准date格式YYYYMMDD）
+            
+        Returns:
+            tuple: (转换后的start, 转换后的end)
+            
+        示例：
+            config = {'date': {'api_format': 'quarter'}}
+            _convert_to_api_format('20250930', '20250930')
+            → ('2025Q3', '2025Q3')
+        """
+        # 获取配置（默认API也用date格式）
+        api_format = self.config['date'].get('api_format', 'date')
+        
+        # 如果API也用date格式，不需要转换
+        if api_format == 'date':
+            return start_val, end_val
+        
+        # 从标准格式转换为API需要的格式
+        start_val = DataSourceService.from_standard_date(start_val, api_format)
+        end_val = DataSourceService.from_standard_date(end_val, api_format)
+        
+        return start_val, end_val
     
     def get_job_primary_keys(self, stock: Dict, db_record: Optional[Dict], 
                              primary_keys: List[str]) -> Dict:

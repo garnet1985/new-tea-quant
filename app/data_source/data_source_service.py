@@ -252,6 +252,26 @@ class DataSourceService:
         return next_date.strftime('%Y%m%d')
     
     @staticmethod
+    def to_previous_day(date_str: str) -> str:
+        """
+        计算前一天
+        
+        Args:
+            date_str: 日期字符串，格式为 YYYYMMDD，如 '20240315'
+            
+        Returns:
+            str: 前一天的日期，如 '20240314'
+        """
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        day = int(date_str[6:8])
+        
+        current_date = date_type(year, month, day)
+        previous_date = current_date - timedelta(days=1)
+        
+        return previous_date.strftime('%Y%m%d')
+    
+    @staticmethod
     def to_next_week(date_str: str) -> str:
         """
         计算下一周（7天后）

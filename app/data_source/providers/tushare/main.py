@@ -161,10 +161,10 @@ class Tushare:
             
             # 更新宏观经济数据（独立并行）
             logger.info("🌍 更新宏观经济数据...")
-            self.price_indexes_renewer.renew(latest_market_open_day)
-            # self.lpr_renewer.renew(latest_market_open_day)
-            # self.gdp_renewer.renew(latest_market_open_day)
-            # self.shibor_renewer.renew(latest_market_open_day)
+            # self.price_indexes_renewer.renew(latest_market_open_day)
+            self.lpr_renewer.renew(latest_market_open_day)
+            self.gdp_renewer.renew(latest_market_open_day)
+            self.shibor_renewer.renew(latest_market_open_day)
 
             # logger.info("✅ Tushare 数据源更新完成")
             # return True

@@ -19,8 +19,6 @@ from .rate_limiter import RateLimiterManager
 from utils.progress.progress_tracker import ProgressTrackerManager
 
 # 导入各个 renewer 模块（直接导入具体文件，无需__init__.py）
-from .renewers.share_info.renewer import ShareInfoRenewer
-from .renewers.share_info.config import CONFIG as SHARE_INFO_CONFIG
 from .renewers.stock_index.renewer import StockIndexRenewer
 from .renewers.stock_index.config import CONFIG as STOCK_INDEX_CONFIG
 from .renewers.stock_list.renewer import StockListRenewer
@@ -112,9 +110,6 @@ class Tushare:
             'is_verbose': self.is_verbose
         }
         
-        self.share_info_renewer = ShareInfoRenewer(
-            config=SHARE_INFO_CONFIG, **renewer_params
-        )
         self.stock_index_renewer = StockIndexRenewer(
             config=STOCK_INDEX_CONFIG, **renewer_params
         )
@@ -175,10 +170,6 @@ class Tushare:
             # 更新企业财务数据（依赖股票列表）
             logger.info("💼 更新企业财务数据...")
             self.corporate_finance_renewer.renew(latest_market_open_day, stock_list)
-
-            # 更新股本信息（依赖股票指数）
-            # logger.info("📋 更新股本信息数据...")
-            # self.share_info_renewer.renew(latest_market_open_day)
             
             # logger.info("✅ Tushare 数据源更新完成")
             # return True

@@ -338,10 +338,10 @@ class DataLoader:
             all_pi_rows = price_indexes_table.load_price_indexes(start_date, end_date) or []
             
             field_groups = {
-                'CPI': ['CPI', 'CPI_yoy', 'CPI_mom'],
-                'PPI': ['PPI', 'PPI_yoy', 'PPI_mom'],
-                'PMI': ['PMI', 'PMI_l_scale', 'PMI_m_scale', 'PMI_s_scale'],
-                'MoneySupply': ['M0', 'M0_yoy', 'M0_mom', 'M1', 'M1_yoy', 'M1_mom', 'M2', 'M2_yoy', 'M2_mom']
+                'CPI': ['cpi', 'cpi_yoy', 'cpi_mom'],
+                'PPI': ['ppi', 'ppi_yoy', 'ppi_mom'],
+                'PMI': ['pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale'],
+                'MoneySupply': ['m0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 'm2', 'm2_yoy', 'm2_mom']
             }
             
             for key in requested:

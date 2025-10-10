@@ -23,24 +23,24 @@ class StockListModel(BaseTableModel):
         active_ids = [s['id'] for s in stock_data]
         if active_ids:
             placeholders = ','.join(['%s'] * len(active_ids))
-            condition = f"id NOT IN ({placeholders}) AND isActive = 1"
+            condition = f"id NOT IN ({placeholders}) AND is_active = 1"
             params = tuple(active_ids)
             # 用首条的 lastUpdate
             update_data = {
-                'isActive': 0,
-                'lastUpdate': stock_data[0]['lastUpdate']
+                'is_active': 0,
+                'last_update': stock_data[0]['last_update']
             }
             self.update(update_data, condition, params)
 
     def load_filtered_stock_list(self, exclude_patterns: Optional[Dict[str, List[Any]]] = None, order_by: str = 'id') -> List[Dict[str, Any]]:
         """
         返回默认可用股票集合：
-        - 只加载 isActive=1
+        - 只加载 is_active =1
         - 通用排除语法（来自 analyzer_settings.conf['stock_idx']['exclude']）
         - 允许传入 exclude_patterns（与默认结构一致）覆盖/追加
         """
         try:
-            where_conditions = ["isActive = 1"]
+            where_conditions = ["is_active = 1"]
             params: List[Any] = []
 
             # 默认从全局配置引入排除规则
@@ -63,7 +63,7 @@ class StockListModel(BaseTableModel):
     def _build_exclude_where_from_generic(self, exclude_conf: Dict[str, Dict[str, List[Any]]]) -> (List[str], List[Any]):
         if not isinstance(exclude_conf, dict):
             return [], []
-        allowed_fields = { 'id', 'name', 'industry', 'type', 'exchangeCenter', 'market' }
+        allowed_fields = { 'id', 'name', 'industry', 'type', 'exchange_center', 'market' }
         conditions: List[str] = []
         params: List[Any] = []
         for how, field_map in (exclude_conf or {}).items():

@@ -7,6 +7,7 @@
 from app.data_source.data_source_service import DataSourceService
 
 CONFIG = {
+    'is_enabled': True,  # 是否启用此 renewer
     'table_name': 'corporate_finance',
     'renew_mode': 'incremental',  # 增量更新
     'date': {

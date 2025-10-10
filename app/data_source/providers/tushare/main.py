@@ -19,8 +19,6 @@ from .rate_limiter import RateLimiterManager
 from utils.progress.progress_tracker import ProgressTrackerManager
 
 # 导入各个 renewer 模块（直接导入具体文件，无需__init__.py）
-from .renewers.stock_index.renewer import StockIndexRenewer
-from .renewers.stock_index.config import CONFIG as STOCK_INDEX_CONFIG
 from .renewers.stock_list.renewer import StockListRenewer
 from .renewers.stock_list.config import CONFIG as STOCK_LIST_CONFIG
 from .renewers.stock_kline.renewer import StockKlineRenewer
@@ -110,9 +108,6 @@ class Tushare:
             'is_verbose': self.is_verbose
         }
         
-        self.stock_index_renewer = StockIndexRenewer(
-            config=STOCK_INDEX_CONFIG, **renewer_params
-        )
         self.stock_list_renewer = StockListRenewer(
             config=STOCK_LIST_CONFIG, **renewer_params
         )
@@ -145,7 +140,7 @@ class Tushare:
         
         Args:
             latest_market_open_day: 最新市场开放日
-            latest_stock_index: 股票指数列表（用于依赖关系）
+            stock_list: 股票列表（用于依赖关系）
             
         Returns:
             更新结果

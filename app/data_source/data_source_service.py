@@ -274,22 +274,43 @@ class DataSourceService:
     @staticmethod
     def to_next_month(date_str: str) -> str:
         """
-        计算下一个月的同一天
+        计算下个月的日期或月份
         
         Args:
-            date_str: 日期字符串，格式为 YYYYMMDD，如 '20240315'
+            date_str: 日期字符串
+                - YYYYMMDD 格式（8位）：返回下个月同一天
+                - YYYYMM 格式（6位）：返回下个月
             
         Returns:
-            str: 下个月的日期，如 '20240415'
+            str: 下个月的日期或月份（格式与输入保持一致）
+            
+        示例：
+            to_next_month('20240315') → '20240415'
+            to_next_month('202403') → '202404'
         """
-        year = int(date_str[:4])
-        month = int(date_str[4:6])
-        day = int(date_str[6:8])
-        
-        current_date = date_type(year, month, day)
-        next_month = current_date + relativedelta(months=1)
-        
-        return next_month.strftime('%Y%m%d')
+        if len(date_str) == 6:
+            # YYYYMM 格式（月份）
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            
+            # 计算下个月
+            if month == 12:
+                year += 1
+                month = 1
+            else:
+                month += 1
+            
+            return f"{year:04d}{month:02d}"
+        else:
+            # YYYYMMDD 格式（日期）
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            day = int(date_str[6:8])
+            
+            current_date = date_type(year, month, day)
+            next_month = current_date + relativedelta(months=1)
+            
+            return next_month.strftime('%Y%m%d')
     
     @staticmethod
     def time_gap_by(unit: str, start_date: str, end_date: str) -> int:

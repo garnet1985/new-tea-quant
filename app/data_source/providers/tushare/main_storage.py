@@ -14,7 +14,6 @@ class TushareStorage:
         self.stock_index_indicator_table = connected_db.get_table_instance('stock_index_indicator')
         self.stock_index_indicator_weight_table = connected_db.get_table_instance('stock_index_indicator_weight')
         self.industry_capital_flow_table = connected_db.get_table_instance('industry_capital_flow')
-        self.share_info_table = connected_db.get_table_instance('share_info')
         self.stock_list_table = connected_db.get_table_instance('stock_list')
 
     def save_stock_index(self, data):

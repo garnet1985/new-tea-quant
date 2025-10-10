@@ -415,6 +415,43 @@ class DataSourceService:
         return f"{last_month_year:04d}{last_month:02d}{last_day:02d}"
     
     @staticmethod
+    def get_previous_quarter_end(date_str: str) -> str:
+        """
+        获取指定日期所在季度的前一个季度
+        
+        逻辑：
+        1. 找到date所在季度
+        2. 返回前一个季度（格式YYYYQ[1-4]）
+        
+        例如：
+        - 20251009（2025Q4）→ 前一季度=2025Q3 → 返回 2025Q3
+        - 20250315（2025Q1）→ 前一季度=2024Q4 → 返回 2024Q4
+        - 20230630（2023Q2）→ 前一季度=2023Q1 → 返回 2023Q1
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 前一个季度，格式YYYYQ[1-4]
+        """
+        # 获取当前季度
+        current_quarter = DataSourceService.date_to_quarter(date_str)
+        
+        # 解析季度
+        year = int(current_quarter[:4])
+        q = int(current_quarter[-1])
+        
+        # 前一个季度
+        if q == 1:
+            prev_year = year - 1
+            prev_q = 4
+        else:
+            prev_year = year
+            prev_q = q - 1
+        
+        return f"{prev_year}Q{prev_q}"
+    
+    @staticmethod
     def to_next(interval: str, date_str: str) -> str:
         """
         根据指定的时间间隔计算下一个时间点

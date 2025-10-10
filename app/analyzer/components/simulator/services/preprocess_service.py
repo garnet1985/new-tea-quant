@@ -23,18 +23,17 @@ class PreprocessService:
         """
         
         try:
-            # 从数据库获取股票列表
+            # 使用 DataLoader 加载股票列表
             from utils.db.db_manager import DatabaseManager
+            from app.data_loader import DataLoader
             
             # 创建数据库连接
             db = DatabaseManager()
             db.initialize()
             
-            # 获取股票指数表实例
-            stock_index_table = db.get_table_instance('stock_index')
-            
-            # 使用 load_filtered_index 获取过滤后的股票列表
-            stock_list = stock_index_table.load_filtered_index()
+            # 使用 DataLoader 加载股票列表
+            loader = DataLoader(db)
+            stock_list = loader.load_stock_list()
             
             # 根据 settings 的 mode 配置确定模拟范围
             mode_config = settings.get('mode', {})

@@ -414,25 +414,96 @@ class DataSourceService:
         
         return f"{last_month_year:04d}{last_month:02d}{last_day:02d}"
     
+    # ============ 时间格式转换工具（统一内部格式）============
+    
+    @staticmethod
+    def to_standard_date(value: str, format_type: str) -> str:
+        """
+        将任意时间格式转换为标准date格式（YYYYMMDD）
+        
+        设计思想：
+        - 内部统一使用YYYYMMDD格式
+        - 边界转换：从存储格式/API格式 → YYYYMMDD
+        
+        Args:
+            value: 时间值（如'2025Q3', '202510', '20251009'）
+            format_type: 格式类型（'quarter', 'month', 'date'）
+            
+        Returns:
+            str: 标准date格式（YYYYMMDD）
+            
+        示例：
+            to_standard_date('2025Q3', 'quarter') → '20250930'
+            to_standard_date('202510', 'month') → '20251031'
+            to_standard_date('20251009', 'date') → '20251009'
+        """
+        if format_type == 'date':
+            return value  # 已经是标准格式
+        elif format_type == 'quarter':
+            return DataSourceService.quarter_to_date(value)
+        elif format_type == 'month':
+            # month格式：YYYYMM → 该月最后一天
+            import calendar
+            year = int(value[:4])
+            month = int(value[4:6])
+            last_day = calendar.monthrange(year, month)[1]
+            return f"{year:04d}{month:02d}{last_day:02d}"
+        else:
+            raise ValueError(f"不支持的时间格式: {format_type}")
+    
+    @staticmethod
+    def from_standard_date(value: str, format_type: str) -> str:
+        """
+        将标准date格式（YYYYMMDD）转换为其他格式
+        
+        设计思想：
+        - 内部统一使用YYYYMMDD格式
+        - 边界转换：YYYYMMDD → 存储格式/API格式
+        
+        Args:
+            value: 标准date格式（YYYYMMDD）
+            format_type: 目标格式类型
+            
+        Returns:
+            str: 转换后的格式
+            
+        示例：
+            from_standard_date('20250930', 'quarter') → '2025Q3'
+            from_standard_date('20251031', 'month') → '202510'
+            from_standard_date('20251009', 'date') → '20251009'
+        """
+        if format_type == 'date':
+            return value  # 保持原样
+        elif format_type == 'quarter':
+            return DataSourceService.date_to_quarter(value)
+        elif format_type == 'month':
+            # date → month（YYYYMMDD → YYYYMM）
+            return value[:6]
+        else:
+            raise ValueError(f"不支持的时间格式: {format_type}")
+    
     @staticmethod
     def get_previous_quarter_end(date_str: str) -> str:
         """
-        获取指定日期所在季度的前一个季度
+        获取指定日期所在季度的前一个季度的最后一天
+        
+        设计思想：返回标准date格式（YYYYMMDD），保持内部统一
         
         逻辑：
         1. 找到date所在季度
-        2. 返回前一个季度（格式YYYYQ[1-4]）
+        2. 计算前一个季度
+        3. 返回该季度的最后一天（YYYYMMDD）
         
         例如：
-        - 20251009（2025Q4）→ 前一季度=2025Q3 → 返回 2025Q3
-        - 20250315（2025Q1）→ 前一季度=2024Q4 → 返回 2024Q4
-        - 20230630（2023Q2）→ 前一季度=2023Q1 → 返回 2023Q1
+        - 20251009（2025Q4）→ 前一季度=2025Q3 → 返回 20250930
+        - 20250315（2025Q1）→ 前一季度=2024Q4 → 返回 20241231
+        - 20230630（2023Q2）→ 前一季度=2023Q1 → 返回 20230331
         
         Args:
             date_str: 日期字符串，格式YYYYMMDD
             
         Returns:
-            str: 前一个季度，格式YYYYQ[1-4]
+            str: 前一个季度的最后一天，格式YYYYMMDD
         """
         # 获取当前季度
         current_quarter = DataSourceService.date_to_quarter(date_str)
@@ -449,7 +520,10 @@ class DataSourceService:
             prev_year = year
             prev_q = q - 1
         
-        return f"{prev_year}Q{prev_q}"
+        prev_quarter = f"{prev_year}Q{prev_q}"
+        
+        # 转换为date格式（该季度的最后一天）
+        return DataSourceService.quarter_to_date(prev_quarter)
     
     @staticmethod
     def to_next(interval: str, date_str: str) -> str:

@@ -22,7 +22,7 @@ class StockIndexModel(BaseTableModel):
         一次性更新股票指数：插入/更新活跃股票，标记未出现的股票为非活跃
         
         Args:
-            stock_data: 已经格式化好的股票数据列表，包含id, name, industry, type, exchangeCenter, isAlive, lastUpdate等字段
+            stock_data: 已经格式化好的股票数据列表，包含id, name, industry, type, exchange_center, is_alive, last_update等字段
         """
         if not stock_data:
             return
@@ -40,7 +40,7 @@ class StockIndexModel(BaseTableModel):
             
             update_data = {
                 'is_alive': 0,
-                'last_update': stock_data[0]['last_update']  # 使用第一条数据的lastUpdate
+                'last_update': stock_data[0]['last_update']  # 使用第一条数据的last_update
             }
             
             self.update(update_data, condition, params)
@@ -154,8 +154,8 @@ class StockIndexModel(BaseTableModel):
         return {stock['id']: stock['name'] for stock in stocks}
     
     def load_latest_last_update(self) -> Optional[str]:
-        # 使用基类的load_one方法，按lastUpdate降序排序取第一条
-        latest_record = self.load_one("1=1", order_by="lastUpdate DESC")
+        # 使用基类的load_one方法，按last_update降序排序取第一条
+        latest_record = self.load_one("1=1", order_by="last_update DESC")
         return latest_record.get('last_update') if latest_record else None
 
     def load_filtered_index(self, exclude_patterns: Optional[Dict[str, List[Any]]] = None, order_by: str = 'id') -> List[Dict[str, Any]]:

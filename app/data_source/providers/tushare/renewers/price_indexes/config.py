@@ -5,34 +5,47 @@
 
 CONFIG = {
     'table_name': 'price_indexes',
-    'job_mode': 'simple',
-    'date_field': 'date',
-    'renew_mode': 'upsert',
+    'renew_mode': 'incremental',  # 增量更新
+    
+    'date': {
+        'field': 'date',           # 数据库字段名
+        'storage_format': 'month',  # 数据库存储格式（YYYYMM）
+        'interval': 'month',       # 更新间隔
+        'api_format': 'month'      # API需要月份格式（YYYYMM）
+    },
+    
+    'job_mode': 'simple',  # 宏观数据只有一个任务
+    
+    'rate_limit': {
+        'max_per_minute': 200,  # Tushare 宏观数据接口限制
+    },
+    
+    # API配置 - 4个API需要合并
     'apis': [
         {
             'name': 'cpi_data',
             'method': 'cn_cpi',
             'params': {
-                'start_m': '{start_month}',
-                'end_m': '{end_month}'
+                'start_m': '{start_date}',  # BaseRenewer会自动提供
+                'end_m': '{end_date}'
             },
             'mapping': {
-                'month': 'date',
-                'nt_val': 'cpi',           # CPI当月值
-                'nt_yoy': 'cpi_yoy',       # CPI同比
-                'nt_mom': 'cpi_mom'        # CPI环比
+                'date': 'month',           # DB字段: API字段
+                'cpi': 'nt_val',           # CPI当月值
+                'cpi_yoy': 'nt_yoy',       # CPI同比
+                'cpi_mom': 'nt_mom'        # CPI环比
             },
         },
         {
             'name': 'ppi_data',
             'method': 'cn_ppi',
             'params': {
-                'start_m': '{start_month}',
-                'end_m': '{end_month}'
+                'start_m': '{start_date}',
+                'end_m': '{end_date}'
             },
             'mapping': {
-                'month': 'date',
-                'ppi_accu': 'ppi',         # PPI当月值 (使用累计值)
+                'date': 'month',           # DB字段: API字段
+                'ppi': 'ppi_accu',         # PPI当月值 (使用累计值)
                 'ppi_yoy': 'ppi_yoy',      # PPI同比
                 'ppi_mom': 'ppi_mom'       # PPI环比
             }
@@ -41,26 +54,26 @@ CONFIG = {
             'name': 'pmi_data',
             'method': 'cn_pmi',
             'params': {
-                'start_m': '{start_month}',
-                'end_m': '{end_month}'
+                'start_m': '{start_date}',
+                'end_m': '{end_date}'
             },
             'mapping': {
-                'MONTH': 'date',
-                'PMI010000': 'pmi',        # PMI综合指数
-                'PMI010100': 'pmi_l_scale', # 大型企业PMI
-                'PMI010200': 'pmi_m_scale', # 中型企业PMI  
-                'PMI010300': 'pmi_s_scale'  # 小型企业PMI
+                'date': 'MONTH',           # DB字段: API字段
+                'pmi': 'PMI010000',        # PMI综合指数
+                'pmi_l_scale': 'PMI010100', # 大型企业PMI
+                'pmi_m_scale': 'PMI010200', # 中型企业PMI  
+                'pmi_s_scale': 'PMI010300'  # 小型企业PMI
             }
         },
         {
             'name': 'money_supply_data',
             'method': 'cn_m',
             'params': {
-                'start_m': '{start_month}',
-                'end_m': '{end_month}'
+                'start_m': '{start_date}',
+                'end_m': '{end_date}'
             },
             'mapping': {
-                'month': 'date',
+                'date': 'month',          # DB字段: API字段
                 'm0': 'm0',               # M0货币供应量
                 'm0_yoy': 'm0_yoy',       # M0同比
                 'm0_mom': 'm0_mom',       # M0环比

@@ -11,7 +11,8 @@ CONFIG = {
         'field': 'date',           # 数据库字段名
         'storage_format': 'month',  # 数据库存储格式（YYYYMM）
         'interval': 'month',       # 更新间隔
-        'api_format': 'month'      # API需要月份格式（YYYYMM）
+        'api_format': 'month',     # API需要月份格式（YYYYMM）
+        'disclosure_delay_months': 1  # 披露延迟：月度数据在下个月中旬左右发布
     },
     
     'job_mode': 'simple',  # 宏观数据只有一个任务

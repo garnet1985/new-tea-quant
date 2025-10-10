@@ -5,6 +5,7 @@ from datetime import datetime
 
 
 CONFIG = {
+    'is_enabled': True,  # 是否启用此 renewer
     'table_name': 'stock_list',
     'job_mode': 'simple',
     'date': {

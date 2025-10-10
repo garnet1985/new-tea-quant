@@ -46,7 +46,7 @@ class TushareStorage:
                 'name': item.get('name', ''),
                 'industry': industry,
                 'type': market_type,  # market -> type
-                'exchange_center': exchange,  # exchange -> exchangeCenter
+                'exchange_center': exchange,  # exchange -> exchange_center
                 'is_alive': 1,  # API返回的股票都是活跃的
                 'last_update': current_date
             })

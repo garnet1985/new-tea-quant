@@ -64,10 +64,10 @@ class LPRRenewer(BaseRenewer):
         # 处理每条记录，确保数值字段有默认值
         for record in data_list:
             # 处理NaN值，提供默认值
-            if record.get('LPR_1Y') is None or str(record.get('LPR_1Y')).lower() == 'nan':
-                record['LPR_1Y'] = 0.0
-            if record.get('LPR_5Y') is None or str(record.get('LPR_5Y')).lower() == 'nan':
-                record['LPR_5Y'] = 0.0
+            if record.get('lpr_1_y') is None or str(record.get('lpr_1_y')).lower() == 'nan':
+                record['lpr_1_y'] = 0.0
+            if record.get('lpr_5_y') is None or str(record.get('lpr_5_y')).lower() == 'nan':
+                record['lpr_5_y'] = 0.0
         
         logger.info(f"📊 LPR增量更新: 准备存储 {len(data_list)} 条记录")
         return data_list

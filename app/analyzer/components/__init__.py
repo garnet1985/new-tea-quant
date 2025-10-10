@@ -4,7 +4,7 @@
 """
 
 # 核心组件
-from .data_loader import DataLoader
+from app.data_loader import DataLoader  # 使用全局DataLoader
 from .settings_validator import SettingsValidator
 
 # 数据处理器组件

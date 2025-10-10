@@ -26,7 +26,7 @@ def find_incomplete_records(db: DatabaseManager):
     查找不完整的记录
     
     判断标准：
-    - turnoverRate = 0 AND pe = 0 AND pb = 0 (所有basic指标都是0)
+    - turnover_rate = 0 AND pe = 0 AND pb = 0 (所有basic指标都是0)
     - 说明：正常情况下，至少有一个指标不为0
     
     Returns:
@@ -47,10 +47,10 @@ def find_incomplete_records(db: DatabaseManager):
             SELECT COUNT(*) as count
             FROM stock_kline
             WHERE term = '{term}'
-              AND turnoverRate = 0 
+              AND turnover_rate = 0 
               AND pe = 0 
               AND pb = 0
-              AND totalShare = 0
+              AND total_share = 0
             LIMIT 1000
         """
         

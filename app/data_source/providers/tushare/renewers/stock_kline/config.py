@@ -23,7 +23,7 @@ CONFIG = {
     'job_mode': 'multithread',
     
     'multithread': {
-        'workers': 4,  # 降低并发，减少限流压力
+        'workers': 10,  # 降低并发，减少限流压力
         'log': {
             'success': '✅ 股票 {stock_name} {id} [{term}] 更新完毕 - 进度 {progress}%',
             'failure': '❌ 股票 {stock_name} {id} [{term}] 更新失败'

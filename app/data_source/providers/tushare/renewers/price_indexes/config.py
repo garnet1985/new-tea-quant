@@ -4,6 +4,7 @@
 """
 
 CONFIG = {
+    'is_enabled': True,  # 是否启用此 renewer
     'table_name': 'price_indexes',
     'renew_mode': 'incremental',  # 增量更新
     

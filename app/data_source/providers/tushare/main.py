@@ -167,31 +167,31 @@ class Tushare:
         
         try:
             # 更新K线数据（使用新的stock_kline renewer）
-            # logger.info("📈 更新股票K线数据...")
-            # self.stock_kline_renewer.renew(latest_market_open_day, stock_list)
+            logger.info("📈 更新股票K线数据...")
+            self.stock_kline_renewer.renew(latest_market_open_day, stock_list)
 
             # 更新企业财务数据（依赖股票列表）
-            # logger.info("💼 更新企业财务数据...")
-            # self.corporate_finance_renewer.renew(latest_market_open_day, stock_list)
+            logger.info("💼 更新企业财务数据...")
+            self.corporate_finance_renewer.renew(latest_market_open_day, stock_list)
             
             # 更新宏观经济数据（独立并行）
-            # logger.info("🌍 更新宏观经济数据...")
-            # self.price_indexes_renewer.renew(latest_market_open_day)
-            # self.lpr_renewer.renew(latest_market_open_day)
-            # self.gdp_renewer.renew(latest_market_open_day)
-            # self.shibor_renewer.renew(latest_market_open_day)
+            logger.info("🌍 更新宏观经济数据...")
+            self.price_indexes_renewer.renew(latest_market_open_day)
+            self.lpr_renewer.renew(latest_market_open_day)
+            self.gdp_renewer.renew(latest_market_open_day)
+            self.shibor_renewer.renew(latest_market_open_day)
             
             # 更新指数数据
-            # logger.info("📊 更新指数数据...")
-            # self.stock_index_indicator_renewer.renew(latest_market_open_day)
-            # self.stock_index_indicator_weight_renewer.renew(latest_market_open_day)
+            logger.info("📊 更新指数数据...")
+            self.stock_index_indicator_renewer.renew(latest_market_open_day)
+            self.stock_index_indicator_weight_renewer.renew(latest_market_open_day)
             
             # 更新行业资金流向
             logger.info("💰 更新行业资金流向...")
             self.industry_capital_flow_renewer.renew(latest_market_open_day)
 
-            # logger.info("✅ Tushare 数据源更新完成")
-            # return True
+            logger.info("✅ Tushare 数据源更新完成")
+            return True
             
         except Exception as e:
             logger.error(f"❌ Tushare 数据源更新失败: {e}")

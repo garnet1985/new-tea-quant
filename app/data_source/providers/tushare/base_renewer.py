@@ -115,153 +115,223 @@ class BaseRenewer(ABC):
         """
         构建任务列表 - 子类可以重写
         
+        已拆分为多个小方法，便于理解和复写：
+        - _get_target_end_date: 计算目标end_date
+        - _build_stock_jobs: 构建股票相关jobs
+        - _build_macro_job: 构建宏观数据job
+        - _create_single_job: 创建单个job（含格式转换）
+        
         Args:
             latest_market_open_day: 最新市场开放日
             stock_list: 股票列表（可选，股票相关表需要）
             db_records: 数据库中的最新记录（可选，用于增量更新）
             
         Returns:
-            List[Dict]: 任务列表，每个任务包含 start_date, end_date 和主键字段
-            
-        注意：
-            - 子类可以在job中添加 '_log_vars' 字段（字典类型），
-              用于为日志模板提供额外的变量（如股票名称、季度、地区等）
-            - '_log_vars' 中的所有key-value会直接添加到日志变量中
-            - 示例：{'stock_name': '平安银行', 'market': 'SZ'}
-            - '_log_vars' 是内部字段，以下划线开头，本身不会暴露给日志变量
+            List[Dict]: 任务列表
         """
-        jobs = []
+        # Step 1: 获取配置和主键
         date_field = self.config['date']['field']
-        
         try:
             primary_keys = self.db.get_table_primary_keys(self.config['table_name'])
         except ValueError as e:
             logger.error(f"❌ 构建任务失败: {e}")
             return []
         
+        # Step 2: 计算目标end_date（前一个完整周期）
+        target_end = self._get_target_end_date(latest_market_open_day)
+        
+        # Step 3: 根据场景构建jobs
+        if stock_list:
+            # 场景1: 股票相关数据
+            return self._build_stock_jobs(stock_list, db_records, target_end, primary_keys, date_field)
+        else:
+            # 场景2: 宏观数据
+            return self._build_macro_job(db_records, target_end, date_field)
+
+    # ==================== 私有辅助方法（build_jobs拆分）====================
+    
+    def _get_target_end_date(self, latest_market_open_day: str) -> str:
+        """
+        计算目标end_date（前一个完整周期）
+        
+        确保获取的数据是完整的、已经产生过的
+        
+        Returns:
+            str: 目标end_date（YYYYMMDD格式）
+        """
         renew_interval = self.config['date']['interval']
         
-        # 确定目标end_date（前一个完整周期）
-        # 这样确保获取的数据是完整的、已经产生过的
         if renew_interval == 'day':
-            target_end = latest_market_open_day  # day类型可以用当天（数据已结算）
+            return latest_market_open_day  # day类型可以用当天（数据已结算）
         elif renew_interval == 'week':
-            target_end = DataSourceService.get_previous_week_end(latest_market_open_day)
+            return DataSourceService.get_previous_week_end(latest_market_open_day)
         elif renew_interval == 'month':
-            target_end = DataSourceService.get_previous_month_end(latest_market_open_day)
+            return DataSourceService.get_previous_month_end(latest_market_open_day)
         elif renew_interval == 'quarter':
-            target_end = DataSourceService.get_previous_quarter_end(latest_market_open_day)
+            return DataSourceService.get_previous_quarter_end(latest_market_open_day)
         else:
-            target_end = latest_market_open_day  # 默认使用latest_market_open_day
-
-        # 场景1: 股票相关数据（K线、财务数据等）
-        if stock_list:
-            if db_records:
-                # 有数据库记录：增量更新
-                # 为每个股票检查是否需要更新
-                db_records_map = {self._get_record_key(record, primary_keys): record for record in db_records}
-                
-                for stock in stock_list:
-                    stock_key = self._get_record_key(stock, primary_keys)
-                    
-                    if stock_key in db_records_map:
-                        # 股票在数据库中已存在，检查是否需要增量更新
-                        latest_record = db_records_map[stock_key]
-                        latest_date = latest_record[date_field]
-                        
-                        # 边界转换1：从存储格式 → 标准date格式（YYYYMMDD）
-                        storage_format = self.config['date'].get('storage_format', 'date')
-                        latest_date_std = DataSourceService.to_standard_date(latest_date, storage_format)
-                        
-                        # 内部统一用YYYYMMDD比较
-                        if DataSourceService.time_gap_by('day', latest_date_std, target_end) > 0:
-                            # 计算下一个值（用语义格式计算，然后转为YYYYMMDD）
-                            next_val = DataSourceService.to_next(renew_interval, latest_date)
-                            start_val = DataSourceService.to_standard_date(next_val, storage_format)
-                            end_val = target_end  # 已经是YYYYMMDD
-                            
-                            # 边界转换2：YYYYMMDD → API格式
-                            start_val, end_val = self._convert_to_api_format(start_val, end_val)
-                            
-                            job = {
-                                'start_date': start_val,
-                                'end_date': end_val
-                            }
-                            # 使用hook函数生成主键（子类可复写）
-                            job_keys = self.get_job_primary_keys(stock, latest_record, primary_keys)
-                            job.update(job_keys)
-                            jobs.append(job)
-                    else:
-                        # 新股票，从默认日期开始拉取
-                        start_val = data_default_start_date  # 已经是YYYYMMDD
-                        end_val = target_end  # 已经是YYYYMMDD
-                        
-                        # 边界转换：YYYYMMDD → API格式
-                        start_val, end_val = self._convert_to_api_format(start_val, end_val)
-                        
-                        job = {
-                            'start_date': start_val,
-                            'end_date': end_val
-                        }
-                        # 使用hook函数生成主键（子类可复写）
-                        job_keys = self.get_job_primary_keys(stock, None, primary_keys)
-                        job.update(job_keys)
-                        jobs.append(job)
-            else:
-                # 数据库无记录：全量拉取
-                for stock in stock_list:
-                    start_val = data_default_start_date  # 已经是YYYYMMDD
-                    end_val = target_end  # 已经是YYYYMMDD
-                    
-                    # 边界转换：YYYYMMDD → API格式
-                    start_val, end_val = self._convert_to_api_format(start_val, end_val)
-                    
-                    job = {
-                        'start_date': start_val,
-                        'end_date': end_val
-                    }
-                    # 使用hook函数生成主键（子类可复写）
-                    job_keys = self.get_job_primary_keys(stock, None, primary_keys)
-                    job.update(job_keys)
-                    jobs.append(job)
-
-        # 场景2: 宏观数据（GDP、利率等）
-        else:
-            if db_records and len(db_records) > 0:
-                # 有数据库记录：增量更新
-                latest_record = db_records[-1]
-                latest_date = latest_record[date_field]
-                
-                # 边界转换1：从存储格式 → 标准date格式（YYYYMMDD）
-                storage_format = self.config['date'].get('storage_format', 'date')
-                latest_date_std = DataSourceService.to_standard_date(latest_date, storage_format)
-                
-                # 内部统一用YYYYMMDD比较
-                if DataSourceService.time_gap_by('day', latest_date_std, target_end) > 0:
-                    # 计算下一个值（用语义格式计算，然后转为YYYYMMDD）
-                    next_val = DataSourceService.to_next(renew_interval, latest_date)
-                    start_val = DataSourceService.to_standard_date(next_val, storage_format)
-                    end_val = target_end  # 已经是YYYYMMDD
-                else:
-                    # 已是最新，不需要更新
-                    return jobs
-            else:
-                # 数据库无记录：全量拉取
-                start_val = data_default_start_date  # 已经是YYYYMMDD
-                end_val = target_end  # 已经是YYYYMMDD
+            return latest_market_open_day  # 默认使用latest_market_open_day
+    
+    def _build_stock_jobs(self, stock_list: list, db_records: Optional[list],
+                         target_end: str, primary_keys: List[str], date_field: str) -> List[Dict]:
+        """
+        构建股票相关的jobs
+        
+        Args:
+            stock_list: 股票列表
+            db_records: 数据库记录（可能为None）
+            target_end: 目标end_date（YYYYMMDD）
+            primary_keys: 主键列表
+            date_field: 日期字段名
             
-            # 边界转换2：YYYYMMDD → API格式
+        Returns:
+            List[Dict]: jobs列表
+        """
+        jobs = []
+        
+        if db_records:
+            # 有历史记录：增量更新
+            db_records_map = self._build_db_records_map(db_records, primary_keys)
+            
+            for stock in stock_list:
+                stock_key = self._get_record_key(stock, primary_keys)
+                
+                if stock_key in db_records_map:
+                    # 已存在：检查是否需要增量更新
+                    latest_record = db_records_map[stock_key]
+                    job = self._create_incremental_job(latest_record, target_end, stock, primary_keys, date_field)
+                    if job:
+                        jobs.append(job)
+                else:
+                    # 新股票：全量拉取
+                    job = self._create_full_job(target_end, stock, primary_keys)
+                    jobs.append(job)
+        else:
+            # 无历史记录：全部全量拉取
+            for stock in stock_list:
+                job = self._create_full_job(target_end, stock, primary_keys)
+                jobs.append(job)
+        
+        return jobs
+    
+    def _build_macro_job(self, db_records: Optional[list], target_end: str, date_field: str) -> List[Dict]:
+        """
+        构建宏观数据job（只有一个）
+        
+        Args:
+            db_records: 数据库记录（可能为None）
+            target_end: 目标end_date（YYYYMMDD）
+            date_field: 日期字段名
+            
+        Returns:
+            List[Dict]: jobs列表（宏观数据只有1个job）
+        """
+        renew_interval = self.config['date']['interval']
+        storage_format = self.config['date'].get('storage_format', 'date')
+        
+        if db_records and len(db_records) > 0:
+            # 有历史记录：检查是否需要更新
+            latest_record = db_records[-1]
+            latest_date = latest_record[date_field]
+            
+            # 转换为标准格式
+            latest_date_std = DataSourceService.to_standard_date(latest_date, storage_format)
+            
+            # 检查gap
+            if DataSourceService.time_gap_by('day', latest_date_std, target_end) > 0:
+                # 计算下一个值
+                next_val = DataSourceService.to_next(renew_interval, latest_date)
+                start_val = DataSourceService.to_standard_date(next_val, storage_format)
+                end_val = target_end
+            else:
+                # 已是最新
+                return []
+        else:
+            # 无历史记录：全量拉取
+            start_val = data_default_start_date
+            end_val = target_end
+        
+        # 转换为API格式
+        start_val, end_val = self._convert_to_api_format(start_val, end_val)
+        
+        return [{'start_date': start_val, 'end_date': end_val}]
+    
+    def _create_incremental_job(self, latest_record: Dict, target_end: str, stock: Dict,
+                                primary_keys: List[str], date_field: str) -> Optional[Dict]:
+        """
+        创建增量更新job
+        
+        Args:
+            latest_record: 数据库中的最新记录
+            target_end: 目标end_date（YYYYMMDD）
+            stock: 股票信息
+            primary_keys: 主键列表
+            date_field: 日期字段名
+            
+        Returns:
+            Optional[Dict]: job（如果不需要更新则返回None）
+        """
+        renew_interval = self.config['date']['interval']
+        storage_format = self.config['date'].get('storage_format', 'date')
+        
+        latest_date = latest_record[date_field]
+        latest_date_std = DataSourceService.to_standard_date(latest_date, storage_format)
+        
+        # 检查gap
+        if DataSourceService.time_gap_by('day', latest_date_std, target_end) > 0:
+            # 计算下一个值
+            next_val = DataSourceService.to_next(renew_interval, latest_date)
+            start_val = DataSourceService.to_standard_date(next_val, storage_format)
+            end_val = target_end
+            
+            # 转换为API格式并创建job
             start_val, end_val = self._convert_to_api_format(start_val, end_val)
             
-            # 宏观数据只有一个job
-            job = {
-                'start_date': start_val,
-                'end_date': end_val
-            }
-            jobs.append(job)
-
-        return jobs
-
+            job = {'start_date': start_val, 'end_date': end_val}
+            job_keys = self.get_job_primary_keys(stock, latest_record, primary_keys)
+            job.update(job_keys)
+            
+            return job
+        
+        return None  # 不需要更新
+    
+    def _create_full_job(self, target_end: str, stock: Dict, primary_keys: List[str]) -> Dict:
+        """
+        创建全量拉取job
+        
+        Args:
+            target_end: 目标end_date（YYYYMMDD）
+            stock: 股票信息
+            primary_keys: 主键列表
+            
+        Returns:
+            Dict: job
+        """
+        start_val = data_default_start_date
+        end_val = target_end
+        
+        # 转换为API格式
+        start_val, end_val = self._convert_to_api_format(start_val, end_val)
+        
+        job = {'start_date': start_val, 'end_date': end_val}
+        job_keys = self.get_job_primary_keys(stock, None, primary_keys)
+        job.update(job_keys)
+        
+        return job
+    
+    def _build_db_records_map(self, db_records: list, primary_keys: List[str]) -> Dict:
+        """
+        构建数据库记录映射（用于快速查找）
+        
+        Args:
+            db_records: 数据库记录列表
+            primary_keys: 主键列表
+            
+        Returns:
+            Dict: {record_key: record}
+        """
+        return {self._get_record_key(record, primary_keys): record for record in db_records}
+    
     def should_renew(self, latest_market_open_day: str = None, stock_list: list = None) -> List[Dict]:
         """
         判断是否需要更新并构建任务列表 - 子类可重写

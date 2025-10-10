@@ -140,6 +140,19 @@ class BaseRenewer(ABC):
             return []
         
         renew_interval = self.config['date']['interval']
+        
+        # 确定目标end_date（前一个完整周期）
+        # 这样确保获取的数据是完整的、已经产生过的
+        if renew_interval == 'day':
+            target_end = latest_market_open_day  # day类型可以用当天（数据已结算）
+        elif renew_interval == 'week':
+            target_end = DataSourceService.get_previous_week_end(latest_market_open_day)
+        elif renew_interval == 'month':
+            target_end = DataSourceService.get_previous_month_end(latest_market_open_day)
+        elif renew_interval == 'quarter':
+            target_end = DataSourceService.get_previous_quarter_end(latest_market_open_day)
+        else:
+            target_end = latest_market_open_day  # 默认使用latest_market_open_day
 
         # 场景1: 股票相关数据（K线、财务数据等）
         if stock_list:
@@ -156,33 +169,58 @@ class BaseRenewer(ABC):
                         latest_record = db_records_map[stock_key]
                         latest_date = latest_record[date_field]
                         
-                        if DataSourceService.time_gap_by(renew_interval, latest_date, latest_market_open_day) > 0:
+                        if DataSourceService.time_gap_by(renew_interval, latest_date, target_end) > 0:
                             # 需要更新
+                            start_val = DataSourceService.to_next(renew_interval, latest_date)
+                            end_val = target_end
+                            
+                            # 如果是quarter，需要转换为日期格式（API需要）
+                            if renew_interval == 'quarter':
+                                start_val = DataSourceService.quarter_to_date(start_val)
+                                end_val = DataSourceService.quarter_to_date(end_val)
+                            
                             job = {
-                                'start_date': DataSourceService.to_next(renew_interval, latest_date),
-                                'end_date': latest_market_open_day
+                                'start_date': start_val,
+                                'end_date': end_val
                             }
-                            for primary_key in primary_keys:
-                                job[primary_key] = latest_record[primary_key]
+                            # 使用hook函数生成主键（子类可复写）
+                            job_keys = self.get_job_primary_keys(stock, latest_record, primary_keys)
+                            job.update(job_keys)
                             jobs.append(job)
                     else:
                         # 新股票，从默认日期开始拉取
+                        start_val = data_default_start_date
+                        end_val = target_end
+                        
+                        # 如果是quarter，需要转换为日期格式（API需要）
+                        if renew_interval == 'quarter':
+                            end_val = DataSourceService.quarter_to_date(end_val)
+                        
                         job = {
-                            'start_date': data_default_start_date,
-                            'end_date': latest_market_open_day
+                            'start_date': start_val,
+                            'end_date': end_val
                         }
-                        for primary_key in primary_keys:
-                            job[primary_key] = stock[primary_key]
+                        # 使用hook函数生成主键（子类可复写）
+                        job_keys = self.get_job_primary_keys(stock, None, primary_keys)
+                        job.update(job_keys)
                         jobs.append(job)
             else:
                 # 数据库无记录：全量拉取
                 for stock in stock_list:
+                    start_val = data_default_start_date
+                    end_val = target_end
+                    
+                    # 如果是quarter，需要转换为日期格式（API需要）
+                    if renew_interval == 'quarter':
+                        end_val = DataSourceService.quarter_to_date(end_val)
+                    
                     job = {
-                        'start_date': data_default_start_date,
-                        'end_date': latest_market_open_day
+                        'start_date': start_val,
+                        'end_date': end_val
                     }
-                    for primary_key in primary_keys:
-                        job[primary_key] = stock[primary_key]
+                    # 使用hook函数生成主键（子类可复写）
+                    job_keys = self.get_job_primary_keys(stock, None, primary_keys)
+                    job.update(job_keys)
                     jobs.append(job)
 
         # 场景2: 宏观数据（GDP、利率等）
@@ -192,7 +230,7 @@ class BaseRenewer(ABC):
                 latest_record = db_records[-1]
                 latest_date = latest_record[date_field]
                 
-                if DataSourceService.time_gap_by(renew_interval, latest_date, latest_market_open_day) > 0:
+                if DataSourceService.time_gap_by(renew_interval, latest_date, target_end) > 0:
                     # 需要更新
                     start_date = DataSourceService.to_next(renew_interval, latest_date)
                 else:
@@ -205,7 +243,7 @@ class BaseRenewer(ABC):
             # 宏观数据只有一个job
             job = {
                 'start_date': start_date,
-                'end_date': latest_market_open_day
+                'end_date': target_end  # 使用target_end（确保数据完整）
             }
             jobs.append(job)
 
@@ -333,6 +371,49 @@ class BaseRenewer(ABC):
             combined_data.extend(self.to_records(result))
         
         return combined_data
+    
+    def get_job_primary_keys(self, stock: Dict, db_record: Optional[Dict], 
+                             primary_keys: List[str]) -> Dict:
+        """
+        生成job的主键字段 - 子类可复写
+        
+        默认行为：从stock中提取所有主键
+        
+        何时复写？
+        - 主键包含日期/时间字段（如quarter），stock中没有
+        - 需要基于stock和db_record动态生成主键
+        
+        Args:
+            stock: 股票信息（来自stock_list）
+            db_record: 数据库中的最新记录（可能为None）
+            primary_keys: 主键列表（从schema获取）
+            
+        Returns:
+            Dict: job需要的主键，如 {'id': '000001.SZ', 'term': 'daily'}
+            
+        示例1：默认行为（stock包含所有主键）
+            # 主键：['id']
+            # stock: {'id': '000001.SZ', 'name': '平安银行', ...}
+            # 返回：{'id': '000001.SZ'}
+        
+        示例2：复写（主键包含日期字段）
+            # 主键：['id', 'quarter']
+            # stock: {'id': '000001.SZ', 'name': '平安银行', ...}  # 没有quarter！
+            # 子类复写：
+            def get_job_primary_keys(self, stock, db_record, primary_keys):
+                return {'id': stock['id']}  # 只返回id，quarter由API返回数据提供
+        """
+        # 默认行为：从stock中提取所有主键
+        job_keys = {}
+        for key in primary_keys:
+            if key in stock:
+                job_keys[key] = stock[key]
+            else:
+                # 如果stock中没有该主键，尝试从db_record中获取（如果有）
+                if db_record and key in db_record:
+                    job_keys[key] = db_record[key]
+        
+        return job_keys
     
     def should_execute_api(self, api_config: Dict, previous_results: Dict) -> bool:
         """
@@ -1049,7 +1130,7 @@ class BaseRenewer(ABC):
         if isinstance(data, list):
             data_list = data
         elif hasattr(data, 'to_dict'):
-                data_list = data.to_dict('records')
+            data_list = data.to_dict('records')
         else:
             data_list = list(data) if data else []
         

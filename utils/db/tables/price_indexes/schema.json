@@ -1,6 +1,9 @@
 {
     "name": "price_indexes",
-    "primaryKey": ["id", "date"],
+    "primaryKey": [
+        "id",
+        "date"
+    ],
     "fields": [
         {
             "name": "id",
@@ -15,120 +18,116 @@
             "isRequired": true,
             "description": "日期"
         },
-
         {
-            "name": "CPI",
+            "name": "cpi",
             "type": "float",
             "isRequired": true,
             "description": "Consumer Price Index"
         },
         {
-            "name": "CPI_yoy",
+            "name": "cpi_yoy",
             "type": "float",
             "isRequired": true,
             "description": "CPI同比 year to year"
         },
         {
-            "name": "CPI_mom",
+            "name": "cpi_mom",
             "type": "float",
             "isRequired": true,
             "description": "CPI环比 month to month"
         },
-
         {
-            "name": "PPI",
+            "name": "ppi",
             "type": "float",
             "isRequired": true,
             "description": "Producer Price Index"
         },
         {
-            "name": "PPI_yoy",
+            "name": "ppi_yoy",
             "type": "float",
             "isRequired": true,
             "description": "PPI同比 year to year"
         },
         {
-            "name": "PPI_mom",
+            "name": "ppi_mom",
             "type": "float",
             "isRequired": true,
             "description": "PPI环比 month to month"
         },
-
         {
-            "name": "PMI",
+            "name": "pmi",
             "type": "float",
             "isRequired": true,
             "description": "Purchasing Managers' Index"
         },
         {
-            "name": "PMI_l_scale",
+            "name": "pmi_l_scale",
             "type": "float",
             "isRequired": true,
             "description": "Purchasing Managers' Index of large scale enterprises"
         },
         {
-            "name": "PMI_m_scale",
+            "name": "pmi_m_scale",
             "type": "float",
             "isRequired": true,
             "description": "Purchasing Managers' Index of medium scale enterprises"
         },
         {
-            "name": "PMI_s_scale",
+            "name": "pmi_s_scale",
             "type": "float",
             "isRequired": true,
             "description": "Purchasing Managers' Index of small scale enterprises"
         },
-
         {
-            "name": "M0",
+            "name": "m0",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M0"
         },
         {
-            "name": "M0_yoy",
+            "name": "m0_yoy",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M0 year to year"
         },
         {
-            "name": "M0_mom",
+            "name": "m0_mom",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M0 month to month"
         },
         {
-            "name": "M1",
+            "name": "m1",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M1"
         },
         {
-            "name": "M1_yoy",
+            "name": "m1_yoy",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M1 year to year"
         },
         {
-            "name": "M1_mom",
+            "name": "m1_mom",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M1 month to month"
         },
         {
-            "name": "M2",
+            "name": "m2",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M2"
         },
         {
-            "name": "M2_yoy",
+            "name": "m2_yoy",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M2 year to year"
         },
         {
-            "name": "M2_mom",
+            "name": "m2_mom",
             "type": "float",
             "isRequired": true,
             "description": "money supply of M2 month to month"

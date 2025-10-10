@@ -1,6 +1,8 @@
 {
     "name": "lpr",
-    "primaryKey": ["date"],
+    "primaryKey": [
+        "date"
+    ],
     "fields": [
         {
             "name": "date",
@@ -9,13 +11,13 @@
             "description": "日期 YYYYMMDD 格式"
         },
         {
-            "name": "LPR_1Y",
+            "name": "lpr_1_y",
             "type": "float",
             "isRequired": true,
             "description": "Loan Prime Rate - one year"
         },
         {
-            "name": "LPR_5Y",
+            "name": "lpr_5_y",
             "type": "float",
             "isRequired": false,
             "description": "Loan Prime Rate - five years"

@@ -4,11 +4,15 @@
 使用Tushare的fina_indicator接口获取财务指标数据
 """
 
+from app.data_source.data_source_service import DataSourceService
+
 CONFIG = {
     'table_name': 'corporate_finance',
-    'renew_mode': 'incremental',  # 增量更新（只请求需要的季度）
-    'date_field': 'quarter',  # 使用quarter作为日期字段（格式：YYYYQ1-4）
-    'renew_interval': 'quarter',  # 按季度更新
+    'renew_mode': 'incremental',  # 增量更新
+    'date': {
+        'field': 'quarter',  # 使用quarter作为日期字段（格式：YYYYQ1-4）
+        'interval': 'quarter'  # 按季度更新
+    },
     
     'job_mode': 'multithread',
     'multithread': {
@@ -29,8 +33,9 @@ CONFIG = {
             'name': 'fina_indicator',
             'method': 'fina_indicator',
             'params': {
-                'ts_code': '{ts_code}',
-                'period': '{period}',  # 报告期，格式YYYYMMDD
+                'ts_code': '{id}',  # 使用id（基类会从job中提取）
+                'start_date': '{start_date}',  # 基类会自动生成
+                'end_date': '{end_date}',      # 基类会自动生成
                 # 字段说明：
                 # - 盈利能力指标
                 # - 成长能力指标
@@ -60,7 +65,10 @@ CONFIG = {
             'mapping': {
                 # 主键字段
                 'ts_code': 'id',
-                'end_date': '_end_date',  # 临时字段，转换为quarter后删除
+                'quarter': {  # end_date → quarter（值转换）
+                    'source': 'end_date',
+                    'transform': lambda x: DataSourceService.date_to_quarter(str(x))
+                },
                 'ann_date': None,  # 不保存（公告日期）
                 
                 # 盈利能力指标（完全匹配，直接使用）

@@ -190,7 +190,8 @@ CONFIG = {
     'date': {
         'field': 'date',
         'type': 'date',  # 'date' or 'quarter'
-        'interval': 'day'  # 'day', 'week', 'month', 'quarter'
+        'interval': 'day',  # 'day', 'week', 'month', 'quarter'
+        'disclosure_delay_months': 1  # 可选：披露延迟月数（适用于财务报告等）
     },
     
     'multithread': {
@@ -492,6 +493,36 @@ class StockKlineRenewer(BaseRenewer):
 | `week` | 周级别 | 周K线 |
 | `month` | 月级别 | 月度数据 |
 | `quarter` | 季度级别 | 财务数据 |
+
+### 披露延迟 (disclosure_delay_months)
+
+**用途：** 处理财务报告等有法定披露期限的数据
+
+**背景：**
+- 中国证监会规定：季度财务报告应在季度结束后 **1个月内** 披露
+- 例如：Q3报告（7-9月）应在10月31日前披露
+- 如果在10月1日就去获取Q3数据，很多公司还未披露
+
+**工作原理：**
+```python
+'date': {
+    'field': 'quarter',
+    'interval': 'quarter',
+    'disclosure_delay_months': 1  # 季度结束后1个月内披露
+}
+```
+
+**逻辑示例：**
+
+| 当前日期 | 前一完整季度 | 披露截止 | 是否过期 | 实际获取 |
+|---------|------------|---------|---------|---------|
+| 2025-10-15 (Q4第1月) | Q3 (9/30) | 10/31 | ❌ 未到 | Q2 (6/30) |
+| 2025-11-05 (Q4第2月) | Q3 (9/30) | 10/31 | ✅ 已过 | Q3 (9/30) |
+| 2025-12-20 (Q4第3月) | Q3 (9/30) | 10/31 | ✅ 已过 | Q3 (9/30) |
+
+**结论：**
+- 设置 `disclosure_delay_months: 1` 后，系统会在新季度的**第二个月**之后才获取上个季度的数据
+- 确保获取到的数据更完整、更及时
 
 ---
 

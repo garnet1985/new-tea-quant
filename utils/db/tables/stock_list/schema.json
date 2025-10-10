@@ -27,22 +27,20 @@
             "isRequired": true
         },
         {
-            "name": "exchangeCenter",
+            "name": "exchange_center",
             "type": "varchar",
             "length": 16,
             "isRequired": true
         },
         {
-            "name": "isActive",
+            "name": "is_active",
             "type": "tinyint",
             "isRequired": true
         },
         {
-            "name": "lastUpdate",
+            "name": "last_update",
             "type": "datetime",
             "isRequired": true
         }
     ]
 }
-
-

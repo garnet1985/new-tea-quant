@@ -607,7 +607,7 @@ class BaseRenewer(ABC):
                 return {
                     'id': stock['id'],
                     'stock_name': stock.get('name', ''),
-                    'market': stock.get('exchangeCenter', '')
+                    'market': stock.get('exchange_center', '')
                 }
         """
         # 默认行为：提取常用字段

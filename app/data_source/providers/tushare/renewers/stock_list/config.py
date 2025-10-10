@@ -10,7 +10,7 @@ CONFIG = {
     'date': {
         'format': 'YYYYMMDD',
         'interval': 'day',
-        'field': 'lastUpdate'
+        'field': 'last_update'
     },
     'renew_mode': 'upsert',
     'apis': [
@@ -25,9 +25,9 @@ CONFIG = {
                 'name': 'name',
                 'industry': lambda x: x.get('industry') or '未知行业',
                 'type': lambda x: x.get('market') or '未知类型',
-                'exchangeCenter': lambda x: x.get('exchange') or '未知交易所',
-                'isActive': lambda x: 1,
-                'lastUpdate': lambda x: datetime.now().strftime('%Y-%m-%d')
+                'exchange_center': lambda x: x.get('exchange') or '未知交易所',
+                'is_active': lambda x: 1,
+                'last_update': lambda x: datetime.now().strftime('%Y-%m-%d')
             }
         }
     ]

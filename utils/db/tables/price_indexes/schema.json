@@ -1,22 +1,13 @@
 {
     "name": "price_indexes",
-    "primaryKey": [
-        "id",
-        "date"
-    ],
+    "primaryKey": "date",
     "fields": [
         {
-            "name": "id",
-            "type": "varchar",
-            "length": 16,
-            "isRequired": true,
-            "description": "发布时间 YYYY-MM 格式"
-        },
-        {
             "name": "date",
-            "type": "datetime",
+            "type": "varchar",
+            "length": 6,
             "isRequired": true,
-            "description": "日期"
+            "description": "月份 YYYYMM 格式"
         },
         {
             "name": "cpi",

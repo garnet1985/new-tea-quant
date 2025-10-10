@@ -724,19 +724,24 @@ class BaseRenewer(ABC):
     
 
     
-    def _simple_renew(self, jobs: List[Dict]):
+    def _simple_renew(self, jobs: List[Dict]) -> bool:
         """
         简单模式更新
         适用于：宏观数据等无需并发的场景
+        
+        Returns:
+            bool: 是否全部成功
         """
         logger.info(f"🔄 开始更新 {self.config['table_name']}")
 
+        success = True
         for job in jobs:
             # 1. 请求所有API并收集结果
             api_results = self._request_apis(job)
             
             if not api_results:
                 logger.warning(f"⚠️  任务 {job} 未获取到数据")
+                success = False
                 continue
             
             # 2. 准备要保存的数据（合并、清洗、计算等）
@@ -744,7 +749,10 @@ class BaseRenewer(ABC):
             
             # 3. 保存数据
             if data is not None:
-                self.save_data(data)
+                if not self.save_data(data):
+                    success = False
+        
+        return success
 
 
     def _multithread_renew(self, jobs: List[Dict]):
@@ -1085,7 +1093,7 @@ class BaseRenewer(ABC):
             # 2. 获取可调用的API方法
             api_method_name = api['method']
             api_method = getattr(self.api, api_method_name)
-            
+        
             # DEBUG: 记录API调用参数（仅在失败时有用）
             # logger.debug(f"API调用: {api_method_name}, 参数: {api_params}")
             
@@ -1331,7 +1339,7 @@ class BaseRenewer(ABC):
         if isinstance(data, list):
             data_list = data
         elif hasattr(data, 'to_dict'):
-            data_list = data.to_dict('records')
+                data_list = data.to_dict('records')
         else:
             data_list = list(data) if data else []
         
@@ -1376,12 +1384,11 @@ class BaseRenewer(ABC):
                             # 字符串类型 → 空字符串
                             cleaned_record[key] = ''
                         else:
-                            # 其他类型 → None
+                         # 其他类型 → None
                             cleaned_record[key] = None
                 else:
                     cleaned_record[key] = value
             cleaned_list.append(cleaned_record)
-        
         return cleaned_list
     
     def _get_field_types_from_schema(self) -> Dict[str, str]:
@@ -1417,7 +1424,8 @@ class BaseRenewer(ABC):
         table.execute_raw_update(f"DELETE FROM {table_name}")
         
         # 插入新数据
-        return table.insert(data_list)
+        affected_rows = table.insert(data_list)
+        return affected_rows > 0
     
     def _save_with_replace(self, table, table_name: str, data_list: List[Dict]) -> bool:
         """
@@ -1446,7 +1454,8 @@ class BaseRenewer(ABC):
             # 获取主键
             primary_keys = self.db.get_table_primary_keys(table_name)
             # 使用replace方法（基于主键upsert）
-            return table.replace(data_list, unique_keys=primary_keys)
+            affected_rows = table.replace(data_list, unique_keys=primary_keys)
+            return affected_rows > 0
         except ValueError as e:
             logger.error(f"❌ 获取表主键失败: {e}")
             return False

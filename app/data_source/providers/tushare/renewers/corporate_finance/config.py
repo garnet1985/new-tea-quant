@@ -13,7 +13,8 @@ CONFIG = {
         'field': 'quarter',         # 数据库字段名
         'storage_format': 'quarter', # 数据库存储格式（YYYYQ[1-4]）
         'interval': 'quarter',      # 更新间隔
-        'api_format': 'date'        # API需要date格式（YYYYMMDD）
+        'api_format': 'date',       # API需要date格式（YYYYMMDD）
+        'disclosure_delay_months': 1  # 披露延迟：季度结束后1个月内披露
     },
     
     'job_mode': 'multithread',

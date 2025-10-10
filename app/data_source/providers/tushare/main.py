@@ -34,6 +34,10 @@ from .renewers.gdp.renewer import GDPRenewer
 from .renewers.gdp.config import CONFIG as GDP_CONFIG
 from .renewers.shibor.renewer import ShiborRenewer
 from .renewers.shibor.config import CONFIG as SHIBOR_CONFIG
+from .renewers.stock_index_indicator.renewer import StockIndexIndicatorRenewer
+from .renewers.stock_index_indicator.config import CONFIG as STOCK_INDEX_INDICATOR_CONFIG
+from .renewers.stock_index_indicator_weight.renewer import StockIndexIndicatorWeightRenewer
+from .renewers.stock_index_indicator_weight.config import CONFIG as STOCK_INDEX_INDICATOR_WEIGHT_CONFIG
 
 # 导入存储和服务
 from app.data_source.providers.tushare.main_service import TushareService
@@ -130,6 +134,12 @@ class Tushare:
         self.shibor_renewer = ShiborRenewer(
             config=SHIBOR_CONFIG, **renewer_params
         )
+        self.stock_index_indicator_renewer = StockIndexIndicatorRenewer(
+            config=STOCK_INDEX_INDICATOR_CONFIG, **renewer_params
+        )
+        self.stock_index_indicator_weight_renewer = StockIndexIndicatorWeightRenewer(
+            config=STOCK_INDEX_INDICATOR_WEIGHT_CONFIG, **renewer_params
+        )
     
     # ================================ 主要API ================================
     
@@ -165,6 +175,11 @@ class Tushare:
             self.lpr_renewer.renew(latest_market_open_day)
             self.gdp_renewer.renew(latest_market_open_day)
             self.shibor_renewer.renew(latest_market_open_day)
+            
+            # 更新指数数据
+            logger.info("📊 更新指数数据...")
+            self.stock_index_indicator_renewer.renew(latest_market_open_day)
+            self.stock_index_indicator_weight_renewer.renew(latest_market_open_day)
 
             # logger.info("✅ Tushare 数据源更新完成")
             # return True

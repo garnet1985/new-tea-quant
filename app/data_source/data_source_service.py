@@ -297,13 +297,30 @@ class DataSourceService:
         计算两个日期之间的时间差
         
         Args:
-            unit: 时间单位，'day', 'week', 'month' 之一
-            start_date: 开始日期，格式为 YYYYMMDD
-            end_date: 结束日期，格式为 YYYYMMDD
+            unit: 时间单位，'day', 'week', 'month', 'quarter' 之一
+            start_date: 开始日期或季度
+                - 日期格式: YYYYMMDD（用于day/week/month）
+                - 季度格式: YYYYQ[1-4]（用于quarter）
+            end_date: 结束日期或季度（格式同start_date）
             
         Returns:
             int: 时间差（单位由 unit 参数决定）
         """
+        # 处理季度格式
+        if unit == 'quarter':
+            # 季度格式：2023Q1, 2023Q2, etc.
+            if 'Q' in start_date and 'Q' in end_date:
+                start_year = int(start_date[:4])
+                start_q = int(start_date[-1])
+                end_year = int(end_date[:4])
+                end_q = int(end_date[-1])
+                
+                # 计算季度差
+                return (end_year - start_year) * 4 + (end_q - start_q)
+            else:
+                raise ValueError(f"Quarter format requires 'YYYYQ[1-4]', got: {start_date}, {end_date}")
+        
+        # 处理日期格式
         year1 = int(start_date[:4])
         month1 = int(start_date[4:6])
         day1 = int(start_date[6:8])

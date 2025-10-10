@@ -163,7 +163,7 @@ class Tushare:
         try:
             # 更新K线数据（使用新的stock_kline renewer）
             logger.info("📈 更新股票K线数据...")
-            self.stock_kline_renewer.renew(latest_market_open_day, stock_list)
+            # self.stock_kline_renewer.renew(latest_market_open_day, stock_list)
             
             # 更新宏观经济数据（独立并行）
             # logger.info("🌍 更新宏观经济数据...")
@@ -172,9 +172,9 @@ class Tushare:
             # self.gdp_renewer.renew(latest_market_open_day)
             # self.shibor_renewer.renew(latest_market_open_day)
 
-            # # 更新企业财务数据（依赖股票指数）
-            # logger.info("💼 更新企业财务数据...")
-            # self.corporate_finance_renewer.renew(latest_market_open_day)
+            # 更新企业财务数据（依赖股票列表）
+            logger.info("💼 更新企业财务数据...")
+            self.corporate_finance_renewer.renew(latest_market_open_day, stock_list)
 
             # 更新股本信息（依赖股票指数）
             # logger.info("📋 更新股本信息数据...")

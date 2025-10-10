@@ -1,6 +1,6 @@
 """
 Stock List 自定义模型
-与 stock_index 模型类似，但字段使用 isActive
+提供股票列表相关的特定方法（替代 stock_index）
 """
 from utils.db.db_model import BaseTableModel
 from typing import List, Dict, Any, Optional

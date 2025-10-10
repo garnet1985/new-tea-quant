@@ -59,13 +59,13 @@ class AKShareService:
         return results
 
 
-    def get_stocks_needing_update_from_stock_index(self, db_stocks: list, stock_index: list) -> List[Dict]:
+    def get_stocks_needing_update_from_stock_list(self, db_stocks: list, stock_list: list) -> List[Dict]:
         # 创建数据库中已有股票的代码集合
         db_stock_codes = set(stock.get('id') for stock in db_stocks)
         
-        # 找出在stock_index中存在但在数据库中没有存储过的股票
+        # 找出在stock_list中存在但在数据库中没有存储过的股票
         missing_in_db = []
-        for stock in stock_index:
+        for stock in stock_list:
             stock_id = stock.get('id')
             if stock_id and stock_id not in db_stock_codes:
                 missing_in_db.append(self.to_job_data(stock_id, None, False))

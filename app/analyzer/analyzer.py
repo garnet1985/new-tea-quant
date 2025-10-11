@@ -91,8 +91,9 @@ class Analyzer:
                         logger.warning(f"跳过 {strategy_folder.name}: 未找到继承 BaseStrategy 的策略类")
                     continue
 
-                if not hasattr(strategy_class, 'is_enabled'):
-                    logger.warning(f"跳过 {strategy_folder.name}: 未找到 is_enabled 属性")
+                # 检查 settings 中是否有 is_enabled 配置
+                if 'is_enabled' not in settings:
+                    logger.warning(f"跳过 {strategy_folder.name}: settings 中未找到 is_enabled 配置")
                     continue
                 
                 self.all_strategies.append({
@@ -112,9 +113,9 @@ class Analyzer:
         for strategy in self.all_strategies:
             strategy_class = strategy['strategy_class']
             strategy_settings = strategy['strategy_settings']
-            # 检查策略是否启用
+            # 检查策略是否启用（从 settings 中读取）
 
-            if strategy_class.is_enabled:
+            if strategy_settings.get('is_enabled', False):
                 
                 try:
                     # 创建策略实例

@@ -14,9 +14,6 @@ from utils.icon.icon_service import IconService
 class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""
     
-    # 策略启用状态
-    is_enabled = False
-    
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
             db=db, 

@@ -14,9 +14,6 @@ from ...components.base_strategy import BaseStrategy
 class ReverseTrendBet(BaseStrategy):
     """ReverseTrendBet 策略实现"""
     
-    # 策略启用状态
-    is_enabled = True
-    
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
             db=db, 

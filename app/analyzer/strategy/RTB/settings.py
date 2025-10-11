@@ -1,4 +1,7 @@
 settings = {
+    # 策略启用状态
+    "is_enabled": False,
+    
     "core": {
         "convergence": {
             "days": 20,

@@ -8,7 +8,7 @@
 - **策略设置**: 在 `app/analyzer/strategy/` 下新建你的策略设置文件，名字必须是`settings.py`, 并且里边的变量名必须叫`settings`
 - **入口文件命名**: 入口文件需与文件夹同名，例如 `MyStrategy/MYST.py`。注意：你的策略文件名必须是你的基类里的`abbreviation`的值
 - **策略类**: 在入口文件中定义一个继承自 `BaseStrategy` 的类（类名不限）
-- **是否启用**: 通过类属性 `is_enabled: bool` 控制是否参与扫描/模拟
+- **是否启用**: 在 `settings.py` 中通过 `is_enabled` 配置控制是否参与扫描/模拟
 
 ### 最小实现要点
 
@@ -19,8 +19,6 @@ from app.analyzer.libs.base_strategy import BaseStrategy
 from app.analyzer.libs.simulator.simulator import Simulator
 
 class MyStrategy(BaseStrategy):
-    is_enabled = True
-
     def __init__(self, db, is_verbose: bool = False):
         super().__init__(
             db=db,
@@ -62,12 +60,23 @@ class MySimulator:
 
 3) 策略设置（建议独立成 `settings.py` 并在策略入口中导入）
 
-可直接复用 `example/example_settings.py` 结构：
+可直接复用 `example/settings.py` 结构：
 
+```python
+settings = {
+    # 策略启用状态（必需）
+    "is_enabled": True,  # 设为 False 将跳过该策略
+    
+    # 其他配置...
+}
+```
+
+主要配置项：
+- **is_enabled**: 策略启用状态，True 表示参与扫描/模拟，False 表示跳过
 - **mode**: 是否只跑黑名单、测试股票数量等
 - **klines**: 模拟所需的 K 线周期与基础周期（`base_term`）
 - **simulation**: 回测起止日期
-- **goal**: 止盈/止损目标及阶段配置，支持“到期平仓（固定自然日/交易日）”与阶段对到期规则的调整
+- **goal**: 止盈/止损目标及阶段配置，支持"到期平仓（固定自然日/交易日）"与阶段对到期规则的调整
 - **blacklist**: 黑名单配置（配合 `mode.blacklist_only` 使用）
 
 ### 自动发现与注册
@@ -75,14 +84,14 @@ class MySimulator:
 应用会在启动时自动扫描 `app/analyzer/strategy/*/*`：
 
 - 目录名为 `YourStrategy`，入口文件为 `YourStrategy.py`
-- 入口文件内存在一个继承 `BaseStrategy` 的类（且具有 `is_enabled` 属性）
-- 若 `is_enabled = True`，系统会实例化并调用 `initialize()`，注册所需表；随后即可参与 `scan()` 与 `simulate()`
+- 入口文件内存在一个继承 `BaseStrategy` 的类，且 `settings.py` 中配置了 `is_enabled`
+- 若 `settings` 中 `is_enabled = True`，系统会实例化并调用 `initialize()`，注册所需表；随后即可参与 `scan()` 与 `simulate()`
 
 相关代码参考：`app/analyzer/analyzer.py` 中的策略注册逻辑。
 
 ### 启用与运行
 
-1) 在你的策略类中将 `is_enabled = True`
+1) 在你的 `settings.py` 中将 `is_enabled` 设为 `True`
 2) 运行应用入口：
 
 ```bash
@@ -135,7 +144,7 @@ python start.py
 ### 示例文件对照
 
 - 策略入口：`example.py`
-- 策略设置：`example_settings.py`
+- 策略设置：`settings.py`
 - 单日逻辑：`example_simulator.py`
 
 产物（如快速模拟报告）默认写入 `app/analyzer/strategy/<folder_name>/tmp/`。

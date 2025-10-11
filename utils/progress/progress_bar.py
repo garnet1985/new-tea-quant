@@ -63,15 +63,15 @@ class ProgressBar:
                 result = subprocess.run(['tput', 'lines'], capture_output=True, text=True)
                 if result.returncode == 0:
                     return int(result.stdout.strip())
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to get terminal height from tput: {e}")
         
         # 如果无法检测，尝试从环境变量获取
         try:
             height = int(os.environ.get('LINES', '24'))
             return height
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to get terminal height from env: {e}")
             
         return 24  # 默认高度
     

@@ -2,9 +2,12 @@
 
 
 settings = {
+    # 策略启用状态
+    "is_enabled": True,
+    
     'mode': {
         "blacklist_only": False,
-        "test_amount": 0,
+        "test_amount": 10,
         "start_idx": 0,
         "simulation_ref_version": "603",
         "record_summary" : True

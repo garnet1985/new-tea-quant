@@ -1,6 +1,10 @@
 {
     "name": "stock_kline",
-    "primaryKey": ["id", "term", "date"],
+    "primaryKey": [
+        "id",
+        "term",
+        "date"
+    ],
     "fields": [
         {
             "name": "id",
@@ -13,81 +17,197 @@
             "name": "term",
             "type": "varchar",
             "length": 16,
-            "isRequired": true
+            "isRequired": true,
+            "description": "K线周期"
         },
         {
             "name": "date",
             "type": "varchar",
             "length": 8,
-            "isRequired": true
+            "isRequired": true,
+            "description": "交易日期"
         },
         {
             "name": "open",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "开盘价"
         },
         {
             "name": "close",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "收盘价"
         },
         {
             "name": "highest",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "最高价"
         },
         {
             "name": "lowest",
             "type": "float",
-            "isRequired": true
+            "isRequired": true,
+            "description": "最低价"
         },
         {
-            "name": "priceChangeDelta",
+            "name": "price_change_delta",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "涨跌额"
         },
         {
-            "name": "priceChangeRateDelta",
+            "name": "price_change_rate_delta",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "涨跌额(基于除权后的昨收计算的涨跌幅：（今收-除权昨收）/除权昨收)"
         },
         {
-            "name": "preClose",
+            "name": "pre_close",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "昨收价(除权价，前复权)"
         },
         {
             "name": "volume",
             "type": "bigint",
-            "isRequired": false
+            "isRequired": true,
+            "description": "成交量"
         },
         {
             "name": "amount",
             "type": "float",
-            "isRequired": false
+            "isRequired": true,
+            "description": "成交额"
+        },
+        {
+            "name": "turnover_rate",
+            "type": "float",
+            "isRequired": true,
+            "description": "换手率"
+        },
+        {
+            "name": "free_turnover_rate",
+            "type": "float",
+            "isRequired": true,
+            "description": "自由流通股比例"
+        },
+        {
+            "name": "volume_ratio",
+            "type": "float",
+            "isRequired": true,
+            "description": "量比"
+        },
+        {
+            "name": "pe",
+            "type": "float",
+            "isRequired": true,
+            "description": "市盈率"
+        },
+        {
+            "name": "pe_ttm",
+            "type": "float",
+            "isRequired": true,
+            "description": "市盈率(Trailing Twelve Months)"
+        },
+        {
+            "name": "pb",
+            "type": "float",
+            "isRequired": true,
+            "description": "市净率"
+        },
+        {
+            "name": "ps",
+            "type": "float",
+            "isRequired": true,
+            "description": "市销率"
+        },
+        {
+            "name": "ps_ttm",
+            "type": "float",
+            "isRequired": true,
+            "description": "市销率(Trailing Twelve Months)"
+        },
+        {
+            "name": "dv_ratio",
+            "type": "float",
+            "isRequired": true,
+            "description": "分红比例"
+        },
+        {
+            "name": "dv_ttm",
+            "type": "float",
+            "isRequired": true,
+            "description": "分红比例(Trailing Twelve Months)"
+        },
+        {
+            "name": "total_share",
+            "type": "bigint",
+            "isRequired": true,
+            "description": "总股本"
+        },
+        {
+            "name": "float_share",
+            "type": "bigint",
+            "isRequired": true,
+            "description": "流通股本"
+        },
+        {
+            "name": "free_share",
+            "type": "bigint",
+            "isRequired": true,
+            "description": "自由流通股本"
+        },
+        {
+            "name": "total_market_value",
+            "type": "float",
+            "isRequired": true,
+            "description": "总市值"
+        },
+        {
+            "name": "circ_market_value",
+            "type": "float",
+            "isRequired": true,
+            "description": "流通市值"
         }
     ],
     "indexes": [
         {
             "name": "idx_id_term_date",
-            "fields": ["id", "term", "date"],
+            "fields": [
+                "id",
+                "term",
+                "date"
+            ],
             "unique": true
         },
         {
             "name": "idx_id_date",
-            "fields": ["id", "date"]
+            "fields": [
+                "id",
+                "date"
+            ]
         },
         {
             "name": "idx_id_term",
-            "fields": ["id", "term"]
+            "fields": [
+                "id",
+                "term"
+            ]
         },
         {
             "name": "idx_date",
-            "fields": ["date"]
+            "fields": [
+                "date"
+            ]
         },
         {
             "name": "idx_term_date",
-            "fields": ["term", "date"]
+            "fields": [
+                "term",
+                "date"
+            ]
         }
     ]
 }

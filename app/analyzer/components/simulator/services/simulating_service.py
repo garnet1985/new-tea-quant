@@ -97,8 +97,9 @@ class SimulatingService:
             settings = payload['settings']
             strategy_class = payload['strategy_class']
 
-            from app.analyzer.components.data_loader import DataLoader
-            data = DataLoader.prepare_data(stock, settings)
+            from app.data_loader import DataLoader
+            loader = DataLoader()
+            data = loader.prepare_data(stock, settings)
 
             # 执行模拟 - 直接调用子类的simulate_one_day方法
             result = SimulatingService._execute_simulation(
@@ -174,6 +175,8 @@ class SimulatingService:
             else:
                 is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
             if is_settled:
+                # 在结算当日先更新 tracking，确保最后一天被计入
+                SimulatingService.update_investment_max_min_close(investment, record_of_today)
                 settled_investment = SimulatingService.to_settled_investment(investment, strategy_class)
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None
@@ -185,6 +188,8 @@ class SimulatingService:
                 investment = SimulatingService.to_investment(record_of_today, opportunity, settings)
                 # expose to strategy class to add any extra fields
                 investment = strategy_class.to_investment(investment)
+                # 开仓当日即刻初始化 tracking（计入第一天）
+                SimulatingService.update_investment_max_min_close(investment, record_of_today)
                 tracker['investing'] = investment
 
 
@@ -367,6 +372,8 @@ class SimulatingService:
         final_date = last_record_of_today.get('date')
         purchase_price = float(inv.get('purchase_price') or 0.0)
         if remaining > 0 and final_date:
+            # 先更新 tracking，确保最后一天计入最高/最低
+            SimulatingService.update_investment_max_min_close(inv, last_record_of_today)
             final_target = {
                 'name': 'final_settlement',
                 'sell_ratio': remaining,

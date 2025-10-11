@@ -7,60 +7,6 @@ from .config import TushareConfig
 
 class TushareService:
     @staticmethod
-    def to_unified_stock_index_format(stock_index_data: list) -> list:
-        """
-        统一股票指数数据格式
-        将API数据和数据库数据统一为标准格式
-        
-        Args:
-            stock_index_data: 股票指数数据列表
-            
-        Returns:
-            list: 统一格式的股票指数数据，每个元素包含 id, name, industry 等字段
-        """
-        normalized_data = []
-        
-        for row in stock_index_data:
-            try:
-                if 'ts_code' in row and row['ts_code']:
-                    # API数据格式：包含ts_code字段
-                    ts_code = row['ts_code']
-                    
-                    normalized_row = {
-                        'id': ts_code,  # 使用 ts_code 作为 id
-                        'ts_code': ts_code,
-                        'name': row.get('name', ''),
-                        'industry': row.get('industry', ''),
-                        'area': row.get('area', ''),
-                        'exchange': row.get('exchange', ''),
-                        'list_date': row.get('list_date', '')
-                    }
-                elif 'id' in row and row['id']:
-                    # 数据库数据格式：包含id字段
-                    stock_id = row['id']
-                    normalized_row = {
-                        'id': stock_id,
-                        'ts_code': stock_id,
-                        'name': row.get('name', ''),
-                        'industry': row.get('industry', ''),
-                        'area': row.get('area', ''),
-                        'exchange': row.get('exchangeCenter', ''),  # 数据库字段名不同
-                        'list_date': row.get('list_date', '')
-                    }
-                else:
-                    # 数据不完整，跳过这条记录
-                    continue
-                
-                normalized_data.append(normalized_row)
-                
-            except Exception as e:
-                # 记录错误但继续处理其他记录
-                logger.warning(f"处理股票指数数据时出错: {e}, 数据: {row}")
-                continue
-                
-        return normalized_data
-
-    @staticmethod
     def get_latest_market_open_day(api):
         # 如果今天还没过去，那么最后一次交易日应该是昨天
         # 使用昨天作为结束日期来查询交易日历

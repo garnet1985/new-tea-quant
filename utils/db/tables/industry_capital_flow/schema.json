@@ -1,6 +1,6 @@
 {
     "name": "industry_capital_flow",
-    "primaryKey": ["date"],
+    "primaryKey": ["date", "industry_id"],
     "fields": [
         {
             "name": "date",

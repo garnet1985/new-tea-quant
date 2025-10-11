@@ -1,5 +1,6 @@
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 from typing import Any, Dict, List
+from dateutil.relativedelta import relativedelta
 
 class DataSourceService:
     @staticmethod
@@ -25,6 +26,21 @@ class DataSourceService:
     def to_qfq(k_lines: list, qfq_factors: list):
         """
         计算前复权价格
+        
+        ⚠️  建议使用 DataLoader.load_klines() 替代
+        
+        新方法的优势：
+            from app.data_loader import DataLoader
+            
+            loader = DataLoader(db)
+            
+            # 返回List（使用此方法，性能相同）
+            records = loader.load_klines(stock_id, adjust='qfq', as_dataframe=False)
+            
+            # 返回DataFrame（代码更简洁，便于后续分析）
+            df = loader.load_klines(stock_id, adjust='qfq', as_dataframe=True)
+        
+        DataLoader统一了数据加载接口，避免手动组合表操作。
         
         Args:
             k_lines: K线数据列表，包含 date, open, close, highest, lowest 等字段
@@ -80,6 +96,22 @@ class DataSourceService:
     def filter_out_negative_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         过滤掉价格为负或无效的记录
+        
+        ⚠️  建议使用 DataLoader.load_klines() 替代
+        
+        新方法的优势：
+            from app.data_loader import DataLoader
+            
+            loader = DataLoader(db)
+            
+            # 自动过滤负值
+            records = loader.load_klines(stock_id, filter_negative=True)
+            
+            # DataFrame版本（代码更简洁）
+            df = loader.load_klines(stock_id, as_dataframe=True, filter_negative=True)
+            # df = df[df['close'] > 0]  # 一行搞定！
+        
+        DataLoader统一了数据加载接口。
         """
         if not records:
             return []
@@ -127,5 +159,434 @@ class DataSourceService:
                 break
         
         return result_factor
+
+    # ==================== 日期和季度处理工具函数 ====================
+    
+    @staticmethod
+    def date_to_quarter(date_str: str) -> str:
+        """
+        将日期转换为季度格式
+        
+        Args:
+            date_str: 日期字符串，格式为 YYYYMMDD，如 '20240315'
+            
+        Returns:
+            str: 季度字符串，格式为 YYYYQN，如 '2024Q1'
+        """
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        quarter = (month - 1) // 3 + 1
+        return f"{year}Q{quarter}"
+    
+    @staticmethod
+    def quarter_to_date(quarter_str: str) -> str:
+        """
+        将季度转换为该季度的末尾日期
+        
+        Args:
+            quarter_str: 季度字符串，格式为 YYYYQN，如 '2024Q1'
+            
+        Returns:
+            str: 日期字符串，格式为 YYYYMMDD，如 '20240331' (Q1的最后一天)
+        """
+        year = int(quarter_str[:4])
+        quarter = int(quarter_str[5])
+        
+        # 季度末月份和日期映射
+        quarter_end_map = {
+            1: (3, 31),   # Q1: 3月31日
+            2: (6, 30),   # Q2: 6月30日
+            3: (9, 30),   # Q3: 9月30日
+            4: (12, 31),  # Q4: 12月31日
+        }
+        
+        month, day = quarter_end_map[quarter]
+        return f"{year}{month:02d}{day:02d}"
+    
+    @staticmethod
+    def to_next_quarter(date_or_quarter_str: str) -> str:
+        """
+        计算下一个季度
+        
+        Args:
+            date_or_quarter_str: 日期字符串（格式为 YYYYMMDD，如 '20240315'）
+                                 或季度字符串（格式为 YYYYQN，如 '2024Q1'）
+            
+        Returns:
+            str: 下一个季度，如 '2024Q2'
+        """
+        # 判断输入是日期还是季度
+        if 'Q' in date_or_quarter_str:
+            # 季度格式
+            year = int(date_or_quarter_str[:4])
+            quarter = int(date_or_quarter_str[5])
+        else:
+            # 日期格式，先转换为季度
+            quarter_str = DataSourceService.date_to_quarter(date_or_quarter_str)
+            year = int(quarter_str[:4])
+            quarter = int(quarter_str[5])
+        
+        if quarter == 4:
+            return f"{year + 1}Q1"
+        else:
+            return f"{year}Q{quarter + 1}"
+    
+    @staticmethod
+    def to_next_day(date_str: str) -> str:
+        """
+        计算下一天
+        
+        Args:
+            date_str: 日期字符串，格式为 YYYYMMDD，如 '20240315'
+            
+        Returns:
+            str: 下一天的日期，如 '20240316'
+        """
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        day = int(date_str[6:8])
+        
+        current_date = date_type(year, month, day)
+        next_date = current_date + timedelta(days=1)
+        
+        return next_date.strftime('%Y%m%d')
+    
+    @staticmethod
+    def to_previous_day(date_str: str) -> str:
+        """
+        计算前一天
+        
+        Args:
+            date_str: 日期字符串，格式为 YYYYMMDD，如 '20240315'
+            
+        Returns:
+            str: 前一天的日期，如 '20240314'
+        """
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        day = int(date_str[6:8])
+        
+        current_date = date_type(year, month, day)
+        previous_date = current_date - timedelta(days=1)
+        
+        return previous_date.strftime('%Y%m%d')
+    
+    @staticmethod
+    def to_next_week(date_str: str) -> str:
+        """
+        计算下一周（7天后）
+        
+        Args:
+            date_str: 日期字符串，格式为 YYYYMMDD，如 '20240315'
+            
+        Returns:
+            str: 一周后的日期，如 '20240322'
+        """
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        day = int(date_str[6:8])
+        
+        current_date = date_type(year, month, day)
+        next_week = current_date + timedelta(days=7)
+        
+        return next_week.strftime('%Y%m%d')
+    
+    @staticmethod
+    def to_next_month(date_str: str) -> str:
+        """
+        计算下个月的日期或月份
+        
+        Args:
+            date_str: 日期字符串
+                - YYYYMMDD 格式（8位）：返回下个月同一天
+                - YYYYMM 格式（6位）：返回下个月
+            
+        Returns:
+            str: 下个月的日期或月份（格式与输入保持一致）
+            
+        示例：
+            to_next_month('20240315') → '20240415'
+            to_next_month('202403') → '202404'
+        """
+        if len(date_str) == 6:
+            # YYYYMM 格式（月份）
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            
+            # 计算下个月
+            if month == 12:
+                year += 1
+                month = 1
+            else:
+                month += 1
+            
+            return f"{year:04d}{month:02d}"
+        else:
+            # YYYYMMDD 格式（日期）
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            day = int(date_str[6:8])
+            
+            current_date = date_type(year, month, day)
+            next_month = current_date + relativedelta(months=1)
+            
+            return next_month.strftime('%Y%m%d')
+    
+    @staticmethod
+    def time_gap_by(unit: str, start_date: str, end_date: str) -> int:
+        """
+        计算两个日期之间的时间差
+        
+        Args:
+            unit: 时间单位，'day', 'week', 'month', 'quarter' 之一
+            start_date: 开始日期或季度
+                - 日期格式: YYYYMMDD（用于day/week/month）
+                - 季度格式: YYYYQ[1-4]（用于quarter）
+            end_date: 结束日期或季度（格式同start_date）
+            
+        Returns:
+            int: 时间差（单位由 unit 参数决定）
+        """
+        # 处理季度格式
+        if unit == 'quarter':
+            # 季度格式：2023Q1, 2023Q2, etc.
+            if 'Q' in start_date and 'Q' in end_date:
+                start_year = int(start_date[:4])
+                start_q = int(start_date[-1])
+                end_year = int(end_date[:4])
+                end_q = int(end_date[-1])
+                
+                # 计算季度差
+                return (end_year - start_year) * 4 + (end_q - start_q)
+            else:
+                raise ValueError(f"Quarter format requires 'YYYYQ[1-4]', got: {start_date}, {end_date}")
+        
+        # 处理日期格式
+        year1 = int(start_date[:4])
+        month1 = int(start_date[4:6])
+        day1 = int(start_date[6:8])
+        
+        year2 = int(end_date[:4])
+        month2 = int(end_date[4:6])
+        day2 = int(end_date[6:8])
+        
+        date1 = date_type(year1, month1, day1)
+        date2 = date_type(year2, month2, day2)
+        
+        if unit == 'day':
+            return (date2 - date1).days
+        elif unit == 'week':
+            return (date2 - date1).days // 7
+        elif unit == 'month':
+            # 计算月份差
+            month_diff = (year2 - year1) * 12 + (month2 - month1)
+            # 如果天数不足，减一个月
+            if day2 < day1:
+                month_diff -= 1
+            return month_diff
+        else:
+            raise ValueError(f"不支持的时间单位: {unit}")
+    
+    @staticmethod
+    def get_previous_week_end(date_str: str) -> str:
+        """
+        获取指定日期所在周的前一周的周日
+        
+        逻辑：
+        1. 找到date所在周的周一
+        2. 前一周的周日 = 本周周一 - 1天
+        
+        例如：
+        - 20250930 (周二) → 本周一=20250929 → 前一周日=20250928
+        - 20251006 (周一) → 本周一=20251006 → 前一周日=20251005
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 前一周的周日，格式YYYYMMDD
+        """
+        date_obj = DataSourceService.to_hyphen_date_type(date_str)
+        
+        # 计算本周的周一
+        days_since_monday = date_obj.weekday()  # 周一=0, 周日=6
+        this_week_monday = date_obj - timedelta(days=days_since_monday)
+        
+        # 前一周的周日 = 本周周一 - 1天
+        last_week_sunday = this_week_monday - timedelta(days=1)
+        
+        return last_week_sunday.strftime('%Y%m%d')
+    
+    @staticmethod
+    def get_previous_month_end(date_str: str) -> str:
+        """
+        获取指定日期所在月的前一个月的最后一天
+        
+        逻辑：
+        1. 找到date所在月
+        2. 计算前一个月的最后一天
+        
+        例如：
+        - 20250930 → 所在月=9月 → 前一月=8月 → 返回 20250831
+        - 20251105 → 所在月=11月 → 前一月=10月 → 返回 20251031
+        - 20250115 → 所在月=1月 → 前一月=12月 → 返回 20241231
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 前一个月的最后一天，格式YYYYMMDD
+        """
+        import calendar
+        
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        
+        # 前一个月的年月
+        if month == 1:
+            last_month_year = year - 1
+            last_month = 12
+        else:
+            last_month_year = year
+            last_month = month - 1
+        
+        # 获取前一个月的最后一天
+        last_day = calendar.monthrange(last_month_year, last_month)[1]
+        
+        return f"{last_month_year:04d}{last_month:02d}{last_day:02d}"
+    
+    # ============ 时间格式转换工具（统一内部格式）============
+    
+    @staticmethod
+    def to_standard_date(value: str, format_type: str) -> str:
+        """
+        将任意时间格式转换为标准date格式（YYYYMMDD）
+        
+        设计思想：
+        - 内部统一使用YYYYMMDD格式
+        - 边界转换：从存储格式/API格式 → YYYYMMDD
+        
+        Args:
+            value: 时间值（如'2025Q3', '202510', '20251009'）
+            format_type: 格式类型（'quarter', 'month', 'date'）
+            
+        Returns:
+            str: 标准date格式（YYYYMMDD）
+            
+        示例：
+            to_standard_date('2025Q3', 'quarter') → '20250930'
+            to_standard_date('202510', 'month') → '20251031'
+            to_standard_date('20251009', 'date') → '20251009'
+        """
+        if format_type == 'date':
+            return value  # 已经是标准格式
+        elif format_type == 'quarter':
+            return DataSourceService.quarter_to_date(value)
+        elif format_type == 'month':
+            # month格式：YYYYMM → 该月最后一天
+            import calendar
+            year = int(value[:4])
+            month = int(value[4:6])
+            last_day = calendar.monthrange(year, month)[1]
+            return f"{year:04d}{month:02d}{last_day:02d}"
+        else:
+            raise ValueError(f"不支持的时间格式: {format_type}")
+    
+    @staticmethod
+    def from_standard_date(value: str, format_type: str) -> str:
+        """
+        将标准date格式（YYYYMMDD）转换为其他格式
+        
+        设计思想：
+        - 内部统一使用YYYYMMDD格式
+        - 边界转换：YYYYMMDD → 存储格式/API格式
+        
+        Args:
+            value: 标准date格式（YYYYMMDD）
+            format_type: 目标格式类型
+            
+        Returns:
+            str: 转换后的格式
+            
+        示例：
+            from_standard_date('20250930', 'quarter') → '2025Q3'
+            from_standard_date('20251031', 'month') → '202510'
+            from_standard_date('20251009', 'date') → '20251009'
+        """
+        if format_type == 'date':
+            return value  # 保持原样
+        elif format_type == 'quarter':
+            return DataSourceService.date_to_quarter(value)
+        elif format_type == 'month':
+            # date → month（YYYYMMDD → YYYYMM）
+            return value[:6]
+        else:
+            raise ValueError(f"不支持的时间格式: {format_type}")
+    
+    @staticmethod
+    def get_previous_quarter_end(date_str: str) -> str:
+        """
+        获取指定日期所在季度的前一个季度的最后一天
+        
+        设计思想：返回标准date格式（YYYYMMDD），保持内部统一
+        
+        逻辑：
+        1. 找到date所在季度
+        2. 计算前一个季度
+        3. 返回该季度的最后一天（YYYYMMDD）
+        
+        例如：
+        - 20251009（2025Q4）→ 前一季度=2025Q3 → 返回 20250930
+        - 20250315（2025Q1）→ 前一季度=2024Q4 → 返回 20241231
+        - 20230630（2023Q2）→ 前一季度=2023Q1 → 返回 20230331
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 前一个季度的最后一天，格式YYYYMMDD
+        """
+        # 获取当前季度
+        current_quarter = DataSourceService.date_to_quarter(date_str)
+        
+        # 解析季度
+        year = int(current_quarter[:4])
+        q = int(current_quarter[-1])
+        
+        # 前一个季度
+        if q == 1:
+            prev_year = year - 1
+            prev_q = 4
+        else:
+            prev_year = year
+            prev_q = q - 1
+        
+        prev_quarter = f"{prev_year}Q{prev_q}"
+        
+        # 转换为date格式（该季度的最后一天）
+        return DataSourceService.quarter_to_date(prev_quarter)
+    
+    @staticmethod
+    def to_next(interval: str, date_str: str) -> str:
+        """
+        根据指定的时间间隔计算下一个时间点
+        
+        Args:
+            interval: 时间间隔类型，'day', 'week', 'month', 'quarter' 之一
+            date_str: 日期字符串，格式为 YYYYMMDD（或 YYYYQN 当 interval='quarter'）
+            
+        Returns:
+            str: 下一个时间点的日期（或季度）
+        """
+        if interval == 'day':
+            return DataSourceService.to_next_day(date_str)
+        elif interval == 'week':
+            return DataSourceService.to_next_week(date_str)
+        elif interval == 'month':
+            return DataSourceService.to_next_month(date_str)
+        elif interval == 'quarter':
+            return DataSourceService.to_next_quarter(date_str)
+        else:
+            raise ValueError(f"不支持的时间间隔: {interval}")
 
     

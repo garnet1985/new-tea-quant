@@ -41,6 +41,6 @@ class DataSourceManager:
         await tu.renew(latest_market_open_day, latest_stock_list)
 
 
-        # ak = self.sources['akshare']
-        # ak.inject_dependency(tu)
-        # await ak.renew(self.latest_market_open_day, self.latest_stock_index)
+        ak = self.sources['akshare']
+        ak.inject_dependency(tu)
+        await ak.renew(latest_market_open_day, latest_stock_list)

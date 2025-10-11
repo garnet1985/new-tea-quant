@@ -18,67 +18,29 @@ class DataSourceManager:
         # 初始化复权服务
         self.adj_factor_storage = AKShareStorage(connected_db)
 
-        # global data memory cache
-        self.latest_market_open_day = None
-        self.latest_stock_index = None
-
     def get_source(self, source_name: str):
         return self.sources[source_name]()
 
-    async def renew_data(self, actions: Optional[list] = None):
+    async def renew_data(self):
+        """
+        协调不同数据源的更新
+        负责管理 provider 之间的顺序和依赖关系
+        """
         tu = self.sources['tushare']
+        # 1. 获取最新交易日
+        latest_market_open_day = await tu.get_latest_market_open_day()
+        logger.info(f"🔍 最新交易日: {latest_market_open_day}")
+        
+        # 2. 更新股票列表（替代 stock_index，排除北交所）
+        tu.stock_list_renewer.renew(latest_market_open_day)
+
+        # 3. 加载最新股票列表（排除规则在模型内处理）
+        latest_stock_list = tu.load_filtered_stock_list()
+        
+        # # 3. 更新 Tushare 数据源（包含K线、宏观经济、企业财务、股本信息等）
+        await tu.renew(latest_market_open_day, latest_stock_list)
+
+
         ak = self.sources['akshare']
-
-        # 先获取最新交易日
-        self.latest_market_open_day = await tu.get_latest_market_open_day()
-        logger.info(f"🔍 最新交易日: {self.latest_market_open_day}")
-        
-        # 动作选择
-        actions = actions or [
-            'stock_index',
-            'stock_k_lines',
-            'ak_adj_factors',
-            'price_indexes', 'lpr', 'gdp', 'shibor',
-            'stock_index_indicator', 'stock_index_indicator_weight',
-            'industry_capital_flow', 'corporate_finance'
-        ]
-
-        # 然后更新股票指数
-        if 'stock_index' in actions:
-            self.latest_stock_index = tu.renew_stock_index(self.latest_market_open_day)
-
-
-        # renew jobs:
-
-        if 'stock_k_lines' in actions:
-            await tu.renew_stock_k_lines(self.latest_market_open_day, self.latest_stock_index)
-        
-        if 'ak_adj_factors' in actions:
-            ak.inject_dependency(tu).renew_stock_k_line_factors(self.latest_market_open_day, self.latest_stock_index)
-
-        # macro economic indexes
-        if 'price_indexes' in actions:
-            tu.renew_price_indexes(self.latest_market_open_day)
-
-        if 'lpr' in actions:
-            tu.renew_LPR(self.latest_market_open_day)
-
-        if 'gdp' in actions:
-            tu.renew_GDP(self.latest_market_open_day)
-
-        if 'shibor' in actions:
-            tu.renew_Shibor(self.latest_market_open_day)
-
-        # stock index indicators and weights
-        if 'stock_index_indicator' in actions:
-            tu.renew_stock_index_indicator(self.latest_market_open_day)
-        if 'stock_index_indicator_weight' in actions:
-            tu.renew_stock_index_indicator_weight(self.latest_market_open_day)
-
-        # industry capital flow
-        if 'industry_capital_flow' in actions:
-            tu.renew_industry_capital_flow(self.latest_market_open_day)
-
-        # corporate financial data
-        if 'corporate_finance' in actions:
-            tu.renew_corporate_finance(self.latest_market_open_day)
+        ak.inject_dependency(tu)
+        await ak.renew(latest_market_open_day, latest_stock_list)

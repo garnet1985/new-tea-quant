@@ -1,5 +1,5 @@
 {
-    "name": "stock_index",
+    "name": "stock_list",
     "primaryKey": "id",
     "fields": [
         {
@@ -27,18 +27,18 @@
             "isRequired": true
         },
         {
-            "name": "exchangeCenter",
+            "name": "exchange_center",
             "type": "varchar",
             "length": 16,
             "isRequired": true
         },
         {
-            "name": "isAlive",
+            "name": "is_active",
             "type": "tinyint",
             "isRequired": true
         },
         {
-            "name": "lastUpdate",
+            "name": "last_update",
             "type": "datetime",
             "isRequired": true
         }

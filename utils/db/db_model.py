@@ -127,6 +127,134 @@ class BaseTableModel:
             'page_size': page_size,
             'total_pages': (total + page_size - 1) // page_size
         }
+    
+    def load_latest_date(self, date_field: str = None) -> Optional[str]:
+        """
+        加载表中最新的日期
+        
+        Args:
+            date_field: 日期字段名（如果为None，从schema中自动获取）
+            
+        Returns:
+            Optional[str]: 最新日期，如果表为空返回None
+            
+        Raises:
+            ValueError: 如果日期字段未找到
+        """
+        if date_field is None:
+            # 从schema中查找日期字段（可能抛出异常）
+            date_field = self._get_date_field_from_schema()
+        
+        # 查询最新日期
+        latest_record = self.load_one("1=1", order_by=f"{date_field} DESC")
+        return latest_record.get(date_field) if latest_record else None
+    
+    def load_latest_records(self, date_field: str = None, primary_keys: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        加载每个主键分组中最新日期的记录
+        
+        用于增量更新时获取各股票/各实体的最新数据
+        
+        Args:
+            date_field: 日期字段名（如果为None，从schema中自动获取）
+            primary_keys: 主键列表（如果为None，从schema中自动获取）
+            
+        Returns:
+            List[Dict]: 最新记录列表
+            
+        Raises:
+            ValueError: 如果日期字段或主键未找到
+            
+        示例：
+            # 股票K线表：返回每个股票的最新K线记录
+            # 主键: ['id', 'date']
+            # 返回: [{id: '000001.SZ', date: '20240101', ...}, ...]
+        """
+        if date_field is None:
+            date_field = self._get_date_field_from_schema()
+        
+        if primary_keys is None:
+            primary_keys = self._get_primary_keys_from_schema()
+        
+        # 过滤掉日期字段（日期字段不用于分组）
+        group_keys = [k for k in primary_keys if k != date_field]
+        
+        if not group_keys:
+            # 没有分组键，返回最新的一条记录
+            latest_record = self.load_one("1=1", order_by=f"{date_field} DESC")
+            return [latest_record] if latest_record else []
+        
+        # 有分组键，查询每个分组的最新记录
+        group_keys_str = ', '.join(group_keys)
+        query = f"""
+            SELECT t1.* 
+            FROM {self.table_name} t1
+            INNER JOIN (
+                SELECT {group_keys_str}, MAX({date_field}) as max_date
+                FROM {self.table_name}
+                GROUP BY {group_keys_str}
+            ) t2 
+            ON {' AND '.join([f't1.{k} = t2.{k}' for k in group_keys])}
+            AND t1.{date_field} = t2.max_date
+        """
+        
+        try:
+            return self.db.execute_sync_query(query)
+        except Exception as e:
+            logger.error(f"加载最新记录失败 [{self.table_name}]: {e}")
+            return []
+    
+    def _get_date_field_from_schema(self) -> str:
+        """
+        从schema中获取日期字段名
+        
+        Returns:
+            str: 日期字段名
+            
+        Raises:
+            ValueError: 如果未找到日期字段
+        """
+        if not hasattr(self, 'schema') or not self.schema:
+            raise ValueError(f"表 {self.table_name} 没有schema信息")
+        
+        # 常见的日期字段名
+        date_field_candidates = ['date', 'trade_date', 'quarter', 'end_date', 'ann_date']
+        
+        # 从fields中查找
+        fields = self.schema.get('fields', [])
+        for field in fields:
+            if field['name'] in date_field_candidates:
+                return field['name']
+        
+        raise ValueError(
+            f"表 {self.table_name} 的schema中未找到日期字段。"
+            f"请在schema中添加以下任一字段: {', '.join(date_field_candidates)}"
+        )
+    
+    def _get_primary_keys_from_schema(self) -> List[str]:
+        """
+        从schema中获取主键列表
+        
+        Returns:
+            List[str]: 主键列表
+            
+        Raises:
+            ValueError: 如果schema不存在或主键配置不正确
+        """
+        if not hasattr(self, 'schema') or not self.schema:
+            raise ValueError(f"表 {self.table_name} 没有schema信息")
+        
+        primary_key = self.schema.get('primaryKey')
+        
+        if not primary_key:
+            raise ValueError(f"表 {self.table_name} 的schema中未配置主键")
+        
+        if isinstance(primary_key, str):
+            return [primary_key]
+        elif isinstance(primary_key, list):
+            return primary_key
+        else:
+            raise ValueError(f"表 {self.table_name} 的主键格式不正确: {primary_key}，应为字符串或列表")
 
 
     # ***********************************
@@ -297,6 +425,162 @@ class BaseTableModel:
     def replace_one(self, data: Dict[str, Any], unique_keys: List[str]) -> int:
         """插入或更新单条数据"""
         return self.replace([data], unique_keys)
+    
+    
+    # ***********************************
+    #        DataFrame Support Methods
+    # ***********************************
+    
+    def load_many_df(self, condition: str = "1=1", params: tuple = (), 
+                     limit: int = None, order_by: str = None, offset: int = None):
+        """
+        加载多条记录，返回DataFrame
+        
+        适用场景：
+        - 需要数据分析（merge、groupby、rolling等）
+        - 需要批量计算（向量化操作）
+        - 需要处理时间序列
+        - 需要数据清洗和转换
+        
+        Args:
+            condition: 查询条件
+            params: 查询参数
+            limit: 返回记录数限制
+            order_by: 排序字段
+            offset: 偏移量
+            
+        Returns:
+            pd.DataFrame: 查询结果（如果无数据返回空DataFrame）
+            
+        示例：
+            # 加载K线数据
+            df = table.load_many_df(
+                condition="id=%s AND term=%s",
+                params=('000001.SZ', 'daily'),
+                order_by='date'
+            )
+            
+            # 计算移动平均
+            df['ma5'] = df['close'].rolling(5).mean()
+            
+            # 分组聚合
+            stats = df.groupby('id')['close'].agg(['mean', 'std'])
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用load_many_df方法")
+            return None
+        
+        records = self.load_many(condition, params, limit, order_by, offset)
+        return pd.DataFrame(records) if records else pd.DataFrame()
+    
+    def load_all_df(self, condition: str = "1=1", params: tuple = (), order_by: str = None):
+        """
+        加载所有记录，返回DataFrame
+        
+        适用场景：需要对整表进行分析时使用
+        
+        Returns:
+            pd.DataFrame: 查询结果
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用load_all_df方法")
+            return None
+        
+        records = self.load_all(condition, params, order_by)
+        return pd.DataFrame(records) if records else pd.DataFrame()
+    
+    def insert_df(self, df) -> int:
+        """
+        插入DataFrame数据
+        
+        说明：
+        - 内部转换为list后调用insert方法
+        - 保留所有自定义逻辑（批量插入、错误处理等）
+        - 支持大数据量的批量插入
+        
+        Args:
+            df: pandas DataFrame，列名应与数据库字段名一致
+            
+        Returns:
+            int: 插入的记录数
+            
+        示例：
+            import pandas as pd
+            
+            df = pd.DataFrame({
+                'id': ['000001.SZ', '000002.SZ'],
+                'name': ['平安银行', '万科A'],
+                'date': ['20250930', '20250930']
+            })
+            
+            count = table.insert_df(df)
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用insert_df方法")
+            return 0
+        
+        if not isinstance(df, pd.DataFrame):
+            logger.error(f"insert_df expects pandas DataFrame, got {type(df)}")
+            return 0
+        
+        if df.empty:
+            logger.debug("DataFrame is empty, skipping insert")
+            return 0
+        
+        # 转换为dict列表后调用原insert方法
+        data_list = df.to_dict('records')
+        return self.insert(data_list)
+    
+    def replace_df(self, df, unique_keys: List[str]) -> int:
+        """
+        Upsert DataFrame数据（基于主键更新或插入）
+        
+        说明：
+        - 内部转换为list后调用replace方法
+        - 保留所有自定义逻辑（异步队列、线程安全、错误重试等）
+        - 支持大数据量的批量upsert
+        
+        Args:
+            df: pandas DataFrame，列名应与数据库字段名一致
+            unique_keys: 用于判断记录唯一性的字段列表（通常是主键）
+            
+        Returns:
+            int: 影响的记录数
+            
+        示例：
+            # 更新K线数据（如果存在则更新，不存在则插入）
+            df = pd.DataFrame({
+                'id': ['000001.SZ', '000001.SZ'],
+                'term': ['daily', 'daily'],
+                'date': ['20250929', '20250930'],
+                'close': [11.34, 11.40]
+            })
+            
+            count = table.replace_df(df, unique_keys=['id', 'term', 'date'])
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            logger.error("pandas未安装，无法使用replace_df方法")
+            return 0
+        
+        if not isinstance(df, pd.DataFrame):
+            logger.error(f"replace_df expects pandas DataFrame, got {type(df)}")
+            return 0
+        
+        if df.empty:
+            logger.debug("DataFrame is empty, skipping replace")
+            return 0
+        
+        # 转换为dict列表后调用原replace方法
+        data_list = df.to_dict('records')
+        return self.replace(data_list, unique_keys)
     
     
     # ***********************************

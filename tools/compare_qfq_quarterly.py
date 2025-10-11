@@ -12,22 +12,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
 from utils.db.db_manager import DatabaseManager
-from app.data_source.data_source_service import DataSourceService
+from app.data_loader import DataLoader
 from app.data_source.providers.akshare.akshare_API_mod import AkshareAPIModified
-
-
-def load_daily_k_lines(db, ts_code: str, start_date: str, end_date: str):
-    stock_kline = db.get_table_instance('stock_kline')
-    condition = "id = %s AND term = %s AND date >= %s AND date <= %s"
-    params = (ts_code, 'daily', start_date, end_date)
-    return stock_kline.load(condition, params, order_by="date ASC")
-
-
-def load_qfq_factors(db, ts_code: str, start_date: str, end_date: str):
-    adj_factor = db.get_table_instance('adj_factor')
-    condition = "id = %s AND date >= %s AND date <= %s"
-    params = (ts_code, start_date, end_date)
-    return adj_factor.load(condition, params, order_by="date ASC")
 
 
 def to_date_str_ymd(s: str) -> str:
@@ -51,20 +37,22 @@ def get_quarter_key(date_str_hyphen: str) -> str:
 def compare_quarterly(ts_code: str, start_date: str, end_date: str, samples_per_quarter: int = 1, seed: int = 42, output_csv: str = None):
     random.seed(seed)
     db = DatabaseManager()
+    db.initialize()
 
-    k_lines = load_daily_k_lines(db, ts_code, start_date, end_date)
-    factors = load_qfq_factors(db, ts_code, start_date, end_date)
+    # 使用DataLoader加载前复权数据（自动处理复权和因子）
+    loader = DataLoader(db)
+    our_qfq_lines = loader.load_klines(
+        stock_id=ts_code,
+        term='daily',
+        start_date=start_date,
+        end_date=end_date,
+        adjust='qfq',
+        filter_negative=False  # 保留所有数据用于对比
+    )
 
-    if not k_lines:
+    if not our_qfq_lines:
         print(f"No local k_lines for {ts_code} in [{start_date}, {end_date}]")
         return
-    if not factors:
-        print(f"No factors for {ts_code} in [{start_date}, {end_date}]")
-        return
-
-    # compute our qfq for OHLC
-    k_lines_copy = [dict(x) for x in k_lines]
-    our_qfq_lines = DataSourceService.to_qfq(k_lines_copy, factors)
 
     def safe_float(v):
         try:

@@ -55,11 +55,11 @@ class App:
 def main():
     app = App()
     
-    asyncio.run(app.renew_data())
+    # asyncio.run(app.renew_data())
 
     # app.scan()
 
-    # app.simulate()
+    app.simulate()
 
     # app.analysis()
 

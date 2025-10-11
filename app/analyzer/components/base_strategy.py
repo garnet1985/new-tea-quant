@@ -166,7 +166,6 @@ class BaseStrategy(ABC):
         """构建统一的tables字典，包含基础表和自定义表"""
         # 直接构建基础表
         tables = {
-            "stock_index": self.db.get_table_instance("stock_index"),
             "stock_kline": self.db.get_table_instance("stock_kline"),
             "adj_factor": self.db.get_table_instance("adj_factor"),
         }
@@ -267,7 +266,9 @@ class BaseStrategy(ABC):
         
         strategy_settings = getattr(settings_module, "settings")
         
-        stock_list = self.table["stock_index"].load_filtered_index()
+        # 使用 DataLoader 加载股票列表
+        loader = DataLoader(self.db)
+        stock_list = loader.load_stock_list()
 
         # 根据 settings 的 mode 配置确定扫描范围
         mode_config = strategy_settings.get('mode', {})
@@ -379,9 +380,10 @@ class BaseStrategy(ABC):
         settings = job.get('settings', {}) or {}
         module_info = job.get('module_info', {}) or {}
 
-        # 子进程内直接使用 DataLoader 的静态方法，避免初始化 DatabaseManager
-        from app.analyzer.components.data_loader import DataLoader
-        data = DataLoader.prepare_data(stock, settings)
+        # 子进程内直接使用 DataLoader，避免初始化 DatabaseManager
+        from app.data_loader import DataLoader
+        loader = DataLoader()
+        data = loader.prepare_data(stock, settings)
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法
         import importlib

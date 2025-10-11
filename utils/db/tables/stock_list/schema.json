@@ -1,0 +1,46 @@
+{
+    "name": "stock_list",
+    "primaryKey": "id",
+    "fields": [
+        {
+            "name": "id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股票代码ts_code"
+        },
+        {
+            "name": "name",
+            "type": "varchar",
+            "length": 255,
+            "isRequired": true
+        },
+        {
+            "name": "industry",
+            "type": "text",
+            "isRequired": true
+        },
+        {
+            "name": "type",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true
+        },
+        {
+            "name": "exchange_center",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true
+        },
+        {
+            "name": "is_active",
+            "type": "tinyint",
+            "isRequired": true
+        },
+        {
+            "name": "last_update",
+            "type": "datetime",
+            "isRequired": true
+        }
+    ]
+}

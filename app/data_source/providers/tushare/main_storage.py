@@ -9,49 +9,23 @@ class TushareStorage:
         self.db = connected_db
         # 使用线程安全的数据库模型
         self.meta_info = connected_db.get_table_instance('meta_info')
-        self.stock_index_table = connected_db.get_table_instance('stock_index')
         self.stock_kline_table = connected_db.get_table_instance('stock_kline')
         self.stock_index_indicator_table = connected_db.get_table_instance('stock_index_indicator')
         self.stock_index_indicator_weight_table = connected_db.get_table_instance('stock_index_indicator_weight')
         self.industry_capital_flow_table = connected_db.get_table_instance('industry_capital_flow')
+        self.stock_list_table = connected_db.get_table_instance('stock_list')
 
-    def save_stock_index(self, data):
-        """
-        保存股票指数数据到数据库 - 使用upsert方式
-        
-        Args:
-            data: 股票指数数据列表
-        """
-        # 转换数据格式以匹配数据库表结构
-        api_stocks = []
-        from datetime import datetime
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        
-        for item in data:
-            # 使用 ts_code 作为 id
-            ts_code = item.get('ts_code', '')
-            
-            # 验证必填字段
-            if not ts_code or not item.get('name'):
-                continue
-            
-            api_stocks.append({
-                'id': ts_code,  # 股票代码（包含市场后缀）
-                'name': item.get('name', ''),
-                'industry': item.get('industry', ''),
-                'type': item.get('market', ''),  # market -> type
-                'exchangeCenter': item.get('exchange', ''),  # exchange -> exchangeCenter
-                'isAlive': 1,  # API返回的股票都是活跃的
-                'lastUpdate': current_date
-            })
 
-        # 一次性更新：插入/更新活跃股票，标记未出现的股票为非活跃
-        self.stock_index_table.renew_index(api_stocks)
-        
-        return True
-
-    def load_stock_index(self):
-        return self.stock_index_table.load_all()
+    def load_stock_list(self, exclude_patterns=None, order_by: str = 'id'):
+        try:
+            # 依赖 StockListModel.load_filtered_stock_list
+            if hasattr(self.stock_list_table, 'load_filtered_stock_list'):
+                return self.stock_list_table.load_filtered_stock_list(exclude_patterns=exclude_patterns, order_by=order_by)
+            # 兜底：仅返回活跃
+            return self.stock_list_table.load("is_active = 1", params=(), order_by=order_by)
+        except Exception as e:
+            logger.error(f"加载 stock_list 失败: {e}")
+            return []
 
     def get_most_recent_stock_kline_record_dates(self) -> dict:
         try:
@@ -176,9 +150,9 @@ class TushareStorage:
                     'close': item.get('close', 0),  # 收盘价
                     'highest': item.get('high', 0),  # 最高价
                     'lowest': item.get('low', 0),  # 最低价
-                    'priceChangeDelta': item.get('change', 0),  # 价格变动
-                    'priceChangeRateDelta': item.get('pct_chg', 0),  # 价格变动率
-                    'preClose': item.get('pre_close', 0),  # 前日收盘价
+                    'price_change_delta': item.get('change', 0),  # 价格变动
+                    'price_change_rate_delta': item.get('pct_chg', 0),  # 价格变动率
+                    'pre_close': item.get('pre_close', 0),  # 前日收盘价
                     'volume': item.get('vol', 0),  # 成交量
                     'amount': item.get('amount', 0)  # 成交额
                 }
@@ -255,9 +229,9 @@ class TushareStorage:
                 'close': clean_value(item.get('close', 0)),  # 收盘价
                 'highest': clean_value(item.get('high', 0)),  # 最高价
                 'lowest': clean_value(item.get('low', 0)),  # 最低价
-                'priceChangeDelta': clean_value(item.get('change', 0)),  # 价格变动
-                'priceChangeRateDelta': clean_value(item.get('pct_chg', 0), 0, 9999.9999, -9999.9999),  # 价格变动率，限制在decimal(8,4)范围内
-                'preClose': clean_value(item.get('pre_close', 0)),  # 前日收盘价
+                'price_change_delta': clean_value(item.get('change', 0)),  # 价格变动
+                'price_change_rate_delta': clean_value(item.get('pct_chg', 0), 0, 9999.9999, -9999.9999),  # 价格变动率，限制在decimal(8,4)范围内
+                'pre_close': clean_value(item.get('pre_close', 0)),  # 前日收盘价
                 'volume': clean_value(item.get('vol', 0)),  # 成交量
                 'amount': clean_value(item.get('amount', 0))  # 成交额
             }
@@ -519,9 +493,9 @@ class TushareStorage:
                     'close': self._safe_float(item.get('close', 0)),  # 收盘价
                     'highest': self._safe_float(item.get('high', 0)),  # 最高价
                     'lowest': self._safe_float(item.get('low', 0)),  # 最低价
-                    'priceChangeDelta': self._safe_float(item.get('change', 0)),  # 价格变动
-                    'priceChangeRateDelta': self._safe_float(item.get('pct_chg', 0)),  # 价格变动率
-                    'preClose': self._safe_float(item.get('pre_close', 0)),  # 前日收盘价
+                    'price_change_delta': self._safe_float(item.get('change', 0)),  # 价格变动
+                    'price_change_rate_delta': self._safe_float(item.get('pct_chg', 0)),  # 价格变动率
+                    'pre_close': self._safe_float(item.get('pre_close', 0)),  # 前日收盘价
                     'volume': self._safe_float(item.get('vol', 0)),  # 成交量
                     'amount': self._safe_float(item.get('amount', 0))  # 成交额
                 }

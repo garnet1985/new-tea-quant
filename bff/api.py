@@ -43,35 +43,29 @@ class BFFApi:
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             sys.path.append(project_root)
             
-            # 导入数据库管理器
+            # 导入数据库管理器和DataLoader
             from utils.db.db_manager import DatabaseManager
-            from app.data_source.data_source_service import DataSourceService
+            from app.data_loader import DataLoader
             
             # 连接数据库
             db_manager = DatabaseManager()
             db_manager.connect()
             
-            # 获取K线数据
-            stock_kline_table = db_manager.get_table_instance("stock_kline")
-            kline_data = stock_kline_table.get_all_k_lines_by_term(stock_id, term, order='ASC')
+            # 使用DataLoader加载K线数据（自动复权和过滤）
+            loader = DataLoader(db_manager)
+            qfq_kline_data = loader.load_klines(
+                stock_id=stock_id,
+                term=term,
+                adjust='qfq',
+                filter_negative=True
+            )
             
-            if not kline_data:
+            if not qfq_kline_data:
                 return jsonify({
                     "success": False,
                     "message": f"未找到股票 {stock_id} 的 {term} K线数据",
                     "data": None
                 }), 404
-            
-            # 获取复权因子
-            adj_factor_table = db_manager.get_table_instance("adj_factor")
-            qfq_factors = adj_factor_table.get_stock_factors(stock_id)
-            
-            # 应用前复权处理
-            data_source_service = DataSourceService()
-            qfq_kline_data = data_source_service.to_qfq(kline_data, qfq_factors)
-            
-            # 过滤负价格数据
-            qfq_kline_data = [record for record in qfq_kline_data if record['close'] > 0]
             
             # 格式化数据
             formatted_klines = []
@@ -84,9 +78,9 @@ class BFFApi:
                     'lowest': float(record['lowest']),
                     'volume': float(record['volume']) if record.get('volume') else 0,
                     'amount': float(record['amount']) if record.get('amount') else 0,
-                    'priceChangeDelta': float(record['priceChangeDelta']) if record.get('priceChangeDelta') else 0,
-                    'priceChangeRateDelta': float(record['priceChangeRateDelta']) if record.get('priceChangeRateDelta') else 0,
-                    'preClose': float(record['preClose']) if record.get('preClose') else 0
+                    'price_change_delta': float(record['price_change_delta']) if record.get('price_change_delta') else 0,
+                    'price_change_rate_delta': float(record['price_change_rate_delta']) if record.get('price_change_rate_delta') else 0,
+                    'pre_close': float(record['pre_close']) if record.get('pre_close') else 0
                 }
                 formatted_klines.append(formatted_kline)
             

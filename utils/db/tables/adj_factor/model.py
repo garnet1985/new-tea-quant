@@ -129,7 +129,8 @@ class AdjustFactor(BaseTableModel):
                     try:
                         # 尝试解析日期时间字符串
                         record['last_update'] = pd.to_datetime(record['last_update'])
-                    except:
+                    except Exception as e:
+                        logger.debug(f"Failed to parse last_update datetime: {e}")
                         record['last_update'] = datetime.now()
 
             # 插入数据
@@ -165,5 +166,23 @@ class AdjustFactor(BaseTableModel):
 
 
     def get_stock_factors(self, stock_id: str) -> List[Dict]:
-        """获取指定股票的复权因子"""
-        return self.load(condition="id = %s", params=(stock_id,))
+        """
+        获取指定股票的复权因子（返回List）
+        
+        Returns:
+            List[Dict]: 复权因子列表
+        """
+        return self.load(condition="id = %s", params=(stock_id,), order_by="date ASC")
+    
+    def get_stock_factors_df(self, stock_id: str):
+        """
+        获取指定股票的复权因子（返回DataFrame，已排序）
+        
+        优势：
+        - 直接返回DataFrame，避免dict→DataFrame转换开销
+        - 数据库层已排序（order_by='date ASC'），不需要再sort
+        
+        Returns:
+            pd.DataFrame: 复权因子DataFrame，按date升序排列
+        """
+        return self.load_many_df(condition="id = %s", params=(stock_id,), order_by="date ASC")

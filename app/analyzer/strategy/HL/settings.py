@@ -3,7 +3,7 @@
 
 settings = {
     # 策略启用状态
-    "is_enabled": True,
+    "is_enabled": False,
     
     'mode': {
         "blacklist_only": False,

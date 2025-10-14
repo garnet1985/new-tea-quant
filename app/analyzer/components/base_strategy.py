@@ -1126,6 +1126,43 @@ class BaseStrategy(ABC):
 
 
 
+    # ========================================================
+    # support testing strategy:
+    # ========================================================
+
+
+    # TODO: complete this function to support test strategy
+    # able to mark the period of the records based on the condition and put them into an array
+    # like mark the ma5 > ma10 > ma20 > ma60 period during a stock whole lifetime
+    # it's a tool function and does not run with simulator or scan function
+
+    # def mark_period(records, is_meeting_requirement: callable, tracker: dict):
+    #     record_of_today = records[-1]
+    #     last_record = records[-2]
+    #     if is_meeting_requirement(record_of_today) and tracker['last_record']['date'] == last_record['date']:
+    #         tracker['tracking']['periods'].append(record_of_today['date'])
+    #     else:
+    #         if len(tracker['tracking']) > 0:
+    #             start_date = tracker['tracking'][0]['date']
+    #             end_date = tracker['tracking'][-1]['date']
+    #             tracker['periods'].append({
+    #                 'start_date': start_date,
+    #                 'end_date': end_date,
+    #                 'records': tracker['tracking'],
+    #             })
+    #             tracker['tracking'] = []
+    #             tracker['last_record'] = None
+    #         else:
+    #             if not hasattr(tracker, 'tracking'):
+    #                 tracker['tracking'] = []
+    #             tracker['tracking'].append({
+    #                 'start_date': record_of_today['date'],
+    #                 'end_date': record_of_today['date'],
+    #                 'records': [record_of_today],
+    #             })
+    #             tracker['last_record'] = record_of_today
+
+
 
     # ========================================================
     # utils:

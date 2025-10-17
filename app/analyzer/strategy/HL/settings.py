@@ -15,7 +15,8 @@ settings = {
     
     "klines": {
         "terms": ["daily"],
-        "base_term": "daily",
+        "signal_base_term": "daily",
+        "simulate_base_term": "daily",
         "min_required_base_records": 1000,
     },
 

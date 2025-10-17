@@ -221,7 +221,7 @@ class KlineLoader:
             Dict[term, List[Dict]]: 各周期的K线数据
         """
         min_required_base_records = settings.get('min_required_base_records', 0)
-        min_required_kline_term = settings.get('base_term')
+        min_required_kline_term = settings.get('signal_base_term', 'daily')
         adjust = settings.get('adjust', 'qfq')
         allow_negative_records = settings.get('allow_negative_records', False)
         

@@ -74,7 +74,7 @@ settings = {
 主要配置项：
 - **is_enabled**: 策略启用状态，True 表示参与扫描/模拟，False 表示跳过
 - **mode**: 是否只跑黑名单、测试股票数量等
-- **klines**: 模拟所需的 K 线周期与基础周期（`base_term`）
+- **klines**: 模拟所需的 K 线周期与信号检测周期（`signal_base_term`）和模拟执行周期（`simulate_base_term`）
 - **simulation**: 回测起止日期
 - **goal**: 止盈/止损目标及阶段配置，支持"到期平仓（固定自然日/交易日）"与阶段对到期规则的调整
 - **blacklist**: 黑名单配置（配合 `mode.blacklist_only` 使用）

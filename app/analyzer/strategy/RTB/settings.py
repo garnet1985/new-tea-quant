@@ -1,6 +1,6 @@
 settings = {
-    # 策略启用状态
-    "is_enabled": False,
+           # 策略启用状态
+           "is_enabled": True,  # V16机器学习优化版启用
     
     "core": {
         "convergence": {
@@ -19,12 +19,12 @@ settings = {
     'mode': {
         # 是不是只模拟黑名单中的股票
         "blacklist_only": False,
-        # 测试股票数量
-        "test_amount": 1,
+        # 测试股票数量 - V8测试前20只
+        "test_amount": 10,
         # 测试股票起始索引
-        "start_idx": 1200,
-        # 模拟参考版本号
-        "simulation_ref_version": "",
+        "start_idx": 0,
+               # 模拟参考版本号
+               "simulation_ref_version": "V16_ML_Optimized",
         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True
     },
@@ -33,7 +33,7 @@ settings = {
     "klines": {
         # 日线数据要求 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
         "terms": ["daily", "weekly"],
-        # 日线数据要求 - 例子中指代模拟器基于日线来进行一日日的模拟（交易日）
+        # 日线数据要求 - V14优化：基于日线执行，周线检测信号
         "base_term": "daily",
         # 最小要求的基础周期记录数
         "min_required_base_records": 100,
@@ -58,56 +58,47 @@ settings = {
         "end_date": ""
     },
 
-    # 投资目标设置
+           # 投资目标设置 - V12优化版本
     "goal": {
         # 固定期限强制平仓（交易日优先尝试）
-        # 设置为7个交易日内强制平仓
-        "fixed_trading_days": 14,
+        # V15优化：设置150天时间止损（基于ML分析）
+               "fixed_trading_days": 200,
 
         # 是否自定义止损目标 - 如果有此属性且为true，则完全使用此属性来判断是否应该结算投资，以下属性均不生效
         'is_customized': False,
-        
-        # 止损目标设置
+
+               # 止损目标设置 - V15优化版：-15%止损（基于ML分析）
         "stop_loss": {
-            # 保本止损
-            "break_even": {
-                "name": "break_even",
-                "ratio": 0,
-                # close invest 代表卖出剩余所有仓位
-                "close_invest": True  # 止损时：清仓
+
+            "dynamic": {
+                "name": "dynamic",
+                "ratio": -0.1,
+                "close_invest": True  # 动态止损时：清仓
             },
-            # 分段止损
+
             "stages": [
-                # 止损阶段
                 {
-                    # 名字随便取，只负责展示
-                    "name": "loss6%",
-                    # 当前价格低于买入价格的20%时触发止损
-                    "ratio": -0.06,
-                    # 止损行为是卖出所有仓位
+                    "name": "loss15%",
+                    "ratio": -0.15,  # V15优化：-15%止损（基于ML分析）
                     "close_invest": True  # 止损时：清仓
                 }
             ]
         },
-        # 止盈目标设置（超短线配置：快速止盈）
+        # 止盈目标设置 - V12优化版：分阶段止盈
         "take_profit": {
-            # 止盈阶段（按比例分批卖出）；可为空
             "stages": [
-                # {
-                #     "name": "win6%",
-                #     "ratio": 0.06,
-                #     "sell_ratio": 0.3,
-                # },
                 {
-                    "name": "win9%",
-                    "ratio": 0.09,
-                    "sell_ratio": 0.3,
+                    "name": "win20%",
+                    "ratio": 0.2,  # 第二阶段：25%止盈
+                    "sell_ratio": 0.4,  # 50%平仓
                 },
-                # {
-                #     "name": "win12%",
-                #     "ratio": 0.1,
-                #     "sell_ratio": 0.4
-                # }
+                {
+                    "name": "win30%",
+                    "ratio": 0.3,  # 第三阶段：35%止盈
+                    "sell_ratio": 0.4,  # 全部平仓
+                    "set_stop_loss": "dynamic"
+                },
+
             ]
         },
 

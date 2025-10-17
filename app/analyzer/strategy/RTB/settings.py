@@ -20,7 +20,7 @@ settings = {
         # 是不是只模拟黑名单中的股票
         "blacklist_only": False,
         # 测试股票数量 - V8测试前20只
-        "test_amount": 200,
+        "test_amount": 10,
         # 测试股票起始索引
         "start_idx": 0,
                # 模拟参考版本号

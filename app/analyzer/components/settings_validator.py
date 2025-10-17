@@ -12,7 +12,8 @@ class SettingsValidator:
     def __init__(self):
         """初始化设置验证器"""
         self.required_fields = {
-            'klines.base_term': str,  # 基础周期，如 'daily'
+            # 支持新的配置结构：signal_base_term 和 simulate_base_term
+            # 如果存在新配置，则不需要 base_term
         }
         
         self.optional_fields = {
@@ -47,6 +48,9 @@ class SettingsValidator:
         # step2: validate required fields
         errors.extend(self._validate_required_fields(settings))
         
+        # step2.5: validate new klines configuration structure
+        errors.extend(self._validate_klines_configuration(settings))
+        
         # step3: validate field types and values
         errors.extend(self._validate_field_types(settings))
         errors.extend(self._validate_field_values(settings))
@@ -71,7 +75,7 @@ class SettingsValidator:
         
         for field_path, field_type in self.required_fields.items():
             if '.' in field_path:
-                # 嵌套字段，如 'klines.base_term'
+                # 嵌套字段，如 'klines.signal_base_term'
                 parent_key, child_key = field_path.split('.', 1)
                 if parent_key not in settings:
                     errors.append(f"Missing required field: {parent_key}")
@@ -83,6 +87,45 @@ class SettingsValidator:
                 # 顶级字段
                 if field_path not in settings:
                     errors.append(f"Missing required field: {field_path}")
+        
+        return errors
+    
+    def _validate_klines_configuration(self, settings: Dict[str, Any]) -> List[str]:
+        """
+        验证新的klines配置结构
+        支持配置方式：signal_base_term + simulate_base_term
+        """
+        errors = []
+        
+        if 'klines' not in settings or not isinstance(settings['klines'], dict):
+            return errors
+        
+        klines = settings['klines']
+        has_new_config = 'signal_base_term' in klines or 'simulate_base_term' in klines
+        
+        # 检查是否有有效的配置，如果没有则设置默认值
+        if not has_new_config:
+            # 设置默认值
+            klines['signal_base_term'] = 'daily'
+            klines['simulate_base_term'] = 'daily'
+        
+        # 确保simulate_base_term有默认值
+        if 'simulate_base_term' not in klines:
+            klines['simulate_base_term'] = klines.get('signal_base_term', 'daily')
+        
+        # 验证signal_base_term
+        signal_term = klines['signal_base_term']
+        if not isinstance(signal_term, str):
+            errors.append("klines.signal_base_term must be a string")
+        elif signal_term not in self.valid_base_terms:
+            errors.append(f"Invalid signal_base_term '{signal_term}', must be one of: {self.valid_base_terms}")
+        
+        # 验证simulate_base_term
+        simulate_term = klines['simulate_base_term']
+        if not isinstance(simulate_term, str):
+            errors.append("klines.simulate_base_term must be a string")
+        elif simulate_term not in self.valid_base_terms:
+            errors.append(f"Invalid simulate_base_term '{simulate_term}', must be one of: {self.valid_base_terms}")
         
         return errors
     
@@ -128,13 +171,19 @@ class SettingsValidator:
         """验证字段值"""
         errors = []
         
-        # 验证base_term值
+        # 验证新的配置字段值
         if 'klines' in settings and isinstance(settings['klines'], dict):
             klines = settings['klines']
-            if 'base_term' in klines:
-                base_term = klines['base_term']
-                if base_term not in self.valid_base_terms:
-                    errors.append(f"Invalid base_term '{base_term}', must be one of: {self.valid_base_terms}")
+            
+            if 'signal_base_term' in klines:
+                signal_term = klines['signal_base_term']
+                if signal_term not in self.valid_base_terms:
+                    errors.append(f"Invalid signal_base_term '{signal_term}', must be one of: {self.valid_base_terms}")
+            
+            if 'simulate_base_term' in klines:
+                simulate_term = klines['simulate_base_term']
+                if simulate_term not in self.valid_base_terms:
+                    errors.append(f"Invalid simulate_base_term '{simulate_term}', must be one of: {self.valid_base_terms}")
             
             # 验证additional_terms值
             if 'additional_terms' in klines and isinstance(klines['additional_terms'], list):
@@ -147,15 +196,15 @@ class SettingsValidator:
         """验证字段依赖关系"""
         errors = []
         
-        # 验证additional_terms不能包含base_term
+        # 验证additional_terms不能包含signal_base_term
         if ('klines' in settings and isinstance(settings['klines'], dict) and
-            'base_term' in settings['klines'] and 'additional_terms' in settings['klines']):
+            'signal_base_term' in settings['klines'] and 'additional_terms' in settings['klines']):
             klines = settings['klines']
-            base_term = klines['base_term']
+            signal_base_term = klines['signal_base_term']
             additional_terms = klines['additional_terms']
             
-            if isinstance(additional_terms, list) and base_term in additional_terms:
-                errors.append(f"additional_terms cannot contain base_term '{base_term}'")
+            if isinstance(additional_terms, list) and signal_base_term in additional_terms:
+                errors.append(f"additional_terms cannot contain signal_base_term '{signal_base_term}'")
         
         return errors
     
@@ -168,7 +217,8 @@ class SettingsValidator:
         """
         return {
             'klines': {
-                'base_term': 'daily',
+                'signal_base_term': 'daily',
+                'simulate_base_term': 'daily',
                 'additional_terms': []
             },
             'goal': {},

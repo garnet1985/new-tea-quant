@@ -2,7 +2,7 @@
 """
 SimulatingService - 多进程模拟服务
 """
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.enum import InvestmentResult
@@ -125,9 +125,8 @@ class SimulatingService:
         Returns:
             Dict: 模拟结果
         """
-        # 获取基础K线数据
-        simulate_base_term = settings.get('klines').get('base_term')
-
+        # 获取模拟执行周期数据
+        simulate_base_term = settings.get('klines', {}).get('simulate_base_term')
         base_records = required_data['klines'][simulate_base_term]
 
         # 初始化单只股票投资状态
@@ -158,12 +157,88 @@ class SimulatingService:
         # 回测结束清算未结投资
         SimulatingService.settle_open_investment(tracker, last_record_of_today, strategy_class)
 
+        # 清理临时数据
         del tracker['passed_dates']
         del tracker['investing']
+        # 清理信号缓存数据
+        if '_cached_signal_result' in tracker:
+            del tracker['_cached_signal_result']
+        if '_last_signal_data_key' in tracker:
+            del tracker['_last_signal_data_key']
         # 返回结果
 
         return tracker
 
+    @staticmethod
+    def _get_cached_or_compute_signal(tracker: Dict[str, Any], stock_info: Dict[str, Any], 
+                                     required_data: Dict[str, Any], settings: Dict[str, Any], 
+                                     strategy_class: Any) -> Optional[Dict[str, Any]]:
+        """
+        智能信号检测：使用缓存避免重复计算
+        
+        当信号检测基于较长周期（如周线）时，避免在相同周期内重复计算相同的信号
+        """
+        # 获取信号检测周期
+        signal_term = settings.get('klines', {}).get('signal_base_term', 'daily')
+        
+        # 获取信号数据
+        signal_data = required_data.get('klines', {}).get(signal_term, [])
+        
+        if not signal_data:
+            # 没有信号数据，直接执行信号检测
+            return strategy_class.scan_opportunity(stock_info, required_data, settings)
+        
+        # 检查信号数据是否变化
+        if SimulatingService._is_signal_data_unchanged(tracker, signal_data, signal_term):
+            # 使用缓存的信号结果
+            return tracker.get('_cached_signal_result')
+        
+        # 信号数据已变化，执行新的信号检测
+        opportunity = strategy_class.scan_opportunity(stock_info, required_data, settings)
+        
+        # 缓存结果
+        tracker['_cached_signal_result'] = opportunity
+        tracker['_last_signal_data_key'] = SimulatingService._get_signal_data_key(signal_data)
+        
+        return opportunity
+
+    @staticmethod
+    def _is_signal_data_unchanged(tracker: Dict[str, Any], signal_data: List[Dict[str, Any]], 
+                                 signal_term: str) -> bool:
+        """
+        检查信号数据是否未变化
+        """
+        if not signal_data:
+            return False
+        
+        current_key = SimulatingService._get_signal_data_key(signal_data)
+        last_key = tracker.get('_last_signal_data_key')
+        
+        return current_key == last_key
+
+    @staticmethod
+    def _get_signal_data_key(signal_data: List[Dict[str, Any]]) -> tuple:
+        """
+        生成信号数据的关键标识，用于检测数据变化
+        """
+        if not signal_data:
+            return None
+        
+        # 获取最新信号数据的关键字段
+        latest_signal = signal_data[-1]
+        signal_key = (
+            latest_signal.get('date'),
+            latest_signal.get('close'),
+            latest_signal.get('volume'),
+            latest_signal.get('amount'),
+            latest_signal.get('ma5'),
+            latest_signal.get('ma10'),
+            latest_signal.get('ma20'),
+            latest_signal.get('ma60'),
+            latest_signal.get('rsi'),
+        )
+        
+        return signal_key
 
     @staticmethod
     def _execute_single_day(tracker: Dict[str, Any], record_of_today: str, stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any], strategy_class: Any) -> None:
@@ -183,7 +258,10 @@ class SimulatingService:
             else:
                 SimulatingService.update_investment_max_min_close(investment, record_of_today)
         else:
-            opportunity = strategy_class.scan_opportunity(stock_info, required_data, settings)
+            # 智能信号检测：使用缓存避免重复计算
+            opportunity = SimulatingService._get_cached_or_compute_signal(
+                tracker, stock_info, required_data, settings, strategy_class
+            )
             if opportunity:
                 investment = SimulatingService.to_investment(record_of_today, opportunity, settings)
                 # expose to strategy class to add any extra fields

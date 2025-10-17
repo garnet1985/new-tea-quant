@@ -76,7 +76,9 @@ class Simulator:
 
         for simulate_result in simulate_results:
             stock_summary = PostprocessService.summarize_stock(simulate_result, strategy_class)
-            stock_summaries.append(stock_summary)
+            # 只保存有投资的股票记录
+            if stock_summary.get('summary', {}).get('total_investments', 0) > 0:
+                stock_summaries.append(stock_summary)
 
         session_summary = PostprocessService.summarize_session(stock_summaries, strategy_class)
 

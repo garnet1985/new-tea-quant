@@ -29,12 +29,14 @@ settings = {
         "record_summary" : True
     },
 
-    # 日线数据要求
+    # 数据要求配置
     "klines": {
-        # 日线数据要求 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
+        # 数据周期 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
         "terms": ["daily", "weekly"],
-        # 日线数据要求 - V14优化：基于日线执行，周线检测信号
-        "base_term": "daily",
+        # 信号检测周期 - V16优化：基于周线检测信号，避免重复计算
+        "signal_base_term": "weekly",
+        # 模拟执行周期 - 基于日线执行，精确的买卖时机
+        "simulate_base_term": "daily",
         # 最小要求的基础周期记录数
         "min_required_base_records": 100,
         # 复权方式

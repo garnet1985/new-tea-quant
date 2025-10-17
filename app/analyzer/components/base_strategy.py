@@ -10,6 +10,8 @@ from app.analyzer.analyzer_service import AnalyzerService
 from utils.db.db_manager import DatabaseManager
 from utils.icon.icon_service import IconService
 from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
+from app.data_loader import DataLoader
+import pandas
 
 
 class BaseStrategy(ABC):
@@ -1124,6 +1126,477 @@ class BaseStrategy(ABC):
         print(f"✅ 策略分析完成")
         print(f"{'='*60}")
 
+
+
+    # ========================================================
+    # support testing strategy:
+    # ========================================================
+
+
+    def mark_period(self, records: List[Dict], condition_func: callable, min_period_length: int = 1, return_format: str = "dict") -> List[Dict]:
+        """
+        标记满足条件的K线区间
+        
+        Args:
+            records: K线数据记录列表，按时间顺序排列
+            condition_func: 判断条件函数，接收一个record参数，返回True/False
+            min_period_length: 最小区间长度，默认为1
+            return_format: 返回格式，"dict"或"dataframe"，默认为"dict"
+            
+        Returns:
+            List[Dict] 或 pandas.DataFrame: 标记的区间列表，每个区间包含:
+                - start_date: 开始日期
+                - end_date: 结束日期
+                - start_idx: 开始索引
+                - end_idx: 结束索引
+                - duration: 持续时间（天数）
+                - records: 区间内的所有记录
+                
+        注意: 基础区间信息只包含上述字段，如需详细统计信息，请使用独立的工具方法：
+            - get_price_statistics_from_period()
+            - get_volume_statistics_from_period()
+            - get_ma_statistics_from_period()
+            - get_extreme_prices_from_period()
+        
+        Example:
+            # 标记MA5 > MA10 > MA20 > MA60的区间
+            def ma_condition(record):
+                return (record.get('ma5', 0) > record.get('ma10', 0) and 
+                        record.get('ma10', 0) > record.get('ma20', 0) and 
+                        record.get('ma20', 0) > record.get('ma60', 0))
+            
+            # 返回字典格式
+            periods = strategy.mark_period(records, ma_condition, min_period_length=5)
+            
+            # 返回DataFrame格式
+            periods_df = strategy.mark_period(records, ma_condition, min_period_length=5, return_format="dataframe")
+        """
+        if not records or not condition_func:
+            return [] if return_format == "dict" else None
+        
+        periods = []
+        current_period = []
+        in_period = False
+        
+        for idx, record in enumerate(records):
+            meets_condition = condition_func(record)
+            
+            if meets_condition:
+                if not in_period:
+                    # 开始新的区间
+                    in_period = True
+                    current_period = [record]
+                else:
+                    # 继续当前区间
+                    current_period.append(record)
+            else:
+                if in_period:
+                    # 结束当前区间
+                    if len(current_period) >= min_period_length:
+                        period_info = self._create_simple_period_info(current_period, records)
+                        periods.append(period_info)
+                    current_period = []
+                    in_period = False
+        
+        # 处理最后一个区间（如果记录以满足条件结束）
+        if in_period and len(current_period) >= min_period_length:
+            period_info = self._create_simple_period_info(current_period, records)
+            periods.append(period_info)
+        
+        # 根据格式返回结果
+        if return_format == "dataframe":
+            return self._periods_to_dataframe(periods)
+        else:
+            return periods
+    
+    def _create_simple_period_info(self, period_records: List[Dict], all_records: List[Dict]) -> Dict:
+        """
+        创建简单的区间信息字典（只包含基本信息）
+        
+        Args:
+            period_records: 区间内的记录
+            all_records: 所有记录（用于计算索引）
+            
+        Returns:
+            Dict: 简单的区间信息
+        """
+        start_record = period_records[0]
+        end_record = period_records[-1]
+        
+        # 计算索引
+        start_idx = all_records.index(start_record)
+        end_idx = all_records.index(end_record)
+        
+        return {
+            'start_date': start_record.get('date', ''),
+            'end_date': end_record.get('date', ''),
+            'start_idx': start_idx,
+            'end_idx': end_idx,
+            'duration': len(period_records),
+            'records': period_records,
+        }
+    
+    def mark_convergence_periods(self, records: List[Dict], convergence_threshold: float = 0.08, min_period_length: int = 3) -> List[Dict]:
+        """
+        标记均线收敛区间（专门用于RTB策略）
+        
+        Args:
+            records: K线数据记录列表
+            convergence_threshold: 收敛阈值，默认为0.08
+            min_period_length: 最小区间长度，默认为3
+            
+        Returns:
+            List[Dict]: 收敛区间列表
+        """
+        def convergence_condition(record):
+            # 计算均线收敛度
+            ma5 = record.get('ma5', 0)
+            ma10 = record.get('ma10', 0)
+            ma20 = record.get('ma20', 0)
+            ma60 = record.get('ma60', 0)
+            close = record.get('close', 0)
+            
+            if not all([ma5, ma10, ma20, ma60, close]):
+                return False
+            
+            ma_values = [ma5, ma10, ma20, ma60]
+            ma_max = max(ma_values)
+            ma_min = min(ma_values)
+            ma_convergence = (ma_max - ma_min) / close
+            
+            return ma_convergence < convergence_threshold
+        
+        return self.mark_period(records, convergence_condition, min_period_length)
+    
+    def mark_ma_trend_periods(self, records: List[Dict], trend_type: str = "bull", min_period_length: int = 5) -> List[Dict]:
+        """
+        标记均线趋势区间
+        
+        Args:
+            records: K线数据记录列表
+            trend_type: 趋势类型，"bull"(多头)或"bear"(空头)
+            min_period_length: 最小区间长度，默认为5
+            
+        Returns:
+            List[Dict]: 趋势区间列表
+        """
+        if trend_type == "bull":
+            def bull_condition(record):
+                # 多头排列：MA5 > MA10 > MA20 > MA60
+                return (record.get('ma5', 0) > record.get('ma10', 0) and 
+                        record.get('ma10', 0) > record.get('ma20', 0) and 
+                        record.get('ma20', 0) > record.get('ma60', 0))
+            condition_func = bull_condition
+        elif trend_type == "bear":
+            def bear_condition(record):
+                # 空头排列：MA5 < MA10 < MA20 < MA60
+                return (record.get('ma5', 0) < record.get('ma10', 0) and 
+                        record.get('ma10', 0) < record.get('ma20', 0) and 
+                        record.get('ma20', 0) < record.get('ma60', 0))
+            condition_func = bear_condition
+        else:
+            raise ValueError("trend_type must be 'bull' or 'bear'")
+        
+        return self.mark_period(records, condition_func, min_period_length)
+    
+    def _calculate_volatility(self, values: List[float]) -> float:
+        """
+        计算序列的波动性（标准差）
+        
+        Args:
+            values: 数值列表
+            
+        Returns:
+            float: 标准差
+        """
+        if len(values) < 2:
+            return 0
+        
+        mean = sum(values) / len(values)
+        variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
+        return variance ** 0.5
+    
+    def _calculate_trend_strength(self, prices: List[float]) -> float:
+        """
+        计算趋势强度（价格变化的一致性）
+        
+        Args:
+            prices: 价格列表
+            
+        Returns:
+            float: 趋势强度，-1到1之间，1表示强烈上涨趋势，-1表示强烈下跌趋势
+        """
+        if len(prices) < 2:
+            return 0
+        
+        # 计算价格变化方向的一致性
+        changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
+        positive_changes = sum(1 for change in changes if change > 0)
+        negative_changes = sum(1 for change in changes if change < 0)
+        
+        total_changes = len(changes)
+        if total_changes == 0:
+            return 0
+        
+        # 计算趋势强度
+        trend_ratio = (positive_changes - negative_changes) / total_changes
+        return trend_ratio
+    
+    def _calculate_max_drawdown(self, prices: List[float]) -> float:
+        """
+        计算最大回撤
+        
+        Args:
+            prices: 价格列表
+            
+        Returns:
+            float: 最大回撤值
+        """
+        if len(prices) < 2:
+            return 0
+        
+        max_drawdown = 0
+        peak = prices[0]
+        
+        for price in prices:
+            if price > peak:
+                peak = price
+            drawdown = peak - price
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
+        
+        return max_drawdown
+    
+    def _periods_to_dataframe(self, periods: List[Dict]) -> 'pandas.DataFrame':
+        """
+        将区间列表转换为DataFrame格式
+        
+        Args:
+            periods: 区间列表
+            
+        Returns:
+            pandas.DataFrame: 区间数据的DataFrame
+        """
+        try:
+            import pandas as pd
+            
+            if not periods:
+                return pd.DataFrame()
+            
+            # 准备DataFrame数据，排除records字段（太复杂）
+            df_data = []
+            for period in periods:
+                row = {k: v for k, v in period.items() if k != 'records'}
+                df_data.append(row)
+            
+            df = pd.DataFrame(df_data)
+            
+            # 设置日期索引
+            if 'start_date' in df.columns:
+                df['start_date'] = pd.to_datetime(df['start_date'], format='%Y%m%d', errors='coerce')
+            if 'end_date' in df.columns:
+                df['end_date'] = pd.to_datetime(df['end_date'], format='%Y%m%d', errors='coerce')
+            
+            return df
+            
+        except ImportError:
+            logger.warning("pandas not available, returning list instead")
+            return periods
+    
+    def analyze_periods(self, periods: List[Dict]) -> Dict:
+        """
+        分析区间列表的整体特征
+        
+        Args:
+            periods: 区间列表
+            
+        Returns:
+            Dict: 分析结果，包含各种统计指标
+        """
+        if not periods:
+            return {}
+        
+        # 提取各种指标
+        durations = [p.get('duration', 0) for p in periods]
+        price_changes = [p.get('price_change_pct', 0) for p in periods]
+        volatilities = [p.get('price_volatility', 0) for p in periods]
+        max_drawdowns = [p.get('max_drawdown_pct', 0) for p in periods]
+        
+        # 计算统计指标
+        analysis = {
+            'total_periods': len(periods),
+            'avg_duration': sum(durations) / len(durations) if durations else 0,
+            'max_duration': max(durations) if durations else 0,
+            'min_duration': min(durations) if durations else 0,
+            
+            'avg_price_change': sum(price_changes) / len(price_changes) if price_changes else 0,
+            'max_price_change': max(price_changes) if price_changes else 0,
+            'min_price_change': min(price_changes) if price_changes else 0,
+            'positive_periods': sum(1 for pc in price_changes if pc > 0),
+            'negative_periods': sum(1 for pc in price_changes if pc < 0),
+            'win_rate': sum(1 for pc in price_changes if pc > 0) / len(price_changes) if price_changes else 0,
+            
+            'avg_volatility': sum(volatilities) / len(volatilities) if volatilities else 0,
+            'max_volatility': max(volatilities) if volatilities else 0,
+            'min_volatility': min(volatilities) if volatilities else 0,
+            
+            'avg_max_drawdown': sum(max_drawdowns) / len(max_drawdowns) if max_drawdowns else 0,
+            'max_drawdown': max(max_drawdowns) if max_drawdowns else 0,
+            'min_drawdown': min(max_drawdowns) if max_drawdowns else 0,
+        }
+        
+        return analysis
+    
+    def find_best_periods(self, periods: List[Dict], criteria: str = "price_change_pct", top_n: int = 5) -> List[Dict]:
+        """
+        找出最佳的区间
+        
+        Args:
+            periods: 区间列表
+            criteria: 排序标准，可选值：price_change_pct, duration, max_drawdown_pct等
+            top_n: 返回前N个
+            
+        Returns:
+            List[Dict]: 排序后的最佳区间列表
+        """
+        if not periods:
+            return []
+        
+        # 根据标准排序
+        if criteria in ['max_drawdown_pct', 'price_volatility', 'volume_volatility']:
+            # 对于这些指标，越小越好
+            sorted_periods = sorted(periods, key=lambda x: x.get(criteria, float('inf')))
+        else:
+            # 对于其他指标，越大越好
+            sorted_periods = sorted(periods, key=lambda x: x.get(criteria, float('-inf')), reverse=True)
+        
+        return sorted_periods[:top_n]
+    
+    # ========================================================
+    # Period Analysis Tools (可选的统计方法)
+    # ========================================================
+    
+    def get_price_statistics_from_period(self, period: Dict) -> Dict:
+        """
+        从单个period中提取价格统计信息
+        
+        Args:
+            period: 区间字典，必须包含'records'字段
+            
+        Returns:
+            Dict: 价格统计信息
+        """
+        records = period.get('records', [])
+        if not records:
+            return {}
+        
+        prices = [record.get('close', 0) for record in records if record.get('close')]
+        if not prices:
+            return {}
+        
+        highs = [record.get('highest', 0) for record in records if record.get('highest')]
+        lows = [record.get('lowest', 0) for record in records if record.get('lowest')]
+        
+        start_price = prices[0]
+        end_price = prices[-1]
+        max_price = max(highs) if highs else max(prices)
+        min_price = min(lows) if lows else min(prices)
+        
+        return {
+            'start_price': start_price,
+            'end_price': end_price,
+            'max_price': max_price,
+            'min_price': min_price,
+            'avg_price': sum(prices) / len(prices),
+            'price_change': end_price - start_price,
+            'price_change_pct': ((end_price - start_price) / start_price * 100) if start_price > 0 else 0,
+            'price_range': max_price - min_price,
+            'price_range_pct': ((max_price - min_price) / start_price * 100) if start_price > 0 else 0,
+        }
+    
+    def get_volume_statistics_from_period(self, period: Dict) -> Dict:
+        """
+        从单个period中提取成交量统计信息
+        
+        Args:
+            period: 区间字典，必须包含'records'字段
+            
+        Returns:
+            Dict: 成交量统计信息
+        """
+        records = period.get('records', [])
+        if not records:
+            return {}
+        
+        volumes = [record.get('volume', 0) for record in records if record.get('volume')]
+        if not volumes:
+            return {}
+        
+        return {
+            'max_volume': max(volumes),
+            'min_volume': min(volumes),
+            'avg_volume': sum(volumes) / len(volumes),
+            'volume_change': volumes[-1] - volumes[0] if len(volumes) > 1 else 0,
+            'volume_change_pct': ((volumes[-1] - volumes[0]) / volumes[0] * 100) if len(volumes) > 1 and volumes[0] > 0 else 0,
+        }
+    
+    def get_ma_statistics_from_period(self, period: Dict) -> Dict:
+        """
+        从单个period中提取移动平均线统计信息
+        
+        Args:
+            period: 区间字典，必须包含'records'字段
+            
+        Returns:
+            Dict: MA统计信息
+        """
+        records = period.get('records', [])
+        if not records:
+            return {}
+        
+        start_record = records[0]
+        end_record = records[-1]
+        
+        return {
+            'start_ma5': start_record.get('ma5', None),
+            'start_ma10': start_record.get('ma10', None),
+            'start_ma20': start_record.get('ma20', None),
+            'start_ma60': start_record.get('ma60', None),
+            'end_ma5': end_record.get('ma5', None),
+            'end_ma10': end_record.get('ma10', None),
+            'end_ma20': end_record.get('ma20', None),
+            'end_ma60': end_record.get('ma60', None),
+        }
+    
+    def get_extreme_prices_from_period(self, period: Dict) -> Dict:
+        """
+        从单个period中提取极值价格信息
+        
+        Args:
+            period: 区间字典，必须包含'records'字段
+            
+        Returns:
+            Dict: 极值价格信息，包含极值出现的日期
+        """
+        records = period.get('records', [])
+        if not records:
+            return {}
+        
+        highs = [(record.get('highest', 0), record.get('date', '')) for record in records if record.get('highest')]
+        lows = [(record.get('lowest', 0), record.get('date', '')) for record in records if record.get('lowest')]
+        
+        if not highs or not lows:
+            return {}
+        
+        max_high = max(highs, key=lambda x: x[0])
+        min_low = min(lows, key=lambda x: x[0])
+        
+        return {
+            'max_price': max_high[0],
+            'max_price_date': max_high[1],
+            'min_price': min_low[0],
+            'min_price_date': min_low[1],
+        }
 
 
 

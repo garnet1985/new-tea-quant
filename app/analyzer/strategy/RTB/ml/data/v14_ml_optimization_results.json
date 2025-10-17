@@ -1,0 +1,255 @@
+{
+  "model_accuracy": 0.95,
+  "feature_importance": [
+    {
+      "feature": "roi",
+      "importance": 0.42201830056468387
+    },
+    {
+      "feature": "max_loss",
+      "importance": 0.22834266849179427
+    },
+    {
+      "feature": "max_gain",
+      "importance": 0.22420226982394845
+    },
+    {
+      "feature": "duration_days",
+      "importance": 0.028945417136424262
+    },
+    {
+      "feature": "close_to_ma20",
+      "importance": 0.017708997251460985
+    },
+    {
+      "feature": "volume_confirmation",
+      "importance": 0.010952379940239834
+    },
+    {
+      "feature": "ma20_slope",
+      "importance": 0.00967092072100861
+    },
+    {
+      "feature": "ma60_slope",
+      "importance": 0.009063976771815654
+    },
+    {
+      "feature": "rsi_signal",
+      "importance": 0.008338271721138298
+    },
+    {
+      "feature": "convergence_ratio",
+      "importance": 0.007744798366898526
+    },
+    {
+      "feature": "oscillation_position",
+      "importance": 0.007215990893698778
+    },
+    {
+      "feature": "amount_ratio",
+      "importance": 0.0066236199689878
+    },
+    {
+      "feature": "historical_percentile",
+      "importance": 0.0056514539734440405
+    },
+    {
+      "feature": "volume_trend",
+      "importance": 0.00522114517825874
+    },
+    {
+      "feature": "ma_convergence",
+      "importance": 0.0042534631440026205
+    },
+    {
+      "feature": "price_change_pct",
+      "importance": 0.004046326052195156
+    },
+    {
+      "feature": "duration_weeks",
+      "importance": 0.0
+    }
+  ],
+  "differences_analysis": [
+    {
+      "feature": "max_loss",
+      "win_mean": -0.05957476363027974,
+      "loss_mean": -0.17072572493038587,
+      "difference": 0.11115096130010613,
+      "cohens_d": 2.4516562210138337,
+      "win_std": 0.0511864430218815,
+      "loss_std": 0.031506747191268995
+    },
+    {
+      "feature": "duration_days",
+      "win_mean": 171.84615384615384,
+      "loss_mean": 100.74285714285715,
+      "difference": 71.10329670329669,
+      "cohens_d": 0.7784590058957724,
+      "win_std": 99.9598717563126,
+      "loss_std": 72.37579334407931
+    },
+    {
+      "feature": "max_gain",
+      "win_mean": 0.544105361539787,
+      "loss_mean": 0.06261764474638237,
+      "difference": 0.4814877167934046,
+      "cohens_d": 0.6391278454039316,
+      "win_std": 0.9311601849590148,
+      "loss_std": 0.061100096986066915
+    },
+    {
+      "feature": "ma20_slope",
+      "win_mean": 0.010367702328882254,
+      "loss_mean": 0.0010988752236111645,
+      "difference": 0.009268827105271089,
+      "cohens_d": 0.17603221728964347,
+      "win_std": 0.05258182946113901,
+      "loss_std": 0.05279001941442362
+    },
+    {
+      "feature": "volume_confirmation",
+      "win_mean": 1.3336961909930825,
+      "loss_mean": 1.2631765831027628,
+      "difference": 0.07051960789031964,
+      "cohens_d": 0.1426782887737088,
+      "win_std": 0.5462395691160173,
+      "loss_std": 0.3774588346541862
+    },
+    {
+      "feature": "price_change_pct",
+      "win_mean": 3.473079086064079,
+      "loss_mean": 2.6061163734335553,
+      "difference": 0.8669627126305235,
+      "cohens_d": 0.12740583617117465,
+      "win_std": 7.420983760529044,
+      "loss_std": 5.459170629692829
+    },
+    {
+      "feature": "volume_trend",
+      "win_mean": 0.6870002204316201,
+      "loss_mean": 0.5862977536991192,
+      "difference": 0.10070246673250094,
+      "cohens_d": 0.10633244490515537,
+      "win_std": 1.0290842432013545,
+      "loss_std": 0.7692664481424315
+    },
+    {
+      "feature": "ma_convergence",
+      "win_mean": 0.07658141440481162,
+      "loss_mean": 0.07574936448122069,
+      "difference": 0.0008320499235909273,
+      "cohens_d": 0.09595556322113538,
+      "win_std": 0.008703076995522181,
+      "loss_std": 0.008610877444745002
+    },
+    {
+      "feature": "convergence_ratio",
+      "win_mean": 0.07658141440481162,
+      "loss_mean": 0.07574936448122069,
+      "difference": 0.0008320499235909273,
+      "cohens_d": 0.09595556322113538,
+      "win_std": 0.008703076995522181,
+      "loss_std": 0.008610877444745002
+    },
+    {
+      "feature": "historical_percentile",
+      "win_mean": 0.21793865915964938,
+      "loss_mean": 0.20994126114140937,
+      "difference": 0.00799739801824001,
+      "cohens_d": 0.09456328986095942,
+      "win_std": 0.08353235145348292,
+      "loss_std": 0.0864948378518993
+    },
+    {
+      "feature": "oscillation_position",
+      "win_mean": 0.34505838319808324,
+      "loss_mean": 0.3359577213646366,
+      "difference": 0.009100661833446655,
+      "cohens_d": 0.09048296423547837,
+      "win_std": 0.09720451780482306,
+      "loss_std": 0.10664095965716813
+    },
+    {
+      "feature": "amount_ratio",
+      "win_mean": 1.1868334703823966,
+      "loss_mean": 1.15714380297378,
+      "difference": 0.02968966740861667,
+      "cohens_d": 0.07567482427416175,
+      "win_std": 0.3950349707877493,
+      "loss_std": 0.3871933425693394
+    },
+    {
+      "feature": "close_to_ma20",
+      "win_mean": -0.2675839112317415,
+      "loss_mean": -0.13658804930587218,
+      "difference": -0.13099586192586934,
+      "cohens_d": -0.03803722951709204,
+      "win_std": 3.7616641682191085,
+      "loss_std": 2.7477611656937246
+    },
+    {
+      "feature": "rsi_signal",
+      "win_mean": 47.625230769230775,
+      "loss_mean": 47.43571428571428,
+      "difference": 0.18951648351649197,
+      "cohens_d": 0.02986679908909603,
+      "win_std": 6.225233707383078,
+      "loss_std": 6.565603455852006
+    },
+    {
+      "feature": "ma60_slope",
+      "win_mean": -0.002579530233125933,
+      "loss_mean": -0.001930709246448249,
+      "difference": -0.000648820986677684,
+      "cohens_d": -0.014608396230264383,
+      "win_std": 0.04332121669392278,
+      "loss_std": 0.04640193436347597
+    },
+    {
+      "feature": "duration_weeks",
+      "win_mean": 10.0,
+      "loss_mean": 10.0,
+      "difference": 0.0,
+      "cohens_d": 0.0,
+      "win_std": 0.0,
+      "loss_std": 0.0
+    }
+  ],
+  "optimization_suggestions": [
+    {
+      "feature": "max_loss",
+      "importance": 0.22834266849179427,
+      "current_condition": "当前条件基于历史经验",
+      "suggestion": "考虑更严格该条件，因为盈利样本的max_loss明显高于失利样本",
+      "effect_size": 2.4516562210138337,
+      "priority": "high"
+    },
+    {
+      "feature": "max_gain",
+      "importance": 0.22420226982394845,
+      "current_condition": "当前条件基于历史经验",
+      "suggestion": "考虑更严格该条件，因为盈利样本的max_gain明显高于失利样本",
+      "effect_size": 0.6391278454039316,
+      "priority": "high"
+    },
+    {
+      "feature": "duration_days",
+      "importance": 0.028945417136424262,
+      "current_condition": "当前条件基于历史经验",
+      "suggestion": "考虑更严格该条件，因为盈利样本的duration_days明显高于失利样本",
+      "effect_size": 0.7784590058957724,
+      "priority": "medium"
+    },
+    {
+      "feature": "close_to_ma20",
+      "importance": 0.017708997251460985,
+      "current_condition": "当前条件基于历史经验",
+      "suggestion": "考虑更宽松该条件，因为盈利样本的close_to_ma20明显低于失利样本",
+      "effect_size": -0.03803722951709204,
+      "priority": "medium"
+    }
+  ],
+  "sample_size": 100,
+  "win_rate": 0.65
+}

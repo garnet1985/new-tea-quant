@@ -242,12 +242,13 @@ class Indicators:
         output_field: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        计算 RSI（Wilder 平滑），并在每条记录上添加 `rsi{period}`（或自定义名）。
+        计算 RSI（Wilder 平滑），并在每条记录上添加 `rsi` 字段。
         对于不可用价格或不足周期的前几条，输出为 None。
         """
         if not isinstance(period, int) or period <= 0:
             raise ValueError("period 必须是正整数")
-        out_field = output_field or f"rsi{period}"
+        # 统一使用"rsi"作为字段名，不管什么周期
+        out_field = output_field or "rsi"
 
         # 提取价格序列
         closes: List[Optional[float]] = []

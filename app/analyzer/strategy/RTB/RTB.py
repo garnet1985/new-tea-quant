@@ -139,10 +139,14 @@ class ReverseTrendBet(BaseStrategy):
             
             # 直接使用框架计算的移动平均线
             current_kline = weekly_klines[-1]
-            ma5_val = current_kline.get('ma5', closes[-1])
-            ma10_val = current_kline.get('ma10', closes[-1])
-            ma20_val = current_kline.get('ma20', closes[-1])
-            ma60_val = current_kline.get('ma60', closes[-1])
+            ma5_val = current_kline.get('ma5')
+            ma10_val = current_kline.get('ma10')
+            ma20_val = current_kline.get('ma20')
+            ma60_val = current_kline.get('ma60')
+            
+            # 如果框架没有计算MA值，跳过这个信号检测
+            if not all([ma5_val, ma10_val, ma20_val, ma60_val]):
+                return None
             
             # 1. ma_convergence: 均线收敛度
             ma_values = [ma5_val, ma10_val, ma20_val, ma60_val]
@@ -152,17 +156,23 @@ class ReverseTrendBet(BaseStrategy):
             
             # 2. ma20_slope: MA20斜率 (使用过去20周的数据计算)
             if len(weekly_klines) >= 21:  # 需要至少21条数据来计算20周斜率
-                ma20_20w_ago = weekly_klines[-21].get('ma20', closes[-21])
-                ma20_slope = (ma20_val - ma20_20w_ago) / ma20_20w_ago if ma20_20w_ago > 0 else 0
+                ma20_20w_ago = weekly_klines[-21].get('ma20')
+                if ma20_20w_ago and ma20_20w_ago > 0:
+                    ma20_slope = (ma20_val - ma20_20w_ago) / ma20_20w_ago
+                else:
+                    return None
             else:
-                ma20_slope = 0
+                return None
                 
             # 3. ma60_slope: MA60斜率 (使用过去20周的数据计算)
             if len(weekly_klines) >= 21:  # 需要至少21条数据来计算20周斜率
-                ma60_20w_ago = weekly_klines[-21].get('ma60', closes[-21])
-                ma60_slope = (ma60_val - ma60_20w_ago) / ma60_20w_ago if ma60_20w_ago > 0 else 0
+                ma60_20w_ago = weekly_klines[-21].get('ma60')
+                if ma60_20w_ago and ma60_20w_ago > 0:
+                    ma60_slope = (ma60_val - ma60_20w_ago) / ma60_20w_ago
+                else:
+                    return None
             else:
-                ma60_slope = 0
+                return None
             
             # 4. volume_trend: 成交量趋势
             if len(volumes) >= 10:

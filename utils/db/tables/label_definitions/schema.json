@@ -1,0 +1,45 @@
+{
+    "name": "label_definitions",
+    "primaryKey": "label_id",
+    "fields": [
+        {
+            "name": "label_id",
+            "type": "varchar",
+            "length": 50,
+            "isRequired": true,
+            "description": "标签ID"
+        },
+        {
+            "name": "label_name",
+            "type": "varchar",
+            "length": 100,
+            "isRequired": true,
+            "description": "标签名称"
+        },
+        {
+            "name": "label_category",
+            "type": "varchar",
+            "length": 50,
+            "isRequired": true,
+            "description": "标签分类"
+        },
+        {
+            "name": "label_description",
+            "type": "text",
+            "isRequired": false,
+            "description": "标签描述"
+        },
+        {
+            "name": "is_active",
+            "type": "tinyint",
+            "isRequired": false,
+            "description": "是否启用"
+        },
+        {
+            "name": "created_at",
+            "type": "datetime",
+            "isRequired": false,
+            "description": "创建时间"
+        }
+    ]
+}

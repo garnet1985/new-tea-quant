@@ -3,6 +3,7 @@ from app.data_source.data_source_service import DataSourceService
 from app.data_source.providers.akshare.akshare_API_mod import AkshareAPIModified
 from app.data_source.providers.akshare.main_service import AKShareService
 from app.data_source.providers.akshare.main_storage import AKShareStorage
+from app.data_source.providers.akshare.rate_limiter import get_kline_rate_limiter, AKShareConfig
 from app.conf.conf import data_default_start_date
 from app.data_source.providers.tushare.main import Tushare
 from utils.worker import FuturesWorker
@@ -20,11 +21,15 @@ class AKShare:
         self.tu = None
         self.api_modified = AkshareAPIModified(is_verbose)
         
-        self.max_workers = 2                # 降低到2个线程，减少并发压力
+        # 使用配置中的工作线程数
+        config = AKShareConfig.get_kline_config()
+        self.max_workers = config['max_workers']
+        
+        # 初始化限流器（只针对东方财富API）
+        self.kline_rate_limiter = get_kline_rate_limiter()
         
         # 添加线程锁，确保多线程环境下的限流安全
         import threading
-        # create a locker
         self.api_rate_limit_locker = threading.Lock()
 
         self.total_jobs = 0
@@ -73,7 +78,9 @@ class AKShare:
 
         self.latest_market_open_day = latest_market_open_day
 
-        jobs = self.get_renewable_stocks(stock_list)
+        jobs = self.get_renewable_stocks(stock_list, latest_market_open_day)
+
+        logger.info(f"🔍 需要检测更新复权因子的股票数量: {len(jobs)}")
 
         self.total_jobs = len(jobs)
         start_time = time.time()
@@ -108,7 +115,7 @@ class AKShare:
         self._close_thread_dbs()
 
 
-    def get_renewable_stocks(self, stock_list: list = None) -> List[Dict]:
+    def get_renewable_stocks(self, stock_list: list = None, latest_market_open_day: str = None) -> List[Dict]:
         factor_last_update_dates = self.storage.get_all_stocks_latest_update_dates()
 
         if len(factor_last_update_dates) == 0:
@@ -116,9 +123,9 @@ class AKShare:
             start_time = time.time()
             self.storage.adj_factor_table.import_from_csv()
             logger.info(f"从CSV文件中导入基础数据完成. 耗时: {time.time() - start_time} 秒")
-            return self.get_renewable_stocks(stock_list)
+            return self.get_renewable_stocks(stock_list, latest_market_open_day)
         
-        jobs = self.service.get_stocks_needing_update_from_db(factor_last_update_dates)
+        jobs = self.service.get_stocks_needing_update_from_db(factor_last_update_dates, latest_market_open_day)
         jobs += self.service.get_stocks_needing_update_from_stock_list(factor_last_update_dates, stock_list)
 
         return jobs
@@ -129,26 +136,49 @@ class AKShare:
         start_date = job_data['last_update']
         latest_market_open_day = self.latest_market_open_day
         
-        tu_factors = self.tu.api.adj_factor(ts_code=ts_code, start_date=start_date, end_date=latest_market_open_day)
-        factor_changed_dates = self.service.get_factor_changing_dates(tu_factors)
+        try:
+            # Tushare API调用（检测复权事件）- 不需要限流
+            tu_factors = self.tu.api.adj_factor(ts_code=ts_code, start_date=start_date, end_date=latest_market_open_day)
+            factor_changed_dates = self.service.get_factor_changing_dates(tu_factors)
 
-        if len(factor_changed_dates) > 0:
-            # 使用线程局部存储与数据库
-            local_storage = self._get_thread_storage()
-            factors, is_abort = self.generate_factors(job_data, local_storage)
-            if is_abort:
-                return
-            local_storage.save_factors(factors)
-            logger.info(f"💾 {ts_code} 所有复权因子重新计算完成. total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
-        else:
-            if job_data['is_in_db']:
+            if len(factor_changed_dates) > 0:
+                # 有复权事件，需要调用东方财富API - 需要限流
+                # 使用线程局部存储与数据库
                 local_storage = self._get_thread_storage()
-                local_storage.update_factor_last_update_date(ts_code)
-                logger.info(f"💾 {ts_code} 没有检查到新的复权因子，更新所有复权因子最后更新时间 total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
+                factors, is_abort = self.generate_factors(job_data, local_storage)
+                if is_abort:
+                    return
+                local_storage.save_factors(factors)
+                logger.info(f"💾 {ts_code} 所有复权因子重新计算完成. total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
             else:
-                local_storage = self._get_thread_storage()
-                local_storage.fake_a_factor_record(ts_code)
-                logger.info(f"💾 {ts_code} 数据库里暂时没有当前复权因子的记录，存入一个初始复权因子. total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
+                # 没有复权事件，不需要调用东方财富API - 不需要限流
+                if job_data['is_in_db']:
+                    local_storage = self._get_thread_storage()
+                    local_storage.update_factor_last_update_date(ts_code)
+                    logger.info(f"💾 {ts_code} 没有检查到新的复权因子，更新所有复权因子最后更新时间 total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
+                else:
+                    local_storage = self._get_thread_storage()
+                    local_storage.fake_a_factor_record(ts_code)
+                    logger.info(f"💾 {ts_code} 数据库里暂时没有当前复权因子的记录，存入一个初始复权因子. total progress: {self.job_complete_counter + 1}/{self.total_jobs} ({((self.job_complete_counter + 1) / self.total_jobs * 100):.1f}%)")
+            
+        except Exception as e:
+            error_msg = str(e)
+            # 检查是否是防火墙错误
+            firewall_indicators = [
+                'connection aborted',
+                'remote disconnected', 
+                'cannot connect to proxy',
+                'remote end closed connection',
+                'max retries exceeded'
+            ]
+            
+            if any(indicator in error_msg.lower() for indicator in firewall_indicators):
+                logger.warning(f"🚨 {ts_code} 检测到API block，跳过本次更新")
+                # 不重新抛出异常，让程序继续处理其他股票
+                return
+            else:
+                # 其他错误，重新抛出
+                raise e
         
         # 在方法结束时增加计数器
         self.job_complete_counter += 1
@@ -161,6 +191,9 @@ class AKShare:
         latest_market_open_day = self.latest_market_open_day
 
         tu_factors = self.tu.api.adj_factor(ts_code=ts_code, start_date=data_default_start_date, end_date=latest_market_open_day)
+        
+        # 获取K线数据API调用许可（限流控制）
+        self.kline_rate_limiter.acquire()
         qfq_k_lines = self.api_modified.get_k_lines(stock_id=ts_code, start_date=data_default_start_date, end_date=latest_market_open_day)
 
         if qfq_k_lines is None or qfq_k_lines.empty:

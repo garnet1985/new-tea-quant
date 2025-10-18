@@ -320,9 +320,9 @@ class LabelerService:
             max_workers=max_workers,
             execution_mode=ThreadExecutionMode.PARALLEL,
             job_executor=self._calculate_single_stock_labels_wrapper_with_progress,
-            enable_monitoring=True,
+            enable_monitoring=False,
             timeout=1200.0,  # 20分钟超时
-            is_verbose=True
+            is_verbose=False
         )
         
         # 执行任务
@@ -421,7 +421,7 @@ class LabelerService:
             Dict: 计算结果
         """
         try:
-            # 生成历史日期列表
+            # 首先生成历史日期列表（这一步可能需要加载K线数据来获取最早日期）
             historical_dates = self._generate_historical_dates(stock_id, target_date)
             
             # 如果没有需要计算的日期，直接返回
@@ -447,10 +447,20 @@ class LabelerService:
                         # 获取对应的计算器
                         calculator = self.get_calculator(category)
                         if calculator:
-                            # 传递K线数据给计算器，避免重复查询
+                            # 将字典格式的K线数据转换为列表格式，包含所有历史数据
+                            all_klines_list = []
+                            for date_klines in all_klines_data.values():
+                                if date_klines:  # 只添加非空的列表
+                                    all_klines_list.extend(date_klines)
+                            
+                            # 如果all_klines_list为空，说明没有可用的K线数据
+                            if not all_klines_list:
+                                continue
+                            
+                            # 传递完整的K线数据给计算器，让计算器自己筛选需要的数据
                             labels = calculator.calculate_labels_for_stock(
                                 stock_id, date, 
-                                klines_data=date_klines,
+                                klines_data=all_klines_list,  # 传递完整的K线数据列表
                                 data_loader=self.data_loader
                             )
                             if labels:
@@ -667,9 +677,14 @@ class LabelerService:
             if not dates:
                 return {}
             
-            # 计算日期范围
-            start_date = min(dates)
+            # 计算日期范围，为了满足计算器需求，需要获取更长的历史数据
+            from datetime import datetime, timedelta
             end_date = max(dates)
+            end_dt = datetime.strptime(end_date, '%Y%m%d')
+            
+            # 获取足够长的历史数据（比如过去1年的数据，确保计算器有足够的历史数据）
+            start_dt = end_dt - timedelta(days=365)
+            start_date = start_dt.strftime('%Y%m%d')
             
             # 一次性获取日期范围内的所有K线数据
             all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
@@ -736,47 +751,68 @@ class LabelerService:
             logger.error(f"查找最近可用日期失败 {target_date}: {e}")
             return None
     
-    def _find_nearest_trading_day(self, stock_id: str, target_date: str) -> Optional[str]:
+    def _find_nearest_trading_day(self, stock_id: str, target_date: str, available_dates: List[str] = None) -> Optional[str]:
         """
         查找最近的交易日
         
         Args:
             stock_id: 股票代码
             target_date: 目标日期
+            available_dates: 可用的日期列表，如果提供则直接使用而不查询数据库
             
         Returns:
             Optional[str]: 最近的交易日，如果找不到返回None
         """
         try:
-            # 尝试获取目标日期前7天到后7天的K线数据
             target_dt = datetime.strptime(target_date, '%Y%m%d')
-            start_dt = target_dt - timedelta(days=7)
-            end_dt = target_dt + timedelta(days=7)
             
-            start_date = start_dt.strftime('%Y%m%d')
-            end_date = end_dt.strftime('%Y%m%d')
-            
-            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
-            if not klines:
-                return None
-            
-            # 找到最接近目标日期的交易日
-            min_diff = float('inf')
-            nearest_date = None
-            
-            for kline in klines:
-                kline_date = kline.get('date', '')
-                if not kline_date:
-                    continue
-                    
-                kline_dt = datetime.strptime(kline_date, '%Y%m%d')
-                diff = abs((target_dt - kline_dt).days)
+            if available_dates:
+                # 使用提供的可用日期列表
+                min_diff = float('inf')
+                nearest_date = None
                 
-                if diff < min_diff:
-                    min_diff = diff
-                    nearest_date = kline_date
-            
-            return nearest_date
+                for available_date in available_dates:
+                    available_dt = datetime.strptime(available_date, '%Y%m%d')
+                    diff = abs((target_dt - available_dt).days)
+                    
+                    if diff < min_diff:
+                        min_diff = diff
+                        nearest_date = available_date
+                        
+                    # 如果差异超过7天，停止搜索
+                    if diff > 7:
+                        break
+                
+                return nearest_date
+            else:
+                # 回退到数据库查询（保持向后兼容）
+                start_dt = target_dt - timedelta(days=7)
+                end_dt = target_dt + timedelta(days=7)
+                
+                start_date = start_dt.strftime('%Y%m%d')
+                end_date = end_dt.strftime('%Y%m%d')
+                
+                klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
+                if not klines:
+                    return None
+                
+                # 找到最接近目标日期的交易日
+                min_diff = float('inf')
+                nearest_date = None
+                
+                for kline in klines:
+                    kline_date = kline.get('date', '')
+                    if not kline_date:
+                        continue
+                        
+                    kline_dt = datetime.strptime(kline_date, '%Y%m%d')
+                    diff = abs((target_dt - kline_dt).days)
+                    
+                    if diff < min_diff:
+                        min_diff = diff
+                        nearest_date = kline_date
+                
+                return nearest_date
             
         except Exception as e:
             logger.error(f"查找最近交易日失败 {stock_id} {target_date}: {e}")
@@ -810,7 +846,6 @@ class LabelerService:
             
             # 只获取增量时间范围内的K线数据
             all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
-            
             # 按日期分组，只保留需要的日期
             klines_by_date = {}
             for kline in all_klines:

@@ -34,6 +34,7 @@ from .calculators import (
 from .label_mapping import LabelMapping
 from .definitions import LabelDefinitions
 from .evaluator import LabelEvaluator
+from .conf.config import LabelConfig, UpdateFrequency
 from utils.db.db_manager import DatabaseManager
 from app.data_loader import DataLoader
 
@@ -289,3 +290,95 @@ class LabelerService:
         for category, calculator in self._calculator_instances.items():
             stats[category] = calculator.get_cache_stats()
         return stats
+    
+    # ============ 配置管理接口 ============
+    
+    def get_update_frequency(self, label_category: str) -> UpdateFrequency:
+        """
+        获取标签分类的更新频率
+        
+        Args:
+            label_category: 标签分类
+            
+        Returns:
+            UpdateFrequency: 更新频率
+        """
+        return LabelConfig.get_update_frequency(label_category)
+    
+    def get_calculation_params(self, label_category: str) -> Dict[str, Any]:
+        """
+        获取标签分类的计算参数
+        
+        Args:
+            label_category: 标签分类
+            
+        Returns:
+            Dict[str, Any]: 计算参数
+        """
+        return LabelConfig.get_calculation_params(label_category)
+    
+    def get_priority(self, label_category: str) -> int:
+        """
+        获取标签分类的优先级
+        
+        Args:
+            label_category: 标签分类
+            
+        Returns:
+            int: 优先级
+        """
+        return LabelConfig.get_priority(label_category)
+    
+    def get_dependencies(self, label_category: str) -> list:
+        """
+        获取标签分类的依赖关系
+        
+        Args:
+            label_category: 标签分类
+            
+        Returns:
+            list: 依赖的标签分类列表
+        """
+        return LabelConfig.get_dependencies(label_category)
+    
+    def get_timeout(self, label_category: str) -> int:
+        """
+        获取标签分类的计算超时时间
+        
+        Args:
+            label_category: 标签分类
+            
+        Returns:
+            int: 超时时间（秒）
+        """
+        return LabelConfig.get_timeout(label_category)
+    
+    def get_categories_by_frequency(self, frequency: UpdateFrequency) -> list:
+        """
+        根据更新频率获取标签分类列表
+        
+        Args:
+            frequency: 更新频率
+            
+        Returns:
+            list: 该频率下的标签分类列表
+        """
+        return LabelConfig.get_categories_by_frequency(frequency)
+    
+    def get_sorted_categories_by_priority(self) -> list:
+        """
+        按优先级排序的标签分类列表
+        
+        Returns:
+            list: 按优先级排序的标签分类列表
+        """
+        return LabelConfig.get_sorted_categories_by_priority()
+    
+    def get_config_summary(self) -> Dict[str, Any]:
+        """
+        获取配置摘要信息
+        
+        Returns:
+            Dict[str, Any]: 配置摘要
+        """
+        return LabelConfig.get_config_summary()

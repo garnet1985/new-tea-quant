@@ -28,7 +28,7 @@ def analyze_investment_duration():
     # 收集所有投资数据
     investments = []
     for file_path in latest_dir.glob("*.json"):
-        if file_path.name == "meta.json" or file_path.name == "session_summary.json":
+        if file_path.name == "meta.json" or file_path.name == "0_session_summary.json":
             continue
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)

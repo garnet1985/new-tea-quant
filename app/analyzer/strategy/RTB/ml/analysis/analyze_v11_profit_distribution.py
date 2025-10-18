@@ -34,7 +34,7 @@ def analyze_v11_profit_distribution():
     investments = []
     
     for json_file in latest_dir.glob("*.json"):
-        if json_file.name == "session_summary.json":
+        if json_file.name == "0_session_summary.json":
             continue
             
         with open(json_file, 'r', encoding='utf-8') as f:

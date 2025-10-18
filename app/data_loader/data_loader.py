@@ -29,6 +29,7 @@ from utils.db.db_manager import DatabaseManager
 from app.data_source.data_source_service import DataSourceService
 
 from .loaders import KlineLoader
+from .loaders import LabelLoader
 
 
 class DataLoader:
@@ -66,6 +67,7 @@ class DataLoader:
         
         # 专用加载器（委托模式）
         self.kline_loader = KlineLoader(db)
+        self.label_loader = LabelLoader(db)
         
         # 懒加载的表实例（按需创建）
         self._stock_list_table = None
@@ -637,6 +639,65 @@ class DataLoader:
             data['industry_capital_flow'] = self.load_industry_capital_flow_data(industry_capital_flow_settings)
         
         return data
+    
+    # ============ 标签相关方法 ============
+    
+    def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
+        """
+        获取股票在指定日期的标签
+        
+        Args:
+            stock_id: 股票代码
+            target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
+            
+        Returns:
+            List[str]: 标签ID列表
+        """
+        return self.label_loader.get_stock_labels(stock_id, target_date)
+    
+    def save_stock_labels(self, stock_id: str, label_date: str, labels: List[str]):
+        """
+        保存股票标签
+        
+        Args:
+            stock_id: 股票代码
+            label_date: 标签日期 (YYYY-MM-DD)
+            labels: 标签ID列表
+        """
+        self.label_loader.save_stock_labels(stock_id, label_date, labels)
+    
+    def get_label_definition(self, label_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取标签定义
+        
+        Args:
+            label_id: 标签ID
+            
+        Returns:
+            Dict: 标签定义信息
+        """
+        return self.label_loader.get_label_definition(label_id)
+    
+    def get_all_label_definitions(self) -> List[Dict[str, Any]]:
+        """
+        获取所有标签定义
+        
+        Returns:
+            List[Dict]: 所有标签定义列表
+        """
+        return self.label_loader.get_all_label_definitions()
+    
+    def batch_calculate_labels(self, stock_ids: List[str], label_date: str, 
+                              calculator_func: callable):
+        """
+        批量计算并保存股票标签
+        
+        Args:
+            stock_ids: 股票代码列表
+            label_date: 标签日期 (YYYY-MM-DD)
+            calculator_func: 标签计算函数，接收(stock_id, target_date)返回标签列表
+        """
+        self.label_loader.batch_calculate_labels(stock_ids, label_date, calculator_func)
     
     # ============ 内部工具方法 ============
     

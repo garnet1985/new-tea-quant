@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+成交量标签计算器
+"""
+
+from typing import Optional
+from loguru import logger
+from ..base_calculator import BaseLabelCalculator
+from ..label_mapping import LabelMapping
+
+
+class VolumeLabelCalculator(BaseLabelCalculator):
+    """成交量标签计算器"""
+    
+    def get_label_category(self) -> str:
+        """获取标签分类"""
+        return 'volume'
+    
+    def calculate_label(self, stock_id: str, target_date: str, lookback_days: int = 30, **kwargs) -> Optional[str]:
+        """
+        计算成交量标签
+        
+        Args:
+            stock_id: 股票代码
+            target_date: 目标日期 (YYYYMMDD格式)
+            lookback_days: 回望天数，默认30天
+            
+        Returns:
+            str: 标签ID (high_volume/medium_volume/low_volume)
+        """
+        try:
+            # 计算回望开始日期
+            from datetime import datetime, timedelta
+            target_datetime = datetime.strptime(target_date, '%Y%m%d')
+            start_datetime = target_datetime - timedelta(days=lookback_days)
+            start_date = start_datetime.strftime('%Y%m%d')
+            
+            # 获取历史K线数据
+            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=target_date)
+            
+            if not klines or len(klines) < 10:
+                logger.warning(f"无法获取 {stock_id} 足够的历史数据来计算成交量比率")
+                return None
+            
+            # 计算成交量比率
+            volumes = [k['volume'] for k in klines if k['volume'] > 0]
+            if len(volumes) < 2:
+                logger.warning(f"{stock_id} 的有效成交量数据不足")
+                return None
+            
+            # 计算平均成交量
+            avg_volume = sum(volumes) / len(volumes)
+            
+            # 获取最新成交量
+            latest_volume = volumes[-1]
+            
+            # 计算成交量比率
+            volume_ratio = latest_volume / avg_volume if avg_volume > 0 else 0
+            
+            # 根据成交量比率确定标签
+            if volume_ratio >= LabelMapping.VOLUME_LABELS['high_volume']['threshold']:
+                return 'high_volume'
+            elif volume_ratio >= LabelMapping.VOLUME_LABELS['medium_volume']['threshold_min']:
+                return 'medium_volume'
+            else:
+                return 'low_volume'
+                
+        except Exception as e:
+            logger.error(f"计算成交量标签失败 {stock_id} {target_date}: {e}")
+            return None

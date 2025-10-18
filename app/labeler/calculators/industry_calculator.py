@@ -8,7 +8,7 @@
 from typing import Optional
 from loguru import logger
 from ..base_calculator import BaseLabelCalculator
-from ..label_mapping import LabelMapping
+from ..conf.label_mapping import LabelMapping
 
 
 class IndustryLabelCalculator(BaseLabelCalculator):
@@ -25,13 +25,23 @@ class IndustryLabelCalculator(BaseLabelCalculator):
         Args:
             stock_id: 股票代码
             target_date: 目标日期 (YYYYMMDD格式)
+            **kwargs: 其他参数，可能包含：
+                - klines_data: 预加载的K线数据列表（行业计算器不使用）
+                - data_loader: 数据加载器（用于获取股票信息）
             
         Returns:
             str: 标签ID (finance/technology/consumer等)
         """
         try:
+            # 获取数据加载器
+            data_loader = kwargs.get('data_loader')
+            
+            if data_loader is None:
+                logger.warning(f"无法获取 {stock_id} 的数据加载器")
+                return None
+            
             # 获取股票基本信息
-            stock_info = self.data_loader.get_stock_info(stock_id)
+            stock_info = data_loader.get_stock_info(stock_id)
             
             if not stock_info:
                 logger.warning(f"无法获取 {stock_id} 的股票信息")

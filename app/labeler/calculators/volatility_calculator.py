@@ -8,7 +8,7 @@
 from typing import Optional
 from loguru import logger
 from ..base_calculator import BaseLabelCalculator
-from ..label_mapping import LabelMapping
+from ..conf.label_mapping import LabelMapping
 
 
 class VolatilityLabelCalculator(BaseLabelCalculator):
@@ -26,6 +26,9 @@ class VolatilityLabelCalculator(BaseLabelCalculator):
             stock_id: 股票代码
             target_date: 目标日期 (YYYYMMDD格式)
             lookback_days: 回望天数，默认30天
+            **kwargs: 其他参数，可能包含：
+                - klines_data: 预加载的K线数据列表
+                - data_loader: 数据加载器（如果没有预加载数据时使用）
             
         Returns:
             str: 标签ID (high_volatility/medium_volatility/low_volatility)
@@ -37,8 +40,18 @@ class VolatilityLabelCalculator(BaseLabelCalculator):
             start_datetime = target_datetime - timedelta(days=lookback_days)
             start_date = start_datetime.strftime('%Y%m%d')
             
-            # 获取历史K线数据
-            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=target_date)
+            # 优先使用预加载的K线数据
+            klines_data = kwargs.get('klines_data')
+            data_loader = kwargs.get('data_loader')
+            
+            if klines_data is not None:
+                # 使用预加载数据，但需要筛选出回望期间的数据
+                klines = [k for k in klines_data if k.get('date', '') >= start_date and k.get('date', '') <= target_date]
+            elif data_loader is not None:
+                klines = data_loader.load_klines(stock_id, start_date=start_date, end_date=target_date)
+            else:
+                logger.warning(f"无法获取 {stock_id} 在 {target_date} 的K线数据源")
+                return None
             
             if not klines or len(klines) < 10:  # 至少需要10天数据
                 logger.warning(f"无法获取 {stock_id} 足够的历史数据来计算波动性")

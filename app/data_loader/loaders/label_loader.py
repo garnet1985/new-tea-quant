@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
-from utils.db.tables.stock_labels.model import StockLabel
+from utils.db.tables.stock_labels.model import StockLabelModel
 
 
 class LabelLoader:
@@ -26,23 +26,7 @@ class LabelLoader:
         Args:
             db: 数据库管理器实例
         """
-        self.db = db
-        self._stock_labels_table = None
-        self._label_definitions_table = None
-    
-    @property
-    def stock_labels_table(self):
-        """懒加载股票标签表"""
-        if self._stock_labels_table is None:
-            self._stock_labels_table = self.db.get_table_instance('stock_labels')
-        return self._stock_labels_table
-    
-    @property
-    def label_definitions_table(self):
-        """懒加载标签定义表"""
-        if self._label_definitions_table is None:
-            self._label_definitions_table = self.db.get_table_instance('label_definitions')
-        return self._label_definitions_table
+        self.stock_label_model = db.get_table_instance('stock_labels')
     
     def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
         """
@@ -58,28 +42,7 @@ class LabelLoader:
         if target_date is None:
             target_date = datetime.now().strftime('%Y-%m-%d')
         
-        try:
-            # 查找最接近的历史标签
-            sql = """
-            SELECT labels FROM stock_labels 
-            WHERE stock_id = %s AND label_date <= %s 
-            ORDER BY label_date DESC 
-            LIMIT 1
-            """
-            
-            result = self.db.execute_query(sql, (stock_id, target_date))
-            
-            if result:
-                label_record = result[0]
-                labels_str = label_record['labels']
-                if labels_str:
-                    return [label.strip() for label in labels_str.split(',') if label.strip()]
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"获取股票标签失败: {stock_id}, {target_date}, {e}")
-            return []
+        return self.stock_label_model.get_stock_labels_by_date_range(stock_id, target_date)
     
     def save_stock_labels(self, stock_id: str, label_date: str, labels: List[str]):
         """
@@ -91,96 +54,14 @@ class LabelLoader:
             labels: 标签ID列表
         """
         try:
-            labels_str = ','.join(labels) if labels else ''
-            
-            sql = """
-            INSERT INTO stock_labels (stock_id, label_date, labels)
-            VALUES (%s, %s, %s)
-            ON DUPLICATE KEY UPDATE 
-                labels = %s, 
-                updated_at = CURRENT_TIMESTAMP
-            """
-            
-            self.db.execute(sql, (stock_id, label_date, labels_str, labels_str))
-            logger.debug(f"保存股票标签成功: {stock_id}, {label_date}, {labels}")
+            success = self.stock_label_model.upsert_stock_label(stock_id, label_date, labels)
+            if success:
+                logger.debug(f"保存股票标签成功: {stock_id}, {label_date}, {labels}")
+            else:
+                logger.error(f"保存股票标签失败: {stock_id}, {label_date}")
             
         except Exception as e:
             logger.error(f"保存股票标签失败: {stock_id}, {label_date}, {e}")
-    
-    def get_label_definition(self, label_id: str) -> Optional[Dict[str, Any]]:
-        """
-        获取标签定义
-        
-        Args:
-            label_id: 标签ID
-            
-        Returns:
-            Dict: 标签定义信息
-        """
-        try:
-            sql = """
-            SELECT label_id, label_name, label_category, label_description, is_active, created_at
-            FROM label_definitions 
-            WHERE label_id = %s AND is_active = TRUE
-            """
-            
-            result = self.db.execute_query(sql, (label_id,))
-            
-            if result:
-                return result[0]
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"获取标签定义失败: {label_id}, {e}")
-            return None
-    
-    def get_all_label_definitions(self) -> List[Dict[str, Any]]:
-        """
-        获取所有标签定义
-        
-        Returns:
-            List[Dict]: 所有标签定义列表
-        """
-        try:
-            sql = """
-            SELECT label_id, label_name, label_category, label_description, is_active, created_at
-            FROM label_definitions 
-            WHERE is_active = TRUE
-            ORDER BY label_category, label_id
-            """
-            
-            result = self.db.execute_query(sql)
-            return result if result else []
-            
-        except Exception as e:
-            logger.error(f"获取所有标签定义失败: {e}")
-            return []
-    
-    def get_label_definitions_by_category(self, category: str) -> List[Dict[str, Any]]:
-        """
-        根据分类获取标签定义
-        
-        Args:
-            category: 标签分类
-            
-        Returns:
-            List[Dict]: 标签定义列表
-        """
-        try:
-            sql = """
-            SELECT label_id, label_name, label_category, label_description, is_active, created_at
-            FROM label_definitions 
-            WHERE label_category = %s AND is_active = TRUE
-            ORDER BY label_id
-            """
-            
-            result = self.db.execute_query(sql, (category,))
-            return result if result else []
-            
-        except Exception as e:
-            logger.error(f"根据分类获取标签定义失败: {category}, {e}")
-            return []
     
     def batch_calculate_labels(self, stock_ids: List[str], label_date: str, 
                               calculator_func: callable):
@@ -229,32 +110,7 @@ class LabelLoader:
         if target_date is None:
             target_date = datetime.now().strftime('%Y-%m-%d')
         
-        try:
-            sql = """
-            SELECT stock_id FROM stock_labels 
-            WHERE label_date <= %s AND FIND_IN_SET(%s, labels) > 0
-            ORDER BY label_date DESC
-            """
-            
-            result = self.db.execute_query(sql, (target_date, label_id))
-            
-            if result:
-                # 去重，保留最新的标签记录
-                seen = set()
-                stock_ids = []
-                for row in result:
-                    stock_id = row['stock_id']
-                    if stock_id not in seen:
-                        seen.add(stock_id)
-                        stock_ids.append(stock_id)
-                
-                return stock_ids
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"获取具有标签的股票失败: {label_id}, {target_date}, {e}")
-            return []
+        return self.stock_label_model.get_stocks_with_label(label_id, target_date)
     
     def get_label_statistics(self, target_date: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -269,46 +125,43 @@ class LabelLoader:
         if target_date is None:
             target_date = datetime.now().strftime('%Y-%m-%d')
         
-        try:
-            # 获取标签分布统计
-            sql = """
-            SELECT 
-                COUNT(DISTINCT stock_id) as total_stocks,
-                COUNT(*) as total_records,
-                MAX(label_date) as latest_date,
-                MIN(label_date) as earliest_date
-            FROM stock_labels 
-            WHERE label_date <= %s
-            """
+        return self.stock_label_model.get_label_statistics(target_date)
+    
+    def get_all_stocks_last_update_dates(self, stock_ids: List[str]) -> Dict[str, str]:
+        """
+        批量获取所有股票的最后更新时间
+        
+        Args:
+            stock_ids: 股票代码列表
             
-            result = self.db.execute_query(sql, (target_date,))
+        Returns:
+            Dict[str, str]: 股票代码 -> 最后更新日期的映射
+        """
+        return self.stock_label_model.get_all_stocks_last_update_dates(stock_ids)
+    
+    def upsert_stock_label(self, stock_id: str, target_date: str, labels: List[str]) -> bool:
+        """
+        插入或更新股票标签记录
+        
+        Args:
+            stock_id: 股票代码
+            target_date: 目标日期
+            labels: 标签列表
             
-            if result:
-                stats = result[0]
-                
-                # 获取各标签的使用频率
-                sql2 = """
-                SELECT labels FROM stock_labels 
-                WHERE label_date <= %s
-                ORDER BY label_date DESC
-                """
-                
-                label_records = self.db.execute_query(sql2, (target_date,))
-                
-                label_counts = {}
-                if label_records:
-                    for record in label_records:
-                        labels = record['labels'].split(',') if record['labels'] else []
-                        for label in labels:
-                            label = label.strip()
-                            if label:
-                                label_counts[label] = label_counts.get(label, 0) + 1
-                
-                stats['label_counts'] = label_counts
-                return stats
+        Returns:
+            bool: 是否成功
+        """
+        return self.stock_label_model.upsert_stock_label(stock_id, target_date, labels)
+    
+    def get_stock_labels_by_date(self, stock_id: str, target_date: str) -> List[str]:
+        """
+        获取指定股票在指定日期的标签
+        
+        Args:
+            stock_id: 股票代码
+            target_date: 目标日期
             
-            return {}
-            
-        except Exception as e:
-            logger.error(f"获取标签统计失败: {target_date}, {e}")
-            return {}
+        Returns:
+            List[str]: 标签列表
+        """
+        return self.stock_label_model.get_stock_labels_by_date(stock_id, target_date)

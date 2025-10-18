@@ -49,8 +49,6 @@ CREATE TABLE stock_labels (
     stock_id VARCHAR(20) NOT NULL,           -- 股票代码
     label_date DATE NOT NULL,                -- 标签计算日期
     labels TEXT NOT NULL,                    -- 标签ID字符串，逗号分隔
-    created_at DATETIME,                     -- 创建时间
-    updated_at DATETIME,                     -- 更新时间
     PRIMARY KEY (stock_id, label_date)
 );
 ```
@@ -312,11 +310,10 @@ def _upsert_stock_label(stock_id: str, target_date: str, labels: List[str]):
     
     # 2. 使用UPSERT语句
     sql = """
-    INSERT INTO stock_labels (stock_id, label_date, labels, created_at, updated_at)
-    VALUES (%s, %s, %s, NOW(), NOW())
+    INSERT INTO stock_labels (stock_id, label_date, labels)
+    VALUES (%s, %s, %s)
     ON DUPLICATE KEY UPDATE 
-        labels = %s,
-        updated_at = NOW()
+        labels = %s
     """
 ```
 

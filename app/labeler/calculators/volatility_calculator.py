@@ -54,7 +54,6 @@ class VolatilityLabelCalculator(BaseLabelCalculator):
                 return None
             
             if not klines or len(klines) < 10:  # 至少需要10天数据
-                logger.warning(f"无法获取 {stock_id} 足够的历史数据来计算波动性")
                 return None
             
             # 计算收益率

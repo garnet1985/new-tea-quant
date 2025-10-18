@@ -55,6 +55,7 @@ class FinancialLabelCalculator(BaseLabelCalculator):
                 klines = klines_data
             elif data_loader is not None:
                 klines = data_loader.load_klines(stock_id, start_date=target_date, end_date=target_date)
+                logger.debug(f"在使用data_loader加载K线数据")
             else:
                 logger.warning(f"无法获取 {stock_id} 在 {target_date} 的K线数据源")
                 return []

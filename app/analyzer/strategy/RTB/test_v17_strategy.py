@@ -24,7 +24,7 @@ def test_v17_strategy():
     loader = DataLoader(db)
     
     # 获取股票列表
-    stock_list = loader.load_stock_list()
+    stock_list = loader.load_stock_list(filtered=True)
     if not stock_list:
         print("❌ 没有股票数据")
         return

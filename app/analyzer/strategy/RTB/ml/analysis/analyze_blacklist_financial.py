@@ -48,7 +48,7 @@ def analyze_stock_financials(stock_ids: List[str], db_manager, data_loader) -> D
             print(f"  处理 {i+1}/{len(stock_ids)}: {stock_id}")
             
             # 获取股票基本信息
-            stock_info = data_loader.load_stock_list()
+            stock_info = data_loader.load_stock_list(filtered=True)
             stock_details = next((s for s in stock_info if s['id'] == stock_id), None)
             
             if not stock_details:

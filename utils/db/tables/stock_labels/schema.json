@@ -20,18 +20,6 @@
             "type": "text",
             "isRequired": true,
             "description": "标签ID字符串，用逗号分隔"
-        },
-        {
-            "name": "created_at",
-            "type": "datetime",
-            "isRequired": false,
-            "description": "创建时间"
-        },
-        {
-            "name": "updated_at",
-            "type": "datetime",
-            "isRequired": false,
-            "description": "更新时间"
         }
     ]
 }

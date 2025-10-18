@@ -54,7 +54,6 @@ class VolumeLabelCalculator(BaseLabelCalculator):
                 return None
             
             if not klines or len(klines) < 10:
-                logger.warning(f"无法获取 {stock_id} 足够的历史数据来计算成交量比率")
                 return None
             
             # 计算成交量比率

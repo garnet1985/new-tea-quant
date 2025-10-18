@@ -268,9 +268,9 @@ class BaseStrategy(ABC):
         
         strategy_settings = getattr(settings_module, "settings")
         
-        # 使用 DataLoader 加载股票列表
+        # 使用 DataLoader 加载股票列表（使用过滤规则，排除ST、科创板等）
         loader = DataLoader(self.db)
-        stock_list = loader.load_stock_list()
+        stock_list = loader.load_stock_list(filtered=True)
 
         # 根据 settings 的 mode 配置确定扫描范围
         mode_config = strategy_settings.get('mode', {})

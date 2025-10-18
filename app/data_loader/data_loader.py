@@ -30,6 +30,7 @@ from app.data_source.data_source_service import DataSourceService
 
 from .loaders import KlineLoader
 from .loaders import LabelLoader
+from utils.db.tables.stock_labels.model import StockLabelModel
 
 
 class DataLoader:
@@ -301,55 +302,51 @@ class DataLoader:
     # ============ 股票列表服务 ============
     
     def load_stock_list(self, 
-                       active_only: bool = True,
+                       filtered: bool = False,
                        industry: str = None,
                        stock_type: str = None,
                        exchange_center: str = None,
-                       exclude_patterns: Dict = None,
                        order_by: str = 'id') -> List[Dict[str, Any]]:
         """
         加载股票列表
         
         Args:
-            active_only: 是否只加载活跃股票 (默认True)
-            industry: 按行业过滤
-            stock_type: 按股票类型过滤
-            exchange_center: 按交易所过滤
-            exclude_patterns: 排除模式（参考 analyzer_settings.conf['stock_idx']['exclude']）
+            filtered: 是否使用过滤规则加载（默认True，排除ST、科创板等）
+            industry: 按行业过滤（可选）
+            stock_type: 按股票类型过滤（可选）
+            exchange_center: 按交易所过滤（可选）
             order_by: 排序字段
             
         Returns:
             List[Dict]: 股票列表
             
         示例：
-            # 加载所有活跃股票
+            # 加载过滤后的股票列表（默认，推荐）
             stocks = loader.load_stock_list()
+            
+            # 加载所有股票（不过滤）
+            stocks = loader.load_stock_list(filtered=False)
             
             # 加载特定行业
             stocks = loader.load_stock_list(industry='银行')
             
             # 加载特定交易所
             stocks = loader.load_stock_list(exchange_center='SSE')
-            
-            # 使用排除规则
-            stocks = loader.load_stock_list(exclude_patterns={
-                'start_with': {'id': ['688']}  # 排除科创板
-            })
         """
         table = self.db.get_table_instance('stock_list')
         
-        # 简单条件过滤
+        # 优先使用简单条件过滤（性能更好）
         if industry:
             return table.load_by_industry(industry, order_by)
         elif stock_type:
             return table.load_by_type(stock_type, order_by)
         elif exchange_center:
             return table.load_by_exchange_center(exchange_center, order_by)
-        elif exclude_patterns or not active_only:
-            # 使用复杂过滤
-            return table.load_filtered_stock_list(exclude_patterns, order_by)
+        elif filtered:
+            # 使用过滤规则（默认行为）
+            return table.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
         else:
-            # 默认：所有活跃股票
+            # 加载所有活跃股票（不过滤）
             return table.load_all_active(order_by)
     
     def load_stock_name(self, stock_id: str) -> Optional[str]:

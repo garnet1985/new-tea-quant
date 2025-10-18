@@ -18,10 +18,7 @@ class LabelMapping:
         'industry': '行业分类', 
         'volatility': '波动性',
         'volume': '成交量',
-        'financial': '财务指标',
-        'technical': '技术指标',
-        'growth': '成长性',
-        'value': '价值指标'
+        'financial': '财务指标'
     }
     
     # 市值规模标签映射
@@ -31,22 +28,22 @@ class LabelMapping:
             'name': '大盘股',
             'category': 'market_cap',
             'description': '市值大于100亿的股票',
-            'threshold': 10000000000  # 100亿（元）
+            'threshold': 1000000  # 100亿（万元）
         },
         'mid_cap': {
             'id': 'mid_cap', 
             'name': '中盘股',
             'category': 'market_cap',
             'description': '市值30-100亿的股票',
-            'threshold_min': 3000000000,  # 30亿
-            'threshold_max': 10000000000  # 100亿
+            'threshold_min': 300000,  # 30亿（万元）
+            'threshold_max': 1000000  # 100亿（万元）
         },
         'small_cap': {
             'id': 'small_cap',
             'name': '小盘股', 
             'category': 'market_cap',
             'description': '市值小于30亿的股票',
-            'threshold': 3000000000  # 30亿
+            'threshold': 300000  # 30亿（万元）
         }
     }
     

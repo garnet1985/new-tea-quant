@@ -35,7 +35,7 @@ class HistoricLowAnalysis:
         investments = []
         
         for filename in os.listdir(session_dir):
-            if filename.endswith('.json') and filename != 'session_summary.json':
+            if filename.endswith('.json') and filename != '0_session_summary.json':
                 filepath = os.path.join(session_dir, filename)
                 
                 try:
@@ -214,7 +214,7 @@ class HistoricLowAnalysis:
             
             # 处理该目录下的所有股票文件
             for filename in os.listdir(subdir_path):
-                if filename.endswith('.json') and filename != 'session_summary.json':
+                if filename.endswith('.json') and filename != '0_session_summary.json':
                     filepath = os.path.join(subdir_path, filename)
                     
                     try:
@@ -428,7 +428,7 @@ class HistoricLowAnalysis:
                 
             # 处理该目录下的所有股票文件
             for filename in os.listdir(subdir_path):
-                if filename.endswith('.json') and filename != 'session_summary.json':
+                if filename.endswith('.json') and filename != '0_session_summary.json':
                     filepath = os.path.join(subdir_path, filename)
                     
                     try:

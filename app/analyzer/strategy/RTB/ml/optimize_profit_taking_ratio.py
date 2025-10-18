@@ -26,7 +26,7 @@ print('\n📊 加载数据...')
 db = DatabaseManager(is_verbose=False)
 db.initialize()
 loader = DataLoader(db)
-stock_list = loader.load_stock_list()
+stock_list = loader.load_stock_list(filtered=True)
 test_stocks = stock_list[:50]
 
 # ============================================================================

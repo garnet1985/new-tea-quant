@@ -1,6 +1,6 @@
 settings = {
-           # 策略启用状态
-           "is_enabled": True,  # V16机器学习优化版启用
+        # 策略启用状态
+        "is_enabled": True,  # V18.2平衡策略启用
     
     "core": {
         "convergence": {
@@ -20,11 +20,11 @@ settings = {
         # 是不是只模拟黑名单中的股票
         "blacklist_only": False,
         # 测试股票数量 - V8测试前20只
-        "test_amount": 10,
+        "test_amount": 500,
         # 测试股票起始索引
         "start_idx": 0,
-               # 模拟参考版本号
-               "simulation_ref_version": "V16_ML_Optimized",
+    # 模拟参考版本号
+    "simulation_ref_version": "V18.2_Balanced",
         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True
     },

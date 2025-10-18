@@ -78,6 +78,11 @@ class ReverseTrendBet(BaseStrategy):
         
         if not features:
             return None
+        
+        # V18.2: 分层财务筛选，在质量基础上增加机会
+        financial_indicators = ReverseTrendBet._get_financial_indicators_from_klines(record_of_today)
+        if not ReverseTrendBet._check_tiered_financial_conditions(financial_indicators):
+            return None
             
         # 检查所有优化版条件是否同时满足
         if not ReverseTrendBet._check_optimized_conditions(features):
@@ -89,7 +94,8 @@ class ReverseTrendBet(BaseStrategy):
             record_of_today=record_of_today,
             extra_fields={
                 'features': features,
-                'strategy_version': 'V16_ML_Optimized',
+                'strategy_version': 'V18.2_Balanced',
+                'financial_indicators': financial_indicators,
                 'signal_conditions': {
                     'ma_convergence': features['ma_convergence'],
                     'ma20_slope': features['ma20_slope'],
@@ -106,12 +112,129 @@ class ReverseTrendBet(BaseStrategy):
                     'rsi_signal': features['rsi_signal'],
                 }
             },
-            lower_bound=today_close * 0.98,  # 5%的买入区间
+            lower_bound=today_close * 0.98,  # 4%的买入区间
             upper_bound=today_close * 1.02,
         )
 
         return opportunity
 
+
+    @staticmethod
+    def _get_financial_indicators_from_klines(current_kline: Dict[str, Any]) -> Dict[str, float]:
+        """
+        从当前K线数据中提取财务指标
+        
+        Args:
+            current_kline: 当前扫描日期的K线数据
+            
+        Returns:
+            Dict: 财务指标字典
+        """
+        try:
+            # 从当前K线提取财务指标（扫描当时的财务数据）
+            financial_metrics = {
+                'market_cap': current_kline.get('total_market_value', 0),
+                'pe_ratio': current_kline.get('pe', 0),
+                'pb_ratio': current_kline.get('pb', 0),
+                'ps_ratio': current_kline.get('ps', 0),
+                'turnover_rate': current_kline.get('turnover_rate', 0),
+                'volume_ratio_fin': current_kline.get('volume_ratio', 0),
+            }
+            
+            return financial_metrics
+            
+        except Exception as e:
+            logger.error(f"提取财务指标失败: {e}")
+            return {}
+
+    @staticmethod
+    def _check_financial_conditions(financial_indicators: Dict[str, float]) -> bool:
+        """
+        检查V18.5财务指标筛选条件（大幅放宽）
+        
+        Args:
+            financial_indicators: 财务指标字典
+            
+        Returns:
+            bool: 是否通过财务筛选
+        """
+        try:
+            # 如果没有财务数据，跳过财务筛选（向后兼容）
+            if not financial_indicators:
+                return True
+            
+            conditions = [
+                # 市值筛选：> 20亿 (从30亿放宽)
+                financial_indicators.get('market_cap', 0) > 200000,  # 20亿（万元）
+                
+                # PE筛选：10 < PE < 200 (从15-150放宽)
+                (financial_indicators.get('pe_ratio', 0) > 10 and 
+                 financial_indicators.get('pe_ratio', 0) < 200),
+                
+                # PB筛选：0.2 < PB < 10 (从0.3-8放宽)
+                (financial_indicators.get('pb_ratio', 0) > 0.2 and 
+                 financial_indicators.get('pb_ratio', 0) < 10.0),
+                
+                # PS筛选：0.3 < PS < 20 (从0.5-15放宽)
+                (financial_indicators.get('ps_ratio', 0) > 0.3 and 
+                 financial_indicators.get('ps_ratio', 0) < 20.0),
+            ]
+            
+            return all(conditions)
+            
+        except Exception as e:
+            logger.error(f"检查财务条件时出错: {e}")
+            return True  # 出错时通过筛选（向后兼容）
+
+    @staticmethod
+    def _check_tiered_financial_conditions(financial_indicators: Dict[str, float]) -> bool:
+        """
+        检查V18.2分层财务指标筛选条件
+        
+        Args:
+            financial_indicators: 财务指标字典
+            
+        Returns:
+            bool: 是否通过分层财务筛选
+        """
+        try:
+            # 如果没有财务数据，跳过财务筛选（向后兼容）
+            if not financial_indicators:
+                return True
+            
+            market_cap = financial_indicators.get('market_cap', 0)  # 万元
+            pe_ratio = financial_indicators.get('pe_ratio', 0)
+            pb_ratio = financial_indicators.get('pb_ratio', 0)
+            ps_ratio = financial_indicators.get('ps_ratio', 0)
+            
+            # 分层财务筛选
+            if market_cap >= 1000000:  # 大盘股 >= 100亿
+                conditions = [
+                    market_cap >= 1000000,  # 市值 >= 100亿
+                    pe_ratio > 8 and pe_ratio < 80,  # PE: 8-80
+                    pb_ratio > 0.5 and pb_ratio < 8,  # PB: 0.5-8
+                    ps_ratio > 0.5 and ps_ratio < 15,  # PS: 0.5-15
+                ]
+            elif market_cap >= 300000:  # 中盘股 30-100亿
+                conditions = [
+                    market_cap >= 300000 and market_cap < 1000000,  # 市值: 30-100亿
+                    pe_ratio > 10 and pe_ratio < 100,  # PE: 10-100
+                    pb_ratio > 0.3 and pb_ratio < 10,  # PB: 0.3-10
+                    ps_ratio > 0.3 and ps_ratio < 20,  # PS: 0.3-20
+                ]
+            else:  # 小盘股 < 30亿
+                conditions = [
+                    market_cap < 300000,  # 市值 < 30亿
+                    pe_ratio > 5 and pe_ratio < 150,  # PE: 5-150
+                    pb_ratio > 0.2 and pb_ratio < 15,  # PB: 0.2-15
+                    ps_ratio > 0.2 and ps_ratio < 25,  # PS: 0.2-25
+                ]
+            
+            return all(conditions)
+            
+        except Exception as e:
+            logger.error(f"检查分层财务条件时出错: {e}")
+            return True  # 出错时通过筛选（向后兼容）
 
     @staticmethod
     def _calculate_optimized_features(weekly_klines: List[Dict[str, Any]], stock_id: str = None, db_manager = None) -> Optional[Dict[str, float]]:
@@ -257,23 +380,22 @@ class ReverseTrendBet(BaseStrategy):
     @staticmethod
     def _check_optimized_conditions(features: Dict[str, float]) -> bool:
         """
-        检查V16机器学习优化版策略的所有条件
+        检查V18.2平衡策略的所有条件
         
-        基于104样本ML分析的关键发现：
-        1. 最大损失控制是关键（效应大小：2.452）
-        2. 投资时长对盈利重要（效应大小：0.778）
-        3. RSI重要性较低，可以放宽条件
+        基于V17质量要求优化：
+        1. 分层财务筛选：不同市值使用不同标准
+        2. 适度收紧技术条件：在质量基础上增加机会
         """
         try:
             conditions = [
-                # 核心收敛条件 (基于ML分析优化)
-                features['ma_convergence'] < 0.09,   # 充分收敛 (从0.12收紧到0.09)
-                features['ma20_slope'] > -0.05,      # MA20趋势
-                features['ma60_slope'] > -0.05,      # MA60趋势稳定
+                # 核心收敛条件 (V18.2优化：适度收紧提升质量)
+                features['ma_convergence'] < 0.18,   # V18.2优化：从0.20收紧到0.18
+                features['ma20_slope'] > -0.08,      # V18.2优化：从-0.10收紧到-0.08
+                features['ma60_slope'] > -0.08,      # V18.2优化：从-0.10收紧到-0.08
                 
-                # 成交量确认条件 (保持原有)
-                features['volume_trend'] > -0.3,     # 成交量趋势
-                features['amount_ratio'] > 0.7,      # 成交金额比率
+                # 成交量确认条件 (V18.2优化：适度收紧)
+                features['volume_trend'] > -0.4,     # V18.2优化：从-0.5收紧到-0.4
+                features['amount_ratio'] > 0.65,     # V18.2优化：从0.6收紧到0.65
                 
                 # 失败因子过滤 (保持原有)
                 features['price_change_pct'] > -6.0, # 价格变化控制
@@ -281,30 +403,30 @@ class ReverseTrendBet(BaseStrategy):
                 features['duration_weeks'] < 20,     # 收敛时间控制
                 features['convergence_ratio'] > 0.06, # 收敛充分性
                 
-                # 新增优化条件 (基于ML分析收紧)
-                features['historical_percentile'] < 0.35, # 历史分位数 < 35% (从50%收紧到35%)
-                features['oscillation_position'] < 0.5,   # 震荡区间内位置 < 50% (在区间下半部分)
-                features['volume_confirmation'] > 0.8,    # 成交量确认 > 0.8 (适度放量)
-                features['rsi_signal'] < 70,              # RSI < 70 (基于ML分析放宽条件)
+                # 新增优化条件 (V18.2平衡优化：适度收紧)
+                features['historical_percentile'] < 0.45,  # V18.2优化：从0.5收紧到0.45
+                features['oscillation_position'] < 0.55,   # V18.2优化：从0.6收紧到0.55
+                features['volume_confirmation'] > 0.65,    # V18.2优化：从0.6收紧到0.65
+                features['rsi_signal'] < 72,              # V18.2优化：从75收紧到72
             ]
             
             return all(conditions)
             
         except Exception as e:
-            logger.error(f"检查V15优化条件时出错: {e}")
+            logger.error(f"检查V18.5优化条件时出错: {e}")
             return False
 
     @staticmethod
     def report(opportunities: List[Dict[str, Any]]) -> None:
         """
-        呈现扫描/模拟结果 - RTB V15机器学习优化版
+        呈现扫描/模拟结果 - RTB V18.2平衡策略
         
         Args:
             opportunities: 扫描阶段的投资机会列表
         """
         for opportunity in opportunities:
             logger.info(f"="*80)
-            logger.info(f"RTB V16机器学习优化版 策略 - 股票 {opportunity['stock']['name']} ({opportunity['stock']['id']})")
+            logger.info(f"RTB V18.2平衡策略 - 股票 {opportunity['stock']['name']} ({opportunity['stock']['id']})")
             logger.info(f"="*80)
             logger.info(f"扫描日期: {opportunity['date']}")
             logger.info(f"当前价格: {opportunity['price']}")
@@ -314,15 +436,15 @@ class ReverseTrendBet(BaseStrategy):
             features = opportunity['extra_fields'].get('features', {})
             signal_conditions = opportunity['extra_fields'].get('signal_conditions', {})
             
-            logger.info(f"\n📊 V16机器学习优化版信号特征 (基于104样本ML分析):")
+            logger.info(f"\n📊 V18.2平衡策略信号特征 (分层财务筛选+优化技术条件):")
             logger.info(f"核心收敛条件:")
-            logger.info(f"  1. 均线收敛度 (ma_convergence): {signal_conditions.get('ma_convergence', 0):.4f} < 0.09 ⭐ 充分收敛")
-            logger.info(f"  2. MA20斜率 (ma20_slope): {signal_conditions.get('ma20_slope', 0):.4f} > -0.05 ⭐ 趋势稳定")
-            logger.info(f"  3. MA60斜率 (ma60_slope): {signal_conditions.get('ma60_slope', 0):.4f} > -0.05 ⭐ 长期稳定")
+            logger.info(f"  1. 均线收敛度 (ma_convergence): {signal_conditions.get('ma_convergence', 0):.4f} < 0.18 ⭐ V18.2收紧")
+            logger.info(f"  2. MA20斜率 (ma20_slope): {signal_conditions.get('ma20_slope', 0):.4f} > -0.08 ⭐ V18.2收紧")
+            logger.info(f"  3. MA60斜率 (ma60_slope): {signal_conditions.get('ma60_slope', 0):.4f} > -0.08 ⭐ V18.2收紧")
             
             logger.info(f"\n成交量确认条件:")
-            logger.info(f"  4. 成交量趋势 (volume_trend): {signal_conditions.get('volume_trend', 0):.3f} > -0.3 ⭐ 成交量趋势")
-            logger.info(f"  5. 成交金额比率 (amount_ratio): {signal_conditions.get('amount_ratio', 0):.3f} > 0.7 ⭐ 金额确认")
+            logger.info(f"  4. 成交量趋势 (volume_trend): {signal_conditions.get('volume_trend', 0):.3f} > -0.4 ⭐ V18.2收紧")
+            logger.info(f"  5. 成交金额比率 (amount_ratio): {signal_conditions.get('amount_ratio', 0):.3f} > 0.65 ⭐ V18.2收紧")
             
             logger.info(f"\n失败因子过滤:")
             logger.info(f"  6. 价格变化 (price_change_pct): {signal_conditions.get('price_change_pct', 0):.2f}% > -6.0 ⭐ 变化控制")
@@ -331,10 +453,26 @@ class ReverseTrendBet(BaseStrategy):
             logger.info(f"  9. 收敛比率 (convergence_ratio): {signal_conditions.get('convergence_ratio', 0):.4f} > 0.06 ⭐ 充分收敛")
             
             logger.info(f"\n新增优化条件 (Reverse Bet核心):")
-            logger.info(f" 10. 历史分位数 (historical_percentile): {signal_conditions.get('historical_percentile', 0):.3f} < 0.35 ⭐ 历史低位 (ML优化)")
-            logger.info(f" 11. 震荡位置 (oscillation_position): {signal_conditions.get('oscillation_position', 0):.3f} < 0.5 ⭐ 区间下沿")
-            logger.info(f" 12. 成交量确认 (volume_confirmation): {signal_conditions.get('volume_confirmation', 0):.3f} > 0.8 ⭐ 放量确认")
-            logger.info(f" 13. RSI信号 (rsi_signal): {signal_conditions.get('rsi_signal', 0):.1f} < 70 ⭐ 基于ML分析优化")
+            logger.info(f" 10. 历史分位数 (historical_percentile): {signal_conditions.get('historical_percentile', 0):.3f} < 0.45 ⭐ V18.2收紧")
+            logger.info(f" 11. 震荡位置 (oscillation_position): {signal_conditions.get('oscillation_position', 0):.3f} < 0.55 ⭐ V18.2收紧")
+            logger.info(f" 12. 成交量确认 (volume_confirmation): {signal_conditions.get('volume_confirmation', 0):.3f} > 0.65 ⭐ V18.2收紧")
+            logger.info(f" 13. RSI信号 (rsi_signal): {signal_conditions.get('rsi_signal', 0):.1f} < 72 ⭐ V18.2收紧")
+            
+            # 显示财务筛选信息
+            financial_indicators = opportunity['extra_fields'].get('financial_indicators', {})
+            if financial_indicators:
+                market_cap = financial_indicators.get('market_cap', 0)
+                pe_ratio = financial_indicators.get('pe_ratio', 0)
+                pb_ratio = financial_indicators.get('pb_ratio', 0)
+                ps_ratio = financial_indicators.get('ps_ratio', 0)
+                
+                logger.info(f"\n💰 分层财务筛选条件:")
+                if market_cap >= 1000000:  # 大盘股
+                    logger.info(f"  市值: {market_cap/10000:.1f}亿 (大盘股) | PE: {pe_ratio:.1f} (8-80) | PB: {pb_ratio:.2f} (0.5-8) | PS: {ps_ratio:.2f} (0.5-15)")
+                elif market_cap >= 300000:  # 中盘股
+                    logger.info(f"  市值: {market_cap/10000:.1f}亿 (中盘股) | PE: {pe_ratio:.1f} (10-100) | PB: {pb_ratio:.2f} (0.3-10) | PS: {ps_ratio:.2f} (0.3-20)")
+                else:  # 小盘股
+                    logger.info(f"  市值: {market_cap/10000:.1f}亿 (小盘股) | PE: {pe_ratio:.1f} (5-150) | PB: {pb_ratio:.2f} (0.2-15) | PS: {ps_ratio:.2f} (0.2-25)")
             
             # 计算综合评分 (基于ML模型预测概率)
             ma20_slope = signal_conditions.get('ma20_slope', 0)
@@ -354,7 +492,7 @@ class ReverseTrendBet(BaseStrategy):
                 icon = IconService.get('red_dot')
                 score = "一般"
                 
-            logger.info(f"\n🎯 V16机器学习优化评分: {icon} {score} (历史分位数: {signal_conditions.get('historical_percentile', 0):.3f}, RSI: {signal_conditions.get('rsi_signal', 0):.1f})")
+            logger.info(f"\n🎯 V18.2平衡策略评分: {icon} {score} (历史分位数: {signal_conditions.get('historical_percentile', 0):.3f}, RSI: {signal_conditions.get('rsi_signal', 0):.1f})")
             logger.info(f"="*80)
         
         return None

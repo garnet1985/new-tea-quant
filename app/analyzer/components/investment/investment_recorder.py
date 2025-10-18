@@ -97,7 +97,7 @@ class InvestmentRecorder:
     def save_session_summary(self, session_summary: Dict[str, Any], session_dir: str) -> None:
         """生成会话汇总"""
        
-        summary_file_path = os.path.join(session_dir, "session_summary.json")
+        summary_file_path = os.path.join(session_dir, "0_session_summary.json")
         self._save_json_to_file(session_summary, summary_file_path)        
         return session_summary
     
@@ -210,7 +210,7 @@ class InvestmentRecorder:
             return {}
         
         # 读取会话汇总文件
-        summary_file = os.path.join(session_dir, "session_summary.json")
+        summary_file = os.path.join(session_dir, "0_session_summary.json")
         if not os.path.exists(summary_file):
             logger.warning(f"会话汇总文件不存在: {summary_file}")
             return {}

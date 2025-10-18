@@ -31,9 +31,9 @@ class PreprocessService:
             db = DatabaseManager()
             db.initialize()
             
-            # 使用 DataLoader 加载股票列表
+            # 使用 DataLoader 加载股票列表（使用过滤规则，排除ST、科创板等）
             loader = DataLoader(db)
-            stock_list = loader.load_stock_list()
+            stock_list = loader.load_stock_list(filtered=True)
             
             # 根据 settings 的 mode 配置确定模拟范围
             mode_config = settings.get('mode', {})

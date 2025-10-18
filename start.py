@@ -46,9 +46,9 @@ class App:
         """更新股票数据"""
         await self.data_source.renew_data(latest_market_open_day)
     
-    def renew_labels(self, last_market_open_day: str, force_update: bool = False):
+    def renew_labels(self, last_market_open_day: str, is_refresh: bool = False):
         """更新股票标签"""
-        self.labeler.renew(last_market_open_day, force_update=force_update)
+        self.labeler.renew(last_market_open_day, is_refresh=is_refresh)
     
     def simulate(self):
         # 使用run_daily_scan来同时执行扫描和测试

@@ -16,13 +16,12 @@ from loguru import logger
 class BaseLabelCalculator(ABC):
     """标签计算器基类"""
     
-    def __init__(self, data_loader, label_definitions=None):
+    def __init__(self, data_loader):
         """
         初始化标签计算器
         
         Args:
             data_loader: 数据加载器实例
-            label_definitions: 标签定义管理器实例（已弃用，保留兼容性）
         """
         self.data_loader = data_loader
         self.label_category = self.get_label_category()
@@ -210,7 +209,8 @@ class LabelCalculatorRegistry:
         """
         self.calculators[category] = calculator_class
         self.categories[category] = category
-        logger.info(f"注册标签计算器: {category} -> {calculator_class.__name__}")
+        calculator_name = getattr(calculator_class, '__name__', str(calculator_class))
+        logger.info(f"注册标签计算器: {category} -> {calculator_name}")
     
     def get_calculator(self, category: str, data_loader, label_definitions):
         """
@@ -228,7 +228,7 @@ class LabelCalculatorRegistry:
             raise ValueError(f"未注册的标签计算器分类: {category}")
         
         calculator_class = self.calculators[category]
-        return calculator_class(data_loader, label_definitions)
+        return calculator_class(data_loader)
     
     def get_all_categories(self) -> List[str]:
         """

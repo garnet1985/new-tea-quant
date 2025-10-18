@@ -16,16 +16,15 @@ from loguru import logger
 class BaseLabelCalculator(ABC):
     """标签计算器基类"""
     
-    def __init__(self, data_loader, label_definitions):
+    def __init__(self, data_loader, label_definitions=None):
         """
         初始化标签计算器
         
         Args:
             data_loader: 数据加载器实例
-            label_definitions: 标签定义管理器实例
+            label_definitions: 标签定义管理器实例（已弃用，保留兼容性）
         """
         self.data_loader = data_loader
-        self.label_definitions = label_definitions
         self.label_category = self.get_label_category()
         self.calculated_labels = {}  # 缓存计算结果
     
@@ -38,7 +37,7 @@ class BaseLabelCalculator(ABC):
             str: 标签分类名称
         """
         pass
-    
+
     @abstractmethod
     def calculate_label(self, stock_id: str, target_date: str, **kwargs) -> Optional[str]:
         """
@@ -61,21 +60,55 @@ class BaseLabelCalculator(ABC):
         Args:
             stock_id: 股票代码
             target_date: 目标日期 (YYYYMMDD格式)
-            **kwargs: 其他参数
+            **kwargs: 其他参数，可能包含：
+                - klines_data: 预加载的K线数据列表
+                - data_loader: 数据加载器（如果没有预加载数据时使用）
             
         Returns:
             List[str]: 标签ID列表
         """
-        labels = []
-        
         try:
-            label_id = self.calculate_label(stock_id, target_date, **kwargs)
-            if label_id:
-                labels.append(label_id)
+            # 检查是否有预加载的K线数据
+            klines_data = kwargs.get('klines_data')
+            data_loader = kwargs.get('data_loader')
+            
+            if klines_data is not None:
+                # 使用预加载的数据
+                kwargs_with_klines = {**kwargs, 'klines_data': klines_data}
+            elif data_loader is not None:
+                # 回退到动态加载数据
+                kwargs_with_klines = {**kwargs, 'data_loader': data_loader}
+            else:
+                # 没有数据源，返回空列表
+                logger.warning(f"计算标签 {stock_id} {target_date} 没有可用的数据源")
+                return []
+            
+            # 优先使用多标签计算方法
+            if hasattr(self, 'calculate_labels') and callable(getattr(self, 'calculate_labels')):
+                return self.calculate_labels(stock_id, target_date, **kwargs_with_klines)
+            else:
+                # 回退到单标签计算方法
+                label_id = self.calculate_label(stock_id, target_date, **kwargs_with_klines)
+                return [label_id] if label_id else []
         except Exception as e:
             logger.error(f"计算标签失败 {stock_id} {target_date}: {e}")
+            return []
+    
+    def calculate_labels(self, stock_id: str, target_date: str, **kwargs) -> List[str]:
+        """
+        计算多个标签（子类可选实现）
         
-        return labels
+        Args:
+            stock_id: 股票代码
+            target_date: 目标日期 (YYYYMMDD格式)
+            **kwargs: 其他参数
+            
+        Returns:
+            List[str]: 标签ID列表，如果无法计算返回空列表
+        """
+        # 默认实现：调用单个标签计算方法
+        label = self.calculate_label(stock_id, target_date, **kwargs)
+        return [label] if label else []
     
     def batch_calculate_labels(self, stock_ids: List[str], target_date: str, **kwargs) -> Dict[str, List[str]]:
         """
@@ -105,7 +138,8 @@ class BaseLabelCalculator(ABC):
         Returns:
             List[Dict[str, Any]]: 标签定义列表
         """
-        return self.label_definitions.get_labels_by_category(self.label_category)
+        from .conf.label_mapping import LabelMapping
+        return list(LabelMapping.get_labels_by_category(self.label_category).values())
     
     def validate_label_data(self, stock_id: str, target_date: str, required_data: List[str]) -> bool:
         """

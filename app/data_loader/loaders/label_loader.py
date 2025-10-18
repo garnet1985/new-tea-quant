@@ -7,7 +7,6 @@ from datetime import datetime, date
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
 from utils.db.tables.stock_labels.model import StockLabel
-from utils.db.tables.label_definitions.model import LabelDefinition
 
 
 class LabelLoader:

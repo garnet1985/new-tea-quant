@@ -67,14 +67,14 @@ def main():
     
     # 1. 先获取最新交易日
     latest_market_open_day = asyncio.run(app.get_latest_market_open_day())
-    
+
     logger.info(f"🔍 最新交易日: {latest_market_open_day}")
     
     # 2. 使用最新交易日更新股票数据
-    asyncio.run(app.renew_data(latest_market_open_day))
+    # asyncio.run(app.renew_data(latest_market_open_day))
     
     # 3. 使用最新交易日更新股票标签（按频率更新）
-    app.renew_labels(latest_market_open_day, force_update=False)
+    app.renew_labels(latest_market_open_day)
 
     # app.scan()
 

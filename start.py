@@ -14,6 +14,7 @@ setup_warning_suppression()
 from utils.db.db_manager import DatabaseManager
 from app.data_source.data_source_manager import DataSourceManager
 from app.analyzer import Analyzer
+from app.labeler import LabelerService
 from utils.icon.icon_service import IconService
 
 
@@ -32,13 +33,22 @@ class App:
         # 2. 然后创建数据源和策略管理器（复用同一个数据库实例）
         self.data_source = DataSourceManager(self.db, self.is_verbose)
         self.analyzer = Analyzer(self.db, self.is_verbose)
+        self.labeler = LabelerService(self.db)
         
         # 3. 初始化策略（这会注册表到数据库）
         self.analyzer.initialize()
 
-    async def renew_data(self):
+    async def get_latest_market_open_day(self):
+        """获取最新交易日"""
+        return await self.data_source.get_latest_market_open_day()
+    
+    async def renew_data(self, latest_market_open_day: str):
         """更新股票数据"""
-        await self.data_source.renew_data()
+        await self.data_source.renew_data(latest_market_open_day)
+    
+    def renew_labels(self, last_market_open_day: str, force_update: bool = False):
+        """更新股票标签"""
+        self.labeler.renew(last_market_open_day, force_update=force_update)
     
     def simulate(self):
         # 使用run_daily_scan来同时执行扫描和测试
@@ -55,11 +65,20 @@ class App:
 def main():
     app = App()
     
-    # asyncio.run(app.renew_data())
+    # 1. 先获取最新交易日
+    latest_market_open_day = asyncio.run(app.get_latest_market_open_day())
+    
+    logger.info(f"🔍 最新交易日: {latest_market_open_day}")
+    
+    # 2. 使用最新交易日更新股票数据
+    asyncio.run(app.renew_data(latest_market_open_day))
+    
+    # 3. 使用最新交易日更新股票标签（按频率更新）
+    app.renew_labels(latest_market_open_day, force_update=False)
 
     # app.scan()
 
-    app.simulate()
+    # app.simulate()
 
     # app.analysis()
 

@@ -48,10 +48,16 @@ class AKShareService:
         
         return renew_dates
 
-    def get_stocks_needing_update_from_db(self, factor_last_update_dates: list) -> List[Dict]:
+    def get_stocks_needing_update_from_db(self, factor_last_update_dates: list, latest_market_open_day: str = None) -> List[Dict]:
         # 找到最新的日期
         results = []
-        current_date = datetime.now()
+        
+        # 使用latest_market_open_day而不是datetime.now()进行比较
+        if latest_market_open_day:
+            current_date = datetime.strptime(latest_market_open_day, '%Y%m%d')
+        else:
+            current_date = datetime.now()
+            
         for stock in factor_last_update_dates:
             if not stock['last_update'] or (current_date - stock['last_update']).days > factor_update_interval_days:
                 results.append(self.to_job_data(stock['id'], stock['last_update'], True))

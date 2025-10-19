@@ -399,15 +399,29 @@ class SimulatingService:
             data_today['corporate_finance'] = cf_today
 
         # 可选：股票标签（按日期获取当日标签）
-        if isinstance(all_data.get('labels'), dict):
-            labels_data = all_data['labels']
-            # 获取当日或最近日期的标签
+        if isinstance(all_data.get('stock_labels'), dict):
+            labels_data = all_data['stock_labels']
+            # 使用状态管理优化性能
+            labels_state = all_data['__state__'].setdefault('stock_labels', {'cursor': -1, 'acc': []})
+            cursor = labels_state['cursor']
+            acc = labels_state['acc']
+            
+            # 获取排序后的日期列表
+            sorted_dates = sorted(labels_data.keys())
+            i = cursor + 1
+            n = len(sorted_dates)
+            
+            # 找到当日或最近的标签
             today_labels = []
-            for date, labels in labels_data.items():
+            while i < n:
+                date = sorted_dates[i]
                 if date <= date_of_today:
-                    today_labels = labels
+                    today_labels = labels_data[date]  # 直接返回标签ID列表
+                    i += 1
                 else:
                     break
+            
+            labels_state['cursor'] = i - 1
             data_today['labels'] = today_labels
 
         return data_today

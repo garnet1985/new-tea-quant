@@ -15,7 +15,8 @@
 - Enums: 枚举类型定义
 - DateUtils: 日期工具类
 """
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
+import pandas as pd
 from loguru import logger
 
 from .loaders import KlineLoader
@@ -258,3 +259,78 @@ class DataLoader:
     def _load_industry_capital_flow_data(self, industry_capital_flow_settings: Dict[str, Any]) -> Dict[str, Any]:
         """加载行业资金流数据（委托给KlineLoader）"""
         return self.kline_loader.load_industry_capital_flow_data(industry_capital_flow_settings)
+    
+    def load_stock_list(self, 
+                       filtered: bool = False,
+                       industry: str = None,
+                       stock_type: str = None,
+                       exchange_center: str = None,
+                       order_by: str = 'id') -> List[Dict[str, Any]]:
+        """
+        加载股票列表
+        
+        Args:
+            filtered: 是否使用过滤规则加载（默认False，排除ST、科创板等）
+            industry: 按行业过滤（可选）
+            stock_type: 按股票类型过滤（可选）
+            exchange_center: 按交易所过滤（可选）
+            order_by: 排序字段
+            
+        Returns:
+            List[Dict]: 股票列表
+            
+        示例：
+            # 加载过滤后的股票列表（默认，推荐）
+            stocks = loader.load_stock_list(filtered=True)
+            
+            # 加载所有股票（不过滤）
+            stocks = loader.load_stock_list(filtered=False)
+            
+            # 加载特定行业
+            stocks = loader.load_stock_list(industry='银行')
+            
+            # 加载特定交易所
+            stocks = loader.load_stock_list(exchange_center='SSE')
+        """
+        # 通过数据库获取股票列表
+        from utils.db.db_manager import DatabaseManager
+        db = DatabaseManager()
+        db.initialize()
+        table = db.get_table_instance('stock_list')
+        
+        # 优先使用简单条件过滤（性能更好）
+        if industry:
+            return table.load_by_industry(industry, order_by)
+        elif stock_type:
+            return table.load_by_type(stock_type, order_by)
+        elif exchange_center:
+            return table.load_by_exchange_center(exchange_center, order_by)
+        elif filtered:
+            # 使用过滤规则（默认行为）
+            return table.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
+        else:
+            # 加载所有活跃股票（不过滤）
+            return table.load_all_active(order_by)
+    
+    def load_klines(self, stock_id: str, term: str = 'daily',
+                    start_date: Optional[str] = None, end_date: Optional[str] = None,
+                    adjust: str = 'qfq', filter_negative: bool = True,
+                    as_dataframe: bool = False) -> Union[pd.DataFrame, List[Dict]]:
+        """
+        加载K线数据（委托给KlineLoader）
+        
+        Args:
+            stock_id: 股票代码
+            term: 周期（daily/weekly/monthly）
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
+            adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
+            filter_negative: 是否过滤负值（默认True）
+            as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
+            
+        Returns:
+            DataFrame or List[Dict]: K线数据
+        """
+        return self.kline_loader.load(
+            stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
+        )

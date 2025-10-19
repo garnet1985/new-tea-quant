@@ -90,7 +90,7 @@ class ReverseTrendBet(BaseStrategy):
             # 过滤出需要的标签种类
             from app.data_loader import DataLoader
             filtered_labels = DataLoader.filter_labels_by_category(
-                [label.get('label_id') for label in labels_data],
+                labels_data,  # labels_data现在直接是标签ID列表
                 ['market_cap', 'volatility']
             )
             logger.info(f"股票 {stock['id']} 标签数据: {filtered_labels}")

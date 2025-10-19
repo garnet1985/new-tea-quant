@@ -7,7 +7,7 @@
 from typing import Dict, List, Any
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.components.enum import InvestmentResult
+from app.analyzer.enums import InvestmentResult
 from utils.icon.icon_service import IconService
 
 class PostprocessService:

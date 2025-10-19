@@ -12,7 +12,7 @@ from .indicators import Indicators
 
 # 实体组件
 # 枚举组件
-from .enum.common_enum import InvestmentResult
+from app.analyzer.enums import InvestmentResult
 
 # 投资管理组件
 from .investment.investment_goal_manager import InvestmentGoalManager

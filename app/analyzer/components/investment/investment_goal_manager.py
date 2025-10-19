@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Tuple
 from copy import deepcopy
 
 from loguru import logger
-from app.analyzer.components.enum.common_enum import InvestmentResult
+from app.analyzer.enums import InvestmentResult
 from app.analyzer.analyzer_service import AnalyzerService
 
 

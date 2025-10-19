@@ -5,7 +5,7 @@ SimulatingService - 多进程模拟服务
 from typing import Dict, List, Any, Optional
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.components.enum import InvestmentResult
+from app.analyzer.enums import InvestmentResult
 from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
 from utils.icon.icon_service import IconService
 from utils.worker.multi_process.process_worker import ProcessWorker
@@ -397,6 +397,18 @@ class SimulatingService:
                 st['cursor'] = i - 1
                 cf_today[cat] = acc
             data_today['corporate_finance'] = cf_today
+
+        # 可选：股票标签（按日期获取当日标签）
+        if isinstance(all_data.get('labels'), dict):
+            labels_data = all_data['labels']
+            # 获取当日或最近日期的标签
+            today_labels = []
+            for date, labels in labels_data.items():
+                if date <= date_of_today:
+                    today_labels = labels
+                else:
+                    break
+            data_today['labels'] = today_labels
 
         return data_today
 

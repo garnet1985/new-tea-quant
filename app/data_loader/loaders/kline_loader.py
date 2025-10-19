@@ -212,7 +212,7 @@ class KlineLoader:
             )
         else:
             return self._load_as_list(
-                stock_id, term, adjust, filter_negative
+                condition, tuple(params), stock_id, term, adjust, filter_negative
             )
     
     def load_multiple_terms(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict]]:
@@ -280,10 +280,10 @@ class KlineLoader:
         
         return df
     
-    def _load_as_list(self, stock_id: str, term: str, adjust: str,
+    def _load_as_list(self, condition: str, params: tuple, stock_id: str, term: str, adjust: str,
                      filter_negative: bool) -> List[Dict]:
         """加载为List[Dict]"""
-        records = self.kline_table.get_all_k_lines_by_term(stock_id, term)
+        records = self.kline_table.load(condition, params, order_by="date")
         
         if not records:
             return []

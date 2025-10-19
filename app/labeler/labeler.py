@@ -583,7 +583,9 @@ class LabelerService:
                     start_date = DateUtils.get_date_after_days(current_date, -3*365)  # 3年前
             
             # 获取股票的K线数据
-            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date='20251231')
+            from utils.date.date_utils import DateUtils
+            current_date = DateUtils.get_current_date_str()
+            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=current_date)
             if not klines:
                 return {}
             

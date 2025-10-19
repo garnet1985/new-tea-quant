@@ -17,9 +17,10 @@
 - LabelMapping: 标签映射定义
 """
 
+from datetime import timedelta
 import time
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime, date, timedelta
+from utils.date.date_utils import DateUtils
 import pandas as pd
 from loguru import logger
 from utils.progress.progress_tracker import ProgressTrackerManager
@@ -57,7 +58,7 @@ class LabelerService:
             db.initialize()
         
         self.db = db
-        self.data_loader = DataLoader(db)
+        self.data_loader = DataLoader(self.db)
         
         # 初始化标签定义管理器
         self.label_definitions = LabelMapping()
@@ -115,16 +116,24 @@ class LabelerService:
         start_time = time.time()
         
         try:
-            # 生成更新任务
-            update_jobs = self._generate_update_jobs(last_market_open_day, is_refresh)
-            if not update_jobs:
-                logger.info("📋 没有需要更新的标签任务")
+            # 1. 获取股票列表和标签更新情况
+            stocks_to_process = self._get_stocks_and_update_status(last_market_open_day, is_refresh)
+            if not stocks_to_process:
+                logger.info("📋 没有需要更新的股票")
                 return
             
-            logger.info(f"📋 生成了 {len(update_jobs)} 个标签更新任务")
+            logger.info(f"📋 找到 {len(stocks_to_process)} 只需要更新的股票")
             
-            # 执行更新任务
-            self._execute_update_jobs(update_jobs, last_market_open_day)
+            # 2. 生成job任务
+            update_jobs = self._generate_jobs(stocks_to_process, last_market_open_day)
+            if not update_jobs:
+                logger.info("📋 没有需要执行的job任务")
+                return
+            
+            logger.info(f"📋 生成了 {len(update_jobs)} 个job任务")
+            
+            # 3. 执行job任务（单线程或多线程）
+            self._execute_jobs(update_jobs)
             
             elapsed_time = time.time() - start_time
             logger.info(f"✅ 标签数据更新完成: {last_market_open_day}, 耗时 {elapsed_time:.2f} 秒")
@@ -132,6 +141,104 @@ class LabelerService:
         except Exception as e:
             logger.error(f"❌ 标签数据更新失败: {e}")
             raise e
+    
+    def _get_stocks_and_update_status(self, last_market_open_day: str, is_refresh: bool = False) -> List[Dict[str, Any]]:
+        """
+        获取股票列表和标签更新情况
+        
+        Args:
+            last_market_open_day: 最新交易日
+            is_refresh: 是否刷新所有股票标签
+            
+        Returns:
+            List[Dict]: 需要更新的股票列表
+        """
+        # 获取所有股票列表（过滤ST、科创板等）
+        all_stocks = self.data_loader.load_stock_list(filtered=True)
+        logger.info(f"📋 获取到 {len(all_stocks)} 只股票")
+        
+        if is_refresh:
+            logger.info(f"🔄 刷新模式：重新计算 {len(all_stocks)}只股票的所有标签")
+            return all_stocks
+        
+        # 增量更新模式：批量获取所有股票的最后更新时间
+        stock_ids = [stock['id'] for stock in all_stocks]
+        stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates(stock_ids)
+        
+        stocks_needing_update = []
+        current_dt = DateUtils.parse_yyyymmdd(last_market_open_day)
+        
+        for stock in all_stocks:
+            stock_id = stock['id']
+            last_update_date = stock_last_update_dates.get(stock_id)
+            
+            if last_update_date is None:
+                # 从未更新过，需要更新
+                stocks_needing_update.append(stock)
+                continue
+            
+            # 计算距离上次更新的天数
+            last_update_dt = DateUtils.parse_yyyymmdd(last_update_date)
+            days_since_update = (current_dt - last_update_dt).days
+            
+            if LabelConfig.should_update_stock(days_since_update):
+                stocks_needing_update.append(stock)
+        
+        return stocks_needing_update
+    
+    def _generate_jobs(self, stocks_to_process: List[Dict[str, Any]], last_market_open_day: str) -> List[Dict[str, Any]]:
+        """
+        生成job任务列表
+        
+        Args:
+            stocks_to_process: 需要处理的股票列表
+            last_market_open_day: 最新交易日
+            
+        Returns:
+            List[Dict]: job任务列表
+        """
+        # 获取需要计算的标签分类
+        categories_to_calculate = []
+        for category in LabelMapping.get_categories().keys():
+            if not LabelConfig.is_static_category(category):
+                categories_to_calculate.append(category)
+        
+        jobs = []
+        for stock in stocks_to_process:
+            jobs.append({
+                'id': stock['id'],  # 添加id字段
+                'data': {
+                    'stock': stock,
+                    'target_date': last_market_open_day,
+                    'categories': categories_to_calculate
+                }
+            })
+        
+        return jobs
+    
+    def _execute_jobs(self, jobs: List[Dict[str, Any]]):
+        """
+        执行job任务（单线程或多线程）
+        
+        Args:
+            jobs: job任务列表
+        """
+        if not jobs:
+            logger.info("📋 没有任务需要执行")
+            return
+        
+        logger.info(f"🔄 开始执行job任务: {len(jobs)}个任务")
+        
+        # 获取性能配置
+        performance_config = LabelConfig.get_performance_config()
+        multithread_threshold = performance_config.get('multithread_threshold', 50)
+        
+        if len(jobs) >= multithread_threshold:
+            logger.info(f"🚀 使用多线程执行: {len(jobs)}个任务 (阈值: {multithread_threshold})")
+            self._execute_jobs_multithreaded(jobs)
+        else:
+            logger.info(f"🔄 使用单线程执行: {len(jobs)}个任务 (阈值: {multithread_threshold})")
+            self._execute_jobs_singlethreaded(jobs)
     
     def _generate_update_jobs(self, last_market_open_day: str, is_refresh: bool = False) -> List[Dict[str, Any]]:
         """
@@ -201,7 +308,7 @@ class LabelerService:
             stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates(stock_ids)
             
             stocks_needing_update = []
-            current_dt = datetime.strptime(last_market_open_day, '%Y%m%d')
+            current_dt = DateUtils.parse_yyyymmdd(last_market_open_day)
             
             for stock in all_stocks:
                 stock_id = stock['id']
@@ -213,7 +320,7 @@ class LabelerService:
                     continue
                 
                 # 计算距离上次更新的天数
-                last_update_dt = datetime.strptime(last_update_date, '%Y%m%d')
+                last_update_dt = DateUtils.parse_yyyymmdd(last_update_date)
                 days_since_update = (current_dt - last_update_dt).days
                 
                 
@@ -271,13 +378,17 @@ class LabelerService:
                     stock_info = job['data']['stock']
                     stock_id = stock_info['id']
                     stock_name = stock_info.get('name', stock_id)
-                    labels_count = result.get('dates_count', 0)
+                    labels_count = result['result'].get('dates_count', 0)
                     progress = int(i * 100 / total_jobs)
                     
                     if labels_count > 0:
                         logger.info(f"股票 {stock_id} ({stock_name}) 计算完毕，更新{labels_count}个标签 总进度 {progress}%")
                     else:
-                        logger.info(f"股票 {stock_id} ({stock_name}) 不需要标签计算 总进度 {progress}%")
+                        total_dates = result['result'].get('total_dates', 0)
+                        if total_dates > 0:
+                            logger.warning(f"股票 {stock_id} ({stock_name}) 尝试计算标签但未生成任何标签 总进度 {progress}%")
+                        else:
+                            logger.info(f"股票 {stock_id} ({stock_name}) 不需要标签计算 总进度 {progress}%")
                 else:
                     failed_count += 1
                     stock_info = job['data']['stock']
@@ -358,7 +469,11 @@ class LabelerService:
             if labels_count > 0:
                 logger.info(f"股票 {stock_id} ({stock_name}) 计算完毕，更新{labels_count}个标签 总进度 {progress}%")
             else:
-                logger.info(f"股票 {stock_id} ({stock_name}) 不需要标签计算 总进度 {progress}%")
+                total_dates = result.get('total_dates', 0)
+                if total_dates > 0:
+                    logger.warning(f"股票 {stock_id} ({stock_name}) 尝试计算标签但未生成任何标签 总进度 {progress}%")
+                else:
+                    logger.info(f"股票 {stock_id} ({stock_name}) 不需要标签计算 总进度 {progress}%")
             
             return {
                 'job_id': stock_id,
@@ -410,80 +525,244 @@ class LabelerService:
     
     def _calculate_single_stock_labels(self, stock_id: str, target_date: str, categories: List[str]) -> Dict[str, Any]:
         """
-        计算单只股票的所有标签
+        计算单只股票的所有标签 - 使用新的循环推进算法
         
         Args:
             stock_id: 股票代码
-            target_date: 目标日期
+            target_date: 目标日期（最新交易日）
             categories: 需要计算的标签分类
             
         Returns:
             Dict: 计算结果
         """
         try:
-            # 首先生成历史日期列表（这一步可能需要加载K线数据来获取最早日期）
-            historical_dates = self._generate_historical_dates(stock_id, target_date)
+            # 1. 获取所有K线数据
+            klines_dict = self._get_all_stock_klines_data(stock_id)
+            if not klines_dict:
+                logger.warning(f"股票 {stock_id} 没有K线数据，跳过")
+                return {'success': True, 'labels_saved': 0, 'dates_count': 0, 'total_dates': 0}
             
-            # 如果没有需要计算的日期，直接返回
-            if not historical_dates:
-                return {'success': True, 'labels_saved': 0}
-            
-            total_labels_saved = 0
-            
-            # 根据股票情况智能获取K线数据
-            all_klines_data = self._get_stock_klines_data_optimized(stock_id, historical_dates, target_date)
-            
-            # 为每个历史日期计算标签
-            for date in historical_dates:
-                all_labels = []
-                
-                # 获取该日期的K线数据
-                date_klines = all_klines_data.get(date, [])
-                if not date_klines:
-                    continue
-                
-                for category in categories:
-                    try:
-                        # 获取对应的计算器
-                        calculator = self.get_calculator(category)
-                        if calculator:
-                            # 将字典格式的K线数据转换为列表格式，包含所有历史数据
-                            all_klines_list = []
-                            for date_klines in all_klines_data.values():
-                                if date_klines:  # 只添加非空的列表
-                                    all_klines_list.extend(date_klines)
-                            
-                            # 如果all_klines_list为空，说明没有可用的K线数据
-                            if not all_klines_list:
-                                continue
-                            
-                            # 传递完整的K线数据给计算器，让计算器自己筛选需要的数据
-                            labels = calculator.calculate_labels_for_stock(
-                                stock_id, date, 
-                                klines_data=all_klines_list,  # 传递完整的K线数据列表
-                                data_loader=self.data_loader
-                            )
-                            if labels:
-                                all_labels.extend(labels)
-                                
-                    except Exception as e:
-                        continue
-                
-                # 保存该日期的标签到数据库
-                if all_labels:
-                    self._save_stock_labels(stock_id, date, all_labels)
-                    total_labels_saved += 1
+            # 2. 执行循环推进算法
+            total_labels_saved = self._execute_loop_algorithm(stock_id, target_date, categories, klines_dict)
             
             return {
                 'stock_id': stock_id,
                 'dates_count': total_labels_saved,
-                'total_dates': len(historical_dates),
+                'total_dates': total_labels_saved,  # 循环推进算法中，dates_count就是total_dates
                 'categories': categories
             }
             
         except Exception as e:
             logger.error(f"❌ 股票 {stock_id} 标签计算异常: {e}")
             raise e
+    
+    def _get_all_stock_klines_data(self, stock_id: str, start_date: str = None) -> Dict[str, Dict]:
+        """
+        获取股票的K线数据（按日期索引）
+        
+        Args:
+            stock_id: 股票代码
+            start_date: 开始日期（可选，如果不提供则从最后更新日期开始）
+            
+        Returns:
+            Dict[str, Dict]: 按日期索引的K线数据字典
+        """
+        try:
+            # 如果没有提供开始日期，则从最后更新日期开始
+            if not start_date:
+                stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates([stock_id])
+                last_update_date = stock_last_update_dates.get(stock_id)
+                
+                if last_update_date:
+                    # 从最后更新日期开始加载
+                    start_date = last_update_date
+                else:
+                    # 如果没有更新记录，只加载最近3年的数据
+                    from utils.date.date_utils import DateUtils
+                    current_date = DateUtils.get_current_date_str()
+                    start_date = DateUtils.get_date_after_days(current_date, -3*365)  # 3年前
+            
+            # 获取股票的K线数据
+            from utils.date.date_utils import DateUtils
+            current_date = DateUtils.get_current_date_str()
+            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=current_date)
+            if not klines:
+                return {}
+            
+            # 转换为按日期索引的字典
+            klines_dict = {kline['date']: kline for kline in klines}
+            return klines_dict
+        except Exception as e:
+            logger.error(f"获取股票 {stock_id} K线数据失败: {e}")
+            return {}
+    
+    def _get_stock_klines_data_for_testing(self, stock_id: str, start_date: str, end_date: str) -> Dict[str, Dict]:
+        """
+        获取指定日期范围的K线数据（用于测试）
+        
+        Args:
+            stock_id: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
+            
+        Returns:
+            Dict[str, Dict]: 按日期索引的K线数据字典
+        """
+        try:
+            # 获取指定日期范围的K线数据
+            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
+            if not klines:
+                return {}
+            
+            # 转换为按日期索引的字典
+            klines_dict = {kline['date']: kline for kline in klines}
+            return klines_dict
+        except Exception as e:
+            logger.error(f"获取股票 {stock_id} K线数据失败: {e}")
+            return {}
+    
+    def _execute_loop_algorithm(self, stock_id: str, target_date: str, categories: List[str], klines_dict: Dict[str, Dict]) -> int:
+        """
+        执行循环推进算法
+        
+        Args:
+            stock_id: 股票代码
+            target_date: 目标日期（最新交易日）
+            categories: 需要计算的标签分类
+            klines_dict: 按日期索引的K线数据字典
+            
+        Returns:
+            int: 保存的标签数量
+        """
+        # 获取最后标签更新日期
+        stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates([stock_id])
+        last_update_date = stock_last_update_dates.get(stock_id)
+        
+        if not last_update_date:
+            # 从未更新过，从最早日期开始
+            if klines_dict:
+                first_kline_date = min(klines_dict.keys())
+                current_date = DateUtils.parse_yyyymmdd(first_kline_date)
+            else:
+                return 0
+        else:
+            current_date = DateUtils.parse_yyyymmdd(last_update_date)
+        
+        MIN_INTERVAL = 15  # hard code最小间隔阈值（天）
+        target_dt = DateUtils.parse_yyyymmdd(target_date)
+        total_labels_saved = 0
+        
+        # 获取排序后的K线日期列表
+        kline_dates = sorted(klines_dict.keys())
+        
+        # 使用二分查找优化性能
+        def find_nearest_trading_day(target_date: str) -> str:
+            """使用二分查找找到最近的交易日"""
+            if target_date in klines_dict:
+                return target_date
+            
+            # 二分查找最后一个小于等于target_date的日期
+            left, right = 0, len(kline_dates) - 1
+            result = None
+            
+            while left <= right:
+                mid = (left + right) // 2
+                if kline_dates[mid] <= target_date:
+                    result = kline_dates[mid]
+                    left = mid + 1
+                else:
+                    right = mid - 1
+            
+            return result
+        
+        # 批量保存标签数据
+        labels_to_save = []
+        
+        while True:
+            # 计算目标日期
+            next_target_date = DateUtils.get_date_after_days(DateUtils.format_to_yyyymmdd(current_date), 30)
+            next_target_dt = DateUtils.parse_yyyymmdd(next_target_date)
+            
+            # 检查是否超过结束条件
+            if next_target_dt > target_dt:
+                break
+            
+            # 查找实际交易日（使用二分查找优化）
+            actual_trading_day = find_nearest_trading_day(next_target_date)
+            
+            if not actual_trading_day:
+                # 没有找到交易日，跳过
+                current_date = next_target_dt
+                continue
+            
+            # 阈值判断
+            actual_dt = DateUtils.parse_yyyymmdd(actual_trading_day)
+            days_since_last_update = (actual_dt - current_date).days
+            
+            if days_since_last_update < MIN_INTERVAL:
+                # 距离太近，跳过本次计算，强制推进到下一个30天周期
+                current_date = next_target_dt
+                continue
+            
+            # 计算标签
+            labels = self._calculate_labels_for_date(stock_id, actual_trading_day, categories, klines_dict)
+            if labels:
+                labels_to_save.append({
+                    'stock_id': stock_id,
+                    'label_date': actual_trading_day,
+                    'labels': labels
+                })
+                total_labels_saved += 1
+            
+            # 推进到下一个周期
+            current_date = actual_dt
+        
+        # 批量保存所有标签
+        if labels_to_save:
+            self._batch_save_stock_labels(labels_to_save)
+        
+        return total_labels_saved
+    
+    def _calculate_labels_for_date(self, stock_id: str, date: str, categories: List[str], klines_dict: Dict[str, Dict]) -> List[str]:
+        """
+        为指定日期计算标签
+        
+        Args:
+            stock_id: 股票代码
+            date: 日期
+            categories: 标签分类列表
+            klines_dict: 按日期索引的K线数据字典
+            
+        Returns:
+            List[str]: 计算出的标签列表
+        """
+        all_labels = []
+        
+        # 获取指定日期的K线数据
+        target_kline = klines_dict.get(date)
+        if not target_kline:
+            logger.warning(f"无法找到 {stock_id} 在 {date} 的K线数据")
+            return all_labels
+        
+        # 为标签计算器提供该日期的K线数据
+        klines_for_date = [target_kline]
+        
+        for category in categories:
+            try:
+                calculator = self.get_calculator(category)
+                if calculator:
+                    labels = calculator.calculate_labels_for_stock(
+                        stock_id, date, 
+                        klines_data=klines_for_date,
+                        data_loader=self.data_loader
+                    )
+                    if labels:
+                        all_labels.extend(labels)
+            except Exception as e:
+                logger.warning(f"计算标签失败 {stock_id} {date} {category}: {e}")
+                continue
+        
+        return all_labels
     
     def _generate_historical_dates(self, stock_id: str, target_date: str) -> List[str]:
         """
@@ -507,14 +786,32 @@ class LabelerService:
                 # 从未更新过，从最早日期开始生成所有历史日期
                 return self._generate_all_historical_dates(stock_id, target_date)
             
-            # 从上次更新时间向后30天，找到对应的K线数据截止日期
-            last_update_dt = datetime.strptime(last_update_date, '%Y%m%d')
-            next_update_dt = last_update_dt + timedelta(days=30)
+            # 注意：这里不应该再次检查是否需要更新
+            # 因为job已经被构建，说明确实需要更新
+            # 如果再次检查，可能会导致状态不一致
             
-            # 查找这个日期附近的最后一个交易日
-            nearest_trading_day = self._find_nearest_trading_day(stock_id, next_update_dt.strftime('%Y%m%d'))
-            if nearest_trading_day:
-                return [nearest_trading_day]
+            # 增量更新策略：从最后更新日期开始，生成需要更新的日期
+            # 对于长时间未更新的股票，我们需要生成更多的日期
+            current_dt = DateUtils.parse_yyyymmdd(target_date)
+            last_update_dt = DateUtils.parse_yyyymmdd(last_update_date)
+            days_since_update = (current_dt - last_update_dt).days
+            
+            if days_since_update > 365:  # 超过1年未更新
+                # 对于长时间未更新的股票，生成最近30天的交易日
+                start_dt = DateUtils.get_date_before_days(target_date, 30)
+                end_date = target_date
+                klines = self.data_loader.load_klines(stock_id, start_date=start_dt, end_date=end_date)
+                if klines:
+                    # 返回最近的交易日
+                    trading_days = [kline['date'] for kline in klines if kline.get('date')]
+                    if trading_days:
+                        return [trading_days[-1]]  # 返回最后一个交易日
+            else:
+                # 对于短期未更新的股票，使用原来的策略
+                next_update_dt = DateUtils.get_date_after_days(last_update_date, 30)
+                nearest_trading_day = self._find_nearest_trading_day(stock_id, next_update_dt)
+                if nearest_trading_day:
+                    return [nearest_trading_day]
             
             return []
             
@@ -542,16 +839,16 @@ class LabelerService:
                 logger.warning(f"无法获取股票 {stock_id} 的最早K线日期")
                 return [target_date]
             
-            start_dt = datetime.strptime(earliest_date, '%Y%m%d')
-            end_dt = datetime.strptime(target_date, '%Y%m%d')
+            start_dt = DateUtils.parse_yyyymmdd(earliest_date)
+            end_dt = DateUtils.parse_yyyymmdd(target_date)
             
             dates = []
             current_dt = start_dt
             
             # 从最早日期开始，每30天生成一个标签
             while current_dt <= end_dt:
-                dates.append(current_dt.strftime('%Y%m%d'))
-                current_dt += timedelta(days=30)  # 每1个月
+                dates.append(DateUtils.format_to_yyyymmdd(current_dt))
+                current_dt = DateUtils.parse_yyyymmdd(DateUtils.get_date_after_days(DateUtils.format_to_yyyymmdd(current_dt), 30))  # 每1个月
             
             return dates
             
@@ -574,16 +871,16 @@ class LabelerService:
         try:
             from datetime import datetime, timedelta
             
-            start_dt = datetime.strptime(last_update_date, '%Y%m%d')
-            end_dt = datetime.strptime(target_date, '%Y%m%d')
+            start_dt = DateUtils.parse_yyyymmdd(last_update_date)
+            end_dt = DateUtils.parse_yyyymmdd(target_date)
             
             dates = []
             current_dt = start_dt + timedelta(days=30)  # 从上次更新后30天开始
             
             # 从上次更新日期开始，每30天生成一个标签，直到目标日期
             while current_dt <= end_dt:
-                dates.append(current_dt.strftime('%Y%m%d'))
-                current_dt += timedelta(days=30)  # 每1个月
+                dates.append(DateUtils.format_to_yyyymmdd(current_dt))
+                current_dt = DateUtils.parse_yyyymmdd(DateUtils.get_date_after_days(DateUtils.format_to_yyyymmdd(current_dt), 30))  # 每1个月
             
             # 如果没有生成任何日期，说明距离上次更新刚好30天，直接使用目标日期
             if not dates:
@@ -622,7 +919,7 @@ class LabelerService:
                 if isinstance(earliest_date, str):
                     return earliest_date.replace('-', '')
                 else:
-                    return earliest_date.strftime('%Y%m%d')
+                    return DateUtils.format_to_yyyymmdd(earliest_date)
             
             return None
             
@@ -680,11 +977,10 @@ class LabelerService:
             # 计算日期范围，为了满足计算器需求，需要获取更长的历史数据
             from datetime import datetime, timedelta
             end_date = max(dates)
-            end_dt = datetime.strptime(end_date, '%Y%m%d')
+            end_dt = DateUtils.parse_yyyymmdd(end_date)
             
             # 获取足够长的历史数据（比如过去1年的数据，确保计算器有足够的历史数据）
-            start_dt = end_dt - timedelta(days=365)
-            start_date = start_dt.strftime('%Y%m%d')
+            start_date = DateUtils.get_date_before_days(end_date, 365)
             
             # 一次性获取日期范围内的所有K线数据
             all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
@@ -726,7 +1022,7 @@ class LabelerService:
             if not available_dates:
                 return None
             
-            target_dt = datetime.strptime(target_date, '%Y%m%d')
+            target_dt = DateUtils.parse_yyyymmdd(target_date)
             available_dates.sort()
             
             # 找到最接近的日期
@@ -734,7 +1030,7 @@ class LabelerService:
             nearest_date = None
             
             for available_date in available_dates:
-                available_dt = datetime.strptime(available_date, '%Y%m%d')
+                available_dt = DateUtils.parse_yyyymmdd(available_date)
                 diff = abs((target_dt - available_dt).days)
                 
                 if diff < min_diff:
@@ -764,7 +1060,7 @@ class LabelerService:
             Optional[str]: 最近的交易日，如果找不到返回None
         """
         try:
-            target_dt = datetime.strptime(target_date, '%Y%m%d')
+            target_dt = DateUtils.parse_yyyymmdd(target_date)
             
             if available_dates:
                 # 使用提供的可用日期列表
@@ -772,7 +1068,7 @@ class LabelerService:
                 nearest_date = None
                 
                 for available_date in available_dates:
-                    available_dt = datetime.strptime(available_date, '%Y%m%d')
+                    available_dt = DateUtils.parse_yyyymmdd(available_date)
                     diff = abs((target_dt - available_dt).days)
                     
                     if diff < min_diff:
@@ -789,8 +1085,8 @@ class LabelerService:
                 start_dt = target_dt - timedelta(days=7)
                 end_dt = target_dt + timedelta(days=7)
                 
-                start_date = start_dt.strftime('%Y%m%d')
-                end_date = end_dt.strftime('%Y%m%d')
+                start_date = DateUtils.format_to_yyyymmdd(start_dt)
+                end_date = DateUtils.format_to_yyyymmdd(end_dt)
                 
                 klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
                 if not klines:
@@ -805,7 +1101,7 @@ class LabelerService:
                     if not kline_date:
                         continue
                         
-                    kline_dt = datetime.strptime(kline_date, '%Y%m%d')
+                    kline_dt = DateUtils.parse_yyyymmdd(kline_date)
                     diff = abs((target_dt - kline_dt).days)
                     
                     if diff < min_diff:
@@ -838,11 +1134,8 @@ class LabelerService:
             # 只获取从上次更新日期到目标日期的K线数据
             # 添加一些缓冲天数以确保有足够的数据用于计算（比如波动率需要历史数据）
             from datetime import datetime, timedelta
-            start_dt = datetime.strptime(last_update_date, '%Y%m%d') - timedelta(days=30)  # 往前推30天作为缓冲
-            end_dt = datetime.strptime(target_date, '%Y%m%d')
-            
-            start_date = start_dt.strftime('%Y%m%d')
-            end_date = end_dt.strftime('%Y%m%d')
+            start_date = DateUtils.get_date_before_days(last_update_date, 30)  # 往前推30天作为缓冲
+            end_date = target_date
             
             # 只获取增量时间范围内的K线数据
             all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
@@ -897,6 +1190,103 @@ class LabelerService:
             
         except Exception as e:
             logger.error(f"保存股票标签失败 {stock_id} {target_date}: {e}")
+    
+    def _batch_save_stock_labels(self, labels_to_save: List[Dict[str, Any]]):
+        """
+        批量保存股票标签到数据库
+        
+        Args:
+            labels_to_save: 要保存的标签数据列表
+        """
+        try:
+            if not labels_to_save:
+                return
+            
+            # 批量保存到数据库
+            self.data_loader.label_loader.batch_save_stock_labels(labels_to_save)
+            
+            logger.info(f"批量保存了 {len(labels_to_save)} 条标签记录")
+            
+        except Exception as e:
+            logger.error(f"批量保存股票标签失败: {e}")
+            # 如果批量保存失败，回退到单个保存
+            for label_data in labels_to_save:
+                try:
+                    self._save_stock_labels(
+                        label_data['stock_id'], 
+                        label_data['label_date'], 
+                        label_data['labels']
+                    )
+                except Exception as single_error:
+                    logger.error(f"单个保存标签失败 {label_data['stock_id']} {label_data['label_date']}: {single_error}")
+    
+    def _save_no_label_record(self, stock_id: str, target_date: str, categories: List[str], 
+                             date_klines: List[Dict], all_klines_data: Dict[str, List[Dict]]):
+        """
+        记录无法计算标签的情况
+        
+        Args:
+            stock_id: 股票代码
+            target_date: 目标日期
+            categories: 尝试计算的标签分类
+            date_klines: 当日K线数据
+            all_klines_data: 所有K线数据
+        """
+        try:
+            # 分析无法计算标签的原因
+            reasons = []
+            
+            # 检查K线数据
+            if not date_klines:
+                reasons.append("当日无K线数据")
+            elif len(date_klines) < 10:
+                reasons.append(f"当日K线数据不足({len(date_klines)}条)")
+            
+            # 检查历史K线数据
+            total_klines = sum(len(klines) for klines in all_klines_data.values() if klines)
+            if total_klines < 100:
+                reasons.append(f"历史K线数据不足({total_klines}条)")
+            
+            # 检查各个计算器的状态
+            calculator_issues = []
+            for category in categories:
+                try:
+                    calculator = self.get_calculator(category)
+                    if not calculator:
+                        calculator_issues.append(f"{category}:计算器未注册")
+                    else:
+                        # 尝试计算但不保存结果，检查是否有异常
+                        all_klines_list = []
+                        for date_klines in all_klines_data.values():
+                            if date_klines:
+                                all_klines_list.extend(date_klines)
+                        
+                        if all_klines_list:
+                            labels = calculator.calculate_labels_for_stock(
+                                stock_id, target_date, 
+                                klines_data=all_klines_list,
+                                data_loader=self.data_loader
+                            )
+                            if not labels:
+                                calculator_issues.append(f"{category}:无标签生成")
+                except Exception as e:
+                    calculator_issues.append(f"{category}:计算异常({str(e)[:50]})")
+            
+            if calculator_issues:
+                reasons.extend(calculator_issues)
+            
+            # 生成详细的失败原因
+            failure_reason = "; ".join(reasons) if reasons else "未知原因"
+            
+            # 保存"no_label"标签，包含失败原因
+            no_label_tag = f"no_label_{len(reasons)}_reasons"
+            self._save_stock_labels(stock_id, target_date, [no_label_tag])
+            
+            # 记录详细的失败日志
+            logger.warning(f"股票 {stock_id} 在 {target_date} 无法计算标签: {failure_reason}")
+            
+        except Exception as e:
+            logger.error(f"❌ 记录无标签情况失败 {stock_id} {target_date}: {e}")
     
     
     # ============ 标签查询接口 ============
@@ -953,10 +1343,10 @@ class LabelerService:
         try:
             # 这里可以从数据库或API获取最新交易日
             # 暂时返回当前日期作为默认值
-            return datetime.now().strftime('%Y%m%d')
+            return DateUtils.get_current_date_str()
         except Exception as e:
             logger.error(f"获取最新交易日失败: {e}")
-            return datetime.now().strftime('%Y%m%d')
+            return DateUtils.get_current_date_str()
     
     def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
         """

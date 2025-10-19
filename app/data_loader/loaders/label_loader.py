@@ -3,7 +3,7 @@
 标签数据加载器
 """
 from typing import List, Dict, Any, Optional
-from datetime import datetime, date
+from utils.date.date_utils import DateUtils
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
 from utils.db.tables.stock_labels.model import StockLabelModel
@@ -19,30 +19,143 @@ class LabelLoader:
     - 批量标签计算和保存
     """
     
-    def __init__(self, db: DatabaseManager):
+    def __init__(self, db=None):
         """
         初始化标签加载器
         
         Args:
-            db: 数据库管理器实例
+            db: DatabaseManager实例，如果为None则自行创建
         """
-        self.stock_label_model = db.get_table_instance('stock_labels')
+        if db is not None:
+            # 使用外部传入的DatabaseManager实例（推荐，共享连接池）
+            self.db = db
+        else:
+            # 自行管理DatabaseManager（向后兼容）
+            from utils.db.db_manager import DatabaseManager
+            self.db = DatabaseManager()
+        self.db.initialize()
+        self.stock_label_model = self.db.get_table_instance('stock_labels')
     
-    def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
+    def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None, max_days_back: int = 90) -> Dict[str, Any]:
         """
-        获取股票在指定日期的标签
+        获取股票在指定日期的标签，带时间阈值限制
         
         Args:
             stock_id: 股票代码
             target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
+            max_days_back: 最大回退天数，默认90天
             
         Returns:
-            List[str]: 标签ID列表
+            Dict包含:
+            - labels: 标签列表
+            - label_date: 标签实际日期
+            - days_back: 回退天数
+            - is_valid: 是否在阈值内
         """
         if target_date is None:
-            target_date = datetime.now().strftime('%Y-%m-%d')
+            target_date = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         
-        return self.stock_label_model.get_stock_labels_by_date_range(stock_id, target_date)
+        return self.stock_label_model.get_stock_labels_by_date_range(stock_id, target_date, max_days_back)
+    
+    def get_stock_labels_by_category(self, stock_id: str, category: str, target_date: Optional[str] = None, max_days_back: int = 90) -> Dict[str, Any]:
+        """
+        获取股票在指定日期的特定分类标签，带时间阈值限制
+        
+        Args:
+            stock_id: 股票代码
+            category: 标签分类（如 market_cap, industry, volatility 等）
+            target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
+            max_days_back: 最大回退天数，默认90天
+            
+        Returns:
+            Dict包含:
+            - labels: 该分类的标签列表
+            - label_date: 标签实际日期
+            - days_back: 回退天数
+            - is_valid: 是否在阈值内
+        """
+        try:
+            # 获取所有标签
+            label_info = self.get_stock_labels(stock_id, target_date, max_days_back)
+            
+            # 从标签定义中获取该分类的所有可能标签
+            from app.labeler.conf.label_mapping import LabelMapping
+            label_mapping = LabelMapping()
+            category_labels = label_mapping.get_labels_by_category(category)
+            
+            # 过滤出属于该分类的标签
+            filtered_labels = []
+            for label in label_info['labels']:
+                if label in category_labels:
+                    filtered_labels.append(label)
+            
+            # 返回相同结构的信息，但只包含特定分类的标签
+            return {
+                'labels': filtered_labels,
+                'label_date': label_info['label_date'],
+                'days_back': label_info['days_back'],
+                'is_valid': label_info['is_valid']
+            }
+            
+        except Exception as e:
+            logger.error(f"获取股票分类标签失败 {stock_id} {category}: {e}")
+            return {
+                'labels': [],
+                'label_date': None,
+                'days_back': None,
+                'is_valid': False
+            }
+    
+    def get_stock_labels_by_date_range(self, stock_id: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        """
+        获取股票在指定日期范围内的所有标签记录
+        
+        Args:
+            stock_id: 股票代码
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+            
+        Returns:
+            List[Dict]: 标签记录列表，格式为 [{'date': 'YYYY-MM-DD', 'label_id': 'label_id'}, ...]
+        """
+        try:
+            # 使用一次性查询获取日期范围内的所有标签记录
+            condition = "stock_id = %s AND label_date >= %s AND label_date <= %s"
+            params = (stock_id, start_date, end_date)
+            order_by = "label_date ASC"
+            
+            # 一次性查询所有记录
+            results = self.stock_label_model.load(condition, params, order_by)
+            
+            # 解析标签数据
+            records = []
+            for result in results:
+                label_date = result.get('label_date')
+                labels_str = result.get('labels', '')
+                
+                if label_date and labels_str:
+                    # 解析标签字符串
+                    label_ids = self.stock_label_model._parse_labels_string(labels_str)
+                    
+                    # 格式化日期
+                    if isinstance(label_date, str):
+                        formatted_date = label_date
+                    else:
+                        # 如果是datetime.date对象，转换为字符串
+                        formatted_date = label_date.strftime('%Y-%m-%d')
+                    
+                    # 为每个标签ID创建记录
+                    for label_id in label_ids:
+                        records.append({
+                            'date': formatted_date,
+                            'label_id': label_id
+                        })
+            
+            return records
+            
+        except Exception as e:
+            logger.error(f"获取股票标签记录失败 {stock_id} {start_date}-{end_date}: {e}")
+            return []
     
     def save_stock_labels(self, stock_id: str, label_date: str, labels: List[str]):
         """
@@ -108,7 +221,7 @@ class LabelLoader:
             List[str]: 股票代码列表
         """
         if target_date is None:
-            target_date = datetime.now().strftime('%Y-%m-%d')
+            target_date = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         
         return self.stock_label_model.get_stocks_with_label(label_id, target_date)
     
@@ -123,7 +236,7 @@ class LabelLoader:
             Dict: 标签统计信息
         """
         if target_date is None:
-            target_date = datetime.now().strftime('%Y-%m-%d')
+            target_date = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         
         return self.stock_label_model.get_label_statistics(target_date)
     
@@ -165,3 +278,27 @@ class LabelLoader:
             List[str]: 标签列表
         """
         return self.stock_label_model.get_stock_labels_by_date(stock_id, target_date)
+    
+    def batch_save_stock_labels(self, labels_to_save: List[Dict[str, Any]]) -> bool:
+        """
+        批量保存股票标签记录
+        
+        Args:
+            labels_to_save: 要保存的标签数据列表，每个元素包含：
+                - stock_id: 股票代码
+                - label_date: 标签日期
+                - labels: 标签列表
+                
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not labels_to_save:
+                return True
+            
+            # 批量保存到数据库
+            return self.stock_label_model.batch_upsert_stock_labels(labels_to_save)
+            
+        except Exception as e:
+            logger.error(f"批量保存股票标签失败: {e}")
+            return False

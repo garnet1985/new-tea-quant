@@ -36,37 +36,47 @@ class LabelLoader:
         self.db.initialize()
         self.stock_label_model = self.db.get_table_instance('stock_labels')
     
-    def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
+    def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None, max_days_back: int = 90) -> Dict[str, Any]:
         """
-        获取股票在指定日期的标签
+        获取股票在指定日期的标签，带时间阈值限制
         
         Args:
             stock_id: 股票代码
             target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
+            max_days_back: 最大回退天数，默认90天
             
         Returns:
-            List[str]: 标签ID列表
+            Dict包含:
+            - labels: 标签列表
+            - label_date: 标签实际日期
+            - days_back: 回退天数
+            - is_valid: 是否在阈值内
         """
         if target_date is None:
             target_date = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         
-        return self.stock_label_model.get_stock_labels_by_date_range(stock_id, target_date)
+        return self.stock_label_model.get_stock_labels_by_date_range(stock_id, target_date, max_days_back)
     
-    def get_stock_labels_by_category(self, stock_id: str, category: str, target_date: Optional[str] = None) -> List[str]:
+    def get_stock_labels_by_category(self, stock_id: str, category: str, target_date: Optional[str] = None, max_days_back: int = 90) -> Dict[str, Any]:
         """
-        获取股票在指定日期的特定分类标签
+        获取股票在指定日期的特定分类标签，带时间阈值限制
         
         Args:
             stock_id: 股票代码
             category: 标签分类（如 market_cap, industry, volatility 等）
             target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
+            max_days_back: 最大回退天数，默认90天
             
         Returns:
-            List[str]: 该分类的标签ID列表
+            Dict包含:
+            - labels: 该分类的标签列表
+            - label_date: 标签实际日期
+            - days_back: 回退天数
+            - is_valid: 是否在阈值内
         """
         try:
             # 获取所有标签
-            all_labels = self.get_stock_labels(stock_id, target_date)
+            label_info = self.get_stock_labels(stock_id, target_date, max_days_back)
             
             # 从标签定义中获取该分类的所有可能标签
             from app.labeler.conf.label_mapping import LabelMapping
@@ -75,15 +85,26 @@ class LabelLoader:
             
             # 过滤出属于该分类的标签
             filtered_labels = []
-            for label in all_labels:
+            for label in label_info['labels']:
                 if label in category_labels:
                     filtered_labels.append(label)
             
-            return filtered_labels
+            # 返回相同结构的信息，但只包含特定分类的标签
+            return {
+                'labels': filtered_labels,
+                'label_date': label_info['label_date'],
+                'days_back': label_info['days_back'],
+                'is_valid': label_info['is_valid']
+            }
             
         except Exception as e:
             logger.error(f"获取股票分类标签失败 {stock_id} {category}: {e}")
-            return []
+            return {
+                'labels': [],
+                'label_date': None,
+                'days_back': None,
+                'is_valid': False
+            }
     
     def get_stock_labels_by_date_range(self, stock_id: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """
@@ -242,3 +263,27 @@ class LabelLoader:
             List[str]: 标签列表
         """
         return self.stock_label_model.get_stock_labels_by_date(stock_id, target_date)
+    
+    def batch_save_stock_labels(self, labels_to_save: List[Dict[str, Any]]) -> bool:
+        """
+        批量保存股票标签记录
+        
+        Args:
+            labels_to_save: 要保存的标签数据列表，每个元素包含：
+                - stock_id: 股票代码
+                - label_date: 标签日期
+                - labels: 标签列表
+                
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not labels_to_save:
+                return True
+            
+            # 批量保存到数据库
+            return self.stock_label_model.batch_upsert_stock_labels(labels_to_save)
+            
+        except Exception as e:
+            logger.error(f"批量保存股票标签失败: {e}")
+            return False

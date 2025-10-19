@@ -119,25 +119,35 @@ class LabelLoader:
             List[Dict]: 标签记录列表，格式为 [{'date': 'YYYY-MM-DD', 'label_id': 'label_id'}, ...]
         """
         try:
-            # 由于数据库模型只支持单个日期查询，我们需要获取多个日期的标签
+            # 使用一次性查询获取日期范围内的所有标签记录
+            condition = "stock_id = %s AND label_date >= %s AND label_date <= %s"
+            params = (stock_id, start_date, end_date)
+            order_by = "label_date ASC"
+            
+            # 一次性查询所有记录
+            results = self.stock_label_model.load(condition, params, order_by)
+            
+            # 解析标签数据
             records = []
-            
-            # 生成日期范围
-            from utils.date.date_utils import DateUtils
-            date_list = DateUtils.generate_date_range(
-                start_date, end_date, 
-                start_format=DateUtils.DATE_FORMAT_YYYY_MM_DD,
-                end_format=DateUtils.DATE_FORMAT_YYYY_MM_DD,
-                output_format=DateUtils.DATE_FORMAT_YYYY_MM_DD
-            )
-            
-            for date_str in date_list:
-                # 获取该日期的标签
-                label_info = self.stock_label_model.get_stock_labels_by_date_range(stock_id, date_str)
-                if label_info and label_info.get('labels'):
-                    for label_id in label_info['labels']:
+            for result in results:
+                label_date = result.get('label_date')
+                labels_str = result.get('labels', '')
+                
+                if label_date and labels_str:
+                    # 解析标签字符串
+                    label_ids = self.stock_label_model._parse_labels_string(labels_str)
+                    
+                    # 格式化日期
+                    if isinstance(label_date, str):
+                        formatted_date = label_date
+                    else:
+                        # 如果是datetime.date对象，转换为字符串
+                        formatted_date = label_date.strftime('%Y-%m-%d')
+                    
+                    # 为每个标签ID创建记录
+                    for label_id in label_ids:
                         records.append({
-                            'date': date_str,
+                            'date': formatted_date,
                             'label_id': label_id
                         })
             

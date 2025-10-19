@@ -13,15 +13,22 @@ from ..helpers import AdjustmentHelper, FilteringHelper
 class KlineLoader:
     """K线数据加载器"""
     
-    def __init__(self):
+    def __init__(self, db=None):
         """
         初始化K线加载器
         
-        注意：自行管理DatabaseManager，不依赖外部传入
+        Args:
+            db: DatabaseManager实例，如果为None则自行创建
         """
-        from utils.db.db_manager import DatabaseManager
-        self.db = DatabaseManager()
-        self.db.initialize()
+        if db is not None:
+            # 使用外部传入的DatabaseManager实例（推荐，共享连接池）
+            self.db = db
+        else:
+            # 自行管理DatabaseManager（向后兼容）
+            from utils.db.db_manager import DatabaseManager
+            self.db = DatabaseManager()
+            self.db.initialize()
+        
         self.kline_table = self.db.get_table_instance('stock_kline')
         self.adj_factor_table = self.db.get_table_instance('adj_factor')
     

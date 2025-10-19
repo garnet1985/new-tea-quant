@@ -37,19 +37,41 @@ class DataLoader:
     
     使用方式：
         from app.data_loader import DataLoader
+        from utils.db.db_manager import DatabaseManager
         
+        # 方式1：外部传入DatabaseManager实例（推荐，支持连接池共享）
+        db = DatabaseManager(use_connection_pool=True)
+        db.initialize()
+        loader = DataLoader(db)
+        
+        # 方式2：DataLoader自行创建DatabaseManager（向后兼容）
         loader = DataLoader()
-        data = loader.prepare_data(stock, settings)
+        
+        data = loader.prepare_data(stock, planner_settings)
     """
     
-    def __init__(self):
+    def __init__(self, db=None):
         """
         初始化数据加载器（Proxy模式）
         
-        注意：不再直接依赖DatabaseManager，由子loaders自行管理
+        Args:
+            db: DatabaseManager实例，如果为None则自行创建
+               外部应用可以传入自己的DatabaseManager实例以共享连接池
+        
+        注意：子loaders共享同一个DatabaseManager实例和连接池
         """
-        self.kline_loader = KlineLoader()
-        self.label_loader = LabelLoader()
+        if db is not None:
+            # 使用外部传入的DatabaseManager实例（推荐，支持更高层级的连接池共享）
+            self.db = db
+        else:
+            # 自行创建DatabaseManager实例（向后兼容）
+            from utils.db.db_manager import DatabaseManager
+            self.db = DatabaseManager(use_connection_pool=True)
+            self.db.initialize()
+        
+        # 子loaders使用共享的DatabaseManager实例
+        self.kline_loader = KlineLoader(self.db)
+        self.label_loader = LabelLoader(self.db)
     
     def prepare_data(self, stock: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -292,11 +314,8 @@ class DataLoader:
             # 加载特定交易所
             stocks = loader.load_stock_list(exchange_center='SSE')
         """
-        # 通过数据库获取股票列表
-        from utils.db.db_manager import DatabaseManager
-        db = DatabaseManager()
-        db.initialize()
-        table = db.get_table_instance('stock_list')
+        # 使用缓存的数据库实例获取股票列表
+        table = self.db.get_table_instance('stock_list')
         
         # 优先使用简单条件过滤（性能更好）
         if industry:

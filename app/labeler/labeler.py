@@ -675,6 +675,9 @@ class LabelerService:
             
             return result
         
+        # 批量保存标签数据
+        labels_to_save = []
+        
         while True:
             # 计算目标日期
             next_target_date = DateUtils.get_date_after_days(DateUtils.format_to_yyyymmdd(current_date), 30)
@@ -704,11 +707,19 @@ class LabelerService:
             # 计算标签
             labels = self._calculate_labels_for_date(stock_id, actual_trading_day, categories, klines_dict)
             if labels:
-                self._save_stock_labels(stock_id, actual_trading_day, labels)
+                labels_to_save.append({
+                    'stock_id': stock_id,
+                    'label_date': actual_trading_day,
+                    'labels': labels
+                })
                 total_labels_saved += 1
             
             # 推进到下一个周期
             current_date = actual_dt
+        
+        # 批量保存所有标签
+        if labels_to_save:
+            self._batch_save_stock_labels(labels_to_save)
         
         return total_labels_saved
     
@@ -1179,6 +1190,35 @@ class LabelerService:
             
         except Exception as e:
             logger.error(f"保存股票标签失败 {stock_id} {target_date}: {e}")
+    
+    def _batch_save_stock_labels(self, labels_to_save: List[Dict[str, Any]]):
+        """
+        批量保存股票标签到数据库
+        
+        Args:
+            labels_to_save: 要保存的标签数据列表
+        """
+        try:
+            if not labels_to_save:
+                return
+            
+            # 批量保存到数据库
+            self.data_loader.label_loader.batch_save_stock_labels(labels_to_save)
+            
+            logger.info(f"批量保存了 {len(labels_to_save)} 条标签记录")
+            
+        except Exception as e:
+            logger.error(f"批量保存股票标签失败: {e}")
+            # 如果批量保存失败，回退到单个保存
+            for label_data in labels_to_save:
+                try:
+                    self._save_stock_labels(
+                        label_data['stock_id'], 
+                        label_data['label_date'], 
+                        label_data['labels']
+                    )
+                except Exception as single_error:
+                    logger.error(f"单个保存标签失败 {label_data['stock_id']} {label_data['label_date']}: {single_error}")
     
     def _save_no_label_record(self, stock_id: str, target_date: str, categories: List[str], 
                              date_klines: List[Dict], all_klines_data: Dict[str, List[Dict]]):

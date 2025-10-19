@@ -17,6 +17,7 @@
 - LabelMapping: 标签映射定义
 """
 
+from datetime import timedelta
 import time
 from typing import Dict, List, Any, Optional, Tuple
 from utils.date.date_utils import DateUtils
@@ -57,7 +58,7 @@ class LabelerService:
             db.initialize()
         
         self.db = db
-        self.data_loader = DataLoader(db)
+        self.data_loader = DataLoader()
         
         # 初始化标签定义管理器
         self.label_definitions = LabelMapping()
@@ -213,7 +214,7 @@ class LabelerService:
                     continue
                 
                 # 计算距离上次更新的天数
-                last_update_dt = datetime.strptime(last_update_date, '%Y%m%d')
+                last_update_dt = DateUtils.parse_yyyymmdd(last_update_date)
                 days_since_update = (current_dt - last_update_dt).days
                 
                 
@@ -508,11 +509,11 @@ class LabelerService:
                 return self._generate_all_historical_dates(stock_id, target_date)
             
             # 从上次更新时间向后30天，找到对应的K线数据截止日期
-            last_update_dt = datetime.strptime(last_update_date, '%Y%m%d')
-            next_update_dt = last_update_dt + timedelta(days=30)
+            last_update_dt = DateUtils.parse_yyyymmdd(last_update_date)
+            next_update_dt = DateUtils.get_date_after_days(last_update_date, 30)
             
             # 查找这个日期附近的最后一个交易日
-            nearest_trading_day = self._find_nearest_trading_day(stock_id, next_update_dt.strftime('%Y%m%d'))
+            nearest_trading_day = self._find_nearest_trading_day(stock_id, next_update_dt)
             if nearest_trading_day:
                 return [nearest_trading_day]
             
@@ -542,16 +543,16 @@ class LabelerService:
                 logger.warning(f"无法获取股票 {stock_id} 的最早K线日期")
                 return [target_date]
             
-            start_dt = datetime.strptime(earliest_date, '%Y%m%d')
-            end_dt = datetime.strptime(target_date, '%Y%m%d')
+            start_dt = DateUtils.parse_yyyymmdd(earliest_date)
+            end_dt = DateUtils.parse_yyyymmdd(target_date)
             
             dates = []
             current_dt = start_dt
             
             # 从最早日期开始，每30天生成一个标签
             while current_dt <= end_dt:
-                dates.append(current_dt.strftime('%Y%m%d'))
-                current_dt += timedelta(days=30)  # 每1个月
+                dates.append(DateUtils.format_to_yyyymmdd(current_dt))
+                current_dt = DateUtils.parse_yyyymmdd(DateUtils.get_date_after_days(DateUtils.format_to_yyyymmdd(current_dt), 30))  # 每1个月
             
             return dates
             
@@ -574,16 +575,16 @@ class LabelerService:
         try:
             from datetime import datetime, timedelta
             
-            start_dt = datetime.strptime(last_update_date, '%Y%m%d')
-            end_dt = datetime.strptime(target_date, '%Y%m%d')
+            start_dt = DateUtils.parse_yyyymmdd(last_update_date)
+            end_dt = DateUtils.parse_yyyymmdd(target_date)
             
             dates = []
             current_dt = start_dt + timedelta(days=30)  # 从上次更新后30天开始
             
             # 从上次更新日期开始，每30天生成一个标签，直到目标日期
             while current_dt <= end_dt:
-                dates.append(current_dt.strftime('%Y%m%d'))
-                current_dt += timedelta(days=30)  # 每1个月
+                dates.append(DateUtils.format_to_yyyymmdd(current_dt))
+                current_dt = DateUtils.parse_yyyymmdd(DateUtils.get_date_after_days(DateUtils.format_to_yyyymmdd(current_dt), 30))  # 每1个月
             
             # 如果没有生成任何日期，说明距离上次更新刚好30天，直接使用目标日期
             if not dates:
@@ -622,7 +623,7 @@ class LabelerService:
                 if isinstance(earliest_date, str):
                     return earliest_date.replace('-', '')
                 else:
-                    return earliest_date.strftime('%Y%m%d')
+                    return DateUtils.format_to_yyyymmdd(earliest_date)
             
             return None
             
@@ -680,11 +681,10 @@ class LabelerService:
             # 计算日期范围，为了满足计算器需求，需要获取更长的历史数据
             from datetime import datetime, timedelta
             end_date = max(dates)
-            end_dt = datetime.strptime(end_date, '%Y%m%d')
+            end_dt = DateUtils.parse_yyyymmdd(end_date)
             
             # 获取足够长的历史数据（比如过去1年的数据，确保计算器有足够的历史数据）
-            start_dt = end_dt - timedelta(days=365)
-            start_date = start_dt.strftime('%Y%m%d')
+            start_date = DateUtils.get_date_before_days(end_date, 365)
             
             # 一次性获取日期范围内的所有K线数据
             all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
@@ -726,7 +726,7 @@ class LabelerService:
             if not available_dates:
                 return None
             
-            target_dt = datetime.strptime(target_date, '%Y%m%d')
+            target_dt = DateUtils.parse_yyyymmdd(target_date)
             available_dates.sort()
             
             # 找到最接近的日期
@@ -734,7 +734,7 @@ class LabelerService:
             nearest_date = None
             
             for available_date in available_dates:
-                available_dt = datetime.strptime(available_date, '%Y%m%d')
+                available_dt = DateUtils.parse_yyyymmdd(available_date)
                 diff = abs((target_dt - available_dt).days)
                 
                 if diff < min_diff:
@@ -764,7 +764,7 @@ class LabelerService:
             Optional[str]: 最近的交易日，如果找不到返回None
         """
         try:
-            target_dt = datetime.strptime(target_date, '%Y%m%d')
+            target_dt = DateUtils.parse_yyyymmdd(target_date)
             
             if available_dates:
                 # 使用提供的可用日期列表
@@ -772,7 +772,7 @@ class LabelerService:
                 nearest_date = None
                 
                 for available_date in available_dates:
-                    available_dt = datetime.strptime(available_date, '%Y%m%d')
+                    available_dt = DateUtils.parse_yyyymmdd(available_date)
                     diff = abs((target_dt - available_dt).days)
                     
                     if diff < min_diff:
@@ -789,8 +789,8 @@ class LabelerService:
                 start_dt = target_dt - timedelta(days=7)
                 end_dt = target_dt + timedelta(days=7)
                 
-                start_date = start_dt.strftime('%Y%m%d')
-                end_date = end_dt.strftime('%Y%m%d')
+                start_date = DateUtils.format_to_yyyymmdd(start_dt)
+                end_date = DateUtils.format_to_yyyymmdd(end_dt)
                 
                 klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
                 if not klines:
@@ -805,7 +805,7 @@ class LabelerService:
                     if not kline_date:
                         continue
                         
-                    kline_dt = datetime.strptime(kline_date, '%Y%m%d')
+                    kline_dt = DateUtils.parse_yyyymmdd(kline_date)
                     diff = abs((target_dt - kline_dt).days)
                     
                     if diff < min_diff:
@@ -838,11 +838,8 @@ class LabelerService:
             # 只获取从上次更新日期到目标日期的K线数据
             # 添加一些缓冲天数以确保有足够的数据用于计算（比如波动率需要历史数据）
             from datetime import datetime, timedelta
-            start_dt = datetime.strptime(last_update_date, '%Y%m%d') - timedelta(days=30)  # 往前推30天作为缓冲
-            end_dt = datetime.strptime(target_date, '%Y%m%d')
-            
-            start_date = start_dt.strftime('%Y%m%d')
-            end_date = end_dt.strftime('%Y%m%d')
+            start_date = DateUtils.get_date_before_days(last_update_date, 30)  # 往前推30天作为缓冲
+            end_date = target_date
             
             # 只获取增量时间范围内的K线数据
             all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
@@ -953,10 +950,10 @@ class LabelerService:
         try:
             # 这里可以从数据库或API获取最新交易日
             # 暂时返回当前日期作为默认值
-            return datetime.now().strftime('%Y%m%d')
+            return DateUtils.get_current_date_str()
         except Exception as e:
             logger.error(f"获取最新交易日失败: {e}")
-            return datetime.now().strftime('%Y%m%d')
+            return DateUtils.get_current_date_str()
     
     def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
         """

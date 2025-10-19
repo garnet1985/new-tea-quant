@@ -13,16 +13,24 @@ from ..helpers import AdjustmentHelper, FilteringHelper
 class KlineLoader:
     """K线数据加载器"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         """
         初始化K线加载器
         
         Args:
-            db: DatabaseManager实例
+            db: DatabaseManager实例，如果为None则自行创建
         """
-        self.db = db
-        self.kline_table = db.get_table_instance('stock_kline')
-        self.adj_factor_table = db.get_table_instance('adj_factor')
+        if db is not None:
+            # 使用外部传入的DatabaseManager实例（推荐，共享连接池）
+            self.db = db
+        else:
+            # 自行管理DatabaseManager（向后兼容）
+            from utils.db.db_manager import DatabaseManager
+            self.db = DatabaseManager()
+            self.db.initialize()
+        
+        self.kline_table = self.db.get_table_instance('stock_kline')
+        self.adj_factor_table = self.db.get_table_instance('adj_factor')
     
     # ============ 快捷方法（最常用，80%场景）============
     
@@ -204,7 +212,7 @@ class KlineLoader:
             )
         else:
             return self._load_as_list(
-                stock_id, term, adjust, filter_negative
+                condition, tuple(params), stock_id, term, adjust, filter_negative
             )
     
     def load_multiple_terms(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict]]:
@@ -272,10 +280,10 @@ class KlineLoader:
         
         return df
     
-    def _load_as_list(self, stock_id: str, term: str, adjust: str,
+    def _load_as_list(self, condition: str, params: tuple, stock_id: str, term: str, adjust: str,
                      filter_negative: bool) -> List[Dict]:
         """加载为List[Dict]"""
-        records = self.kline_table.get_all_k_lines_by_term(stock_id, term)
+        records = self.kline_table.load(condition, params, order_by="date")
         
         if not records:
             return []

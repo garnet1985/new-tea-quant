@@ -1,5 +1,8 @@
 data_default_start_date = '20080101'
 kline_terms = ['daily', 'weekly', 'monthly']
+
+# 系统配置
+default_decimal_places = 2
 stock_index_indicators = {
     '000001.SH': '上证指数 - 沪市最权威、最常用的综合指数',
     '399001.SZ': '深证成指 - 深圳主板最重要的综合指数',

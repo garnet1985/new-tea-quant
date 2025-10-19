@@ -54,7 +54,10 @@ def debug_v18_conditions():
         try:
             # 获取股票数据
             from app.data_loader import DataLoader
-            loader = DataLoader()
+            from utils.db.db_manager import DatabaseManager
+            db = DatabaseManager(use_connection_pool=True)
+            db.initialize()
+            loader = DataLoader(db)
             required_data = loader.prepare_data(stock, settings)
             weekly_klines = required_data.get('klines', {}).get('weekly', [])
             

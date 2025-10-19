@@ -31,7 +31,10 @@ def load_convergence_data():
 
 def analyze_convergence_period_details(stock_id, start_date, end_date, start_idx, end_idx):
     """分析单个收敛期内的详细价格行为"""
-    data_loader = DataLoader()
+    from utils.db.db_manager import DatabaseManager
+    db = DatabaseManager(use_connection_pool=True)
+    db.initialize()
+    data_loader = DataLoader(db)
     
     # 获取周线数据
     weekly_data = data_loader.load_klines(stock_id, term='weekly', adjust='qfq')

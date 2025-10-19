@@ -337,12 +337,10 @@ class InvestmentGoalManager:
     @staticmethod
     def _calculate_days_between(start_date: str, end_date: str) -> int:
         """计算两个日期之间的天数"""
-        from datetime import datetime
+        from utils.date.date_utils import DateUtils
         
         try:
-            start = datetime.strptime(start_date, '%Y%m%d')
-            end = datetime.strptime(end_date, '%Y%m%d')
-            return (end - start).days
+            return DateUtils.get_duration_in_days(start_date, end_date, DateUtils.DATE_FORMAT_YYYYMMDD)
         except ValueError:
             logger.warning(f"日期格式错误: {start_date} 或 {end_date}")
             return 0

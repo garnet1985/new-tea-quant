@@ -19,7 +19,7 @@
 
 import time
 from typing import Dict, List, Any, Optional, Tuple
-from datetime import datetime, date, timedelta
+from utils.date.date_utils import DateUtils
 import pandas as pd
 from loguru import logger
 from utils.progress.progress_tracker import ProgressTrackerManager
@@ -201,7 +201,7 @@ class LabelerService:
             stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates(stock_ids)
             
             stocks_needing_update = []
-            current_dt = datetime.strptime(last_market_open_day, '%Y%m%d')
+            current_dt = DateUtils.parse_yyyymmdd(last_market_open_day)
             
             for stock in all_stocks:
                 stock_id = stock['id']

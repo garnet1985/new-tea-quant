@@ -4,7 +4,7 @@
 """
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from utils.date.date_utils import DateUtils
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from utils.db.db_manager import DatabaseManager
@@ -919,7 +919,7 @@ class BaseStrategy(ABC):
             analysis['strategy_info'] = {
                 'strategy_name': strategy_folder_name,
                 'session_id': session_id or self.investment_recorder.get_latest_session_id(),
-                'analysis_time': datetime.now().isoformat(),
+                'analysis_time': DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD_HH_MM_SS),
                 'total_stocks': len(simulation_results.get('stocks', [])),
             }
             

@@ -44,7 +44,10 @@ def calculate_ma_slope(ma_values, periods=20):
 
 def find_convergence_periods(stock_id, convergence_threshold=0.08, lookforward_weeks=40):
     """找到收敛时间段并观察后续表现"""
-    data_loader = DataLoader()
+    from utils.db.db_manager import DatabaseManager
+    db = DatabaseManager(use_connection_pool=True)
+    db.initialize()
+    data_loader = DataLoader(db)
     
     # 获取周线数据
     weekly_data = data_loader.load_klines(stock_id, term='weekly', adjust='qfq')

@@ -58,7 +58,7 @@ class LabelerService:
             db.initialize()
         
         self.db = db
-        self.data_loader = DataLoader()
+        self.data_loader = DataLoader(self.db)
         
         # 初始化标签定义管理器
         self.label_definitions = LabelMapping()

@@ -15,7 +15,10 @@ from app.data_loader import DataLoader
 
 def analyze_stock_convergence(stock_id, threshold):
     """分析单只股票的收敛情况"""
-    data_loader = DataLoader()
+    from utils.db.db_manager import DatabaseManager
+    db = DatabaseManager(use_connection_pool=True)
+    db.initialize()
+    data_loader = DataLoader(db)
     
     # 获取周线数据
     weekly_data = data_loader.load_klines(stock_id, term='weekly', adjust='qfq')

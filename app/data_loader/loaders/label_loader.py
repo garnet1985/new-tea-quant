@@ -19,14 +19,20 @@ class LabelLoader:
     - 批量标签计算和保存
     """
     
-    def __init__(self):
+    def __init__(self, db=None):
         """
         初始化标签加载器
         
-        注意：自行管理DatabaseManager，不依赖外部传入
+        Args:
+            db: DatabaseManager实例，如果为None则自行创建
         """
-        from utils.db.db_manager import DatabaseManager
-        self.db = DatabaseManager()
+        if db is not None:
+            # 使用外部传入的DatabaseManager实例（推荐，共享连接池）
+            self.db = db
+        else:
+            # 自行管理DatabaseManager（向后兼容）
+            from utils.db.db_manager import DatabaseManager
+            self.db = DatabaseManager()
         self.db.initialize()
         self.stock_label_model = self.db.get_table_instance('stock_labels')
     

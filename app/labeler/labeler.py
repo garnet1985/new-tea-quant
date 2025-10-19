@@ -148,7 +148,9 @@ class LabelerService:
         jobs = []
         
         # 获取所有股票列表（使用过滤规则，排除ST、科创板等）
-        all_stocks = self.data_loader.load_stock_list(filtered=True)
+        # 通过数据库直接获取股票列表
+        stock_list_model = self.db.get_table_instance('stock_list')
+        all_stocks = stock_list_model.load_filtered_stock_list()
         
         # 获取需要计算的标签分类
         categories_to_calculate = []

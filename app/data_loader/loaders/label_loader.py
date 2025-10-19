@@ -19,14 +19,16 @@ class LabelLoader:
     - 批量标签计算和保存
     """
     
-    def __init__(self, db: DatabaseManager):
+    def __init__(self):
         """
         初始化标签加载器
         
-        Args:
-            db: 数据库管理器实例
+        注意：自行管理DatabaseManager，不依赖外部传入
         """
-        self.stock_label_model = db.get_table_instance('stock_labels')
+        from utils.db.db_manager import DatabaseManager
+        self.db = DatabaseManager()
+        self.db.initialize()
+        self.stock_label_model = self.db.get_table_instance('stock_labels')
     
     def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
         """
@@ -43,6 +45,75 @@ class LabelLoader:
             target_date = datetime.now().strftime('%Y-%m-%d')
         
         return self.stock_label_model.get_stock_labels_by_date_range(stock_id, target_date)
+    
+    def get_stock_labels_by_category(self, stock_id: str, category: str, target_date: Optional[str] = None) -> List[str]:
+        """
+        获取股票在指定日期的特定分类标签
+        
+        Args:
+            stock_id: 股票代码
+            category: 标签分类（如 market_cap, industry, volatility 等）
+            target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
+            
+        Returns:
+            List[str]: 该分类的标签ID列表
+        """
+        try:
+            # 获取所有标签
+            all_labels = self.get_stock_labels(stock_id, target_date)
+            
+            # 从标签定义中获取该分类的所有可能标签
+            from app.labeler.conf.label_mapping import LabelMapping
+            label_mapping = LabelMapping()
+            category_labels = label_mapping.get_labels_by_category(category)
+            
+            # 过滤出属于该分类的标签
+            filtered_labels = []
+            for label in all_labels:
+                if label in category_labels:
+                    filtered_labels.append(label)
+            
+            return filtered_labels
+            
+        except Exception as e:
+            logger.error(f"获取股票分类标签失败 {stock_id} {category}: {e}")
+            return []
+    
+    def get_stock_labels_by_date_range(self, stock_id: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        """
+        获取股票在指定日期范围内的所有标签记录
+        
+        Args:
+            stock_id: 股票代码
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+            
+        Returns:
+            List[Dict]: 标签记录列表，格式为 [{'date': 'YYYY-MM-DD', 'label_id': 'label_id'}, ...]
+        """
+        try:
+            # 由于数据库模型只支持单个日期查询，我们需要获取多个日期的标签
+            records = []
+            
+            # 生成日期范围
+            from utils.date.date_utils import DateUtils
+            date_list = DateUtils.generate_date_range(start_date, end_date)
+            
+            for date_str in date_list:
+                # 获取该日期的标签
+                labels = self.stock_label_model.get_stock_labels_by_date_range(stock_id, date_str)
+                if labels:
+                    for label_id in labels:
+                        records.append({
+                            'date': date_str,
+                            'label_id': label_id
+                        })
+            
+            return records
+            
+        except Exception as e:
+            logger.error(f"获取股票标签记录失败 {stock_id} {start_date}-{end_date}: {e}")
+            return []
     
     def save_stock_labels(self, stock_id: str, label_date: str, labels: List[str]):
         """

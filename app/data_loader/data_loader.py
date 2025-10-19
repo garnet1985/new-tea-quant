@@ -161,14 +161,15 @@ class DataLoader:
             # 一次性获取时间范围内的所有标签数据
             all_labels = self.label_loader.get_stock_labels_by_date_range(stock_id, start_date, end_date)
             
-            # 按日期分组标签数据
+            # 按日期分组标签数据，只保存标签ID
             labels_by_date = {}
             for label_record in all_labels:
                 date = label_record.get('date')
-                if date:
+                label_id = label_record.get('label_id')
+                if date and label_id:
                     if date not in labels_by_date:
                         labels_by_date[date] = []
-                    labels_by_date[date].append(label_record)
+                    labels_by_date[date].append(label_id)
             
             # 按日期排序
             sorted_labels = dict(sorted(labels_by_date.items()))

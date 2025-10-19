@@ -577,8 +577,10 @@ class LabelerService:
                     # 从最后更新日期开始加载
                     start_date = last_update_date
                 else:
-                    # 如果没有更新记录，从2008年开始
-                    start_date = '20080101'
+                    # 如果没有更新记录，只加载最近3年的数据
+                    from utils.date.date_utils import DateUtils
+                    current_date = DateUtils.get_current_date_str()
+                    start_date = DateUtils.get_date_after_days(current_date, -3*365)  # 3年前
             
             # 获取股票的K线数据
             klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date='20251231')
@@ -693,8 +695,8 @@ class LabelerService:
             days_since_last_update = (actual_dt - current_date).days
             
             if days_since_last_update < MIN_INTERVAL:
-                # 距离太近，跳过本次计算
-                current_date = actual_dt
+                # 距离太近，跳过本次计算，强制推进到下一个30天周期
+                current_date = next_target_dt
                 continue
             
             # 计算标签

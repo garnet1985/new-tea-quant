@@ -3,7 +3,7 @@
 标签数据加载器
 """
 from typing import List, Dict, Any, Optional
-from datetime import datetime, date
+from utils.date.date_utils import DateUtils
 from loguru import logger
 from utils.db.db_manager import DatabaseManager
 from utils.db.tables.stock_labels.model import StockLabelModel
@@ -42,7 +42,7 @@ class LabelLoader:
             List[str]: 标签ID列表
         """
         if target_date is None:
-            target_date = datetime.now().strftime('%Y-%m-%d')
+            target_date = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         
         return self.stock_label_model.get_stock_labels_by_date_range(stock_id, target_date)
     
@@ -179,7 +179,7 @@ class LabelLoader:
             List[str]: 股票代码列表
         """
         if target_date is None:
-            target_date = datetime.now().strftime('%Y-%m-%d')
+            target_date = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         
         return self.stock_label_model.get_stocks_with_label(label_id, target_date)
     
@@ -194,7 +194,7 @@ class LabelLoader:
             Dict: 标签统计信息
         """
         if target_date is None:
-            target_date = datetime.now().strftime('%Y-%m-%d')
+            target_date = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         
         return self.stock_label_model.get_label_statistics(target_date)
     

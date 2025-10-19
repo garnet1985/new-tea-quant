@@ -1,4 +1,5 @@
 from app.data_source.enums import KlineTerm, AdjustType
+from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
@@ -56,9 +57,9 @@ settings = {
         "stock_labels": True
     },
 
-    # 模拟时间范围 - 日期格式YYYYMMDD （例如：20080101）
+    # 模拟时间范围 - 日期格式YYYYMMDD
     "simulation": {
-        # 模拟开始日期 - 空指代2008-01-01
+        # 模拟开始日期 - 空指代使用默认开始日期
         "start_date": "",
         # 模拟结束日期 - 空指代到最新的记录
         "end_date": ""

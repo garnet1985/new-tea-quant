@@ -43,7 +43,10 @@ def test_v18_2_strategy():
     
     for stock in stock_list:
         # 模拟DataLoader的行为
-        required_data = DataLoader().prepare_data(stock, settings)
+        from utils.db.db_manager import DatabaseManager
+        db = DatabaseManager(use_connection_pool=True)
+        db.initialize()
+        required_data = DataLoader(db).prepare_data(stock, settings)
         opportunity = strategy.scan_opportunity(stock, required_data, settings)
         
         if opportunity:

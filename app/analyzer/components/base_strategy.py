@@ -384,7 +384,7 @@ class BaseStrategy(ABC):
 
         # 子进程内直接使用 DataLoader，避免初始化 DatabaseManager
         from app.data_loader import DataLoader
-        loader = DataLoader()
+        loader = DataLoader()  # 子进程内自行创建DatabaseManager
         data = loader.prepare_data(stock, settings)
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法

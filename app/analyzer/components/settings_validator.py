@@ -22,8 +22,9 @@ class SettingsValidator:
             'mode': dict,                     # 模式配置
         }
         
-        self.valid_base_terms = ['daily', 'weekly', 'monthly', 'quarterly']
-        self.valid_additional_terms = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly']
+        from app.data_source.enums import KlineTerm
+        self.valid_base_terms = [term.value for term in KlineTerm if term != KlineTerm.YEARLY]
+        self.valid_additional_terms = [term.value for term in KlineTerm]
     
     def validate_settings(self, settings: Dict[str, Any], strategy_name: str = "Unknown") -> Tuple[bool, List[str]]:
         """

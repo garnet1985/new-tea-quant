@@ -83,7 +83,18 @@ class ReverseTrendBet(BaseStrategy):
         financial_indicators = ReverseTrendBet._get_financial_indicators_from_klines(record_of_today)
         if not ReverseTrendBet._check_tiered_financial_conditions(financial_indicators):
             return None
-            
+        
+        # V19.0: 基于标签的动态参数优化
+        labels_data = data.get('labels', [])
+        if labels_data:
+            # 过滤出需要的标签种类
+            from app.data_loader import DataLoader
+            filtered_labels = DataLoader.filter_labels_by_category(
+                [label.get('label_id') for label in labels_data],
+                ['market_cap', 'volatility']
+            )
+            logger.info(f"股票 {stock['id']} 标签数据: {filtered_labels}")
+        
         # 检查所有优化版条件是否同时满足
         if not ReverseTrendBet._check_optimized_conditions(features):
             return None
@@ -378,7 +389,7 @@ class ReverseTrendBet(BaseStrategy):
             return None
 
     @staticmethod
-    def _check_optimized_conditions(features: Dict[str, float]) -> bool:
+    def _check_optimized_conditions(features: Dict[str, float], optimized_settings: Dict[str, Any] = None) -> bool:
         """
         检查V18.2平衡策略的所有条件
         
@@ -496,4 +507,69 @@ class ReverseTrendBet(BaseStrategy):
             logger.info(f"="*80)
         
         return None
+    
+    @staticmethod
+    def _get_optimized_settings_by_labels(settings: Dict[str, Any], labels_data: Dict[str, List[str]]) -> Dict[str, Any]:
+        """
+        基于标签数据优化策略参数
+        
+        Args:
+            settings: 原始设置
+            labels_data: 标签数据，格式为 {category: [label_ids]}
+            
+        Returns:
+            Dict: 优化后的设置
+        """
+        try:
+            # 复制原始设置
+            optimized_settings = settings.copy()
+            
+            # 检查是否启用标签优化
+            labels_config = settings.get('labels', {})
+            if not labels_config.get('enable_label_optimization', False):
+                return optimized_settings
+            
+            # 获取标签参数配置
+            label_parameters = labels_config.get('label_parameters', {})
+            if not label_parameters:
+                return optimized_settings
+            
+            # 分析股票标签，确定适用的参数
+            applicable_params = {}
+            
+            # 检查市值标签
+            market_cap_labels = labels_data.get('market_cap', [])
+            for label in market_cap_labels:
+                if label in label_parameters:
+                    applicable_params.update(label_parameters[label])
+                    logger.debug(f"应用市值标签参数: {label}")
+                    break
+            
+            # 检查波动性标签
+            volatility_labels = labels_data.get('volatility', [])
+            for label in volatility_labels:
+                if label in label_parameters:
+                    applicable_params.update(label_parameters[label])
+                    logger.debug(f"应用波动性标签参数: {label}")
+                    break
+            
+            # 如果有适用的参数，更新设置
+            if applicable_params:
+                # 更新核心参数
+                if 'convergence_days' in applicable_params:
+                    optimized_settings['core']['convergence']['days'] = applicable_params['convergence_days']
+                
+                if 'stability_days' in applicable_params:
+                    optimized_settings['core']['stability']['days'] = applicable_params['stability_days']
+                
+                if 'invest_range' in applicable_params:
+                    optimized_settings['core']['invest_range'].update(applicable_params['invest_range'])
+                
+                logger.info(f"基于标签优化参数: {applicable_params}")
+            
+            return optimized_settings
+            
+        except Exception as e:
+            logger.error(f"基于标签优化参数失败: {e}")
+            return settings
     

@@ -1,6 +1,8 @@
 
 
 
+from app.data_source.enums import KlineTerm
+
 settings = {
     # 策略启用状态
     "is_enabled": False,
@@ -14,9 +16,9 @@ settings = {
     },
     
     "klines": {
-        "terms": ["daily"],
-        "signal_base_term": "daily",
-        "simulate_base_term": "daily",
+        "terms": [KlineTerm.DAILY.value],
+        "signal_base_term": KlineTerm.DAILY.value,
+        "simulate_base_term": KlineTerm.DAILY.value,
         "min_required_base_records": 1000,
     },
 

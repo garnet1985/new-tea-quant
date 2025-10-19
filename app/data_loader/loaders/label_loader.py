@@ -124,13 +124,18 @@ class LabelLoader:
             
             # 生成日期范围
             from utils.date.date_utils import DateUtils
-            date_list = DateUtils.generate_date_range(start_date, end_date)
+            date_list = DateUtils.generate_date_range(
+                start_date, end_date, 
+                start_format=DateUtils.DATE_FORMAT_YYYY_MM_DD,
+                end_format=DateUtils.DATE_FORMAT_YYYY_MM_DD,
+                output_format=DateUtils.DATE_FORMAT_YYYY_MM_DD
+            )
             
             for date_str in date_list:
                 # 获取该日期的标签
-                labels = self.stock_label_model.get_stock_labels_by_date_range(stock_id, date_str)
-                if labels:
-                    for label_id in labels:
+                label_info = self.stock_label_model.get_stock_labels_by_date_range(stock_id, date_str)
+                if label_info and label_info.get('labels'):
+                    for label_id in label_info['labels']:
                         records.append({
                             'date': date_str,
                             'label_id': label_id

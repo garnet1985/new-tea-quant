@@ -2,6 +2,7 @@
 
 
 from app.data_source.enums import KlineTerm
+from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
@@ -23,7 +24,7 @@ settings = {
     },
 
     "simulation": {
-        "start_date": "20080101",
+        "start_date": data_default_start_date,
         "end_date": ""
     },
 

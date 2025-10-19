@@ -1,3 +1,6 @@
+from app.data_source.enums import KlineTerm, AdjustType
+from app.conf.conf import data_default_start_date
+
 settings = {
     # 策略启用状态
     "is_enabled": False,
@@ -5,15 +8,15 @@ settings = {
     # 数据要求配置
     "klines": {
         # 数据周期 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
-        "terms": ["daily"],
+        "terms": [KlineTerm.DAILY.value],
         # 信号检测周期 - 例子中指代基于日线检测信号
-        "signal_base_term": "daily",
+        "signal_base_term": KlineTerm.DAILY.value,
         # 模拟执行周期 - 例子中指代模拟器基于日线来进行一日日的模拟（交易日）
-        "simulate_base_term": "daily",
+        "simulate_base_term": KlineTerm.DAILY.value,
         # 最小要求的基础周期记录数
         "min_required_base_records": 1000,
         # 复权方式
-        "adjust": "qfq",
+        "adjust": AdjustType.QFQ.value,
         # 要在K线上增加的技术指标
         "indicators": {
             # 移动平均线 (Simple Moving Average)
@@ -39,6 +42,9 @@ settings = {
                 "period": 20,  # 布林带计算周期，默认20
                 "std_multiplier": 2.0,  # 标准差倍数，默认2.0
             },
+
+            # 是否使用股票的分类标签 - 标签类型见 labeler/conf/label_mapping.py
+            "stock_labels": False
         },
     },
 
@@ -91,9 +97,9 @@ settings = {
         "scan_stock_pool" : ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ", "000007.SZ", "000008.SZ", "000009.SZ", "000010.SZ"]
     },
 
-    # 模拟时间范围 - 日期格式YYYYMMDD （例如：20080101）
+    # 模拟时间范围 - 日期格式YYYYMMDD
     "simulation": {
-        # 模拟开始日期 - 空指代2008-01-01
+        # 模拟开始日期 - 空指代使用默认开始日期
         "start_date": "",
         # 模拟结束日期 - 空指代到最新的记录
         "end_date": ""

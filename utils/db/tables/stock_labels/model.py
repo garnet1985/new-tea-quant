@@ -272,20 +272,41 @@ class StockLabelModel(BaseTableModel):
             logger.error(f"获取标签统计失败: {target_date}, {e}")
             return {}
     
-    def get_stock_labels_by_date_range(self, stock_id: str, target_date: str) -> List[str]:
+    def get_stock_labels_by_date_range(self, stock_id: str, target_date: str, max_days_back: int = 90) -> Dict[str, Any]:
         """
-        获取股票在指定日期或之前最近的标签
+        获取股票在指定日期或之前最近的标签，带时间阈值限制
         
         Args:
             stock_id: 股票代码
             target_date: 目标日期
+            max_days_back: 最大回退天数，默认90天
             
         Returns:
-            List[str]: 标签列表
+            Dict包含:
+            - labels: 标签列表
+            - label_date: 标签实际日期
+            - days_back: 回退天数
+            - is_valid: 是否在阈值内
         """
         try:
-            condition = "stock_id = %s AND label_date <= %s"
-            params = (stock_id, target_date)
+            from datetime import datetime, timedelta
+            from utils.date.date_utils import DateUtils
+            
+            # 计算最大允许的回退日期
+            # 处理不同的日期格式
+            if '-' in target_date:
+                # YYYY-MM-DD格式
+                target_dt = datetime.strptime(target_date, '%Y-%m-%d')
+            else:
+                # YYYYMMDD格式
+                target_dt = DateUtils.parse_yyyymmdd(target_date)
+            
+            max_back_dt = target_dt - timedelta(days=max_days_back)
+            max_back_date = max_back_dt.strftime('%Y-%m-%d')
+            
+            # 查找标签记录
+            condition = "stock_id = %s AND label_date <= %s AND label_date >= %s"
+            params = (stock_id, target_date, max_back_date)
             order_by = "label_date DESC"
             limit = 1
             
@@ -293,11 +314,86 @@ class StockLabelModel(BaseTableModel):
             
             if result and result[0].get('labels'):
                 labels_str = result[0]['labels']
-                return self._parse_labels_string(labels_str)
+                actual_label_date = result[0]['label_date']
+                
+                # 计算回退天数
+                # actual_label_date 是 datetime.date 类型，直接转换
+                if isinstance(actual_label_date, str):
+                    if '-' in actual_label_date:
+                        actual_dt = datetime.strptime(actual_label_date, '%Y-%m-%d')
+                    else:
+                        actual_dt = DateUtils.parse_yyyymmdd(actual_label_date)
+                else:
+                    # 如果是 datetime.date 类型，转换为 datetime
+                    actual_dt = datetime.combine(actual_label_date, datetime.min.time())
+                
+                days_back = (target_dt - actual_dt).days
+                
+                return {
+                    'labels': self._parse_labels_string(labels_str),
+                    'label_date': actual_label_date,
+                    'days_back': days_back,
+                    'is_valid': days_back <= max_days_back
+                }
             else:
-                return []
+                return {
+                    'labels': [],
+                    'label_date': None,
+                    'days_back': None,
+                    'is_valid': False
+                }
                 
         except Exception as e:
             from loguru import logger
             logger.error(f"获取股票标签失败 {stock_id} {target_date}: {e}")
-            return []
+            return {
+                'labels': [],
+                'label_date': None,
+                'days_back': None,
+                'is_valid': False
+            }
+    
+    def batch_upsert_stock_labels(self, labels_to_save: List[Dict[str, Any]]) -> bool:
+        """
+        批量插入或更新股票标签记录
+        
+        Args:
+            labels_to_save: 要保存的标签数据列表，每个元素包含：
+                - stock_id: 股票代码
+                - label_date: 标签日期
+                - labels: 标签列表
+                
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not labels_to_save:
+                return True
+            
+            # 构建真正的批量插入SQL
+            placeholders = ','.join(['(%s, %s, %s)'] * len(labels_to_save))
+            sql = f"""
+            INSERT INTO stock_labels (stock_id, label_date, labels)
+            VALUES {placeholders}
+            ON DUPLICATE KEY UPDATE
+            labels = VALUES(labels)
+            """
+            
+            # 准备批量插入的数据
+            batch_data = []
+            for label_data in labels_to_save:
+                stock_id = label_data['stock_id']
+                label_date = label_data['label_date']
+                labels = label_data['labels']
+                labels_str = self._join_labels_list(labels)
+                batch_data.extend([stock_id, label_date, labels_str])
+            
+            # 执行真正的批量插入 - 一次SQL插入所有记录
+            self.db.execute_sync_query(sql, batch_data)
+            
+            return True
+            
+        except Exception as e:
+            from loguru import logger
+            logger.error(f"批量插入股票标签失败: {e}")
+            return False

@@ -5,7 +5,7 @@ SimulatingService - 多进程模拟服务
 from typing import Dict, List, Any, Optional
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.components.enum import InvestmentResult
+from app.analyzer.enums import InvestmentResult
 from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
 from utils.icon.icon_service import IconService
 from utils.worker.multi_process.process_worker import ProcessWorker
@@ -397,6 +397,32 @@ class SimulatingService:
                 st['cursor'] = i - 1
                 cf_today[cat] = acc
             data_today['corporate_finance'] = cf_today
+
+        # 可选：股票标签（按日期获取当日标签）
+        if isinstance(all_data.get('stock_labels'), dict):
+            labels_data = all_data['stock_labels']
+            # 使用状态管理优化性能
+            labels_state = all_data['__state__'].setdefault('stock_labels', {'cursor': -1, 'acc': []})
+            cursor = labels_state['cursor']
+            acc = labels_state['acc']
+            
+            # 获取排序后的日期列表
+            sorted_dates = sorted(labels_data.keys())
+            i = cursor + 1
+            n = len(sorted_dates)
+            
+            # 找到当日或最近的标签
+            today_labels = []
+            while i < n:
+                date = sorted_dates[i]
+                if date <= date_of_today:
+                    today_labels = labels_data[date]  # 直接返回标签ID列表
+                    i += 1
+                else:
+                    break
+            
+            labels_state['cursor'] = i - 1
+            data_today['labels'] = today_labels
 
         return data_today
 

@@ -3,18 +3,20 @@ from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
-    "is_enabled": True,  # V18.2平衡策略启用
+    "is_enabled": True,  # V20.1优化策略启用（基于收益分布分析的止损止盈优化）
+
+    "version": "V20.5",
     
     "core": {
         "convergence": {
-            "days": 20,
+            "days": 15,  # V20优化：基于2741次投资数据优化的收敛期
         },
         "stability": {
-            "days": 10,
+            "days": 8,  # V20优化：基于2741次投资数据优化的稳定期
         },
         "invest_range": {
-            "lower_bound": 0.01,
-            "upper_bound": 0.01,
+            "lower_bound": 0.008,  # V20优化：基于2741次投资数据优化的买入区间
+            "upper_bound": 0.008,
         },
     },
 
@@ -22,14 +24,42 @@ settings = {
     'mode': {
         # 是不是只模拟黑名单中的股票
         "blacklist_only": False,
-        # 测试股票数量 - V8测试前20只
+        # 测试股票数量 - 设置为0会运行所有股票
         "test_amount": 500,
-        # 测试股票起始索引
-        "start_idx": 0,
         # 模拟参考版本号
-        "simulation_ref_version": "V18.2_Balanced",
+        "simulation_ref_version": "V20.4_No_Upper_Limit_BreakEven",
         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True
+    },
+    
+    # 股票采样配置 - V19.0改进：独立的采样配置模块
+    'sampling': {
+        # 采样策略类型
+        "strategy": "uniform",  # uniform, stratified, random, continuous
+        
+        # 各策略的专用配置
+        "uniform": {
+            # 均匀采样无需额外配置
+            "description": "均匀间隔采样，分布均匀，结果可重现"
+        },
+        
+        "stratified": {
+            # 分层采样配置
+            "seed": 42,  # 随机种子
+            "description": "按市场分层采样，科学合理，依赖seed"
+        },
+        
+        "random": {
+            # 随机采样配置
+            "seed": 42,  # 随机种子
+            "description": "完全随机采样，依赖seed保证可重现"
+        },
+        
+        "continuous": {
+            # 连续采样配置
+            "start_idx": 0,  # 起始索引
+            "description": "连续采样，从start_idx开始取test_amount个"
+        }
     },
 
     # 数据要求配置
@@ -65,47 +95,47 @@ settings = {
         "end_date": ""
     },
 
-           # 投资目标设置 - V12优化版本
+    # 投资目标设置
     "goal": {
         # 固定期限强制平仓（交易日优先尝试）
-        # V15优化：设置150天时间止损（基于ML分析）
+        # V16优化：设置200天时间止损（基于盈利样本171.8天平均时长）
         "fixed_trading_days": 200,
 
         # 是否自定义止损目标 - 如果有此属性且为true，则完全使用此属性来判断是否应该结算投资，以下属性均不生效
         'is_customized': False,
 
-               # 止损目标设置 - V15优化版：-15%止损（基于ML分析）
+               # 止损目标设置 - V20优化版：-12%止损（基于2741次投资数据优化）
         "stop_loss": {
 
             "dynamic": {
                 "name": "dynamic",
-                "ratio": -0.1,
+                "ratio": -0.1,  # V20.4优化：动态止损-12%，给股票更多上涨空间
                 "close_invest": True  # 动态止损时：清仓
             },
 
             "stages": [
                 {
-                    "name": "loss15%",
-                    "ratio": -0.15,  # V15优化：-15%止损（基于ML分析）
+                    "name": "loss18%",
+                    "ratio": -0.18,  # V20优化：-12%止损（基于2741次投资数据优化）
                     "close_invest": True  # 止损时：清仓
                 }
             ]
         },
-        # 止盈目标设置 - V12优化版：分阶段止盈
+        # 止盈目标设置 - V20.4优化版：移除上限，使用break even止损保护利润
         "take_profit": {
             "stages": [
                 {
                     "name": "win20%",
-                    "ratio": 0.2,  # 第二阶段：25%止盈
-                    "sell_ratio": 0.4,  # 50%平仓
+                    "ratio": 0.2,  # 第一阶段：25%止盈
+                    "sell_ratio": 0.4,  # 30%平仓
                 },
                 {
                     "name": "win30%",
-                    "ratio": 0.3,  # 第三阶段：35%止盈
-                    "sell_ratio": 0.4,  # 全部平仓
-                    "set_stop_loss": "dynamic"
-                },
-
+                    "ratio": 0.3,  # 第二阶段：35%止盈
+                    "sell_ratio": 0.4,  # 再平仓50%（累计80%）
+                    "set_stop_loss": "dynamic"  # 第二次止盈后设置动态止损控制剩余仓位
+                }
+                # 注意：没有第三阶段止盈，最后20%仓位由动态止损控制，可以无限上涨
             ]
         },
 

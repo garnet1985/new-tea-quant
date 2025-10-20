@@ -86,15 +86,20 @@ class ReverseTrendBet(BaseStrategy):
         
         # V19.0: 基于标签的动态参数优化
         labels_data = data.get('labels', [])
+        filtered_labels = {}
+        optimized_settings = settings
+        
         if labels_data:
             # 过滤出需要的标签种类
             from app.data_loader import DataLoader
             filtered_labels = DataLoader.filter_labels_by_category(
                 labels_data,  # labels_data现在直接是标签ID列表
-                ['market_cap', 'volatility']
+                ['market_cap', 'volatility', 'industry', 'financial']
             )
-            logger.info(f"股票 {stock['id']} 标签数据: {filtered_labels}")
+            # 基于标签优化参数
+            optimized_settings = ReverseTrendBet._get_optimized_settings_by_labels(settings, filtered_labels)
         
+
         # 检查所有优化版条件是否同时满足
         if not ReverseTrendBet._check_optimized_conditions(features):
             return None
@@ -105,8 +110,10 @@ class ReverseTrendBet(BaseStrategy):
             record_of_today=record_of_today,
             extra_fields={
                 'features': features,
-                'strategy_version': 'V18.2_Balanced',
+                'strategy_version': 'V16_ML_Optimized',
                 'financial_indicators': financial_indicators,
+                'labels': filtered_labels,  # 记录标签信息
+                'label_optimization_applied': optimized_settings != settings,  # 记录是否应用了标签优化
                 'signal_conditions': {
                     'ma_convergence': features['ma_convergence'],
                     'ma20_slope': features['ma20_slope'],
@@ -399,14 +406,14 @@ class ReverseTrendBet(BaseStrategy):
         """
         try:
             conditions = [
-                # 核心收敛条件 (V18.2优化：适度收紧提升质量)
-                features['ma_convergence'] < 0.18,   # V18.2优化：从0.20收紧到0.18
-                features['ma20_slope'] > -0.08,      # V18.2优化：从-0.10收紧到-0.08
-                features['ma60_slope'] > -0.08,      # V18.2优化：从-0.10收紧到-0.08
+                # 核心收敛条件 (测试版本：放宽条件)
+                features['ma_convergence'] < 0.25,   # 放宽收敛条件
+                features['ma20_slope'] > -0.15,      # 放宽MA20斜率
+                features['ma60_slope'] > -0.15,      # 放宽MA60斜率
                 
-                # 成交量确认条件 (V18.2优化：适度收紧)
-                features['volume_trend'] > -0.4,     # V18.2优化：从-0.5收紧到-0.4
-                features['amount_ratio'] > 0.65,     # V18.2优化：从0.6收紧到0.65
+                # 成交量确认条件 (测试版本：放宽条件)
+                features['volume_trend'] > -0.6,     # 放宽成交量趋势
+                features['amount_ratio'] > 0.5,      # 放宽成交金额比率
                 
                 # 失败因子过滤 (保持原有)
                 features['price_change_pct'] > -6.0, # 价格变化控制
@@ -414,11 +421,11 @@ class ReverseTrendBet(BaseStrategy):
                 features['duration_weeks'] < 20,     # 收敛时间控制
                 features['convergence_ratio'] > 0.06, # 收敛充分性
                 
-                # 新增优化条件 (V18.2平衡优化：适度收紧)
-                features['historical_percentile'] < 0.45,  # V18.2优化：从0.5收紧到0.45
-                features['oscillation_position'] < 0.55,   # V18.2优化：从0.6收紧到0.55
-                features['volume_confirmation'] > 0.65,    # V18.2优化：从0.6收紧到0.65
-                features['rsi_signal'] < 72,              # V18.2优化：从75收紧到72
+                # 新增优化条件 (测试版本：放宽条件)
+                features['historical_percentile'] < 0.6,  # 放宽历史分位数
+                features['oscillation_position'] < 0.7,   # 放宽震荡位置
+                features['volume_confirmation'] > 0.5,    # 放宽成交量确认
+                features['rsi_signal'] < 80,              # 放宽RSI条件
             ]
             
             return all(conditions)
@@ -511,7 +518,7 @@ class ReverseTrendBet(BaseStrategy):
     @staticmethod
     def _get_optimized_settings_by_labels(settings: Dict[str, Any], labels_data: Dict[str, List[str]]) -> Dict[str, Any]:
         """
-        基于标签数据优化策略参数
+        基于市值标签优化策略参数 - V19.0简化版：只使用市值标签
         
         Args:
             settings: 原始设置
@@ -524,37 +531,49 @@ class ReverseTrendBet(BaseStrategy):
             # 复制原始设置
             optimized_settings = settings.copy()
             
-            # 检查是否启用标签优化
-            labels_config = settings.get('labels', {})
-            if not labels_config.get('enable_label_optimization', False):
-                return optimized_settings
+            # 定义市值标签参数映射
+            market_cap_parameters = {
+                'large_cap': {
+                    'convergence_days': 25,  # 大盘股需要更长的收敛期
+                    'stability_days': 12,    # 大盘股稳定性要求更高
+                    'invest_range_lower': 0.008,  # 大盘股买入区间稍小
+                    'invest_range_upper': 0.008,
+                },
+                'mid_cap': {
+                    'convergence_days': 20,  # 中盘股标准参数
+                    'stability_days': 10,
+                    'invest_range_lower': 0.01,
+                    'invest_range_upper': 0.01,
+                },
+                'small_cap': {
+                    'convergence_days': 15,  # 小盘股可以更短的收敛期
+                    'stability_days': 8,     # 小盘股稳定性要求稍低
+                    'invest_range_lower': 0.012,  # 小盘股买入区间稍大
+                    'invest_range_upper': 0.012,
+                },
+            }
             
-            # 获取标签参数配置
-            label_parameters = labels_config.get('label_parameters', {})
-            if not label_parameters:
-                return optimized_settings
-            
-            # 分析股票标签，确定适用的参数
+            # 只检查市值标签
+            market_cap_labels = labels_data.get('market_cap', [])
             applicable_params = {}
             
-            # 检查市值标签
-            market_cap_labels = labels_data.get('market_cap', [])
             for label in market_cap_labels:
-                if label in label_parameters:
-                    applicable_params.update(label_parameters[label])
-                    logger.debug(f"应用市值标签参数: {label}")
-                    break
-            
-            # 检查波动性标签
-            volatility_labels = labels_data.get('volatility', [])
-            for label in volatility_labels:
-                if label in label_parameters:
-                    applicable_params.update(label_parameters[label])
-                    logger.debug(f"应用波动性标签参数: {label}")
+                if label in market_cap_parameters:
+                    applicable_params.update(market_cap_parameters[label])
                     break
             
             # 如果有适用的参数，更新设置
             if applicable_params:
+                # 确保core配置存在
+                if 'core' not in optimized_settings:
+                    optimized_settings['core'] = {}
+                if 'convergence' not in optimized_settings['core']:
+                    optimized_settings['core']['convergence'] = {}
+                if 'stability' not in optimized_settings['core']:
+                    optimized_settings['core']['stability'] = {}
+                if 'invest_range' not in optimized_settings['core']:
+                    optimized_settings['core']['invest_range'] = {}
+                
                 # 更新核心参数
                 if 'convergence_days' in applicable_params:
                     optimized_settings['core']['convergence']['days'] = applicable_params['convergence_days']
@@ -562,11 +581,12 @@ class ReverseTrendBet(BaseStrategy):
                 if 'stability_days' in applicable_params:
                     optimized_settings['core']['stability']['days'] = applicable_params['stability_days']
                 
-                if 'invest_range' in applicable_params:
-                    optimized_settings['core']['invest_range'].update(applicable_params['invest_range'])
+                if 'invest_range_lower' in applicable_params:
+                    optimized_settings['core']['invest_range']['lower_bound'] = applicable_params['invest_range_lower']
                 
-                logger.info(f"基于标签优化参数: {applicable_params}")
-            
+                if 'invest_range_upper' in applicable_params:
+                    optimized_settings['core']['invest_range']['upper_bound'] = applicable_params['invest_range_upper']
+                
             return optimized_settings
             
         except Exception as e:

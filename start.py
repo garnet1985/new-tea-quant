@@ -74,13 +74,17 @@ def main():
     # asyncio.run(app.renew_data(latest_market_open_day))
     
     # 3. 使用最新交易日更新股票标签（按频率更新）
-    app.renew_labels(latest_market_open_day)
+    # app.renew_labels(latest_market_open_day)
 
     # app.scan()
 
     # app.simulate()
 
     # app.analysis()
+    
+    # 识别平安银行重大反转点（严格版本）
+    from app.analyzer.strategy.RTB.ml.find_major_reversals import find_major_reversals
+    find_major_reversals()
 
 
 if __name__ == "__main__":

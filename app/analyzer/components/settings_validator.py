@@ -134,6 +134,16 @@ class SettingsValidator:
         elif simulate_term not in self.valid_base_terms:
             errors.append(f"Invalid simulate_base_term '{simulate_term}', must be one of: {self.valid_base_terms}")
         
+        # 验证signal_base_term和simulate_base_term必须在terms列表中
+        terms = klines.get('terms', [])
+        if not isinstance(terms, list):
+            errors.append("klines.terms must be a list")
+        else:
+            if signal_term not in terms:
+                errors.append(f"signal_base_term '{signal_term}' must be included in klines.terms: {terms}")
+            if simulate_term not in terms:
+                errors.append(f"simulate_base_term '{simulate_term}' must be included in klines.terms: {terms}")
+        
         return errors
     
     def _validate_field_types(self, settings: Dict[str, Any]) -> List[str]:

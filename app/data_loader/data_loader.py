@@ -154,7 +154,8 @@ class DataLoader:
             
             # 验证必要的时间范围配置
             if not start_date:
-                raise ValueError("模拟时间范围配置缺失：start_date")
+                # 使用默认开始日期
+                start_date = DateUtils.DEFAULT_START_DATE
             if not end_date:
                 end_date = DateUtils.get_current_date_str()  # 只有end_date可以使用当前日期作为默认值
             

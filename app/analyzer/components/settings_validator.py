@@ -19,7 +19,13 @@ class SettingsValidator:
         self.optional_fields = {
             'klines.additional_terms': list,  # 额外周期，如 ['weekly', 'monthly']
             'goal': dict,                     # 投资目标配置
-            'mode': dict,                     # 模式配置
+            'mode': dict,                     # 模式配置（向后兼容）
+            'simulation': dict,               # 新的模拟配置
+            'core': dict,                     # 核心策略参数
+            'macro': dict,                    # 宏观经济数据配置
+            'corporate_finance': dict,        # 公司财务数据配置
+            'index_indicators': dict,         # 指数指标配置
+            'industry_capital_flow': dict,    # 行业资本流动配置
         }
         
         from app.data_source.enums import KlineTerm
@@ -127,6 +133,16 @@ class SettingsValidator:
             errors.append("klines.simulate_base_term must be a string")
         elif simulate_term not in self.valid_base_terms:
             errors.append(f"Invalid simulate_base_term '{simulate_term}', must be one of: {self.valid_base_terms}")
+        
+        # 验证signal_base_term和simulate_base_term必须在terms列表中
+        terms = klines.get('terms', [])
+        if not isinstance(terms, list):
+            errors.append("klines.terms must be a list")
+        else:
+            if signal_term not in terms:
+                errors.append(f"signal_base_term '{signal_term}' must be included in klines.terms: {terms}")
+            if simulate_term not in terms:
+                errors.append(f"simulate_base_term '{simulate_term}' must be included in klines.terms: {terms}")
         
         return errors
     

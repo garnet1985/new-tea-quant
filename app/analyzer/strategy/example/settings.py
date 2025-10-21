@@ -79,31 +79,74 @@ settings = {
         "end_date": "",
     },
 
-    # 模式设置
-    'mode': {
-        # 是不是只模拟黑名单中的股票
-        "blacklist_only": False,
-        # 测试股票数量
-        "test_amount": 10,
-        # 测试股票起始索引
-        "start_idx": 0,
-        # 模拟参考版本号
-        "simulation_ref_version": "524",
-        # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
-        "record_summary" : True,
-        # 是否分析模拟结果，结果会自动存在{folder_name}的analysis文件夹下
-        "analysis" : True,
-        # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
-        "scan_stock_pool" : ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ", "000007.SZ", "000008.SZ", "000009.SZ", "000010.SZ"]
-    },
+    # # 模式设置
+    # 'mode': {
+    #     # 是不是只模拟黑名单中的股票
+    #     # "blacklist_only": False,
+    #     # 模拟参考版本号
+    #     "simulation_ref_version": "524",
+    # },
 
     # 模拟时间范围 - 日期格式YYYYMMDD
     "simulation": {
+
         # 模拟开始日期 - 空指代使用默认开始日期
         "start_date": "",
+
         # 模拟结束日期 - 空指代到最新的记录
-        "end_date": ""
+        "end_date": "",
+
+        # 测试股票数量
+        "sampling_amount": 10,
+
+         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
+        "record_summary" : True,
+        
+        # 是否分析模拟结果，结果会自动存在{folder_name}的analysis文件夹下
+        "analysis" : True,
+
+        'sampling': {
+            # 采样策略类型
+            "strategy": "uniform",  # uniform, stratified, random, continuous, pool, blacklist
+            
+            # 各策略的专用配置
+            "uniform": {
+                # 均匀采样无需额外配置
+                "description": "均匀间隔采样 - 每间隔N个股票抽取一个，结果可重现"
+            },
+            
+            "stratified": {
+                # 分层采样配置
+                "seed": 42,  # 随机种子
+                "description": "分层采样 - 按市场类型（沪深主板，中小板，创业板，科创板）采样，科学合理，依赖seed"
+            },
+            
+            "random": {
+                # 随机采样配置
+                "seed": 42,  # 随机种子
+                "description": "随机采样 - 随机抽取test_amount个股票，依赖seed保证可重现"
+            },
+            
+            "continuous": {
+                # 连续采样配置
+                "start_idx": 0,  # 起始索引
+                "description": "连续采样 - 从start_idx开始取test_amount个股票"
+            },
+
+            "pool": {
+                # 股票池采样配置
+                "stock_pool": ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ", "000007.SZ", "000008.SZ", "000009.SZ", "000010.SZ"],
+                "description": "股票池采样 - 从stock_pool中抽取test_amount个股票"
+            },
+
+            "blacklist": {
+                # 黑名单采样配置
+                "blacklist": ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ", "000007.SZ", "000008.SZ", "000009.SZ", "000010.SZ"],
+                "description": "黑名单采样 - 从blacklist中抽取test_amount个股票"
+            },
+        },
     },
+
 
     # 投资目标设置
     "goal": {

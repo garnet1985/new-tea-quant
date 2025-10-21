@@ -23,6 +23,7 @@ class InvestmentGoalManager:
         self.goal_config = goal_config
         self.take_profit_config = goal_config.get('take_profit', {})
         self.stop_loss_config = goal_config.get('stop_loss', {})
+        self.is_customized = goal_config.get('is_customized', False)
     
     def create_investment_targets(self) -> Dict[str, Any]:
         """
@@ -31,26 +32,51 @@ class InvestmentGoalManager:
         Returns:
             投资目标状态字典
         """
-        return {
-            'investment_ratio_left': 1.0,  # 剩余投资比例
-            'is_breakeven': False,          # 是否启用保本止损
-            'is_dynamic_stop_loss': False,  # 是否启用动态止损
-            'last_highest_close': 0.0,      # 动态止损的最高价
-            'all': {
-                'stop_loss': deepcopy(self.stop_loss_config),
-                # 止盈阶段列表
-                'take_profit': deepcopy(self.take_profit_config.get('stages', [])),
-            },
-            # 固定平仓（goal级别，可选）
-            'fixed_days': deepcopy(self.goal_config.get('fixed_days')),
-            'fixed_trading_days': deepcopy(self.goal_config.get('fixed_trading_days')),
-            'fixed_days_canceled': False,
-            'fixed_trading_days_canceled': False,
-            # 运行时状态
-            'trading_days_elapsed': 0,
-            'last_checked_date': None,
-            'completed': [],  # 已触发的目标
-        }
+        if self.is_customized:
+            # 对于customized goal，创建简化的targets结构
+            return {
+                'investment_ratio_left': 1.0,  # 剩余投资比例
+                'is_customized': True,          # 标记为customized goal
+                'is_breakeven': False,          # 是否启用保本止损
+                'is_dynamic_stop_loss': False,  # 是否启用动态止损
+                'last_highest_close': 0.0,      # 动态止损的最高价
+                'all': {
+                    # customized goal不使用传统的stop_loss和take_profit配置
+                    'stop_loss': {},
+                    'take_profit': [],
+                },
+                'fixed_days': {},               # customized goal不使用固定天数
+                'fixed_trading_days': {},
+                'fixed_days_canceled': False,
+                'fixed_trading_days_canceled': False,
+                # 运行时状态
+                'trading_days_elapsed': 0,
+                'last_checked_date': None,
+                'completed': [],  # 已触发的目标
+            }
+        else:
+            # 传统的goal系统
+            return {
+                'investment_ratio_left': 1.0,  # 剩余投资比例
+                'is_customized': False,         # 标记为传统goal
+                'is_breakeven': False,          # 是否启用保本止损
+                'is_dynamic_stop_loss': False,  # 是否启用动态止损
+                'last_highest_close': 0.0,      # 动态止损的最高价
+                'all': {
+                    'stop_loss': deepcopy(self.stop_loss_config),
+                    # 止盈阶段列表
+                    'take_profit': deepcopy(self.take_profit_config.get('stages', [])),
+                },
+                # 固定平仓（goal级别，可选）
+                'fixed_days': deepcopy(self.goal_config.get('fixed_days')),
+                'fixed_trading_days': deepcopy(self.goal_config.get('fixed_trading_days')),
+                'fixed_days_canceled': False,
+                'fixed_trading_days_canceled': False,
+                # 运行时状态
+                'trading_days_elapsed': 0,
+                'last_checked_date': None,
+                'completed': [],  # 已触发的目标
+            }
     
     @staticmethod
     def check_targets(investment: Dict[str, Any], current_record: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
@@ -64,6 +90,12 @@ class InvestmentGoalManager:
         Returns:
             (是否投资结束, 更新后的投资对象)
         """
+        # 对于customized goal，不进行传统的目标检查
+        if investment['targets'].get('is_customized', False):
+            # customized goal的结算逻辑由策略的should_settle_investment方法处理
+            # 这里只需要保持investment对象不变，返回False表示未结束
+            return False, investment
+        
         # 先检查 goal 级别固定平仓（自然日/交易日）
         investment = InvestmentGoalManager._check_goal_level_fixed_days(investment, current_record)
         

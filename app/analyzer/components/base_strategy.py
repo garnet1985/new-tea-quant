@@ -12,6 +12,7 @@ from utils.icon.icon_service import IconService
 from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
 from app.data_loader import DataLoader
 import pandas
+from app.analyzer.analyzer_service import AnalyzerService
 
 
 class BaseStrategy(ABC):
@@ -32,6 +33,9 @@ class BaseStrategy(ABC):
         self.name = name
         self.description = description
         self.abbreviation = abbreviation
+        # 如果子类已经设置了version，则保持不变
+        if not hasattr(self, 'version'):
+            self.version = None
         
         # 策略所需的表模型
         self.table: Dict[str, Any] = {}
@@ -39,22 +43,6 @@ class BaseStrategy(ABC):
         self.investment_recorder = InvestmentRecorder()
         # 初始化策略
         self._check_required_fields()
-
-        # scan white list, config this when during test specific stocks purpose
-        # self.scan_ids = [
-        #     "603198.SH",
-        #     "600720.SH",
-        #     "002832.SZ",
-        #     "002557.SZ"
-        # ]
-        self.scan_ids = []
-
-        # scan range, config this when during quick test scan_opportunity function purpose
-        self.scan_range = {
-            "start": 0, 
-            "amount": 1
-        }
-
 
     # ========================================================
     # init:
@@ -88,6 +76,9 @@ class BaseStrategy(ABC):
 
         if self.is_verbose:
             logger.info(f"🔧 初始化策略: {self.name}")
+
+        if self.version is None:
+            raise ValueError("strategy require a version.")
     
 
     def _register_strategy_tables(self):
@@ -196,34 +187,6 @@ class BaseStrategy(ABC):
         return tables
 
 
-    def set_scan_ids(self, ids: List[str]):
-        """
-        设置扫描的ID集合
-        """
-        self.scan_ids = ids
-
-    def clear_scan_ids(self):
-        """
-        清空扫描的ID集合
-        """
-        self.scan_ids = []
-    
-    def clear_scan_range(self):
-        """
-        清空扫描的索引范围
-        """
-        self.scan_range = {
-            "start": 0, 
-            "amount": 0
-        }
-
-    def set_scan_range(self, amount, start = 0):
-        """
-        设置扫描的索引范围
-        """
-        self.scan_range['start'] = start
-        self.scan_range['amount'] = amount
-
     # ================================================================
     # Core 1 - identify opportunity: should be override by subclass:
     # ================================================================
@@ -242,7 +205,7 @@ class BaseStrategy(ABC):
             Optional[Dict]: 如果发现投资机会则返回机会字典，否则返回None
         """
         pass
-    
+
     @staticmethod
     def should_settle_investment(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> bool:
         """
@@ -272,35 +235,8 @@ class BaseStrategy(ABC):
         loader = DataLoader(self.db)
         stock_list = loader.load_stock_list(filtered=True)
 
-        # 根据 settings 的 mode 配置确定扫描范围
-        mode_config = strategy_settings.get('mode', {})
-        
-        # 优先级1: 如果开启 blacklist_only，扫描黑名单股票
-        if mode_config.get('blacklist_only', False):
-            blacklist = strategy_settings.get('goal', {}).get('blacklist', {}).get('list', [])
-            if blacklist:
-                stock_list = self.filter_list_by_ids(stock_list, blacklist)
-                logger.info(f"📋 使用黑名单模式，扫描 {len(stock_list)} 只股票")
-            else:
-                logger.warning("⚠️ 启用了黑名单模式但黑名单为空，将使用其他模式")
-        
-        # 优先级2: 使用 scan_stock_pool 指定的股票列表
-        elif mode_config.get('scan_stock_pool'):
-            scan_pool = mode_config.get('scan_stock_pool', [])
-            if scan_pool:
-                stock_list = self.filter_list_by_ids(stock_list, scan_pool)
-                logger.info(f"🎯 使用股票池模式，扫描 {len(stock_list)} 只股票")
-        
-        # 优先级3: 使用 start_idx 和 test_amount 进行范围测试
-        elif mode_config.get('test_amount', 0) > 0:
-            start_idx = mode_config.get('start_idx', 0)
-            test_amount = mode_config.get('test_amount', 0)
-            stock_list = stock_list[start_idx:start_idx + test_amount]
-            logger.info(f"🔢 使用范围测试模式，从索引 {start_idx} 开始扫描 {len(stock_list)} 只股票")
-        
-        # 优先级4: 扫描全部股票
-        else:
-            logger.info(f"🌐 使用全量扫描模式，扫描 {len(stock_list)} 只股票")
+        # 使用AnalyzerService的统一采样方法
+        stock_list = AnalyzerService.sample_stock_list(stock_list, strategy_settings)
 
         if not stock_list:
             logger.info(f"{IconService.get('error')} 未找到可扫描的股票")
@@ -313,26 +249,6 @@ class BaseStrategy(ABC):
         self.report(opportunities)
         
         return opportunities
-
-    def filter_list_by_ids(self, stock_list: List[Dict[str, Any]], stock_ids: List[str]) -> List[Dict[str, Any]]:
-        """
-        扫描指定ID的股票的投资机会
-        """
-        new_list = []
-        for stock in stock_list:
-            if stock.get('id') in stock_ids:
-                new_list.append(stock)
-        return new_list
-
-
-    def filter_list_by_range(self, stock_list: List[Dict[str, Any]], scan_range: Any) -> List[Dict[str, Any]]:
-        """
-        扫描指定ID的股票的投资机会
-        """
-        start = scan_range.get('start', 0)
-        amount = scan_range.get('amount', 10)
-        new_list = stock_list[start:start+amount]
-        return new_list
 
 
     def _build_scan_jobs(self, stock_list: List[Dict[str, Any]], strategy_settings: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -486,16 +402,69 @@ class BaseStrategy(ABC):
     @staticmethod
     def to_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """
-        将投资机会转换为投资
+        将投资机会转换为投资 - 可选重写, 用来改变base_investment的字段
         """
         return base_investment
 
     @staticmethod
-    def to_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
+    def to_alt_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """
-        将投资转换为已结算投资
+        将投资转换为已结算投资 - 可选重写, 用来改变base_investment的字段
         """
         return base_investment
+
+    @staticmethod
+    def to_settled_investment(
+        investment: Dict[str, Any],
+        exit_price: float,
+        exit_date: str,
+        sell_ratio: float = 1.0,
+        target_type: str = "customized_goal"
+    ) -> Dict[str, Any]:
+        """
+        结算投资 - 简化API
+        
+        Args:
+            investment: 投资对象
+            exit_price: 退出价格
+            exit_date: 退出日期 (YYYYMMDD格式)
+            sell_ratio: 卖出比例 (0.0-1.0)，默认1.0表示全仓
+            target_type: 目标类型，默认"customized_goal"
+            
+        Returns:
+            更新后的投资对象
+        """
+        # 获取购买信息
+        purchase_price = investment['purchase_price']
+        purchase_date = investment['start_date']
+        
+        # 计算收益率
+        profit_ratio = (exit_price - purchase_price) / purchase_price
+        profit = exit_price - purchase_price
+        
+        # 创建完成目标
+        completed_target = {
+            'type': target_type,
+            'ratio': profit_ratio,
+            'sell_ratio': sell_ratio,
+            'profit': profit,
+            'exit_price': exit_price,
+            'exit_date': exit_date,
+            'purchase_price': purchase_price,
+            'purchase_date': purchase_date,
+            'is_achieved': True,
+        }
+        
+        # 更新投资对象
+        if 'targets' not in investment:
+            investment['targets'] = {}
+        
+        investment['targets']['completed'] = [completed_target]
+        investment['targets']['investment_ratio_left'] = 1.0 - sell_ratio
+        investment['end_date'] = exit_date
+        
+        return investment
+
 
 
     # ========================================================
@@ -1600,6 +1569,7 @@ class BaseStrategy(ABC):
 
 
 
+
     # ========================================================
     # utils:
     # ========================================================
@@ -1617,4 +1587,3 @@ class BaseStrategy(ABC):
             'strategy_module_path': f"app.analyzer.strategy.{abbreviation}.{abbreviation}",
             'strategy_settings_path': f"app.analyzer.strategy.{abbreviation}.settings"
         }
-

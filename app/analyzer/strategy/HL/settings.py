@@ -8,13 +8,6 @@ settings = {
     # 策略启用状态
     "is_enabled": False,
     
-    'mode': {
-        "blacklist_only": False,
-        "test_amount": 10,
-        "start_idx": 0,
-        "simulation_ref_version": "603",
-        "record_summary" : True
-    },
     
     "klines": {
         "terms": [KlineTerm.DAILY.value],
@@ -25,7 +18,17 @@ settings = {
 
     "simulation": {
         "start_date": data_default_start_date,
-        "end_date": ""
+        "end_date": "",
+        "sampling_amount": 10,
+        "record_summary": True,
+        "analysis": True,
+        "sampling": {
+            "strategy": "continuous",
+            "continuous": {
+                "start_idx": 0,
+                "description": "连续采样 - 从start_idx开始取sampling_amount个股票"
+            }
+        }
     },
 
     # 日线数据要求

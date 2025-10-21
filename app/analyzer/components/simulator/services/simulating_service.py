@@ -246,12 +246,15 @@ class SimulatingService:
 
         if investment:
             if settings.get('goal').get('is_customized', False):
-                is_settled = strategy_class.should_settle_investment(stock_info, record_of_today, investment, required_data, settings)
+                is_settled, investment = strategy_class.should_settle_investment(stock_info, record_of_today, investment, required_data, settings)
             else:
                 is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
+            
             if is_settled:
                 # 在结算当日先更新 tracking，确保最后一天被计入
                 SimulatingService.update_investment_max_min_close(investment, record_of_today)
+                
+                
                 settled_investment = SimulatingService.to_settled_investment(investment, strategy_class)
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None
@@ -510,6 +513,7 @@ class SimulatingService:
         completed_targets = investment['targets']['completed']
         overall_profit = 0.0
 
+        # 使用统一的targets系统处理所有情况
         for target in completed_targets:
             target['weighted_profit'] = target['profit'] * target['sell_ratio']
             target['profit_contribution'] = target['sell_ratio']
@@ -536,5 +540,4 @@ class SimulatingService:
 
         logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
 
-
-        return strategy_class.to_settled_investment(investment)
+        return strategy_class.to_alt_settled_investment(investment)

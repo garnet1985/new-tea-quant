@@ -25,17 +25,18 @@ class RandomStrategy(BaseStrategy):
     """
     
     def __init__(self, db=None, is_verbose=False, name="Random", description="Random策略：随机投资策略", abbreviation="Random"):
+        # 先设置version，再调用父类__init__
+        self.version = "0.1"
         super().__init__(db, is_verbose, name, description, abbreviation)
         self.strategy_name = "Lucky investment strategy"
-        self.version = "0.1"
     
     @staticmethod
-    def scan_opportunity(stock_id: str, data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def scan_opportunity(stock_info: Dict[str, Any], data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         扫描投资机会
         
         Args:
-            stock_id: 股票代码
+            stock_info: 股票信息字典
             data: 股票的历史K线数据（到当前日期为止）
             settings: 策略设置
             
@@ -43,6 +44,8 @@ class RandomStrategy(BaseStrategy):
             Optional[Dict]: 如果发现投资机会则返回机会字典，否则返回None
         """
         try:
+            stock_id = stock_info.get('id')
+            
             # 获取日线数据
             daily_klines = data.get("klines", {}).get("daily", [])
             if not daily_klines or len(daily_klines) < settings['core']['lookback_days'] + 1:
@@ -60,13 +63,16 @@ class RandomStrategy(BaseStrategy):
                 
                 # 计算止损和止盈比例
                 stop_loss_ratio = RandomStrategy._get_stop_loss_ratio(record_of_today, amplitude_delta)
-                take_profit_ratio = RandomStrategy._get_take_profit_ratio(stop_loss_ratio)
+                take_profit_ratio = RandomStrategy._get_take_profit_ratio(stop_loss_ratio, settings)
                 
-                # 创建股票信息
-                stock_info = {'id': stock_id}
+                # 创建简化的股票信息（只保留必要字段）
+                simple_stock_info = {
+                    'id': stock_id,
+                    'name': stock_info.get('name', stock_id)
+                }
                 
                 return BaseStrategy.to_opportunity(
-                    stock=stock_info,
+                    stock=simple_stock_info,
                     record_of_today=record_of_today,
                     lower_bound=record_of_today['close'] * 0.98,
                     upper_bound=record_of_today['close'] * 1.02,
@@ -84,17 +90,33 @@ class RandomStrategy(BaseStrategy):
             return None
 
     @staticmethod
-    def should_settle_investment(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> bool:
+    def should_settle_investment(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         """
         判断是否应该结算投资 - 可选重写
+        
+        Returns:
+            (是否应该结算, 更新后的投资对象)
         """
         stop_loss = investment['extra_fields']['stop_loss']
         take_profit = investment['extra_fields']['take_profit']
         purchase_price = investment['purchase_price']
 
         price_of_today = record_of_today['close']
-
-        return price_of_today < purchase_price * (1 - stop_loss) or price_of_today > purchase_price * (1 + take_profit);
+        
+        # 检查是否触发止损或止盈
+        is_settled = price_of_today < purchase_price * (1 + stop_loss) or price_of_today > purchase_price * (1 + take_profit)
+        
+        if is_settled:
+            # 使用BaseStrategy的简化API结算投资
+            investment = BaseStrategy.to_settled_investment(
+                investment=investment,
+                exit_price=price_of_today,
+                exit_date=record_of_today['date'],
+                sell_ratio=1.0,
+                target_type="customized_goal"
+            )
+        
+        return is_settled, investment
 
 
     @staticmethod
@@ -132,13 +154,16 @@ class RandomStrategy(BaseStrategy):
             # 计算每天的振幅 (最高价 - 最低价) / 收盘价
             daily_amplitudes = []
             for kline in recent_klines:
-                high = kline['high']
-                low = kline['low']
-                close = kline['close']
+                # 兼容不同的字段名
+                high = kline.get('highest')
+                low = kline.get('lowest')
+                close = kline.get('close')
                 
-                if close > 0:
-                    amplitude = (high - low) / close
-                    daily_amplitudes.append(amplitude)
+                if high is None or low is None or close is None or close <= 0:
+                    continue
+                    
+                amplitude = (high - low) / close
+                daily_amplitudes.append(amplitude)
             
             if not daily_amplitudes:
                 return None
@@ -167,8 +192,6 @@ class RandomStrategy(BaseStrategy):
         try:
             # 止损比例基于振幅delta，最小-5%，最大-20%
             stop_loss_ratio = max(-0.20, min(-0.05, -amplitude_delta))
-            
-            logger.debug(f"🎲 Random策略止损比例: {stop_loss_ratio:.4f}, 基于振幅delta: {amplitude_delta:.4f}")
             return stop_loss_ratio
             
         except Exception as e:
@@ -176,7 +199,7 @@ class RandomStrategy(BaseStrategy):
             return -0.10  # 默认止损10%
     
     @staticmethod
-    def _get_take_profit_ratio(stop_loss_ratio: float) -> float:
+    def _get_take_profit_ratio(stop_loss_ratio: float, settings: Dict[str, Any]) -> float:
         """
         获取止盈比例（永远是止损的1.5倍）
         
@@ -187,9 +210,8 @@ class RandomStrategy(BaseStrategy):
             float: 止盈比例
         """
         try:
-            take_profit_ratio = abs(stop_loss_ratio) * 1.5
-            
-            logger.debug(f"🎲 Random策略止盈比例: {take_profit_ratio:.4f}, 止损比例: {stop_loss_ratio:.4f}")
+            win_loss_ratio = settings['core']['profit_loss_ratio']
+            take_profit_ratio = abs(stop_loss_ratio) * win_loss_ratio
             return take_profit_ratio
             
         except Exception as e:

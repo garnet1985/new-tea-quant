@@ -14,13 +14,13 @@ settings = {
     # 数据要求配置
     "klines": {
         # 数据周期 - 需要日线数据来计算振幅
-        "terms": [KlineTerm.DAILY.value],
+        "terms": [KlineTerm.DAILY.value, KlineTerm.WEEKLY.value],
         # 信号检测周期 - 基于日线检测信号
         "signal_base_term": KlineTerm.WEEKLY.value,
         # 模拟执行周期 - 基于日线进行模拟
         "simulate_base_term": KlineTerm.DAILY.value,
         # 最小要求的基础周期记录数
-        "min_required_base_records": 100,
+        "min_required_base_records": 30,
         # 复权方式
         "adjust": AdjustType.QFQ.value,
     },
@@ -34,7 +34,7 @@ settings = {
         "end_date": "",
 
         # 测试股票数量
-        "sampling_amount": 500,
+        "sampling_amount": 20,
 
          # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True,

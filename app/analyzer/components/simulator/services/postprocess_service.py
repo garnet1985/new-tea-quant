@@ -248,7 +248,7 @@ class PostprocessService:
         return default_session_summary
     
     @staticmethod
-    def present_session_report(session_summary: Dict[str, Any], strategy_name: str = '当前') -> None:
+    def present_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str = '当前') -> None:
         """
         通用的控制台展示方法
 
@@ -269,7 +269,7 @@ class PostprocessService:
             # ROI 显示：从小数格式（0.0026）转换为百分比格式（0.26%）
             avg_roi = session_summary.get('avg_roi', 0) * 100.0
 
-            if win_rate >= 60:
+            if win_rate >= 50:
                 win_rate_dot = IconService.get('green_dot')
             else:
                 win_rate_dot = IconService.get('red_dot')

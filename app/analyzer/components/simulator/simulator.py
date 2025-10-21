@@ -88,7 +88,7 @@ class Simulator:
 
         session_summary = strategy_class.on_before_report(session_summary)
 
-        PostprocessService.present_session_report(session_summary)
+        PostprocessService.present_session_report(session_summary, settings)
 
         return session_summary
 

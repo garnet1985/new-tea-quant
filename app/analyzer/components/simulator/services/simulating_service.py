@@ -246,12 +246,15 @@ class SimulatingService:
 
         if investment:
             if settings.get('goal').get('is_customized', False):
-                is_settled = strategy_class.should_settle_investment(stock_info, record_of_today, investment, required_data, settings)
+                is_settled, investment = strategy_class.should_settle_investment(stock_info, record_of_today, investment, required_data, settings)
             else:
                 is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
+            
             if is_settled:
                 # 在结算当日先更新 tracking，确保最后一天被计入
                 SimulatingService.update_investment_max_min_close(investment, record_of_today)
+                
+                
                 settled_investment = SimulatingService.to_settled_investment(investment, strategy_class)
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None
@@ -401,27 +404,18 @@ class SimulatingService:
         # 可选：股票标签（按日期获取当日标签）
         if isinstance(all_data.get('stock_labels'), dict):
             labels_data = all_data['stock_labels']
-            # 使用状态管理优化性能
-            labels_state = all_data['__state__'].setdefault('stock_labels', {'cursor': -1, 'acc': []})
-            cursor = labels_state['cursor']
-            acc = labels_state['acc']
             
             # 获取排序后的日期列表
             sorted_dates = sorted(labels_data.keys())
-            i = cursor + 1
-            n = len(sorted_dates)
             
-            # 找到当日或最近的标签
+            # 找到当日或最近的标签（现在所有日期都是YYYYMMDD格式）
             today_labels = []
-            while i < n:
-                date = sorted_dates[i]
+            for date in sorted_dates:
                 if date <= date_of_today:
                     today_labels = labels_data[date]  # 直接返回标签ID列表
-                    i += 1
                 else:
                     break
             
-            labels_state['cursor'] = i - 1
             data_today['labels'] = today_labels
 
         return data_today
@@ -519,6 +513,7 @@ class SimulatingService:
         completed_targets = investment['targets']['completed']
         overall_profit = 0.0
 
+        # 使用统一的targets系统处理所有情况
         for target in completed_targets:
             target['weighted_profit'] = target['profit'] * target['sell_ratio']
             target['profit_contribution'] = target['sell_ratio']
@@ -545,4 +540,4 @@ class SimulatingService:
 
         logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
 
-        return strategy_class.to_settled_investment(investment)
+        return strategy_class.to_alt_settled_investment(investment)

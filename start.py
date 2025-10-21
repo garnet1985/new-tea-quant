@@ -74,13 +74,24 @@ def main():
     # asyncio.run(app.renew_data(latest_market_open_day))
     
     # 3. 使用最新交易日更新股票标签（按频率更新）
-    app.renew_labels(latest_market_open_day)
+    # app.renew_labels(latest_market_open_day)
 
     # app.scan()
 
-    # app.simulate()
+    app.simulate()
 
     # app.analysis()
+    
+    # 识别平安银行重大反转点（分层识别版本）
+    # from app.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
+    # reversals = identify_major_reversals()
+    
+    # if reversals:
+    #     from app.analyzer.strategy.RTB.feature_identity.reversal_identify import save_reversal_results, display_reversal_results
+    #     save_reversal_results(reversals, "000001.SZ")
+    #     display_reversal_results(reversals)
+    # else:
+    #     print("⚠️ 未找到任何重大反转点")
 
 
 if __name__ == "__main__":

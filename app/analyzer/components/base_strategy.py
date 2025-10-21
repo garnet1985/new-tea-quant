@@ -33,7 +33,9 @@ class BaseStrategy(ABC):
         self.name = name
         self.description = description
         self.abbreviation = abbreviation
-        self.version = None  # 子类需要设置version属性
+        # 如果子类已经设置了version，则保持不变
+        if not hasattr(self, 'version'):
+            self.version = None
         
         # 策略所需的表模型
         self.table: Dict[str, Any] = {}
@@ -400,16 +402,69 @@ class BaseStrategy(ABC):
     @staticmethod
     def to_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """
-        将投资机会转换为投资
+        将投资机会转换为投资 - 可选重写, 用来改变base_investment的字段
         """
         return base_investment
 
     @staticmethod
-    def to_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
+    def to_alt_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """
-        将投资转换为已结算投资
+        将投资转换为已结算投资 - 可选重写, 用来改变base_investment的字段
         """
         return base_investment
+
+    @staticmethod
+    def to_settled_investment(
+        investment: Dict[str, Any],
+        exit_price: float,
+        exit_date: str,
+        sell_ratio: float = 1.0,
+        target_type: str = "customized_goal"
+    ) -> Dict[str, Any]:
+        """
+        结算投资 - 简化API
+        
+        Args:
+            investment: 投资对象
+            exit_price: 退出价格
+            exit_date: 退出日期 (YYYYMMDD格式)
+            sell_ratio: 卖出比例 (0.0-1.0)，默认1.0表示全仓
+            target_type: 目标类型，默认"customized_goal"
+            
+        Returns:
+            更新后的投资对象
+        """
+        # 获取购买信息
+        purchase_price = investment['purchase_price']
+        purchase_date = investment['start_date']
+        
+        # 计算收益率
+        profit_ratio = (exit_price - purchase_price) / purchase_price
+        profit = exit_price - purchase_price
+        
+        # 创建完成目标
+        completed_target = {
+            'type': target_type,
+            'ratio': profit_ratio,
+            'sell_ratio': sell_ratio,
+            'profit': profit,
+            'exit_price': exit_price,
+            'exit_date': exit_date,
+            'purchase_price': purchase_price,
+            'purchase_date': purchase_date,
+            'is_achieved': True,
+        }
+        
+        # 更新投资对象
+        if 'targets' not in investment:
+            investment['targets'] = {}
+        
+        investment['targets']['completed'] = [completed_target]
+        investment['targets']['investment_ratio_left'] = 1.0 - sell_ratio
+        investment['end_date'] = exit_date
+        
+        return investment
+
 
 
     # ========================================================
@@ -1532,4 +1587,3 @@ class BaseStrategy(ABC):
             'strategy_module_path': f"app.analyzer.strategy.{abbreviation}.{abbreviation}",
             'strategy_settings_path': f"app.analyzer.strategy.{abbreviation}.settings"
         }
-

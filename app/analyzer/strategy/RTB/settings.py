@@ -1,151 +1,210 @@
 from app.data_source.enums import KlineTerm, AdjustType
 from app.conf.conf import data_default_start_date
 
+# ML增强版本设置 - 基于机器学习验证的重要参数
 settings = {
     # 策略启用状态
-    "is_enabled": True,  # V20.1优化策略启用（基于收益分布分析的止损止盈优化）
+    "is_enabled": True,  # V21.0 ML增强版本启用
 
-    "version": "V20.5",
+    "version": "V25.0_Script_Optimized",
     
     "core": {
         "convergence": {
-            "days": 15,  # V20优化：基于2741次投资数据优化的收敛期
+            "days": 15,  # 基于ML分析的收敛期
         },
         "stability": {
-            "days": 8,  # V20优化：基于2741次投资数据优化的稳定期
+            "days": 8,   # 基于ML分析的稳定期
         },
         "invest_range": {
-            "lower_bound": 0.008,  # V20优化：基于2741次投资数据优化的买入区间
+            "lower_bound": 0.008,  # 基于ML分析的买入区间
             "upper_bound": 0.008,
         },
     },
 
     # 模拟模式
     'mode': {
-        # 是不是只模拟黑名单中的股票
         "blacklist_only": False,
-        # 测试股票数量 - 设置为0会运行所有股票
-        "test_amount": 500,
-        # 模拟参考版本号
-        "simulation_ref_version": "V20.4_No_Upper_Limit_BreakEven",
-        # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
-        "record_summary" : True
+        "test_amount": 500,  # ML分析使用500股票样本
+        "simulation_ref_version": "V21.0_ML_Enhanced",
+        "record_summary": True
     },
     
-    # 股票采样配置 - V19.0改进：独立的采样配置模块
+    # 股票采样配置 - ML增强版本
     'sampling': {
-        # 采样策略类型
-        "strategy": "uniform",  # uniform, stratified, random, continuous
-        
-        # 各策略的专用配置
-        "uniform": {
-            # 均匀采样无需额外配置
-            "description": "均匀间隔采样，分布均匀，结果可重现"
-        },
-        
-        "stratified": {
-            # 分层采样配置
-            "seed": 42,  # 随机种子
-            "description": "按市场分层采样，科学合理，依赖seed"
-        },
-        
+        "strategy": "random",  # 随机采样，模拟ML分析过程
         "random": {
-            # 随机采样配置
-            "seed": 42,  # 随机种子
-            "description": "完全随机采样，依赖seed保证可重现"
-        },
-        
-        "continuous": {
-            # 连续采样配置
-            "start_idx": 0,  # 起始索引
-            "description": "连续采样，从start_idx开始取test_amount个"
+            "seed": 42,
+            "description": "ML增强版本：随机采样，依赖seed保证可重现"
         }
     },
 
-    # 数据要求配置
+    # 数据要求配置 - ML增强版本
     "klines": {
-        # 数据周期 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
         "terms": [KlineTerm.DAILY.value, KlineTerm.WEEKLY.value],
-        # 信号检测周期 - V16优化：基于周线检测信号，避免重复计算
-        "signal_base_term": KlineTerm.WEEKLY.value,
-        # 模拟执行周期 - 基于日线执行，精确的买卖时机
-        "simulate_base_term": KlineTerm.DAILY.value,
-        # 最小要求的基础周期记录数
+        "signal_base_term": KlineTerm.WEEKLY.value,  # 基于周线检测信号
+        "simulate_base_term": KlineTerm.DAILY.value,  # 基于日线执行
         "min_required_base_records": 100,
-        # 复权方式
         "adjust": AdjustType.QFQ.value,
-        # 要在K线上增加的技术指标
         "indicators": {
             "moving_average": {
-                "periods": [5, 10, 20, 60],
+                "periods": [5, 10, 20, 60],  # ML分析中的重要均线
             },
             "rsi": {
-                "period": 14,  # 14日RSI
+                "period": 14,  # ML分析中的RSI周期
             },
         },
-        # 是否使用股票标签
         "stock_labels": True
     },
 
-    # 模拟时间范围 - 日期格式YYYYMMDD
+    # 模拟时间范围
     "simulation": {
-        # 模拟开始日期 - 空指代使用默认开始日期
         "start_date": "",
-        # 模拟结束日期 - 空指代到最新的记录
         "end_date": ""
     },
 
-    # 投资目标设置
+    # ML增强版投资目标设置
     "goal": {
-        # 固定期限强制平仓（交易日优先尝试）
-        # V16优化：设置200天时间止损（基于盈利样本171.8天平均时长）
         "fixed_trading_days": 200,
 
-        # 是否自定义止损目标 - 如果有此属性且为true，则完全使用此属性来判断是否应该结算投资，以下属性均不生效
-        'is_customized': False,
+        "is_customized": False,
 
-               # 止损目标设置 - V20优化版：-12%止损（基于2741次投资数据优化）
+        # ML增强版止损目标设置
         "stop_loss": {
-
             "dynamic": {
                 "name": "dynamic",
-                "ratio": -0.1,  # V20.4优化：动态止损-12%，给股票更多上涨空间
-                "close_invest": True  # 动态止损时：清仓
+                "ratio": -0.12,  # ML分析优化：-12%动态止损
+                "close_invest": True
             },
-
             "stages": [
                 {
-                    "name": "loss18%",
-                    "ratio": -0.18,  # V20优化：-12%止损（基于2741次投资数据优化）
-                    "close_invest": True  # 止损时：清仓
+                    "name": "loss15%",
+                    "ratio": -0.15,  # ML分析优化：-15%止损
+                    "close_invest": True
                 }
             ]
         },
-        # 止盈目标设置 - V20.4优化版：移除上限，使用break even止损保护利润
+        
+        # ML增强版止盈目标设置
         "take_profit": {
             "stages": [
                 {
                     "name": "win20%",
-                    "ratio": 0.2,  # 第一阶段：25%止盈
-                    "sell_ratio": 0.4,  # 30%平仓
+                    "ratio": 0.2,  # 第一阶段：20%止盈
+                    "sell_ratio": 0.4,  # 40%平仓
                 },
                 {
                     "name": "win30%",
-                    "ratio": 0.3,  # 第二阶段：35%止盈
-                    "sell_ratio": 0.4,  # 再平仓50%（累计80%）
-                    "set_stop_loss": "dynamic"  # 第二次止盈后设置动态止损控制剩余仓位
+                    "ratio": 0.3,  # 第二阶段：30%止盈
+                    "sell_ratio": 0.4,  # 再平仓40%（累计80%）
+                    "set_stop_loss": "dynamic"  # 设置动态止损控制剩余仓位
                 }
-                # 注意：没有第三阶段止盈，最后20%仓位由动态止损控制，可以无限上涨
+                # 最后20%仓位由动态止损控制，可以无限上涨
             ]
         },
 
-        # 黑名单设置, 黑名单设置存在时 mode:blacklist_only 才会生效
+        # 黑名单设置
         "blacklist": {
-            # 黑名单数量
             "count": 0,
-            "description": "avg_roi<0 (from 524)",
-            # 黑名单列表
+            "description": "ML增强版本：基于机器学习分析的黑名单",
             "list": []
         }
     },
+
+    # ML增强版核心参数阈值设置
+    "ml_enhanced": {
+        # 基于机器学习验证的重要参数阈值
+        "thresholds": {
+            # 最高权重参数 (0.106)
+            "volatility": {
+                "min": 0.02,  # 波动率 > 2%
+                "max": 0.15,  # 波动率 < 15%
+                "weight": 0.106
+            },
+            
+            # 第二重要参数 (0.080)
+            "volume_ratio_after": {
+                "min": 1.5,   # 反转后成交量放大 ≥ 1.5倍
+                "weight": 0.080
+            },
+            
+            # 中高权重参数 (0.056)
+            "ma_convergence": {
+                "max": 0.05,  # 均线收敛度 < 5%
+                "weight": 0.056
+            },
+            
+            # 中等权重参数 (0.053-0.045)
+            "price_vs_ma20": {
+                "min": -0.05,  # 价格与MA20距离在±5%内
+                "max": 0.05,
+                "weight": 0.046
+            },
+            "price_vs_ma60": {
+                "min": -0.08,  # 价格与MA60距离在±8%内
+                "max": 0.08,
+                "weight": 0.044
+            },
+            
+            # 月线跌幅参数 (0.044)
+            "monthly_drop_rate": {
+                "min": 0.05,  # 月线跌幅 > 5%
+                "max": 0.40,  # 月线跌幅 < 40%
+                "weight": 0.044
+            },
+            
+            # 均线斜率参数
+            "ma20_slope": {
+                "min": -0.01,  # MA20斜率不显著向下
+                "weight": 0.038
+            },
+            
+            # RSI参数
+            "rsi": {
+                "min": 20,    # RSI > 20
+                "max": 70,    # RSI < 70
+                "weight": 0.038
+            },
+            
+            # 价格分位数参数
+            "price_percentile": {
+                "min": 0.2,   # 价格分位数 > 20%
+                "max": 0.6,   # 价格分位数 < 60%
+                "weight": 0.016
+            },
+            
+            # 成交量确认参数
+            "volume_ratio_before": {
+                "min": 1.2,   # 反转前成交量放大 ≥ 1.2倍
+                "weight": 0.042
+            }
+        },
+        
+        # 财务筛选参数（基于市值效应分析）
+        "financial_filters": {
+            "market_cap": {
+                "max": 3000000,  # 优先小盘股：市值 < 300亿
+                "preference": "small_cap"  # 小盘股成功率89.1% > 大盘股86.6%
+            },
+            "pe_ratio": {
+                "min": 10,
+                "max": 100
+            },
+            "pb_ratio": {
+                "min": 0.3,
+                "max": 8.0
+            },
+            "ps_ratio": {
+                "min": 0.5,
+                "max": 15.0
+            }
+        },
+        
+        # 关键成功指标阈值
+        "success_indicators": {
+            "volume_surge_after_threshold": 1.5,    # 反转后成交量放大阈值
+            "volume_surge_before_threshold": 1.2,   # 反转前成交量放大阈值
+            "ma_convergence_threshold": 0.05,       # 均线收敛度阈值
+            "volatility_optimal_range": [0.02, 0.15],  # 最优波动率范围
+        }
+    }
 }

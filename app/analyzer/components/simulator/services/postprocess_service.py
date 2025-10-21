@@ -165,11 +165,6 @@ class PostprocessService:
         total_win = 0
         total_loss = 0
         total_open = 0
-
-        profitable = 0
-        minor_profitable = 0
-        unprofitable = 0
-        minor_unprofitable = 0
         
         total_roi = 0.0
         total_duration_days = 0.0
@@ -177,23 +172,16 @@ class PostprocessService:
         stocks_with_opportunities = len(stock_summaries)
 
         for stock_summary in stock_summaries:
-
             summary = stock_summary.get('summary', {})
             stock_name = stock_summary.get('stock', {}).get('name', 'Unknown')
             
             investment_count = summary.get('total_investments', 0)
 
             if investment_count > 0:
-
                 total_investments += investment_count
                 total_win += summary.get('total_win', 0)
                 total_loss += summary.get('total_loss', 0)
                 total_open += summary.get('total_open', 0)
-
-                profitable += summary.get('profitable', 0)
-                minor_profitable += summary.get('minor_profitable', 0)
-                unprofitable += summary.get('unprofitable', 0)
-                minor_unprofitable += summary.get('minor_unprofitable', 0)
 
                 # 加权平均计算
                 stock_avg_roi = summary.get('avg_roi', 0)
@@ -210,14 +198,7 @@ class PostprocessService:
         annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration_days, is_trading_days=True)
         
         # 计算整体成功率
-        total_successful = profitable + minor_profitable
-        win_rate = AnalyzerService.to_percent(total_successful, total_investments)
-        
-        # 计算各种比例
-        profitable_ratio = AnalyzerService.to_percent(profitable, total_investments)
-        unprofitable_ratio = AnalyzerService.to_percent(unprofitable, total_investments)
-        minor_profit_ratio = AnalyzerService.to_percent(minor_profitable, total_investments)
-        minor_loss_ratio = AnalyzerService.to_percent(minor_unprofitable, total_investments)
+        win_rate = AnalyzerService.to_percent(total_win, total_investments)
         
         default_session_summary = {
             'win_rate': win_rate,
@@ -232,23 +213,21 @@ class PostprocessService:
             'total_win_investments': total_win,
             'total_loss_investments': total_loss,
 
-            'profitable_count': profitable,
-            'minor_profitable_count': minor_profitable,
-            'unprofitable_count': unprofitable,
-            'minor_unprofitable_count': minor_unprofitable,
-
-            'profitable_ratio': profitable_ratio,
-            'unprofitable_ratio': unprofitable_ratio,
-            'minor_profit_ratio': minor_profit_ratio,
-            'minor_loss_ratio': minor_loss_ratio,
-
             'stocks_have_opportunities': stocks_with_opportunities,
         }
 
+        # 添加ROI分布统计和投资时长分布统计
+        roi_distribution = PostprocessService._calculate_roi_distribution(stock_summaries)
+        duration_distribution = PostprocessService._calculate_duration_distribution(stock_summaries)
+        
+        # 将新统计信息添加到summary中
+        default_session_summary.update(roi_distribution)
+        default_session_summary.update(duration_distribution)
+        
         return default_session_summary
     
     @staticmethod
-    def present_session_report(session_summary: Dict[str, Any], strategy_name: str = '当前') -> None:
+    def present_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str = '当前') -> None:
         """
         通用的控制台展示方法
 
@@ -269,7 +248,7 @@ class PostprocessService:
             # ROI 显示：从小数格式（0.0026）转换为百分比格式（0.26%）
             avg_roi = session_summary.get('avg_roi', 0) * 100.0
 
-            if win_rate >= 60:
+            if win_rate >= 50:
                 win_rate_dot = IconService.get('green_dot')
             else:
                 win_rate_dot = IconService.get('red_dot')
@@ -301,9 +280,172 @@ class PostprocessService:
             print(f"{IconService.get('success')} 成功次数: {session_summary.get('total_win_investments', 0)}")
             print(f"{IconService.get('error')} 失败次数: {session_summary.get('total_loss_investments', 0)}")
             print(f"{IconService.get('ongoing')} 未完成次数: {session_summary.get('total_open_investments', 0)}")
-            print("<------------------------------------------->")
-            print(f"{IconService.get('green_dot')} 盈利次数: {session_summary.get('profitable_count', 0)} ({session_summary.get('profitable_ratio', 0):.1f}%)")
-            print(f"{IconService.get('yellow_dot')} 微盈次数: {session_summary.get('minor_profitable_count', 0)} ({session_summary.get('minor_profit_ratio', 0):.1f}%)")
-            print(f"{IconService.get('orange_dot')} 微损次数: {session_summary.get('minor_unprofitable_count', 0)} ({session_summary.get('minor_loss_ratio', 0):.1f}%)")
-            print(f"{IconService.get('red_dot')} 亏损次数: {session_summary.get('unprofitable_count', 0)} ({session_summary.get('unprofitable_ratio', 0):.1f}%)")
-            print("="*60)
+            print("")
+            print("📈 ROI分布统计:")
+            print(f" - 平均ROI: {session_summary.get('roi_mean', 0)*100:.1f}%")
+            print(f" - 中位数ROI: {session_summary.get('roi_median', 0)*100:.1f}%")
+            print(f" - 25分位数: {session_summary.get('roi_25th_percentile', 0)*100:.1f}%")
+            print(f" - 75分位数: {session_summary.get('roi_75th_percentile', 0)*100:.1f}%")
+            print(f" - 标准差: {session_summary.get('roi_std', 0)*100:.1f}%")
+            print(f" - 最小ROI: {session_summary.get('roi_min', 0)*100:.1f}%")
+            print(f" - 最大ROI: {session_summary.get('roi_max', 0)*100:.1f}%")
+
+            print("")
+        print("📊 ROI区间分布:")
+        total_inv = session_summary.get('total_investments', 1)
+        print(f" - <-10%: {session_summary.get('roi_lt_10pct', 0)}次 ({session_summary.get('roi_lt_10pct', 0)/total_inv*100:.1f}%)")
+        print(f" - -10%~-5%: {session_summary.get('roi_10_to_5pct', 0)}次 ({session_summary.get('roi_10_to_5pct', 0)/total_inv*100:.1f}%)")
+        print(f" - -5%~0%: {session_summary.get('roi_5_to_0pct', 0)}次 ({session_summary.get('roi_5_to_0pct', 0)/total_inv*100:.1f}%)")
+        print(f" - 0%~5%: {session_summary.get('roi_0_to_5pct', 0)}次 ({session_summary.get('roi_0_to_5pct', 0)/total_inv*100:.1f}%)")
+        print(f" - 5%~10%: {session_summary.get('roi_5_to_10pct', 0)}次 ({session_summary.get('roi_5_to_10pct', 0)/total_inv*100:.1f}%)")
+        print(f" - 10%~15%: {session_summary.get('roi_10_to_15pct', 0)}次 ({session_summary.get('roi_10_to_15pct', 0)/total_inv*100:.1f}%)")
+        print(f" - 15%~20%: {session_summary.get('roi_15_to_20pct', 0)}次 ({session_summary.get('roi_15_to_20pct', 0)/total_inv*100:.1f}%)")
+        print(f" - 20%~30%: {session_summary.get('roi_20_to_30pct', 0)}次 ({session_summary.get('roi_20_to_30pct', 0)/total_inv*100:.1f}%)")
+        print(f" - 30%~50%: {session_summary.get('roi_30_to_50pct', 0)}次 ({session_summary.get('roi_30_to_50pct', 0)/total_inv*100:.1f}%)")
+        print(f" - >50%: {session_summary.get('roi_gt_50pct', 0)}次 ({session_summary.get('roi_gt_50pct', 0)/total_inv*100:.1f}%)")
+        print("")
+        print("📅 投资时长分布:")
+        print(f" - 平均时长: {session_summary.get('duration_mean', 0):.1f}天")
+        print(f" - 中位数时长: {session_summary.get('duration_median', 0):.1f}天")
+        print(f" - 标准差: {session_summary.get('duration_std', 0):.1f}天")
+        print(f" - 最短时长: {session_summary.get('duration_min', 0):.0f}天")
+        print(f" - 最长时长: {session_summary.get('duration_max', 0):.0f}天")
+        print(f" - 25分位数: {session_summary.get('duration_25th_percentile', 0):.1f}天")
+        print(f" - 75分位数: {session_summary.get('duration_75th_percentile', 0):.1f}天")
+        print("")
+        print("📊 投资时长区间分布:")
+        total_duration = session_summary.get('total_investments', 1)
+        print(f" - 1-5天: {session_summary.get('duration_1_to_5_days', 0)}次 ({session_summary.get('duration_1_to_5_days', 0)/total_duration*100:.1f}%)")
+        print(f" - 6-10天: {session_summary.get('duration_6_to_10_days', 0)}次 ({session_summary.get('duration_6_to_10_days', 0)/total_duration*100:.1f}%)")
+        print(f" - 11-20天: {session_summary.get('duration_11_to_20_days', 0)}次 ({session_summary.get('duration_11_to_20_days', 0)/total_duration*100:.1f}%)")
+        print(f" - 21-30天: {session_summary.get('duration_21_to_30_days', 0)}次 ({session_summary.get('duration_21_to_30_days', 0)/total_duration*100:.1f}%)")
+        print(f" - 31-60天: {session_summary.get('duration_31_to_60_days', 0)}次 ({session_summary.get('duration_31_to_60_days', 0)/total_duration*100:.1f}%)")
+        print(f" - 61-90天: {session_summary.get('duration_61_to_90_days', 0)}次 ({session_summary.get('duration_61_to_90_days', 0)/total_duration*100:.1f}%)")
+        print(f" - 91-180天: {session_summary.get('duration_91_to_180_days', 0)}次 ({session_summary.get('duration_91_to_180_days', 0)/total_duration*100:.1f}%)")
+        print(f" - >180天: {session_summary.get('duration_gt_180_days', 0)}次 ({session_summary.get('duration_gt_180_days', 0)/total_duration*100:.1f}%)")
+        print("="*60)
+    
+    @staticmethod
+    def _calculate_roi_distribution(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        计算ROI分布统计
+        
+        Returns:
+            Dict[str, Any]: ROI分布统计字典
+        """
+        import numpy as np
+        
+        all_rois = []
+        
+        # 收集所有投资的ROI
+        for stock_summary in stock_summaries:
+            investments = stock_summary.get('investments', [])
+            
+            for investment in investments:
+                roi = investment.get('overall_profit_rate', 0)
+                all_rois.append(roi)
+        
+        if not all_rois:
+            return {}
+        
+        # 计算ROI分布统计
+        roi_stats = {
+            'roi_mean': np.mean(all_rois),
+            'roi_median': np.median(all_rois),
+            'roi_std': np.std(all_rois),
+            'roi_min': np.min(all_rois),
+            'roi_max': np.max(all_rois),
+            'roi_25th_percentile': np.percentile(all_rois, 25),
+            'roi_75th_percentile': np.percentile(all_rois, 75),
+            'roi_90th_percentile': np.percentile(all_rois, 90),
+            'roi_95th_percentile': np.percentile(all_rois, 95),
+        }
+        
+        # 计算ROI区间分布
+        roi_bins = [-float('inf'), -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, float('inf')]
+        roi_bin_counts, _ = np.histogram(all_rois, bins=roi_bins)
+        roi_bin_labels = ['<-10%', '-10%~-5%', '-5%~0%', '0%~5%', '5%~10%', '10%~15%', '15%~20%', '20%~30%', '30%~50%', '>50%']
+        
+        # 使用更直观的区间命名
+        roi_bin_keys = [
+            'roi_lt_10pct',      # <-10%
+            'roi_10_to_5pct',    # -10%~-5%
+            'roi_5_to_0pct',     # -5%~0%
+            'roi_0_to_5pct',     # 0%~5%
+            'roi_5_to_10pct',    # 5%~10%
+            'roi_10_to_15pct',   # 10%~15%
+            'roi_15_to_20pct',   # 15%~20%
+            'roi_20_to_30pct',   # 20%~30%
+            'roi_30_to_50pct',   # 30%~50%
+            'roi_gt_50pct'       # >50%
+        ]
+        
+        roi_distribution = {}
+        for i, count in enumerate(roi_bin_counts):
+            roi_distribution[roi_bin_keys[i]] = int(count)
+        
+        roi_stats.update(roi_distribution)
+        
+        return roi_stats
+    
+    @staticmethod
+    def _calculate_duration_distribution(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        计算投资时长分布统计
+        
+        Returns:
+            Dict: 投资时长分布统计信息
+        """
+        import numpy as np
+        
+        all_durations = []
+        
+        # 收集所有投资的投资时长
+        for stock_summary in stock_summaries:
+            investments = stock_summary.get('investments', [])
+            
+            for investment in investments:
+                duration = investment.get('duration_in_days', 0)
+                if duration >= 0:  # 统计所有投资（包括0天的投资）
+                    all_durations.append(duration)
+        
+        if not all_durations:
+            return {}
+        
+        # 计算时长分布统计
+        duration_stats = {
+            'duration_mean': float(np.mean(all_durations)),
+            'duration_median': float(np.median(all_durations)),
+            'duration_std': float(np.std(all_durations)),
+            'duration_min': int(np.min(all_durations)),
+            'duration_max': int(np.max(all_durations)),
+            'duration_25th_percentile': float(np.percentile(all_durations, 25)),
+            'duration_75th_percentile': float(np.percentile(all_durations, 75)),
+            'duration_90th_percentile': float(np.percentile(all_durations, 90)),
+            'duration_95th_percentile': float(np.percentile(all_durations, 95)),
+        }
+        
+        # 计算时长区间分布
+        duration_bins = [0, 5, 10, 20, 30, 60, 90, 180, float('inf')]
+        duration_bin_counts, _ = np.histogram(all_durations, bins=duration_bins)
+        
+        # 使用更直观的区间命名
+        duration_bin_keys = [
+            'duration_1_to_5_days',     # 1-5天
+            'duration_6_to_10_days',    # 6-10天
+            'duration_11_to_20_days',   # 11-20天
+            'duration_21_to_30_days',   # 21-30天
+            'duration_31_to_60_days',   # 31-60天
+            'duration_61_to_90_days',   # 61-90天
+            'duration_91_to_180_days',  # 91-180天
+            'duration_gt_180_days'      # >180天
+        ]
+        
+        duration_distribution = {}
+        for i, count in enumerate(duration_bin_counts):
+            duration_distribution[duration_bin_keys[i]] = int(count)
+        
+        duration_stats.update(duration_distribution)
+        
+        return duration_stats
+    

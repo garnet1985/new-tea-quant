@@ -156,6 +156,28 @@ class DateUtils:
             raise ValueError(f"计算日期失败: {date_str}, error: {e}")
     
     @staticmethod
+    def get_duration_in_days(start_date: str, end_date: str, 
+                           date_format: str = DATE_FORMAT_YYYYMMDD) -> int:
+        """
+        计算两个日期之间的天数差
+        
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+            date_format: 日期格式
+            
+        Returns:
+            int: 天数差
+        """
+        try:
+            start_obj = datetime.strptime(start_date, date_format)
+            end_obj = datetime.strptime(end_date, date_format)
+            delta = end_obj - start_obj
+            return delta.days
+        except ValueError as e:
+            raise ValueError(f"计算日期差失败: {start_date} to {end_date}, error: {e}")
+    
+    @staticmethod
     def parse_yyyymmdd(date_str: str) -> datetime:
         """
         解析 YYYYMMDD 格式的日期字符串

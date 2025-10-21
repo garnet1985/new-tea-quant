@@ -33,10 +33,12 @@ class Simulator:
 
         report = self.postprocess(simulate_results, strategy_class, settings)
         
+        
         total_time = time.time() - start_time
         logger.info(f"{IconService.get('success')} 模拟流程完成！总耗时: {total_time:.2f}秒")
         
         return report
+    
     
     def preprocess(self, settings: Dict[str, Any], strategy_class: Any) -> List[Dict[str, Any]]:
 
@@ -86,7 +88,7 @@ class Simulator:
 
         session_summary = strategy_class.on_before_report(session_summary)
 
-        PostprocessService.present_session_report(session_summary)
+        PostprocessService.present_session_report(session_summary, settings)
 
         return session_summary
 

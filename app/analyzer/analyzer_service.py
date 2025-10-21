@@ -1,7 +1,9 @@
 from datetime import datetime
 from enum import Enum
 import math
+import random
 from typing import Any, Dict, List
+from loguru import logger
 from .analyzer_settings import conf
 
 
@@ -427,6 +429,174 @@ class AnalyzerService:
                 min_date = data[i]['date']
         
         return min_date
+
+    # ========================================================
+    # 股票列表采样方法
+    # ========================================================
+    
+    @staticmethod
+    def sample_stock_list(stock_list: List[Dict[str, Any]], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        根据settings配置采样股票列表
+        
+        Args:
+            stock_list: 原始股票列表
+            settings: 策略设置
+            
+        Returns:
+            采样后的股票列表
+        """
+        try:
+            # 获取simulation配置
+            simulation_config = settings.get('simulation', {})
+            sampling_config = simulation_config.get('sampling', {})
+            sampling_strategy = sampling_config.get('strategy', 'uniform')
+            sampling_amount = simulation_config.get('sampling_amount', 0)
+            
+            if sampling_amount > 0:
+                # 根据采样策略执行相应的采样方法
+                if sampling_strategy == 'uniform':
+                    result = AnalyzerService._uniform_sampling(stock_list, sampling_amount)
+                    logger.info(f"📊 均匀间隔采样: {len(result)} 只股票")
+
+                elif sampling_strategy == 'stratified':
+                    stratified_config = sampling_config.get('stratified', {})
+                    seed = stratified_config.get('seed', 42)
+                    result = AnalyzerService._stratified_sampling(stock_list, sampling_amount, seed)
+                    logger.info(f"📊 分层采样: {len(result)} 只股票 (seed={seed})")
+
+                elif sampling_strategy == 'random':
+                    random_config = sampling_config.get('random', {})
+                    seed = random_config.get('seed', 42)
+                    result = AnalyzerService._random_sampling(stock_list, sampling_amount, seed)
+                    logger.info(f"📊 随机采样: {len(result)} 只股票 (seed={seed})")
+
+                elif sampling_strategy == 'pool':
+                    pool_config = sampling_config.get('pool', {})
+                    stock_pool = pool_config.get('stock_pool', [])
+                    if stock_pool:
+                        result = AnalyzerService._filter_list_by_ids(stock_list, stock_pool)
+                        if len(result) > sampling_amount:
+                            result = result[:sampling_amount]
+                        logger.info(f"🎯 股票池采样: {len(result)} 只股票")
+                    else:
+                        logger.warning("⚠️ 启用了股票池采样但股票池为空，将使用全量模式")
+                        result = stock_list
+                        logger.info(f"🌐 使用全量模式，扫描 {len(result)} 只股票")
+
+                elif sampling_strategy == 'blacklist':
+                    blacklist_config = sampling_config.get('blacklist', {})
+                    blacklist = blacklist_config.get('blacklist', [])
+                    if blacklist:
+                        result = AnalyzerService._filter_list_by_ids(stock_list, blacklist)
+                        if len(result) > sampling_amount:
+                            result = result[:sampling_amount]
+                        logger.info(f"📋 黑名单采样: {len(result)} 只股票")
+                    else:
+                        logger.warning("⚠️ 启用了黑名单采样但黑名单为空，将使用全量模式")
+                        result = stock_list
+                        logger.info(f"🌐 使用全量模式，扫描 {len(result)} 只股票")
+
+                else:  # continuous
+                    continuous_config = sampling_config.get('continuous', {})
+                    start_idx = continuous_config.get('start_idx', 0)
+                    result = stock_list[start_idx:start_idx + sampling_amount]
+                    logger.info(f"🔢 连续采样: {len(result)} 只股票 (从索引 {start_idx} 开始)")
+
+                return result
+
+            else:
+                logger.info(f"🌐 使用全量模式，扫描 {len(stock_list)} 只股票")
+                return stock_list
+
+        except Exception as e:
+            logger.error(f"❌ 股票列表采样失败: {e}")
+            return stock_list
+
+    @staticmethod
+    def _filter_list_by_ids(stock_list: List[Dict[str, Any]], stock_ids: List[str]) -> List[Dict[str, Any]]:
+        """根据股票ID列表过滤股票"""
+        new_list = []
+        for stock in stock_list:
+            if stock.get('id') in stock_ids:
+                new_list.append(stock)
+        return new_list
+    
+    @staticmethod
+    def _uniform_sampling(stock_list: List[Dict[str, Any]], sample_size: int) -> List[Dict[str, Any]]:
+        """
+        均匀间隔采样 - 保证样本分布均匀，结果可重现
+        """
+        total_stocks = len(stock_list)
+        
+        if sample_size >= total_stocks:
+            return stock_list
+        
+        # 计算采样间隔
+        step = total_stocks / sample_size
+        
+        # 生成均匀分布的索引
+        indices = []
+        for i in range(sample_size):
+            # 使用固定偏移避免总是从0开始
+            offset = i * step
+            index = int(offset + (step * 0.5))  # 取间隔中点
+            indices.append(index)
+        
+        # 提取采样股票
+        sampled_stocks = [stock_list[idx] for idx in indices if idx < total_stocks]
+        
+        return sampled_stocks
+    
+    @staticmethod
+    def _stratified_sampling(stock_list: List[Dict[str, Any]], sample_size: int, seed: int = 42) -> List[Dict[str, Any]]:
+        """
+        分层采样 - 按股票代码前缀分层，确保不同市场都有代表
+        """
+        # 按股票代码前缀分组
+        groups = {}
+        for stock in stock_list:
+            stock_id = stock['id']
+            prefix = stock_id[:2]  # 取前两位作为分组依据
+            
+            if prefix not in groups:
+                groups[prefix] = []
+            groups[prefix].append(stock)
+        
+        # 按组大小分配采样数量
+        sampled_stocks = []
+        random.seed(seed)
+        
+        for prefix, stocks in groups.items():
+            # 按比例分配采样数量
+            group_sample_size = max(1, int(sample_size * len(stocks) / len(stock_list)))
+            
+            # 从该组中随机采样
+            if group_sample_size >= len(stocks):
+                sampled_stocks.extend(stocks)
+            else:
+                sampled_stocks.extend(random.sample(stocks, group_sample_size))
+        
+        # 如果采样数量不足，从剩余股票中补充
+        if len(sampled_stocks) < sample_size:
+            remaining_stocks = [s for s in stock_list if s not in sampled_stocks]
+            additional_needed = sample_size - len(sampled_stocks)
+            if additional_needed <= len(remaining_stocks):
+                sampled_stocks.extend(random.sample(remaining_stocks, additional_needed))
+        
+        return sampled_stocks
+    
+    @staticmethod
+    def _random_sampling(stock_list: List[Dict[str, Any]], sample_size: int, seed: int = 42) -> List[Dict[str, Any]]:
+        """
+        随机采样 - 完全随机，但使用固定种子保证可重现
+        """
+        random.seed(seed)
+        
+        if sample_size >= len(stock_list):
+            return stock_list
+        
+        return random.sample(stock_list, sample_size)
 
 
     

@@ -19,7 +19,13 @@ class SettingsValidator:
         self.optional_fields = {
             'klines.additional_terms': list,  # 额外周期，如 ['weekly', 'monthly']
             'goal': dict,                     # 投资目标配置
-            'mode': dict,                     # 模式配置
+            'mode': dict,                     # 模式配置（向后兼容）
+            'simulation': dict,               # 新的模拟配置
+            'core': dict,                     # 核心策略参数
+            'macro': dict,                    # 宏观经济数据配置
+            'corporate_finance': dict,        # 公司财务数据配置
+            'index_indicators': dict,         # 指数指标配置
+            'industry_capital_flow': dict,    # 行业资本流动配置
         }
         
         from app.data_source.enums import KlineTerm

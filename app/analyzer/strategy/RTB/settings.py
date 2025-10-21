@@ -4,7 +4,7 @@ from app.conf.conf import data_default_start_date
 # ML增强版本设置 - 基于机器学习验证的重要参数
 settings = {
     # 策略启用状态
-    "is_enabled": True,  # V21.0 ML增强版本启用
+    "is_enabled": False,  # V21.0 ML增强版本启用
 
     "version": "V25.0_Script_Optimized",
     
@@ -21,20 +21,18 @@ settings = {
         },
     },
 
-    # 模拟模式
-    'mode': {
-        "blacklist_only": False,
-        "test_amount": 500,  # ML分析使用500股票样本
-        "simulation_ref_version": "V21.0_ML_Enhanced",
-        "record_summary": True
-    },
-    
-    # 股票采样配置 - ML增强版本
-    'sampling': {
-        "strategy": "random",  # 随机采样，模拟ML分析过程
-        "random": {
-            "seed": 42,
-            "description": "ML增强版本：随机采样，依赖seed保证可重现"
+    # 模拟配置
+    "simulation": {
+        "start_date": data_default_start_date,
+        "end_date": "",
+        "sampling_amount": 500,  # ML分析使用500股票样本
+        "record_summary": True,
+        "analysis": True,
+        "sampling": {
+            "strategy": "uniform",  # 均匀间隔采样，默认策略
+            "uniform": {
+                "description": "均匀间隔采样 - 每间隔N个股票抽取一个，结果可重现"
+            }
         }
     },
 
@@ -56,11 +54,6 @@ settings = {
         "stock_labels": True
     },
 
-    # 模拟时间范围
-    "simulation": {
-        "start_date": "",
-        "end_date": ""
-    },
 
     # ML增强版投资目标设置
     "goal": {

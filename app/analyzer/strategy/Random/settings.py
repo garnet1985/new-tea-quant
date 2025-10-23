@@ -34,7 +34,7 @@ settings = {
         "end_date": "",
 
         # 测试股票数量
-        "sampling_amount": 20,
+        "sampling_amount": 200,
 
          # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True,
@@ -44,7 +44,7 @@ settings = {
 
         'sampling': {
             # 采样策略类型
-            "strategy": "uniform",  # 使用随机采样
+            "strategy": "random",  # 使用随机采样
             
             # 各策略的专用配置
             "uniform": {
@@ -56,6 +56,26 @@ settings = {
 
     # 投资目标设置
     "goal": {
-        "is_customized": True,
+        "is_customized": False,
+
+        "stop_loss": {
+            "stages": [
+                {
+                    "name": "loss10%",
+                    "ratio": -0.5,  # ML分析优化：-15%止损
+                    "close_invest": True
+                }
+            ]
+        },
+
+        "take_profit": {
+            "stages": [
+                {
+                    "name": "win15%",
+                    "ratio": 0.5,
+                    "sell_ratio": 1,
+                }
+            ]
+        },
     },
 }

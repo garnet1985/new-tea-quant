@@ -449,8 +449,8 @@ class SimulatingService:
             'opportunity_ref': {
                 'date': opportunity['date'],
                 'price': opportunity['price'],
-                'lower_bound': opportunity['lower_bound'],
-                'upper_bound': opportunity['upper_bound'],
+                'lower_bound': opportunity.get('lower_bound'),
+                'upper_bound': opportunity.get('upper_bound'),
             }
         }
 

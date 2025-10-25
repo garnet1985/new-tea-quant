@@ -223,6 +223,60 @@ class SettingsValidator:
             if isinstance(additional_terms, list) and signal_base_term in additional_terms:
                 errors.append(f"additional_terms cannot contain signal_base_term '{signal_base_term}'")
         
+        # 验证采样配置的安全性
+        errors.extend(self._validate_sampling_safety(settings))
+        
+        return errors
+    
+    def _validate_sampling_safety(self, settings: Dict[str, Any]) -> List[str]:
+        """
+        验证采样配置的安全性
+        要求：必须显式配置 sampling_amount，防止意外全量运行
+        """
+        errors = []
+        
+        # 检查simulation配置
+        simulation = settings.get('simulation', {})
+        
+        # 如果存在simulation配置，则检查或设置sampling_amount
+        if simulation:
+            if 'sampling_amount' not in simulation:
+                # 如果未配置，设置默认值为5
+                simulation['sampling_amount'] = 5
+                logger.info(
+                    "⚠️ 未配置 `simulation.sampling_amount`，已自动设置为默认值 5！\n"
+                    "   💡 如需修改，请在settings中显式配置：\n"
+                    "   - 采样N只股票: `\"sampling_amount\": N` (N为正整数)\n"
+                    "   - 使用全量股票: `\"sampling_amount\": 0`"
+                )
+            
+            sampling_amount = simulation.get('sampling_amount')
+            
+            # 检查sampling_amount类型
+            if not isinstance(sampling_amount, int):
+                errors.append(
+                    f"⚠️ sampling_amount 类型错误：必须是整数，当前类型: {type(sampling_amount).__name__}\n"
+                    f"   当前值: {sampling_amount}"
+                )
+                return errors  # 如果类型错误，直接返回错误
+            
+            # 检查sampling_amount是否为负数
+            if sampling_amount < 0:
+                errors.append(
+                    f"⚠️ sampling_amount 不能为负数！\n"
+                    f"   当前值: {sampling_amount}\n"
+                    f"   💡 设置方式：\n"
+                    f"   - 采样N只股票: `\"sampling_amount\": N` (N为正整数)\n"
+                    f"   - 使用全量股票: `\"sampling_amount\": 0`"
+                )
+                return errors  # 如果为负数，直接返回错误
+            
+            # 如果sampling_amount为0，给出警告提示
+            if sampling_amount == 0:
+                logger.warning(
+                    "⚠️ 检测到全量模式配置 (`sampling_amount: 0`)，将扫描所有股票，耗时可能很长！"
+                )
+        
         return errors
     
     def get_default_settings(self) -> Dict[str, Any]:

@@ -8,7 +8,7 @@ from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
-    "is_enabled": True,
+    "is_enabled": False,
     
     # 策略核心参数
     "core": {

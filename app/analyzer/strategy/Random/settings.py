@@ -3,7 +3,7 @@ from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
-    "is_enabled": False,
+    "is_enabled": True,
 
     "core": {
         "investment_probability": 0.05,
@@ -34,7 +34,7 @@ settings = {
         "end_date": "",
 
         # 测试股票数量
-        "sampling_amount": 200,
+        "sampling_amount": 10,
 
          # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True,
@@ -47,9 +47,9 @@ settings = {
             "strategy": "random",  # 使用随机采样
             
             # 各策略的专用配置
-            "uniform": {
-                # 均匀采样无需额外配置
-                "description": "均匀间隔采样 - 每间隔N个股票抽取一个，结果可重现"
+            "random": {
+                "seed": None,  # 使用None表示每次运行都使用不同的随机种子
+                "description": "随机采样 - 每次运行结果不同"
             },
         },
     },
@@ -71,7 +71,7 @@ settings = {
                 {
                     "name": "win30%",
                     "ratio": 0.3,
-                    "sell_ratio": 1,
+                    "close_invest": True
                 }
             ]
         },

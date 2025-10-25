@@ -78,6 +78,12 @@ class InvestmentRecorder:
 
         self.save_stock_summaries(stock_summaries, session_dir)
         self.save_session_summary(session_summary, session_dir)
+        
+        # 检查是否有自定义的 stock_summaries
+        custom_stock_summaries = session_summary.get('custom_stock_summaries')
+        if custom_stock_summaries:
+            self.save_custom_stock_summaries(custom_stock_summaries, session_dir)
+        
         self._update_meta_file()
         
         logger.info(f"📝 会话汇总已保存: {session_dir}")
@@ -98,8 +104,20 @@ class InvestmentRecorder:
         """生成会话汇总"""
        
         summary_file_path = os.path.join(session_dir, "0_session_summary.json")
-        self._save_json_to_file(session_summary, summary_file_path)        
+        # 保存前移除 custom_stock_summaries，避免文件过大
+        summary_to_save = session_summary.copy()
+        summary_to_save.pop('custom_stock_summaries', None)
+        self._save_json_to_file(summary_to_save, summary_file_path)        
         return session_summary
+    
+    def save_custom_stock_summaries(self, custom_stock_summaries: List[Dict[str, Any]], session_dir: str) -> None:
+        """保存自定义股票汇总信息到文件"""
+        for stock_summary in custom_stock_summaries:
+            # 生成文件名
+            stock_id = stock_summary['stock']['id']
+            file_path = os.path.join(session_dir, f"custom_{stock_id}.json")
+            # 保存到文件
+            self._save_json_to_file(stock_summary, file_path)
     
     # ========================================================
     # Utils:
@@ -260,13 +278,14 @@ class InvestmentRecorder:
             logger.error(f"❌ 读取股票 {stock_id} 汇总文件失败: {e}")
             return {}
 
-    def get_simulation_stock_summary_by_list(self, session_id: str = None, stock_ids: List[str] = None) -> List[Dict[str, Any]]:
+    def get_simulation_stock_summary_by_list(self, session_id: str = None, stock_ids: List[str] = None, use_custom: bool = False) -> List[Dict[str, Any]]:
         """
         获取模拟股票汇总列表
         
         Args:
             session_id: 会话ID，如果为None则使用最新的会话ID
             stock_ids: 股票ID列表，如果为None或空列表则返回所有股票的汇总
+            use_custom: 是否使用自定义数据文件（custom_*.json）
             
         Returns:
             List[Dict[str, Any]]: 股票汇总数据列表
@@ -285,12 +304,17 @@ class InvestmentRecorder:
         
         results = []
         
+        # 确定文件前缀
+        file_prefix = 'custom_' if use_custom else ''
+        
         # 如果stock_ids为空或None，获取所有股票的汇总
         if not stock_ids:
             if os.path.exists(session_dir):
                 for item in os.listdir(session_dir):
-                    if item.endswith('.json') and item != 'session_summary.json':
-                        stock_id = item[:-5]  # 移除.json后缀
+                    # 检查文件名是否匹配（不考虑前缀）
+                    if item.endswith('.json') and item.startswith(f'{file_prefix}') and item != '0_session_summary.json':
+                        # 移除前缀和.json后缀，获取股票ID
+                        stock_id = item[len(file_prefix):-5]
                         stock_file = os.path.join(session_dir, item)
                         try:
                             with open(stock_file, 'r', encoding='utf-8') as f:
@@ -301,7 +325,7 @@ class InvestmentRecorder:
         else:
             # 逐个读取指定股票的汇总文件
             for stock_id in stock_ids:
-                stock_file = os.path.join(session_dir, f"{stock_id}.json")
+                stock_file = os.path.join(session_dir, f"{file_prefix}{stock_id}.json")
                 if os.path.exists(stock_file):
                     try:
                         with open(stock_file, 'r', encoding='utf-8') as f:
@@ -327,8 +351,14 @@ class InvestmentRecorder:
         # 获取会话汇总数据
         session_summary = self.get_simulation_session_summary(session_id)
         
-        # 获取所有股票汇总数据（不指定stock_ids则返回所有）
-        stock_summaries = self.get_simulation_stock_summary_by_list(session_id, None)
+        # 检查是否为自定义模式
+        is_customized = session_summary.get('is_customized', False)
+        
+        # 获取所有股票汇总数据（根据 is_customized 选择数据源）
+        if is_customized:
+            stock_summaries = self.get_simulation_stock_summary_by_list(session_id, None, use_custom=True)
+        else:
+            stock_summaries = self.get_simulation_stock_summary_by_list(session_id, None, use_custom=False)
         
         return {
             "session": session_summary,

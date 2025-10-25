@@ -360,16 +360,25 @@ class BaseStrategy(ABC):
 
         Required fields: stock{id[,name?]}, record_of_today
         Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
+        
+        If lower_bound/upper_bound are not provided, defaults to ±1% of price
         """
+        current_price = record_of_today.get('close', 0)
+        
         opportunity: Dict[str, Any] = {
             'stock': stock or {},
             'date': record_of_today.get('date'),
-            'price': record_of_today.get('close'),
+            'price': current_price,
         }
-        if lower_bound is not None:
-            opportunity['lower_bound'] = lower_bound
-        if upper_bound is not None:
-            opportunity['upper_bound'] = upper_bound
+        
+        # 如果未提供边界，使用默认值（±1%）
+        if lower_bound is None:
+            lower_bound = current_price * 0.99
+        if upper_bound is None:
+            upper_bound = current_price * 1.01
+        
+        opportunity['lower_bound'] = lower_bound
+        opportunity['upper_bound'] = upper_bound
 
         if extra_fields is not None:
             opportunity['extra_fields'] = extra_fields
@@ -513,8 +522,11 @@ class BaseStrategy(ABC):
             logger.info(f"="*80)
             logger.info(f"扫描日期: {opportunity['date']}")
             logger.info(f"当前价格: {opportunity['price']}")
-            logger.info(f"机会价格区间: {round(opportunity['lower_bound'], 2)} - {round(opportunity['upper_bound'], 2)}")
-            logger.info(f"当前价格在区间位置: {AnalyzerService.to_percent(opportunity['price'] - opportunity['lower_bound'], (opportunity['upper_bound'] - opportunity['lower_bound']))}%")
+            
+            # lower_bound 和 upper_bound 是可选的
+            if 'lower_bound' in opportunity and 'upper_bound' in opportunity:
+                logger.info(f"机会价格区间: {round(opportunity['lower_bound'], 2)} - {round(opportunity['upper_bound'], 2)}")
+                logger.info(f"当前价格在区间位置: {AnalyzerService.to_percent(opportunity['price'] - opportunity['lower_bound'], (opportunity['upper_bound'] - opportunity['lower_bound']))}%")
         return None
 
     @staticmethod
@@ -532,13 +544,14 @@ class BaseStrategy(ABC):
         return base_summary
 
     @staticmethod
-    def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]], settings: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         整个会话汇总 - 可选重写
         
         Args:
             base_session_summary: 默认的汇总结果
             stock_summaries: 所有股票的汇总结果
+            settings: 策略设置（可选）
             
         Returns:
             Dict: 追加到默认session summary的字段（可以返回空字典）
@@ -554,6 +567,19 @@ class BaseStrategy(ABC):
             base_report: 最终报告
         """
         return base_report
+    
+    @staticmethod
+    def present_extra_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any] = None) -> None:
+        """
+        展示自定义 session 报告 - 可选重写
+        
+        在 present_session_report 输出标准报告后，额外输出自定义内容
+        
+        Args:
+            session_summary: session汇总结果
+            settings: 策略设置（可选）
+        """
+        pass  # 默认不输出任何内容
 
     # ========================================================
     # base analysis to simulation result:

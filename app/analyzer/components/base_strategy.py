@@ -207,13 +207,6 @@ class BaseStrategy(ABC):
         pass
 
     @staticmethod
-    def should_settle_investment(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> bool:
-        """
-        判断是否应该结算投资 - 可选重写
-        """
-        return False
-
-    @staticmethod
     def should_stop_loss(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         """
         自定义止损逻辑 - 可选重写

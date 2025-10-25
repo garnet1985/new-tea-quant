@@ -942,8 +942,6 @@ class BaseStrategy(ABC):
         Returns:
             Dict[str, Any]: 完整的分析报告
         """
-        logger.info(f"🔍 开始分析策略 {self.name} 的模拟结果")
-        
         # 调用基础分析，使用abbreviation作为策略文件夹名称
         analysis_result = self.get_base_analysis(self.abbreviation, session_id)
         

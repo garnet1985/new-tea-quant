@@ -82,7 +82,7 @@ class Simulator:
             if stock_summary.get('summary', {}).get('total_investments', 0) > 0:
                 stock_summaries.append(stock_summary)
 
-        session_summary = PostprocessService.summarize_session(stock_summaries, strategy_class)
+        session_summary = PostprocessService.summarize_session(stock_summaries, strategy_class, settings)
 
         self.invest_recorder.save_simulation_results(stock_summaries, session_summary)
 

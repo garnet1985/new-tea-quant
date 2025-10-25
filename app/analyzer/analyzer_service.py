@@ -448,10 +448,11 @@ class AnalyzerService:
         """
         try:
             # 获取simulation配置
+            # 注意：sampling_amount 已经由 validator 验证过了，这里不会有 None 的情况
             simulation_config = settings.get('simulation', {})
             sampling_config = simulation_config.get('sampling', {})
             sampling_strategy = sampling_config.get('strategy', 'uniform')
-            sampling_amount = simulation_config.get('sampling_amount', 0)
+            sampling_amount = simulation_config.get('sampling_amount', 5)  # 默认为5（采样5只股票）
             
             if sampling_amount > 0:
                 # 根据采样策略执行相应的采样方法

@@ -370,13 +370,10 @@ class PostprocessService:
             strategy_instance = strategy_class()
             
             # 运行分析
-            logger.info(f"🔍 开始自动分析策略 {strategy_name} 的模拟结果")
             analysis_result = strategy_instance.analysis()
             
             # 保存分析结果到文件
             PostprocessService._save_analysis_to_file(strategy_folder_name, analysis_result)
-            
-            logger.info(f"✅ 自动分析完成，结果已保存")
             
         except Exception as e:
             logger.error(f"❌ 自动分析失败: {e}")

@@ -4,6 +4,10 @@ from app.conf.conf import data_default_start_date
 settings = {
     # 策略启用状态
     "is_enabled": False,
+
+    "core": {
+        # 你当前的策略是否需要额外的核心参数，如果有，请在这里配置
+    },
     
     # 数据要求配置
     "klines": {
@@ -79,14 +83,6 @@ settings = {
         "end_date": "",
     },
 
-    # # 模式设置
-    # 'mode': {
-    #     # 是不是只模拟黑名单中的股票
-    #     # "blacklist_only": False,
-    #     # 模拟参考版本号
-    #     "simulation_ref_version": "524",
-    # },
-
     # 模拟时间范围 - 日期格式YYYYMMDD
     "simulation": {
 
@@ -117,13 +113,13 @@ settings = {
             
             "stratified": {
                 # 分层采样配置
-                "seed": 42,  # 随机种子
+                "seed": 42,  # 随机种子 - None表示每次运行都使用不同的随机种子
                 "description": "分层采样 - 按市场类型（沪深主板，中小板，创业板，科创板）采样，科学合理，依赖seed"
             },
             
             "random": {
                 # 随机采样配置
-                "seed": 42,  # 随机种子
+                "seed": 42,  # 随机种子 - None表示每次运行都使用不同的随机种子
                 "description": "随机采样 - 随机抽取test_amount个股票，依赖seed保证可重现"
             },
             
@@ -158,6 +154,9 @@ settings = {
 
         # 止损目标设置
         "stop_loss": {
+            # 自定义止损 - 可选, 如果定义，需要重写基类里的should_stop_loss方法
+            # "is_customized": False,
+
             # 保本止损 - 可选
             "break_even": {
                 "name": "break_even",
@@ -211,6 +210,9 @@ settings = {
         },
         # 止盈目标设置
         "take_profit": {
+            # 自定义止盈 - 可选, 如果定义，需要重写基类里的should_take_profit方法
+            # "is_customized": False,
+
             # 分段止盈 - 可选（至少一个阶段）
             "stages": [
                 {
@@ -242,18 +244,5 @@ settings = {
                 }
             ]
         },
-
-        # 黑名单设置, 黑名单设置存在时 mode:blacklist_only 才会生效
-        "blacklist": {
-            # 黑名单数量
-            "count": 3,
-            "description": "avg_roi<0 (from 524)",
-            # 黑名单列表
-            "list": [
-                "000008.SZ",
-                "000016.SZ",
-                "000049.SZ",
-            ]
-        }
     },
 }

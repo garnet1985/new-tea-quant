@@ -31,7 +31,7 @@ class Simulator:
 
         simulate_results = self.simulating(stock_list, strategy_class, settings)
 
-        report = self.postprocess(simulate_results, strategy_class, settings)
+        report = self.postprocess(simulate_results, strategy_class, settings, module_info)
         
         
         total_time = time.time() - start_time
@@ -56,7 +56,7 @@ class Simulator:
         return simulate_results
 
 
-    def postprocess(self, simulate_results: List[Dict[str, Any]], strategy_class: Any, settings: Dict[str, Any]) -> Dict[str, Any]:
+    def postprocess(self, simulate_results: List[Dict[str, Any]], strategy_class: Any, settings: Dict[str, Any], module_info: Dict[str, Any]) -> Dict[str, Any]:
         """
         后处理阶段 - 汇总和生成报告
         
@@ -88,7 +88,7 @@ class Simulator:
 
         session_summary = strategy_class.on_before_report(session_summary)
 
-        PostprocessService.present_session_report(session_summary, settings)
+        PostprocessService.present_session_report(session_summary, settings, strategy_class().name, module_info)
 
         return session_summary
 

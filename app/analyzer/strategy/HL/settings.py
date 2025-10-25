@@ -8,7 +8,6 @@ settings = {
     # 策略启用状态
     "is_enabled": False,
     
-    
     "klines": {
         "terms": [KlineTerm.DAILY.value],
         "signal_base_term": KlineTerm.DAILY.value,

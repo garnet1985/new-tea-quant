@@ -90,36 +90,6 @@ class RandomStrategy(BaseStrategy):
             return None
 
     @staticmethod
-    def should_settle_investment(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
-        """
-        判断是否应该结算投资 - 可选重写
-        
-        Returns:
-            (是否应该结算, 更新后的投资对象)
-        """
-        stop_loss = investment['extra_fields']['stop_loss']
-        take_profit = investment['extra_fields']['take_profit']
-        purchase_price = investment['purchase_price']
-
-        price_of_today = record_of_today['close']
-        
-        # 检查是否触发止损或止盈
-        is_settled = price_of_today < purchase_price * (1 + stop_loss) or price_of_today > purchase_price * (1 + take_profit)
-        
-        if is_settled:
-            # 使用BaseStrategy的简化API结算投资
-            investment = BaseStrategy.to_settled_investment(
-                investment=investment,
-                exit_price=price_of_today,
-                exit_date=record_of_today['date'],
-                sell_ratio=1.0,
-                target_type="customized_goal"
-            )
-        
-        return is_settled, investment
-
-
-    @staticmethod
     def _is_lucky(possibility: float) -> bool:
         """
         概率在N%时

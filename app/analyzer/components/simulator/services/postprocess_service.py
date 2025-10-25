@@ -227,7 +227,7 @@ class PostprocessService:
         return default_session_summary
     
     @staticmethod
-    def present_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str = '当前') -> None:
+    def present_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str = '当前', module_info: Dict[str, Any] = None) -> None:
         """
         通用的控制台展示方法
 
@@ -330,6 +330,100 @@ class PostprocessService:
         else:
             print(" - 无投资记录")
         print("="*60)
+        
+        # 检查是否需要自动分析
+        if settings.get('simulation', {}).get('analysis', False):
+            PostprocessService._run_auto_analysis(session_summary, settings, strategy_name, module_info)
+    
+    @staticmethod
+    def _run_auto_analysis(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str, module_info: Dict[str, Any] = None) -> None:
+        """
+        自动运行分析并保存结果到文件
+        
+        Args:
+            session_summary: 会话汇总数据
+            settings: 策略设置
+            strategy_name: 策略名称
+        """
+        try:
+            import importlib
+            import os
+            
+            if not module_info:
+                logger.warning(f"⚠️ 未提供模块信息，跳过自动分析")
+                return
+            
+            # 从module_info中获取策略模块信息
+            strategy_module_path = module_info.get('strategy_module_path', '')
+            strategy_class_name = module_info.get('strategy_class_name', '')
+            strategy_folder_name = module_info.get('strategy_folder_name', '')
+            
+            if not all([strategy_module_path, strategy_class_name, strategy_folder_name]):
+                logger.warning(f"⚠️ 无法获取策略模块信息，跳过自动分析")
+                return
+            
+            # 导入策略类
+            strategy_module = importlib.import_module(strategy_module_path)
+            strategy_class = getattr(strategy_module, strategy_class_name)
+            
+            # 创建策略实例
+            strategy_instance = strategy_class()
+            
+            # 运行分析
+            logger.info(f"🔍 开始自动分析策略 {strategy_name} 的模拟结果")
+            analysis_result = strategy_instance.analysis()
+            
+            # 保存分析结果到文件
+            PostprocessService._save_analysis_to_file(strategy_folder_name, analysis_result)
+            
+            logger.info(f"✅ 自动分析完成，结果已保存")
+            
+        except Exception as e:
+            logger.error(f"❌ 自动分析失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    @staticmethod
+    def _save_analysis_to_file(strategy_folder_name: str, analysis_result: Dict[str, Any]) -> None:
+        """
+        将分析结果保存到文件
+        
+        Args:
+            strategy_folder_name: 策略文件夹名称
+            analysis_result: 分析结果
+        """
+        try:
+            import json
+            import os
+            
+            # 构建tmp目录路径
+            tmp_dir = f"app/analyzer/strategy/{strategy_folder_name}/tmp"
+            
+            # 获取最新的会话目录
+            if os.path.exists(tmp_dir):
+                session_dirs = [d for d in os.listdir(tmp_dir) if os.path.isdir(os.path.join(tmp_dir, d))]
+                if session_dirs:
+                    # 按时间排序，获取最新的
+                    latest_session_dir = sorted(session_dirs)[-1]
+                    analysis_file_path = os.path.join(tmp_dir, latest_session_dir, "0_session_analysis.json")
+                    
+                    # 确保目录存在
+                    os.makedirs(os.path.dirname(analysis_file_path), exist_ok=True)
+                    
+                    # 保存分析结果
+                    with open(analysis_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(analysis_result, f, ensure_ascii=False, indent=2)
+                    
+                    logger.info(f"📝 分析结果已保存: {analysis_file_path}")
+                else:
+                    logger.warning(f"⚠️ 未找到会话目录，无法保存分析结果")
+            else:
+                logger.warning(f"⚠️ tmp目录不存在: {tmp_dir}")
+                
+        except Exception as e:
+            logger.error(f"❌ 保存分析结果失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     @staticmethod
     def _calculate_roi_distribution(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:

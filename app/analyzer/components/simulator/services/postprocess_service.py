@@ -132,20 +132,21 @@ class PostprocessService:
         return summarized_stock
     
     @staticmethod
-    def summarize_session(stock_summaries: List[Dict[str, Any]], strategy_class: Any) -> Dict[str, Any]:
+    def summarize_session(stock_summaries: List[Dict[str, Any]], strategy_class: Any, settings: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         汇总整个会话结果
         
         Args:
             stock_summaries: 股票汇总结果列表
             strategy_class: 策略类
+            settings: 策略设置
             
         Returns:
             Dict: 会话汇总结果
         """
         base_session_summary = PostprocessService.summarize_session_by_default_way(stock_summaries)
 
-        session_summary = strategy_class.on_summarize_session(base_session_summary, stock_summaries)
+        session_summary = strategy_class.on_summarize_session(base_session_summary, stock_summaries, settings)
 
         return session_summary
 
@@ -331,6 +332,19 @@ class PostprocessService:
             print(" - 无投资记录")
         print("="*60)
         
+        # 调用策略的扩展报告方法
+
+        import importlib
+        strategy_module_path = module_info.get('strategy_module_path', '')
+        strategy_class_name = module_info.get('strategy_class_name', '')
+        
+        strategy_module = importlib.import_module(strategy_module_path)
+        strategy_class = getattr(strategy_module, strategy_class_name)
+            
+        # 调用策略的扩展报告方法
+        if hasattr(strategy_class, 'present_extra_session_report'):
+            strategy_class.present_extra_session_report(session_summary, settings)
+
         # 检查是否需要自动分析
         if settings.get('simulation', {}).get('analysis', False):
             PostprocessService._run_auto_analysis(session_summary, settings, strategy_name, module_info)

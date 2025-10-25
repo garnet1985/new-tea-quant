@@ -227,7 +227,7 @@ class PostprocessService:
         return default_session_summary
     
     @staticmethod
-    def present_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str = '当前') -> None:
+    def present_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str = '当前', module_info: Dict[str, Any] = None) -> None:
         """
         通用的控制台展示方法
 
@@ -292,17 +292,20 @@ class PostprocessService:
 
             print("")
         print("📊 ROI区间分布:")
-        total_inv = session_summary.get('total_investments', 1)
-        print(f" - <-10%: {session_summary.get('roi_lt_10pct', 0)}次 ({session_summary.get('roi_lt_10pct', 0)/total_inv*100:.1f}%)")
-        print(f" - -10%~-5%: {session_summary.get('roi_10_to_5pct', 0)}次 ({session_summary.get('roi_10_to_5pct', 0)/total_inv*100:.1f}%)")
-        print(f" - -5%~0%: {session_summary.get('roi_5_to_0pct', 0)}次 ({session_summary.get('roi_5_to_0pct', 0)/total_inv*100:.1f}%)")
-        print(f" - 0%~5%: {session_summary.get('roi_0_to_5pct', 0)}次 ({session_summary.get('roi_0_to_5pct', 0)/total_inv*100:.1f}%)")
-        print(f" - 5%~10%: {session_summary.get('roi_5_to_10pct', 0)}次 ({session_summary.get('roi_5_to_10pct', 0)/total_inv*100:.1f}%)")
-        print(f" - 10%~15%: {session_summary.get('roi_10_to_15pct', 0)}次 ({session_summary.get('roi_10_to_15pct', 0)/total_inv*100:.1f}%)")
-        print(f" - 15%~20%: {session_summary.get('roi_15_to_20pct', 0)}次 ({session_summary.get('roi_15_to_20pct', 0)/total_inv*100:.1f}%)")
-        print(f" - 20%~30%: {session_summary.get('roi_20_to_30pct', 0)}次 ({session_summary.get('roi_20_to_30pct', 0)/total_inv*100:.1f}%)")
-        print(f" - 30%~50%: {session_summary.get('roi_30_to_50pct', 0)}次 ({session_summary.get('roi_30_to_50pct', 0)/total_inv*100:.1f}%)")
-        print(f" - >50%: {session_summary.get('roi_gt_50pct', 0)}次 ({session_summary.get('roi_gt_50pct', 0)/total_inv*100:.1f}%)")
+        total_inv = session_summary.get('total_investments', 0)
+        if total_inv > 0:
+            print(f" - <-10%: {session_summary.get('roi_lt_10pct', 0)}次 ({session_summary.get('roi_lt_10pct', 0)/total_inv*100:.1f}%)")
+            print(f" - -10%~-5%: {session_summary.get('roi_10_to_5pct', 0)}次 ({session_summary.get('roi_10_to_5pct', 0)/total_inv*100:.1f}%)")
+            print(f" - -5%~0%: {session_summary.get('roi_5_to_0pct', 0)}次 ({session_summary.get('roi_5_to_0pct', 0)/total_inv*100:.1f}%)")
+            print(f" - 0%~5%: {session_summary.get('roi_0_to_5pct', 0)}次 ({session_summary.get('roi_0_to_5pct', 0)/total_inv*100:.1f}%)")
+            print(f" - 5%~10%: {session_summary.get('roi_5_to_10pct', 0)}次 ({session_summary.get('roi_5_to_10pct', 0)/total_inv*100:.1f}%)")
+            print(f" - 10%~15%: {session_summary.get('roi_10_to_15pct', 0)}次 ({session_summary.get('roi_10_to_15pct', 0)/total_inv*100:.1f}%)")
+            print(f" - 15%~20%: {session_summary.get('roi_15_to_20pct', 0)}次 ({session_summary.get('roi_15_to_20pct', 0)/total_inv*100:.1f}%)")
+            print(f" - 20%~30%: {session_summary.get('roi_20_to_30pct', 0)}次 ({session_summary.get('roi_20_to_30pct', 0)/total_inv*100:.1f}%)")
+            print(f" - 30%~50%: {session_summary.get('roi_30_to_50pct', 0)}次 ({session_summary.get('roi_30_to_50pct', 0)/total_inv*100:.1f}%)")
+            print(f" - >50%: {session_summary.get('roi_gt_50pct', 0)}次 ({session_summary.get('roi_gt_50pct', 0)/total_inv*100:.1f}%)")
+        else:
+            print(" - 无投资记录")
         print("")
         print("📅 投资时长分布:")
         print(f" - 平均时长: {session_summary.get('duration_mean', 0):.1f}天")
@@ -314,16 +317,110 @@ class PostprocessService:
         print(f" - 75分位数: {session_summary.get('duration_75th_percentile', 0):.1f}天")
         print("")
         print("📊 投资时长区间分布:")
-        total_duration = session_summary.get('total_investments', 1)
-        print(f" - 1-5天: {session_summary.get('duration_1_to_5_days', 0)}次 ({session_summary.get('duration_1_to_5_days', 0)/total_duration*100:.1f}%)")
-        print(f" - 6-10天: {session_summary.get('duration_6_to_10_days', 0)}次 ({session_summary.get('duration_6_to_10_days', 0)/total_duration*100:.1f}%)")
-        print(f" - 11-20天: {session_summary.get('duration_11_to_20_days', 0)}次 ({session_summary.get('duration_11_to_20_days', 0)/total_duration*100:.1f}%)")
-        print(f" - 21-30天: {session_summary.get('duration_21_to_30_days', 0)}次 ({session_summary.get('duration_21_to_30_days', 0)/total_duration*100:.1f}%)")
-        print(f" - 31-60天: {session_summary.get('duration_31_to_60_days', 0)}次 ({session_summary.get('duration_31_to_60_days', 0)/total_duration*100:.1f}%)")
-        print(f" - 61-90天: {session_summary.get('duration_61_to_90_days', 0)}次 ({session_summary.get('duration_61_to_90_days', 0)/total_duration*100:.1f}%)")
-        print(f" - 91-180天: {session_summary.get('duration_91_to_180_days', 0)}次 ({session_summary.get('duration_91_to_180_days', 0)/total_duration*100:.1f}%)")
-        print(f" - >180天: {session_summary.get('duration_gt_180_days', 0)}次 ({session_summary.get('duration_gt_180_days', 0)/total_duration*100:.1f}%)")
+        total_duration = session_summary.get('total_investments', 0)
+        if total_duration > 0:
+            print(f" - 1-5天: {session_summary.get('duration_1_to_5_days', 0)}次 ({session_summary.get('duration_1_to_5_days', 0)/total_duration*100:.1f}%)")
+            print(f" - 6-10天: {session_summary.get('duration_6_to_10_days', 0)}次 ({session_summary.get('duration_6_to_10_days', 0)/total_duration*100:.1f}%)")
+            print(f" - 11-20天: {session_summary.get('duration_11_to_20_days', 0)}次 ({session_summary.get('duration_11_to_20_days', 0)/total_duration*100:.1f}%)")
+            print(f" - 21-30天: {session_summary.get('duration_21_to_30_days', 0)}次 ({session_summary.get('duration_21_to_30_days', 0)/total_duration*100:.1f}%)")
+            print(f" - 31-60天: {session_summary.get('duration_31_to_60_days', 0)}次 ({session_summary.get('duration_31_to_60_days', 0)/total_duration*100:.1f}%)")
+            print(f" - 61-90天: {session_summary.get('duration_61_to_90_days', 0)}次 ({session_summary.get('duration_61_to_90_days', 0)/total_duration*100:.1f}%)")
+            print(f" - 91-180天: {session_summary.get('duration_91_to_180_days', 0)}次 ({session_summary.get('duration_91_to_180_days', 0)/total_duration*100:.1f}%)")
+            print(f" - >180天: {session_summary.get('duration_gt_180_days', 0)}次 ({session_summary.get('duration_gt_180_days', 0)/total_duration*100:.1f}%)")
+        else:
+            print(" - 无投资记录")
         print("="*60)
+        
+        # 检查是否需要自动分析
+        if settings.get('simulation', {}).get('analysis', False):
+            PostprocessService._run_auto_analysis(session_summary, settings, strategy_name, module_info)
+    
+    @staticmethod
+    def _run_auto_analysis(session_summary: Dict[str, Any], settings: Dict[str, Any], strategy_name: str, module_info: Dict[str, Any] = None) -> None:
+        """
+        自动运行分析并保存结果到文件
+        
+        Args:
+            session_summary: 会话汇总数据
+            settings: 策略设置
+            strategy_name: 策略名称
+        """
+        try:
+            import importlib
+            import os
+            
+            if not module_info:
+                logger.warning(f"⚠️ 未提供模块信息，跳过自动分析")
+                return
+            
+            # 从module_info中获取策略模块信息
+            strategy_module_path = module_info.get('strategy_module_path', '')
+            strategy_class_name = module_info.get('strategy_class_name', '')
+            strategy_folder_name = module_info.get('strategy_folder_name', '')
+            
+            if not all([strategy_module_path, strategy_class_name, strategy_folder_name]):
+                logger.warning(f"⚠️ 无法获取策略模块信息，跳过自动分析")
+                return
+            
+            # 导入策略类
+            strategy_module = importlib.import_module(strategy_module_path)
+            strategy_class = getattr(strategy_module, strategy_class_name)
+            
+            # 创建策略实例
+            strategy_instance = strategy_class()
+            
+            # 运行分析
+            analysis_result = strategy_instance.analysis()
+            
+            # 保存分析结果到文件
+            PostprocessService._save_analysis_to_file(strategy_folder_name, analysis_result)
+            
+        except Exception as e:
+            logger.error(f"❌ 自动分析失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    @staticmethod
+    def _save_analysis_to_file(strategy_folder_name: str, analysis_result: Dict[str, Any]) -> None:
+        """
+        将分析结果保存到文件
+        
+        Args:
+            strategy_folder_name: 策略文件夹名称
+            analysis_result: 分析结果
+        """
+        try:
+            import json
+            import os
+            
+            # 构建tmp目录路径
+            tmp_dir = f"app/analyzer/strategy/{strategy_folder_name}/tmp"
+            
+            # 获取最新的会话目录
+            if os.path.exists(tmp_dir):
+                session_dirs = [d for d in os.listdir(tmp_dir) if os.path.isdir(os.path.join(tmp_dir, d))]
+                if session_dirs:
+                    # 按时间排序，获取最新的
+                    latest_session_dir = sorted(session_dirs)[-1]
+                    analysis_file_path = os.path.join(tmp_dir, latest_session_dir, "0_session_analysis.json")
+                    
+                    # 确保目录存在
+                    os.makedirs(os.path.dirname(analysis_file_path), exist_ok=True)
+                    
+                    # 保存分析结果
+                    with open(analysis_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(analysis_result, f, ensure_ascii=False, indent=2)
+                    
+                    logger.info(f"📝 分析结果已保存: {analysis_file_path}")
+                else:
+                    logger.warning(f"⚠️ 未找到会话目录，无法保存分析结果")
+            else:
+                logger.warning(f"⚠️ tmp目录不存在: {tmp_dir}")
+                
+        except Exception as e:
+            logger.error(f"❌ 保存分析结果失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     @staticmethod
     def _calculate_roi_distribution(stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:

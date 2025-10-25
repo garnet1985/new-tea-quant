@@ -3,7 +3,7 @@
 策略基类 - 定义所有策略的通用接口和基础功能
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from utils.date.date_utils import DateUtils
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
@@ -212,6 +212,40 @@ class BaseStrategy(ABC):
         判断是否应该结算投资 - 可选重写
         """
         return False
+
+    @staticmethod
+    def should_stop_loss(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+        """
+        自定义止损逻辑 - 可选重写
+        
+        Args:
+            stock_info: 股票信息
+            record_of_today: 当前交易日记录
+            investment: 投资对象
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            (是否触发止损, 更新后的投资对象)
+        """
+        return False, investment
+
+    @staticmethod
+    def should_take_profit(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+        """
+        自定义止盈逻辑 - 可选重写
+        
+        Args:
+            stock_info: 股票信息
+            record_of_today: 当前交易日记录
+            investment: 投资对象
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            (是否触发止盈, 更新后的投资对象)
+        """
+        return False, investment
 
 
     # this method is used to scan today's opportunities for all the stocks by using multi-process

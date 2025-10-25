@@ -3,7 +3,7 @@ from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
-    "is_enabled": True,
+    "is_enabled": False,
 
     "core": {
         "investment_probability": 0.05,
@@ -56,13 +56,11 @@ settings = {
 
     # 投资目标设置
     "goal": {
-        "is_customized": False,
-
         "stop_loss": {
             "stages": [
                 {
-                    "name": "loss10%",
-                    "ratio": -0.5,  # ML分析优化：-15%止损
+                    "name": "loss30%",
+                    "ratio": -0.3,  # ML分析优化：-15%止损
                     "close_invest": True
                 }
             ]
@@ -71,8 +69,8 @@ settings = {
         "take_profit": {
             "stages": [
                 {
-                    "name": "win15%",
-                    "ratio": 0.5,
+                    "name": "win30%",
+                    "ratio": 0.3,
                     "sell_ratio": 1,
                 }
             ]

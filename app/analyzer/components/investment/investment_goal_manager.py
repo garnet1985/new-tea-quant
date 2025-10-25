@@ -117,21 +117,34 @@ class InvestmentGoalManager:
             # 检查是否达到止盈价格
             target_price = purchase_price * (1 + target['ratio'])
             if price_today >= target_price:
-                # 计算卖出比例
-                sell_ratio = target['sell_ratio']
-                
-                # 更新剩余投资比例
-                investment['targets']['investment_ratio_left'] -= sell_ratio
-                
                 # 标记目标为已触发
                 targets[i]['is_achieved'] = True
                 
-                # 创建已结算目标
-                settled_target = InvestmentGoalManager._create_settled_target(
-                    target, sell_ratio, price_today - purchase_price, 
-                    price_today, current_record['date']
-                )
-                investment['targets']['completed'].append(settled_target)
+                if target.get('close_invest', False):
+                    # close_invest: True 表示卖掉剩余的所有仓位并关闭投资
+                    actual_sell_ratio = investment['targets']['investment_ratio_left']  # 卖出剩余的所有仓位
+                    investment['targets']['investment_ratio_left'] = 0.0
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        target, actual_sell_ratio, price_today - purchase_price, 
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
+                    
+                    # close_invest时直接返回，不再执行后续stage
+                    return investment
+                else:
+                    # 正常的分段止盈
+                    sell_ratio = target['sell_ratio']
+                    investment['targets']['investment_ratio_left'] -= sell_ratio
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        target, sell_ratio, price_today - purchase_price, 
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
                 
                 # 检查是否需要设置止损策略
                 if target.get('set_stop_loss') == 'break_even':
@@ -210,18 +223,34 @@ class InvestmentGoalManager:
             dynamic_stop_price = highest_price * (1 + dynamic_config['ratio'])
             
             if price_today <= dynamic_stop_price:
-                sell_ratio = min(1.0, investment['targets']['investment_ratio_left'])
-                investment['targets']['investment_ratio_left'] -= sell_ratio
-                
                 # 标记动态止损为已触发
                 dynamic_config['is_achieved'] = True
                 
-                # 创建已结算目标
-                settled_target = InvestmentGoalManager._create_settled_target(
-                    dynamic_config, sell_ratio, price_today - purchase_price,
-                    price_today, current_record['date']
-                )
-                investment['targets']['completed'].append(settled_target)
+                if dynamic_config.get('close_invest', False):
+                    # close_invest: True 表示卖掉剩余的所有仓位并关闭投资
+                    actual_sell_ratio = investment['targets']['investment_ratio_left']  # 卖出剩余的所有仓位
+                    investment['targets']['investment_ratio_left'] = 0.0
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        dynamic_config, actual_sell_ratio, price_today - purchase_price,
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
+                    
+                    # close_invest时直接返回，不再执行后续检查
+                    return investment
+                else:
+                    # 正常的动态止损
+                    sell_ratio = min(1.0, investment['targets']['investment_ratio_left'])
+                    investment['targets']['investment_ratio_left'] -= sell_ratio
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        dynamic_config, sell_ratio, price_today - purchase_price,
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
         
         return investment
     
@@ -234,18 +263,34 @@ class InvestmentGoalManager:
         breakeven_config = stop_loss_config.get('break_even', {})
         if not breakeven_config.get('is_achieved', False):
             if price_today <= purchase_price:
-                sell_ratio = min(1.0, investment['targets']['investment_ratio_left'])
-                investment['targets']['investment_ratio_left'] -= sell_ratio
-                
                 # 标记保本止损为已触发
                 breakeven_config['is_achieved'] = True
                 
-                # 创建已结算目标
-                settled_target = InvestmentGoalManager._create_settled_target(
-                    breakeven_config, sell_ratio, price_today - purchase_price,
-                    price_today, current_record['date']
-                )
-                investment['targets']['completed'].append(settled_target)
+                if breakeven_config.get('close_invest', False):
+                    # close_invest: True 表示卖掉剩余的所有仓位并关闭投资
+                    actual_sell_ratio = investment['targets']['investment_ratio_left']  # 卖出剩余的所有仓位
+                    investment['targets']['investment_ratio_left'] = 0.0
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        breakeven_config, actual_sell_ratio, price_today - purchase_price,
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
+                    
+                    # close_invest时直接返回，不再执行后续检查
+                    return investment
+                else:
+                    # 正常的保本止损
+                    sell_ratio = min(1.0, investment['targets']['investment_ratio_left'])
+                    investment['targets']['investment_ratio_left'] -= sell_ratio
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        breakeven_config, sell_ratio, price_today - purchase_price,
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
         
         return investment
     
@@ -262,19 +307,35 @@ class InvestmentGoalManager:
             
             stage_price = purchase_price * (1 + stage['ratio'])
             if price_today <= stage_price:
-                sell_ratio = min(1.0, investment['targets']['investment_ratio_left'])
-                investment['targets']['investment_ratio_left'] -= sell_ratio
-                
                 # 标记阶段为已触发
                 stages[i]['is_achieved'] = True
                 
-                # 创建已结算目标
-                settled_target = InvestmentGoalManager._create_settled_target(
-                    stage, sell_ratio, price_today - purchase_price,
-                    price_today, current_record['date']
-                )
-                investment['targets']['completed'].append(settled_target)
-                break  # 只触发第一个满足条件的止损
+                if stage.get('close_invest', False):
+                    # close_invest: True 表示卖掉剩余的所有仓位并关闭投资
+                    actual_sell_ratio = investment['targets']['investment_ratio_left']  # 卖出剩余的所有仓位
+                    investment['targets']['investment_ratio_left'] = 0.0
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        stage, actual_sell_ratio, price_today - purchase_price,
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
+                    
+                    # close_invest时直接返回，不再执行后续stage
+                    return investment
+                else:
+                    # 正常的止损阶段
+                    sell_ratio = min(1.0, investment['targets']['investment_ratio_left'])
+                    investment['targets']['investment_ratio_left'] -= sell_ratio
+                    
+                    # 创建已结算目标
+                    settled_target = InvestmentGoalManager._create_settled_target(
+                        stage, sell_ratio, price_today - purchase_price,
+                        price_today, current_record['date']
+                    )
+                    investment['targets']['completed'].append(settled_target)
+                    break  # 只触发第一个满足条件的止损
         
         return investment
     

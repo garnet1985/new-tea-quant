@@ -7,7 +7,6 @@ from loguru import logger
 
 from app.analyzer.components.simulator.simulator import Simulator
 from ...components.base_strategy import BaseStrategy
-from .example_simulator import ExampleSimulator
 from .settings import settings
 from app.analyzer.components.investment import InvestmentRecorder
 

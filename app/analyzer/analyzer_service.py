@@ -591,7 +591,8 @@ class AnalyzerService:
         """
         随机采样 - 完全随机，但使用固定种子保证可重现
         """
-        random.seed(seed)
+        if seed is not None:
+            random.seed(seed)
         
         if sample_size >= len(stock_list):
             return stock_list

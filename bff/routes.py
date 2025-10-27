@@ -46,3 +46,69 @@ def get_stock_hl_analysis(stock_id):
 def get_stock_all_historic_lows(stock_id):
     """获取股票所有计算出的历史低点"""
     return get_bff_api().get_stock_all_historic_lows(stock_id)
+
+# ==================== 投资跟踪 API ====================
+
+@api_bp.route('/investment/trades', methods=['GET'])
+def get_all_open_trades():
+    """获取所有正在进行中的交易（复数）"""
+    return get_bff_api().get_all_open_trades()
+
+@api_bp.route('/investment/trades/history', methods=['GET'])
+def get_all_closed_trades():
+    """获取所有已关闭的交易（历史记录）"""
+    return get_bff_api().get_all_closed_trades()
+
+@api_bp.route('/investment/trades/<int:trade_id>', methods=['GET'])
+def get_trade_detail(trade_id):
+    """获取单个交易详情"""
+    return get_bff_api().get_trade_detail(trade_id)
+
+@api_bp.route('/investment/trades/<int:trade_id>/operations', methods=['GET'])
+def get_trade_operations(trade_id):
+    """获取某个交易的所有操作记录（复数）"""
+    return get_bff_api().get_trade_operations(trade_id)
+
+@api_bp.route('/investment/trades', methods=['POST'])
+def create_trade():
+    """创建一笔交易（单数操作，复数路径）"""
+    data = request.get_json()
+    return get_bff_api().create_trade(data)
+
+@api_bp.route('/investment/trades/<int:trade_id>/operations', methods=['POST'])
+def create_operation(trade_id):
+    """创建一笔操作（单数操作，复数路径）"""
+    data = request.get_json()
+    return get_bff_api().create_operation(trade_id, data)
+
+@api_bp.route('/investment/strategies', methods=['GET'])
+def get_strategies_list():
+    """获取可用策略列表"""
+    return get_bff_api().get_strategies_list()
+
+@api_bp.route('/investment/stocks/search/<keyword>', methods=['GET'])
+def search_stocks(keyword):
+    """搜索股票（用于自动完成）"""
+    return get_bff_api().search_stocks(keyword)
+
+@api_bp.route('/investment/trades/<int:trade_id>', methods=['PUT'])
+def update_trade(trade_id):
+    """更新一笔交易"""
+    data = request.get_json()
+    return get_bff_api().update_trade(trade_id, data)
+
+@api_bp.route('/investment/trades/<int:trade_id>', methods=['DELETE'])
+def delete_trade(trade_id):
+    """删除一笔交易"""
+    return get_bff_api().delete_trade(trade_id)
+
+@api_bp.route('/investment/trades/<int:trade_id>/operations/<int:operation_id>', methods=['PUT'])
+def update_operation(trade_id, operation_id):
+    """更新一笔操作"""
+    data = request.get_json()
+    return get_bff_api().update_operation(trade_id, operation_id, data)
+
+@api_bp.route('/investment/trades/<int:trade_id>/operations/<int:operation_id>', methods=['DELETE'])
+def delete_operation(trade_id, operation_id):
+    """删除一笔操作"""
+    return get_bff_api().delete_operation(trade_id, operation_id)

@@ -211,6 +211,10 @@ class BaseStrategy(ABC):
         """
         自定义止损逻辑 - 可选重写
         
+        重要约定：如果策略配置中 stop_loss.is_customized=True，
+        此方法必须返回包含 'target_info' 字段的 investment 对象。
+        否则将抛出 ValueError。
+        
         Args:
             stock_info: 股票信息
             record_of_today: 当前交易日记录
@@ -220,13 +224,122 @@ class BaseStrategy(ABC):
             
         Returns:
             (是否触发止损, 更新后的投资对象)
+            
+            如果 is_customized=True，investment 必须包含 'target_info' 字段：
+            {
+                'target_price': 止损目标价格,
+                'current_price': 当前价格
+            }
+            
+        Raises:
+            ValueError: 如果 is_customized=True 但没有返回 target_info 字段
         """
         return False, investment
-
+    
+    @staticmethod
+    def call_and_validate_strategy_method(
+        strategy_class: Any,
+        method_name: str,
+        stock_info: Dict[str, Any], 
+        record_of_today: Dict[str, Any], 
+        investment: Dict[str, Any], 
+        required_data: Dict[str, Any], 
+        settings: Dict[str, Any]
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        统一的策略方法调用和校验proxy
+        
+        自动检查settings中是否有customized goal，如果有则验证返回的target_info
+        
+        Args:
+            strategy_class: 策略类
+            method_name: 方法名 ('should_stop_loss' 或 'should_take_profit')
+            stock_info: 股票信息
+            record_of_today: 当前交易日记录
+            investment: 投资对象
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            (是否触发, 更新后的investment)
+            
+        Raises:
+            ValueError: 如果is_customized=True但没有返回target_info
+            AttributeError: 如果策略类没有该方法
+        """
+        # 调用方法
+        method = getattr(strategy_class, method_name)
+        is_triggered, result = method(stock_info, record_of_today, investment, required_data, settings)
+        
+        # 检查settings中是否有customized goal
+        goal_config = settings.get('goal', {})
+        
+        # 检查是否为customized配置
+        is_customized = False
+        if method_name == 'should_stop_loss':
+            is_customized = goal_config.get('stop_loss', {}).get('is_customized', False)
+        elif method_name == 'should_take_profit':
+            is_customized = goal_config.get('take_profit', {}).get('is_customized', False)
+        
+        # 如果是customized配置，必须返回target_info
+        if is_customized and 'target_info' not in result:
+            raise ValueError(
+                f"策略 {strategy_class.__name__} 的 {method_name} 方法必须返回 'target_info' 字段，"
+                "格式: return (bool, {**investment, 'target_info': {'target_price': x, 'current_price': y}})"
+            )
+        
+        return is_triggered, result
+    
+    @staticmethod
+    def get_next_stop_loss_target(
+        stock_info: Dict[str, Any], 
+        record_of_today: Dict[str, Any], 
+        investment: Dict[str, Any], 
+        required_data: Dict[str, Any], 
+        settings: Dict[str, Any],
+        strategy_class=None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        获取下一个止损目标 - 用于investment tracker
+        
+        这个方法会调用should_stop_loss，但只关注其返回的目标信息
+        
+        Args:
+            stock_info: 股票信息
+            record_of_today: 当前交易日记录
+            investment: 投资对象（简化版，只包含holding信息）
+            required_data: 所需数据
+            settings: 策略设置
+            strategy_class: 策略类（用于调用子类重写的方法）
+            
+        Returns:
+            None 或 目标信息字典
+        """
+        # 如果提供了strategy_class，使用它调用should_stop_loss
+        if strategy_class:
+            is_triggered, result = strategy_class.should_stop_loss(
+                stock_info, record_of_today, investment, required_data, settings
+            )
+        else:
+            # 否则使用当前类（可能被重写）
+            is_triggered, result = BaseStrategy.should_stop_loss(
+                stock_info, record_of_today, investment, required_data, settings
+            )
+        
+        # 检查investment中是否有target_info字段
+        if isinstance(result, dict) and 'target_info' in result:
+            return result['target_info']
+        
+        return None
+    
     @staticmethod
     def should_take_profit(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         """
         自定义止盈逻辑 - 可选重写
+        
+        重要约定：如果策略配置中 take_profit.is_customized=True，
+        此方法必须返回包含 'target_info' 字段的 investment 对象。
+        否则将抛出 ValueError。
         
         Args:
             stock_info: 股票信息
@@ -237,8 +350,59 @@ class BaseStrategy(ABC):
             
         Returns:
             (是否触发止盈, 更新后的投资对象)
+            
+            如果 is_customized=True，investment 必须包含 'target_info' 字段：
+            {
+                'target_price': 止盈目标价格,
+                'current_price': 当前价格
+            }
+            
+        Raises:
+            ValueError: 如果 is_customized=True 但没有返回 target_info 字段
         """
         return False, investment
+    
+    @staticmethod
+    def get_next_take_profit_target(
+        stock_info: Dict[str, Any], 
+        record_of_today: Dict[str, Any], 
+        investment: Dict[str, Any], 
+        required_data: Dict[str, Any], 
+        settings: Dict[str, Any],
+        strategy_class=None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        获取下一个止盈目标 - 用于investment tracker
+        
+        这个方法会调用should_take_profit，但只关注其返回的目标信息
+        
+        Args:
+            stock_info: 股票信息
+            record_of_today: 当前交易日记录
+            investment: 投资对象（简化版，只包含holding信息）
+            required_data: 所需数据
+            settings: 策略设置
+            strategy_class: 策略类（用于调用子类重写的方法）
+            
+        Returns:
+            None 或 目标信息字典
+        """
+        # 如果提供了strategy_class，使用它调用should_take_profit
+        if strategy_class:
+            is_triggered, result = strategy_class.should_take_profit(
+                stock_info, record_of_today, investment, required_data, settings
+            )
+        else:
+            # 否则使用当前类（可能被重写）
+            is_triggered, result = BaseStrategy.should_take_profit(
+                stock_info, record_of_today, investment, required_data, settings
+            )
+        
+        # 检查investment中是否有next_target字段
+        if isinstance(result, dict) and 'next_target' in result:
+            return result['next_target']
+        
+        return None
 
 
     # this method is used to scan today's opportunities for all the stocks by using multi-process

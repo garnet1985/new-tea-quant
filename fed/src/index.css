@@ -721,15 +721,18 @@ code {
   background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
-  padding: 10px;
+  padding: 8px;
   min-width: 220px;
   max-width: 300px;
+  max-height: 500px;
+  overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   z-index: 10000;
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
   margin-bottom: 10px;
+  font-size: 0.85em;
 }
 
 .stock-info-wrapper:hover .tooltip-content {
@@ -752,8 +755,8 @@ code {
 .tooltip-row {
   display: flex;
   justify-content: space-between;
-  padding: 4px 0;
-  font-size: 0.9em;
+  padding: 3px 0;
+  font-size: 0.85em;
 }
 
 .tooltip-label {

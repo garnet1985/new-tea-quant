@@ -525,3 +525,42 @@ code {
 .btn-secondary:hover {
   background-color: #5a6268;
 }
+
+/* 下一目标样式 */
+.next-target {
+  min-width: 120px;
+}
+
+.targets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.target-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.target-item.take-profit {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.target-item.stop-loss {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.target-label {
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.target-price {
+  font-weight: bold;
+}

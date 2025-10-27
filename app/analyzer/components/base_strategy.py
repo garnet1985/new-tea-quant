@@ -211,6 +211,10 @@ class BaseStrategy(ABC):
         """
         自定义止损逻辑 - 可选重写
         
+        重要约定：如果策略配置中 stop_loss.is_customized=True，
+        此方法必须返回包含 'target_info' 字段的 investment 对象。
+        否则将抛出 ValueError。
+        
         Args:
             stock_info: 股票信息
             record_of_today: 当前交易日记录
@@ -221,7 +225,7 @@ class BaseStrategy(ABC):
         Returns:
             (是否触发止损, 更新后的投资对象)
             
-            investment 中可以包含 'target_info' 字段，用于 investment tracker 获取目标信息：
+            如果 is_customized=True，investment 必须包含 'target_info' 字段：
             {
                 'target_price': 止损目标价格,
                 'current_price': 当前价格,
@@ -229,6 +233,9 @@ class BaseStrategy(ABC):
                 'type': 'stop_loss',
                 'status': 'pending' or 'reached'
             }
+            
+        Raises:
+            ValueError: 如果 is_customized=True 但没有返回 target_info 字段
         """
         return False, investment
     
@@ -333,6 +340,10 @@ class BaseStrategy(ABC):
         """
         自定义止盈逻辑 - 可选重写
         
+        重要约定：如果策略配置中 take_profit.is_customized=True，
+        此方法必须返回包含 'target_info' 字段的 investment 对象。
+        否则将抛出 ValueError。
+        
         Args:
             stock_info: 股票信息
             record_of_today: 当前交易日记录
@@ -341,19 +352,19 @@ class BaseStrategy(ABC):
             settings: 策略设置
             
         Returns:
-            (是否触发止盈, 更新后的投资对象, 下一个目标信息)
-            或者
-            (是否触发止盈, {**investment, 'next_target': target_info})
+            (是否触发止盈, 更新后的投资对象)
             
-        target_info 格式：
+            如果 is_customized=True，investment 必须包含 'target_info' 字段：
             {
-                'name': 'rebalance_monthly',
+                'target_price': 止盈目标价格,
+                'current_price': 当前价格,
+                'distance_pct': 距离百分比 (正值表示盈利),
                 'type': 'take_profit',
-                'ratio': 0.0,
-                'target_price': 10.0,
-                'sell_ratio': 1.0,
-                'target_amount': 700
+                'status': 'pending' or 'reached'
             }
+            
+        Raises:
+            ValueError: 如果 is_customized=True 但没有返回 target_info 字段
         """
         return False, investment
     

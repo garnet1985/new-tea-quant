@@ -708,6 +708,14 @@ code {
 
 .action-link-delete {
   color: #dc3545;
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 0.9em;
+  padding: 2px 4px;
+}
+
+.action-link-delete:hover {
+  text-decoration: underline;
 }
 
 .stock-strategy {

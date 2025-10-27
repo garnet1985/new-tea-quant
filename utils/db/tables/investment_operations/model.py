@@ -99,6 +99,7 @@ class InvestmentOperationsModel(BaseTableModel):
         total_cost = 0.0
         first_buy = None
         realized_profit = 0.0  # 已实现盈利
+        total_invested = 0.0  # 总投入（所有买入的总金额）
         
         # 从数据库中获取标记为is_first的记录
         first_buy_op = self.load_one("trade_id = %s AND is_first = 1", (trade_id,))
@@ -114,6 +115,7 @@ class InvestmentOperationsModel(BaseTableModel):
                 # 买入：增加数量和成本
                 total_amount += op['amount']
                 total_cost += float(op['price']) * op['amount']
+                total_invested += float(op['price']) * op['amount']  # 累计总投入
             elif op['type'] == 'sell':
                 # 卖出：减少数量和成本（按当前平均成本扣除）
                 sell_amount = op['amount']
@@ -131,8 +133,10 @@ class InvestmentOperationsModel(BaseTableModel):
         avg_cost = total_cost / total_amount if total_amount > 0 else 0
         
         # 计算已实现盈利率（相对于总投入）
-        total_invested = sum(float(op['price']) * op['amount'] for op in operations if op['type'] in ['buy', 'add'])
         realized_profit_rate = (realized_profit / total_invested * 100) if total_invested > 0 else 0
+        
+        # 调试日志
+        logger.debug(f"Trade {trade_id} 已实现盈利: {realized_profit}, 总投入: {total_invested}, 盈利率: {realized_profit_rate}%")
         
         return {
             'amount': total_amount,

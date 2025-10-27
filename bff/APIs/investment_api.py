@@ -92,9 +92,6 @@ class InvestmentApi:
                 # 计算当前持仓
                 holding = operations_model.get_current_holding(trade['id'])
                 
-                # 调试：打印持仓信息（包括已实现盈利）
-                logger.debug(f"Trade {trade['id']} holding: {holding}")
-                
                 # 获取最新价格和日期
                 current_price = latest_prices.get(stock_id, 0)
                 current_price_date = latest_dates.get(stock_id, None)
@@ -118,10 +115,6 @@ class InvestmentApi:
                 data_loader = DataLoader(self.db_manager)
                 stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
                 
-                # 调试：检查返回的数据
-                if stock_details:
-                    logger.debug(f"股票 {stock_id} 详细信息: {stock_details}")
-                
                 # 计算下一目标（使用 TargetCalculator）
                 next_targets = None
                 try:
@@ -129,9 +122,6 @@ class InvestmentApi:
                     
                     # 获取操作记录
                     operations = operations_model.load_by_trade(trade['id'], order_by="date DESC")
-                    
-                    # 调试：打印操作记录
-                    logger.debug(f"Trade {trade['id']} 操作记录: {[{'type': op.get('type'), 'amount': op.get('amount'), 'price': op.get('price'), 'date': op.get('date')} for op in operations]}")
                     
                     # 计算下一目标
                     next_targets = TargetCalculator.calculate_next_targets(
@@ -142,7 +132,6 @@ class InvestmentApi:
                         strategy_name=trade.get('strategy')
                     )
                     
-                    logger.debug(f"Trade {trade['id']} 下一目标: {next_targets}")
                 except Exception as e:
                     logger.error(f"计算下一目标失败: {e}")
                 

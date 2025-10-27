@@ -490,7 +490,7 @@ function Investment() {
                               {trade.holding.realized_profit !== undefined ? (
                                 <>
                                   <div className={trade.holding.realized_profit >= 0 ? 'profit-positive' : 'profit-negative'}>
-                                    {formatPercent(trade.holding.realized_profit_rate)}
+                                    {trade.holding.realized_profit_rate.toFixed(2)}%
                                   </div>
                                   <div className="profit-amount">¥{trade.holding.realized_profit.toFixed(2)}</div>
                                 </>

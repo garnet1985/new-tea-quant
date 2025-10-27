@@ -92,6 +92,9 @@ class InvestmentApi:
                 # 计算当前持仓
                 holding = operations_model.get_current_holding(trade['id'])
                 
+                # 调试：打印持仓信息（包括已实现盈利）
+                logger.debug(f"Trade {trade['id']} holding: {holding}")
+                
                 # 获取最新价格和日期
                 current_price = latest_prices.get(stock_id, 0)
                 current_price_date = latest_dates.get(stock_id, None)
@@ -158,7 +161,9 @@ class InvestmentApi:
                         'avg_cost': holding['avg_cost'],
                         'total_cost': round(total_invested, 2),  # 当前投入金额
                         'first_buy_date': holding['first_buy_date'],
-                        'first_buy_price': holding['first_buy_price']
+                        'first_buy_price': holding['first_buy_price'],
+                        'realized_profit': holding.get('realized_profit', 0),
+                        'realized_profit_rate': holding.get('realized_profit_rate', 0)
                     },
                     'current_price': {
                         'price': current_price,

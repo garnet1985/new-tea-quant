@@ -63,3 +63,24 @@ export const deleteTrade = async (tradeId) => {
   return await response.json();
 };
 
+export const updateOperation = async (tradeId, operationId, operationData) => {
+  const response = await fetch(`${API_BASE}/trades/${tradeId}/operations/${operationId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(operationData),
+  });
+  return await response.json();
+};
+
+export const deleteOperation = async (tradeId, operationId) => {
+  const response = await fetch(`${API_BASE}/trades/${tradeId}/operations/${operationId}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  return await response.json();
+};
+

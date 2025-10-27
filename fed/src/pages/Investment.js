@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAllOpenTrades, createOperation, createNewTrade, fetchTradeDetail, updateTrade, deleteTrade } from '../services/investment_api';
+import { fetchAllOpenTrades, createOperation, createNewTrade, fetchTradeDetail, updateTrade, deleteTrade, updateOperation, deleteOperation } from '../services/investment_api';
 import TradeModal from '../components/TradeModal';
 import OperationModal from '../components/OperationModal';
 
@@ -15,6 +15,7 @@ function Investment() {
     showOperationModal: false,
     editingTrade: null,
     editingTradeHolding: null,
+    editingOperation: null, // 当前编辑的operation
     operationTradeId: null
   });
 
@@ -120,8 +121,41 @@ function Investment() {
       showOperationModal: false,
       editingTrade: null,
       editingTradeHolding: null,
+      editingOperation: null,
       operationTradeId: null
     });
+  };
+
+  const handleEditOperation = (tradeId, operation) => {
+    setModalState({
+      showTradeModal: false,
+      showOperationModal: true,
+      editingTrade: null,
+      editingTradeHolding: null,
+      editingOperation: operation,
+      operationTradeId: tradeId
+    });
+  };
+
+  const handleDeleteOperation = async (tradeId, operationId) => {
+    const operation = operationsData[tradeId]?.find(op => op.id === operationId);
+    const operationDate = operation ? formatDate(operation.date) : '';
+    const operationType = operation?.type === 'buy' || operation?.type === 'add' ? '买入' : '卖出';
+    
+    if (!window.confirm(`确定要删除这个${operationType}操作吗？\n日期：${operationDate}\n删除后持仓将会重新计算。`)) {
+      return;
+    }
+    
+    try {
+      const response = await deleteOperation(tradeId, operationId);
+      if (response.success) {
+        await loadTrades();
+      } else {
+        alert(response.message || '删除失败');
+      }
+    } catch (err) {
+      setError(err.message || '删除失败');
+    }
   };
 
   const handleSaveTrade = async (formData) => {
@@ -189,7 +223,15 @@ function Investment() {
         return;
       }
       
-      await createOperation(modalState.operationTradeId, operationData);
+      // 判断是新建还是编辑
+      if (modalState.editingOperation) {
+        // 编辑现有operation
+        await updateOperation(modalState.operationTradeId, modalState.editingOperation.id, operationData);
+      } else {
+        // 新建operation
+        await createOperation(modalState.operationTradeId, operationData);
+      }
+      
       await loadTrades();
       handleCloseModal();
     } catch (err) {
@@ -407,6 +449,24 @@ function Investment() {
                                         {op.note && (
                                           <span className="operation-note">{op.note}</span>
                                         )}
+                                        <div className="operation-actions" style={{ marginLeft: 'auto', display: 'flex', gap: '5px' }}>
+                                          <button 
+                                            className="btn-small"
+                                            onClick={() => handleEditOperation(trade.id, op)}
+                                            style={{ padding: '2px 8px', fontSize: '12px' }}
+                                          >
+                                            修改
+                                          </button>
+                                          {op.is_first !== 1 && (
+                                            <button 
+                                              className="btn-small"
+                                              onClick={() => handleDeleteOperation(trade.id, op.id)}
+                                              style={{ padding: '2px 8px', fontSize: '12px', backgroundColor: '#dc3545', color: 'white' }}
+                                            >
+                                              删除
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
                                     ))
                                   ) : (
@@ -461,6 +521,8 @@ function Investment() {
         return (
           <OperationModal
             tradeId={modalState.operationTradeId}
+            operation={modalState.editingOperation}
+            isEdit={!!modalState.editingOperation}
             onClose={handleCloseModal}
             onSave={handleSaveOperation}
             minDate={firstBuyDate}

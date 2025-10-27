@@ -723,16 +723,30 @@ code {
   border-radius: 4px;
   padding: 10px;
   min-width: 220px;
+  max-width: 300px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   z-index: 10000;
-  top: 0;
-  left: 0;
-  transform: translateY(-100%);
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
   margin-bottom: 10px;
 }
 
 .stock-info-wrapper:hover .tooltip-content {
   display: block;
+}
+
+/* 调整tooltip在表格中的显示，避免被裁剪 */
+.investment-table td {
+  overflow: visible !important;
+}
+
+.investment-table {
+  overflow: visible;
+}
+
+.table-container {
+  overflow: visible;
 }
 
 .tooltip-row {

@@ -219,17 +219,15 @@ class BaseStrategy(ABC):
             settings: 策略设置
             
         Returns:
-            (是否触发止损, 更新后的投资对象, 下一个目标信息)
-            或者
-            (是否触发止损, {**investment, 'next_target': target_info})
+            (是否触发止损, 更新后的投资对象)
             
-        target_info 格式：
+            investment 中可以包含 'target_info' 字段，用于 investment tracker 获取目标信息：
             {
-                'name': 'loss10%',
+                'target_price': 止损目标价格,
+                'current_price': 当前价格,
+                'distance_pct': 距离百分比 (负值表示亏损),
                 'type': 'stop_loss',
-                'ratio': -0.1,
-                'target_price': 9.0,
-                'target_amount': 700
+                'status': 'pending' or 'reached'
             }
         """
         return False, investment

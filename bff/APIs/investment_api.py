@@ -110,6 +110,11 @@ class InvestmentApi:
                 # 获取股票信息
                 stock_info = stock_info_map.get(stock_id, {})
                 
+                # 使用DataLoader获取股票详细信息（跨表业务）
+                from app.data_loader import DataLoader
+                data_loader = DataLoader(self.db_manager)
+                stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
+                
                 # 计算下一目标（使用 TargetCalculator）
                 next_targets = None
                 try:
@@ -134,6 +139,7 @@ class InvestmentApi:
                     'stock_id': stock_id,
                     'stock_name': stock_info.get('name', ''),
                     'stock_industry': stock_info.get('industry', ''),
+                    'stock_details': stock_details,
                     'strategy': trade.get('strategy', ''),
                     'status': trade.get('status', 'open'),
                     'note': trade.get('note', ''),

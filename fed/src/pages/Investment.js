@@ -144,13 +144,14 @@ function Investment() {
         const tradeResponse = await createNewTrade(tradeData);
         
         if (tradeResponse.success && formData.first_buy_price && formData.first_buy_amount) {
-          // 创建首次买入operation
+          // 创建首次买入operation（标记is_first=1）
           const operationData = {
             type: 'buy',
             date: formData.first_buy_date,
             price: parseFloat(formData.first_buy_price),
             amount: parseInt(formData.first_buy_amount),
-            note: '首次买入'
+            note: '首次买入',
+            is_first: 1
           };
           await createOperation(tradeResponse.data.id, operationData);
         }

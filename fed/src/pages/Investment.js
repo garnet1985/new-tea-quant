@@ -370,65 +370,80 @@ function Investment() {
                               <div className="tooltip-content">
                                 {trade.stock_details && (
                                   <>
-                                    {trade.stock_details.industry && (
-                                      <div className="tooltip-row">
-                                        <span className="tooltip-label">行业:</span>
-                                        <span className="tooltip-value">{trade.stock_details.industry}</span>
+                                    {trade.stock_details.current_price_date && (
+                                      <div className="tooltip-row" style={{ fontWeight: 'bold', marginBottom: '5px', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>
+                                        <span>数据日期: {formatDate(trade.stock_details.current_price_date)}</span>
                                       </div>
                                     )}
-                                    {trade.stock_details.pe && (
-                                      <div className="tooltip-row">
-                                        <span className="tooltip-label">PE:</span>
-                                        <span className="tooltip-value">{parseFloat(trade.stock_details.pe).toFixed(2)}</span>
-                                      </div>
-                                    )}
-                                    {trade.stock_details.pb && (
-                                      <div className="tooltip-row">
-                                        <span className="tooltip-label">PB:</span>
-                                        <span className="tooltip-value">{parseFloat(trade.stock_details.pb).toFixed(2)}</span>
-                                      </div>
-                                    )}
-                                    {trade.stock_details.open && (
+                                    
+                                    <div style={{ fontWeight: 'bold', margin: '8px 0 4px' }}>价格信息</div>
+                                    {trade.stock_details.open != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">开盘:</span>
                                         <span className="tooltip-value">¥{parseFloat(trade.stock_details.open).toFixed(2)}</span>
                                       </div>
                                     )}
-                                    {trade.stock_details.high && (
+                                    {trade.stock_details.high != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">最高:</span>
                                         <span className="tooltip-value">¥{parseFloat(trade.stock_details.high).toFixed(2)}</span>
                                       </div>
                                     )}
-                                    {trade.stock_details.low && (
+                                    {trade.stock_details.low != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">最低:</span>
                                         <span className="tooltip-value">¥{parseFloat(trade.stock_details.low).toFixed(2)}</span>
                                       </div>
                                     )}
-                                    {trade.stock_details.close && (
+                                    {trade.stock_details.close != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">收盘:</span>
                                         <span className="tooltip-value">¥{parseFloat(trade.stock_details.close).toFixed(2)}</span>
                                       </div>
                                     )}
-                                    {trade.stock_details.turnover_vol && (
+                                    
+                                    <div style={{ fontWeight: 'bold', margin: '8px 0 4px' }}>成交信息</div>
+                                    {trade.stock_details.turnover_vol != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">成交量:</span>
                                         <span className="tooltip-value">{(parseFloat(trade.stock_details.turnover_vol) / 10000).toFixed(2)}万手</span>
                                       </div>
                                     )}
-                                    {trade.stock_details.turnover_value && (
+                                    {trade.stock_details.turnover_value != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">成交额:</span>
                                         <span className="tooltip-value">{(parseFloat(trade.stock_details.turnover_value) / 100000000).toFixed(2)}亿</span>
                                       </div>
                                     )}
-                                    {trade.stock_details.market_cap && (
+                                    
+                                    <div style={{ fontWeight: 'bold', margin: '8px 0 4px' }}>财务指标</div>
+                                    {trade.stock_details.pe != null && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">PE:</span>
+                                        <span className="tooltip-value">{parseFloat(trade.stock_details.pe).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.pb != null && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">PB:</span>
+                                        <span className="tooltip-value">{parseFloat(trade.stock_details.pb).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.market_cap != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">市值:</span>
                                         <span className="tooltip-value">{(parseFloat(trade.stock_details.market_cap) / 100000000).toFixed(2)}亿</span>
                                       </div>
+                                    )}
+                                    
+                                    {trade.stock_details.industry && (
+                                      <>
+                                        <div style={{ fontWeight: 'bold', margin: '8px 0 4px' }}>基本信息</div>
+                                        <div className="tooltip-row">
+                                          <span className="tooltip-label">行业:</span>
+                                          <span className="tooltip-value">{trade.stock_details.industry}</span>
+                                        </div>
+                                      </>
                                     )}
                                   </>
                                 )}

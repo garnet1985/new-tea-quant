@@ -13,7 +13,7 @@ function OperationModal({ tradeId, operation, isEdit, onClose, onSave, minDate, 
   const normalizedMaxDate = maxDate ? normalizeDate(maxDate) : null;
   
   const [formData, setFormData] = useState({
-    type: operation?.type || 'buy',
+    type: operation?.type || 'sell',  // 默认改为卖出
     date: operation?.date ? normalizeDate(operation.date) : new Date().toISOString().split('T')[0],
     price: operation?.price || '',
     amount: operation?.amount || '',
@@ -23,7 +23,7 @@ function OperationModal({ tradeId, operation, isEdit, onClose, onSave, minDate, 
   useEffect(() => {
     if (operation) {
       setFormData({
-        type: operation.type || 'buy',
+        type: operation.type || 'sell',
         date: operation.date ? normalizeDate(operation.date) : new Date().toISOString().split('T')[0],
         price: operation.price || '',
         amount: operation.amount || '',
@@ -72,7 +72,17 @@ function OperationModal({ tradeId, operation, isEdit, onClose, onSave, minDate, 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>操作类型</label>
-            <select name="type" value={formData.type} onChange={handleChange} required>
+            <select 
+              name="type" 
+              value={formData.type} 
+              onChange={handleChange} 
+              required
+              style={{ 
+                backgroundColor: formData.type === 'buy' ? '#e8f5e9' : '#ffebee',
+                color: formData.type === 'buy' ? '#2e7d32' : '#c62828',
+                fontWeight: 'bold'
+              }}
+            >
               <option value="buy">买入</option>
               <option value="sell">卖出</option>
             </select>

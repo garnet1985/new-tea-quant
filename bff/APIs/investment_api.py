@@ -416,7 +416,8 @@ class InvestmentApi:
                 'date': data['date'],
                 'price': data['price'],
                 'amount': data['amount'],
-                'note': data.get('note', '')
+                'note': data.get('note', ''),
+                'is_first': data.get('is_first', 0)  # 是否首次买入，默认为0
             }
             
             operations_model.insert_one(operation_data)

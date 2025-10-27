@@ -27,18 +27,20 @@ class TargetCalculator:
             
         Returns:
             Dict: {
-                'next_stop_loss': None or {name, ratio, target_price, ...},
-                'next_take_profit': None or {name, ratio, target_price, ...},
-                'unlocked_stop_losses': [],  # 已达成的止损
-                'unlocked_take_profits': [],  # 已达成的止盈
+                'next_stop_loss': None or {name, type, ratio, target_price, ...},
+                'next_take_profit': None or {name, type, ratio, target_price, ...},
+                'completed_stop_losses': [],  # 已达成的止损
+                'completed_take_profits': [],  # 已达成的止盈
+                'is_customized': False,  # 是否为customized策略
             }
         """
         if not goal_config:
             return {
                 'next_stop_loss': None,
                 'next_take_profit': None,
-                'unlocked_stop_losses': [],
-                'unlocked_take_profits': []
+                'completed_stop_losses': [],
+                'completed_take_profits': [],
+                'is_customized': False
             }
         
         try:
@@ -48,8 +50,9 @@ class TargetCalculator:
             return {
                 'next_stop_loss': None,
                 'next_take_profit': None,
-                'unlocked_stop_losses': [],
-                'unlocked_take_profits': []
+                'completed_stop_losses': [],
+                'completed_take_profits': [],
+                'is_customized': False
             }
         
         avg_cost = holding.get('avg_cost', 0)
@@ -59,33 +62,55 @@ class TargetCalculator:
             return {
                 'next_stop_loss': None,
                 'next_take_profit': None,
-                'unlocked_stop_losses': [],
-                'unlocked_take_profits': []
+                'completed_stop_losses': [],
+                'completed_take_profits': [],
+                'is_customized': False
+            }
+        
+        stop_loss_config = goal.get('stop_loss', {})
+        take_profit_config = goal.get('take_profit', {})
+        
+        # 检查是否是customized策略
+        is_customized_sl = stop_loss_config.get('is_customized', False)
+        is_customized_tp = take_profit_config.get('is_customized', False)
+        is_customized = is_customized_sl or is_customized_tp
+        
+        if is_customized:
+            # 对于customized策略，暂时返回None，或者尝试从配置中推导
+            # TODO: 未来可以添加策略的目标配置
+            return {
+                'next_stop_loss': None,
+                'next_take_profit': None,
+                'completed_stop_losses': [],
+                'completed_take_profits': [],
+                'is_customized': True,
+                'customized_message': '自定义策略目标，需要手动设置'
             }
         
         # 计算已完成的止损/止盈（通过卖出历史）
         completed_stop_losses = TargetCalculator._get_completed_stop_losses(
-            goal.get('stop_loss', {}), avg_cost, current_price, amount, operations
+            stop_loss_config, avg_cost, current_price, amount, operations
         )
         completed_take_profits = TargetCalculator._get_completed_take_profits(
-            goal.get('take_profit', {}), avg_cost, current_price, amount, operations
+            take_profit_config, avg_cost, current_price, amount, operations
         )
         
         # 计算下一止损
         next_stop_loss = TargetCalculator._find_next_stop_loss(
-            goal.get('stop_loss', {}), avg_cost, completed_stop_losses
+            stop_loss_config, avg_cost, completed_stop_losses
         )
         
         # 计算下一止盈
         next_take_profit = TargetCalculator._find_next_take_profit(
-            goal.get('take_profit', {}), avg_cost, amount, completed_take_profits
+            take_profit_config, avg_cost, amount, completed_take_profits
         )
         
         return {
             'next_stop_loss': next_stop_loss,
             'next_take_profit': next_take_profit,
             'completed_stop_losses': completed_stop_losses,
-            'completed_take_profits': completed_take_profits
+            'completed_take_profits': completed_take_profits,
+            'is_customized': False
         }
     
     @staticmethod

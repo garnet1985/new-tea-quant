@@ -256,8 +256,13 @@ class TargetCalculator:
             for stage in stages:
                 target_ratio = stage.get('ratio', 0)
                 target_price = state['avg_cost'] * (1 + target_ratio)
+                target_sell_ratio = stage.get('sell_ratio', 0.2)
                 
-                if state['sell_price'] >= target_price:
+                # 计算本次卖出占当时仓位的比例
+                sell_ratio_in_state = state['sell_amount'] / state['amount'] if state['amount'] > 0 else 0
+                
+                # 判断条件：价格达标 AND 卖出比例达标
+                if state['sell_price'] >= target_price and sell_ratio_in_state >= target_sell_ratio:
                     # 找到了已完成的止盈目标
                     if not any(c.get('name') == stage.get('name') for c in completed):
                         completed.append({
@@ -266,7 +271,8 @@ class TargetCalculator:
                             'target_price': target_price,
                             'sell_price': state['sell_price'],
                             'sell_date': state['sell_date'],
-                            'sell_ratio': stage.get('sell_ratio', 0.2)
+                            'sell_ratio': target_sell_ratio,
+                            'actual_sell_ratio': sell_ratio_in_state
                         })
         
         return completed

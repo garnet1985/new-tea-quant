@@ -4,6 +4,7 @@
 from typing import Dict, Any, List, Optional
 from loguru import logger
 import json
+import importlib
 
 
 class TargetCalculator:
@@ -14,7 +15,8 @@ class TargetCalculator:
         holding: Dict[str, Any],
         current_price: float,
         goal_config: Optional[str],
-        operations: List[Dict[str, Any]]
+        operations: List[Dict[str, Any]],
+        strategy_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         计算下一个止损和止盈目标
@@ -76,15 +78,41 @@ class TargetCalculator:
         is_customized = is_customized_sl or is_customized_tp
         
         if is_customized:
-            # 对于customized策略，暂时返回None，或者尝试从配置中推导
-            # TODO: 未来可以添加策略的目标配置
+            # 对于customized策略，尝试调用策略的get_target方法
+            next_stop_loss = None
+            next_take_profit = None
+            
+            if strategy_name:
+                try:
+                    # 加载策略
+                    from utils.db.db_manager import DatabaseManager
+                    db = DatabaseManager()
+                    db.initialize()
+                    
+                    strategy_class = TargetCalculator._load_strategy(strategy_name)
+                    settings = TargetCalculator._load_strategy_settings(strategy_name)
+                    
+                    if strategy_class:
+                        # 调用策略的目标方法
+                        if is_customized_sl:
+                            next_stop_loss = strategy_class.get_stop_loss_target(
+                                holding, current_price, settings
+                            )
+                        
+                        if is_customized_tp:
+                            next_take_profit = strategy_class.get_take_profit_target(
+                                holding, current_price, settings
+                            )
+                except Exception as e:
+                    logger.error(f"调用策略目标方法失败: {e}")
+            
             return {
-                'next_stop_loss': None,
-                'next_take_profit': None,
+                'next_stop_loss': next_stop_loss,
+                'next_take_profit': next_take_profit,
                 'completed_stop_losses': [],
                 'completed_take_profits': [],
                 'is_customized': True,
-                'customized_message': '自定义策略目标，需要手动设置'
+                'customized_message': '自定义策略目标' if (next_stop_loss or next_take_profit) else '需要策略实现get_stop_loss_target/get_take_profit_target方法'
             }
         
         # 计算已完成的止损/止盈（通过卖出历史）

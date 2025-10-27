@@ -74,6 +74,10 @@ class InvestmentOperationsModel(BaseTableModel):
         """
         计算当前持仓信息
         
+        计算逻辑：
+        - 买入/补仓：增加持仓数量和成本
+        - 卖出：减少持仓数量和成本（按当前平均成本扣除）
+        
         Args:
             trade_id: 交易ID
             
@@ -88,7 +92,7 @@ class InvestmentOperationsModel(BaseTableModel):
         """
         operations = self.load_by_trade(trade_id, order_by="date ASC")
         
-        total_buy = 0
+        total_amount = 0
         total_cost = 0.0
         first_buy = None
         
@@ -100,15 +104,20 @@ class InvestmentOperationsModel(BaseTableModel):
                         'price': float(op['price']),
                         'amount': op['amount']
                     }
-                total_buy += op['amount']
+                # 买入：增加数量和成本
+                total_amount += op['amount']
                 total_cost += float(op['price']) * op['amount']
             elif op['type'] == 'sell':
-                total_buy -= op['amount']
+                # 卖出：减少数量和成本（按当前平均成本扣除）
+                sell_amount = op['amount']
+                current_avg_cost = total_cost / total_amount if total_amount > 0 else 0
+                total_amount -= sell_amount
+                total_cost -= current_avg_cost * sell_amount
         
-        avg_cost = total_cost / total_buy if total_buy > 0 else 0
+        avg_cost = total_cost / total_amount if total_amount > 0 else 0
         
         return {
-            'amount': total_buy,
+            'amount': total_amount,
             'avg_cost': round(avg_cost, 2),
             'total_cost': round(total_cost, 2),
             'first_buy_date': first_buy['date'] if first_buy else None,

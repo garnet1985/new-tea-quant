@@ -414,8 +414,8 @@ class DataLoader:
                 'float_share': latest_kline.get('float_share'),
                 'turnover_vol': latest_kline.get('volume'),  # 成交量
                 'turnover_value': latest_kline.get('turnover_value'),  # 成交额
-                'high': latest_kline.get('high'),
-                'low': latest_kline.get('low'),
+                'high': latest_kline.get('highest'),  # 最高价
+                'low': latest_kline.get('lowest'),    # 最低价
                 'open': latest_kline.get('open'),
                 'close': latest_kline.get('close'),
             })

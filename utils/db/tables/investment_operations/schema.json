@@ -26,7 +26,7 @@
             "name": "date",
             "type": "date",
             "isRequired": true,
-            "description": "操作日期"
+            "description": "操作日期（股票实际交易日期）"
         },
         {
             "name": "price",
@@ -61,14 +61,14 @@
             "type": "timestamp",
             "isRequired": false,
             "default": "CURRENT_TIMESTAMP",
-            "description": "创建时间"
+            "description": "记录创建时间（什么时候添加的这条操作记录）"
         },
         {
             "name": "updated_at",
             "type": "timestamp",
             "isRequired": false,
             "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-            "description": "更新时间"
+            "description": "记录更新时间（什么时候修改的这条记录）"
         }
     ],
     "indexes": [

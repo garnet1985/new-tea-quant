@@ -49,6 +49,14 @@
             "description": "备注"
         },
         {
+            "name": "is_first",
+            "type": "tinyint",
+            "length": 1,
+            "isRequired": false,
+            "default": 0,
+            "description": "是否首次买入（1=是，0=否）"
+        },
+        {
             "name": "created_at",
             "type": "timestamp",
             "isRequired": false,

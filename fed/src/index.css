@@ -274,12 +274,12 @@ code {
 }
 
 .profit-positive {
-  color: #28a745;
+  color: #dc3545;
   font-weight: bold;
 }
 
 .profit-negative {
-  color: #dc3545;
+  color: #28a745;
   font-weight: bold;
 }
 
@@ -575,13 +575,13 @@ code {
 }
 
 .target-item.take-profit {
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: #ffebee;
+  color: #c62828;
 }
 
 .target-item.stop-loss {
-  background-color: #ffebee;
-  color: #c62828;
+  background-color: #e8f5e9;
+  color: #2e7d32;
 }
 
 .target-label {
@@ -672,13 +672,13 @@ code {
 }
 
 .target-item-compact.take-profit {
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: #ffebee;
+  color: #c62828;
 }
 
 .target-item-compact.stop-loss {
-  background-color: #ffebee;
-  color: #c62828;
+  background-color: #e8f5e9;
+  color: #2e7d32;
 }
 
 .placeholder-small {

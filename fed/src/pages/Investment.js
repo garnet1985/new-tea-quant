@@ -412,7 +412,13 @@ function Investment() {
                                     {trade.stock_details.turnover_value != null && (
                                       <div className="tooltip-row">
                                         <span className="tooltip-label">成交额:</span>
-                                        <span className="tooltip-value">{(parseFloat(trade.stock_details.turnover_value) / 100000000).toFixed(2)}亿</span>
+                                        <span className="tooltip-value">{(parseFloat(trade.stock_details.turnover_value) / 10000).toFixed(2)}亿</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.turnover_rate != null && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">换手率:</span>
+                                        <span className="tooltip-value">{parseFloat(trade.stock_details.turnover_rate).toFixed(2)}%</span>
                                       </div>
                                     )}
                                     

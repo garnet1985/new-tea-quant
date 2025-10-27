@@ -127,6 +127,9 @@ class InvestmentApi:
                     # 获取操作记录
                     operations = operations_model.load_by_trade(trade['id'], order_by="date DESC")
                     
+                    # 调试：打印操作记录
+                    logger.debug(f"Trade {trade['id']} 操作记录: {[{'type': op.get('type'), 'amount': op.get('amount'), 'price': op.get('price'), 'date': op.get('date')} for op in operations]}")
+                    
                     # 计算下一目标
                     next_targets = TargetCalculator.calculate_next_targets(
                         holding=holding,
@@ -135,6 +138,8 @@ class InvestmentApi:
                         operations=operations,
                         strategy_name=trade.get('strategy')
                     )
+                    
+                    logger.debug(f"Trade {trade['id']} 下一目标: {next_targets}")
                 except Exception as e:
                     logger.error(f"计算下一目标失败: {e}")
                 

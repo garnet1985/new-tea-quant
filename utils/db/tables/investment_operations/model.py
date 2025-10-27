@@ -77,6 +77,7 @@ class InvestmentOperationsModel(BaseTableModel):
         计算逻辑：
         - 买入/补仓：增加持仓数量和成本
         - 卖出：减少持仓数量和成本（按当前平均成本扣除）
+        - 首次买入：通过is_first字段识别
         
         Args:
             trade_id: 交易ID
@@ -96,14 +97,17 @@ class InvestmentOperationsModel(BaseTableModel):
         total_cost = 0.0
         first_buy = None
         
+        # 从数据库中获取标记为is_first的记录
+        first_buy_op = self.load_one("trade_id = %s AND is_first = 1", (trade_id,))
+        if first_buy_op:
+            first_buy = {
+                'date': first_buy_op['date'],
+                'price': float(first_buy_op['price']),
+                'amount': first_buy_op['amount']
+            }
+        
         for op in operations:
             if op['type'] in ['buy', 'add']:
-                if first_buy is None:
-                    first_buy = {
-                        'date': op['date'],
-                        'price': float(op['price']),
-                        'amount': op['amount']
-                    }
                 # 买入：增加数量和成本
                 total_amount += op['amount']
                 total_cost += float(op['price']) * op['amount']

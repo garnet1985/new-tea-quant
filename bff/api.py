@@ -106,6 +106,14 @@ class BFFApi:
         """删除一笔交易"""
         return self.investment_api.delete_trade(trade_id)
     
+    def update_operation(self, trade_id: int, operation_id: int, data: dict):
+        """更新一笔操作（买入/卖出）"""
+        return self.investment_api.update_operation(trade_id, operation_id, data)
+    
+    def delete_operation(self, trade_id: int, operation_id: int):
+        """删除一笔操作（买入/卖出）"""
+        return self.investment_api.delete_operation(trade_id, operation_id)
+    
     def get_strategies_list(self):
         """获取可用策略列表"""
         return self.investment_api.get_strategies_list()

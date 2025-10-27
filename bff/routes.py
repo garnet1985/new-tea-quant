@@ -96,3 +96,14 @@ def update_trade(trade_id):
 def delete_trade(trade_id):
     """删除一笔交易"""
     return get_bff_api().delete_trade(trade_id)
+
+@api_bp.route('/investment/trades/<int:trade_id>/operations/<int:operation_id>', methods=['PUT'])
+def update_operation(trade_id, operation_id):
+    """更新一笔操作"""
+    data = request.get_json()
+    return get_bff_api().update_operation(trade_id, operation_id, data)
+
+@api_bp.route('/investment/trades/<int:trade_id>/operations/<int:operation_id>', methods=['DELETE'])
+def delete_operation(trade_id, operation_id):
+    """删除一笔操作"""
+    return get_bff_api().delete_operation(trade_id, operation_id)

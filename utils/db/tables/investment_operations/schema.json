@@ -62,6 +62,13 @@
             "isRequired": false,
             "default": "CURRENT_TIMESTAMP",
             "description": "创建时间"
+        },
+        {
+            "name": "updated_at",
+            "type": "timestamp",
+            "isRequired": false,
+            "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "description": "更新时间"
         }
     ],
     "indexes": [

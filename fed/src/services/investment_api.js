@@ -37,7 +37,13 @@ export const createOperation = async (tradeId, operationData) => {
     },
     body: JSON.stringify(operationData),
   });
-  return await response.json();
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.message || '创建失败');
+  }
+  
+  return data;
 };
 
 export const addOperation = createOperation; // 兼容别名

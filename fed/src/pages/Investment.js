@@ -224,18 +224,30 @@ function Investment() {
       }
       
       // 判断是新建还是编辑
+      let response;
       if (modalState.editingOperation) {
         // 编辑现有operation
-        await updateOperation(modalState.operationTradeId, modalState.editingOperation.id, operationData);
+        response = await updateOperation(modalState.operationTradeId, modalState.editingOperation.id, operationData);
       } else {
         // 新建operation
-        await createOperation(modalState.operationTradeId, operationData);
+        response = await createOperation(modalState.operationTradeId, operationData);
+      }
+      
+      // 检查是否调整了卖出数量
+      if (response.data?.sell_adjusted) {
+        alert('已自动调整卖出数量为全部剩余仓位');
+      }
+      
+      // 检查是否关闭了trade
+      if (response.data?.trade_closed) {
+        alert('操作成功！该投资已全部卖出，已自动关闭并移至历史记录。');
       }
       
       await loadTrades();
       handleCloseModal();
     } catch (err) {
-      setError(err.message);
+      alert(err.message); // 使用alert显示错误信息
+      console.error('Save operation error:', err);
     }
   };
 

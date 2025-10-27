@@ -438,6 +438,19 @@ class InvestmentApi:
                         "data": None
                     }), 400
             
+            # 如果是卖出操作，检查剩余仓位
+            sell_adjusted = False
+            if data['type'] == 'sell':
+                # 获取当前持仓
+                current_holding = operations_model.get_current_holding(trade_id)
+                current_amount = current_holding['amount']
+                
+                # 如果卖出数量超过剩余仓位，自动调整为全部剩余仓位
+                if data['amount'] > current_amount:
+                    data['amount'] = current_amount
+                    sell_adjusted = True
+                    logger.info(f"卖出数量超过剩余仓位，已调整为全部剩余仓位: {current_amount}")
+            
             # 创建操作记录
             operation_data = {
                 'trade_id': trade_id,
@@ -453,6 +466,7 @@ class InvestmentApi:
             
             # 重新计算持仓
             holding = operations_model.get_current_holding(trade_id)
+            will_close = holding['amount'] == 0  # 本次卖出是否会导致仓位为0
             
             # 如果持仓为0，更新trade状态为closed
             if holding['amount'] == 0:
@@ -466,7 +480,9 @@ class InvestmentApi:
                 "message": "创建成功",
                 "data": {
                     'operation': operation,
-                    'updated_holding': holding
+                    'updated_holding': holding,
+                    'trade_closed': will_close,  # 本次操作是否关闭了trade
+                    'sell_adjusted': sell_adjusted  # 是否调整了卖出数量
                 }
             })
             

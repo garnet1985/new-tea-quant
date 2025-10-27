@@ -135,9 +135,6 @@ class InvestmentOperationsModel(BaseTableModel):
         # 计算已实现盈利率（相对于总投入）
         realized_profit_rate = (realized_profit / total_invested * 100) if total_invested > 0 else 0
         
-        # 调试日志
-        logger.debug(f"Trade {trade_id} 已实现盈利: {realized_profit}, 总投入: {total_invested}, 盈利率: {realized_profit_rate}%")
-        
         return {
             'amount': total_amount,
             'avg_cost': round(avg_cost, 2),

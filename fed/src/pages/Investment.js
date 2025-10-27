@@ -321,8 +321,22 @@ function Investment() {
                 </button>
               </div>
             ) : (
-              <div className="table-container">
-                <table className="investment-table">
+              <div>
+                <div style={{ marginBottom: '15px', textAlign: 'right' }}>
+                  <button 
+                    className="btn" 
+                    onClick={() => setModalState({
+                      showTradeModal: true,
+                      showOperationModal: false,
+                      editingTrade: null,
+                      operationTradeId: null
+                    })}
+                  >
+                    + 创建新投资
+                  </button>
+                </div>
+                <div className="table-container">
+                  <table className="investment-table">
                   <thead>
                     <tr>
                       <th>股票信息</th>
@@ -500,6 +514,7 @@ function Investment() {
                     ))}
                   </tbody>
                 </table>
+              </div>
               </div>
             )
           ) : (

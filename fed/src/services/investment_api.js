@@ -13,6 +13,11 @@ export const fetchAllOpenTrades = async () => {
   return await response.json();
 };
 
+export const fetchAllClosedTrades = async () => {
+  const response = await fetch(`${API_BASE}/trades/history`);
+  return await response.json();
+};
+
 export const fetchTradeDetail = async (tradeId) => {
   const response = await fetch(`${API_BASE}/trades/${tradeId}`);
   return await response.json();

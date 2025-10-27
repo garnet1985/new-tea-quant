@@ -86,6 +86,10 @@ class BFFApi:
         """获取所有正在进行中的交易"""
         return self.investment_api.get_all_open_trades()
     
+    def get_all_closed_trades(self):
+        """获取所有已关闭的交易（历史记录）"""
+        return self.investment_api.get_all_closed_trades()
+    
     def get_trade_operations(self, trade_id: int):
         """根据trade_id获取所有操作记录"""
         return self.investment_api.get_trade_operations(trade_id)

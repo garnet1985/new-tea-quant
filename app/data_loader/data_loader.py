@@ -355,3 +355,69 @@ class DataLoader:
         return self.kline_loader.load(
             stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
         )
+    
+    def get_stock_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取股票基本信息和最新价格
+        
+        跨表业务方法，组合stock_list和stock_kline的数据
+        
+        Args:
+            stock_id: 股票ID
+            
+        Returns:
+            Dict: {
+                'id': 股票ID,
+                'name': 股票名称,
+                'industry': 行业,
+                'current_price': 最新收盘价,
+                'current_price_date': 最新价格日期,
+                'market_cap': 市值,
+                'pe': PE,
+                'pb': PB,
+                'total_share': 总股本,
+                'float_share': 流通股本,
+                'turnover_vol': 成交量,
+                'turnover_value': 成交额,
+                'high': 最高价,
+                'low': 最低价,
+                'open': 开盘价,
+                'close': 收盘价,
+                ...
+            }
+        """
+        # 1. 获取股票基本信息
+        stock_list_model = self.db.get_table_instance('stock_list')
+        stock_info = stock_list_model.load_one("id = %s", (stock_id,))
+        
+        if not stock_info:
+            return None
+        
+        result = {
+            'id': stock_info.get('id'),
+            'name': stock_info.get('name'),
+            'industry': stock_info.get('industry'),
+        }
+        
+        # 2. 获取最新K线数据
+        kline_model = self.db.get_table_instance('stock_kline')
+        latest_kline = kline_model.get_most_recent_one_by_term(stock_id, 'daily')
+        
+        if latest_kline:
+            result.update({
+                'current_price': latest_kline.get('close'),
+                'current_price_date': latest_kline.get('date'),
+                'market_cap': latest_kline.get('market_cap'),
+                'pe': latest_kline.get('pe'),
+                'pb': latest_kline.get('pb'),
+                'total_share': latest_kline.get('total_share'),
+                'float_share': latest_kline.get('float_share'),
+                'turnover_vol': latest_kline.get('volume'),  # 成交量
+                'turnover_value': latest_kline.get('turnover_value'),  # 成交额
+                'high': latest_kline.get('high'),
+                'low': latest_kline.get('low'),
+                'open': latest_kline.get('open'),
+                'close': latest_kline.get('close'),
+            })
+        
+        return result

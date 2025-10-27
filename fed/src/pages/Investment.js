@@ -342,7 +342,7 @@ function Investment() {
                     <tr>
                       <th>股票</th>
                       <th>仓位</th>
-                      <th>当前股价</th>
+                      <th>最近股价</th>
                       <th>盈利</th>
                       <th>下一目标</th>
                       <th>操作</th>
@@ -354,11 +354,84 @@ function Investment() {
                         <tr>
                           {/* Col1: 股票信息（合并ID和名称） */}
                           <td>
-                            <div className="stock-info-compact">
-                              <div className="stock-id-compact">{trade.stock_id}</div>
-                              <div className="stock-name-compact">{trade.stock_name}</div>
-                              <div className="stock-meta">
-                                {formatDate(trade.holding.first_buy_date)} @ ¥{trade.holding.first_buy_price}
+                            <div className="stock-info-wrapper">
+                              <div className="stock-info-compact">
+                                <div className="stock-id-compact">{trade.stock_id}</div>
+                                <div className="stock-name-compact">{trade.stock_name}</div>
+                                <div className="stock-meta">
+                                  {formatDate(trade.holding.first_buy_date)} @ ¥{trade.holding.first_buy_price}
+                                </div>
+                                {trade.strategy && (
+                                  <div className="stock-strategy">策略: {trade.strategy}</div>
+                                )}
+                              </div>
+                              
+                              {/* Tooltip显示股票详细信息 */}
+                              <div className="tooltip-content">
+                                {trade.stock_details && (
+                                  <>
+                                    {trade.stock_details.industry && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">行业:</span>
+                                        <span className="tooltip-value">{trade.stock_details.industry}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.pe && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">PE:</span>
+                                        <span className="tooltip-value">{parseFloat(trade.stock_details.pe).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.pb && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">PB:</span>
+                                        <span className="tooltip-value">{parseFloat(trade.stock_details.pb).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.open && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">开盘:</span>
+                                        <span className="tooltip-value">¥{parseFloat(trade.stock_details.open).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.high && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">最高:</span>
+                                        <span className="tooltip-value">¥{parseFloat(trade.stock_details.high).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.low && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">最低:</span>
+                                        <span className="tooltip-value">¥{parseFloat(trade.stock_details.low).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.close && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">收盘:</span>
+                                        <span className="tooltip-value">¥{parseFloat(trade.stock_details.close).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.turnover_vol && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">成交量:</span>
+                                        <span className="tooltip-value">{(parseFloat(trade.stock_details.turnover_vol) / 10000).toFixed(2)}万手</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.turnover_value && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">成交额:</span>
+                                        <span className="tooltip-value">{(parseFloat(trade.stock_details.turnover_value) / 100000000).toFixed(2)}亿</span>
+                                      </div>
+                                    )}
+                                    {trade.stock_details.market_cap && (
+                                      <div className="tooltip-row">
+                                        <span className="tooltip-label">市值:</span>
+                                        <span className="tooltip-value">{(parseFloat(trade.stock_details.market_cap) / 100000000).toFixed(2)}亿</span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -413,37 +486,37 @@ function Investment() {
                             </div>
                           </td>
                           
-                          {/* Col6: 操作按钮 */}
+                          {/* Col6: 操作链接 */}
                           <td>
-                            <div className="action-buttons-compact">
-                              <button 
-                                className="btn-icon"
-                                onClick={() => handleEditTrade(trade.id)}
-                                title="修改"
+                            <div className="action-links">
+                              <a 
+                                href="#"
+                                className="action-link"
+                                onClick={(e) => { e.preventDefault(); handleEditTrade(trade.id); }}
                               >
-                                ✏️
-                              </button>
-                              <button 
-                                className="btn-icon"
-                                onClick={() => handleDeleteTrade(trade.id)}
-                                title="删除"
+                                修改
+                              </a>
+                              <a 
+                                href="#"
+                                className="action-link action-link-delete"
+                                onClick={(e) => { e.preventDefault(); handleDeleteTrade(trade.id); }}
                               >
-                                🗑️
-                              </button>
-                              <button 
-                                className="btn-icon"
-                                onClick={() => handleAddOperation(trade.id)}
-                                title="添加操作"
+                                删除
+                              </a>
+                              <a 
+                                href="#"
+                                className="action-link"
+                                onClick={(e) => { e.preventDefault(); handleAddOperation(trade.id); }}
                               >
-                                ➕
-                              </button>
-                              <button 
-                                className="btn-icon"
-                                onClick={() => toggleRow(trade.id)}
-                                title={expandedRow === trade.id ? '收起' : '展开'}
+                                +添加操作
+                              </a>
+                              <a 
+                                href="#"
+                                className="action-link"
+                                onClick={(e) => { e.preventDefault(); toggleRow(trade.id); }}
                               >
                                 {expandedRow === trade.id ? '▼' : '▶'}
-                              </button>
+                              </a>
                             </div>
                           </td>
                         </tr>

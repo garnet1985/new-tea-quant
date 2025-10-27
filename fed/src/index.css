@@ -16,10 +16,30 @@ code {
   box-sizing: border-box;
 }
 
+/* Container - 可以根据需要选择是否使用 */
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
+}
+
+.container-full {
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Page样式 */
+.page {
+  padding: 20px;
+}
+
+.page-full-width {
+  width: 100%;
+}
+
+.page-limited-width {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .nav {
@@ -63,6 +83,14 @@ code {
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   margin-bottom: 1rem;
+  padding: 20px;
+}
+
+/* 全宽页面的card */
+.page-full-width .card {
+  margin: 0;
+  width: 100%;
+  padding: 20px;
 }
 
 .btn {

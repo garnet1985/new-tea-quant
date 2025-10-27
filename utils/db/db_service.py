@@ -25,6 +25,8 @@ class DBService:
                 field_def = f"`{field_name}` {field_type}({field['length']})"
             elif field_type == 'TEXT':
                 field_def = f"`{field_name}` {field_type}"
+            elif field_type == 'JSON':
+                field_def = f"`{field_name}` {field_type}"
             elif field_type == 'TINYINT':
                 field_def = f"`{field_name}` {field_type}(1)"
             elif field_type == 'DATETIME':

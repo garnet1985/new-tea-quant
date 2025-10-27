@@ -564,3 +564,111 @@ code {
 .target-price {
   font-weight: bold;
 }
+
+/* 紧凑版表格样式 */
+.stock-info-compact {
+  min-width: 150px;
+}
+
+.stock-id-compact {
+  font-weight: bold;
+  color: #2196F3;
+  font-size: 0.95em;
+}
+
+.stock-name-compact {
+  color: #333;
+  font-size: 0.9em;
+  margin: 4px 0;
+}
+
+.stock-meta {
+  color: #666;
+  font-size: 0.8em;
+}
+
+.holding-info-compact {
+  min-width: 100px;
+  font-size: 0.9em;
+}
+
+.holding-info-compact div {
+  margin: 2px 0;
+}
+
+.text-muted {
+  color: #666;
+  font-size: 0.85em;
+}
+
+.current-price-compact {
+  min-width: 80px;
+}
+
+.price-value {
+  font-size: 0.95em;
+}
+
+.price-date-small {
+  font-size: 0.75em;
+  color: #666;
+}
+
+.profit-compact {
+  min-width: 100px;
+}
+
+.next-target-compact {
+  min-width: 100px;
+}
+
+.targets-list-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.target-item-compact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.8em;
+}
+
+.target-item-compact.take-profit {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.target-item-compact.stop-loss {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.placeholder-small {
+  font-size: 0.85em;
+  color: #999;
+}
+
+.action-buttons-compact {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.btn-icon:hover {
+  background-color: #f5f5f5;
+}

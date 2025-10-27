@@ -136,6 +136,41 @@ class StockListModel(BaseTableModel):
         stock = self.load_one("id = %s", (stock_id,))
         return stock['name'] if stock else None
     
+    def load_stock_by_id(self, stock_id: str) -> Optional[Dict[str, Any]]:
+        """根据股票ID加载完整股票信息"""
+        stock = self.load_one("id = %s", (stock_id,))
+        if stock:
+            return {
+                'id': stock['id'],
+                'name': stock['name'],
+                'industry': stock.get('industry', ''),
+                'type': stock.get('type', ''),
+                'exchange_center': stock.get('exchange_center', ''),
+                'is_active': stock.get('is_active', 0)
+            }
+        return None
+    
+    def load_stocks_by_ids(self, stock_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """根据股票ID列表加载完整股票信息映射"""
+        if not stock_ids:
+            return {}
+        
+        # 构建IN查询的占位符
+        placeholders = ','.join(['%s'] * len(stock_ids))
+        stocks = self.load_many(f"id IN ({placeholders})", tuple(stock_ids))
+        
+        result = {}
+        for stock in stocks:
+            result[stock['id']] = {
+                'id': stock['id'],
+                'name': stock['name'],
+                'industry': stock.get('industry', ''),
+                'type': stock.get('type', ''),
+                'exchange_center': stock.get('exchange_center', ''),
+                'is_active': stock.get('is_active', 0)
+            }
+        return result
+    
     def load_name_by_ids(self, stock_ids: List[str]) -> Dict[str, str]:
         """根据股票ID列表加载股票名称映射"""
         if not stock_ids:

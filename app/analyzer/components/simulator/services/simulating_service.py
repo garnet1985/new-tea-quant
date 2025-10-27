@@ -7,6 +7,7 @@ from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.enums import InvestmentResult
 from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
+from app.analyzer.components.base_strategy import BaseStrategy
 from utils.icon.icon_service import IconService
 from utils.worker.multi_process.process_worker import ProcessWorker
 
@@ -258,13 +259,19 @@ class SimulatingService:
                 if not is_settled and investment['targets']['investment_ratio_left'] > 0:
                     # 检查customized止盈
                     if is_customized_take_profit:
-                        is_take_profit, investment = strategy_class.should_take_profit(stock_info, record_of_today, investment, required_data, settings)
+                        is_take_profit, investment = BaseStrategy.call_and_validate_strategy_method(
+                            strategy_class, 'should_take_profit', stock_info, record_of_today, 
+                            investment, required_data, settings
+                        )
                         if is_take_profit:
                             is_settled = True
                     
                     # 检查customized止损
                     if not is_settled and is_customized_stop_loss:
-                        is_stop_loss, investment = strategy_class.should_stop_loss(stock_info, record_of_today, investment, required_data, settings)
+                        is_stop_loss, investment = BaseStrategy.call_and_validate_strategy_method(
+                            strategy_class, 'should_stop_loss', stock_info, record_of_today,
+                            investment, required_data, settings
+                        )
                         if is_stop_loss:
                             is_settled = True
             else:

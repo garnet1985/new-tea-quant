@@ -58,6 +58,102 @@ class InvestmentApi:
             self.kline_model = self.db_manager.get_table_instance('stock_kline')
         return self.kline_model
     
+    def get_all_closed_trades(self):
+        """
+        获取所有已关闭的交易（历史记录）
+        """
+        try:
+            trades_model = self._get_trades_model()
+            operations_model = self._get_operations_model()
+            stock_list_model = self._get_stock_list_model()
+            kline_model = self._get_kline_model()
+            
+            # 获取所有已关闭的交易
+            trades = trades_model.load_all_closed()
+            
+            # 获取股票信息映射
+            stock_ids = [trade['stock_id'] for trade in trades if trade['stock_id']]
+            stock_info_map = stock_list_model.load_stocks_by_ids(stock_ids)
+            
+            # 批量获取最新价格
+            latest_prices = {}
+            latest_dates = {}
+            for stock_id in stock_ids:
+                latest_kline = kline_model.get_most_recent_one_by_term(stock_id, 'daily')
+                if latest_kline:
+                    latest_prices[stock_id] = float(latest_kline['close'])
+                    latest_dates[stock_id] = latest_kline['date']
+                else:
+                    latest_prices[stock_id] = 0
+                    latest_dates[stock_id] = None
+            
+            # 计算每笔交易的持仓信息
+            result = []
+            for trade in trades:
+                stock_id = trade['stock_id']
+                
+                # 计算当前持仓
+                holding = operations_model.get_current_holding(trade['id'])
+                
+                # 获取最新价格和日期
+                current_price = latest_prices.get(stock_id, 0)
+                current_price_date = latest_dates.get(stock_id, None)
+                
+                # 计算收益（全部已实现）
+                realized_profit = holding.get('realized_profit', 0)
+                realized_profit_rate = holding.get('realized_profit_rate', 0)
+                
+                # 计算当前投入金额（历史总投入）
+                total_invested = sum(float(op['price']) * op['amount'] 
+                                    for op in operations_model.load_by_trade(trade['id'], order_by="date ASC")
+                                    if op['type'] in ['buy', 'add'])
+                
+                # 获取股票信息
+                stock_info = stock_info_map.get(stock_id, {})
+                
+                # 使用DataLoader获取股票详细信息（跨表业务）
+                from app.data_loader import DataLoader
+                data_loader = DataLoader(self.db_manager)
+                stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
+                
+                result.append({
+                    'id': trade['id'],
+                    'stock_id': stock_id,
+                    'stock_name': stock_info.get('name', ''),
+                    'stock_industry': stock_info.get('industry', ''),
+                    'stock_details': stock_details,
+                    'strategy': trade.get('strategy', ''),
+                    'status': 'closed',
+                    'note': trade.get('note', ''),
+                    'created_at': trade.get('created_at'),
+                    'holding': holding,
+                    'current_price': {
+                        'price': current_price,
+                        'date': current_price_date
+                    },
+                    'profit': {
+                        'rate': realized_profit_rate / 100,  # 转换为小数
+                        'amount': realized_profit
+                    },
+                    'total_invested': round(total_invested, 2)
+                })
+            
+            return jsonify({
+                "success": True,
+                "message": "获取成功",
+                "data": result
+            })
+            
+        except Exception as e:
+            logger.error(f"获取历史交易失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return jsonify({
+                "success": False,
+                "message": f"获取失败: {str(e)}",
+                "data": []
+            }), 500
+    
     def get_all_open_trades(self):
         """
         获取所有正在进行中的交易

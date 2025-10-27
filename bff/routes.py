@@ -54,6 +54,11 @@ def get_all_open_trades():
     """获取所有正在进行中的交易（复数）"""
     return get_bff_api().get_all_open_trades()
 
+@api_bp.route('/investment/trades/history', methods=['GET'])
+def get_all_closed_trades():
+    """获取所有已关闭的交易（历史记录）"""
+    return get_bff_api().get_all_closed_trades()
+
 @api_bp.route('/investment/trades/<int:trade_id>', methods=['GET'])
 def get_trade_detail(trade_id):
     """获取单个交易详情"""

@@ -407,13 +407,14 @@ class DataLoader:
             result.update({
                 'current_price': latest_kline.get('close'),
                 'current_price_date': latest_kline.get('date'),
-                'market_cap': latest_kline.get('market_cap'),
+                'market_cap': latest_kline.get('total_market_value'),  # 总市值
                 'pe': latest_kline.get('pe'),
                 'pb': latest_kline.get('pb'),
                 'total_share': latest_kline.get('total_share'),
                 'float_share': latest_kline.get('float_share'),
                 'turnover_vol': latest_kline.get('volume'),  # 成交量
-                'turnover_value': latest_kline.get('turnover_value'),  # 成交额
+                'turnover_value': latest_kline.get('amount'),  # 成交额（字段名是amount）
+                'turnover_rate': latest_kline.get('turnover_rate'),  # 换手率
                 'high': latest_kline.get('highest'),  # 最高价
                 'low': latest_kline.get('lowest'),    # 最低价
                 'open': latest_kline.get('open'),

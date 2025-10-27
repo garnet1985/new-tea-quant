@@ -27,7 +27,10 @@ def create_app():
                 "health": "/api/health",
                 "stock_kline": "/api/stock/kline/<stock_id>/<term>",
                 "stock_simulate": "/api/stock/simulate/<strategy>/<stock_id>",
-                "stock_scan": "/api/stock/scan/<strategy>/<stock_id>"
+                "stock_scan": "/api/stock/scan/<strategy>/<stock_id>",
+                "investment_trades": "/api/investment/trades",
+                "investment_trade_detail": "/api/investment/trades/<trade_id>",
+                "investment_operations": "/api/investment/trades/<trade_id>/operations"
             },
             "docs": "所有API端点都在 /api 前缀下"
         }

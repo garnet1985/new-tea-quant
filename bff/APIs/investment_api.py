@@ -590,3 +590,63 @@ class InvestmentApi:
                 "data": None
             }), 500
 
+
+    def update_operation(self, trade_id: int, operation_id: int, data: dict):
+        """更新一笔操作（买入/卖出）"""
+        try:
+            trades_model = self._get_trades_model()
+            operations_model = self._get_operations_model()
+            
+            trade = trades_model.load_one("id = %s", (trade_id,))
+            if not trade:
+                return jsonify({"success": False, "message": f"交易 {trade_id} 不存在", "data": None}), 404
+            
+            operation = operations_model.load_one("id = %s AND trade_id = %s", (operation_id, trade_id))
+            if not operation:
+                return jsonify({"success": False, "message": f"操作 {operation_id} 不存在", "data": None}), 404
+            
+            update_data = {k: v for k, v in data.items() if k in ['type', 'date', 'price', 'amount', 'note']}
+            operations_model.update(update_data, "id = %s AND trade_id = %s", (operation_id, trade_id))
+            
+            holding = operations_model.get_current_holding(trade_id)
+            status = 'closed' if holding['amount'] == 0 else 'open'
+            trades_model.update({'status': status}, "id = %s", (trade_id,))
+            
+            updated_operation = operations_model.load_one("id = %s", (operation_id,))
+            return jsonify({"success": True, "message": "更新成功", "data": {'operation': updated_operation, 'updated_holding': holding}})
+        except Exception as e:
+            logger.error(f"更新操作失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}", "data": None}), 500
+
+    def delete_operation(self, trade_id: int, operation_id: int):
+        """删除一笔操作（买入/卖出）"""
+        try:
+            trades_model = self._get_trades_model()
+            operations_model = self._get_operations_model()
+            
+            trade = trades_model.load_one("id = %s", (trade_id,))
+            if not trade:
+                return jsonify({"success": False, "message": f"交易 {trade_id} 不存在", "data": None}), 404
+            
+            operation = operations_model.load_one("id = %s AND trade_id = %s", (operation_id, trade_id))
+            if not operation:
+                return jsonify({"success": False, "message": f"操作 {operation_id} 不存在", "data": None}), 404
+            
+            if operation.get('is_first', 0) == 1:
+                return jsonify({"success": False, "message": "不能删除首次买入操作", "data": None}), 400
+            
+            operations_model.delete("id = %s AND trade_id = %s", (operation_id, trade_id))
+            
+            holding = operations_model.get_current_holding(trade_id)
+            status = 'closed' if holding['amount'] == 0 else 'open'
+            trades_model.update({'status': status}, "id = %s", (trade_id,))
+            
+            return jsonify({"success": True, "message": "删除成功", "data": {'deleted_operation_id': operation_id, 'updated_holding': holding}})
+        except Exception as e:
+            logger.error(f"删除操作失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return jsonify({"success": False, "message": f"删除失败: {str(e)}", "data": None}), 500
+

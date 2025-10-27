@@ -355,3 +355,34 @@ class TargetCalculator:
         
         return None
 
+    
+    @staticmethod
+    def _load_strategy(strategy_name: str):
+        """加载策略类"""
+        try:
+            strategy_module_path = f"app.analyzer.strategy.{strategy_name}.{strategy_name}"
+            strategy_module = importlib.import_module(strategy_module_path)
+            
+            # 获取策略类（通常是模块中唯一的类）
+            for attr_name in dir(strategy_module):
+                attr = getattr(strategy_module, attr_name)
+                if (isinstance(attr, type) and 
+                    hasattr(attr, '__bases__') and 
+                    any('BaseStrategy' in str(base) for base in attr.__bases__)):
+                    return attr
+            return None
+        except Exception as e:
+            logger.error(f"加载策略{strategy_name}失败: {e}")
+            return None
+    
+    @staticmethod
+    def _load_strategy_settings(strategy_name: str) -> Dict[str, Any]:
+        """加载策略配置"""
+        try:
+            settings_module_path = f"app.analyzer.strategy.{strategy_name}.settings"
+            settings_module = importlib.import_module(settings_module_path)
+            return getattr(settings_module, 'settings', {})
+        except Exception as e:
+            logger.error(f"加载策略{strategy_name}配置失败: {e}")
+            return {}
+

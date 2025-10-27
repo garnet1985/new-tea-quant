@@ -219,9 +219,54 @@ class BaseStrategy(ABC):
             settings: 策略设置
             
         Returns:
-            (是否触发止损, 更新后的投资对象)
+            (是否触发止损, 更新后的投资对象, 下一个目标信息)
+            或者
+            (是否触发止损, {**investment, 'next_target': target_info})
+            
+        target_info 格式：
+            {
+                'name': 'loss10%',
+                'type': 'stop_loss',
+                'ratio': -0.1,
+                'target_price': 9.0,
+                'target_amount': 700
+            }
         """
         return False, investment
+    
+    @staticmethod
+    def get_next_stop_loss_target(
+        stock_info: Dict[str, Any], 
+        record_of_today: Dict[str, Any], 
+        investment: Dict[str, Any], 
+        required_data: Dict[str, Any], 
+        settings: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        获取下一个止损目标 - 用于investment tracker
+        
+        这个方法会调用should_stop_loss，但只关注其返回的目标信息
+        
+        Args:
+            stock_info: 股票信息
+            record_of_today: 当前交易日记录
+            investment: 投资对象（简化版，只包含holding信息）
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            None 或 目标信息字典
+        """
+        # 调用should_stop_loss，看返回值中是否包含目标信息
+        is_triggered, result = BaseStrategy.should_stop_loss(
+            stock_info, record_of_today, investment, required_data, settings
+        )
+        
+        # 检查investment中是否有next_target字段
+        if isinstance(result, dict) and 'next_target' in result:
+            return result['next_target']
+        
+        return None
     
     @staticmethod
     def get_stop_loss_target(
@@ -290,9 +335,55 @@ class BaseStrategy(ABC):
             settings: 策略设置
             
         Returns:
-            (是否触发止盈, 更新后的投资对象)
+            (是否触发止盈, 更新后的投资对象, 下一个目标信息)
+            或者
+            (是否触发止盈, {**investment, 'next_target': target_info})
+            
+        target_info 格式：
+            {
+                'name': 'rebalance_monthly',
+                'type': 'take_profit',
+                'ratio': 0.0,
+                'target_price': 10.0,
+                'sell_ratio': 1.0,
+                'target_amount': 700
+            }
         """
         return False, investment
+    
+    @staticmethod
+    def get_next_take_profit_target(
+        stock_info: Dict[str, Any], 
+        record_of_today: Dict[str, Any], 
+        investment: Dict[str, Any], 
+        required_data: Dict[str, Any], 
+        settings: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        获取下一个止盈目标 - 用于investment tracker
+        
+        这个方法会调用should_take_profit，但只关注其返回的目标信息
+        
+        Args:
+            stock_info: 股票信息
+            record_of_today: 当前交易日记录
+            investment: 投资对象（简化版，只包含holding信息）
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            None 或 目标信息字典
+        """
+        # 调用should_take_profit，看返回值中是否包含目标信息
+        is_triggered, result = BaseStrategy.should_take_profit(
+            stock_info, record_of_today, investment, required_data, settings
+        )
+        
+        # 检查investment中是否有next_target字段
+        if isinstance(result, dict) and 'next_target' in result:
+            return result['next_target']
+        
+        return None
 
 
     # this method is used to scan today's opportunities for all the stocks by using multi-process

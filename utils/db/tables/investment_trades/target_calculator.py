@@ -78,7 +78,7 @@ class TargetCalculator:
         is_customized = is_customized_sl or is_customized_tp
         
         if is_customized:
-            # 对于customized策略，尝试调用策略的get_target方法
+            # 对于customized策略，通过should_stop_loss/should_take_profit获取目标
             next_stop_loss = None
             next_take_profit = None
             
@@ -93,16 +93,11 @@ class TargetCalculator:
                     settings = TargetCalculator._load_strategy_settings(strategy_name)
                     
                     if strategy_class:
-                        # 调用策略的目标方法
-                        if is_customized_sl:
-                            next_stop_loss = strategy_class.get_stop_loss_target(
-                                holding, current_price, settings
-                            )
-                        
-                        if is_customized_tp:
-                            next_take_profit = strategy_class.get_take_profit_target(
-                                holding, current_price, settings
-                            )
+                        # 准备数据调用should_stop_loss和should_take_profit
+                        next_stop_loss, next_take_profit = TargetCalculator._get_targets_from_strategy(
+                            strategy_class, holding, current_price, settings, 
+                            is_customized_sl, is_customized_tp
+                        )
                 except Exception as e:
                     logger.error(f"调用策略目标方法失败: {e}")
             
@@ -112,7 +107,7 @@ class TargetCalculator:
                 'completed_stop_losses': [],
                 'completed_take_profits': [],
                 'is_customized': True,
-                'customized_message': '自定义策略目标' if (next_stop_loss or next_take_profit) else '需要策略实现get_stop_loss_target/get_take_profit_target方法'
+                'customized_message': '自定义策略目标' if (next_stop_loss or next_take_profit) else '需要策略在should_stop_loss/should_take_profit中返回next_target'
             }
         
         # 计算已完成的止损/止盈（通过卖出历史）
@@ -385,4 +380,84 @@ class TargetCalculator:
         except Exception as e:
             logger.error(f"加载策略{strategy_name}配置失败: {e}")
             return {}
+    
+    @staticmethod
+    def _get_targets_from_strategy(
+        strategy_class, 
+        holding: Dict[str, Any], 
+        current_price: float, 
+        settings: Dict[str, Any],
+        need_stop_loss: bool,
+        need_take_profit: bool
+    ) -> tuple:
+        """
+        通过调用策略的should_stop_loss/should_take_profit获取目标信息
+        
+        Args:
+            strategy_class: 策略类
+            holding: 持仓信息
+            current_price: 当前价格
+            settings: 策略配置
+            need_stop_loss: 是否需要止损目标
+            need_take_profit: 是否需要止盈目标
+            
+        Returns:
+            (next_stop_loss, next_take_profit)
+        """
+        next_stop_loss = None
+        next_take_profit = None
+        
+        # 构建简化的investment对象
+        investment = {
+            'holding': holding,
+            'avg_cost': holding.get('avg_cost', 0),
+            'amount': holding.get('amount', 0),
+            'stock_id': holding.get('stock_id')
+        }
+        
+        # 构建简化的record_of_today
+        record_of_today = {
+            'close': current_price,
+            'date': holding.get('date')  # 可能需要从其他地方获取
+        }
+        
+        # 构建stock_info
+        stock_info = {
+            'id': holding.get('stock_id')
+        }
+        
+        # 构建required_data（简化版）
+        required_data = {}
+        
+        try:
+            # 尝试调用get_next_stop_loss_target和get_next_take_profit_target
+            if need_stop_loss and hasattr(strategy_class, 'get_next_stop_loss_target'):
+                next_stop_loss = strategy_class.get_next_stop_loss_target(
+                    stock_info, record_of_today, investment, required_data, settings
+                )
+            
+            if need_take_profit and hasattr(strategy_class, 'get_next_take_profit_target'):
+                next_take_profit = strategy_class.get_next_take_profit_target(
+                    stock_info, record_of_today, investment, required_data, settings
+                )
+            
+            # 如果get_next_*方法返回None，尝试直接调用should_*方法
+            if not next_stop_loss and need_stop_loss and hasattr(strategy_class, 'should_stop_loss'):
+                _, result = strategy_class.should_stop_loss(
+                    stock_info, record_of_today, investment, required_data, settings
+                )
+                if isinstance(result, dict) and 'next_target' in result:
+                    next_stop_loss = result['next_target']
+            
+            if not next_take_profit and need_take_profit and hasattr(strategy_class, 'should_take_profit'):
+                _, result = strategy_class.should_take_profit(
+                    stock_info, record_of_today, investment, required_data, settings
+                )
+                if isinstance(result, dict) and 'next_target' in result:
+                    next_take_profit = result['next_target']
+                    
+        except Exception as e:
+            logger.error(f"调用策略方法获取目标失败: {e}")
+        
+        return next_stop_loss, next_take_profit
 

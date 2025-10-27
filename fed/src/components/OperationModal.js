@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-function OperationModal({ tradeId, onClose, onSave, minDate, maxDate }) {
+function OperationModal({ tradeId, operation, isEdit, onClose, onSave, minDate, maxDate }) {
   const normalizeDate = (dateStr) => {
     if (!dateStr) return null;
     if (dateStr.includes(',')) {
@@ -13,12 +13,24 @@ function OperationModal({ tradeId, onClose, onSave, minDate, maxDate }) {
   const normalizedMaxDate = maxDate ? normalizeDate(maxDate) : null;
   
   const [formData, setFormData] = useState({
-    type: 'buy',
-    date: new Date().toISOString().split('T')[0],
-    price: '',
-    amount: '',
-    note: ''
+    type: operation?.type || 'buy',
+    date: operation?.date ? normalizeDate(operation.date) : new Date().toISOString().split('T')[0],
+    price: operation?.price || '',
+    amount: operation?.amount || '',
+    note: operation?.note || ''
   });
+
+  useEffect(() => {
+    if (operation) {
+      setFormData({
+        type: operation.type || 'buy',
+        date: operation.date ? normalizeDate(operation.date) : new Date().toISOString().split('T')[0],
+        price: operation.price || '',
+        amount: operation.amount || '',
+        note: operation.note || ''
+      });
+    }
+  }, [operation]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -54,7 +66,7 @@ function OperationModal({ tradeId, onClose, onSave, minDate, maxDate }) {
     <div className="modal-overlay">
       <div className="modal">
         <div className="modal-header">
-          <h2>添加操作</h2>
+          <h2>{isEdit ? '修改操作' : '添加操作'}</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <form onSubmit={handleSubmit}>
@@ -102,7 +114,6 @@ function OperationModal({ tradeId, onClose, onSave, minDate, maxDate }) {
               value={formData.amount}
               onChange={handleChange}
               required
-              step="100"
               placeholder="例: 1000"
             />
           </div>
@@ -114,6 +125,7 @@ function OperationModal({ tradeId, onClose, onSave, minDate, maxDate }) {
               onChange={handleChange}
               rows="3"
               placeholder="可选"
+              style={{ width: '100%' }}
             />
           </div>
           <div className="modal-actions">

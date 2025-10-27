@@ -226,8 +226,8 @@ class InvestmentApi:
             # 获取股票名称
             stock_name = stock_list_model.load_name_by_id(trade['stock_id'])
             
-            # 获取操作记录
-            operations = operations_model.load_by_trade(trade_id)
+            # 获取操作记录（降序，新的在前）
+            operations = operations_model.load_by_trade(trade_id, order_by="date DESC")
             
             # 计算当前持仓
             holding = operations_model.get_current_holding(trade_id)

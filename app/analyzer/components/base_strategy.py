@@ -240,7 +240,8 @@ class BaseStrategy(ABC):
         record_of_today: Dict[str, Any], 
         investment: Dict[str, Any], 
         required_data: Dict[str, Any], 
-        settings: Dict[str, Any]
+        settings: Dict[str, Any],
+        strategy_class=None
     ) -> Optional[Dict[str, Any]]:
         """
         获取下一个止损目标 - 用于investment tracker
@@ -253,14 +254,21 @@ class BaseStrategy(ABC):
             investment: 投资对象（简化版，只包含holding信息）
             required_data: 所需数据
             settings: 策略设置
+            strategy_class: 策略类（用于调用子类重写的方法）
             
         Returns:
             None 或 目标信息字典
         """
-        # 调用should_stop_loss，看返回值中是否包含目标信息
-        is_triggered, result = BaseStrategy.should_stop_loss(
-            stock_info, record_of_today, investment, required_data, settings
-        )
+        # 如果提供了strategy_class，使用它调用should_stop_loss
+        if strategy_class:
+            is_triggered, result = strategy_class.should_stop_loss(
+                stock_info, record_of_today, investment, required_data, settings
+            )
+        else:
+            # 否则使用当前类（可能被重写）
+            is_triggered, result = BaseStrategy.should_stop_loss(
+                stock_info, record_of_today, investment, required_data, settings
+            )
         
         # 检查investment中是否有next_target字段
         if isinstance(result, dict) and 'next_target' in result:
@@ -357,7 +365,8 @@ class BaseStrategy(ABC):
         record_of_today: Dict[str, Any], 
         investment: Dict[str, Any], 
         required_data: Dict[str, Any], 
-        settings: Dict[str, Any]
+        settings: Dict[str, Any],
+        strategy_class=None
     ) -> Optional[Dict[str, Any]]:
         """
         获取下一个止盈目标 - 用于investment tracker
@@ -370,14 +379,21 @@ class BaseStrategy(ABC):
             investment: 投资对象（简化版，只包含holding信息）
             required_data: 所需数据
             settings: 策略设置
+            strategy_class: 策略类（用于调用子类重写的方法）
             
         Returns:
             None 或 目标信息字典
         """
-        # 调用should_take_profit，看返回值中是否包含目标信息
-        is_triggered, result = BaseStrategy.should_take_profit(
-            stock_info, record_of_today, investment, required_data, settings
-        )
+        # 如果提供了strategy_class，使用它调用should_take_profit
+        if strategy_class:
+            is_triggered, result = strategy_class.should_take_profit(
+                stock_info, record_of_today, investment, required_data, settings
+            )
+        else:
+            # 否则使用当前类（可能被重写）
+            is_triggered, result = BaseStrategy.should_take_profit(
+                stock_info, record_of_today, investment, required_data, settings
+            )
         
         # 检查investment中是否有next_target字段
         if isinstance(result, dict) and 'next_target' in result:

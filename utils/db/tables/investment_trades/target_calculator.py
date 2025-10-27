@@ -431,14 +431,15 @@ class TargetCalculator:
         
         try:
             # 尝试调用get_next_stop_loss_target和get_next_take_profit_target
+            # 传递strategy_class参数以便调用子类重写的方法
             if need_stop_loss and hasattr(strategy_class, 'get_next_stop_loss_target'):
                 next_stop_loss = strategy_class.get_next_stop_loss_target(
-                    stock_info, record_of_today, investment, required_data, settings
+                    stock_info, record_of_today, investment, required_data, settings, strategy_class
                 )
             
             if need_take_profit and hasattr(strategy_class, 'get_next_take_profit_target'):
                 next_take_profit = strategy_class.get_next_take_profit_target(
-                    stock_info, record_of_today, investment, required_data, settings
+                    stock_info, record_of_today, investment, required_data, settings, strategy_class
                 )
             
             # 如果get_next_*方法返回None，尝试直接调用should_*方法

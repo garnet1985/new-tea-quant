@@ -389,7 +389,24 @@ function Investment() {
                           {/* Col7: 下一目标 */}
                           <td>
                             <div className="next-target">
-                              <span className="placeholder">待实现</span>
+                              {trade.next_targets && (trade.next_targets.next_stop_loss || trade.next_targets.next_take_profit) ? (
+                                <div className="targets-list">
+                                  {trade.next_targets.next_take_profit && (
+                                    <div className="target-item take-profit">
+                                      <span className="target-label">止盈</span>
+                                      <span className="target-price">¥{trade.next_targets.next_take_profit.target_price?.toFixed(2)}</span>
+                                    </div>
+                                  )}
+                                  {trade.next_targets.next_stop_loss && (
+                                    <div className="target-item stop-loss">
+                                      <span className="target-label">止损</span>
+                                      <span className="target-price">¥{trade.next_targets.next_stop_loss.target_price?.toFixed(2)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="placeholder">无目标</span>
+                              )}
                             </div>
                           </td>
                           

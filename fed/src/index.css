@@ -658,11 +658,17 @@ code {
 
 .target-item-compact {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 0.8em;
+}
+
+.target-info-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .target-item-compact.take-profit {

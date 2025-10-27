@@ -88,7 +88,9 @@ class InvestmentOperationsModel(BaseTableModel):
                 'avg_cost': 平均成本,
                 'total_cost': 总成本,
                 'first_buy_date': 首次买入日期,
-                'first_buy_price': 首次买入价格
+                'first_buy_price': 首次买入价格,
+                'realized_profit': 已实现盈利（元）,
+                'realized_profit_rate': 已实现盈利率（%）
             }
         """
         operations = self.load_by_trade(trade_id, order_by="date ASC")
@@ -96,6 +98,7 @@ class InvestmentOperationsModel(BaseTableModel):
         total_amount = 0
         total_cost = 0.0
         first_buy = None
+        realized_profit = 0.0  # 已实现盈利
         
         # 从数据库中获取标记为is_first的记录
         first_buy_op = self.load_one("trade_id = %s AND is_first = 1", (trade_id,))
@@ -115,16 +118,29 @@ class InvestmentOperationsModel(BaseTableModel):
                 # 卖出：减少数量和成本（按当前平均成本扣除）
                 sell_amount = op['amount']
                 current_avg_cost = total_cost / total_amount if total_amount > 0 else 0
+                sell_price = float(op['price'])
+                
+                # 计算本次卖出的盈利
+                cost_of_sell = current_avg_cost * sell_amount
+                profit_of_sell = (sell_price - current_avg_cost) * sell_amount
+                realized_profit += profit_of_sell
+                
                 total_amount -= sell_amount
-                total_cost -= current_avg_cost * sell_amount
+                total_cost -= cost_of_sell
         
         avg_cost = total_cost / total_amount if total_amount > 0 else 0
+        
+        # 计算已实现盈利率（相对于总投入）
+        total_invested = sum(float(op['price']) * op['amount'] for op in operations if op['type'] in ['buy', 'add'])
+        realized_profit_rate = (realized_profit / total_invested * 100) if total_invested > 0 else 0
         
         return {
             'amount': total_amount,
             'avg_cost': round(avg_cost, 2),
             'total_cost': round(total_cost, 2),
             'first_buy_date': first_buy['date'] if first_buy else None,
-            'first_buy_price': round(first_buy['price'], 2) if first_buy else None
+            'first_buy_price': round(first_buy['price'], 2) if first_buy else None,
+            'realized_profit': round(realized_profit, 2),
+            'realized_profit_rate': round(realized_profit_rate, 4)
         }
 

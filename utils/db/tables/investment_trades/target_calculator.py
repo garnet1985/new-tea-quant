@@ -125,7 +125,7 @@ class TargetCalculator:
         
         # 计算下一止盈
         next_take_profit = TargetCalculator._find_next_take_profit(
-            take_profit_config, avg_cost, amount, completed_take_profits
+            take_profit_config, avg_cost, amount, completed_take_profits, current_price
         )
         
         return {
@@ -157,11 +157,14 @@ class TargetCalculator:
         sell_operations = [op for op in operations if op.get('type') == 'sell']
         
         # 重建历史状态：计算每次卖出时的平均成本
+        # 需要按时间正序处理
+        sorted_operations = sorted(operations, key=lambda x: x.get('date', ''))
+        
         historical_states = []
         temp_amount = 0
         temp_cost = 0.0
         
-        for op in operations:
+        for op in sorted_operations:
             if op['type'] in ['buy', 'add']:
                 temp_amount += op['amount']
                 temp_cost += float(op['price']) * op['amount']
@@ -225,11 +228,14 @@ class TargetCalculator:
             return completed
         
         # 重建历史状态：计算每次卖出时的平均成本
+        # 需要按时间正序处理
+        sorted_operations = sorted(operations, key=lambda x: x.get('date', ''))
+        
         historical_states = []
         temp_amount = 0
         temp_cost = 0.0
         
-        for op in operations:
+        for op in sorted_operations:
             if op['type'] in ['buy', 'add']:
                 temp_amount += op['amount']
                 temp_cost += float(op['price']) * op['amount']
@@ -261,8 +267,8 @@ class TargetCalculator:
                 # 计算本次卖出占当时仓位的比例
                 sell_ratio_in_state = state['sell_amount'] / state['amount'] if state['amount'] > 0 else 0
                 
-                # 判断条件：价格达标 AND 卖出比例达标
-                if state['sell_price'] >= target_price and sell_ratio_in_state >= target_sell_ratio:
+                # 判断条件：价格达标就认为完成（卖出比例是目标，不是硬性要求）
+                if state['sell_price'] >= target_price:
                     # 找到了已完成的止盈目标
                     if not any(c.get('name') == stage.get('name') for c in completed):
                         completed.append({
@@ -330,7 +336,8 @@ class TargetCalculator:
         take_profit_config: Dict[str, Any],
         avg_cost: float,
         current_amount: int,
-        completed: List[Dict[str, Any]]
+        completed: List[Dict[str, Any]],
+        current_price: float = None
     ) -> Optional[Dict[str, Any]]:
         """找到下一个止盈目标"""
         completed_names = {c.get('name') for c in completed}
@@ -342,17 +349,28 @@ class TargetCalculator:
                 target_price = avg_cost * (1 + target_ratio)
                 sell_ratio = stage.get('sell_ratio', 1.0)
                 
-                # 计算需要卖出的数量
+                # 计算需要卖出的数量（A股100股最小单位）
                 target_amount = int(current_amount * sell_ratio) if current_amount else 0
+                # 四舍五入到100股的倍数
+                target_amount_rounded = round(target_amount / 100) * 100
                 
-                return {
+                # 判断价格是否已达标
+                price_reached = current_price is not None and current_price >= target_price
+                
+                result = {
                     'name': stage.get('name'),
                     'type': 'take_profit',
                     'ratio': target_ratio,
                     'target_price': target_price,
                     'sell_ratio': sell_ratio,
-                    'target_amount': target_amount
+                    'target_amount': target_amount_rounded,
+                    'price_reached': price_reached  # 价格是否已达标
                 }
+                
+                if price_reached:
+                    result['status'] = f'价格已达标，还需卖出{target_amount_rounded}股'
+                
+                return result
         
         return None
 

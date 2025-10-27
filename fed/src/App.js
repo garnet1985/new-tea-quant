@@ -5,6 +5,7 @@ import StockKline from './pages/StockKline';
 import StockScan from './pages/StockScan';
 import StockSimulate from './pages/StockSimulate';
 import StockChart from './pages/StockChart';
+import Investment from './pages/Investment';
 
 // 导航组件
 function Navigation() {
@@ -31,6 +32,9 @@ function Navigation() {
             <Link to="/chart" className={location.pathname === '/chart' ? 'active' : ''}>
               K线图
             </Link>
+            <Link to="/investment" className={location.pathname === '/investment' ? 'active' : ''}>
+              投资管理
+            </Link>
           </div>
         </div>
       </div>
@@ -50,6 +54,7 @@ function App() {
             <Route path="/scan" element={<StockScan />} />
             <Route path="/simulate" element={<StockSimulate />} />
             <Route path="/chart" element={<StockChart />} />
+            <Route path="/investment" element={<Investment />} />
           </Routes>
         </main>
       </div>

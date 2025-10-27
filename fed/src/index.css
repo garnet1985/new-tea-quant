@@ -724,14 +724,14 @@ code {
   padding: 8px;
   min-width: 220px;
   max-width: 300px;
-  max-height: 500px;
+  max-height: 400px;
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   z-index: 10000;
-  bottom: 100%;
+  top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 10px;
+  margin-top: 5px;
   font-size: 0.85em;
 }
 

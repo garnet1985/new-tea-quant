@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAllOpenTrades, createOperation, createNewTrade, fetchTradeDetail, updateTrade, deleteTrade, updateOperation, deleteOperation } from '../services/investment_api';
+import { fetchAllOpenTrades, fetchAllClosedTrades, createOperation, createNewTrade, fetchTradeDetail, updateTrade, deleteTrade, updateOperation, deleteOperation } from '../services/investment_api';
 import TradeModal from '../components/TradeModal';
 import OperationModal from '../components/OperationModal';
 
 function Investment() {
   const [activeTab, setActiveTab] = useState('investing');
-  const [trades, setTrades] = useState([]);
+  const [openTrades, setOpenTrades] = useState([]);  // 持仓中的trades
+  const [closedTrades, setClosedTrades] = useState([]);  // 历史记录的trades
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedRow, setExpandedRow] = useState(null);
@@ -21,33 +22,41 @@ function Investment() {
 
   useEffect(() => {
     loadTrades();
+    setExpandedRow(null);  // 切换tab时重置展开状态
   }, [activeTab]);
 
   const loadTrades = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchAllOpenTrades();
-      if (response.success) {
-        setTrades(response.data || []);
-        
-        // 加载所有trades的操作记录
-        const operationsMap = {};
-        for (const trade of response.data || []) {
-          try {
-            const opsResponse = await fetch(`http://localhost:5001/api/investment/trades/${trade.id}`);
-            const opsData = await opsResponse.json();
-            if (opsData.success && opsData.data.operations) {
-              operationsMap[trade.id] = opsData.data.operations;
-            }
-          } catch (err) {
-            console.error(`加载trade ${trade.id}的操作记录失败:`, err);
-          }
-        }
-        setOperationsData(operationsMap);
-      } else {
-        setError(response.message || '加载失败');
+      // 加载持仓中的trades
+      const openResponse = await fetchAllOpenTrades();
+      if (openResponse.success) {
+        setOpenTrades(openResponse.data || []);
       }
+      
+      // 加载历史记录的trades
+      const closedResponse = await fetchAllClosedTrades();
+      if (closedResponse.success) {
+        setClosedTrades(closedResponse.data || []);
+      }
+      
+      // 合并所有trades用于加载操作记录
+      const allTrades = [...(openResponse.data || []), ...(closedResponse.data || [])];
+      const operationsMap = {};
+      for (const trade of allTrades) {
+        try {
+          const opsResponse = await fetch(`http://localhost:5001/api/investment/trades/${trade.id}`);
+          const opsData = await opsResponse.json();
+          if (opsData.success && opsData.data.operations) {
+            operationsMap[trade.id] = opsData.data.operations;
+          }
+        } catch (err) {
+          console.error(`加载trade ${trade.id}的操作记录失败:`, err);
+        }
+      }
+      setOperationsData(operationsMap);
+      
     } catch (err) {
       setError(err.message);
     } finally {
@@ -64,8 +73,8 @@ function Investment() {
     });
   };
 
-  const handleEditTrade = async (tradeId) => {
-    const trade = trades.find(t => t.id === tradeId);
+  const handleEditTrade = async (trade) => {
+    const tradeId = trade.id;
     
     // 获取trade详情和持仓信息
     try {
@@ -100,7 +109,9 @@ function Investment() {
   };
   
   const handleDeleteTrade = async (tradeId) => {
-    const trade = trades.find(t => t.id === tradeId);
+    // 从当前活跃的trades中查找
+    const currentTrades = activeTab === 'investing' ? openTrades : closedTrades;
+    const trade = currentTrades.find(t => t.id === tradeId);
     const stockName = trade.stock_name || trade.stock_id;
     
     if (!window.confirm(`确定要删除这笔投资吗？\n股票：${stockName}\n此操作将删除所有相关操作记录，且无法恢复。`)) {
@@ -315,13 +326,13 @@ function Investment() {
               className={`tab ${activeTab === 'investing' ? 'active' : ''}`}
               onClick={() => setActiveTab('investing')}
             >
-              持仓中 ({trades.length})
+              持仓中 ({openTrades.length})
             </button>
             <button 
               className={`tab ${activeTab === 'history' ? 'active' : ''}`}
               onClick={() => setActiveTab('history')}
             >
-              历史记录
+              历史记录 ({closedTrades.length})
             </button>
           </div>
 
@@ -331,7 +342,7 @@ function Investment() {
             <div className="loading">加载中...</div>
           ) : activeTab === 'investing' ? (
             /* 持仓中表格 */
-            trades.length === 0 ? (
+            openTrades.length === 0 ? (
               <div className="empty-state">
                 <p>暂无持仓</p>
                 <button 
@@ -362,7 +373,7 @@ function Investment() {
                     </tr>
                   </thead>
                   <tbody>
-                    {trades.map(trade => (
+                    {openTrades.map(trade => (
                       <React.Fragment key={trade.id}>
                         <tr>
                           {/* Col1: 股票信息（合并ID和名称） */}
@@ -636,9 +647,129 @@ function Investment() {
             )
           ) : (
             /* 历史记录 */
-            <div className="history-tab">
-              <p>历史记录功能待实现</p>
-            </div>
+            closedTrades.length === 0 ? (
+              <div className="empty-state">
+                <p>暂无历史记录</p>
+              </div>
+            ) : (
+              <table className="investment-table">
+                <thead>
+                  <tr>
+                    <th>股票</th>
+                    <th>投入金额</th>
+                    <th>已实现盈利</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {closedTrades.map(trade => (
+                    <React.Fragment key={trade.id}>
+                      <tr>
+                        {/* Col1: 股票信息 */}
+                        <td>
+                          <div className="stock-info-compact">
+                            <div className="stock-id-compact">{trade.stock_id}</div>
+                            <div className="stock-name-compact">{trade.stock_name}</div>
+                            {trade.strategy && (
+                              <div className="stock-strategy">策略: {trade.strategy}</div>
+                            )}
+                          </div>
+                        </td>
+                        
+                        {/* Col2: 投入金额 */}
+                        <td>
+                          <div className="holding-info-compact">
+                            <div>¥{trade.total_invested?.toFixed(2) || '-'}</div>
+                          </div>
+                        </td>
+                        
+                        {/* Col3: 已实现盈利 */}
+                        <td>
+                          <div className="profit-compact">
+                            {trade.holding?.realized_profit !== undefined ? (
+                              <>
+                                <div className={trade.holding.realized_profit >= 0 ? 'profit-positive' : 'profit-negative'}>
+                                  {trade.holding.realized_profit_rate.toFixed(2)}%
+                                </div>
+                                <div className="profit-amount">¥{trade.holding.realized_profit.toFixed(2)}</div>
+                              </>
+                            ) : (
+                              <span className="placeholder-small">-</span>
+                            )}
+                          </div>
+                        </td>
+                        
+                        {/* Col4: 操作 */}
+                        <td>
+                          <div className="action-links">
+                            <a 
+                              href="#"
+                              className="action-link"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleEditTrade(trade);
+                              }}
+                            >
+                              查看
+                            </a>
+                            <a 
+                              href="#"
+                              className="action-link-delete"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeleteTrade(trade.id);
+                              }}
+                            >
+                              删除
+                            </a>
+                            <a 
+                              href="#"
+                              className="action-link"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                toggleRow(trade.id);
+                              }}
+                            >
+                              {expandedRow === trade.id ? '▼' : '▶'}
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      {/* 展开的操作记录 */}
+                      {expandedRow === trade.id && (
+                        <tr className="expanded-row">
+                          <td colSpan="4">
+                            <div className="operations-history">
+                              <h4>操作记录</h4>
+                              <div className="operations-list">
+                                {operationsData[trade.id] && operationsData[trade.id].length > 0 ? (
+                                  operationsData[trade.id].map((op, idx) => (
+                                    <div key={idx} className="operation-item">
+                                      <div className="operation-date">{formatDate(op.date)}</div>
+                                      <div className="operation-details">
+                                        <span className={`operation-type ${op.type}`}>
+                                          {op.type === 'buy' ? '买入' : op.type === 'add' ? '买入' : '卖出'}
+                                        </span>
+                                        <span className="operation-amount">{op.amount}股</span>
+                                        <span className="operation-price">¥{parseFloat(op.price).toFixed(2)}</span>
+                                        {op.note && <span className="operation-note">{op.note}</span>}
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="no-operations">暂无操作记录</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )
           )}
       </div>
       
@@ -655,7 +786,8 @@ function Investment() {
       
       {/* Operation Modal */}
       {modalState.showOperationModal && (() => {
-        const trade = trades.find(t => t.id === modalState.operationTradeId);
+        // 从所有trades中查找（包括open和closed）
+        const trade = [...openTrades, ...closedTrades].find(t => t.id === modalState.operationTradeId);
         const firstBuyDate = trade?.holding?.first_buy_date;
         // 标准化日期格式
         const normalizeDate = (dateStr) => {

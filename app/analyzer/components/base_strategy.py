@@ -333,60 +333,6 @@ class BaseStrategy(ABC):
         return None
     
     @staticmethod
-    def get_stop_loss_target(
-        holding: Dict[str, Any], 
-        current_price: float, 
-        settings: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        计算止损目标价格 - 可选重写
-        
-        这个方法用于investment tracker，不需要复杂的investment对象
-        只需要基本的持仓信息就可以计算出目标价格
-        
-        Args:
-            holding: 当前持仓信息 {amount, avg_cost, ...}
-            current_price: 当前价格
-            settings: 策略设置
-            
-        Returns:
-            None 或 {name, type, ratio, target_price, target_amount}
-            - name: 目标名称
-            - type: 'stop_loss'
-            - ratio: 目标收益率（负数）
-            - target_price: 目标价格
-            - target_amount: 需要卖出的数量（None表示全部）
-        """
-        return None
-    
-    @staticmethod
-    def get_take_profit_target(
-        holding: Dict[str, Any], 
-        current_price: float, 
-        settings: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        计算止盈目标价格 - 可选重写
-        
-        这个方法用于investment tracker，不需要复杂的investment对象
-        
-        Args:
-            holding: 当前持仓信息 {amount, avg_cost, ...}
-            current_price: 当前价格
-            settings: 策略设置
-            
-        Returns:
-            None 或 {name, type, ratio, target_price, sell_ratio, target_amount}
-            - name: 目标名称
-            - type: 'take_profit'
-            - ratio: 目标收益率（正数）
-            - target_price: 目标价格
-            - sell_ratio: 需要卖出的比例（0.0-1.0）
-            - target_amount: 需要卖出的数量
-        """
-        return None
-
-    @staticmethod
     def should_take_profit(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         """
         自定义止盈逻辑 - 可选重写

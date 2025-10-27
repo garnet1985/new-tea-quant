@@ -115,6 +115,10 @@ class InvestmentApi:
                 data_loader = DataLoader(self.db_manager)
                 stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
                 
+                # 调试：检查返回的数据
+                if stock_details:
+                    logger.debug(f"股票 {stock_id} 详细信息: {stock_details}")
+                
                 # 计算下一目标（使用 TargetCalculator）
                 next_targets = None
                 try:

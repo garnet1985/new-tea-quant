@@ -453,10 +453,10 @@ class TargetCalculator:
                     # 策略重写了should_stop_loss但没有返回target_info，这是必须的
                     logger.error(f"策略 {strategy_class.__name__} 的 should_stop_loss 方法没有返回 'target_info' 字段")
                     logger.error("对于is_customized=True的止损配置，必须返回target_info字段")
-                    logger.error("格式: return (bool, {**investment, 'target_info': {...}})")
+                    logger.error("格式: return (bool, {**investment, 'target_info': {'target_price': x, 'current_price': y}})")
                     raise ValueError(
                         f"策略 {strategy_class.__name__} 的 should_stop_loss 方法必须返回 'target_info' 字段，"
-                        "格式: {**investment, 'target_info': {...}}"
+                        "格式: {**investment, 'target_info': {'target_price': x, 'current_price': y}}"
                     )
             
             if need_take_profit and hasattr(strategy_class, 'should_take_profit'):
@@ -469,10 +469,10 @@ class TargetCalculator:
                     # 策略重写了should_take_profit但没有返回target_info，这是必须的
                     logger.error(f"策略 {strategy_class.__name__} 的 should_take_profit 方法没有返回 'target_info' 字段")
                     logger.error("对于is_customized=True的止盈配置，必须返回target_info字段")
-                    logger.error("格式: return (bool, {**investment, 'target_info': {...}})")
+                    logger.error("格式: return (bool, {**investment, 'target_info': {'target_price': x, 'current_price': y}})")
                     raise ValueError(
                         f"策略 {strategy_class.__name__} 的 should_take_profit 方法必须返回 'target_info' 字段，"
-                        "格式: {**investment, 'target_info': {...}}"
+                        "格式: {**investment, 'target_info': {'target_price': x, 'current_price': y}}"
                     )
                     
         except Exception as e:

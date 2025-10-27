@@ -339,132 +339,118 @@ function Investment() {
                   <table className="investment-table">
                   <thead>
                     <tr>
-                      <th>股票信息</th>
-                      <th>首次买入</th>
-                      <th>仓位信息</th>
-                      <th>总投入</th>
-                      <th>最新收盘股价</th>
-                      <th>当前盈利</th>
+                      <th>股票</th>
+                      <th>仓位</th>
+                      <th>当前股价</th>
+                      <th>盈利</th>
                       <th>下一目标</th>
                       <th>操作</th>
-                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {trades.map(trade => (
                       <React.Fragment key={trade.id}>
                         <tr>
-                          {/* Col1: 股票基本信息 */}
+                          {/* Col1: 股票信息（合并ID和名称） */}
                           <td>
-                            <div className="stock-info">
-                              <div className="stock-id">{trade.stock_id}</div>
-                              <div className="stock-name">{trade.stock_name}</div>
+                            <div className="stock-info-compact">
+                              <div className="stock-id-compact">{trade.stock_id}</div>
+                              <div className="stock-name-compact">{trade.stock_name}</div>
+                              <div className="stock-meta">
+                                {formatDate(trade.holding.first_buy_date)} @ ¥{trade.holding.first_buy_price}
+                              </div>
                             </div>
                           </td>
                           
-                          {/* Col2: 首次买入 */}
+                          {/* Col2: 仓位信息 */}
                           <td>
-                            <div className="first-buy-info">
-                              <div className="buy-date">{formatDate(trade.holding.first_buy_date)}</div>
-                              <div className="buy-price">¥{trade.holding.first_buy_price}</div>
+                            <div className="holding-info-compact">
+                              <div><strong>{trade.holding.amount}</strong> 股</div>
+                              <div>成本: <strong>¥{trade.holding.avg_cost}</strong></div>
+                              <div className="text-muted">投入: ¥{trade.holding.total_cost.toFixed(2)}</div>
                             </div>
                           </td>
                           
-                          {/* Col3: 仓位信息 */}
+                          {/* Col3: 当前股价 */}
                           <td>
-                            <div className="holding-info">
-                              <div>持仓: <strong>{trade.holding.amount}</strong> 股</div>
-                              <div>折算后成本: <strong>¥{trade.holding.avg_cost}</strong></div>
-                            </div>
-                          </td>
-                          
-                          {/* Col4: 总投入 */}
-                          <td>
-                            <div className="total-invested">
-                              <strong>¥{trade.holding.total_cost.toFixed(2)}</strong>
-                            </div>
-                          </td>
-                          
-                          {/* Col5: 当前股价 */}
-                          <td>
-                            <div className="current-price">
-                              <div><strong>¥{trade.current_price.price.toFixed(2)}</strong></div>
+                            <div className="current-price-compact">
+                              <div className="price-value"><strong>¥{trade.current_price.price.toFixed(2)}</strong></div>
                               {trade.current_price.date && (
-                                <div className="price-date">{formatDate(trade.current_price.date)}</div>
+                                <div className="price-date-small">{formatDate(trade.current_price.date)}</div>
                               )}
                             </div>
                           </td>
                           
-                          {/* Col6: 当前盈利 */}
+                          {/* Col4: 当前盈利 */}
                           <td>
-                            {formatProfit(trade.profit.rate, trade.profit.amount)}
+                            <div className="profit-compact">
+                              {formatProfit(trade.profit.rate, trade.profit.amount)}
+                            </div>
                           </td>
                           
-                          {/* Col7: 下一目标 */}
+                          {/* Col5: 下一目标 */}
                           <td>
-                            <div className="next-target">
+                            <div className="next-target-compact">
                               {trade.next_targets && (trade.next_targets.next_stop_loss || trade.next_targets.next_take_profit) ? (
-                                <div className="targets-list">
+                                <div className="targets-list-compact">
                                   {trade.next_targets.next_take_profit && (
-                                    <div className="target-item take-profit">
-                                      <span className="target-label">止盈</span>
+                                    <div className="target-item-compact take-profit">
+                                      <span className="target-label">↑</span>
                                       <span className="target-price">¥{trade.next_targets.next_take_profit.target_price?.toFixed(2)}</span>
                                     </div>
                                   )}
                                   {trade.next_targets.next_stop_loss && (
-                                    <div className="target-item stop-loss">
-                                      <span className="target-label">止损</span>
+                                    <div className="target-item-compact stop-loss">
+                                      <span className="target-label">↓</span>
                                       <span className="target-price">¥{trade.next_targets.next_stop_loss.target_price?.toFixed(2)}</span>
                                     </div>
                                   )}
                                 </div>
                               ) : (
-                                <span className="placeholder">无目标</span>
+                                <span className="placeholder-small">-</span>
                               )}
                             </div>
                           </td>
                           
-                          {/* Col8: 操作 */}
+                          {/* Col6: 操作按钮 */}
                           <td>
-                            <div className="action-buttons">
+                            <div className="action-buttons-compact">
                               <button 
-                                className="btn-small"
+                                className="btn-icon"
                                 onClick={() => handleEditTrade(trade.id)}
+                                title="修改"
                               >
-                                修改
+                                ✏️
                               </button>
                               <button 
-                                className="btn-small"
+                                className="btn-icon"
                                 onClick={() => handleDeleteTrade(trade.id)}
-                                style={{ backgroundColor: '#dc3545', color: 'white', marginLeft: '5px' }}
+                                title="删除"
                               >
-                                删除
+                                🗑️
                               </button>
                               <button 
-                                className="btn-small"
+                                className="btn-icon"
                                 onClick={() => handleAddOperation(trade.id)}
-                                style={{ marginLeft: '5px' }}
+                                title="添加操作"
                               >
-                                +添加操作
+                                ➕
+                              </button>
+                              <button 
+                                className="btn-icon"
+                                onClick={() => toggleRow(trade.id)}
+                                title={expandedRow === trade.id ? '收起' : '展开'}
+                              >
+                                {expandedRow === trade.id ? '▼' : '▶'}
                               </button>
                             </div>
-                          </td>
-                          
-                          {/* Col8: 展开/收起 */}
-                          <td>
-                            <button 
-                              className="expand-btn"
-                              onClick={() => toggleRow(trade.id)}
-                            >
-                              {expandedRow === trade.id ? '▼' : '▶'}
-                            </button>
                           </td>
                         </tr>
                         
                         {/* 展开的操作记录 */}
                         {expandedRow === trade.id && (
                           <tr className="expanded-row">
-                            <td colSpan="9">
+                            <td colSpan="6">
                               <div className="operations-history">
                                 <h4>操作记录</h4>
                                 <div className="operations-list">

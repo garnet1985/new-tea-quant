@@ -442,20 +442,20 @@ class TargetCalculator:
                     stock_info, record_of_today, investment, required_data, settings, strategy_class
                 )
             
-            # 如果get_next_*方法返回None，尝试直接调用should_*方法
-            if not next_stop_loss and need_stop_loss and hasattr(strategy_class, 'should_stop_loss'):
+            # 调用should_*方法获取target_info
+            if need_stop_loss and hasattr(strategy_class, 'should_stop_loss'):
                 _, result = strategy_class.should_stop_loss(
                     stock_info, record_of_today, investment, required_data, settings
                 )
-                if isinstance(result, dict) and 'next_target' in result:
-                    next_stop_loss = result['next_target']
+                if isinstance(result, dict) and 'target_info' in result:
+                    next_stop_loss = result['target_info']
             
-            if not next_take_profit and need_take_profit and hasattr(strategy_class, 'should_take_profit'):
+            if need_take_profit and hasattr(strategy_class, 'should_take_profit'):
                 _, result = strategy_class.should_take_profit(
                     stock_info, record_of_today, investment, required_data, settings
                 )
-                if isinstance(result, dict) and 'next_target' in result:
-                    next_take_profit = result['next_target']
+                if isinstance(result, dict) and 'target_info' in result:
+                    next_take_profit = result['target_info']
                     
         except Exception as e:
             logger.error(f"调用策略方法获取目标失败: {e}")

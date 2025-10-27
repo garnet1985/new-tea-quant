@@ -1,0 +1,475 @@
+import React, { useState, useEffect } from 'react';
+import { fetchAllOpenTrades, createOperation, createNewTrade, fetchTradeDetail, updateTrade, deleteTrade } from '../services/investment_api';
+import TradeModal from '../components/TradeModal';
+import OperationModal from '../components/OperationModal';
+
+function Investment() {
+  const [activeTab, setActiveTab] = useState('investing');
+  const [trades, setTrades] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [expandedRow, setExpandedRow] = useState(null);
+  const [operationsData, setOperationsData] = useState({}); // { tradeId: [operations] }
+  const [modalState, setModalState] = useState({
+    showTradeModal: false,
+    showOperationModal: false,
+    editingTrade: null,
+    editingTradeHolding: null,
+    operationTradeId: null
+  });
+
+  useEffect(() => {
+    loadTrades();
+  }, [activeTab]);
+
+  const loadTrades = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAllOpenTrades();
+      if (response.success) {
+        setTrades(response.data || []);
+        
+        // 加载所有trades的操作记录
+        const operationsMap = {};
+        for (const trade of response.data || []) {
+          try {
+            const opsResponse = await fetch(`http://localhost:5001/api/investment/trades/${trade.id}`);
+            const opsData = await opsResponse.json();
+            if (opsData.success && opsData.data.operations) {
+              operationsMap[trade.id] = opsData.data.operations;
+            }
+          } catch (err) {
+            console.error(`加载trade ${trade.id}的操作记录失败:`, err);
+          }
+        }
+        setOperationsData(operationsMap);
+      } else {
+        setError(response.message || '加载失败');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddOperation = async (tradeId) => {
+    setModalState({
+      showTradeModal: false,
+      showOperationModal: true,
+      editingTrade: null,
+      operationTradeId: tradeId
+    });
+  };
+
+  const handleEditTrade = async (tradeId) => {
+    const trade = trades.find(t => t.id === tradeId);
+    
+    // 获取trade详情和持仓信息
+    try {
+      const response = await fetchTradeDetail(tradeId);
+      if (response.success && response.data) {
+        setModalState({
+          showTradeModal: true,
+          showOperationModal: false,
+          editingTrade: trade,
+          editingTradeHolding: response.data.holding,
+          operationTradeId: null
+        });
+      } else {
+        setModalState({
+          showTradeModal: true,
+          showOperationModal: false,
+          editingTrade: trade,
+          editingTradeHolding: trade.holding,
+          operationTradeId: null
+        });
+      }
+    } catch (err) {
+      console.error('获取交易详情失败:', err);
+      setModalState({
+        showTradeModal: true,
+        showOperationModal: false,
+        editingTrade: trade,
+        editingTradeHolding: trade.holding,
+        operationTradeId: null
+      });
+    }
+  };
+  
+  const handleDeleteTrade = async (tradeId) => {
+    const trade = trades.find(t => t.id === tradeId);
+    const stockName = trade.stock_name || trade.stock_id;
+    
+    if (!window.confirm(`确定要删除这笔投资吗？\n股票：${stockName}\n此操作将删除所有相关操作记录，且无法恢复。`)) {
+      return;
+    }
+    
+    try {
+      await deleteTrade(tradeId);
+      await loadTrades();
+    } catch (err) {
+      setError(err.message || '删除失败');
+    }
+  };
+
+  const handleCloseModal = () => {
+    setModalState({
+      showTradeModal: false,
+      showOperationModal: false,
+      editingTrade: null,
+      editingTradeHolding: null,
+      operationTradeId: null
+    });
+  };
+
+  const handleSaveTrade = async (formData) => {
+    try {
+      if (modalState.editingTrade) {
+        // 更新trade
+        const tradeData = {
+          strategy: formData.strategy,
+          note: formData.note
+        };
+        await updateTrade(modalState.editingTrade.id, tradeData);
+        await loadTrades();
+      } else {
+        // 创建trade
+        const tradeData = {
+          stock_id: formData.stock_id,
+          strategy: formData.strategy,
+          note: formData.note
+        };
+        const tradeResponse = await createNewTrade(tradeData);
+        
+        if (tradeResponse.success && formData.first_buy_price && formData.first_buy_amount) {
+          // 创建首次买入operation
+          const operationData = {
+            type: 'buy',
+            date: formData.first_buy_date,
+            price: parseFloat(formData.first_buy_price),
+            amount: parseInt(formData.first_buy_amount),
+            note: '首次买入'
+          };
+          await createOperation(tradeResponse.data.id, operationData);
+        }
+        
+        await loadTrades();
+      }
+      handleCloseModal();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleSaveOperation = async (operationData, minDate, maxDate) => {
+    try {
+      // 标准化日期格式（转换为 YYYY-MM-DD）
+      const normalizeDate = (dateStr) => {
+        if (!dateStr) return null;
+        if (dateStr.includes(',')) {
+          return new Date(dateStr).toISOString().split('T')[0];
+        }
+        return dateStr.split('T')[0].split(' ')[0];
+      };
+      
+      const operationDate = operationData.date;
+      const normalizedMinDate = minDate ? normalizeDate(minDate) : null;
+      const normalizedMaxDate = maxDate ? normalizeDate(maxDate) : null;
+      
+      // 验证日期
+      if (normalizedMinDate && operationDate < normalizedMinDate) {
+        alert(`操作日期不能早于首次买入日期: ${normalizedMinDate}`);
+        return;
+      }
+      if (normalizedMaxDate && operationDate > normalizedMaxDate) {
+        alert(`操作日期不能是未来日期`);
+        return;
+      }
+      
+      await createOperation(modalState.operationTradeId, operationData);
+      await loadTrades();
+      handleCloseModal();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const toggleRow = (tradeId) => {
+    setExpandedRow(expandedRow === tradeId ? null : tradeId);
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    
+    // 处理数据库返回的 GMT 格式日期
+    let date;
+    if (dateStr.includes(',')) {
+      // 格式: "Mon, 20 Oct 2025 00:00:00 GMT"
+      const dateObj = new Date(dateStr);
+      date = dateObj.toISOString().split('T')[0]; // 转换为 YYYY-MM-DD
+    } else if (dateStr.includes('T')) {
+      // 格式: "2025-10-20T00:00:00"
+      date = dateStr.split('T')[0];
+    } else {
+      // 格式: "2025-10-20"
+      date = dateStr.split(' ')[0];
+    }
+    
+    return date;
+  };
+
+  const formatPercent = (rate) => {
+    return `${(rate * 100).toFixed(2)}%`;
+  };
+
+  const formatProfit = (rate, amount) => {
+    const profitClass = rate >= 0 ? 'profit-positive' : 'profit-negative';
+    return (
+      <div>
+        <div className={profitClass}>{formatPercent(rate)}</div>
+        <div className="profit-amount">¥{amount.toFixed(2)}</div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="page">
+      <div className="container">
+        <div className="card">
+          <h2>投资管理</h2>
+          
+          {/* Tab导航 */}
+          <div className="tabs">
+            <button 
+              className={`tab ${activeTab === 'investing' ? 'active' : ''}`}
+              onClick={() => setActiveTab('investing')}
+            >
+              持仓中 ({trades.length})
+            </button>
+            <button 
+              className={`tab ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              历史记录
+            </button>
+          </div>
+
+          {error && <div className="error">{error}</div>}
+
+          {loading ? (
+            <div className="loading">加载中...</div>
+          ) : activeTab === 'investing' ? (
+            /* 持仓中表格 */
+            trades.length === 0 ? (
+              <div className="empty-state">
+                <p>暂无持仓</p>
+                <button 
+                  className="btn" 
+                  onClick={() => setModalState({
+                    showTradeModal: true,
+                    showOperationModal: false,
+                    editingTrade: null,
+                    operationTradeId: null
+                  })}
+                >
+                  创建新投资
+                </button>
+              </div>
+            ) : (
+              <div className="table-container">
+                <table className="investment-table">
+                  <thead>
+                    <tr>
+                      <th>股票信息</th>
+                      <th>首次买入</th>
+                      <th>仓位信息</th>
+                      <th>总投入</th>
+                      <th>最新收盘股价</th>
+                      <th>当前盈利</th>
+                      <th>下一目标</th>
+                      <th>操作</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trades.map(trade => (
+                      <React.Fragment key={trade.id}>
+                        <tr>
+                          {/* Col1: 股票基本信息 */}
+                          <td>
+                            <div className="stock-info">
+                              <div className="stock-id">{trade.stock_id}</div>
+                              <div className="stock-name">{trade.stock_name}</div>
+                            </div>
+                          </td>
+                          
+                          {/* Col2: 首次买入 */}
+                          <td>
+                            <div className="first-buy-info">
+                              <div className="buy-date">{formatDate(trade.holding.first_buy_date)}</div>
+                              <div className="buy-price">¥{trade.holding.first_buy_price}</div>
+                            </div>
+                          </td>
+                          
+                          {/* Col3: 仓位信息 */}
+                          <td>
+                            <div className="holding-info">
+                              <div>持仓: <strong>{trade.holding.amount}</strong> 股</div>
+                              <div>折算后成本: <strong>¥{trade.holding.avg_cost}</strong></div>
+                            </div>
+                          </td>
+                          
+                          {/* Col4: 总投入 */}
+                          <td>
+                            <div className="total-invested">
+                              <strong>¥{trade.holding.total_cost.toFixed(2)}</strong>
+                            </div>
+                          </td>
+                          
+                          {/* Col5: 当前股价 */}
+                          <td>
+                            <div className="current-price">
+                              <div><strong>¥{trade.current_price.price.toFixed(2)}</strong></div>
+                              {trade.current_price.date && (
+                                <div className="price-date">{formatDate(trade.current_price.date)}</div>
+                              )}
+                            </div>
+                          </td>
+                          
+                          {/* Col6: 当前盈利 */}
+                          <td>
+                            {formatProfit(trade.profit.rate, trade.profit.amount)}
+                          </td>
+                          
+                          {/* Col7: 下一目标 */}
+                          <td>
+                            <div className="next-target">
+                              <span className="placeholder">待实现</span>
+                            </div>
+                          </td>
+                          
+                          {/* Col8: 操作 */}
+                          <td>
+                            <div className="action-buttons">
+                              <button 
+                                className="btn-small"
+                                onClick={() => handleEditTrade(trade.id)}
+                              >
+                                修改
+                              </button>
+                              <button 
+                                className="btn-small"
+                                onClick={() => handleDeleteTrade(trade.id)}
+                                style={{ backgroundColor: '#dc3545', color: 'white', marginLeft: '5px' }}
+                              >
+                                删除
+                              </button>
+                              <button 
+                                className="btn-small"
+                                onClick={() => handleAddOperation(trade.id)}
+                                style={{ marginLeft: '5px' }}
+                              >
+                                +添加操作
+                              </button>
+                            </div>
+                          </td>
+                          
+                          {/* Col8: 展开/收起 */}
+                          <td>
+                            <button 
+                              className="expand-btn"
+                              onClick={() => toggleRow(trade.id)}
+                            >
+                              {expandedRow === trade.id ? '▼' : '▶'}
+                            </button>
+                          </td>
+                        </tr>
+                        
+                        {/* 展开的操作记录 */}
+                        {expandedRow === trade.id && (
+                          <tr className="expanded-row">
+                            <td colSpan="9">
+                              <div className="operations-history">
+                                <h4>操作记录</h4>
+                                <div className="operations-list">
+                                  {operationsData[trade.id] && operationsData[trade.id].length > 0 ? (
+                                    operationsData[trade.id].map((op, idx) => (
+                                      <div key={idx} className="operation-item">
+                                        <span className={`operation-type ${op.type === 'add' ? 'buy' : op.type}`}>
+                                          {op.type === 'buy' || op.type === 'add' ? '买入' : '卖出'}
+                                        </span>
+                                        <span className="operation-date">{formatDate(op.date)}</span>
+                                        <span className="operation-price">¥{op.price}</span>
+                                        <span className="operation-amount">{op.amount} 股</span>
+                                        {op.note && (
+                                          <span className="operation-note">{op.note}</span>
+                                        )}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="operation-item" style={{ color: '#999', fontStyle: 'italic' }}>
+                                      暂无操作记录
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ) : (
+            /* 历史记录 */
+            <div className="history-tab">
+              <p>历史记录功能待实现</p>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Trade Modal */}
+      {modalState.showTradeModal && (
+              <TradeModal
+                trade={modalState.editingTrade}
+                isEdit={!!modalState.editingTrade}
+                holding={modalState.editingTradeHolding}
+                onClose={handleCloseModal}
+                onSave={handleSaveTrade}
+              />
+      )}
+      
+      {/* Operation Modal */}
+      {modalState.showOperationModal && (() => {
+        const trade = trades.find(t => t.id === modalState.operationTradeId);
+        const firstBuyDate = trade?.holding?.first_buy_date;
+        // 标准化日期格式
+        const normalizeDate = (dateStr) => {
+          if (!dateStr) return null;
+          if (dateStr.includes(',')) {
+            return new Date(dateStr).toISOString().split('T')[0];
+          }
+          return dateStr.split('T')[0].split(' ')[0];
+        };
+        
+        return (
+          <OperationModal
+            tradeId={modalState.operationTradeId}
+            onClose={handleCloseModal}
+            onSave={handleSaveOperation}
+            minDate={firstBuyDate}
+            maxDate={new Date().toISOString().split('T')[0]}
+          />
+        );
+      })()}
+    </div>
+  );
+}
+
+export default Investment;
+

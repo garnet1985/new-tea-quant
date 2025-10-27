@@ -110,6 +110,25 @@ class InvestmentApi:
                 # 获取股票信息
                 stock_info = stock_info_map.get(stock_id, {})
                 
+                # 计算下一目标（使用 TargetCalculator）
+                next_targets = None
+                try:
+                    from utils.db.tables.investment_trades.target_calculator import TargetCalculator
+                    
+                    # 获取操作记录
+                    operations = operations_model.load_by_trade(trade['id'], order_by="date DESC")
+                    
+                    # 计算下一目标
+                    next_targets = TargetCalculator.calculate_next_targets(
+                        holding=holding,
+                        current_price=current_price,
+                        goal_config=trade.get('goal_config'),
+                        operations=operations,
+                        strategy_name=trade.get('strategy')
+                    )
+                except Exception as e:
+                    logger.error(f"计算下一目标失败: {e}")
+                
                 result.append({
                     'id': trade['id'],
                     'stock_id': stock_id,
@@ -133,7 +152,8 @@ class InvestmentApi:
                     'profit': {
                         'rate': round(profit_rate, 4),
                         'amount': round(profit_amount, 2)
-                    }
+                    },
+                    'next_targets': next_targets
                 })
             
             return jsonify({

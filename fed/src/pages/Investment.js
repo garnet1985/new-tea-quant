@@ -278,10 +278,24 @@ function Investment() {
   };
 
   return (
-    <div className="page">
-      <div className="container">
-        <div className="card">
-          <h2>投资管理</h2>
+    <div className="page page-full-width">
+      <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0 }}>投资管理</h2>
+            {activeTab === 'investing' && (
+              <button 
+                className="btn" 
+                onClick={() => setModalState({
+                  showTradeModal: true,
+                  showOperationModal: false,
+                  editingTrade: null,
+                  operationTradeId: null
+                })}
+              >
+                + 创建新投资
+              </button>
+            )}
+          </div>
           
           {/* Tab导航 */}
           <div className="tabs">
@@ -322,19 +336,6 @@ function Investment() {
               </div>
             ) : (
               <div>
-                <div style={{ marginBottom: '15px', textAlign: 'right' }}>
-                  <button 
-                    className="btn" 
-                    onClick={() => setModalState({
-                      showTradeModal: true,
-                      showOperationModal: false,
-                      editingTrade: null,
-                      operationTradeId: null
-                    })}
-                  >
-                    + 创建新投资
-                  </button>
-                </div>
                 <div className="table-container">
                   <table className="investment-table">
                   <thead>
@@ -509,7 +510,6 @@ function Investment() {
               <p>历史记录功能待实现</p>
             </div>
           )}
-        </div>
       </div>
       
       {/* Trade Modal */}

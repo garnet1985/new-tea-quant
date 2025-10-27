@@ -343,7 +343,8 @@ function Investment() {
                       <th>股票</th>
                       <th>仓位</th>
                       <th>最近股价</th>
-                      <th>盈利</th>
+                      <th>浮盈</th>
+                      <th>已实现盈利</th>
                       <th>下一目标</th>
                       <th>操作</th>
                     </tr>
@@ -483,7 +484,23 @@ function Investment() {
                             </div>
                           </td>
                           
-                          {/* Col5: 下一目标 */}
+                          {/* Col5: 已实现盈利 */}
+                          <td>
+                            <div className="profit-compact">
+                              {trade.holding.realized_profit !== undefined ? (
+                                <>
+                                  <div className={trade.holding.realized_profit >= 0 ? 'profit-positive' : 'profit-negative'}>
+                                    {formatPercent(trade.holding.realized_profit_rate)}
+                                  </div>
+                                  <div className="profit-amount">¥{trade.holding.realized_profit.toFixed(2)}</div>
+                                </>
+                              ) : (
+                                <span className="placeholder-small">-</span>
+                              )}
+                            </div>
+                          </td>
+                          
+                          {/* Col6: 下一目标 */}
                           <td>
                             <div className="next-target-compact">
                               {trade.next_targets && (trade.next_targets.next_stop_loss || trade.next_targets.next_take_profit) ? (
@@ -491,7 +508,14 @@ function Investment() {
                                   {trade.next_targets.next_take_profit && (
                                     <div className="target-item-compact take-profit">
                                       <span className="target-label">↑</span>
-                                      <span className="target-price">¥{trade.next_targets.next_take_profit.target_price?.toFixed(2)}</span>
+                                      <div className="target-info-compact">
+                                        <span className="target-price">¥{trade.next_targets.next_take_profit.target_price?.toFixed(2)}</span>
+                                        {trade.next_targets.next_take_profit.price_reached && (
+                                          <div className="target-status" style={{ fontSize: '0.75em', color: '#ff9800', marginTop: '2px' }}>
+                                            {trade.next_targets.next_take_profit.status}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   )}
                                   {trade.next_targets.next_stop_loss && (
@@ -507,7 +531,7 @@ function Investment() {
                             </div>
                           </td>
                           
-                          {/* Col6: 操作链接 */}
+                          {/* Col7: 操作链接 */}
                           <td>
                             <div className="action-links">
                               <a 
@@ -545,7 +569,7 @@ function Investment() {
                         {/* 展开的操作记录 */}
                         {expandedRow === trade.id && (
                           <tr className="expanded-row">
-                            <td colSpan="6">
+                            <td colSpan="7">
                               <div className="operations-history">
                                 <h4>操作记录</h4>
                                 <div className="operations-list">

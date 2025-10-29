@@ -601,8 +601,9 @@ class BaseStrategy(ABC):
         close_invest: bool = False,
         set_stop_loss: Optional[str] = None,
         purchase_price: Optional[float] = None,
+        current_price: Optional[float] = None,
         name: Optional[str] = None,
-        extra: Optional[Dict[str, Any]] = None,
+        extra_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         构建单个目标实体（止盈/止损的一个阶段）。
@@ -623,14 +624,37 @@ class BaseStrategy(ABC):
         if name:
             target['name'] = name
 
+        # 明确价格相关信息
         if purchase_price is not None and isinstance(ratio, (int, float)):
-            if is_take_profit_target:
-                target['target_price'] = float(purchase_price) * (1.0 + float(ratio))
-            else:
-                target['target_price'] = float(purchase_price) * (1.0 - float(ratio))
+            purchase_price_value = float(purchase_price)
+            target_ratio = float(ratio)
+            target_price = (
+                purchase_price_value * (1.0 + target_ratio)
+                if is_take_profit_target
+                else purchase_price_value * (1.0 - target_ratio)
+            )
+            target['purchase_price'] = purchase_price_value
+            target['target_price'] = target_price
+            target['target_price_delta_from_purchase'] = target_price - purchase_price_value
+            target['target_price_ratio_from_purchase'] = (
+                (target_price - purchase_price_value) / purchase_price_value
+                if purchase_price_value != 0
+                else 0.0
+            )
+        # 附带当前价格（若提供），给 UI 直接展示差距
+        if current_price is not None:
+            current_price_value = float(current_price)
+            target['current_price'] = current_price_value
+            if 'target_price' in target:
+                target['current_to_target_gap'] = target['target_price'] - current_price_value
+                target['current_to_target_gap_ratio_vs_current'] = (
+                    (target['target_price'] - current_price_value) / current_price_value
+                    if current_price_value != 0
+                    else 0.0
+                )
 
-        if extra:
-            target['extra'] = extra
+        if extra_fields:
+            target['extra_fields'] = extra_fields
 
         # 为 UI/operation 提供一个稳定的 id（基于类型/ratio/sell_ratio）
         try:
@@ -654,10 +678,10 @@ class BaseStrategy(ABC):
         set_stop_loss: Optional[str] = None,
         purchase_price: Optional[float] = None,
         name: Optional[str] = None,
-        extra: Optional[Dict[str, Any]] = None,
+        extra_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         return BaseStrategy.create_target(
-            True, ratio, sell_ratio, close_invest, set_stop_loss, purchase_price, name, extra
+            True, ratio, sell_ratio, close_invest, set_stop_loss, purchase_price, None, name, extra_fields
         )
 
     @staticmethod
@@ -668,10 +692,10 @@ class BaseStrategy(ABC):
         set_stop_loss: Optional[str] = None,
         purchase_price: Optional[float] = None,
         name: Optional[str] = None,
-        extra: Optional[Dict[str, Any]] = None,
+        extra_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         return BaseStrategy.create_target(
-            False, ratio, sell_ratio, close_invest, set_stop_loss, purchase_price, name, extra
+            False, ratio, sell_ratio, close_invest, set_stop_loss, purchase_price, None, name, extra_fields
         )
 
     @staticmethod

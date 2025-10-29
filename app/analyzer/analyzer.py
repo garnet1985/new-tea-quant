@@ -128,7 +128,7 @@ class Analyzer:
                         logger.error(f"   策略 {strategy_class.__name__} 将被跳过，不会参与后续运行")
                         continue
 
-                    self.enabled_strategies[strategy_instance.get_abbr()] = strategy_instance
+                    self.enabled_strategies[strategy_instance.get_key()] = strategy_instance
                     
                     if self.is_verbose:
                         logger.info(f"✅ 策略 {strategy_instance.name} 初始化成功")

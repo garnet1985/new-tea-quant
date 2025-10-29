@@ -19,7 +19,7 @@ class HistoricLow(BaseStrategy):
             db=db, 
             is_verbose=is_verbose,
             name="HistoricLow",
-            abbreviation="HL"
+            key="HL"
         )
         super().initialize()
         

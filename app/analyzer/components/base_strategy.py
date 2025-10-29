@@ -590,6 +590,90 @@ class BaseStrategy(ABC):
         """
         return investment
 
+    # -------------------------------
+    # Target builders (for UI/operations)
+    # -------------------------------
+    @staticmethod
+    def create_target(
+        is_take_profit_target: bool,
+        ratio: Optional[float] = None,
+        sell_ratio: Optional[float] = None,
+        close_invest: bool = False,
+        set_stop_loss: Optional[str] = None,
+        purchase_price: Optional[float] = None,
+        name: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        构建单个目标实体（止盈/止损的一个阶段）。
+        仅做数据构建，不包含决策逻辑。
+        """
+        target_type = 'take_profit' if is_take_profit_target else 'stop_loss'
+
+        target: Dict[str, Any] = {
+            'type': target_type,
+            'ratio': ratio,
+            'sell_ratio': sell_ratio,
+            'close_invest': bool(close_invest),
+        }
+
+        if set_stop_loss is not None:
+            target['set_stop_loss'] = set_stop_loss
+
+        if name:
+            target['name'] = name
+
+        if purchase_price is not None and isinstance(ratio, (int, float)):
+            if is_take_profit_target:
+                target['target_price'] = float(purchase_price) * (1.0 + float(ratio))
+            else:
+                target['target_price'] = float(purchase_price) * (1.0 - float(ratio))
+
+        if extra:
+            target['extra'] = extra
+
+        # 为 UI/operation 提供一个稳定的 id（基于类型/ratio/sell_ratio）
+        try:
+            r = int(round((ratio or 0.0) * 10000))
+            sr = int(round((sell_ratio or 0.0) * 10000))
+            target['id'] = f"{'tp' if is_take_profit_target else 'sl'}-{r}-{sr}"
+        except Exception:
+            target['id'] = f"{'tp' if is_take_profit_target else 'sl'}-custom"
+
+        # 运行时状态字段，供 UI 勾选展示（构建时默认未完成）
+        target['is_achieved'] = False
+        target['achieved_date'] = ''
+
+        return target
+
+    @staticmethod
+    def create_take_profit_target(
+        ratio: Optional[float] = None,
+        sell_ratio: Optional[float] = None,
+        close_invest: bool = False,
+        set_stop_loss: Optional[str] = None,
+        purchase_price: Optional[float] = None,
+        name: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return BaseStrategy.create_target(
+            True, ratio, sell_ratio, close_invest, set_stop_loss, purchase_price, name, extra
+        )
+
+    @staticmethod
+    def create_stop_loss_target(
+        ratio: Optional[float] = None,
+        sell_ratio: Optional[float] = None,
+        close_invest: bool = False,
+        set_stop_loss: Optional[str] = None,
+        purchase_price: Optional[float] = None,
+        name: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return BaseStrategy.create_target(
+            False, ratio, sell_ratio, close_invest, set_stop_loss, purchase_price, name, extra
+        )
+
     @staticmethod
     def to_alt_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """

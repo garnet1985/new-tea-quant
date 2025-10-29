@@ -29,7 +29,7 @@ class MeanReversionStrategy(BaseStrategy):
             is_verbose=is_verbose,
             name="MeanReversion",
             description="均值回归策略 - 基于价格偏离均线的历史分位数进行交易",
-            abbreviation="MeanReversion"
+            key="MR"
         )
     
     @staticmethod

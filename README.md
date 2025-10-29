@@ -235,7 +235,7 @@ from app.analyzer.components.base_strategy import BaseStrategy
 class MyStrategy(BaseStrategy):
     def __init__(self):
         self.name = "MyStrategy"
-        self.abbreviation = "MS"
+        self.key = "MS"
         self.version = "1.0.0"
         super().__init__()
     

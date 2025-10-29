@@ -18,7 +18,7 @@ class Example(BaseStrategy):
             db=db, 
             is_verbose=is_verbose,
             name="example",
-            abbreviation="EXAMPLE"
+            key="EXAMPLE"
         )
         super().initialize()
 

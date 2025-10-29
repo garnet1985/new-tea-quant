@@ -30,7 +30,7 @@ class ReverseTrendBet(BaseStrategy):
             db=db, 
             is_verbose=is_verbose,
             name="ReverseTrendBet",
-            abbreviation="RTB"
+            key="RTB"
         )
         super().initialize()
 
@@ -460,7 +460,3 @@ class ReverseTrendBet(BaseStrategy):
             logger.info(f"   买入价格区间: {opportunity['lower_bound']:.2f} - {opportunity['upper_bound']:.2f}")
             logger.info(f"   当前价格: {opportunity['record_of_today']['close']:.2f}")
             logger.info(f"="*80)
-
-    def get_settings(self) -> Dict[str, Any]:
-        """获取策略设置"""
-        return settings

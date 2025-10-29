@@ -546,11 +546,49 @@ class BaseStrategy(ABC):
 
 
     @staticmethod
-    def to_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
+    def to_investment(record_of_today: Dict[str, Any], opportunity: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
         """
-        将投资机会转换为投资 - 可选重写, 用来改变base_investment的字段
+        构建标准投资实体（构建职责专一）。
         """
-        return base_investment
+        investment: Dict[str, Any] = {
+            'stock': opportunity.get('stock', {}),
+            'opportunity_ref': {
+                'date': opportunity.get('date'),
+                'price': opportunity.get('price'),
+                'lower_bound': opportunity.get('lower_bound'),
+                'upper_bound': opportunity.get('upper_bound'),
+            }
+        }
+
+        # 透传策略自定义字段（如 momentum 等）
+        extra_fields = opportunity.get('extra_fields')
+        if extra_fields:
+            investment['extra_fields'] = extra_fields
+
+        # 基础字段
+        investment['start_date'] = record_of_today.get('date')
+        investment['purchase_price'] = record_of_today.get('close')
+
+        # 目标结构（基于 settings['goal']）
+        goal_cfg = settings.get('goal', {}) if isinstance(settings, dict) else {}
+        from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
+        investment['targets'] = InvestmentGoalManager(goal_cfg).create_investment_targets()
+
+        # 初始化 tracking
+        investment['tracking'] = {
+            'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+            'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+        }
+
+        return investment
+
+    @staticmethod
+    def alter_investment(investment: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        策略微调钩子：子类可复写以补充/规范 investment 字段。
+        默认透传。
+        """
+        return investment
 
     @staticmethod
     def to_alt_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:

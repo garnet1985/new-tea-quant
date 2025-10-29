@@ -290,9 +290,10 @@ class SimulatingService:
                 tracker, stock_info, required_data, settings, strategy_class
             )
             if opportunity:
-                investment = SimulatingService.to_investment(record_of_today, opportunity, settings)
-                # expose to strategy class to add any extra fields
-                investment = strategy_class.to_investment(investment)
+                # 使用 BaseStrategy 统一构建投资实体
+                investment = BaseStrategy.to_investment(record_of_today, opportunity, settings)
+                # 策略可在此微调 investment 结构
+                investment = strategy_class.alter_investment(investment)
                 # 开仓当日即刻初始化 tracking（计入第一天）
                 SimulatingService.update_investment_max_min_close(investment, record_of_today)
                 tracker['investing'] = investment
@@ -443,42 +444,6 @@ class SimulatingService:
             data_today['labels'] = today_labels
 
         return data_today
-
-    @staticmethod
-    def to_investment(record_of_today: Dict[str, Any], opportunity: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        将机会转换为投资
-        """
-        investment = {
-            'stock': opportunity['stock'],
-            'opportunity_ref': {
-                'date': opportunity['date'],
-                'price': opportunity['price'],
-                'lower_bound': opportunity.get('lower_bound'),
-                'upper_bound': opportunity.get('upper_bound'),
-            }
-        }
-
-        # 只在 opportunity 有 extra_fields 且不为空时才添加
-        if 'extra_fields' in opportunity and opportunity['extra_fields']:
-            investment['extra_fields'] = opportunity['extra_fields']
-
-        # 基础字段
-        investment['start_date'] = record_of_today['date']
-        investment['purchase_price'] = record_of_today['close']
-
-        # 目标结构（基于 settings['goal']）
-        goal_cfg = settings.get('goal', {}) if isinstance(settings, dict) else {}
-        targets = InvestmentGoalManager(goal_cfg).create_investment_targets()
-        investment['targets'] = targets
-
-        investment['tracking'] = {
-            'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-            'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-        }
-
-        return investment
-
 
     @staticmethod
     def settle_open_investment(tracker: Dict[str, Any], last_record_of_today: Dict[str, Any], strategy_class: Any) -> None:

@@ -699,6 +699,81 @@ class BaseStrategy(ABC):
         )
 
     @staticmethod
+    def create_targets(goal_cfg: Dict[str, Any], purchase_price: Optional[float] = None, current_price: Optional[float] = None) -> Dict[str, Any]:
+        """
+        根据 settings.goal 构建完整的目标清单（不含决策，仅数据构建）。
+        返回结构：{ 'take_profit': [...], 'stop_loss': [...] }
+        """
+        take_profit_cfg = goal_cfg.get('take_profit', {}) if isinstance(goal_cfg, dict) else {}
+        stop_loss_cfg = goal_cfg.get('stop_loss', {}) if isinstance(goal_cfg, dict) else {}
+
+        take_profit_stages = take_profit_cfg.get('stages', []) or []
+        stop_loss_stages = stop_loss_cfg.get('stages', []) or []
+
+        take_profit_targets: List[Dict[str, Any]] = []
+        stop_loss_targets: List[Dict[str, Any]] = []
+
+        for idx, stage in enumerate(take_profit_stages):
+            if not isinstance(stage, dict):
+                continue
+            target = BaseStrategy.create_take_profit_target(
+                ratio=stage.get('ratio'),
+                sell_ratio=stage.get('sell_ratio'),
+                close_invest=bool(stage.get('close_invest', False)),
+                set_stop_loss=stage.get('set_stop_loss'),
+                purchase_price=purchase_price,
+                name=stage.get('name') or f"TP#{idx+1}",
+                extra_fields=stage.get('extra_fields')
+            )
+            if current_price is not None:
+                # 附加当前价格差距信息（保证与单体构建一致）
+                target = BaseStrategy.create_take_profit_target(
+                    ratio=stage.get('ratio'),
+                    sell_ratio=stage.get('sell_ratio'),
+                    close_invest=bool(stage.get('close_invest', False)),
+                    set_stop_loss=stage.get('set_stop_loss'),
+                    purchase_price=purchase_price,
+                    name=stage.get('name') or f"TP#{idx+1}",
+                    extra_fields=stage.get('extra_fields')
+                )
+                # 手工补 current_price（避免重复计算多次，可直接覆盖）
+                target['current_price'] = float(current_price)
+                if 'target_price' in target:
+                    target['current_to_target_gap'] = target['target_price'] - float(current_price)
+                    target['current_to_target_gap_ratio_vs_current'] = (
+                        (target['target_price'] - float(current_price)) / float(current_price)
+                        if float(current_price) != 0 else 0.0
+                    )
+            take_profit_targets.append(target)
+
+        for idx, stage in enumerate(stop_loss_stages):
+            if not isinstance(stage, dict):
+                continue
+            target = BaseStrategy.create_stop_loss_target(
+                ratio=stage.get('ratio'),
+                sell_ratio=stage.get('sell_ratio'),
+                close_invest=bool(stage.get('close_invest', False)),
+                set_stop_loss=stage.get('set_stop_loss'),
+                purchase_price=purchase_price,
+                name=stage.get('name') or f"SL#{idx+1}",
+                extra_fields=stage.get('extra_fields')
+            )
+            if current_price is not None:
+                target['current_price'] = float(current_price)
+                if 'target_price' in target:
+                    target['current_to_target_gap'] = target['target_price'] - float(current_price)
+                    target['current_to_target_gap_ratio_vs_current'] = (
+                        (target['target_price'] - float(current_price)) / float(current_price)
+                        if float(current_price) != 0 else 0.0
+                    )
+            stop_loss_targets.append(target)
+
+        return {
+            'take_profit': take_profit_targets,
+            'stop_loss': stop_loss_targets,
+        }
+
+    @staticmethod
     def to_alt_settled_investment(base_investment: Dict[str, Any]) -> Dict[str, Any]:
         """
         将投资转换为已结算投资 - 可选重写, 用来改变base_investment的字段

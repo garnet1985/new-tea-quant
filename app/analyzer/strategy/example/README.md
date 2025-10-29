@@ -4,9 +4,9 @@
 
 ### 目录结构与命名约定
 
-- **策略目录**: 在 `app/analyzer/strategy/` 下新建你的策略文件夹，例如 `MYST/`。注意：你的策略文件夹必须是你的基类里的`abbreviation`的值
+- **策略目录**: 在 `app/analyzer/strategy/` 下新建你的策略文件夹，例如 `MYST/`。注意：你的策略文件夹必须是你的基类里的`key`的值
 - **策略设置**: 在 `app/analyzer/strategy/` 下新建你的策略设置文件，名字必须是`settings.py`, 并且里边的变量名必须叫`settings`
-- **入口文件命名**: 入口文件需与文件夹同名，例如 `MyStrategy/MYST.py`。注意：你的策略文件名必须是你的基类里的`abbreviation`的值
+- **入口文件命名**: 入口文件需与文件夹同名，例如 `MyStrategy/MYST.py`。注意：你的策略文件名必须是你的基类里的`key`的值
 - **策略类**: 在入口文件中定义一个继承自 `BaseStrategy` 的类（类名不限）
 - **是否启用**: 在 `settings.py` 中通过 `is_enabled` 配置控制是否参与扫描/模拟
 
@@ -24,7 +24,7 @@ class MyStrategy(BaseStrategy):
             db=db,
             is_verbose=is_verbose,
             name="My Strategy",
-            abbreviation="MYST"  # 短、唯一、机器可读（表前缀/标识）
+            key="MYST"  # 短、唯一、机器可读（表前缀/标识）
         )
         super().initialize()
 

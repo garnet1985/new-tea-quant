@@ -18,21 +18,21 @@ from app.analyzer.analyzer_service import AnalyzerService
 class BaseStrategy(ABC):
     """策略基类 - 所有策略必须继承此类"""
     
-    def __init__(self, db: DatabaseManager = None, is_verbose: bool = False, name: str = None, description: str = None, abbreviation: str = None):
+    def __init__(self, db: DatabaseManager = None, is_verbose: bool = False, name: str = None, description: str = None, key: str = None):
         """
         初始化策略基类
         
         Args:
             db_manager: 已初始化的数据库管理器实例
             strategy_name: 策略名称
-            strategy_prefix: 策略前缀（用于表名）
+            strategy_key: 策略key（用于表名和标识）
         """
         self.db = db
         self.is_verbose = is_verbose
 
         self.name = name
         self.description = description
-        self.abbreviation = abbreviation
+        self.key = key
         # 如果子类已经设置了version，则保持不变
         if not hasattr(self, 'version'):
             self.version = None
@@ -71,8 +71,8 @@ class BaseStrategy(ABC):
         if self.name is None:
             raise ValueError("strategy require a name.")
 
-        if self.abbreviation is None:
-            raise ValueError("strategy require a abbreviation. abbreviation is used to identify the strategy, it should be unique and machine readable.")
+        if self.key is None:
+            raise ValueError("strategy require a key. key is used to identify the strategy, it should be unique and machine readable.")
 
         if self.is_verbose:
             logger.info(f"🔧 初始化策略: {self.name}")
@@ -88,7 +88,7 @@ class BaseStrategy(ABC):
         
         # 构建tables文件夹路径 - 使用绝对路径
         current_file_dir = os.path.dirname(os.path.abspath(__file__))
-        tables_dir = os.path.join(current_file_dir, '..', 'strategy', self.abbreviation, 'tables')
+        tables_dir = os.path.join(current_file_dir, '..', 'strategy', self.key, 'tables')
         tables_dir = os.path.abspath(tables_dir)
         
         if self.is_verbose:
@@ -112,7 +112,7 @@ class BaseStrategy(ABC):
             
             try:
                 # 动态导入表模型
-                module_name = f"app.analyzer.strategy.{self.abbreviation}.tables.{table_name}.model"
+                module_name = f"app.analyzer.strategy.{self.key}.tables.{table_name}.model"
                 table_module = importlib.import_module(module_name)
                 
                 # 获取模型类（通常是模块中唯一的类）
@@ -142,7 +142,7 @@ class BaseStrategy(ABC):
                     # 注册表到数据库管理器
                     self.db.register_table(
                         table_name=table_name,
-                        prefix=self.abbreviation,
+                        prefix=self.key,
                         schema=schema,
                         model_class=model_class
                     )
@@ -167,11 +167,11 @@ class BaseStrategy(ABC):
         # 使用list()创建副本，避免在迭代时修改字典
         for full_table_name, table_info in list(self.db.registered_tables.items()):
             # 检查是否是当前策略的表（通过表名前缀判断）
-            if full_table_name.startswith(f"{self.abbreviation}_"):
+            if full_table_name.startswith(f"{self.key}_"):
                 # 这是策略的自定义表
                 # 从schema中获取原始表名
                 schema = table_info.get('schema', {})
-                original_table_name = schema.get('name', full_table_name.replace(f"{self.abbreviation}_", ""))
+                original_table_name = schema.get('name', full_table_name.replace(f"{self.key}_", ""))
                 
                 # 直接使用已创建的表实例，而不是重新创建
                 if full_table_name in self.db.tables:
@@ -235,60 +235,6 @@ class BaseStrategy(ABC):
             ValueError: 如果 is_customized=True 但没有返回 target_info 字段
         """
         return False, investment
-    
-    @staticmethod
-    def call_and_validate_strategy_method(
-        strategy_class: Any,
-        method_name: str,
-        stock_info: Dict[str, Any], 
-        record_of_today: Dict[str, Any], 
-        investment: Dict[str, Any], 
-        required_data: Dict[str, Any], 
-        settings: Dict[str, Any]
-    ) -> Tuple[bool, Dict[str, Any]]:
-        """
-        统一的策略方法调用和校验proxy
-        
-        自动检查settings中是否有customized goal，如果有则验证返回的target_info
-        
-        Args:
-            strategy_class: 策略类
-            method_name: 方法名 ('should_stop_loss' 或 'should_take_profit')
-            stock_info: 股票信息
-            record_of_today: 当前交易日记录
-            investment: 投资对象
-            required_data: 所需数据
-            settings: 策略设置
-            
-        Returns:
-            (是否触发, 更新后的investment)
-            
-        Raises:
-            ValueError: 如果is_customized=True但没有返回target_info
-            AttributeError: 如果策略类没有该方法
-        """
-        # 调用方法
-        method = getattr(strategy_class, method_name)
-        is_triggered, result = method(stock_info, record_of_today, investment, required_data, settings)
-        
-        # 检查settings中是否有customized goal
-        goal_config = settings.get('goal', {})
-        
-        # 检查是否为customized配置
-        is_customized = False
-        if method_name == 'should_stop_loss':
-            is_customized = goal_config.get('stop_loss', {}).get('is_customized', False)
-        elif method_name == 'should_take_profit':
-            is_customized = goal_config.get('take_profit', {}).get('is_customized', False)
-        
-        # 如果是customized配置，必须返回target_info
-        if is_customized and 'target_info' not in result:
-            raise ValueError(
-                f"策略 {strategy_class.__name__} 的 {method_name} 方法必须返回 'target_info' 字段，"
-                "格式: return (bool, {**investment, 'target_info': {'target_price': x, 'current_price': y}})"
-            )
-        
-        return is_triggered, result
     
     @staticmethod
     def get_next_stop_loss_target(
@@ -417,7 +363,7 @@ class BaseStrategy(ABC):
         """
 
         import importlib
-        strategy_setting_path = f"app.analyzer.strategy.{self.get_abbr()}.settings"
+        strategy_setting_path = f"app.analyzer.strategy.{self.get_key()}.settings"
         settings_module = importlib.import_module(strategy_setting_path)
         
         strategy_settings = getattr(settings_module, "settings")
@@ -451,7 +397,7 @@ class BaseStrategy(ABC):
 
         for stock in stock_list:
             jobs.append({
-                'id': f"{self.get_abbr()}_{stock.get('id')}",
+                'id': f"{self.get_key()}_{stock.get('id')}",
                 'payload': {
                     'stock': stock,
                     'settings': strategy_settings.copy(),
@@ -619,7 +565,8 @@ class BaseStrategy(ABC):
         exit_price: float,
         exit_date: str,
         sell_ratio: float = 1.0,
-        target_type: str = "customized_goal"
+        target_info: Optional[Dict[str, Any]] = None,
+        settings: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """
         结算投资 - 简化API
@@ -630,10 +577,23 @@ class BaseStrategy(ABC):
             exit_date: 退出日期 (YYYYMMDD格式)
             sell_ratio: 卖出比例 (0.0-1.0)，默认1.0表示全仓
             target_type: 目标类型，默认"customized_goal"
+            settings: 策略设置
             
         Returns:
             更新后的投资对象
         """
+
+        if BaseStrategy.is_customized_take_profit(settings):
+            if target_info is None:
+                raise ValueError("to_settled_investment 需附带 'target_info'，但未提供。")
+            investment['target_info'] = target_info
+            
+        if BaseStrategy.is_customized_stop_loss(settings):
+            if target_info is None:
+                raise ValueError("to_settled_investment 需附带 'target_info'，但未提供。")
+            investment['target_info'] = target_info
+
+
         # 获取购买信息
         purchase_price = investment['purchase_price']
         purchase_date = investment['start_date']
@@ -644,8 +604,6 @@ class BaseStrategy(ABC):
         
         # 创建完成目标
         completed_target = {
-            'type': target_type,
-            'ratio': profit_ratio,
             'sell_ratio': sell_ratio,
             'profit': profit,
             'exit_price': exit_price,
@@ -1132,8 +1090,8 @@ class BaseStrategy(ABC):
         Returns:
             Dict[str, Any]: 完整的分析报告
         """
-        # 调用基础分析，使用abbreviation作为策略文件夹名称
-        analysis_result = self.get_base_analysis(self.abbreviation, session_id)
+        # 调用基础分析，使用key作为策略文件夹名称
+        analysis_result = self.get_base_analysis(self.key, session_id)
         
         if 'error' in analysis_result:
             logger.error(f"❌ 策略分析失败: {analysis_result['error']}")
@@ -1789,16 +1747,33 @@ class BaseStrategy(ABC):
     # utils:
     # ========================================================
     
-    def get_abbr(self) -> str:
-        """获取策略的缩写"""
-        return self.abbreviation
+    def get_key(self) -> str:
+        """获取策略的key"""
+        return self.key
 
     def get_module_info(self) -> Dict[str, Any]:
         """获取模块信息"""
-        abbreviation = self.get_abbr()
+        key = self.get_key()
         return {
             'strategy_class_name': self.__class__.__name__,
-            'strategy_folder_name': abbreviation,
-            'strategy_module_path': f"app.analyzer.strategy.{abbreviation}.{abbreviation}",
-            'strategy_settings_path': f"app.analyzer.strategy.{abbreviation}.settings"
+            'strategy_folder_name': key,
+            'strategy_module_path': f"app.analyzer.strategy.{key}.{key}",
+            'strategy_settings_path': f"app.analyzer.strategy.{key}.settings"
         }
+
+    def get_settings(self) -> Dict[str, Any]:
+        """获取策略设置"""
+        import importlib
+        strategy_setting_path = f"app.analyzer.strategy.{self.get_key()}.settings"
+        settings_module = importlib.import_module(strategy_setting_path)
+        return getattr(settings_module, "settings")
+
+    @staticmethod
+    def is_customized_take_profit(settings: Dict[str, Any]) -> bool:
+        """判断是否启用自定义止盈"""
+        return settings.get('goal', {}).get('take_profit', {}).get('is_customized') == True
+
+    @staticmethod
+    def is_customized_stop_loss(settings: Dict[str, Any]) -> bool:
+        """判断是否启用自定义止损"""    
+        return settings.get('goal', {}).get('stop_loss', {}).get('is_customized') == True

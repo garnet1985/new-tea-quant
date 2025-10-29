@@ -24,10 +24,10 @@ class MomentumStrategy(BaseStrategy):
     4. 后处理时按动能在同一天买入的股票中筛选前10%
     """
     
-    def __init__(self, db=None, is_verbose=False, name="Momentum", description="Momentum策略：动量投资策略", abbreviation="Momentum"):
+    def __init__(self, db=None, is_verbose=False, name="Momentum", description="Momentum策略：动量投资策略", key="Momentum"):
         # 先设置version，再调用父类__init__
         self.version = "1.0.0"
-        super().__init__(db, is_verbose, name, description, abbreviation)
+        super().__init__(db, is_verbose, name, description, key)
     
     @staticmethod
     def scan_opportunity(stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -231,30 +231,71 @@ class MomentumStrategy(BaseStrategy):
         """
         try:
             current_date = record_of_today['date']
-            
+            current_price = record_of_today['close']
+
             # 获取周期类型
             period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
-            
-            # 判断是否是周期最后一天
+
+            # 仅在自定义止盈开启时返回 target_info
+            is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
+            target_info = None
+            if is_customized_tp:
+                target_info = {
+                    'target_price': current_price,
+                    'current_price': current_price,
+                }
+
             if MomentumStrategy._is_last_day_of_period(current_date, period_type):
-                # 卖出所有持仓
-                current_price = record_of_today['close']
+                # 周期最后一天：卖出所有持仓
                 exit_date = current_date
-                
-                investment = BaseStrategy.to_settled_investment(
+                settled = BaseStrategy.to_settled_investment(
                     investment=investment,
                     exit_price=current_price,
                     exit_date=exit_date,
                     sell_ratio=1.0,
-                    target_type="momentum_period_end"
+                    target_info=target_info,
+                    settings=settings,
                 )
-                return True, investment
-            
+                # 仅在自定义时附带 next_target，便于前端/跟踪器展示
+                if is_customized_tp and target_info is not None:
+                    settled['next_target'] = {
+                        'type': 'take_profit',
+                        'info': target_info
+                    }
+                return True, settled
+
+            # 未到周期末：不卖出；仅在自定义时添加 target_info/next_target
+            investment = dict(investment)
+            if is_customized_tp and target_info is not None:
+                investment['target_info'] = target_info
+                investment['next_target'] = {
+                    'type': 'take_profit',
+                    'info': target_info
+                }
             return False, investment
-            
+
         except Exception as e:
             logger.error(f"Momentum周期卖出检查出错: {e}")
-            return False, investment
+            # 异常路径：仅在自定义止盈开启时补充 target_info
+            try:
+                is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
+            except Exception:
+                is_customized_tp = False
+            if not is_customized_tp:
+                return False, investment
+            safe_investment = dict(investment)
+            try:
+                price_fallback = (
+                    record_of_today.get('close') if isinstance(record_of_today, dict) else None
+                ) or safe_investment.get('purchase_price')
+            except Exception:
+                price_fallback = safe_investment.get('purchase_price')
+            if price_fallback is not None:
+                safe_investment['target_info'] = {
+                    'target_price': price_fallback,
+                    'current_price': price_fallback,
+                }
+            return False, safe_investment
 
     @staticmethod
     def _collect_investments_by_date(stock_summaries: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:

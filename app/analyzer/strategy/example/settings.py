@@ -150,7 +150,9 @@ settings = {
         # 如不配置，框架不会进行“到期平仓”判断；可同时配置自然日与交易日。
         # 到期时默认对剩余仓位执行结算。
         "fixed_days": 30,
-        # "fixed_trading_days": 20,
+
+        # fixed days 是交易日还是自然日，默认是交易日
+        # "is_trading_days": True,
 
         # 止损目标设置
         "stop_loss": {

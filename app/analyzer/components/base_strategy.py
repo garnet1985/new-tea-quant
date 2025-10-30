@@ -1798,7 +1798,7 @@ class BaseStrategy(ABC):
     # -------------- target entity builder: --------------------
 
     @staticmethod
-    def create_targets(goal_def: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def create_targets(goal_def: Dict[str, Any], purchase_price: float) -> List[Dict[str, Any]]:
         """
         基于 settings.goal 生成一组静态 targets（不依赖价格）。
         - 配置型：遍历 stages 生成 target 列表（target_price/purchase_price/current_price 为空）
@@ -1808,12 +1808,13 @@ class BaseStrategy(ABC):
         stages = goal_def.get('stages', [])
         targets: List[Dict[str, Any]] = []
         for stage in stages:
-            targets.append(BaseStrategy.create_target(stage))
+            targets.append(BaseStrategy.create_target(stage, purchase_price))
         return targets
 
     @staticmethod
     def create_target(
         stage: Dict[str, Any],
+        purchase_price: float,
         extra_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
@@ -1833,6 +1834,7 @@ class BaseStrategy(ABC):
             'purchase_price': None,
             'purchase_date': None,
             'extra_fields': extra_fields or {},
+            'target_price': purchase_price * (1 + stage.get('ratio', 0)),
         }
         return target
 
@@ -1908,14 +1910,18 @@ class BaseStrategy(ABC):
         """
         构建标准投资实体（构建职责专一）。
         """
+        purchase_price = record_of_today.get('close')
+        purchase_date = record_of_today.get('date')
+
+        # base structure
         investment: Dict[str, Any] = {
             'stock': opportunity.get('stock', {}),
             'opportunity_ref': opportunity,
-            'purchase_price': record_of_today.get('close'),
-            'purchase_date': record_of_today.get('date'),
+            'purchase_price': purchase_price,
+            'purchase_date': purchase_date,
         }
 
-        # amplitude tracking
+        # amplitude tracking: max/min close reached
         amplitude_tracking: Dict[str, Any] = {
             'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
             'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
@@ -1925,13 +1931,20 @@ class BaseStrategy(ABC):
 
         # tracking targets
         target_tracking: Dict[str, Any] = {
-            'completed': [],
             'investment_ratio_left': 1.0,
-            'is_breakeven': False,
-            'is_dynamic_stop_loss': False,
-            'last_highest_close': 0.0,
-            'trading_days_elapsed': 0,
-            'last_checked_date': None,
+            'completed': [],
+            'break_even': {
+                'is_enabled': False,
+            },
+            'dynamic_loss': {
+                'is_enabled': False,
+                'last_highest_close': 0.0,
+            },
+            'expiration': {
+                'is_enabled': False,
+                'trading_days_elapsed': 0,
+                'last_checked_date': None,
+            }
         }
 
         if BaseStrategy.is_customized_stop_loss(settings):
@@ -1941,7 +1954,7 @@ class BaseStrategy(ABC):
         else:
             target_tracking['stop_loss'] = {
                 'is_customized': False,
-                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('stop_loss', {})),
+                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('stop_loss', {}), purchase_price),
             }
         if BaseStrategy.is_customized_take_profit(settings):
             target_tracking['take_profit'] = {
@@ -1950,7 +1963,7 @@ class BaseStrategy(ABC):
         else:
             target_tracking['take_profit'] = {
                 'is_customized': False,
-                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('take_profit', {})),
+                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('take_profit', {}), purchase_price),
             }
 
         investment['targets_tracking'] = target_tracking

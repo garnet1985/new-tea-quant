@@ -39,3 +39,8 @@ class DataProcessingMode(Enum):
     BATCH = "batch"           # 批量处理
 
 
+class MarketType(Enum):
+    """市场类型枚举"""
+    BULL = "bull"
+    BEAR = "bear"
+    STABLE = "stable"

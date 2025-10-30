@@ -253,7 +253,7 @@ class SimulatingService:
             
             if is_customized_stop_loss or is_customized_take_profit:
                 # 细粒度customized - 先检查传统目标，再检查customized目标, customized goal will be passed to process in check targets
-                is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
+                is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today, strategy_class)
                 
                 # 如果传统目标没有触发，检查customized目标
                 if not is_settled and investment['targets']['investment_ratio_left'] > 0:
@@ -274,12 +274,12 @@ class SimulatingService:
                             is_settled = True
             else:
                 # 传统目标检查
-                is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today)
+                is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today, strategy_class)
             
             if is_settled:
                 # 在结算当日先更新 tracking，确保最后一天被计入
                 SimulatingService.update_investment_max_min_close(investment, record_of_today)
-                settled_investment = SimulatingService.to_settled_investment(investment, strategy_class)
+                settled_investment = BaseStrategy.to_settled_investment(investment, strategy_class)
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None
             else:
@@ -291,9 +291,7 @@ class SimulatingService:
             )
             if opportunity:
                 # 使用 BaseStrategy 统一构建投资实体
-                investment = BaseStrategy.to_investment(record_of_today, opportunity, settings)
-                # 策略可在此微调 investment 结构
-                investment = strategy_class.alter_investment(investment)
+                investment = BaseStrategy.create_investment(record_of_today, opportunity, settings)
                 # 开仓当日即刻初始化 tracking（计入第一天）
                 SimulatingService.update_investment_max_min_close(investment, record_of_today)
                 tracker['investing'] = investment
@@ -473,7 +471,7 @@ class SimulatingService:
             inv['targets']['investment_ratio_left'] = 0
             inv['end_date'] = final_date
 
-        settled_investment = SimulatingService.to_settled_investment(inv, strategy_class, is_open=True)
+        settled_investment = BaseStrategy.to_settled_investment(inv, strategy_class, is_open=True)
         # expose to strategy class to add any extra fields
         tracker['settled'].append(settled_investment)
         tracker['investing'] = None
@@ -494,39 +492,4 @@ class SimulatingService:
             investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
 
 
-    @staticmethod
-    def to_settled_investment(investment: Dict[str, Any], strategy_class: Any, is_open: bool = False) -> Dict[str, Any]:
-        """
-        将投资转换为已结算投资
-        """
-        completed_targets = investment['targets']['completed']
-        overall_profit = 0.0
-
-        # 使用统一的targets系统处理所有情况
-        for target in completed_targets:
-            target['weighted_profit'] = target['profit'] * target['sell_ratio']
-            target['profit_contribution'] = target['sell_ratio']
-            overall_profit += target['weighted_profit']
-
-        icon = "";
-
-        if overall_profit >= 0:
-            investment['result'] = InvestmentResult.WIN.value
-            icon = IconService.get('check') + ' 投资成功'
-        else:
-            investment['result'] = InvestmentResult.LOSS.value
-            icon = IconService.get('cross') + ' 投资失败'
-
-        if is_open:
-            investment['result'] = InvestmentResult.OPEN.value
-            icon = IconService.get('ongoing') + ' 投资未完成'
-
-        investment['overall_profit'] = overall_profit
-        # ROI 统一使用小数格式存储（如 0.20 = 20%），使用 4 位精度避免小 ROI 被舍入为 0
-        investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], decimals=4)
-        investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment['start_date'], investment['end_date'])
-        investment['overall_annual_return'] = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
-
-        logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
-
-        return strategy_class.to_alt_settled_investment(investment)
+    # to_settled_investment moved to BaseStrategy

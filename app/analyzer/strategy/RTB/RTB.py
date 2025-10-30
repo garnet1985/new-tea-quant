@@ -92,7 +92,7 @@ class ReverseTrendBet(BaseStrategy):
             return None
 
         # 构建机会对象
-        opportunity = BaseStrategy.to_opportunity(
+        opportunity = BaseStrategy.create_opportunity(
             stock=stock,
             record_of_today=record_of_today,
             extra_fields={

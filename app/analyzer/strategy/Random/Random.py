@@ -71,11 +71,9 @@ class RandomStrategy(BaseStrategy):
                     'name': stock_info.get('name', stock_id)
                 }
                 
-                return BaseStrategy.to_opportunity(
+                return BaseStrategy.create_opportunity(
                     stock=simple_stock_info,
                     record_of_today=record_of_today,
-                    lower_bound=record_of_today['close'] * 0.98,
-                    upper_bound=record_of_today['close'] * 1.02,
                     extra_fields={
                         'stop_loss': stop_loss_ratio,
                         'take_profit': take_profit_ratio,

@@ -2,7 +2,7 @@
 Momentum策略配置
 """
 settings = {
-    "is_enabled": True,
+    "is_enabled": False,
     "name": "Momentum",
     "key": "Momentum",
     "description": "动量投资策略 - 基于均线动量定期调仓",

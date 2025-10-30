@@ -20,12 +20,12 @@ class InvestmentGoalManager:
         Args:
             goal_config: 投资目标配置，包含take_profit和stop_loss配置
         """
-        self.goal_config = goal_config
-        self.take_profit_config = goal_config.get('take_profit', {})
-        self.stop_loss_config = goal_config.get('stop_loss', {})
+        # self.goal_config = goal_config
+        # self.take_profit_config = goal_config.get('take_profit', {})
+        # self.stop_loss_config = goal_config.get('stop_loss', {})
         
-        self.is_customized_stop_loss = self.stop_loss_config.get('is_customized', False)
-        self.is_customized_take_profit = self.take_profit_config.get('is_customized', False)
+        # self.is_customized_stop_loss = self.stop_loss_config.get('is_customized', False)
+        # self.is_customized_take_profit = self.take_profit_config.get('is_customized', False)
     
     @staticmethod
     def check_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Dict[str, Any]]:
@@ -75,11 +75,11 @@ class InvestmentGoalManager:
     def _check_stop_loss_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Dict[str, Any]:
         """检查止损目标"""
         # 检查动态止损
-        if investment['targets']['is_dynamic_stop_loss']:
+        if investment['targets_tracking']['is_dynamic_stop_loss']:
             investment = InvestmentGoalManager._check_dynamic_stop_loss(investment, record_of_today)
         
         # 检查保本止损
-        elif investment['targets']['is_breakeven']:
+        elif investment['targets_tracking']['is_breakeven']:
             investment = InvestmentGoalManager._check_breakeven_stop_loss(investment, record_of_today)
         
         # 检查普通止损阶段
@@ -116,23 +116,23 @@ class InvestmentGoalManager:
         """触发actions"""
         for action in actions:
             if action.get('set_stop_loss') == 'break_even':
-                investment['targets']['is_breakeven'] = True
+                investment['targets_tracking']['is_breakeven'] = True
 
             elif action.get('set_stop_loss') == 'dynamic':
-                investment['targets']['is_dynamic_stop_loss'] = True
-                investment['targets']['last_highest_close'] = record_of_today['close']
+                investment['targets_tracking']['is_dynamic_stop_loss'] = True
+                investment['targets_tracking']['last_highest_close'] = record_of_today['close']
 
             elif action.get('extend_fixed_days'):
-                investment['targets']['fixed_days'] = max(0, int(investment['targets']['fixed_days']) + int(action.get('extend_fixed_days')))
+                investment['targets_tracking']['fixed_days'] = max(0, int(investment['targets_tracking']['fixed_days']) + int(action.get('extend_fixed_days')))
 
             elif action.get('cancel_fixed_days'):
-                investment['targets']['fixed_days_canceled'] = True
+                investment['targets_tracking']['fixed_days_canceled'] = True
 
             elif action.get('extend_fixed_trading_days'):
-                investment['targets']['fixed_trading_days'] = max(0, int(investment['targets']['fixed_trading_days']) + int(action.get('extend_fixed_trading_days')))
+                investment['targets_tracking']['fixed_trading_days'] = max(0, int(investment['targets_tracking']['fixed_trading_days']) + int(action.get('extend_fixed_trading_days')))
 
             elif action.get('cancel_fixed_trading_days'):
-                investment['targets']['fixed_trading_days_canceled'] = True
+                investment['targets_tracking']['fixed_trading_days_canceled'] = True
 
         return investment
 
@@ -244,51 +244,51 @@ class InvestmentGoalManager:
 
     @staticmethod
     def _check_investment_expiration(investment: Dict[str, Any], current_record: Dict[str, Any]) -> Dict[str, Any]:
-        """检查 goal 级别的 fixed_days / fixed_trading_days 到期结算"""
-        # 若被取消，则不再生效
-        fixed_days = None if investment['targets'].get('fixed_days_canceled') else investment['targets'].get('fixed_days')
-        fixed_trading_days = None if investment['targets'].get('fixed_trading_days_canceled') else investment['targets'].get('fixed_trading_days')
-        if fixed_days is None and fixed_trading_days is None:
-            return investment
+        # """检查 goal 级别的 fixed_days / fixed_trading_days 到期结算"""
+        # # 若被取消，则不再生效
+        # fixed_days = None if investment['targets_tracking'].get('fixed_days_canceled') else investment['targets_tracking'].get('fixed_days')
+        # fixed_trading_days = None if investment['targets_tracking'].get('fixed_trading_days_canceled') else investment['targets_tracking'].get('fixed_trading_days')
+        # if fixed_days is None and fixed_trading_days is None:
+        #     return investment
         
-        start_date = investment['start_date']
-        current_date = current_record['date']
+        # start_date = investment['start_date']
+        # current_date = current_record['date']
         
-        # 自然日
-        days_elapsed = InvestmentGoalManager._calculate_days_between(start_date, current_date)
+        # # 自然日
+        # days_elapsed = InvestmentGoalManager._calculate_days_between(start_date, current_date)
         
-        # 交易日（按不同日期计数）
-        if investment['targets'].get('last_checked_date') != current_date:
-            investment['targets']['trading_days_elapsed'] = investment['targets'].get('trading_days_elapsed', 0) + 1
-            investment['targets']['last_checked_date'] = current_date
-        trading_days_elapsed = investment['targets'].get('trading_days_elapsed', 0)
+        # # 交易日（按不同日期计数）
+        # if investment['targets_tracking'].get('last_checked_date') != current_date:
+        #     investment['targets_tracking']['trading_days_elapsed'] = investment['targets_tracking'].get('trading_days_elapsed', 0) + 1
+        #     investment['targets_tracking']['last_checked_date'] = current_date
+        # trading_days_elapsed = investment['targets_tracking'].get('trading_days_elapsed', 0)
         
-        natural_expired = fixed_days is not None and days_elapsed >= int(fixed_days)
-        trading_expired = fixed_trading_days is not None and trading_days_elapsed >= int(fixed_trading_days)
-        if not natural_expired and not trading_expired:
-            return investment
+        # natural_expired = fixed_days is not None and days_elapsed >= int(fixed_days)
+        # trading_expired = fixed_trading_days is not None and trading_days_elapsed >= int(fixed_trading_days)
+        # if not natural_expired and not trading_expired:
+        #     return investment
         
-        # 到期全额结算
-        actual_sell_ratio = min(1.0, investment['targets']['investment_ratio_left'])
-        if actual_sell_ratio <= 0:
-            return investment
-        price_today = current_record['close']
-        purchase_price = investment['purchase_price']
-        profit = (price_today - purchase_price) * actual_sell_ratio
+        # # 到期全额结算
+        # actual_sell_ratio = min(1.0, investment['targets_tracking']['investment_ratio_left'])
+        # if actual_sell_ratio <= 0:
+        #     return investment
+        # price_today = current_record['close']
+        # purchase_price = investment['purchase_price']
+        # profit = (price_today - purchase_price) * actual_sell_ratio
         
-        investment['targets']['investment_ratio_left'] -= actual_sell_ratio
-        investment['targets']['investment_ratio_left'] = max(0.0, investment['targets']['investment_ratio_left'])
-        fixed_target = {
-            'type': 'fixed_days_expiry',
-            'ratio': 0,
-            'sell_ratio': actual_sell_ratio,
-            'is_achieved': True,
-            'mode': 'trading_days' if trading_expired else 'natural_days'
-        }
-        settled_target = InvestmentGoalManager._create_settled_target(
-            fixed_target, actual_sell_ratio, profit, price_today, current_date
-        )
-        investment['targets']['completed'].append(settled_target)
+        # investment['targets_tracking']['investment_ratio_left'] -= actual_sell_ratio
+        # investment['targets_tracking']['investment_ratio_left'] = max(0.0, investment['targets_tracking']['investment_ratio_left'])
+        # fixed_target = {
+        #     'type': 'fixed_days_expiry',
+        #     'ratio': 0,
+        #     'sell_ratio': actual_sell_ratio,
+        #     'is_achieved': True,
+        #     'mode': 'trading_days' if trading_expired else 'natural_days'
+        # }
+        # settled_target = InvestmentGoalManager._create_settled_target(
+        #     fixed_target, actual_sell_ratio, profit, price_today, current_date
+        # )
+        # investment['targets_tracking']['completed'].append(settled_target)
         return investment
 
 

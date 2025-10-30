@@ -256,7 +256,7 @@ class SimulatingService:
                 is_settled, investment = InvestmentGoalManager.check_targets(investment, record_of_today, strategy_class)
                 
                 # 如果传统目标没有触发，检查customized目标
-                if not is_settled and investment['targets']['investment_ratio_left'] > 0:
+                if not is_settled and investment.get('targets_tracking', {}).get('investment_ratio_left', 0) > 0:
                     # 检查customized止盈 — 由策略自行定义
                     if is_customized_take_profit:
                         is_take_profit, investment = strategy_class.should_take_profit(

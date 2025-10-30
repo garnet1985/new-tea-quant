@@ -63,7 +63,7 @@ class MomentumStrategy(BaseStrategy):
                     return None
                 
                 # 买入并记录动能
-                return BaseStrategy.to_opportunity(
+                return BaseStrategy.create_opportunity(
                     stock=stock_info,
                     record_of_today=klines[-1],  # 使用最新K线记录
                     extra_fields={

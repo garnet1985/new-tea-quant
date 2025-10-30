@@ -1839,12 +1839,26 @@ class BaseStrategy(ABC):
         return target
 
     @staticmethod
-    def to_completed_target(target: Dict[str, Any], exit_price: float, exit_date: str, extra_fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def create_expiry_target(record_of_today: float, sell_ratio: float, extra_fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        purchase_price = record_of_today.get('close')
+        return BaseStrategy.create_target(
+            stage={
+                'name': 'investment_expired',
+                'close_invest': True,
+                'ratio': 0,
+                'sell_ratio': sell_ratio,
+            },
+            purchase_price=purchase_price,
+            extra_fields=extra_fields
+        )   
+
+    @staticmethod
+    def to_completed_target(target: Dict[str, Any], sell_price: float, sell_date: str, extra_fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return {
             **target,
             'is_achieved': True,
-            'sell_price': exit_price,
-            'sell_date': exit_date,
+            'sell_price': sell_price,
+            'sell_date': sell_date,
             'extra_fields': {
                 **target.get('extra_fields', {}),
                 **(extra_fields or {}),
@@ -1918,7 +1932,8 @@ class BaseStrategy(ABC):
             'stock': opportunity.get('stock', {}),
             'opportunity_ref': opportunity,
             'purchase_price': purchase_price,
-            'purchase_date': purchase_date,
+            'start_date': purchase_date,
+            'end_date': '',
         }
 
         # amplitude tracking: max/min close reached
@@ -1935,6 +1950,7 @@ class BaseStrategy(ABC):
             'completed': [],
             'break_even': {
                 'is_enabled': False,
+                'target_price': purchase_price * (1 + settings.get('goal', {}).get('stop_loss', {}).get('break_even', {}).get('ratio', 0)),
             },
             'dynamic_loss': {
                 'is_enabled': False,
@@ -1942,8 +1958,12 @@ class BaseStrategy(ABC):
             },
             'expiration': {
                 'is_enabled': False,
-                'trading_days_elapsed': 0,
-                'last_checked_date': None,
+                'fixed_days': settings.get('goal', {}).get('fixed_days', 0),
+                'is_trading_days': settings.get('goal', {}).get('is_trading_days', True),
+                'elapsed_trading_days': 0,
+                'elapsed_natural_days': 0,
+                'start_date': purchase_date,
+                'end_date': '',
             }
         }
 

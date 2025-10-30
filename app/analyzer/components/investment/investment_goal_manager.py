@@ -39,12 +39,6 @@ class InvestmentGoalManager:
         Returns:
             (是否投资结束, 更新后的投资对象)
         """
-        # 先检查 goal 级别固定平仓（自然日/交易日）
-        is_expired, investment = InvestmentGoalManager._check_investment_expiration(investment, record_of_today)
-        if is_expired:
-            return True, investment
-
-
         # 检查是否有customized止盈
         if investment['targets_tracking']['take_profit']['is_customized']:
             # customized止盈由策略处理，这里跳过
@@ -68,7 +62,12 @@ class InvestmentGoalManager:
         is_investment_ended = investment['targets_tracking']['investment_ratio_left'] <= 0
         if is_investment_ended:
             investment['targets_tracking']['close_date'] = record_of_today['date']
-        
+        else:
+            # 检查交易是否过期（自然日/交易日）
+            is_expired, investment = InvestmentGoalManager._check_investment_expiration(investment, record_of_today)
+            if is_expired:
+                return True, strategy_class.to_settled_investment(investment)
+
         return is_investment_ended, investment
 
     @staticmethod
@@ -239,58 +238,47 @@ class InvestmentGoalManager:
         target['sell_price'] = record_of_today['close']
         target['sell_date'] = record_of_today['date']
         target['profit'] = target['sell_price'] - investment['purchase_price']
-        target['weighted_profit'] = target['profit'] * target['sell_ratio']
         return target
 
     @staticmethod
-    def _check_investment_expiration(investment: Dict[str, Any], current_record: Dict[str, Any]) -> Dict[str, Any]:
+    def _check_investment_expiration(investment: Dict[str, Any], record_of_today: Dict[str, Any], strategy_class: Any) -> Dict[str, Any]:
         # """检查 goal 级别的 fixed_days / fixed_trading_days 到期结算"""
-        # # 若被取消，则不再生效
-        # fixed_days = None if investment['targets_tracking'].get('fixed_days_canceled') else investment['targets_tracking'].get('fixed_days')
-        # fixed_trading_days = None if investment['targets_tracking'].get('fixed_trading_days_canceled') else investment['targets_tracking'].get('fixed_trading_days')
-        # if fixed_days is None and fixed_trading_days is None:
-        #     return investment
-        
-        # start_date = investment['start_date']
-        # current_date = current_record['date']
-        
-        # # 自然日
-        # days_elapsed = InvestmentGoalManager._calculate_days_between(start_date, current_date)
-        
-        # # 交易日（按不同日期计数）
-        # if investment['targets_tracking'].get('last_checked_date') != current_date:
-        #     investment['targets_tracking']['trading_days_elapsed'] = investment['targets_tracking'].get('trading_days_elapsed', 0) + 1
-        #     investment['targets_tracking']['last_checked_date'] = current_date
-        # trading_days_elapsed = investment['targets_tracking'].get('trading_days_elapsed', 0)
-        
-        # natural_expired = fixed_days is not None and days_elapsed >= int(fixed_days)
-        # trading_expired = fixed_trading_days is not None and trading_days_elapsed >= int(fixed_trading_days)
-        # if not natural_expired and not trading_expired:
-        #     return investment
-        
-        # # 到期全额结算
-        # actual_sell_ratio = min(1.0, investment['targets_tracking']['investment_ratio_left'])
-        # if actual_sell_ratio <= 0:
-        #     return investment
-        # price_today = current_record['close']
-        # purchase_price = investment['purchase_price']
-        # profit = (price_today - purchase_price) * actual_sell_ratio
-        
-        # investment['targets_tracking']['investment_ratio_left'] -= actual_sell_ratio
-        # investment['targets_tracking']['investment_ratio_left'] = max(0.0, investment['targets_tracking']['investment_ratio_left'])
-        # fixed_target = {
-        #     'type': 'fixed_days_expiry',
-        #     'ratio': 0,
-        #     'sell_ratio': actual_sell_ratio,
-        #     'is_achieved': True,
-        #     'mode': 'trading_days' if trading_expired else 'natural_days'
-        # }
-        # settled_target = InvestmentGoalManager._create_settled_target(
-        #     fixed_target, actual_sell_ratio, profit, price_today, current_date
-        # )
-        # investment['targets_tracking']['completed'].append(settled_target)
-        return investment
 
+        is_expired = False
+
+        if not investment['targets_tracking'].get('expiration', {}).get('is_enabled'):
+            return False, investment
+
+        date_of_today = record_of_today['date']
+        days_threshold = investment['targets_tracking']['expiration']['fixed_days']
+
+        left_ratio = investment['targets_tracking']['investment_ratio_left']
+        if left_ratio <= 0:
+            return False, investment
+
+        if investment['targets_tracking']['expiration']['is_trading_days']:
+            investment['targets_tracking']['expiration']['elapsed_trading_days'] += 1
+            if investment['targets_tracking']['expiration']['elapsed_trading_days'] >= days_threshold:
+                is_expired = True
+        else:
+            elapsed_natural_days = AnalyzerService.calculate_days_between(investment['targets_tracking']['expiration']['start_date'], date_of_today)
+            investment['targets_tracking']['expiration']['elapsed_natural_days'] = elapsed_natural_days
+            if elapsed_natural_days >= days_threshold:
+                is_expired = True
+
+        if is_expired:
+            investment['end_date'] = date_of_today
+            investment['targets_tracking']['expiration']['end_date'] = date_of_today
+            investment['is_expired'] = True
+            left_ratio = investment['targets_tracking']['investment_ratio_left']
+            investment['targets_tracking']['investment_ratio_left'] = 0.0
+
+            expiry_target = strategy_class.create_expiry_target(record_of_today, left_ratio, investment['targets_tracking']['expiration'])
+            expiry_target = InvestmentGoalManager._settle_target(record_of_today, expiry_target, investment)
+
+            investment['completed'].append(expiry_target)
+
+        return is_expired, investment
 
     # ================================ utils ================================
     @staticmethod

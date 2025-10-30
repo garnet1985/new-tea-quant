@@ -67,7 +67,7 @@ class HistoricLow(BaseStrategy):
         # 核心入场条件：当前价位位于以历史低点为参考的投资区间内
         for low_point in low_points:
             if HistoricLowService.is_in_invest_range(record_of_today, low_point):
-                opportunity = BaseStrategy.to_opportunity(
+                opportunity = BaseStrategy.create_opportunity(
                     stock=stock,
                     record_of_today=record_of_today,
                     extra_fields={

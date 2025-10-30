@@ -66,7 +66,12 @@ settings = {
                     "name": "win10%",
                     "ratio": 0.1,
                     "sell_ratio": 0.2,  # 止盈时：卖出总仓位的20%
-                    "set_stop_loss": "break_even"
+                    "actions": [
+                        {
+                            "name": "set_stop_loss",
+                            "value": "break_even"
+                        }
+                    ]
                 },
                 {
                     "name": "win20%",
@@ -82,7 +87,12 @@ settings = {
                     "name": "win40%",
                     "ratio": 0.4,
                     "sell_ratio": 0.2,  # 止盈时：卖出总仓位的20%
-                    "set_stop_loss": "dynamic"
+                    "actions": [
+                        {
+                            "name": "set_stop_loss",
+                            "value": "dynamic"
+                        }
+                    ]
                 }
             ]
         }

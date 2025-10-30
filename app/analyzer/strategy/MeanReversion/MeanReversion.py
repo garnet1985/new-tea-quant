@@ -95,12 +95,9 @@ class MeanReversionStrategy(BaseStrategy):
                 # 创建机会对象
                 # 使用价格修正边界（用于处理滑点），而不是策略信号边界
                 current_price = latest['close']
-                price_tolerance = 0.02  # 2%的价格容忍度
-                opportunity = BaseStrategy.to_opportunity(
+                opportunity = BaseStrategy.create_opportunity(
                     stock=stock_info,
                     record_of_today=latest_record,
-                    lower_bound=current_price * (1 - price_tolerance),
-                    upper_bound=current_price * (1 + price_tolerance),
                     extra_fields={
                         'strategy_name': 'MeanReversion',
                         'signal_type': 'buy',

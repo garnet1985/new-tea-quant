@@ -259,6 +259,9 @@ class BaseStrategy(ABC):
         Returns:
             (是否有达到的目标, 更新过的目标价格或者卖出比例的目标)
         """
+
+        # function need to update target_price & sell_ration (if necessary) dynamically
+        # target inside completed_targets must have sell_price, sell_date & sell_ratio
         has_achieved_goal = False
         completed_targets = []
         return has_achieved_goal, completed_targets
@@ -998,6 +1001,7 @@ class BaseStrategy(ABC):
             'dynamic_loss': {
                 'is_enabled': False,
                 'last_highest_close': 0.0,
+                'ratio': settings.get('goal', {}).get('stop_loss', {}).get('dynamic', {}).get('ratio', -0.1),
             },
             'expiration': {
                 'is_enabled': False,
@@ -1042,7 +1046,7 @@ class BaseStrategy(ABC):
         return investment
 
     @staticmethod
-    def to_settled_investment(investment: Dict[str, Any], is_open: bool = False) -> Dict[str, Any]:
+    def to_settled_investment(record_of_today: Dict[str, Any], investment: Dict[str, Any], is_open: bool = False) -> Dict[str, Any]:
         """
         将投资转换为已结算投资（统一结算逻辑）。
         - 根据 completed targets 计算总体收益与 ROI
@@ -1050,9 +1054,9 @@ class BaseStrategy(ABC):
         - 计算持有时长、年化收益
         - 最后交由策略可选地调整结构（to_alt_settled_investment）
         """
-
-        completed_targets = (investment.get('targets') or {}).get('completed', [])
+        completed_targets = (investment.get('targets_tracking', {}).get('completed', []) or [])
         overall_profit = 0.0
+        investment['end_date'] = record_of_today.get('date')
 
         for target in completed_targets:
             target['weighted_profit'] = float(target.get('profit', 0.0)) * float(target.get('sell_ratio', 0.0))

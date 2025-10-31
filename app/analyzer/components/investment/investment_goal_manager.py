@@ -50,8 +50,6 @@ class InvestmentGoalManager:
 
         # 检查是否有customized止盈
         targets = take_profit_info.get('targets', [])
-        from loguru import logger
-        logger.debug(f"📊 检查止盈目标: {len(targets)}个目标")
 
         if take_profit_info.get('is_customized', False):
             has_achieved_target, completed_targets = strategy_class.is_customized_take_profit_achieved(record_of_today, required_data, targets, investment, settings)
@@ -60,7 +58,6 @@ class InvestmentGoalManager:
             has_achieved_target, completed_targets = InvestmentGoalManager._check_targets_completion(record_of_today, targets, investment, strategy_class)
         
         if has_achieved_target:
-            logger.info(f"✅ 触发止盈目标，已完成 {len(completed_targets)} 个")
             investment = InvestmentGoalManager._settle_targets(completed_targets, investment, record_of_today)
             if InvestmentGoalManager._is_investment_completed(investment):
                 return
@@ -70,7 +67,6 @@ class InvestmentGoalManager:
         completed_targets = []
 
         targets = stop_loss_info.get('targets', [])
-        logger.debug(f"📊 检查止损目标: {len(targets)}个目标")
         if stop_loss_info.get('is_customized', False):
             has_achieved_target, completed_targets = strategy_class.is_customized_stop_loss_achieved(record_of_today, required_data, targets, investment, settings)
             InvestmentGoalManager._validate_customized_targets(targets, completed_targets)
@@ -78,7 +74,6 @@ class InvestmentGoalManager:
             has_achieved_target,completed_targets = InvestmentGoalManager._check_stop_loss_targets(record_of_today, targets, investment, strategy_class)
 
         if has_achieved_target:
-            logger.info(f"🛑 触发止损目标，已完成 {len(completed_targets)} 个")
             investment = InvestmentGoalManager._settle_targets(completed_targets, investment, record_of_today)
 
 
@@ -120,8 +115,6 @@ class InvestmentGoalManager:
         has_achieved_target = False
         
         if not targets:
-            from loguru import logger
-            logger.debug(f"⚠️ 没有目标需要检查 (targets为空)")
             return False, []
         
         for target in targets:
@@ -145,35 +138,22 @@ class InvestmentGoalManager:
         if target.get('is_achieved'):
             return True
         
-        # 确保 record_of_today 是字典
-        if not isinstance(record_of_today, dict):
-            from loguru import logger
-            logger.error(f"❌ record_of_today 不是字典类型: {type(record_of_today)}, 值: {record_of_today}")
-            return False
-        
         price_of_today = record_of_today.get('close', 0)
         target_price = target.get('target_price', 0)
         target_type = target.get('target_type', 'take_profit')  # 默认为止盈
-        purchase_price = investment.get('purchase_price', 0)
         
         if target_price <= 0 or price_of_today <= 0:
-            from loguru import logger
-            logger.debug(f"⚠️ 目标检查跳过: target_price={target_price}, price_of_today={price_of_today}, target_name={target.get('name')}")
             return False
         
         # 根据 target_type 判断是止盈还是止损
         if target_type == 'take_profit':
             # 止盈：价格上涨到目标价格
             if price_of_today >= target_price:
-                from loguru import logger
-                logger.info(f"✅ 触发止盈: {target.get('name')} - 当前价格 {price_of_today:.2f} >= 目标价格 {target_price:.2f} (买入价 {purchase_price:.2f})")
                 InvestmentGoalManager._settle_target(record_of_today, target, investment)
                 return True
         elif target_type == 'stop_loss':
             # 止损：价格下跌到目标价格
             if price_of_today <= target_price:
-                from loguru import logger
-                logger.info(f"🛑 触发止损: {target.get('name')} - 当前价格 {price_of_today:.2f} <= 目标价格 {target_price:.2f} (买入价 {purchase_price:.2f})")
                 InvestmentGoalManager._settle_target(record_of_today, target, investment)
                 return True
         

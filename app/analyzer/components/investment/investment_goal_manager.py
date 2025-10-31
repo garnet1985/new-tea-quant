@@ -202,7 +202,7 @@ class InvestmentGoalManager:
 
     @staticmethod
     def _settle_target(record_of_today: Dict[str, Any], target: Dict[str, Any], investment: Dict[str, Any]) -> None:
-        """检查普通止损阶段"""
+        """结算目标"""
         target['is_achieved'] = True
         target['sell_price'] = record_of_today['close']
         target['sell_date'] = record_of_today['date']
@@ -210,7 +210,10 @@ class InvestmentGoalManager:
         if target.get('close_invest'):
             target['sell_ratio'] = investment['targets_tracking']['investment_ratio_left']
         else:
-            target['sell_ratio'] = min(investment['targets_tracking']['investment_ratio_left'], target['sell_ratio'])
+            target['sell_ratio'] = min(investment['targets_tracking']['investment_ratio_left'], target.get('sell_ratio', 0))
+        
+        # 更新剩余投资比例
+        investment['targets_tracking']['investment_ratio_left'] -= target['sell_ratio']
         investment['targets_tracking']['completed'].append(target)
 
     @staticmethod

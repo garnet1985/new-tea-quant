@@ -83,9 +83,9 @@ class PostprocessService:
                 'overall_profit_rate': inv['overall_profit_rate'],
                 'overall_annual_return': inv['overall_annual_return'],
                 
-                'tracking': inv['tracking'],
+                'tracking': inv.get('amplitude_tracking', {}),
 
-                'completed_targets': inv['targets']['completed'],
+                'completed_targets': inv.get('targets_tracking', {}).get('completed', []),
             }
             
             # 只在有 extra_fields 时才添加
@@ -98,8 +98,10 @@ class PostprocessService:
         avg_duration_in_days = AnalyzerService.to_ratio(total_duration, total)
         avg_roi = AnalyzerService.to_ratio(total_roi, total)
         
-        annual_return = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days)
-        annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days, is_trading_days=True)
+        annual_return_raw = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days)
+        annual_return = float(annual_return_raw.real) if isinstance(annual_return_raw, complex) else float(annual_return_raw) if isinstance(annual_return_raw, (int, float)) else 0.0
+        annual_return_in_trading_days_raw = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days, is_trading_days=True)
+        annual_return_in_trading_days = float(annual_return_in_trading_days_raw.real) if isinstance(annual_return_in_trading_days_raw, complex) else float(annual_return_in_trading_days_raw) if isinstance(annual_return_in_trading_days_raw, (int, float)) else 0.0
 
         win_rate = AnalyzerService.to_ratio((profitable_count + minor_profitable_count), total, 3)
 
@@ -195,8 +197,10 @@ class PostprocessService:
         avg_duration_days = AnalyzerService.to_ratio(total_duration_days, total_investments)
         
         # 使用"平均ROI + 平均持有期"推导会话级平均年化，更稳健
-        annual_return = AnalyzerService.get_annual_return(avg_roi, avg_duration_days)
-        annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration_days, is_trading_days=True)
+        annual_return_raw = AnalyzerService.get_annual_return(avg_roi, avg_duration_days)
+        annual_return = float(annual_return_raw.real) if isinstance(annual_return_raw, complex) else float(annual_return_raw) if isinstance(annual_return_raw, (int, float)) else 0.0
+        annual_return_in_trading_days_raw = AnalyzerService.get_annual_return(avg_roi, avg_duration_days, is_trading_days=True)
+        annual_return_in_trading_days = float(annual_return_in_trading_days_raw.real) if isinstance(annual_return_in_trading_days_raw, complex) else float(annual_return_in_trading_days_raw) if isinstance(annual_return_in_trading_days_raw, (int, float)) else 0.0
         
         # 计算整体成功率
         win_rate = AnalyzerService.to_percent(total_win, total_investments)

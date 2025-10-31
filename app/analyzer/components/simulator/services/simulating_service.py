@@ -480,7 +480,7 @@ class SimulatingService:
             inv['targets']['investment_ratio_left'] = 0
             inv['end_date'] = final_date
 
-        settled_investment = BaseStrategy.to_settled_investment(inv, strategy_class, is_open=True)
+        settled_investment = BaseStrategy.to_settled_investment(last_record_of_today, inv, is_open=True)
         # expose to strategy class to add any extra fields
         tracker['settled'].append(settled_investment)
         tracker['investing'] = None
@@ -488,17 +488,17 @@ class SimulatingService:
     @staticmethod
     def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
         # 更新最高价
-        if record_of_today['close'] > investment['tracking']['max_close_reached']['price']:
-            investment['tracking']['max_close_reached']['price'] = record_of_today['close']
-            investment['tracking']['max_close_reached']['date'] = record_of_today['date']
-            investment['tracking']['max_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
+        if record_of_today['close'] > investment['amplitude_tracking']['max_close_reached']['price']:
+            investment['amplitude_tracking']['max_close_reached']['price'] = record_of_today['close']
+            investment['amplitude_tracking']['max_close_reached']['date'] = record_of_today['date']
+            investment['amplitude_tracking']['max_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
         
         # 更新最低价
-        current_min_price = investment['tracking']['min_close_reached']['price']
+        current_min_price = investment['amplitude_tracking']['min_close_reached']['price']
         if current_min_price == 0 or record_of_today['close'] < current_min_price:
-            investment['tracking']['min_close_reached']['price'] = record_of_today['close']
-            investment['tracking']['min_close_reached']['date'] = record_of_today['date']
-            investment['tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
+            investment['amplitude_tracking']['min_close_reached']['price'] = record_of_today['close']
+            investment['amplitude_tracking']['min_close_reached']['date'] = record_of_today['date']
+            investment['amplitude_tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
 
 
     # to_settled_investment moved to BaseStrategy

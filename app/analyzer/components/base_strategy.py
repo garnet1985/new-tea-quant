@@ -886,16 +886,15 @@ class BaseStrategy(ABC):
         return customized_targets
 
     @staticmethod
-    def create_expiry_target(record_of_today: float, sell_ratio: float, extra_fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        purchase_price = record_of_today.get('close')
+    def create_expiry_target(record_of_today: Dict[str, Any], sell_ratio: float, expiration_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return BaseStrategy.create_target(
             stage={
                 'name': 'investment_expired',
                 'close_invest': True,
                 'sell_ratio': sell_ratio,
             },
-            purchase_price=purchase_price,
-            extra_fields=extra_fields
+            record_of_today=record_of_today,
+            extra_fields=expiration_info
         )   
 
     @staticmethod
@@ -1078,8 +1077,11 @@ class BaseStrategy(ABC):
         investment['overall_profit'] = overall_profit
         # ROI 使用小数格式（如 0.20 = 20%）
         investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], decimals=4)
-        investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(investment.get('purchase_date'), investment.get('end_date'))
-        investment['overall_annual_return'] = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
+        purchase_date = investment.get('start_date') or investment.get('purchase_date') or ''
+        end_date = investment.get('end_date') or record_of_today.get('date') or ''
+        investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(purchase_date, end_date) if purchase_date and end_date else 0
+        overall_annual_return_raw = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
+        investment['overall_annual_return'] = float(overall_annual_return_raw.real) if isinstance(overall_annual_return_raw, complex) else float(overall_annual_return_raw) if isinstance(overall_annual_return_raw, (int, float)) else 0.0
 
         logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
 

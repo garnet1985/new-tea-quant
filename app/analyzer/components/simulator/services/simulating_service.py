@@ -461,7 +461,7 @@ class SimulatingService:
             return
 
         inv = tracker['investing']
-        remaining = float(inv.get('targets', {}).get('investment_ratio_left', 0) or 0.0)
+        remaining = float(inv.get('targets_tracking', {}).get('investment_ratio_left', 0) or 0.0)
         final_close = float(last_record_of_today.get('close') or 0.0)
         final_date = last_record_of_today.get('date')
         purchase_price = float(inv.get('purchase_price') or 0.0)
@@ -476,8 +476,8 @@ class SimulatingService:
                 'exit_date': final_date,
                 'is_achieved': True,
             }
-            inv['targets']['completed'].append(final_target)
-            inv['targets']['investment_ratio_left'] = 0
+            inv['targets_tracking']['completed'].append(final_target)
+            inv['targets_tracking']['investment_ratio_left'] = 0
             inv['end_date'] = final_date
 
         settled_investment = BaseStrategy.to_settled_investment(last_record_of_today, inv, is_open=True)

@@ -40,7 +40,7 @@ settings = {
         "record_summary" : True,
         
         # 是否分析模拟结果，结果会自动存在{folder_name}的analysis文件夹下
-        "analysis" : True,
+        "analysis" : False,
 
         'sampling': {
             # 采样策略类型

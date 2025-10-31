@@ -2,10 +2,11 @@
 """
 投资目标管理器 - 全局可复用的投资目标解析和结算类
 """
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
+from app.analyzer.components.base_strategy import BaseStrategy
 
 
 class InvestmentGoalManager:
@@ -17,7 +18,7 @@ class InvestmentGoalManager:
         InvestmentGoalManager._update_targets(record_of_today, investment, required_data, strategy_class, settings)
 
         if InvestmentGoalManager._is_investment_completed(investment):
-            return True, strategy_class.to_settled_investment(record_of_today, investment)
+            return True, BaseStrategy.to_settled_investment(record_of_today, investment)
         
         return False, investment
     
@@ -41,23 +42,23 @@ class InvestmentGoalManager:
         Returns:
             (是否投资结束, 更新后的投资对象)
         """
-        take_profit_info = investment['targets_tracking']['take_profit']
-        stop_loss_info = investment['targets_tracking']['stop_loss']
+        take_profit_info = investment.get('targets_tracking', {}).get('take_profit', {})
+        stop_loss_info = investment.get('targets_tracking', {}).get('stop_loss', {})
 
         has_achieved_target = False
         completed_targets = []
 
         # 检查是否有customized止盈
-        targets = take_profit_info['targets']
+        targets = take_profit_info.get('targets', [])
 
-        if take_profit_info['is_customized']:
+        if take_profit_info.get('is_customized', False):
             has_achieved_target, completed_targets = strategy_class.is_customized_take_profit_achieved(record_of_today, required_data, targets, investment, settings)
             InvestmentGoalManager._validate_customized_targets(targets, completed_targets)
         else:
-            has_achieved_target, completed_targets = InvestmentGoalManager._check_targets_completion(record_of_today, targets, investment)
+            has_achieved_target, completed_targets = InvestmentGoalManager._check_targets_completion(record_of_today, targets, investment, strategy_class)
         
         if has_achieved_target:
-            InvestmentGoalManager._settle_targets(completed_targets, investment)
+            investment = InvestmentGoalManager._settle_targets(completed_targets, investment, record_of_today)
             if InvestmentGoalManager._is_investment_completed(investment):
                 return
 
@@ -65,15 +66,15 @@ class InvestmentGoalManager:
         has_achieved_target = False
         completed_targets = []
 
-        targets = stop_loss_info['targets']
-        if stop_loss_info['is_customized']:
+        targets = stop_loss_info.get('targets', [])
+        if stop_loss_info.get('is_customized', False):
             has_achieved_target, completed_targets = strategy_class.is_customized_stop_loss_achieved(record_of_today, required_data, targets, investment, settings)
             InvestmentGoalManager._validate_customized_targets(targets, completed_targets)
         else:
             has_achieved_target,completed_targets = InvestmentGoalManager._check_stop_loss_targets(record_of_today, targets, investment, strategy_class)
 
         if has_achieved_target:
-            investment = InvestmentGoalManager._settle_targets(completed_targets, investment)
+            investment = InvestmentGoalManager._settle_targets(completed_targets, investment, record_of_today)
 
 
     @staticmethod
@@ -101,65 +102,81 @@ class InvestmentGoalManager:
 
 
         # 检查普通止损阶段
-        targets = investment['targets_tracking']['stop_loss']['targets']
+        targets = investment.get('targets_tracking', {}).get('stop_loss', {}).get('targets', [])
         has_achieved_target, completed_targets = InvestmentGoalManager._check_targets_completion(record_of_today, targets, investment, strategy_class)
         
         return has_achieved_target, completed_targets
 
     @staticmethod
-    def _check_targets_completion(record_of_today: Dict[str, Any], targets: List[Dict[str, Any]], investment: Dict[str, Any], strategy_class: Any) -> Dict[str, Any]:
+    def _check_targets_completion(record_of_today: Dict[str, Any], targets: List[Dict[str, Any]], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, List[Dict[str, Any]]]:
         """检查目标"""
+        completed_targets = []
+        has_achieved_target = False
+        
         for target in targets:
-            is_completed = InvestmentGoalManager._check_target_completion(record_of_today, target)
-            if is_completed and target.get('actions'):
-                investment = InvestmentGoalManager._trigger_actions(target.get('actions'), record_of_today, investment, strategy_class)
-        return investment
+            is_completed = InvestmentGoalManager._check_target_completion(record_of_today, target, investment)
+            if is_completed:
+                completed_targets.append(target)
+                has_achieved_target = True
+                if target.get('actions'):
+                    investment = InvestmentGoalManager._trigger_actions(target.get('actions'), record_of_today, investment, strategy_class)
+        
+        return has_achieved_target, completed_targets
 
     @staticmethod
-    def _check_target_completion(record_of_today: Dict[str, Any], target: Dict[str, Any]) -> Dict[str, Any]:
+    def _check_target_completion(record_of_today: Dict[str, Any], target: Dict[str, Any], investment: Dict[str, Any]) -> bool:
         """检查目标的实现情况"""
         if target.get('is_achieved'):
             return True
         
-        price_of_today = record_of_today['close']
-        if price_of_today >= target['target_price']:
-            target = InvestmentGoalManager._settle_target(record_of_today, target)
+        price_of_today = record_of_today.get('close', 0)
+        target_price = target.get('target_price', 0)
+        if target_price > 0 and price_of_today >= target_price:
+            InvestmentGoalManager._settle_target(record_of_today, target, investment)
             return True
         else:
             return False
 
     @staticmethod
-    def _check_dynamic_stop_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any]) -> bool:
+    def _check_dynamic_stop_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """检查动态止损"""
         allowed_lowest_price_ratio = investment.get('targets_tracking', {}).get('dynamic_loss', {}).get('ratio')
         last_highest_close = investment.get('targets_tracking', {}).get('dynamic_loss', {}).get('last_highest_close')
         allowed_lowest_price = last_highest_close * (1 + allowed_lowest_price_ratio)
 
         if record_of_today['close'] <= allowed_lowest_price:
-            target = investment['targets_tracking']['dynamic_loss']['target']
-            target = InvestmentGoalManager._settle_target(record_of_today, target, investment)
-            return True, target
+            target = investment['targets_tracking']['dynamic_loss'].get('target')
+            if target:
+                InvestmentGoalManager._settle_target(record_of_today, target, investment)
+                return True, target
         return False, None
 
     
     @staticmethod
-    def _check_protected_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any]) -> bool:
+    def _check_protected_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """检查保本止损"""
-        protected_loss_ratio = investment['targets_tracking']['protected_loss']['ratio']
+        protected_loss_info = investment['targets_tracking'].get('protected_loss', {})
+        protected_loss_ratio = protected_loss_info.get('ratio')
+        
+        if protected_loss_ratio is None:
+            return False, None
+            
         protected_loss_price = investment['purchase_price'] * (1 + protected_loss_ratio)
 
         if record_of_today['close'] <= protected_loss_price:
-            target = investment['targets_tracking']['protected_loss']['target']
-            target = InvestmentGoalManager._settle_target(record_of_today, target, investment)
-            return True, target
+            target = protected_loss_info.get('target')
+            if target:
+                InvestmentGoalManager._settle_target(record_of_today, target, investment)
+                return True, target
         return False, None
 
 
     @staticmethod
-    def _settle_targets(completed_targets: List[Dict[str, Any]], investment: Dict[str, Any]) -> None:
+    def _settle_targets(completed_targets: List[Dict[str, Any]], investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> Dict[str, Any]:
         """结算目标"""
         for target in completed_targets:
-            InvestmentGoalManager._settle_target(target, investment)
+            InvestmentGoalManager._settle_target(record_of_today, target, investment)
+        return investment
 
     @staticmethod
     def _settle_target(record_of_today: Dict[str, Any], target: Dict[str, Any], investment: Dict[str, Any]) -> None:

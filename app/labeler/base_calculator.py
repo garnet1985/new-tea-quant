@@ -209,8 +209,6 @@ class LabelCalculatorRegistry:
         """
         self.calculators[category] = calculator_class
         self.categories[category] = category
-        calculator_name = getattr(calculator_class, '__name__', str(calculator_class))
-        logger.info(f"注册标签计算器: {category} -> {calculator_name}")
     
     def get_calculator(self, category: str, data_loader, label_definitions):
         """

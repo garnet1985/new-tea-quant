@@ -831,17 +831,24 @@ class BaseStrategy(ABC):
     # -------------- target entity builder: --------------------
 
     @staticmethod
-    def create_targets(goal_def: Dict[str, Any], record_of_today: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def create_targets(goal_def: Dict[str, Any], record_of_today: Dict[str, Any], target_type: 'BaseStrategy.TargetType' = None) -> List[Dict[str, Any]]:
         """
         基于 settings.goal 生成一组静态 targets（不依赖价格）。
         - 配置型：遍历 stages 生成 target 列表（target_price/purchase_price/current_price 为空）
         - 自定义型：此处不生成（需运行时 should_*），返回空列表
         返回统一 Target 列表（不区分止盈/止损层级）。
+        
+        Args:
+            goal_def: 目标配置（take_profit 或 stop_loss）
+            record_of_today: 当前交易日记录
+            target_type: 目标类型枚举，BaseStrategy.TargetType.TAKE_PROFIT 或 BaseStrategy.TargetType.STOP_LOSS
         """
+        if target_type is None:
+            target_type = BaseStrategy.TargetType.TAKE_PROFIT
         stages = goal_def.get('stages', [])
         targets: List[Dict[str, Any]] = []
         for stage in stages:
-            targets.append(BaseStrategy.create_target(stage, record_of_today))
+            targets.append(BaseStrategy.create_target(stage, record_of_today, target_type=target_type))
         return targets
 
     @staticmethod
@@ -849,10 +856,20 @@ class BaseStrategy(ABC):
         stage: Dict[str, Any],
         record_of_today: Dict[str, Any],
         extra_fields: Optional[Dict[str, Any]] = None,
+        target_type: 'BaseStrategy.TargetType' = None,
     ) -> Dict[str, Any]:
         """
         规范化构建一个目标实体（统一字段）
+        
+        Args:
+            stage: 目标阶段配置
+            record_of_today: 当前交易日记录
+            extra_fields: 额外字段
+            target_type: 目标类型枚举，BaseStrategy.TargetType.TAKE_PROFIT 或 BaseStrategy.TargetType.STOP_LOSS
         """
+        if target_type is None:
+            target_type = BaseStrategy.TargetType.TAKE_PROFIT
+            
         if 'name' not in stage:
             raise ValueError(f"stage must have 'name' field: {stage}")
 
@@ -865,28 +882,32 @@ class BaseStrategy(ABC):
             'purchase_date': record_of_today.get('date'),
             'extra_fields': extra_fields or {},
             'target_price': record_of_today.get('close') * (1 + stage.get('ratio', 0)),
+            'target_type': target_type.value,  # 使用枚举值标注是止盈还是止损
         }
         return target
 
     @staticmethod
-    def create_customized_targets(target_type: str, record_of_today: Dict[str, Any], extra_fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def create_customized_targets(target_type: str, record_of_today: Dict[str, Any], extra_fields: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         规范化构建一个自定义目标实体（统一字段）
         """
+        # target_type 是字符串 ('take_profit' 或 'stop_loss')，需要转换为枚举
+        target_type_enum = BaseStrategy.TargetType.TAKE_PROFIT if target_type == 'take_profit' else BaseStrategy.TargetType.STOP_LOSS
         customized_targets = []
         customized_targets.append(BaseStrategy.create_target(
             stage = {
                 'name': f'customized_{target_type}',
-                'target_type': target_type,
                 'sell_ratio': 0,
             }, 
             record_of_today = record_of_today,
-            extra_fields = extra_fields
+            extra_fields = extra_fields,
+            target_type = target_type_enum
         ))
         return customized_targets
 
     @staticmethod
     def create_expiry_target(record_of_today: Dict[str, Any], sell_ratio: float, expiration_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        # 到期目标可以视为一种特殊的止损（到期清仓）
         return BaseStrategy.create_target(
             stage={
                 'name': 'investment_expired',
@@ -894,7 +915,8 @@ class BaseStrategy(ABC):
                 'sell_ratio': sell_ratio,
             },
             record_of_today=record_of_today,
-            extra_fields=expiration_info
+            extra_fields=expiration_info,
+            target_type=BaseStrategy.TargetType.STOP_LOSS  # 到期清仓视为止损类型
         )   
 
     @staticmethod
@@ -1021,7 +1043,7 @@ class BaseStrategy(ABC):
         else:
             target_tracking['stop_loss'] = {
                 'is_customized': False,
-                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('stop_loss', {}), record_of_today),
+                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('stop_loss', {}), record_of_today, target_type=BaseStrategy.TargetType.STOP_LOSS),
             }
         if BaseStrategy.is_customized_take_profit(settings):
             target_tracking['take_profit'] = {
@@ -1031,7 +1053,7 @@ class BaseStrategy(ABC):
         else:
             target_tracking['take_profit'] = {
                 'is_customized': False,
-                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('take_profit', {}), record_of_today),
+                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('take_profit', {}), record_of_today, target_type=BaseStrategy.TargetType.TAKE_PROFIT),
             }
 
         investment['targets_tracking'] = target_tracking

@@ -50,6 +50,8 @@ class InvestmentGoalManager:
 
         # 检查是否有customized止盈
         targets = take_profit_info.get('targets', [])
+        from loguru import logger
+        logger.debug(f"📊 检查止盈目标: {len(targets)}个目标")
 
         if take_profit_info.get('is_customized', False):
             has_achieved_target, completed_targets = strategy_class.is_customized_take_profit_achieved(record_of_today, required_data, targets, investment, settings)
@@ -58,6 +60,7 @@ class InvestmentGoalManager:
             has_achieved_target, completed_targets = InvestmentGoalManager._check_targets_completion(record_of_today, targets, investment, strategy_class)
         
         if has_achieved_target:
+            logger.info(f"✅ 触发止盈目标，已完成 {len(completed_targets)} 个")
             investment = InvestmentGoalManager._settle_targets(completed_targets, investment, record_of_today)
             if InvestmentGoalManager._is_investment_completed(investment):
                 return
@@ -67,6 +70,7 @@ class InvestmentGoalManager:
         completed_targets = []
 
         targets = stop_loss_info.get('targets', [])
+        logger.debug(f"📊 检查止损目标: {len(targets)}个目标")
         if stop_loss_info.get('is_customized', False):
             has_achieved_target, completed_targets = strategy_class.is_customized_stop_loss_achieved(record_of_today, required_data, targets, investment, settings)
             InvestmentGoalManager._validate_customized_targets(targets, completed_targets)
@@ -74,6 +78,7 @@ class InvestmentGoalManager:
             has_achieved_target,completed_targets = InvestmentGoalManager._check_stop_loss_targets(record_of_today, targets, investment, strategy_class)
 
         if has_achieved_target:
+            logger.info(f"🛑 触发止损目标，已完成 {len(completed_targets)} 个")
             investment = InvestmentGoalManager._settle_targets(completed_targets, investment, record_of_today)
 
 
@@ -86,7 +91,8 @@ class InvestmentGoalManager:
         # 检查动态止损
         if investment['targets_tracking'].get('dynamic_loss', {}).get('is_enabled'):
             has_achieved_target, target = InvestmentGoalManager._check_dynamic_stop_loss(record_of_today, investment, strategy_class)
-            completed_targets.append(target)
+            if target:
+                completed_targets.append(target)
 
         if has_achieved_target:
             return True, completed_targets
@@ -95,14 +101,14 @@ class InvestmentGoalManager:
         # 检查保本止损
         if investment['targets_tracking'].get('protected_loss', {}).get('is_enabled'):
             has_achieved_target, target = InvestmentGoalManager._check_protected_loss(record_of_today, investment, strategy_class)
-            completed_targets.append(target)
+            if target:
+                completed_targets.append(target)
 
         if has_achieved_target:
             return True, completed_targets
 
 
-        # 检查普通止损阶段
-        targets = investment.get('targets_tracking', {}).get('stop_loss', {}).get('targets', [])
+        # 检查普通止损阶段 - 使用传入的targets参数，而不是重新获取
         has_achieved_target, completed_targets = InvestmentGoalManager._check_targets_completion(record_of_today, targets, investment, strategy_class)
         
         return has_achieved_target, completed_targets
@@ -112,6 +118,11 @@ class InvestmentGoalManager:
         """检查目标"""
         completed_targets = []
         has_achieved_target = False
+        
+        if not targets:
+            from loguru import logger
+            logger.debug(f"⚠️ 没有目标需要检查 (targets为空)")
+            return False, []
         
         for target in targets:
             is_completed = InvestmentGoalManager._check_target_completion(record_of_today, target, investment)
@@ -125,17 +136,48 @@ class InvestmentGoalManager:
 
     @staticmethod
     def _check_target_completion(record_of_today: Dict[str, Any], target: Dict[str, Any], investment: Dict[str, Any]) -> bool:
-        """检查目标的实现情况"""
+        """检查目标的实现情况
+        
+        根据 target_type 判断目标类型：
+        - 'take_profit': 止盈目标，检查 price >= target_price
+        - 'stop_loss': 止损目标，检查 price <= target_price
+        """
         if target.get('is_achieved'):
             return True
         
+        # 确保 record_of_today 是字典
+        if not isinstance(record_of_today, dict):
+            from loguru import logger
+            logger.error(f"❌ record_of_today 不是字典类型: {type(record_of_today)}, 值: {record_of_today}")
+            return False
+        
         price_of_today = record_of_today.get('close', 0)
         target_price = target.get('target_price', 0)
-        if target_price > 0 and price_of_today >= target_price:
-            InvestmentGoalManager._settle_target(record_of_today, target, investment)
-            return True
-        else:
+        target_type = target.get('target_type', 'take_profit')  # 默认为止盈
+        purchase_price = investment.get('purchase_price', 0)
+        
+        if target_price <= 0 or price_of_today <= 0:
+            from loguru import logger
+            logger.debug(f"⚠️ 目标检查跳过: target_price={target_price}, price_of_today={price_of_today}, target_name={target.get('name')}")
             return False
+        
+        # 根据 target_type 判断是止盈还是止损
+        if target_type == 'take_profit':
+            # 止盈：价格上涨到目标价格
+            if price_of_today >= target_price:
+                from loguru import logger
+                logger.info(f"✅ 触发止盈: {target.get('name')} - 当前价格 {price_of_today:.2f} >= 目标价格 {target_price:.2f} (买入价 {purchase_price:.2f})")
+                InvestmentGoalManager._settle_target(record_of_today, target, investment)
+                return True
+        elif target_type == 'stop_loss':
+            # 止损：价格下跌到目标价格
+            if price_of_today <= target_price:
+                from loguru import logger
+                logger.info(f"🛑 触发止损: {target.get('name')} - 当前价格 {price_of_today:.2f} <= 目标价格 {target_price:.2f} (买入价 {purchase_price:.2f})")
+                InvestmentGoalManager._settle_target(record_of_today, target, investment)
+                return True
+        
+        return False
 
     @staticmethod
     def _check_dynamic_stop_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Optional[Dict[str, Any]]]:
@@ -237,25 +279,29 @@ class InvestmentGoalManager:
         for action in actions:
             if action.get('set_stop_loss') == 'protected':
                 investment['targets_tracking']['protected_loss']['is_enabled'] = True
+                from app.analyzer.components.base_strategy import BaseStrategy
                 investment['targets_tracking']['protected_loss']['target'] = strategy_class.create_target(
                     stage = {
                         'name': 'protected_loss',
                         'ratio': 0,
                         'close_invest': True,
                     },
-                    record_of_today = record_of_today
+                    record_of_today = record_of_today,
+                    target_type = BaseStrategy.TargetType.STOP_LOSS
                 )
 
             elif action.get('set_stop_loss') == 'dynamic':
                 investment['targets_tracking']['dynamic_loss']['is_enabled'] = True
                 investment['targets_tracking']['dynamic_loss']['last_highest_close'] = record_of_today['close']
+                from app.analyzer.components.base_strategy import BaseStrategy
                 investment['targets_tracking']['dynamic_loss']['target'] = strategy_class.create_target(
                     stage = {
                         'name': 'dynamic_loss',
                         'ratio': 0,
                         'close_invest': True,
                     },
-                    record_of_today = record_of_today
+                    record_of_today = record_of_today,
+                    target_type = BaseStrategy.TargetType.STOP_LOSS
                 )
 
         return investment

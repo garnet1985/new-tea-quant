@@ -21,10 +21,6 @@ class BaseStrategy(ABC):
     # ========================================================
     # public enum:
     # ========================================================
-    class TargetType(Enum):
-        TAKE_PROFIT = 'take_profit'
-        STOP_LOSS = 'stop_loss'
-
     """策略基类 - 所有策略必须继承此类"""
     
     def __init__(self, db: DatabaseManager = None, is_verbose: bool = False, name: str = None, description: str = None, key: str = None):
@@ -831,7 +827,7 @@ class BaseStrategy(ABC):
     # -------------- target entity builder: --------------------
 
     @staticmethod
-    def create_targets(goal_def: Dict[str, Any], record_of_today: Dict[str, Any], target_type: 'BaseStrategy.TargetType' = None) -> List[Dict[str, Any]]:
+    def create_targets(target_type: 'BaseStrategy.TargetType', record_of_today: Dict[str, Any], goal_info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         基于 settings.goal 生成一组静态 targets（不依赖价格）。
         - 配置型：遍历 stages 生成 target 列表（target_price/purchase_price/current_price 为空）
@@ -843,48 +839,48 @@ class BaseStrategy(ABC):
             record_of_today: 当前交易日记录
             target_type: 目标类型枚举，BaseStrategy.TargetType.TAKE_PROFIT 或 BaseStrategy.TargetType.STOP_LOSS
         """
-        if target_type is None:
-            target_type = BaseStrategy.TargetType.TAKE_PROFIT
-        stages = goal_def.get('stages', [])
+        stages = goal_info.get('stages', [])
         targets: List[Dict[str, Any]] = []
+        
         for stage in stages:
-            targets.append(BaseStrategy.create_target(stage, record_of_today, target_type=target_type))
+            targets.append(BaseStrategy.create_target(target_type, record_of_today, stage))
+        
         return targets
 
-    @staticmethod
-    def create_target(
-        stage: Dict[str, Any],
-        record_of_today: Dict[str, Any],
-        extra_fields: Optional[Dict[str, Any]] = None,
-        target_type: 'BaseStrategy.TargetType' = None,
-    ) -> Dict[str, Any]:
-        """
-        规范化构建一个目标实体（统一字段）
+    # @staticmethod
+    # def create_target(
+    #     target_type: 'BaseStrategy.TargetType',
+    #     record_of_today: Dict[str, Any],
+    #     stage: Dict[str, Any],
+    # ) -> Dict[str, Any]:
+    #     """
+    #     规范化构建一个目标实体（统一字段）
         
-        Args:
-            stage: 目标阶段配置
-            record_of_today: 当前交易日记录
-            extra_fields: 额外字段
-            target_type: 目标类型枚举，BaseStrategy.TargetType.TAKE_PROFIT 或 BaseStrategy.TargetType.STOP_LOSS
-        """
-        if target_type is None:
-            target_type = BaseStrategy.TargetType.TAKE_PROFIT
-            
-        if 'name' not in stage:
-            raise ValueError(f"stage must have 'name' field: {stage}")
+    #     Args:
+    #         stage: 目标阶段配置
+    #         record_of_today: 当前交易日记录
+    #         extra_fields: 额外字段
+    #         target_type: 目标类型枚举，BaseStrategy.TargetType.TAKE_PROFIT 或 BaseStrategy.TargetType.STOP_LOSS
+    #     """
+    #     if 'name' not in stage:
+    #         raise ValueError(f"stage must have 'name' field: {stage}")
 
-        if 'sell_ratio' not in stage and 'close_invest' not in stage:
-            raise ValueError(f"stage must have either 'sell_ratio' or 'close_invest' field: {stage}")
+    #     if 'sell_ratio' not in stage and 'close_invest' not in stage:
+    #         raise ValueError(f"stage must have either 'sell_ratio' or 'close_invest' field: {stage}")
 
-        target: Dict[str, Any] = {
-            **stage,  # 先展开stage的所有字段
-            'purchase_price': record_of_today.get('close'),
-            'purchase_date': record_of_today.get('date'),
-            'extra_fields': extra_fields or {},
-            'target_price': record_of_today.get('close') * (1 + stage.get('ratio', 0)),
-            'target_type': target_type.value,  # 使用枚举值标注是止盈还是止损
-        }
-        return target
+    #     close_price = record_of_today.get('close', 0)
+    #     date = record_of_today.get('date', '')
+
+    #     target: Dict[str, Any] = {
+    #         **stage,  # 先展开stage的所有字段
+    #         'target_type': target_type.value,  # 使用枚举值标注是止盈还是止损
+    #         'target_price': close_price * (1 + stage.get('ratio', 0)),
+    #         'amplitude_tracking': {
+    #             'max_close_reached': { 'price': close_price, 'date': date, 'ratio': 0 },
+    #             'min_close_reached': { 'price': close_price, 'date': date, 'ratio': 0 },
+    #         },
+    #     }
+    #     return target
 
     @staticmethod
     def create_customized_targets(target_type: str, record_of_today: Dict[str, Any], extra_fields: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
@@ -941,173 +937,179 @@ class BaseStrategy(ABC):
     
     # -------------- opportunity entity builder: --------------------
     
-    @staticmethod
-    def create_opportunity(
-        stock: Dict[str, Any],
-        record_of_today: Dict[str, Any],
-        extra_fields: Optional[Dict[str, Any]] = None,
-        lower_bound: Optional[float] = None,
-        upper_bound: Optional[float] = None,
-        price_tolerance: Optional[float] = 0.01,
-    ) -> Dict[str, Any]:
-        """Construct a standard opportunity entity.
+    # @staticmethod
+    # def create_opportunity(
+    #     stock: Dict[str, Any],
+    #     record_of_today: Dict[str, Any],
+    #     extra_fields: Optional[Dict[str, Any]] = None,
+    #     lower_bound: Optional[float] = None,
+    #     upper_bound: Optional[float] = None,
+    #     price_tolerance: Optional[float] = 0.01,
+    # ) -> Dict[str, Any]:
+    #     """Construct a standard opportunity entity.
 
-        Required fields: stock{id[,name?]}, record_of_today
-        Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
+    #     Required fields: stock{id[,name?]}, record_of_today
+    #     Optional fields: lower_bound, upper_bound, and extra (strategy-specific)
         
-        If lower_bound/upper_bound are not provided, defaults to ±1% of price
-        """
-        current_price = record_of_today.get('close', 0)
+    #     If lower_bound/upper_bound are not provided, defaults to ±1% of price
+    #     """
+    #     current_price = record_of_today.get('close', 0)
         
-        opportunity: Dict[str, Any] = {
-            'stock': stock or {},
-            'date': record_of_today.get('date'),
-            'price': current_price,
-        }
+    #     opportunity: Dict[str, Any] = {
+    #         'stock': stock or {},
+    #         'date': record_of_today.get('date'),
+    #         'price': current_price,
+    #     }
         
-        # 如果未提供边界，使用默认值（±price_tolerance）
-        if lower_bound is None:
-            lower_bound = current_price * (1 - price_tolerance)
-        if upper_bound is None:
-            upper_bound = current_price * (1 + price_tolerance)
+    #     # 如果未提供边界，使用默认值（±price_tolerance）
+    #     if lower_bound is None:
+    #         lower_bound = current_price * (1 - price_tolerance)
+    #     if upper_bound is None:
+    #         upper_bound = current_price * (1 + price_tolerance)
         
-        opportunity['lower_bound'] = lower_bound
-        opportunity['upper_bound'] = upper_bound
+    #     opportunity['lower_bound'] = lower_bound
+    #     opportunity['upper_bound'] = upper_bound
 
-        if extra_fields is not None:
-            opportunity['extra_fields'] = extra_fields
+    #     if extra_fields is not None:
+    #         opportunity['extra_fields'] = extra_fields
 
-        return opportunity
+    #     return opportunity
 
     # -------------- investment entity builder: --------------------
 
-    @staticmethod
-    def create_investment(
-            record_of_today: Dict[str, Any], 
-            opportunity: Dict[str, Any], 
-            settings: Dict[str, Any],
-        ) -> Dict[str, Any]:
+    # @staticmethod
+    # def create_investment(
+    #         record_of_today: Dict[str, Any],
+    #         opportunity: Dict[str, Any],
+    #         settings: Dict[str, Any],
+    #     ) -> Dict[str, Any]:
             
-        """
-        构建标准投资实体（构建职责专一）。
-        """
-        purchase_price = record_of_today.get('close')
-        purchase_date = record_of_today.get('date')
+    #     """
+    #     构建标准投资实体（构建职责专一）。
+    #     """
+    #     purchase_price = record_of_today.get('close')
+    #     purchase_date = record_of_today.get('date')
 
-        # base structure
-        investment: Dict[str, Any] = {
-            'stock': opportunity.get('stock', {}),
-            'opportunity_ref': opportunity,
-            'purchase_price': purchase_price,
-            'start_date': purchase_date,
-            'end_date': '',
-        }
+    #     # base structure
+    #     investment: Dict[str, Any] = {
+    #         'stock': opportunity.get('stock', {}),
+    #         'opportunity_ref': opportunity,
+    #         'purchase_price': purchase_price,
+    #         'start_date': purchase_date,
+    #         'end_date': '',
+    #     }
 
-        # amplitude tracking: max/min close reached
-        amplitude_tracking: Dict[str, Any] = {
-            'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-            'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-        }
+    #     # amplitude tracking: max/min close reached - should go into each target
+    #     # amplitude_tracking: Dict[str, Any] = {
+    #     #     'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #     #     'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
+    #     # }
 
-        investment['amplitude_tracking'] = amplitude_tracking
+    #     # investment['amplitude_tracking'] = amplitude_tracking
 
-        # tracking targets
-        target_tracking: Dict[str, Any] = {
-            'investment_ratio_left': 1.0,
-            'completed': [],
-            'protected_loss': {
-                'is_enabled': False,
-                'target_price': purchase_price * (1 + settings.get('goal', {}).get('stop_loss', {}).get('break_even', {}).get('ratio', 0)),
-            },
-            'dynamic_loss': {
-                'is_enabled': False,
-                'last_highest_close': 0.0,
-                'ratio': settings.get('goal', {}).get('stop_loss', {}).get('dynamic', {}).get('ratio', -0.1),
-            },
-            'expiration': {
-                'is_enabled': False,
-                'fixed_days': settings.get('goal', {}).get('fixed_days', 0),
-                'is_trading_days': settings.get('goal', {}).get('is_trading_days', True),
-                'elapsed_trading_days': 0,
-                'elapsed_natural_days': 0,
-                'start_date': purchase_date,
-                'end_date': '',
-            }
-        }
+    #     # tracking targets
+    #     target_tracking: Dict[str, Any] = {
+    #         'investment_ratio_left': 1.0,
+    #         'completed': [],
+    #         'protected_loss': {
+    #             'is_enabled': False,
+    #             'target_price': purchase_price * (1 + settings.get('goal', {}).get('stop_loss', {}).get('break_even', {}).get('ratio', 0)),
+    #         },
+    #         'dynamic_loss': {
+    #             'is_enabled': False,
+    #             'last_highest_close': 0.0,
+    #             'ratio': settings.get('goal', {}).get('stop_loss', {}).get('dynamic', {}).get('ratio', -0.1),
+    #         },
+    #         'expiration': {
+    #             'is_enabled': False,
+    #             'fixed_days': settings.get('goal', {}).get('fixed_days', 0),
+    #             'is_trading_days': settings.get('goal', {}).get('is_trading_days', True),
+    #             'elapsed_trading_days': 0,
+    #             'elapsed_natural_days': 0,
+    #             'start_date': purchase_date,
+    #             'end_date': '',
+    #         }
+    #     }
 
-        if BaseStrategy.is_customized_stop_loss(settings):
-            target_tracking['stop_loss'] = {
-                'is_customized': True,
-                'targets': BaseStrategy.create_customized_targets(BaseStrategy.TargetType.STOP_LOSS.value, record_of_today),
-            }
-        else:
-            target_tracking['stop_loss'] = {
-                'is_customized': False,
-                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('stop_loss', {}), record_of_today, target_type=BaseStrategy.TargetType.STOP_LOSS),
-            }
-        if BaseStrategy.is_customized_take_profit(settings):
-            target_tracking['take_profit'] = {
-                'is_customized': True,
-                'targets': BaseStrategy.create_customized_targets(BaseStrategy.TargetType.TAKE_PROFIT.value, record_of_today),
-            }
-        else:
-            target_tracking['take_profit'] = {
-                'is_customized': False,
-                'targets': BaseStrategy.create_targets(settings.get('goal', {}).get('take_profit', {}), record_of_today, target_type=BaseStrategy.TargetType.TAKE_PROFIT),
-            }
+    #     if BaseStrategy.is_customized_stop_loss(settings):
+    #         target_tracking['stop_loss'] = {
+    #             'is_customized': True,
+    #             'targets': BaseStrategy.create_customized_targets(BaseStrategy.TargetType.STOP_LOSS.value, record_of_today),
+    #         }
+    #     else:
+    #         target_tracking['stop_loss'] = {
+    #             'is_customized': False,
+    #             'targets': BaseStrategy.create_targets(BaseStrategy.TargetType.STOP_LOSS, record_of_today, settings.get('goal', {}).get('stop_loss')),
+    #         }
 
-        investment['targets_tracking'] = target_tracking
+            
+    #     if BaseStrategy.is_customized_take_profit(settings):
+    #         target_tracking['take_profit'] = {
+    #             'is_customized': True,
+    #             'targets': BaseStrategy.create_customized_targets(BaseStrategy.TargetType.TAKE_PROFIT.value, record_of_today),
+    #         }
+    #     else:
+    #         target_tracking['take_profit'] = {
+    #             'is_customized': False,
+    #             'targets': BaseStrategy.create_targets(BaseStrategy.TargetType.TAKE_PROFIT, record_of_today, settings.get('goal', {}).get('take_profit')),
+    #         }
 
-        # 透传策略自定义字段（如 momentum 等）
-        extra_fields = opportunity.get('extra_fields')
-        
-        if extra_fields:
-            investment['extra_fields'] = extra_fields
+    #     investment['targets_tracking'] = target_tracking
 
-        return investment
+    #     # TODO: debug:
+    #     print(target_tracking)
 
-    @staticmethod
-    def to_settled_investment(record_of_today: Dict[str, Any], investment: Dict[str, Any], is_open: bool = False) -> Dict[str, Any]:
-        """
-        将投资转换为已结算投资（统一结算逻辑）。
-        - 根据 completed targets 计算总体收益与 ROI
-        - 设置结果枚举（WIN/LOSS/OPEN）
-        - 计算持有时长、年化收益
-        - 最后交由策略可选地调整结构（to_alt_settled_investment）
-        """
-        completed_targets = (investment.get('targets_tracking', {}).get('completed', []) or [])
-        overall_profit = 0.0
-        investment['end_date'] = record_of_today.get('date')
 
-        for target in completed_targets:
-            target['weighted_profit'] = float(target.get('profit', 0.0)) * float(target.get('sell_ratio', 0.0))
-            target['profit_contribution'] = float(target.get('sell_ratio', 0.0))
-            overall_profit += target['weighted_profit']
+    #     # 透传策略自定义字段（如 momentum 等）
+    #     extra_fields = opportunity.get('extra_fields')
 
-        icon = ''
-        if overall_profit >= 0:
-            investment['result'] = InvestmentResult.WIN.value
-            icon = IconService.get('check') + ' 投资成功'
-        else:
-            investment['result'] = InvestmentResult.LOSS.value
-            icon = IconService.get('cross') + ' 投资失败'
+    #     if extra_fields:
+    #         investment['extra_fields'] = extra_fields
 
-        if is_open:
-            investment['result'] = InvestmentResult.OPEN.value
-            icon = IconService.get('ongoing') + ' 投资未完成'
+    #     return investment
 
-        investment['overall_profit'] = overall_profit
-        # ROI 使用小数格式（如 0.20 = 20%）
-        investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], decimals=4)
-        purchase_date = investment.get('start_date') or investment.get('purchase_date') or ''
-        end_date = investment.get('end_date') or record_of_today.get('date') or ''
-        investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(purchase_date, end_date) if purchase_date and end_date else 0
-        overall_annual_return_raw = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
-        investment['overall_annual_return'] = float(overall_annual_return_raw.real) if isinstance(overall_annual_return_raw, complex) else float(overall_annual_return_raw) if isinstance(overall_annual_return_raw, (int, float)) else 0.0
+    # @staticmethod
+    # def to_settled_investment(record_of_today: Dict[str, Any], investment: Dict[str, Any], is_open: bool = False) -> Dict[str, Any]:
+    #     """
+    #     将投资转换为已结算投资（统一结算逻辑）。
+    #     - 根据 completed targets 计算总体收益与 ROI
+    #     - 设置结果枚举（WIN/LOSS/OPEN）
+    #     - 计算持有时长、年化收益
+    #     - 最后交由策略可选地调整结构（to_alt_settled_investment）
+    #     """
+    #     completed_targets = (investment.get('targets_tracking', {}).get('completed', []) or [])
+    #     overall_profit = 0.0
+    #     investment['end_date'] = record_of_today.get('date')
 
-        logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
+    #     for target in completed_targets:
+    #         target['weighted_profit'] = float(target.get('profit', 0.0)) * float(target.get('sell_ratio', 0.0))
+    #         target['profit_contribution'] = float(target.get('sell_ratio', 0.0))
+    #         overall_profit += target['weighted_profit']
 
-        return investment
+    #     icon = ''
+    #     if overall_profit >= 0:
+    #         investment['result'] = InvestmentResult.WIN.value
+    #         icon = IconService.get('check') + ' 投资成功'
+    #     else:
+    #         investment['result'] = InvestmentResult.LOSS.value
+    #         icon = IconService.get('cross') + ' 投资失败'
+
+    #     if is_open:
+    #         investment['result'] = InvestmentResult.OPEN.value
+    #         icon = IconService.get('ongoing') + ' 投资未完成'
+
+    #     investment['overall_profit'] = overall_profit
+    #     # ROI 使用小数格式（如 0.20 = 20%）
+    #     investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], decimals=4)
+    #     purchase_date = investment.get('start_date') or investment.get('purchase_date') or ''
+    #     end_date = investment.get('end_date') or record_of_today.get('date') or ''
+    #     investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(purchase_date, end_date) if purchase_date and end_date else 0
+    #     overall_annual_return_raw = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
+    #     investment['overall_annual_return'] = float(overall_annual_return_raw.real) if isinstance(overall_annual_return_raw, complex) else float(overall_annual_return_raw) if isinstance(overall_annual_return_raw, (int, float)) else 0.0
+
+    #     logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
+
+    #     return investment
 
     # ========================================================
     # utils:

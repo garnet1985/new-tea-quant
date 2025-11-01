@@ -34,17 +34,17 @@ settings = {
         "end_date": "",
 
         # 测试股票数量
-        "sampling_amount": 10,
+        "sampling_amount": 1,
 
          # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
-        "record_summary" : True,
+        "record_summary" : False,
         
         # 是否分析模拟结果，结果会自动存在{folder_name}的analysis文件夹下
         "analysis" : False,
 
         'sampling': {
             # 采样策略类型
-            "strategy": "random",  # 使用随机采样
+            "strategy": "uniform",  # 使用随机采样
             
             # 各策略的专用配置
             "random": {
@@ -59,8 +59,8 @@ settings = {
         "stop_loss": {
             "stages": [
                 {
-                    "name": "loss30%",
-                    "ratio": -0.3,  # ML分析优化：-15%止损
+                    "name": "loss20%",
+                    "ratio": -0.2,  # ML分析优化：-15%止损
                     "close_invest": True
                 }
             ]
@@ -69,8 +69,8 @@ settings = {
         "take_profit": {
             "stages": [
                 {
-                    "name": "win30%",
-                    "ratio": 0.3,
+                    "name": "win20%",
+                    "ratio": 0.2,
                     "close_invest": True
                 }
             ]

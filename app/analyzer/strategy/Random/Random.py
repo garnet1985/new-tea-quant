@@ -56,29 +56,29 @@ class RandomStrategy(BaseStrategy):
             # 随机掷骰子决定是否投资
             if RandomStrategy._is_lucky(settings['core']['investment_probability']):
                 # 计算投资前20天的累积振幅delta
-                amplitude_delta = RandomStrategy._calculate_amplitude_delta(daily_klines, settings['core']['lookback_days'])
-                
-                if amplitude_delta is None:
-                    return None
-                
+                # amplitude_delta = RandomStrategy._calculate_amplitude_delta(daily_klines, settings['core']['lookback_days'])
+
+                # if amplitude_delta is None:
+                #     return None
+
                 # 计算止损和止盈比例
-                stop_loss_ratio = RandomStrategy._get_stop_loss_ratio(record_of_today, amplitude_delta)
-                take_profit_ratio = RandomStrategy._get_take_profit_ratio(stop_loss_ratio, settings)
-                
+                # stop_loss_ratio = RandomStrategy._get_stop_loss_ratio(record_of_today, amplitude_delta)
+                # take_profit_ratio = RandomStrategy._get_take_profit_ratio(stop_loss_ratio, settings)
+
                 # 创建简化的股票信息（只保留必要字段）
-                simple_stock_info = {
-                    'id': stock_id,
-                    'name': stock_info.get('name', stock_id)
-                }
-                
+                # simple_stock_info = {
+                #     'id': stock_id,
+                #     'name': stock_info.get('name', stock_id)
+                # }
+
                 return BaseStrategy.create_opportunity(
-                    stock=simple_stock_info,
+                    stock=stock_info,
                     record_of_today=record_of_today,
-                    extra_fields={
-                        'stop_loss': stop_loss_ratio,
-                        'take_profit': take_profit_ratio,
-                        'amplitude_delta': amplitude_delta,
-                    },
+                    # extra_fields={
+                    #     'stop_loss': stop_loss_ratio,
+                    #     'take_profit': take_profit_ratio,
+                    #     'amplitude_delta': amplitude_delta,
+                    # },
                 )
 
             return None

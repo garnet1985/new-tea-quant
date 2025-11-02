@@ -87,20 +87,49 @@ class InvestmentTarget:
         return amplitude_tracking
 
 
-    def is_complete(self, record_of_today: Dict[str, Any]):
+    def is_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float = 1.0):
+        """检查目标是否完成，如果完成则立即settle"""
         if self.is_achieved:
             return True
-        else:
-            date = record_of_today.get('date', '')
-            last_check_date = self.tracker.get('last_check_date', '')
-            if date <= last_check_date:
-                return False
+        
+        date = record_of_today.get('date', '')
+        last_check_date = self.tracker.get('last_check_date', '')
+        if date <= last_check_date:
+            return False
 
-            close_price = record_of_today.get('close', 0)
-            if close_price >= self.content['target_price']:
-                self.settle(record_of_today)
-                return True
+        close_price = record_of_today.get('close', 0)
+        target_price = self.content['target_price']
+        
+        is_completed = False
+        # 根据目标类型检查
+        if self.target_type == self.TargetType.TAKE_PROFIT:
+            # 止盈：价格 >= 目标价格
+            if close_price >= target_price:
+                is_completed = True
+        elif self.target_type == self.TargetType.STOP_LOSS:
+            # 止损：价格 <= 目标价格
+            if close_price <= target_price:
+                is_completed = True
+        
+        # 如果完成，立即settle
+        if is_completed:
+            # 计算sell_ratio
+            sell_ratio = self._calc_sell_ratio(remaining_investment_ratio)
+            self.settle(record_of_today, sell_ratio)
+            return True
+        
         return False
+
+    def _calc_sell_ratio(self, remaining_investment_ratio: float):
+        if self.content.get('close_invest'):
+            return remaining_investment_ratio
+        else:
+            sell_ratio = self.content.get('sell_ratio', 0)
+            if sell_ratio > remaining_investment_ratio:
+                return remaining_investment_ratio
+            else:
+                return sell_ratio
+        
 
     def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], tracking: Dict[str, Any]):
         if self.is_achieved:
@@ -117,7 +146,7 @@ class InvestmentTarget:
                 return True
         return False
 
-    def settle(self, record_of_today: Dict[str, Any]):
+    def settle(self, record_of_today: Dict[str, Any], safe_sell_ratio: float = 1.0):
         if self.is_achieved:
             return
         else:
@@ -125,6 +154,7 @@ class InvestmentTarget:
             self.content['end_date'] = record_of_today.get('date')
             self.content['sell_price'] = record_of_today.get('close')
             self.content['sell_date'] = record_of_today.get('date')
+            self.content['sell_ratio'] = safe_sell_ratio
             self.content['profit'] = self.content['sell_price'] - self.content['purchase_price']
             self.content['weighted_profit'] = self.content['profit'] * self.content['sell_ratio']
         return self

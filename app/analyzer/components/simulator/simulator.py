@@ -29,7 +29,7 @@ class Simulator:
 
         stock_list = self.preprocess(settings, strategy_class)
 
-        simulate_results = self.simulating(stock_list, strategy_class, settings)
+        simulate_results = self.simulating(stock_list, module_info, settings)
 
         report = self.postprocess(simulate_results, strategy_class, settings, module_info)
         

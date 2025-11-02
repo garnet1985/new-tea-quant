@@ -258,10 +258,10 @@ class SimulatingService:
                 tracker, stock_info, required_data, settings, strategy_class
             )
             if opportunity:
-                # 使用 BaseStrategy 统一构建投资实体
+                # 使用 Investment 统一构建投资实体
                 investment = Investment(
-                    stock=stock_info,
                     record_of_today=record_of_today,
+                    opportunity=opportunity,
                     settings=settings,
                     strategy_class=strategy_class,
                 )

@@ -1,6 +1,5 @@
-from ast import Dict
 from enum import Enum
-from typing import Any
+from typing import Any, Dict
 
 
 class InvestmentTarget:
@@ -23,6 +22,10 @@ class InvestmentTarget:
         date = record_of_today.get('date', '')
 
         self.is_achieved = False
+        self.start_record_ref = record_of_today
+        self.tracker = {
+            'last_check_date': record_of_today.get('date', ''),
+        }
 
         self.content = {
             **stage,
@@ -31,13 +34,11 @@ class InvestmentTarget:
             'start_date': date,
             'end_date': '',
             'target_price': purchase_price * (1 + stage.get('ratio', 0)),
-            'amplitude_tracking': self.update_amplitude_tracking(record_of_today),
+            'amplitude_tracking': {
+                'max_close_reached': { 'price': purchase_price, 'date': date, 'ratio': 0 },
+                'min_close_reached': { 'price': purchase_price, 'date': date, 'ratio': 0 },
+            },
             'extra_fields': extra_fields,
-        }
-
-        self.start_record_ref = record_of_today
-        self.tracker = {
-            'last_check_date': record_of_today.get('date', ''),
         }
     
     def _validate_stage(self, stage: Dict[str, Any]):
@@ -63,21 +64,27 @@ class InvestmentTarget:
 
     def update_amplitude_tracking(self, record_of_today: Dict[str, Any]):
         date = record_of_today.get('date', '')
+        close_price = record_of_today.get('close', 0)
+        purchase_price = self.start_record_ref.get('close', 0)
+        
         last_check_date = self.tracker.get('last_check_date', '')
         if date <= last_check_date:
-            return
+            return self.content['amplitude_tracking']
 
-        close_price = record_of_today.get('close', 0)
         self.tracker['last_check_date'] = date
-        if close_price >= self.amplitude_tracking['max_close_reached']['price']:
-            self.amplitude_tracking['max_close_reached']['price'] = close_price
-            self.amplitude_tracking['max_close_reached']['date'] = date
-            self.amplitude_tracking['max_close_reached']['ratio'] = (close_price - self.start_record_ref.get('close', 0)) / self.start_record_ref.get('close', 0)
+        amplitude_tracking = self.content['amplitude_tracking']
+        
+        if close_price >= amplitude_tracking['max_close_reached']['price']:
+            amplitude_tracking['max_close_reached']['price'] = close_price
+            amplitude_tracking['max_close_reached']['date'] = date
+            amplitude_tracking['max_close_reached']['ratio'] = (close_price - purchase_price) / purchase_price if purchase_price > 0 else 0
             
-        if close_price < self.amplitude_tracking['min_close_reached']['price']:
-            self.amplitude_tracking['min_close_reached']['price'] = close_price
-            self.amplitude_tracking['min_close_reached']['date'] = date
-            self.amplitude_tracking['min_close_reached']['ratio'] = (close_price - self.start_record_ref.get('close', 0)) / self.start_record_ref.get('close', 0)
+        if close_price < amplitude_tracking['min_close_reached']['price']:
+            amplitude_tracking['min_close_reached']['price'] = close_price
+            amplitude_tracking['min_close_reached']['date'] = date
+            amplitude_tracking['min_close_reached']['ratio'] = (close_price - purchase_price) / purchase_price if purchase_price > 0 else 0
+        
+        return amplitude_tracking
 
 
     def is_achieved(self, record_of_today: Dict[str, Any]):

@@ -250,156 +250,156 @@ class InvestmentGoalManager:
         
     #     return False
 
-    @staticmethod
-    def _check_dynamic_stop_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Optional[Dict[str, Any]]]:
-        """检查动态止损"""
-        allowed_lowest_price_ratio = investment.get('targets_tracking', {}).get('dynamic_loss', {}).get('ratio')
-        last_highest_close = investment.get('targets_tracking', {}).get('dynamic_loss', {}).get('last_highest_close')
-        allowed_lowest_price = last_highest_close * (1 + allowed_lowest_price_ratio)
+    # @staticmethod
+    # def _check_dynamic_stop_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    #     """检查动态止损"""
+    #     allowed_lowest_price_ratio = investment.get('targets_tracking', {}).get('dynamic_loss', {}).get('ratio')
+    #     last_highest_close = investment.get('targets_tracking', {}).get('dynamic_loss', {}).get('last_highest_close')
+    #     allowed_lowest_price = last_highest_close * (1 + allowed_lowest_price_ratio)
 
-        if record_of_today['close'] <= allowed_lowest_price:
-            target = investment['targets_tracking']['dynamic_loss'].get('target')
-            if target:
-                InvestmentGoalManager._settle_target(record_of_today, target, investment)
-                return True, target
-        return False, None
+    #     if record_of_today['close'] <= allowed_lowest_price:
+    #         target = investment['targets_tracking']['dynamic_loss'].get('target')
+    #         if target:
+    #             InvestmentGoalManager._settle_target(record_of_today, target, investment)
+    #             return True, target
+    #     return False, None
 
     
-    @staticmethod
-    def _check_protected_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Optional[Dict[str, Any]]]:
-        """检查保本止损"""
-        protected_loss_info = investment['targets_tracking'].get('protected_loss', {})
-        protected_loss_ratio = protected_loss_info.get('ratio')
+    # @staticmethod
+    # def _check_protected_loss(record_of_today: Dict[str, Any], investment: Dict[str, Any], strategy_class: Any) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    #     """检查保本止损"""
+    #     protected_loss_info = investment['targets_tracking'].get('protected_loss', {})
+    #     protected_loss_ratio = protected_loss_info.get('ratio')
         
-        if protected_loss_ratio is None:
-            return False, None
+    #     if protected_loss_ratio is None:
+    #         return False, None
             
-        protected_loss_price = investment['purchase_price'] * (1 + protected_loss_ratio)
+    #     protected_loss_price = investment['purchase_price'] * (1 + protected_loss_ratio)
 
-        if record_of_today['close'] <= protected_loss_price:
-            target = protected_loss_info.get('target')
-            if target:
-                InvestmentGoalManager._settle_target(record_of_today, target, investment)
-                return True, target
-        return False, None
+    #     if record_of_today['close'] <= protected_loss_price:
+    #         target = protected_loss_info.get('target')
+    #         if target:
+    #             InvestmentGoalManager._settle_target(record_of_today, target, investment)
+    #             return True, target
+    #     return False, None
 
 
-    @staticmethod
-    def _check_investment_expiration(investment: Dict[str, Any], record_of_today: Dict[str, Any], strategy_class: Any) -> Dict[str, Any]:
-        # """检查 goal 级别的 fixed_days / fixed_trading_days 到期结算"""
+    # @staticmethod
+    # def _check_investment_expiration(investment: Dict[str, Any], record_of_today: Dict[str, Any], strategy_class: Any) -> Dict[str, Any]:
+    #     # """检查 goal 级别的 fixed_days / fixed_trading_days 到期结算"""
 
-        is_expired = False
+    #     is_expired = False
 
-        if not investment['targets_tracking'].get('expiration', {}).get('is_enabled'):
-            return False, investment
+    #     if not investment['targets_tracking'].get('expiration', {}).get('is_enabled'):
+    #         return False, investment
 
-        date_of_today = record_of_today['date']
-        days_threshold = investment['targets_tracking']['expiration']['fixed_days']
+    #     date_of_today = record_of_today['date']
+    #     days_threshold = investment['targets_tracking']['expiration']['fixed_days']
 
-        left_ratio = investment['targets_tracking']['investment_ratio_left']
-        if left_ratio <= 0:
-            return False, investment
+    #     left_ratio = investment['targets_tracking']['investment_ratio_left']
+    #     if left_ratio <= 0:
+    #         return False, investment
 
-        if investment['targets_tracking']['expiration']['is_trading_days']:
-            investment['targets_tracking']['expiration']['elapsed_trading_days'] += 1
-            if investment['targets_tracking']['expiration']['elapsed_trading_days'] >= days_threshold:
-                is_expired = True
-        else:
-            elapsed_natural_days = AnalyzerService.calculate_days_between(investment['targets_tracking']['expiration']['start_date'], date_of_today)
-            investment['targets_tracking']['expiration']['elapsed_natural_days'] = elapsed_natural_days
-            if elapsed_natural_days >= days_threshold:
-                is_expired = True
+    #     if investment['targets_tracking']['expiration']['is_trading_days']:
+    #         investment['targets_tracking']['expiration']['elapsed_trading_days'] += 1
+    #         if investment['targets_tracking']['expiration']['elapsed_trading_days'] >= days_threshold:
+    #             is_expired = True
+    #     else:
+    #         elapsed_natural_days = AnalyzerService.calculate_days_between(investment['targets_tracking']['expiration']['start_date'], date_of_today)
+    #         investment['targets_tracking']['expiration']['elapsed_natural_days'] = elapsed_natural_days
+    #         if elapsed_natural_days >= days_threshold:
+    #             is_expired = True
 
-        if is_expired:
-            investment['end_date'] = date_of_today
-            investment['targets_tracking']['expiration']['end_date'] = date_of_today
-            investment['is_expired'] = True
-            left_ratio = investment['targets_tracking']['investment_ratio_left']
-            investment['targets_tracking']['investment_ratio_left'] = 0.0
+    #     if is_expired:
+    #         investment['end_date'] = date_of_today
+    #         investment['targets_tracking']['expiration']['end_date'] = date_of_today
+    #         investment['is_expired'] = True
+    #         left_ratio = investment['targets_tracking']['investment_ratio_left']
+    #         investment['targets_tracking']['investment_ratio_left'] = 0.0
 
-            expiry_target = strategy_class.create_expiry_target(record_of_today, left_ratio, investment['targets_tracking']['expiration'])
-            expiry_target = InvestmentGoalManager._settle_target(record_of_today, expiry_target, investment)
+    #         expiry_target = strategy_class.create_expiry_target(record_of_today, left_ratio, investment['targets_tracking']['expiration'])
+    #         expiry_target = InvestmentGoalManager._settle_target(record_of_today, expiry_target, investment)
 
-            investment['completed'].append(expiry_target)
+    #         investment['completed'].append(expiry_target)
 
-        return is_expired, investment
+    #     return is_expired, investment
 
-    @staticmethod
-    def _trigger_actions(actions: List[Dict[str, Any]], record_of_today: Dict[str, Any], investment: Dict[str, Any]) -> Dict[str, Any]:
-        """触发actions"""
-        from app.analyzer.components.base_strategy import BaseStrategy
+    # @staticmethod
+    # def _trigger_actions(actions: List[Dict[str, Any]], record_of_today: Dict[str, Any], investment: Dict[str, Any]) -> Dict[str, Any]:
+    #     """触发actions"""
+    #     from app.analyzer.components.base_strategy import BaseStrategy
 
-        for action in actions:
-            if action.get('set_stop_loss') == 'protected':
-                investment['targets_tracking']['protected_loss']['is_enabled'] = True
-                investment['targets_tracking']['protected_loss']['target'] = BaseStrategy.create_target(
-                    target_type = BaseStrategy.TargetType.STOP_LOSS,
-                    stage = {
-                        'name': 'protected_loss',
-                        'close_invest': True,
-                    },
-                    record_of_today = record_of_today,
-                )
+    #     for action in actions:
+    #         if action.get('set_stop_loss') == 'protected':
+    #             investment['targets_tracking']['protected_loss']['is_enabled'] = True
+    #             investment['targets_tracking']['protected_loss']['target'] = BaseStrategy.create_target(
+    #                 target_type = BaseStrategy.TargetType.STOP_LOSS,
+    #                 stage = {
+    #                     'name': 'protected_loss',
+    #                     'close_invest': True,
+    #                 },
+    #                 record_of_today = record_of_today,
+    #             )
 
-            elif action.get('set_stop_loss') == 'dynamic':
-                investment['targets_tracking']['dynamic_loss']['is_enabled'] = True
-                investment['targets_tracking']['dynamic_loss']['last_highest_close'] = record_of_today['close']
-                investment['targets_tracking']['dynamic_loss']['target'] = BaseStrategy.create_target(
-                    target_type = BaseStrategy.TargetType.STOP_LOSS,
-                    stage = {
-                        'name': 'dynamic_loss',
-                        'ratio': settings.get('goal', {}).get('stop_loss', {}).get('dynamic', {}).get('ratio', -0.1),
-                        'close_invest': True,
-                    },
-                    record_of_today = record_of_today,
-                )
+    #         elif action.get('set_stop_loss') == 'dynamic':
+    #             investment['targets_tracking']['dynamic_loss']['is_enabled'] = True
+    #             investment['targets_tracking']['dynamic_loss']['last_highest_close'] = record_of_today['close']
+    #             investment['targets_tracking']['dynamic_loss']['target'] = BaseStrategy.create_target(
+    #                 target_type = BaseStrategy.TargetType.STOP_LOSS,
+    #                 stage = {
+    #                     'name': 'dynamic_loss',
+    #                     'ratio': settings.get('goal', {}).get('stop_loss', {}).get('dynamic', {}).get('ratio', -0.1),
+    #                     'close_invest': True,
+    #                 },
+    #                 record_of_today = record_of_today,
+    #             )
 
-        return investment
+    #     return investment
 
-    # ================================ utils ================================
-    @staticmethod
-    def _is_investment_completed(investment: Dict[str, Any]) -> bool:
-        """检查投资是否结束"""
-        return investment['targets_tracking']['investment_ratio_left'] <= 0
+    # # ================================ utils ================================
+    # @staticmethod
+    # def _is_investment_completed(investment: Dict[str, Any]) -> bool:
+    #     """检查投资是否结束"""
+    #     return investment['targets_tracking']['investment_ratio_left'] <= 0
 
-    @staticmethod
-    def _get_sell_ration(target: Dict[str, Any], remain_ratio: float) -> Dict[str, Any]:
-        """转换为已结算目标"""
-        if target.get('close_invest'):
-            return remain_ratio
-        else:
-            return min(remain_ratio, target['sell_ratio'])
+    # @staticmethod
+    # def _get_sell_ration(target: Dict[str, Any], remain_ratio: float) -> Dict[str, Any]:
+    #     """转换为已结算目标"""
+    #     if target.get('close_invest'):
+    #         return remain_ratio
+    #     else:
+    #         return min(remain_ratio, target['sell_ratio'])
     
-    @staticmethod
-    def _calculate_days_between(start_date: str, end_date: str) -> int:
-        """计算两个日期之间的天数"""
-        from utils.date.date_utils import DateUtils
+    # @staticmethod
+    # def _calculate_days_between(start_date: str, end_date: str) -> int:
+    #     """计算两个日期之间的天数"""
+    #     from utils.date.date_utils import DateUtils
         
-        try:
-            return DateUtils.get_duration_in_days(start_date, end_date, DateUtils.DATE_FORMAT_YYYYMMDD)
-        except ValueError:
-            logger.warning(f"日期格式错误: {start_date} 或 {end_date}")
-            return 0
+    #     try:
+    #         return DateUtils.get_duration_in_days(start_date, end_date, DateUtils.DATE_FORMAT_YYYYMMDD)
+    #     except ValueError:
+    #         logger.warning(f"日期格式错误: {start_date} 或 {end_date}")
+    #         return 0
 
-    @staticmethod
-    def _validate_customized_targets(updated_targets: List[Dict[str, Any]], completed_targets: List[Dict[str, Any]]) -> None:
-        """验证自定义目标"""
-        for updated_target in updated_targets:
-            if updated_target.get('target_price') is None or updated_target.get('target_price') == 0:
-                raise ValueError(f"target_price is required to update to non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
-            if updated_target.get('sell_ratio') is None or updated_target.get('sell_ratio') == 0:
-                raise ValueError(f"sell_ratio is required to update to non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
+    # @staticmethod
+    # def _validate_customized_targets(updated_targets: List[Dict[str, Any]], completed_targets: List[Dict[str, Any]]) -> None:
+    #     """验证自定义目标"""
+    #     for updated_target in updated_targets:
+    #         if updated_target.get('target_price') is None or updated_target.get('target_price') == 0:
+    #             raise ValueError(f"target_price is required to update to non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
+    #         if updated_target.get('sell_ratio') is None or updated_target.get('sell_ratio') == 0:
+    #             raise ValueError(f"sell_ratio is required to update to non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
 
-        for completed_target in completed_targets:
-            if completed_target.get('sell_price') is None or completed_target.get('target_price') == 0:
-                raise ValueError(f"target_price is required to be non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
-            if completed_target.get('sell_date') is None or completed_target.get('sell_date') == '':
-                raise ValueError(f"sell_date is required to be non empty value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
-            if completed_target.get('sell_ratio') is None or completed_target.get('sell_ratio') == 0:
-                raise ValueError(f"sell_ratio is required to be non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
+    #     for completed_target in completed_targets:
+    #         if completed_target.get('sell_price') is None or completed_target.get('target_price') == 0:
+    #             raise ValueError(f"target_price is required to be non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
+    #         if completed_target.get('sell_date') is None or completed_target.get('sell_date') == '':
+    #             raise ValueError(f"sell_date is required to be non empty value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
+    #         if completed_target.get('sell_ratio') is None or completed_target.get('sell_ratio') == 0:
+    #             raise ValueError(f"sell_ratio is required to be non zero value in your strategy class, please check is_customized_stop_loss_achieved or is_customized_take_profit_achieved function.")
 
 
-    @staticmethod
-    def _update_max_min_close(record_of_today: Dict[str, Any], targets: List[Dict[str, Any]]) -> None:
-        """更新最大最小收盘价"""
+    # @staticmethod
+    # def _update_max_min_close(record_of_today: Dict[str, Any], targets: List[Dict[str, Any]]) -> None:
+    #     """更新最大最小收盘价"""
         # todo: implement this function

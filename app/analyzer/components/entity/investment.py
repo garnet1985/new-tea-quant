@@ -127,6 +127,7 @@ class Investment:
         is_investment_completed = self._check_targets(record_of_today)
 
         if is_investment_completed:
+            logger.info(f"Investment is completed")
             self.settle(record_of_today)
             return True
         # check expiration

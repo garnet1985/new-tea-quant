@@ -176,7 +176,7 @@ class Investment:
             pass
         else:
             for target in take_profit_targets:
-                target.check(record_of_today)
+                target.is_complete(record_of_today)
 
             # if all take profit targets are achieved, the investment is completed
             if self._is_investment_complete():
@@ -203,15 +203,14 @@ class Investment:
     def _check_protected_loss(self, record_of_today: Dict[str, Any]):
         if self.tracker['targets_tracking']['stop_loss']['protected_loss']['is_enabled']:
             target = self.tracker['targets_tracking']['stop_loss']['protected_loss']['target']
-            if target.is_achieved(record_of_today):
-                target.settle(record_of_today)
+            if target.is_complete(record_of_today):
                 self.tracker['targets_tracking']['completed'].append(target)
 
     def _check_dynamic_loss(self, record_of_today: Dict[str, Any]):
         if self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['is_enabled']:
             target = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['target']
             tracking = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']
-            if target.is_dynamic_loss_achieved(record_of_today, tracking):
+            if target.is_dynamic_loss_complete(record_of_today, tracking):
                 target.settle(record_of_today)
                 self.tracker['targets_tracking']['completed'].append(target)
 
@@ -219,8 +218,7 @@ class Investment:
     def _check_normal_stop_loss_targets(self, record_of_today: Dict[str, Any]):
         stop_loss_targets = self.tracker['targets_tracking']['stop_loss']['targets']
         for target in stop_loss_targets:
-            if target.is_achieved(record_of_today):
-                target.settle(record_of_today)
+            if target.is_complete(record_of_today):
                 if self._target_has_actions(target):
                     self._trigger_actions(target, record_of_today)
                     self.tracker['targets_tracking']['completed'].append(target)

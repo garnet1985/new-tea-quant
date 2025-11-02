@@ -21,6 +21,8 @@ class Investment:
         self.settings = settings
         self.strategy_class = strategy_class
 
+        self.opportunity_ref = opportunity
+
         self.content = {}
 
         self.tracker = {
@@ -28,12 +30,12 @@ class Investment:
             'targets_tracking': {},
         }
 
-        self._create(record_of_today, opportunity, settings)
+        self._create(record_of_today, settings)
 
 
-    def _create(self, record_of_today: Dict[str, Any], opportunity: Dict[str, Any], settings: Dict[str, Any]):
+    def _create(self, record_of_today: Dict[str, Any], settings: Dict[str, Any]):
         # set up content
-        self._set_up_content(record_of_today, opportunity)
+        self._set_up_content(record_of_today)
 
         # set up amplitude tracking
         self._set_up_amplitude_tracking(record_of_today)
@@ -42,13 +44,12 @@ class Investment:
         self._set_up_targets(record_of_today, settings)
 
 
-    def _set_up_content(self, record_of_today: Dict[str, Any], opportunity: Dict[str, Any]):
+    def _set_up_content(self, record_of_today: Dict[str, Any]):
         purchase_price = record_of_today.get('close')
         purchase_date = record_of_today.get('date')
 
         self.content = {
-            'stock': opportunity.get('stock', {}),
-            'opportunity_ref': opportunity,
+            'stock': self.opportunity_ref.stock,
             'purchase_price': purchase_price,
             'start_date': purchase_date,
             'end_date': '',
@@ -140,16 +141,19 @@ class Investment:
             return
 
         close_price = record_of_today.get('close')
+        purchase_price = self.start_record_ref.get('close', 0)
         self.tracker['last_check_date'] = date
-        if close_price >= self.amplitude_tracking['max_close_reached']['price']:
-            self.amplitude_tracking['max_close_reached']['price'] = close_price
-            self.amplitude_tracking['max_close_reached']['date'] = date
-            self.amplitude_tracking['max_close_reached']['ratio'] = (close_price - self.start_record_ref.get('close', 0)) / self.start_record_ref.get('close', 0)
+        
+        amplitude_tracking = self.content['amplitude_tracking']
+        if close_price >= amplitude_tracking['max_close_reached']['price']:
+            amplitude_tracking['max_close_reached']['price'] = close_price
+            amplitude_tracking['max_close_reached']['date'] = date
+            amplitude_tracking['max_close_reached']['ratio'] = (close_price - purchase_price) / purchase_price if purchase_price > 0 else 0
             
-        if close_price < self.amplitude_tracking['min_close_reached']['price']:
-            self.amplitude_tracking['min_close_reached']['price'] = close_price
-            self.amplitude_tracking['min_close_reached']['date'] = date
-            self.amplitude_tracking['min_close_reached']['ratio'] = (close_price - self.start_record_ref.get('close', 0)) / self.start_record_ref.get('close', 0)
+        if close_price < amplitude_tracking['min_close_reached']['price']:
+            amplitude_tracking['min_close_reached']['price'] = close_price
+            amplitude_tracking['min_close_reached']['date'] = date
+            amplitude_tracking['min_close_reached']['ratio'] = (close_price - purchase_price) / purchase_price if purchase_price > 0 else 0
 
 
     def _check_targets(self, record_of_today: Dict[str, Any])-> bool:

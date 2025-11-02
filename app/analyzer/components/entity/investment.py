@@ -122,8 +122,6 @@ class Investment:
         if is_investment_completed:
             is_completed = True
             self._settle(record_of_today)
-        else:
-            is_completed = False
 
         # check expiration
         if self.tracker['targets_tracking']['expiration']['is_enabled']:
@@ -360,103 +358,55 @@ class Investment:
 
 
 
-
-
-
-
-
-
-
-
-
-
-    # @staticmethod
-    # def create_investment(
-    #         record_of_today: Dict[str, Any],
-    #         opportunity: Dict[str, Any],
-    #         settings: Dict[str, Any],
-    #     ) -> Dict[str, Any]:
-            
-    #     """
-    #     构建标准投资实体（构建职责专一）。
-    #     """
-    #     purchase_price = record_of_today.get('close')
-    #     purchase_date = record_of_today.get('date')
-
-    #     # base structure
-    #     investment: Dict[str, Any] = {
-    #         'stock': opportunity.get('stock', {}),
-    #         'opportunity_ref': opportunity,
-    #         'purchase_price': purchase_price,
-    #         'start_date': purchase_date,
-    #         'end_date': '',
-    #     }
-
-    #     # amplitude tracking: max/min close reached - should go into each target
-    #     # amplitude_tracking: Dict[str, Any] = {
-    #     #     'max_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-    #     #     'min_close_reached': { 'price': 0, 'date': '', 'ratio': 0 },
-    #     # }
-
-    #     # investment['amplitude_tracking'] = amplitude_tracking
-
-    #     # tracking targets
-    #     target_tracking: Dict[str, Any] = {
-    #         'investment_ratio_left': 1.0,
-    #         'completed': [],
-    #         'protected_loss': {
-    #             'is_enabled': False,
-    #             'target_price': purchase_price * (1 + settings.get('goal', {}).get('stop_loss', {}).get('break_even', {}).get('ratio', 0)),
-    #         },
-    #         'dynamic_loss': {
-    #             'is_enabled': False,
-    #             'last_highest_close': 0.0,
-    #             'ratio': settings.get('goal', {}).get('stop_loss', {}).get('dynamic', {}).get('ratio', -0.1),
-    #         },
-    #         'expiration': {
-    #             'is_enabled': False,
-    #             'fixed_days': settings.get('goal', {}).get('fixed_days', 0),
-    #             'is_trading_days': settings.get('goal', {}).get('is_trading_days', True),
-    #             'elapsed_trading_days': 0,
-    #             'elapsed_natural_days': 0,
-    #             'start_date': purchase_date,
-    #             'end_date': '',
-    #         }
-    #     }
-
-    #     if BaseStrategy.is_customized_stop_loss(settings):
-    #         target_tracking['stop_loss'] = {
-    #             'is_customized': True,
-    #             'targets': BaseStrategy.create_customized_targets(BaseStrategy.TargetType.STOP_LOSS.value, record_of_today),
-    #         }
-    #     else:
-    #         target_tracking['stop_loss'] = {
-    #             'is_customized': False,
-    #             'targets': BaseStrategy.create_targets(BaseStrategy.TargetType.STOP_LOSS, record_of_today, settings.get('goal', {}).get('stop_loss')),
-    #         }
-
-            
-    #     if BaseStrategy.is_customized_take_profit(settings):
-    #         target_tracking['take_profit'] = {
-    #             'is_customized': True,
-    #             'targets': BaseStrategy.create_customized_targets(BaseStrategy.TargetType.TAKE_PROFIT.value, record_of_today),
-    #         }
-    #     else:
-    #         target_tracking['take_profit'] = {
-    #             'is_customized': False,
-    #             'targets': BaseStrategy.create_targets(BaseStrategy.TargetType.TAKE_PROFIT, record_of_today, settings.get('goal', {}).get('take_profit')),
-    #         }
-
-    #     investment['targets_tracking'] = target_tracking
-
-    #     # TODO: debug:
-    #     print(target_tracking)
-
-
-    #     # 透传策略自定义字段（如 momentum 等）
-    #     extra_fields = opportunity.get('extra_fields')
-
-    #     if extra_fields:
-    #         investment['extra_fields'] = extra_fields
-
-    #     return investment
+# Investment
+# │
+# ├── __init__(record_of_today, opportunity, settings, strategy_class)
+# │     ├── 保存初始参数
+# │     ├── 初始化 tracker（追踪器）
+# │     ├── 调用 _create() 初始化投资内容
+# │
+# ├── _create()
+# │     ├── _set_up_content()         # 建立基本信息（价格、日期、股票）
+# │     ├── _set_up_amplitude_tracking()  # 记录初始最大/最小价格
+# │     ├── _set_up_targets()         # 创建止盈止损目标（InvestmentTarget）
+# │
+# ├── check(record_of_today)
+# │     ├── 更新振幅追踪 → _update_amplitude_tracking()
+# │     ├── 检查止盈止损目标 → _check_targets()
+# │     │     ├── 止盈逻辑：
+# │     │     │     ├── 若自定义 → 调用策略类 should_take_profit()
+# │     │     │     └── 否则循环 target.check()
+# │     │     ├── 止损逻辑：
+# │     │     │     ├── 若自定义 → 调用策略类 should_stop_loss()
+# │     │     │     └── 否则执行 _check_stop_loss_targets()
+# │     │     │           ├── _check_protected_loss()
+# │     │     │           ├── _check_dynamic_loss()
+# │     │     │           └── _check_normal_stop_loss_targets()
+# │     ├── 若达到任一目标 → _settle() 结算
+# │     ├── 检查是否过期（_check_expiration()）
+# │     └── 返回 (is_completed, content)
+# │
+# ├── _update_amplitude_tracking()
+# │     ├── 记录当日收盘价变化
+# │     ├── 更新 max/min close 及对应日期
+# │
+# ├── _check_stop_loss_targets()
+# │     ├── _check_protected_loss()
+# │     ├── _check_dynamic_loss()
+# │     └── _check_normal_stop_loss_targets()
+# │
+# ├── _trigger_actions(target, record_of_today, settings)
+# │     ├── 触发目标配置中的 actions，例如：
+# │     │     └── set_stop_loss: 设置保护性止损或动态止损
+# │
+# ├── _check_expiration()
+# │     ├── 检查持仓是否超出到期天数（交易日 / 自然日）
+# │
+# ├── _settle()
+# │     ├── 记录结束日期、交易天数
+# │     ├── 保存追踪信息（振幅、目标、止损状态等）
+# │
+# └── 工具函数
+#       ├── _is_investment_complete()  # 判断是否已清仓
+#       ├── _get_sell_ratio()          # 计算卖出比例
+#       └── _has_actions()             # 判断目标是否带有后续动作

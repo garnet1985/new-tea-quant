@@ -253,7 +253,6 @@ class SimulatingService:
         if investment:
             if investment.is_completed(record_of_today):
                 # settle已经在is_completed内部完成，调用settle获取settled字典
-                investment.settle(record_of_today)
                 tracker['settled'].append(investment)
                 tracker['investing'] = None
 
@@ -263,14 +262,12 @@ class SimulatingService:
                 tracker, stock_info, required_data, settings, strategy_class
             )
             if opportunity:
-                # 使用 Investment 统一构建投资实体
-                investment = Investment(
+                tracker['investing'] = Investment(
                     record_of_today=record_of_today,
                     opportunity=opportunity,
                     settings=settings,
                     strategy_class=strategy_class,
                 )
-                tracker['investing'] = investment
 
     @staticmethod
     def settle_open_investment(tracker: Dict[str, Any], last_record_of_today: Dict[str, Any]) -> None:

@@ -87,7 +87,7 @@ class InvestmentTarget:
         return amplitude_tracking
 
 
-    def is_achieved(self, record_of_today: Dict[str, Any]):
+    def is_complete(self, record_of_today: Dict[str, Any]):
         if self.is_achieved:
             return True
         else:
@@ -102,7 +102,7 @@ class InvestmentTarget:
                 return True
         return False
 
-    def is_dynamic_loss_achieved(self, record_of_today: Dict[str, Any], tracking: Dict[str, Any]):
+    def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], tracking: Dict[str, Any]):
         if self.is_achieved:
             return True
         else:

@@ -1,5 +1,7 @@
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+
+from loguru import logger
 
 from utils.date.date_utils import DateUtils
 
@@ -60,19 +62,19 @@ class InvestmentTarget:
         return stage
 
 
-    def is_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float = 1.0):
+    def is_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float = 1.0) -> Tuple[bool, float]:
         """检查目标是否完成，如果完成则立即settle"""
         if self.is_achieved:
             # return False to avoid push into completed list twice
-            return False
+            return False, remaining_investment_ratio
 
         if remaining_investment_ratio <= 0:
             # return False to avoid push into completed list twice
-            return False
+            return False, remaining_investment_ratio
 
         if DateUtils.is_before_or_same_day(record_of_today.get('date'), self.tracker.get('last_updated_date')):
             # return False to avoid push into completed list twice
-            return False
+            return False, remaining_investment_ratio
 
         close_price = record_of_today.get('close', 0)
         target_price = self.content['target_price']
@@ -93,9 +95,9 @@ class InvestmentTarget:
             # 计算sell_ratio
             sell_ratio = self._calc_sell_ratio(remaining_investment_ratio)
             self.settle(record_of_today, sell_ratio)
-            return True
+            return True, remaining_investment_ratio - sell_ratio
         
-        return False
+        return False, remaining_investment_ratio
 
     def _calc_sell_ratio(self, remaining_investment_ratio: float):
         if self.content.get('close_invest'):
@@ -137,6 +139,7 @@ class InvestmentTarget:
             self.content['sell_ratio'] = safe_sell_ratio
             self.content['profit'] = self.content['sell_price'] - self.content['purchase_price']
             self.content['weighted_profit'] = self.content['profit'] * self.content['sell_ratio']
+            self.content['profit_ratio'] = self.content['profit'] / self.content['purchase_price']
         return self
 
     def to_dict(self):

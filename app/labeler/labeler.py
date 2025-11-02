@@ -79,8 +79,6 @@ class LabelerService:
         self.registry.register_calculator(VolumeLabelCalculator, 'volume')
         self.registry.register_calculator(FinancialLabelCalculator, 'financial')
         
-        logger.info(f"✅ 已注册 {len(self.registry.calculators)} 个标签计算器")
-    
     def get_calculator(self, category: str) -> Optional[BaseLabelCalculator]:
         """
         获取指定分类的计算器实例

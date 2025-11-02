@@ -157,7 +157,11 @@ class SimulatingService:
             last_record_of_today = current_record
         
         # 回测结束清算未结投资
-        SimulatingService.settle_open_investment(tracker, last_record_of_today, strategy_class)
+        # SimulatingService.settle_open_investment(tracker, last_record_of_today)
+
+        # TODO: test code, remove later
+        # exampleInv = tracker['settled'][0]
+        # print(exampleInv.tracker['targets_tracking']['completed'])
 
         # 清理临时数据
         del tracker['passed_dates']
@@ -249,8 +253,8 @@ class SimulatingService:
         if investment:
             if investment.is_completed(record_of_today):
                 # settle已经在is_completed内部完成，调用settle获取settled字典
-                settled_investment = investment.settle(record_of_today)
-                tracker['settled'].append(settled_investment)
+                investment.settle(record_of_today)
+                tracker['settled'].append(investment)
                 tracker['investing'] = None
 
         else:
@@ -269,7 +273,7 @@ class SimulatingService:
                 tracker['investing'] = investment
 
     @staticmethod
-    def settle_open_investment(tracker: Dict[str, Any], last_record_of_today: Dict[str, Any], strategy_class: Any) -> None:
+    def settle_open_investment(tracker: Dict[str, Any], last_record_of_today: Dict[str, Any]) -> None:
         """
         回测结束时清算未结投资：按最后一个交易日价格结算剩余仓位，并转为settled结构。
         """
@@ -277,26 +281,8 @@ class SimulatingService:
         if not investment or not last_record_of_today:
             return
 
-        # Handle Investment object
-        if hasattr(investment, 'settle'):
-            # Update amplitude tracking for last day
-            investment._update_amplitude_tracking(last_record_of_today)
-            
-            # Settle as open investment
-            settled_investment = investment.settle(last_record_of_today, is_open=True)
-            tracker['settled'].append(settled_investment)
-        else:
-            # Legacy dict format (should not happen, but handle for safety)
-            remaining = float(investment.get('targets_tracking', {}).get('remaining_investment_ratio', 0) or 0.0)
-            final_close = float(last_record_of_today.get('close') or 0.0)
-            final_date = last_record_of_today.get('date')
-            if remaining > 0 and final_date:
-                SimulatingService.update_investment_max_min_close(investment, last_record_of_today)
-                investment['targets_tracking']['remaining_investment_ratio'] = 0
-                investment['end_date'] = final_date
-            
-            tracker['settled'].append(investment)
-        
+        investment.settle(last_record_of_today, is_open=True)
+        tracker['settled'].append(investment)
         tracker['investing'] = None
 
     @staticmethod

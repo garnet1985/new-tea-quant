@@ -31,13 +31,13 @@ class Simulator:
 
         simulate_results = self.simulating(stock_list, strategy_class, settings)
 
-        report = self.postprocess(simulate_results, strategy_class, settings, module_info)
+        # report = self.postprocess(simulate_results, strategy_class, settings, module_info)
         
         
-        total_time = time.time() - start_time
-        logger.info(f"{IconService.get('success')} 模拟流程完成！总耗时: {total_time:.2f}秒")
+        # total_time = time.time() - start_time
+        # logger.info(f"{IconService.get('success')} 模拟流程完成！总耗时: {total_time:.2f}秒")
         
-        return report
+        # return report
     
     
     def preprocess(self, settings: Dict[str, Any], strategy_class: Any) -> List[Dict[str, Any]]:

@@ -1,5 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Tuple
+
+from loguru import logger
 from app.analyzer.components.entity.target import InvestmentTarget
 from utils.date.date_utils import DateUtils 
 
@@ -44,6 +46,9 @@ class Investment:
         # set up targets tracking
         self._set_up_targets(record_of_today, settings)
 
+        logger.info(f"Investment created")
+
+
 
     def _set_up_content(self, record_of_today: Dict[str, Any]):
         purchase_price = record_of_today.get('close')
@@ -54,7 +59,6 @@ class Investment:
             'purchase_price': purchase_price,
             'start_date': purchase_date,
             'end_date': '',
-            'trading_days': 0,
         }
 
     def _set_up_amplitude_tracking(self, record_of_today: Dict[str, Any]):
@@ -105,6 +109,7 @@ class Investment:
         if not self.is_customized_stop_loss:
             for stage in stop_loss_settings.get('stages', []):
                 self.tracker['targets_tracking']['stop_loss']['targets'].append(InvestmentTarget(InvestmentTarget.TargetType.STOP_LOSS, record_of_today, stage))
+
 
     def is_completed(self, record_of_today: Dict[str, Any])-> bool:
         """
@@ -174,15 +179,15 @@ class Investment:
             # is_investment_completed, achieved_targets = strategy_class.should_take_profit(record_of_today, self.content, self.tracker, self.settings)
             pass
         else:
-
             for target in take_profit_targets:
-                if target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio']):
-                    # settle已经在is_complete内部完成
+                is_target_completed, remaining_investment_ratio = target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
+                if is_target_completed:
+                    self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
                     self.tracker['targets_tracking']['completed'].append(target)
-                    self.tracker['targets_tracking']['remaining_investment_ratio'] -= target.content.get('sell_ratio', 0)
 
             # if all take profit targets are achieved, the investment is completed
             if self._is_investment_complete():
+                logger.info(f"Investment (profit) is completed")
                 return True
 
         if self.is_customized_stop_loss:
@@ -194,6 +199,7 @@ class Investment:
 
             # if all stop loss targets are achieved, the investment is completed
             if self._is_investment_complete():
+                logger.info(f"Investment (stop loss) is completed")
                 return True
 
         return False
@@ -206,10 +212,13 @@ class Investment:
     def _check_protected_loss(self, record_of_today: Dict[str, Any]):
         if self.tracker['targets_tracking']['stop_loss']['protected_loss']['is_enabled']:
             target = self.tracker['targets_tracking']['stop_loss']['protected_loss']['target']
-            if target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio']):
+            is_target_completed, remaining_investment_ratio = target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
+            if is_target_completed:
+                self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
                 self.tracker['targets_tracking']['completed'].append(target)
 
     def _check_dynamic_loss(self, record_of_today: Dict[str, Any]):
+        # TODO: to be checked, seems some errors
         if self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['is_enabled']:
             target = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['target']
             tracking = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']
@@ -221,7 +230,11 @@ class Investment:
     def _check_normal_stop_loss_targets(self, record_of_today: Dict[str, Any]):
         stop_loss_targets = self.tracker['targets_tracking']['stop_loss']['targets']
         for target in stop_loss_targets:
-            if target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio']):
+            is_target_completed, remaining_investment_ratio = target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
+            if is_target_completed:
+                # TODO: test code, remove later
+                self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
+                # logger.info(f"Stop loss target completed: {target.content}")
                 if self._target_has_actions(target):
                     self._trigger_actions(target, record_of_today)
                     self.tracker['targets_tracking']['completed'].append(target)
@@ -285,7 +298,7 @@ class Investment:
                     )
 
                     self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['target'] = dynamic_loss_target
-        # todo: add other actions
+        # TODO: to be extended: add other actions
 
     def settle(self, record_of_today: Dict[str, Any], is_open: bool = False) -> Dict[str, Any]:
         """
@@ -296,6 +309,9 @@ class Investment:
         Returns:
             investment: settled investment as dict
         """
+
+        logger.info(f"Investment settling")
+        
         if self.is_settled:
             return
         

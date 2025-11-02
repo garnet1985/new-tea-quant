@@ -22,9 +22,10 @@ class InvestmentTarget:
         purchase_price = record_of_today.get('close', 0)
         date = record_of_today.get('date', '')
 
+        self.is_achieved = False
+
         self.content = {
             **stage,
-            'is_achieved': False,
             'target_type': target_type.value,
             'purchase_price': purchase_price,
             'start_date': date,
@@ -79,15 +80,47 @@ class InvestmentTarget:
             self.amplitude_tracking['min_close_reached']['ratio'] = (close_price - self.start_record_ref.get('close', 0)) / self.start_record_ref.get('close', 0)
 
 
-    def check(self, record_of_today: Dict[str, Any]):
-        date = record_of_today.get('date', '')
-        last_check_date = self.tracker.get('last_check_date', '')
-        if date <= last_check_date:
-            return
+    def is_achieved(self, record_of_today: Dict[str, Any]):
+        if self.is_achieved:
+            return True
+        else:
+            date = record_of_today.get('date', '')
+            last_check_date = self.tracker.get('last_check_date', '')
+            if date <= last_check_date:
+                return False
 
-        close_price = record_of_today.get('close', 0)
-        if close_price >= self.content['target_price']:
-            self.content['is_achieved'] = True
+            close_price = record_of_today.get('close', 0)
+            if close_price >= self.content['target_price']:
+                self.settle(record_of_today)
+                return True
+        return False
+
+    def is_dynamic_loss_achieved(self, record_of_today: Dict[str, Any], tracking: Dict[str, Any]):
+        if self.is_achieved:
+            return True
+        else:
+            date = record_of_today.get('date', '')
+            last_check_date = self.tracker.get('last_check_date', '')
+            if date <= last_check_date:
+                return False
+
+            close_price = record_of_today.get('close', 0)
+            if close_price < self.content['target_price']:
+                self.settle(record_of_today)
+                return True
+        return False
+
+    def settle(self, record_of_today: Dict[str, Any]):
+        if self.is_achieved:
+            return
+        else:
+            self.is_achieved = True
+            self.content['end_date'] = record_of_today.get('date')
+            self.content['sell_price'] = record_of_today.get('close')
+            self.content['sell_date'] = record_of_today.get('date')
+            self.content['profit'] = self.content['sell_price'] - self.content['purchase_price']
+            self.content['weighted_profit'] = self.content['profit'] * self.content['sell_ratio']
+        return self
 
     def to_dict(self):
         return self.content

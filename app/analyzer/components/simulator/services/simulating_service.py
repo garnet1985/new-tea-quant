@@ -247,12 +247,10 @@ class SimulatingService:
         
         investment = tracker['investing']
         if investment:
-            is_investment_completed, investment = investment.check(record_of_today)
-            if is_investment_completed:
+            if investment.is_completed(record_of_today):
+                investment.settle(record_of_today)
                 tracker['settled'].append(investment)
                 tracker['investing'] = None
-            else:
-                tracker['investing'] = investment
 
         else:
             # 智能信号检测：使用缓存避免重复计算

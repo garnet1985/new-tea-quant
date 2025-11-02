@@ -104,14 +104,35 @@ class Investment:
             for stage in stop_loss_settings.get('stages', []):
                 self.tracker['targets_tracking']['stop_loss']['targets'].append(InvestmentTarget(InvestmentTarget.TargetType.STOP_LOSS, record_of_today, stage))
 
-
     def check(self, record_of_today: Dict[str, Any])-> Tuple[bool, Dict[str, Any]]:
+        """
+        check investment and update investment tracking
+
+        Args:
+            record_of_today: record of today
+        Returns:
+            is_investment_completed: whether the investment is completed
+            investment: investment
+        """
+        is_completed = False
+
         self._update_amplitude_tracking(record_of_today)
         is_investment_completed = self._check_targets(record_of_today)
+
         if is_investment_completed:
-            return True, self._settle(record_of_today)
+            is_completed = True
+            self._settle(record_of_today)
         else:
-            return False, None
+            is_completed = False
+
+        # check expiration
+        if self.tracker['targets_tracking']['expiration']['is_enabled']:
+            is_expired = self._check_expiration(record_of_today)
+            if is_expired:
+                is_completed = True
+                self._settle(record_of_today)
+
+        return is_completed, self.content
 
 
     def _update_amplitude_tracking(self, record_of_today: Dict[str, Any]):
@@ -133,13 +154,19 @@ class Investment:
             self.amplitude_tracking['min_close_reached']['ratio'] = (close_price - self.start_record_ref.get('close', 0)) / self.start_record_ref.get('close', 0)
 
 
-    def _check_targets(self, targets_tracking: Dict[str, Any], record_of_today: Dict[str, Any])-> Tuple[bool, Dict[str, Any]]:
-        is_investment_completed = self._is_investment_complete();
-        if is_investment_completed:
-            return True
+    def _check_targets(self, record_of_today: Dict[str, Any])-> bool:
+        """
+        check targets and update targets tracking
+
+        Args:
+            record_of_today: record of today
+        Returns:
+            is_investment_completed: whether the investment is completed
+        """
+        if self._is_investment_complete():
+            return False
         
-        take_profit_targets = targets_tracking['take_profit']['targets']
-        stop_loss_targets = targets_tracking['stop_loss']['targets']
+        take_profit_targets = self.tracker['targets_tracking']['take_profit']['targets']
 
         if self.is_customized_take_profit:
             # todo: use strategy class should take profit
@@ -149,63 +176,55 @@ class Investment:
             for target in take_profit_targets:
                 target.check(record_of_today)
 
+            # if all take profit targets are achieved, the investment is completed
             if self._is_investment_complete():
-                is_investment_completed = True
-                return is_investment_completed
+                return True
 
         if self.is_customized_stop_loss:
             # todo: use strategy class should stop loss
             # is_investment_completed, achieved_targets = strategy_class.should_stop_loss(record_of_today, self.content, self.tracker, self.settings)
             pass
         else:
-            self._check_stop_loss_targets(stop_loss_targets, record_of_today)
+            self._check_stop_loss_targets(record_of_today)
+
+            # if all stop loss targets are achieved, the investment is completed
             if self._is_investment_complete():
-                is_investment_completed = True
-                return is_investment_completed
+                return True
 
-        if self.tracker['targets_tracking']['expiration']['is_enabled']:
-            return self._check_expiration(record_of_today)
+        return False
 
-        return is_investment_completed
+    def _check_stop_loss_targets(self, record_of_today: Dict[str, Any]):
+        self._check_protected_loss(record_of_today)
+        self._check_dynamic_loss(record_of_today)
+        self._check_normal_stop_loss_targets(record_of_today)
 
-    def _check_stop_loss_targets(self, targets: List[InvestmentTarget], record_of_today: Dict[str, Any]):
+    def _check_protected_loss(self, record_of_today: Dict[str, Any]):
         if self.tracker['targets_tracking']['stop_loss']['protected_loss']['is_enabled']:
             target = self.tracker['targets_tracking']['stop_loss']['protected_loss']['target']
-            is_achieved = self._check_protected_loss(targets, record_of_today)
+            is_achieved = target.check_protected_loss(record_of_today)
             if is_achieved:
                 target.settle(record_of_today)
                 self.tracker['targets_tracking']['completed'].append(target)
 
+    def _check_dynamic_loss(self, record_of_today: Dict[str, Any]):
         if self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['is_enabled']:
             target = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['target']
-            is_achieved = self._check_dynamic_loss(targets, record_of_today)
+            tracking = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']
+            is_achieved = target.check_dynamic_loss(record_of_today, tracking)
             if is_achieved:
                 target.settle(record_of_today)
                 self.tracker['targets_tracking']['completed'].append(target)
-    
-        for target in targets:
+
+
+    def _check_normal_stop_loss_targets(self, record_of_today: Dict[str, Any]):
+        stop_loss_targets = self.tracker['targets_tracking']['stop_loss']['targets']
+        for target in stop_loss_targets:
             is_achieved = target.check(record_of_today)
             if is_achieved:
                 target.settle(record_of_today)
                 if self._has_actions(target):
                     self._trigger_actions(target, record_of_today)
-                self.tracker['targets_tracking']['completed'].append(target)
-
-    def _check_protected_loss(self, targets: List[InvestmentTarget], record_of_today: Dict[str, Any]):
-        if self.tracker['targets_tracking']['stop_loss']['protected_loss']['is_enabled']:
-            # todo: use strategy class should protected loss
-            pass
-        else:
-            for target in targets:
-                target.check(record_of_today)
-
-    def _check_dynamic_loss(self, targets: List[InvestmentTarget], record_of_today: Dict[str, Any]):
-        if self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['is_enabled']:
-            # todo: use strategy class should dynamic loss
-            pass
-        else:
-            for target in targets:
-                target.check(record_of_today)
+                    self.tracker['targets_tracking']['completed'].append(target)
 
 
     def _check_expiration(self, record_of_today: Dict[str, Any])-> bool:

@@ -3,6 +3,7 @@
 日期工具类 - 提供统一的日期转换和处理方法
 """
 from datetime import datetime, timedelta
+from turtle import st
 from typing import List, Optional
 
 
@@ -31,6 +32,15 @@ class DateUtils:
         """
         return datetime.now().strftime(format_str)
     
+    @staticmethod
+    def is_before_or_same_day(date1: str, date2: str) -> bool:
+        """
+        判断date1是否在date2之前或同一天
+        """
+        date1_obj = datetime.strptime(date1, DateUtils.DATE_FORMAT_YYYYMMDD)
+        date2_obj = datetime.strptime(date2, DateUtils.DATE_FORMAT_YYYYMMDD)
+        return date1_obj.date() <= date2_obj.date()
+
     @staticmethod
     def convert_date_format(date_str: str, from_format: str, to_format: str) -> str:
         """

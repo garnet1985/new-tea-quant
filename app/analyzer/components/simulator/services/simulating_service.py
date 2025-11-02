@@ -247,9 +247,9 @@ class SimulatingService:
         
         investment = tracker['investing']
         if investment:
-            is_completed, settled_investment = investment.is_completed(record_of_today)
-            if is_completed:
-                # settle已经在is_completed内部完成，直接使用返回的settled字典
+            if investment.is_completed(record_of_today):
+                # settle已经在is_completed内部完成，调用settle获取settled字典
+                settled_investment = investment.settle(record_of_today)
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None
 

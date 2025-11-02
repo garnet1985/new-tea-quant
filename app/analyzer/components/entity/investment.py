@@ -174,8 +174,12 @@ class Investment:
             # is_investment_completed, achieved_targets = strategy_class.should_take_profit(record_of_today, self.content, self.tracker, self.settings)
             pass
         else:
+
             for target in take_profit_targets:
-                target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
+                if target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio']):
+                    # settle已经在is_complete内部完成
+                    self.tracker['targets_tracking']['completed'].append(target)
+                    self.tracker['targets_tracking']['remaining_investment_ratio'] -= target.content.get('sell_ratio', 0)
 
             # if all take profit targets are achieved, the investment is completed
             if self._is_investment_complete():

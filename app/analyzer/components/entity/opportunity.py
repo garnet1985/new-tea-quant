@@ -11,15 +11,17 @@ class Opportunity:
         upper_bound: float = None,
         extra_fields: Dict[str, Any] = None
     ):
+        current_price = record_of_today.get('close', 0) or 0
         if lower_bound is None:
-            lower_bound = record_of_today * (1 - price_tolerance)
+            lower_bound = current_price * (1 - price_tolerance)
         if upper_bound is None:
-            upper_bound = record_of_today * (1 + price_tolerance)
+            upper_bound = current_price * (1 + price_tolerance)
 
+        self.stock = stock
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
 
-        self.price = record_of_today.get('close', 0) or 0
+        self.price = current_price
         self.date = record_of_today.get('date') or ''
 
         self.extra_fields = extra_fields or {}

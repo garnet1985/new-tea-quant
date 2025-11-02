@@ -12,6 +12,7 @@ from loguru import logger
 
 from app.analyzer.components.base_strategy import BaseStrategy
 from app.data_source.enums import KlineTerm
+from app.analyzer.components.entity.opportunity import Opportunity
 
 
 class RandomStrategy(BaseStrategy):
@@ -71,14 +72,9 @@ class RandomStrategy(BaseStrategy):
                 #     'name': stock_info.get('name', stock_id)
                 # }
 
-                return BaseStrategy.create_opportunity(
+                return Opportunity(
                     stock=stock_info,
                     record_of_today=record_of_today,
-                    # extra_fields={
-                    #     'stop_loss': stop_loss_ratio,
-                    #     'take_profit': take_profit_ratio,
-                    #     'amplitude_delta': amplitude_delta,
-                    # },
                 )
 
             return None

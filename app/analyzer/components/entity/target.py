@@ -1,6 +1,8 @@
 from enum import Enum
 from typing import Any, Dict
 
+from utils.date.date_utils import DateUtils
+
 
 class InvestmentTarget:
 
@@ -24,7 +26,7 @@ class InvestmentTarget:
         self.is_achieved = False
         self.start_record_ref = record_of_today
         self.tracker = {
-            'last_check_date': record_of_today.get('date', ''),
+            'last_updated_date': record_of_today.get('date', ''),
         }
 
         self.content = {
@@ -34,10 +36,6 @@ class InvestmentTarget:
             'start_date': date,
             'end_date': '',
             'target_price': purchase_price * (1 + stage.get('ratio', 0)),
-            'amplitude_tracking': {
-                'max_close_reached': { 'price': purchase_price, 'date': date, 'ratio': 0 },
-                'min_close_reached': { 'price': purchase_price, 'date': date, 'ratio': 0 },
-            },
             'extra_fields': extra_fields,
         }
     
@@ -62,39 +60,18 @@ class InvestmentTarget:
         return stage
 
 
-    def update_amplitude_tracking(self, record_of_today: Dict[str, Any]):
-        date = record_of_today.get('date', '')
-        close_price = record_of_today.get('close', 0)
-        purchase_price = self.start_record_ref.get('close', 0)
-        
-        last_check_date = self.tracker.get('last_check_date', '')
-        if date <= last_check_date:
-            return self.content['amplitude_tracking']
-
-        self.tracker['last_check_date'] = date
-        amplitude_tracking = self.content['amplitude_tracking']
-        
-        if close_price >= amplitude_tracking['max_close_reached']['price']:
-            amplitude_tracking['max_close_reached']['price'] = close_price
-            amplitude_tracking['max_close_reached']['date'] = date
-            amplitude_tracking['max_close_reached']['ratio'] = (close_price - purchase_price) / purchase_price if purchase_price > 0 else 0
-            
-        if close_price < amplitude_tracking['min_close_reached']['price']:
-            amplitude_tracking['min_close_reached']['price'] = close_price
-            amplitude_tracking['min_close_reached']['date'] = date
-            amplitude_tracking['min_close_reached']['ratio'] = (close_price - purchase_price) / purchase_price if purchase_price > 0 else 0
-        
-        return amplitude_tracking
-
-
     def is_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float = 1.0):
         """检查目标是否完成，如果完成则立即settle"""
         if self.is_achieved:
-            return True
-        
-        date = record_of_today.get('date', '')
-        last_check_date = self.tracker.get('last_check_date', '')
-        if date <= last_check_date:
+            # return False to avoid push into completed list twice
+            return False
+
+        if remaining_investment_ratio <= 0:
+            # return False to avoid push into completed list twice
+            return False
+
+        if DateUtils.is_before_or_same_day(record_of_today.get('date'), self.tracker.get('last_updated_date')):
+            # return False to avoid push into completed list twice
             return False
 
         close_price = record_of_today.get('close', 0)
@@ -133,13 +110,16 @@ class InvestmentTarget:
 
     def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], tracking: Dict[str, Any]):
         if self.is_achieved:
-            return True
+            # return False to avoid push into completed list twice
+            return False
         else:
             date = record_of_today.get('date', '')
-            last_check_date = self.tracker.get('last_check_date', '')
-            if date <= last_check_date:
+            last_updated_date = self.tracker.get('last_updated_date', '')
+            if DateUtils.is_before_or_same_day(date, last_updated_date):
+                # return False to avoid push into completed list twice
                 return False
 
+            self.tracker['last_updated_date'] = date
             close_price = record_of_today.get('close', 0)
             if close_price < self.content['target_price']:
                 self.settle(record_of_today)

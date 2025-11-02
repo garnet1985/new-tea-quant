@@ -826,26 +826,26 @@ class BaseStrategy(ABC):
 
     # -------------- target entity builder: --------------------
 
-    @staticmethod
-    def create_targets(target_type: 'BaseStrategy.TargetType', record_of_today: Dict[str, Any], goal_info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        基于 settings.goal 生成一组静态 targets（不依赖价格）。
-        - 配置型：遍历 stages 生成 target 列表（target_price/purchase_price/current_price 为空）
-        - 自定义型：此处不生成（需运行时 should_*），返回空列表
-        返回统一 Target 列表（不区分止盈/止损层级）。
+    # @staticmethod
+    # def create_targets(target_type: 'BaseStrategy.TargetType', record_of_today: Dict[str, Any], goal_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+    #     """
+    #     基于 settings.goal 生成一组静态 targets（不依赖价格）。
+    #     - 配置型：遍历 stages 生成 target 列表（target_price/purchase_price/current_price 为空）
+    #     - 自定义型：此处不生成（需运行时 should_*），返回空列表
+    #     返回统一 Target 列表（不区分止盈/止损层级）。
         
-        Args:
-            goal_def: 目标配置（take_profit 或 stop_loss）
-            record_of_today: 当前交易日记录
-            target_type: 目标类型枚举，BaseStrategy.TargetType.TAKE_PROFIT 或 BaseStrategy.TargetType.STOP_LOSS
-        """
-        stages = goal_info.get('stages', [])
-        targets: List[Dict[str, Any]] = []
+    #     Args:
+    #         goal_def: 目标配置（take_profit 或 stop_loss）
+    #         record_of_today: 当前交易日记录
+    #         target_type: 目标类型枚举，BaseStrategy.TargetType.TAKE_PROFIT 或 BaseStrategy.TargetType.STOP_LOSS
+    #     """
+    #     stages = goal_info.get('stages', [])
+    #     targets: List[Dict[str, Any]] = []
         
-        for stage in stages:
-            targets.append(BaseStrategy.create_target(target_type, record_of_today, stage))
+    #     for stage in stages:
+    #         targets.append(BaseStrategy.create_target(target_type, record_of_today, stage))
         
-        return targets
+    #     return targets
 
     # @staticmethod
     # def create_target(
@@ -882,57 +882,57 @@ class BaseStrategy(ABC):
     #     }
     #     return target
 
-    @staticmethod
-    def create_customized_targets(target_type: str, record_of_today: Dict[str, Any], extra_fields: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """
-        规范化构建一个自定义目标实体（统一字段）
-        """
-        # target_type 是字符串 ('take_profit' 或 'stop_loss')，需要转换为枚举
-        target_type_enum = BaseStrategy.TargetType.TAKE_PROFIT if target_type == 'take_profit' else BaseStrategy.TargetType.STOP_LOSS
-        customized_targets = []
-        customized_targets.append(BaseStrategy.create_target(
-            stage = {
-                'name': f'customized_{target_type}',
-                'sell_ratio': 0,
-            }, 
-            record_of_today = record_of_today,
-            extra_fields = extra_fields,
-            target_type = target_type_enum
-        ))
-        return customized_targets
+    # @staticmethod
+    # def create_customized_targets(target_type: str, record_of_today: Dict[str, Any], extra_fields: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    #     """
+    #     规范化构建一个自定义目标实体（统一字段）
+    #     """
+    #     # target_type 是字符串 ('take_profit' 或 'stop_loss')，需要转换为枚举
+    #     target_type_enum = BaseStrategy.TargetType.TAKE_PROFIT if target_type == 'take_profit' else BaseStrategy.TargetType.STOP_LOSS
+    #     customized_targets = []
+    #     customized_targets.append(BaseStrategy.create_target(
+    #         stage = {
+    #             'name': f'customized_{target_type}',
+    #             'sell_ratio': 0,
+    #         }, 
+    #         record_of_today = record_of_today,
+    #         extra_fields = extra_fields,
+    #         target_type = target_type_enum
+    #     ))
+    #     return customized_targets
 
-    @staticmethod
-    def create_expiry_target(record_of_today: Dict[str, Any], sell_ratio: float, expiration_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        # 到期目标可以视为一种特殊的止损（到期清仓）
-        return BaseStrategy.create_target(
-            stage={
-                'name': 'investment_expired',
-                'close_invest': True,
-                'sell_ratio': sell_ratio,
-            },
-            record_of_today=record_of_today,
-            extra_fields=expiration_info,
-            target_type=BaseStrategy.TargetType.STOP_LOSS  # 到期清仓视为止损类型
-        )   
+    # @staticmethod
+    # def create_expiry_target(record_of_today: Dict[str, Any], sell_ratio: float, expiration_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    #     # 到期目标可以视为一种特殊的止损（到期清仓）
+    #     return BaseStrategy.create_target(
+    #         stage={
+    #             'name': 'investment_expired',
+    #             'close_invest': True,
+    #             'sell_ratio': sell_ratio,
+    #         },
+    #         record_of_today=record_of_today,
+    #         extra_fields=expiration_info,
+    #         target_type=BaseStrategy.TargetType.STOP_LOSS  # 到期清仓视为止损类型
+    #     )   
 
-    @staticmethod
-    def to_completed_target(target: Dict[str, Any], sell_price: float, sell_date: str, extra_fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return {
-            **target,
-            'is_achieved': True,
-            'sell_price': sell_price,
-            'sell_date': sell_date,
-            'extra_fields': {
-                **target.get('extra_fields', {}),
-                **(extra_fields or {}),
-            }
-        }
+    # @staticmethod
+    # def to_completed_target(target: Dict[str, Any], sell_price: float, sell_date: str, extra_fields: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    #     return {
+    #         **target,
+    #         'is_achieved': True,
+    #         'sell_price': sell_price,
+    #         'sell_date': sell_date,
+    #         'extra_fields': {
+    #             **target.get('extra_fields', {}),
+    #             **(extra_fields or {}),
+    #         }
+    #     }
 
-    @staticmethod
-    def get_targets(settings = None, investment = None):
-        if investment and investment.get('targets'):
-            return investment.get('targets')
-        return BaseStrategy.create_targets(settings or {})
+    # @staticmethod
+    # def get_targets(settings = None, investment = None):
+    #     if investment and investment.get('targets'):
+    #         return investment.get('targets')
+    #     return BaseStrategy.create_targets(settings or {})
 
     
     # -------------- opportunity entity builder: --------------------

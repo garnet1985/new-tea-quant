@@ -6,6 +6,9 @@
 # 核心组件
 from app.data_loader import DataLoader  # 使用全局DataLoader
 from .settings_validator import SettingsValidator
+from .entity.investment import Investment 
+from .entity.opportunity import Opportunity
+from .entity.target import InvestmentTarget
 
 # 数据处理器组件
 from .indicators import Indicators
@@ -15,7 +18,6 @@ from .indicators import Indicators
 from app.analyzer.enums import InvestmentResult
 
 # 投资管理组件
-from .investment.investment_goal_manager import InvestmentGoalManager
 from .investment.investment_recorder import InvestmentRecorder
 
 # 模拟器组件
@@ -28,7 +30,9 @@ __all__ = [
     # 核心组件
     'DataLoader',
     'SettingsValidator',
-    
+    'Investment',
+    'Opportunity',
+    'InvestmentTarget',
     # 数据处理器组件
     'Indicators',
     
@@ -36,7 +40,6 @@ __all__ = [
     'InvestmentResult',
     
     # 投资管理组件
-    'InvestmentGoalManager',
     'InvestmentRecorder',
     
     # 模拟器组件

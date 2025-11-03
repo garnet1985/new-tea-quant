@@ -29,7 +29,6 @@ class Investment:
         self.content = {
             'result': '',
             'roi': 0,
-            'stock': None,
             'overall_profit': 0,
             'duration_in_days': 0,
             'duration_in_trading_days': 0,
@@ -68,7 +67,6 @@ class Investment:
 
         self.content = {
             'result': '',
-            'stock': self.opportunity_ref.stock,
             'purchase_price': purchase_price,
             'start_date': purchase_date,
             'end_date': '',

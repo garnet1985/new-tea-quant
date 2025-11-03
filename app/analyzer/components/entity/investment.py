@@ -395,51 +395,6 @@ class Investment:
     def _target_has_actions(self, target: InvestmentTarget) -> bool:
         return len(target.content.get('actions', [])) > 0
 
-    # @staticmethod
-    # def to_settled_investment(record_of_today: Dict[str, Any], investment: Dict[str, Any], is_open: bool = False) -> Dict[str, Any]:
-    #     """
-    #     将投资转换为已结算投资（统一结算逻辑）。
-    #     - 根据 completed targets 计算总体收益与 ROI
-    #     - 设置结果枚举（WIN/LOSS/OPEN）
-    #     - 计算持有时长、年化收益
-    #     - 最后交由策略可选地调整结构（to_alt_settled_investment）
-    #     """
-    #     completed_targets = (investment.get('targets_tracking', {}).get('completed', []) or [])
-    #     overall_profit = 0.0
-    #     investment['end_date'] = record_of_today.get('date')
-
-    #     for target in completed_targets:
-    #         target['weighted_profit'] = float(target.get('profit', 0.0)) * float(target.get('sell_ratio', 0.0))
-    #         target['profit_contribution'] = float(target.get('sell_ratio', 0.0))
-    #         overall_profit += target['weighted_profit']
-
-    #     icon = ''
-    #     if overall_profit >= 0:
-    #         investment['result'] = InvestmentResult.WIN.value
-    #         icon = IconService.get('check') + ' 投资成功'
-    #     else:
-    #         investment['result'] = InvestmentResult.LOSS.value
-    #         icon = IconService.get('cross') + ' 投资失败'
-
-    #     if is_open:
-    #         investment['result'] = InvestmentResult.OPEN.value
-    #         icon = IconService.get('ongoing') + ' 投资未完成'
-
-    #     investment['overall_profit'] = overall_profit
-    #     # ROI 使用小数格式（如 0.20 = 20%）
-    #     investment['overall_profit_rate'] = AnalyzerService.to_ratio(overall_profit, investment['purchase_price'], decimals=4)
-    #     purchase_date = investment.get('start_date') or investment.get('purchase_date') or ''
-    #     end_date = investment.get('end_date') or record_of_today.get('date') or ''
-    #     investment['invest_duration_days'] = AnalyzerService.get_duration_in_days(purchase_date, end_date) if purchase_date and end_date else 0
-    #     overall_annual_return_raw = AnalyzerService.get_annual_return(investment['overall_profit_rate'], investment['invest_duration_days'])
-    #     investment['overall_annual_return'] = float(overall_annual_return_raw.real) if isinstance(overall_annual_return_raw, complex) else float(overall_annual_return_raw) if isinstance(overall_annual_return_raw, (int, float)) else 0.0
-
-    #     logger.info(f"{icon}: {investment['stock']['name']} ({investment['stock']['id']}) - ROI: {investment['overall_profit_rate'] * 100:.2f}% in {investment['invest_duration_days']} days")
-
-    #     return investment
-
-
-
 # Investment
 # │
 # ├── __init__(record_of_today, opportunity, settings, strategy_class)

@@ -37,7 +37,7 @@ settings = {
         "sampling_amount": 1,
 
          # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
-        "record_summary" : False,
+        "record_summary" : True,
         
         # 是否分析模拟结果，结果会自动存在{folder_name}的analysis文件夹下
         "analysis" : False,

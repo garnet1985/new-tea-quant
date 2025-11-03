@@ -4,6 +4,7 @@
 """
 import os
 import json
+import numpy as np
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from loguru import logger
@@ -126,12 +127,6 @@ class InvestmentRecorder:
     def _save_json_to_file(self, data: Dict[str, Any], file_path: str) -> None:
         """通用的JSON保存方法，处理datetime序列化"""
         # 自定义JSON编码器，处理datetime对象
-        class DateTimeEncoder(json.JSONEncoder):
-            def default(self, obj):
-                if isinstance(obj, datetime):
-                    return obj.isoformat()
-                return super().default(obj)
-        
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2, cls=DateTimeEncoder)
 
@@ -365,3 +360,17 @@ class InvestmentRecorder:
             "stocks": stock_summaries
         }
 
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, (np.integer,)):
+            return int(obj)
+        elif isinstance(obj, (np.floating,)):
+            return float(obj)
+        elif isinstance(obj, (np.bool_)):
+            return bool(obj)
+        elif isinstance(obj, (np.ndarray,)):
+            return obj.tolist()
+        else:
+            return super().default(obj)

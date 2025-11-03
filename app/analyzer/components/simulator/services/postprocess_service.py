@@ -30,7 +30,7 @@ class PostprocessService:
 
         settled = simulate_result.get('settled') or []
 
-        total = len(settled)
+        total_investments = len(settled)
         total_win = 0
         total_loss = 0
         total_open = 0
@@ -57,16 +57,16 @@ class PostprocessService:
                 total_open += 1
 
             total_profit += inv['overall_profit']
-            total_duration += inv['invest_duration_days']   
+            total_duration += inv['duration_in_days']   
             # ROI 统一标准：内部存储为小数（0.20 = 20%），显示时转换为百分比
-            total_roi += inv['overall_profit_rate']
+            total_roi += inv['roi']
 
             # 盈亏分类：使用小数比较（0.2 = 20%）
-            if inv['overall_profit_rate'] >= 0.2:
+            if inv['roi'] >= 0.2:
                 profitable_count += 1
-            elif inv['overall_profit_rate'] >= 0 and inv['overall_profit_rate'] < 0.2:
+            elif inv['roi'] >= 0 and inv['roi'] < 0.2:
                 minor_profitable_count += 1
-            elif inv['overall_profit_rate'] < 0 and inv['overall_profit_rate'] > -0.2:
+            elif inv['roi'] < 0 and inv['roi'] > -0.2:
                 minor_unprofitable_count += 1
             else:
                 unprofitable_count += 1
@@ -77,15 +77,15 @@ class PostprocessService:
                 'start_date': inv['start_date'],
                 'end_date': inv['end_date'],
                 'purchase_price': inv['purchase_price'],
-                'duration_in_days': inv['invest_duration_days'],
+                'duration_in_days': inv['duration_in_days'],
 
                 'overall_profit': inv['overall_profit'],
-                'overall_profit_rate': inv['overall_profit_rate'],
-                'overall_annual_return': inv['overall_annual_return'],
+                'roi': inv['roi'],
+                'overall_annual_return': AnalyzerService.get_annual_return(inv['roi'], inv['duration_in_days']),
                 
                 'tracking': inv.get('amplitude_tracking', {}),
 
-                'completed_targets': inv.get('targets_tracking', {}).get('completed', []),
+                'completed_targets': inv.get('completed_targets', []),
             }
             
             # 只在有 extra_fields 时才添加
@@ -94,19 +94,19 @@ class PostprocessService:
             
             investments.append(investment_data)
 
-        avg_profit = AnalyzerService.to_ratio(total_profit, total)
-        avg_duration_in_days = AnalyzerService.to_ratio(total_duration, total)
-        avg_roi = AnalyzerService.to_ratio(total_roi, total)
+        avg_profit = AnalyzerService.to_ratio(total_profit, total_investments)
+        avg_duration_in_days = AnalyzerService.to_ratio(total_duration, total_investments)
+        avg_roi = AnalyzerService.to_ratio(total_roi, total_investments)
         
         annual_return_raw = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days)
         annual_return = float(annual_return_raw.real) if isinstance(annual_return_raw, complex) else float(annual_return_raw) if isinstance(annual_return_raw, (int, float)) else 0.0
         annual_return_in_trading_days_raw = AnalyzerService.get_annual_return(avg_roi, avg_duration_in_days, is_trading_days=True)
         annual_return_in_trading_days = float(annual_return_in_trading_days_raw.real) if isinstance(annual_return_in_trading_days_raw, complex) else float(annual_return_in_trading_days_raw) if isinstance(annual_return_in_trading_days_raw, (int, float)) else 0.0
 
-        win_rate = AnalyzerService.to_ratio((profitable_count + minor_profitable_count), total, 3)
+        win_rate = AnalyzerService.to_ratio((profitable_count + minor_profitable_count), total_investments, 3)
 
         summary = {
-            'total_investments': total,
+            'total_investments': total_investments,
             'total_win': total_win,
             'total_loss': total_loss,
             'total_open': total_open,

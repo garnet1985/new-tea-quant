@@ -22,8 +22,7 @@ class InvestmentTarget:
 
         self.target_type = target_type
 
-        purchase_price = record_of_today.get('close', 0)
-        date = record_of_today.get('date', '')
+        self.purchase_price = record_of_today.get('close', 0)
 
         self.is_achieved = False
         self.start_record_ref = record_of_today
@@ -38,15 +37,13 @@ class InvestmentTarget:
             'name': stage.get('name', ''),
             'ratio': stage.get('ratio', 0),
             'sell_ratio': stage.get('sell_ratio', 0),
-            'purchase_price': purchase_price,
             'sell_price': 0,
-            'purchase_date': date,
             'sell_date': '',
             'sell_ratio': 0,
             'profit': 0,
             'weighted_profit': 0,
             'profit_ratio': 0,
-            'target_price': purchase_price * (1 + stage.get('ratio', 0)),
+            'target_price': self.purchase_price * (1 + stage.get('ratio', 0)),
         }
 
         if self.tracker.get('close_invest', False):
@@ -149,9 +146,9 @@ class InvestmentTarget:
             self.content['sell_price'] = record_of_today.get('close')
             self.content['sell_date'] = record_of_today.get('date')
             self.content['sell_ratio'] = calculated_sell_ratio
-            self.content['profit'] = self.content['sell_price'] - self.content['purchase_price']
+            self.content['profit'] = self.content['sell_price'] - self.purchase_price
             self.content['weighted_profit'] = self.content['profit'] * self.content['sell_ratio']
-            self.content['profit_ratio'] = self.content['profit'] / self.content['purchase_price']
+            self.content['profit_ratio'] = self.content['profit'] / self.purchase_price
             if self.tracker['extra_fields'] is not None:
                 self.content['extra_fields'] = self.tracker['extra_fields']
         return self

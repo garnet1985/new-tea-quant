@@ -344,6 +344,7 @@ class Investment:
             total_profit += weighted_profit
         self.content['overall_profit'] = total_profit
 
+
         roi = self.content['overall_profit'] / self.content['purchase_price'] if self.content['purchase_price'] > 0 else 0
         self.content['roi'] = roi
         
@@ -400,56 +401,3 @@ class Investment:
 
     def _target_has_actions(self, target: InvestmentTarget) -> bool:
         return len(target.content.get('actions', [])) > 0
-
-# Investment
-# │
-# ├── __init__(record_of_today, opportunity, settings, strategy_class)
-# │     ├── 保存初始参数
-# │     ├── 初始化 tracker（追踪器）
-# │     ├── 调用 _create() 初始化投资内容
-# │
-# ├── _create()
-# │     ├── _set_up_content()         # 建立基本信息（价格、日期、股票）
-# │     ├── _set_up_amplitude_tracking()  # 记录初始最大/最小价格
-# │     ├── _set_up_targets()         # 创建止盈止损目标（InvestmentTarget）
-# │
-# ├── check(record_of_today)
-# │     ├── 更新振幅追踪 → _update_amplitude_tracking()
-# │     ├── 检查止盈止损目标 → _check_targets()
-# │     │     ├── 止盈逻辑：
-# │     │     │     ├── 若自定义 → 调用策略类 should_take_profit()
-# │     │     │     └── 否则循环 target.check()
-# │     │     ├── 止损逻辑：
-# │     │     │     ├── 若自定义 → 调用策略类 should_stop_loss()
-# │     │     │     └── 否则执行 _check_stop_loss_targets()
-# │     │     │           ├── _check_protected_loss()
-# │     │     │           ├── _check_dynamic_loss()
-# │     │     │           └── _check_normal_stop_loss_targets()
-# │     ├── 若达到任一目标 → _settle() 结算
-# │     ├── 检查是否过期（_check_expiration()）
-# │     └── 返回 (is_completed, content)
-# │
-# ├── _update_amplitude_tracking()
-# │     ├── 记录当日收盘价变化
-# │     ├── 更新 max/min close 及对应日期
-# │
-# ├── _check_stop_loss_targets()
-# │     ├── _check_protected_loss()
-# │     ├── _check_dynamic_loss()
-# │     └── _check_normal_stop_loss_targets()
-# │
-# ├── _trigger_actions(target, record_of_today, settings)
-# │     ├── 触发目标配置中的 actions，例如：
-# │     │     └── set_stop_loss: 设置保护性止损或动态止损
-# │
-# ├── _check_expiration()
-# │     ├── 检查持仓是否超出到期天数（交易日 / 自然日）
-# │
-# ├── _settle()
-# │     ├── 记录结束日期、交易天数
-# │     ├── 保存追踪信息（振幅、目标、止损状态等）
-# │
-# └── 工具函数
-#       ├── _is_investment_complete()  # 判断是否已清仓
-#       ├── _get_sell_ratio()          # 计算卖出比例
-#       └── _has_actions()             # 判断目标是否带有后续动作

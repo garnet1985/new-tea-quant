@@ -29,17 +29,30 @@ class InvestmentTarget:
         self.start_record_ref = record_of_today
         self.tracker = {
             'last_updated_date': record_of_today.get('date', ''),
+            'stage': stage,
+            'extra_fields': extra_fields,
         }
 
         self.content = {
-            **stage,
             'target_type': target_type.value,
+            'name': stage.get('name', ''),
+            'ratio': stage.get('ratio', 0),
+            'sell_ratio': stage.get('sell_ratio', 0),
             'purchase_price': purchase_price,
-            'start_date': date,
-            'end_date': '',
+            'sell_price': 0,
+            'purchase_date': date,
+            'sell_date': '',
+            'sell_ratio': 0,
+            'profit': 0,
+            'weighted_profit': 0,
+            'profit_ratio': 0,
             'target_price': purchase_price * (1 + stage.get('ratio', 0)),
-            'extra_fields': extra_fields,
         }
+
+        if self.tracker.get('close_invest', False):
+            self.content['sell_ratio'] = 1.0
+        else:
+            self.content['sell_ratio'] = stage.get('sell_ratio', 0)
     
     def _validate_stage(self, stage: Dict[str, Any]):
         if 'name' not in stage:
@@ -100,7 +113,7 @@ class InvestmentTarget:
         return False, remaining_investment_ratio
 
     def _calc_sell_ratio(self, remaining_investment_ratio: float):
-        if self.content.get('close_invest'):
+        if self.tracker['stage'].get('close_invest'):
             return remaining_investment_ratio
         else:
             sell_ratio = self.content.get('sell_ratio', 0)
@@ -128,19 +141,21 @@ class InvestmentTarget:
                 return True
         return False
 
-    def settle(self, record_of_today: Dict[str, Any], safe_sell_ratio: float = 1.0):
+    def settle(self, record_of_today: Dict[str, Any], calculated_sell_ratio: float = 1.0):
         if self.is_achieved:
             return
         else:
             self.is_achieved = True
-            self.content['end_date'] = record_of_today.get('date')
             self.content['sell_price'] = record_of_today.get('close')
             self.content['sell_date'] = record_of_today.get('date')
-            self.content['sell_ratio'] = safe_sell_ratio
+            self.content['sell_ratio'] = calculated_sell_ratio
             self.content['profit'] = self.content['sell_price'] - self.content['purchase_price']
             self.content['weighted_profit'] = self.content['profit'] * self.content['sell_ratio']
             self.content['profit_ratio'] = self.content['profit'] / self.content['purchase_price']
+            if self.tracker['extra_fields'] is not None:
+                self.content['extra_fields'] = self.tracker['extra_fields']
         return self
 
     def to_dict(self):
+        
         return self.content

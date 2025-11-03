@@ -7,8 +7,6 @@ from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
 from app.analyzer.components.entity.investment import Investment
 from app.analyzer.enums import InvestmentResult
-from app.analyzer.components.investment.investment_goal_manager import InvestmentGoalManager
-from app.analyzer.components.base_strategy import BaseStrategy
 from utils.icon.icon_service import IconService
 from utils.worker.multi_process.process_worker import ProcessWorker
 
@@ -426,23 +424,3 @@ class SimulatingService:
             data_today['labels'] = today_labels
 
         return data_today
-
-
-
-    # @staticmethod
-    # def update_investment_max_min_close(investment: Dict[str, Any], record_of_today: Dict[str, Any]) -> None:
-    #     # 更新最高价
-    #     if record_of_today['close'] > investment['amplitude_tracking']['max_close_reached']['price']:
-    #         investment['amplitude_tracking']['max_close_reached']['price'] = record_of_today['close']
-    #         investment['amplitude_tracking']['max_close_reached']['date'] = record_of_today['date']
-    #         investment['amplitude_tracking']['max_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
-        
-    #     # 更新最低价
-    #     current_min_price = investment['amplitude_tracking']['min_close_reached']['price']
-    #     if current_min_price == 0 or record_of_today['close'] < current_min_price:
-    #         investment['amplitude_tracking']['min_close_reached']['price'] = record_of_today['close']
-    #         investment['amplitude_tracking']['min_close_reached']['date'] = record_of_today['date']
-    #         investment['amplitude_tracking']['min_close_reached']['ratio'] = (record_of_today['close'] - investment['purchase_price']) / investment['purchase_price']
-
-
-    # to_settled_investment moved to BaseStrategy

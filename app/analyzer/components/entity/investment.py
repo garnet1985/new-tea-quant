@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Tuple
 
 from loguru import logger
 from app.analyzer.components.entity.target import InvestmentTarget
-from utils.date.date_utils import DateUtils 
+from utils.date.date_utils import DateUtils
+from utils.icon.icon_service import IconService 
 
 
 class Investment:
@@ -347,12 +348,20 @@ class Investment:
         self.content['roi'] = roi
         
         # mark result
+        icon = "";
+        invest_res_str = "";
         if is_open:
+            icon = IconService.get('ongoing')
             result = self.InvestmentResult.OPEN.value
+            invest_res_str = "未完成"
         elif roi > 0:
+            icon = IconService.get('success')
             result = self.InvestmentResult.WIN.value
+            invest_res_str = "成功"
         else:
+            icon = IconService.get('error')
             result = self.InvestmentResult.LOSS.value
+            invest_res_str = "失败"
         self.content['result'] = result
         
         # Calculate invest duration
@@ -365,9 +374,8 @@ class Investment:
         # TODO: to be implemented
         # self.content['duration_in_trading_days'] = invest_duration_in_trading_days
 
-        logger.info(f"Investment settlement complete.")
-
-
+        stock = self.opportunity_ref.stock
+        logger.info(f"{icon} {stock.get('name', '')} ({stock.get('id', '')}) 投资{invest_res_str}，ROI:{roi*100:.2f}%，持续时间: {invest_duration_days}个自然日")
 
 
     def to_dict(self) -> Dict[str, Any]:

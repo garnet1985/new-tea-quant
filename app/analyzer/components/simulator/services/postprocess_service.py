@@ -265,20 +265,20 @@ class PostprocessService:
                 avg_roi_dot = IconService.get('red_dot')
             print(f"{avg_roi_dot} 平均每笔投资回报率(ROI): {avg_roi:.1f}%")
 
-            if annual_return >= 15:
+            if annual_return >= 0.15:
                 annual_return_dot = IconService.get('green_dot')
             else:
                 annual_return_dot = IconService.get('red_dot')
 
 
-            if annual_return_in_trading_days >= 10:
+            if annual_return_in_trading_days >= 0.1:
                 annual_return_in_trading_days_dot = IconService.get('green_dot')
             else:
                 annual_return_in_trading_days_dot = IconService.get('red_dot')
 
             print(f"折算后平均每笔投资年化收益率: ")
-            print(f" - {annual_return_dot} 按自然日: {annual_return:.1f}%")
-            print(f" - {annual_return_in_trading_days_dot} 按交易日: {annual_return_in_trading_days:.1f}%")
+            print(f" - {annual_return_dot} 按自然日: {annual_return * 100:.1f}%")
+            print(f" - {annual_return_in_trading_days_dot} 按交易日: {annual_return_in_trading_days * 100:.1f}%")
             
             print(f"{IconService.get('clock')} 平均投资时长: {session_summary.get('avg_duration_in_days', 0):.1f} 自然日")
             print(f"{IconService.get('bar_chart')} 总投资次数: {session_summary.get('total_investments', 0)}")

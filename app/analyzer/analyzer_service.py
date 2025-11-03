@@ -75,7 +75,7 @@ class AnalyzerService:
         
         # 使用复利公式：年化收益率 = ((1 + 总收益率) ^ (1/年数)) - 1
         annual_return = ((1 + profit_rate) ** (1 / years)) - 1
-        return annual_return * 100  # 转换为百分比
+        return annual_return
 
     @staticmethod
     def parse_yyyymmdd(date_str: str):

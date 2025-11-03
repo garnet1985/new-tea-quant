@@ -5,11 +5,10 @@ SimulatingService - 多进程模拟服务
 from typing import Dict, List, Any, Optional
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.components.entity.investment import Investment
 from app.analyzer.enums import InvestmentResult
 from utils.icon.icon_service import IconService
 from utils.worker.multi_process.process_worker import ProcessWorker
-
+from app.analyzer.components.entity.investment import Investment
 
 class SimulatingService:
     """静态模拟方法，支持多进程"""

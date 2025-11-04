@@ -61,6 +61,11 @@ settings = {
             "is_trading_period": True,
         },
 
+        "protect_loss": {
+            "ratio": 0.0,
+            "close_invest": True
+        },
+
         "stop_loss": {
             "stages": [
                 {
@@ -76,7 +81,8 @@ settings = {
                 {
                     "name": "win10%",
                     "ratio": 0.1,
-                    "sell_ratio": 0.3
+                    "sell_ratio": 0.3,
+                    "actions": ["set_protect_loss"]
                 },
                 {
                     "name": "win20%",

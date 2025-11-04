@@ -35,8 +35,8 @@ class InvestmentTarget:
         }
 
         self.content = {
-            'target_type': target_type.value,
             'name': stage.get('name', ''),
+            'target_type': target_type.value,
             'sell_price': 0,
             'sell_date': '',
             'sell_ratio': self.tracker['stage'].get('sell_ratio', 0),
@@ -48,7 +48,7 @@ class InvestmentTarget:
 
         ratio = stage.get('ratio', None)
         if ratio is not None:
-            self.content['ratio'] = ratio
+            self.tracker['stage']['ratio'] = ratio
             self.content['target_price'] = self.purchase_price * (1 + ratio)
 
         if self.tracker['stage'].get('close_invest', False):
@@ -164,12 +164,11 @@ class InvestmentTarget:
                 self.content['extra_fields'] = self.tracker['extra_fields']
         return self
 
-    def to_dict(self):
-        
-        return self.content
-
     def has_actions(self) -> bool:
         return len(self.tracker['stage'].get('actions', [])) > 0
 
     def get_actions(self) -> List[Dict[str, Any]]:
         return self.tracker['stage'].get('actions', [])
+
+    def to_dict(self):
+        return self.content

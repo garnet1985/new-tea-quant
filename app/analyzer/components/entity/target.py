@@ -12,6 +12,7 @@ class InvestmentTarget:
         TAKE_PROFIT = 'take_profit'
         STOP_LOSS = 'stop_loss'
         EXPIRED = 'expired'
+        OPEN = 'open'
 
     def __init__(self, 
         target_type: TargetType, 

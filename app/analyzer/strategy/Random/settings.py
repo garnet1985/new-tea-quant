@@ -57,7 +57,7 @@ settings = {
     # 投资目标设置
     "goal": {
         "expiration": {
-            "fixed_period": 60,
+            "fixed_period": 960,
             "is_trading_period": True,
         },
 

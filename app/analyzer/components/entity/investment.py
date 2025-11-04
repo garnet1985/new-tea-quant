@@ -58,9 +58,6 @@ class Investment:
         # set up targets tracking
         self._set_up_targets(settings)
 
-        logger.info(f"Investment created")
-
-
 
     def _set_up_content(self):
         purchase_price = self.start_record_ref.get('close')
@@ -299,9 +296,9 @@ class Investment:
         return False
 
 
-    def _trigger_actions(self, target: InvestmentTarget, record_of_today: Dict[str, Any], settings: Dict[str, Any]):
+    def _trigger_actions(self, target: InvestmentTarget, record_of_today: Dict[str, Any]):
         actions = target.content.get('actions')
-        stop_loss_settings = settings.get('goal', {}).get('stop_loss', {})
+        stop_loss_settings = self.settings.get('goal', {}).get('stop_loss', {})
         for action in actions:
             if action.get('name') == 'set_stop_loss':
                 stop_loss_type = action.get('value')
@@ -390,6 +387,23 @@ class Investment:
         self.is_settled = True
         self.content['end_date'] = record_of_today.get('date')
 
+
+        if is_open:
+            # create an open target to track the uncompleted investment
+            uncompleted_target = InvestmentTarget(
+                target_type=InvestmentTarget.TargetType.OPEN,
+                start_record=self.start_record_ref,
+                stage=InvestmentTarget.create_stage(
+                    name='open',
+                    target_settings={
+                        'close_invest': True,
+                    }
+                )
+            )
+            uncompleted_target.settle(record_of_today, uncompleted_target.calc_sell_ratio(self.tracker['targets_tracking']['remaining_investment_ratio']))
+            self.content['completed_targets'].append(uncompleted_target.to_dict())
+
+
         # calculate overall profit & ROI
         total_profit = 0.0
         for target in self.content['completed_targets']:
@@ -424,13 +438,14 @@ class Investment:
             self.content['end_date'], 
             DateUtils.DATE_FORMAT_YYYYMMDD
         ) if self.content.get('end_date') else 0
+
         self.content['duration_in_days'] = invest_duration_days
         # TODO: to be implemented
         # self.content['duration_in_trading_days'] = invest_duration_in_trading_days
 
         stock = self.opportunity_ref.stock
         logger.info(f"{icon} {stock.get('name', '')} ({stock.get('id', '')}) 投资{invest_res_str}，ROI:{roi*100:.2f}%，持续时间: {invest_duration_days}个自然日")
-
+        
 
     def to_dict(self) -> Dict[str, Any]:
         return self.content

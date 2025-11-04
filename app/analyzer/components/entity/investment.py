@@ -269,12 +269,9 @@ class Investment:
             is_target_completed, remaining_investment_ratio = target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
             if is_target_completed:
                 self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
-                target.settle(record_of_today, target.calc_sell_ratio(self.tracker['targets_tracking']['remaining_investment_ratio']))
                 self.content['completed_targets'].append(target.to_dict())
-                # logger.info(f"Stop loss target completed: {target.content}")
                 if self._target_has_actions(target):
                     self._trigger_actions(target, record_of_today)
-                    self.content['completed_targets'].append(target)
 
 
     def _check_expiration(self, record_of_today: Dict[str, Any])-> bool:

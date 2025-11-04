@@ -20,9 +20,9 @@ class InvestmentTarget:
         stage: Dict[str, Any], 
         extra_fields: Dict[str, Any] = None
     ):
-        self._validate_stage(stage)
-
         self.target_type = target_type
+
+        self._validate_stage(stage)
 
         self.purchase_price = start_record.get('close', 0)
 
@@ -47,9 +47,10 @@ class InvestmentTarget:
             'target_price': 0
         }
 
-        if stage.get('ratio', 0) > 0:
-            self.content['ratio'] = stage.get('ratio', 0)
-            self.content['target_price'] = self.purchase_price * (1 + self.content['ratio'])
+        ratio = stage.get('ratio', None)
+        if ratio is not None:
+            self.content['ratio'] = ratio
+            self.content['target_price'] = self.purchase_price * (1 + ratio)
 
         if self.tracker.get('close_invest', False):
             self.content['sell_ratio'] = 1.0
@@ -62,6 +63,9 @@ class InvestmentTarget:
 
         if 'sell_ratio' not in stage and 'close_invest' not in stage:
             raise ValueError(f"stage must have either 'sell_ratio' or 'close_invest' field: {stage}")
+
+        if self.target_type in [self.TargetType.TAKE_PROFIT, self.TargetType.STOP_LOSS] and 'ratio' not in stage:
+            raise ValueError(f"stage must have 'ratio' field for {self.target_type.value} target: {stage}")
 
     @staticmethod
     def create_stage(name: str, target_settings: Dict[str, Any]):

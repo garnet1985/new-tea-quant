@@ -17,6 +17,9 @@ class Opportunity:
         if upper_bound is None:
             upper_bound = current_price * (1 + price_tolerance)
 
+        if lower_bound > upper_bound:
+            raise ValueError(f"lower_bound must be less than upper_bound: {lower_bound} > {upper_bound}")
+
         self.stock = stock
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound

@@ -24,8 +24,6 @@ class InvestmentTarget:
 
         self._validate_stage(stage)
 
-        self.purchase_price = start_record.get('close', 0)
-
         self.is_achieved = False
         self.start_record_ref = start_record
         self.tracker = {
@@ -49,7 +47,7 @@ class InvestmentTarget:
         ratio = stage.get('ratio', None)
         if ratio is not None:
             self.tracker['stage']['ratio'] = ratio
-            self.content['target_price'] = self.purchase_price * (1 + ratio)
+            self.content['target_price'] = self.start_record_ref.get('close', 0) * (1 + ratio)
 
         if self.tracker['stage'].get('close_invest', False):
             self.content['sell_ratio'] = 1.0
@@ -96,6 +94,7 @@ class InvestmentTarget:
 
         close_price = record_of_today.get('close', 0)
         target_price = self.content['target_price']
+        self.tracker['last_updated_date'] = record_of_today.get('date')
         
         is_completed = False
         # 根据目标类型检查
@@ -117,6 +116,34 @@ class InvestmentTarget:
         
         return False, remaining_investment_ratio
 
+    def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float) -> Tuple[bool, float]:
+        if self.is_achieved:
+            # return False to avoid push into completed list twice
+            return False, remaining_investment_ratio
+
+        if remaining_investment_ratio <= 0:
+            # return False to avoid push into completed list twice
+            return False, remaining_investment_ratio
+
+        if DateUtils.is_before_or_same_day(record_of_today.get('date'), self.tracker.get('last_updated_date')):
+            # return False to avoid push into completed list twice
+            return False, remaining_investment_ratio
+
+        self.tracker['last_updated_date'] = record_of_today.get('date')
+        price_of_today = record_of_today.get('close', 0)
+
+        if price_of_today < self.content['target_price']:
+            sell_ratio = self.calc_sell_ratio(remaining_investment_ratio)
+            self.settle(record_of_today, sell_ratio)
+            return True, remaining_investment_ratio - sell_ratio
+        else:
+            new_target_price = price_of_today * (1 + self.tracker['stage'].get('ratio', 0))
+            if new_target_price > self.content['target_price']:
+                self.content['target_price'] = new_target_price
+                return False, remaining_investment_ratio
+            else:
+                return False, remaining_investment_ratio
+
     def calc_sell_ratio(self, remaining_investment_ratio: float):
         if self.tracker['stage'].get('close_invest'):
             return remaining_investment_ratio
@@ -126,25 +153,6 @@ class InvestmentTarget:
                 return remaining_investment_ratio
             else:
                 return sell_ratio
-        
-
-    def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], tracking: Dict[str, Any]):
-        if self.is_achieved:
-            # return False to avoid push into completed list twice
-            return False
-        else:
-            date = record_of_today.get('date', '')
-            last_updated_date = self.tracker.get('last_updated_date', '')
-            if DateUtils.is_before_or_same_day(date, last_updated_date):
-                # return False to avoid push into completed list twice
-                return False
-
-            self.tracker['last_updated_date'] = date
-            close_price = record_of_today.get('close', 0)
-            if close_price < self.content['target_price']:
-                self.settle(record_of_today)
-                return True
-        return False
 
     def settle(self, record_of_today: Dict[str, Any], calculated_sell_ratio: float):
         if self.is_achieved:
@@ -154,12 +162,12 @@ class InvestmentTarget:
             self.content['sell_price'] = record_of_today.get('close')
             self.content['sell_date'] = record_of_today.get('date')
             self.content['sell_ratio'] = calculated_sell_ratio
-            self.content['profit'] = self.content['sell_price'] - self.purchase_price
+            self.content['profit'] = self.content['sell_price'] - self.start_record_ref.get('close', 0)
             self.content['weighted_profit'] = self.content['profit'] * self.content['sell_ratio']
-            self.content['profit_ratio'] = self.content['profit'] / self.purchase_price
+            self.content['profit_ratio'] = self.content['profit'] / self.start_record_ref.get('close', 0)
             if self.content['target_price'] == 0:
                 # the expiration target will fit this scenario:
-                self.content['target_price'] = self.purchase_price
+                self.content['target_price'] = self.start_record_ref.get('close', 0)
             if self.tracker['extra_fields'] is not None:
                 self.content['extra_fields'] = self.tracker['extra_fields']
         return self
@@ -169,6 +177,12 @@ class InvestmentTarget:
 
     def get_actions(self) -> List[Dict[str, Any]]:
         return self.tracker['stage'].get('actions', [])
+
+    def get_start_record(self) -> Dict[str, Any]:
+        return self.start_record_ref
+
+    def set_start_record(self, record):
+        self.start_record_ref = record
 
     def to_dict(self):
         return self.content

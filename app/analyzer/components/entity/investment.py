@@ -93,7 +93,6 @@ class Investment:
                 },
                 'dynamic_loss': {
                     'is_enabled': False,
-                    'last_highest_close': 0,
                     'target': None,
                 },
             },
@@ -198,7 +197,7 @@ class Investment:
             is_investment_completed: whether the investment is completed
         """
         if self._is_investment_complete():
-            logger.info(f"Investment is checked repeatedly, this warning shouldn't be triggered.")
+            logger.warning(f"Investment is checked repeatedly, this warning shouldn't be triggered.")
             return False
         
         take_profit_targets = self.tracker['targets_tracking']['take_profit']['targets']
@@ -219,7 +218,6 @@ class Investment:
 
             # if all take profit targets are achieved, the investment is completed
             if self._is_investment_complete():
-                logger.info(f"Result of investment (profit) is decided")
                 return True
 
         if self.is_customized_stop_loss:
@@ -231,7 +229,6 @@ class Investment:
 
             # if all stop loss targets are achieved, the investment is completed
             if self._is_investment_complete():
-                logger.info(f"Result of investment (stop loss) is decided")
                 return True
 
         return False
@@ -245,18 +242,24 @@ class Investment:
         protect_loss_info = self.tracker['targets_tracking']['stop_loss']['protect_loss']
         target = protect_loss_info['target']
         if protect_loss_info['is_enabled'] and target.is_achieved is not True:
-            is_target_completed, remaining_investment_ratio = target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
+            is_target_completed, remaining_investment_ratio = target.is_complete(
+                record_of_today, 
+                self.tracker['targets_tracking']['remaining_investment_ratio']
+            )
             if is_target_completed:    
                 self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
                 self.content['completed_targets'].append(target.to_dict())
 
     def _check_dynamic_loss(self, record_of_today: Dict[str, Any]):
-        # TODO: to be checked, seems some errors
         dynamic_loss_info = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']
         target = dynamic_loss_info['target']
         if dynamic_loss_info['is_enabled'] and target.is_achieved is not True:
-            if target.is_dynamic_loss_complete(record_of_today, dynamic_loss_info):
-                target.settle(record_of_today, target.calc_sell_ratio(self.tracker['targets_tracking']['remaining_investment_ratio']))
+            is_target_completed, remaining_investment_ratio = target.is_dynamic_loss_complete(
+                record_of_today, 
+                self.tracker['targets_tracking']['remaining_investment_ratio']
+            )
+            if is_target_completed:
+                self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
                 self.content['completed_targets'].append(target.to_dict())
 
 
@@ -298,39 +301,48 @@ class Investment:
         actions = target.get_actions()
         for action in actions:
             if action == self.InvestmentGoalAction.SET_PROTECT_LOSS.value and goal_settings.get('protect_loss', None) is not None:
-                self._enable_protect_loss(record_of_today)
+                self._enable_protect_loss(target)
 
             if action == self.InvestmentGoalAction.SET_DYNAMIC_LOSS.value and goal_settings.get('dynamic_loss', None) is not None:
-                self._enable_dynamic_loss(record_of_today)
+                self._enable_dynamic_loss(record_of_today, target)
 
 
-    def _enable_protect_loss(self, record_of_today: Dict[str, Any]):
+    def _enable_protect_loss(self, just_completed_target: InvestmentTarget):
         self.tracker['targets_tracking']['stop_loss']['protect_loss']['is_enabled'] = True
         protect_loss_settings = self.settings.get('goal', {}).get('protect_loss', {})
+        
         stage = InvestmentTarget.create_stage(
             name='protect_loss',
             target_settings = protect_loss_settings
         )
-        protect_loss_target = InvestmentTarget(InvestmentTarget.TargetType.STOP_LOSS, record_of_today, stage, 
+        
+        protect_loss_target = InvestmentTarget(InvestmentTarget.TargetType.STOP_LOSS, self.start_record_ref, stage, 
             extra_fields={
+                'triggered_by_target': just_completed_target.to_dict().get('name', ''),
                 'triggered_by_action': self.InvestmentGoalAction.SET_PROTECT_LOSS.value,
             }
         )
 
         self.tracker['targets_tracking']['stop_loss']['protect_loss']['target'] = protect_loss_target
 
-    def _enable_dynamic_loss(self, record_of_today: Dict[str, Any]):
+    def _enable_dynamic_loss(self, record_of_today: Dict[str, Any], just_completed_target: InvestmentTarget):
         self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['is_enabled'] = True
         dynamic_loss_settings = self.settings.get('goal', {}).get('dynamic_loss', {})
+        
         stage = InvestmentTarget.create_stage(
             name='dynamic_loss',
             target_settings = dynamic_loss_settings
         )
+
         dynamic_loss_target = InvestmentTarget(InvestmentTarget.TargetType.STOP_LOSS, record_of_today, stage, 
             extra_fields={
+                'triggered_by_target': just_completed_target.to_dict().get('name', ''),
                 'triggered_by_action': self.InvestmentGoalAction.SET_DYNAMIC_LOSS.value,
             }
         )
+
+        real_start_record = just_completed_target.get_start_record()
+        dynamic_loss_target.set_start_record(real_start_record)
         self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['target'] = dynamic_loss_target
 
 
@@ -377,7 +389,7 @@ class Investment:
         """
         
         if self.is_settled:
-            logger.info(f"Investment already settled, check logic, this warning shouldn't be triggered.")
+            logger.warning(f"Investment already settled, check logic, this warning shouldn't be triggered.")
             return
         
         self.is_settled = True
@@ -435,8 +447,6 @@ class Investment:
         ) if self.content.get('end_date') else 0
 
         self.content['duration_in_days'] = invest_duration_days
-        # TODO: to be implemented
-        # self.content['duration_in_trading_days'] = invest_duration_in_trading_days
 
         stock = self.opportunity_ref.get('stock', {})
         logger.info(f"{icon} {stock.get('name', '')} ({stock.get('id', '')}) 投资{invest_res_str}，ROI:{roi*100:.2f}%，持续时间: {invest_duration_days}个自然日")

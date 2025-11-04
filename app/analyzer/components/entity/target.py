@@ -11,10 +11,11 @@ class InvestmentTarget:
     class TargetType(Enum):
         TAKE_PROFIT = 'take_profit'
         STOP_LOSS = 'stop_loss'
+        EXPIRED = 'expired'
 
     def __init__(self, 
         target_type: TargetType, 
-        record_of_today: Dict[str, Any], 
+        start_record: Dict[str, Any], 
         stage: Dict[str, Any], 
         extra_fields: Dict[str, Any] = None
     ):
@@ -22,12 +23,12 @@ class InvestmentTarget:
 
         self.target_type = target_type
 
-        self.purchase_price = record_of_today.get('close', 0)
+        self.purchase_price = start_record.get('close', 0)
 
         self.is_achieved = False
-        self.start_record_ref = record_of_today
+        self.start_record_ref = start_record
         self.tracker = {
-            'last_updated_date': record_of_today.get('date', ''),
+            'last_updated_date': start_record.get('date', ''),
             'stage': stage,
             'extra_fields': extra_fields,
         }
@@ -35,7 +36,6 @@ class InvestmentTarget:
         self.content = {
             'target_type': target_type.value,
             'name': stage.get('name', ''),
-            'ratio': stage.get('ratio', 0),
             'sell_ratio': stage.get('sell_ratio', 0),
             'sell_price': 0,
             'sell_date': '',
@@ -43,8 +43,12 @@ class InvestmentTarget:
             'profit': 0,
             'weighted_profit': 0,
             'profit_ratio': 0,
-            'target_price': self.purchase_price * (1 + stage.get('ratio', 0)),
+            'target_price': 0
         }
+
+        if stage.get('ratio', 0) > 0:
+            self.content['ratio'] = stage.get('ratio', 0)
+            self.content['target_price'] = self.purchase_price * (1 + self.content['ratio'])
 
         if self.tracker.get('close_invest', False):
             self.content['sell_ratio'] = 1.0
@@ -103,13 +107,13 @@ class InvestmentTarget:
         # 如果完成，立即settle
         if is_completed:
             # 计算sell_ratio
-            sell_ratio = self._calc_sell_ratio(remaining_investment_ratio)
+            sell_ratio = self.calc_sell_ratio(remaining_investment_ratio)
             self.settle(record_of_today, sell_ratio)
             return True, remaining_investment_ratio - sell_ratio
         
         return False, remaining_investment_ratio
 
-    def _calc_sell_ratio(self, remaining_investment_ratio: float):
+    def calc_sell_ratio(self, remaining_investment_ratio: float):
         if self.tracker['stage'].get('close_invest'):
             return remaining_investment_ratio
         else:
@@ -138,7 +142,7 @@ class InvestmentTarget:
                 return True
         return False
 
-    def settle(self, record_of_today: Dict[str, Any], calculated_sell_ratio: float = 1.0):
+    def settle(self, record_of_today: Dict[str, Any], calculated_sell_ratio: float):
         if self.is_achieved:
             return
         else:
@@ -149,6 +153,9 @@ class InvestmentTarget:
             self.content['profit'] = self.content['sell_price'] - self.purchase_price
             self.content['weighted_profit'] = self.content['profit'] * self.content['sell_ratio']
             self.content['profit_ratio'] = self.content['profit'] / self.purchase_price
+            if self.content['target_price'] == 0:
+                # the expiration target will fit this scenario:
+                self.content['target_price'] = self.purchase_price
             if self.tracker['extra_fields'] is not None:
                 self.content['extra_fields'] = self.tracker['extra_fields']
         return self

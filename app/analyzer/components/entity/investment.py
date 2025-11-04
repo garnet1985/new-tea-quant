@@ -27,18 +27,7 @@ class Investment:
         self.strategy_class = strategy_class
 
         self.opportunity_ref = opportunity
-        self.content = {
-            'result': '',
-            'roi': 0,
-            'overall_profit': 0,
-            'duration_in_days': 0,
-            'duration_in_trading_days': 0,
-            'purchase_price': 0,
-            'start_date': None,
-            'end_date': None,
-            'amplitude_tracking': None,
-            'completed_targets': [],
-        }
+        self.content = {}
 
         self.tracker = {
             'last_check_date': '',
@@ -64,10 +53,15 @@ class Investment:
         purchase_date = self.start_record_ref.get('date')
 
         self.content = {
-            'result': '',
+            'result': None,
+            'roi': None,
+            'overall_profit': None,
+            'duration_in_days': None,
+            'duration_in_trading_days': None,
+
             'purchase_price': purchase_price,
             'start_date': purchase_date,
-            'end_date': '',
+            'end_date': None,
             'completed_targets': [],
             'amplitude_tracking': {}
         }
@@ -270,7 +264,7 @@ class Investment:
             if is_target_completed:
                 self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
                 self.content['completed_targets'].append(target.to_dict())
-                if self._target_has_actions(target):
+                if target.has_actions():
                     self._trigger_actions(target, record_of_today)
 
 
@@ -294,7 +288,7 @@ class Investment:
 
 
     def _trigger_actions(self, target: InvestmentTarget, record_of_today: Dict[str, Any]):
-        actions = target.content.get('actions')
+        actions = target.get_actions()
         stop_loss_settings = self.settings.get('goal', {}).get('stop_loss', {})
         for action in actions:
             if action.get('name') == 'set_stop_loss':
@@ -452,17 +446,3 @@ class Investment:
     # ================================ utils ================================
     def _is_investment_complete(self) -> bool:
         return self.tracker['targets_tracking']['remaining_investment_ratio'] <= 0
-
-
-    def _get_sell_ratio(self, target: InvestmentTarget) -> float:
-        if target.get('close_invest'):
-            return self.tracker['targets_tracking']['remaining_investment_ratio']
-        else:
-            sell_ratio = target.get('sell_ratio')
-            if sell_ratio > self.tracker['targets_tracking']['remaining_investment_ratio']:
-                return self.tracker['targets_tracking']['remaining_investment_ratio']
-            else:
-                return sell_ratio
-
-    def _target_has_actions(self, target: InvestmentTarget) -> bool:
-        return len(target.content.get('actions', [])) > 0

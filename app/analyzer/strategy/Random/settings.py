@@ -56,6 +56,11 @@ settings = {
 
     # 投资目标设置
     "goal": {
+        "expiration": {
+            "fixed_period": 60,
+            "is_trading_period": True,
+        },
+
         "stop_loss": {
             "stages": [
                 {
@@ -68,6 +73,11 @@ settings = {
 
         "take_profit": {
             "stages": [
+                {
+                    "name": "win10%",
+                    "ratio": 0.1,
+                    "sell_ratio": 0.3
+                },
                 {
                     "name": "win20%",
                     "ratio": 0.2,

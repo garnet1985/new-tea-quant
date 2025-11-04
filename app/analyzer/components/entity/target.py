@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 from loguru import logger
 
@@ -37,10 +37,9 @@ class InvestmentTarget:
         self.content = {
             'target_type': target_type.value,
             'name': stage.get('name', ''),
-            'sell_ratio': stage.get('sell_ratio', 0),
             'sell_price': 0,
             'sell_date': '',
-            'sell_ratio': 0,
+            'sell_ratio': self.tracker['stage'].get('sell_ratio', 0),
             'profit': 0,
             'weighted_profit': 0,
             'profit_ratio': 0,
@@ -52,10 +51,10 @@ class InvestmentTarget:
             self.content['ratio'] = ratio
             self.content['target_price'] = self.purchase_price * (1 + ratio)
 
-        if self.tracker.get('close_invest', False):
+        if self.tracker['stage'].get('close_invest', False):
             self.content['sell_ratio'] = 1.0
         else:
-            self.content['sell_ratio'] = stage.get('sell_ratio', 0)
+            self.content['sell_ratio'] = self.tracker['stage'].get('sell_ratio', 0)
     
     def _validate_stage(self, stage: Dict[str, Any]):
         if 'name' not in stage:
@@ -168,3 +167,9 @@ class InvestmentTarget:
     def to_dict(self):
         
         return self.content
+
+    def has_actions(self) -> bool:
+        return len(self.tracker['stage'].get('actions', [])) > 0
+
+    def get_actions(self) -> List[Dict[str, Any]]:
+        return self.tracker['stage'].get('actions', [])

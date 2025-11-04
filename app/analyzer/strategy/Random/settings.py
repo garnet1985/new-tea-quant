@@ -66,6 +66,11 @@ settings = {
             "close_invest": True
         },
 
+        "dynamic_loss": {
+            "ratio": -0.1,
+            "close_invest": True
+        },
+
         "stop_loss": {
             "stages": [
                 {
@@ -87,7 +92,8 @@ settings = {
                 {
                     "name": "win20%",
                     "ratio": 0.2,
-                    "close_invest": True
+                    "sell_ratio": 0.5,
+                    "actions": ["set_dynamic_loss"]
                 }
             ]
         },

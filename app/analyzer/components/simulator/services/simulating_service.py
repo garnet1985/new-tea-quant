@@ -154,7 +154,7 @@ class SimulatingService:
             last_record_of_today = current_record
         
         # 回测结束清算未结投资
-        # SimulatingService.settle_open_investment(tracker, last_record_of_today)
+        SimulatingService.settle_open_investment(tracker, last_record_of_today)
 
         # TODO: test code, remove later
         # exampleInv = tracker['settled'][0]
@@ -272,11 +272,11 @@ class SimulatingService:
         回测结束时清算未结投资：按最后一个交易日价格结算剩余仓位，并转为settled结构。
         """
         investment = tracker.get('investing')
-        if not investment or not last_record_of_today:
+        if not investment:
             return
 
         investment.settle(last_record_of_today, is_open=True)
-        tracker['settled'].append(investment)
+        tracker['settled'].append(investment.to_dict())
         tracker['investing'] = None
 
     @staticmethod

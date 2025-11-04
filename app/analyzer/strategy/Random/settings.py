@@ -65,7 +65,7 @@ settings = {
             "stages": [
                 {
                     "name": "loss20%",
-                    "ratio": -0.2,  # ML分析优化：-15%止损
+                    "ratio": -0.2,
                     "close_invest": True
                 }
             ]

@@ -166,6 +166,19 @@ class DateUtils:
             raise ValueError(f"计算日期失败: {date_str}, error: {e}")
     
     @staticmethod
+    def get_duration_by_term(term: str, start_date: str, end_date: str) -> int:
+        """
+        计算两个日期之间的term单位差
+        """
+        if term == 'daily':
+            return DateUtils.get_duration_in_days(start_date, end_date)
+        elif term == 'weekly':
+            return DateUtils.get_duration_in_days(start_date, end_date) // 7
+        elif term == 'monthly':
+            return DateUtils.get_duration_in_days(start_date, end_date) // 30
+
+
+    @staticmethod
     def get_duration_in_days(start_date: str, end_date: str, 
                            date_format: str = DATE_FORMAT_YYYYMMDD) -> int:
         """

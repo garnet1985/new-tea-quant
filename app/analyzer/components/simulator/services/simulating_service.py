@@ -260,7 +260,7 @@ class SimulatingService:
             )
             if opportunity:
                 tracker['investing'] = Investment(
-                    record_of_today=record_of_today,
+                    start_record=record_of_today,
                     opportunity=opportunity,
                     settings=settings,
                     strategy_class=strategy_class,

@@ -2,7 +2,7 @@
 Momentum策略配置
 """
 settings = {
-    "is_enabled": False,
+    "is_enabled": True,
     "name": "Momentum",
     "key": "Momentum",
     "description": "动量投资策略 - 基于均线动量定期调仓",
@@ -36,7 +36,7 @@ settings = {
     "simulation": {
         "start_date": "",
         "end_date": "",
-        "sampling_amount": 500,  # 使用10只股票进行测试
+        "sampling_amount": 1,  # 使用10只股票进行测试
         "record_summary": True,
         "analysis": True,
         

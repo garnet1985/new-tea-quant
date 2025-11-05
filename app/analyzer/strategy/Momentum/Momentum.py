@@ -4,13 +4,16 @@ Momentum策略实现
 核心思想：基于均线动量，定期调仓，筛选前10%动量股票
 """
 
+from operator import inv
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
 import pandas as pd
 import numpy as np
+from app.analyzer.components.entity.opportunity import Opportunity
 
 from app.analyzer.components.base_strategy import BaseStrategy
+from app.analyzer.components.entity.target import InvestmentTarget
 
 
 class MomentumStrategy(BaseStrategy):
@@ -63,7 +66,7 @@ class MomentumStrategy(BaseStrategy):
                     return None
                 
                 # 买入并记录动能
-                return BaseStrategy.create_opportunity(
+                return Opportunity(
                     stock=stock_info,
                     record_of_today=klines[-1],  # 使用最新K线记录
                     extra_fields={
@@ -81,221 +84,139 @@ class MomentumStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"Momentum扫描机会时出错: {e}")
             return None
-    
+
+
     @staticmethod
-    def _calculate_momentum(required_data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[float]:
-        """
-        计算动量指标
-        
-        Args:
-            required_data: 所需数据
-            settings: 策略设置
-            
-        Returns:
-            Optional[float]: 动量值（百分比），如果无法计算返回None
-        """
-        try:
-            # 获取K线数据
-            klines = required_data.get('klines', [])
-            
-            # 从klines字典中获取日线数据
-            if isinstance(klines, dict):
-                klines = klines.get('daily', [])
-            
-            if len(klines) < 60:  # 需要至少60天数据
-                return None
-            
-            # 转换为DataFrame
-            df = pd.DataFrame(klines)
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date')
-            
-            # 获取配置
-            short_ma = settings.get('core', {}).get('short_ma', 20)
-            long_ma = settings.get('core', {}).get('long_ma', 60)
-            
-            # 计算均线
-            df[f'ma{short_ma}'] = df['close'].rolling(window=short_ma).mean()
-            df[f'ma{long_ma}'] = df['close'].rolling(window=long_ma).mean()
-            
-            # 获取最新数据
-            latest = df.iloc[-1]
-            ma_short = latest[f'ma{short_ma}']
-            ma_long = latest[f'ma{long_ma}']
-            
-            # 检查数据有效性
-            if pd.isna(ma_short) or pd.isna(ma_long) or ma_long == 0:
-                return None
-            
-            # 动量计算：(短期均线 - 长期均线) / 长期均线
-            # 只计算上行趋势（短期 > 长期）
-            if ma_short > ma_long:
-                momentum = (ma_short - ma_long) / ma_long
-                return momentum
-            else:
-                return None  # 下行趋势不计算动量
-                
-        except Exception as e:
-            logger.error(f"计算动量时出错: {e}")
-            return None
-    
+    def create_customized_take_profit_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any], extra_fields: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            InvestmentTarget(
+                target_type=InvestmentTarget.TargetType.TAKE_PROFIT,
+                start_record=record_of_today,
+                stage={
+                    'name': 'customized_take_profit',
+                    'ratio': 0,
+                    'close_invest': True,
+                },
+                extra_fields=extra_fields,
+            )
+        ]
+
+
     @staticmethod
-    def _is_first_day_of_period(date_str: str, period_type: str) -> bool:
-        """
-        判断是否是周期的第一天
-        
-        Args:
-            date_str: 日期字符串 (YYYYMMDD)
-            period_type: 周期类型 (monthly, quarterly, yearly)
-            
-        Returns:
-            bool: 是否是周期第一天
-        """
-        try:
-            date = datetime.strptime(date_str, '%Y%m%d')
-            year, month, day = date.year, date.month, date.day
-            
-            if period_type == 'monthly':
-                # 每个月第一天
-                return day == 1
-                
-            elif period_type == 'quarterly':
-                # 每个季度第一天: 1/1, 4/1, 7/1, 10/1
-                return day == 1 and month in [1, 4, 7, 10]
-                
-            elif period_type == 'yearly':
-                # 每年第一天
-                return day == 1 and month == 1
-                
-            else:
-                return False
-                
-        except Exception as e:
-            logger.error(f"判断周期第一天时出错: {e}")
-            return False
-    
-    @staticmethod
-    def _is_last_day_of_period(date_str: str, period_type: str) -> bool:
-        """
-        判断是否是周期的最后一天
-        
-        Args:
-            date_str: 日期字符串 (YYYYMMDD)
-            period_type: 周期类型 (monthly, quarterly, yearly)
-            
-        Returns:
-            bool: 是否是周期最后一天
-        """
-        try:
-            date = datetime.strptime(date_str, '%Y%m%d')
-            year, month, day = date.year, date.month, date.day
-            
-            # 计算下一天
-            next_day = date + timedelta(days=1)
-            
-            if period_type == 'monthly':
-                # 下一天是下个月第一天，今天就是本月最后一天
-                return next_day.month != month
-                
-            elif period_type == 'quarterly':
-                # 季度最后一天：3/31, 6/30, 9/30, 12/31
-                return next_day.month != month and month in [3, 6, 9, 12]
-                
-            elif period_type == 'yearly':
-                # 下一天是下一年的第一天，今天就是本年最后一天
-                return next_day.month == 1 and next_day.day == 1
-                
-            else:
-                return False
-                
-        except Exception as e:
-            logger.error(f"判断周期最后一天时出错: {e}")
-            return False
-    
-    @staticmethod
-    def should_take_profit(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], 
-                          investment: Dict[str, Any], required_data: Dict[str, Any], 
-                          settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+    def is_customized_take_profit_complete(
+        investment: Dict[str, Any],
+        record_of_today: Dict[str, Any],
+        required_data: Dict[str, Any],
+        remaining_investment_ratio: float,
+        settings: Dict[str, Any],
+    ) -> Tuple[bool, float]:
         """
         自定义止盈逻辑 - 在周期结束时卖出
         
         Args:
-            stock_info: 股票信息
-            record_of_today: 当前交易日记录
             investment: 投资对象
+            record_of_today: 当前交易日记录
             required_data: 所需数据
+            remaining_investment_ratio: 剩余投资比例
             settings: 策略设置
-            
         Returns:
             (是否触发止盈, 更新后的投资对象)
         """
-        try:
-            current_date = record_of_today['date']
-            current_price = record_of_today['close']
+        current_date = record_of_today['date']
+        period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
 
-            # 获取周期类型
-            period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
+        if MomentumStrategy._is_last_day_of_period(current_date, period_type):
+            # 周期最后一天：卖出所有持仓
+            return True, remaining_investment_ratio
 
-            # 仅在自定义止盈开启时返回 target_info
-            is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
-            target_info = None
-            if is_customized_tp:
-                target_info = {
-                    'target_price': current_price,
-                    'current_price': current_price,
-                }
+        return False, remaining_investment_ratio
 
-            if MomentumStrategy._is_last_day_of_period(current_date, period_type):
-                # 周期最后一天：卖出所有持仓
-                exit_date = current_date
-                settled = BaseStrategy.to_settled_investment(
-                    investment=investment,
-                    exit_price=current_price,
-                    exit_date=exit_date,
-                    sell_ratio=1.0,
-                    target_info=target_info,
-                    settings=settings,
-                )
-                # 仅在自定义时附带 next_target，便于前端/跟踪器展示
-                if is_customized_tp and target_info is not None:
-                    settled['next_target'] = {
-                        'type': 'take_profit',
-                        'info': target_info
-                    }
-                return True, settled
+            
 
-            # 未到周期末：不卖出；仅在自定义时添加 target_info/next_target
-            investment = dict(investment)
-            if is_customized_tp and target_info is not None:
-                investment['target_info'] = target_info
-                investment['next_target'] = {
-                    'type': 'take_profit',
-                    'info': target_info
-                }
-            return False, investment
+    # @staticmethod
+    # def should_take_profit(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], 
+    #                       investment: Dict[str, Any], required_data: Dict[str, Any], 
+    #                       settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+    #     """
+    #     自定义止盈逻辑 - 在周期结束时卖出
+        
+    #     Args:
+    #         stock_info: 股票信息
+    #         record_of_today: 当前交易日记录
+    #         investment: 投资对象
+    #         required_data: 所需数据
+    #         settings: 策略设置
+            
+    #     Returns:
+    #         (是否触发止盈, 更新后的投资对象)
+    #     """
+    #     try:
+    #         current_date = record_of_today['date']
+    #         current_price = record_of_today['close']
 
-        except Exception as e:
-            logger.error(f"Momentum周期卖出检查出错: {e}")
-            # 异常路径：仅在自定义止盈开启时补充 target_info
-            try:
-                is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
-            except Exception:
-                is_customized_tp = False
-            if not is_customized_tp:
-                return False, investment
-            safe_investment = dict(investment)
-            try:
-                price_fallback = (
-                    record_of_today.get('close') if isinstance(record_of_today, dict) else None
-                ) or safe_investment.get('purchase_price')
-            except Exception:
-                price_fallback = safe_investment.get('purchase_price')
-            if price_fallback is not None:
-                safe_investment['target_info'] = {
-                    'target_price': price_fallback,
-                    'current_price': price_fallback,
-                }
-            return False, safe_investment
+    #         # 获取周期类型
+    #         period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
+
+    #         # 仅在自定义止盈开启时返回 target_info
+    #         is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
+    #         target_info = None
+    #         if is_customized_tp:
+    #             target_info = {
+    #                 'target_price': current_price,
+    #                 'current_price': current_price,
+    #             }
+
+    #         if MomentumStrategy._is_last_day_of_period(current_date, period_type):
+    #             # 周期最后一天：卖出所有持仓
+    #             exit_date = current_date
+    #             settled = BaseStrategy.to_settled_investment(
+    #                 investment=investment,
+    #                 exit_price=current_price,
+    #                 exit_date=exit_date,
+    #                 sell_ratio=1.0,
+    #                 target_info=target_info,
+    #                 settings=settings,
+    #             )
+    #             # 仅在自定义时附带 next_target，便于前端/跟踪器展示
+    #             if is_customized_tp and target_info is not None:
+    #                 settled['next_target'] = {
+    #                     'type': 'take_profit',
+    #                     'info': target_info
+    #                 }
+    #             return True, settled
+
+    #         # 未到周期末：不卖出；仅在自定义时添加 target_info/next_target
+    #         investment = dict(investment)
+    #         if is_customized_tp and target_info is not None:
+    #             investment['target_info'] = target_info
+    #             investment['next_target'] = {
+    #                 'type': 'take_profit',
+    #                 'info': target_info
+    #             }
+    #         return False, investment
+
+    #     except Exception as e:
+    #         logger.error(f"Momentum周期卖出检查出错: {e}")
+    #         # 异常路径：仅在自定义止盈开启时补充 target_info
+    #         try:
+    #             is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
+    #         except Exception:
+    #             is_customized_tp = False
+    #         if not is_customized_tp:
+    #             return False, investment
+    #         safe_investment = dict(investment)
+    #         try:
+    #             price_fallback = (
+    #                 record_of_today.get('close') if isinstance(record_of_today, dict) else None
+    #             ) or safe_investment.get('purchase_price')
+    #         except Exception:
+    #             price_fallback = safe_investment.get('purchase_price')
+    #         if price_fallback is not None:
+    #             safe_investment['target_info'] = {
+    #                 'target_price': price_fallback,
+    #                 'current_price': price_fallback,
+    #             }
+    #         return False, safe_investment
 
     @staticmethod
     def _collect_investments_by_date(stock_summaries: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
@@ -609,3 +530,134 @@ class MomentumStrategy(BaseStrategy):
         print(f"🎯 筛选策略: 前{filter_summary.get('top_percentile', 0)*100:.0f}%，")
         print(f"   最少{filter_summary.get('top_n_min', 0)}只，最多{filter_summary.get('top_n_max', 0)}只")
         print("="*60)
+
+
+    @staticmethod
+    def _calculate_momentum(required_data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[float]:
+        """
+        计算动量指标
+        
+        Args:
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            Optional[float]: 动量值（百分比），如果无法计算返回None
+        """
+        try:
+            # 获取K线数据
+            klines = required_data.get('klines', [])
+            
+            # 从klines字典中获取日线数据
+            if isinstance(klines, dict):
+                klines = klines.get('daily', [])
+            
+            if len(klines) < 60:  # 需要至少60天数据
+                return None
+            
+            # 转换为DataFrame
+            df = pd.DataFrame(klines)
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
+            
+            # 获取配置
+            short_ma = settings.get('core', {}).get('short_ma', 20)
+            long_ma = settings.get('core', {}).get('long_ma', 60)
+            
+            # 计算均线
+            df[f'ma{short_ma}'] = df['close'].rolling(window=short_ma).mean()
+            df[f'ma{long_ma}'] = df['close'].rolling(window=long_ma).mean()
+            
+            # 获取最新数据
+            latest = df.iloc[-1]
+            ma_short = latest[f'ma{short_ma}']
+            ma_long = latest[f'ma{long_ma}']
+            
+            # 检查数据有效性
+            if pd.isna(ma_short) or pd.isna(ma_long) or ma_long == 0:
+                return None
+            
+            # 动量计算：(短期均线 - 长期均线) / 长期均线
+            # 只计算上行趋势（短期 > 长期）
+            if ma_short > ma_long:
+                momentum = (ma_short - ma_long) / ma_long
+                return momentum
+            else:
+                return None  # 下行趋势不计算动量
+                
+        except Exception as e:
+            logger.error(f"计算动量时出错: {e}")
+            return None
+    
+    @staticmethod
+    def _is_first_day_of_period(date_str: str, period_type: str) -> bool:
+        """
+        判断是否是周期的第一天
+        
+        Args:
+            date_str: 日期字符串 (YYYYMMDD)
+            period_type: 周期类型 (monthly, quarterly, yearly)
+            
+        Returns:
+            bool: 是否是周期第一天
+        """
+        try:
+            date = datetime.strptime(date_str, '%Y%m%d')
+            year, month, day = date.year, date.month, date.day
+            
+            if period_type == 'monthly':
+                # 每个月第一天
+                return day == 1
+                
+            elif period_type == 'quarterly':
+                # 每个季度第一天: 1/1, 4/1, 7/1, 10/1
+                return day == 1 and month in [1, 4, 7, 10]
+                
+            elif period_type == 'yearly':
+                # 每年第一天
+                return day == 1 and month == 1
+                
+            else:
+                return False
+                
+        except Exception as e:
+            logger.error(f"判断周期第一天时出错: {e}")
+            return False
+    
+    @staticmethod
+    def _is_last_day_of_period(date_str: str, period_type: str) -> bool:
+        """
+        判断是否是周期的最后一天
+        
+        Args:
+            date_str: 日期字符串 (YYYYMMDD)
+            period_type: 周期类型 (monthly, quarterly, yearly)
+            
+        Returns:
+            bool: 是否是周期最后一天
+        """
+        try:
+            date = datetime.strptime(date_str, '%Y%m%d')
+            year, month, day = date.year, date.month, date.day
+            
+            # 计算下一天
+            next_day = date + timedelta(days=1)
+            
+            if period_type == 'monthly':
+                # 下一天是下个月第一天，今天就是本月最后一天
+                return next_day.month != month
+                
+            elif period_type == 'quarterly':
+                # 季度最后一天：3/31, 6/30, 9/30, 12/31
+                return next_day.month != month and month in [3, 6, 9, 12]
+                
+            elif period_type == 'yearly':
+                # 下一天是下一年的第一天，今天就是本年最后一天
+                return next_day.month == 1 and next_day.day == 1
+                
+            else:
+                return False
+                
+        except Exception as e:
+            logger.error(f"判断周期最后一天时出错: {e}")
+            return False

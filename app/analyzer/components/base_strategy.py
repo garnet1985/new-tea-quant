@@ -5,6 +5,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
+from app.analyzer.components.entity.target import InvestmentTarget
 from app.analyzer.enums import InvestmentResult
 from utils.date.date_utils import DateUtils
 from loguru import logger
@@ -212,56 +213,69 @@ class BaseStrategy(ABC):
         pass
 
     @staticmethod
-    def is_customized_take_profit_achieved(
-            record_of_today: Dict[str, Any], 
-            required_data: Dict[str, Any], 
-            targets: List[Dict[str, Any]], 
+    def create_customized_take_profit_targets(
             investment: Dict[str, Any],
-            settings: Dict[str, Any]
-        ) -> Tuple[bool, List[Dict[str, Any]]]:
+            record_of_today: Dict[str, Any],
+            extra_fields: Dict[str, Any],
+        ) -> List[Dict[str, Any]]:
         """
-        自定义止损逻辑 - 可选重写
-        
-        Args:
-            record_of_today: 当前交易日记录
-            required_data: 所需数据
-            targets: 止盈目标列表
-            investment: 投资对象
-            settings: 策略设置
-        Returns:
-            (是否有达到的目标, 更新过的目标价格或者卖出比例的目标)
+        创建自定义止盈目标
         """
-        has_achieved_goal = False
-        completed_targets = []
-        return has_achieved_goal, completed_targets
-    
+        return []
+
     @staticmethod
-    def is_customized_stop_loss_achieved(
-            record_of_today: Dict[str, Any], 
-            required_data: Dict[str, Any], 
-            targets: List[Dict[str, Any]], 
+    def create_customized_stop_loss_targets(
             investment: Dict[str, Any],
-            settings: Dict[str, Any]
-        ) -> Tuple[bool, List[Dict[str, Any]]]:
+            record_of_today: Dict[str, Any],
+            extra_fields: Dict[str, Any],
+        ) -> List[Dict[str, Any]]:
+        """
+        创建自定义止损目标
+        """
+        return []
+
+    @staticmethod
+    def is_customized_take_profit_complete(
+            target: InvestmentTarget,
+            record_of_today: Dict[str, Any], 
+            required_data: Dict[str, Any],
+            remaining_investment_ratio: float,
+            settings: Dict[str, Any],
+        ) -> Tuple[bool, float]:
         """
         自定义止盈逻辑 - 可选重写
 
         Args:
             record_of_today: 当前交易日记录
+            target: 止盈目标
             required_data: 所需数据
-            targets: 止损目标列表
-            investment: 投资对象
+        Returns:
+            (是否有达到的目标, 更新过的目标价格或者卖出比例的目标)
+        """
+        return False, remaining_investment_ratio
+
+    @staticmethod
+    def is_customized_stop_loss_complete(
+            target: InvestmentTarget,
+            record_of_today: Dict[str, Any],
+            required_data: Dict[str, Any],
+            remaining_investment_ratio: float,
+            settings: Dict[str, Any],
+        ) -> Tuple[bool, float]:
+        """
+        自定义止损逻辑 - 可选重写
+
+        Args:
+            target: 止损目标
+            record_of_today: 当前交易日记录
+            required_data: 所需数据
+            remaining_investment_ratio: 剩余投资比例
             settings: 策略设置
         Returns:
             (是否有达到的目标, 更新过的目标价格或者卖出比例的目标)
         """
-
-        # function need to update target_price & sell_ration (if necessary) dynamically
-        # target inside completed_targets must have sell_price, sell_date & sell_ratio
-        has_achieved_goal = False
-        completed_targets = []
-        return has_achieved_goal, completed_targets
-
+        return False, remaining_investment_ratio
+    
     # this method is used to scan today's opportunities for all the stocks by using multi-process
     # this is a public API method to Analyzer module
     def scan(self) -> List[Dict[str, Any]]:

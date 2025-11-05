@@ -248,7 +248,7 @@ class SimulatingService:
         
         investment = tracker['investing']
         if investment:
-            is_investment_completed, settled_investment = investment.is_completed(record_of_today)
+            is_investment_completed, settled_investment = investment.is_completed(record_of_today, required_data)
             if is_investment_completed:
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None

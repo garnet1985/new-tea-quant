@@ -18,9 +18,11 @@ class InvestmentTarget:
         target_type: TargetType, 
         start_record: Dict[str, Any], 
         stage: Dict[str, Any], 
-        extra_fields: Dict[str, Any] = None
+        extra_fields: Dict[str, Any] = None,
+        is_customized: bool = False,
     ):
         self.target_type = target_type
+        self.is_customized = is_customized
 
         self._validate_stage(stage)
 
@@ -77,36 +79,50 @@ class InvestmentTarget:
             stage['close_invest'] = target_settings.get('close_invest', False)
         return stage
 
-
-    def is_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float = 1.0) -> Tuple[bool, float]:
-        """检查目标是否完成，如果完成则立即settle"""
+    
+    def _is_checking_ready_to_start(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float):
         if self.is_achieved:
-            # return False to avoid push into completed list twice
-            return False, remaining_investment_ratio
-
+            return False
         if remaining_investment_ratio <= 0:
-            # return False to avoid push into completed list twice
-            return False, remaining_investment_ratio
-
+            return False
         if DateUtils.is_before_or_same_day(record_of_today.get('date'), self.tracker.get('last_updated_date')):
-            # return False to avoid push into completed list twice
+            return False
+        return True
+
+
+    def is_complete(self, 
+            record_of_today: Dict[str, Any], 
+            remaining_investment_ratio: float = 1.0,
+            required_data: Dict[str, Any] = None,
+            strategy_class: Any = None,
+            settings: Dict[str, Any] = None,
+        ) -> Tuple[bool, float]:
+        """检查目标是否完成，如果完成则立即settle"""
+        if not self._is_checking_ready_to_start(record_of_today, remaining_investment_ratio):
             return False, remaining_investment_ratio
 
         close_price = record_of_today.get('close', 0)
         target_price = self.content['target_price']
-        self.tracker['last_updated_date'] = record_of_today.get('date')
         
         is_completed = False
-        # 根据目标类型检查
-        if self.target_type == self.TargetType.TAKE_PROFIT:
-            # 止盈：价格 >= 目标价格
-            if close_price >= target_price:
-                is_completed = True
-        elif self.target_type == self.TargetType.STOP_LOSS:
-            # 止损：价格 <= 目标价格
-            if close_price <= target_price:
-                is_completed = True
-        
+
+        if self.is_customized:
+            if self.target_type == self.TargetType.TAKE_PROFIT:
+                is_completed = self.is_customized_take_profit_complete(record_of_today, required_data, remaining_investment_ratio, strategy_class, settings)
+            elif self.target_type == self.TargetType.STOP_LOSS:
+                is_completed = self.is_customized_stop_loss_complete(record_of_today, required_data, remaining_investment_ratio, strategy_class, settings)
+        else:
+            # 根据目标类型检查
+            if self.target_type == self.TargetType.TAKE_PROFIT:
+                # 止盈：价格 >= 目标价格
+                if close_price >= target_price:
+                    is_completed = True
+            elif self.target_type == self.TargetType.STOP_LOSS:
+                # 止损：价格 <= 目标价格
+                if close_price <= target_price:
+                    is_completed = True
+
+        self.tracker['last_updated_date'] = record_of_today.get('date')
         # 如果完成，立即settle
         if is_completed:
             # 计算sell_ratio
@@ -116,17 +132,34 @@ class InvestmentTarget:
         
         return False, remaining_investment_ratio
 
+    def is_customized_target_complete(self, 
+            record_of_today: Dict[str, Any], 
+            required_data: Dict[str, Any], 
+            remaining_investment_ratio: float,
+            strategy_class: Any,
+            settings: Dict[str, Any],
+        ) -> Tuple[bool, float]:
+        if not self._is_checking_ready_to_start(record_of_today, remaining_investment_ratio):
+            return False, remaining_investment_ratio
+
+        if self.target_type == self.TargetType.TAKE_PROFIT:
+            is_complete, remaining_investment_ratio = strategy_class.is_customized_take_profit_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
+        elif self.target_type == self.TargetType.STOP_LOSS:
+            is_complete, remaining_investment_ratio = strategy_class.is_customized_stop_loss_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
+        else:
+            raise ValueError(f"Invalid target type: {self.target_type}")
+        
+        self.tracker['last_updated_date'] = record_of_today.get('date')
+        if is_complete:
+            sell_ratio = self.calc_sell_ratio(remaining_investment_ratio)
+            self.settle(record_of_today, sell_ratio)
+            return True, remaining_investment_ratio - sell_ratio
+        
+        return False, remaining_investment_ratio
+
+
     def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float) -> Tuple[bool, float]:
-        if self.is_achieved:
-            # return False to avoid push into completed list twice
-            return False, remaining_investment_ratio
-
-        if remaining_investment_ratio <= 0:
-            # return False to avoid push into completed list twice
-            return False, remaining_investment_ratio
-
-        if DateUtils.is_before_or_same_day(record_of_today.get('date'), self.tracker.get('last_updated_date')):
-            # return False to avoid push into completed list twice
+        if not self._is_checking_ready_to_start(record_of_today, remaining_investment_ratio):
             return False, remaining_investment_ratio
 
         self.tracker['last_updated_date'] = record_of_today.get('date')

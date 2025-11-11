@@ -235,7 +235,7 @@ class BaseStrategy(ABC):
         return []
 
     @staticmethod
-    def is_customized_take_profit_complete(
+    def is_customized_take_profit_target_complete(
             target: InvestmentTarget,
             record_of_today: Dict[str, Any], 
             required_data: Dict[str, Any],
@@ -255,7 +255,7 @@ class BaseStrategy(ABC):
         return False, remaining_investment_ratio
 
     @staticmethod
-    def is_customized_stop_loss_complete(
+    def is_customized_stop_loss_target_complete(
             target: InvestmentTarget,
             record_of_today: Dict[str, Any],
             required_data: Dict[str, Any],

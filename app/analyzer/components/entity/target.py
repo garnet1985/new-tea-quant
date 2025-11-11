@@ -138,9 +138,9 @@ class InvestmentTarget:
             settings: Dict[str, Any],
         ) -> Tuple[bool, float]:
         if self.target_type == self.TargetType.TAKE_PROFIT:
-            return strategy_class.is_customized_take_profit_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
+            return strategy_class.is_customized_take_profit_target_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
         elif self.target_type == self.TargetType.STOP_LOSS:
-            return strategy_class.is_customized_stop_loss_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
+            return strategy_class.is_customized_stop_loss_target_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
         return False, remaining_investment_ratio
 
     def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float) -> Tuple[bool, float]:

@@ -4,7 +4,6 @@ Momentum策略实现
 核心思想：基于均线动量，定期调仓，筛选前10%动量股票
 """
 
-from operator import inv
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
@@ -103,7 +102,7 @@ class MomentumStrategy(BaseStrategy):
 
 
     @staticmethod
-    def is_customized_take_profit_complete(
+    def is_customized_take_profit_target_complete(
         target: Any,  # InvestmentTarget object
         record_of_today: Dict[str, Any],
         required_data: Dict[str, Any],
@@ -222,9 +221,6 @@ class MomentumStrategy(BaseStrategy):
 
         return is_first, is_last
 
-
-
-
     @staticmethod
     def _is_last_day_of_period(date_str: str, period_type: str) -> bool:
         """
@@ -297,107 +293,20 @@ class MomentumStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"判断周期第一天时出错: {e}")
             return False
-    
-
-            
-
-    # @staticmethod
-    # def should_take_profit(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], 
-    #                       investment: Dict[str, Any], required_data: Dict[str, Any], 
-    #                       settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
-    #     """
-    #     自定义止盈逻辑 - 在周期结束时卖出
-        
-    #     Args:
-    #         stock_info: 股票信息
-    #         record_of_today: 当前交易日记录
-    #         investment: 投资对象
-    #         required_data: 所需数据
-    #         settings: 策略设置
-            
-    #     Returns:
-    #         (是否触发止盈, 更新后的投资对象)
-    #     """
-    #     try:
-    #         current_date = record_of_today['date']
-    #         current_price = record_of_today['close']
-
-    #         # 获取周期类型
-    #         period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
-
-    #         # 仅在自定义止盈开启时返回 target_info
-    #         is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
-    #         target_info = None
-    #         if is_customized_tp:
-    #             target_info = {
-    #                 'target_price': current_price,
-    #                 'current_price': current_price,
-    #             }
-
-    #         if MomentumStrategy._is_last_day_of_period(current_date, period_type):
-    #             # 周期最后一天：卖出所有持仓
-    #             exit_date = current_date
-    #             settled = BaseStrategy.to_settled_investment(
-    #                 investment=investment,
-    #                 exit_price=current_price,
-    #                 exit_date=exit_date,
-    #                 sell_ratio=1.0,
-    #                 target_info=target_info,
-    #                 settings=settings,
-    #             )
-    #             # 仅在自定义时附带 next_target，便于前端/跟踪器展示
-    #             if is_customized_tp and target_info is not None:
-    #                 settled['next_target'] = {
-    #                     'type': 'take_profit',
-    #                     'info': target_info
-    #                 }
-    #             return True, settled
-
-    #         # 未到周期末：不卖出；仅在自定义时添加 target_info/next_target
-    #         investment = dict(investment)
-    #         if is_customized_tp and target_info is not None:
-    #             investment['target_info'] = target_info
-    #             investment['next_target'] = {
-    #                 'type': 'take_profit',
-    #                 'info': target_info
-    #             }
-    #         return False, investment
-
-    #     except Exception as e:
-    #         logger.error(f"Momentum周期卖出检查出错: {e}")
-    #         # 异常路径：仅在自定义止盈开启时补充 target_info
-    #         try:
-    #             is_customized_tp = BaseStrategy.is_customized_take_profit(settings)
-    #         except Exception:
-    #             is_customized_tp = False
-    #         if not is_customized_tp:
-    #             return False, investment
-    #         safe_investment = dict(investment)
-    #         try:
-    #             price_fallback = (
-    #                 record_of_today.get('close') if isinstance(record_of_today, dict) else None
-    #             ) or safe_investment.get('purchase_price')
-    #         except Exception:
-    #             price_fallback = safe_investment.get('purchase_price')
-    #         if price_fallback is not None:
-    #             safe_investment['target_info'] = {
-    #                 'target_price': price_fallback,
-    #                 'current_price': price_fallback,
-    #             }
-    #         return False, safe_investment
 
     @staticmethod
-    def _collect_investments_by_date(stock_summaries: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    def _collect_investments_by_period(stock_summaries: List[Dict[str, Any]], period_type: str) -> Dict[str, List[Dict[str, Any]]]:
         """
-        收集所有投资记录，按调仓日期分组
+        收集所有投资记录，按周期分组
         
         Args:
             stock_summaries: 所有股票的汇总结果
+            period_type: 周期类型 (monthly, quarterly, yearly)
             
         Returns:
-            Dict: {日期: [投资记录列表]}
+            Dict: {周期ID: [投资记录列表]}，例如 {"2024Q1": [...]}
         """
-        investments_by_date = {}
+        investments_by_period = {}
         
         for stock_summary in stock_summaries:
             investments = stock_summary.get('investments', [])
@@ -407,17 +316,19 @@ class MomentumStrategy(BaseStrategy):
                 momentum = investment.get('extra_fields', {}).get('momentum')
                 
                 if entry_date and momentum is not None:
-                    if entry_date not in investments_by_date:
-                        investments_by_date[entry_date] = []
+                    period_id = MomentumStrategy._get_period_id(entry_date, period_type)
                     
-                    investments_by_date[entry_date].append({
+                    if period_id not in investments_by_period:
+                        investments_by_period[period_id] = []
+                    
+                    investments_by_period[period_id].append({
                         'investment': investment,
                         'momentum': momentum,
                         'stock_id': stock_summary.get('stock_id'),
                         'stock_name': stock_summary.get('stock_name')
                     })
         
-        return investments_by_date
+        return investments_by_period
     
     @staticmethod
     def _calculate_filter_count(total: int, top_percentile: float, top_n_min: int, top_n_max: int) -> int:
@@ -446,16 +357,16 @@ class MomentumStrategy(BaseStrategy):
     
     @staticmethod
     def _filter_top_momentum_investments(
-        investments_by_date: Dict[str, List[Dict[str, Any]]],
+        investments_by_period: Dict[str, List[Dict[str, Any]]],
         top_percentile: float,
         top_n_max: int,
         top_n_min: int
     ) -> tuple:
         """
-        按日期筛选每期的前N只股票
+        按周期筛选每期的前N只股票
         
         Args:
-            investments_by_date: 按日期分组的投资记录
+            investments_by_period: 按周期分组的投资记录
             top_percentile: 顶部百分比
             top_n_max: 最大数量
             top_n_min: 最小数量
@@ -467,7 +378,7 @@ class MomentumStrategy(BaseStrategy):
         total_original = 0
         total_filtered = 0
         
-        for date, investments in sorted(investments_by_date.items()):
+        for period_id, investments in sorted(investments_by_period.items()):
             total_original += len(investments)
             
             # 按动量排序（降序）
@@ -486,7 +397,7 @@ class MomentumStrategy(BaseStrategy):
             total_filtered += len(selected)
             
             logger.info(
-                f"📅 {date}: 原始{len(sorted_investments)}只 → 筛选后{len(selected)}只 "
+                f"📅 周期 {period_id}: 原始{len(sorted_investments)}只 → 筛选后{len(selected)}只 "
                 f"(动量范围: {selected[-1]['momentum']:.4f} ~ {selected[0]['momentum']:.4f})"
             )
             
@@ -626,59 +537,60 @@ class MomentumStrategy(BaseStrategy):
         
         return filtered_session_summary
     
-    # @staticmethod
-    # def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]], settings: Dict[str, Any] = None) -> Dict[str, Any]:
-    #     """
-    #     整个会话汇总 - Momentum策略需要筛选前N只股票
+    @staticmethod
+    def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]], settings: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        整个会话汇总 - Momentum策略需要筛选前N只股票
         
-    #     Args:
-    #         base_session_summary: 默认的汇总结果
-    #         stock_summaries: 所有股票的汇总结果
-    #         settings: 策略设置
+        Args:
+            base_session_summary: 默认的汇总结果
+            stock_summaries: 所有股票的汇总结果
+            settings: 策略设置
             
-    #     Returns:
-    #         Dict: 追加到默认session summary的字段
-    #     """
-    #     try:
-    #         # 获取配置
-    #         top_percentile = settings.get('core', {}).get('top_percentile', 0.10)
-    #         top_n_max = settings.get('core', {}).get('top_n_max', 50)
-    #         top_n_min = settings.get('core', {}).get('top_n_min', 1)
+        Returns:
+            Dict: 追加到默认session summary的字段
+        """
+        try:
+            # 获取配置
+            top_percentile = settings.get('core', {}).get('top_percentile', 0.10)
+            top_n_max = settings.get('core', {}).get('top_n_max', 50)
+            top_n_min = settings.get('core', {}).get('top_n_min', 1)
             
-    #         logger.info(f"🎯 Momentum策略开始筛选：前{top_percentile*100}%，最少{top_n_min}只，最多{top_n_max}只")
+            period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
+            logger.info(f"🎯 Momentum策略开始筛选：前{top_percentile*100}%，最少{top_n_min}只，最多{top_n_max}只")
             
-    #         # 1. 收集所有投资记录，按日期分组
-    #         investments_by_date = MomentumStrategy._collect_investments_by_date(stock_summaries)
-    #         logger.info(f"📊 共找到 {len(investments_by_date)} 个调仓日期")
+            # 1. 收集所有投资记录，按周期分组
+            investments_by_period = MomentumStrategy._collect_investments_by_period(stock_summaries, period_type)
+            logger.info(f"📊 共找到 {len(investments_by_period)} 个调仓周期")
             
-    #         # 2. 按日期筛选每期的前N只股票
-    #         filtered_investments, total_original, total_filtered = MomentumStrategy._filter_top_momentum_investments(
-    #             investments_by_date, top_percentile, top_n_max, top_n_min
-    #         )
-    #         logger.info(f"✅ Momentum筛选完成：原始{total_original}笔 → 筛选后{total_filtered}笔")
+            # 2. 按周期筛选每期的前N只股票
+            filtered_investments, total_original, total_filtered = MomentumStrategy._filter_top_momentum_investments(
+                investments_by_period, top_percentile, top_n_max, top_n_min
+            )
+            logger.info(f"✅ Momentum筛选完成：原始{total_original}笔 → 筛选后{total_filtered}笔")
             
-    #         # 3. 重建筛选后的股票汇总
-    #         filtered_stock_summaries = MomentumStrategy._rebuild_stock_summaries(filtered_investments, stock_summaries)
+            # 3. 重建筛选后的股票汇总
+            filtered_stock_summaries = MomentumStrategy._rebuild_stock_summaries(filtered_investments, stock_summaries)
             
-    #         # 4. 构建自定义会话汇总
-    #         if len(filtered_stock_summaries) > 0:
-    #             return MomentumStrategy._build_custom_session_summary(
-    #                 filtered_stock_summaries,
-    #                 total_original,
-    #                 total_filtered,
-    #                 top_percentile,
-    #                 top_n_max,
-    #                 top_n_min
-    #             )
-    #         else:
-    #             logger.warning("⚠️ Momentum筛选后没有找到任何投资记录")
-    #             return base_session_summary
+            # 4. 构建自定义会话汇总
+            if len(filtered_stock_summaries) > 0:
+                return MomentumStrategy._build_custom_session_summary(
+                    filtered_stock_summaries,
+                    total_original,
+                    total_filtered,
+                    top_percentile,
+                    top_n_max,
+                    top_n_min
+                )
+            else:
+                logger.warning("⚠️ Momentum筛选后没有找到任何投资记录")
+                return base_session_summary
             
-    #     except Exception as e:
-    #         logger.error(f"Momentum汇总时出错: {e}")
-    #         import traceback
-    #         traceback.print_exc()
-    #         return {}
+        except Exception as e:
+            logger.error(f"Momentum汇总时出错: {e}")
+            import traceback
+            traceback.print_exc()
+            return {}
     
     @staticmethod
     def present_extra_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any] = None) -> None:

@@ -72,7 +72,7 @@ class MomentumStrategy(BaseStrategy):
                     extra_fields={
                         'momentum': momentum,
                         'is_momentum_strategy': True,
-                        'rebalance_date': current_date_str
+                        'rebalance_date': current_date_str,
                     }
                 )
             
@@ -125,11 +125,148 @@ class MomentumStrategy(BaseStrategy):
         current_date = record_of_today['date']
         period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
 
+        rebalance_date = investment.to_dict().get('extra_fields', {}).get('rebalance_date')
+        logger.info(investment.to_dict())
+
+        logger.info(f"current date is: {current_date},  rebalance date is: {rebalance_date}")
+
         if MomentumStrategy._is_last_day_of_period(current_date, period_type):
+            logger.info(f"current date is last day of period: {current_date}")
             # 周期最后一天：卖出所有持仓
             return True, remaining_investment_ratio
 
         return False, remaining_investment_ratio
+
+    @staticmethod
+    def _get_period_id(date_str: str, period_type: str) -> str:
+        """
+        根据日期返回周期编号
+        quarterly -> 2024Q1
+        monthly   -> 2024M03
+        yearly    -> 2024
+        """
+        date = datetime.strptime(date_str, '%Y%m%d')
+        year, month = date.year, date.month
+
+        if period_type == 'monthly':
+            return f"{year}M{month:02d}"
+        elif period_type == 'quarterly':
+            quarter = (month - 1) // 3 + 1
+            return f"{year}Q{quarter}"
+        elif period_type == 'yearly':
+            return str(year)
+        else:
+            raise ValueError(f"Unsupported period type: {period_type}")
+
+    @staticmethod
+    def detect_period_change(current_date: str, period_type: str, tracker: Dict[str, Any]) -> Tuple[bool, bool]:
+        """
+        动态判断当前日期是否为周期首日/末日
+        无需完整交易日表，适用于逐日模拟。
+
+        Args:
+            current_date: 当前交易日 (YYYYMMDD)
+            period_type: 周期类型 (monthly / quarterly / yearly)
+            tracker: 存储上次周期编号 {'last_period': '2024Q1'}
+
+        Returns:
+            (is_first_day, is_last_day)
+        """
+        period_id = MomentumStrategy._get_period_id(current_date, period_type)
+        last_period = tracker.get('last_period')
+
+        # 默认都不是
+        is_first, is_last = False, False
+
+        if last_period is None:
+            # 首次执行：视为新周期首日
+            is_first = True
+        elif last_period != period_id:
+            # 检测到周期变化：上一周期刚结束，本周期刚开始
+            is_last = True   # 上一周期末日（发生在昨天）
+            is_first = True  # 当前天是新周期首日
+
+        # 更新追踪器
+        tracker['last_period'] = period_id
+
+        return is_first, is_last
+
+
+
+
+    @staticmethod
+    def _is_last_day_of_period(date_str: str, period_type: str) -> bool:
+        """
+        判断是否是周期的最后一天
+        
+        Args:
+            date_str: 日期字符串 (YYYYMMDD)
+            period_type: 周期类型 (monthly, quarterly, yearly)
+            
+        Returns:
+            bool: 是否是周期最后一天
+        """
+        try:
+            date = datetime.strptime(date_str, '%Y%m%d')
+            year, month, day = date.year, date.month, date.day
+            
+            # 计算下一天
+            next_day = date + timedelta(days=1)
+            
+            if period_type == 'monthly':
+                # 下一天是下个月第一天，今天就是本月最后一天
+                return next_day.month != month
+                
+            elif period_type == 'quarterly':
+                # 季度最后一天：3/31, 6/30, 9/30, 12/31
+                return next_day.month != month and month in [3, 6, 9, 12]
+                
+            elif period_type == 'yearly':
+                # 下一天是下一年的第一天，今天就是本年最后一天
+                return next_day.month == 1 and next_day.day == 1
+                
+            else:
+                return False
+                
+        except Exception as e:
+            logger.error(f"判断周期最后一天时出错: {e}")
+            return False
+
+    @staticmethod
+    def _is_first_day_of_period(date_str: str, period_type: str) -> bool:
+        """
+        判断是否是周期的第一天
+        
+        Args:
+            date_str: 日期字符串 (YYYYMMDD)
+            period_type: 周期类型 (monthly, quarterly, yearly)
+            
+        Returns:
+            bool: 是否是周期第一天
+        """
+        try:
+            date = datetime.strptime(date_str, '%Y%m%d')
+            year, month, day = date.year, date.month, date.day
+            
+            if period_type == 'monthly':
+                # 每个月第一天
+                return day == 1
+                
+            elif period_type == 'quarterly':
+                # 每个季度第一天: 1/1, 4/1, 7/1, 10/1
+                return day == 1 and month in [1, 4, 7, 10]
+                
+            elif period_type == 'yearly':
+                # 每年第一天
+                return day == 1 and month == 1
+                
+            else:
+                return False
+                
+        except Exception as e:
+            logger.error(f"判断周期第一天时出错: {e}")
+            return False
+    
 
             
 
@@ -458,59 +595,59 @@ class MomentumStrategy(BaseStrategy):
         
         return filtered_session_summary
     
-    @staticmethod
-    def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]], settings: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        整个会话汇总 - Momentum策略需要筛选前N只股票
+    # @staticmethod
+    # def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]], settings: Dict[str, Any] = None) -> Dict[str, Any]:
+    #     """
+    #     整个会话汇总 - Momentum策略需要筛选前N只股票
         
-        Args:
-            base_session_summary: 默认的汇总结果
-            stock_summaries: 所有股票的汇总结果
-            settings: 策略设置
+    #     Args:
+    #         base_session_summary: 默认的汇总结果
+    #         stock_summaries: 所有股票的汇总结果
+    #         settings: 策略设置
             
-        Returns:
-            Dict: 追加到默认session summary的字段
-        """
-        try:
-            # 获取配置
-            top_percentile = settings.get('core', {}).get('top_percentile', 0.10)
-            top_n_max = settings.get('core', {}).get('top_n_max', 50)
-            top_n_min = settings.get('core', {}).get('top_n_min', 1)
+    #     Returns:
+    #         Dict: 追加到默认session summary的字段
+    #     """
+    #     try:
+    #         # 获取配置
+    #         top_percentile = settings.get('core', {}).get('top_percentile', 0.10)
+    #         top_n_max = settings.get('core', {}).get('top_n_max', 50)
+    #         top_n_min = settings.get('core', {}).get('top_n_min', 1)
             
-            logger.info(f"🎯 Momentum策略开始筛选：前{top_percentile*100}%，最少{top_n_min}只，最多{top_n_max}只")
+    #         logger.info(f"🎯 Momentum策略开始筛选：前{top_percentile*100}%，最少{top_n_min}只，最多{top_n_max}只")
             
-            # 1. 收集所有投资记录，按日期分组
-            investments_by_date = MomentumStrategy._collect_investments_by_date(stock_summaries)
-            logger.info(f"📊 共找到 {len(investments_by_date)} 个调仓日期")
+    #         # 1. 收集所有投资记录，按日期分组
+    #         investments_by_date = MomentumStrategy._collect_investments_by_date(stock_summaries)
+    #         logger.info(f"📊 共找到 {len(investments_by_date)} 个调仓日期")
             
-            # 2. 按日期筛选每期的前N只股票
-            filtered_investments, total_original, total_filtered = MomentumStrategy._filter_top_momentum_investments(
-                investments_by_date, top_percentile, top_n_max, top_n_min
-            )
-            logger.info(f"✅ Momentum筛选完成：原始{total_original}笔 → 筛选后{total_filtered}笔")
+    #         # 2. 按日期筛选每期的前N只股票
+    #         filtered_investments, total_original, total_filtered = MomentumStrategy._filter_top_momentum_investments(
+    #             investments_by_date, top_percentile, top_n_max, top_n_min
+    #         )
+    #         logger.info(f"✅ Momentum筛选完成：原始{total_original}笔 → 筛选后{total_filtered}笔")
             
-            # 3. 重建筛选后的股票汇总
-            filtered_stock_summaries = MomentumStrategy._rebuild_stock_summaries(filtered_investments, stock_summaries)
+    #         # 3. 重建筛选后的股票汇总
+    #         filtered_stock_summaries = MomentumStrategy._rebuild_stock_summaries(filtered_investments, stock_summaries)
             
-            # 4. 构建自定义会话汇总
-            if len(filtered_stock_summaries) > 0:
-                return MomentumStrategy._build_custom_session_summary(
-                    filtered_stock_summaries,
-                    total_original,
-                    total_filtered,
-                    top_percentile,
-                    top_n_max,
-                    top_n_min
-                )
-            else:
-                logger.warning("⚠️ Momentum筛选后没有找到任何投资记录")
-                return base_session_summary
+    #         # 4. 构建自定义会话汇总
+    #         if len(filtered_stock_summaries) > 0:
+    #             return MomentumStrategy._build_custom_session_summary(
+    #                 filtered_stock_summaries,
+    #                 total_original,
+    #                 total_filtered,
+    #                 top_percentile,
+    #                 top_n_max,
+    #                 top_n_min
+    #             )
+    #         else:
+    #             logger.warning("⚠️ Momentum筛选后没有找到任何投资记录")
+    #             return base_session_summary
             
-        except Exception as e:
-            logger.error(f"Momentum汇总时出错: {e}")
-            import traceback
-            traceback.print_exc()
-            return {}
+    #     except Exception as e:
+    #         logger.error(f"Momentum汇总时出错: {e}")
+    #         import traceback
+    #         traceback.print_exc()
+    #         return {}
     
     @staticmethod
     def present_extra_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any] = None) -> None:
@@ -589,75 +726,4 @@ class MomentumStrategy(BaseStrategy):
             logger.error(f"计算动量时出错: {e}")
             return None
     
-    @staticmethod
-    def _is_first_day_of_period(date_str: str, period_type: str) -> bool:
-        """
-        判断是否是周期的第一天
-        
-        Args:
-            date_str: 日期字符串 (YYYYMMDD)
-            period_type: 周期类型 (monthly, quarterly, yearly)
-            
-        Returns:
-            bool: 是否是周期第一天
-        """
-        try:
-            date = datetime.strptime(date_str, '%Y%m%d')
-            year, month, day = date.year, date.month, date.day
-            
-            if period_type == 'monthly':
-                # 每个月第一天
-                return day == 1
-                
-            elif period_type == 'quarterly':
-                # 每个季度第一天: 1/1, 4/1, 7/1, 10/1
-                return day == 1 and month in [1, 4, 7, 10]
-                
-            elif period_type == 'yearly':
-                # 每年第一天
-                return day == 1 and month == 1
-                
-            else:
-                return False
-                
-        except Exception as e:
-            logger.error(f"判断周期第一天时出错: {e}")
-            return False
-    
-    @staticmethod
-    def _is_last_day_of_period(date_str: str, period_type: str) -> bool:
-        """
-        判断是否是周期的最后一天
-        
-        Args:
-            date_str: 日期字符串 (YYYYMMDD)
-            period_type: 周期类型 (monthly, quarterly, yearly)
-            
-        Returns:
-            bool: 是否是周期最后一天
-        """
-        try:
-            date = datetime.strptime(date_str, '%Y%m%d')
-            year, month, day = date.year, date.month, date.day
-            
-            # 计算下一天
-            next_day = date + timedelta(days=1)
-            
-            if period_type == 'monthly':
-                # 下一天是下个月第一天，今天就是本月最后一天
-                return next_day.month != month
-                
-            elif period_type == 'quarterly':
-                # 季度最后一天：3/31, 6/30, 9/30, 12/31
-                return next_day.month != month and month in [3, 6, 9, 12]
-                
-            elif period_type == 'yearly':
-                # 下一天是下一年的第一天，今天就是本年最后一天
-                return next_day.month == 1 and next_day.day == 1
-                
-            else:
-                return False
-                
-        except Exception as e:
-            logger.error(f"判断周期最后一天时出错: {e}")
-            return False
+

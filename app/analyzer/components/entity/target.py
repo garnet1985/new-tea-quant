@@ -14,15 +14,28 @@ class InvestmentTarget:
         EXPIRED = 'expired'
         OPEN = 'open'
 
+    class TargetPriority(Enum):
+        CUSTOMIZED_TAKE_PROFIT_BASE = 0      # 自定义止盈: 0-99
+        NORMAL_TAKE_PROFIT_BASE = 100        # 普通止盈: 100-199
+        PROTECT_LOSS = 200                   # 保护止损: 200 (优先于普通止损)
+        DYNAMIC_LOSS = 300                   # 动态止损: 300 (优先于普通止损)
+        CUSTOMIZED_STOP_LOSS_BASE = 400      # 自定义止损: 400-499
+        NORMAL_STOP_LOSS_BASE = 500          # 普通止损: 500-599
+        EXPIRATION = 900                     # 过期: 900 (最后检查)
+
     def __init__(self, 
         target_type: TargetType, 
         start_record: Dict[str, Any], 
         stage: Dict[str, Any], 
         extra_fields: Dict[str, Any] = None,
         is_customized: bool = False,
+        priority: int = 999,
+        is_enabled: bool = True,
     ):
         self.target_type = target_type
         self.is_customized = is_customized
+        self.priority = priority
+        self.is_enabled = is_enabled
 
         self._validate_stage(stage)
 
@@ -161,6 +174,40 @@ class InvestmentTarget:
                 return False, remaining_investment_ratio
             else:
                 return False, remaining_investment_ratio
+
+    def check_expiration(self, record_of_today: Dict[str, Any], investment_start_date: str) -> bool:
+        """
+        检查是否过期（仅用于 EXPIRED 类型的 target）
+        
+        Args:
+            record_of_today: 当前交易日记录
+            investment_start_date: 投资开始日期
+            
+        Returns:
+            bool: 是否已过期
+        """
+        if self.target_type != self.TargetType.EXPIRED:
+            return False
+        
+        extra = self.tracker.get('extra_fields')
+        if not extra:
+            return False
+        
+        # 更新已过时间
+        if extra.get('is_trading_period', True):
+            # 按交易日计数
+            extra['time_elapsed'] = extra.get('time_elapsed', 0) + 1
+        else:
+            # 按自然日计数
+            extra['time_elapsed'] = DateUtils.get_duration_in_days(
+                investment_start_date,
+                record_of_today.get('date'),
+                DateUtils.DATE_FORMAT_YYYYMMDD
+            )
+        
+        # 检查是否达到阈值
+        fixed_period = extra.get('fixed_period', 0)
+        return extra['time_elapsed'] >= fixed_period
 
     def calc_sell_ratio(self, remaining_investment_ratio: float):
         if self.tracker['stage'].get('close_invest'):

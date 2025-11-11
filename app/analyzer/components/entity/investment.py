@@ -238,11 +238,6 @@ class Investment:
         if self._is_investment_complete():
             return True
 
-        # if self.is_customized_stop_loss:
-        #     self._check_customized_stop_loss(record_of_today, required_data)
-        # else:
-        #     self._check_stop_loss_targets(record_of_today)
-
         self._check_stop_loss_targets(record_of_today)
 
         # if all stop loss targets are achieved, the investment is completed
@@ -250,26 +245,6 @@ class Investment:
             return True
 
         return False
-
-    # def _is_customized_take_profit_complete(self, record_of_today: Dict[str, Any], required_data: Dict[str, Any])-> Tuple[InvestmentTarget, float]:
-    #     # 1. call strategy class to get next take profit target
-    #     # 2. update sell ratio if target is achieved
-    #     # 3. update target price if target is not achieved
-    #     self._update_amplitude_tracking(record_of_today)
-    #     for target in self.tracker['targets_tracking']['take_profit']['targets']:
-    #         if target.is_achieved:
-    #             continue
-            
-    #         is_target_completed, remaining_investment_ratio = self.strategy_class.should_take_profit(target, record_of_today, required_data)
-    #         if is_target_completed:
-    #             if target.is_achieved is False:
-    #                 target.settle(record_of_today, target.calc_sell_ratio(remaining_investment_ratio))
-    #             self.content['completed_targets'].append(target.to_dict())
-    #             self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
-    #     return target, remaining_investment_ratio
-
-    # def _check_customized_stop_loss(self, record_of_today: Dict[str, Any], required_data: Dict[str, Any])-> Tuple[InvestmentTarget, float]:
-    #     return self.strategy_class.should_stop_loss(self.to_dict(), record_of_today, required_data)
 
     def _check_stop_loss_targets(self, record_of_today: Dict[str, Any]):
         self._check_protect_loss(record_of_today)

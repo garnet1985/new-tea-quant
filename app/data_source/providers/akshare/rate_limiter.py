@@ -36,7 +36,7 @@ class AKShareRateLimiter:
         # 线程锁
         self.lock = threading.Lock()
         
-        logger.info(f"🚦 {self.api_name} API限流器初始化: {self.actual_limit}次/分钟 (缓冲{buffer}次)")
+        # logger.info(f"🚦 {self.api_name} API限流器初始化: {self.actual_limit}次/分钟 (缓冲{buffer}次)")
     
     def acquire(self) -> None:
         """

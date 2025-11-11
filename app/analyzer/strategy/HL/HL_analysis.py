@@ -728,8 +728,8 @@ class HistoricLowAnalysis:
         print("🔍 开始对比投资方法...")
         
         # 加载配置
-        kelly_config = strategy_settings.get("kelly_formula", {})
-        filter_config = strategy_settings.get("investment_filter", {})
+        kelly_config = strategy_settings.get("core", {}).get("kelly_formula", {})
+        filter_config = strategy_settings.get("core", {}).get("investment_filter", {})
         
         # 判断是否使用凯莉公式
         use_kelly = kelly_config.get("enabled", True) and initial_capital >= kelly_config.get("min_capital_threshold", 200000)

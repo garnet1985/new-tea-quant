@@ -30,6 +30,8 @@ class RandomStrategy(BaseStrategy):
         self.version = "0.1"
         super().__init__(db, is_verbose, name, description, key)
         self.strategy_name = "Lucky investment strategy"
+        if db is not None:
+            super().initialize()
     
     @staticmethod
     def scan_opportunity(stock_info: Dict[str, Any], data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:

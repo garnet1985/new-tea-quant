@@ -4,8 +4,11 @@ from app.conf.conf import data_default_start_date
 # ML增强版本设置 - 基于机器学习验证的重要参数
 settings = {
     # 策略启用状态
-    "is_enabled": False,  # V21.0 ML增强版本启用
-
+    "is_enabled": True,  # V21.0 ML增强版本启用
+    "name": "ReverseTrendBet",
+    "description": "反转趋势策略 - 基于机器学习验证的重要参数",
+    
+    "key": "RTB",
     "version": "V25.0_Script_Optimized",
     
     "core": {
@@ -19,13 +22,120 @@ settings = {
             "lower_bound": 0.008,  # 基于ML分析的买入区间
             "upper_bound": 0.008,
         },
+        
+        # 基于机器学习验证的重要参数阈值
+        "thresholds": {
+            # 1. 市值筛选条件 (基于脚本分析优化)
+            "market_cap": {
+                "max": 1800000,  # 市值 < 180万 (万元)
+                "preference_max": 3000000,  # 优先小盘股：市值 < 300亿
+            },
+            
+            # 2. PE比率筛选 (基于脚本分析优化)
+            "pe_ratio": {
+                "min": 2,    # PE > 2
+                "max": 120,  # PE < 120
+                "preference_min": 10,   # 优先范围 min
+                "preference_max": 100,  # 优先范围 max
+            },
+            
+            # 3. PB比率筛选 (基于脚本分析优化)
+            "pb_ratio": {
+                "min": 0.1,  # PB > 0.1
+                "max": 7.5,  # PB < 7.5
+                "preference_min": 0.3,  # 优先范围 min
+                "preference_max": 8.0,  # 优先范围 max
+            },
+            
+            # 4. PS比率筛选
+            "ps_ratio": {
+                "preference_min": 0.5,   # 优先范围 min
+                "preference_max": 15.0,  # 优先范围 max
+            },
+            
+            # 5. RSI条件 (基于脚本分析优化)
+            "rsi": {
+                "min": 7,    # RSI > 7
+                "max": 92,   # RSI < 92
+                "preference_min": 20,  # 优先范围 min
+                "preference_max": 70,  # 优先范围 max
+            },
+            
+            # 6. 价格历史分位数 (基于脚本分析优化)
+            "price_percentile": {
+                "min": 0.00,  # 价格分位数 > 0%
+                "max": 0.95,  # 价格分位数 < 95%
+                "preference_min": 0.2,  # 优先范围 min
+                "preference_max": 0.6,  # 优先范围 max
+            },
+            
+            # 7. 波动率条件 (基于脚本分析优化) - 最高权重 (0.106)
+            "volatility": {
+                "min": 0.007,  # 波动率 > 0.7%
+                "max": 0.450,  # 波动率 < 45%
+                "preference_min": 0.02,  # 优先范围: > 2%
+                "preference_max": 0.15,  # 优先范围: < 15%
+                "weight": 0.106
+            },
+            
+            # 8. 成交量条件 (基于脚本分析优化)
+            "volume_ratio_before": {
+                "min": 0.7,  # 反转前成交量放大 ≥ 0.7倍
+                "preference_min": 1.2,  # 优先: ≥ 1.2倍
+                "weight": 0.042
+            },
+            "volume_ratio_after": {
+                "min": 0.7,  # 反转后成交量放大 ≥ 0.7倍
+                "preference_min": 1.5,  # 优先: ≥ 1.5倍
+                "weight": 0.080
+            },
+            
+            # 9. 均线收敛度条件 (基于脚本分析优化)
+            "ma_convergence": {
+                "max": 0.225,  # 均线收敛度 < 22.5%
+                "preference_max": 0.05,  # 优先: < 5%
+                "weight": 0.056
+            },
+            
+            # 10. 价格相对均线位置条件 (基于脚本分析优化)
+            "price_vs_ma20": {
+                "min": -0.22,  # 价格与MA20距离 > -22%
+                "max": 0.22,   # 价格与MA20距离 < 22%
+                "preference_min": -0.05,  # 优先范围 min
+                "preference_max": 0.05,   # 优先范围 max
+                "weight": 0.046
+            },
+            "price_vs_ma60": {
+                "min": -0.30,  # 价格与MA60距离 > -30%
+                "max": 0.30,   # 价格与MA60距离 < 30%
+                "preference_min": -0.08,  # 优先范围 min
+                "preference_max": 0.08,   # 优先范围 max
+                "weight": 0.044
+            },
+            
+            # 11. 月线跌幅条件 (基于脚本分析优化)
+            "monthly_drop_rate": {
+                "min": 0.007,  # 月线跌幅 > 0.7%
+                "max": 1.050,  # 月线跌幅 < 105%
+                "preference_min": 0.05,  # 优先: > 5%
+                "preference_max": 0.40,  # 优先: < 40%
+                "weight": 0.044
+            },
+            
+            # 12. 均线斜率条件 (基于脚本分析优化)
+            "ma20_slope": {
+                "min": -0.075,  # MA20斜率 > -7.5%
+                "preference_min": -0.01,  # 优先: 不显著向下
+                "weight": 0.038
+            },
+        },
     },
 
     # 模拟配置
     "simulation": {
         "start_date": data_default_start_date,
         "end_date": "",
-        "sampling_amount": 500,  # ML分析使用500股票样本
+        "sampling_amount": 100,  # ML分析使用500股票样本
         "record_summary": True,
         "analysis": True,
         "sampling": {
@@ -55,19 +165,21 @@ settings = {
     },
 
 
-    # ML增强版投资目标设置
+    # 投资目标设置
     "goal": {
-        "fixed_trading_days": 200,
+        "expiration": {
+            "fixed_period": 200,
+            "is_trading_period": True,
+        },
 
-        "is_customized": False,
+        # 动态止损
+        "dynamic_loss": {
+            "ratio": -0.12,  # ML分析优化：-12%动态止损
+            "close_invest": True
+        },
 
         # ML增强版止损目标设置
         "stop_loss": {
-            "dynamic": {
-                "name": "dynamic",
-                "ratio": -0.12,  # ML分析优化：-12%动态止损
-                "close_invest": True
-            },
             "stages": [
                 {
                     "name": "loss15%",
@@ -89,115 +201,17 @@ settings = {
                     "name": "win30%",
                     "ratio": 0.3,  # 第二阶段：30%止盈
                     "sell_ratio": 0.4,  # 再平仓40%（累计80%）
-                    "set_stop_loss": "dynamic"  # 设置动态止损控制剩余仓位
+                    "actions": ["set_dynamic_loss"]  # 设置动态止损控制剩余仓位
                 }
                 # 最后20%仓位由动态止损控制，可以无限上涨
             ]
         },
-
-        # 黑名单设置
-        "blacklist": {
-            "count": 0,
-            "description": "ML增强版本：基于机器学习分析的黑名单",
-            "list": []
-        }
     },
-
-    # ML增强版核心参数阈值设置
-    "ml_enhanced": {
-        # 基于机器学习验证的重要参数阈值
-        "thresholds": {
-            # 最高权重参数 (0.106)
-            "volatility": {
-                "min": 0.02,  # 波动率 > 2%
-                "max": 0.15,  # 波动率 < 15%
-                "weight": 0.106
-            },
-            
-            # 第二重要参数 (0.080)
-            "volume_ratio_after": {
-                "min": 1.5,   # 反转后成交量放大 ≥ 1.5倍
-                "weight": 0.080
-            },
-            
-            # 中高权重参数 (0.056)
-            "ma_convergence": {
-                "max": 0.05,  # 均线收敛度 < 5%
-                "weight": 0.056
-            },
-            
-            # 中等权重参数 (0.053-0.045)
-            "price_vs_ma20": {
-                "min": -0.05,  # 价格与MA20距离在±5%内
-                "max": 0.05,
-                "weight": 0.046
-            },
-            "price_vs_ma60": {
-                "min": -0.08,  # 价格与MA60距离在±8%内
-                "max": 0.08,
-                "weight": 0.044
-            },
-            
-            # 月线跌幅参数 (0.044)
-            "monthly_drop_rate": {
-                "min": 0.05,  # 月线跌幅 > 5%
-                "max": 0.40,  # 月线跌幅 < 40%
-                "weight": 0.044
-            },
-            
-            # 均线斜率参数
-            "ma20_slope": {
-                "min": -0.01,  # MA20斜率不显著向下
-                "weight": 0.038
-            },
-            
-            # RSI参数
-            "rsi": {
-                "min": 20,    # RSI > 20
-                "max": 70,    # RSI < 70
-                "weight": 0.038
-            },
-            
-            # 价格分位数参数
-            "price_percentile": {
-                "min": 0.2,   # 价格分位数 > 20%
-                "max": 0.6,   # 价格分位数 < 60%
-                "weight": 0.016
-            },
-            
-            # 成交量确认参数
-            "volume_ratio_before": {
-                "min": 1.2,   # 反转前成交量放大 ≥ 1.2倍
-                "weight": 0.042
-            }
-        },
-        
-        # 财务筛选参数（基于市值效应分析）
-        "financial_filters": {
-            "market_cap": {
-                "max": 3000000,  # 优先小盘股：市值 < 300亿
-                "preference": "small_cap"  # 小盘股成功率89.1% > 大盘股86.6%
-            },
-            "pe_ratio": {
-                "min": 10,
-                "max": 100
-            },
-            "pb_ratio": {
-                "min": 0.3,
-                "max": 8.0
-            },
-            "ps_ratio": {
-                "min": 0.5,
-                "max": 15.0
-            }
-        },
-        
-        # 关键成功指标阈值
-        "success_indicators": {
-            "volume_surge_after_threshold": 1.5,    # 反转后成交量放大阈值
-            "volume_surge_before_threshold": 1.2,   # 反转前成交量放大阈值
-            "ma_convergence_threshold": 0.05,       # 均线收敛度阈值
-            "volatility_optimal_range": [0.02, 0.15],  # 最优波动率范围
-        }
-    }
+    
+    # 黑名单设置
+    "blacklist": {
+        "count": 0,
+        "description": "ML增强版本：基于机器学习分析的黑名单",
+        "list": []
+    },
 }

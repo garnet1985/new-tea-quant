@@ -457,7 +457,7 @@ class PostprocessService:
             investments = stock_summary.get('investments', [])
             
             for investment in investments:
-                roi = investment.get('overall_profit_rate', 0)
+                roi = investment.get('roi', 0)
                 all_rois.append(roi)
         
         if not all_rois:

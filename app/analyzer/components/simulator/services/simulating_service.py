@@ -156,10 +156,6 @@ class SimulatingService:
         # 回测结束清算未结投资
         SimulatingService.settle_open_investment(tracker, last_record_of_today)
 
-        # TODO: test code, remove later
-        # exampleInv = tracker['settled'][0]
-        # print(exampleInv.tracker['targets_tracking']['completed'])
-
         # 清理临时数据
         del tracker['passed_dates']
         del tracker['investing']

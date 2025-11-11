@@ -72,7 +72,7 @@ def load_trading_results():
                     'start_date': investment.get('start_date', ''),
                     'end_date': investment.get('end_date', ''),
                     'duration_in_days': investment.get('duration_in_days', 0),
-                    'overall_profit_rate': investment.get('overall_profit_rate', 0),
+                    'roi': investment.get('roi', 0),
                     'purchase_price': investment.get('purchase_price', 0),
                 }
                 
@@ -253,7 +253,7 @@ def generate_visualizations(df, results, feature_cols):
     axes[0, 0].set_title('Trading Results Distribution')
     
     # 2. 收益率分布
-    axes[0, 1].hist(df['overall_profit_rate'], bins=50, alpha=0.7, edgecolor='black')
+    axes[0, 1].hist(df['roi'], bins=50, alpha=0.7, edgecolor='black')
     axes[0, 1].axvline(0, color='red', linestyle='--', label='Break-even')
     axes[0, 1].set_title('Profit Rate Distribution')
     axes[0, 1].set_xlabel('Profit Rate')

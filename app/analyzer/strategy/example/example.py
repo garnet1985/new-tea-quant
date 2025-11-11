@@ -13,14 +13,15 @@ from app.analyzer.components.investment import InvestmentRecorder
 class Example(BaseStrategy):
     """HistoricLow 策略实现"""
     
-    def __init__(self, db, is_verbose: bool = False):
+    def __init__(self, db=None, is_verbose: bool = False):
         super().__init__(
             db=db, 
             is_verbose=is_verbose,
             name="example",
-            key="EXAMPLE"
+            key="example"
         )
-        super().initialize()
+        if db is not None:
+            super().initialize()
 
     def scan_opportunity(self, stock_id: str, data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """扫描单只股票的投资机会"""

@@ -135,7 +135,7 @@ class ResultAnalyzer:
                         "stock_id": stock_id,
                         "invest_date": inv.get("start_date", "") or inv.get("invest_date", ""),
                         "sell_date": inv.get("end_date", "") or inv.get("sell_date", ""),
-                        "roi": inv.get("overall_profit_rate", 0) * 100 if inv.get("overall_profit_rate") is not None else inv.get("roi", 0),
+                        "roi": inv.get("roi", 0) * 100 if inv.get("roi") is not None else inv.get("roi", 0),
                         "duration_days": inv.get("duration_in_days", 0) or inv.get("duration_days", 0),
                     })
             else:
@@ -159,7 +159,7 @@ class ResultAnalyzer:
                     opportunities.append({
                         "stock_id": stock_id,
                         "date": inv.get("start_date", "") or inv.get("invest_date", ""),
-                        "roi": inv.get("overall_profit_rate", 0) * 100 if inv.get("overall_profit_rate") is not None else inv.get("roi", 0),
+                        "roi": inv.get("roi", 0) * 100 if inv.get("roi") is not None else inv.get("roi", 0),
                     })
             else:
                 summary = stock_data.get("summary", {})

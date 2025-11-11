@@ -53,7 +53,7 @@ def load_rtb_trading_results():
             for investment in investments:
                 entry_date = investment.get('start_date')
                 entry_price = investment.get('purchase_price')
-                roi = investment.get('overall_profit_rate', 0)
+                roi = investment.get('roi', 0)
                 
                 if entry_date and entry_price:
                     rtb_reversals.append({

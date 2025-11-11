@@ -36,7 +36,7 @@ settings = {
     "simulation": {
         "start_date": "",
         "end_date": "",
-        "sampling_amount": 1,  # 使用10只股票进行测试
+        "sampling_amount": 50,  # 使用10只股票进行测试
         "record_summary": True,
         "analysis": False,
         

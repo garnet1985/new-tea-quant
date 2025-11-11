@@ -103,7 +103,7 @@ class InvestmentTarget:
         
         is_achieved = False
         if self.is_customized:
-            is_achieved = self._is_customized_target_complete(record_of_today, required_data, remaining_investment_ratio, strategy_class, settings)
+            is_achieved, remaining_investment_ratio = self._is_customized_target_complete(record_of_today, required_data, remaining_investment_ratio, strategy_class, settings)
         else:
             # 根据目标类型检查
             is_achieved = self._is_target_complete(record_of_today)
@@ -136,12 +136,12 @@ class InvestmentTarget:
             remaining_investment_ratio: float,
             strategy_class: Any,
             settings: Dict[str, Any],
-        ) -> bool:
+        ) -> Tuple[bool, float]:
         if self.target_type == self.TargetType.TAKE_PROFIT:
             return strategy_class.is_customized_take_profit_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
         elif self.target_type == self.TargetType.STOP_LOSS:
             return strategy_class.is_customized_stop_loss_complete(self, record_of_today, required_data, remaining_investment_ratio, settings)
-        return False
+        return False, remaining_investment_ratio
 
     def is_dynamic_loss_complete(self, record_of_today: Dict[str, Any], remaining_investment_ratio: float) -> Tuple[bool, float]:
         if not self._is_checking_ready_to_start(record_of_today, remaining_investment_ratio):

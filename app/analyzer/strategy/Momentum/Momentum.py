@@ -104,7 +104,7 @@ class MomentumStrategy(BaseStrategy):
 
     @staticmethod
     def is_customized_take_profit_complete(
-        investment: Dict[str, Any],
+        target: Any,  # InvestmentTarget object
         record_of_today: Dict[str, Any],
         required_data: Dict[str, Any],
         remaining_investment_ratio: float,
@@ -113,28 +113,59 @@ class MomentumStrategy(BaseStrategy):
         """
         自定义止盈逻辑 - 在周期结束时卖出
         
+        使用周期追踪器检测周期变化：当检测到新周期开始时，说明上一个周期已经结束，触发卖出。
+        
         Args:
-            investment: 投资对象
+            target: InvestmentTarget 对象
             record_of_today: 当前交易日记录
             required_data: 所需数据
             remaining_investment_ratio: 剩余投资比例
             settings: 策略设置
         Returns:
-            (是否触发止盈, 更新后的投资对象)
+            (是否触发止盈, 更新后的剩余投资比例)
         """
         current_date = record_of_today['date']
         period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
 
-        rebalance_date = investment.to_dict().get('extra_fields', {}).get('rebalance_date')
-        logger.info(investment.to_dict())
-
-        logger.info(f"current date is: {current_date},  rebalance date is: {rebalance_date}")
-
-        if MomentumStrategy._is_last_day_of_period(current_date, period_type):
-            logger.info(f"current date is last day of period: {current_date}")
-            # 周期最后一天：卖出所有持仓
+        # 从 target 的 extra_fields 中获取或初始化周期追踪器
+        extra_fields = target.tracker.get('extra_fields', {})
+        if extra_fields is None:
+            extra_fields = {}
+            target.tracker['extra_fields'] = extra_fields
+        
+        # 初始化周期追踪器（如果不存在）
+        if 'period_tracker' not in extra_fields:
+            extra_fields['period_tracker'] = {}
+        
+        period_tracker = extra_fields['period_tracker']
+        
+        # 保存更新前的 last_period，用于判断是否是首次执行
+        last_period_before_update = period_tracker.get('last_period')
+        
+        # 使用 detect_period_change 检测周期变化
+        is_first_day, is_last_day = MomentumStrategy.detect_period_change(
+            current_date, 
+            period_type, 
+            period_tracker
+        )
+        
+        # 更新 extra_fields（确保修改被保存）
+        extra_fields['period_tracker'] = period_tracker
+        
+        # 如果检测到周期变化（新周期第一天），说明上一个周期已经结束，触发卖出
+        # 需要同时满足：
+        # 1. 是新周期第一天（is_first_day = True）
+        # 2. 不是首次执行（last_period_before_update is not None）
+        # 3. 周期发生了变化（last_period_before_update != period_tracker.get('last_period')）
+        if is_first_day and last_period_before_update is not None:
+            # 检测到周期变化：上一个周期已结束，触发卖出
+            logger.info(
+                f"检测到周期变化：当前日期 {current_date} 是新周期第一天 "
+                f"(周期: {period_tracker.get('last_period')})，上一个周期已结束，触发卖出"
+            )
             return True, remaining_investment_ratio
-
+        
+        # 周期未结束，继续持有
         return False, remaining_investment_ratio
 
     @staticmethod

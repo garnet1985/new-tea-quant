@@ -31,7 +31,6 @@ class Investment:
         self.strategy_class = strategy_class
 
         self.opportunity_ref = opportunity.to_dict()
-        self.extra_fields = self.opportunity_ref.get('extra_fields', {})
         self.content = {}
 
         self.is_customized_take_profit = settings.get('goal', {}).get('take_profit', {}).get('is_customized', False)
@@ -42,21 +41,21 @@ class Investment:
             'targets_tracking': {},
         }
 
-        self._create(settings)
+        self._create(settings, self.opportunity_ref.get('extra_fields', {}))
 
 
-    def _create(self, settings: Dict[str, Any]):
+    def _create(self, settings: Dict[str, Any], extra_fields: Dict[str, Any]):
         # set up content
-        self._set_up_content()
+        self._set_up_content(extra_fields)
 
         # set up amplitude tracking
         self._set_up_amplitude_tracking()
 
         # set up targets tracking
-        self._set_up_targets(settings)
+        self._set_up_targets(settings, extra_fields)
 
 
-    def _set_up_content(self):
+    def _set_up_content(self, extra_fields: Dict[str, Any]):
         purchase_price = self.start_record_ref.get('close')
         purchase_date = self.start_record_ref.get('date')
 
@@ -71,7 +70,9 @@ class Investment:
             'start_date': purchase_date,
             'end_date': None,
             'completed_targets': [],
-            'amplitude_tracking': {}
+            'amplitude_tracking': {},
+
+            'extra_fields': extra_fields,
         }
 
     def _set_up_amplitude_tracking(self):
@@ -80,7 +81,7 @@ class Investment:
             'min_close_reached': { 'price': self.start_record_ref.get('close'), 'date': self.start_record_ref.get('date'), 'ratio': 0 },
         }
 
-    def _set_up_targets(self, settings: Dict[str, Any]):
+    def _set_up_targets(self, settings: Dict[str, Any], extra_fields: Dict[str, Any]):
         self.tracker['targets_tracking'] = {
             'remaining_investment_ratio': 1.0,
             'completed': [],
@@ -110,7 +111,9 @@ class Investment:
         targets_settings = settings.get('goal', {})
         take_profit_settings = targets_settings.get('take_profit', {})
         if self.is_customized_take_profit:
-            customized_targets = self.strategy_class.create_customized_take_profit_targets(self.to_dict(), self.start_record_ref, self.extra_fields)
+            customized_targets = self.strategy_class.create_customized_take_profit_targets(self.to_dict(), self.start_record_ref, extra_fields)
+            for target in customized_targets:
+                target.is_customized = True
             self.tracker['targets_tracking']['take_profit']['targets'].extend(customized_targets)
 
         else:
@@ -125,7 +128,9 @@ class Investment:
 
         stop_loss_settings = targets_settings.get('stop_loss', {})
         if self.is_customized_stop_loss:
-            customized_targets = self.strategy_class.create_customized_stop_loss_targets(self.to_dict(), self.start_record_ref, self.extra_fields)
+            customized_targets = self.strategy_class.create_customized_stop_loss_targets(self.to_dict(), self.start_record_ref, extra_fields)
+            for target in customized_targets:
+                target.is_customized = True
             self.tracker['targets_tracking']['stop_loss']['targets'].extend(customized_targets)
         else:
             for stage in stop_loss_settings.get('stages', []):
@@ -213,10 +218,10 @@ class Investment:
         take_profit_targets = self.tracker['targets_tracking']['take_profit']['targets']
 
         for target in take_profit_targets:
-            if target.is_achieved:
+            if target.is_settled:
                 continue
 
-            is_target_completed, updated_remaining_investment_ratio = target.is_complete(
+            is_target_achieved, updated_remaining_investment_ratio = target.is_achieved(
                 record_of_today = record_of_today,
                 remaining_investment_ratio = self.tracker['targets_tracking']['remaining_investment_ratio'],
                 required_data = required_data,
@@ -224,7 +229,7 @@ class Investment:
                 settings = self.settings,
             )
             
-            if is_target_completed:
+            if is_target_achieved:
                 self.tracker['targets_tracking']['remaining_investment_ratio'] = updated_remaining_investment_ratio
                 self.content['completed_targets'].append(target.to_dict())
                 self._trigger_actions(target, record_of_today)
@@ -233,10 +238,12 @@ class Investment:
         if self._is_investment_complete():
             return True
 
-        if self.is_customized_stop_loss:
-            self._check_customized_stop_loss(record_of_today, required_data)
-        else:
-            self._check_stop_loss_targets(record_of_today)
+        # if self.is_customized_stop_loss:
+        #     self._check_customized_stop_loss(record_of_today, required_data)
+        # else:
+        #     self._check_stop_loss_targets(record_of_today)
+
+        self._check_stop_loss_targets(record_of_today)
 
         # if all stop loss targets are achieved, the investment is completed
         if self._is_investment_complete():
@@ -244,25 +251,25 @@ class Investment:
 
         return False
 
-    def _is_customized_take_profit_complete(self, record_of_today: Dict[str, Any], required_data: Dict[str, Any])-> Tuple[InvestmentTarget, float]:
-        # 1. call strategy class to get next take profit target
-        # 2. update sell ratio if target is achieved
-        # 3. update target price if target is not achieved
-        self._update_amplitude_tracking(record_of_today)
-        for target in self.tracker['targets_tracking']['take_profit']['targets']:
-            if target.is_achieved:
-                continue
+    # def _is_customized_take_profit_complete(self, record_of_today: Dict[str, Any], required_data: Dict[str, Any])-> Tuple[InvestmentTarget, float]:
+    #     # 1. call strategy class to get next take profit target
+    #     # 2. update sell ratio if target is achieved
+    #     # 3. update target price if target is not achieved
+    #     self._update_amplitude_tracking(record_of_today)
+    #     for target in self.tracker['targets_tracking']['take_profit']['targets']:
+    #         if target.is_achieved:
+    #             continue
             
-            is_target_completed, remaining_investment_ratio = self.strategy_class.should_take_profit(target, record_of_today, required_data)
-            if is_target_completed:
-                if target.is_achieved is False:
-                    target.settle(record_of_today, target.calc_sell_ratio(remaining_investment_ratio))
-                self.content['completed_targets'].append(target.to_dict())
-                self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
-        return target, remaining_investment_ratio
+    #         is_target_completed, remaining_investment_ratio = self.strategy_class.should_take_profit(target, record_of_today, required_data)
+    #         if is_target_completed:
+    #             if target.is_achieved is False:
+    #                 target.settle(record_of_today, target.calc_sell_ratio(remaining_investment_ratio))
+    #             self.content['completed_targets'].append(target.to_dict())
+    #             self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
+    #     return target, remaining_investment_ratio
 
-    def _check_customized_stop_loss(self, record_of_today: Dict[str, Any], required_data: Dict[str, Any])-> Tuple[InvestmentTarget, float]:
-        return self.strategy_class.should_stop_loss(self.to_dict(), record_of_today, required_data)
+    # def _check_customized_stop_loss(self, record_of_today: Dict[str, Any], required_data: Dict[str, Any])-> Tuple[InvestmentTarget, float]:
+    #     return self.strategy_class.should_stop_loss(self.to_dict(), record_of_today, required_data)
 
     def _check_stop_loss_targets(self, record_of_today: Dict[str, Any]):
         self._check_protect_loss(record_of_today)
@@ -272,19 +279,19 @@ class Investment:
     def _check_protect_loss(self, record_of_today: Dict[str, Any]):
         protect_loss_info = self.tracker['targets_tracking']['stop_loss']['protect_loss']
         target = protect_loss_info['target']
-        if protect_loss_info['is_enabled'] and target.is_achieved is not True:
-            is_target_completed, remaining_investment_ratio = target.is_complete(
-                record_of_today, 
-                self.tracker['targets_tracking']['remaining_investment_ratio']
+        if protect_loss_info['is_enabled'] and target.is_settled is not True:
+            is_target_achieved, remaining_investment_ratio = target.is_achieved(
+                record_of_today=record_of_today, 
+                remaining_investment_ratio=self.tracker['targets_tracking']['remaining_investment_ratio'],
             )
-            if is_target_completed:    
+            if is_target_achieved:    
                 self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
                 self.content['completed_targets'].append(target.to_dict())
 
     def _check_dynamic_loss(self, record_of_today: Dict[str, Any]):
         dynamic_loss_info = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']
         target = dynamic_loss_info['target']
-        if dynamic_loss_info['is_enabled'] and target.is_achieved is not True:
+        if dynamic_loss_info['is_enabled'] and target.is_settled is not True:
             is_target_completed, remaining_investment_ratio = target.is_dynamic_loss_complete(
                 record_of_today, 
                 self.tracker['targets_tracking']['remaining_investment_ratio']
@@ -297,7 +304,7 @@ class Investment:
     def _check_normal_stop_loss_targets(self, record_of_today: Dict[str, Any]):
         stop_loss_targets = self.tracker['targets_tracking']['stop_loss']['targets']
         for target in stop_loss_targets:
-            if target.is_achieved:
+            if target.is_settled:
                 continue
             is_target_completed, remaining_investment_ratio = target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
             if is_target_completed:

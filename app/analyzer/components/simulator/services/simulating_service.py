@@ -253,7 +253,7 @@ class SimulatingService:
                 tracker['settled'].append(settled_investment)
                 tracker['investing'] = None
 
-        else:
+        if tracker['investing'] is None:
             # 智能信号检测：使用缓存避免重复计算
             opportunity = SimulatingService._get_cached_or_compute_signal(
                 tracker, stock_info, required_data, settings, strategy_class

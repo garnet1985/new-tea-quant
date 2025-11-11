@@ -24,7 +24,12 @@ class BaseStrategy(ABC):
     # ========================================================
     """策略基类 - 所有策略必须继承此类"""
     
-    def __init__(self, db: DatabaseManager = None, is_verbose: bool = False, name: str = None, description: str = None, key: str = None):
+    def __init__(self, db: DatabaseManager = None, 
+        is_verbose: bool = False, 
+        name: str = None, 
+        description: str = None, 
+        key: str = None,
+        version: str = None):
         """
         初始化策略基类
         
@@ -39,9 +44,7 @@ class BaseStrategy(ABC):
         self.name = name
         self.description = description
         self.key = key
-        # 如果子类已经设置了version，则保持不变
-        if not hasattr(self, 'version'):
-            self.version = None
+        self.version = version
         
         # 策略所需的表模型
         self.table: Dict[str, Any] = {}

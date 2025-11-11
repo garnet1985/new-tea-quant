@@ -149,30 +149,32 @@ settings = {
         # 固定期限强制平仓（可选，仅用于到期平仓，不属于止盈/止损）。
         # 如不配置，框架不会进行“到期平仓”判断；可同时配置自然日与交易日。
         # 到期时默认对剩余仓位执行结算。
-        "fixed_days": 30,
+        "expiration": {
+            "fixed_period": 30,
+            "is_trading_period": True,
+        },
 
         # fixed days 是交易日还是自然日，默认是交易日
         # "is_trading_days": True,
+
+        # 保本止损 - 可选
+        "protect_loss": {
+            "ratio": 0,
+            # close invest 代表卖出剩余所有仓位
+            "close_invest": True  # 止损时：清仓
+        },
+        # 动态止损（追损）- 可选
+        "dynamic_loss": {
+            # ratio 代表在止损设置后累计出现过的最高点的下方10%为止损值
+            "ratio": -0.1,
+            "close_invest": True  # 动态止损时：清仓
+        },
 
         # 止损目标设置
         "stop_loss": {
             # 自定义止损 - 可选, 如果定义，需要重写基类里的should_stop_loss方法
             # "is_customized": False,
 
-            # 保本止损 - 可选
-            "break_even": {
-                "name": "break_even",
-                "ratio": 0,
-                # close invest 代表卖出剩余所有仓位
-                "close_invest": True  # 止损时：清仓
-            },
-            # 动态止损（追损）- 可选
-            "dynamic": {
-                "name": "dynamic",
-                # ratio 代表在止损设置后累计出现过的最高点的下方10%为止损值
-                "ratio": -0.1,
-                "close_invest": True  # 动态止损时：清仓
-            },
             # 分段止损 - 可选（至少一个阶段）
             "stages": [
                 # 止损阶段
@@ -183,12 +185,6 @@ settings = {
                     "ratio": -0.2,
                     # 止损行为是卖出所有仓位
                     "sell_ratio": 0.5,
-                    # 新增（可选）：阶段触发时调整到期平仓规则
-                    # 正为增加，负为减少；取消为 True 则不再生效
-                    # "extend_fixed_days": 5,
-                    # "cancel_fixed_days": false,
-                    # "extend_fixed_trading_days": -2,
-                    # "cancel_fixed_trading_days": false
                 },
                 # 止损阶段
                 {
@@ -199,15 +195,6 @@ settings = {
                     # 止损行为是卖出所有剩余仓位
                     "close_invest": True
                 }
-                # 止损阶段
-                # {
-                #     # 名字随便取，只负责展示
-                #     "name": "fixed_days_expiry%",
-                #     # 固定天数到期时触发止损
-                #     "fixed_days": 30,
-                #     # 止损行为是卖出所有剩余仓位
-                #     "close_invest": True
-                # }
             ]
         },
         # 止盈目标设置
@@ -224,12 +211,7 @@ settings = {
                     # 止盈时：卖出总仓位的20%
                     "sell_ratio": 0.2,  
                     # 止盈时：启动保本止损
-                    "set_stop_loss": "break_even",
-                    # 新增（可选）：阶段触发时调整到期平仓规则
-                    # "extend_fixed_days": 3,
-                    # "cancel_fixed_days": false,
-                    # "extend_fixed_trading_days": 0,
-                    # "cancel_fixed_trading_days": false
+                    "actions": ["set_protect_loss"],
                 },
                 {
                     "name": "win20%",
@@ -239,10 +221,9 @@ settings = {
                 {
                     "name": "win30%",
                     "ratio": 0.3,
+                    "sell_ratio": 0.2,
                     # 止盈时：启动动态止损
-                    "set_stop_loss": "dynamic",
-                    # 例如：达到 30% 后，取消自然日 fixed_days 到期
-                    # "cancel_fixed_days": true
+                    "actions": ["set_dynamic_loss"]
                 }
             ]
         },

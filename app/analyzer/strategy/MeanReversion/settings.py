@@ -4,7 +4,6 @@ MeanReversion 策略配置
 """
 
 from app.data_source.enums import KlineTerm, AdjustType
-from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
@@ -36,7 +35,7 @@ settings = {
 
     # 模拟配置
     "simulation": {
-        "start_date": data_default_start_date,
+        "start_date": "",
         "end_date": "",
         "sampling_amount": 5,
         "record_summary": True,

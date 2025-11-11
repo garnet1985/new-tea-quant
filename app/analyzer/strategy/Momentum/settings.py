@@ -14,7 +14,7 @@ settings = {
         "long_ma": 60,       # 长期均线天数
         
         # 调仓周期
-        "rebalance_period": "monthly",  # monthly, quarterly, yearly
+        "rebalance_period": "quarterly",  # monthly, quarterly, yearly
         
         # 筛选配置
         "top_percentile": 0.10,  # 前10%动量最大的股票
@@ -38,7 +38,7 @@ settings = {
         "end_date": "",
         "sampling_amount": 1,  # 使用10只股票进行测试
         "record_summary": True,
-        "analysis": True,
+        "analysis": False,
         
         # 使用uniform采样 - 抽取部分股票
         "sampling": {

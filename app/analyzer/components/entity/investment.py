@@ -82,73 +82,118 @@ class Investment:
         }
 
     def _set_up_targets(self, settings: Dict[str, Any], extra_fields: Dict[str, Any]):
-        self.tracker['targets_tracking'] = {
-            'remaining_investment_ratio': 1.0,
-            'completed': [],
-            'take_profit': {
-                'targets': [],
-            },
-            'stop_loss': {
-                'targets': [],
-                'protect_loss': {
-                    'is_enabled': False,
-                    'target': None,
-                },
-                'dynamic_loss': {
-                    'is_enabled': False,
-                    'target': None,
-                },
-            },
-            'expiration': {
-                'is_enabled': False,
-                'fixed_period': 0,
-                'is_trading_period': True,
-                'time_elapsed': 0,
-                'term': 'daily'
-            },
-        }
-
+        """
+        统一创建所有 targets 并按 priority 排序
+        """
+        targets = []
         targets_settings = settings.get('goal', {})
+        
+        # 1. Take Profit targets
         take_profit_settings = targets_settings.get('take_profit', {})
         if self.is_customized_take_profit:
-            customized_targets = self.strategy_class.create_customized_take_profit_targets(self.to_dict(), self.start_record_ref, extra_fields)
-            for target in customized_targets:
+            # Customized take profit
+            customized_targets = self.strategy_class.create_customized_take_profit_targets(
+                self.to_dict(), self.start_record_ref, extra_fields
+            )
+            for i, target in enumerate(customized_targets):
                 target.is_customized = True
-            self.tracker['targets_tracking']['take_profit']['targets'].extend(customized_targets)
-
+                target.priority = InvestmentTarget.TargetPriority.CUSTOMIZED_TAKE_PROFIT_BASE.value + i
+                targets.append(target)
         else:
-            for stage in take_profit_settings.get('stages', []):
-                self.tracker['targets_tracking']['take_profit']['targets'].append(
-                    InvestmentTarget(
-                        target_type=InvestmentTarget.TargetType.TAKE_PROFIT, 
-                        start_record=self.start_record_ref, 
-                        stage=stage
-                    )
+            # Normal take profit
+            for i, stage in enumerate(take_profit_settings.get('stages', [])):
+                target = InvestmentTarget(
+                    target_type=InvestmentTarget.TargetType.TAKE_PROFIT,
+                    start_record=self.start_record_ref,
+                    stage=stage,
+                    priority=InvestmentTarget.TargetPriority.NORMAL_TAKE_PROFIT_BASE.value + i
                 )
-
+                targets.append(target)
+        
+        # 2. Protect Loss - 初始未启用，但优先于普通止损
+        protect_loss_settings = targets_settings.get('protect_loss')
+        if protect_loss_settings:
+            stage = InvestmentTarget.create_stage(
+                name='protect_loss',
+                target_settings=protect_loss_settings
+            )
+            protect_loss_target = InvestmentTarget(
+                target_type=InvestmentTarget.TargetType.STOP_LOSS,
+                start_record=self.start_record_ref,
+                stage=stage,
+                priority=InvestmentTarget.TargetPriority.PROTECT_LOSS.value,
+                is_enabled=False
+            )
+            targets.append(protect_loss_target)
+        
+        # 3. Dynamic Loss - 初始未启用，但优先于普通止损
+        dynamic_loss_settings = targets_settings.get('dynamic_loss')
+        if dynamic_loss_settings:
+            stage = InvestmentTarget.create_stage(
+                name='dynamic_loss',
+                target_settings=dynamic_loss_settings
+            )
+            dynamic_loss_target = InvestmentTarget(
+                target_type=InvestmentTarget.TargetType.STOP_LOSS,
+                start_record=self.start_record_ref,
+                stage=stage,
+                priority=InvestmentTarget.TargetPriority.DYNAMIC_LOSS.value,
+                is_enabled=False
+            )
+            targets.append(dynamic_loss_target)
+        
+        # 4. Stop Loss targets
         stop_loss_settings = targets_settings.get('stop_loss', {})
         if self.is_customized_stop_loss:
-            customized_targets = self.strategy_class.create_customized_stop_loss_targets(self.to_dict(), self.start_record_ref, extra_fields)
-            for target in customized_targets:
+            # Customized stop loss
+            customized_targets = self.strategy_class.create_customized_stop_loss_targets(
+                self.to_dict(), self.start_record_ref, extra_fields
+            )
+            for i, target in enumerate(customized_targets):
                 target.is_customized = True
-            self.tracker['targets_tracking']['stop_loss']['targets'].extend(customized_targets)
+                target.priority = InvestmentTarget.TargetPriority.CUSTOMIZED_STOP_LOSS_BASE.value + i
+                targets.append(target)
         else:
-            for stage in stop_loss_settings.get('stages', []):
-                self.tracker['targets_tracking']['stop_loss']['targets'].append(
-                    InvestmentTarget(
-                        target_type=InvestmentTarget.TargetType.STOP_LOSS, 
-                        start_record=self.start_record_ref, 
-                        stage=stage
-                    )
+            # Normal stop loss
+            for i, stage in enumerate(stop_loss_settings.get('stages', [])):
+                target = InvestmentTarget(
+                    target_type=InvestmentTarget.TargetType.STOP_LOSS,
+                    start_record=self.start_record_ref,
+                    stage=stage,
+                    priority=InvestmentTarget.TargetPriority.NORMAL_STOP_LOSS_BASE.value + i
                 )
-
-        fixed_period = settings.get('goal', {}).get('expiration', {}).get('fixed_period', 0)  
+                targets.append(target)
+        
+        # 5. Expiration
+        fixed_period = settings.get('goal', {}).get('expiration', {}).get('fixed_period', 0)
         if fixed_period > 0:
-            self.tracker['targets_tracking']['expiration']['is_enabled'] = True
-            self.tracker['targets_tracking']['expiration']['fixed_period'] = fixed_period
-            self.tracker['targets_tracking']['expiration']['is_trading_period'] = settings.get('goal', {}).get('expiration', {}).get('is_trading_period', False)
-            self.tracker['targets_tracking']['expiration']['term'] = settings.get('goal', {}).get('klines', {}).get('simulation_base_term', 'daily')
-            self.tracker['targets_tracking']['expiration']['time_elapsed'] = 0
+            expiration_extra_fields = {
+                'time_elapsed': 0,
+                'fixed_period': fixed_period,
+                'is_trading_period': settings.get('goal', {}).get('expiration', {}).get('is_trading_period', False),
+                'term': settings.get('klines', {}).get('simulate_base_term', 'daily')
+            }
+            expiration_target = InvestmentTarget(
+                target_type=InvestmentTarget.TargetType.EXPIRED,
+                start_record=self.start_record_ref,
+                stage={
+                    'name': 'expiration',
+                    'close_invest': True,
+                },
+                extra_fields=expiration_extra_fields,
+                priority=InvestmentTarget.TargetPriority.EXPIRATION.value,
+                is_enabled=True
+            )
+            targets.append(expiration_target)
+        
+        # 按 priority 排序
+        targets.sort(key=lambda t: t.priority)
+        
+        # 保存到 tracker
+        self.tracker['targets_tracking'] = {
+            'remaining_investment_ratio': 1.0,
+            'targets': targets
+        }
 
     def is_completed(self, 
             record_of_today: Dict[str, Any],
@@ -171,12 +216,7 @@ class Investment:
         if is_investment_completed:
             self.settle(record_of_today)
             return True, self.to_dict()
-        # check expiration
-        if self.tracker['targets_tracking']['expiration']['is_enabled']:
-            is_expired = self._check_expiration(record_of_today)
-            if is_expired:
-                self.settle_by_expiration(record_of_today)
-                return True, self.to_dict()
+        
         return False, None
 
 
@@ -204,192 +244,113 @@ class Investment:
 
     def _check_targets(self, record_of_today: Dict[str, Any], required_data: Dict[str, Any])-> bool:
         """
-        check targets and update targets tracking
-
+        统一检查所有 targets
+        
         Args:
-            record_of_today: record of today
+            record_of_today: 当前交易日记录
+            required_data: 所需数据
         Returns:
-            is_investment_completed: whether the investment is completed
+            bool: 投资是否完成
         """
         if self._is_investment_complete():
             logger.warning(f"Investment is checked repeatedly, this warning shouldn't be triggered.")
             return False
         
-        take_profit_targets = self.tracker['targets_tracking']['take_profit']['targets']
-
-        for target in take_profit_targets:
-            if target.is_settled:
+        targets = self.tracker['targets_tracking']['targets']
+        
+        for target in targets:
+            # 跳过未启用或已完成的 targets
+            if not target.is_enabled or target.is_settled:
                 continue
-
-            is_target_achieved, updated_remaining_investment_ratio = target.is_achieved(
-                record_of_today = record_of_today,
-                remaining_investment_ratio = self.tracker['targets_tracking']['remaining_investment_ratio'],
-                required_data = required_data,
-                strategy_class = self.strategy_class,
-                settings = self.settings,
-            )
             
+            is_target_achieved = False
+            updated_remaining_investment_ratio = self.tracker['targets_tracking']['remaining_investment_ratio']
+            
+            # 根据 target 类型选择检查方法
+            if target.content.get('name') == 'dynamic_loss':
+                # Dynamic loss 特殊处理
+                is_target_achieved, updated_remaining_investment_ratio = target.is_dynamic_loss_complete(
+                    record_of_today,
+                    self.tracker['targets_tracking']['remaining_investment_ratio']
+                )
+            
+            elif target.target_type == InvestmentTarget.TargetType.EXPIRED:
+                # Expiration 特殊处理
+                is_expired = target.check_expiration(
+                    record_of_today,
+                    self.content['start_date']
+                )
+                if is_expired:
+                    is_target_achieved = True
+                    # Expiration 需要手动 settle
+                    sell_ratio = target.calc_sell_ratio(updated_remaining_investment_ratio)
+                    target.settle(record_of_today, sell_ratio)
+                    updated_remaining_investment_ratio -= sell_ratio
+            
+            else:
+                # 普通 targets（包括 customized）使用统一的 is_achieved()
+                is_target_achieved, updated_remaining_investment_ratio = target.is_achieved(
+                    record_of_today=record_of_today,
+                    remaining_investment_ratio=self.tracker['targets_tracking']['remaining_investment_ratio'],
+                    required_data=required_data,
+                    strategy_class=self.strategy_class,
+                    settings=self.settings,
+                )
+            
+            # 处理 target 完成
             if is_target_achieved:
                 self.tracker['targets_tracking']['remaining_investment_ratio'] = updated_remaining_investment_ratio
                 self.content['completed_targets'].append(target.to_dict())
                 self._trigger_actions(target, record_of_today)
-
-        # if all take profit targets are achieved, the investment is completed
-        if self._is_investment_complete():
-            return True
-
-        self._check_stop_loss_targets(record_of_today)
-
-        # if all stop loss targets are achieved, the investment is completed
-        if self._is_investment_complete():
-            return True
-
-        return False
-
-    def _check_stop_loss_targets(self, record_of_today: Dict[str, Any]):
-        self._check_protect_loss(record_of_today)
-        self._check_dynamic_loss(record_of_today)
-        self._check_normal_stop_loss_targets(record_of_today)
-
-    def _check_protect_loss(self, record_of_today: Dict[str, Any]):
-        protect_loss_info = self.tracker['targets_tracking']['stop_loss']['protect_loss']
-        target = protect_loss_info['target']
-        if protect_loss_info['is_enabled'] and target.is_settled is not True:
-            is_target_achieved, remaining_investment_ratio = target.is_achieved(
-                record_of_today=record_of_today, 
-                remaining_investment_ratio=self.tracker['targets_tracking']['remaining_investment_ratio'],
-            )
-            if is_target_achieved:    
-                self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
-                self.content['completed_targets'].append(target.to_dict())
-
-    def _check_dynamic_loss(self, record_of_today: Dict[str, Any]):
-        dynamic_loss_info = self.tracker['targets_tracking']['stop_loss']['dynamic_loss']
-        target = dynamic_loss_info['target']
-        if dynamic_loss_info['is_enabled'] and target.is_settled is not True:
-            is_target_completed, remaining_investment_ratio = target.is_dynamic_loss_complete(
-                record_of_today, 
-                self.tracker['targets_tracking']['remaining_investment_ratio']
-            )
-            if is_target_completed:
-                self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
-                self.content['completed_targets'].append(target.to_dict())
-
-
-    def _check_normal_stop_loss_targets(self, record_of_today: Dict[str, Any]):
-        stop_loss_targets = self.tracker['targets_tracking']['stop_loss']['targets']
-        for target in stop_loss_targets:
-            if target.is_settled:
-                continue
-            is_target_completed, remaining_investment_ratio = target.is_complete(record_of_today, self.tracker['targets_tracking']['remaining_investment_ratio'])
-            if is_target_completed:
-                self.tracker['targets_tracking']['remaining_investment_ratio'] = remaining_investment_ratio
-                self.content['completed_targets'].append(target.to_dict())
-                self._trigger_actions(target, record_of_today)
-
-    def _check_expiration(self, record_of_today: Dict[str, Any])-> bool:
-        if not self.tracker['targets_tracking']['expiration']['is_enabled']:
-            return False
+            
+            # 检查投资是否完成
+            if self._is_investment_complete():
+                return True
         
-        if self.tracker['targets_tracking']['expiration']['is_trading_period']:
-            # counting time by trading term unit
-            self.tracker['targets_tracking']['expiration']['time_elapsed'] += 1
-            if self.tracker['targets_tracking']['expiration']['time_elapsed'] >= self.tracker['targets_tracking']['expiration']['fixed_period']:
-                return True
-        else:
-            # counting time by natural term unit
-            date_of_today = record_of_today.get('date')
-            date_of_start = self.content['start_date']
-            elapsed_natural_period = DateUtils.get_duration_by_term(self.tracker['targets_tracking']['expiration']['term'], date_of_start, date_of_today)
-            if elapsed_natural_period >= self.tracker['targets_tracking']['expiration']['fixed_period']:
-                return True
         return False
+
 
 
     def _trigger_actions(self, target: InvestmentTarget, record_of_today: Dict[str, Any]):
-        # this should be triggered after target is completed
-        if target.has_actions() is False:
+        """
+        触发 target 完成后的 actions（启用 protect_loss 或 dynamic_loss）
+        """
+        if not target.has_actions():
             return
-        goal_settings = self.settings.get('goal', {})
+        
         actions = target.get_actions()
+        all_targets = self.tracker['targets_tracking']['targets']
+        
         for action in actions:
-            if action == self.InvestmentGoalAction.SET_PROTECT_LOSS.value and goal_settings.get('protect_loss', None) is not None:
-                self._enable_protect_loss(target)
-
-            if action == self.InvestmentGoalAction.SET_DYNAMIC_LOSS.value and goal_settings.get('dynamic_loss', None) is not None:
-                self._enable_dynamic_loss(record_of_today, target)
-
-
-    def _enable_protect_loss(self, just_completed_target: InvestmentTarget):
-        self.tracker['targets_tracking']['stop_loss']['protect_loss']['is_enabled'] = True
-        protect_loss_settings = self.settings.get('goal', {}).get('protect_loss', {})
-        
-        stage = InvestmentTarget.create_stage(
-            name='protect_loss',
-            target_settings = protect_loss_settings
-        )
-        
-        protect_loss_target = InvestmentTarget(InvestmentTarget.TargetType.STOP_LOSS, self.start_record_ref, stage, 
-            extra_fields={
-                'triggered_by_target': just_completed_target.to_dict().get('name', ''),
-                'triggered_by_action': self.InvestmentGoalAction.SET_PROTECT_LOSS.value,
-            }
-        )
-
-        self.tracker['targets_tracking']['stop_loss']['protect_loss']['target'] = protect_loss_target
-
-    def _enable_dynamic_loss(self, record_of_today: Dict[str, Any], just_completed_target: InvestmentTarget):
-        self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['is_enabled'] = True
-        dynamic_loss_settings = self.settings.get('goal', {}).get('dynamic_loss', {})
-        
-        stage = InvestmentTarget.create_stage(
-            name='dynamic_loss',
-            target_settings = dynamic_loss_settings
-        )
-
-        dynamic_loss_target = InvestmentTarget(InvestmentTarget.TargetType.STOP_LOSS, record_of_today, stage, 
-            extra_fields={
-                'triggered_by_target': just_completed_target.to_dict().get('name', ''),
-                'triggered_by_action': self.InvestmentGoalAction.SET_DYNAMIC_LOSS.value,
-            }
-        )
-
-        real_start_record = just_completed_target.get_start_record()
-        dynamic_loss_target.set_start_record(real_start_record)
-        self.tracker['targets_tracking']['stop_loss']['dynamic_loss']['target'] = dynamic_loss_target
+            if action == self.InvestmentGoalAction.SET_PROTECT_LOSS.value:
+                # 查找并启用 protect_loss target
+                for t in all_targets:
+                    if t.content.get('name') == 'protect_loss':
+                        t.is_enabled = True
+                        # 记录触发信息
+                        if t.tracker.get('extra_fields') is None:
+                            t.tracker['extra_fields'] = {}
+                        t.tracker['extra_fields']['triggered_by_target'] = target.content.get('name', '')
+                        t.tracker['extra_fields']['triggered_by_action'] = action
+                        logger.info(f"启用 protect_loss，由 {target.content.get('name')} 触发")
+                        break
+            
+            elif action == self.InvestmentGoalAction.SET_DYNAMIC_LOSS.value:
+                # 查找并启用 dynamic_loss target
+                for t in all_targets:
+                    if t.content.get('name') == 'dynamic_loss':
+                        t.is_enabled = True
+                        # Dynamic loss 需要使用触发它的 target 的 start_record
+                        t.set_start_record(target.get_start_record())
+                        # 记录触发信息
+                        if t.tracker.get('extra_fields') is None:
+                            t.tracker['extra_fields'] = {}
+                        t.tracker['extra_fields']['triggered_by_target'] = target.content.get('name', '')
+                        t.tracker['extra_fields']['triggered_by_action'] = action
+                        logger.info(f"启用 dynamic_loss，由 {target.content.get('name')} 触发")
+                        break
 
 
-    def settle_by_expiration(self, record_of_today: Dict[str, Any]):
-        """
-        settle investment by expiration
-        """
-        extra_fields = {
-            'expired_term': f"{self.tracker['targets_tracking']['expiration']['term']}",
-            'counting_by': "trading" if self.tracker['targets_tracking']['expiration']['is_trading_period'] else "natural",
-            'elapsed_time': f"{self.tracker['targets_tracking']['expiration']['time_elapsed']}",
-            'elapsed_time_in_days': DateUtils.get_duration_in_days(
-                self.content['start_date'],
-                record_of_today.get('date'),
-                DateUtils.DATE_FORMAT_YYYYMMDD
-            ),
-        }
-
-        expire_target = InvestmentTarget(
-            target_type=InvestmentTarget.TargetType.EXPIRED,
-            start_record=self.start_record_ref,
-            stage=InvestmentTarget.create_stage(
-                name='expiration',
-                target_settings={
-                    **self.tracker['targets_tracking']['expiration'],
-                    'close_invest': True,
-                }
-            ),
-            extra_fields=extra_fields
-        )
-        expire_target.settle(record_of_today, expire_target.calc_sell_ratio(self.tracker['targets_tracking']['remaining_investment_ratio']))
-        self.content['completed_targets'].append(expire_target.to_dict())
-        self.tracker['targets_tracking']['remaining_investment_ratio'] = 0
-        self.settle(record_of_today)
 
     def settle(self, record_of_today: Dict[str, Any], is_open: bool = False):
         """

@@ -3,7 +3,7 @@ from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
-    "is_enabled": False,
+    "is_enabled": True,
 
     "core": {
         "investment_probability": 0.05,
@@ -57,7 +57,7 @@ settings = {
     # 投资目标设置
     "goal": {
         "expiration": {
-            "fixed_period": 960,
+            "fixed_period": 10,
             "is_trading_period": True,
         },
 

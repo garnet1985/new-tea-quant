@@ -21,7 +21,7 @@ class HistoricLowService:
             history_records: 可以用来寻找机会的日线数据
         """
         # 获取配置参数
-        freeze_days = settings['daily_data_requirements']['freeze_period_days']
+        freeze_days = settings['core']['daily_data_requirements']['freeze_period_days']
         
         # 分割数据
         freeze_records = daily_records[-freeze_days:]  # 最近N个交易日（冻结期）
@@ -34,7 +34,7 @@ class HistoricLowService:
     def find_low_points(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """寻找历史低点"""
         low_points = []
-        target_years = settings['daily_data_requirements']['low_points_ref_years']
+        target_years = settings['core']['daily_data_requirements']['low_points_ref_years']
         
         if not records:
             return low_points
@@ -44,7 +44,7 @@ class HistoricLowService:
         
         # 解析结束日期
         from datetime import datetime, timedelta
-        end_date = datetime.strptime(end_date_str, '%Y%m%d') - timedelta(days=settings['daily_data_requirements']['low_points_locked_days'])
+        end_date = datetime.strptime(end_date_str, '%Y%m%d') - timedelta(days=settings['core']['daily_data_requirements']['low_points_locked_days'])
         scan_end_date_str = end_date.strftime('%Y%m%d')
 
         for years_back in target_years:
@@ -79,7 +79,7 @@ class HistoricLowService:
             Dict[str, Any]: 统一格式的历史低点对象
         """
 
-        low_point_config = settings.get('low_point_invest_range')
+        low_point_config = settings.get('core', {}).get('low_point_invest_range')
 
         if not low_point_config:
             raise Exception("low_point_invest_range is not set in strategy_settings.")

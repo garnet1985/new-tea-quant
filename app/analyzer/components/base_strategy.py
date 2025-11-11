@@ -741,12 +741,12 @@ class BaseStrategy(ABC):
             # 如果有具体的投资记录，使用实际记录
             if 'investments' in stock_data:
                 for inv in stock_data['investments']:
-                    # 适配HL策略的字段：start_date/end_date, overall_profit_rate, duration_in_days
+                    # 适配HL策略的字段：start_date/end_date, roi, duration_in_days
                     investment_record = {
                         'stock_id': stock_id,
                         'invest_date': inv.get('start_date', '') or inv.get('invest_date', ''),
                         'sell_date': inv.get('end_date', '') or inv.get('sell_date', ''),
-                        'roi': inv.get('overall_profit_rate', 0) * 100 if inv.get('overall_profit_rate') is not None else inv.get('roi', 0),  # 转换为百分比
+                        'roi': inv.get('roi', 0) * 100 if inv.get('roi') is not None else inv.get('roi', 0),  # 转换为百分比
                         'duration_days': inv.get('duration_in_days', 0) or inv.get('duration_days', 0),
                     }
                     investments.append(investment_record)
@@ -788,7 +788,7 @@ class BaseStrategy(ABC):
                     opportunity_record = {
                         'stock_id': stock_id,
                         'date': inv.get('start_date', '') or inv.get('invest_date', ''),
-                        'roi': inv.get('overall_profit_rate', 0) * 100 if inv.get('overall_profit_rate') is not None else inv.get('roi', 0),
+                        'roi': inv.get('roi', 0) * 100 if inv.get('roi') is not None else inv.get('roi', 0),
                     }
                     opportunities.append(opportunity_record)
             else:

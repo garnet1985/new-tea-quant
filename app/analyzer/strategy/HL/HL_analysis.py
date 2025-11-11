@@ -49,7 +49,7 @@ class HistoricLowAnalysis:
                                 investments.append({
                                     'stock': filename.replace('.json', ''),
                                     'success': result.get('status') == 'win',
-                                    'roi': result.get('overall_profit_rate', 0) * 100,  # 转换为百分比
+                                    'roi': result.get('roi', 0) * 100,  # 转换为百分比
                                     'duration': result.get('invest_duration_days', 0),
                                     'slope': result['slope_info'].get('slope_ratio', 0)
                                 })
@@ -230,7 +230,7 @@ class HistoricLowAnalysis:
                                         'stock': filename.replace('.json', ''),
                                         'invest_date': result['start_date'],
                                         'success': result.get('status') == 'win',
-                                        'roi': result.get('overall_profit_rate', 0) * 100,
+                                        'roi': result.get('roi', 0) * 100,
                                         'duration': result.get('invest_duration_days', 0),
                                         'slope': result.get('slope_info', {}).get('slope_ratio', 0)
                                     })
@@ -450,7 +450,7 @@ class HistoricLowAnalysis:
                                             'start_date': start_date,
                                             'end_date': result.get('end_date', ''),
                                             'success': result.get('status') == 'win',
-                                            'roi': result.get('overall_profit_rate', 0),
+                                            'roi': result.get('roi', 0),
                                             'duration': result.get('invest_duration_days', 0),
                                             'purchase_price': result.get('purchase_price', 0),
                                             'total_profit': result.get('profit', 0)

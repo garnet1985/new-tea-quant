@@ -36,7 +36,8 @@ class MomentumStrategy(BaseStrategy):
         """
         扫描投资机会 - 周期调仓策略
         
-        只在周期第一天买入，在周期最后一天卖出
+        在新周期的第一个交易日买入（不一定是日历第一天）
+        通过比较前一个交易日和当前交易日的周期来判断
         
         Args:
             stock_info: 股票信息
@@ -50,14 +51,24 @@ class MomentumStrategy(BaseStrategy):
             # 获取K线数据
             klines = required_data.get('klines').get('daily', [])
             
-            # 获取当前日期（最新K线记录的日期）
+            if len(klines) < 2:
+                return None
+            
+            # 获取当前日期和前一个交易日
             current_date_str = klines[-1]['date']
+            previous_date_str = klines[-2]['date']
             
             # 获取周期类型
             period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
             
-            # 只在周期第一天买入
-            if MomentumStrategy._is_first_day_of_period(current_date_str, period_type):
+            # 比较当前日期和前一个交易日的周期
+            current_period = MomentumStrategy._get_period_id(current_date_str, period_type)
+            previous_period = MomentumStrategy._get_period_id(previous_date_str, period_type)
+            
+            # 如果周期发生变化，说明今天是新周期的第一个交易日
+            is_first_trading_day_of_new_period = (current_period != previous_period)
+            
+            if is_first_trading_day_of_new_period:
                 # 计算动量
                 momentum = MomentumStrategy._calculate_momentum(required_data, settings)
                 
@@ -65,6 +76,7 @@ class MomentumStrategy(BaseStrategy):
                     return None
                 
                 # 买入并记录动能
+                # 初始化 period_tracker，用于后续卖出时检测周期变化
                 return Opportunity(
                     stock=stock_info,
                     record_of_today=klines[-1],  # 使用最新K线记录
@@ -72,6 +84,9 @@ class MomentumStrategy(BaseStrategy):
                         'momentum': momentum,
                         'is_momentum_strategy': True,
                         'rebalance_date': current_date_str,
+                        'period_tracker': {
+                            'last_period': current_period  # 初始化为当前周期
+                        }
                     }
                 )
             
@@ -155,14 +170,10 @@ class MomentumStrategy(BaseStrategy):
         # 需要同时满足：
         # 1. 是新周期第一天（is_first_day = True）
         # 2. 不是首次执行（last_period_before_update is not None）
-        # 3. 周期发生了变化（last_period_before_update != period_tracker.get('last_period')）
         if is_first_day and last_period_before_update is not None:
             # 检测到周期变化：上一个周期已结束，触发卖出
-            logger.info(
-                f"检测到周期变化：当前日期 {current_date} 是新周期第一天 "
-                f"(周期: {period_tracker.get('last_period')})，上一个周期已结束，触发卖出"
-            )
             return True, remaining_investment_ratio
+
         
         # 周期未结束，继续持有
         return False, remaining_investment_ratio
@@ -396,11 +407,6 @@ class MomentumStrategy(BaseStrategy):
             selected = sorted_investments[:n_filtered]
             total_filtered += len(selected)
             
-            logger.info(
-                f"📅 周期 {period_id}: 原始{len(sorted_investments)}只 → 筛选后{len(selected)}只 "
-                f"(动量范围: {selected[-1]['momentum']:.4f} ~ {selected[0]['momentum']:.4f})"
-            )
-            
             # 将选中的investment加入结果
             for item in selected:
                 filtered_investments.append(item['investment'])
@@ -462,7 +468,7 @@ class MomentumStrategy(BaseStrategy):
             total_loss = sum(1 for inv in investments if inv.get('result') == 'loss')
             total_open = sum(1 for inv in investments if inv.get('result') == 'open')
             
-            total_roi = sum(inv.get('overall_profit_rate', 0) for inv in investments)
+            total_roi = sum(inv.get('roi', 0) for inv in investments)
             total_duration = sum(inv.get('duration_in_days', 0) for inv in investments)
             
             avg_roi = total_roi / total if total > 0 else 0

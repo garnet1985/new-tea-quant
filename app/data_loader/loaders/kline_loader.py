@@ -233,12 +233,18 @@ class KlineLoader:
         adjust = settings.get('adjust', 'qfq')
         allow_negative_records = settings.get('allow_negative_records', False)
         
+        # 从 settings 中提取 start_date 和 end_date（如果存在）
+        start_date = settings.get('start_date')
+        end_date = settings.get('end_date')
+        
         kline_data = {}
         
         for term in settings.get('terms', []):
             records = self.load(
                 stock_id=stock_id,
                 term=term,
+                start_date=start_date,
+                end_date=end_date,
                 adjust=adjust,
                 as_dataframe=False,
                 filter_negative=not allow_negative_records

@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 from loguru import logger
 
 from app.analyzer.analyzer_service import AnalyzerService
+from app.analyzer.components.entity.opportunity import Opportunity
 from app.analyzer.strategy.HL.HL_service import HistoricLowService
 from ...components.base_strategy import BaseStrategy
 from .settings import settings
@@ -14,14 +15,16 @@ from utils.icon.icon_service import IconService
 class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""
     
-    def __init__(self, db, is_verbose: bool = False):
+    def __init__(self, db=None, is_verbose: bool = False):
         super().__init__(
             db=db, 
             is_verbose=is_verbose,
             name="HistoricLow",
-            key="HL"
+            key="HL",
+            version="1.0.0"
         )
-        super().initialize()
+        if db is not None:
+            super().initialize()
         
     # ========================================================
     # Core API: Scan opportunity
@@ -67,7 +70,7 @@ class HistoricLow(BaseStrategy):
         # 核心入场条件：当前价位位于以历史低点为参考的投资区间内
         for low_point in low_points:
             if HistoricLowService.is_in_invest_range(record_of_today, low_point):
-                opportunity = BaseStrategy.create_opportunity(
+                opportunity = Opportunity(
                     stock=stock,
                     record_of_today=record_of_today,
                     extra_fields={
@@ -77,7 +80,6 @@ class HistoricLow(BaseStrategy):
                     upper_bound=low_point.get('invest_upper_bound'),
                 )
                 return opportunity
-
         return None
 
     @staticmethod
@@ -140,7 +142,7 @@ class HistoricLow(BaseStrategy):
         if not freeze_data or len(freeze_data) < 2:
             return False
         
-        min_amplitude = settings.get('amplitude_filter', {}).get('min_amplitude', 0.1)
+        min_amplitude = settings.get('core', {}).get('amplitude_filter', {}).get('min_amplitude', 0.1)
         
         # 计算冻结期内的振幅
         prices = [record.get('close', 0) for record in freeze_data if record.get('close')]
@@ -165,7 +167,7 @@ class HistoricLow(BaseStrategy):
             return False
         
         slope = HistoricLowService.calculate_slope(freeze_data)
-        max_slope_degrees = settings.get('slope_check', {}).get('max_slope_degrees', -45.0)
+        max_slope_degrees = settings.get('core', {}).get('slope_check', {}).get('max_slope_degrees', -45.0)
         
         return slope >= max_slope_degrees
 

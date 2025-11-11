@@ -21,18 +21,21 @@ from app.analyzer.strategy.RTB.settings import settings
 from app.analyzer.analyzer_service import AnalyzerService
 from utils.icon.icon_service import IconService
 from ...components.base_strategy import BaseStrategy
+from ...components.entity.opportunity import Opportunity
 
 class ReverseTrendBet(BaseStrategy):
     """ReverseTrendBet ML增强版本策略实现"""
     
-    def __init__(self, db, is_verbose: bool = False):
+    def __init__(self, db=None, is_verbose: bool = False):
         super().__init__(
             db=db, 
             is_verbose=is_verbose,
             name="ReverseTrendBet",
-            key="RTB"
+            key="RTB",
+            version="1.0.0"
         )
-        super().initialize()
+        if db is not None:
+            super().initialize()
 
     # ========================================================
     # Core logic:
@@ -92,7 +95,7 @@ class ReverseTrendBet(BaseStrategy):
             return None
 
         # 构建机会对象
-        opportunity = BaseStrategy.create_opportunity(
+        opportunity = Opportunity(
             stock=stock,
             record_of_today=record_of_today,
             extra_fields={
@@ -347,23 +350,35 @@ class ReverseTrendBet(BaseStrategy):
             if not financial_indicators:
                 return True
             
+            # 从配置读取阈值
+            thresholds = settings.get('core', {}).get('thresholds', {})
+            
             market_cap = financial_indicators.get('market_cap', 0)
+            pe_ratio = financial_indicators.get('pe_ratio', 0)
+            pb_ratio = financial_indicators.get('pb_ratio', 0)
+            ps_ratio = financial_indicators.get('ps_ratio', 0)
+            
+            # 从配置获取参数
+            market_cap_max = thresholds.get('market_cap', {}).get('preference_max', 3000000)
+            pe_min = thresholds.get('pe_ratio', {}).get('preference_min', 10)
+            pe_max = thresholds.get('pe_ratio', {}).get('preference_max', 100)
+            pb_min = thresholds.get('pb_ratio', {}).get('preference_min', 0.3)
+            pb_max = thresholds.get('pb_ratio', {}).get('preference_max', 8.0)
+            ps_min = thresholds.get('ps_ratio', {}).get('preference_min', 0.5)
+            ps_max = thresholds.get('ps_ratio', {}).get('preference_max', 15.0)
             
             conditions = [
-                # 市值筛选：优先小盘股 (300亿以下)
-                market_cap < 3000000,  # 300亿（万元）
+                # 市值筛选：优先小盘股
+                market_cap < market_cap_max,
                 
-                # PE筛选：10 < PE < 100 (适度放宽)
-                (financial_indicators.get('pe_ratio', 0) > 10 and 
-                 financial_indicators.get('pe_ratio', 0) < 100),
+                # PE筛选
+                (pe_ratio > pe_min and pe_ratio < pe_max),
                 
-                # PB筛选：0.3 < PB < 8 (适度放宽)
-                (financial_indicators.get('pb_ratio', 0) > 0.3 and 
-                 financial_indicators.get('pb_ratio', 0) < 8.0),
+                # PB筛选
+                (pb_ratio > pb_min and pb_ratio < pb_max),
                 
-                # PS筛选：0.5 < PS < 15 (适度放宽)
-                (financial_indicators.get('ps_ratio', 0) > 0.5 and 
-                 financial_indicators.get('ps_ratio', 0) < 15.0),
+                # PS筛选
+                (ps_ratio > ps_min and ps_ratio < ps_max),
             ]
             
             return all(conditions)
@@ -379,47 +394,65 @@ class ReverseTrendBet(BaseStrategy):
         基于机器学习分析结果优化参数以提高ROI
         """
         try:
+            # 从配置读取阈值
+            thresholds = settings.get('core', {}).get('thresholds', {})
+            
+            # 从配置获取各项参数
+            market_cap_cfg = thresholds.get('market_cap', {})
+            pe_cfg = thresholds.get('pe_ratio', {})
+            pb_cfg = thresholds.get('pb_ratio', {})
+            rsi_cfg = thresholds.get('rsi', {})
+            price_pct_cfg = thresholds.get('price_percentile', {})
+            vol_cfg = thresholds.get('volatility', {})
+            vol_before_cfg = thresholds.get('volume_ratio_before', {})
+            vol_after_cfg = thresholds.get('volume_ratio_after', {})
+            ma_conv_cfg = thresholds.get('ma_convergence', {})
+            ma20_cfg = thresholds.get('price_vs_ma20', {})
+            ma60_cfg = thresholds.get('price_vs_ma60', {})
+            drop_cfg = thresholds.get('monthly_drop_rate', {})
+            slope_cfg = thresholds.get('ma20_slope', {})
+            
             conditions = [
                 # 1. 市值筛选条件 (基于脚本分析优化)
-                features['market_cap'] < 1800000,  # 市值 < 180万
+                features['market_cap'] < market_cap_cfg.get('max', 1800000),
                 
                 # 2. PE比率筛选 (基于脚本分析优化)
-                features['pe_ratio'] < 120,  # PE < 120
-                features['pe_ratio'] > 2,    # PE > 2
+                features['pe_ratio'] < pe_cfg.get('max', 120),
+                features['pe_ratio'] > pe_cfg.get('min', 2),
                 
                 # 3. PB比率筛选 (基于脚本分析优化)
-                features['pb_ratio'] < 7.5,  # PB < 7.5
-                features['pb_ratio'] > 0.1,  # PB > 0.1
+                features['pb_ratio'] < pb_cfg.get('max', 7.5),
+                features['pb_ratio'] > pb_cfg.get('min', 0.1),
                 
                 # 4. RSI条件 (基于脚本分析优化)
-                features['rsi'] < 92,  # RSI < 92
-                features['rsi'] > 7,   # RSI > 7
+                features['rsi'] < rsi_cfg.get('max', 92),
+                features['rsi'] > rsi_cfg.get('min', 7),
                 
                 # 5. 价格历史分位数 (基于脚本分析优化)
-                features['price_percentile'] < 0.95,  # 价格分位数 < 95%
-                features['price_percentile'] > 0.00,  # 价格分位数 > 0%
+                features['price_percentile'] < price_pct_cfg.get('max', 0.95),
+                features['price_percentile'] > price_pct_cfg.get('min', 0.00),
                 
                 # 6. 波动率条件 (基于脚本分析优化)
-                features['volatility'] > 0.007,  # 波动率 > 0.7%
-                features['volatility'] < 0.450,  # 波动率 < 45%
+                features['volatility'] > vol_cfg.get('min', 0.007),
+                features['volatility'] < vol_cfg.get('max', 0.450),
                 
                 # 7. 成交量条件 (基于脚本分析优化)
-                features['volume_ratio_before'] >= 0.7,  # 反转前成交量放大 ≥ 0.7倍
-                features['volume_ratio_after'] >= 0.7,   # 反转后成交量放大 ≥ 0.7倍
+                features['volume_ratio_before'] >= vol_before_cfg.get('min', 0.7),
+                features['volume_ratio_after'] >= vol_after_cfg.get('min', 0.7),
                 
                 # 8. 均线收敛度条件 (基于脚本分析优化)
-                features['ma_convergence'] < 0.225,  # 均线收敛度 < 22.5%
+                features['ma_convergence'] < ma_conv_cfg.get('max', 0.225),
                 
                 # 9. 价格相对均线位置条件 (基于脚本分析优化)
-                -0.22 < features['price_vs_ma20'] < 0.22,  # 价格与MA20距离在±22%内
-                -0.30 < features['price_vs_ma60'] < 0.30,  # 价格与MA60距离在±30%内
+                ma20_cfg.get('min', -0.22) < features['price_vs_ma20'] < ma20_cfg.get('max', 0.22),
+                ma60_cfg.get('min', -0.30) < features['price_vs_ma60'] < ma60_cfg.get('max', 0.30),
                 
                 # 10. 月线跌幅条件 (基于脚本分析优化)
-                features['monthly_drop_rate'] > 0.007,  # 月线跌幅 > 0.7%
-                features['monthly_drop_rate'] < 1.050,  # 月线跌幅 < 105%
+                features['monthly_drop_rate'] > drop_cfg.get('min', 0.007),
+                features['monthly_drop_rate'] < drop_cfg.get('max', 1.050),
                 
                 # 11. 均线斜率条件 (基于脚本分析优化)
-                features['ma20_slope'] > -0.075,  # MA20斜率 > -7.5%
+                features['ma20_slope'] > slope_cfg.get('min', -0.075),
             ]
             
             return all(conditions)

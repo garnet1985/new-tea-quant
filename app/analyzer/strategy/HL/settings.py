@@ -2,7 +2,7 @@ from app.data_source.enums import KlineTerm
 
 settings = {
     # 策略启用状态
-    "is_enabled": True,
+    "is_enabled": False,
 
     "description": "历史低点策略 - 寻找股票的历史低点，识别可能的买入机会",
     

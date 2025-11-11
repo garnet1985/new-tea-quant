@@ -5,10 +5,11 @@ MeanReversion 策略实现
 
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from loguru import logger
 
 from app.analyzer.components.base_strategy import BaseStrategy
+from app.analyzer.components.entity.opportunity import Opportunity
 
 
 class MeanReversionStrategy(BaseStrategy):
@@ -29,8 +30,11 @@ class MeanReversionStrategy(BaseStrategy):
             is_verbose=is_verbose,
             name="MeanReversion",
             description="均值回归策略 - 基于价格偏离均线的历史分位数进行交易",
-            key="MR"
+            key="MeanReversion",
+            version="1.0.0"
         )
+        if db is not None:
+            super().initialize()
     
     @staticmethod
     def scan_opportunity(stock_info: Dict[str, Any], data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -95,7 +99,7 @@ class MeanReversionStrategy(BaseStrategy):
                 # 创建机会对象
                 # 使用价格修正边界（用于处理滑点），而不是策略信号边界
                 current_price = latest['close']
-                opportunity = BaseStrategy.create_opportunity(
+                opportunity = Opportunity(
                     stock=stock_info,
                     record_of_today=latest_record,
                     extra_fields={
@@ -108,7 +112,9 @@ class MeanReversionStrategy(BaseStrategy):
                         'current_price': current_price,
                         'volatility': latest['std'],
                         'deviation_percentile': (df['deviation'] < latest['deviation']).sum() / len(df) * 100,
-                    }
+                    },
+                    lower_bound=latest['lower_bound'],
+                    upper_bound=latest['upper_bound'],
                 )
                 
                 return opportunity
@@ -120,24 +126,67 @@ class MeanReversionStrategy(BaseStrategy):
             return None
 
     @staticmethod
-    def should_take_profit(stock_info: Dict[str, Any], record_of_today: Dict[str, Any], investment: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+    def create_customized_take_profit_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any], extra_fields: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        创建自定义止盈目标 - 均值回归策略
+        
+        Args:
+            investment: 投资对象
+            record_of_today: 当前交易日记录
+            extra_fields: 额外字段（包含上界分位数等信息）
+            
+        Returns:
+            List[InvestmentTarget]: 止盈目标列表
+        """
+        from app.analyzer.components.entity.target import InvestmentTarget
+        
+        return [
+            InvestmentTarget(
+                target_type=InvestmentTarget.TargetType.TAKE_PROFIT,
+                start_record=record_of_today,
+                stage={
+                    'name': 'mean_reversion_take_profit',
+                    'ratio': 0,  # 动态止盈，不设固定比例
+                    'close_invest': True,
+                },
+                extra_fields=extra_fields,
+                is_customized=True,
+                priority=InvestmentTarget.TargetPriority.CUSTOMIZED_TAKE_PROFIT_BASE.value,
+            )
+        ]
+
+    @staticmethod
+    def is_customized_take_profit_target_complete(
+        target: Any,  # InvestmentTarget object
+        record_of_today: Dict[str, Any],
+        required_data: Dict[str, Any],
+        remaining_investment_ratio: float,
+        settings: Dict[str, Any],
+    ) -> Tuple[bool, float]:
         """
         自定义止盈逻辑 - 基于价格偏离均线的动态止盈
         
+        止盈条件：
+        1. 当价格偏离率回归到历史上界以上时止盈（回归完成）
+        2. 或者当收益率达到20%时止盈（保护利润）
+        
         Args:
-            stock_info: 股票信息
+            target: InvestmentTarget 对象
             record_of_today: 当前交易日记录
-            investment: 投资对象
             required_data: 所需数据
+            remaining_investment_ratio: 剩余投资比例
             settings: 策略设置
             
         Returns:
-            (是否触发止盈, 更新后的投资对象)
+            (是否触发止盈, 更新后的剩余投资比例)
         """
         try:
             # 获取当前价格
             current_price = record_of_today['close']
-            purchase_price = investment['purchase_price']
+            purchase_price = target.start_record_ref.get('close', 0)
+            
+            if purchase_price <= 0:
+                return False, remaining_investment_ratio
             
             # 计算基础收益率
             current_roi = (current_price - purchase_price) / purchase_price
@@ -147,13 +196,9 @@ class MeanReversionStrategy(BaseStrategy):
             if isinstance(klines, dict):
                 signal_term = settings.get('klines', {}).get('signal_base_term', 'daily')
                 klines = klines.get(signal_term, [])
-            elif isinstance(klines, list):
-                pass
-            else:
-                return False, investment
             
-            if len(klines) < 20:  # 需要足够的数据计算均线
-                return False, investment
+            if not klines or len(klines) < 20:  # 需要足够的数据计算均线
+                return False, remaining_investment_ratio
             
             # 计算当前偏离率
             df = pd.DataFrame(klines)
@@ -163,23 +208,22 @@ class MeanReversionStrategy(BaseStrategy):
             latest = df.iloc[-1]
             current_deviation = latest['deviation']
             
-            # 动态止盈：当价格偏离率高于历史上界时止盈
-            # 或者当收益率达到一定阈值时止盈
-            upper_bound = latest.get('upper_bound', 0.05)  # 默认5%上界
+            # 从 extra_fields 获取买入时的上界
+            extra_fields = target.tracker.get('extra_fields', {})
+            upper_bound = extra_fields.get('signal_upper_bound', 0.05)  # 默认5%上界
             
             # 检查是否触发止盈
-            if current_deviation > upper_bound or current_roi > 0.20:  # 20%止盈
-                # 使用BaseStrategy的结算方法
-                investment = BaseStrategy.to_settled_investment(
-                    investment=investment,
-                    exit_price=current_price,
-                    exit_date=record_of_today['date'],
-                    sell_ratio=1.0,
-                    target_type="customized_take_profit"
+            # 条件1: 价格回归到上界以上（均值回归完成）
+            # 条件2: 收益率达到20%（保护利润）
+            if current_deviation > upper_bound or current_roi > 0.20:
+                logger.info(
+                    f"均值回归止盈触发 | 当前偏离率: {current_deviation:.4f} | "
+                    f"上界: {upper_bound:.4f} | 当前ROI: {current_roi:.2%}"
                 )
-                return True, investment
-            return False, investment
+                return True, remaining_investment_ratio
+            
+            return False, remaining_investment_ratio
             
         except Exception as e:
             logger.error(f"MeanReversion自定义止盈检查出错: {e}")
-            return False, investment
+            return False, remaining_investment_ratio

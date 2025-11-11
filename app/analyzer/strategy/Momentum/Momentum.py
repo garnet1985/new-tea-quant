@@ -30,6 +30,8 @@ class MomentumStrategy(BaseStrategy):
         # 先设置version，再调用父类__init__
         self.version = "1.0.0"
         super().__init__(db, is_verbose, name, description, key)
+        if db is not None:
+            super().initialize()
     
     @staticmethod
     def scan_opportunity(stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:

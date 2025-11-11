@@ -98,7 +98,16 @@ class DataLoader:
         # 1. 加载K线数据
         klines_settings = settings.get("klines")
         if klines_settings:
-            data["klines"] = self.kline_loader.load_multiple_terms(stock_id, klines_settings)
+            # 将 simulation 中的 start_date 和 end_date 传递给 klines_settings
+            # 创建副本避免修改原始 settings
+            klines_settings_with_dates = klines_settings.copy()
+            simulation_settings = settings.get("simulation", {})
+            if simulation_settings.get('start_date') and 'start_date' not in klines_settings_with_dates:
+                klines_settings_with_dates['start_date'] = simulation_settings['start_date']
+            if simulation_settings.get('end_date') and 'end_date' not in klines_settings_with_dates:
+                klines_settings_with_dates['end_date'] = simulation_settings['end_date']
+            
+            data["klines"] = self.kline_loader.load_multiple_terms(stock_id, klines_settings_with_dates)
             
             # 确保返回dict类型
             if not isinstance(data.get("klines"), dict):

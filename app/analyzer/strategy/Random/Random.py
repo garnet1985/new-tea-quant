@@ -27,12 +27,12 @@ class RandomStrategy(BaseStrategy):
     
     def __init__(self, db=None, is_verbose=False, name="Random", description="Random策略：随机投资策略", key="Random"):
         # 先设置version，再调用父类__init__
-        self.version = "0.1"
-        super().__init__(db, is_verbose, name, description, key)
+        self.version = "1.0.0"
+        super().__init__(db, is_verbose, name, description, key, self.version)
         self.strategy_name = "Lucky investment strategy"
         if db is not None:
             super().initialize()
-    
+
     @staticmethod
     def scan_opportunity(stock_info: Dict[str, Any], data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

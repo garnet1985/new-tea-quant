@@ -19,6 +19,9 @@ from typing import Dict, List, Any, Optional, Union
 import pandas as pd
 from loguru import logger
 
+from app.data_loader.loaders.macro_loader import MacroEconomyLoader
+from app.data_loader.loaders.corporate_finance_loader import CorporateFinanceLoader
+
 from .loaders import KlineLoader
 from .loaders import LabelLoader
 from app.conf.conf import data_default_start_date
@@ -72,6 +75,8 @@ class DataLoader:
         # 子loaders使用共享的DatabaseManager实例
         self.kline_loader = KlineLoader(self.db)
         self.label_loader = LabelLoader(self.db)
+        self.macro_loader = MacroEconomyLoader(self.db)
+        self.corporate_finance_loader = CorporateFinanceLoader(self.db)
     
     def prepare_data(self, stock: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -278,12 +283,138 @@ class DataLoader:
     # ============ 私有方法（委托给子loaders）============
     
     def _load_macro_data(self, macro_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """加载宏观数据（委托给KlineLoader）"""
-        return self.kline_loader.load_macro_data(macro_settings)
+        """
+        加载宏观数据（委托给MacroEconomyLoader）
+        
+        Args:
+            macro_settings: 宏观数据配置，例如：
+                {
+                    "GDP": True,
+                    "LPR": True,
+                    "Shibor": True,
+                    "price_indexes": ["CPI", "PPI", "PMI", "MoneySupply"],
+                    "start_date": "20200101",
+                    "end_date": "20241231"
+                }
+        
+        Returns:
+            Dict: 包含各类宏观数据的字典
+        """
+        result = {}
+        
+        # 提取通用的日期参数（空字符串视为None，表示不限制）
+        start_date = macro_settings.get('start_date')
+        end_date = macro_settings.get('end_date')
+        if start_date == '':
+            start_date = None
+        if end_date == '':
+            end_date = None
+        
+        # 处理GDP数据（季度数据，需要转换日期格式）
+        if macro_settings.get('GDP'):
+            try:
+                start_quarter = self._convert_date_to_quarter(start_date) if start_date else None
+                end_quarter = self._convert_date_to_quarter(end_date) if end_date else None
+                result['gdp'] = self.macro_loader.load_gdp(start_quarter, end_quarter)
+            except Exception as e:
+                logger.error(f"加载GDP数据失败: {e}")
+                result['gdp'] = []
+        
+        # 处理LPR数据
+        if macro_settings.get('LPR'):
+            try:
+                result['lpr'] = self.macro_loader.load_lpr(start_date, end_date)
+            except Exception as e:
+                logger.error(f"加载LPR数据失败: {e}")
+                result['lpr'] = []
+        
+        # 处理Shibor数据
+        if macro_settings.get('Shibor'):
+            try:
+                result['shibor'] = self.macro_loader.load_shibor(start_date, end_date)
+            except Exception as e:
+                logger.error(f"加载Shibor数据失败: {e}")
+                result['shibor'] = []
+        
+        # 处理价格指数数据
+        price_indexes = macro_settings.get('price_indexes', [])
+        if price_indexes:
+            # 转换日期格式：YYYYMMDD -> YYYYMM（价格指数是月度数据）
+            month_start = start_date[:6] if start_date and len(start_date) >= 6 else None
+            month_end = end_date[:6] if end_date and len(end_date) >= 6 else None
+            
+            for index_type in price_indexes:
+                try:
+                    if index_type == 'CPI':
+                        result['cpi'] = self.macro_loader.load_cpi(month_start, month_end)
+                    elif index_type == 'PPI':
+                        result['ppi'] = self.macro_loader.load_ppi(month_start, month_end)
+                    elif index_type == 'PMI':
+                        result['pmi'] = self.macro_loader.load_pmi(month_start, month_end)
+                    elif index_type == 'MoneySupply':
+                        result['money_supply'] = self.macro_loader.load_money_supply(month_start, month_end)
+                except Exception as e:
+                    logger.error(f"加载{index_type}数据失败: {e}")
+                    result[index_type.lower()] = []
+        
+        return result
+    
+    @staticmethod
+    def _convert_date_to_quarter(date_str: str) -> Optional[str]:
+        """
+        将日期字符串转换为季度格式
+        
+        Args:
+            date_str: 日期字符串（YYYYMMDD格式）
+            
+        Returns:
+            季度字符串（YYYYQ[1-4]格式）或None
+        """
+        if not date_str or len(date_str) < 6:
+            return None
+        
+        year = date_str[:4]
+        month = date_str[4:6]
+        
+        # 根据月份确定季度
+        month_int = int(month)
+        if 1 <= month_int <= 3:
+            quarter = 'Q1'
+        elif 4 <= month_int <= 6:
+            quarter = 'Q2'
+        elif 7 <= month_int <= 9:
+            quarter = 'Q3'
+        else:
+            quarter = 'Q4'
+        
+        return f"{year}{quarter}"
     
     def _load_corporate_finance_data(self, stock_id: str, corporate_finance_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """加载企业财务数据（委托给KlineLoader）"""
-        return self.kline_loader.load_corporate_finance_data(stock_id, corporate_finance_settings)
+        """
+        加载企业财务数据（委托给CorporateFinanceLoader）
+        
+        Args:
+            stock_id: 股票代码
+            corporate_finance_settings: 企业财务数据配置，例如：
+                {
+                    "categories": ["growth", "profit", "cashflow", "solvency", "operation", "asset"],
+                    "start_date": "20200101",
+                    "end_date": "20241231"
+                }
+        
+        Returns:
+            Dict: 包含各类企业财务数据的字典
+        """
+        categories = corporate_finance_settings.get('categories', [])
+        start_date = corporate_finance_settings.get('start_date')
+        end_date = corporate_finance_settings.get('end_date')
+        # 空字符串视为None，表示不限制
+        if start_date == '':
+            start_date = None
+        if end_date == '':
+            end_date = None
+        
+        return self.corporate_finance_loader.load(stock_id, categories, start_date, end_date)
     
     def _load_index_indicators_data(self, index_indicators_settings: Dict[str, Any]) -> Dict[str, Any]:
         """加载指数指标数据（委托给KlineLoader）"""

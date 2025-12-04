@@ -418,4 +418,10 @@ class SimulatingService:
             
             data_today['labels'] = today_labels
 
+        # 可选：宏观数据（全局数据，直接传递全部，不需要按日期过滤）
+        macro_cfg = settings.get('macro') or {}
+        if isinstance(macro_cfg, dict) and all_data.get('macro'):
+            # 宏观数据是全局的，直接传递全部数据，策略内部会进行fallback
+            data_today['macro'] = all_data['macro']
+
         return data_today

@@ -52,7 +52,7 @@ def identify_major_reversals(stock_id: str = "000001.SZ",
     try:
         # 初始化数据加载器
         from utils.db.db_manager import DatabaseManager
-        from app.data_loader.loaders import KlineLoader
+        from app.data_manager.loaders import KlineLoader
         
         db = DatabaseManager()
         db.initialize()

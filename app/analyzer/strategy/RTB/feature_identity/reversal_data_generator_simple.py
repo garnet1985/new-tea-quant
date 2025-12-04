@@ -17,7 +17,7 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 os.chdir(str(project_root))
 
-from app.data_loader.data_loader import DataLoader
+from app.data_manager.data_manager import DataManager
 from app.analyzer.strategy.RTB import settings
 from app.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
 
@@ -27,7 +27,8 @@ class SimpleReversalDataGenerator:
     """简化版反转数据生成器"""
     
     def __init__(self):
-        self.data_loader = DataLoader()
+        self.data_manager = DataManager()
+        self.data_manager.initialize()
         self.csv_root = project_root / "app" / "analyzer" / "strategy" / "RTB" / "ml" / "data"
         # 确保父目录存在
         self.csv_root.parent.mkdir(parents=True, exist_ok=True)

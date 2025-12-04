@@ -112,7 +112,7 @@ class InvestmentApi:
                 stock_info = stock_info_map.get(stock_id, {})
                 
                 # 使用DataLoader获取股票详细信息（跨表业务）
-                from app.data_loader import DataLoader
+                from app.data_manager import DataManager
                 data_loader = DataLoader(self.db_manager)
                 stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
                 
@@ -207,14 +207,14 @@ class InvestmentApi:
                 stock_info = stock_info_map.get(stock_id, {})
                 
                 # 使用DataLoader获取股票详细信息（跨表业务）
-                from app.data_loader import DataLoader
+                from app.data_manager import DataManager
                 data_loader = DataLoader(self.db_manager)
                 stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
                 
                 # 计算下一目标（使用 TargetCalculator）
                 next_targets = None
                 try:
-                    from utils.db.tables.investment_trades.target_calculator import TargetCalculator
+                    from app.data_manager.helpers.target_calculator import TargetCalculator
                     
                     # 获取操作记录
                     operations = operations_model.load_by_trade(trade['id'], order_by="date DESC")

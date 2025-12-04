@@ -4,7 +4,7 @@ from app.conf.conf import data_default_start_date
 # ML增强版本设置 - 基于机器学习验证的重要参数
 settings = {
     # 策略启用状态
-    "is_enabled": True,  # V21.0 ML增强版本启用
+    "is_enabled": False,  # V21.0 ML增强版本启用
     "name": "ReverseTrendBet",
     "description": "反转趋势策略 - 基于机器学习验证的重要参数",
     

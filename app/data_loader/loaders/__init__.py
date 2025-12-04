@@ -10,8 +10,10 @@ Data Loaders
 
 from .kline_loader import KlineLoader
 from .label_loader import LabelLoader
+from .macro_loader import MacroEconomyLoader
 
 __all__ = [
     'KlineLoader',
     'LabelLoader',
+    'MacroEconomyLoader',
 ]

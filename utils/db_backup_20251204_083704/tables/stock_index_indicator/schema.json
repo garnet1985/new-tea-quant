@@ -1,0 +1,99 @@
+{
+    "name": "stock_index_indicator",
+    "primaryKey": [
+        "id",
+        "term",
+        "date"
+    ],
+    "fields": [
+        {
+            "name": "id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股指代码index_code"
+        },
+        {
+            "name": "term",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true
+        },
+        {
+            "name": "date",
+            "type": "varchar",
+            "length": 8,
+            "isRequired": true
+        },
+        {
+            "name": "open",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "close",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "highest",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "lowest",
+            "type": "float",
+            "isRequired": true
+        },
+        {
+            "name": "price_change_delta",
+            "type": "float",
+            "isRequired": false
+        },
+        {
+            "name": "price_change_rate_delta",
+            "type": "float",
+            "isRequired": false
+        },
+        {
+            "name": "pre_close",
+            "type": "float",
+            "isRequired": false
+        },
+        {
+            "name": "volume",
+            "type": "bigint",
+            "isRequired": false
+        },
+        {
+            "name": "amount",
+            "type": "float",
+            "isRequired": false
+        }
+    ],
+    "indexes": [
+        {
+            "name": "idx_id_term_date",
+            "fields": [
+                "id",
+                "term",
+                "date"
+            ],
+            "unique": true
+        },
+        {
+            "name": "idx_id_date",
+            "fields": [
+                "id",
+                "date"
+            ]
+        },
+        {
+            "name": "idx_id_term",
+            "fields": [
+                "id",
+                "term"
+            ]
+        }
+    ]
+}

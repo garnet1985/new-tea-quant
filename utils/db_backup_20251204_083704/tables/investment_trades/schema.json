@@ -1,0 +1,79 @@
+{
+    "name": "investment_trades",
+    "primaryKey": "id",
+    "fields": [
+        {
+            "name": "id",
+            "type": "int",
+            "isRequired": true,
+            "autoIncrement": true,
+            "description": "交易ID"
+        },
+        {
+            "name": "stock_id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股票代码"
+        },
+        {
+            "name": "strategy",
+            "type": "varchar",
+            "length": 64,
+            "isRequired": false,
+            "description": "策略名称"
+        },
+        {
+            "name": "goal_config",
+            "type": "json",
+            "isRequired": false,
+            "description": "存储创建时的策略goal配置快照（用于历史追溯）"
+        },
+        {
+            "name": "status",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": false,
+            "default": "open",
+            "description": "状态: open(持仓中) / closed(已平仓)"
+        },
+        {
+            "name": "note",
+            "type": "text",
+            "isRequired": false,
+            "description": "备注"
+        },
+        {
+            "name": "created_at",
+            "type": "timestamp",
+            "isRequired": false,
+            "default": "CURRENT_TIMESTAMP",
+            "description": "创建时间"
+        },
+        {
+            "name": "updated_at",
+            "type": "timestamp",
+            "isRequired": false,
+            "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "description": "更新时间"
+        }
+    ],
+    "indexes": [
+        {
+            "name": "idx_stock_id",
+            "fields": ["stock_id"],
+            "unique": false
+        },
+        {
+            "name": "idx_status",
+            "fields": ["status"],
+            "unique": false
+        },
+        {
+            "name": "idx_created_at",
+            "fields": ["created_at"],
+            "unique": false
+        }
+    ]
+}
+

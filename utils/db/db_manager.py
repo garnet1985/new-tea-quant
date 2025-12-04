@@ -1,956 +1,475 @@
 """
-统一的MySQL数据库管理器
-支持同步和异步操作，默认线程安全
+简化的 MySQL 数据库管理器
+- 使用 DBUtils 管理连接池（自动扩容、健康检查）
+- 使用 SchemaManager 管理表结构
+- 提供简洁的 CRUD 接口
 """
 import pymysql
-import threading
-import time
-import queue
-import asyncio
-from typing import Optional, Dict, List, Any, Callable
+from typing import Optional, Dict, List, Any
 from contextlib import contextmanager
 from loguru import logger
+from dbutils.pooled_db import PooledDB
 
 from .db_config import DB_CONFIG
-from .connection_pool import get_connection_pool, get_connection, return_connection
+from .schema_manager import SchemaManager
 
 
 class DatabaseManager:
-    """统一的MySQL数据库管理器 - 支持同步和异步操作，默认线程安全"""
+    """
+    简化的数据库管理器
     
-    def __init__(self, is_verbose: bool = False, enable_thread_safety: bool = False, use_connection_pool: bool = False):
-        # 原有属性（保持兼容性）
-        self.sync_connection = None
-        self.is_sync_connected = False
-        
-        # 异步连接y
-        self.async_pool = None
-        self.is_async_initialized = False
-
-        # 线程安全属性（以传入参数为准）
-        self.enable_thread_safety = enable_thread_safety
-        self.use_connection_pool = use_connection_pool
-        self._local = threading.local() if enable_thread_safety else None
-        self._connection_pool = queue.Queue(maxsize=10) if enable_thread_safety and not use_connection_pool else None
-        self._write_queue = queue.Queue() if enable_thread_safety else None
-        self._write_thread = None
-        self._write_thread_running = False
-        
-        # 表缓存 - 简化为单一字典
-        self.tables = {}
-        
-        # 注册的自定义表
-        self.registered_tables = {}
-        
-        # 表缓存锁（用于保护表实例缓存）
-        self._tables_lock = threading.Lock() if enable_thread_safety else None
-        
-        # 统计信息
-        self._stats = {
-            'connections_created': 0,
-            'connections_reused': 0,
-            'writes_queued': 0,
-            'writes_completed': 0,
-            'writes_failed': 0,
-            'batch_writes': 0
-        }
-        self._stats_lock = threading.Lock()
-
-        # 全局回调系统
-        self._global_callbacks = []
-        self._callbacks_lock = threading.Lock()
-
-        self.is_verbose = is_verbose
-        
-        # 启动写入线程（如果启用线程安全）
-        if enable_thread_safety:
-            self._start_write_thread()
+    职责：
+    - 连接池管理（使用 DBUtils）
+    - 基础 CRUD 操作
+    - 事务管理
     
-    # ==================== 线程安全相关方法 ====================
+    不再负责：
+    - Schema 解析和建表（由 SchemaManager 负责）
+    - 表模型缓存（归 DataLoader）
+    - 异步操作
+    - 写入队列
+    """
     
-    def _start_write_thread(self):
-        """启动写入线程"""
-        if self._write_thread is None or not self._write_thread.is_alive():
-            self._write_thread_running = True
-            self._write_thread = threading.Thread(target=self._write_worker, daemon=True)
-            self._write_thread.start()
-            if self.is_verbose:
-                logger.info("Database write thread started")
-    
-    def _stop_write_thread(self):
-        """停止写入线程"""
-        self._write_thread_running = False
-        if self._write_thread and self._write_thread.is_alive():
-            self._write_thread.join(timeout=5)
-            if self.is_verbose:
-                logger.info("Database write thread stopped")
-    
-    def _create_connection(self) -> pymysql.Connection:
-        """创建新的数据库连接"""
-        try:
-            connection = pymysql.connect(
-                host=DB_CONFIG['base']['host'],
-                user=DB_CONFIG['base']['user'],
-                password=DB_CONFIG['base']['password'],
-                database=DB_CONFIG['base']['database'],
-                port=DB_CONFIG['base']['port'],
-                charset=DB_CONFIG['base']['charset'],
-                autocommit=DB_CONFIG['base']['autocommit'],
-                max_allowed_packet=DB_CONFIG['performance']['max_allowed_packet'],
-                connect_timeout=DB_CONFIG['timeout']['connection'],
-                read_timeout=DB_CONFIG['timeout']['read'],
-                write_timeout=DB_CONFIG['timeout']['write'],
-            )
-            
-            with self._stats_lock:
-                self._stats['connections_created'] += 1
-            
-            if self.is_verbose:
-                logger.debug(f"Created new database connection (total: {self._stats['connections_created']})")
-            return connection
-            
-        except Exception as e:
-            logger.error(f"Failed to create database connection: {e}")
-            raise
-    
-    def _get_thread_safe_connection(self) -> pymysql.Connection:
-        """获取线程安全的数据库连接"""
-        # 如果使用连接池，直接从连接池获取
-        if self.use_connection_pool:
-            conn = get_connection()
-            if conn:
-                return conn
-            else:
-                raise Exception("无法从连接池获取数据库连接")
-        
-        # 检查线程本地连接
-        if hasattr(self._local, 'connection'):
-            try:
-                # 验证连接是否有效
-                self._local.connection.ping(reconnect=True)
-                # 检查连接是否真的有效
-                if hasattr(self._local.connection, 'open') and self._local.connection.open:
-                    # 额外验证：尝试执行一个简单查询
-                    try:
-                        test_cursor = self._local.connection.cursor()
-                        test_cursor.execute("SELECT 1")
-                        test_cursor.fetchone()
-                        test_cursor.close()
-                        return self._local.connection
-                    except Exception as e:
-                        logger.warning(f"Thread local connection test query failed: {e}")
-                        try:
-                            self._local.connection.close()
-                        except Exception as close_error:
-                            logger.debug(f"Failed to close invalid connection: {close_error}")
-                        delattr(self._local, 'connection')
-                else:
-                    logger.warning("Thread local connection is closed, creating new one")
-                    try:
-                        self._local.connection.close()
-                    except Exception as close_error:
-                        logger.debug(f"Failed to close closed connection: {close_error}")
-                    delattr(self._local, 'connection')
-            except Exception as e:
-                logger.warning(f"Thread local connection invalid, creating new one: {e}")
-                try:
-                    self._local.connection.close()
-                except Exception as close_error:
-                    logger.debug(f"Failed to close invalid connection: {close_error}")
-                delattr(self._local, 'connection')
-        
-        # 尝试从连接池获取
-        for pool_attempt in range(3):  # 最多尝试3次从池中获取
-            if self._connection_pool is None:
-                break
-            try:
-                connection = self._connection_pool.get_nowait()
-                # 验证池中连接的有效性
-                try:
-                    connection.ping(reconnect=True)
-                    if hasattr(connection, 'open') and connection.open:
-                        # 额外验证：尝试执行一个简单查询
-                        try:
-                            test_cursor = connection.cursor()
-                            test_cursor.execute("SELECT 1")
-                            test_cursor.fetchone()
-                            test_cursor.close()
-                            
-                            with self._stats_lock:
-                                self._stats['connections_reused'] += 1
-                            if self.is_verbose:
-                                logger.debug("Reused connection from pool")
-                            
-                            # 存储到线程本地
-                            self._local.connection = connection
-                            return connection
-                        except Exception as e:
-                            logger.warning(f"Pool connection test query failed: {e}")
-                            # 将无效连接放回池中
-                            try:
-                                self._connection_pool.put_nowait(connection)
-                            except queue.Full:
-                                pass
-                            continue
-                    else:
-                        logger.warning("Pool connection is closed, creating new one")
-                        # 将无效连接放回池中，让其他线程处理
-                        try:
-                            self._connection_pool.put_nowait(connection)
-                        except queue.Full:
-                            pass
-                        continue
-                except Exception as e:
-                    logger.warning(f"Pool connection validation failed: {e}")
-                    # 将无效连接放回池中
-                    try:
-                        self._connection_pool.put_nowait(connection)
-                    except queue.Full:
-                        pass
-                    continue
-            except queue.Empty:
-                break
-        
-        # 创建新的连接
-        connection = self._create_connection()
-        # 存储到线程本地
-        self._local.connection = connection
-        return connection
-    
-    # ==================== 同步连接方法 ====================
-
-    def initialize(self):
-        """初始化数据库管理器（包含连接、创建数据库、初始化策略模型、创建表）"""
-        try:
-            # 连接数据库
-            self.connect_sync()
-            
-            # 创建数据库（如果不存在）
-            self.create_db()
-            
-            # 创建所有表（包括注册的策略表）
-            self.create_base_tables()
-            
-            if self.is_verbose:
-                logger.info("Database manager fully initialized")
-                
-        except Exception as e:
-            logger.error(f"Database initialization failed: {e}")
-            raise
-    
-    
-    def connect_sync(self):
-        """建立同步数据库连接"""
-        try:
-            self.sync_connection = pymysql.connect(
-                host=DB_CONFIG['base']['host'],
-                user=DB_CONFIG['base']['user'],
-                password=DB_CONFIG['base']['password'],
-                database=DB_CONFIG['base']['database'],
-                port=DB_CONFIG['base']['port'],
-                charset=DB_CONFIG['base']['charset'],
-                autocommit=DB_CONFIG['base']['autocommit'],
-                max_allowed_packet=DB_CONFIG['performance']['max_allowed_packet'],
-                connect_timeout=DB_CONFIG['timeout']['connection'],
-                read_timeout=DB_CONFIG['timeout']['read'],
-                write_timeout=DB_CONFIG['timeout']['write'],
-            )
-            self.is_sync_connected = True
-            if self.is_verbose:
-                logger.info("Synchronous database connected successfully")
-        except pymysql.err.OperationalError as e:
-            # 检查是否是数据库不存在的错误
-            if e.args[0] == 1049:  # Unknown database
-                logger.warning(f"Database '{DB_CONFIG['base']['database']}' does not exist, creating it...")
-                if self.create_db():
-                    # 重新尝试连接
-                    self.sync_connection = pymysql.connect(
-                        host=DB_CONFIG['base']['host'],
-                        user=DB_CONFIG['base']['user'],
-                        password=DB_CONFIG['base']['password'],
-                        database=DB_CONFIG['base']['database'],
-                        port=DB_CONFIG['base']['port'],
-                        charset=DB_CONFIG['base']['charset'],
-                        autocommit=DB_CONFIG['base']['autocommit'],
-                        max_allowed_packet=DB_CONFIG['performance']['max_allowed_packet'],
-                        connect_timeout=DB_CONFIG['timeout']['connection'],
-                        read_timeout=DB_CONFIG['timeout']['read'],
-                        write_timeout=DB_CONFIG['timeout']['write'],
-                    )
-                    self.is_sync_connected = True
-                    if self.is_verbose:
-                        logger.info("Synchronous database connected successfully after creation")
-                else:
-                    logger.error("Failed to create database")
-                    raise
-            else:
-                logger.error(f"Failed to connect to database synchronously: {e}")
-                raise
-        except Exception as e:
-            logger.error(f"Failed to connect to database synchronously: {e}")
-            raise
-    
-    def disconnect_sync(self):
-        """断开同步数据库连接"""
-        if self.sync_connection:
-            self.sync_connection.close()
-            self.is_sync_connected = False
-            if self.is_verbose:
-                logger.info("Synchronous database disconnected")
-
-    def create_db(self):
-        """创建数据库（如果不存在）"""
-        try:
-            # 连接到MySQL服务器（不指定数据库）
-            temp_connection = pymysql.connect(
-                host=DB_CONFIG['base']['host'],
-                user=DB_CONFIG['base']['user'],
-                password=DB_CONFIG['base']['password'],
-                port=DB_CONFIG['base']['port'],
-                charset=DB_CONFIG['base']['charset'],
-            )
-            
-            with temp_connection.cursor() as cursor:
-                cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_CONFIG['base']['database']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci")
-                # 只在详细模式下输出日志，减少重复日志
-                if self.is_verbose:
-                    logger.info(f"Database '{DB_CONFIG['base']['database']}' is ready")
-            
-            temp_connection.close()
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to create database: {e}")
-            return False 
-
-    def register_table(self, table_name, prefix, schema, model_class=None):
+    def __init__(self, config: Dict = None, is_verbose: bool = False):
         """
-        注册自定义表
+        初始化数据库管理器
         
         Args:
-            table_name: 表名 (会自动添加 strategy 的 prefix)
-            prefix: 表前缀
-            schema: 表结构定义（字典格式）
-            model_class: 自定义模型类 (可选, 继承自BaseTableModel)
+            config: 数据库配置（默认使用 DB_CONFIG）
+            is_verbose: 是否输出详细日志
         """
-        # 确保表名有前缀
-        if not prefix:
-            logger.error(f"prefix is required for table: {table_name}")
-        else:   
-            table_name = prefix + '_' + table_name
+        self.config = config or DB_CONFIG
+        self.is_verbose = is_verbose
+        self.pool = None
+        self._initialized = False
         
-        # 存储表信息
-        self.registered_tables[table_name] = {
-            'schema': schema,
-            'model_class': model_class
-        }
-        
-        if self.is_verbose:
-            logger.info(f"{table_name} table is registered")
-        return table_name
-
+        # Schema 管理器
+        self.schema_manager = SchemaManager(
+            charset=self.config['base']['charset'],
+            is_verbose=is_verbose
+        )
     
-    def create_tables(self):
-        """创建所有表（基础表和注册表）"""
+    def initialize(self):
+        """
+        初始化数据库管理器
+        
+        步骤：
+        1. 创建数据库（如果不存在）
+        2. 初始化连接池
+        3. 加载并创建所有表
+        """
         try:
-            # 创建基础表
-            self.create_base_tables()
+            # 1. 确保数据库存在
+            self._ensure_database_exists()
             
-            # 创建注册的自定义表
-            self.create_registered_tables()
+            # 2. 初始化连接池
+            self._init_connection_pool()
+            
+            # 3. 创建基础表
+            self.schema_manager.create_all_tables(self.get_connection)
+            
+            self._initialized = True
             
             if self.is_verbose:
-                logger.info("All tables created")
+                logger.info("✅ DatabaseManager 初始化完成")
+                
         except Exception as e:
-            logger.error(f"创建表失败: {e}")
+            logger.error(f"❌ DatabaseManager 初始化失败: {e}")
             raise
-
-    def create_base_tables(self):
-        """创建基础表"""
-        import os
+    
+    def _ensure_database_exists(self):
+        """确保数据库存在，不存在则创建"""
+        try:
+            # 先不指定数据库，连接到 MySQL
+            temp_conn = pymysql.connect(
+                host=self.config['base']['host'],
+                user=self.config['base']['user'],
+                password=self.config['base']['password'],
+                port=self.config['base']['port'],
+                charset=self.config['base']['charset']
+            )
+            
+            try:
+                with temp_conn.cursor() as cursor:
+                    db_name = self.config['base']['database']
+                    cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET {self.config['base']['charset']}")
+                    if self.is_verbose:
+                        logger.info(f"✅ 数据库 {db_name} 已就绪")
+            finally:
+                temp_conn.close()
+                
+        except Exception as e:
+            logger.error(f"❌ 创建数据库失败: {e}")
+            raise
+    
+    def _init_connection_pool(self):
+        """
+        初始化连接池（使用 DBUtils）
         
-        # 获取 tables 目录下的所有表
-        tables_dir = os.path.join(os.path.dirname(__file__), 'tables')
-        if os.path.exists(tables_dir):
-            for table_name in os.listdir(tables_dir):
-                table_path = os.path.join(tables_dir, table_name)
-                if os.path.isdir(table_path):
-                    # 检查是否有 schema.json
-                    schema_file = os.path.join(table_path, 'schema.json')
-                    if os.path.exists(schema_file):
-                        table_model = self._get_table_model(table_name)
-                        table_model.create_table()
-                        self.tables[table_name] = table_model
-                        if self.is_verbose:
-                            logger.info(f"created base table: {table_name}")
+        特性：
+        - 自动扩容（从 min 到 max）
+        - 自动健康检查（ping=1）
+        - 线程安全
+        - 连接复用
+        """
+        try:
+            pool_config = self.config.get('pool', {})
+            timeout_config = self.config.get('timeout', {})
+            
+            self.pool = PooledDB(
+                creator=pymysql,
+                
+                # 连接池配置
+                maxconnections=pool_config.get('pool_size_max', 30),  # 最大连接数
+                mincached=pool_config.get('pool_size_min', 5),        # 最小空闲连接
+                maxcached=10,                                          # 最大空闲连接
+                maxshared=0,                                           # 最大共享连接（0=不共享）
+                blocking=True,                                         # 连接用完时阻塞等待
+                maxusage=None,                                         # 连接最大使用次数（None=无限制）
+                
+                # 健康检查
+                ping=1,  # 0=不检查, 1=默认检查, 2=事务开始时检查, 4=执行查询时检查, 7=总是检查
+                
+                # 数据库连接参数
+                host=self.config['base']['host'],
+                user=self.config['base']['user'],
+                password=self.config['base']['password'],
+                database=self.config['base']['database'],
+                port=self.config['base']['port'],
+                charset=self.config['base']['charset'],
+                
+                # 超时配置
+                connect_timeout=timeout_config.get('connection', 60),
+                read_timeout=timeout_config.get('read', 60),
+                write_timeout=timeout_config.get('write', 60),
+                
+                # 其他配置
+                autocommit=self.config['base'].get('autocommit', True),
+                cursorclass=pymysql.cursors.DictCursor,  # 返回字典格式
+            )
+            
+            if self.is_verbose:
+                logger.info(f"✅ 连接池初始化完成（最小: {pool_config.get('pool_size_min', 5)}, 最大: {pool_config.get('pool_size_max', 30)}）")
+                
+        except Exception as e:
+            logger.error(f"❌ 连接池初始化失败: {e}")
+            raise
+    
+    # ==================== 连接管理 ====================
+    
+    @contextmanager
+    def get_connection(self):
+        """
+        获取数据库连接（上下文管理器）
+        
+        使用方式:
+            with db.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(...)
+        """
+        if not self.pool:
+            raise RuntimeError("连接池未初始化，请先调用 initialize()")
+        
+        conn = self.pool.connection()
+        try:
+            yield conn
+        except Exception as e:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()  # DBUtils 会自动归还到池中
+    
+    @contextmanager
+    def transaction(self):
+        """
+        事务上下文管理器
+        
+        使用方式:
+            with db.transaction() as cursor:
+                cursor.execute("INSERT ...")
+                cursor.execute("UPDATE ...")
+                # 自动提交或回滚
+        """
+        with self.get_connection() as conn:
+            # 临时关闭自动提交
+            old_autocommit = conn.get_autocommit()
+            conn.autocommit(False)
+            
+            cursor = conn.cursor()
+            try:
+                yield cursor
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise
+            finally:
+                cursor.close()
+                conn.autocommit(old_autocommit)
+    
+    # ==================== 基础 CRUD ====================
+    
+    def execute(self, sql: str, params: Any = None) -> int:
+        """
+        执行 SQL（INSERT/UPDATE/DELETE）
+        
+        Args:
+            sql: SQL 语句
+            params: 参数
+            
+        Returns:
+            影响的行数
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                affected = cursor.execute(sql, params)
+                return affected
+    
+    def fetch_one(self, sql: str, params: Any = None) -> Optional[Dict]:
+        """
+        查询单条记录
+        
+        Args:
+            sql: SQL 语句
+            params: 参数
+            
+        Returns:
+            字典格式的记录，不存在返回 None
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, params)
+                return cursor.fetchone()
+    
+    def fetch_all(self, sql: str, params: Any = None) -> List[Dict]:
+        """
+        查询多条记录
+        
+        Args:
+            sql: SQL 语句
+            params: 参数
+            
+        Returns:
+            字典列表
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, params)
+                return cursor.fetchall()
+    
+    def insert(self, table: str, data: Dict) -> int:
+        """
+        插入单条记录
+        
+        Args:
+            table: 表名
+            data: 数据字典
+            
+        Returns:
+            插入的记录 ID
+        """
+        fields = ', '.join([f"`{k}`" for k in data.keys()])
+        placeholders = ', '.join(['%s'] * len(data))
+        sql = f"INSERT INTO `{table}` ({fields}) VALUES ({placeholders})"
+        
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, list(data.values()))
+                return cursor.lastrowid
+    
+    def bulk_insert(self, table: str, data_list: List[Dict], ignore_duplicates: bool = False) -> int:
+        """
+        批量插入记录
+        
+        Args:
+            table: 表名
+            data_list: 数据字典列表
+            ignore_duplicates: 是否忽略重复记录
+            
+        Returns:
+            插入的记录数
+        """
+        if not data_list:
+            return 0
+        
+        # 使用第一条记录的键作为字段
+        fields = list(data_list[0].keys())
+        fields_str = ', '.join([f"`{k}`" for k in fields])
+        placeholders = ', '.join(['%s'] * len(fields))
+        
+        ignore_keyword = 'IGNORE' if ignore_duplicates else ''
+        sql = f"INSERT {ignore_keyword} INTO `{table}` ({fields_str}) VALUES ({placeholders})"
+        
+        # 准备数据
+        values = [tuple(row.get(k) for k in fields) for row in data_list]
+        
+        with self.get_connection() as conn:
+            with conn.cursor() as cursor:
+                affected = cursor.executemany(sql, values)
+                return affected
+    
+    def update(self, table: str, data: Dict, where: str, params: Any = None) -> int:
+        """
+        更新记录
+        
+        Args:
+            table: 表名
+            data: 要更新的数据字典
+            where: WHERE 条件（不包含 WHERE 关键字）
+            params: WHERE 条件的参数
+            
+        Returns:
+            影响的行数
+            
+        Example:
+            db.update('stock_kline', {'close': 100}, 'id = %s AND date = %s', ['000001.SZ', '20240101'])
+        """
+        set_clause = ', '.join([f"`{k}` = %s" for k in data.keys()])
+        sql = f"UPDATE `{table}` SET {set_clause} WHERE {where}"
+        
+        # 合并参数
+        all_params = list(data.values())
+        if params:
+            if isinstance(params, (list, tuple)):
+                all_params.extend(params)
+            else:
+                all_params.append(params)
+        
+        return self.execute(sql, all_params)
+    
+    def delete(self, table: str, where: str, params: Any = None) -> int:
+        """
+        删除记录
+        
+        Args:
+            table: 表名
+            where: WHERE 条件（不包含 WHERE 关键字）
+            params: WHERE 条件的参数
+            
+        Returns:
+            影响的行数
+        """
+        sql = f"DELETE FROM `{table}` WHERE {where}"
+        return self.execute(sql, params)
+    
+    def select(self, table: str, fields: str = '*', where: str = None, 
+               params: Any = None, order_by: str = None, limit: int = None) -> List[Dict]:
+        """
+        查询记录（便捷方法）
+        
+        Args:
+            table: 表名
+            fields: 字段（默认 *）
+            where: WHERE 条件
+            params: WHERE 参数
+            order_by: 排序
+            limit: 限制数量
+            
+        Returns:
+            记录列表
+        """
+        sql = f"SELECT {fields} FROM `{table}`"
+        
+        if where:
+            sql += f" WHERE {where}"
+        
+        if order_by:
+            sql += f" ORDER BY {order_by}"
+        
+        if limit:
+            sql += f" LIMIT {limit}"
+        
+        return self.fetch_all(sql, params)
+    
+    # ==================== 表管理（委托给 SchemaManager）====================
+    
+    def register_table(self, table_name: str, schema: Dict):
+        """
+        注册自定义表（给策略用）
+        
+        Args:
+            table_name: 表名
+            schema: 表的 schema 定义
+        """
+        self.schema_manager.register_table(table_name, schema)
+        
+        if self._initialized:
+            # 如果已经初始化，立即创建表
+            self.schema_manager.create_table_with_indexes(schema, self.get_connection)
     
     def create_registered_tables(self):
-        """创建注册的自定义表"""
-        # 使用list()创建副本，避免在迭代时修改字典
-        for table_name, table_info in list(self.registered_tables.items()):
-            try:
-                # 检查表是否已经存在
-                if table_name in self.tables:
-                    if self.is_verbose:
-                        logger.info(f"表 {table_name} 已存在，跳过创建")
-                    continue
-                
-                # 创建自定义表模型
-                if table_info['model_class']:
-                    # 检查是否是BaseTableModel的子类
-                    from .db_model import BaseTableModel
-                    if (issubclass(table_info['model_class'], BaseTableModel) and 
-                        table_info['model_class'].__init__.__code__.co_argcount == 3):  # self + table_name + connected_db
-                        # 如果是BaseTableModel的子类且构造函数接受3个参数，传递table_name和self
-                        table_model = table_info['model_class'](table_name, self)
-                    else:
-                        # 否则只传递self（数据库连接）
-                        table_model = table_info['model_class'](self)
-                else:
-                    # 使用基础模型类
-                    from .db_model import BaseTableModel
-                    table_model = BaseTableModel(table_name, self)
-                
-                # 设置schema（如果不是自定义模型类）
-                if not table_info['model_class']:
-                    table_model.schema = table_info['schema']
-                
-                # 创建表（使用自定义表名）
-                custom_table_name = None
-                if hasattr(table_model, 'table_full_name'):
-                    custom_table_name = table_model.table_full_name
-                table_model.create_table(custom_table_name)
-                self.tables[table_name] = table_model
-                
-                if self.is_verbose:
-                    logger.info(f"created registered table: {table_name}")
-                
-            except Exception as e:
-                logger.error(f"创建注册表 {table_name} 失败: {e}")
-                raise
+        """创建所有注册的表（策略表）"""
+        self.schema_manager.create_registered_tables(self.get_connection)
     
-    def get_table_instance(self, table_name: str):
-        """获取表实例（线程安全）"""
-        # 如果启用线程安全，使用锁保护表缓存
-        if self.enable_thread_safety and self._tables_lock:
-            with self._tables_lock:
-                return self._get_table_instance_internal(table_name)
-        else:
-            return self._get_table_instance_internal(table_name)
-    
-    def get_table_description(self, table_name: str) -> Dict[str, Any]:
-        """获取表描述信息（schema）"""
-        table_instance = self.get_table_instance(table_name)
-        if table_instance and hasattr(table_instance, 'schema'):
-            return table_instance.schema
-        else:
-            raise ValueError(f"无法获取表 {table_name} 的描述信息")
-    
-    def get_table_primary_keys(self, table_name: str) -> List[str]:
+    def is_table_exists(self, table_name: str) -> bool:
         """
-        获取表的主键列表
+        检查表是否存在
         
         Args:
             table_name: 表名
             
         Returns:
-            List[str]: 主键列表
-            
-        Raises:
-            ValueError: 如果无法获取主键或主键格式不正确
+            是否存在
         """
-        schema = self.get_table_description(table_name)
-        primary_key = schema.get('primaryKey')
-        
-        if not primary_key:
-            raise ValueError(f"表 {table_name} 未配置主键")
-        
-        # 处理单个主键和复合主键
-        if isinstance(primary_key, str):
-            return [primary_key]
-        elif isinstance(primary_key, list):
-            return primary_key
-        else:
-            raise ValueError(f"表 {table_name} 的主键格式不正确: {primary_key}，应为字符串或列表")
+        return self.schema_manager.is_table_exists(
+            table_name, 
+            self.config['base']['database'], 
+            self.get_connection()
+        )
     
-    def _get_table_instance_internal(self, table_name: str):
-        """获取表实例的内部实现"""
-        # 首先检查缓存
-        if table_name in self.tables:
-            return self.tables[table_name]
-        
-        # 检查是否是注册表
-        if table_name in self.registered_tables:
-            table_info = self.registered_tables[table_name]
-            if table_info['model_class']:
-                table_model = table_info['model_class'](table_name, self)
-            else:
-                from .db_model import BaseTableModel
-                table_model = BaseTableModel(table_name, self)
-            
-            table_model.schema = table_info['schema']
-            self.tables[table_name] = table_model
-            return table_model
-        
-        # 尝试获取基础表
-        table_model = self._get_table_model(table_name)
-        self.tables[table_name] = table_model
-        return table_model
-    
-    def _get_table_model(self, table_name: str):
-        """根据表名获取对应的模型实例"""
-        import os
-        import importlib.util
-        
-        # 构建表目录路径
-        table_dir = os.path.join(os.path.dirname(__file__), 'tables', table_name)
-        model_file = os.path.join(table_dir, 'model.py')
-        
-        # 检查是否存在自定义模型文件
-        if os.path.exists(model_file):
-            try:
-                # 动态导入自定义模型
-                spec = importlib.util.spec_from_file_location(f"{table_name}_model", model_file)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                
-                # 查找模型类（假设类名为 TableNameModel 或 Model）
-                model_class = None
-                for attr_name in dir(module):
-                    attr = getattr(module, attr_name)
-                    if (isinstance(attr, type) and 
-                        hasattr(attr, '__bases__') and 
-                        any('BaseTableModel' in str(base) for base in attr.__bases__)):
-                        model_class = attr
-                        break
-                
-                if model_class:
-                    if self.is_verbose:
-                        logger.info(f"Using custom model for table: {table_name}")
-                    return model_class(table_name, self)
-                else:
-                    logger.warning(f"Custom model file found but no valid model class in {model_file}")
-                    
-            except Exception as e:
-                logger.error(f"Failed to load custom model for {table_name}: {e}")
-        
-        # 如果没有自定义模型或加载失败，使用 BaseTableModel
-        from .db_model import BaseTableModel
-        if self.is_verbose:
-            logger.info(f"Using BaseTableModel for table: {table_name}")
-        return BaseTableModel(table_name, self)
-
-    def _generate_create_table_sql(self, schema_data: dict) -> str:
-        """根据schema数据生成CREATE TABLE SQL语句"""
-        table_name = schema_data['name']
-        primary_key = schema_data.get('primaryKey', 'id')
-        fields = schema_data['fields']
-        
-        # 构建字段定义
-        field_definitions = []
-        for field in fields:
-            field_name = field['name']
-            field_type = field['type'].upper()
-            is_required = field.get('isRequired', False)
-            
-            # 处理字段类型和长度
-            if field_type == 'VARCHAR' and 'length' in field:
-                field_def = f"`{field_name}` {field_type}({field['length']})"
-            elif field_type == 'TEXT':
-                field_def = f"`{field_name}` {field_type}"
-            elif field_type == 'TINYINT':
-                field_def = f"`{field_name}` {field_type}(1)"
-            elif field_type == 'DATETIME':
-                field_def = f"`{field_name}` {field_type}"
-            else:
-                field_def = f"`{field_name}` {field_type}"
-            
-            # 添加约束
-            if is_required:
-                field_def += " NOT NULL"
-            else:
-                field_def += " NULL"
-            
-            field_definitions.append(field_def)
-        
-        # 添加主键约束
-        if primary_key and primary_key != 'id':
-            field_definitions.append(f"PRIMARY KEY (`{primary_key}`)")
-        
-        # 生成完整的CREATE TABLE语句
-        field_definitions_str = ',\n            '.join(field_definitions)
-        create_sql = f"""
-        CREATE TABLE IF NOT EXISTS `{table_name}` (
-            {field_definitions_str}
-        ) ENGINE=InnoDB DEFAULT CHARSET={DB_CONFIG['base']['charset']} COLLATE={DB_CONFIG['base']['charset']}_general_ci;
+    def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
+        获取表的 schema
         
-        return create_sql
-    
-    @contextmanager
-    def get_sync_cursor(self):
-        """获取同步数据库游标的上下文管理器（支持线程安全）"""
-        max_retries = 3
-        retry_delay = 0.1
-        
-        for attempt in range(max_retries):
-            try:
-                if self.enable_thread_safety:
-                    # 线程安全模式
-                    connection = self._get_thread_safe_connection()
-                    cursor = None
-                    
-                    try:
-                        cursor = connection.cursor(pymysql.cursors.DictCursor)
-                        yield cursor
-                        return  # 成功执行，退出重试循环
-                    except Exception as e:
-                        logger.error(f"Database cursor error (attempt {attempt + 1}/{max_retries}): {e}")
-                        try:
-                            connection.rollback()
-                        except Exception as rollback_error:
-                            logger.debug(f"Failed to rollback transaction: {rollback_error}")
-                        
-                        # 如果是连接相关错误，标记连接无效
-                        if any(err_msg in str(e) for err_msg in [
-                            "Packet sequence number wrong", "settimeout", "Lost connection", 
-                            "index out of range", "(0, '')"
-                        ]):
-                            logger.warning(f"Connection error detected, marking connection invalid (attempt {attempt + 1})")
-                            # 如果使用连接池，归还连接
-                            if self.use_connection_pool:
-                                return_connection(connection)
-                            else:
-                                # 清理线程本地连接
-                                if hasattr(self._local, 'connection'):
-                                    try:
-                                        self._local.connection.close()
-                                    except Exception as close_error:
-                                        logger.debug(f"Failed to close thread-local connection: {close_error}")
-                                    delattr(self._local, 'connection')
-                        
-                        if attempt == max_retries - 1:
-                            raise  # 最后一次尝试失败，抛出异常
-                        
-                        # 等待后重试
-                        import time
-                        time.sleep(retry_delay * (2 ** attempt))
-                        continue
-                    finally:
-                        if cursor:
-                            try:
-                                cursor.close()
-                            except Exception as close_error:
-                                logger.debug(f"Failed to close cursor: {close_error}")
-                        # 如果使用连接池，归还连接
-                        if self.use_connection_pool:
-                            return_connection(connection)
-                else:
-                    # 原有模式
-                    if not self.is_sync_connected or self.sync_connection is None:
-                        self.connect_sync()
-                    
-                    # 检查连接是否有效
-                    try:
-                        self.sync_connection.ping(reconnect=True)
-                    except Exception as e:
-                        logger.warning(f"Database connection lost, reconnecting: {e}")
-                        self.connect_sync()
-                    
-                    cursor = None
-                    try:
-                        cursor = self.sync_connection.cursor(pymysql.cursors.DictCursor)
-                        yield cursor
-                        return  # 成功执行，退出重试循环
-                    except Exception as e:
-                        logger.error(f"Synchronous database cursor error (attempt {attempt + 1}/{max_retries}): {e}")
-                        if self.sync_connection:
-                            try:
-                                self.sync_connection.rollback()
-                            except Exception as rollback_error:
-                                logger.debug(f"Failed to rollback sync connection: {rollback_error}")
-                        
-                        # 如果是连接相关错误，尝试重连
-                        if any(err_msg in str(e) for err_msg in [
-                            "Packet sequence number wrong", "settimeout", "Lost connection",
-                            "index out of range", "(0, '')"
-                        ]):
-                            logger.warning(f"Connection error detected, will reconnect on next use (attempt {attempt + 1})")
-                            self.is_sync_connected = False
-                            self.sync_connection = None
-                        
-                        if attempt == max_retries - 1:
-                            raise  # 最后一次尝试失败，抛出异常
-                        
-                        # 等待后重试
-                        import time
-                        time.sleep(retry_delay * (2 ** attempt))
-                        continue
-                    finally:
-                        if cursor:
-                            try:
-                                cursor.close()
-                            except Exception as close_error:
-                                logger.debug(f"Failed to close sync cursor: {close_error}")
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise  # 最后一次尝试失败，抛出异常
-                logger.warning(f"Retrying database operation (attempt {attempt + 1}/{max_retries})")
-                import time
-                time.sleep(retry_delay * (2 ** attempt))
-    
-    def execute_sync_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-        """执行同步查询语句（支持线程安全）"""
-        with self.get_sync_cursor() as cursor:
-            cursor.execute(query, params)
-            return cursor.fetchall()
-    
-    def execute_sync_update(self, query: str, params: Optional[tuple] = None) -> int:
-        """执行同步更新语句（支持线程安全）"""
-        with self.get_sync_cursor() as cursor:
-            affected_rows = cursor.execute(query, params)
-            cursor.connection.commit()
-            return affected_rows
-    
-    def execute_many(self, query: str, params_list: List[tuple], batch_size: int = 1000) -> int:
-        """批量执行SQL语句（线程安全）"""
-        if not params_list:
-            return 0
-        
-        total_affected = 0
-        
-        # 分批处理
-        for i in range(0, len(params_list), batch_size):
-            batch = params_list[i:i + batch_size]
+        Args:
+            table_name: 表名
             
-            with self.get_sync_cursor() as cursor:
-                affected_rows = cursor.executemany(query, batch)
-                cursor.connection.commit()
-                total_affected += affected_rows
-                
-                if self.is_verbose:
-                    logger.debug(f"Batch write completed: {len(batch)} records, affected: {affected_rows}")
-        
-        with self._stats_lock:
-            self._stats['batch_writes'] += 1
-        
-        return total_affected
+        Returns:
+            schema 字典，不存在返回 None
+        """
+        return self.schema_manager.get_table_schema(table_name)
     
-    def queue_write(self, table_name: str, data_list: List[Dict[str, Any]], 
-                   unique_keys: List[str], callback: Optional[Callable] = None):
-        """将写入任务加入队列（异步写入）"""
-        if not self.enable_thread_safety:
-            logger.warning("Thread safety not enabled, falling back to sync write")
-            return self._execute_batch_write(table_name, data_list, unique_keys)
+    def get_table_fields(self, table_name: str) -> List[str]:
+        """
+        获取表的所有字段名
         
-        write_task = {
-            'table_name': table_name,
-            'data_list': data_list,
-            'unique_keys': unique_keys,
-            'callback': callback,
-            'timestamp': time.time()
-        }
-        
-        self._write_queue.put(write_task)
-        
-        with self._stats_lock:
-            self._stats['writes_queued'] += 1
-        
-        if self.is_verbose:
-            logger.info(f"Write task queued for table {table_name}: {len(data_list)} records")
-    
-    def _write_worker(self):
-        """写入工作线程"""
-        if self.is_verbose:
-            logger.info("Database write worker started")
-        
-        while self._write_thread_running:
-            try:
-                # 获取写入任务
-                try:
-                    write_task = self._write_queue.get(timeout=1)
-                except queue.Empty:
-                    continue
-                
-                # 执行写入
-                try:
-                    result = self._execute_batch_write(
-                        write_task['table_name'],
-                        write_task['data_list'],
-                        write_task['unique_keys']
-                    )
-                    
-                    # 调用回调函数
-                    if write_task['callback']:
-                        try:
-                            write_task['callback'](result)
-                        except Exception as e:
-                            logger.error(f"Write callback error: {e}")
-                    
-                    with self._stats_lock:
-                        self._stats['writes_completed'] += 1
-                    
-                    if self.is_verbose:
-                        logger.debug(f"Write task completed for {write_task['table_name']}: {result} records")
-                    
-                except Exception as e:
-                    logger.error(f"Write task failed for {write_task['table_name']}: {e}")
-                    with self._stats_lock:
-                        self._stats['writes_failed'] += 1
-                
-                finally:
-                    self._write_queue.task_done()
-                    
-            except Exception as e:
-                logger.error(f"Write worker error: {e}")
-                time.sleep(0.1)
-        if self.is_verbose:
-            logger.info("Database write worker stopped")
-    
-    def _execute_batch_write(self, table_name: str, data_list: List[Dict[str, Any]], 
-                           unique_keys: List[str]) -> int:
-        """执行批量写入"""
-        if not data_list:
-            return 0
-        
-        # 构建SQL语句
-        update_clause = ', '.join([f"{k} = VALUES({k})" for k in data_list[0].keys() if k not in unique_keys])
-        columns = list(data_list[0].keys())
-        placeholders = ', '.join(['%s'] * len(columns))
-        query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {update_clause}"
-        
-        # 准备数据
-        values = [tuple(data[col] for col in columns) for data in data_list]
-        
-        # 分批执行
-        return self.execute_many(query, values)
-    
-    def add_global_callback(self, callback: Callable):
-        """添加全局回调函数，在所有异步写入完成后执行"""
-        with self._callbacks_lock:
-            self._global_callbacks.append(callback)
-    
-    def remove_global_callback(self, callback: Callable):
-        """移除全局回调函数"""
-        with self._callbacks_lock:
-            if callback in self._global_callbacks:
-                self._global_callbacks.remove(callback)
-    
-    def clear_global_callbacks(self):
-        """清除所有全局回调函数"""
-        with self._callbacks_lock:
-            self._global_callbacks.clear()
-    
-    async def wait_for_writes(self, timeout: Optional[float] = None):
-        """等待所有写入任务完成，并执行全局回调"""
-        if not self.enable_thread_safety:
-            return
-        
-        try:
-            # 使用 asyncio.to_thread 在线程池中运行同步的 join 操作
-            await asyncio.to_thread(self._write_queue.join)
-            if self.is_verbose:
-                logger.info("All write tasks completed")
+        Args:
+            table_name: 表名
             
-            # 执行全局回调
-            with self._callbacks_lock:
-                callbacks_to_execute = self._global_callbacks.copy()
-            
-            for callback in callbacks_to_execute:
-                try:
-                    callback()
-                except Exception as e:
-                    logger.error(f"Global callback error: {e}")
-                    
-        except Exception as e:
-            logger.error(f"Error waiting for writes: {e}")
+        Returns:
+            字段名列表
+        """
+        return self.schema_manager.get_table_fields(table_name)
     
-    def wait_for_writes_sync(self, timeout: Optional[float] = None):
-        """同步等待所有写入任务完成，并执行全局回调（用于非异步上下文）"""
-        if not self.enable_thread_safety:
-            return
-        try:
-            if self._write_queue is not None:
-                self._write_queue.join()
-            if self.is_verbose:
-                logger.info("All write tasks completed")
-            with self._callbacks_lock:
-                callbacks_to_execute = self._global_callbacks.copy()
-            for callback in callbacks_to_execute:
-                try:
-                    callback()
-                except Exception as e:
-                    logger.error(f"Global callback error: {e}")
-        except Exception as e:
-            logger.error(f"Error waiting for writes (sync): {e}")
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """获取统计信息"""
-        with self._stats_lock:
-            stats = self._stats.copy()
-        
-        if self.enable_thread_safety:
-            stats['queue_size'] = self._write_queue.qsize() if self._write_queue is not None else 0
-            stats['pool_size'] = self._connection_pool.qsize() if self._connection_pool is not None else 0
-        
-        return stats
+    # ==================== 工具方法 ====================
     
     def close(self):
-        """关闭数据库管理器"""
-        if self.is_verbose:
-            logger.info("Closing DatabaseManager...")
+        """关闭连接池"""
+        if self.pool:
+            self.pool.close()
+            self.pool = None
+            if self.is_verbose:
+                logger.info("✅ 连接池已关闭")
+    
+    def get_stats(self) -> Dict:
+        """
+        获取连接池统计信息
         
-        # 停止写入线程
-        if self.enable_thread_safety:
-            self._stop_write_thread()
-            
-            # 等待写入完成
-            # 此处处于同步上下文，不应 await 协程
-            self.wait_for_writes_sync(timeout=10)
-            
-            # 关闭所有连接
-            while not self._connection_pool.empty():
-                try:
-                    connection = self._connection_pool.get_nowait()
-                    connection.close()
-                except Exception as close_error:
-                    logger.debug(f"Failed to close pooled connection: {close_error}")
-            
-            # 关闭线程本地连接
-            if hasattr(self._local, 'connection'):
-                try:
-                    self._local.connection.close()
-                except Exception as close_error:
-                    logger.debug(f"Failed to close thread-local connection: {close_error}")
+        Returns:
+            统计信息字典
+        """
+        if not self.pool:
+            return {}
         
-        # 关闭原有连接
-        if self.sync_connection:
-            try:
-                self.sync_connection.close()
-            except Exception as close_error:
-                logger.debug(f"Failed to close sync connection: {close_error}")
-        
-        logger.info("DatabaseManager closed")
+        pool_config = self.config.get('pool', {})
+        return {
+            'initialized': self._initialized,
+            'max_connections': pool_config.get('pool_size_max', 30),
+            'min_cached': pool_config.get('pool_size_min', 5),
+        }
     
-    # ==================== 兼容性方法 ====================
-    
-    def connect(self):
-        """兼容性方法：建立同步连接"""
-        return self.connect_sync()
-    
-    def disconnect(self):
-        """兼容性方法：断开同步连接"""
-        return self.disconnect_sync()
-    
-    @contextmanager
-    def get_cursor(self):
-        """兼容性方法：获取同步游标"""
-        return self.get_sync_cursor()
-    
-    def execute_query(self, query: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
-        """兼容性方法：执行同步查询"""
-        return self.execute_sync_query(query, params)
-    
-    def execute_update(self, query: str, params: Optional[tuple] = None) -> int:
-        """兼容性方法：执行同步更新"""
-        return self.execute_sync_update(query, params)
+    def __del__(self):
+        """析构函数：确保连接池关闭"""
+        try:
+            self.close()
+        except:
+            pass

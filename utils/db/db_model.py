@@ -1,20 +1,42 @@
 """
-⚠️  DEPRECATED - 本文件计划废弃
+BaseTableModel - 数据库表操作的通用基类
 
-本文件中的 BaseTableModel 和相关功能正在迁移到 DataLoader 层。
+这是一个纯粹的工具类，封装了常见的数据库表操作，提供：
+- 基础 CRUD（增删改查）
+- 分页查询
+- 时序数据特有的查询（最新日期、最新记录等）
+- Upsert（插入或更新）
+- 批量操作
+- 重试机制
 
-迁移计划：
-- BaseTableModel → 各专用 Loader（KlineLoader, MacroLoader 等）
-- tables/*/model.py → 对应的 Loader 内部实现
+特点：
+- 基于 JSON Schema 自动创建表
+- 支持参数化查询（防 SQL 注入）
+- 针对时序数据优化
+- 性能优先（直接 SQL，无 ORM 开销）
 
-当前状态：
-- ✅ 可以继续使用（向后兼容）
-- ⚠️  不建议在新代码中使用
-- 🔜 未来版本将移除
-
-替代方案：
-- 使用 DataLoader 及其子 Loader
-- 使用 DatabaseManager 的 CRUD 方法
+使用方式：
+    # 方式 1: 直接使用（简单场景）
+    from utils.db.db_model import BaseTableModel
+    from utils.db.db_manager import DatabaseManager
+    
+    db = DatabaseManager()
+    db.initialize()
+    
+    model = BaseTableModel('stock_kline', db)
+    records = model.load("id = %s", ('000001.SZ',))
+    
+    # 方式 2: 继承使用（推荐，业务场景）
+    class StockKlineModel(BaseTableModel):
+        def __init__(self, db):
+            super().__init__('stock_kline', db)
+        
+        def load_by_date_range(self, stock_id, start_date, end_date):
+            return self.load(
+                "id = %s AND date BETWEEN %s AND %s",
+                (stock_id, start_date, end_date),
+                order_by="date ASC"
+            )
 
 更新日期：2024-12-04
 """
@@ -22,18 +44,8 @@ from typing import Dict, List, Any, Optional
 from loguru import logger
 import json
 import os
-import warnings
 
 from .db_config import DB_CONFIG
-
-
-# 发出废弃警告
-warnings.warn(
-    "BaseTableModel is deprecated and will be removed in a future version. "
-    "Please use DataLoader and its sub-loaders instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
 
 
 class BaseTableModel:

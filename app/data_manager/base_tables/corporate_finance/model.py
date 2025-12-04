@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class CorporateFinanceModel(BaseTableModel):
     """公司财务数据 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('corporate_finance', db)
     
     def load_by_stock(self, stock_id: str) -> List[Dict[str, Any]]:

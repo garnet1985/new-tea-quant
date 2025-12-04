@@ -1,8 +1,9 @@
 """
 Database Package - 数据库基础设施层
 """
-from .db_config import DB_CONFIG
+from .db_config_manager import DB_CONFIG
 from .db_manager import DatabaseManager
+from .db_model import BaseTableModel
 
 __all__ = [
     # Config
@@ -10,4 +11,7 @@ __all__ = [
     
     # Database Manager
     'DatabaseManager',
+
+    # DB Model
+    'BaseTableModel',
 ] 

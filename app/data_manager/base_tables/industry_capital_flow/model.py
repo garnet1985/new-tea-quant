@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class IndustryCapitalFlowModel(BaseTableModel):
     """行业资金流 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('industry_capital_flow', db)
     
     def load_by_date(self, date: str) -> List[Dict[str, Any]]:

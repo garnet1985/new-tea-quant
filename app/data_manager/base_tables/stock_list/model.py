@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class StockListModel(BaseTableModel):
     """股票列表 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('stock_list', db)
     
     def load_by_id(self, stock_id: str) -> Optional[Dict[str, Any]]:

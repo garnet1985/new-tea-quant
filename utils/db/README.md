@@ -7,9 +7,8 @@ utils/db/
 ├── db_manager.py           # 数据库管理器（核心）
 ├── schema_manager.py       # Schema 管理器
 ├── db_config.py           # 数据库配置
-├── db_enum.py             # 枚举定义
-├── db_model.py            # ⚠️ 废弃中 - 表模型基类
-├── tables/                # 表定义目录
+├── db_model.py            # BaseTableModel（通用工具类）
+├── BASE_TABLE_MODEL_GUIDE.md  # BaseTableModel 使用指南
 │   ├── stock_kline/       # K线表
 │   ├── stock_list/        # 股票列表
 │   ├── gdp/              # GDP数据
@@ -27,6 +26,16 @@ utils/db/
 - 基础 CRUD 操作
 - 事务管理
 - 数据库初始化
+
+### BaseTableModel（表操作工具类）
+
+**职责**：
+- 单表 CRUD 封装
+- 时序数据查询（`load_latest_records`、`load_latest_date`）
+- 批量操作（`save_many`、`replace`）
+- Upsert（插入或更新）
+
+**详细文档**：[BaseTableModel 使用指南](./BASE_TABLE_MODEL_GUIDE.md)
 
 **使用示例**：
 ```python

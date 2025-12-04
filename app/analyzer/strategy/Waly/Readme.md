@@ -1,0 +1,1 @@
+市盈率小于 1/国债利率*2 and asset debt ratio < 0.5

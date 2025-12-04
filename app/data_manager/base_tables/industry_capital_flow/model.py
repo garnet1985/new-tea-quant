@@ -2,10 +2,10 @@
 行业资金流 Model
 """
 from typing import List, Dict, Any, Optional
-from utils.db.db_model import BaseTableModel
+from utils.db import DbBaseModel
 
 
-class IndustryCapitalFlowModel(BaseTableModel):
+class IndustryCapitalFlowModel(DbBaseModel):
     """行业资金流 Model"""
     
     def __init__(self, db=None):

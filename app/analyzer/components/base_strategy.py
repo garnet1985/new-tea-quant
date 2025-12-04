@@ -130,7 +130,7 @@ class BaseStrategy(ABC):
                     attr = getattr(table_module, attr_name)
                     if (isinstance(attr, type) and 
                         hasattr(attr, '__bases__') and 
-                        any('BaseTableModel' in str(base) for base in attr.__bases__)):
+                        any('DbBaseModel' in str(base) for base in attr.__bases__)):
                         model_class = attr
                         break
                 
@@ -297,7 +297,7 @@ class BaseStrategy(ABC):
         strategy_settings = getattr(settings_module, "settings")
         
         # 使用 DataLoader 加载股票列表（使用过滤规则，排除ST、科创板等）
-        loader = DataLoader(self.db)
+        loader = DataManager()
         stock_list = loader.load_stock_list(filtered=True)
 
         # 使用AnalyzerService的统一采样方法
@@ -365,7 +365,7 @@ class BaseStrategy(ABC):
 
         # 子进程内直接使用 DataLoader，避免初始化 DatabaseManager
         from app.data_manager import DataManager
-        loader = DataLoader()  # 子进程内自行创建DatabaseManager
+        loader = DataManager()  # 子进程内自行创建DatabaseManager
         data = loader.prepare_data(stock, settings)
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法

@@ -1,17 +1,144 @@
+"""
+DbBaseModel - 数据库表操作的通用基类
+
+这是一个纯粹的工具类，封装了常见的数据库表操作，提供：
+- 基础 CRUD（增删改查）
+- 分页查询
+- 时序数据特有的查询（最新日期、最新记录等）
+- Upsert（插入或更新）
+- 批量操作
+- 重试机制
+
+特点：
+- 基于 JSON Schema 自动创建表
+- 支持参数化查询（防 SQL 注入）
+- 针对时序数据优化
+- 性能优先（直接 SQL，无 ORM 开销）
+
+使用方式：
+    # 方式 1: 直接使用（简单场景）
+    from utils.db import DbBaseModel
+    from utils.db import DatabaseManager
+    
+    db = DatabaseManager()
+    db.initialize()
+    
+    model = DbBaseModel('stock_kline', db)
+    records = model.load("id = %s", ('000001.SZ',))
+    
+    # 方式 2: 继承使用（推荐，业务场景）
+    class StockKlineModel(DbBaseModel):
+        def __init__(self, db=None):
+            super().__init__('stock_kline', db)
+        
+        def load_by_date_range(self, stock_id, start_date, end_date):
+            return self.load(
+                "id = %s AND date BETWEEN %s AND %s",
+                (stock_id, start_date, end_date),
+                order_by="date ASC"
+            )
+
+更新日期：2024-12-04
+"""
 from typing import Dict, List, Any, Optional
 from loguru import logger
-
-from utils.db.db_service import DBService
-from .db_config import DB_CONFIG
 import json
 import os
 
+from .db_config_manager import DB_CONFIG
 
-class BaseTableModel:
-    """通用表操作模型基类"""
+
+class DBService:
+    """数据库操作辅助工具类（纯静态方法）"""
     
-    def __init__(self, table_name: str, connected_db):
-        self.db = connected_db
+    @staticmethod
+    def to_columns_and_values(data_list: List[Dict[str, Any]]) -> tuple:
+        """
+        将数据列表转换为插入语句的列名和占位符
+        
+        Args:
+            data_list: 数据字典列表
+            
+        Returns:
+            (columns, placeholders): 列名列表和占位符字符串
+            
+        Example:
+            columns, placeholders = DBService.to_columns_and_values([
+                {'id': '001', 'name': 'test'}
+            ])
+            # columns = ['id', 'name']
+            # placeholders = '%s, %s'
+        """
+        if not data_list:
+            return [], ""
+        
+        columns = list(data_list[0].keys())
+        placeholders = ', '.join(['%s'] * len(columns))
+        return columns, placeholders
+    
+    @staticmethod
+    def to_upsert_params(data_list: List[Dict[str, Any]], unique_keys: List[str]) -> tuple:
+        """
+        将数据列表转换为 upsert 语句的参数
+        
+        Args:
+            data_list: 数据字典列表
+            unique_keys: 唯一键列表（用于判断是否已存在）
+            
+        Returns:
+            (columns, values, update_clause): 列名、值列表、UPDATE 子句
+            
+        Example:
+            columns, values, update_clause = DBService.to_upsert_params(
+                [{'id': '001', 'name': 'test', 'price': 10.0}],
+                unique_keys=['id']
+            )
+            # columns = ['id', 'name', 'price']
+            # values = [('001', 'test', 10.0)]
+            # update_clause = 'name = VALUES(name), price = VALUES(price)'
+        """
+        if not data_list:
+            return [], [], ""
+        
+        columns = list(data_list[0].keys())
+        
+        # 检查 unique_keys 是否都在数据列中存在
+        missing_keys = [k for k in unique_keys if k not in columns]
+        if missing_keys:
+            raise ValueError(f"主键字段在数据中缺失: {missing_keys}")
+        
+        # 构建 update 子句（排除 unique_keys 中的字段）
+        update_fields = [k for k in columns if k not in unique_keys]
+        update_clause = ', '.join([f"{k} = VALUES({k})" for k in update_fields])
+        
+        # 构建值列表
+        values = [tuple(data[col] for col in columns) for data in data_list]
+        
+        return columns, values, update_clause
+
+
+class DbBaseModel:
+    """
+    通用表操作模型基类
+    
+    ⚠️  DEPRECATED: 本类计划废弃，请使用 DataLoader 替代
+    """
+    
+    def __init__(self, table_name: str, db=None):
+        """
+        初始化表模型
+        
+        Args:
+            table_name: 表名
+            db: DatabaseManager实例（可选）
+                - 如果不传入，自动使用默认实例
+                - 如果默认实例不存在，自动创建并初始化（多进程安全）
+                - 如果传入，使用指定实例（测试场景）
+        """
+        from .db_manager import DatabaseManager
+        
+        # 自动获取或使用传入的 db
+        self.db = db if db is not None else DatabaseManager.get_default()
         self.table_name = table_name
         self.schema = self.load_schema()
         self.verbose = False
@@ -23,19 +150,46 @@ class BaseTableModel:
     # ***********************************
     
     def load_schema(self) -> dict:
-        schema_path = os.path.join(os.path.dirname(__file__), 'tables', self.table_name, 'schema.json')
-        schema = json.load(open(schema_path, 'r'))
-        if not schema:
-            logger.error(f"Failed to load schema from {schema_path} for table {self.table_name}")
-            return None
-        return schema
-    
+        """
+        加载表的 schema
+        
+        优先从 app/data_manager/base_tables 加载，
+        如果不存在则尝试从策略自定义表加载
+        """
+        # 尝试从 base_tables 加载
+        base_schema_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            'app', 'data_manager', 'base_tables', 
+            self.table_name, 'schema.json'
+        )
+        
+        if os.path.exists(base_schema_path):
+            try:
+                with open(base_schema_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load schema from {base_schema_path}: {e}")
+        
+        # 如果不存在，可能是策略自定义表（暂不处理）
+        logger.warning(f"Schema not found for table {self.table_name}")
+        return None
+
+
     def create_table(self, custom_table_name: str = None) -> None:
         if not self.schema:
             logger.error(f"Failed create table: {self.table_name}, because schema is not found")
             return
 
-        sql = DBService.parse_db_schema(self.schema, custom_table_name)
+        # 使用 DbSchemaManager 生成 SQL
+        from .db_schema_manager import DbSchemaManager
+        schema_manager = DbSchemaManager(charset=DB_CONFIG['base']['charset'])
+        
+        # 如果有自定义表名，修改 schema
+        schema_to_use = self.schema.copy()
+        if custom_table_name:
+            schema_to_use['name'] = custom_table_name
+        
+        sql = schema_manager.generate_create_table_sql(schema_to_use)
 
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(sql)
@@ -72,18 +226,13 @@ class BaseTableModel:
             logger.error(f"Failed to count records from {self.table_name}: {e}")
             return 0
     
-    def exists(self, condition: str, params: tuple = ()) -> bool:
+    def is_exists(self, condition: str, params: tuple = ()) -> bool:
         """检查记录是否存在"""
         return self.count(condition, params) > 0
 
     # ***********************************
     #        data get operations
     # ***********************************
-
-    # 使用 params 的安全方式
-    # condition = "stock_code = ? AND price > ?"
-    # params = ("000001", 10.0)
-    # records = db_model.load(condition=condition, params=params)
 
     def load(self, condition: str = "1=1", params: tuple = (), order_by: str = None, limit: int = None, offset: int = None) -> List[Dict[str, Any]]:
         """查找记录"""

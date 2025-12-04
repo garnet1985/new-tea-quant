@@ -30,7 +30,7 @@ class DataSourceService:
         ⚠️  建议使用 DataLoader.load_klines() 替代
         
         新方法的优势：
-            from app.data_loader import DataLoader
+            from app.data_manager import DataManager
             
             loader = DataLoader(db)
             
@@ -100,7 +100,7 @@ class DataSourceService:
         ⚠️  建议使用 DataLoader.load_klines() 替代
         
         新方法的优势：
-            from app.data_loader import DataLoader
+            from app.data_manager import DataManager
             
             loader = DataLoader(db)
             

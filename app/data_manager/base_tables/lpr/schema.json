@@ -1,0 +1,27 @@
+{
+    "name": "lpr",
+    "primaryKey": [
+        "date"
+    ],
+    "fields": [
+        {
+            "name": "date",
+            "type": "varchar",
+            "length": 16,
+            "description": "日期 YYYYMMDD 格式"
+        },
+        {
+            "name": "lpr_1_y",
+            "type": "float",
+            "isRequired": true,
+            "description": "Loan Prime Rate - one year"
+        },
+        {
+            "name": "lpr_5_y",
+            "type": "float",
+            "isRequired": false,
+            "description": "Loan Prime Rate - five years"
+        }
+    ],
+    "description": "Loan Prime Rate - 贷款基础利率，一年期和五年期"
+}

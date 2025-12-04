@@ -29,8 +29,9 @@ class KlineLoader:
             self.db = DatabaseManager()
             self.db.initialize()
         
-        self.kline_table = self.db.get_table_instance('stock_kline')
-        self.adj_factor_table = self.db.get_table_instance('adj_factor')
+        # 不再使用 model，直接使用 db 的 CRUD 方法
+        # self.kline_table = self.db.get_table_instance('stock_kline')
+        # self.adj_factor_table = self.db.get_table_instance('adj_factor')
     
     # ============ 快捷方法（最常用，80%场景）============
     

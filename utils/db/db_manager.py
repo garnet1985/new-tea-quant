@@ -51,12 +51,13 @@ class DatabaseManager:
     
     def initialize(self):
         """
-        初始化数据库管理器
+        初始化数据库管理器（仅基础设施）
         
         步骤：
         1. 创建数据库（如果不存在）
         2. 初始化连接池
-        3. 加载并创建所有表
+        
+        注意：不再创建表，表的创建由 DataManager 负责
         """
         try:
             # 1. 确保数据库存在
@@ -65,13 +66,10 @@ class DatabaseManager:
             # 2. 初始化连接池
             self._init_connection_pool()
             
-            # 3. 创建基础表
-            self.schema_manager.create_all_tables(self.get_connection)
-            
             self._initialized = True
             
             if self.is_verbose:
-                logger.info("✅ DatabaseManager 初始化完成")
+                logger.info("✅ DatabaseManager 初始化完成（连接池已就绪）")
                 
         except Exception as e:
             logger.error(f"❌ DatabaseManager 初始化失败: {e}")

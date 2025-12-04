@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class AdjFactorModel(BaseTableModel):
     """复权因子 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('adj_factor', db)
     
     def load_by_stock(self, stock_id: str) -> List[Dict[str, Any]]:

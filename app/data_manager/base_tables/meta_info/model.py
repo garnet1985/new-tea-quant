@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class MetaInfoModel(BaseTableModel):
     """元信息 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('meta_info', db)
     
     def load_by_key(self, key: str) -> Optional[Dict[str, Any]]:

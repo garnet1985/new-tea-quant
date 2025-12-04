@@ -1,7 +1,7 @@
 """
-简化的 MySQL 数据库管理器
+DatabaseManager - 简化的 MySQL 数据库管理器
 - 使用 DBUtils 管理连接池（自动扩容、健康检查）
-- 使用 SchemaManager 管理表结构
+- 使用 DbSchemaManager 管理表结构
 - 提供简洁的 CRUD 接口
 """
 import pymysql
@@ -11,7 +11,7 @@ from loguru import logger
 from dbutils.pooled_db import PooledDB
 
 from .db_config_manager import DB_CONFIG
-from .db_schema_manager import SchemaManager
+from .db_schema_manager import DbSchemaManager
 
 
 class DatabaseManager:
@@ -48,7 +48,7 @@ class DatabaseManager:
         self._initialized = False
         
         # Schema 管理器
-        self.schema_manager = SchemaManager(
+        self.schema_manager = DbSchemaManager(
             charset=self.config['base']['charset'],
             is_verbose=is_verbose
         )
@@ -455,7 +455,7 @@ class DatabaseManager:
         """
         try:
             # 直接执行批量插入/更新
-            from .db_model import DBService
+            from .db_base_model import DBService
             
             if not data_list:
                 return

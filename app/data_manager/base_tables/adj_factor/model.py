@@ -2,10 +2,10 @@
 复权因子 Model
 """
 from typing import List, Dict, Any, Optional
-from utils.db.db_model import BaseTableModel
+from utils.db import DbBaseModel
 
 
-class AdjFactorModel(BaseTableModel):
+class AdjFactorModel(DbBaseModel):
     """复权因子 Model"""
     
     def __init__(self, db=None):

@@ -1,5 +1,5 @@
 """
-Schema 管理器 - 负责数据库表结构的管理
+DbSchemaManager - Schema 管理器，负责数据库表结构的管理
 - 加载 schema.json 文件
 - 生成建表 SQL
 - 创建表和索引
@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 from loguru import logger
 
 
-class SchemaManager:
+class DbSchemaManager:
     """
     Schema 管理器
     
@@ -28,7 +28,7 @@ class SchemaManager:
     
     def __init__(self, tables_dir: str = None, charset: str = 'utf8mb4', is_verbose: bool = False):
         """
-        初始化 Schema 管理器
+        初始化 DbSchemaManager
         
         Args:
             tables_dir: schema 文件目录（默认为 app/data_loader/base_tables）
@@ -51,6 +51,7 @@ class SchemaManager:
         
         # 注册的自定义表（策略表）
         self.registered_tables = {}
+    
     
     # ==================== Schema 加载 ====================
     

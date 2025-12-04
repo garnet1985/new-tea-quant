@@ -7,7 +7,7 @@ utils/db/
 ├── db_manager.py              # 数据库管理器（核心）
 ├── db_schema_manager.py       # Schema 管理器
 ├── db_config_manager.py       # 数据库配置加载器
-├── db_model.py                # BaseTableModel（通用表操作工具）
+├── db_base_model.py           # DbBaseModel / DbModel（通用表操作工具）
 ├── __init__.py                # 包导出
 └── README.md                  # 本文档
 ```
@@ -123,7 +123,7 @@ db.close()
 
 ---
 
-### 2. BaseTableModel（表操作工具类）
+### 2. DbBaseModel（表操作工具类）
 
 **职责**：
 - 单表 CRUD 封装
@@ -249,9 +249,9 @@ records = kline_model.load_by_stock_and_date_range(
 ```python
 # app/data_manager/base_tables/stock_kline/model.py
 from typing import List, Dict, Any
-from utils.db.db_model import BaseTableModel
+from utils.db.db_base_model import DbBaseModel 
 
-class StockKlineModel(BaseTableModel):
+class StockKlineModel(DbBaseModel):
     """K线数据 Model"""
     
     def __init__(self, db=None):
@@ -334,7 +334,7 @@ schema_mgr.register_table('my_strategy_table', schema)
 
 **职责**：提供 SQL 构建的静态工具方法
 
-**位置**：`utils/db/db_model.py`（内部工具类）
+**位置**：`utils/db/db_base_model.py`（内部工具类）
 
 **方法**：
 - `to_columns_and_values(data_list)` - 转换为 INSERT 参数
@@ -342,7 +342,7 @@ schema_mgr.register_table('my_strategy_table', schema)
 
 **使用示例**：
 ```python
-from utils.db.db_model import DBService
+from utils.db.db_base_model import DBService
 
 # INSERT 参数
 columns, placeholders = DBService.to_columns_and_values([
@@ -490,7 +490,7 @@ model.replace(large_data_list, unique_keys=['id', 'date'])
 ```
 utils/db/                          ← 基础设施层（工具类）
 ├── db_manager.py                  # 连接池 + 基础 CRUD
-├── db_model.py                    # BaseTableModel（通用工具）
+├── db_base_model.py               # DbBaseModel / DbModel（通用工具）
 ├── db_schema_manager.py           # Schema 管理
 └── db_config_manager.py           # 配置加载
 
@@ -498,7 +498,7 @@ app/data_manager/                  ← 业务层
 ├── base_tables/                   # Schema 定义（JSON）⭐
 │   ├── stock_kline/
 │   │   ├── schema.json
-│   │   └── model.py               # StockKlineModel（继承 BaseTableModel）
+│   │   └── model.py               # StockKlineModel（继承 DbBaseModel
 │   ├── gdp/
 │   │   ├── schema.json
 │   │   └── model.py
@@ -513,8 +513,8 @@ app/data_manager/                  ← 业务层
 
 **职责划分**：
 - `DatabaseManager`（utils/db）：连接池、基础 CRUD、默认实例
-- `BaseTableModel`（utils/db）：通用工具，单表 CRUD
-- 具体 Model（app/data_manager/base_tables/*/model.py）：业务封装，继承 BaseTableModel
+- `DbBaseModel`（utils/db）：通用工具，单表 CRUD
+- 具体 Model（app/data_manager/base_tables/*/model.py）：业务封装，继承 DbBaseModel
 - Repository（app/data_manager/repositories）：跨表查询
 - Loader（app/data_manager/loaders）：数据加载封装
 
@@ -640,10 +640,10 @@ if not db.is_table_exists('my_table'):
 
 ## 📞 FAQ
 
-**Q: DatabaseManager 和 BaseTableModel 的关系？**  
-A: DatabaseManager 管理连接池和基础 CRUD，BaseTableModel 基于 DatabaseManager 提供更高层的表操作封装。BaseTableModel 自动获取 DatabaseManager 的默认实例。
+**Q: DatabaseManager 和 DbBaseModel 的关系？**  
+A: DatabaseManager 管理连接池和基础 DbBaseModel 基于 DatabaseManager DbBaseModel 自动获取 DatabaseManager 的默认实例。
 
-**Q: 什么时候应该继承 BaseTableModel？**  
+**Q: 什么时候应该继承 DbBaseModel？**  
 A: 当你需要为特定表添加业务方法时。例如 `StockKlineModel` 添加 `load_by_date_range()` 等方法。
 
 **Q: 跨表查询怎么办？**  
@@ -652,8 +652,8 @@ A: 使用 Repository 模式。Repository 内部可以使用多个 Model，或直
 **Q: 多进程场景如何处理？**  
 A: 无需特殊处理。在主进程中初始化并设置默认实例，子进程中 Model 会自动检测并重新初始化 DatabaseManager。
 
-**Q: BaseTableModel 和 ORM 的区别？**  
-A: BaseTableModel 是轻量级的数据访问层，不是完整的 ORM。优势是性能更好、更灵活，但没有关系映射、类型安全等 ORM 特性。
+**Q: DbBaseModel 和 ORM 的区别？**  
+A: DbBaseModel 是轻量级的数据访问层，不是完整的 ORM。优势是性能更好、更灵活，但没有关系映射、类型安全等 ORM 特性。
 
 **Q: 如何添加类型提示？**  
 A: 使用 `TypedDict` 定义返回类型：
@@ -666,7 +666,7 @@ class KlineData(TypedDict):
     open: float
     close: float
 
-class StockKlineModel(BaseTableModel):
+class StockKlineModel(DbBaseModel):
     def load_by_stock(self, stock_id: str) -> List[KlineData]:
         return super().load("id = %s", (stock_id,))
 ```
@@ -685,7 +685,7 @@ class StockKlineModel(BaseTableModel):
 
 **✅ 默认实例机制**：
 - DatabaseManager 支持默认实例（`set_default`/`get_default`）
-- BaseTableModel 自动获取默认 db 实例（`db` 参数可选）
+- DbBaseModel 自动获取默认 db 实例（`db` 参数可选）
 - 多进程安全（自动检测并重新初始化）
 
 **✅ 工具类补充**：
@@ -694,7 +694,7 @@ class StockKlineModel(BaseTableModel):
 - 补充兼容方法 `queue_write()`、`wait_for_writes()`
 
 **✅ 架构优化**：
-- BaseTableModel 保留在 `utils/db/`（通用工具类定位）
+- DbBaseModel 保留在 `utils/db/`（通用工具类定位）
 - 具体 Model 放在 `app/data_manager/base_tables/*/model.py`
 - 跨表查询使用 Repository 模式
 
@@ -705,7 +705,7 @@ class StockKlineModel(BaseTableModel):
 `utils/db` 模块提供了完整的数据库基础设施：
 
 - 🔌 **DatabaseManager**：连接池、CRUD、事务、默认实例
-- 📦 **BaseTableModel**：单表操作、时序数据优化、自动获取 db
+- 📦 **DbBaseModel**：单表操作、时序数据优化、自动获取 db
 - 🗂️ **SchemaManager**：Schema 加载、SQL 生成、建表
 - 🛠️ **DBService**：SQL 构建工具
 

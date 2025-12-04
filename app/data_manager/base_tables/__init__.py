@@ -1,14 +1,14 @@
 """
 Base Tables Models - 所有基础表的 Model 类
 
-每个表都有自己的 Model 类，继承自 BaseTableModel，提供：
+每个表都有自己的 Model 类，继承自 DbBaseModel，提供：
 - 单表的 CRUD 操作
 - 常用的业务查询方法
 - 批量操作方法
 
 使用示例：
     from app.data_manager.base_tables.stock_kline.model import StockKlineModel
-    from utils.db.db_manager import DatabaseManager
+    from utils.db import DatabaseManager
     
     db = DatabaseManager()
     db.initialize()

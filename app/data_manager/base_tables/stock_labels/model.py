@@ -2,10 +2,10 @@
 股票标签 Model
 """
 from typing import List, Dict, Any, Optional
-from utils.db.db_model import BaseTableModel
+from utils.db import DbBaseModel
 
 
-class StockLabelsModel(BaseTableModel):
+class StockLabelsModel(DbBaseModel):
     """股票标签 Model"""
     
     def __init__(self, db=None):

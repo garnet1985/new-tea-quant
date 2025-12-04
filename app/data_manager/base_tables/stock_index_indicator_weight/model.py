@@ -2,10 +2,10 @@
 指数权重 Model
 """
 from typing import List, Dict, Any, Optional
-from utils.db.db_model import BaseTableModel
+from utils.db import DbBaseModel
 
 
-class StockIndexIndicatorWeightModel(BaseTableModel):
+class StockIndexIndicatorWeightModel(DbBaseModel):
     """指数权重 Model"""
     
     def __init__(self, db=None):

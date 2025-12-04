@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class InvestmentOperationsModel(BaseTableModel):
     """投资操作记录 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('investment_operations', db)
     
     def load_by_trade(self, trade_id: int) -> List[Dict[str, Any]]:

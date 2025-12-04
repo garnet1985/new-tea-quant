@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class LprModel(BaseTableModel):
     """LPR利率 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('lpr', db)
     
     def load_by_date(self, date: str) -> Optional[Dict[str, Any]]:

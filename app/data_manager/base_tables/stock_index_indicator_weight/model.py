@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class StockIndexIndicatorWeightModel(BaseTableModel):
     """指数权重 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('stock_index_indicator_weight', db)
     
     def load_by_index(self, index_code: str) -> List[Dict[str, Any]]:

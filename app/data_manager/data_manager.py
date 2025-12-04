@@ -32,41 +32,49 @@ from utils.date.date_utils import DateUtils
 
 class DataManager:
     """
-    数据管理服务
-    
+    数据管理服务（数据访问总入口）
+
     职责：
     - 唯一持有和管理 DatabaseManager
-    - 初始化数据库、连接池、表结构
-    - 提供统一的数据访问 API
-    - 协调各专用 Loader
-    
-    使用方式：
-        from app.data_loader import DataManager
-        
-        # 初始化（自动创建数据库、连接池、表）
+    - 初始化数据库、连接池、表结构（Base Tables + 策略表）
+    - 提供统一的数据访问 API（对应用/策略暴露的门面）
+    - 协调各专用 Loader（兼容层）
+    - 预留 Repository / 策略表 Model 的注册与访问能力（新架构方向）
+
+    使用方式（现有）：
+        from app.data_manager import DataManager
+
         data_mgr = DataManager(is_verbose=True)
         data_mgr.initialize()
-        
-        # 使用数据访问 API
+
         data = data_mgr.prepare_data(stock, settings)
     """
     
     def __init__(self, is_verbose: bool = False):
         """
         初始化数据管理器
-        
+
         Args:
             is_verbose: 是否输出详细日志
         """
         self.is_verbose = is_verbose
         self.db = None
         self._initialized = False
-        
+
         # Loaders（延迟初始化）
         self.kline_loader = None
         self.label_loader = None
         self.macro_loader = None
         self.corporate_finance_loader = None
+
+        # DataService 容器（按名称索引，例如：'stock'、'macro'、'waly' 等）
+        self._data_services: Dict[str, Any] = {}
+
+        # 策略表 & 策略 Model 注册信息
+        # {(strategy_name, table_name): schema_path}
+        self._strategy_table_schemas: Dict[tuple, str] = {}
+        # {(strategy_name, table_name): ModelClass}
+        self._strategy_model_classes: Dict[tuple, Any] = {}
     
     def initialize(self):
         """
@@ -85,16 +93,19 @@ class DataManager:
             # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
             if self.is_verbose:
                 logger.info("🔧 初始化 DatabaseManager...")
-            
+
             self.db = DatabaseManager(is_verbose=self.is_verbose)
             self.db.initialize()
-            
+
+            # 设置为默认实例，便于 DbBaseModel 等自动获取 db
+            DatabaseManager.set_default(self.db)
+
             # 2. 创建所有 Base Tables（业务逻辑）
             if self.is_verbose:
                 logger.info("🔧 创建 Base Tables...")
-            
+
             self.db.schema_manager.create_all_tables(self.db.get_connection)
-            
+
             # 3. 初始化所有 Loaders
             if self.is_verbose:
                 logger.info("🔧 初始化 Loaders...")
@@ -103,7 +114,10 @@ class DataManager:
             self.label_loader = LabelLoader(self.db)
             self.macro_loader = MacroEconomyLoader(self.db)
             self.corporate_finance_loader = CorporateFinanceLoader(self.db)
-            
+
+            # 4. 预留：初始化 Repository（当前阶段可为空，后续按领域/策略补充）
+            self._init_repositories()
+
             self._initialized = True
             
             if self.is_verbose:
@@ -112,6 +126,81 @@ class DataManager:
         except Exception as e:
             logger.error(f"❌ DataManager 初始化失败: {e}")
             raise
+
+    # ------------------------------------------------------------------
+    # DataService 相关（新架构预留）
+    # ------------------------------------------------------------------
+
+    def _init_repositories(self):
+        """
+        初始化各领域 / 策略的 DataService
+
+        当前阶段：
+        - 仅作为占位方法，后续按需补充具体 DataService
+        """
+        # 示例（未来可以按需启用）：
+        # from app.data_manager.data_services.stock_data_service import StockDataService
+        # self._data_services['stock'] = StockDataService(self)
+        pass
+
+    def get_data_service(self, name: str) -> Any:
+        """
+        获取指定名称的 DataService
+
+        Args:
+            name: DataService 名称，例如 'stock'、'macro'、'waly' 等
+
+        Returns:
+            对应的 DataService 实例
+        """
+        service = self._data_services.get(name)
+        if not service:
+            logger.warning(f"DataService '{name}' 未注册")
+        return service
+
+    # ------------------------------------------------------------------
+    # 策略表 / 策略 Model 注册与访问（新架构预留）
+    # ------------------------------------------------------------------
+
+    def register_strategy_table(self, strategy_name: str, table_name: str, schema_path: str):
+        """
+        注册策略自定义表的 schema 信息
+
+        注意：
+        - 仅记录 schema 路径，真正的建表仍由 DbSchemaManager + DatabaseManager 完成
+        - DataManager.initialize() 之后调用本方法，不会自动创建表
+        - 后续可以提供显式的“创建策略表”入口
+        """
+        key = (strategy_name, table_name)
+        self._strategy_table_schemas[key] = schema_path
+
+    def register_strategy_model(self, strategy_name: str, table_name: str, model_class: Any):
+        """
+        注册策略表对应的 Model 类
+
+        Args:
+            strategy_name: 策略名称（例如 'Waly'）
+            table_name: 表名（例如 'waly_signals'）
+            model_class: 继承 DbBaseModel 的 Model 类
+        """
+        key = (strategy_name, table_name)
+        self._strategy_model_classes[key] = model_class
+
+    def get_strategy_model(self, strategy_name: str, table_name: str) -> Any:
+        """
+        获取策略表对应的 Model 实例
+
+        - 使用 DatabaseManager 的默认实例自动注入 db
+        - 如果未注册，会给出 warning 并返回 None
+        """
+        key = (strategy_name, table_name)
+        model_class = self._strategy_model_classes.get(key)
+        if not model_class:
+            logger.warning(f"策略表 Model 未注册: strategy={strategy_name}, table={table_name}")
+            return None
+
+        # Model 基于 DbBaseModel，db 参数可选，内部会自动获取默认实例
+        return model_class()
     
     def prepare_data(self, stock: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -2,10 +2,10 @@
 投资操作记录 Model
 """
 from typing import List, Dict, Any, Optional
-from utils.db.db_model import BaseTableModel
+from utils.db import DbBaseModel
 
 
-class InvestmentOperationsModel(BaseTableModel):
+class InvestmentOperationsModel(DbBaseModel):
     """投资操作记录 Model"""
     
     def __init__(self, db=None):

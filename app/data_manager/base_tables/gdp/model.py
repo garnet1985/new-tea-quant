@@ -8,7 +8,7 @@ from utils.db.db_model import BaseTableModel
 class GdpModel(BaseTableModel):
     """GDP数据 Model"""
     
-    def __init__(self, db):
+    def __init__(self, db=None):
         super().__init__('gdp', db)
     
     def load_by_quarter(self, quarter: str) -> Optional[Dict[str, Any]]:

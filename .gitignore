@@ -167,6 +167,10 @@ secrets.json
 .env.local
 .env.production
 
+# Database configuration (use example file)
+config/database/db_config.py
+config/database/db_config.json
+
 # Data files (large files that should not be in version control)
 data/cache/
 data/downloads/*.xlsx

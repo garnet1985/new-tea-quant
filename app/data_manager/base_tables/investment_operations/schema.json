@@ -1,0 +1,92 @@
+{
+    "name": "investment_operations",
+    "primaryKey": "id",
+    "fields": [
+        {
+            "name": "id",
+            "type": "int",
+            "isRequired": true,
+            "autoIncrement": true,
+            "description": "操作ID"
+        },
+        {
+            "name": "trade_id",
+            "type": "int",
+            "isRequired": true,
+            "description": "所属交易ID"
+        },
+        {
+            "name": "type",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "操作类型: buy(买入) / sell(卖出) / add(补仓，等效于buy)"
+        },
+        {
+            "name": "date",
+            "type": "date",
+            "isRequired": true,
+            "description": "操作日期（股票实际交易日期）"
+        },
+        {
+            "name": "price",
+            "type": "decimal",
+            "length": "10,2",
+            "isRequired": true,
+            "description": "操作价格"
+        },
+        {
+            "name": "amount",
+            "type": "int",
+            "isRequired": true,
+            "description": "操作数量（股）"
+        },
+        {
+            "name": "note",
+            "type": "varchar",
+            "length": 255,
+            "isRequired": false,
+            "description": "备注"
+        },
+        {
+            "name": "is_first",
+            "type": "tinyint",
+            "length": 1,
+            "isRequired": false,
+            "default": 0,
+            "description": "是否首次买入（1=是，0=否）"
+        },
+        {
+            "name": "created_at",
+            "type": "timestamp",
+            "isRequired": false,
+            "default": "CURRENT_TIMESTAMP",
+            "description": "记录创建时间（什么时候添加的这条操作记录）"
+        },
+        {
+            "name": "updated_at",
+            "type": "timestamp",
+            "isRequired": false,
+            "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            "description": "记录更新时间（什么时候修改的这条记录）"
+        }
+    ],
+    "indexes": [
+        {
+            "name": "idx_trade_id",
+            "fields": ["trade_id"],
+            "unique": false
+        },
+        {
+            "name": "idx_date",
+            "fields": ["date"],
+            "unique": false
+        },
+        {
+            "name": "idx_trade_date",
+            "fields": ["trade_id", "date"],
+            "unique": false
+        }
+    ]
+}
+

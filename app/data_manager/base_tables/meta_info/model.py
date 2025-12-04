@@ -2,10 +2,10 @@
 元信息 Model
 """
 from typing import List, Dict, Any, Optional
-from utils.db.db_model import BaseTableModel
+from utils.db import DbBaseModel
 
 
-class MetaInfoModel(BaseTableModel):
+class MetaInfoModel(DbBaseModel):
     """元信息 Model"""
     
     def __init__(self, db=None):

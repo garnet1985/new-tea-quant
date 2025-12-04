@@ -1,189 +1,176 @@
-# Database Module - 数据库模块
+# Database 模块文档
 
-## 概述
-
-数据库模块提供了统一的MySQL数据库管理功能，支持自动创建数据库、表结构管理、以及同步/异步操作。
-
-## 目录结构
+## 📁 目录结构
 
 ```
 utils/db/
-├── __init__.py              # 包初始化文件
-├── config.py               # 数据库配置
-├── db_manager.py           # 数据库管理器
-├── db_model.py             # 数据表基本的删查增改的API
-├── README.md               # 本文档
-└── tables/                 # 表结构定义
-    ├── base/               # 基础表（不建议修改）
-    │   └── stock_index/
-    │       └── schema.json（必要）
-    │       └── model.py    (可选，需要继承 db_model.py 中的基类TableModel)
-    └── strategy/           # 策略表（可自定义）
-        └── [your_table]/
-            └── schema.json（必要）
-            └── model.py    (可选，需要继承 db_model.py 中的基类TableModel)
+├── db_manager.py           # 数据库管理器（核心）
+├── schema_manager.py       # Schema 管理器
+├── db_config.py           # 数据库配置
+├── db_enum.py             # 枚举定义
+├── db_model.py            # ⚠️ 废弃中 - 表模型基类
+├── tables/                # 表定义目录
+│   ├── stock_kline/       # K线表
+│   ├── stock_list/        # 股票列表
+│   ├── gdp/              # GDP数据
+│   └── ...               # 其他表
+├── README.md             # 本文档
+└── REFACTOR_SUMMARY.md   # 重构总结
 ```
 
-## 重要说明
+## 🎯 核心组件
 
-### 1. 目录结构限制
+### DatabaseManager（数据库管理器）
 
-**⚠️ 重要：`tables` 下的 `base` 和 `strategy` 目录名是固定的，不能修改！**
+**职责**：
+- 连接池管理（使用 DBUtils）
+- 基础 CRUD 操作
+- 事务管理
+- 数据库初始化
 
-- 新的文件夹不会被自动识别
-- 只有 `base` 和 `strategy` 目录下的表会被自动创建
-- 目录结构必须严格按照上述格式
+**使用示例**：
+```python
+from utils.db.db_manager import DatabaseManager
 
-### 2. 表分类
+# 初始化
+db = DatabaseManager(is_verbose=True)
+db.initialize()
 
-#### Base Tables（基础表）
-- **位置**: `tables/base/`
-- **用途**: 存储核心业务数据（股票信息、K线数据等）
-- **建议**: 不建议修改，保持与现有数据库的兼容性
-- **示例**: `stock_index`, `stock_kline`, `industry_index` 等
+# 查询
+result = db.fetch_one("SELECT * FROM stock_list WHERE id = %s", ['000001.SZ'])
+results = db.fetch_all("SELECT * FROM stock_kline WHERE id = %s", ['000001.SZ'])
 
-#### Strategy Tables（策略表）
-- **位置**: `tables/strategy/`
-- **用途**: 存储策略相关的数据
-- **特点**: 可以自由添加、修改、删除
-- **示例**: `hl_opportunity_history`, `test_strategy` 等
+# 插入
+db.insert('stock_list', {'id': '000001.SZ', 'name': '平安银行'})
 
-### 3. 添加新表的步骤
+# 批量插入
+db.bulk_insert('stock_kline', kline_data_list, ignore_duplicates=True)
 
-#### 步骤1：创建目录
-```bash
-mkdir -p utils/db/tables/strategy/your_table_name
+# 更新
+db.update('stock_list', {'name': '新名称'}, 'id = %s', ['000001.SZ'])
+
+# 删除
+db.delete('stock_kline', 'date < %s', ['20200101'])
+
+# 便捷查询
+results = db.select('stock_list', fields='id, name', where='id LIKE %s', params=['000001%'], limit=10)
+
+# 事务
+with db.transaction() as cursor:
+    cursor.execute("INSERT INTO ...")
+    cursor.execute("UPDATE ...")
+    # 自动提交或回滚
+
+# 关闭
+db.close()
 ```
 
-#### 步骤2：创建 schema.json
+**API 参考**：
+- `initialize()` - 初始化数据库和连接池
+- `execute(sql, params)` - 执行 SQL（INSERT/UPDATE/DELETE）
+- `fetch_one(sql, params)` - 查询单条记录
+- `fetch_all(sql, params)` - 查询多条记录
+- `insert(table, data)` - 插入单条记录
+- `bulk_insert(table, data_list, ignore_duplicates)` - 批量插入
+- `update(table, data, where, params)` - 更新记录
+- `delete(table, where, params)` - 删除记录
+- `select(table, fields, where, params, order_by, limit)` - 便捷查询
+- `transaction()` - 事务上下文管理器
+- `get_connection()` - 获取连接（上下文管理器）
+- `is_table_exists(table_name)` - 检查表是否存在
+- `close()` - 关闭连接池
+
+### SchemaManager（Schema 管理器）
+
+**职责**：
+- 加载 schema.json 文件
+- 生成 CREATE TABLE SQL
+- 创建表和索引
+- 管理策略自定义表
+
+**使用示例**：
+```python
+from utils.db.schema_manager import SchemaManager
+
+# 初始化
+schema_mgr = SchemaManager(is_verbose=True)
+
+# 加载 schema
+schema = schema_mgr.load_schema_from_file('path/to/schema.json')
+
+# 生成 SQL
+create_sql = schema_mgr.generate_create_table_sql(schema)
+
+# 创建表（需要数据库连接）
+schema_mgr.create_table_with_indexes(schema, db.get_connection)
+
+# 注册策略表
+schema_mgr.register_table('my_strategy_table', schema)
+
+# 获取表信息
+fields = schema_mgr.get_table_fields('stock_kline')
+```
+
+**API 参考**：
+- `load_all_schemas()` - 加载所有 schema
+- `load_schema_from_file(file)` - 从文件加载 schema
+- `generate_create_table_sql(schema)` - 生成建表 SQL
+- `generate_create_index_sql(table, index)` - 生成索引 SQL
+- `create_table(schema, db_connection)` - 创建表
+- `create_indexes(table, indexes, db_connection)` - 创建索引
+- `create_table_with_indexes(schema, db_connection_func)` - 创建表和索引
+- `create_all_tables(get_connection_func)` - 创建所有表
+- `register_table(name, schema)` - 注册自定义表
+- `create_registered_tables(get_connection_func)` - 创建注册的表
+- `is_table_exists(table, database, db_connection)` - 检查表是否存在
+- `get_table_schema(table)` - 获取表 schema
+- `get_table_fields(table)` - 获取表字段列表
+
+## 📊 Schema 定义
+
+每个表在 `tables/` 目录下都有一个 `schema.json` 文件：
+
 ```json
 {
-    "name": "your_table_name",
-    "primaryKey": "id",
+    "name": "stock_kline",
+    "primaryKey": ["id", "term", "date"],
     "fields": [
         {
             "name": "id",
-            "type": "int",
-            "isRequired": true
-        },
-        {
-            "name": "name",
             "type": "varchar",
-            "length": 255,
-            "isRequired": true
+            "length": 16,
+            "isRequired": true,
+            "description": "股票代码"
         },
         {
-            "name": "created_at",
-            "type": "datetime",
-            "isRequired": true
+            "name": "close",
+            "type": "float",
+            "isRequired": true,
+            "description": "收盘价"
         }
     ],
     "indexes": [
         {
-            "name": "idx_name",
-            "columns": ["name"],
-            "type": "BTREE"
+            "name": "idx_id_date",
+            "fields": ["id", "date"],
+            "unique": false
         }
     ]
 }
 ```
 
-#### 步骤3：更新配置
-在 `config.py` 中添加表映射：
-```python
-STRATEGY_TABLES = {
-    'your_table_name': 'your_table_name',
-    # ... 其他表
-}
-```
-
-## 使用方法
-
-### 基本使用
-
-```python
-from utils.db import DatabaseManager
-
-# 创建数据库管理器
-db = DatabaseManager()
-
-# 连接数据库（自动创建数据库和表）
-db.connect_sync()
-
-# 执行查询
-result = db.execute_sync_query("SELECT * FROM stock_index LIMIT 5")
-
-# 断开连接
-db.disconnect_sync()
-```
-
-### 在应用中使用
-
-```python
-from utils.db import DatabaseManager
-
-class App:
-    def __init__(self):
-        self.db = DatabaseManager()
-    
-    def setup_database(self):
-        """设置数据库"""
-        self.db.connect_sync()  # 自动创建数据库
-        self.db.create_tables() # 自动创建表
-```
-
-## Schema.json 格式说明
-
-### 必需字段
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | string | 表名（必须与目录名一致） |
-| `primaryKey` | string | 主键字段名 |
-| `fields` | array | 字段定义数组 |
-
-### 字段定义
-
-```json
-{
-    "name": "字段名",
-    "type": "字段类型",
-    "length": "长度（可选）",
-    "isRequired": "是否必填"
-}
-```
-
-### 支持的字段类型
-
-- `varchar` - 可变长度字符串
+**字段类型支持**：
+- `varchar(length)` - 字符串
 - `text` - 长文本
-- `int` - 整数
-- `bigint` - 大整数
-- `tinyint` - 小整数
+- `int` / `bigint` - 整数
+- `float` / `double` - 浮点数
+- `tinyint(1)` - 布尔值
 - `datetime` - 日期时间
-- `date` - 日期
-- `decimal` - 小数
-- `json` - JSON数据
+- `json` - JSON 数据
 
-### 索引定义（可选）
+## 🔧 配置
 
-```json
-{
-    "indexes": [
-        {
-            "name": "索引名",
-            "columns": ["字段1", "字段2"],
-            "type": "BTREE"
-        }
-    ]
-}
-```
-
-## 配置说明
-
-### 数据库配置
-
-在 `config.py` 中配置数据库连接：
+### 数据库配置（db_config.py）
 
 ```python
 DB_CONFIG = {
@@ -195,171 +182,162 @@ DB_CONFIG = {
         'port': 3306,
         'charset': 'utf8mb4',
         'autocommit': True,
+    },
+    'pool': {
+        'pool_size_min': 5,      # 最小连接数
+        'pool_size_max': 30,     # 最大连接数
+    },
+    'timeout': {
+        'connection': 60,
+        'read': 60,
+        'write': 60,
     }
 }
 ```
 
-### 表映射配置
+**环境变量支持**：
+- `DB_HOST` - 数据库主机
+- `DB_USER` - 数据库用户
+- `DB_PASSWORD` - 数据库密码
+- `DB_NAME` - 数据库名称
+- `DB_PORT` - 数据库端口
 
+## ⚠️ 废弃组件
+
+以下组件已废弃或计划废弃：
+
+### 已删除（2024-12-04）
+- ❌ `connection_pool.py` - 已被 DBUtils 替代
+- ❌ `db_service.py` - 功能已迁移到 SchemaManager
+- ❌ `process_safe_db_manager.py` - 功能已整合到 DatabaseManager
+
+### 计划废弃
+- ⚠️ `db_model.py` - BaseTableModel 将迁移到 DataLoader
+- ⚠️ `tables/*/model.py` - 表模型将迁移到各 Loader
+
+**迁移指南**：
 ```python
-# 基础表映射
-TABLES = {
-    'stock_index': 'stock_index',
-    'stock_kline': 'stock_kline',
-    # ...
-}
+# 旧代码（不推荐）
+from utils.db.db_model import BaseTableModel
+model = BaseTableModel('stock_kline', db)
+records = model.load(condition="id = %s", params=('000001.SZ',))
 
-# 策略表映射
-STRATEGY_TABLES = {
-    'your_strategy_table': 'your_strategy_table',
-    # ...
-}
+# 新代码（推荐）
+from app.data_loader import DataLoader
+loader = DataLoader(db)
+records = loader.kline_loader.load_kline('000001.SZ', '20200101', '20241231')
 ```
 
-## 最佳实践
+## 🚀 技术特性
 
-### 1. 命名规范
-- 表名使用小写字母和下划线
-- 目录名与表名保持一致
-- 字段名使用小写字母和下划线
+### 连接池（DBUtils）
+- ✅ 自动扩容（5-30 个连接）
+- ✅ 自动健康检查（ping）
+- ✅ 线程安全
+- ✅ 连接复用
+- ✅ 阻塞等待（连接用完时）
 
-### 2. 字段设计
-- 每个表必须有主键
-- 使用 `isRequired` 标记必填字段
-- 合理设置字段长度
-
-### 3. 索引设计
-- 为经常查询的字段创建索引
-- 避免过多索引影响写入性能
-- 使用有意义的索引名称
-
-### 4. 数据迁移
-- 修改现有表结构时注意数据兼容性
-- 建议先备份数据
-- 测试环境验证后再应用到生产环境
-
-## 错误处理
-
-### 常见错误
-
-1. **目录名错误**
-   ```
-   Schema file not found: tables/base/wrong_name/schema.json
-   ```
-   解决：确保目录名与表名一致
-
-2. **Schema格式错误**
-   ```
-   Failed to load schema for table_name
-   ```
-   解决：检查 schema.json 格式是否正确
-
-3. **数据库连接失败**
-   ```
-   Failed to connect to database
-   ```
-   解决：检查数据库配置和网络连接
-
-## 扩展功能
-
-### 异步操作
+### 事务支持
 ```python
-# 异步连接
-await db.initialize_async()
-result = await db.execute_async_query("SELECT * FROM table")
+with db.transaction() as cursor:
+    cursor.execute("INSERT INTO ...")
+    cursor.execute("UPDATE ...")
+    # 自动提交，出错自动回滚
 ```
 
-### 事务处理
+### 批量操作
 ```python
-# 同步事务
-with db.get_sync_cursor() as cursor:
-    cursor.execute("INSERT INTO table1 VALUES (...)")
-    cursor.execute("UPDATE table2 SET ...")
-    # 自动提交或回滚
+# 批量插入（性能优化）
+db.bulk_insert('stock_kline', data_list, ignore_duplicates=True)
 ```
 
-## 注意事项
+### Schema 自动建表
+- 从 JSON 定义自动生成 SQL
+- 支持主键、索引、字段约束
+- 支持策略自定义表
 
-1. **不要手动修改数据库结构** - 所有表结构变更都通过 schema.json 管理
-2. **备份重要数据** - 在修改表结构前先备份数据
-3. **测试环境验证** - 新表结构先在测试环境验证
-4. **版本控制** - 将 schema.json 文件纳入版本控制
-5. **文档更新** - 添加新表时更新相关文档
+## 📚 最佳实践
 
-## 实际使用示例
-
-### 创建策略表
-
-1. **创建目录结构**
-```bash
-mkdir -p crawler/db/tables/strategy/my_strategy
-```
-
-2. **创建 schema.json**
-```json
-{
-    "name": "my_strategy",
-    "primaryKey": "id",
-    "fields": [
-        {
-            "name": "id",
-            "type": "int",
-            "isRequired": true
-        },
-        {
-            "name": "strategy_name",
-            "type": "varchar",
-            "length": 100,
-            "isRequired": true
-        },
-        {
-            "name": "signal",
-            "type": "varchar",
-            "length": 20,
-            "isRequired": true
-        },
-        {
-            "name": "created_at",
-            "type": "datetime",
-            "isRequired": true
-        }
-    ]
-}
-```
-
-3. **更新配置**
+### 1. 使用连接上下文管理器
 ```python
-# 在 config.py 中添加
-STRATEGY_TABLES = {
-    'my_strategy': 'my_strategy'
-}
+# 好的做法
+with db.get_connection() as conn:
+    with conn.cursor() as cursor:
+        cursor.execute(...)
+
+# 更好的做法（使用封装方法）
+result = db.fetch_all(sql, params)
 ```
 
-4. **使用表**
+### 2. 使用参数化查询（防 SQL 注入）
 ```python
-from utils.db import DatabaseManager
-from datetime import datetime
+# ✅ 好
+db.fetch_all("SELECT * FROM stock_list WHERE id = %s", ['000001.SZ'])
 
-db = DatabaseManager()
-db.connect_sync()
-db.create_tables()  # 自动创建新表
-
-# 插入数据
-db.execute_sync_query(
-    "INSERT INTO my_strategy (id, strategy_name, signal, created_at) VALUES (%s, %s, %s, %s)",
-    (1, "TestStrategy", "BUY", datetime.now())
-)
-
-# 查询数据
-result = db.execute_sync_query("SELECT * FROM my_strategy")
-print(result)
-
-db.disconnect_sync()
+# ❌ 差
+db.fetch_all(f"SELECT * FROM stock_list WHERE id = '{stock_id}'")
 ```
 
-## 联系支持
+### 3. 批量操作优化性能
+```python
+# ✅ 好 - 批量插入
+db.bulk_insert('stock_kline', kline_list)
 
-如有问题或建议，请查看：
-- 代码注释
-- 错误日志
-- 数据库文档 
+# ❌ 差 - 循环插入
+for kline in kline_list:
+    db.insert('stock_kline', kline)
+```
+
+### 4. 使用事务保证一致性
+```python
+with db.transaction() as cursor:
+    cursor.execute("UPDATE account SET balance = balance - 100 WHERE id = 1")
+    cursor.execute("UPDATE account SET balance = balance + 100 WHERE id = 2")
+```
+
+## 🔍 故障排查
+
+### 连接池耗尽
+```python
+# 检查连接池状态
+stats = db.get_stats()
+print(stats)
+
+# 增加最大连接数
+DB_CONFIG['pool']['pool_size_max'] = 50
+```
+
+### 表不存在
+```python
+# 检查表是否存在
+if not db.is_table_exists('my_table'):
+    # 创建表
+    db.schema_manager.create_table_with_indexes(schema, db.get_connection)
+```
+
+### 查询超时
+```python
+# 增加超时时间
+DB_CONFIG['timeout']['read'] = 120
+```
+
+## 📖 相关文档
+
+- [REFACTOR_SUMMARY.md](./REFACTOR_SUMMARY.md) - 重构总结
+- [DataLoader 文档](../../app/data_loader/README.md) - 数据加载器
+- [Strategy 文档](../../app/analyzer/strategy/README.md) - 策略开发
+
+## 🤝 贡献
+
+如需修改数据库结构：
+1. 修改对应的 `schema.json`
+2. 运行 `db.initialize()` 自动创建/更新表
+3. 更新相关文档
+
+## 📅 更新日志
+
+- **2024-12-04**: 
+  - ✅ 重构 DatabaseManager（使用 DBUtils）
+  - ✅ 新增 SchemaManager
+  - ✅ 删除冗余文件（connection_pool, db_service, process_safe_db_manager）
+  - ⚠️ 标记 db_model.py 为废弃

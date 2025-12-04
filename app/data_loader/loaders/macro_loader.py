@@ -28,10 +28,11 @@ class MacroEconomyLoader:
             self.db = DatabaseManager()
             self.db.initialize()
         
-        self.gdp_model = self.db.get_table_instance('gdp')
-        self.price_indexes_model = self.db.get_table_instance('price_indexes')
-        self.lpr_model = self.db.get_table_instance('lpr')
-        self.shibor_model = self.db.get_table_instance('shibor')
+        # 不再使用 model，直接使用 db 的 CRUD 方法
+        # self.gdp_model = self.db.get_table_instance('gdp')
+        # self.price_indexes_model = self.db.get_table_instance('price_indexes')
+        # self.lpr_model = self.db.get_table_instance('lpr')
+        # self.shibor_model = self.db.get_table_instance('shibor')
     
     def load_gdp(self, start_quarter: Optional[str] = None, end_quarter: Optional[str] = None) -> List[Dict]:
         """

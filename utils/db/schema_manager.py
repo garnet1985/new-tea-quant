@@ -31,11 +31,18 @@ class SchemaManager:
         初始化 Schema 管理器
         
         Args:
-            tables_dir: schema 文件目录（默认为 utils/db/tables）
+            tables_dir: schema 文件目录（默认为 app/data_loader/base_tables）
             charset: 数据库字符集
             is_verbose: 是否输出详细日志
         """
-        self.tables_dir = tables_dir or os.path.join(os.path.dirname(__file__), 'tables')
+        if tables_dir:
+            self.tables_dir = tables_dir
+        else:
+            # 默认指向 app/data_loader/base_tables
+            # 从 utils/db 向上找到项目根，再定位到 app/data_loader/base_tables
+            current_dir = os.path.dirname(__file__)  # utils/db
+            project_root = os.path.dirname(os.path.dirname(current_dir))  # 项目根
+            self.tables_dir = os.path.join(project_root, 'app', 'data_loader', 'base_tables')
         self.charset = charset
         self.is_verbose = is_verbose
         

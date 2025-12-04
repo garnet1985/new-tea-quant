@@ -20,6 +20,7 @@ import pandas as pd
 from loguru import logger
 
 from app.data_loader.loaders.macro_loader import MacroEconomyLoader
+from app.data_loader.loaders.corporate_finance_loader import CorporateFinanceLoader
 
 from .loaders import KlineLoader
 from .loaders import LabelLoader
@@ -75,6 +76,7 @@ class DataLoader:
         self.kline_loader = KlineLoader(self.db)
         self.label_loader = LabelLoader(self.db)
         self.macro_loader = MacroEconomyLoader(self.db)
+        self.corporate_finance_loader = CorporateFinanceLoader(self.db)
     
     def prepare_data(self, stock: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -300,9 +302,13 @@ class DataLoader:
         """
         result = {}
         
-        # 提取通用的日期参数
+        # 提取通用的日期参数（空字符串视为None，表示不限制）
         start_date = macro_settings.get('start_date')
         end_date = macro_settings.get('end_date')
+        if start_date == '':
+            start_date = None
+        if end_date == '':
+            end_date = None
         
         # 处理GDP数据（季度数据，需要转换日期格式）
         if macro_settings.get('GDP'):
@@ -384,8 +390,31 @@ class DataLoader:
         return f"{year}{quarter}"
     
     def _load_corporate_finance_data(self, stock_id: str, corporate_finance_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """加载企业财务数据（委托给KlineLoader）"""
-        return self.kline_loader.load_corporate_finance_data(stock_id, corporate_finance_settings)
+        """
+        加载企业财务数据（委托给CorporateFinanceLoader）
+        
+        Args:
+            stock_id: 股票代码
+            corporate_finance_settings: 企业财务数据配置，例如：
+                {
+                    "categories": ["growth", "profit", "cashflow", "solvency", "operation", "asset"],
+                    "start_date": "20200101",
+                    "end_date": "20241231"
+                }
+        
+        Returns:
+            Dict: 包含各类企业财务数据的字典
+        """
+        categories = corporate_finance_settings.get('categories', [])
+        start_date = corporate_finance_settings.get('start_date')
+        end_date = corporate_finance_settings.get('end_date')
+        # 空字符串视为None，表示不限制
+        if start_date == '':
+            start_date = None
+        if end_date == '':
+            end_date = None
+        
+        return self.corporate_finance_loader.load(stock_id, categories, start_date, end_date)
     
     def _load_index_indicators_data(self, index_indicators_settings: Dict[str, Any]) -> Dict[str, Any]:
         """加载指数指标数据（委托给KlineLoader）"""

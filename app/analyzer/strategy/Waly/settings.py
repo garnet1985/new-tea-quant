@@ -33,7 +33,7 @@ settings = {
 
     "corporate_finance": {
         # 公司财务指标 - 空意味着取所有; 可用参数为: growth, profit, cashflow, solvency, operation, asset
-        "categories": ["asset"],
+        "categories": ["solvency"],
         "start_date": "",
         "end_date": "",
     },
@@ -43,13 +43,13 @@ settings = {
     "simulation": {
 
         # 模拟开始日期 - 空指代使用默认开始日期
-        "start_date": "",
+        "start_date": "20180101",
 
         # 模拟结束日期 - 空指代到最新的记录
         "end_date": "",
 
         # 测试股票数量
-        "sampling_amount": 10,
+        "sampling_amount": 1000,
 
          # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True,

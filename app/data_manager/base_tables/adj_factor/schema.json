@@ -1,0 +1,55 @@
+{
+    "name": "adj_factor",
+    "primaryKey": ["id", "date"],
+    "fields": [
+        {
+            "name": "id",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": true,
+            "description": "股票代码（含市场后缀，如000001.SZ）"
+        },
+        {
+            "name": "date",
+            "type": "varchar",
+            "length": 8,
+            "isRequired": true,
+            "description": "复权事件日期（YYYYMMDD）"
+        },
+        {
+            "name": "qfq",
+            "type": "float",
+            "isRequired": true,
+            "description": "前复权因子"
+        },
+        {
+            "name": "hfq",
+            "type": "float",
+            "isRequired": true,
+            "description": "后复权因子"
+        },
+        {
+            "name": "last_update",
+            "type": "timestamp",
+            "isRequired": true,
+            "default": "CURRENT_TIMESTAMP",
+            "description": "记录创建时间"
+        }
+    ],
+    "indexes": [
+        {
+            "name": "idx_ts_code_date",
+            "fields": ["id", "date"],
+            "unique": true
+        },
+        {
+            "name": "idx_ts_code",
+            "fields": ["id"]
+        },
+        {
+            "name": "idx_date",
+            "fields": ["date"]
+        }
+    ],
+    "description": "复权因子表，存储每次复权事件的详细信息"
+}

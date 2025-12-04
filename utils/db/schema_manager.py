@@ -38,11 +38,11 @@ class SchemaManager:
         if tables_dir:
             self.tables_dir = tables_dir
         else:
-            # 默认指向 app/data_loader/base_tables
-            # 从 utils/db 向上找到项目根，再定位到 app/data_loader/base_tables
+            # 默认指向 app/data_manager/base_tables
+            # 从 utils/db 向上找到项目根，再定位到 app/data_manager/base_tables
             current_dir = os.path.dirname(__file__)  # utils/db
             project_root = os.path.dirname(os.path.dirname(current_dir))  # 项目根
-            self.tables_dir = os.path.join(project_root, 'app', 'data_loader', 'base_tables')
+            self.tables_dir = os.path.join(project_root, 'app', 'data_manager', 'base_tables')
         self.charset = charset
         self.is_verbose = is_verbose
         

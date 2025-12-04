@@ -4,7 +4,7 @@
 """
 
 # 核心组件
-from app.data_loader import DataLoader  # 使用全局DataLoader
+from app.data_manager import DataManager  # 使用全局DataLoader
 from .settings_validator import SettingsValidator
 from .entity.investment import Investment
 from .entity.opportunity import Opportunity

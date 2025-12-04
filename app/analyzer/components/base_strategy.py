@@ -13,7 +13,7 @@ from app.analyzer.analyzer_service import AnalyzerService
 from utils.db.db_manager import DatabaseManager
 from utils.icon.icon_service import IconService
 from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
-from app.data_loader import DataLoader
+from app.data_manager import DataManager
 import pandas
 from app.analyzer.analyzer_service import AnalyzerService
 
@@ -364,7 +364,7 @@ class BaseStrategy(ABC):
         module_info = job.get('module_info', {}) or {}
 
         # 子进程内直接使用 DataLoader，避免初始化 DatabaseManager
-        from app.data_loader import DataLoader
+        from app.data_manager import DataManager
         loader = DataLoader()  # 子进程内自行创建DatabaseManager
         data = loader.prepare_data(stock, settings)
 

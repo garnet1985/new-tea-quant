@@ -25,7 +25,7 @@ class PreprocessService:
         try:
             # 使用 DataLoader 加载股票列表
             from utils.db.db_manager import DatabaseManager
-            from app.data_loader import DataLoader
+            from app.data_manager import DataManager
             
             # 创建数据库连接
             db = DatabaseManager()

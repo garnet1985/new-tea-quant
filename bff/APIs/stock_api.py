@@ -41,7 +41,7 @@ class StockApi:
         """
         try:
             # 使用缓存的 db_manager
-            from app.data_loader import DataLoader
+            from app.data_manager import DataManager
             
             # 使用DataLoader加载K线数据（自动复权和过滤）
             loader = DataLoader(self.db_manager)

@@ -36,7 +36,7 @@ from .calculators import (
 )
 from .conf.label_mapping import LabelMapping
 from utils.db.db_manager import DatabaseManager
-from app.data_loader import DataLoader
+from app.data_manager import DataManager
 
 
 class LabelerService:

@@ -34,7 +34,8 @@ class LabelLoader:
             from utils.db.db_manager import DatabaseManager
             self.db = DatabaseManager()
         self.db.initialize()
-        self.stock_label_model = self.db.get_table_instance('stock_labels')
+        # 不再使用 model，直接使用 db 的 CRUD 方法
+        # self.stock_label_model = self.db.get_table_instance('stock_labels')
     
     def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None, max_days_back: int = 90) -> Dict[str, Any]:
         """

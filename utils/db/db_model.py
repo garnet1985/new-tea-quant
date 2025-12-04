@@ -1,14 +1,47 @@
+"""
+⚠️  DEPRECATED - 本文件计划废弃
+
+本文件中的 BaseTableModel 和相关功能正在迁移到 DataLoader 层。
+
+迁移计划：
+- BaseTableModel → 各专用 Loader（KlineLoader, MacroLoader 等）
+- tables/*/model.py → 对应的 Loader 内部实现
+
+当前状态：
+- ✅ 可以继续使用（向后兼容）
+- ⚠️  不建议在新代码中使用
+- 🔜 未来版本将移除
+
+替代方案：
+- 使用 DataLoader 及其子 Loader
+- 使用 DatabaseManager 的 CRUD 方法
+
+更新日期：2024-12-04
+"""
 from typing import Dict, List, Any, Optional
 from loguru import logger
-
-from utils.db.db_service import DBService
-from .db_config import DB_CONFIG
 import json
 import os
+import warnings
+
+from .db_config import DB_CONFIG
+
+
+# 发出废弃警告
+warnings.warn(
+    "BaseTableModel is deprecated and will be removed in a future version. "
+    "Please use DataLoader and its sub-loaders instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 class BaseTableModel:
-    """通用表操作模型基类"""
+    """
+    通用表操作模型基类
+    
+    ⚠️  DEPRECATED: 本类计划废弃，请使用 DataLoader 替代
+    """
     
     def __init__(self, table_name: str, connected_db):
         self.db = connected_db
@@ -35,7 +68,16 @@ class BaseTableModel:
             logger.error(f"Failed create table: {self.table_name}, because schema is not found")
             return
 
-        sql = DBService.parse_db_schema(self.schema, custom_table_name)
+        # 使用 SchemaManager 生成 SQL
+        from .schema_manager import SchemaManager
+        schema_manager = SchemaManager(charset=DB_CONFIG['base']['charset'])
+        
+        # 如果有自定义表名，修改 schema
+        schema_to_use = self.schema.copy()
+        if custom_table_name:
+            schema_to_use['name'] = custom_table_name
+        
+        sql = schema_manager.generate_create_table_sql(schema_to_use)
 
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(sql)

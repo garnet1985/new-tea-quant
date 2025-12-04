@@ -28,7 +28,8 @@ class CorporateFinanceLoader:
             self.db = DatabaseManager()
             self.db.initialize()
         
-        self.corporate_finance_model = self.db.get_table_instance('corporate_finance')
+        # 不再使用 model，直接使用 db 的 CRUD 方法
+        # self.corporate_finance_model = self.db.get_table_instance('corporate_finance')
     
     def load_all(self, stock_id: str, start_date: Optional[str] = None, 
                  end_date: Optional[str] = None) -> List[Dict]:

@@ -26,7 +26,7 @@ import asyncio
 from utils.warning_suppressor import setup_warning_suppression
 setup_warning_suppression()
 
-from utils.db.db_manager import DatabaseManager
+from app.data_manager.data_manager import DataManager
 from app.data_source.data_source_manager import DataSourceManager
 from app.analyzer import Analyzer
 from app.labeler import LabelerService
@@ -40,17 +40,25 @@ class App:
     def __init__(self, is_verbose: bool = False):
         self.is_verbose = is_verbose
         
-        # 1. 首先初始化数据库（只初始化一次）
-        # 启用线程安全，支持多线程数据更新
-        self.db = DatabaseManager(is_verbose=self.is_verbose, enable_thread_safety=True)
-        self.db.initialize()
+        # 1. 首先初始化 DataManager（统一的数据访问入口）
+        # DataManager 内部会创建和管理 DatabaseManager
+        self.data_manager = DataManager(is_verbose=self.is_verbose)
+        self.data_manager.initialize()
         
-        # 2. 然后创建数据源和策略管理器（复用同一个数据库实例）
+        # 2. 获取 DatabaseManager 实例（用于兼容旧模块）
+        # 注意：这是过渡期方案，后续应该让这些模块也使用 DataManager 的接口
+        # TODO: 逐步迁移以下模块使用 DataManager 而不是直接用 db：
+        #   - DataSourceManager: 数据源管理（更新行情数据）
+        #   - Analyzer: 策略分析器（扫描、模拟）
+        #   - LabelerService: 标签服务（更新股票标签）
+        self.db = self.data_manager.db
+        
+        # 3. 创建数据源和策略管理器（复用数据库实例）
         self.data_source = DataSourceManager(self.db, self.is_verbose)
         self.analyzer = Analyzer(self.db, self.is_verbose)
         self.labeler = LabelerService(self.db)
         
-        # 3. 初始化策略（这会注册表到数据库）
+        # 4. 初始化策略（这会注册表到数据库）
         self.analyzer.initialize()
 
     async def get_latest_market_open_day(self):

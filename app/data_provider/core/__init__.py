@@ -9,5 +9,52 @@ Core 模块
 - SmartConcurrentExecutor: 智能并发执行器
 """
 
-# TODO: Phase 1 实施后实现
+from .base_provider import (
+    BaseProvider,
+    ProviderInfo,
+    Dependency,
+    ExecutionContext
+)
+
+from .rate_limit_registry import (
+    RateLimitRegistry,
+    APIRateLimiter
+)
+
+from .provider_registry import (
+    ProviderRegistry,
+    ProviderMetadata
+)
+
+from .smart_concurrent import (
+    SmartConcurrentExecutor
+)
+
+from .data_coordinator import (
+    DataCoordinator,
+    DependencyGraph
+)
+
+__all__ = [
+    # BaseProvider
+    'BaseProvider',
+    'ProviderInfo',
+    'Dependency',
+    'ExecutionContext',
+    
+    # RateLimitRegistry
+    'RateLimitRegistry',
+    'APIRateLimiter',
+    
+    # ProviderRegistry
+    'ProviderRegistry',
+    'ProviderMetadata',
+    
+    # SmartConcurrentExecutor
+    'SmartConcurrentExecutor',
+    
+    # DataCoordinator
+    'DataCoordinator',
+    'DependencyGraph',
+]
 

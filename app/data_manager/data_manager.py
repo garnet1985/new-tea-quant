@@ -115,8 +115,10 @@ class DataManager:
             self.macro_loader = MacroEconomyLoader(self.db)
             self.corporate_finance_loader = CorporateFinanceLoader(self.db)
 
-            # 4. 预留：初始化 Repository（当前阶段可为空，后续按领域/策略补充）
-            self._init_repositories()
+            # 4. 初始化 DataService（按业务领域分类）
+            if self.is_verbose:
+                logger.info("🔧 初始化 DataService...")
+            self._init_data_services()
 
             self._initialized = True
             
@@ -128,35 +130,286 @@ class DataManager:
             raise
 
     # ------------------------------------------------------------------
-    # DataService 相关（新架构预留）
+    # Model 访问（基础表）
     # ------------------------------------------------------------------
 
-    def _init_repositories(self):
+    def get_model(self, table_name: str) -> Any:
         """
-        初始化各领域 / 策略的 DataService
+        获取指定表对应的 Model 实例
+        
+        返回的是个性化 Model（如 StockKlineModel），而不是 DbBaseModel
+        
+        Args:
+            table_name: 表名，例如 'stock_kline'、'stock_list' 等
+            
+        Returns:
+            对应的 Model 实例（已自动绑定默认 db）
+            
+        Example:
+            kline_model = data_manager.get_model('stock_kline')
+            klines = kline_model.load_by_stock_and_date_range(...)
+        """
+        # 表名到 Model 类的映射
+        from app.data_manager.base_tables import (
+            StockKlineModel, StockListModel, AdjFactorModel,
+            GdpModel, PriceIndexesModel, ShiborModel, LprModel,
+            CorporateFinanceModel, StockLabelsModel,
+            InvestmentTradesModel, InvestmentOperationsModel,
+            IndustryCapitalFlowModel,
+            StockIndexIndicatorModel, StockIndexIndicatorWeightModel,
+            MetaInfoModel
+        )
+        
+        model_map = {
+            'stock_kline': StockKlineModel,
+            'stock_list': StockListModel,
+            'adj_factor': AdjFactorModel,
+            'gdp': GdpModel,
+            'price_indexes': PriceIndexesModel,
+            'shibor': ShiborModel,
+            'lpr': LprModel,
+            'corporate_finance': CorporateFinanceModel,
+            'stock_labels': StockLabelsModel,
+            'investment_trades': InvestmentTradesModel,
+            'investment_operations': InvestmentOperationsModel,
+            'industry_capital_flow': IndustryCapitalFlowModel,
+            'stock_index_indicator': StockIndexIndicatorModel,
+            'stock_index_indicator_weight': StockIndexIndicatorWeightModel,
+            'meta_info': MetaInfoModel,
+        }
+        
+        model_class = model_map.get(table_name)
+        if not model_class:
+            logger.warning(f"表 '{table_name}' 没有对应的 Model 类")
+            return None
+        
+        # 返回 Model 实例（自动获取默认 db）
+        return model_class()
 
-        当前阶段：
-        - 仅作为占位方法，后续按需补充具体 DataService
+    # ------------------------------------------------------------------
+    # DataService 相关
+    # ------------------------------------------------------------------
+
+    def _init_data_services(self):
         """
-        # 示例（未来可以按需启用）：
-        # from app.data_manager.data_services.stock_data_service import StockDataService
-        # self._data_services['stock'] = StockDataService(self)
-        pass
+        初始化3大类 DataService
+        
+        数据分类：
+        1. stock_related: 股票相关数据（K线、财务、行业）
+        2. macro_system: 宏观/系统数据（GDP、CPI、Shibor、元信息）
+        3. ui_transit: UI/中转数据（投资记录、扫描结果）
+        
+        支持两级访问：
+        - 'stock_related' 访问大类统一接口
+        - 'stock_related.stock' 访问子 Service
+        """
+        # 1. stock_related 大类
+        try:
+            from app.data_manager.data_services.stock_related import StockRelatedDataService
+            stock_related = StockRelatedDataService(self)
+            stock_related.initialize()
+            
+            # 注册大类
+            self._data_services['stock_related'] = stock_related
+            
+            # 注册子 Service（支持 'stock_related.stock' 访问）
+            if stock_related.stock_service:
+                self._data_services['stock_related.stock'] = stock_related.stock_service
+            
+            if stock_related.finance_service:
+                self._data_services['stock_related.corporate_finance'] = stock_related.finance_service
+                # 为了向后兼容，保留简短别名
+                self._data_services['corporate_finance'] = stock_related.finance_service
+            
+            if self.is_verbose:
+                logger.info("✅ StockRelatedDataService 已注册")
+        except ImportError as e:
+            if self.is_verbose:
+                logger.debug(f"StockRelatedDataService 未实现，跳过: {e}")
+        
+        # 2. macro_system 大类
+        try:
+            from app.data_manager.data_services.macro_system import MacroSystemDataService
+            macro_system = MacroSystemDataService(self)
+            macro_system.initialize()
+            
+            # 注册大类
+            self._data_services['macro_system'] = macro_system
+            
+            # 注册子 Service
+            if macro_system.macro_service:
+                self._data_services['macro_system.macro'] = macro_system.macro_service
+            
+            # 为了向后兼容，保留 'macro' 这个简短别名
+            self._data_services['macro'] = macro_system
+            
+            if self.is_verbose:
+                logger.info("✅ MacroSystemDataService 已注册")
+        except ImportError as e:
+            if self.is_verbose:
+                logger.debug(f"MacroSystemDataService 未实现，跳过: {e}")
+        
+        # 3. ui_transit 大类
+        try:
+            from app.data_manager.data_services.ui_transit import UiTransitDataService
+            ui_transit = UiTransitDataService(self)
+            ui_transit.initialize()
+            
+            # 注册大类
+            self._data_services['ui_transit'] = ui_transit
+            
+            # 注册子 Service
+            if ui_transit.investment_service:
+                self._data_services['ui_transit.investment'] = ui_transit.investment_service
+                # 为了向后兼容，保留简短别名
+                self._data_services['investment'] = ui_transit.investment_service
+            
+            if self.is_verbose:
+                logger.info("✅ UiTransitDataService 已注册")
+        except ImportError as e:
+            if self.is_verbose:
+                logger.debug(f"UiTransitDataService 未实现，跳过: {e}")
 
     def get_data_service(self, name: str) -> Any:
         """
         获取指定名称的 DataService
+        
+        支持两级访问：
+        - 'stock_related': 获取大类统一接口
+        - 'stock_related.stock': 获取子 Service
+        - 'macro': 快捷别名，等同于 'macro_system'
 
         Args:
-            name: DataService 名称，例如 'stock'、'macro'、'waly' 等
+            name: DataService 名称
+                - 大类: 'stock_related', 'macro_system', 'ui_transit'
+                - 子级: 'stock_related.stock', 'macro_system.macro'
+                - 别名: 'macro' (等同于 'macro_system')
 
         Returns:
-            对应的 DataService 实例
+            对应的 DataService 实例，未找到返回 None
         """
         service = self._data_services.get(name)
         if not service:
-            logger.warning(f"DataService '{name}' 未注册")
+            logger.warning(f"DataService '{name}' 未注册。可用的: {list(self._data_services.keys())}")
         return service
+    
+    def resolve_data_requirements(self, settings: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        配置驱动的数据获取
+        
+        根据策略的 data_requirements 配置，自动获取所需的数据。
+        
+        工作方式：
+        1. 检查是否命中预设组合（大类内的优化查询）
+        2. 如果没有预设，使用默认方式（分别查询）
+        3. 依赖 simulator 的缓存保证性能
+        
+        Args:
+            settings: 策略的 data_requirements 配置
+                例如：{
+                    'stock_kline': {...},
+                    'corporate_finance': {...},
+                    'macro_economy': {...}
+                }
+            context: 当前上下文
+                例如：{
+                    'ts_code': '000001.SZ',
+                    'date': '20240101',
+                    'quarter': '2024Q1'
+                }
+        
+        Returns:
+            数据字典，key 为配置中的数据类型，value 为对应的数据
+        """
+        result = {}
+        processed = set()
+        
+        # ========== 检查预设组合 ==========
+        
+        # 预设1: stock_kline + corporate_finance (股票相关大类内)
+        if 'stock_kline' in settings and 'corporate_finance' in settings and 'stock_kline' not in processed:
+            stock_related = self.get_data_service('stock_related')
+            if stock_related and 'ts_code' in context and 'date' in context and 'quarter' in context:
+                try:
+                    combined = stock_related.load_stock_with_finance(
+                        context['ts_code'], context['date'], context['quarter']
+                    )
+                    result['stock_kline'] = combined['kline']
+                    result['corporate_finance'] = combined['finance']
+                    processed.add('stock_kline')
+                    processed.add('corporate_finance')
+                except Exception as e:
+                    logger.debug(f"预设组合查询失败，将使用默认方式: {e}")
+        
+        # ========== 默认查询（没有命中预设的数据） ==========
+        
+        for data_type, config in settings.items():
+            if data_type in processed:
+                continue
+            
+            # 股票K线数据
+            if data_type == 'stock_kline':
+                stock_service = self.get_data_service('stock_related.stock')
+                if stock_service and 'ts_code' in context and 'date' in context:
+                    # TODO: 根据 config 参数调用对应的方法
+                    result['stock_kline'] = stock_service.load_kline(
+                        context['ts_code'], context['date']
+                    )
+            
+            # 财务数据
+            elif data_type == 'corporate_finance':
+                finance_service = self.get_data_service('corporate_finance')
+                if finance_service and 'ts_code' in context and 'quarter' in context:
+                    indicators = config.get('indicators') if isinstance(config, dict) else None
+                    result['corporate_finance'] = finance_service.load_financials(
+                        context['ts_code'], context['quarter'], indicators
+                    )
+            
+            # 股票标签
+            elif data_type == 'stock_labels':
+                stock_service = self.get_data_service('stock_related.stock')
+                if stock_service and 'ts_code' in context and 'date' in context:
+                    result['stock_labels'] = stock_service.load_labels(
+                        context['ts_code'], context['date']
+                    )
+            
+            # 宏观经济数据
+            elif data_type == 'macro_economy':
+                macro_service = self.get_data_service('macro')
+                if macro_service and 'date' in context:
+                    # 如果配置要求完整快照
+                    if isinstance(config, dict) and config.get('full_snapshot'):
+                        result['macro_economy'] = macro_service.load_macro_snapshot(context['date'])
+                    # 如果指定了指标
+                    elif isinstance(config, dict) and 'indicators' in config:
+                        result['macro_economy'] = {}
+                        for indicator in config['indicators']:
+                            if indicator == 'shibor':
+                                result['macro_economy']['shibor'] = macro_service.load_shibor(
+                                    context['date'], context['date']
+                                )
+                            elif indicator == 'lpr':
+                                result['macro_economy']['lpr'] = macro_service.load_lpr(
+                                    context['date'], context['date']
+                                )
+                            # 其他指标...
+                    # 默认加载快照
+                    else:
+                        result['macro_economy'] = macro_service.load_macro_snapshot(context['date'])
+            
+            # 投资记录
+            elif data_type == 'investment_operations':
+                investment_service = self.get_data_service('investment')
+                if investment_service and 'ts_code' in context:
+                    result['investment_operations'] = investment_service.load_trades_by_stock(
+                        context['ts_code']
+                    )
+            
+            # 未知数据类型，记录警告
+            else:
+                logger.warning(f"未识别的数据类型: {data_type}")
+        
+        return result
 
     # ------------------------------------------------------------------
     # 策略表 / 策略 Model 注册与访问（新架构预留）

@@ -1,9 +1,24 @@
 #!/usr/bin/env python3
 """
 股票分析应用主入口
+
+使用示例：
+    python start.py                      # 默认: simulate
+    python start.py scan                 # 扫描投资机会
+    python start.py simulate             # 模拟回测
+    python start.py renew                # 更新数据
+    python start.py analysis             # 分析结果
+    
+    python start.py -c                   # 快捷: 扫描
+    python start.py -s                   # 快捷: 模拟
+    python start.py -r -c -s             # 快捷: 更新→扫描→模拟
+    
+    python start.py renew scan simulate  # 完整: 全流程
+    python start.py -h                   # 查看帮助
 """
 import sys
 import os
+import argparse
 from loguru import logger
 import asyncio
 
@@ -22,8 +37,8 @@ from utils.icon.icon_service import IconService
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class App:
-    def __init__(self):
-        self.is_verbose = False
+    def __init__(self, is_verbose: bool = False):
+        self.is_verbose = is_verbose
         
         # 1. 首先初始化数据库（只初始化一次）
         # 启用线程安全，支持多线程数据更新
@@ -51,47 +66,206 @@ class App:
         self.labeler.renew(last_market_open_day, is_refresh=is_refresh)
     
     def simulate(self):
-        # 使用run_daily_scan来同时执行扫描和测试
+        """运行模拟回测"""
         self.analyzer.simulate()
 
     def scan(self):
+        """扫描投资机会"""
         self.analyzer.scan()
 
     def analysis(self, session_id: str = None):
         """分析所有策略的模拟结果"""
         self.analyzer.analysis(session_id)
+
+
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(
+        description='📊 股票分析应用 - 数据更新、扫描、模拟、分析',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+命令说明:
+  scan        扫描投资机会（根据策略筛选当前符合条件的股票）
+  simulate    模拟回测（使用历史数据测试策略表现）
+  renew       更新数据（更新股票行情、标签等数据）
+  analysis    分析结果（分析模拟回测的结果）
+
+快捷缩写:
+  -c          等同于 scan（Check opportunities）
+  -s          等同于 simulate（Simulate backtest）
+  -r          等同于 renew（Renew data）
+  -a          等同于 analysis（Analysis results）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+使用示例:
+
+  单一命令:
+    %(prog)s                      默认运行 simulate
+    %(prog)s scan                 扫描投资机会
+    %(prog)s simulate             模拟回测
+    %(prog)s renew                更新数据
+    %(prog)s analysis             分析结果
+
+  快捷方式:
+    %(prog)s -c                   快速扫描
+    %(prog)s -s                   快速模拟
+    %(prog)s -r                   快速更新
+
+  组合命令（按顺序执行）:
+    %(prog)s renew scan           更新数据 → 扫描
+    %(prog)s renew simulate       更新数据 → 模拟
+    %(prog)s renew scan simulate  更新数据 → 扫描 → 模拟（全流程）
+    
+    %(prog)s -r -c                快捷: 更新 → 扫描
+    %(prog)s -r -s                快捷: 更新 → 模拟
+    %(prog)s -r -c -s             快捷: 全流程
+
+  额外参数:
+    %(prog)s simulate --strategy RTB    只运行指定策略
+    %(prog)s analysis --session xxx     分析指定session
+    %(prog)s -s -v                      详细输出模式
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        '''
+    )
+    
+    # 位置参数（主命令）
+    # 注意：choices 不能和 nargs='*' 一起用在空列表的情况，所以我们在后面验证
+    parser.add_argument(
+        'commands',
+        nargs='*',
+        help='要执行的命令（scan/simulate/renew/analysis），可以多个（按顺序执行）'
+    )
+    
+    # 快捷flag（避免大小写混淆）
+    parser.add_argument('-c', '--scan-flag', dest='scan_flag', action='store_true', 
+                        help='扫描机会（scan）')
+    parser.add_argument('-s', '--simulate-flag', dest='simulate_flag', action='store_true', 
+                        help='模拟回测（simulate）')
+    parser.add_argument('-r', '--renew-flag', dest='renew_flag', action='store_true', 
+                        help='更新数据（renew）')
+    parser.add_argument('-a', '--analysis-flag', dest='analysis_flag', action='store_true', 
+                        help='分析结果（analysis）')
+    
+    # 额外参数
+    parser.add_argument('--strategy', type=str, help='指定策略名称（用于 scan/simulate）')
+    parser.add_argument('--session', type=str, help='指定session ID（用于 analysis）')
+    parser.add_argument('-v', '--verbose', action='store_true', help='详细输出模式')
+    
+    return parser.parse_args()
+
+
+def build_command_pipeline(args):
+    """构建命令执行流水线"""
+    pipeline = []
+    
+    # 从位置参数构建
+    if args.commands:
+        # 验证命令有效性
+        valid_commands = {'scan', 'simulate', 'renew', 'analysis'}
+        for cmd in args.commands:
+            if cmd not in valid_commands:
+                logger.error(f"❌ 无效的命令: {cmd}")
+                logger.info(f"有效命令: {', '.join(valid_commands)}")
+                sys.exit(1)
+        pipeline.extend(args.commands)
+    
+    # 从快捷flag构建
+    flag_mapping = []
+    if args.renew_flag:
+        flag_mapping.append('renew')
+    if args.scan_flag:
+        flag_mapping.append('scan')
+    if args.simulate_flag:
+        flag_mapping.append('simulate')
+    if args.analysis_flag:
+        flag_mapping.append('analysis')
+    
+    # 合并（去重，保持顺序）
+    for cmd in flag_mapping:
+        if cmd not in pipeline:
+            pipeline.append(cmd)
+    
+    # renew 总是最先执行
+    if 'renew' in pipeline:
+        pipeline.remove('renew')
+        pipeline.insert(0, 'renew')
+    
+    # 默认行为：simulate
+    if not pipeline:
+        pipeline = ['simulate']
+    
+    return pipeline
+
+
+async def execute_pipeline(app: App, pipeline: list, args):
+    """执行命令流水线"""
+    latest_market_open_day = None
+    
+    logger.info("=" * 60)
+    logger.info(f"📋 执行计划: {' → '.join(pipeline)}")
+    logger.info("=" * 60)
+    
+    for idx, command in enumerate(pipeline, 1):
+        logger.info(f"")
+        logger.info(f"▶️  [{idx}/{len(pipeline)}] 执行: {command}")
+        logger.info("-" * 60)
         
+        if command == 'renew':
+            # 获取最新交易日
+            if not latest_market_open_day:
+                latest_market_open_day = await app.get_latest_market_open_day()
+                logger.info(f"🔍 最新交易日: {latest_market_open_day}")
+            
+            # 更新股票数据
+            logger.info("📥 更新股票行情数据...")
+            await app.renew_data(latest_market_open_day)
+            
+            # 更新标签
+            logger.info("🏷️  更新股票标签...")
+            app.renew_labels(latest_market_open_day)
+            
+        elif command == 'scan':
+            logger.info("🔍 扫描投资机会...")
+            app.scan()
+            
+        elif command == 'simulate':
+            logger.info("🎮 运行模拟回测...")
+            app.simulate()
+            
+        elif command == 'analysis':
+            logger.info("📊 分析模拟结果...")
+            app.analysis(session_id=args.session)
+    
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("✅ 全部完成！")
+    logger.info("=" * 60)
+
 
 def main():
-    app = App()
+    # 解析参数
+    args = parse_args()
     
-    # 1. 先获取最新交易日
-    latest_market_open_day = asyncio.run(app.get_latest_market_open_day())
-
-    logger.info(f"🔍 最新交易日: {latest_market_open_day}")
+    # 构建命令流水线
+    pipeline = build_command_pipeline(args)
     
-    # 2. 使用最新交易日更新股票数据
-    # asyncio.run(app.renew_data(latest_market_open_day))
+    # 创建应用实例
+    app = App(is_verbose=args.verbose)
     
-    # 3. 使用最新交易日更新股票标签（按频率更新）
-    # app.renew_labels(latest_market_open_day)
-
-    # app.scan()
-
-    app.simulate()
-
-    # app.analysis()
-    
-    # 识别平安银行重大反转点（分层识别版本）
-    # from app.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
-    # reversals = identify_major_reversals()
-    
-    # if reversals:
-    #     from app.analyzer.strategy.RTB.feature_identity.reversal_identify import save_reversal_results, display_reversal_results
-    #     save_reversal_results(reversals, "000001.SZ")
-    #     display_reversal_results(reversals)
-    # else:
-    #     print("⚠️ 未找到任何重大反转点")
+    # 执行流水线
+    try:
+        asyncio.run(execute_pipeline(app, pipeline, args))
+    except KeyboardInterrupt:
+        logger.warning("\n⚠️  用户中断执行")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"❌ 执行失败: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

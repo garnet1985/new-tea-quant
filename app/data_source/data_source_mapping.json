@@ -1,0 +1,14 @@
+{
+    "data_sources": {
+        "stock_list": {
+            "handler": "defaults.handlers.stock_list_handler.xxx",
+            "is_enabled": true,
+            "params": {}
+        },
+        "daily_kline": {
+            "handler": "defaults.handlers.kline_handler.xxx",
+            "is_enabled": true,
+            "params": {}
+        }
+    }
+}

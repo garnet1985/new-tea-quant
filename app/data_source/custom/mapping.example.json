@@ -1,0 +1,16 @@
+{
+    "_comment": "这是配置示例，复制为 mapping.json 并修改",
+    "data_sources": {
+        "stock_list": {
+            "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
+            "type": "refresh",
+            "description": "使用默认的 Tushare handler 获取股票列表"
+        },
+        "daily_kline": {
+            "handler": "defaults.handlers.kline_handler.TushareDailyKlineHandler",
+            "type": "incremental",
+            "description": "使用默认的 Tushare handler 获取日线数据"
+        }
+    }
+}
+

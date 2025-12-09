@@ -74,4 +74,4 @@ config.ini
 secrets.json
 .env.local
 .env.production
-app/data_source/providers/*/auth/token.txt
+app/data_source/providers/*/auth_token.py

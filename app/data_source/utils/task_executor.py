@@ -6,7 +6,7 @@ Task 执行器
 from typing import Dict, Any, List
 from loguru import logger
 
-from app.data_source.job import ApiJob, DataSourceTask
+from app.data_source.api_job import ApiJob, DataSourceTask
 
 
 class TaskExecutor:
@@ -26,8 +26,8 @@ class TaskExecutor:
         初始化执行器
         
         Args:
-            providers: Provider 实例字典 {provider_name: provider}
-            rate_limiter: 限流器实例
+            providers: Provider 实例字典 {provider_name: provider}（可选，默认从 ProviderInstancePool 获取）
+            rate_limiter: 限流器实例（可选，暂未实现）
         """
         self.providers = providers or {}
         self.rate_limiter = rate_limiter
@@ -219,7 +219,16 @@ class TaskExecutor:
     
     async def _execute_single_api_job(self, api_job: ApiJob, api_limits: Dict[str, int]) -> Any:
         """执行单个 ApiJob"""
+        # 优先从 self.providers 获取，如果没有则从 ProviderInstancePool 获取
         provider = self.providers.get(api_job.provider_name)
+        if not provider:
+            try:
+                from app.data_source.providers.provider_instance_pool import get_provider_pool
+                pool = get_provider_pool()
+                provider = pool.get_provider(api_job.provider_name)
+            except Exception as e:
+                logger.error(f"从 ProviderInstancePool 获取 Provider {api_job.provider_name} 失败: {e}")
+        
         if not provider:
             raise ValueError(f"Provider '{api_job.provider_name}' 未找到")
         

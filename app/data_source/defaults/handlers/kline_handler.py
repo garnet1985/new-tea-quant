@@ -1,20 +1,20 @@
-from app.data_source.base_handler import BaseHandler
+from app.data_source.data_source_handler import BaseDataSourceHandler
 from typing import Dict, Any
 
 
-class TushareDailyKlineHandler(BaseHandler):
+class KlineHandler(BaseDataSourceHandler):
     
     async def fetch_and_normalize(self, context: Dict[str, Any]) -> Dict:
         pass
 
 
-class TushareWeeklyKlineHandler(BaseHandler):
+class WeeklyKlineHandler(BaseDataSourceHandler):
     
     async def fetch_and_normalize(self, context: Dict[str, Any]) -> Dict:
         pass
 
 
-class TushareMonthlyKlineHandler(BaseHandler):
+class MonthlyKlineHandler(BaseDataSourceHandler):
     
     async def fetch_and_normalize(self, context: Dict[str, Any]) -> Dict:
         pass

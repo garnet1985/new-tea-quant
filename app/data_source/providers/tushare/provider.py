@@ -30,6 +30,7 @@ class TushareProvider(BaseProvider):
         "get_monthly_kline": 700,       # 月线数据，使用相同限流
         "get_adj_factor": 800,          # 复权因子，使用K线限流
         "get_finance_data": 500,        # 财务数据（fina_indicator接口限制500次/分钟）
+        "get_trade_cal": 200,           # 交易日历，宏观数据接口限制200次/分钟
         "get_gdp": 200,                 # GDP数据，宏观数据接口限制200次/分钟
         "get_cpi": 200,                 # CPI数据，宏观数据接口限制200次/分钟
         "get_ppi": 200,                 # PPI数据，宏观数据接口限制200次/分钟
@@ -347,3 +348,27 @@ class TushareProvider(BaseProvider):
             return self.api.money_supply(**params)
         except Exception as e:
             raise self.handle_error(e, "get_money_supply")
+    
+    def get_trade_cal(self, exchange: str = '', start_date: str = None, end_date: str = None, **kwargs):
+        """
+        获取交易日历
+        
+        Tushare API: trade_cal
+        
+        Args:
+            exchange: 交易所代码（空字符串表示所有交易所）
+            start_date: 开始日期 (YYYYMMDD)
+            end_date: 结束日期 (YYYYMMDD)
+        
+        Returns:
+            DataFrame: 交易日历数据，包含 cal_date 和 is_open 字段
+        """
+        try:
+            params = {"exchange": exchange, **kwargs}
+            if start_date:
+                params["start_date"] = start_date
+            if end_date:
+                params["end_date"] = end_date
+            return self.api.trade_cal(**params)
+        except Exception as e:
+            raise self.handle_error(e, "get_trade_cal")

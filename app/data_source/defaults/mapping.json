@@ -4,7 +4,10 @@
         "stock_list": {
             "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "exclude_bj": true,
+                "api_fields": "ts_code,symbol,name,area,industry,market,exchange,list_date"
+            }
         },
         "daily_kline": {
             "handler": "defaults.handlers.kline_handler.TushareDailyKlineHandler",
@@ -60,6 +63,13 @@
             "handler": "defaults.handlers.macro_handler.MoneySupplyHandler",
             "is_enabled": true,
             "params": {}
+        },
+        "latest_trading_date": {
+            "handler": "defaults.handlers.latest_trading_date_handler.LatestTradingDateHandler",
+            "is_enabled": true,
+            "params": {
+                "backward_checking_days": 15
+            }
         }
     }
 }

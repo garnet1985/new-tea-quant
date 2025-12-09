@@ -28,6 +28,7 @@ class TushareProvider(BaseProvider):
         "get_daily_kline": 700,         # 日线数据，因为daily_basic限制为700
         "get_weekly_kline": 700,        # 周线数据，使用相同限流
         "get_monthly_kline": 700,       # 月线数据，使用相同限流
+        "get_daily_basic": 700,         # 日线基本面数据（限流700次/分钟）
         "get_adj_factor": 800,          # 复权因子，使用K线限流
         "get_finance_data": 500,        # 财务数据（fina_indicator接口限制500次/分钟）
         "get_trade_cal": 200,           # 交易日历，宏观数据接口限制200次/分钟
@@ -325,6 +326,30 @@ class TushareProvider(BaseProvider):
             return self.api.lpr(**params)
         except Exception as e:
             raise self.handle_error(e, "get_lpr")
+    
+    def get_daily_basic(self, ts_code: str, start_date: str = None, end_date: str = None, **kwargs):
+        """
+        获取日线基本面数据
+        
+        Tushare API: daily_basic
+        
+        Args:
+            ts_code: 股票代码
+            start_date: 开始日期 (YYYYMMDD)
+            end_date: 结束日期 (YYYYMMDD)
+        
+        Returns:
+            DataFrame: 日线基本面数据
+        """
+        try:
+            params = {"ts_code": ts_code, **kwargs}
+            if start_date:
+                params["start_date"] = start_date
+            if end_date:
+                params["end_date"] = end_date
+            return self.api.daily_basic(**params)
+        except Exception as e:
+            raise self.handle_error(e, "get_daily_basic")
     
     def get_money_supply(self, start_date: str = None, end_date: str = None, **kwargs):
         """

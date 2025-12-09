@@ -2,12 +2,12 @@
     "_comment": "用户自定义配置，可以覆盖 defaults/mapping.json 的配置",
     "data_sources": {
         "stock_list": {
-            "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
+            "handler": "defaults.handlers.stock_list_handler.StockListHandler",
             "is_enabled": true,
             "params": {}
         },
         "daily_kline": {
-            "handler": "defaults.handlers.kline_handler.TushareDailyKlineHandler",
+            "handler": "defaults.handlers.daily_kline_handler.DailyKlineHandler",
             "is_enabled": true,
             "params": {}
         }

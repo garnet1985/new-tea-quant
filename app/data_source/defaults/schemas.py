@@ -252,6 +252,16 @@ ADJ_FACTOR = DataSourceSchema(
 )
 
 
+# ========== 系统数据源 ==========
+
+LATEST_TRADING_DATE = DataSourceSchema(
+    name="latest_trading_date",
+    description="最新交易日",
+    schema={
+        "date": Field(str, required=True, description="最新交易日（YYYYMMDD格式）"),
+    }
+)
+
 DEFAULT_SCHEMAS = {
     "stock_list": STOCK_LIST,
     "daily_kline": DAILY_KLINE,
@@ -263,5 +273,6 @@ DEFAULT_SCHEMAS = {
     "shibor": SHIBOR,
     "lpr": LPR,
     "adj_factor": ADJ_FACTOR,
+    "latest_trading_date": LATEST_TRADING_DATE,
 }
 

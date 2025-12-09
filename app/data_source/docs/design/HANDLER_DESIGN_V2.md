@@ -13,55 +13,86 @@
 **简化设计，职责分离：**
 
 ```
-Handler 职责：生成 Jobs（带 Schema）→ 框架执行
-框架职责：解析 Job Schema → 决定执行策略 → 执行 → 返回结果
+Handler 职责：生成 Tasks（每个 Task 包含多个 ApiJobs）→ 框架执行
+框架职责：展开 Tasks → 解析 ApiJob Schema → 决定执行策略 → 执行 → 按 Task 分组返回结果
 ```
 
 ### 设计原则
 
-1. **Handler 简单化**：Handler 只需要生成 Jobs，不需要理解复杂的配置格式
-2. **框架智能化**：框架根据 Job Schema 自动决定执行策略（串行/并行、限流、多线程）
-3. **灵活性优先**：Handler 完全控制 Job 生成逻辑，支持复杂场景
-4. **代码可读性**：直接看代码就知道在做什么，不需要理解复杂的配置解析
+1. **Handler 简单化**：Handler 只需要生成 Tasks，不需要理解复杂的配置格式
+2. **Task 层设计**：引入 Task 层，一个 Task 代表一个业务任务，更直观易理解
+3. **框架智能化**：框架根据 ApiJob Schema 自动决定执行策略（串行/并行、限流、多线程）
+4. **灵活性优先**：Handler 完全控制 Task 和 ApiJob 生成逻辑，支持复杂场景
+5. **代码可读性**：直接看代码就知道在做什么，一个 Task 完整展示数据处理流程
 
 ---
 
 ## 🎯 核心组件
 
-### 1. Job Schema（Job 定义）
+### 1. ApiJob 和 DataSourceTask 定义
 
-**定义：** 一个带 Schema 的 Job，包含执行所需的所有信息
+**设计理念：**
+
+- **ApiJob**：单个 API 调用任务（最小执行单元）
+- **DataSourceTask**：业务任务（包含多个 ApiJobs，代表一个完整的数据处理流程）
+
+这样设计的好处：
+- **更直观**：一个 Task 代表一个业务任务（如"获取复权因子"），可以完整看到数据处理流程
+- **更易理解**：不需要读很多代码就能理解一个 Task 包含哪些 API 调用
+- **更易维护**：针对一只股票或一个日期产生的多个 API 调用，都在一个 Task 中
+
+#### ApiJob 定义
 
 ```python
 @dataclass
-class Job:
-    """Job 定义（带 Schema）"""
+class ApiJob:
+    """API Job 定义（带 Schema）"""
     # ========== 执行信息（必需）==========
     provider_name: str           # Provider 名称
     method: str                  # Provider 方法名
     params: Dict[str, Any]       # 调用参数（已计算好）
     
     # ========== 依赖关系（可选）==========
-    depends_on: List[str] = []   # 依赖的 Job ID 列表（用于决定执行顺序）
+    depends_on: List[str] = []   # 依赖的 ApiJob ID 列表（用于决定执行顺序）
     
     # ========== 元信息（可选，用于框架决策）==========
     job_id: Optional[str] = None  # Job ID（用于依赖关系，自动生成）
     api_name: Optional[str] = None  # API 名称（用于限流，默认 = method）
     
     # ========== 可选配置 ==========
-    group_id: Optional[str] = None  # 分组 ID（同一组的 Job 可以一起执行）
     priority: int = 0            # 优先级（数字越大越优先）
     timeout: Optional[float] = None  # 超时时间（秒）
     retry_count: int = 0         # 重试次数
 ```
 
+#### DataSourceTask 定义
+
+```python
+@dataclass
+class DataSourceTask:
+    """DataSource Task 定义"""
+    # ========== 任务信息（必需）==========
+    task_id: str                 # Task ID（唯一标识）
+    api_jobs: List[ApiJob]        # 包含的 ApiJobs 列表
+    
+    # ========== 可选配置 ==========
+    description: Optional[str] = None  # Task 描述
+    merge_callback: Optional[Callable] = None  # 合并回调函数（可选）
+```
+
 **关键字段说明：**
 
-- `provider_name` + `method`：指定调用哪个 Provider 的哪个方法
-- `params`：调用参数（**已计算好**，不需要占位符替换）
-- `depends_on`：依赖关系，框架会自动进行拓扑排序
-- `api_name`：用于限流，框架会从 Provider 获取该 API 的限流信息
-- `group_id`：用于分组执行（如：同一股票的多个周期可以标记为同一组）
+- **ApiJob**：
+  - `provider_name` + `method`：指定调用哪个 Provider 的哪个方法
+  - `params`：调用参数（**已计算好**，不需要占位符替换）
+  - `depends_on`：依赖关系，框架会自动进行拓扑排序
+  - `api_name`：用于限流，框架会从 Provider 获取该 API 的限流信息
+
+- **DataSourceTask**：
+  - `task_id`：Task 的唯一标识
+  - `api_jobs`：包含的 ApiJobs 列表（一个 Task 可以包含多个 ApiJobs）
+  - `description`：Task 描述（可选，用于文档和日志）
+  - `merge_callback`：合并回调函数（可选，框架可以调用此函数合并 ApiJobs 的结果）
 
 ---
 
@@ -100,9 +131,9 @@ class BaseHandler(ABC):
         self._providers = {}
     
     @abstractmethod
-    async def fetch(self, context: Dict[str, Any]) -> List[Job]:
+    async def fetch(self, context: Dict[str, Any]) -> List[DataSourceTask]:
         """
-        生成 Jobs
+        生成 Tasks
         
         Args:
             context: 执行上下文，包含：
@@ -113,22 +144,24 @@ class BaseHandler(ABC):
                 - ... 其他依赖数据源的数据
         
         Returns:
-            List[Job]: 一组编排好的 Jobs（带 Schema）
+            List[DataSourceTask]: 一组编排好的 Tasks（每个 Task 包含多个 ApiJobs）
         
         注意：
-        - Handler 完全控制 Job 生成逻辑
+        - Handler 完全控制 Task 和 ApiJob 生成逻辑
         - 可以查询数据库、计算参数、处理复杂逻辑
         - 参数必须已计算好（不需要占位符替换）
+        - 一个 Task 代表一个业务任务（如：获取复权因子、获取股票 K 线）
+        - 一个 Task 可以包含多个 ApiJobs（如：Tushare API + AKShare API）
         """
         pass
     
     @abstractmethod
-    async def normalize(self, raw_data: Any) -> Dict:
+    async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict:
         """
         将原始数据标准化为框架 schema 格式
         
         Args:
-            raw_data: 框架执行 Jobs 后返回的结果字典 {job_id: result}
+            task_results: 框架执行 Tasks 后返回的结果字典 {task_id: {job_id: result}}
         
         Returns:
             标准化后的数据字典，格式符合 self.schema
@@ -149,47 +182,52 @@ class BaseHandler(ABC):
         """
         pass
     
-    async def after_fetch(self, jobs: List[Job], context: Dict[str, Any]):
+    async def after_fetch(self, tasks: List[DataSourceTask], context: Dict[str, Any]):
         """
-        生成 Jobs 后的钩子（Jobs 还未执行）
+        生成 Tasks 后的钩子（Tasks 还未执行）
         
         可以用于：
-        - 验证 Jobs
+        - 验证 Tasks
         - 记录日志
-        - 统计 Jobs 数量
+        - 统计 Tasks 和 ApiJobs 数量
         """
         pass
     
     # ========== 执行阶段 ==========
-    async def before_execute(self, jobs: List[Job], context: Dict[str, Any]):
+    async def before_execute(self, tasks: List[DataSourceTask], context: Dict[str, Any]):
         """
-        框架执行 Jobs 前的钩子
+        框架执行 Tasks 前的钩子
         
         可以用于：
-        - 最后调整 Jobs
+        - 最后调整 Tasks 或 ApiJobs
         - 记录执行前的状态
-        - 验证 Jobs 配置
+        - 验证 Tasks 配置
         - 设置执行参数
         """
         pass
     
-    async def after_execute(self, raw_data: Dict[str, Any], context: Dict[str, Any]):
+    async def after_execute(
+        self, 
+        task_results: Dict[str, Dict[str, Any]], 
+        context: Dict[str, Any]
+    ):
         """
-        框架执行 Jobs 后的钩子（在 normalize 之前）
+        框架执行 Tasks 后的钩子（在 normalize 之前）
         
         可以用于：
-        - 合并结果（按 group_id 分组处理）
+        - 合并结果（按 Task 处理）
         - 计算业务逻辑（如复权因子计算）
         - 直接入库（如果不需要标准化）
         - 数据预处理
         
         Args:
-            raw_data: 框架执行 Jobs 后返回的结果字典 {job_id: result}
+            task_results: 框架执行 Tasks 后返回的结果字典 {task_id: {job_id: result}}
             context: 执行上下文
         
         注意：
-        - 此时可以访问所有 Jobs 的执行结果
-        - 可以修改 raw_data，传递给后续的 normalize
+        - 此时可以访问所有 Tasks 的执行结果
+        - task_results 的结构：{task_id: {job_id: result}}
+        - 可以修改 task_results，传递给后续的 normalize
         - 如果在这里入库，normalize 可能只需要返回格式化数据
         """
         pass
@@ -384,21 +422,23 @@ class JobExecutor:
 **职责划分：**
 
 - **Handler 职责**：
-  - 生成 Jobs（`fetch()`）
+  - 生成 Tasks（`fetch()`，每个 Task 包含多个 ApiJobs）
   - 标准化数据（`normalize()`）
   - 业务逻辑处理（hooks）
 
 - **框架职责**：
-  - 执行 Jobs（`JobExecutor.execute()`）
+  - 展开 Tasks 为 ApiJobs
+  - 执行 ApiJobs（`TaskExecutor.execute()`）
   - 处理依赖关系（拓扑排序）
   - 应用限流
   - 多线程管理
+  - 按 Task 分组收集结果
 
 **关键钩子：**
 
 - `before_fetch`：数据准备（查询数据库、计算参数）
-- `after_fetch`：Jobs 生成后（还未执行）
-- `before_execute`：框架执行前（可以最后调整 Jobs）
+- `after_fetch`：Tasks 生成后（还未执行）
+- `before_execute`：框架执行前（可以最后调整 Tasks）
 - `after_execute`：框架执行后（可以合并结果、计算业务逻辑、直接入库）
 - `before_normalize`：标准化前
 - `normalize`：标准化数据
@@ -411,25 +451,33 @@ class JobExecutor:
 ### 示例 1：简单的股票列表 Handler
 
 ```python
-class StockListHandler(BaseHandler):
+class StockListHandler(BaseDataSourceHandler):
     data_source = "stock_list"
     renew_type = "refresh"
     description = "获取股票列表"
     
-    async def fetch(self, context: Dict[str, Any]) -> List[Job]:
-        # 生成一个简单的 Job
-        job = Job(
-            provider_name="tushare",
-            method="get_stock_list",
-            params={},
-            depends_on=[],
+    async def fetch(self, context: Dict[str, Any]) -> List[DataSourceTask]:
+        # 生成一个简单的 Task（包含一个 ApiJob）
+        task = DataSourceTask(
+            task_id="stock_list_all",
+            description="获取所有股票列表",
+            api_jobs=[
+                ApiJob(
+                    provider_name="tushare",
+                    method="get_stock_list",
+                    params={},
+                    depends_on=[],
+                )
+            ],
         )
-        return [job]
+        return [task]
     
-    async def normalize(self, raw_data: Dict[str, Any]) -> Dict:
-        # raw_data 是 {job_id: result} 字典
-        # 取第一个（也是唯一一个）Job 的结果
-        result = list(raw_data.values())[0]
+    async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict:
+        # task_results 是 {task_id: {job_id: result}} 字典
+        # 取第一个 Task 的第一个 ApiJob 的结果
+        task_id = "stock_list_all"
+        job_results = task_results.get(task_id, {})
+        result = list(job_results.values())[0] if job_results else []
         
         # 标准化为 schema 格式
         normalized = []
@@ -446,23 +494,24 @@ class StockListHandler(BaseHandler):
 ### 示例 2：复杂的 K 线数据 Handler（增量更新）
 
 ```python
-class StockKlineHandler(BaseHandler):
+class StockKlineHandler(BaseDataSourceHandler):
     data_source = "stock_kline"
     renew_type = "incremental"
     description = "获取股票 K 线数据（日/周/月）"
     
-    async def fetch(self, context: Dict[str, Any]) -> List[Job]:
+    async def fetch(self, context: Dict[str, Any]) -> List[DataSourceTask]:
         # 1. 数据准备
         latest_trade_date = await self._get_latest_trade_date()
         stock_codes = context.get("stock_codes") or await self._get_stock_list()
         
-        # 2. 生成 Jobs
-        jobs = []
+        # 2. 生成 Tasks
+        tasks = []
         for stock_code in stock_codes:
             # 查询数据库，获取上次更新时间
             last_updates = await self._query_last_updates(stock_code)
             
-            # 为每个周期创建 Job
+            # 创建一个 Task：获取股票 K 线（包含 3 个周期的 ApiJobs）
+            api_jobs = []
             for period in ["daily", "weekly", "monthly"]:
                 # 计算起始日期
                 last_update = last_updates.get(period)
@@ -472,8 +521,8 @@ class StockKlineHandler(BaseHandler):
                 if not start_date:
                     continue
                 
-                # 创建 Job
-                job = Job(
+                # 创建 ApiJob
+                api_job = ApiJob(
                     provider_name="tushare",
                     method=f"get_{period}_kline",
                     params={
@@ -483,26 +532,35 @@ class StockKlineHandler(BaseHandler):
                     },
                     api_name=f"get_{period}_kline",  # 用于限流
                     depends_on=[],  # 无依赖
-                    group_id=f"stock_{stock_code}",  # 同一股票的 3 个周期标记为同一组
                 )
-                jobs.append(job)
+                api_jobs.append(api_job)
+            
+            # 如果该股票有需要更新的周期，创建 Task
+            if api_jobs:
+                task = DataSourceTask(
+                    task_id=f"kline_{stock_code}",
+                    description=f"获取股票 {stock_code} 的 K 线数据（日/周/月）",
+                    api_jobs=api_jobs,
+                )
+                tasks.append(task)
         
-        return jobs
+        return tasks
     
-    async def normalize(self, raw_data: Dict[str, Any]) -> Dict:
-        # raw_data 是 {job_id: result} 字典
+    async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict:
+        # task_results 是 {task_id: {job_id: result}} 字典
         # 合并所有周期的数据
         all_klines = []
-        for job_id, result in raw_data.items():
-            for item in result:
-                all_klines.append({
-                    "id": item["ts_code"],
-                    "term": self._extract_term_from_job_id(job_id),
-                    "date": item["trade_date"],
-                    "open": item["open"],
-                    "close": item["close"],
-                    # ... 其他字段
-                })
+        for task_id, job_results in task_results.items():
+            for job_id, result in job_results.items():
+                for item in result:
+                    all_klines.append({
+                        "id": item["ts_code"],
+                        "term": self._extract_term_from_job_id(job_id),
+                        "date": item["trade_date"],
+                        "open": item["open"],
+                        "close": item["close"],
+                        # ... 其他字段
+                    })
         return {"data": all_klines}
     
     async def _query_last_updates(self, stock_code: str) -> Dict[str, str]:
@@ -639,11 +697,12 @@ class StockKlineWithBasicHandler(BaseHandler):
 
 ## 🎓 总结
 
-v3.0 设计通过简化 Handler 接口，将复杂的配置解析逻辑移交给框架，实现了：
+v3.0 设计通过简化 Handler 接口，引入 Task 层，将复杂的配置解析逻辑移交给框架，实现了：
 
-- **简单**：Handler 只需要生成 Jobs
-- **灵活**：完全控制 Job 生成逻辑
-- **强大**：框架自动处理技术细节
+- **简单**：Handler 只需要生成 Tasks（每个 Task 包含多个 ApiJobs）
+- **直观**：一个 Task 代表一个业务任务，可以完整看到数据处理流程
+- **灵活**：完全控制 Task 和 ApiJob 生成逻辑
+- **强大**：框架自动处理技术细节（限流、多线程、依赖处理）
 - **易用**：学习成本低，代码可读性强
 
 ### 关键设计点

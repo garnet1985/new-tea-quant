@@ -9,17 +9,17 @@
             }
         },
         "daily_kline": {
-            "handler": "defaults.handlers.kline_handler.TushareDailyKlineHandler",
+            "handler": "defaults.handlers.daily_kline_handler.DailyKlineHandler",
             "is_enabled": true,
             "params": {}
         },
         "weekly_kline": {
-            "handler": "defaults.handlers.kline_handler.TushareWeeklyKlineHandler",
+            "handler": "defaults.handlers.weekly_kline_handler.WeeklyKlineHandler",
             "is_enabled": true,
             "params": {}
         },
         "monthly_kline": {
-            "handler": "defaults.handlers.kline_handler.TushareMonthlyKlineHandler",
+            "handler": "defaults.handlers.monthly_kline_handler.MonthlyKlineHandler",
             "is_enabled": true,
             "params": {}
         },

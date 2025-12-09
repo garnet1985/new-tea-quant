@@ -241,25 +241,29 @@ class TushareStockListHandler(BaseHandler):
 
 **应该包含：**
 - ✅ 配置加载和 Handler 注册
-- ✅ 全局多线程调度
-- ✅ 全局限流执行（根据 Provider 声明）
+- ✅ 运行所有 enabled 的 handler
+- ✅ 全局多线程调度（可选）
 - ✅ 进度跟踪
 - ✅ 错误汇总
 
 **不应包含：**
 - ❌ 具体的数据获取逻辑
 - ❌ 数据标准化逻辑
+- ❌ 依赖处理（Handler 自己解决）
+- ❌ 限流执行（Handler 自己负责）
 
 ### 关键设计决策
 
 | 功能 | 定义位置 | 执行位置 | 理由 |
 |-----|---------|---------|------|
-| **API 限流信息** | Provider（类属性） | Manager/Executor | Provider 只声明元信息 |
-| **限流执行** | Utils（RateLimiter） | Manager | 全局协调，避免冲突 |
-| **多线程调度** | Manager | Manager | 全局视角，统一管理 |
+| **API 限流信息** | Provider（类属性） | Handler | Provider 只声明元信息 |
+| **限流执行** | Utils（RateLimiter） | Handler | Handler 负责限流逻辑 |
+| **多线程调度** | Manager | Manager | 全局视角，运行所有 enabled handler |
 | **批量处理** | Handler | Handler | 业务逻辑决定 |
 | **数据标准化** | Handler | Handler | 业务逻辑 |
+| **依赖处理** | Handler | Handler | Handler 自己解决依赖 |
 | **认证配置** | Provider | Provider | 基础设施 |
+| **Provider 注入** | mapping.json | Manager | 配置驱动，灵活切换 |
 
 ---
 
@@ -359,7 +363,7 @@ app/data_source/
 
 ## 📄 配置文件设计
 
-### custom/mapping.json
+### defaults/mapping.json（框架默认配置）
 
 **格式：**
 ```json
@@ -367,30 +371,84 @@ app/data_source/
     "data_sources": {
         "stock_list": {
             "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
-            "type": "refresh",
-            "description": "使用默认的 Tushare handler 获取股票列表"
+            "is_enabled": true,
+            "params": {
+                "providers": {
+                    "tushare": {
+                        "token": "${TUSHARE_TOKEN}"
+                    }
+                }
+            }
         },
         "daily_kline": {
-            "handler": "custom.handlers.my_kline_handler.MyKlineHandler",
-            "type": "incremental",
-            "description": "使用我自定义的 handler 获取日线数据"
-        },
-        "central_bank_rate": {
-            "handler": "defaults.handlers.macro_handler.CentralBankRateHandler",
-            "type": "refresh"
+            "handler": "defaults.handlers.kline_handler.TushareDailyKlineHandler",
+            "is_enabled": true,
+            "params": {
+                "providers": {
+                    "tushare": {
+                        "token": "${TUSHARE_TOKEN}"
+                    }
+                }
+            }
         }
     }
 }
 ```
 
 **说明：**
-- `handler`：完整的类路径
+- 框架默认配置，**不应修改**
+- 用户可以通过 `custom/mapping.json` 覆盖
+
+---
+
+### custom/mapping.json（用户自定义配置）
+
+**格式：**
+```json
+{
+    "data_sources": {
+        "stock_list": {
+            "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
+            "is_enabled": true,
+            "params": {
+                "providers": {
+                    "tushare": {
+                        "token": "your_token_here"
+                    }
+                },
+                "custom_param": "value"
+            }
+        },
+        "daily_kline": {
+            "handler": "custom.handlers.my_kline_handler.MyKlineHandler",
+            "is_enabled": true,
+            "params": {
+                "providers": {
+                    "tushare": {
+                        "token": "your_token_here"
+                    },
+                    "akshare": {}
+                }
+            }
+        }
+    }
+}
+```
+
+**说明：**
+- `handler`：完整的类路径（必需）
   - `defaults.handlers.xxx` - 使用框架默认 handler
   - `custom.handlers.xxx` - 使用用户自定义 handler
-- `type`：数据更新类型
-  - `refresh` - 全量刷新
-  - `incremental` - 增量更新
-- `description`：可选说明
+- `is_enabled`：是否启用（默认 true）
+- `params`：自定义参数
+  - `providers`：Provider 配置（可选）
+    - 每个 Provider 的配置（如 token、api_key）
+    - Handler 可以通过 `self.get_param("providers")` 获取
+  - 其他自定义参数：Handler 可以通过 `self.get_param("key")` 获取
+
+**注意：**
+- `type`（renew_type）是 Handler 的类属性，不需要在配置中声明
+- 如果 Handler 有 `dependencies`，Handler 自己负责解决依赖
 
 ---
 
@@ -402,11 +460,25 @@ app/data_source/
     "data_sources": {
         "stock_list": {
             "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
-            "type": "refresh"
+            "is_enabled": true,
+            "params": {
+                "providers": {
+                    "tushare": {
+                        "token": "your_tushare_token"
+                    }
+                }
+            }
         },
         "daily_kline": {
             "handler": "defaults.handlers.kline_handler.TushareDailyKlineHandler",
-            "type": "incremental"
+            "is_enabled": true,
+            "params": {
+                "providers": {
+                    "tushare": {
+                        "token": "your_tushare_token"
+                    }
+                }
+            }
         }
     }
 }
@@ -613,20 +685,44 @@ class DataSourceManager:
     
     def _load_mapping(self):
         """加载 mapping 配置并动态加载 handler"""
-        # 读取用户配置
-        with open('app/data_source/custom/mapping.json') as f:
-            config = json.load(f)
+        # 1. 先加载默认配置
+        defaults_path = 'app/data_source/defaults/mapping.json'
+        custom_path = 'app/data_source/custom/mapping.json'
+        
+        config = {}
+        
+        # 加载默认配置
+        try:
+            with open(defaults_path) as f:
+                defaults_config = json.load(f)
+                config.update(defaults_config.get('data_sources', {}))
+        except FileNotFoundError:
+            logger.warning(f"Default mapping not found: {defaults_path}")
+        
+        # 加载用户配置（覆盖默认）
+        try:
+            with open(custom_path) as f:
+                custom_config = json.load(f)
+                config.update(custom_config.get('data_sources', {}))
+        except FileNotFoundError:
+            logger.warning(f"Custom mapping not found: {custom_path}")
         
         # 动态加载并实例化 handlers
-        for ds_name, ds_config in config['data_sources'].items():
+        for ds_name, ds_config in config.items():
+            # 只加载 enabled 的 handler
+            if not ds_config.get('is_enabled', True):
+                logger.debug(f"⏭️  Skipping disabled handler for '{ds_name}'")
+                continue
+            
             handler = self._load_handler(
                 ds_name, 
-                ds_config['handler']
+                ds_config['handler'],
+                ds_config.get('params', {})
             )
             self._handlers[ds_name] = handler
             logger.info(f"✅ Handler loaded for '{ds_name}'")
     
-    def _load_handler(self, ds_name: str, handler_path: str):
+    def _load_handler(self, ds_name: str, handler_path: str, params: Dict):
         """动态加载 handler"""
         # handler_path 示例:
         # - "defaults.handlers.stock_list_handler.TushareStockListHandler"
@@ -648,8 +744,9 @@ class DataSourceManager:
         if not schema:
             raise ValueError(f"Schema for '{ds_name}' not found")
         
-        # 实例化（传入 schema 和其他依赖）
-        return handler_class(schema, ...)
+        # 实例化（传入 schema 和 params）
+        # Handler 可以从 params 中获取 providers 配置并初始化
+        return handler_class(schema, params)
     
     async def renew(
         self, 
@@ -667,6 +764,10 @@ class DataSourceManager:
         
         Returns:
             标准化后的数据
+        
+        注意：
+        - Manager 不负责处理依赖，Handler 自己解决
+        - Manager 不负责限流，Handler 自己负责
         """
         # 1. 获取 handler
         if ds_name not in self._handlers:
@@ -676,7 +777,7 @@ class DataSourceManager:
         
         logger.info(f"🔄 Renewing '{ds_name}'")
         
-        # 2. 执行 handler
+        # 2. 执行 handler（Handler 自己处理依赖和限流）
         data = await handler.fetch_and_normalize(context)
         
         # 3. 验证数据
@@ -690,6 +791,21 @@ class DataSourceManager:
             logger.info(f"💾 Data saved for '{ds_name}'")
         
         return data
+    
+    async def renew_all(self, context: Dict[str, Any], save: bool = True):
+        """
+        运行所有 enabled 的 handler
+        
+        Args:
+            context: 执行上下文
+            save: 是否保存数据到数据库
+        """
+        for ds_name in self._handlers.keys():
+            try:
+                await self.renew(ds_name, context, save)
+            except Exception as e:
+                logger.error(f"❌ Failed to renew '{ds_name}': {e}")
+                # 继续执行其他 handler
     
     def list_data_sources(self) -> list:
         """列出所有 dataSource"""

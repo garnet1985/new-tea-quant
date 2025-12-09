@@ -1,0 +1,66 @@
+{
+    "_comment": "框架默认配置，不应修改。用户可以通过 custom/mapping.json 覆盖",
+    "data_sources": {
+        "stock_list": {
+            "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "daily_kline": {
+            "handler": "defaults.handlers.kline_handler.TushareDailyKlineHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "weekly_kline": {
+            "handler": "defaults.handlers.kline_handler.TushareWeeklyKlineHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "monthly_kline": {
+            "handler": "defaults.handlers.kline_handler.TushareMonthlyKlineHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "corporate_finance": {
+            "handler": "defaults.handlers.finance_handler.TushareFinanceHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "gdp": {
+            "handler": "defaults.handlers.macro_handler.GDPHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "cpi": {
+            "handler": "defaults.handlers.macro_handler.CPIHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "ppi": {
+            "handler": "defaults.handlers.macro_handler.PPIHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "pmi": {
+            "handler": "defaults.handlers.macro_handler.PMIHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "shibor": {
+            "handler": "defaults.handlers.macro_handler.ShiborHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "lpr": {
+            "handler": "defaults.handlers.macro_handler.LPRHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "money_supply": {
+            "handler": "defaults.handlers.macro_handler.MoneySupplyHandler",
+            "is_enabled": true,
+            "params": {}
+        }
+    }
+}
+

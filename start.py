@@ -53,8 +53,10 @@ class App:
         #   - LabelerService: 标签服务（更新股票标签）
         self.db = self.data_manager.db
         
-        # 3. 创建数据源和策略管理器（复用数据库实例）
-        self.data_source = DataSourceManager(self.db, self.is_verbose)
+        # 3. 创建数据源和策略管理器
+        # 注意：新的 DataSourceManager 使用新的框架，不再依赖 db
+        # 但为了兼容，暂时保留 data_manager 参数
+        self.data_source = DataSourceManager(data_manager=self.data_manager, is_verbose=self.is_verbose)
         self.analyzer = Analyzer(self.db, self.is_verbose)
         self.labeler = LabelerService(self.db)
         
@@ -63,7 +65,7 @@ class App:
 
     async def get_latest_market_open_day(self):
         """获取最新交易日"""
-        return await self.data_source.get_latest_market_open_day()
+        return await self.data_source.fetch("latest_trading_date")
     
     async def renew_data(self, latest_market_open_day: str):
         """更新股票数据"""

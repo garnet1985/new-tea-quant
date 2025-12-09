@@ -237,6 +237,57 @@ LPR = DataSourceSchema(
     }
 )
 
+CPI = DataSourceSchema(
+    name="cpi",
+    description="CPI价格指数数据（月度）",
+    schema={
+        "date": Field(str, required=True, description="月份（YYYYMM）"),
+        "cpi": Field(float, required=True, description="CPI当月值"),
+        "cpi_yoy": Field(float, required=True, description="CPI同比"),
+        "cpi_mom": Field(float, required=True, description="CPI环比"),
+    }
+)
+
+PPI = DataSourceSchema(
+    name="ppi",
+    description="PPI价格指数数据（月度）",
+    schema={
+        "date": Field(str, required=True, description="月份（YYYYMM）"),
+        "ppi": Field(float, required=True, description="PPI当月值"),
+        "ppi_yoy": Field(float, required=True, description="PPI同比"),
+        "ppi_mom": Field(float, required=True, description="PPI环比"),
+    }
+)
+
+PMI = DataSourceSchema(
+    name="pmi",
+    description="PMI采购经理人指数数据（月度）",
+    schema={
+        "date": Field(str, required=True, description="月份（YYYYMM）"),
+        "pmi": Field(float, required=True, description="PMI综合指数"),
+        "pmi_l_scale": Field(float, required=True, description="大型企业PMI"),
+        "pmi_m_scale": Field(float, required=True, description="中型企业PMI"),
+        "pmi_s_scale": Field(float, required=True, description="小型企业PMI"),
+    }
+)
+
+MONEY_SUPPLY = DataSourceSchema(
+    name="money_supply",
+    description="货币供应量数据（月度）",
+    schema={
+        "date": Field(str, required=True, description="月份（YYYYMM）"),
+        "m0": Field(float, required=True, description="M0货币供应量"),
+        "m0_yoy": Field(float, required=True, description="M0同比"),
+        "m0_mom": Field(float, required=True, description="M0环比"),
+        "m1": Field(float, required=True, description="M1货币供应量"),
+        "m1_yoy": Field(float, required=True, description="M1同比"),
+        "m1_mom": Field(float, required=True, description="M1环比"),
+        "m2": Field(float, required=True, description="M2货币供应量"),
+        "m2_yoy": Field(float, required=True, description="M2同比"),
+        "m2_mom": Field(float, required=True, description="M2环比"),
+    }
+)
+
 # ========== 其他数据源 ==========
 
 ADJ_FACTOR = DataSourceSchema(
@@ -269,7 +320,11 @@ DEFAULT_SCHEMAS = {
     "monthly_kline": MONTHLY_KLINE,
     "corporate_finance": CORPORATE_FINANCE,
     "gdp": GDP,
-    "price_indexes": PRICE_INDEXES,  # 包含 CPI/PPI/PMI/货币供应量
+    "price_indexes": PRICE_INDEXES,  # 包含 CPI/PPI/PMI/货币供应量（合并版本）
+    "cpi": CPI,
+    "ppi": PPI,
+    "pmi": PMI,
+    "money_supply": MONEY_SUPPLY,
     "shibor": SHIBOR,
     "lpr": LPR,
     "adj_factor": ADJ_FACTOR,

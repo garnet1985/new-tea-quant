@@ -220,8 +220,78 @@ class DateUtils:
         
         Args:
             date_obj: 日期对象
-            
+        
         Returns:
             str: YYYYMMDD 格式的日期字符串
         """
         return date_obj.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
+    
+    @staticmethod
+    def date_to_quarter(date_str: str) -> str:
+        """
+        将日期（YYYYMMDD）转换为季度（YYYYQ[1-4]）
+        
+        Args:
+            date_str: 日期字符串（YYYYMMDD）
+        
+        Returns:
+            str: 季度字符串（YYYYQ[1-4]）
+        """
+        if not date_str or len(date_str) != 8:
+            raise ValueError(f"日期格式错误: {date_str}，应为 YYYYMMDD 格式")
+        
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        
+        if month <= 3:
+            quarter = 1
+        elif month <= 6:
+            quarter = 2
+        elif month <= 9:
+            quarter = 3
+        else:
+            quarter = 4
+        
+        return f"{year}Q{quarter}"
+    
+    @staticmethod
+    def quarter_to_date(quarter_str: str, is_start: bool = True) -> str:
+        """
+        将季度（YYYYQ[1-4]）转换为日期（YYYYMMDD）
+        
+        Args:
+            quarter_str: 季度字符串（YYYYQ[1-4]）
+            is_start: True 返回季度开始日期，False 返回季度结束日期
+        
+        Returns:
+            str: 日期字符串（YYYYMMDD）
+        """
+        if not quarter_str or len(quarter_str) != 6 or quarter_str[4] != 'Q':
+            raise ValueError(f"季度格式错误: {quarter_str}，应为 YYYYQ[1-4] 格式")
+        
+        year = int(quarter_str[:4])
+        quarter = int(quarter_str[5])
+        
+        if quarter < 1 or quarter > 4:
+            raise ValueError(f"季度值错误: {quarter}，应为 1-4")
+        
+        if is_start:
+            # 季度开始日期
+            if quarter == 1:
+                return f"{year}0101"
+            elif quarter == 2:
+                return f"{year}0401"
+            elif quarter == 3:
+                return f"{year}0701"
+            else:  # quarter == 4
+                return f"{year}1001"
+        else:
+            # 季度结束日期
+            if quarter == 1:
+                return f"{year}0331"
+            elif quarter == 2:
+                return f"{year}0630"
+            elif quarter == 3:
+                return f"{year}0930"
+            else:  # quarter == 4
+                return f"{year}1231"

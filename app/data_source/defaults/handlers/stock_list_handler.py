@@ -1,7 +1,7 @@
 """
 股票列表 Handler
 
-使用 Tushare Provider 获取股票列表，排除北交所
+使用 Tushare Provider 获取股票列表（包含所有交易所）
 """
 from datetime import datetime
 from typing import List, Dict, Any
@@ -16,13 +16,16 @@ class TushareStockListHandler(BaseDataSourceHandler):
     """
     股票列表 Handler
     
-    从 Tushare 获取股票列表，排除北交所（.BJ 结尾）
+    从 Tushare 获取股票列表（包含所有交易所的股票）。
+    
+    配置参数：
+    - api_fields (str): API 字段列表，默认包含所有必要字段
     """
     
     # 类属性（必须定义）
     data_source = "stock_list"
     renew_type = "upsert"  # 使用 upsert 模式，更新现有记录
-    description = "获取股票列表（排除北交所）"
+    description = "获取股票列表"
     dependencies = []  # 无依赖
     
     # 可选类属性
@@ -30,9 +33,6 @@ class TushareStockListHandler(BaseDataSourceHandler):
     
     def __init__(self, schema, params: Dict[str, Any] = None):
         super().__init__(schema, params or {})
-        
-        # 从配置中获取是否排除北交所（默认排除）
-        self.exclude_bj = self.get_param("exclude_bj", True)
         
         # 从配置中获取 API 字段列表（默认使用所有必要字段）
         self.api_fields = self.get_param(
@@ -46,7 +46,7 @@ class TushareStockListHandler(BaseDataSourceHandler):
         
         逻辑：
         1. 调用 Tushare stock_basic API 获取所有股票
-        2. 在 normalize 中处理字段映射和北交所排除
+        2. 在 normalize 中处理字段映射
         """
         context = context or {}
         
@@ -84,12 +84,8 @@ class TushareStockListHandler(BaseDataSourceHandler):
         current_date = datetime.now().strftime('%Y-%m-%d')
         
         for item in records:
-            # 排除北交所（如果配置了）
+            # 字段映射（包含所有交易所的股票）
             ts_code = item.get('ts_code', '')
-            if self.exclude_bj and str(ts_code).endswith('.BJ'):
-                continue
-            
-            # 字段映射
             mapped = {
                 "id": ts_code,
                 "name": item.get('name', ''),
@@ -104,7 +100,7 @@ class TushareStockListHandler(BaseDataSourceHandler):
             if mapped.get('id') and mapped.get('name'):
                 formatted.append(mapped)
         
-        logger.info(f"✅ 股票列表处理完成，共 {len(formatted)} 只股票（已排除BJ: {self.exclude_bj}）")
+        logger.info(f"✅ 股票列表处理完成，共 {len(formatted)} 只股票（包含所有交易所）")
         
         return {
             "data": formatted

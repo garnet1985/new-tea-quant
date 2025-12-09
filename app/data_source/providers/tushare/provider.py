@@ -192,11 +192,11 @@ class TushareProvider(BaseProvider):
         """
         获取 GDP 数据
         
-        Tushare API: gdp
+        Tushare API: cn_gdp
         
         Args:
-            start_date: 开始季度 (YYYYQ[1-4])
-            end_date: 结束季度 (YYYYQ[1-4])
+            start_date: 开始季度 (YYYYQ[1-4])，会转换为 start_q 参数
+            end_date: 结束季度 (YYYYQ[1-4])，会转换为 end_q 参数
         
         Returns:
             DataFrame: GDP数据
@@ -204,10 +204,10 @@ class TushareProvider(BaseProvider):
         try:
             params = kwargs.copy()
             if start_date:
-                params["start_date"] = start_date
+                params["start_q"] = start_date  # Tushare API 使用 start_q
             if end_date:
-                params["end_date"] = end_date
-            return self.api.gdp(**params)
+                params["end_q"] = end_date  # Tushare API 使用 end_q
+            return self.api.cn_gdp(**params)
         except Exception as e:
             raise self.handle_error(e, "get_gdp")
     

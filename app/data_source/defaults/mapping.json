@@ -29,39 +29,129 @@
             "params": {}
         },
         "gdp": {
-            "handler": "defaults.handlers.gdp_handler.GDPHandler",
+            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "provider_name": "tushare",
+                "method": "get_gdp",
+                "date_format": "quarter",
+                "default_date_range": {"years": 5},
+                "field_mapping": {
+                    "quarter": "quarter",
+                    "gdp": "gdp",
+                    "gdp_yoy": "gdp_yoy",
+                    "primary_industry": "pi",
+                    "primary_industry_yoy": "pi_yoy",
+                    "secondary_industry": "si",
+                    "secondary_industry_yoy": "si_yoy",
+                    "tertiary_industry": "ti",
+                    "tertiary_industry_yoy": "ti_yoy"
+                }
+            }
         },
         "cpi": {
-            "handler": "defaults.handlers.cpi_handler.CPIHandler",
+            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "provider_name": "tushare",
+                "method": "get_cpi",
+                "date_format": "month",
+                "default_date_range": {"years": 3},
+                "field_mapping": {
+                    "date": "month",
+                    "cpi": "nt_val",
+                    "cpi_yoy": "nt_yoy",
+                    "cpi_mom": "nt_mom"
+                }
+            }
         },
         "ppi": {
-            "handler": "defaults.handlers.ppi_handler.PPIHandler",
+            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "provider_name": "tushare",
+                "method": "get_ppi",
+                "date_format": "month",
+                "default_date_range": {"years": 3},
+                "field_mapping": {
+                    "date": "month",
+                    "ppi": "ppi_accu",
+                    "ppi_yoy": "ppi_yoy",
+                    "ppi_mom": "ppi_mom"
+                }
+            }
         },
         "pmi": {
-            "handler": "defaults.handlers.pmi_handler.PMIHandler",
+            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "provider_name": "tushare",
+                "method": "get_pmi",
+                "date_format": "month",
+                "default_date_range": {"years": 3},
+                "field_mapping": {
+                    "date": "MONTH",
+                    "pmi": "PMI010000",
+                    "pmi_l_scale": "PMI010100",
+                    "pmi_m_scale": "PMI010200",
+                    "pmi_s_scale": "PMI010300"
+                }
+            }
         },
         "shibor": {
-            "handler": "defaults.handlers.shibor_handler.ShiborHandler",
+            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "provider_name": "tushare",
+                "method": "get_shibor",
+                "date_format": "date",
+                "default_date_range": {"years": 1},
+                "field_mapping": {
+                    "date": "date",
+                    "one_night": "on",
+                    "one_week": "1w",
+                    "one_month": "1m",
+                    "three_month": "3m",
+                    "one_year": "1y"
+                }
+            }
         },
         "lpr": {
-            "handler": "defaults.handlers.lpr_handler.LPRHandler",
+            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "provider_name": "tushare",
+                "method": "get_lpr",
+                "date_format": "date",
+                "default_date_range": {"years": 1},
+                "field_mapping": {
+                    "date": "date",
+                    "lpr_1_y": "1y",
+                    "lpr_5_y": "5y"
+                }
+            }
         },
         "money_supply": {
-            "handler": "defaults.handlers.money_supply_handler.MoneySupplyHandler",
+            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
             "is_enabled": true,
-            "params": {}
+            "params": {
+                "provider_name": "tushare",
+                "method": "get_money_supply",
+                "date_format": "month",
+                "default_date_range": {"years": 3},
+                "field_mapping": {
+                    "date": "month",
+                    "m0": "m0",
+                    "m0_yoy": "m0_yoy",
+                    "m0_mom": "m0_mom",
+                    "m1": "m1",
+                    "m1_yoy": "m1_yoy",
+                    "m1_mom": "m1_mom",
+                    "m2": "m2",
+                    "m2_yoy": "m2_yoy",
+                    "m2_mom": "m2_mom"
+                }
+            }
         },
         "latest_trading_date": {
             "handler": "defaults.handlers.latest_trading_date_handler.LatestTradingDateHandler",
@@ -69,6 +159,11 @@
             "params": {
                 "backward_checking_days": 15
             }
+        },
+        "adj_factor": {
+            "handler": "defaults.handlers.adj_factor_handler.AdjFactorHandler",
+            "is_enabled": true,
+            "params": {}
         }
     }
 }

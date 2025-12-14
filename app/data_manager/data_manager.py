@@ -67,6 +67,9 @@ class DataManager:
         self.macro_loader = None
         self.corporate_finance_loader = None
 
+        # TradingDateCache（交易日缓存）
+        self._trading_date_cache = None
+
         # DataService 容器（按名称索引，例如：'stock'、'macro'、'waly' 等）
         self._data_services: Dict[str, Any] = {}
 
@@ -115,7 +118,13 @@ class DataManager:
             self.macro_loader = MacroEconomyLoader(self.db)
             self.corporate_finance_loader = CorporateFinanceLoader(self.db)
 
-            # 4. 初始化 DataService（按业务领域分类）
+            # 4. 初始化 TradingDateCache
+            if self.is_verbose:
+                logger.info("🔧 初始化 TradingDateCache...")
+            from app.data_manager.data_services.trading_date.trading_date_cache import TradingDateCache
+            self._trading_date_cache = TradingDateCache()
+
+            # 5. 初始化 DataService（按业务领域分类）
             if self.is_verbose:
                 logger.info("🔧 初始化 DataService...")
             self._init_data_services()
@@ -939,3 +948,44 @@ class DataManager:
             })
         
         return result
+    
+    # ==================== 交易日相关方法 ====================
+    
+    def get_latest_trading_date(self) -> str:
+        """
+        获取最新交易日
+        
+        使用 TradingDateCache 获取最新交易日，支持缓存和自动刷新
+        
+        Returns:
+            最新交易日（YYYYMMDD）
+            
+        示例：
+            latest_date = data_manager.get_latest_trading_date()
+        """
+        if not self._trading_date_cache:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._trading_date_cache.get_latest_trading_date()
+    
+    def refresh_trading_date(self) -> str:
+        """
+        强制刷新最新交易日（忽略缓存）
+        
+        Returns:
+            最新交易日（YYYYMMDD）
+        """
+        if not self._trading_date_cache:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._trading_date_cache.refresh()
+    
+    @property
+    def trading_date_cache(self):
+        """
+        获取 TradingDateCache 实例（直接访问）
+        
+        Returns:
+            TradingDateCache 实例
+        """
+        if not self._trading_date_cache:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._trading_date_cache

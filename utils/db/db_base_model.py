@@ -510,9 +510,9 @@ class DbBaseModel:
                     logger.info(f"Large dataset detected ({len(data_list)} records), using async write queue")
                 
                 # 定义回调函数
-                def write_callback(result):
+                def write_callback(table_name, count):
                     if self.db.is_verbose:
-                        logger.info(f"Async write completed for {self.table_name}: {result} records")
+                        logger.info(f"Async write completed for {table_name}: {count} records")
                 
                 # 加入写入队列
                 self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)

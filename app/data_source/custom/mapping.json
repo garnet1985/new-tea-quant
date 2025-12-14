@@ -6,8 +6,8 @@
             "is_enabled": true,
             "params": {}
         },
-        "daily_kline": {
-            "handler": "defaults.handlers.daily_kline_handler.DailyKlineHandler",
+        "kline": {
+            "handler": "defaults.handlers.kline_handler.KlineHandler",
             "is_enabled": true,
             "params": {}
         }

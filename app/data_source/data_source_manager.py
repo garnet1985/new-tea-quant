@@ -125,6 +125,14 @@ class DataSourceManager:
             try:
                 params = ds_config.get("params", {})
                 handler_instance = handler_class(schema, params)
+                
+                # 如果是 SimpleApiHandler，需要设置 data_source 名称
+                if hasattr(handler_instance, 'set_data_source_name'):
+                    handler_instance.set_data_source_name(ds_name)
+                else:
+                    # 其他 handler 的 data_source 应该是类属性，确保一致
+                    handler_instance.data_source = ds_name
+                
                 self._handlers[ds_name] = handler_instance
                 logger.debug(f"✅ 加载 Handler: {ds_name} -> {handler_path}")
             except Exception as e:

@@ -203,6 +203,18 @@ class StockDataService(BaseDataService):
     
     # ==================== 批量操作 ====================
     
+    def save_stocks(self, stocks: List[Dict[str, Any]]) -> int:
+        """
+        批量保存股票列表（自动去重）
+        
+        Args:
+            stocks: 股票数据列表
+            
+        Returns:
+            影响的行数
+        """
+        return self.stock_list.save_stocks(stocks)
+    
     def save_klines(self, klines: List[Dict[str, Any]]) -> int:
         """
         批量保存K线数据（自动去重）

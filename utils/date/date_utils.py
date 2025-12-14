@@ -340,3 +340,71 @@ class DateUtils:
                 return f"{year}0930"
             else:  # quarter == 4
                 return f"{year}1231"
+    
+    @staticmethod
+    def get_previous_week_end(date_str: str) -> str:
+        """
+        获取指定日期所在周的前一周的周日
+        
+        逻辑：
+        1. 找到date所在周的周一
+        2. 前一周的周日 = 本周周一 - 1天
+        
+        例如：
+        - 20250930 (周二) → 本周一=20250929 → 前一周日=20250928
+        - 20251006 (周一) → 本周一=20251006 → 前一周日=20251005
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 前一周的周日，格式YYYYMMDD
+        """
+        date_obj = DateUtils.parse_yyyymmdd(date_str)
+        
+        # 计算本周的周一
+        days_since_monday = date_obj.weekday()  # 周一=0, 周日=6
+        this_week_monday = date_obj - timedelta(days=days_since_monday)
+        
+        # 前一周的周日 = 本周周一 - 1天
+        last_week_sunday = this_week_monday - timedelta(days=1)
+        
+        return last_week_sunday.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
+    
+    @staticmethod
+    def get_previous_month_end(date_str: str) -> str:
+        """
+        获取指定日期所在月的前一个月的最后一天
+        
+        逻辑：
+        1. 找到date所在月
+        2. 计算前一个月的最后一天
+        
+        例如：
+        - 20250930 → 所在月=9月 → 前一月=8月 → 返回 20250831
+        - 20251105 → 所在月=11月 → 前一月=10月 → 返回 20251031
+        - 20250115 → 所在月=1月 → 前一月=12月 → 返回 20241231
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+            
+        Returns:
+            str: 前一个月的最后一天，格式YYYYMMDD
+        """
+        import calendar
+        
+        year = int(date_str[:4])
+        month = int(date_str[4:6])
+        
+        # 前一个月的年月
+        if month == 1:
+            last_month_year = year - 1
+            last_month = 12
+        else:
+            last_month_year = year
+            last_month = month - 1
+        
+        # 前一个月的最后一天
+        last_day = calendar.monthrange(last_month_year, last_month)[1]
+        
+        return f"{last_month_year}{last_month:02d}{last_day:02d}"

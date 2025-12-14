@@ -842,22 +842,22 @@ class DataManager:
             # 加载特定交易所
             stocks = loader.load_stock_list(exchange_center='SSE')
         """
-        # 使用缓存的数据库实例获取股票列表
-        table = self.db.get_table_instance('stock_list')
+        # 使用 Model 获取股票列表
+        stock_list_model = self.get_model('stock_list')
         
         # 优先使用简单条件过滤（性能更好）
         if industry:
-            return table.load_by_industry(industry, order_by)
+            return stock_list_model.load_by_industry(industry, order_by)
         elif stock_type:
-            return table.load_by_type(stock_type, order_by)
+            return stock_list_model.load_by_type(stock_type, order_by)
         elif exchange_center:
-            return table.load_by_exchange_center(exchange_center, order_by)
+            return stock_list_model.load_by_exchange_center(exchange_center, order_by)
         elif filtered:
             # 使用过滤规则（默认行为）
-            return table.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
+            return stock_list_model.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
         else:
             # 加载所有活跃股票（不过滤）
-            return table.load_all_active(order_by)
+            return stock_list_model.load_active_stocks()
     
     def load_klines(self, stock_id: str, term: str = 'daily',
                     start_date: Optional[str] = None, end_date: Optional[str] = None,
@@ -913,7 +913,7 @@ class DataManager:
             }
         """
         # 1. 获取股票基本信息
-        stock_list_model = self.db.get_table_instance('stock_list')
+        stock_list_model = self.get_model('stock_list')
         stock_info = stock_list_model.load_one("id = %s", (stock_id,))
         
         if not stock_info:
@@ -926,8 +926,12 @@ class DataManager:
         }
         
         # 2. 获取最新K线数据
-        kline_model = self.db.get_table_instance('stock_kline')
-        latest_kline = kline_model.get_most_recent_one_by_term(stock_id, 'daily')
+        kline_model = self.get_model('stock_kline')
+        latest_kline = kline_model.load_one(
+            "id = %s AND term = %s",
+            (stock_id, 'daily'),
+            order_by="date DESC"
+        )
         
         if latest_kline:
             result.update({

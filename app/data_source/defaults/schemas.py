@@ -91,9 +91,9 @@ STOCK_LIST = DataSourceSchema(
     }
 )
 
-DAILY_KLINE = DataSourceSchema(
-    name="daily_kline",
-    description="日线数据",
+KLINE = DataSourceSchema(
+    name="kline",
+    description="K线数据（支持 daily/weekly/monthly 周期）",
     schema={
         "id": Field(str, required=True, description="股票代码ts_code"),
         "term": Field(str, required=True, description="K线周期（daily/weekly/monthly）"),
@@ -107,7 +107,7 @@ DAILY_KLINE = DataSourceSchema(
         "price_change_rate_delta": Field(float, required=True, description="涨跌幅"),
         "volume": Field(int, required=True, description="成交量"),
         "amount": Field(float, required=True, description="成交额"),
-        # 以下字段来自 daily_basic API（可选）
+        # 以下字段来自 daily_basic API（可选，主要用于日线数据）
         "turnover_rate": Field(float, required=False, description="换手率"),
         "free_turnover_rate": Field(float, required=False, description="自由流通股换手率"),
         "volume_ratio": Field(float, required=False, description="量比"),
@@ -123,44 +123,6 @@ DAILY_KLINE = DataSourceSchema(
         "free_share": Field(int, required=False, description="自由流通股本"),
         "total_market_value": Field(float, required=False, description="总市值"),
         "circ_market_value": Field(float, required=False, description="流通市值"),
-    }
-)
-
-WEEKLY_KLINE = DataSourceSchema(
-    name="weekly_kline",
-    description="周线数据",
-    schema={
-        "id": Field(str, required=True, description="股票代码ts_code"),
-        "term": Field(str, required=True, description="K线周期（weekly）"),
-        "date": Field(str, required=True, description="交易日期（YYYYMMDD）"),
-        "open": Field(float, required=True, description="开盘价"),
-        "close": Field(float, required=True, description="收盘价"),
-        "highest": Field(float, required=True, description="最高价"),
-        "lowest": Field(float, required=True, description="最低价"),
-        "pre_close": Field(float, required=True, description="昨收价"),
-        "price_change_delta": Field(float, required=True, description="涨跌额"),
-        "price_change_rate_delta": Field(float, required=True, description="涨跌幅"),
-        "volume": Field(int, required=True, description="成交量"),
-        "amount": Field(float, required=True, description="成交额"),
-    }
-)
-
-MONTHLY_KLINE = DataSourceSchema(
-    name="monthly_kline",
-    description="月线数据",
-    schema={
-        "id": Field(str, required=True, description="股票代码ts_code"),
-        "term": Field(str, required=True, description="K线周期（monthly）"),
-        "date": Field(str, required=True, description="交易日期（YYYYMMDD）"),
-        "open": Field(float, required=True, description="开盘价"),
-        "close": Field(float, required=True, description="收盘价"),
-        "highest": Field(float, required=True, description="最高价"),
-        "lowest": Field(float, required=True, description="最低价"),
-        "pre_close": Field(float, required=True, description="昨收价"),
-        "price_change_delta": Field(float, required=True, description="涨跌额"),
-        "price_change_rate_delta": Field(float, required=True, description="涨跌幅"),
-        "volume": Field(int, required=True, description="成交量"),
-        "amount": Field(float, required=True, description="成交额"),
     }
 )
 
@@ -360,9 +322,7 @@ LATEST_TRADING_DATE = DataSourceSchema(
 
 DEFAULT_SCHEMAS = {
     "stock_list": STOCK_LIST,
-    "daily_kline": DAILY_KLINE,
-    "weekly_kline": WEEKLY_KLINE,
-    "monthly_kline": MONTHLY_KLINE,
+    "kline": KLINE,
     "corporate_finance": CORPORATE_FINANCE,
     "gdp": GDP,
     "price_indexes": PRICE_INDEXES,  # 包含 CPI/PPI/PMI/货币供应量（合并版本）

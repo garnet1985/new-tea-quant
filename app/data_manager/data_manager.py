@@ -26,7 +26,7 @@ from app.data_manager.loaders.corporate_finance_loader import CorporateFinanceLo
 from .loaders import KlineLoader
 from .loaders import LabelLoader
 from app.conf.conf import data_default_start_date
-from app.data_source.enums import KlineTerm, AdjustType
+from app.enums import KlineTerm, AdjustType
 from utils.date.date_utils import DateUtils
 
 

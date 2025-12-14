@@ -1,4 +1,4 @@
-from app.data_source.enums import KlineTerm, AdjustType
+from app.enums import KlineTerm, AdjustType
 from app.conf.conf import data_default_start_date
 
 settings = {

@@ -26,8 +26,53 @@ class DataSourceSchema:
         self.description = description
     
     def validate(self, data: dict) -> bool:
-        """验证数据是否符合 schema（待实现）"""
-        pass
+        """
+        验证数据是否符合 schema
+        
+        验证规则：
+        1. 数据必须是字典，且包含 'data' 键
+        2. 'data' 必须是一个列表
+        3. 列表中的每条记录必须包含所有 required 字段
+        4. 字段类型必须匹配（如果提供了值）
+        """
+        if not isinstance(data, dict):
+            return False
+        
+        if 'data' not in data:
+            return False
+        
+        data_list = data['data']
+        if not isinstance(data_list, list):
+            return False
+        
+        # 如果列表为空，认为验证通过（可能是没有数据）
+        if len(data_list) == 0:
+            return True
+        
+        # 验证列表中的每条记录
+        for record in data_list:
+            if not isinstance(record, dict):
+                return False
+            
+            # 检查所有 required 字段是否存在
+            for field_name, field_def in self.schema.items():
+                if field_def.required:
+                    if field_name not in record:
+                        return False
+                    
+                    # 检查字段类型（如果值不是 None）
+                    value = record[field_name]
+                    if value is not None:
+                        # 允许类型转换（int/float 可以互相转换）
+                        expected_type = field_def.type
+                        if expected_type == int and isinstance(value, (int, float)):
+                            continue
+                        elif expected_type == float and isinstance(value, (int, float)):
+                            continue
+                        elif not isinstance(value, expected_type):
+                            return False
+        
+        return True
 
 
 # ========== 股票相关数据源 ==========

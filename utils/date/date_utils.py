@@ -227,6 +227,51 @@ class DateUtils:
         return date_obj.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
     
     @staticmethod
+    def normalize_date(date_str: str) -> Optional[str]:
+        """
+        将各种日期格式标准化为 YYYYMMDD 格式
+        
+        支持的输入格式：
+        - YYYYMMDD (如 "20240101")
+        - YYYY-MM-DD (如 "2024-01-01")
+        
+        Args:
+            date_str: 日期字符串
+        
+        Returns:
+            str: YYYYMMDD 格式的日期字符串，如果无法解析返回 None
+        """
+        if not date_str:
+            return None
+        
+        date_str = str(date_str).strip()
+        
+        # 如果已经是 YYYYMMDD 格式
+        if len(date_str) == 8 and date_str.isdigit():
+            return date_str
+        
+        # 如果是 YYYY-MM-DD 格式
+        if len(date_str) == 10 and date_str.count('-') == 2:
+            try:
+                return DateUtils.yyyy_mm_dd_to_yyyymmdd(date_str)
+            except ValueError:
+                return None
+        
+        # 尝试其他格式
+        try:
+            # 尝试解析为常见格式
+            for fmt in [DateUtils.DATE_FORMAT_YYYY_MM_DD, DateUtils.DATE_FORMAT_YYYYMMDD]:
+                try:
+                    date_obj = datetime.strptime(date_str, fmt)
+                    return date_obj.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
+                except ValueError:
+                    continue
+        except Exception:
+            pass
+        
+        return None
+    
+    @staticmethod
     def date_to_quarter(date_str: str) -> str:
         """
         将日期（YYYYMMDD）转换为季度（YYYYQ[1-4]）

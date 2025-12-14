@@ -153,7 +153,7 @@ class DatabaseManager:
         重置默认实例（主要用于测试）
         """
         cls._default_instance = None
-    
+
     def initialize(self):
         """
         初始化数据库管理器（仅基础设施）
@@ -253,7 +253,7 @@ class DatabaseManager:
             
             if self.is_verbose:
                 logger.info(f"✅ 连接池初始化完成（最小: {pool_config.get('pool_size_min', 5)}, 最大: {pool_config.get('pool_size_max', 30)}）")
-                
+            
         except Exception as e:
             logger.error(f"❌ 连接池初始化失败: {e}")
             raise
@@ -459,7 +459,7 @@ class DatabaseManager:
             
             if not data_list:
                 return
-            
+        
             columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
             query = f"""
                 INSERT INTO {table_name} ({', '.join(columns)}) 
@@ -472,7 +472,7 @@ class DatabaseManager:
             
             if callback:
                 callback(table_name, len(data_list))
-                
+                    
         except Exception as e:
             logger.error(f"Failed to write to {table_name}: {e}")
             raise

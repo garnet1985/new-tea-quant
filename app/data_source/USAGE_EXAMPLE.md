@@ -24,7 +24,8 @@ result = await data_source.fetch(
 )
 
 # 自动保存到数据库（如果 data_manager 已配置）
-result = await data_source.fetch("data_source_name", save=True)
+result = await data_source.fetch("data_source_name")
+# 注意：数据保存由 Handler 在 after_normalize 钩子中自动处理
 ```
 
 ### 3. 实际使用示例

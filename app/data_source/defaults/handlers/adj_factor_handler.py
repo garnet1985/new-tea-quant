@@ -36,7 +36,7 @@ class AdjFactorHandler(BaseDataSourceHandler):
     data_source = "adj_factor"
     renew_type = "incremental"  # 增量更新
     description = "获取复权因子数据"
-    dependencies = ["stock_list", "daily_kline"]  # 依赖股票列表和日线数据
+    dependencies = ["stock_list", "kline"]  # 依赖股票列表和K线数据（需要 term="daily"）
     
     # 可选类属性
     requires_date_range = True  # 需要日期范围参数

@@ -8,18 +8,8 @@
                 "api_fields": "ts_code,symbol,name,area,industry,market,exchange,list_date"
             }
         },
-        "daily_kline": {
-            "handler": "defaults.handlers.daily_kline_handler.DailyKlineHandler",
-            "is_enabled": true,
-            "params": {}
-        },
-        "weekly_kline": {
-            "handler": "defaults.handlers.weekly_kline_handler.WeeklyKlineHandler",
-            "is_enabled": true,
-            "params": {}
-        },
-        "monthly_kline": {
-            "handler": "defaults.handlers.monthly_kline_handler.MonthlyKlineHandler",
+        "kline": {
+            "handler": "defaults.handlers.kline_handler.KlineHandler",
             "is_enabled": true,
             "params": {}
         },

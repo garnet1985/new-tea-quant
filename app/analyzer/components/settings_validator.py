@@ -28,7 +28,7 @@ class SettingsValidator:
             'industry_capital_flow': dict,    # 行业资本流动配置
         }
         
-        from app.data_source.enums import KlineTerm
+        from app.enums import KlineTerm
         self.valid_base_terms = [term.value for term in KlineTerm if term != KlineTerm.YEARLY]
         self.valid_additional_terms = [term.value for term in KlineTerm]
     

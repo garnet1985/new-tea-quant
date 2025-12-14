@@ -64,11 +64,22 @@ class App:
         self.analyzer.initialize()
 
     async def get_latest_market_open_day(self):
-        """获取最新交易日"""
-        return await self.data_source.fetch("latest_trading_date")
+        """
+        获取最新交易日
+        
+        Returns:
+            str: 最新交易日（YYYYMMDD 格式）
+        """
+        # 使用 data_manager 的 TradingDateCache（更高效）
+        return self.data_manager.get_latest_trading_date()
     
-    async def renew_data(self, latest_market_open_day: str):
-        """更新股票数据"""
+    async def renew_data(self, latest_market_open_day: str = None):
+        """
+        更新股票数据（使用新的 DataSourceManager）
+        
+        Args:
+            latest_market_open_day: 最新交易日（可选，如果不提供则自动获取）
+        """
         await self.data_source.renew_data(latest_market_open_day)
     
     def renew_labels(self, last_market_open_day: str, is_refresh: bool = False):

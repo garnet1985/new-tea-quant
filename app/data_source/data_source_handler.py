@@ -160,8 +160,9 @@ class BaseDataSourceHandler(ABC):
         可以用于：
         - 合并结果（按 Task 处理）
         - 计算业务逻辑（如复权因子计算）
-        - 直接入库（如果不需要标准化）
+        - 直接入库（如果不需要标准化，可以在这里调用 _save_to_data_manager）
         - 数据预处理
+        - 按 Task 保存数据（每个 Task 完成后保存，适合大数据量场景）
         
         Args:
             task_results: 框架执行 Tasks 后返回的结果字典 {task_id: {job_id: result}}
@@ -171,7 +172,8 @@ class BaseDataSourceHandler(ABC):
         - 此时可以访问所有 Tasks 的执行结果
         - task_results 的结构：{task_id: {job_id: result}}
         - 可以修改 task_results，传递给后续的 normalize
-        - 如果在这里入库，normalize 可能只需要返回格式化数据
+        - 如果在这里保存数据，需要先标准化 task_results，然后调用 _save_to_data_manager
+        - 适合场景：每个 Task 代表一个完整业务单元（如一只股票的 K 线数据），需要按 Task 保存
         """
         pass
     
@@ -193,8 +195,43 @@ class BaseDataSourceHandler(ABC):
         可以用于：
         - 数据后处理
         - 记录日志
+        - 保存数据到数据库（通过 _save_to_data_manager）
         """
         pass
+    
+    # ========== 数据保存辅助方法 ==========
+    
+    def _validate_data_for_save(self, normalized_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        验证数据格式，返回数据列表
+        
+        这是一个辅助方法，用于验证标准化后的数据格式。
+        具体的保存逻辑应该在 Handler 的钩子函数中实现。
+        
+        Args:
+            normalized_data: 标准化后的数据（包含 'data' 键）
+        
+        Returns:
+            数据列表，如果验证失败返回空列表
+        
+        注意：
+        - 此方法只做数据验证，不执行保存操作
+        - 具体的保存逻辑应该在 Handler 的钩子函数中实现
+        """
+        if not self.data_manager:
+            logger.warning(f"{self.data_source} Handler 未设置 data_manager，无法保存数据")
+            return []
+        
+        if 'data' not in normalized_data:
+            logger.warning(f"{self.data_source} 数据格式不正确，缺少 'data' 键")
+            return []
+        
+        data_list = normalized_data['data']
+        if not data_list:
+            logger.debug(f"{self.data_source} 没有数据需要保存")
+            return []
+        
+        return data_list
     
     # ========== 错误处理 ==========
     async def on_error(self, error: Exception, context: Dict[str, Any]):

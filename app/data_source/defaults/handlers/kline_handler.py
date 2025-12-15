@@ -80,13 +80,14 @@ class KlineHandler(BaseDataSourceHandler):
         """
         context = context or {}
         
-        # 1. 获取股票列表（从数据库读取）
+        # 1. 获取股票列表（从数据库读取，使用过滤规则排除ST、科创板等）
         if "stock_list" not in context:
             if self.data_manager:
                 try:
-                    stock_list = self.data_manager.load_stock_list(filtered=False)
+                    # 使用过滤规则，排除ST、科创板等（不是所有股票都需要renew）
+                    stock_list = self.data_manager.load_stock_list(filtered=True)
                     context["stock_list"] = stock_list
-                    logger.info(f"✅ 从数据库获取股票列表，共 {len(stock_list)} 只股票")
+                    logger.info(f"✅ 从数据库获取股票列表（已过滤），共 {len(stock_list)} 只股票")
                 except Exception as e:
                     logger.warning(f"查询股票列表失败: {e}")
                     context["stock_list"] = []

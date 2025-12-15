@@ -842,22 +842,41 @@ class DataManager:
             # 加载特定交易所
             stocks = loader.load_stock_list(exchange_center='SSE')
         """
-        # 使用 Model 获取股票列表
-        stock_list_model = self.get_model('stock_list')
+        # 使用 StockDataService 获取股票列表（业务逻辑层）
+        stock_service = self.get_data_service('stock_related.stock')
+        
+        if not stock_service:
+            # 如果 Service 未初始化，降级到 Model 层（向后兼容）
+            stock_list_model = self.get_model('stock_list')
+            if industry:
+                return stock_list_model.load_by_industry(industry, order_by)
+            elif stock_type:
+                return stock_list_model.load_by_type(stock_type, order_by)
+            elif exchange_center:
+                return stock_list_model.load_by_exchange_center(exchange_center, order_by)
+            elif filtered:
+                # 降级：直接使用 Service 的过滤方法（如果可能）
+                logger.warning("StockDataService 未初始化，使用 Model 层（过滤功能不可用）")
+                return stock_list_model.load_active_stocks()
+            else:
+                return stock_list_model.load_active_stocks()
         
         # 优先使用简单条件过滤（性能更好）
         if industry:
+            stock_list_model = self.get_model('stock_list')
             return stock_list_model.load_by_industry(industry, order_by)
         elif stock_type:
+            stock_list_model = self.get_model('stock_list')
             return stock_list_model.load_by_type(stock_type, order_by)
         elif exchange_center:
+            stock_list_model = self.get_model('stock_list')
             return stock_list_model.load_by_exchange_center(exchange_center, order_by)
         elif filtered:
-            # 使用过滤规则（默认行为）
-            return stock_list_model.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
+            # 使用 Service 层的过滤规则（业务逻辑）
+            return stock_service.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
         else:
             # 加载所有活跃股票（不过滤）
-            return stock_list_model.load_active_stocks()
+            return stock_service.load_all_stocks()
     
     def load_klines(self, stock_id: str, term: str = 'daily',
                     start_date: Optional[str] = None, end_date: Optional[str] = None,

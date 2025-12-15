@@ -5,8 +5,85 @@ Task 执行器
 """
 from typing import Dict, Any, List
 from loguru import logger
+import time
+import threading
 
 from app.data_source.api_job import ApiJob, DataSourceTask
+
+
+class RateLimiter:
+    """
+    固定窗口限流器（不使用 buffer，直接使用注册的限流值）
+    
+    核心设计：
+    1. 窗口起点对齐到分钟（自然分钟边界）
+    2. sleep 不在锁里，使用条件变量通知等待线程
+    3. 每个 (provider, api_name) 一个 limiter
+    4. 并发线程只会阻塞自己，不会拖死别人
+    """
+    
+    def __init__(self, max_per_minute: int, api_name: str = "default"):
+        """
+        初始化限流器
+        
+        Args:
+            max_per_minute: 每分钟最大请求数（不使用 buffer）
+            api_name: API 名称，用于日志
+        """
+        self.max_per_minute = max_per_minute
+        self.api_name = api_name
+        
+        # 窗口对齐到自然分钟
+        self.lock = threading.Lock()
+        self.condition = threading.Condition(self.lock)
+        self.window_start = self._current_window()
+        self.count = 0
+    
+    def _current_window(self) -> int:
+        """
+        获取当前窗口的起始时间戳（对齐到自然分钟）
+        
+        Returns:
+            当前分钟的开始时间戳（秒）
+        """
+        return int(time.time() // 60) * 60
+    
+    def acquire(self) -> None:
+        """
+        获取 API 调用许可
+        
+        如果达到限制，会等待直到下一个窗口（使用条件变量，不阻塞其他线程）
+        """
+        while True:
+            now = time.time()
+            current_window = self._current_window()
+            
+            with self.lock:
+                # 新窗口：重置计数
+                if current_window != self.window_start:
+                    self.window_start = current_window
+                    self.count = 0
+                    # 通知所有等待的线程
+                    self.condition.notify_all()
+                
+                # 如果还有配额，直接返回
+                if self.count < self.max_per_minute:
+                    self.count += 1
+                    return  # 允许请求
+                
+                # 需要等待到下一个窗口
+                next_window_start = self.window_start + 60
+                sleep_time = next_window_start - now
+                
+                if sleep_time > 0:
+                    # 使用条件变量等待，而不是 sleep
+                    # 这样其他线程可以继续工作，只有这个线程等待
+                    logger.debug(f"⏸️  {self.api_name} API: 当前窗口已调用 {self.count} 次（限制: {self.max_per_minute}/分钟），等待 {sleep_time:.1f} 秒到下一窗口...")
+                    # 等待到下一个窗口开始，或者被通知（窗口重置时）
+                    self.condition.wait(timeout=sleep_time)
+                else:
+                    # 如果 sleep_time <= 0，说明已经到下一个窗口了，继续循环
+                    continue
 
 
 class TaskExecutor:
@@ -27,24 +104,25 @@ class TaskExecutor:
         
         Args:
             providers: Provider 实例字典 {provider_name: provider}（可选，默认从 ProviderInstancePool 获取）
-            rate_limiter: 限流器实例（可选，暂未实现）
+            rate_limiter: 限流器实例（可选，如果为 None，会根据 API 限流自动创建）
         """
         self.providers = providers or {}
         self.rate_limiter = rate_limiter
+        
+        # 限流器缓存（按 api_name 缓存）
+        self._rate_limiters: Dict[str, RateLimiter] = {}
+        self._rate_limiters_lock = threading.Lock()
     
     async def execute(self, tasks: List[DataSourceTask]) -> Dict[str, Dict[str, Any]]:
         """
-        执行 Tasks
+        执行 Tasks（使用多线程，根据 task 数量自动分配线程数，最多10个）
         
         流程：
-        1. 展开 Tasks 为 ApiJobs
-        2. 为每个 ApiJob 生成 job_id（如果未提供）
-        3. 解析依赖关系（拓扑排序）
-        4. 获取限流信息（从 Provider）
-        5. 决定执行策略（线程数）
-        6. 按阶段执行 ApiJobs
-        7. 按 Task 分组收集结果
-        8. 返回结果 {task_id: {job_id: result}}
+        1. 根据 task 数量决定线程数（最多10个）
+        2. 使用 FuturesWorker 并行执行 tasks
+        3. 每个 task 内部执行其所有 ApiJobs（处理依赖关系）
+        4. 显示进度信息
+        5. 返回结果 {task_id: {job_id: result}}
         
         Args:
             tasks: Task 列表
@@ -55,28 +133,219 @@ class TaskExecutor:
         if not tasks:
             return {}
         
-        # 1. 展开 Tasks 为 ApiJobs
-        all_api_jobs = []
-        task_job_mapping = {}  # {job_id: task_id} 映射
+        # 计算每个 task 的最小限流值（木桶效应）
+        task_rate_limits = self._calculate_task_rate_limits(tasks)
         
-        for task in tasks:
-            for api_job in task.api_jobs:
-                all_api_jobs.append(api_job)
-                task_job_mapping[api_job.job_id] = task.task_id
+        # 根据 task 数量决定线程数（最多10个）
+        workers = self._decide_workers_by_task_count(len(tasks))
         
-        # 2. 执行所有 ApiJobs（统一拓扑排序和执行）
-        job_results = await self._execute_api_jobs(all_api_jobs)
+        # 根据最小限流值调整线程数（木桶效应：取所有 task 的最小限流值的最小值）
+        if task_rate_limits:
+            min_rate_limit = min(task_rate_limits.values())
+            # 线程数不能超过限流值（每分钟请求数）
+            # 保守估计：使用限流值的 80% 作为最大并发数
+            max_workers_by_rate_limit = int(min_rate_limit * 0.8)
+            workers = min(workers, max_workers_by_rate_limit)
+            logger.info(f"📊 共 {len(tasks)} 个 Tasks，最小限流: {min_rate_limit}/分钟，使用 {workers} 个线程执行")
+        else:
+            logger.info(f"📊 共 {len(tasks)} 个 Tasks，使用 {workers} 个线程执行")
         
-        # 3. 按 Task 分组结果
+        # 如果只有1个 task，直接执行
+        if len(tasks) == 1:
+            task = tasks[0]
+            task_result = await self._execute_single_task(task)
+            return {task.task_id: task_result}
+        
+        # 多个 tasks，使用多线程执行
+        from utils.worker.multi_thread.futures_worker import FuturesWorker, ExecutionMode
+        import threading
+        
+        # 初始化进度计数器
+        progress_lock = threading.Lock()
+        completed_tasks = 0
+        total_tasks = len(tasks)
+        
+        # 创建多线程工作器
+        worker = FuturesWorker(
+            max_workers=workers,
+            execution_mode=ExecutionMode.PARALLEL,
+            enable_monitoring=True,
+            timeout=3600,  # 1小时超时
+            is_verbose=False  # 禁用详细日志，我们自己控制进度显示
+        )
+        
+        # 存储结果
         task_results = {}
-        for job_id, result in job_results.items():
-            task_id = task_job_mapping.get(job_id)
-            if task_id:
-                if task_id not in task_results:
-                    task_results[task_id] = {}
-                task_results[task_id][job_id] = result
+        results_lock = threading.Lock()
+        
+        # 定义任务执行器（带进度显示）
+        def task_executor(task: DataSourceTask) -> Dict[str, Any]:
+            """执行单个 Task（同步函数，用于 FuturesWorker）"""
+            import asyncio
+            
+            # 在事件循环中执行异步任务
+            # 使用 nest_asyncio 来处理嵌套的事件循环
+            try:
+                import nest_asyncio
+                nest_asyncio.apply()
+            except ImportError:
+                pass  # nest_asyncio 未安装，使用其他方法
+            
+            try:
+                # 尝试获取当前事件循环
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，创建新的事件循环
+                    import concurrent.futures
+                    import threading
+                    future = concurrent.futures.Future()
+                    
+                    def _run():
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            result = new_loop.run_until_complete(self._execute_single_task(task))
+                            future.set_result(result)
+                        except Exception as e:
+                            future.set_exception(e)
+                        finally:
+                            new_loop.close()
+                    
+                    thread = threading.Thread(target=_run)
+                    thread.start()
+                    thread.join()
+                    result = future.result()
+                else:
+                    # 如果事件循环没有运行，直接运行
+                    result = loop.run_until_complete(self._execute_single_task(task))
+            except RuntimeError:
+                # 如果没有事件循环，创建新的
+                result = asyncio.run(self._execute_single_task(task))
+            
+            # 保存结果
+            with results_lock:
+                task_results[task.task_id] = result
+            
+            # 更新进度
+            with progress_lock:
+                nonlocal completed_tasks
+                completed_tasks += 1
+                progress_percent = (completed_tasks / total_tasks) * 100
+                
+                # 尝试从 task 中提取股票信息（用于更友好的进度显示）
+                stock_info = ""
+                if task.api_jobs:
+                    first_job = task.api_jobs[0]
+                    stock_id = first_job.params.get("ts_code", "")
+                    if stock_id:
+                        stock_info = f" {stock_id}"
+                
+                logger.info(f"✅ Task{stock_info} 完成 - 进度: {progress_percent:.1f}% ({completed_tasks}/{total_tasks})")
+            
+            return result
+        
+        # 设置任务执行器
+        worker.set_job_executor(task_executor)
+        
+        # 添加所有任务
+        for task in tasks:
+            worker.add_job(task.task_id, task)
+        
+        # 执行任务
+        try:
+            stats = worker.run_jobs()
+            success_count = stats.get('completed_jobs', 0)
+            failed_count = stats.get('failed_jobs', 0)
+            
+            if failed_count > 0:
+                logger.warning(f"⚠️ 部分 Tasks 执行失败: {failed_count}/{total_tasks}")
+            else:
+                logger.info(f"✅ 所有 Tasks 执行完成: {success_count}/{total_tasks}")
+        except Exception as e:
+            logger.error(f"❌ 多线程执行失败: {e}")
+            import traceback
+            traceback.print_exc()
         
         return task_results
+    
+    async def _execute_single_task(self, task: DataSourceTask) -> Dict[str, Any]:
+        """
+        执行单个 Task（执行其所有 ApiJobs）
+        
+        处理依赖关系，按阶段执行 ApiJobs
+        """
+        # 执行该 task 的所有 ApiJobs
+        api_jobs = task.api_jobs
+        job_results = await self._execute_api_jobs(api_jobs)
+        
+        # 返回 {job_id: result} 字典
+        return job_results
+    
+    def _calculate_task_rate_limits(self, tasks: List[DataSourceTask]) -> Dict[str, int]:
+        """
+        计算每个 task 的限流值（木桶效应：取该 task 所有 ApiJobs 的最小限流值）
+        
+        Args:
+            tasks: Task 列表
+            
+        Returns:
+            Dict[str, int]: {task_id: min_rate_limit} 字典
+        """
+        task_rate_limits = {}
+        
+        for task in tasks:
+            # 收集该 task 所有 ApiJobs 的限流值
+            api_limits = []
+            
+            for api_job in task.api_jobs:
+                # 从 Provider 获取限流值
+                provider = self.providers.get(api_job.provider_name)
+                if not provider:
+                    try:
+                        from app.data_source.providers.provider_instance_pool import get_provider_pool
+                        pool = get_provider_pool()
+                        provider = pool.get_provider(api_job.provider_name)
+                    except Exception:
+                        pass
+                
+                if provider and hasattr(provider, 'get_api_limit'):
+                    limit = provider.get_api_limit(api_job.api_name or api_job.method)
+                    if limit:
+                        api_limits.append(limit)
+            
+            # 木桶效应：取最小值
+            if api_limits:
+                task_rate_limits[task.task_id] = min(api_limits)
+            else:
+                # 如果没有限流信息，使用默认值（保守估计）
+                task_rate_limits[task.task_id] = 200  # 默认 200 次/分钟
+        
+        return task_rate_limits
+    
+    def _decide_workers_by_task_count(self, task_count: int) -> int:
+        """
+        根据 task 数量决定线程数（最多10个）
+        
+        策略：
+        1. 如果 task 数量 <= 1，使用单线程
+        2. 如果 task 数量 <= 5，使用 2 线程
+        3. 如果 task 数量 <= 10，使用 3 线程
+        4. 如果 task 数量 <= 20，使用 5 线程
+        5. 如果 task 数量 <= 50，使用 8 线程
+        6. 否则使用 10 线程（最大）
+        """
+        if task_count <= 1:
+            return 1
+        elif task_count <= 5:
+            return 2
+        elif task_count <= 10:
+            return 3
+        elif task_count <= 20:
+            return 5
+        elif task_count <= 50:
+            return 8
+        else:
+            return 10  # 最大10个线程
     
     async def _execute_api_jobs(self, api_jobs: List[ApiJob]) -> Dict[str, Any]:
         """
@@ -182,43 +451,39 @@ class TaskExecutor:
         
         return api_limits
     
-    def _decide_workers(self, api_jobs: List[ApiJob], api_limits: Dict[str, int]) -> int:
+    def _decide_workers(self, api_jobs: List[ApiJob], api_limits: Dict[str, int] = None) -> int:
         """
-        决定线程数
+        决定线程数（用于单个 task 内部的 api_jobs 执行）
         
         策略：
-        1. 如果 ApiJob 数量 < 10，使用单线程
-        2. 根据最严格的 API 限流计算最大并发数（限流的 80%）
-        3. 线程数不超过 ApiJob 数量
-        4. 应用最大/最小线程数限制
+        1. 如果 ApiJob 数量 <= 1，使用单线程
+        2. 否则使用 2 线程（task 内部的小规模并行）
         """
         total_jobs = len(api_jobs)
         
-        if total_jobs < 10:
+        if total_jobs <= 1:
             return 1
-        
-        if api_limits:
-            # 取最严格的限流
-            min_limit = min(api_limits.values())
-            # 保守估计：使用限流的 80%
-            max_concurrent = int(min_limit * 0.8)
         else:
-            # 默认限流：60 次/分钟
-            max_concurrent = 48  # 60 * 0.8
-        
-        # 线程数不超过 ApiJob 数量
-        workers = min(max_concurrent, total_jobs)
-        
-        # 应用最大限制（最多 10 线程）
-        workers = min(workers, 10)
-        
-        # 应用最小限制（至少 1 线程）
-        workers = max(workers, 1)
-        
-        return workers
+            return 2  # task 内部使用少量线程
     
-    async def _execute_single_api_job(self, api_job: ApiJob, api_limits: Dict[str, int]) -> Any:
-        """执行单个 ApiJob"""
+    def _get_rate_limiter(self, api_name: str, max_per_minute: int) -> RateLimiter:
+        """
+        获取或创建限流器（按 api_name 缓存）
+        
+        Args:
+            api_name: API 名称
+            max_per_minute: 每分钟最大请求数
+            
+        Returns:
+            RateLimiter 实例
+        """
+        with self._rate_limiters_lock:
+            if api_name not in self._rate_limiters:
+                self._rate_limiters[api_name] = RateLimiter(max_per_minute, api_name)
+            return self._rate_limiters[api_name]
+    
+    async def _execute_single_api_job(self, api_job: ApiJob, api_limits: Dict[str, int] = None) -> Any:
+        """执行单个 ApiJob（应用限流）"""
         # 优先从 self.providers 获取，如果没有则从 ProviderInstancePool 获取
         provider = self.providers.get(api_job.provider_name)
         if not provider:
@@ -232,9 +497,15 @@ class TaskExecutor:
         if not provider:
             raise ValueError(f"Provider '{api_job.provider_name}' 未找到")
         
-        # 应用限流
-        if self.rate_limiter:
-            await self.rate_limiter.acquire(api_job.api_name or api_job.method)
+        # 应用限流（不使用 buffer，直接使用注册的限流值）
+        api_name = api_job.api_name or api_job.method
+        if hasattr(provider, 'get_api_limit'):
+            rate_limit = provider.get_api_limit(api_name)
+            if rate_limit:
+                # 获取或创建限流器
+                limiter = self._get_rate_limiter(api_name, rate_limit)
+                # 同步调用（限流器是同步的）
+                limiter.acquire()
         
         # 调用 Provider 方法
         method = getattr(provider, api_job.method, None)
@@ -260,14 +531,33 @@ class TaskExecutor:
         api_limits: Dict[str, int]
     ) -> Dict[str, Any]:
         """
-        并行执行多个 ApiJobs
+        并行执行多个 ApiJobs（用于单个 task 内部）
         
-        TODO: 实现多线程执行逻辑
-        目前先串行执行，后续实现多线程
+        使用 asyncio.gather 进行异步并行执行
         """
-        results = {}
-        for api_job in api_jobs:
+        if len(api_jobs) == 1:
+            # 单个任务，直接执行
+            api_job = api_jobs[0]
             result = await self._execute_single_api_job(api_job, api_limits)
-            results[api_job.job_id] = result
+            return {api_job.job_id: result}
+        
+        # 多个任务，使用 asyncio.gather 并行执行
+        import asyncio
+        
+        # 创建任务列表
+        tasks = [self._execute_single_api_job(api_job, api_limits) for api_job in api_jobs]
+        
+        # 并行执行
+        results_list = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 构建结果字典
+        results = {}
+        for api_job, result in zip(api_jobs, results_list):
+            if isinstance(result, Exception):
+                logger.error(f"ApiJob {api_job.job_id} 执行失败: {result}")
+                results[api_job.job_id] = None
+            else:
+                results[api_job.job_id] = result
+        
         return results
 

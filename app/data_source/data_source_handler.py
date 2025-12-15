@@ -256,7 +256,7 @@ class BaseDataSourceHandler(ABC):
         
         Args:
             context: 执行上下文
-            executor: JobExecutor 实例（如果为 None，框架会自动创建）
+            executor: TaskExecutor 实例（如果为 None，框架会自动创建）
         
         Returns:
             标准化后的数据字典

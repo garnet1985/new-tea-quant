@@ -281,20 +281,21 @@ class BaseHandler(ABC):
 
 ---
 
-### 3. 框架执行器（JobExecutor）
+### 3. 框架执行器（TaskExecutor）
 
-**定义：** 框架负责解析 Job Schema 并执行
+**定义：** 框架负责解析 Task 和 ApiJob Schema 并执行
 
 ```python
-class JobExecutor:
+class TaskExecutor:
     """
     框架执行器
     
     职责：
-    1. 解析 Job Schema（依赖关系、限流信息等）
-    2. 决定执行策略（串行/并行、线程数、限流）
-    3. 执行 Jobs
-    4. 收集结果
+    1. 展开 Tasks 为 ApiJobs
+    2. 解析 ApiJob Schema（依赖关系、限流信息等）
+    3. 决定执行策略（串行/并行、线程数、限流）
+    4. 执行 ApiJobs
+    5. 按 Task 分组收集结果
     """
     
     def __init__(self, providers: Dict[str, Provider], rate_limiter: RateLimiter):
@@ -394,7 +395,7 @@ class JobExecutor:
    ├─ before_execute(jobs, context)  # 钩子：框架执行前
    │  └─ 最后调整 Jobs、设置执行参数
    │
-   ├─ 框架执行（JobExecutor.execute(jobs)）
+   ├─ 框架执行（TaskExecutor.execute(tasks)）
    │  ├─ 生成 job_id
    │  ├─ 拓扑排序（根据 depends_on）
    │  ├─ 获取限流信息（从 Provider）
@@ -674,7 +675,7 @@ class StockKlineWithBasicHandler(BaseHandler):
 
 ## 📝 待实现功能
 
-1. **JobExecutor**：框架执行器
+1. **TaskExecutor**：框架执行器
    - 拓扑排序
    - 限流管理
    - 多线程执行

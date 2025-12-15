@@ -60,7 +60,115 @@ class StockDataService(BaseDataService):
         Returns:
             股票列表
         """
-        return self.stock_list.load(order_by="id ASC")
+        return self.stock_list.load_active_stocks()
+    
+    def load_filtered_stock_list(
+        self, 
+        exclude_patterns: Optional[Dict[str, List[str]]] = None,
+        order_by: str = 'id'
+    ) -> List[Dict[str, Any]]:
+        """
+        加载过滤后的股票列表（排除ST、科创板等）
+        
+        默认过滤规则（参考 analyzer_settings.py）：
+        - 排除 id 以 "688" 开头的（科创板）
+        - 排除 name 以 "*ST"、"ST"、"退" 开头的（ST股票和退市股票）
+        - 注意：北交所（BJ）不排除（根据用户要求）
+        
+        Args:
+            exclude_patterns: 自定义排除规则（可选）
+                {
+                    "start_with": {
+                        "id": ["688"],
+                        "name": ["*ST", "ST", "退"]
+                    },
+                    "contains": {
+                        "id": ["BJ"]  # 如果需要排除北交所，可以传入
+                    }
+                }
+            order_by: 排序字段（默认 'id'）
+            
+        Returns:
+            List[Dict]: 过滤后的股票列表
+        """
+        # 默认过滤规则
+        default_exclude = {
+            "start_with": {
+                "id": ["688"],  # 科创板
+                "name": ["*ST", "ST", "退"]  # ST股票和退市股票
+            },
+            "contains": {
+                # 注意：北交所（BJ）不排除（根据用户要求）
+            }
+        }
+        
+        # 合并用户自定义规则
+        if exclude_patterns:
+            exclude = exclude_patterns.copy()
+            # 合并 start_with
+            if "start_with" in exclude_patterns:
+                exclude["start_with"] = {
+                    **default_exclude["start_with"],
+                    **exclude_patterns["start_with"]
+                }
+            else:
+                exclude["start_with"] = default_exclude["start_with"]
+            # 合并 contains
+            if "contains" in exclude_patterns:
+                exclude["contains"] = {
+                    **default_exclude["contains"],
+                    **exclude_patterns["contains"]
+                }
+            else:
+                exclude["contains"] = default_exclude["contains"]
+        else:
+            exclude = default_exclude
+        
+        # 加载所有活跃股票
+        all_stocks = self.stock_list.load_active_stocks()
+        
+        # 应用过滤规则
+        filtered_stocks = []
+        for stock in all_stocks:
+            stock_id = str(stock.get('id', ''))
+            stock_name = str(stock.get('name', ''))
+            
+            # 检查是否应该排除
+            should_exclude = False
+            
+            # 检查 start_with 规则
+            for field, patterns in exclude.get("start_with", {}).items():
+                value = stock_id if field == "id" else stock_name
+                for pattern in patterns:
+                    if value.startswith(pattern):
+                        should_exclude = True
+                        break
+                if should_exclude:
+                    break
+            
+            # 检查 contains 规则
+            if not should_exclude:
+                for field, patterns in exclude.get("contains", {}).items():
+                    value = stock_id if field == "id" else stock_name
+                    for pattern in patterns:
+                        if pattern in value:
+                            should_exclude = True
+                            break
+                    if should_exclude:
+                        break
+            
+            if not should_exclude:
+                filtered_stocks.append(stock)
+        
+        # 排序
+        if order_by:
+            try:
+                filtered_stocks.sort(key=lambda x: x.get(order_by, ''))
+            except Exception as e:
+                logger.warning(f"排序失败，使用默认排序: {e}")
+                filtered_stocks.sort(key=lambda x: x.get('id', ''))
+        
+        return filtered_stocks
     
     # ==================== K线数据 ====================
     

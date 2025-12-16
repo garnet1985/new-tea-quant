@@ -47,11 +47,12 @@ class AdjFactorEventModel(DbBaseModel):
             List[str]: 需要更新的股票代码列表
         """
         # 使用 SQL 查询：找出每个股票的最新 event_date，然后筛选超过N天的
+        # event_date 是 YYYYMMDD 格式的字符串，需要转换为日期进行比较
         query = f"""
             SELECT id, MAX(event_date) as latest_event_date
             FROM {self.table_name}
             GROUP BY id
-            HAVING latest_event_date < DATE_SUB(CURDATE(), INTERVAL %s DAY)
+            HAVING STR_TO_DATE(latest_event_date, '%%Y%%m%%d') < DATE_SUB(CURDATE(), INTERVAL %s DAY)
             OR latest_event_date IS NULL
         """
         
@@ -105,7 +106,7 @@ class AdjFactorEventModel(DbBaseModel):
         """
         从CSV文件导入数据
         
-        CSV格式：id,event_date,adj_factor,constant_diff
+        CSV格式：id,event_date,tushare_factor,qfq_diff
         
         Args:
             file_path: CSV文件路径（如果为None，自动查找最新的CSV文件）
@@ -127,8 +128,8 @@ class AdjFactorEventModel(DbBaseModel):
             # 读取CSV
             df = pd.read_csv(file_path)
             
-            # 检查必需的列（包括 constant_diff，保持与导出格式一致）
-            required_columns = ['id', 'event_date', 'adj_factor', 'constant_diff']
+            # 检查必需的列（包括 qfq_diff，保持与导出格式一致）
+            required_columns = ['id', 'event_date', 'tushare_factor', 'qfq_diff']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 logger.error(f"CSV文件缺少必需的列: {missing_columns}")
@@ -137,11 +138,18 @@ class AdjFactorEventModel(DbBaseModel):
             # 转换数据格式
             events = []
             for _, row in df.iterrows():
+                event_date_str = str(row['event_date'])
+                # 统一转换为 YYYYMMDD 格式
+                if '-' in event_date_str:
+                    event_date_ymd = event_date_str.replace('-', '')
+                else:
+                    event_date_ymd = event_date_str
+                
                 event = {
                     'id': str(row['id']),
-                    'event_date': DateUtils.normalize_date(str(row['event_date'])),  # 统一为 YYYY-MM-DD
-                    'adj_factor': float(row['adj_factor']),
-                    'constant_diff': float(row.get('constant_diff', 0.0)),
+                    'event_date': event_date_ymd,  # YYYYMMDD 格式
+                    'tushare_factor': float(row['tushare_factor']),
+                    'qfq_diff': float(row.get('qfq_diff', 0.0)),
                 }
                 events.append(event)
             
@@ -160,7 +168,7 @@ class AdjFactorEventModel(DbBaseModel):
         """
         导出数据到CSV文件
         
-        CSV格式：id,event_date,adj_factor,constant_diff
+        CSV格式：id,event_date,tushare_factor,qfq_diff
         
         Args:
             file_path: CSV文件路径（如果为None，使用当前季度的文件名）
@@ -184,7 +192,7 @@ class AdjFactorEventModel(DbBaseModel):
             df = pd.DataFrame(all_events)
             
             # 只保留需要的列
-            export_columns = ['id', 'event_date', 'adj_factor', 'constant_diff']
+            export_columns = ['id', 'event_date', 'tushare_factor', 'qfq_diff']
             df_export = df[export_columns].copy()
             
             # 保存为CSV
@@ -243,27 +251,30 @@ class AdjFactorEventModel(DbBaseModel):
         """
         查询指定日期范围内的所有复权因子事件（用于K线复权计算）
         
-        返回该日期范围内的所有复权因子和 constant_diff，按日期升序排列。
+        返回该日期范围内的所有复权因子和 qfq_diff，按日期升序排列。
         如果 end_date 为 None，返回从 start_date 到最新的所有记录。
         
         Args:
             stock_id: 股票代码
-            start_date: 开始日期（YYYY-MM-DD 或 YYYYMMDD）
-            end_date: 结束日期（可选，YYYY-MM-DD 或 YYYYMMDD），如果为 None 则查询到最新
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（可选，YYYYMMDD），如果为 None 则查询到最新
         
         Returns:
             复权因子事件列表，每个事件包含：
                 - id: 股票代码
-                - event_date: 除权日期
-                - adj_factor: 复权因子
-                - constant_diff: 价格差异
+                - event_date: 除权日期（YYYYMMDD）
+                - tushare_factor: 复权因子
+                - qfq_diff: 价格差异
         """
-        query = "id = %s AND event_date >= %s"
+        # 确保日期格式为 YYYYMMDD
+        start_date_ymd = start_date.replace('-', '') if '-' in start_date else start_date
         if end_date:
-            query += " AND event_date <= %s"
-            return self.load(query, (stock_id, start_date, end_date), order_by="event_date ASC")
+            end_date_ymd = end_date.replace('-', '') if '-' in end_date else end_date
+            query = "id = %s AND event_date >= %s AND event_date <= %s"
+            return self.load(query, (stock_id, start_date_ymd, end_date_ymd), order_by="event_date ASC")
         else:
-            return self.load(query, (stock_id, start_date), order_by="event_date ASC")
+            query = "id = %s AND event_date >= %s"
+            return self.load(query, (stock_id, start_date_ymd), order_by="event_date ASC")
     
     def load_factor_by_date(self, stock_id: str, date: str) -> Optional[Dict[str, Any]]:
         """
@@ -273,14 +284,16 @@ class AdjFactorEventModel(DbBaseModel):
         
         Args:
             stock_id: 股票代码
-            date: 查询日期（YYYY-MM-DD 或 YYYYMMDD）
+            date: 查询日期（YYYYMMDD）
         
         Returns:
-            复权因子事件字典，包含 adj_factor 和 constant_diff
+            复权因子事件字典，包含 tushare_factor 和 qfq_diff
         """
+        # 确保日期格式为 YYYYMMDD
+        date_ymd = date.replace('-', '') if '-' in date else date
         return self.load_one(
             "id = %s AND event_date <= %s",
-            (stock_id, date),
+            (stock_id, date_ymd),
             order_by="event_date DESC"
         )
     
@@ -300,46 +313,50 @@ class AdjFactorEventModel(DbBaseModel):
             order_by="event_date DESC"
         )
     
-    def load_latest_constant_diff(self, stock_id: str, date: str) -> float:
+    def load_latest_qfq_diff(self, stock_id: str, date: str) -> float:
         """
-        查询与 AKShare 的价格差异（使用最近的有效差异）
+        查询与EastMoney前复权价格的价格差异（使用最近的有效差异）
         
         Args:
             stock_id: 股票代码
-            date: 查询日期（YYYY-MM-DD 或 YYYYMMDD）
+            date: 查询日期（YYYYMMDD）
         
         Returns:
-            constantDiff，如果没有找到返回 0.0
+            qfq_diff，如果没有找到返回 0.0
         """
         result = self.load_factor_by_date(stock_id, date)
-        if result and result.get('constant_diff') is not None:
-            return float(result['constant_diff'])
+        if result and result.get('qfq_diff') is not None:
+            return float(result['qfq_diff'])
         return 0.0
     
     def save_event(
         self, 
         stock_id: str, 
         event_date: str, 
-        adj_factor: float, 
-        constant_diff: float = 0.0
+        tushare_factor: float, 
+        qfq_diff: float = 0.0
     ) -> int:
         """
         保存复权因子事件（自动去重）
         
         Args:
             stock_id: 股票代码
-            event_date: 除权日期（YYYY-MM-DD 或 YYYYMMDD）
-            adj_factor: 复权因子
-            constant_diff: 与 AKShare 的价格差异
+            event_date: 除权日期（YYYYMMDD）
+            tushare_factor: Tushare复权因子
+            qfq_diff: 与EastMoney前复权价格的价格差异
         
         Returns:
             影响的行数
         """
+        # 确保日期格式为 YYYYMMDD
+        event_date_ymd = event_date.replace('-', '') if '-' in event_date else event_date
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         event_data = {
             'id': stock_id,
-            'event_date': event_date,
-            'adj_factor': adj_factor,
-            'constant_diff': constant_diff,
+            'event_date': event_date_ymd,
+            'tushare_factor': tushare_factor,
+            'qfq_diff': qfq_diff,
+            'last_update': now,
         }
         
         return self.replace([event_data], unique_keys=['id', 'event_date'])
@@ -351,11 +368,25 @@ class AdjFactorEventModel(DbBaseModel):
         Args:
             events: 复权因子事件列表，每个事件必须包含：
                 - id: 股票代码
-                - event_date: 除权日期
-                - adj_factor: 复权因子
-                - constant_diff: 价格差异（可选，默认0.0）
+                - event_date: 除权日期（YYYYMMDD）
+                - tushare_factor: 复权因子
+                - qfq_diff: 价格差异（可选，默认0.0）
         
         Returns:
             影响的行数
         """
-        return self.replace(events, unique_keys=['id', 'event_date'])
+        if not events:
+            return 0
+        
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        normalized_events: List[Dict[str, Any]] = []
+        for e in events:
+            data = dict(e)
+            # 确保 event_date 为 YYYYMMDD 格式
+            if 'event_date' in data:
+                event_date_str = str(data['event_date'])
+                data['event_date'] = event_date_str.replace('-', '') if '-' in event_date_str else event_date_str
+            data.setdefault('last_update', now)
+            normalized_events.append(data)
+        
+        return self.replace(normalized_events, unique_keys=['id', 'event_date'])

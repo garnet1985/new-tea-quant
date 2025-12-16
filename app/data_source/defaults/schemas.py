@@ -299,13 +299,24 @@ MONEY_SUPPLY = DataSourceSchema(
 
 ADJ_FACTOR = DataSourceSchema(
     name="adj_factor",
-    description="复权因子数据",
+    description="复权因子数据（旧表，每日存储）",
     schema={
         "id": Field(str, required=True, description="股票代码ts_code"),
         "date": Field(str, required=True, description="复权事件日期（YYYYMMDD）"),
         "qfq": Field(float, required=True, description="前复权因子"),
         "hfq": Field(float, required=True, description="后复权因子"),
         "last_update": Field(str, required=False, description="记录创建时间（可选，数据库自动生成）"),
+    }
+)
+
+ADJ_FACTOR_EVENT = DataSourceSchema(
+    name="adj_factor_event",
+    description="复权因子事件数据（新表，只存储除权日）",
+    schema={
+        "id": Field(str, required=True, description="股票代码ts_code"),
+        "event_date": Field(str, required=True, description="除权除息日期（YYYY-MM-DD）"),
+        "adj_factor": Field(float, required=True, description="复权因子 F(t)"),
+        "constant_diff": Field(float, required=False, description="与 AKShare 前复权价格的固定差异"),
     }
 )
 
@@ -333,6 +344,7 @@ DEFAULT_SCHEMAS = {
     "shibor": SHIBOR,
     "lpr": LPR,
     "adj_factor": ADJ_FACTOR,
+    "adj_factor_event": ADJ_FACTOR_EVENT,
     "latest_trading_date": LATEST_TRADING_DATE,
 }
 

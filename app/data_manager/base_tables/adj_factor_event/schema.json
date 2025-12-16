@@ -11,40 +11,30 @@
         },
         {
             "name": "event_date",
-            "type": "date",
+            "type": "varchar",
+            "length": 8,
             "isRequired": true,
-            "description": "除权除息日期（YYYY-MM-DD）"
+            "description": "除权除息日期（YYYYMMDD）"
         },
         {
-            "name": "adj_factor",
-            "type": "decimal",
-            "precision": 12,
-            "scale": 6,
+            "name": "tushare_factor",
+            "type": "float",
             "isRequired": true,
-            "description": "复权因子 F(t)，用于计算前复权价格"
+            "description": "Tushare复权因子 F(t)，用于计算前复权价格"
         },
         {
-            "name": "constant_diff",
-            "type": "decimal",
-            "precision": 12,
-            "scale": 4,
+            "name": "qfq_diff",
+            "type": "float",
             "isRequired": false,
             "default": 0.0,
-            "description": "与 AKShare 前复权价格的固定差异（constantDiff），只在除权日更新"
+            "description": "与EastMoney前复权价格的固定差异（qfq_diff），只在除权日更新"
         },
         {
-            "name": "created_at",
-            "type": "datetime",
-            "isRequired": true,
-            "default": "CURRENT_TIMESTAMP",
-            "description": "记录创建时间"
-        },
-        {
-            "name": "updated_at",
+            "name": "last_update",
             "type": "datetime",
             "isRequired": true,
             "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-            "description": "记录更新时间"
+            "description": "记录最后更新时间"
         }
     ],
     "indexes": [

@@ -902,6 +902,43 @@ class DataManager:
             stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
         )
     
+    def load_qfq_klines(
+        self,
+        stock_id: str,
+        term: str = 'daily',
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        加载前复权（QFQ）K线数据（使用新的 adj_factor_event 表）
+        
+        使用新的 adj_factor_event 表计算前复权价格：
+        qfq_price = raw_price × F(t) / F(T) + constantDiff
+        
+        Args:
+            stock_id: 股票代码
+            term: 周期（daily/weekly/monthly，默认 daily）
+            start_date: 开始日期（YYYYMMDD 或 YYYY-MM-DD，可选）
+            end_date: 结束日期（YYYYMMDD 或 YYYY-MM-DD，可选）
+        
+        Returns:
+            List[Dict]: 前复权K线数据列表，每条记录包含原始字段 + qfq_* 字段：
+                - 原始字段：id, term, date, open, close, high, low, pre_close, ...
+                - 前复权字段：qfq_open, qfq_close, qfq_high, qfq_low, qfq_pre_close
+        
+        示例:
+            # 加载平安银行的前复权日线数据
+            qfq_klines = data_manager.load_qfq_klines('000001.SZ', 'daily', '20240101', '20241231')
+            for kline in qfq_klines:
+                print(f"{kline['date']}: 原始收盘价={kline['close']}, 前复权收盘价={kline['qfq_close']}")
+        """
+        stock_service = self.get_data_service('stock_related.stock')
+        if stock_service:
+            return stock_service.load_qfq_klines(stock_id, term, start_date, end_date)
+        else:
+            logger.warning("StockDataService 未初始化，无法加载前复权K线数据")
+            return []
+    
     def get_stock_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
         获取股票基本信息和最新价格

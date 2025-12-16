@@ -154,6 +154,14 @@
             "handler": "defaults.handlers.adj_factor_handler.AdjFactorHandler",
             "is_enabled": true,
             "params": {}
+        },
+        "adj_factor_event": {
+            "handler": "defaults.handlers.adj_factor_event_handler.AdjFactorEventHandler",
+            "is_enabled": true,
+            "params": {
+                "update_threshold_days": 15,
+                "max_workers": 10
+            }
         }
     }
 }

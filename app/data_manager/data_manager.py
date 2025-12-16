@@ -160,7 +160,7 @@ class DataManager:
         """
         # 表名到 Model 类的映射
         from app.data_manager.base_tables import (
-            StockKlineModel, StockListModel, AdjFactorModel,
+            StockKlineModel, StockListModel, AdjFactorModel, AdjFactorEventModel,
             GdpModel, PriceIndexesModel, ShiborModel, LprModel,
             CorporateFinanceModel, StockLabelsModel,
             InvestmentTradesModel, InvestmentOperationsModel,
@@ -173,6 +173,7 @@ class DataManager:
             'stock_kline': StockKlineModel,
             'stock_list': StockListModel,
             'adj_factor': AdjFactorModel,
+            'adj_factor_event': AdjFactorEventModel,
             'gdp': GdpModel,
             'price_indexes': PriceIndexesModel,
             'shibor': ShiborModel,

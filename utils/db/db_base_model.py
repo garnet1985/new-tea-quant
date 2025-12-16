@@ -353,6 +353,54 @@ class DbBaseModel:
             logger.error(f"加载最新记录失败 [{self.table_name}]: {e}")
             return []
     
+    def load_first_records(self, date_field: str = None, primary_keys: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        加载每个主键分组中最早日期的记录
+        
+        常用于：
+        - 获取每只股票的第一根K线日期
+        - 需要全局“起点记录”的场景
+        
+        Args:
+            date_field: 日期字段名（如果为None，从schema中自动获取）
+            primary_keys: 主键列表（如果为None，从schema中自动获取）
+            
+        Returns:
+            List[Dict]: 最早记录列表
+        """
+        if date_field is None:
+            date_field = self._get_date_field_from_schema()
+        
+        if primary_keys is None:
+            primary_keys = self._get_primary_keys_from_schema()
+        
+        # 过滤掉日期字段（日期字段不用于分组）
+        group_keys = [k for k in primary_keys if k != date_field]
+        
+        if not group_keys:
+            # 没有分组键，返回最早的一条记录
+            first_record = self.load_one("1=1", order_by=f"{date_field} ASC")
+            return [first_record] if first_record else []
+        
+        group_keys_str = ', '.join(group_keys)
+        query = f"""
+            SELECT t1.*
+            FROM {self.table_name} t1
+            INNER JOIN (
+                SELECT {group_keys_str}, MIN({date_field}) as min_date
+                FROM {self.table_name}
+                GROUP BY {group_keys_str}
+            ) t2
+            ON {' AND '.join([f't1.{k} = t2.{k}' for k in group_keys])}
+            AND t1.{date_field} = t2.min_date
+        """
+        
+        try:
+            return self.db.execute_sync_query(query)
+        except Exception as e:
+            logger.error(f"加载最早记录失败 [{self.table_name}]: {e}")
+            return []
+    
     def _get_date_field_from_schema(self) -> str:
         """
         从schema中获取日期字段名

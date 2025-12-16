@@ -21,6 +21,7 @@ Base Tables Models - 所有基础表的 Model 类
 from .stock_kline.model import StockKlineModel
 from .stock_list.model import StockListModel
 from .adj_factor.model import AdjFactorModel
+from .adj_factor_event.model import AdjFactorEventModel
 from .gdp.model import GdpModel
 from .price_indexes.model import PriceIndexesModel
 from .shibor.model import ShiborModel
@@ -38,6 +39,7 @@ __all__ = [
     'StockKlineModel',
     'StockListModel',
     'AdjFactorModel',
+    'AdjFactorEventModel',
     'GdpModel',
     'PriceIndexesModel',
     'ShiborModel',

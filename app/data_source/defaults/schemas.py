@@ -314,9 +314,9 @@ ADJ_FACTOR_EVENT = DataSourceSchema(
     description="复权因子事件数据（新表，只存储除权日）",
     schema={
         "id": Field(str, required=True, description="股票代码ts_code"),
-        "event_date": Field(str, required=True, description="除权除息日期（YYYY-MM-DD）"),
-        "adj_factor": Field(float, required=True, description="复权因子 F(t)"),
-        "constant_diff": Field(float, required=False, description="与 AKShare 前复权价格的固定差异"),
+        "event_date": Field(str, required=True, description="除权除息日期（YYYYMMDD）"),
+        "tushare_factor": Field(float, required=True, description="Tushare 复权因子 F(t)"),
+        "qfq_diff": Field(float, required=False, description="与 EastMoney 前复权价格的固定差异（raw_price - eastmoney_qfq）"),
     }
 )
 

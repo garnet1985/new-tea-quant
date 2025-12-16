@@ -566,11 +566,15 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                 # 从东方财富 API 获取前复权价格
                 eastmoney_qfq = self._parse_eastmoney_qfq_price(eastmoney_result, event_date_ymd)
                 
-                # 计算 qfq_diff
+                # 计算 qfq_diff = raw_price - EastMoney_QFQ
+                # 根据分析结论：在除权日之前的一个区间内，Tushare 裸价 与 EastMoney 前复权价 的差值为常量
                 qfq_diff = 0.0
                 if eastmoney_qfq is not None:
-                    qfq_diff = eastmoney_qfq - tushare_qfq
-                    logger.debug(f"{stock_id} {event_date_ymd}: Tushare_QFQ={tushare_qfq:.2f}, EastMoney_QFQ={eastmoney_qfq:.2f}, Diff={qfq_diff:.4f}")
+                    qfq_diff = raw_close - eastmoney_qfq
+                    logger.debug(
+                        f"{stock_id} {event_date_ymd}: raw_close={raw_close:.2f}, "
+                        f"EastMoney_QFQ={eastmoney_qfq:.2f}, qfq_diff(raw-sot)={qfq_diff:.4f}"
+                    )
                 else:
                     logger.warning(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格，qfq_diff 设为 0.0")
                 

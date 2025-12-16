@@ -435,8 +435,10 @@ class StockDataService(BaseDataService):
                     # 后续事件日期都大于当前K线日期，停止更新
                     break
             
-            # 计算前复权价格（使用当前适用的因子）
-            F_t = current_factor
+            # 计算前复权价格
+            # 根据最新结论：在除权日之间的区间内，Tushare 裸价 与 EastMoney 前复权价 的差值为常量 qfq_diff
+            # 因此这里直接使用 qfq_price = raw_price - qfq_diff
+            F_t = current_factor  # 预留字段，当前算法不再使用 F_t / F_T
             applicable_qfq_diff = current_qfq_diff
             
             # 复制原始K线数据
@@ -448,7 +450,8 @@ class StockDataService(BaseDataService):
                 if raw_value is not None:
                     try:
                         raw_price = float(raw_value)
-                        qfq_price = raw_price * F_t / F_T + applicable_qfq_diff
+                        # EastMoney 风格前复权：qfq_price = raw_price - qfq_diff
+                        qfq_price = raw_price - applicable_qfq_diff
                         # 使用映射后的字段名（highest -> high, lowest -> low）
                         output_field = field_mapping.get(field, field)
                         qfq_kline[f'qfq_{output_field}'] = qfq_price

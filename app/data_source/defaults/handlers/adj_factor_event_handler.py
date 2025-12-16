@@ -54,6 +54,75 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         self.eastmoney_min_interval = 60.0 / 60.0  # 每次请求间隔（秒）
         self._last_eastmoney_request_time = 0.0
     
+    # ========== 私有 Helper（调度与状态判断）==========
+
+    def _is_adj_factor_event_table_empty(self, model) -> bool:
+        """
+        判断 adj_factor_event 表是否为空。
+        
+        仅作为业务语义封装，底层调用 Model.is_table_empty()。
+        """
+        return model.is_table_empty()
+
+    def _is_adj_factor_csv_usable(self, model) -> bool:
+        """
+        判断当前是否存在“可用”的 CSV 快照。
+        
+        可用的定义：
+        - 能找到最新 CSV 文件
+        - 文件存在且可读取
+        - 至少包含 id / event_date / tushare_factor / qfq_diff 四个字段
+        """
+        import os
+        import pandas as pd
+
+        latest_csv = model.get_latest_csv_file()
+        if not latest_csv:
+            return False
+        if not os.path.exists(latest_csv):
+            return False
+
+        try:
+            # 仅读取少量行做字段校验，避免大文件带来的开销
+            df = pd.read_csv(latest_csv, nrows=10)
+            required_cols = {'id', 'event_date', 'tushare_factor', 'qfq_diff'}
+            missing = required_cols - set(df.columns)
+            if missing:
+                from loguru import logger
+                logger.warning(f"CSV 文件缺少必需列 {missing}，视为不可用: {latest_csv}")
+                return False
+            return True
+        except Exception as e:
+            from loguru import logger
+            logger.warning(f"读取/校验 CSV 失败，视为不可用: {latest_csv}, error={e}")
+            return False
+
+    def _stocks_with_existing_factors(self, model) -> List[str]:
+        """
+        返回当前 adj_factor_event 表中，已经存在复权因子事件的股票ID列表。
+        
+        后续可用于计算覆盖率，当前主要用于调试与统计。
+        """
+        return model.load_all_stock_ids()
+
+    def _compute_coverage_ratio(self, existing_ids: List[str], all_ids: List[str]) -> float:
+        """
+        计算 adj_factor_event 表对指定股票 universe 的覆盖率。
+        
+        Args:
+            existing_ids: 在 adj_factor_event 中已经有记录的股票ID列表
+            all_ids: 当前需要考虑的股票ID全集（如全市场活跃股票）
+        
+        Returns:
+            覆盖率（0.0-1.0）
+        """
+        if not all_ids:
+            return 0.0
+        existing_set = set(existing_ids)
+        all_set = set(all_ids)
+        covered = len(existing_set & all_set)
+        return covered / len(all_set)
+    
     async def before_fetch(self, context: Dict[str, Any] = None):
         """
         数据准备阶段（步骤0-2）
@@ -71,22 +140,30 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
         kline_model = self.data_manager.get_model('stock_kline')
         
-        # ========== 步骤0：CSV导入（如果表为空）==========
-        table_was_empty = adj_factor_event_model.is_table_empty()
+        # ========== 步骤0：根据 DB / CSV 状态做初始化决策 ==========
+        table_was_empty = self._is_adj_factor_event_table_empty(adj_factor_event_model)
+        csv_usable = self._is_adj_factor_csv_usable(adj_factor_event_model)
+
         if table_was_empty:
-            logger.info("📋 步骤 0/6: 复权因子事件表为空，尝试从CSV导入...")
-            imported_count = adj_factor_event_model.import_from_csv()
-            if imported_count > 0:
-                logger.info(f"✅ 从CSV导入 {imported_count} 条记录")
-                table_was_empty = False
+            # Case 1 / Case 2：表为空
+            if csv_usable:
+                # Case 2：优先尝试从 CSV 暖启动
+                logger.info("📋 步骤 0/6: 复权因子事件表为空，检测到可用 CSV，尝试导入...")
+                imported_count = adj_factor_event_model.import_from_csv()
+                if imported_count > 0:
+                    logger.info(f"✅ 从CSV导入 {imported_count} 条记录")
+                    table_was_empty = False
+                else:
+                    logger.info("ℹ️  CSV 导入失败或无数据，将按冷启动流程继续")
             else:
-                logger.info("ℹ️  未找到CSV文件，继续后续流程")
+                logger.info("📋 步骤 0/6: 复权因子事件表为空，且无可用 CSV，将按冷启动流程继续")
         
         # ========== 步骤1：确定需要更新的股票集合 ==========
         context_stock_list = context.get("stock_list")
         
         if table_was_empty:
-            # 首次构建：如果有传入的 stock_list，则只针对这些股票；否则全量股票
+            # Case 1 / Case 2：表为空（可能是冷启动，也可能是 CSV 恢复失败）
+            # 首次构建：如果有传入的 stock_list，则只针对这些股票；否则全量活跃股票
             if context_stock_list:
                 stocks_need_update = [s['id'] if isinstance(s, dict) else s for s in context_stock_list]
                 logger.info(f"📋 步骤 1/6: 空表首次构建，使用传入的 {len(stocks_need_update)} 只股票进行全量计算")
@@ -99,8 +176,9 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                 else:
                     stocks_need_update = []
         elif context_stock_list:
-            # 表不为空，但有传入的 stock_list，检查这些股票是否有数据
-            # 如果没有数据，也需要首次构建
+            # Case 3 + 有传入 stock_list：
+            # 1. 没有任何事件记录的股票 → 视为“首建对象”
+            # 2. 其余股票后续走正常的“超过 N 天未更新”筛选逻辑
             stocks_need_update = []
             for s in context_stock_list:
                 stock_id = s['id'] if isinstance(s, dict) else s
@@ -112,13 +190,59 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             if stocks_need_update:
                 logger.info(f"📋 步骤 1/6: 检测到 {len(stocks_need_update)} 只股票没有数据，进行首次构建")
             else:
-                # 所有股票都有数据，走正常增量模式
+                # 所有传入股票都有数据，走正常增量模式：只看“超过 N 天未更新”的
                 logger.info(f"📋 步骤 1/6: 查询超过 {self.update_threshold_days} 天未更新的股票...")
                 stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
         else:
-            # 正常增量模式：只处理超过 N 天未更新的股票
-            logger.info(f"📋 步骤 1/6: 查询超过 {self.update_threshold_days} 天未更新的股票...")
-            stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
+            # Case 3 + 无特定 stock_list：根据覆盖率决定策略
+            stock_service = self.data_manager.get_data_service('stock_related.stock')
+            if stock_service:
+                all_stocks = stock_service.load_stock_list(filtered=True)
+                all_ids = [s['id'] for s in all_stocks]
+            else:
+                all_ids = []
+
+            existing_ids = self._stocks_with_existing_factors(adj_factor_event_model)
+            coverage = self._compute_coverage_ratio(existing_ids, all_ids)
+
+            logger.info(
+                f"📊 当前 adj_factor_event 覆盖率: "
+                f"{coverage * 100:.2f}% "
+                f"（已有 {len(existing_ids)} 只股票有事件记录，总股票数 {len(all_ids)}）"
+            )
+
+            # 覆盖率阈值可调：低覆盖率 → 大部分股票需要首建；高覆盖率 → 只做增量扫描
+            low_coverage_threshold = 0.7
+
+            if coverage < low_coverage_threshold and all_ids:
+                # 大部分股票还没有任何复权事件记录：
+                # 1. 对“完全没有记录”的股票视为首建对象
+                # 2. 对已经有记录的少数股票，后续通过 load_stocks_need_update 做增量扫描
+                existing_set = set(existing_ids)
+                missing_ids = [sid for sid in all_ids if sid not in existing_set]
+
+                logger.info(
+                    f"📋 步骤 1/6: 覆盖率较低（{coverage * 100:.2f}%），"
+                    f"检测到 {len(missing_ids)} 只股票从未构建复权事件，将进行首次构建"
+                )
+
+                # 先把“首建对象”加入待更新列表
+                stocks_need_update = list(missing_ids)
+
+                # 再追加“超过 N 天未更新”的已有股票（去重）
+                incremental_ids = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
+                stocks_need_update_set = set(stocks_need_update)
+                for sid in incremental_ids:
+                    if sid not in stocks_need_update_set:
+                        stocks_need_update.append(sid)
+                        stocks_need_update_set.add(sid)
+            else:
+                # 覆盖率已经较高，走正常增量模式：只处理超过 N 天未更新的股票
+                logger.info(
+                    f"📋 步骤 1/6: 覆盖率较高（{coverage * 100:.2f}%），"
+                    f"仅查询超过 {self.update_threshold_days} 天未更新的股票"
+                )
+                stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
         
         if not stocks_need_update:
             logger.info("ℹ️  没有股票需要更新")

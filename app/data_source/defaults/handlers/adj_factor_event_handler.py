@@ -72,17 +72,53 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         kline_model = self.data_manager.get_model('stock_kline')
         
         # ========== 步骤0：CSV导入（如果表为空）==========
-        if adj_factor_event_model.is_table_empty():
+        table_was_empty = adj_factor_event_model.is_table_empty()
+        if table_was_empty:
             logger.info("📋 步骤 0/6: 复权因子事件表为空，尝试从CSV导入...")
             imported_count = adj_factor_event_model.import_from_csv()
             if imported_count > 0:
                 logger.info(f"✅ 从CSV导入 {imported_count} 条记录")
+                table_was_empty = False
             else:
                 logger.info("ℹ️  未找到CSV文件，继续后续流程")
         
-        # ========== 步骤1：批量查询需要更新的股票 ==========
-        logger.info(f"📋 步骤 1/6: 查询超过 {self.update_threshold_days} 天未更新的股票...")
-        stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
+        # ========== 步骤1：确定需要更新的股票集合 ==========
+        context_stock_list = context.get("stock_list")
+        
+        if table_was_empty:
+            # 首次构建：如果有传入的 stock_list，则只针对这些股票；否则全量股票
+            if context_stock_list:
+                stocks_need_update = [s['id'] if isinstance(s, dict) else s for s in context_stock_list]
+                logger.info(f"📋 步骤 1/6: 空表首次构建，使用传入的 {len(stocks_need_update)} 只股票进行全量计算")
+            else:
+                logger.info("📋 步骤 1/6: 空表首次构建，使用全部活跃股票进行全量计算...")
+                stock_service = self.data_manager.get_data_service('stock_related.stock')
+                if stock_service:
+                    all_stocks = stock_service.load_stock_list(filtered=True)
+                    stocks_need_update = [s['id'] for s in all_stocks]
+                else:
+                    stocks_need_update = []
+        elif context_stock_list:
+            # 表不为空，但有传入的 stock_list，检查这些股票是否有数据
+            # 如果没有数据，也需要首次构建
+            stocks_need_update = []
+            for s in context_stock_list:
+                stock_id = s['id'] if isinstance(s, dict) else s
+                stock_events = adj_factor_event_model.load("id = %s", (stock_id,), limit=1)
+                if not stock_events:
+                    # 该股票没有数据，需要首次构建
+                    stocks_need_update.append(stock_id)
+            
+            if stocks_need_update:
+                logger.info(f"📋 步骤 1/6: 检测到 {len(stocks_need_update)} 只股票没有数据，进行首次构建")
+            else:
+                # 所有股票都有数据，走正常增量模式
+                logger.info(f"📋 步骤 1/6: 查询超过 {self.update_threshold_days} 天未更新的股票...")
+                stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
+        else:
+            # 正常增量模式：只处理超过 N 天未更新的股票
+            logger.info(f"📋 步骤 1/6: 查询超过 {self.update_threshold_days} 天未更新的股票...")
+            stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
         
         if not stocks_need_update:
             logger.info("ℹ️  没有股票需要更新")
@@ -105,8 +141,8 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                 'first_kline_date': None,  # 稍后批量查询
             }
         
-        # 批量查询第一根K线日期（仅针对需要更新的股票，内部带有阈值策略）
-        first_kline_records = kline_model.load_first_kline_records(stock_ids=stocks_need_update, threshold=100)
+        # 批量查询第一根K线日期（仅针对需要更新的股票）
+        first_kline_records = kline_model.load_first_kline_records(stock_ids=stocks_need_update)
         first_kline_map = {r['id']: r['date'] for r in first_kline_records}
         for stock_id in stock_info_map:
             stock_info_map[stock_id]['first_kline_date'] = first_kline_map.get(stock_id)
@@ -159,10 +195,23 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                 first_kline_date = stock_info.get('first_kline_date')
                 
                 # 确定查询起始日期
+                from datetime import date
                 if latest_event_date:
-                    start_date = DateUtils.yyyy_mm_dd_to_yyyymmdd(latest_event_date)
+                    # 处理 datetime.date 类型
+                    if isinstance(latest_event_date, date):
+                        start_date = latest_event_date.strftime('%Y%m%d')
+                    elif isinstance(latest_event_date, str):
+                        start_date = DateUtils.yyyy_mm_dd_to_yyyymmdd(latest_event_date) if '-' in latest_event_date else latest_event_date
+                    else:
+                        start_date = str(latest_event_date).replace('-', '')
                 elif first_kline_date:
-                    start_date = DateUtils.yyyy_mm_dd_to_yyyymmdd(first_kline_date) if '-' in first_kline_date else first_kline_date
+                    # 处理 datetime.date 类型
+                    if isinstance(first_kline_date, date):
+                        start_date = first_kline_date.strftime('%Y%m%d')
+                    elif isinstance(first_kline_date, str):
+                        start_date = DateUtils.yyyy_mm_dd_to_yyyymmdd(first_kline_date) if '-' in first_kline_date else first_kline_date
+                    else:
+                        start_date = str(first_kline_date).replace('-', '')
                 else:
                     start_date = "20080101"  # 默认起始日期
                 
@@ -309,6 +358,43 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             
             # 计算该股票全历史的所有复权事件日期
             changing_dates_full = self._get_factor_changing_dates(adj_factor_df_full_sorted)
+            
+            # 为每个事件日期构建 F(T) 映射：event_date -> 下一个事件的因子（或最新因子）
+            # 这样在 after_execute 中可以为每个事件使用正确的 F(T)
+            # 注意：F(T) 应该是该事件日之后的下一个复权事件日的因子，而不是下一个交易日的因子
+            event_factor_map: Dict[str, float] = {}
+            for i, event_date_ymd in enumerate(changing_dates_full):
+                # 获取当前事件日的因子
+                current_event_row = adj_factor_df_full_sorted[adj_factor_df_full_sorted['trade_date'] == event_date_ymd]
+                if current_event_row.empty:
+                    event_factor_map[event_date_ymd] = latest_factor
+                    continue
+                
+                current_factor = float(current_event_row.iloc[0]['adj_factor'])
+                
+                # 找到该事件日之后的下一个因子变化的日期（下一个复权事件日）
+                current_event_idx = adj_factor_df_full_sorted.index.get_loc(current_event_row.index[0])
+                next_factor = None
+                
+                # 从下一个交易日开始查找因子变化
+                for j in range(current_event_idx + 1, len(adj_factor_df_full_sorted)):
+                    next_row = adj_factor_df_full_sorted.iloc[j]
+                    next_row_factor = float(next_row['adj_factor'])
+                    if next_row_factor != current_factor:
+                        # 找到因子变化，使用这个因子作为 F(T)
+                        next_factor = next_row_factor
+                        break
+                
+                if next_factor is not None:
+                    event_factor_map[event_date_ymd] = next_factor
+                else:
+                    # 没有找到下一个因子变化，使用最新因子
+                    event_factor_map[event_date_ymd] = latest_factor
+            
+            # 将 event_factor_map 存储到 context 中，供 after_execute 使用
+            if "event_factor_map" not in context:
+                context["event_factor_map"] = {}
+            context["event_factor_map"][stock_id] = event_factor_map
             
             # 确保第一根K线日期作为一个事件点（如果不存在于变化列表中）
             if first_kline_date:
@@ -464,34 +550,39 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                     failed_count += 1
                     continue
                 
-                # 获取最新复权因子 F(T)（用于计算），优先使用 before_fetch/fetch 阶段缓存的值
-                latest_factor = latest_factors.get(stock_id, adj_factor)
+                # 获取该事件日对应的 F(T)（应该是该事件日之后的下一个因子，或最新因子）
+                # 优先使用 event_factor_map 中的值（事件日之后的下一个因子）
+                event_factor_map = context.get("event_factor_map", {}).get(stock_id, {})
+                F_T = event_factor_map.get(event_date_ymd)
+                
+                # 如果没有找到，fallback 到 latest_factors（当前最新因子）
+                if F_T is None:
+                    F_T = latest_factors.get(stock_id, adj_factor)
+                    logger.warning(f"{stock_id} {event_date_ymd}: 未找到对应的 F(T)，使用最新因子 {F_T}")
                 
                 # 计算 Tushare 前复权价格
-                tushare_qfq = raw_close * adj_factor / latest_factor
+                tushare_qfq = raw_close * adj_factor / F_T
                 
                 # 从东方财富 API 获取前复权价格
                 eastmoney_qfq = self._parse_eastmoney_qfq_price(eastmoney_result, event_date_ymd)
                 
-                # 计算 constantDiff
-                constant_diff = 0.0
+                # 计算 qfq_diff
+                qfq_diff = 0.0
                 if eastmoney_qfq is not None:
-                    constant_diff = eastmoney_qfq - tushare_qfq
-                    logger.debug(f"{stock_id} {event_date_ymd}: Tushare_QFQ={tushare_qfq:.2f}, EastMoney_QFQ={eastmoney_qfq:.2f}, Diff={constant_diff:.4f}")
+                    qfq_diff = eastmoney_qfq - tushare_qfq
+                    logger.debug(f"{stock_id} {event_date_ymd}: Tushare_QFQ={tushare_qfq:.2f}, EastMoney_QFQ={eastmoney_qfq:.2f}, Diff={qfq_diff:.4f}")
                 else:
-                    logger.warning(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格，constantDiff 设为 0.0")
+                    logger.warning(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格，qfq_diff 设为 0.0")
                 
-                # 保存到数据库
-                event_date_std = DateUtils.yyyymmdd_to_yyyy_mm_dd(event_date_ymd)
-                
+                # 保存到数据库（event_date 使用 YYYYMMDD 格式）
                 adj_factor_event_model.save_event(
                     stock_id=stock_id,
-                    event_date=event_date_std,
-                    adj_factor=adj_factor,
-                    constant_diff=constant_diff
+                    event_date=event_date_ymd,
+                    tushare_factor=adj_factor,
+                    qfq_diff=qfq_diff
                 )
                 saved_count += 1
-                logger.debug(f"✅ 保存复权因子事件: {stock_id} {event_date_std}, factor={adj_factor:.6f}, diff={constant_diff:.4f}")
+                logger.debug(f"✅ 保存复权因子事件: {stock_id} {event_date_ymd}, factor={adj_factor:.6f}, diff={qfq_diff:.4f}")
                 
             except Exception as e:
                 logger.error(f"❌ 处理复权因子事件失败: {stock_id} {event_date_ymd}, {e}")

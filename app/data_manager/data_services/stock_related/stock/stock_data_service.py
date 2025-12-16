@@ -34,6 +34,7 @@ class StockDataService(BaseDataService):
         self.stock_kline = data_manager.get_model('stock_kline')
         self.stock_labels = data_manager.get_model('stock_labels')
         self.adj_factor = data_manager.get_model('adj_factor')
+        self.adj_factor_event = data_manager.get_model('adj_factor_event')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from utils.db import DatabaseManager
@@ -229,6 +230,238 @@ class StockDataService(BaseDataService):
             K线数据列表
         """
         return self.stock_kline.load_by_date(date)
+    
+    def load_qfq_klines(
+        self,
+        stock_id: str,
+        term: str = 'daily',
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        加载前复权（QFQ）K线数据
+        
+        使用新的 adj_factor_event 表计算前复权价格：
+        qfq_price = raw_price × F(t) / F(T) + constantDiff
+        
+        其中：
+        - F(t): 交易日期的复权因子（从 adj_factor_event 查询）
+        - F(T): 最新复权因子
+        - constantDiff: 与东方财富前复权价格的固定差异
+        
+        Args:
+            stock_id: 股票代码
+            term: 周期（daily/weekly/monthly，默认 daily）
+            start_date: 开始日期（YYYYMMDD 或 YYYY-MM-DD，可选）
+            end_date: 结束日期（YYYYMMDD 或 YYYY-MM-DD，可选）
+        
+        Returns:
+            List[Dict]: 前复权K线数据列表，每条记录包含原始字段 + qfq_* 字段：
+                - 原始字段：id, term, date, open, close, highest, lowest, pre_close, ...
+                - 前复权字段：qfq_open, qfq_close, qfq_high, qfq_low, qfq_pre_close
+        """
+        # 第一步：获取日期范围内的raw data
+        raw_klines = self._load_raw_klines(stock_id, term, start_date, end_date)
+        if not raw_klines:
+            return []
+        
+        # 第二步：获取日期范围内的复权因子事件
+        factor_events = self._load_factor_events(stock_id, raw_klines)
+        if not factor_events:
+            logger.warning(f"{stock_id} 没有复权因子事件，返回原始K线数据")
+            return raw_klines
+        
+        # 第三步：计算日期范围内的复权因子F(t) / F(T)（获取F(T)）
+        F_T = self._get_latest_factor(stock_id)
+        if F_T is None:
+            logger.warning(f"{stock_id} 没有最新复权因子，返回原始K线数据")
+            return raw_klines
+        
+        # 第四步：遍历K线，让每个K线找到小于或等于当前时间最近的一个复权因子，并且加上diff变成复权后价格
+        qfq_klines = self._apply_qfq_adjustment(raw_klines, factor_events, F_T)
+        
+        return qfq_klines
+    
+    def _load_raw_klines(
+        self,
+        stock_id: str,
+        term: str,
+        start_date: Optional[str],
+        end_date: Optional[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        第一步：获取日期范围内的raw data
+        
+        Args:
+            stock_id: 股票代码
+            term: 周期
+            start_date: 开始日期
+            end_date: 结束日期
+        
+        Returns:
+            原始K线数据列表
+        """
+        if start_date and end_date:
+            return self.stock_kline.load_by_date_range(stock_id, start_date, end_date)
+        elif start_date:
+            return self.stock_kline.load(
+                "id = %s AND date >= %s AND term = %s",
+                (stock_id, start_date, term),
+                order_by="date ASC"
+            )
+        elif end_date:
+            return self.stock_kline.load(
+                "id = %s AND date <= %s AND term = %s",
+                (stock_id, end_date, term),
+                order_by="date ASC"
+            )
+        else:
+            return self.stock_kline.load(
+                "id = %s AND term = %s",
+                (stock_id, term),
+                order_by="date ASC"
+            )
+    
+    def _load_factor_events(
+        self,
+        stock_id: str,
+        raw_klines: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        第二步：获取日期范围内的复权因子事件
+        
+        Args:
+            stock_id: 股票代码
+            raw_klines: 原始K线数据列表
+        
+        Returns:
+            复权因子事件列表，按日期升序排列
+        """
+        from utils.date.date_utils import DateUtils
+        
+        # 确定日期范围
+        kline_dates = [k.get('date') for k in raw_klines if k.get('date')]
+        if not kline_dates:
+            return []
+        
+        max_date = max(kline_dates)
+        # 转换为 YYYYMMDD 格式（event_date 字段使用此格式）
+        max_date_ymd = max_date.replace('-', '') if '-' in max_date else max_date
+        
+        # 加载所有 event_date <= max_date 的复权因子事件
+        # 注意：我们需要该日期之前的所有因子事件，而不仅仅是该日期范围内的事件
+        return self.adj_factor_event.load(
+            "id = %s AND event_date <= %s",
+            (stock_id, max_date_ymd),
+            order_by="event_date ASC"
+        )
+    
+    def _get_latest_factor(self, stock_id: str) -> Optional[float]:
+        """
+        第三步：获取最新复权因子 F(T)
+        
+        Args:
+            stock_id: 股票代码
+        
+        Returns:
+            最新复权因子 F(T)，如果不存在返回 None
+        """
+        latest_event = self.adj_factor_event.load_latest_factor(stock_id)
+        if not latest_event:
+            return None
+        
+        tushare_factor = latest_event.get('tushare_factor')
+        if tushare_factor is None:
+            return None
+        
+        # 确保返回 float 类型
+        return float(tushare_factor)
+    
+    def _apply_qfq_adjustment(
+        self,
+        raw_klines: List[Dict[str, Any]],
+        factor_events: List[Dict[str, Any]],
+        F_T: float
+    ) -> List[Dict[str, Any]]:
+        """
+        第四步：遍历K线，让每个K线找到小于或等于当前时间最近的一个复权因子，并且加上diff变成复权后价格
+        
+        Args:
+            raw_klines: 原始K线数据列表
+            factor_events: 复权因子事件列表（已按日期升序排列）
+            F_T: 最新复权因子 F(T)
+        
+        Returns:
+            前复权K线数据列表
+        """
+        from utils.date.date_utils import DateUtils
+        
+        qfq_klines = []
+        event_idx = 0  # 当前复权事件索引
+        current_factor = 1.0  # 当前适用的复权因子（默认1.0）
+        current_qfq_diff = 0.0  # 当前适用的前复权价格差异（默认0.0）
+        
+        # 价格字段映射：K线数据中使用 highest/lowest，计算后使用 qfq_high/qfq_low
+        price_fields = ['open', 'close', 'highest', 'lowest', 'pre_close']
+        field_mapping = {
+            'highest': 'high',
+            'lowest': 'low'
+        }
+        
+        for kline in raw_klines:
+            kline_date = kline.get('date')
+            if not kline_date:
+                continue
+            
+            # K线日期统一为 YYYYMMDD 格式
+            kline_date_ymd = kline_date.replace('-', '') if '-' in kline_date else kline_date
+            
+            # 更新当前适用的因子：找到所有 event_date <= kline_date 的事件，使用最新的
+            while event_idx < len(factor_events):
+                event = factor_events[event_idx]
+                event_date = event.get('event_date')
+                
+                # event_date 已经是 YYYYMMDD 格式的字符串
+                event_date_ymd = event_date.replace('-', '') if '-' in str(event_date) else str(event_date)
+                
+                if event_date_ymd <= kline_date_ymd:
+                    # 这个事件适用于当前K线日期，更新当前因子
+                    tushare_factor_val = event.get('tushare_factor', 1.0)
+                    qfq_diff_val = event.get('qfq_diff', 0.0)
+                    current_factor = float(tushare_factor_val)
+                    current_qfq_diff = float(qfq_diff_val)
+                    event_idx += 1
+                else:
+                    # 后续事件日期都大于当前K线日期，停止更新
+                    break
+            
+            # 计算前复权价格（使用当前适用的因子）
+            F_t = current_factor
+            applicable_qfq_diff = current_qfq_diff
+            
+            # 复制原始K线数据
+            qfq_kline = kline.copy()
+            
+            # 计算前复权价格字段
+            for field in price_fields:
+                raw_value = kline.get(field)
+                if raw_value is not None:
+                    try:
+                        raw_price = float(raw_value)
+                        qfq_price = raw_price * F_t / F_T + applicable_qfq_diff
+                        # 使用映射后的字段名（highest -> high, lowest -> low）
+                        output_field = field_mapping.get(field, field)
+                        qfq_kline[f'qfq_{output_field}'] = qfq_price
+                    except (ValueError, TypeError):
+                        output_field = field_mapping.get(field, field)
+                        qfq_kline[f'qfq_{output_field}'] = None
+                else:
+                    output_field = field_mapping.get(field, field)
+                    qfq_kline[f'qfq_{output_field}'] = None
+            
+            qfq_klines.append(qfq_kline)
+        
+        return qfq_klines
     
     # ==================== 跨表查询（SQL JOIN）====================
     

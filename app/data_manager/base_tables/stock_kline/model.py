@@ -40,20 +40,19 @@ class StockKlineModel(DbBaseModel):
         """批量保存K线（自动去重）"""
         return self.replace(klines, unique_keys=['id', 'date'])
 
-    def load_first_kline_records(self, stock_ids: Optional[List[str]] = None, threshold: int = 100) -> List[Dict[str, Any]]:
+    def load_first_kline_records(self, stock_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
         查询每只股票的第一根K线记录
         
         行为策略：
         - 如果 stock_ids 为空或 None：对全表执行一次性分组查询（用于初始化/空表场景）
-        - 如果 stock_ids 数量 <= threshold：逐个股票查询 MIN(date)，逻辑简单，适合小批量
-        - 如果 stock_ids 数量 > threshold：使用一次带 IN 子句的分组查询，减少 IO
+        - 如果 stock_ids 非空：使用一次带 IN 子句的分组查询，减少 IO
         """
         # 全量模式：用于初始化或特殊场景
-        if not stock_ids or len(stock_ids) > threshold:
+        if not stock_ids:
             return self.load_first_records(date_field='date', primary_keys=['id', 'date'])
         
-        # 小批量：使用 IN + 子查询，一次 IO 完成
+        # 指定了 stock_ids：使用 IN + 子查询，一次 IO 完成
         placeholders = ','.join(['%s'] * len(stock_ids))
         query = f"""
             SELECT t1.*

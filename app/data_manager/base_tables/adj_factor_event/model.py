@@ -219,6 +219,21 @@ class AdjFactorEventModel(DbBaseModel):
         """
         return self.load("id = %s", (stock_id,), order_by="event_date ASC")
     
+    def load_all_stock_ids(self) -> List[str]:
+        """
+        查询当前表中已经存在复权因子事件的股票ID列表（去重）。
+        
+        Returns:
+            List[str]: 已有复权因子事件记录的股票ID列表
+        """
+        try:
+            sql = f"SELECT DISTINCT id FROM {self.table_name}"
+            rows = self.db.execute_sync_query(sql)
+            return [row['id'] for row in rows]
+        except Exception as e:
+            logger.error(f"查询已有复权因子股票ID失败: {e}")
+            return []
+    
     def load_by_date_range(
         self, 
         stock_id: str, 

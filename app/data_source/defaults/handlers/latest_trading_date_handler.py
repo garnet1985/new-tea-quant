@@ -27,8 +27,8 @@ class LatestTradingDateHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = False  # 不需要日期范围参数
     
-    def __init__(self, schema, params: Dict[str, Any] = None):
-        super().__init__(schema, params or {})
+    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
+        super().__init__(schema, params or {}, data_manager)
         
         # 从配置中获取向后检查天数（默认15天）
         self.backward_checking_days = self.get_param("backward_checking_days", 15)

@@ -121,7 +121,7 @@ class DbBaseModel:
     """
     通用表操作模型基类
     
-    ⚠️  DEPRECATED: 本类计划废弃，请使用 DataLoader 替代
+    ⚠️  DEPRECATED: 本类计划废弃，请使用 DataManager 替代
     """
     
     def __init__(self, table_name: str, db=None):

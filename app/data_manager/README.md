@@ -1,10 +1,10 @@
-# DataLoader - 全局数据加载服务
+# DataManager - 全局数据管理服务
 
 ## 📦 架构设计
 
 ```
-app/data_loader/
-├── data_loader.py              # 主入口（~150行）
+app/data_manager/
+├── data_manager.py              # 主入口
 ├── loaders/
 │   ├── __init__.py
 │   └── kline_loader.py        # K线专用加载器（~280行）
@@ -17,7 +17,7 @@ app/data_loader/
 ## 🎯 设计原则
 
 ### 1. 按业务领域分层
-- **DataLoader**: 主入口，统一API
+- **DataManager**: 主入口，统一API
 - **KlineLoader**: K线数据专用加载器
 - **Helpers**: 底层工具（复权、过滤）
 
@@ -34,9 +34,9 @@ app/data_loader/
 ### 快捷方法（80%场景）
 
 ```python
-from app.data_loader import DataLoader
+from app.data_manager import DataManager
 
-loader = DataLoader(db)
+data_mgr = DataManager(db=db)
 
 # 最常用：日线前复权
 records = loader.load_daily_qfq('000001.SZ')
@@ -78,7 +78,7 @@ from concurrent.futures import ProcessPoolExecutor
 with ProcessPoolExecutor() as executor:
     futures = [
         executor.submit(
-            DataLoader.load_klines_in_child,
+            DataManager.load_klines_in_child,
             stock_id, 'daily', 'qfq', {'is_verbose': False}
         )
         for stock_id in stock_list
@@ -99,7 +99,7 @@ def simulate_stock(stock_id, db_config, strategy_params):
     """在子进程中模拟一个股票的交易"""
     
     # ✅ 在子进程开始时创建一次loader
-    loader = DataLoader.create_for_child_process(db_config)
+    data_mgr = DataManager.create_for_child_process(db_config)
     
     # 加载数据（复用连接，多次调用）
     klines = loader.load_daily_qfq(stock_id)
@@ -153,7 +153,7 @@ with ProcessPoolExecutor(max_workers=8) as executor:
 
 | 方法 | 说明 |
 |-----|-----|
-| `create_for_child_process(db_config)` | 创建进程安全的DataLoader实例 |
+| `create_for_child_process(db_config)` | 创建进程安全的DataManager实例 |
 | `load_klines_in_child(stock_id, term, adjust, db_config, as_dataframe)` | 静态加载方法（进程安全） |
 
 ## 🔄 向后兼容
@@ -180,4 +180,4 @@ kline_data = loader.load_stock_klines_data(stock_id, settings)
 2. **易于测试**：可单独测试KlineLoader
 3. **易于扩展**：新增loader不影响现有代码
 4. **向后兼容**：旧代码无需修改
-5. **独立性强**：DataLoader不依赖DataSourceService
+5. **独立性强**：DataManager不依赖DataSourceService

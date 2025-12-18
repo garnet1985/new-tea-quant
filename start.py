@@ -41,9 +41,8 @@ class App:
         self.is_verbose = is_verbose
         
         # 1. 首先初始化 DataManager（统一的数据访问入口）
-        # DataManager 内部会创建和管理 DatabaseManager
+        # DataManager 内部会创建和管理 DatabaseManager，并自动初始化
         self.data_manager = DataManager(is_verbose=self.is_verbose)
-        self.data_manager.initialize()
         
         # 2. 获取 DatabaseManager 实例（用于兼容旧模块）
         # 注意：这是过渡期方案，后续应该让这些模块也使用 DataManager 的接口

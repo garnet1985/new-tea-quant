@@ -32,7 +32,7 @@ stocks-py/
 │   │   │   ├── investment/   # 投资管理
 │   │   │   └── base_strategy.py  # 策略基类
 │   │   └── analyzer.py       # 分析器入口
-│   ├── data_loader/          # 数据加载器
+│   ├── data_manager/          # 数据管理器
 │   ├── data_source/          # 数据源管理
 │   │   └── providers/        # 数据提供商
 │   │       ├── tushare/      # Tushare API
@@ -289,12 +289,12 @@ present_extra_session_report(session_summary, settings)
 ### 统一数据加载
 
 ```python
-from app.data_loader import DataLoader
+from app.data_manager import DataManager
 
-data_loader = DataLoader()
+data_mgr = DataManager()
 
 # 加载K线数据
-klines = data_loader.load_klines(
+klines = data_mgr.load_klines(
     stock_id='000001.SZ',
     start_date='20200101',
     end_date='20231231',

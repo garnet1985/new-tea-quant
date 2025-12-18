@@ -87,11 +87,11 @@
    - 代码位置：`start.py:30` 和 `start.py:59`
 
 2. **labeler/** ✅
-   - 使用 `DataLoader`，不依赖 `DataSourceManager`
+   - 使用 `DataManager`，不依赖 `DataSourceManager`
    - 无需替换
 
 3. **analyzer/** ✅
-   - 使用 `DataLoader`，不依赖 `DataSourceManager`
+   - 使用 `DataManager`，不依赖 `DataSourceManager`
    - 无需替换
 
 4. **其他模块** ✅
@@ -108,8 +108,8 @@
 |------|---------|------|
 | `start.py` | 使用新的 `DataSourceManager` | ✅ 已完成 |
 | `app/data_source/data_source_manager.py` | 新系统实现 | ✅ 已完成 |
-| `app/labeler/` | 使用 `DataLoader`（独立模块） | ✅ 无需替换 |
-| `app/analyzer/` | 使用 `DataLoader`（独立模块） | ✅ 无需替换 |
+| `app/labeler/` | 使用 `DataManager`（独立模块） | ✅ 无需替换 |
+| `app/analyzer/` | 使用 `DataManager`（独立模块） | ✅ 无需替换 |
 
 ### ⚠️ Legacy 代码状态
 
@@ -121,8 +121,8 @@
 
 - ✅ `start.py` 已使用新的 `DataSourceManager`（`app.data_source.data_source_manager`）
 - ✅ 没有发现任何外部模块直接引用 `data_source_legacy`
-- ✅ `labeler` 使用 `DataLoader`（独立模块，不依赖 data source）
-- ✅ `analyzer` 使用 `DataLoader`（独立模块，不依赖 data source）
+- ✅ `labeler` 使用 `DataManager`（独立模块，不依赖 data source）
+- ✅ `analyzer` 使用 `DataManager`（独立模块，不依赖 data source）
 - ✅ 所有数据源功能已在新系统中实现（11/11，100%）
 
 ---
@@ -170,8 +170,8 @@
 - **功能特性**：7/7 已实现（100%）
 - **代码迁移**：所有外部模块已迁移到新系统
   - `start.py` ✅
-  - `labeler/` ✅（使用 DataLoader，无需迁移）
-  - `analyzer/` ✅（使用 DataLoader，无需迁移）
+  - `labeler/` ✅（使用 DataManager，无需迁移）
+  - `analyzer/` ✅（使用 DataManager，无需迁移）
 
 ### 🎯 下一步
 

@@ -41,7 +41,7 @@ class FinancialLabelCalculator(BaseLabelCalculator):
             target_date: 目标日期 (YYYYMMDD格式)
             **kwargs: 其他参数，可能包含：
                 - klines_data: 预加载的K线数据列表
-                - data_loader: 数据加载器（如果没有预加载数据时使用）
+                - data_mgr: 数据管理器（如果没有预加载数据时使用）
             
         Returns:
             List[str]: 标签ID列表 (可能包含PE和PB标签)
@@ -49,13 +49,13 @@ class FinancialLabelCalculator(BaseLabelCalculator):
         try:
             # 优先使用预加载的K线数据
             klines_data = kwargs.get('klines_data')
-            data_loader = kwargs.get('data_loader')
+            data_mgr = kwargs.get('data_mgr')
             
             if klines_data is not None:
                 klines = klines_data
-            elif data_loader is not None:
-                klines = data_loader.load_klines(stock_id, start_date=target_date, end_date=target_date)
-                logger.debug(f"在使用data_loader加载K线数据")
+            elif data_mgr is not None:
+                klines = data_mgr.load_klines(stock_id, start_date=target_date, end_date=target_date)
+                logger.debug(f"在使用data_mgr加载K线数据")
             else:
                 logger.warning(f"无法获取 {stock_id} 在 {target_date} 的K线数据源")
                 return []

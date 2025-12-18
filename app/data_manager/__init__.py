@@ -6,7 +6,7 @@
 导出：
 - DataManager: 数据管理器（主类）
 - BaseTableNames: 基础表名枚举
-- DataLoader: DataManager 的别名（向后兼容）
+- DataManager: DataManager 的别名（向后兼容）
 
 职责：
 - 管理 DatabaseManager（唯一持有者）
@@ -37,7 +37,4 @@ from .enums import BaseTableNames
 from .data_services.trading_date.trading_date_cache import TradingDateCache, get_trading_date_cache
 
 __all__ = ['DataManager', 'BaseTableNames', 'TradingDateCache', 'get_trading_date_cache']
-
-# 向后兼容
-DataLoader = DataManager
 

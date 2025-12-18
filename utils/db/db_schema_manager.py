@@ -31,7 +31,7 @@ class DbSchemaManager:
         初始化 DbSchemaManager
         
         Args:
-            tables_dir: schema 文件目录（默认为 app/data_loader/base_tables）
+            tables_dir: schema 文件目录（默认为 app/data_manager/base_tables）
             charset: 数据库字符集
             is_verbose: 是否输出详细日志
         """

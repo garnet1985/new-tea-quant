@@ -111,10 +111,10 @@ class InvestmentApi:
                 # 获取股票信息
                 stock_info = stock_info_map.get(stock_id, {})
                 
-                # 使用DataLoader获取股票详细信息（跨表业务）
+                # 使用DataManager获取股票详细信息（跨表业务）
                 from app.data_manager import DataManager
-                data_loader = DataLoader(self.db_manager)
-                stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
+                data_mgr = DataManager(db=self.db_manager, is_verbose=False)
+                stock_details = data_mgr.get_stock_with_latest_price(stock_id) or {}
                 
                 result.append({
                     'id': trade['id'],
@@ -206,10 +206,10 @@ class InvestmentApi:
                 # 获取股票信息
                 stock_info = stock_info_map.get(stock_id, {})
                 
-                # 使用DataLoader获取股票详细信息（跨表业务）
+                # 使用DataManager获取股票详细信息（跨表业务）
                 from app.data_manager import DataManager
-                data_loader = DataLoader(self.db_manager)
-                stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
+                data_mgr = DataManager(db=self.db_manager, is_verbose=False)
+                stock_details = data_mgr.get_stock_with_latest_price(stock_id) or {}
                 
                 # 计算下一目标（使用 TargetCalculator）
                 next_targets = None

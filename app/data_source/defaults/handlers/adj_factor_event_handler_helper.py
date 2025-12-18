@@ -31,7 +31,7 @@ class AdjFactorEventHandlerHelper:
         可用的定义：
         - 能找到最新 CSV 文件
         - 文件存在且可读取
-        - 至少包含 id / event_date / tushare_factor / qfq_diff 四个字段
+        - 至少包含 id / event_date / factor / qfq_diff 四个字段
         """
         import os
         import pandas as pd
@@ -44,7 +44,7 @@ class AdjFactorEventHandlerHelper:
         
         try:
             df = pd.read_csv(latest_csv, nrows=10)
-            required_cols = {'id', 'event_date', 'tushare_factor', 'qfq_diff'}
+            required_cols = {'id', 'event_date', 'factor', 'qfq_diff'}
             missing = required_cols - set(df.columns)
             if missing:
                 logger.warning(f"CSV 文件缺少必需列 {missing}，视为不可用: {latest_csv}")
@@ -218,9 +218,9 @@ class AdjFactorEventHandlerHelper:
         return changing_dates
     
     @staticmethod
-    def get_tushare_factor_for_date(adj_factor_df: pd.DataFrame, event_date_ymd: str, default_factor: float = 1.0) -> float:
+    def get_factor_for_date(adj_factor_df: pd.DataFrame, event_date_ymd: str, default_factor: float = 1.0) -> float:
         """
-        获取指定日期的 Tushare 复权因子
+        获取指定日期的复权因子
         
         Args:
             adj_factor_df: Tushare adj_factor API 返回的 DataFrame
@@ -421,7 +421,7 @@ class AdjFactorEventHandlerHelper:
             List[Dict]: 复权因子事件列表，每个元素包含：
                 - id: 股票代码
                 - event_date: 事件日期（YYYYMMDD格式）
-                - tushare_factor: Tushare 复权因子
+                - factor: 复权因子
                 - qfq_diff: qfq_diff
         """
         if adj_factor_df is None or adj_factor_df.empty:
@@ -455,7 +455,7 @@ class AdjFactorEventHandlerHelper:
         
         for event_date_ymd in changing_dates:
             # 获取该事件日的复权因子
-            tushare_factor = AdjFactorEventHandlerHelper.get_tushare_factor_for_date(
+            factor = AdjFactorEventHandlerHelper.get_factor_for_date(
                 adj_factor_df, event_date_ymd, first_factor
             )
             
@@ -477,7 +477,7 @@ class AdjFactorEventHandlerHelper:
             events.append({
                 'id': stock_id,
                 'event_date': event_date_ymd,
-                'tushare_factor': tushare_factor,
+                'factor': factor,
                 'qfq_diff': qfq_diff
             })
         

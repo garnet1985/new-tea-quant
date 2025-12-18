@@ -328,6 +328,58 @@ class AdjFactorEventModel(DbBaseModel):
             order_by="event_date DESC"
         )
     
+    def load_latest_factors_batch(self, stock_ids: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
+        """
+        批量查询多只股票的最新复权因子
+        
+        Args:
+            stock_ids: 股票代码列表
+        
+        Returns:
+            Dict[str, Optional[Dict]]: {stock_id: 最新复权因子事件字典}，如果没有数据则为 None
+        """
+        if not stock_ids:
+            return {}
+        
+        # 使用 SQL 查询：为每只股票获取最新的 event_date 记录
+        # 使用窗口函数 ROW_NUMBER() 来获取每只股票的最新记录
+        placeholders = ','.join(['%s'] * len(stock_ids))
+        query = f"""
+            SELECT t1.*
+            FROM (
+                SELECT 
+                    id,
+                    event_date,
+                    tushare_factor,
+                    qfq_diff,
+                    last_update,
+                    ROW_NUMBER() OVER (PARTITION BY id ORDER BY event_date DESC) as rn
+                FROM {self.table_name}
+                WHERE id IN ({placeholders})
+            ) t1
+            WHERE t1.rn = 1
+        """
+        
+        try:
+            results = self.db.execute_sync_query(query, tuple(stock_ids))
+            
+            # 构建结果字典
+            result_map = {stock_id: None for stock_id in stock_ids}
+            for row in results:
+                stock_id = row['id']
+                # 移除 rn 字段
+                row_dict = {k: v for k, v in row.items() if k != 'rn'}
+                result_map[stock_id] = row_dict
+            
+            return result_map
+        except Exception as e:
+            logger.error(f"批量查询最新复权因子失败: {e}")
+            # 降级为单次查询
+            result_map = {}
+            for stock_id in stock_ids:
+                result_map[stock_id] = self.load_latest_factor(stock_id)
+            return result_map
+    
     def load_latest_qfq_diff(self, stock_id: str, date: str) -> float:
         """
         查询与EastMoney前复权价格的价格差异（使用最近的有效差异）

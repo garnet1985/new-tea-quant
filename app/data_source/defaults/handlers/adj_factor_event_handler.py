@@ -256,10 +256,13 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         if not latest_trading_date:
             latest_trading_date = DateUtils.get_current_date_str()
         
+        # 批量获取每只股票的最新 event_date（优化：一次查询而不是 N 次）
+        latest_factors_map = adj_factor_event_model.load_latest_factors_batch(stocks_need_update)
+        
         # 获取每只股票的最新 event_date 和第一根K线日期
         stock_info_map = {}
         for stock_id in stocks_need_update:
-            latest_event = adj_factor_event_model.load_latest_factor(stock_id)
+            latest_event = latest_factors_map.get(stock_id)
             stock_info_map[stock_id] = {
                 'latest_event_date': latest_event['event_date'] if latest_event else None,
                 'first_kline_date': None,  # 稍后批量查询
@@ -421,10 +424,12 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         """
         生成获取复权因子事件的 Tasks（步骤3）
         
-        只为有因子变化的股票生成 tasks，每个 task 包含：
-        - Tushare adj_factor API（获取复权因子）
-        - Tushare daily_kline API（获取原始收盘价）
-        - EastMoney API（获取前复权价格，用于计算 constantDiff）
+        优化方案：以股票为单位生成 task，每个 task 包含 3 个全量 API 调用：
+        - Tushare adj_factor API（全量复权因子）
+        - Tushare daily_kline API（全量原始收盘价）
+        - EastMoney API（全量前复权价格）
+        
+        这样可以将 API 调用次数从 事件数×3 降低到 股票数×3
         """
         context = context or {}
         stocks_with_changes = context.get("stocks_with_changes", [])
@@ -439,17 +444,6 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         
         tasks = []
         stock_info_map = context.get("stock_info_map", {})
-        
-        # 为了后续计算 F(T)，在上下文中记录每只股票的最新复权因子
-        latest_factors: Dict[str, float] = context.get("latest_factors", {})
-        
-        # 获取 Tushare Provider，用于全量查询复权因子序列
-        provider_pool = ProviderInstancePool()
-        tushare_provider = provider_pool.get_provider('tushare')
-        if not tushare_provider:
-            logger.error("无法获取 Tushare Provider")
-            return []
-        
         end_date_ymd = DateUtils.yyyy_mm_dd_to_yyyymmdd(latest_trading_date) if '-' in latest_trading_date else latest_trading_date
         
         for stock_info in stocks_with_changes:
@@ -466,119 +460,55 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             if start_date_full > end_date_ymd:
                 continue
             
-            # 全量获取该股票从起点到最新交易日的复权因子序列
-            adj_factor_df_full = tushare_provider.get_adj_factor(
-                ts_code=stock_id,
-                start_date=start_date_full,
-                end_date=end_date_ymd
+            # 为每只股票生成一个 task，包含 3 个全量 API 调用
+            # 1. Tushare adj_factor API（全量复权因子）
+            adj_factor_job = ApiJob(
+                provider_name="tushare",
+                method="get_adj_factor",
+                params={
+                    "ts_code": stock_id,
+                    "start_date": start_date_full,
+                    "end_date": end_date_ymd,
+                },
+                job_id=f"{stock_id}_adj_factor_full",
+                api_name="get_adj_factor"
             )
-            if adj_factor_df_full is None or adj_factor_df_full.empty:
-                continue
             
-            # 记录最新复权因子 F(T)，供 after_execute 使用
-            adj_factor_df_full_sorted = adj_factor_df_full.sort_values('trade_date', ascending=True)
-            latest_factor = float(adj_factor_df_full_sorted.iloc[-1]['adj_factor'])
-            latest_factors[stock_id] = latest_factor
+            # 2. Tushare daily_kline API（全量原始收盘价）
+            daily_kline_job = ApiJob(
+                provider_name="tushare",
+                method="get_daily_kline",
+                params={
+                    "ts_code": stock_id,
+                    "start_date": start_date_full,
+                    "end_date": end_date_ymd,
+                },
+                job_id=f"{stock_id}_daily_kline_full",
+                api_name="get_daily_kline"
+            )
             
-            # 计算该股票全历史的所有复权事件日期
-            changing_dates_full = self._get_factor_changing_dates(adj_factor_df_full_sorted)
+            # 3. EastMoney API（全量前复权价格）
+            eastmoney_secid = self._convert_to_eastmoney_secid(stock_id)
+            eastmoney_job = ApiJob(
+                provider_name="eastmoney",
+                method="get_qfq_kline",
+                params={
+                    "secid": eastmoney_secid,
+                    "end_date": end_date_ymd,
+                    "limit": 5000  # 足够大的 limit 以获取全量数据
+                },
+                job_id=f"{stock_id}_eastmoney_full",
+                api_name="get_qfq_kline"
+            )
             
-            # 为每个事件日期构建 F(T) 映射：event_date -> 下一个事件的因子（或最新因子）
-            # 这样在 after_execute 中可以为每个事件使用正确的 F(T)
-            # 注意：F(T) 应该是该事件日之后的下一个复权事件日的因子，而不是下一个交易日的因子
-            event_factor_map: Dict[str, float] = {}
-            for i, event_date_ymd in enumerate(changing_dates_full):
-                # 获取当前事件日的因子
-                current_event_row = adj_factor_df_full_sorted[adj_factor_df_full_sorted['trade_date'] == event_date_ymd]
-                if current_event_row.empty:
-                    event_factor_map[event_date_ymd] = latest_factor
-                    continue
-                
-                current_factor = float(current_event_row.iloc[0]['adj_factor'])
-                
-                # 找到该事件日之后的下一个因子变化的日期（下一个复权事件日）
-                current_event_idx = adj_factor_df_full_sorted.index.get_loc(current_event_row.index[0])
-                next_factor = None
-                
-                # 从下一个交易日开始查找因子变化
-                for j in range(current_event_idx + 1, len(adj_factor_df_full_sorted)):
-                    next_row = adj_factor_df_full_sorted.iloc[j]
-                    next_row_factor = float(next_row['adj_factor'])
-                    if next_row_factor != current_factor:
-                        # 找到因子变化，使用这个因子作为 F(T)
-                        next_factor = next_row_factor
-                        break
-                
-                if next_factor is not None:
-                    event_factor_map[event_date_ymd] = next_factor
-                else:
-                    # 没有找到下一个因子变化，使用最新因子
-                    event_factor_map[event_date_ymd] = latest_factor
-            
-            # 将 event_factor_map 存储到 context 中，供 after_execute 使用
-            if "event_factor_map" not in context:
-                context["event_factor_map"] = {}
-            context["event_factor_map"][stock_id] = event_factor_map
-            
-            # 确保第一根K线日期作为一个事件点（如果不存在于变化列表中）
-            if first_kline_date:
-                first_kline_ymd = DateUtils.yyyy_mm_dd_to_yyyymmdd(first_kline_date) if '-' in first_kline_date else first_kline_date
-                if first_kline_ymd not in changing_dates_full:
-                    changing_dates_full.insert(0, first_kline_ymd)
-            
-            if not changing_dates_full:
-                continue
-            
-            # 为每个复权日期创建一个 task
-            for event_date_ymd in changing_dates_full:
-                # 1. Tushare adj_factor API
-                adj_factor_job = ApiJob(
-                    provider_name="tushare",
-                    method="get_adj_factor",
-                    params={
-                        "ts_code": stock_id,
-                        "start_date": event_date_ymd,
-                        "end_date": event_date_ymd,
-                    },
-                    job_id=f"{stock_id}_adj_factor_{event_date_ymd}",
-                    api_name="get_adj_factor"
-                )
-                
-                # 2. Tushare daily_kline API（获取原始收盘价）
-                daily_kline_job = ApiJob(
-                    provider_name="tushare",
-                    method="get_daily_kline",
-                    params={
-                        "ts_code": stock_id,
-                        "start_date": event_date_ymd,
-                        "end_date": event_date_ymd,
-                    },
-                    job_id=f"{stock_id}_daily_kline_{event_date_ymd}",
-                    api_name="get_daily_kline"
-                )
-                
-                # 3. EastMoney API（获取前复权价格）
-                eastmoney_secid = self._convert_to_eastmoney_secid(stock_id)
-                eastmoney_job = ApiJob(
-                    provider_name="eastmoney",
-                    method="get_qfq_kline",
-                    params={
-                        "secid": eastmoney_secid,
-                        "end_date": end_date_ymd,
-                        "limit": 5000
-                    },
-                    job_id=f"{stock_id}_eastmoney_{event_date_ymd}",
-                    api_name="get_qfq_kline"
-                )
-                
-                task = DataSourceTask(
-                    task_id=f"adj_factor_event_{stock_id}_{event_date_ymd}",
-                    api_jobs=[adj_factor_job, daily_kline_job, eastmoney_job],
-                    description=f"获取 {stock_id} 在 {event_date_ymd} 的复权因子事件",
-                )
-                tasks.append(task)
+            task = DataSourceTask(
+                task_id=f"adj_factor_event_{stock_id}",
+                api_jobs=[adj_factor_job, daily_kline_job, eastmoney_job],
+                description=f"获取 {stock_id} 的全量复权因子事件数据",
+            )
+            tasks.append(task)
         
-        logger.info(f"✅ 生成了 {len(tasks)} 个复权因子事件获取任务")
+        logger.info(f"✅ 生成了 {len(tasks)} 个复权因子事件获取任务（以股票为单位，每只股票 3 个全量 API 调用）")
         return tasks
     
     def _convert_to_eastmoney_secid(self, stock_id: str) -> str:
@@ -605,7 +535,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         """
         执行后处理（步骤4）
         
-        处理 API 返回结果，计算 constantDiff，保存到数据库
+        处理全量 API 返回结果，计算所有复权事件日的 qfq_diff，批量保存到数据库
         """
         context = context or {}
         
@@ -614,106 +544,146 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             return
         
         adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
+        stock_info_map = context.get("stock_info_map", {})
         saved_count = 0
         failed_count = 0
-        cleared_stocks: Set[str] = set()
-        latest_factors: Dict[str, float] = context.get("latest_factors", {})
         
         # task_results 的结构：{task_id: {job_id: result}}
+        # 优化：每处理完一个 task 的结果就立即保存，而不是等所有 task 都处理完
         for task_id, task_result in task_results.items():
             if not task_result:
                 failed_count += 1
                 continue
             
-            # 解析 task_id: adj_factor_event_{stock_id}_{event_date}
-            parts = task_id.replace("adj_factor_event_", "").split("_", 1)
-            if len(parts) < 2:
+            # 解析 task_id: adj_factor_event_{stock_id}
+            if not task_id.startswith("adj_factor_event_"):
                 failed_count += 1
                 continue
             
-            stock_id = parts[0]
-            event_date_ymd = parts[1]
+            stock_id = task_id.replace("adj_factor_event_", "")
             
             try:
-                # 首次处理该股票时，删除旧的复权事件记录，实现“全量重算”
-                if stock_id not in cleared_stocks:
-                    adj_factor_event_model.delete("id = %s", (stock_id,))
-                    cleared_stocks.add(stock_id)
-
-                # 获取三个 API 的结果
-                adj_factor_result = task_result.get(f"{stock_id}_adj_factor_{event_date_ymd}")
-                daily_kline_result = task_result.get(f"{stock_id}_daily_kline_{event_date_ymd}")
-                eastmoney_result = task_result.get(f"{stock_id}_eastmoney_{event_date_ymd}")
+                # 删除该股票的旧复权事件记录，实现"全量重算"
+                adj_factor_event_model.delete("id = %s", (stock_id,))
+                
+                # 获取三个全量 API 的结果
+                adj_factor_df = task_result.get(f"{stock_id}_adj_factor_full")
+                daily_kline_df = task_result.get(f"{stock_id}_daily_kline_full")
+                eastmoney_result = task_result.get(f"{stock_id}_eastmoney_full")
                 
                 # 验证必需的数据
-                if adj_factor_result is None or adj_factor_result.empty:
-                    logger.warning(f"{stock_id} {event_date_ymd}: 复权因子数据为空，跳过")
+                if adj_factor_df is None or adj_factor_df.empty:
+                    logger.warning(f"{stock_id}: 复权因子数据为空，跳过")
                     failed_count += 1
                     continue
                 
-                if daily_kline_result is None or daily_kline_result.empty:
-                    logger.warning(f"{stock_id} {event_date_ymd}: 日线数据为空，跳过")
+                if daily_kline_df is None or daily_kline_df.empty:
+                    logger.warning(f"{stock_id}: 日线数据为空，跳过")
                     failed_count += 1
                     continue
                 
-                # 提取复权因子
-                adj_factor_row = adj_factor_result.iloc[0]
-                adj_factor = float(adj_factor_row.get('adj_factor', 0))
+                # 解析 EastMoney 全量数据，构建日期 -> QFQ 价格的映射
+                eastmoney_qfq_map = self._parse_eastmoney_qfq_price_map(eastmoney_result)
                 
-                if adj_factor == 0:
-                    logger.warning(f"{stock_id} {event_date_ymd}: 复权因子为0，跳过")
+                # 处理复权因子数据：按日期排序
+                adj_factor_df = adj_factor_df.sort_values('trade_date', ascending=True)
+                
+                # 处理日线数据：按日期排序，构建日期 -> 原始收盘价的映射
+                daily_kline_df = daily_kline_df.sort_values('trade_date', ascending=True)
+                raw_price_map = {}
+                for _, row in daily_kline_df.iterrows():
+                    trade_date = str(row.get('trade_date', ''))
+                    close_price = float(row.get('close', 0))
+                    if trade_date and close_price > 0:
+                        raw_price_map[trade_date] = close_price
+                
+                # 获取第一根日线日期和对应的复权因子
+                info = stock_info_map.get(stock_id, {})
+                first_kline_date = info.get('first_kline_date')
+                first_kline_ymd = None
+                if first_kline_date:
+                    first_kline_ymd = DateUtils.yyyy_mm_dd_to_yyyymmdd(first_kline_date) if '-' in first_kline_date else first_kline_date
+                
+                # 计算所有复权事件日期（因子变化的日期）
+                changing_dates = self._get_factor_changing_dates(adj_factor_df)
+                
+                # 获取第一个复权因子（用于从未有复权事件的股票）
+                first_factor = 1.0
+                if not adj_factor_df.empty:
+                    first_row = adj_factor_df.iloc[0]
+                    first_factor = float(first_row.get('adj_factor', 1.0))
+                
+                # 复权因子和diff是为了股票的K线服务的，如果没有K线，因子和diff都没有存在的意义
+                # 如果没有第一根K线日期，说明股票没有K线数据，直接跳过
+                if not first_kline_ymd:
+                    logger.warning(f"{stock_id}: 没有第一根K线数据，跳过复权因子保存（复权因子需要K线数据支持）")
                     failed_count += 1
                     continue
                 
-                # 提取原始收盘价
-                daily_kline_row = daily_kline_result.iloc[0]
-                raw_close = float(daily_kline_row.get('close', 0))
+                # 确保第一根日线日期作为一个事件点
+                if first_kline_ymd and first_kline_ymd not in changing_dates:
+                    changing_dates.insert(0, first_kline_ymd)
                 
-                if raw_close == 0:
-                    logger.warning(f"{stock_id} {event_date_ymd}: 收盘价为0，跳过")
-                    failed_count += 1
-                    continue
+                # 如果从未有复权事件（changing_dates 为空），但存在第一根K线，确保至少保存一条记录
+                # 使用第一根日线日期，因子使用第一个因子（通常是1.0），diff根据实际情况计算
+                if not changing_dates:
+                    changing_dates = [first_kline_ymd]
                 
-                # 获取该事件日对应的 F(T)（应该是该事件日之后的下一个因子，或最新因子）
-                # 优先使用 event_factor_map 中的值（事件日之后的下一个因子）
-                event_factor_map = context.get("event_factor_map", {}).get(stock_id, {})
-                F_T = event_factor_map.get(event_date_ymd)
+                # 获取最新复权因子（用于计算 F(T)）
+                latest_factor = float(adj_factor_df.iloc[-1]['adj_factor']) if not adj_factor_df.empty else 1.0
                 
-                # 如果没有找到，fallback 到 latest_factors（当前最新因子）
-                if F_T is None:
-                    F_T = latest_factors.get(stock_id, adj_factor)
-                    logger.warning(f"{stock_id} {event_date_ymd}: 未找到对应的 F(T)，使用最新因子 {F_T}")
+                # 为每个事件日期计算 qfq_diff 并保存
+                events_to_save = []
                 
-                # 计算 Tushare 前复权价格
-                tushare_qfq = raw_close * adj_factor / F_T
+                for event_date_ymd in changing_dates:
+                    # 获取该事件日的复权因子
+                    event_row = adj_factor_df[adj_factor_df['trade_date'] == event_date_ymd]
+                    if event_row.empty:
+                        # 如果事件日不在复权因子数据中（如第一根日线），使用该日期之前最近的因子
+                        prev_rows = adj_factor_df[adj_factor_df['trade_date'] <= event_date_ymd]
+                        if prev_rows.empty:
+                            # 如果该日期之前也没有数据，使用第一个因子（通常是1.0）
+                            tushare_factor = first_factor
+                        else:
+                            tushare_factor = float(prev_rows.iloc[-1]['adj_factor'])
+                    else:
+                        tushare_factor = float(event_row.iloc[0]['adj_factor'])
+                    
+                    # 获取该事件日的原始收盘价
+                    raw_close = raw_price_map.get(event_date_ymd)
+                    if raw_close is None or raw_close == 0:
+                        logger.debug(f"{stock_id} {event_date_ymd}: 无原始收盘价数据，跳过")
+                        continue
+                    
+                    # 获取该事件日的 EastMoney QFQ 价格
+                    eastmoney_qfq = eastmoney_qfq_map.get(event_date_ymd)
+                    
+                    # 计算 qfq_diff = raw_price - EastMoney_QFQ
+                    qfq_diff = 0.0
+                    if eastmoney_qfq is not None:
+                        qfq_diff = raw_close - eastmoney_qfq
+                    else:
+                        logger.debug(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格，qfq_diff 设为 0.0")
+                    
+                    events_to_save.append({
+                        'id': stock_id,
+                        'event_date': event_date_ymd,
+                        'tushare_factor': tushare_factor,
+                        'qfq_diff': qfq_diff
+                    })
                 
-                # 从东方财富 API 获取前复权价格
-                eastmoney_qfq = self._parse_eastmoney_qfq_price(eastmoney_result, event_date_ymd)
-                
-                # 计算 qfq_diff = raw_price - EastMoney_QFQ
-                # 根据分析结论：在除权日之前的一个区间内，Tushare 裸价 与 EastMoney 前复权价 的差值为常量
-                qfq_diff = 0.0
-                if eastmoney_qfq is not None:
-                    qfq_diff = raw_close - eastmoney_qfq
-                    logger.debug(
-                        f"{stock_id} {event_date_ymd}: raw_close={raw_close:.2f}, "
-                        f"EastMoney_QFQ={eastmoney_qfq:.2f}, qfq_diff(raw-sot)={qfq_diff:.4f}"
-                    )
+                # 立即保存该股票的复权事件（优化：每完成一只股票就立即保存，避免中断导致数据丢失）
+                # 全量更新：已删除旧数据，现在保存新的全量数据
+                if events_to_save:
+                    adj_factor_event_model.save_events(events_to_save)
+                    saved_count += len(events_to_save)
+                    logger.info(f"✅ {stock_id}: 保存了 {len(events_to_save)} 个复权事件（全量更新）")
                 else:
-                    logger.warning(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格，qfq_diff 设为 0.0")
-                
-                # 保存到数据库（event_date 使用 YYYYMMDD 格式）
-                adj_factor_event_model.save_event(
-                    stock_id=stock_id,
-                    event_date=event_date_ymd,
-                    tushare_factor=adj_factor,
-                    qfq_diff=qfq_diff
-                )
-                saved_count += 1
-                logger.debug(f"✅ 保存复权因子事件: {stock_id} {event_date_ymd}, factor={adj_factor:.6f}, diff={qfq_diff:.4f}")
+                    logger.warning(f"{stock_id}: 没有可保存的复权事件")
+                    failed_count += 1
                 
             except Exception as e:
-                logger.error(f"❌ 处理复权因子事件失败: {stock_id} {event_date_ymd}, {e}")
+                logger.error(f"❌ 处理复权因子事件失败: {stock_id}, {e}")
                 failed_count += 1
                 import traceback
                 traceback.print_exc()
@@ -722,7 +692,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
     
     def _parse_eastmoney_qfq_price(self, eastmoney_result: Any, event_date_ymd: str) -> Optional[float]:
         """
-        解析东方财富 API 返回的前复权价格
+        解析东方财富 API 返回的前复权价格（单日）
         
         Args:
             eastmoney_result: 东方财富 Provider 返回的 JSON 数据（dict）
@@ -731,35 +701,46 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         Returns:
             前复权收盘价，如果解析失败返回 None
         """
+        eastmoney_qfq_map = self._parse_eastmoney_qfq_price_map(eastmoney_result)
+        return eastmoney_qfq_map.get(event_date_ymd)
+    
+    def _parse_eastmoney_qfq_price_map(self, eastmoney_result: Any) -> Dict[str, float]:
+        """
+        解析东方财富 API 返回的全量前复权价格，构建日期 -> QFQ 价格的映射
+        
+        Args:
+            eastmoney_result: 东方财富 Provider 返回的 JSON 数据（dict）
+        
+        Returns:
+            Dict[str, float]: 日期（YYYYMMDD格式） -> 前复权收盘价的映射
+        """
+        qfq_map = {}
+        
         try:
             # EastMoneyProvider 返回的是 dict
             if not isinstance(eastmoney_result, dict):
-                return None
+                return qfq_map
             
             klines = eastmoney_result.get('data', {}).get('klines', [])
             if not klines:
-                return None
+                return qfq_map
             
-            # 转换日期格式
-            target_date = DateUtils.yyyymmdd_to_yyyy_mm_dd(event_date_ymd)
-            
-            # 查找对应日期的数据
             # klines 格式：["2024-12-15,11.46", "2024-12-14,11.45", ...]
             # 第一个字段是日期（YYYY-MM-DD），第二个字段是收盘价
             for kline_str in klines:
                 parts = kline_str.split(',')
                 if len(parts) >= 2:
-                    date_str = parts[0]
+                    date_str = parts[0]  # YYYY-MM-DD
                     close_price = float(parts[1])
                     
-                    if date_str == target_date:
-                        return close_price
-            
-            return None
+                    # 转换为 YYYYMMDD 格式
+                    date_ymd = date_str.replace('-', '')
+                    qfq_map[date_ymd] = close_price
             
         except Exception as e:
             logger.warning(f"解析东方财富 API 数据失败: {e}")
-            return None
+        
+        return qfq_map
     
     async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
         """

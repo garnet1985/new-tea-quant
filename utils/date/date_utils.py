@@ -342,6 +342,19 @@ class DateUtils:
                 return f"{year}1231"
     
     @staticmethod
+    def get_previous_day(date_str: str) -> str:
+        """
+        获取前一个交易日（前一天的日期）
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+        
+        Returns:
+            str: 前一天的日期，格式YYYYMMDD
+        """
+        return DateUtils.get_date_before_days(date_str, 1)
+    
+    @staticmethod
     def get_previous_week_end(date_str: str) -> str:
         """
         获取指定日期所在周的前一周的周日

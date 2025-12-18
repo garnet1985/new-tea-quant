@@ -204,7 +204,7 @@ def analyze_filtering_reasons(filtered_reversals):
     from utils.db.db_manager import DatabaseManager
     db_manager = DatabaseManager()
     rtb_strategy = ReverseTrendBet(db_manager)
-    data_loader = DataLoader()
+    data_mgr = DataManager(is_verbose=False)
     
     failed_conditions = {}
     
@@ -216,7 +216,7 @@ def analyze_filtering_reasons(filtered_reversals):
         
         try:
             # 获取该日期的K线数据
-            klines = data_loader.get_kline_data(
+            klines = data_mgr.get_kline_data(
                 stock_code=stock_code,
                 start_date=entry_date,
                 end_date=entry_date,

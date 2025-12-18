@@ -18,6 +18,7 @@
 from typing import Dict, List, Any, Optional, Union
 import pandas as pd
 from loguru import logger
+import threading
 
 from utils.db.db_manager import DatabaseManager
 from app.data_manager.loaders.macro_loader import MacroEconomyLoader
@@ -41,24 +42,94 @@ class DataManager:
     - 协调各专用 Loader（兼容层）
     - 预留 Repository / 策略表 Model 的注册与访问能力（新架构方向）
 
-    使用方式（现有）：
+    单例模式：
+    - 单进程环境下：使用同一个实例（线程安全）
+    - 多进程环境下：每个进程有独立的实例（进程间内存不共享）
+    - 支持通过 force_new=True 强制创建新实例
+
+    使用方式：
         from app.data_manager import DataManager
 
+        # 自动使用单例（推荐）
         data_mgr = DataManager(is_verbose=True)
-        data_mgr.initialize()
-
         data = data_mgr.prepare_data(stock, settings)
+        
+        # 强制创建新实例（不推荐，除非有特殊需求）
+        data_mgr = DataManager(is_verbose=True, force_new=True)
     """
     
-    def __init__(self, is_verbose: bool = False):
+    # 单例实例（每个进程独立）
+    _instance: Optional['DataManager'] = None
+    _lock = threading.Lock()  # 线程安全锁
+    
+    @classmethod
+    def reset_instance(cls):
+        """
+        重置单例实例（主要用于测试或特殊场景）
+        
+        注意：此方法会清除当前的单例实例，下次创建时会重新初始化
+        """
+        with cls._lock:
+            cls._instance = None
+    
+    @classmethod
+    def get_instance(cls) -> Optional['DataManager']:
+        """
+        获取当前的单例实例（如果存在）
+        
+        Returns:
+            DataManager 实例，如果不存在则返回 None
+        """
+        return cls._instance
+    
+    def __new__(cls, db: Optional[DatabaseManager] = None, is_verbose: bool = False, force_new: bool = False):
+        """
+        单例模式实现
+        
+        Args:
+            db: 可选的 DatabaseManager 实例
+            is_verbose: 是否输出详细日志
+            force_new: 是否强制创建新实例（默认 False，使用单例）
+        
+        Returns:
+            DataManager 实例
+        """
+        # 如果强制创建新实例，直接创建
+        if force_new:
+            instance = super().__new__(cls)
+            return instance
+        
+        # 单例模式：如果实例不存在，创建新实例
+        if cls._instance is None:
+            with cls._lock:
+                # 双重检查，避免多线程竞争
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def __init__(self, db: Optional[DatabaseManager] = None, is_verbose: bool = False, force_new: bool = False):
         """
         初始化数据管理器
 
         Args:
+            db: 可选的 DatabaseManager 实例，如果提供则使用该实例，否则创建新实例
             is_verbose: 是否输出详细日志
+            force_new: 是否强制创建新实例（单例模式下忽略）
+        
+        注意：
+            - 初始化会自动调用 initialize()，无需手动调用
+            - initialize() 是幂等的，多次调用只会执行一次
+            - 单例模式下，如果实例已初始化，会复用现有实例的配置
         """
+        # 单例模式：如果已经初始化，不重复初始化
+        if hasattr(self, '_initialized') and self._initialized:
+            # 如果提供了新的参数，更新配置（但保持已初始化的状态）
+            if is_verbose and not self.is_verbose:
+                self.is_verbose = is_verbose
+            return
+        
         self.is_verbose = is_verbose
-        self.db = None
+        self.db = db
         self._initialized = False
 
         # Loaders（延迟初始化）
@@ -78,6 +149,9 @@ class DataManager:
         self._strategy_table_schemas: Dict[tuple, str] = {}
         # {(strategy_name, table_name): ModelClass}
         self._strategy_model_classes: Dict[tuple, Any] = {}
+        
+        # 自动初始化（幂等，多次调用只执行一次）
+        self.initialize()
     
     def initialize(self):
         """
@@ -87,21 +161,28 @@ class DataManager:
         1. 创建并初始化 DatabaseManager（连接池）
         2. 创建所有 Base Tables
         3. 初始化所有 Loaders
+        
+        注意：
+            - 此方法是幂等的，多次调用只会执行一次
+            - 在 __init__ 中会自动调用，通常无需手动调用
         """
+        # 幂等检查：如果已经初始化，直接返回
+        if self._initialized:
+            return
+        
         try:
-            if self._initialized:
-                logger.warning("DataManager 已经初始化，跳过")
-                return
             
             # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
-            if self.is_verbose:
-                logger.info("🔧 初始化 DatabaseManager...")
-
-            self.db = DatabaseManager(is_verbose=self.is_verbose)
-            self.db.initialize()
-
-            # 设置为默认实例，便于 DbBaseModel 等自动获取 db
-            DatabaseManager.set_default(self.db)
+            if self.db is None:
+                if self.is_verbose:
+                    logger.info("🔧 初始化 DatabaseManager...")
+                self.db = DatabaseManager(is_verbose=self.is_verbose)
+                self.db.initialize()
+                # 设置为默认实例，便于 DbBaseModel 等自动获取 db
+                DatabaseManager.set_default(self.db)
+            else:
+                if self.is_verbose:
+                    logger.info("🔧 使用已提供的 DatabaseManager 实例...")
 
             # 2. 创建所有 Base Tables（业务逻辑）
             if self.is_verbose:

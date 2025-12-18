@@ -97,7 +97,7 @@ class SimulatingService:
             strategy_class = payload['strategy_class']
 
             from app.data_manager import DataManager
-            loader = DataLoader()
+            loader = DataManager(is_verbose=False)
             data = loader.prepare_data(stock, settings)
 
             # 执行模拟 - 直接调用子类的simulate_one_day方法

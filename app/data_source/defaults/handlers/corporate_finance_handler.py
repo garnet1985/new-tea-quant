@@ -34,8 +34,8 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = True  # 需要日期范围参数
     
-    def __init__(self, schema, params: Dict[str, Any] = None):
-        super().__init__(schema, params or {})
+    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
+        super().__init__(schema, params or {}, data_manager)
     
     async def before_fetch(self, context: Dict[str, Any] = None):
         """

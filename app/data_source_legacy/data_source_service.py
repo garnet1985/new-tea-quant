@@ -27,12 +27,12 @@ class DataSourceService:
         """
         计算前复权价格
         
-        ⚠️  建议使用 DataLoader.load_klines() 替代
+        ⚠️  建议使用 DataManager.load_klines() 替代
         
         新方法的优势：
             from app.data_manager import DataManager
             
-            loader = DataLoader(db)
+            data_mgr = DataManager(db=db)
             
             # 返回List（使用此方法，性能相同）
             records = loader.load_klines(stock_id, adjust='qfq', as_dataframe=False)
@@ -40,7 +40,7 @@ class DataSourceService:
             # 返回DataFrame（代码更简洁，便于后续分析）
             df = loader.load_klines(stock_id, adjust='qfq', as_dataframe=True)
         
-        DataLoader统一了数据加载接口，避免手动组合表操作。
+        DataManager统一了数据加载接口，避免手动组合表操作。
         
         Args:
             k_lines: K线数据列表，包含 date, open, close, highest, lowest 等字段
@@ -97,12 +97,12 @@ class DataSourceService:
         """
         过滤掉价格为负或无效的记录
         
-        ⚠️  建议使用 DataLoader.load_klines() 替代
+        ⚠️  建议使用 DataManager.load_klines() 替代
         
         新方法的优势：
             from app.data_manager import DataManager
             
-            loader = DataLoader(db)
+            data_mgr = DataManager(db=db)
             
             # 自动过滤负值
             records = loader.load_klines(stock_id, filter_negative=True)
@@ -111,7 +111,7 @@ class DataSourceService:
             df = loader.load_klines(stock_id, as_dataframe=True, filter_negative=True)
             # df = df[df['close'] > 0]  # 一行搞定！
         
-        DataLoader统一了数据加载接口。
+        DataManager统一了数据加载接口。
         """
         if not records:
             return []

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class ReversalDataGenerator:
     def __init__(self):
-        self.data_loader = DataLoader()
+        self.data_mgr = DataManager(is_verbose=False)
         self.positive_reversals = []
         self.negative_reversals = []
         self.csv_root = "/Users/garnet/Desktop/stocks-py/app/analyzer/strategy/RTB/ml/data/"
@@ -34,7 +34,7 @@ class ReversalDataGenerator:
             from app.analyzer.strategy.RTB.settings import settings
             
             # 获取所有股票
-            all_stocks = self.data_loader.load_stock_list(filtered=True)
+            all_stocks = self.data_mgr.load_stock_list(filtered=True)
             
             # 使用RTB的抽样数量
             sample_count = settings.get('mode', {}).get('test_amount', 500)
@@ -106,7 +106,7 @@ class ReversalDataGenerator:
                 return []
             
             # 获取周线数据用于生成更多样本
-            weekly_klines = self.data_loader.load_klines(stock_id, term='weekly', adjust='qfq', as_dataframe=False)
+            weekly_klines = self.data_mgr.load_klines(stock_id, term='weekly', adjust='qfq', as_dataframe=False)
             
             if len(weekly_klines) < 100:
                 return []

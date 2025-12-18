@@ -43,8 +43,8 @@ class StockApi:
             # 使用缓存的 db_manager
             from app.data_manager import DataManager
             
-            # 使用DataLoader加载K线数据（自动复权和过滤）
-            loader = DataLoader(self.db_manager)
+            # 使用DataManager加载K线数据（自动复权和过滤）
+            loader = DataManager(db=self.db_manager, is_verbose=False)
             qfq_kline_data = loader.load_klines(
                 stock_id=stock_id,
                 term=term,

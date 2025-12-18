@@ -46,7 +46,7 @@ class EnhancedReversalDataGenerator:
                 sample_count = 500
             
             # 获取所有股票
-            all_stocks = self.data_loader.load_stock_list(filtered=True)
+            all_stocks = self.data_manager.load_stock_list(filtered=True)
             
             if len(all_stocks) > sample_count:
                 candidates = np.random.choice(all_stocks, sample_count, replace=False).tolist()
@@ -76,7 +76,7 @@ class EnhancedReversalDataGenerator:
                 return []
             
             # 加载周线数据
-            weekly_klines = self.data_loader.load_klines(stock_id, term='weekly', adjust='qfq', as_dataframe=False)
+            weekly_klines = self.data_manager.load_klines(stock_id, term='weekly', adjust='qfq', as_dataframe=False)
             
             # 生成样本
             samples = self.generate_samples_from_reversals(stock_id, major_reversals, weekly_klines)

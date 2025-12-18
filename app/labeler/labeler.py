@@ -2,7 +2,7 @@
 """
 股票标签算法服务
 
-位置：app/labeler/（与analyzer、data_loader、data_source并列）
+位置：app/labeler/（与analyzer、data_manager、data_source并列）
 
 职责：
 - 股票标签的计算算法
@@ -58,7 +58,7 @@ class LabelerService:
             db.initialize()
         
         self.db = db
-        self.data_loader = DataLoader(self.db)
+        self.data_mgr = DataManager(db=self.db, is_verbose=False)
         
         # 初始化标签定义管理器
         self.label_definitions = LabelMapping()
@@ -90,7 +90,7 @@ class LabelerService:
             BaseLabelCalculator: 计算器实例
         """
         if category not in self._calculator_instances:
-            calculator_class = self.registry.get_calculator(category, self.data_loader, self.label_definitions)
+            calculator_class = self.registry.get_calculator(category, self.data_mgr, self.label_definitions)
             if calculator_class:
                 self._calculator_instances[category] = calculator_class
             else:
@@ -152,7 +152,7 @@ class LabelerService:
             List[Dict]: 需要更新的股票列表
         """
         # 获取所有股票列表（过滤ST、科创板等）
-        all_stocks = self.data_loader.load_stock_list(filtered=True)
+        all_stocks = self.data_mgr.load_stock_list(filtered=True)
         logger.info(f"📋 获取到 {len(all_stocks)} 只股票")
         
         if is_refresh:
@@ -161,7 +161,7 @@ class LabelerService:
         
         # 增量更新模式：批量获取所有股票的最后更新时间
         stock_ids = [stock['id'] for stock in all_stocks]
-        stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates(stock_ids)
+        stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates(stock_ids)
         
         stocks_needing_update = []
         current_dt = DateUtils.parse_yyyymmdd(last_market_open_day)
@@ -252,7 +252,7 @@ class LabelerService:
         jobs = []
         
         # 获取所有股票列表（使用过滤规则，排除ST、科创板等）
-        all_stocks = self.data_loader.load_stock_list(filtered=True)
+        all_stocks = self.data_mgr.load_stock_list(filtered=True)
         
         # 获取需要计算的标签分类
         categories_to_calculate = []
@@ -303,7 +303,7 @@ class LabelerService:
             stock_ids = [stock['id'] for stock in all_stocks]
             
             # 一次性获取所有股票的最后更新时间
-            stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates(stock_ids)
+            stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates(stock_ids)
             
             stocks_needing_update = []
             current_dt = DateUtils.parse_yyyymmdd(last_market_open_day)
@@ -568,7 +568,7 @@ class LabelerService:
         try:
             # 如果没有提供开始日期，则从最后更新日期开始
             if not start_date:
-                stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates([stock_id])
+                stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
                 last_update_date = stock_last_update_dates.get(stock_id)
                 
                 if last_update_date:
@@ -583,7 +583,7 @@ class LabelerService:
             # 获取股票的K线数据
             from utils.date.date_utils import DateUtils
             current_date = DateUtils.get_current_date_str()
-            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=current_date)
+            klines = self.data_mgr.load_klines(stock_id, start_date=start_date, end_date=current_date)
             if not klines:
                 return {}
             
@@ -608,7 +608,7 @@ class LabelerService:
         """
         try:
             # 获取指定日期范围的K线数据
-            klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
+            klines = self.data_mgr.load_klines(stock_id, start_date=start_date, end_date=end_date)
             if not klines:
                 return {}
             
@@ -633,7 +633,7 @@ class LabelerService:
             int: 保存的标签数量
         """
         # 获取最后标签更新日期
-        stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates([stock_id])
+        stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
         last_update_date = stock_last_update_dates.get(stock_id)
         
         if not last_update_date:
@@ -752,7 +752,7 @@ class LabelerService:
                     labels = calculator.calculate_labels_for_stock(
                         stock_id, date, 
                         klines_data=klines_for_date,
-                        data_loader=self.data_loader
+                        data_mgr=self.data_mgr
                     )
                     if labels:
                         all_labels.extend(labels)
@@ -777,7 +777,7 @@ class LabelerService:
             from datetime import datetime, timedelta
             
             # 获取股票的最后标签更新日期
-            stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates([stock_id])
+            stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
             last_update_date = stock_last_update_dates.get(stock_id)
             
             if not last_update_date:
@@ -798,7 +798,7 @@ class LabelerService:
                 # 对于长时间未更新的股票，生成最近30天的交易日
                 start_dt = DateUtils.get_date_before_days(target_date, 30)
                 end_date = target_date
-                klines = self.data_loader.load_klines(stock_id, start_date=start_dt, end_date=end_date)
+                klines = self.data_mgr.load_klines(stock_id, start_date=start_dt, end_date=end_date)
                 if klines:
                     # 返回最近的交易日
                     trading_days = [kline['date'] for kline in klines if kline.get('date')]
@@ -903,7 +903,7 @@ class LabelerService:
         """
         try:
             # 获取股票的所有K线数据，取第一个日期
-            all_klines = self.data_loader.load_klines(stock_id)
+            all_klines = self.data_mgr.load_klines(stock_id)
             
             if not all_klines:
                 return None
@@ -943,7 +943,7 @@ class LabelerService:
                 return {}
             
             # 获取股票的最后标签更新日期
-            stock_last_update_dates = self.data_loader.label_loader.get_all_stocks_last_update_dates([stock_id])
+            stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
             last_update_date = stock_last_update_dates.get(stock_id)
             
             if not last_update_date:
@@ -981,7 +981,7 @@ class LabelerService:
             start_date = DateUtils.get_date_before_days(end_date, 365)
             
             # 一次性获取日期范围内的所有K线数据
-            all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
+            all_klines = self.data_mgr.load_klines(stock_id, start_date=start_date, end_date=end_date)
             
             # 按日期分组，并为每个目标日期找到最近的交易日数据
             klines_by_date = {}
@@ -1086,7 +1086,7 @@ class LabelerService:
                 start_date = DateUtils.format_to_yyyymmdd(start_dt)
                 end_date = DateUtils.format_to_yyyymmdd(end_dt)
                 
-                klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
+                klines = self.data_mgr.load_klines(stock_id, start_date=start_date, end_date=end_date)
                 if not klines:
                     return None
                 
@@ -1136,7 +1136,7 @@ class LabelerService:
             end_date = target_date
             
             # 只获取增量时间范围内的K线数据
-            all_klines = self.data_loader.load_klines(stock_id, start_date=start_date, end_date=end_date)
+            all_klines = self.data_mgr.load_klines(stock_id, start_date=start_date, end_date=end_date)
             # 按日期分组，只保留需要的日期
             klines_by_date = {}
             for kline in all_klines:
@@ -1184,7 +1184,7 @@ class LabelerService:
                 return
             
             # 保存到数据库
-            self.data_loader.label_loader.upsert_stock_label(stock_id, target_date, valid_labels)
+            self.data_mgr.label_loader.upsert_stock_label(stock_id, target_date, valid_labels)
             
         except Exception as e:
             logger.error(f"保存股票标签失败 {stock_id} {target_date}: {e}")
@@ -1201,7 +1201,7 @@ class LabelerService:
                 return
             
             # 批量保存到数据库
-            self.data_loader.label_loader.batch_save_stock_labels(labels_to_save)
+            self.data_mgr.label_loader.batch_save_stock_labels(labels_to_save)
             
             logger.info(f"批量保存了 {len(labels_to_save)} 条标签记录")
             
@@ -1263,7 +1263,7 @@ class LabelerService:
                             labels = calculator.calculate_labels_for_stock(
                                 stock_id, target_date, 
                                 klines_data=all_klines_list,
-                                data_loader=self.data_loader
+                                data_mgr=self.data_mgr
                             )
                             if not labels:
                                 calculator_issues.append(f"{category}:无标签生成")

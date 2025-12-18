@@ -17,7 +17,7 @@
             "description": "除权除息日期（YYYYMMDD）"
         },
         {
-            "name": "tushare_factor",
+            "name": "factor",
             "type": "float",
             "isRequired": true,
             "description": "Tushare复权因子 F(t)，用于计算前复权价格"

@@ -315,7 +315,7 @@ ADJ_FACTOR_EVENT = DataSourceSchema(
     schema={
         "id": Field(str, required=True, description="股票代码ts_code"),
         "event_date": Field(str, required=True, description="除权除息日期（YYYYMMDD）"),
-        "tushare_factor": Field(float, required=True, description="Tushare 复权因子 F(t)"),
+        "factor": Field(float, required=True, description="Tushare 复权因子 F(t)"),
         "qfq_diff": Field(float, required=False, description="与 EastMoney 前复权价格的固定差异（raw_price - eastmoney_qfq）"),
     }
 )

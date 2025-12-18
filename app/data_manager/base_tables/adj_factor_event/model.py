@@ -106,7 +106,7 @@ class AdjFactorEventModel(DbBaseModel):
         """
         从CSV文件导入数据
         
-        CSV格式：id,event_date,tushare_factor,qfq_diff
+        CSV格式：id,event_date,factor,qfq_diff
         
         Args:
             file_path: CSV文件路径（如果为None，自动查找最新的CSV文件）
@@ -129,7 +129,7 @@ class AdjFactorEventModel(DbBaseModel):
             df = pd.read_csv(file_path)
             
             # 检查必需的列（包括 qfq_diff，保持与导出格式一致）
-            required_columns = ['id', 'event_date', 'tushare_factor', 'qfq_diff']
+            required_columns = ['id', 'event_date', 'factor', 'qfq_diff']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 logger.error(f"CSV文件缺少必需的列: {missing_columns}")
@@ -148,7 +148,7 @@ class AdjFactorEventModel(DbBaseModel):
                 event = {
                     'id': str(row['id']),
                     'event_date': event_date_ymd,  # YYYYMMDD 格式
-                    'tushare_factor': float(row['tushare_factor']),
+                    'factor': float(row['factor']),
                     'qfq_diff': float(row.get('qfq_diff', 0.0)),
                 }
                 events.append(event)
@@ -168,7 +168,7 @@ class AdjFactorEventModel(DbBaseModel):
         """
         导出数据到CSV文件
         
-        CSV格式：id,event_date,tushare_factor,qfq_diff
+        CSV格式：id,event_date,factor,qfq_diff
         
         Args:
             file_path: CSV文件路径（如果为None，使用当前季度的文件名）
@@ -192,7 +192,7 @@ class AdjFactorEventModel(DbBaseModel):
             df = pd.DataFrame(all_events)
             
             # 只保留需要的列
-            export_columns = ['id', 'event_date', 'tushare_factor', 'qfq_diff']
+            export_columns = ['id', 'event_date', 'factor', 'qfq_diff']
             df_export = df[export_columns].copy()
             
             # 保存为CSV
@@ -278,7 +278,7 @@ class AdjFactorEventModel(DbBaseModel):
             复权因子事件列表，每个事件包含：
                 - id: 股票代码
                 - event_date: 除权日期（YYYYMMDD）
-                - tushare_factor: 复权因子
+                - factor: 复权因子
                 - qfq_diff: 价格差异
         """
         # 确保日期格式为 YYYYMMDD
@@ -302,7 +302,7 @@ class AdjFactorEventModel(DbBaseModel):
             date: 查询日期（YYYYMMDD）
         
         Returns:
-            复权因子事件字典，包含 tushare_factor 和 qfq_diff
+            复权因子事件字典，包含 factor 和 qfq_diff
         """
         # 确保日期格式为 YYYYMMDD
         date_ymd = date.replace('-', '') if '-' in date else date
@@ -350,7 +350,7 @@ class AdjFactorEventModel(DbBaseModel):
                 SELECT 
                     id,
                     event_date,
-                    tushare_factor,
+                    factor,
                     qfq_diff,
                     last_update,
                     ROW_NUMBER() OVER (PARTITION BY id ORDER BY event_date DESC) as rn
@@ -400,7 +400,7 @@ class AdjFactorEventModel(DbBaseModel):
         self, 
         stock_id: str, 
         event_date: str, 
-        tushare_factor: float, 
+        factor: float, 
         qfq_diff: float = 0.0
     ) -> int:
         """
@@ -409,7 +409,7 @@ class AdjFactorEventModel(DbBaseModel):
         Args:
             stock_id: 股票代码
             event_date: 除权日期（YYYYMMDD）
-            tushare_factor: Tushare复权因子
+            factor: 复权因子
             qfq_diff: 与EastMoney前复权价格的价格差异
         
         Returns:
@@ -421,7 +421,7 @@ class AdjFactorEventModel(DbBaseModel):
         event_data = {
             'id': stock_id,
             'event_date': event_date_ymd,
-            'tushare_factor': tushare_factor,
+            'factor': factor,
             'qfq_diff': qfq_diff,
             'last_update': now,
         }
@@ -436,7 +436,7 @@ class AdjFactorEventModel(DbBaseModel):
             events: 复权因子事件列表，每个事件必须包含：
                 - id: 股票代码
                 - event_date: 除权日期（YYYYMMDD）
-                - tushare_factor: 复权因子
+                - factor: 复权因子
                 - qfq_diff: 价格差异（可选，默认0.0）
         
         Returns:

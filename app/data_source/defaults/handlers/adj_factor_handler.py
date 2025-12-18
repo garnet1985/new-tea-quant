@@ -1,6 +1,9 @@
 """
 复权因子 Handler
 
+⚠️ 已废弃 - 此 Handler 已被 adj_factor_event_handler 替代
+请使用 adj_factor_event_handler 来获取复权因子事件数据
+
 从 Tushare 和 AKShare 获取数据，计算复权因子
 
 业务逻辑：

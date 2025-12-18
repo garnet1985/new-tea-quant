@@ -370,12 +370,12 @@ class StockDataService(BaseDataService):
         if not latest_event:
             return None
         
-        tushare_factor = latest_event.get('tushare_factor')
-        if tushare_factor is None:
+        factor = latest_event.get('factor')
+        if factor is None:
             return None
         
         # 确保返回 float 类型
-        return float(tushare_factor)
+        return float(factor)
     
     def _apply_qfq_adjustment(
         self,
@@ -426,9 +426,9 @@ class StockDataService(BaseDataService):
                 
                 if event_date_ymd <= kline_date_ymd:
                     # 这个事件适用于当前K线日期，更新当前因子
-                    tushare_factor_val = event.get('tushare_factor', 1.0)
+                    factor_val = event.get('factor', 1.0)
                     qfq_diff_val = event.get('qfq_diff', 0.0)
-                    current_factor = float(tushare_factor_val)
+                    current_factor = float(factor_val)
                     current_qfq_diff = float(qfq_diff_val)
                     event_idx += 1
                 else:

@@ -152,8 +152,9 @@
         },
         "adj_factor": {
             "handler": "defaults.handlers.adj_factor_handler.AdjFactorHandler",
-            "is_enabled": true,
-            "params": {}
+            "is_enabled": false,
+            "params": {},
+            "note": "已废弃，请使用 adj_factor_event handler"
         },
         "adj_factor_event": {
             "handler": "defaults.handlers.adj_factor_event_handler.AdjFactorEventHandler",

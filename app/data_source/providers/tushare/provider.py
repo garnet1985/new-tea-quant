@@ -39,6 +39,11 @@ class TushareProvider(BaseProvider):
         "get_shibor": 200,              # Shibor数据，宏观数据接口限制200次/分钟
         "get_lpr": 200,                 # LPR数据，宏观数据接口限制200次/分钟
         "get_money_supply": 200,        # 货币供应量，宏观数据接口限制200次/分钟
+        "get_moneyflow_ind_ths": 200,   # 行业资金流向，宏观数据接口限制200次/分钟
+        "get_index_daily": 500,         # 指数日线，指数接口限制500次/分钟
+        "get_index_weekly": 500,        # 指数周线，指数接口限制500次/分钟
+        "get_index_monthly": 500,       # 指数月线，指数接口限制500次/分钟
+        "get_index_weight": 200,        # 指数权重，指数接口限制200次/分钟
     }
     
     default_rate_limit = 200  # 默认限流（保守值）
@@ -397,3 +402,122 @@ class TushareProvider(BaseProvider):
             return self.api.trade_cal(**params)
         except Exception as e:
             raise self.handle_error(e, "get_trade_cal")
+    
+    def get_moneyflow_ind_ths(self, start_date: str = None, end_date: str = None, **kwargs):
+        """
+        获取行业资金流向数据（同花顺）
+        
+        Tushare API: moneyflow_ind_ths
+        
+        Args:
+            start_date: 开始日期 (YYYYMMDD)
+            end_date: 结束日期 (YYYYMMDD)
+        
+        Returns:
+            DataFrame: 行业资金流向数据
+        """
+        try:
+            params = kwargs.copy()
+            if start_date:
+                params["start_date"] = start_date
+            if end_date:
+                params["end_date"] = end_date
+            return self.api.moneyflow_ind_ths(**params)
+        except Exception as e:
+            raise self.handle_error(e, "get_moneyflow_ind_ths")
+    
+    def get_index_daily(self, ts_code: str, start_date: str = None, end_date: str = None, **kwargs):
+        """
+        获取指数日线数据
+        
+        Tushare API: index_daily
+        
+        Args:
+            ts_code: 指数代码
+            start_date: 开始日期 (YYYYMMDD)
+            end_date: 结束日期 (YYYYMMDD)
+        
+        Returns:
+            DataFrame: 指数日线数据
+        """
+        try:
+            params = {"ts_code": ts_code, **kwargs}
+            if start_date:
+                params["start_date"] = start_date
+            if end_date:
+                params["end_date"] = end_date
+            return self.api.index_daily(**params)
+        except Exception as e:
+            raise self.handle_error(e, "get_index_daily")
+    
+    def get_index_weekly(self, ts_code: str, start_date: str = None, end_date: str = None, **kwargs):
+        """
+        获取指数周线数据
+        
+        Tushare API: index_weekly
+        
+        Args:
+            ts_code: 指数代码
+            start_date: 开始日期 (YYYYMMDD)
+            end_date: 结束日期 (YYYYMMDD)
+        
+        Returns:
+            DataFrame: 指数周线数据
+        """
+        try:
+            params = {"ts_code": ts_code, **kwargs}
+            if start_date:
+                params["start_date"] = start_date
+            if end_date:
+                params["end_date"] = end_date
+            return self.api.index_weekly(**params)
+        except Exception as e:
+            raise self.handle_error(e, "get_index_weekly")
+    
+    def get_index_monthly(self, ts_code: str, start_date: str = None, end_date: str = None, **kwargs):
+        """
+        获取指数月线数据
+        
+        Tushare API: index_monthly
+        
+        Args:
+            ts_code: 指数代码
+            start_date: 开始日期 (YYYYMMDD)
+            end_date: 结束日期 (YYYYMMDD)
+        
+        Returns:
+            DataFrame: 指数月线数据
+        """
+        try:
+            params = {"ts_code": ts_code, **kwargs}
+            if start_date:
+                params["start_date"] = start_date
+            if end_date:
+                params["end_date"] = end_date
+            return self.api.index_monthly(**params)
+        except Exception as e:
+            raise self.handle_error(e, "get_index_monthly")
+    
+    def get_index_weight(self, index_code: str, start_date: str = None, end_date: str = None, **kwargs):
+        """
+        获取指数成分股权重数据
+        
+        Tushare API: index_weight
+        
+        Args:
+            index_code: 指数代码
+            start_date: 开始日期 (YYYYMMDD)
+            end_date: 结束日期 (YYYYMMDD)
+        
+        Returns:
+            DataFrame: 指数成分股权重数据
+        """
+        try:
+            params = {"index_code": index_code, **kwargs}
+            if start_date:
+                params["start_date"] = start_date
+            if end_date:
+                params["end_date"] = end_date
+            return self.api.index_weight(**params)
+        except Exception as e:
+            raise self.handle_error(e, "get_index_weight")

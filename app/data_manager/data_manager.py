@@ -913,7 +913,7 @@ class DataManager:
         加载前复权（QFQ）K线数据（使用新的 adj_factor_event 表）
         
         使用新的 adj_factor_event 表计算前复权价格：
-        qfq_price = raw_price × F(t) / F(T) + constantDiff
+        qfq_price = raw_price + constantDiff
         
         Args:
             stock_id: 股票代码

@@ -11,7 +11,7 @@
 - stock_labels: 股票标签
 - adj_factor: 复权因子
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 from .. import BaseDataService
@@ -570,4 +570,86 @@ class StockDataService(BaseDataService):
             影响的行数
         """
         return self.stock_kline.save_klines(klines)
+    
+    def load_multiple_terms(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict]]:
+        """
+        加载多个周期的K线数据（兼容 KlineLoader 接口）
+        
+        Args:
+            stock_id: 股票代码
+            settings: 配置字典，包含terms、adjust、allow_negative_records等
+            
+        Returns:
+            Dict[term, List[Dict]]: 各周期的K线数据
+        """
+        min_required_base_records = settings.get('min_required_base_records', 0)
+        min_required_kline_term = settings.get('signal_base_term', 'daily')
+        adjust = settings.get('adjust', 'qfq')
+        allow_negative_records = settings.get('allow_negative_records', False)
+        
+        # 从 settings 中提取 start_date 和 end_date（如果存在）
+        start_date = settings.get('start_date')
+        end_date = settings.get('end_date')
+        
+        kline_data = {}
+        
+        for term in settings.get('terms', []):
+            # 使用 load_qfq_klines 方法（如果 adjust='qfq'）
+            if adjust == 'qfq':
+                records = self.load_qfq_klines(stock_id, term, start_date, end_date)
+            else:
+                # 对于其他复权方式，使用原始数据加载
+                records = self.load_kline_series(stock_id, start_date, end_date)
+                # 过滤 term
+                records = [r for r in records if r.get('term') == term]
+            
+            kline_data[term] = records
+        
+        # 检查最小记录数要求
+        if min_required_base_records > 0:
+            base_records = kline_data.get(min_required_kline_term, [])
+            if len(base_records) < min_required_base_records:
+                # 返回包含所有请求term的空列表
+                return {term: [] for term in settings.get('terms', [])}
+        
+        return kline_data
+    
+    def load(
+        self, 
+        stock_id: str, 
+        term: str = 'daily', 
+        start_date: Optional[str] = None, 
+        end_date: Optional[str] = None,
+        adjust: str = 'qfq', 
+        filter_negative: bool = True,
+        as_dataframe: bool = False
+    ) -> Union[List[Dict], Any]:
+        """
+        加载K线数据（兼容 KlineLoader 接口）
+        
+        Args:
+            stock_id: 股票代码
+            term: 周期（daily/weekly/monthly）
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
+            adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
+            filter_negative: 是否过滤负值（默认True，暂不支持）
+            as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
+            
+        Returns:
+            DataFrame or List[Dict]: K线数据
+        """
+        if adjust == 'qfq':
+            result = self.load_qfq_klines(stock_id, term, start_date, end_date)
+        else:
+            # 对于其他复权方式，返回原始数据
+            result = self.load_kline_series(stock_id, start_date, end_date)
+            # 过滤 term
+            result = [r for r in result if r.get('term') == term]
+        
+        if as_dataframe:
+            import pandas as pd
+            return pd.DataFrame(result) if result else pd.DataFrame()
+        
+        return result
 

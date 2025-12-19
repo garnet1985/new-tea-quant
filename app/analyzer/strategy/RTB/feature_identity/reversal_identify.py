@@ -52,15 +52,17 @@ def identify_major_reversals(stock_id: str = "000001.SZ",
     try:
         # 初始化数据加载器
         from utils.db.db_manager import DatabaseManager
-        from app.data_manager.loaders import KlineLoader
+        from app.data_manager import DataManager
         
-        db = DatabaseManager()
-        db.initialize()
-        kline_loader = KlineLoader(db)
+        data_mgr = DataManager()
+        stock_service = data_mgr.get_data_service('stock_related.stock')
         
         # 第一步：加载整个时间的月K线数据
         logger.info("📊 第一步：加载月K线数据")
-        monthly_klines = kline_loader.load_monthly_qfq(stock_id, start_date, end_date)
+        if stock_service:
+            monthly_klines = stock_service.load_qfq_klines(stock_id, 'monthly', start_date, end_date)
+        else:
+            monthly_klines = []
         
         if len(monthly_klines) < 12:
             logger.error(f"❌ 月线数据不足: {len(monthly_klines)} 条")

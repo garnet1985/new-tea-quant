@@ -10,6 +10,7 @@
 from typing import Optional, Dict, Any
 from .. import BaseDataService
 from .stock.stock_data_service import StockDataService
+from .stock.label_data_service import LabelDataService
 from .corporate_finance.corporate_finance_data_service import CorporateFinanceDataService
 
 
@@ -26,12 +27,14 @@ class StockRelatedDataService(BaseDataService):
     def __init__(self, data_manager):
         super().__init__(data_manager)
         self.stock_service: Optional[StockDataService] = None
+        self.label_service: Optional[LabelDataService] = None
         self.finance_service: Optional[CorporateFinanceDataService] = None
         self.industry_service = None  # 待实现
     
     def initialize(self):
         """初始化所有子 Service"""
         self.stock_service = StockDataService(self.data_manager)
+        self.label_service = LabelDataService(self.data_manager)
         self.finance_service = CorporateFinanceDataService(self.data_manager)
         # self.industry_service = IndustryDataService(self.data_manager)
     

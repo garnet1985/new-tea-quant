@@ -49,8 +49,6 @@ class LatestTradingDateHandler(BaseDataSourceHandler):
         end_date = yesterday.strftime('%Y%m%d')
         start_date = (yesterday - timedelta(days=self.backward_checking_days)).strftime('%Y%m%d')
         
-        logger.debug(f"查询交易日历范围: {start_date} 至 {end_date}")
-        
         # 使用辅助方法创建简单的单 API 调用 Task
         task = self.create_simple_task(
             provider_name="tushare",

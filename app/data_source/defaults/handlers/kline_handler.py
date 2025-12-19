@@ -69,6 +69,9 @@ class KlineHandler(BaseDataSourceHandler):
     def __init__(self, schema, params: dict = None, data_manager=None):
         """初始化 K 线 Handler"""
         super().__init__(schema, params, data_manager)
+        # 用于增量保存的已保存任务集合（避免重复保存）
+        # 每次 fetch_and_normalize 开始时重置，确保每次运行都是新的状态
+        self._saved_tasks = set()
     
     async def before_fetch(self, context: Dict[str, Any] = None):
         """
@@ -188,6 +191,8 @@ class KlineHandler(BaseDataSourceHandler):
         - 逻辑更清晰（一个股票的所有数据一起处理）
         """
         context = context or {}
+        # 重置已保存任务集合（每次 fetch 开始时重置，确保增量保存状态正确）
+        self._saved_tasks = set()
         
         stock_list = context.get("stock_list", [])
         end_dates = context.get("end_dates", {})
@@ -465,6 +470,60 @@ class KlineHandler(BaseDataSourceHandler):
         
         return stock_data_map
     
+    async def _save_single_task_result(self, task_id: str, task_result: Dict[str, Any], context: Dict[str, Any] = None):
+        """
+        保存单个任务的结果（增量保存）
+        
+        用于任务完成回调，实现断点续传能力
+        
+        Args:
+            task_id: 任务ID
+            task_result: 任务执行结果 {job_id: result}
+            context: 执行上下文，可能包含 dry_run 标志
+        """
+        # 检查是否已经保存过（避免重复保存）
+        if task_id in self._saved_tasks:
+            return
+        
+        context = context or {}
+        # 检查是否是 dry_run 模式
+        dry_run = context.get('dry_run', False)
+        if dry_run:
+            return
+        
+        if not self.data_manager:
+            return
+        
+        try:
+            # 处理单个任务的结果
+            # task_result 格式：{job_id: result}
+            # 需要转换为 _process_task_results 期望的格式：{task_id: {job_id: result}}
+            task_results = {task_id: task_result}
+            stock_data_map = self._process_task_results(task_results)
+            
+            # 保存该任务对应的股票数据
+            for stock_id, records in stock_data_map.items():
+                if not records:
+                    continue
+                
+                try:
+                    # 直接调用 data_manager 的 service 方法保存数据
+                    stock_service = self.data_manager.get_data_service('stock_related.stock')
+                    if stock_service:
+                        count = stock_service.save_klines(records)
+                        logger.debug(f"✅ [增量保存] 股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
+                    else:
+                        logger.warning(f"未找到 stock service，无法保存股票 {stock_id} K 线数据")
+                except Exception as e:
+                    logger.error(f"❌ [增量保存] 股票 {stock_id} K 线数据失败: {e}")
+                    # 继续处理其他股票，不中断整个流程
+            
+            # 标记为已保存
+            self._saved_tasks.add(task_id)
+            
+        except Exception as e:
+            logger.error(f"❌ [增量保存] 任务 {task_id} 保存失败: {e}")
+    
     async def after_execute(
         self, 
         task_results: Dict[str, Dict[str, Any]], 
@@ -474,12 +533,8 @@ class KlineHandler(BaseDataSourceHandler):
         执行后的钩子：按股票分组保存数据
         
         策略：
-        - 调用 _process_task_results 处理数据
-        - 按股票分组保存数据
-        - 支持多线程场景：每个线程处理一个 Task，完成后立即保存
-        
-        这样可以在多线程环境中，每个线程完成一个股票的数据后立即保存，
-        避免等待所有股票都完成才保存，减少内存占用。
+        - 只保存尚未通过增量保存机制保存的任务（避免重复保存）
+        - 如果所有任务都已通过增量保存，这里只做统计
         
         Args:
             task_results: Task 执行结果
@@ -495,8 +550,17 @@ class KlineHandler(BaseDataSourceHandler):
             logger.warning(f"{self.data_source} Handler 未设置 data_manager，无法保存数据")
             return
         
-        # 处理 Task 结果，获取按股票分组的记录
-        stock_data_map = self._process_task_results(task_results)
+        # 找出尚未保存的任务（增量保存可能因为中断而未完成所有任务）
+        unsaved_tasks = {task_id: result for task_id, result in task_results.items() 
+                        if task_id not in self._saved_tasks}
+        
+        if not unsaved_tasks:
+            # 所有任务都已通过增量保存完成
+            logger.info(f"✅ K 线数据保存完成（所有任务已通过增量保存完成）")
+            return
+        
+        # 处理未保存的任务结果
+        stock_data_map = self._process_task_results(unsaved_tasks)
         
         # 按股票分组保存数据
         total_saved = 0

@@ -112,6 +112,19 @@ class TaskExecutor:
         # 限流器缓存（按 api_name 缓存）
         self._rate_limiters: Dict[str, RateLimiter] = {}
         self._rate_limiters_lock = threading.Lock()
+        
+        # 用于增量保存的 handler 和 context（可选）
+        self._handler = None
+        self._handler_context = None
+    
+    def set_handler(self, handler, context: Dict[str, Any] = None):
+        """
+        设置 handler 和 context（用于增量保存）
+        
+        如果 handler 有 _save_single_task_result 方法，任务完成后会立即保存
+        """
+        self._handler = handler
+        self._handler_context = context
     
     async def execute(self, tasks: List[DataSourceTask]) -> Dict[str, Dict[str, Any]]:
         """

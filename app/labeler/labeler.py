@@ -35,7 +35,6 @@ from .calculators import (
     FinancialLabelCalculator
 )
 from .conf.label_mapping import LabelMapping
-from utils.db.db_manager import DatabaseManager
 from app.data_manager import DataManager
 
 
@@ -46,19 +45,18 @@ class LabelerService:
     提供股票标签的计算、管理和查询功能
     """
     
-    def __init__(self, db: Optional[DatabaseManager] = None):
+    def __init__(self, is_verbose: bool = False):
         """
         初始化标签服务
         
         Args:
-            db: 数据库管理器实例，如果为None则创建新实例
-        """
-        if db is None:
-            db = DatabaseManager()
-            db.initialize()
+            is_verbose: 是否启用详细日志
         
-        self.db = db
-        self.data_mgr = DataManager(db=self.db, is_verbose=False)
+        内部使用 DataManager 单例作为数据访问入口
+        """
+        self.is_verbose = is_verbose
+        # 统一使用 DataManager 单例作为数据访问入口
+        self.data_mgr = DataManager(is_verbose=False)
         
         # 初始化标签定义管理器
         self.label_definitions = LabelMapping()
@@ -1313,7 +1311,7 @@ class LabelerService:
             WHERE label_date = %s
             """
             
-            result = self.db.execute_query(sql, (target_date,))
+            result = self.data_mgr.db.execute_query(sql, (target_date,))
             
             if result and len(result) > 0:
                 stats = result[0]
@@ -1367,7 +1365,7 @@ class LabelerService:
             WHERE stock_id = %s AND label_date = %s
             """
             
-            result = self.db.execute_query(sql, (stock_id, target_date))
+            result = self.data_mgr.db.execute_query(sql, (stock_id, target_date))
             
             if result and len(result) > 0 and result[0]['labels']:
                 labels_str = result[0]['labels']
@@ -1414,7 +1412,7 @@ class LabelerService:
             ORDER BY label_date, stock_id
             """
             
-            result = self.db.execute_query(sql, (start_date, end_date))
+            result = self.data_mgr.db.execute_query(sql, (start_date, end_date))
             
             # 按日期分组
             labels_by_date = {}

@@ -6,14 +6,15 @@
 - 管理 DatabaseManager（唯一持有者）
 - 初始化数据库和表结构
 - 提供统一的数据访问 API
-- 协调各个专用 Loader
+- 协调各个 DataService
 
 架构：
-- DataManager: 数据访问层入口，管理 DB 和 Loaders
-- KlineLoader: K线数据专用加载器
-- MacroLoader: 宏观数据专用加载器
-- CorporateFinanceLoader: 企业财务专用加载器
-- LabelLoader: 标签数据专用加载器
+- DataManager: 数据访问层入口，管理 DB 和 DataServices
+- DataServices: 数据服务层（stock_related, macro_system, ui_transit）
+  - StockDataService: 股票数据服务（K线、股票列表等）
+  - LabelDataService: 标签数据服务
+  - MacroDataService: 宏观经济数据服务
+  - CorporateFinanceDataService: 企业财务数据服务
 """
 from typing import Dict, List, Any, Optional, Union
 import pandas as pd
@@ -21,11 +22,8 @@ from loguru import logger
 import threading
 
 from utils.db.db_manager import DatabaseManager
-from app.data_manager.loaders.macro_loader import MacroEconomyLoader
-from app.data_manager.loaders.corporate_finance_loader import CorporateFinanceLoader
-
-from .loaders import KlineLoader
-from .loaders import LabelLoader
+# Loaders 已废弃，不再导入
+# 所有功能已迁移到 data_services
 from app.conf.conf import data_default_start_date
 from app.enums import KlineTerm, AdjustType
 from utils.date.date_utils import DateUtils
@@ -39,7 +37,7 @@ class DataManager:
     - 唯一持有和管理 DatabaseManager
     - 初始化数据库、连接池、表结构（Base Tables + 策略表）
     - 提供统一的数据访问 API（对应用/策略暴露的门面）
-    - 协调各专用 Loader（兼容层）
+    - 协调各 DataService（stock_related, macro_system, ui_transit）
     - 预留 Repository / 策略表 Model 的注册与访问能力（新架构方向）
 
     单例模式：
@@ -132,12 +130,6 @@ class DataManager:
         self.db = db
         self._initialized = False
 
-        # Loaders（延迟初始化）
-        self.kline_loader = None
-        self.label_loader = None
-        self.macro_loader = None
-        self.corporate_finance_loader = None
-
         # TradingDateCache（交易日缓存）
         self._trading_date_cache = None
 
@@ -160,7 +152,7 @@ class DataManager:
         步骤：
         1. 创建并初始化 DatabaseManager（连接池）
         2. 创建所有 Base Tables
-        3. 初始化所有 Loaders
+        3. 初始化所有 DataServices
         
         注意：
             - 此方法是幂等的，多次调用只会执行一次
@@ -190,22 +182,13 @@ class DataManager:
 
             self.db.schema_manager.create_all_tables(self.db.get_connection)
 
-            # 3. 初始化所有 Loaders
-            if self.is_verbose:
-                logger.info("🔧 初始化 Loaders...")
-            
-            self.kline_loader = KlineLoader(self.db)
-            self.label_loader = LabelLoader(self.db)
-            self.macro_loader = MacroEconomyLoader(self.db)
-            self.corporate_finance_loader = CorporateFinanceLoader(self.db)
-
-            # 4. 初始化 TradingDateCache
+            # 3. 初始化 TradingDateCache
             if self.is_verbose:
                 logger.info("🔧 初始化 TradingDateCache...")
             from app.data_manager.data_services.trading_date.trading_date_cache import TradingDateCache
             self._trading_date_cache = TradingDateCache()
 
-            # 5. 初始化 DataService（按业务领域分类）
+            # 4. 初始化 DataService（按业务领域分类）
             if self.is_verbose:
                 logger.info("🔧 初始化 DataService...")
             self._init_data_services()
@@ -306,6 +289,11 @@ class DataManager:
             # 注册子 Service（支持 'stock_related.stock' 访问）
             if stock_related.stock_service:
                 self._data_services['stock_related.stock'] = stock_related.stock_service
+            
+            if stock_related.label_service:
+                self._data_services['stock_related.label'] = stock_related.label_service
+                # 为了向后兼容，保留简短别名
+                self._data_services['label'] = stock_related.label_service
             
             if stock_related.finance_service:
                 self._data_services['stock_related.corporate_finance'] = stock_related.finance_service
@@ -580,7 +568,11 @@ class DataManager:
             if simulation_settings.get('end_date') and 'end_date' not in klines_settings_with_dates:
                 klines_settings_with_dates['end_date'] = simulation_settings['end_date']
             
-            data["klines"] = self.kline_loader.load_multiple_terms(stock_id, klines_settings_with_dates)
+            stock_service = self.get_data_service('stock_related.stock')
+            if stock_service:
+                data["klines"] = stock_service.load_multiple_terms(stock_id, klines_settings_with_dates)
+            else:
+                data["klines"] = {}
             
             # 确保返回dict类型
             if not isinstance(data.get("klines"), dict):
@@ -642,7 +634,11 @@ class DataManager:
                 end_date = DateUtils.get_current_date_str()  # 只有end_date可以使用当前日期作为默认值
             
             # 一次性获取时间范围内的所有标签数据
-            all_labels = self.label_loader.get_stock_labels_by_date_range(stock_id, start_date, end_date)
+            label_service = self.get_data_service('label')
+            if label_service:
+                all_labels = label_service.get_stock_labels_by_date_range(stock_id, start_date, end_date)
+            else:
+                all_labels = []
             
             # 按日期分组标签数据，只保存标签ID
             labels_by_date = {}
@@ -710,7 +706,11 @@ class DataManager:
         Returns:
             List[str]: 标签ID列表
         """
-        return self.label_loader.get_stock_labels(stock_id, target_date)
+        label_service = self.get_data_service('label')
+        if label_service:
+            result = label_service.get_stock_labels(stock_id, target_date)
+            return result.get('labels', []) if isinstance(result, dict) else []
+        return []
     
     def save_stock_labels(self, stock_id: str, label_date: str, labels: List[str]):
         """
@@ -721,7 +721,9 @@ class DataManager:
             label_date: 标签日期 (YYYY-MM-DD)
             labels: 标签ID列表
         """
-        return self.label_loader.save_stock_labels(stock_id, label_date, labels)
+        label_service = self.get_data_service('label')
+        if label_service:
+            label_service.save_stock_labels(stock_id, label_date, labels)
     
     def get_stocks_with_label(self, label_id: str, target_date: Optional[str] = None) -> List[str]:
         """
@@ -734,7 +736,10 @@ class DataManager:
         Returns:
             List[str]: 股票代码列表
         """
-        return self.label_loader.get_stocks_with_label(label_id, target_date)
+        label_service = self.get_data_service('label')
+        if label_service:
+            return label_service.get_stocks_with_label(label_id, target_date)
+        return []
     
     def get_label_statistics(self, target_date: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -746,13 +751,16 @@ class DataManager:
         Returns:
             Dict: 统计信息
         """
-        return self.label_loader.get_label_statistics(target_date)
+        label_service = self.get_data_service('label')
+        if label_service:
+            return label_service.get_label_statistics(target_date)
+        return {}
     
-    # ============ 私有方法（委托给子loaders）============
+    # ============ 私有方法（委托给 DataServices）============
     
     def _load_macro_data(self, macro_settings: Dict[str, Any]) -> Dict[str, Any]:
         """
-        加载宏观数据（委托给MacroEconomyLoader）
+        加载宏观数据（委托给 MacroDataService）
         
         Args:
             macro_settings: 宏观数据配置，例如：
@@ -783,7 +791,11 @@ class DataManager:
             try:
                 start_quarter = self._convert_date_to_quarter(start_date) if start_date else None
                 end_quarter = self._convert_date_to_quarter(end_date) if end_date else None
-                result['gdp'] = self.macro_loader.load_gdp(start_quarter, end_quarter)
+                macro_service = self.get_data_service('macro')
+                if macro_service:
+                    result['gdp'] = macro_service.load_gdp(start_quarter, end_quarter)
+                else:
+                    result['gdp'] = []
             except Exception as e:
                 logger.error(f"加载GDP数据失败: {e}")
                 result['gdp'] = []
@@ -791,7 +803,11 @@ class DataManager:
         # 处理LPR数据
         if macro_settings.get('LPR'):
             try:
-                result['lpr'] = self.macro_loader.load_lpr(start_date, end_date)
+                macro_service = self.get_data_service('macro')
+                if macro_service:
+                    result['lpr'] = macro_service.load_lpr(start_date, end_date)
+                else:
+                    result['lpr'] = []
             except Exception as e:
                 logger.error(f"加载LPR数据失败: {e}")
                 result['lpr'] = []
@@ -799,7 +815,11 @@ class DataManager:
         # 处理Shibor数据
         if macro_settings.get('Shibor'):
             try:
-                result['shibor'] = self.macro_loader.load_shibor(start_date, end_date)
+                macro_service = self.get_data_service('macro')
+                if macro_service:
+                    result['shibor'] = macro_service.load_shibor(start_date, end_date)
+                else:
+                    result['shibor'] = []
             except Exception as e:
                 logger.error(f"加载Shibor数据失败: {e}")
                 result['shibor'] = []
@@ -814,13 +834,29 @@ class DataManager:
             for index_type in price_indexes:
                 try:
                     if index_type == 'CPI':
-                        result['cpi'] = self.macro_loader.load_cpi(month_start, month_end)
+                        macro_service = self.get_data_service('macro')
+                        if macro_service:
+                            result['cpi'] = macro_service.load_cpi(month_start, month_end)
+                        else:
+                            result['cpi'] = []
                     elif index_type == 'PPI':
-                        result['ppi'] = self.macro_loader.load_ppi(month_start, month_end)
+                        macro_service = self.get_data_service('macro')
+                        if macro_service:
+                            result['ppi'] = macro_service.load_ppi(month_start, month_end)
+                        else:
+                            result['ppi'] = []
                     elif index_type == 'PMI':
-                        result['pmi'] = self.macro_loader.load_pmi(month_start, month_end)
+                        macro_service = self.get_data_service('macro')
+                        if macro_service:
+                            result['pmi'] = macro_service.load_pmi(month_start, month_end)
+                        else:
+                            result['pmi'] = []
                     elif index_type == 'MoneySupply':
-                        result['money_supply'] = self.macro_loader.load_money_supply(month_start, month_end)
+                        macro_service = self.get_data_service('macro')
+                        if macro_service:
+                            result['money_supply'] = macro_service.load_money_supply(month_start, month_end)
+                        else:
+                            result['money_supply'] = []
                 except Exception as e:
                     logger.error(f"加载{index_type}数据失败: {e}")
                     result[index_type.lower()] = []
@@ -859,7 +895,7 @@ class DataManager:
     
     def _load_corporate_finance_data(self, stock_id: str, corporate_finance_settings: Dict[str, Any]) -> Dict[str, Any]:
         """
-        加载企业财务数据（委托给CorporateFinanceLoader）
+        加载企业财务数据（委托给 CorporateFinanceDataService）
         
         Args:
             stock_id: 股票代码
@@ -882,15 +918,20 @@ class DataManager:
         if end_date == '':
             end_date = None
         
-        return self.corporate_finance_loader.load(stock_id, categories, start_date, end_date)
+        finance_service = self.get_data_service('corporate_finance')
+        if finance_service:
+            return finance_service.load(stock_id, categories, start_date, end_date)
+        return {}
     
     def _load_index_indicators_data(self, index_indicators_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """加载指数指标数据（委托给KlineLoader）"""
-        return self.kline_loader.load_index_indicators_data(index_indicators_settings)
+        """加载指数指标数据（暂未实现）"""
+        logger.warning("_load_index_indicators_data 暂未实现")
+        return {}
     
     def _load_industry_capital_flow_data(self, industry_capital_flow_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """加载行业资金流数据（委托给KlineLoader）"""
-        return self.kline_loader.load_industry_capital_flow_data(industry_capital_flow_settings)
+        """加载行业资金流数据（暂未实现）"""
+        logger.warning("_load_industry_capital_flow_data 暂未实现")
+        return {}
     
     def load_stock_list(self, 
                        filtered: bool = False,
@@ -979,9 +1020,12 @@ class DataManager:
         Returns:
             DataFrame or List[Dict]: K线数据
         """
-        return self.kline_loader.load(
-            stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
-        )
+        stock_service = self.get_data_service('stock_related.stock')
+        if stock_service:
+            return stock_service.load(
+                stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
+            )
+        return [] if not as_dataframe else None
     
     def load_qfq_klines(
         self,

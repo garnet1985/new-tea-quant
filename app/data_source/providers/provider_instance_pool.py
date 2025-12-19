@@ -47,8 +47,6 @@ class ProviderInstancePool:
         # 初始化时扫描并缓存所有 Provider 类
         self._scan_and_cache_all_providers()
         
-        logger.debug("ProviderInstancePool initialized")
-    
     def get_provider(
         self, 
         provider_name: str,
@@ -147,10 +145,6 @@ class ProviderInstancePool:
                             provider_name = attr.provider_name
                             if provider_name not in self._provider_classes:
                                 self._provider_classes[provider_name] = attr
-                                logger.debug(
-                                    f"✅ Cached Provider class: {attr.__name__} "
-                                    f"(provider_name: {provider_name}, folder: {modname})"
-                                )
                             else:
                                 # 如果 provider_name 重复，警告
                                 existing_class = self._provider_classes[provider_name]

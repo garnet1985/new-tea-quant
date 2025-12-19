@@ -44,20 +44,14 @@ class App:
         # DataManager 内部会创建和管理 DatabaseManager，并自动初始化
         self.data_manager = DataManager(is_verbose=self.is_verbose)
         
-        # 2. 获取 DatabaseManager 实例（用于兼容旧模块）
-        # 注意：这是过渡期方案，后续应该让这些模块也使用 DataManager 的接口
-        # TODO: 逐步迁移以下模块使用 DataManager 而不是直接用 db：
-        #   - DataSourceManager: 数据源管理（更新行情数据）
-        #   - Analyzer: 策略分析器（扫描、模拟）
-        #   - LabelerService: 标签服务（更新股票标签）
+        # 2. 获取 DatabaseManager 实例（用于向后兼容，某些遗留代码可能仍需要直接访问 db）
         self.db = self.data_manager.db
         
         # 3. 创建数据源和策略管理器
-        # 注意：新的 DataSourceManager 使用新的框架，不再依赖 db
-        # 但为了兼容，暂时保留 data_manager 参数
-        self.data_source = DataSourceManager(data_manager=self.data_manager, is_verbose=self.is_verbose)
-        self.analyzer = Analyzer(self.db, self.is_verbose)
-        self.labeler = LabelerService(self.db)
+        # 所有模块都接收 is_verbose 参数以控制日志详细程度
+        self.data_source = DataSourceManager(is_verbose=self.is_verbose)
+        self.analyzer = Analyzer(is_verbose=self.is_verbose)
+        self.labeler = LabelerService(is_verbose=self.is_verbose)
         
         # 4. 初始化策略（这会注册表到数据库）
         self.analyzer.initialize()

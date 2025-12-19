@@ -9,11 +9,10 @@
     python start.py renew                # 更新数据
     python start.py analysis             # 分析结果
     
-    python start.py -c                   # 快捷: 扫描
-    python start.py -s                   # 快捷: 模拟
-    python start.py -r -c -s             # 快捷: 更新→扫描→模拟
-    
-    python start.py renew scan simulate  # 完整: 全流程
+    python start.py -c                   # 快捷: 扫描（等价于: python start.py scan）
+    python start.py -s                   # 快捷: 模拟（等价于: python start.py simulate）
+    python start.py -r                   # 快捷: 更新（等价于: python start.py renew）
+    python start.py -a                   # 快捷: 分析（等价于: python start.py analysis）
     python start.py -h                   # 查看帮助
 """
 import sys
@@ -51,12 +50,13 @@ class App:
         # 所有模块都接收 is_verbose 参数以控制日志详细程度
         self.data_source = DataSourceManager(is_verbose=self.is_verbose)
         self.analyzer = Analyzer(is_verbose=self.is_verbose)
+        # LabelerService 由 DataSourceManager 在数据更新管线中统一调度，这里保留实例以兼容旧代码
         self.labeler = LabelerService(is_verbose=self.is_verbose)
         
         # 4. 初始化策略（这会注册表到数据库）
         self.analyzer.initialize()
 
-    async def get_latest_market_open_day(self):
+    async def get_latest_completed_trading_date(self):
         """
         获取最新交易日
         
@@ -66,18 +66,28 @@ class App:
         # 使用 data_manager 的 TradingDateCache（更高效）
         return self.data_manager.get_latest_completed_trading_date()
     
-    async def renew_data(self, latest_market_open_day: str = None):
+    async def renew_data(
+        self,
+        latest_completed_trading_date: str = None,
+        stock_list: list = None,
+        test_mode: bool = False,
+        dry_run: bool = False,
+    ):
         """
-        更新股票数据（使用新的 DataSourceManager）
+        一站式更新行情 + 标签数据（由 DataSourceManager 统一调度）
         
         Args:
-            latest_market_open_day: 最新交易日（可选，如果不提供则自动获取）
+            latest_completed_trading_date: 最新交易日（可选）
+            stock_list: 预先准备好的股票列表（可选，全局共用）
+            test_mode: 测试模式，只处理少量股票
+            dry_run: 干运行模式，只检查流程，不写入标签
         """
-        await self.data_source.renew_data(latest_market_open_day)
-    
-    def renew_labels(self, last_market_open_day: str, is_refresh: bool = False):
-        """更新股票标签"""
-        self.labeler.renew(last_market_open_day, is_refresh=is_refresh)
+        await self.data_source.renew_data(
+            latest_completed_trading_date=latest_completed_trading_date,
+            stock_list=stock_list,
+            test_mode=test_mode,
+            dry_run=dry_run,
+        )
     
     def simulate(self):
         """运行模拟回测"""
@@ -147,9 +157,9 @@ def parse_args():
     # 位置参数（主命令）
     # 注意：choices 不能和 nargs='*' 一起用在空列表的情况，所以我们在后面验证
     parser.add_argument(
-        'commands',
-        nargs='*',
-        help='要执行的命令（scan/simulate/renew/analysis），可以多个（按顺序执行）'
+        'command',
+        nargs='?',
+        help='要执行的命令（scan/simulate/renew/analysis），省略则默认 simulate'
     )
     
     # 快捷flag（避免大小写混淆）
@@ -170,107 +180,95 @@ def parse_args():
     return parser.parse_args()
 
 
-def build_command_pipeline(args):
-    """构建命令执行流水线"""
-    pipeline = []
+def resolve_command(args) -> str:
+    """
+    解析本次运行要执行的“单个命令”。
     
-    # 从位置参数构建
-    if args.commands:
-        # 验证命令有效性
-        valid_commands = {'scan', 'simulate', 'renew', 'analysis'}
-        for cmd in args.commands:
-            if cmd not in valid_commands:
-                logger.error(f"❌ 无效的命令: {cmd}")
-                logger.info(f"有效命令: {', '.join(valid_commands)}")
-                sys.exit(1)
-        pipeline.extend(args.commands)
+    规则：
+    - 位置参数 `command` 优先（scan/simulate/renew/analysis）
+    - 否则根据快捷 flag (-c/-s/-r/-a) 决定
+    - 如果同时给了多个互斥命令，报错退出
+    - 如果都没给，默认 simulate
+    """
+    valid_commands = {'scan', 'simulate', 'renew', 'analysis'}
     
-    # 从快捷flag构建
-    flag_mapping = []
+    cmd_from_positional = None
+    if args.command:
+        if args.command not in valid_commands:
+            logger.error(f"❌ 无效的命令: {args.command}")
+            logger.info(f"有效命令: {', '.join(valid_commands)}")
+            sys.exit(1)
+        cmd_from_positional = args.command
+    
+    flags = []
     if args.renew_flag:
-        flag_mapping.append('renew')
+        flags.append('renew')
     if args.scan_flag:
-        flag_mapping.append('scan')
+        flags.append('scan')
     if args.simulate_flag:
-        flag_mapping.append('simulate')
+        flags.append('simulate')
     if args.analysis_flag:
-        flag_mapping.append('analysis')
+        flags.append('analysis')
     
-    # 合并（去重，保持顺序）
-    for cmd in flag_mapping:
-        if cmd not in pipeline:
-            pipeline.append(cmd)
+    # 如果位置参数和 flag 同时指定，并且不一致，则报错
+    if cmd_from_positional and flags and cmd_from_positional not in flags:
+        logger.error("❌ 命令冲突：位置参数和快捷 flag 指定了不同的命令")
+        logger.info("请只使用一种方式指定命令，例如：`start.py renew` 或 `start.py -r`")
+        sys.exit(1)
     
-    # renew 总是最先执行
-    if 'renew' in pipeline:
-        pipeline.remove('renew')
-        pipeline.insert(0, 'renew')
+    # 如果通过 flag 指定了多个不同命令，也报错
+    if not cmd_from_positional and len(set(flags)) > 1:
+        logger.error("❌ 命令冲突：同时指定了多个快捷命令 (-c/-s/-r/-a)")
+        logger.info("每次运行只能执行一个命令，请保留一个 flag 即可")
+        sys.exit(1)
     
-    # 默认行为：simulate
-    if not pipeline:
-        pipeline = ['simulate']
+    if cmd_from_positional:
+        return cmd_from_positional
+    if flags:
+        return flags[0]
     
-    return pipeline
-
-
-async def execute_pipeline(app: App, pipeline: list, args):
-    """执行命令流水线"""
-    latest_market_open_day = None
-    
-    logger.info("=" * 60)
-    logger.info(f"📋 执行计划: {' → '.join(pipeline)}")
-    logger.info("=" * 60)
-    
-    for idx, command in enumerate(pipeline, 1):
-        logger.info(f"")
-        logger.info(f"▶️  [{idx}/{len(pipeline)}] 执行: {command}")
-        logger.info("-" * 60)
-        
-        if command == 'renew':
-            # 获取最新交易日
-            if not latest_market_open_day:
-                latest_market_open_day = await app.get_latest_market_open_day()
-                logger.info(f"🔍 最新交易日: {latest_market_open_day}")
-            
-            # 更新股票数据
-            logger.info("📥 更新股票行情数据...")
-            await app.renew_data(latest_market_open_day)
-            
-            # 更新标签
-            logger.info("🏷️  更新股票标签...")
-            app.renew_labels(latest_market_open_day)
-            
-        elif command == 'scan':
-            logger.info("🔍 扫描投资机会...")
-            app.scan()
-            
-        elif command == 'simulate':
-            logger.info("🎮 运行模拟回测...")
-            app.simulate()
-            
-        elif command == 'analysis':
-            logger.info("📊 分析模拟结果...")
-            app.analysis(session_id=args.session)
-    
-    logger.info("")
-    logger.info("=" * 60)
-    logger.info("✅ 全部完成！")
-    logger.info("=" * 60)
+    # 默认：simulate
+    return 'simulate'
 
 
 def main():
     # 解析参数
     args = parse_args()
     
-    # 构建命令流水线
-    pipeline = build_command_pipeline(args)
+    # 解析本次要执行的单个命令
+    command = resolve_command(args)
     
     # 创建应用实例
     app = App(is_verbose=args.verbose)
     
-    # 执行流水线
+    # 根据命令执行对应动作
     try:
-        asyncio.run(execute_pipeline(app, pipeline, args))
+        logger.info("=" * 60)
+        logger.info(f"▶️  执行命令: {command}")
+        logger.info("=" * 60)
+        
+        if command == 'renew':
+            # 统一获取一次最新交易日；股票列表在各模块内部按需、按过滤规则自行缓存
+            latest_completed_trading_date = asyncio.run(app.get_latest_completed_trading_date())
+            logger.info(f"🔍 最新交易日: {latest_completed_trading_date}")
+            
+            asyncio.run(app.renew_data(
+                latest_completed_trading_date=latest_completed_trading_date,
+            ))
+        elif command == 'scan':
+            logger.info("🔍 扫描投资机会...")
+            app.scan()
+        elif command == 'simulate':
+            logger.info("🎮 运行模拟回测...")
+            app.simulate()
+        elif command == 'analysis':
+            logger.info("📊 分析模拟结果...")
+            app.analysis(session_id=args.session)
+        
+        logger.info("")
+        logger.info("=" * 60)
+        logger.info("✅ 命令执行完成")
+        logger.info("=" * 60)
     except KeyboardInterrupt:
         logger.warning("\n⚠️  用户中断执行")
         sys.exit(0)

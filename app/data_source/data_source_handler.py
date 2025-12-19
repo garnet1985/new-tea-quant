@@ -277,6 +277,9 @@ class BaseDataSourceHandler(ABC):
             if executor is None:
                 from app.data_source.utils.task_executor import TaskExecutor
                 executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
+                # 如果 handler 支持增量保存，设置 handler 和 context（任务完成后立即保存）
+                if hasattr(self, '_save_single_task_result'):
+                    executor.set_handler(self, context)
             
             task_results = await executor.execute(tasks)
             

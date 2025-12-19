@@ -8,6 +8,7 @@ import importlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from loguru import logger
+from app.data_manager import DataManager
 
 
 class DataSourceManager:
@@ -21,15 +22,15 @@ class DataSourceManager:
     - 执行 Handler 获取数据
     """
     
-    def __init__(self, data_manager=None, is_verbose: bool = False):
+    def __init__(self, is_verbose: bool = False):
         """
         初始化数据源管理器
         
         Args:
-            data_manager: DataManager 实例（可选，用于数据持久化）
             is_verbose: 是否输出详细日志
         """
-        self.data_manager = data_manager
+        # 统一使用 DataManager 单例作为数据访问入口
+        self.data_manager = DataManager(is_verbose=False)
         self.is_verbose = is_verbose
         self._schemas: Dict[str, Any] = {}
         self._handlers: Dict[str, Any] = {}

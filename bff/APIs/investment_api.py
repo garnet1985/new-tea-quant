@@ -7,6 +7,8 @@ from flask import jsonify
 from loguru import logger
 import json as json_lib
 
+from app.data_manager import DataManager
+
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
@@ -15,18 +17,8 @@ sys.path.insert(0, project_root)
 class InvestmentApi:
     """投资跟踪相关API"""
     
-    def __init__(self, db_manager=None):
-        """初始化
-        
-        Args:
-            db_manager: DatabaseManager实例，如果为None则自行创建
-        """
-        if db_manager is None:
-            from utils.db.db_manager import DatabaseManager
-            self.db_manager = DatabaseManager()
-            self.db_manager.initialize()
-        else:
-            self.db_manager = db_manager
+    def __init__(self):
+        self.data_mgr = DataManager()
         
         # 缓存表实例
         self.trades_model = None
@@ -37,25 +29,25 @@ class InvestmentApi:
     def _get_trades_model(self):
         """获取trades表实例"""
         if self.trades_model is None:
-            self.trades_model = self.db_manager.get_table_instance('investment_trades')
+            self.trades_model = self.data_mgr.get_model('investment_trades')
         return self.trades_model
     
     def _get_operations_model(self):
         """获取operations表实例"""
         if self.operations_model is None:
-            self.operations_model = self.db_manager.get_table_instance('investment_operations')
+            self.operations_model = self.data_mgr.get_model('investment_operations')
         return self.operations_model
     
     def _get_stock_list_model(self):
         """获取stock_list表实例"""
         if self.stock_list_model is None:
-            self.stock_list_model = self.db_manager.get_table_instance('stock_list')
+            self.stock_list_model = self.data_mgr.get_model('stock_list')
         return self.stock_list_model
     
     def _get_kline_model(self):
         """获取kline表实例"""
         if self.kline_model is None:
-            self.kline_model = self.db_manager.get_table_instance('stock_kline')
+            self.kline_model = self.data_mgr.get_model('stock_kline')
         return self.kline_model
     
     def get_all_closed_trades(self):

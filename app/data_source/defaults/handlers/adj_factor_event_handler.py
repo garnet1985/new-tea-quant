@@ -178,7 +178,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         logger.info(f"✅ 查询到 {len(stocks_need_update)} 只股票需要更新")
         
         # 获取最新交易日
-        latest_trading_date = self.data_manager.get_latest_trading_date()
+        latest_trading_date = self.data_manager.get_latest_completed_trading_date()
         if not latest_trading_date:
             latest_trading_date = DateUtils.get_current_date_str()
         
@@ -237,7 +237,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             return []
         
         if not latest_trading_date:
-            latest_trading_date = self.data_manager.get_latest_trading_date() if self.data_manager else DateUtils.get_current_date_str()
+            latest_trading_date = self.data_manager.get_latest_completed_trading_date() if self.data_manager else DateUtils.get_current_date_str()
         
         tasks = []
         stock_info_map = context.get("stock_info_map", {})

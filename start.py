@@ -64,7 +64,7 @@ class App:
             str: 最新交易日（YYYYMMDD 格式）
         """
         # 使用 data_manager 的 TradingDateCache（更高效）
-        return self.data_manager.get_latest_trading_date()
+        return self.data_manager.get_latest_completed_trading_date()
     
     async def renew_data(self, latest_market_open_day: str = None):
         """

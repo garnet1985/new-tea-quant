@@ -210,7 +210,7 @@ class DataSourceManager:
         """
         # 获取最新交易日
         if not latest_market_open_day:
-            latest_market_open_day = self.data_manager.get_latest_trading_date()
+            latest_market_open_day = self.data_manager.get_latest_completed_trading_date()
         
         logger.info(f"📅 最新交易日: {latest_market_open_day}")
         

@@ -26,12 +26,11 @@ class MomentumStrategy(BaseStrategy):
     4. 后处理时按动能在同一天买入的股票中筛选前10%
     """
     
-    def __init__(self, db=None, is_verbose=False, name="Momentum", description="Momentum策略：动量投资策略", key="Momentum"):
+    def __init__(self, is_verbose=False, name="Momentum", description="Momentum策略：动量投资策略", key="Momentum"):
         # 先设置version，再调用父类__init__
         self.version = "1.0.0"
-        super().__init__(db, is_verbose, name, description, key)
-        if db is not None:
-            super().initialize()
+        super().__init__(is_verbose, name, description, key, self.version)
+        super().initialize()
     
     @staticmethod
     def scan_opportunity(stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:

@@ -159,7 +159,11 @@ class LabelerService:
         
         # 增量更新模式：批量获取所有股票的最后更新时间
         stock_ids = [stock['id'] for stock in all_stocks]
-        stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates(stock_ids)
+        label_service = self.data_mgr.get_data_service('label')
+        if label_service:
+            stock_last_update_dates = label_service.get_all_stocks_last_update_dates(stock_ids)
+        else:
+            stock_last_update_dates = {}
         
         stocks_needing_update = []
         current_dt = DateUtils.parse_yyyymmdd(last_market_open_day)
@@ -301,7 +305,11 @@ class LabelerService:
             stock_ids = [stock['id'] for stock in all_stocks]
             
             # 一次性获取所有股票的最后更新时间
-            stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates(stock_ids)
+            label_service = self.data_mgr.get_data_service('label')
+            if label_service:
+                stock_last_update_dates = label_service.get_all_stocks_last_update_dates(stock_ids)
+            else:
+                stock_last_update_dates = {}
             
             stocks_needing_update = []
             current_dt = DateUtils.parse_yyyymmdd(last_market_open_day)
@@ -566,7 +574,11 @@ class LabelerService:
         try:
             # 如果没有提供开始日期，则从最后更新日期开始
             if not start_date:
-                stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
+                label_service = self.data_mgr.get_data_service('label')
+                if label_service:
+                    stock_last_update_dates = label_service.get_all_stocks_last_update_dates([stock_id])
+                else:
+                    stock_last_update_dates = {}
                 last_update_date = stock_last_update_dates.get(stock_id)
                 
                 if last_update_date:
@@ -631,7 +643,11 @@ class LabelerService:
             int: 保存的标签数量
         """
         # 获取最后标签更新日期
-        stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
+        label_service = self.data_mgr.get_data_service('label')
+        if label_service:
+            stock_last_update_dates = label_service.get_all_stocks_last_update_dates([stock_id])
+        else:
+            stock_last_update_dates = {}
         last_update_date = stock_last_update_dates.get(stock_id)
         
         if not last_update_date:
@@ -775,7 +791,11 @@ class LabelerService:
             from datetime import datetime, timedelta
             
             # 获取股票的最后标签更新日期
-            stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
+            label_service = self.data_mgr.get_data_service('label')
+            if label_service:
+                stock_last_update_dates = label_service.get_all_stocks_last_update_dates([stock_id])
+            else:
+                stock_last_update_dates = {}
             last_update_date = stock_last_update_dates.get(stock_id)
             
             if not last_update_date:
@@ -941,7 +961,11 @@ class LabelerService:
                 return {}
             
             # 获取股票的最后标签更新日期
-            stock_last_update_dates = self.data_mgr.label_loader.get_all_stocks_last_update_dates([stock_id])
+            label_service = self.data_mgr.get_data_service('label')
+            if label_service:
+                stock_last_update_dates = label_service.get_all_stocks_last_update_dates([stock_id])
+            else:
+                stock_last_update_dates = {}
             last_update_date = stock_last_update_dates.get(stock_id)
             
             if not last_update_date:
@@ -1182,7 +1206,9 @@ class LabelerService:
                 return
             
             # 保存到数据库
-            self.data_mgr.label_loader.upsert_stock_label(stock_id, target_date, valid_labels)
+            label_service = self.data_mgr.get_data_service('label')
+            if label_service:
+                label_service.upsert_stock_label(stock_id, target_date, valid_labels)
             
         except Exception as e:
             logger.error(f"保存股票标签失败 {stock_id} {target_date}: {e}")
@@ -1199,7 +1225,9 @@ class LabelerService:
                 return
             
             # 批量保存到数据库
-            self.data_mgr.label_loader.batch_save_stock_labels(labels_to_save)
+            label_service = self.data_mgr.get_data_service('label')
+            if label_service:
+                label_service.batch_save_stock_labels(labels_to_save)
             
             logger.info(f"批量保存了 {len(labels_to_save)} 条标签记录")
             

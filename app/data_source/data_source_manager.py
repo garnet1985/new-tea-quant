@@ -135,7 +135,6 @@ class DataSourceManager:
                     handler_instance.data_source = ds_name
                 
                 self._handlers[ds_name] = handler_instance
-                logger.debug(f"✅ 加载 Handler: {ds_name} -> {handler_path}")
             except Exception as e:
                 logger.error(f"❌ 创建 Handler 实例失败 {ds_name}: {e}")
     

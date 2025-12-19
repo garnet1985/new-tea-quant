@@ -388,6 +388,7 @@ class KlineHandler(BaseDataSourceHandler):
         # 遍历传入的 task_results（只处理有结果的任务）
         for task_id, task_result in task_results.items():
             if task_id not in task_map:
+                logger.debug(f"Task {task_id} 不在 _generated_tasks 中，跳过")
                 continue
             
             task = task_map[task_id]
@@ -433,11 +434,13 @@ class KlineHandler(BaseDataSourceHandler):
                 
                 term = term_mapping.get(api_name)
                 if not term:
+                    logger.debug(f"未知的 API: {api_name}，跳过")
                     continue
                 
                 # 获取该周期的 K 线数据
                 kline_result = task_result.get(job_id)
                 if kline_result is None:
+                    logger.debug(f"股票 {stock_id} {term} K 线数据为 None，跳过")
                     continue
                 
                 if not isinstance(kline_result, pd.DataFrame):
@@ -446,6 +449,7 @@ class KlineHandler(BaseDataSourceHandler):
                     kline_df = kline_result
                 
                 if kline_df.empty:
+                    logger.debug(f"股票 {stock_id} {term} K 线数据为空，跳过")
                     continue
                 
                 # 合并该周期的 K 线数据和 daily_basic 数据
@@ -474,6 +478,7 @@ class KlineHandler(BaseDataSourceHandler):
                                 except (ValueError, TypeError):
                                     pass
                     stock_data_map[stock_id].extend(records)
+                    logger.debug(f"✅ 股票 {stock_id} {term} K 线数据合并完成，共 {len(records)} 条记录")
         
         return stock_data_map
     
@@ -490,12 +495,14 @@ class KlineHandler(BaseDataSourceHandler):
         """
         # 检查是否已经保存过（避免重复保存）
         if task_id in self._saved_tasks:
+            logger.debug(f"[增量保存] 任务 {task_id} 已保存过，跳过")
             return
         
         context = context or {}
         # 检查是否是 dry_run 模式
         dry_run = context.get('dry_run', False)
         if dry_run:
+            logger.debug(f"[增量保存] 干运行模式，跳过任务 {task_id}")
             return
         
         if not self.data_manager:
@@ -591,6 +598,7 @@ class KlineHandler(BaseDataSourceHandler):
                 if stock_service:
                     count = stock_service.save_klines(records)
                     total_saved += count
+                    logger.debug(f"✅ 保存股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
                 else:
                     logger.warning(f"未找到 stock service，无法保存股票 {stock_id} K 线数据")
             except Exception as e:
@@ -649,6 +657,7 @@ class KlineHandler(BaseDataSourceHandler):
         # 移除 basic_mapped 中的 close 字段（使用 K-line 的 close 更准确）
         if not basic_mapped.empty and 'close' in basic_mapped.columns:
             basic_mapped = basic_mapped.drop(columns=['close'])
+            logger.debug(f"移除 daily_basic 中的 close 字段（使用 K-line 的 close）")
         
         # 合并数据
         if basic_mapped.empty:
@@ -724,6 +733,7 @@ class KlineHandler(BaseDataSourceHandler):
         # 清理数据：移除带 _basic 后缀的列（这些是合并时产生的重复列）
         columns_to_drop = [col for col in merged.columns if col.endswith('_basic')]
         if columns_to_drop:
+            logger.debug(f"移除重复列: {columns_to_drop}")
             merged = merged.drop(columns=columns_to_drop)
         
         # 处理 NaN 值：将 NaN 转换为 None（MySQL 不支持 NaN）

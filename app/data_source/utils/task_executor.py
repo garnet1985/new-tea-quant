@@ -239,6 +239,31 @@ class TaskExecutor:
             with results_lock:
                 task_results[task.task_id] = result
             
+            # 如果 handler 支持增量保存，在任务完成的线程内立即保存（实现断点续传）
+            if self._handler and hasattr(self._handler, '_save_single_task_result'):
+                try:
+                    import asyncio
+                    # 在当前线程内直接保存（不需要额外线程）
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # 如果事件循环正在运行，创建新的事件循环（在当前线程）
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            new_loop.run_until_complete(
+                                self._handler._save_single_task_result(task.task_id, result, self._handler_context)
+                            )
+                        finally:
+                            new_loop.close()
+                    else:
+                        loop.run_until_complete(
+                            self._handler._save_single_task_result(task.task_id, result, self._handler_context)
+                        )
+                except Exception as e:
+                    logger.error(f"❌ 增量保存任务 {task.task_id} 失败: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+            
             # 更新进度
             with progress_lock:
                 nonlocal completed_tasks

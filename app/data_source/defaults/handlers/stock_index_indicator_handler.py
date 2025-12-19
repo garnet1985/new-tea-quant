@@ -75,7 +75,7 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
         # 1. 获取最新交易日，并计算每个周期的结束日期
         if self.data_manager:
             try:
-                latest_trading_date = self.data_manager.get_latest_trading_date()
+                latest_trading_date = self.data_manager.get_latest_completed_trading_date()
                 
                 # 计算每个周期的结束日期
                 end_dates = {

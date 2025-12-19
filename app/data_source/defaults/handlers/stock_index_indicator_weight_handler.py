@@ -86,7 +86,7 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
         # 获取最新交易日（用于计算结束日期）
         if self.data_manager:
             try:
-                latest_trading_date = self.data_manager.get_latest_trading_date()
+                latest_trading_date = self.data_manager.get_latest_completed_trading_date()
                 # 实际结束日期是前一个交易日
                 context["end_date"] = DateUtils.get_date_before_days(latest_trading_date, 1)
             except Exception as e:

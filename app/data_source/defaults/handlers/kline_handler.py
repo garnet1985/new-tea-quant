@@ -101,7 +101,7 @@ class KlineHandler(BaseDataSourceHandler):
         # 2. 获取最新交易日，并计算每个周期的结束日期
         if self.data_manager:
             try:
-                latest_trading_date = self.data_manager.get_latest_trading_date()
+                latest_trading_date = self.data_manager.get_latest_completed_trading_date()
                 
                 # 计算每个周期的结束日期
                 end_dates = {
@@ -110,7 +110,6 @@ class KlineHandler(BaseDataSourceHandler):
                     "monthly": DateUtils.get_previous_month_end(latest_trading_date),  # 月线：上个完整月
                 }
                 context["end_dates"] = end_dates
-                logger.debug(f"各周期结束日期: daily={end_dates['daily']}, weekly={end_dates['weekly']}, monthly={end_dates['monthly']}")
             except Exception as e:
                 logger.warning(f"获取结束日期失败: {e}")
                 latest_trading_date = DateUtils.get_current_date_str()
@@ -205,8 +204,6 @@ class KlineHandler(BaseDataSourceHandler):
         if not end_dates:
             raise ValueError(f"{self.__class__.__name__} 需要 end_dates 参数（包含 daily/weekly/monthly 的结束日期）")
         
-        logger.debug(f"为 {len(stock_list)} 只股票生成 K 线数据获取任务（包含 daily/weekly/monthly）")
-        
         tasks = []
         from app.conf.conf import data_default_start_date
         
@@ -235,7 +232,6 @@ class KlineHandler(BaseDataSourceHandler):
                         # 周线：只有当时间间隔 >= 1 周时才更新
                         time_gap_weeks = DateUtils.get_duration_in_days(latest_date, end_date) // 7
                         if time_gap_weeks < 1:
-                            logger.debug(f"股票 {stock_id} {term} 时间间隔不足 1 周（{time_gap_weeks} 周），跳过")
                             continue
                     elif term == "monthly":
                         # 月线：只有当时间间隔 >= 1 个月时才更新
@@ -250,26 +246,22 @@ class KlineHandler(BaseDataSourceHandler):
                         if end_dt.day < latest_dt.day:
                             month_diff -= 1
                         if month_diff < 1:
-                            logger.debug(f"股票 {stock_id} {term} 时间间隔不足 1 个月（{month_diff} 个月），跳过")
                             continue
                     
                     # 从最新日期 + 1 天开始
                     start_date = DateUtils.get_date_after_days(latest_date, 1)
                     # 如果开始日期已经大于等于结束日期，说明数据已经是最新的，跳过该周期
                     if start_date > end_date:
-                        logger.debug(f"股票 {stock_id} {term} 数据已是最新（最新日期: {latest_date} >= 结束日期: {end_date}），跳过")
                         continue
                 else:
                     # 新股票，使用默认开始日期
                     start_date = data_default_start_date
-                    logger.debug(f"股票 {stock_id} {term} 新数据，使用默认开始日期: {start_date}")
                 
                 start_dates[term] = start_date
                 skip_stock = False
             
             # 如果所有周期都跳过，则跳过该股票
             if skip_stock:
-                logger.debug(f"股票 {stock_id} 所有周期数据已是最新，跳过")
                 continue
             
             # 创建 Task：包含 4 个 ApiJob
@@ -389,19 +381,20 @@ class KlineHandler(BaseDataSourceHandler):
         """
         stock_data_map = defaultdict(list)  # {stock_id: [records]}
         
-        # 遍历所有 Task 的结果
-        for task in self._generated_tasks:
-            task_id = task.task_id
+        # 只处理传入的 task_results 中的任务（避免在增量保存时遍历所有任务）
+        # 构建 task_id 到 task 的映射
+        task_map = {task.task_id: task for task in self._generated_tasks}
+        
+        # 遍历传入的 task_results（只处理有结果的任务）
+        for task_id, task_result in task_results.items():
+            if task_id not in task_map:
+                continue
+            
+            task = task_map[task_id]
             stock_id = task.api_jobs[0].params.get("ts_code")
             
             if not stock_id:
                 continue
-            
-            if task_id not in task_results:
-                logger.debug(f"Task {task_id} 没有执行结果，跳过")
-                continue
-            
-            task_result = task_results[task_id]
             
             # 通过 api_name 识别每个 job 的类型
             # 构建 job_id 到 api_name 的映射
@@ -425,7 +418,6 @@ class KlineHandler(BaseDataSourceHandler):
                     break
             
             if basic_df is None or basic_df.empty:
-                logger.debug(f"股票 {stock_id} daily_basic 数据为空，跳过该股票的所有周期")
                 continue
             
             # 处理每个周期的 K 线数据
@@ -441,13 +433,11 @@ class KlineHandler(BaseDataSourceHandler):
                 
                 term = term_mapping.get(api_name)
                 if not term:
-                    logger.debug(f"未知的 API: {api_name}，跳过")
                     continue
                 
                 # 获取该周期的 K 线数据
                 kline_result = task_result.get(job_id)
                 if kline_result is None:
-                    logger.debug(f"股票 {stock_id} {term} K 线数据为 None，跳过")
                     continue
                 
                 if not isinstance(kline_result, pd.DataFrame):
@@ -456,7 +446,6 @@ class KlineHandler(BaseDataSourceHandler):
                     kline_df = kline_result
                 
                 if kline_df.empty:
-                    logger.debug(f"股票 {stock_id} {term} K 线数据为空，跳过")
                     continue
                 
                 # 合并该周期的 K 线数据和 daily_basic 数据
@@ -465,8 +454,26 @@ class KlineHandler(BaseDataSourceHandler):
                 if merged_df is not None and not merged_df.empty:
                     # 转换为字典列表
                     records = merged_df.to_dict('records')
+                    # 清理 NaN 值：确保所有 NaN 都转换为 None（MySQL 不支持 NaN）
+                    import math
+                    for record in records:
+                        for key, value in list(record.items()):
+                            # 处理各种类型的 NaN
+                            if value is None:
+                                continue  # None 是合法的，不需要处理
+                            elif isinstance(value, float):
+                                if math.isnan(value) or pd.isna(value):
+                                    record[key] = None
+                            elif pd.isna(value):
+                                record[key] = None
+                            # 处理 numpy 的 NaN
+                            elif hasattr(value, '__class__') and str(value.__class__) == "<class 'numpy.float64'>":
+                                try:
+                                    if math.isnan(float(value)):
+                                        record[key] = None
+                                except (ValueError, TypeError):
+                                    pass
                     stock_data_map[stock_id].extend(records)
-                    logger.debug(f"✅ 股票 {stock_id} {term} K 线数据合并完成，共 {len(records)} 条记录")
         
         return stock_data_map
     
@@ -492,6 +499,12 @@ class KlineHandler(BaseDataSourceHandler):
             return
         
         if not self.data_manager:
+            logger.warning(f"[增量保存] data_manager 未设置，无法保存任务 {task_id}")
+            return
+        
+        # 检查 _generated_tasks 是否已设置
+        if not hasattr(self, '_generated_tasks') or not self._generated_tasks:
+            logger.warning(f"[增量保存] _generated_tasks 未设置，无法处理任务 {task_id}")
             return
         
         try:
@@ -511,11 +524,13 @@ class KlineHandler(BaseDataSourceHandler):
                     stock_service = self.data_manager.get_data_service('stock_related.stock')
                     if stock_service:
                         count = stock_service.save_klines(records)
-                        logger.debug(f"✅ [增量保存] 股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
+                        logger.info(f"✅ [增量保存] 股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
                     else:
                         logger.warning(f"未找到 stock service，无法保存股票 {stock_id} K 线数据")
                 except Exception as e:
                     logger.error(f"❌ [增量保存] 股票 {stock_id} K 线数据失败: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                     # 继续处理其他股票，不中断整个流程
             
             # 标记为已保存
@@ -523,6 +538,8 @@ class KlineHandler(BaseDataSourceHandler):
             
         except Exception as e:
             logger.error(f"❌ [增量保存] 任务 {task_id} 保存失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     async def after_execute(
         self, 
@@ -574,7 +591,6 @@ class KlineHandler(BaseDataSourceHandler):
                 if stock_service:
                     count = stock_service.save_klines(records)
                     total_saved += count
-                    logger.debug(f"✅ 保存股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
                 else:
                     logger.warning(f"未找到 stock service，无法保存股票 {stock_id} K 线数据")
             except Exception as e:
@@ -633,7 +649,6 @@ class KlineHandler(BaseDataSourceHandler):
         # 移除 basic_mapped 中的 close 字段（使用 K-line 的 close 更准确）
         if not basic_mapped.empty and 'close' in basic_mapped.columns:
             basic_mapped = basic_mapped.drop(columns=['close'])
-            logger.debug(f"移除 daily_basic 中的 close 字段（使用 K-line 的 close）")
         
         # 合并数据
         if basic_mapped.empty:
@@ -684,10 +699,19 @@ class KlineHandler(BaseDataSourceHandler):
                         if basic_mapped[col].notna().any():
                             first_valid = basic_mapped[col].dropna().iloc[0]
                             merged.loc[mask, col] = merged.loc[mask, col].fillna(first_valid)
-                    # 对于 basic_mapped 日期范围之前的数据，保持为 NULL（不做任何填充）
+                    # 对于填充后仍然为 NaN 的字段，使用默认值 0（因为 schema 要求 NOT NULL）
+                    # 注意：这些字段在 schema 中是 isRequired: true，不允许 NULL
+                    if merged[col].isna().any():
+                        merged[col] = merged[col].fillna(0.0)
+                    # 对于 basic_mapped 日期范围之前的数据，使用默认值 0（因为 schema 要求 NOT NULL）
+                    before_mask = merged['date'] < basic_min_date
+                    if before_mask.any():
+                        merged.loc[before_mask, col] = 0.0
         else:
-            # 如果没有 basic 数据，所有字段保持为 NULL
-            pass
+            # 如果没有 basic 数据，所有 basic 字段使用默认值 0（因为 schema 要求 NOT NULL）
+            for col in basic_columns:
+                if col in merged.columns:
+                    merged[col] = 0.0
         
         # 添加 term 字段
         if term:
@@ -700,14 +724,12 @@ class KlineHandler(BaseDataSourceHandler):
         # 清理数据：移除带 _basic 后缀的列（这些是合并时产生的重复列）
         columns_to_drop = [col for col in merged.columns if col.endswith('_basic')]
         if columns_to_drop:
-            logger.debug(f"移除重复列: {columns_to_drop}")
             merged = merged.drop(columns=columns_to_drop)
         
         # 处理 NaN 值：将 NaN 转换为 None（MySQL 不支持 NaN）
-        # 只对数值列进行处理，字符串列保持原样
-        numeric_columns = merged.select_dtypes(include=['float64', 'float32', 'int64', 'int32']).columns
-        for col in numeric_columns:
-            # 将 NaN 转换为 None
+        # 对所有列进行处理，确保没有 NaN 值
+        for col in merged.columns:
+            # 将 NaN 转换为 None（对所有类型都处理）
             merged[col] = merged[col].where(pd.notna(merged[col]), None)
         
         return merged
@@ -800,7 +822,8 @@ class KlineHandler(BaseDataSourceHandler):
         
         for col in numeric_cols:
             if col in mapped_df.columns:
-                mapped_df[col] = pd.to_numeric(mapped_df[col], errors='coerce')
+                # 转换为数值类型，如果转换失败或为 NaN，使用默认值 0.0（因为 schema 要求 NOT NULL）
+                mapped_df[col] = pd.to_numeric(mapped_df[col], errors='coerce').fillna(0.0)
         
         for col in int_cols:
             if col in mapped_df.columns:

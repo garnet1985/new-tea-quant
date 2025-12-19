@@ -1093,21 +1093,30 @@ class DataManager:
     
     # ==================== 交易日相关方法 ====================
     
-    def get_latest_trading_date(self) -> str:
+    def get_latest_completed_trading_date(self) -> str:
         """
-        获取最新交易日
+        获取最新已完成的交易日（上一个交易日）
         
         使用 TradingDateCache 获取最新交易日，支持缓存和自动刷新
+        注意：返回的是上一个交易日，不是今天（即使今天是交易日）
         
         Returns:
-            最新交易日（YYYYMMDD）
+            最新已完成的交易日（YYYYMMDD）
             
         示例：
-            latest_date = data_manager.get_latest_trading_date()
+            latest_date = data_manager.get_latest_completed_trading_date()
         """
         if not self._trading_date_cache:
             raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
         return self._trading_date_cache.get_latest_trading_date()
+    
+    def get_latest_trading_date(self) -> str:
+        """
+        已废弃：请使用 get_latest_completed_trading_date()
+        
+        为了向后兼容，保留此方法
+        """
+        return self.get_latest_completed_trading_date()
     
     def refresh_trading_date(self) -> str:
         """

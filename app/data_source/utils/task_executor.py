@@ -119,9 +119,11 @@ class TaskExecutor:
     
     def set_handler(self, handler, context: Dict[str, Any] = None):
         """
-        设置 handler 和 context（用于增量保存）
+        设置 handler 和 context（用于单个 task 执行前后的钩子）
         
-        如果 handler 有 _save_single_task_result 方法，任务完成后会立即保存
+        框架会在每个 task 执行前后调用 handler 的钩子方法：
+        - before_single_task_execute（执行前）
+        - after_single_task_execute（执行后）
         """
         self._handler = handler
         self._handler_context = context
@@ -163,10 +165,32 @@ class TaskExecutor:
         else:
             logger.info(f"📊 共 {len(tasks)} 个 Tasks，使用 {workers} 个线程执行")
         
-        # 如果只有1个 task，直接执行
+        # 如果只有1个 task，直接执行（也要调用钩子）
         if len(tasks) == 1:
             task = tasks[0]
+            
+            # 调用单个 task 执行前的钩子
+            if self._handler:
+                try:
+                    await self._handler.before_single_task_execute(task, self._handler_context or {})
+                except Exception as e:
+                    logger.warning(f"⚠️ before_single_task_execute 钩子执行失败 {task.task_id}: {e}")
+            
+            # 执行 task
             task_result = await self._execute_single_task(task)
+            
+            # 调用单个 task 执行后的钩子
+            if self._handler:
+                try:
+                    await self._handler.after_single_task_execute(
+                        task.task_id,
+                        task_result,
+                        self._handler_context or {}
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ after_single_task_execute 钩子执行失败 {task.task_id}: {e}")
+            
+            
             return {task.task_id: task_result}
         
         # 多个 tasks，使用多线程执行
@@ -191,78 +215,77 @@ class TaskExecutor:
         task_results = {}
         results_lock = threading.Lock()
         
-        # 定义任务执行器（带进度显示）
+        # 定义任务执行器（带进度显示和钩子调用）
         def task_executor(task: DataSourceTask) -> Dict[str, Any]:
             """执行单个 Task（同步函数，用于 FuturesWorker）"""
             import asyncio
             
-            # 在事件循环中执行异步任务
-            # 使用 nest_asyncio 来处理嵌套的事件循环
-            try:
-                import nest_asyncio
-                nest_asyncio.apply()
-            except ImportError:
-                pass  # nest_asyncio 未安装，使用其他方法
-            
-            try:
-                # 尝试获取当前事件循环
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 如果事件循环正在运行，创建新的事件循环
-                    import concurrent.futures
-                    import threading
-                    future = concurrent.futures.Future()
-                    
-                    def _run():
-                        new_loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(new_loop)
-                        try:
-                            result = new_loop.run_until_complete(self._execute_single_task(task))
-                            future.set_result(result)
-                        except Exception as e:
-                            future.set_exception(e)
-                        finally:
-                            new_loop.close()
-                    
-                    thread = threading.Thread(target=_run)
-                    thread.start()
-                    thread.join()
-                    result = future.result()
-                else:
-                    # 如果事件循环没有运行，直接运行
-                    result = loop.run_until_complete(self._execute_single_task(task))
-            except RuntimeError:
-                # 如果没有事件循环，创建新的
-                result = asyncio.run(self._execute_single_task(task))
-            
-            # 保存结果
-            with results_lock:
-                task_results[task.task_id] = result
-            
-            # 如果 handler 支持增量保存，在任务完成的线程内立即保存（实现断点续传）
-            if self._handler and hasattr(self._handler, '_save_single_task_result'):
+            # 辅助函数：在事件循环中执行异步函数
+            def run_async(coro):
                 try:
-                    import asyncio
-                    # 在当前线程内直接保存（不需要额外线程）
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
-                        # 如果事件循环正在运行，创建新的事件循环（在当前线程）
-                        new_loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(new_loop)
-                        try:
-                            new_loop.run_until_complete(
-                                self._handler._save_single_task_result(task.task_id, result, self._handler_context)
-                            )
-                        finally:
-                            new_loop.close()
+                        # 如果事件循环正在运行，创建新的事件循环
+                        import concurrent.futures
+                        import threading
+                        future = concurrent.futures.Future()
+                        
+                        def _run():
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            try:
+                                result = new_loop.run_until_complete(coro)
+                                future.set_result(result)
+                            except Exception as e:
+                                future.set_exception(e)
+                            finally:
+                                new_loop.close()
+                        
+                        thread = threading.Thread(target=_run)
+                        thread.start()
+                        thread.join()
+                        return future.result()
                     else:
-                        loop.run_until_complete(
-                            self._handler._save_single_task_result(task.task_id, result, self._handler_context)
-                        )
+                        return loop.run_until_complete(coro)
+                except RuntimeError:
+                    return asyncio.run(coro)
+            
+            # 1. 调用单个 task 执行前的钩子
+            if self._handler:
+                try:
+                    run_async(self._handler.before_single_task_execute(task, self._handler_context or {}))
                 except Exception as e:
-                    logger.error(f"❌ 增量保存任务 {task.task_id} 失败: {e}")
-                    import traceback
-                    logger.error(traceback.format_exc())
+                    logger.warning(f"⚠️ before_single_task_execute 钩子执行失败 {task.task_id}: {e}")
+            
+            # 2. 执行 task
+            try:
+                # 在事件循环中执行异步任务
+                try:
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                except ImportError:
+                    pass  # nest_asyncio 未安装，使用其他方法
+                
+                result = run_async(self._execute_single_task(task))
+            except Exception as e:
+                logger.error(f"❌ 执行任务 {task.task_id} 失败: {e}")
+                result = {}
+            
+            # 3. 调用单个 task 执行后的钩子
+            if self._handler:
+                try:
+                    run_async(self._handler.after_single_task_execute(
+                        task.task_id, 
+                        result, 
+                        self._handler_context or {}
+                    ))
+                except Exception as e:
+                    logger.warning(f"⚠️ after_single_task_execute 钩子执行失败 {task.task_id}: {e}")
+            
+            
+            # 5. 保存结果
+            with results_lock:
+                task_results[task.task_id] = result
             
             # 更新进度
             with progress_lock:

@@ -137,45 +137,93 @@ class BaseDataSourceHandler(ABC):
         pass
     
     # ========== 执行阶段 ==========
-    async def before_execute(self, tasks: List[DataSourceTask], context: Dict[str, Any]):
+    
+    async def before_all_tasks_execute(self, tasks: List[DataSourceTask], context: Dict[str, Any]):
         """
-        框架执行 Tasks 前的钩子
+        所有 tasks 执行前的钩子（在所有 tasks 开始执行前统一调用）
         
         可以用于：
         - 最后调整 Tasks 或 ApiJobs
         - 记录执行前的状态
         - 验证 Tasks 配置
         - 设置执行参数
+        - 初始化统计计数器
+        
+        Args:
+            tasks: 即将执行的所有 Tasks 列表
+            context: 执行上下文
         """
         pass
     
-    async def after_execute(
+    async def before_single_task_execute(self, task: DataSourceTask, context: Dict[str, Any]):
+        """
+        单个 task 执行前的钩子（每个 task 开始执行前调用）
+        
+        可以用于：
+        - 针对单个 task 的预处理
+        - 记录单个 task 的执行开始时间
+        - 验证单个 task 的配置
+        - 设置 task 级别的执行参数
+        
+        Args:
+            task: 即将执行的单个 Task
+            context: 执行上下文
+        """
+        pass
+    
+    async def after_single_task_execute(
+        self,
+        task_id: str,
+        task_result: Dict[str, Any],
+        context: Dict[str, Any]
+    ):
+        """
+        单个 task 执行后的钩子（每个 task 执行完成后立即调用）
+        
+        可以用于：
+        - 单个 task 的结果预处理
+        - 单个 task 的数据保存（增量保存，实现断点续传）
+        - 单个 task 的日志记录
+        - 单个 task 的错误处理
+        
+        Args:
+            task_id: 已完成的 Task ID
+            task_result: 该 Task 的执行结果 {job_id: result}
+            context: 执行上下文
+        
+        注意：
+        - 此方法在每个 task 完成后立即调用，适合增量保存场景
+        - 如果在这里保存数据，可以实现断点续传（即使后续 tasks 失败，已完成的也能保存）
+        - task_result 的结构：{job_id: result}
+        """
+        pass
+    
+    async def after_all_tasks_execute(
         self, 
         task_results: Dict[str, Dict[str, Any]], 
         context: Dict[str, Any]
     ):
         """
-        框架执行 Tasks 后的钩子（在 normalize 之前）
+        所有 tasks 执行完成后的钩子（在所有 tasks 执行完成后统一调用）
         
         可以用于：
-        - 合并结果（按 Task 处理）
-        - 计算业务逻辑（如复权因子计算）
-        - 直接入库（如果不需要标准化，可以在这里调用 _save_to_data_manager）
-        - 数据预处理
-        - 按 Task 保存数据（每个 Task 完成后保存，适合大数据量场景）
+        - 合并所有 tasks 的结果
+        - 计算全局业务逻辑
+        - 统计和日志记录
+        - 最终的数据清理和后处理
         
         Args:
-            task_results: 框架执行 Tasks 后返回的结果字典 {task_id: {job_id: result}}
+            task_results: 所有 Tasks 的执行结果字典 {task_id: {job_id: result}}
             context: 执行上下文
         
         注意：
         - 此时可以访问所有 Tasks 的执行结果
         - task_results 的结构：{task_id: {job_id: result}}
         - 可以修改 task_results，传递给后续的 normalize
-        - 如果在这里保存数据，需要先标准化 task_results，然后调用 _save_to_data_manager
-        - 适合场景：每个 Task 代表一个完整业务单元（如一只股票的 K 线数据），需要按 Task 保存
+        - 如果实现了 after_single_task_execute 进行增量保存，这里主要用于统计和最终处理
         """
         pass
+    
     
     # ========== 标准化阶段 ==========
     async def before_normalize(self, raw_data: Any):
@@ -251,7 +299,13 @@ class BaseDataSourceHandler(ABC):
         
         流程：
         1. 数据准备阶段：before_fetch → fetch → after_fetch
-        2. 执行阶段：before_execute → 框架执行 → after_execute
+        2. 执行阶段：
+           - before_all_tasks_execute（所有 tasks 执行前）
+           - 对每个 task：
+             - before_single_task_execute（单个 task 执行前）
+             - 执行 task
+             - after_single_task_execute（单个 task 执行后）
+           - after_all_tasks_execute（所有 tasks 执行后）
         3. 标准化阶段：before_normalize → normalize → after_normalize
         
         Args:
@@ -271,19 +325,20 @@ class BaseDataSourceHandler(ABC):
             await self.after_fetch(tasks, context)
             
             # ========== 执行阶段 ==========
-            await self.before_execute(tasks, context)
+            # 所有 tasks 执行前的钩子
+            await self.before_all_tasks_execute(tasks, context)
             
             # 框架执行 Tasks
             if executor is None:
                 from app.data_source.utils.task_executor import TaskExecutor
                 executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
-                # 如果 handler 支持增量保存，设置 handler 和 context（任务完成后立即保存）
-                if hasattr(self, '_save_single_task_result'):
-                    executor.set_handler(self, context)
+                # 设置 handler 和 context（用于单个 task 执行前后的钩子）
+                executor.set_handler(self, context)
             
             task_results = await executor.execute(tasks)
             
-            await self.after_execute(task_results, context)
+            # 所有 tasks 执行后的钩子
+            await self.after_all_tasks_execute(task_results, context)
             
             # ========== 标准化阶段 ==========
             await self.before_normalize(task_results)

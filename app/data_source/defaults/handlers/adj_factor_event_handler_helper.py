@@ -7,76 +7,12 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 import pandas as pd
 from datetime import date
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from app.data_source.providers.provider_instance_pool import ProviderInstancePool
 from utils.date.date_utils import DateUtils
 
 
 class AdjFactorEventHandlerHelper:
     """复权因子事件处理器的辅助函数集合"""
-    
-    # ========== 状态判断类 ==========
-    
-    @staticmethod
-    def is_table_empty(model) -> bool:
-        """判断 adj_factor_event 表是否为空"""
-        return model.is_table_empty()
-    
-    @staticmethod
-    def is_csv_usable(model) -> bool:
-        """
-        判断当前是否存在"可用"的 CSV 快照
-        
-        可用的定义：
-        - 能找到最新 CSV 文件
-        - 文件存在且可读取
-        - 至少包含 id / event_date / factor / qfq_diff 四个字段
-        """
-        import os
-        import pandas as pd
-        
-        latest_csv = model.get_latest_csv_file()
-        if not latest_csv:
-            return False
-        if not os.path.exists(latest_csv):
-            return False
-        
-        try:
-            df = pd.read_csv(latest_csv, nrows=10)
-            required_cols = {'id', 'event_date', 'factor', 'qfq_diff'}
-            missing = required_cols - set(df.columns)
-            if missing:
-                logger.warning(f"CSV 文件缺少必需列 {missing}，视为不可用: {latest_csv}")
-                return False
-            return True
-        except Exception as e:
-            logger.warning(f"读取/校验 CSV 失败，视为不可用: {latest_csv}, error={e}")
-            return False
-    
-    @staticmethod
-    def get_stocks_with_existing_factors(model) -> List[str]:
-        """返回当前 adj_factor_event 表中已存在复权因子事件的股票ID列表"""
-        return model.load_all_stock_ids()
-    
-    @staticmethod
-    def compute_coverage_ratio(existing_ids: List[str], all_ids: List[str]) -> float:
-        """
-        计算 adj_factor_event 表对指定股票 universe 的覆盖率
-        
-        Args:
-            existing_ids: 在 adj_factor_event 中已经有记录的股票ID列表
-            all_ids: 当前需要考虑的股票ID全集
-        
-        Returns:
-            覆盖率（0.0-1.0）
-        """
-        if not all_ids:
-            return 0.0
-        existing_set = set(existing_ids)
-        all_set = set(all_ids)
-        covered = len(existing_set & all_set)
-        return covered / len(all_set)
     
     # ========== 数据转换类 ==========
     
@@ -193,21 +129,6 @@ class AdjFactorEventHandlerHelper:
             logger.debug(traceback.format_exc())
         
         return qfq_map
-    
-    @staticmethod
-    def parse_eastmoney_qfq_price(eastmoney_result: Any, event_date_ymd: str) -> Optional[float]:
-        """
-        解析东方财富 API 返回的前复权价格（单日）
-        
-        Args:
-            eastmoney_result: 东方财富 Provider 返回的 JSON 数据（dict）
-            event_date_ymd: 日期（YYYYMMDD格式）
-        
-        Returns:
-            前复权收盘价，如果解析失败返回 None
-        """
-        qfq_map = AdjFactorEventHandlerHelper.parse_eastmoney_qfq_price_map(eastmoney_result)
-        return qfq_map.get(event_date_ymd)
     
     @staticmethod
     def build_raw_price_map(daily_kline_df: pd.DataFrame) -> Dict[str, float]:
@@ -411,7 +332,7 @@ class AdjFactorEventHandlerHelper:
             return raw_close - eastmoney_qfq
         return 0.0
     
-    # ========== 预筛选类 ==========
+    # ========== 日期工具类 ==========
     
     @staticmethod
     def normalize_date_to_yyyymmdd(date_value: Any) -> str:
@@ -433,118 +354,6 @@ class AdjFactorEventHandlerHelper:
                 return date_value
         else:
             return str(date_value).replace('-', '')
-    
-    @staticmethod
-    def check_stock_has_factor_changes(
-        stock_id: str,
-        stock_info: Dict[str, Any],
-        end_date: str,
-        tushare_provider
-    ) -> Optional[Dict[str, Any]]:
-        """
-        检查单只股票在最近一段时间内是否有因子变化
-        
-        Args:
-            stock_id: 股票代码
-            stock_info: 股票信息（包含 latest_event_date, first_kline_date）
-            end_date: 结束日期（YYYY-MM-DD 或 YYYYMMDD）
-            tushare_provider: Tushare Provider 实例
-        
-        Returns:
-            如果有变化，返回包含 stock_id 和 first_kline_date 的字典；否则返回 None
-        """
-        try:
-            latest_event_date = stock_info.get('latest_event_date')
-            first_kline_date = stock_info.get('first_kline_date')
-            
-            # 确定查询起始日期
-            if latest_event_date:
-                start_date = AdjFactorEventHandlerHelper.normalize_date_to_yyyymmdd(latest_event_date)
-            elif first_kline_date:
-                start_date = AdjFactorEventHandlerHelper.normalize_date_to_yyyymmdd(first_kline_date)
-            else:
-                start_date = "20080101"  # 默认起始日期
-            
-            end_date_ymd = AdjFactorEventHandlerHelper.normalize_date_to_yyyymmdd(end_date)
-            
-            if start_date > end_date_ymd:
-                return None
-            
-            # 调用 Tushare API
-            adj_factor_df = tushare_provider.get_adj_factor(
-                ts_code=stock_id,
-                start_date=start_date,
-                end_date=end_date_ymd
-            )
-            
-            if adj_factor_df is None or adj_factor_df.empty:
-                return None
-            
-            # 只要在最近一段时间内发生过因子变化，就标记该股票需要"全量重算"
-            changing_dates = AdjFactorEventHandlerHelper.get_factor_changing_dates(adj_factor_df)
-            if changing_dates:
-                return {
-                    'stock_id': stock_id,
-                    'first_kline_date': first_kline_date,
-                }
-            
-            return None
-            
-        except Exception as e:
-            logger.warning(f"预筛选股票 {stock_id} 失败: {e}")
-            return None
-    
-    @staticmethod
-    def prefilter_stocks_with_changes(
-        stock_ids: List[str],
-        stock_info_map: Dict[str, Dict[str, Any]],
-        end_date: str,
-        max_workers: int = 10
-    ) -> List[Dict[str, Any]]:
-        """
-        多线程预筛选：调用 Tushare adj_factor API，找出"需要全量重算"的股票
-        
-        Args:
-            stock_ids: 需要检查的股票ID列表
-            stock_info_map: 股票信息映射（stock_id -> {latest_event_date, first_kline_date}）
-            end_date: 结束日期（YYYY-MM-DD 或 YYYYMMDD）
-            max_workers: 最大线程数
-        
-        Returns:
-            List[Dict]: 有变化的股票列表，每个元素包含：
-                - stock_id: 股票代码
-                - first_kline_date: 第一根K线日期（用于确定全量重算起点）
-        """
-        provider_pool = ProviderInstancePool()
-        tushare_provider = provider_pool.get_provider('tushare')
-        
-        if not tushare_provider:
-            logger.error("无法获取 Tushare Provider")
-            return []
-        
-        stocks_with_changes = []
-        
-        def check_stock(stock_id: str) -> Optional[Dict[str, Any]]:
-            stock_info = stock_info_map.get(stock_id, {})
-            return AdjFactorEventHandlerHelper.check_stock_has_factor_changes(
-                stock_id, stock_info, end_date, tushare_provider
-            )
-        
-        # 多线程执行
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(check_stock, stock_id): stock_id for stock_id in stock_ids}
-            
-            completed = 0
-            for future in as_completed(futures):
-                completed += 1
-                if completed % 100 == 0:
-                    logger.debug(f"预筛选进度: {completed}/{len(stock_ids)}")
-                
-                result = future.result()
-                if result:
-                    stocks_with_changes.append(result)
-        
-        return stocks_with_changes
     
     # ========== 事件构建类 ==========
     

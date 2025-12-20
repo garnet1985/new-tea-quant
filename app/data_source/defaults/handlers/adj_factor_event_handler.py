@@ -16,7 +16,7 @@ import os
 
 from app.data_source.data_source_handler import BaseDataSourceHandler
 from app.data_source.api_job import DataSourceTask, ApiJob
-from app.data_source.defaults.handlers.adj_factor_event_handler_helper import AdjFactorEventHandlerHelper
+from app.data_source.defaults.handlers.adj_factor_event_handler_helper import AdjFactorEventHandlerHelper as helper
 from utils.date.date_utils import DateUtils
 
 
@@ -34,21 +34,173 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义）
     data_source = "adj_factor_event"
-    renew_type = "incremental"  # 增量更新
+    renew_type = "refresh"  # 替换更新
     description = "获取复权因子事件数据（只存储除权日）"
-    dependencies = ["stock_list", "kline"]  # 依赖股票列表和K线数据
-    
+    dependencies = []  # 依赖：无
+
     def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
         super().__init__(schema, params or {}, data_manager)
         # 从 params 读取配置
         self.update_threshold_days = params.get('update_threshold_days', 15)  # 默认15天
         self.max_workers = params.get('max_workers', 10)  # 最大线程数
-        # 东方财富API限流：60次/分钟（需要手动控制）
-        self.eastmoney_rate_limit = 60  # 每分钟60次
-        self.eastmoney_min_interval = 60.0 / 60.0  # 每次请求间隔（秒）
-        self._last_eastmoney_request_time = 0.0
     
+    def _is_table_empty(self, adj_factor_event_model) -> bool:
+        """
+        检查复权因子事件表是否为空
+        
+        Args:
+            adj_factor_event_model: AdjFactorEventModel 实例
+            
+        Returns:
+            bool: 表为空返回 True
+        """
+        return adj_factor_event_model.is_table_empty()
     
+    def _is_csv_exist_and_valid(self, adj_factor_event_model) -> bool:
+        """
+        检查CSV文件是否存在且有效（文件存在且格式正确）
+        
+        Args:
+            adj_factor_event_model: AdjFactorEventModel 实例
+            
+        Returns:
+            bool: CSV存在且有效返回 True
+        """
+        csv_file = adj_factor_event_model.get_latest_csv_file()
+        if not csv_file or not os.path.exists(csv_file):
+            return False
+        
+        # 检查文件是否可读且非空
+        try:
+            import pandas as pd
+            df = pd.read_csv(csv_file, nrows=1)  # 只读第一行检查格式
+            required_columns = ['id', 'event_date', 'factor', 'qfq_diff']
+            return all(col in df.columns for col in required_columns)
+        except Exception:
+            return False
+    
+    def _is_csv_expired(self, adj_factor_event_model) -> bool:
+        """
+        检查CSV文件是否过期（超过一个季度）
+        
+        Args:
+            adj_factor_event_model: AdjFactorEventModel 实例
+            
+        Returns:
+            bool: CSV过期返回 True
+        """
+        csv_file = adj_factor_event_model.get_latest_csv_file()
+        if not csv_file:
+            return True  # 不存在视为过期
+        
+        # 获取当前季度CSV文件名
+        current_csv_name = adj_factor_event_model.get_current_quarter_csv_name()
+        csv_name = os.path.basename(csv_file)
+        
+        # 如果文件名不是当前季度的，视为过期
+        return csv_name != current_csv_name
+    
+    def _get_last_updated_dates(self, adj_factor_event_model) -> Dict[str, str]:
+        """
+        获取每只股票的最后更新时间（last_update）
+        
+        注意：这里使用的是 last_update 字段（DATETIME 类型），表示记录的最后更新时间，
+        而不是 event_date（除权日期）。用于判断是否需要更新数据。
+        
+        Args:
+            adj_factor_event_model: AdjFactorEventModel 实例
+            
+        Returns:
+            Dict[str, str]: {stock_id: latest_last_update}，格式为 YYYYMMDD
+        """
+        try:
+            # 使用 SQL 查询每个股票的最新 last_update 时间
+            # last_update 是 DATETIME 类型，MAX() 返回 datetime 对象
+            query = f"""
+                SELECT id, MAX(last_update) as latest_last_update
+                FROM {adj_factor_event_model.table_name}
+                GROUP BY id
+            """
+            results = adj_factor_event_model.db.execute_sync_query(query)
+            # 将 datetime 对象转换为 YYYYMMDD 格式的字符串
+            result_dict = {}
+            for row in results:
+                if row.get('latest_last_update'):
+                    latest_update = row['latest_last_update']
+                    # last_update 是 DATETIME 类型，返回的是 datetime 对象
+                    from datetime import datetime
+                    if isinstance(latest_update, datetime):
+                        latest_date_str = latest_update.strftime('%Y%m%d')
+                    elif isinstance(latest_update, str):
+                        # 如果是字符串，尝试解析并转换
+                        try:
+                            dt = datetime.strptime(latest_update, '%Y-%m-%d %H:%M:%S')
+                            latest_date_str = dt.strftime('%Y%m%d')
+                        except:
+                            # 如果解析失败，尝试移除分隔符
+                            latest_date_str = latest_update.replace('-', '').replace(' ', '').replace(':', '')[:8]
+                    else:
+                        # 其他类型，转换为字符串后处理
+                        latest_date_str = str(latest_update).replace('-', '').replace(' ', '').replace(':', '')[:8]
+                    result_dict[row['id']] = latest_date_str
+            return result_dict
+        except Exception as e:
+            logger.error(f"获取最后更新日期失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {}
+    
+    def _get_refresh_target_list(
+        self, 
+        stock_list: List[Dict[str, Any]], 
+        last_updated_dates: Dict[str, str], 
+        latest_completed_trading_date: str
+    ) -> List[Dict[str, Any]]:
+        """
+        获取需要更新的股票列表（带起始日期信息）
+        
+        筛选逻辑：
+        1. 新股票：在 stock_list 中但不在 last_updated_dates 中的股票
+        2. 过期股票：最后更新日期距离 latest_completed_trading_date 超过 update_threshold_days 的股票
+        
+        Args:
+            stock_list: 股票列表（从 context 传入或从数据库加载）
+            last_updated_dates: 每只股票的最后更新日期映射
+            latest_completed_trading_date: 最新完成交易日（YYYYMMDD）
+            
+        Returns:
+            List[Dict]: 需要更新的股票列表，每个元素包含：
+                - stock_id: 股票代码
+                - start_date: 起始日期（YYYYMMDD），用于API调用
+        """
+        if not stock_list:
+            return []
+        
+        target_list = []
+        latest_date = DateUtils.parse_yyyymmdd(latest_completed_trading_date)
+        
+        for stock in stock_list:
+            stock_id = stock.get('id') or stock.get('ts_code')
+            if not stock_id:
+                continue
+            
+            # 检查是否是新股票（从未更新过）
+            if stock_id not in last_updated_dates:
+                # 新股票：从默认起始日期开始
+                target_list.append({
+                    'stock_id': stock_id
+                })
+                continue
+            
+            # 已有记录的股票：检查是否超过更新阈值
+            last_update_date = DateUtils.parse_yyyymmdd(last_updated_dates[stock_id]) if last_updated_dates[stock_id] else None
+            if last_update_date and (latest_date - last_update_date).days >= self.update_threshold_days:
+                target_list.append({
+                    'stock_id': stock_id
+                })
+        
+        return target_list
+
     async def before_fetch(self, context: Dict[str, Any] = None):
         """
         数据准备阶段（步骤0-2）
@@ -64,158 +216,55 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             return context
         
         adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
-        kline_model = self.data_manager.get_model('stock_kline')
         
-        # ========== 步骤0：根据 DB / CSV 状态做初始化决策 ==========
-        table_was_empty = AdjFactorEventHandlerHelper.is_table_empty(adj_factor_event_model)
-        csv_usable = AdjFactorEventHandlerHelper.is_csv_usable(adj_factor_event_model)
+        # 从 context 获取最新完成交易日（顶层已统一为 YYYYMMDD 格式，无需转换）
+        latest_completed_trading_date = context.get("latest_completed_trading_date") or context.get("latest_trading_date")
+        if not latest_completed_trading_date:
+            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
+        
+        stock_list = context.get("stock_list", [])
 
-        if table_was_empty:
-            # Case 1 / Case 2：表为空
-            if csv_usable:
-                # Case 2：优先尝试从 CSV 暖启动
-                logger.info("📋 步骤 0/6: 复权因子事件表为空，检测到可用 CSV，尝试导入...")
+        # ========== 步骤0：根据 DB / CSV 状态做初始化决策 ==========
+        
+        # step 1: decide csv actions: need to renew? need to import?
+        context["should_generate_csv"] = False
+        is_table_empty = adj_factor_event_model.is_table_empty()
+        
+        if is_table_empty:
+            # 表为空：尝试从 CSV 恢复（但只导入未过期的 CSV）
+            if self._is_csv_exist_and_valid(adj_factor_event_model):
+                # CSV 存在、有效且未过期，可以导入
                 imported_count = adj_factor_event_model.import_from_csv()
                 if imported_count > 0:
-                    logger.info(f"✅ 从CSV导入 {imported_count} 条记录")
-                    table_was_empty = False
+                    logger.info(f"✅ 从CSV导入 {imported_count} 条记录，表已恢复")
+                    is_table_empty = False  # 导入后表不再为空
                 else:
-                    logger.info("ℹ️  CSV 导入失败或无数据，将按冷启动流程继续")
+                    logger.warning("CSV导入失败或无数据")
             else:
-                logger.info("📋 步骤 0/6: 复权因子事件表为空，且无可用 CSV，将按冷启动流程继续")
-        
-        # ========== 步骤1：确定需要更新的股票集合 ==========
-        context_stock_list = context.get("stock_list")
-        
-        if table_was_empty:
-            # Case 1 / Case 2：表为空（可能是冷启动，也可能是 CSV 恢复失败）
-            # 首次构建：如果有传入的 stock_list，则只针对这些股票；否则全量活跃股票
-            if context_stock_list:
-                stocks_need_update = [s['id'] if isinstance(s, dict) else s for s in context_stock_list]
-                logger.info(f"📋 步骤 1/6: 空表首次构建，使用传入的 {len(stocks_need_update)} 只股票进行全量计算")
-            else:
-                logger.info("📋 步骤 1/6: 空表首次构建，使用全部活跃股票进行全量计算...")
-                stock_service = self.data_manager.get_data_service('stock_related.stock')
-                if stock_service:
-                    all_stocks = stock_service.load_stock_list(filtered=True)
-                    stocks_need_update = [s['id'] for s in all_stocks]
-                else:
-                    stocks_need_update = []
-        elif context_stock_list:
-            # Case 3 + 有传入 stock_list：
-            # 1. 没有任何事件记录的股票 → 视为“首建对象”
-            # 2. 其余股票后续走正常的“超过 N 天未更新”筛选逻辑
-            stocks_need_update = []
-            for s in context_stock_list:
-                stock_id = s['id'] if isinstance(s, dict) else s
-                stock_events = adj_factor_event_model.load("id = %s", (stock_id,), limit=1)
-                if not stock_events:
-                    # 该股票没有数据，需要首次构建
-                    stocks_need_update.append(stock_id)
-            
-            if stocks_need_update:
-                logger.info(f"📋 步骤 1/6: 检测到 {len(stocks_need_update)} 只股票没有数据，进行首次构建")
-            else:
-                # 所有传入股票都有数据，走正常增量模式：只看“超过 N 天未更新”的
-                logger.info(f"📋 步骤 1/6: 查询超过 {self.update_threshold_days} 天未更新的股票...")
-                stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
+                logger.info("表为空且无有效CSV，将进行首次构建")
         else:
-            # Case 3 + 无特定 stock_list：根据覆盖率决定策略
-            stock_service = self.data_manager.get_data_service('stock_related.stock')
-            if stock_service:
-                all_stocks = stock_service.load_stock_list(filtered=True)
-                all_ids = [s['id'] for s in all_stocks]
-            else:
-                all_ids = []
+            # 表不为空：检查是否需要生成新的 CSV
+            if self._is_csv_expired(adj_factor_event_model) or not self._is_csv_exist_and_valid(adj_factor_event_model):
+                context["should_generate_csv"] = True
+                logger.info("CSV已过期或不存在，将在更新后生成新CSV")
 
-            existing_ids = AdjFactorEventHandlerHelper.get_stocks_with_existing_factors(adj_factor_event_model)
-            coverage = AdjFactorEventHandlerHelper.compute_coverage_ratio(existing_ids, all_ids)
-
-            logger.info(
-                f"📊 当前 adj_factor_event 覆盖率: "
-                f"{coverage * 100:.2f}% "
-                f"（已有 {len(existing_ids)} 只股票有事件记录，总股票数 {len(all_ids)}）"
-            )
-
-            # 覆盖率阈值可调：低覆盖率 → 大部分股票需要首建；高覆盖率 → 只做增量扫描
-            low_coverage_threshold = 0.7
-
-            if coverage < low_coverage_threshold and all_ids:
-                # 大部分股票还没有任何复权事件记录：
-                # 1. 对“完全没有记录”的股票视为首建对象
-                # 2. 对已经有记录的少数股票，后续通过 load_stocks_need_update 做增量扫描
-                existing_set = set(existing_ids)
-                missing_ids = [sid for sid in all_ids if sid not in existing_set]
-
-                logger.info(
-                    f"📋 步骤 1/6: 覆盖率较低（{coverage * 100:.2f}%），"
-                    f"检测到 {len(missing_ids)} 只股票从未构建复权事件，将进行首次构建"
-                )
-
-                # 先把“首建对象”加入待更新列表
-                stocks_need_update = list(missing_ids)
-
-                # 再追加“超过 N 天未更新”的已有股票（去重）
-                incremental_ids = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
-                stocks_need_update_set = set(stocks_need_update)
-                for sid in incremental_ids:
-                    if sid not in stocks_need_update_set:
-                        stocks_need_update.append(sid)
-                        stocks_need_update_set.add(sid)
-            else:
-                # 覆盖率已经较高，走正常增量模式：只处理超过 N 天未更新的股票
-                logger.info(
-                    f"📋 步骤 1/6: 覆盖率较高（{coverage * 100:.2f}%），"
-                    f"仅查询超过 {self.update_threshold_days} 天未更新的股票"
-                )
-                stocks_need_update = adj_factor_event_model.load_stocks_need_update(self.update_threshold_days)
+        # ========== 步骤1：获取需要更新的股票列表 ==========
+        # 获取每只股票的最后更新日期
+        last_updated_dates = self._get_last_updated_dates(adj_factor_event_model)
         
-        if not stocks_need_update:
-            logger.info("ℹ️  没有股票需要更新")
-            context["stocks_with_changes"] = []
-            return context
-        
-        logger.info(f"✅ 查询到 {len(stocks_need_update)} 只股票需要更新")
-        
-        # 获取最新交易日
-        latest_trading_date = self.data_manager.get_latest_completed_trading_date()
-        if not latest_trading_date:
-            latest_trading_date = DateUtils.get_current_date_str()
-        
-        # 批量获取每只股票的最新 event_date（优化：一次查询而不是 N 次）
-        latest_factors_map = adj_factor_event_model.load_latest_factors_batch(stocks_need_update)
-        
-        # 获取每只股票的最新 event_date 和第一根K线日期
-        stock_info_map = {}
-        for stock_id in stocks_need_update:
-            latest_event = latest_factors_map.get(stock_id)
-            stock_info_map[stock_id] = {
-                'latest_event_date': latest_event['event_date'] if latest_event else None,
-                'first_kline_date': None,  # 稍后批量查询
-            }
-        
-        # 批量查询第一根K线日期（仅针对需要更新的股票）
-        first_kline_records = kline_model.load_first_kline_records(stock_ids=stocks_need_update)
-        first_kline_map = {r['id']: r['date'] for r in first_kline_records}
-        for stock_id in stock_info_map:
-            stock_info_map[stock_id]['first_kline_date'] = first_kline_map.get(stock_id)
-        
-        context["stock_info_map"] = stock_info_map
-        context["latest_trading_date"] = latest_trading_date
-        
-        # ========== 步骤2：多线程预筛选（找出有因子变化的股票）==========
-        logger.info(f"📋 步骤 2/6: 多线程预筛选（最多 {self.max_workers} 个线程）...")
-        stocks_with_changes = AdjFactorEventHandlerHelper.prefilter_stocks_with_changes(
-            stocks_need_update, 
-            stock_info_map, 
-            latest_trading_date,
-            self.max_workers
+        # 筛选出需要更新的股票列表（新股票 + 超过阈值的股票）
+        target_list = self._get_refresh_target_list(
+            stock_list, 
+            last_updated_dates, 
+            latest_completed_trading_date
         )
         
-        logger.info(f"✅ 预筛选完成，{len(stocks_with_changes)} 只股票有复权事件")
-        context["stocks_with_changes"] = stocks_with_changes
+        context["target_stock_list"] = target_list
+        context["latest_completed_trading_date"] = latest_completed_trading_date
         
+        logger.info(f"✅ 筛选出 {len(target_list)} 只股票需要更新复权因子事件")
         return context
+
     
     async def fetch(self, context: Dict[str, Any] = None) -> List[DataSourceTask]:
         """
@@ -229,33 +278,23 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         这样可以将 API 调用次数从 事件数×3 降低到 股票数×3
         """
         context = context or {}
-        stocks_with_changes = context.get("stocks_with_changes", [])
-        latest_trading_date = context.get("latest_trading_date")
+        target_stock_list = context.get("target_stock_list", [])
+        latest_completed_trading_date = context.get("latest_completed_trading_date")
         
-        if not stocks_with_changes:
+        if not target_stock_list:
             logger.info("没有股票有复权事件，无需生成 tasks")
             return []
         
-        if not latest_trading_date:
-            latest_trading_date = self.data_manager.get_latest_completed_trading_date() if self.data_manager else DateUtils.get_current_date_str()
-        
         tasks = []
-        stock_info_map = context.get("stock_info_map", {})
-        end_date_ymd = DateUtils.yyyy_mm_dd_to_yyyymmdd(latest_trading_date) if '-' in latest_trading_date else latest_trading_date
+        # latest_completed_trading_date 从顶层 context 传入，格式已统一为 YYYYMMDD
+        end_date_ymd = latest_completed_trading_date
         
-        for stock_info in stocks_with_changes:
+        # 默认起始日期（用于所有 API）
+        from app.conf.conf import data_default_start_date
+        default_start_date = data_default_start_date
+        
+        for stock_info in target_stock_list:
             stock_id = stock_info['stock_id']
-            info = stock_info_map.get(stock_id, {})
-            first_kline_date = info.get('first_kline_date')
-            
-            # 全量重算起点：优先使用第一根K线日期，否则使用默认起点
-            if first_kline_date:
-                start_date_full = DateUtils.yyyy_mm_dd_to_yyyymmdd(first_kline_date) if '-' in first_kline_date else first_kline_date
-            else:
-                start_date_full = "20080101"
-            
-            if start_date_full > end_date_ymd:
-                continue
             
             # 为每只股票生成一个 task，包含 3 个全量 API 调用
             # 1. Tushare adj_factor API（全量复权因子）
@@ -264,7 +303,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                 method="get_adj_factor",
                 params={
                     "ts_code": stock_id,
-                    "start_date": start_date_full,
+                    "start_date": default_start_date,
                     "end_date": end_date_ymd,
                 },
                 job_id=f"{stock_id}_adj_factor_full",
@@ -277,7 +316,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                 method="get_daily_kline",
                 params={
                     "ts_code": stock_id,
-                    "start_date": start_date_full,
+                    "start_date": default_start_date,
                     "end_date": end_date_ymd,
                 },
                 job_id=f"{stock_id}_daily_kline_full",
@@ -285,14 +324,16 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             )
             
             # 3. EastMoney API（全量前复权价格）
-            eastmoney_secid = AdjFactorEventHandlerHelper.convert_to_eastmoney_secid(stock_id)
+            # 注意：EastMoney API 支持 start_date 参数（起始日期，YYYYMMDD 格式）
+            # 当提供 start_date 时，API 内部会使用 beg 参数，且不会使用 lmt 参数
+            eastmoney_secid = helper.convert_to_eastmoney_secid(stock_id)
             eastmoney_job = ApiJob(
                 provider_name="eastmoney",
                 method="get_qfq_kline",
                 params={
                     "secid": eastmoney_secid,
-                    "end_date": end_date_ymd,
-                    "limit": 5000  # 足够大的 limit 以获取全量数据
+                    "start_date": default_start_date,  # 起始日期（Provider 内部会转换为 beg 参数）
+                    "end_date": end_date_ymd,           # 结束日期
                 },
                 job_id=f"{stock_id}_eastmoney_full",
                 api_name="get_qfq_kline"
@@ -308,103 +349,134 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         logger.info(f"✅ 生成了 {len(tasks)} 个复权因子事件获取任务（以股票为单位，每只股票 3 个全量 API 调用）")
         return tasks
     
-    async def after_execute(self, task_results: Dict[str, Dict[str, Any]], context: Dict[str, Any] = None):
+    async def after_single_task_execute(
+        self,
+        task_id: str,
+        task_result: Dict[str, Any],
+        context: Dict[str, Any] = None
+    ):
         """
-        执行后处理（步骤4）
+        单个 task 执行后的钩子（用于增量保存）
         
-        处理全量 API 返回结果，计算所有复权事件日的 qfq_diff，批量保存到数据库
+        框架会在每个 task 执行完成后立即调用此方法，实现断点续传能力。
+        
+        Args:
+            task_id: 任务ID（格式：adj_factor_event_{stock_id}）
+            task_result: 任务执行结果 {job_id: result}
+            context: 执行上下文，可能包含 dry_run 标志
+        """
+        context = context or {}
+        
+        # 检查是否是 dry_run 模式
+        dry_run = context.get('dry_run', False)
+        if dry_run:
+            logger.debug(f"[增量保存] 干运行模式，跳过任务 {task_id}")
+            return
+        
+        if not self.data_manager:
+            logger.warning(f"[增量保存] data_manager 未设置，无法保存任务 {task_id}")
+            return
+        
+        # 解析 task_id: adj_factor_event_{stock_id}
+        if not task_id.startswith("adj_factor_event_"):
+            logger.debug(f"[增量保存] 任务 {task_id} 格式不正确，跳过")
+            return
+        
+        stock_id = task_id.replace("adj_factor_event_", "")
+        
+        try:
+            adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
+            
+            # 删除该股票的旧复权事件记录，实现"全量重算"
+            adj_factor_event_model.delete("id = %s", (stock_id,))
+            
+            # 获取三个全量 API 的结果
+            adj_factor_df = task_result.get(f"{stock_id}_adj_factor_full")
+            daily_kline_df = task_result.get(f"{stock_id}_daily_kline_full")
+            eastmoney_result = task_result.get(f"{stock_id}_eastmoney_full")
+            
+            # 验证必需的数据
+            if adj_factor_df is None or adj_factor_df.empty:
+                logger.warning(f"{stock_id}: 复权因子数据为空，跳过")
+                return
+            
+            if daily_kline_df is None or daily_kline_df.empty:
+                logger.warning(f"{stock_id}: 日线数据为空，跳过")
+                return
+            
+            # 解析 EastMoney 全量数据，构建日期 -> QFQ 价格的映射
+            eastmoney_qfq_map = helper.parse_eastmoney_qfq_price_map(eastmoney_result)
+            
+            # 处理日线数据，构建日期 -> 原始收盘价的映射
+            raw_price_map = helper.build_raw_price_map(daily_kline_df)
+            
+            # 获取第一根日线日期
+            # 优先使用 EastMoney 的第一个K线日期（因为复权因子依赖 EastMoney 的前复权价格）
+            # 如果 EastMoney 没有数据，则使用 daily_kline 的第一根日期
+            first_kline_ymd = None
+            
+            # 1. 优先从 EastMoney 获取第一个K线日期（因为复权因子依赖 EastMoney）
+            if eastmoney_qfq_map:
+                first_eastmoney_date = min(eastmoney_qfq_map.keys())
+                first_kline_ymd = first_eastmoney_date
+            
+            # 2. 如果 EastMoney 没有数据，从 daily_kline_df 获取
+            if not first_kline_ymd and not daily_kline_df.empty:
+                import pandas as pd
+                if 'trade_date' in daily_kline_df.columns:
+                    first_kline_date = daily_kline_df['trade_date'].min()
+                    first_kline_ymd = helper.normalize_date_to_yyyymmdd(str(first_kline_date))
+            
+            # 复权因子和diff是为了股票的K线服务的，如果没有K线，因子和diff都没有存在的意义
+            if not first_kline_ymd:
+                logger.warning(f"{stock_id}: 没有第一根K线数据（EastMoney 和 daily_kline 都没有数据），跳过复权因子保存（复权因子需要K线数据支持）")
+                return
+            
+            # 构建复权因子事件列表
+            events_to_save = helper.build_adj_factor_events(
+                stock_id=stock_id,
+                adj_factor_df=adj_factor_df,
+                raw_price_map=raw_price_map,
+                eastmoney_qfq_map=eastmoney_qfq_map,
+                first_kline_ymd=first_kline_ymd
+            )
+            
+            # 立即保存该股票的复权事件（全量替换：先删除再保存，每完成一只股票就立即保存）
+            if events_to_save:
+                adj_factor_event_model.save_events(events_to_save)
+                logger.info(f"✅ [全量替换] {stock_id}: 保存了 {len(events_to_save)} 个复权事件")
+            else:
+                logger.warning(f"{stock_id}: 没有可保存的复权事件")
+                
+        except Exception as e:
+            logger.error(f"❌ [增量保存] 任务 {task_id} 保存失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+    
+    async def after_all_tasks_execute(self, task_results: Dict[str, Dict[str, Any]], context: Dict[str, Any] = None):
+        """
+        所有 tasks 执行完成后的回调（框架接口：after_all_tasks_execute）
+        
+        注意：此方法在所有 tasks 执行完成后统一调用。
+        如果实现了 after_single_task_execute，数据已在每个 task 完成时保存，
+        这里主要用于统计、日志记录等后处理工作。
+        
+        Args:
+            task_results: 所有 task 的执行结果 {task_id: {job_id: result}}
+            context: 执行上下文
         """
         context = context or {}
         
         if not self.data_manager:
-            logger.warning("DataManager 未初始化，无法保存数据")
+            logger.warning("DataManager 未初始化")
             return
         
-        adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
-        stock_info_map = context.get("stock_info_map", {})
-        saved_count = 0
-        failed_count = 0
+        # 如果实现了 after_single_task_execute，数据已在每个 task 完成时保存
+        # 这里只做统计和最终处理
+        total_tasks = len(task_results)
+        logger.info(f"✅ 所有复权因子事件任务执行完成，共 {total_tasks} 个任务")
         
-        # task_results 的结构：{task_id: {job_id: result}}
-        # 优化：每处理完一个 task 的结果就立即保存，而不是等所有 task 都处理完
-        for task_id, task_result in task_results.items():
-            if not task_result:
-                failed_count += 1
-                continue
-            
-            # 解析 task_id: adj_factor_event_{stock_id}
-            if not task_id.startswith("adj_factor_event_"):
-                failed_count += 1
-                continue
-            
-            stock_id = task_id.replace("adj_factor_event_", "")
-            
-            try:
-                # 删除该股票的旧复权事件记录，实现"全量重算"
-                adj_factor_event_model.delete("id = %s", (stock_id,))
-                
-                # 获取三个全量 API 的结果
-                adj_factor_df = task_result.get(f"{stock_id}_adj_factor_full")
-                daily_kline_df = task_result.get(f"{stock_id}_daily_kline_full")
-                eastmoney_result = task_result.get(f"{stock_id}_eastmoney_full")
-                
-                # 验证必需的数据
-                if adj_factor_df is None or adj_factor_df.empty:
-                    logger.warning(f"{stock_id}: 复权因子数据为空，跳过")
-                    failed_count += 1
-                    continue
-                
-                if daily_kline_df is None or daily_kline_df.empty:
-                    logger.warning(f"{stock_id}: 日线数据为空，跳过")
-                    failed_count += 1
-                    continue
-                
-                # 解析 EastMoney 全量数据，构建日期 -> QFQ 价格的映射
-                eastmoney_qfq_map = AdjFactorEventHandlerHelper.parse_eastmoney_qfq_price_map(eastmoney_result)
-                
-                # 处理日线数据，构建日期 -> 原始收盘价的映射
-                raw_price_map = AdjFactorEventHandlerHelper.build_raw_price_map(daily_kline_df)
-                
-                # 获取第一根日线日期
-                info = stock_info_map.get(stock_id, {})
-                first_kline_date = info.get('first_kline_date')
-                first_kline_ymd = None
-                if first_kline_date:
-                    first_kline_ymd = AdjFactorEventHandlerHelper.normalize_date_to_yyyymmdd(first_kline_date)
-                
-                # 复权因子和diff是为了股票的K线服务的，如果没有K线，因子和diff都没有存在的意义
-                # 如果没有第一根K线日期，说明股票没有K线数据，直接跳过
-                if not first_kline_ymd:
-                    logger.warning(f"{stock_id}: 没有第一根K线数据，跳过复权因子保存（复权因子需要K线数据支持）")
-                    failed_count += 1
-                    continue
-                
-                # 构建复权因子事件列表
-                events_to_save = AdjFactorEventHandlerHelper.build_adj_factor_events(
-                    stock_id=stock_id,
-                    adj_factor_df=adj_factor_df,
-                    raw_price_map=raw_price_map,
-                    eastmoney_qfq_map=eastmoney_qfq_map,
-                    first_kline_ymd=first_kline_ymd
-                )
-                
-                # 立即保存该股票的复权事件（优化：每完成一只股票就立即保存，避免中断导致数据丢失）
-                # 全量更新：已删除旧数据，现在保存新的全量数据
-                if events_to_save:
-                    adj_factor_event_model.save_events(events_to_save)
-                    saved_count += len(events_to_save)
-                    logger.info(f"✅ {stock_id}: 保存了 {len(events_to_save)} 个复权事件（全量更新）")
-                else:
-                    logger.warning(f"{stock_id}: 没有可保存的复权事件")
-                    failed_count += 1
-                
-            except Exception as e:
-                logger.error(f"❌ 处理复权因子事件失败: {stock_id}, {e}")
-                failed_count += 1
-                import traceback
-                traceback.print_exc()
-        
-        logger.info(f"✅ 复权因子事件处理完成，成功 {saved_count} 条，失败 {failed_count} 条")
+        # CSV 导出逻辑在 after_normalize 中完成
     
     async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
         """
@@ -438,7 +510,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
     
     async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """
-        标准化数据（用于兼容框架，实际保存逻辑在 after_execute 中）
+        标准化数据（用于兼容框架，实际保存逻辑在 after_all_tasks_execute 中）
         """
-        # 数据已在 after_execute 中保存，这里返回空数据
+        # 数据已在 after_all_tasks_execute 中保存，这里返回空数据
         return {"data": []}

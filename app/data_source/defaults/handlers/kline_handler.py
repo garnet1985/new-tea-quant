@@ -15,7 +15,7 @@ K线数据 Handler
 - 优势：daily_basic 只调用一次，减少 API 调用次数（从 6N 降到 4N）
 
 保存策略：
-- 在 after_execute 钩子中，按股票分组保存数据
+- 在 after_all_tasks_execute 钩子中，按股票分组保存数据
 - 每个股票的所有周期数据获取完成后，立即保存该股票的数据（支持多线程）
 - 这样可以在多线程环境中，每个线程完成一个股票的数据后立即保存，避免内存占用过大
 """
@@ -478,13 +478,17 @@ class KlineHandler(BaseDataSourceHandler):
                                 except (ValueError, TypeError):
                                     pass
                     stock_data_map[stock_id].extend(records)
-                    logger.debug(f"✅ 股票 {stock_id} {term} K 线数据合并完成，共 {len(records)} 条记录")
         
         return stock_data_map
     
-    async def _save_single_task_result(self, task_id: str, task_result: Dict[str, Any], context: Dict[str, Any] = None):
+    async def after_single_task_execute(
+        self,
+        task_id: str,
+        task_result: Dict[str, Any],
+        context: Dict[str, Any] = None
+    ):
         """
-        保存单个任务的结果（增量保存）
+        单个 task 执行后的钩子（增量保存）
         
         用于任务完成回调，实现断点续传能力
         
@@ -548,13 +552,13 @@ class KlineHandler(BaseDataSourceHandler):
             import traceback
             logger.error(traceback.format_exc())
     
-    async def after_execute(
+    async def after_all_tasks_execute(
         self, 
         task_results: Dict[str, Dict[str, Any]], 
         context: Dict[str, Any]
     ):
         """
-        执行后的钩子：按股票分组保存数据
+        所有 tasks 执行完成后的钩子：按股票分组保存数据
         
         策略：
         - 只保存尚未通过增量保存机制保存的任务（避免重复保存）
@@ -614,7 +618,7 @@ class KlineHandler(BaseDataSourceHandler):
         """
         标准化数据
         
-        注意：由于数据保存已经在 after_execute 中完成，这个方法主要用于返回标准化后的数据
+        注意：由于数据保存已经在 after_all_tasks_execute 中完成，这个方法主要用于返回标准化后的数据
         使用 _process_task_results 处理数据，然后展平所有记录返回
         """
         # 处理 Task 结果，获取按股票分组的记录
@@ -657,7 +661,6 @@ class KlineHandler(BaseDataSourceHandler):
         # 移除 basic_mapped 中的 close 字段（使用 K-line 的 close 更准确）
         if not basic_mapped.empty and 'close' in basic_mapped.columns:
             basic_mapped = basic_mapped.drop(columns=['close'])
-            logger.debug(f"移除 daily_basic 中的 close 字段（使用 K-line 的 close）")
         
         # 合并数据
         if basic_mapped.empty:

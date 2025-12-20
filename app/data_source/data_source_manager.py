@@ -96,9 +96,13 @@ class DataSourceManager:
             module_path, class_name = handler_path.rsplit('.', 1)
             module = importlib.import_module(f"app.data_source.{module_path}")
             handler_class = getattr(module, class_name)
+            if self.is_verbose:
+                logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({handler_path})")
             return handler_class
         except Exception as e:
             logger.error(f"❌ 加载 Handler 失败 {ds_name} ({handler_path}): {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     def _load_handlers(self):
@@ -136,8 +140,12 @@ class DataSourceManager:
                     handler_instance.data_source = ds_name
                 
                 self._handlers[ds_name] = handler_instance
+                if self.is_verbose:
+                    logger.debug(f"✅ 成功加载 Handler: {ds_name}")
             except Exception as e:
                 logger.error(f"❌ 创建 Handler 实例失败 {ds_name}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
     
     async def fetch(
         self, 
@@ -178,6 +186,47 @@ class DataSourceManager:
     def list_data_sources(self) -> List[str]:
         """列出所有可用的数据源"""
         return list(self._handlers.keys())
+    
+    def get_handler_status(self) -> Dict[str, Any]:
+        """
+        获取所有数据源的加载状态（用于调试）
+        
+        Returns:
+            Dict: {
+                "mapping_count": int,  # mapping.json 中的数据源数量
+                "enabled_count": int,    # 启用的数据源数量
+                "schema_count": int,    # 有 schema 的数据源数量
+                "loaded_handlers": List[str],  # 成功加载的 handler 列表
+                "failed_handlers": Dict[str, str],  # 加载失败的 handler 及原因
+            }
+        """
+        enabled_count = sum(1 for ds_config in self._mapping.values() 
+                           if ds_config.get("is_enabled", True))
+        schema_count = sum(1 for ds_name in self._mapping.keys() 
+                          if ds_name in self._schemas)
+        
+        loaded_handlers = list(self._handlers.keys())
+        failed_handlers = {}
+        
+        # 检查哪些数据源应该被加载但没有
+        for ds_name, ds_config in self._mapping.items():
+            if not ds_config.get("is_enabled", True):
+                continue
+            if ds_name not in self._handlers:
+                reasons = []
+                if not ds_config.get("handler"):
+                    reasons.append("没有配置 handler")
+                if ds_name not in self._schemas:
+                    reasons.append("没有找到对应的 Schema")
+                failed_handlers[ds_name] = "; ".join(reasons) if reasons else "未知原因"
+        
+        return {
+            "mapping_count": len(self._mapping),
+            "enabled_count": enabled_count,
+            "schema_count": schema_count,
+            "loaded_handlers": loaded_handlers,
+            "failed_handlers": failed_handlers,
+        }
     
     def get_schema(self, ds_name: str):
         """获取数据源的 Schema"""
@@ -302,7 +351,7 @@ class DataSourceManager:
 
         try:
             result = await self.fetch("adj_factor_event", context=context)
-            # result["data"] 一般为空（adj_factor_event 的保存逻辑在 after_execute 中完成）
+            # result["data"] 一般为空（adj_factor_event 的保存逻辑在 after_all_tasks_execute 中完成）
             logger.info("✅ 复权因子事件数据更新完成（adj_factor_event）")
             return result
         except Exception as e:

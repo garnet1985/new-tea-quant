@@ -55,7 +55,8 @@ class EastMoneyProvider(BaseProvider):
         self,
         secid: str,
         end_date: str = "20300101",
-        limit: int = 5000,
+        start_date: str = None,
+        limit: int = None,
         **kwargs
     ):
         """
@@ -66,7 +67,8 @@ class EastMoneyProvider(BaseProvider):
         Args:
             secid: 股票代码（东方财富格式，如 "0.000001" 深市，"1.600000" 沪市）
             end_date: 结束日期（YYYYMMDD格式，如 "20241231"，默认 "20300101" 表示获取到最新）
-            limit: 返回数据条数限制（默认 5000）
+            start_date: 起始日期（YYYYMMDD格式，可选，如果提供则只返回该日期之后的数据）
+            limit: 返回数据条数限制（可选，与 start_date 互斥：有 start_date 时不应提供 limit）
         
         Returns:
             dict: API 返回的 JSON 数据，包含：
@@ -78,6 +80,7 @@ class EastMoneyProvider(BaseProvider):
         - 返回的 klines 是字符串数组，需要解析
         - 日期格式：YYYY-MM-DD
         - 收盘价在第二个字段（索引1）
+        - start_date 和 limit 互斥：有 start_date 时使用 beg 参数，有 limit 时使用 lmt 参数
         """
         try:
             params = {
@@ -88,8 +91,19 @@ class EastMoneyProvider(BaseProvider):
                 'klt': '101',  # 日线
                 'fqt': '1',  # 前复权
                 'end': end_date,
-                'lmt': str(limit),
             }
+            
+            # 处理 start_date 和 limit 的互斥逻辑
+            # 有 start_date 时使用 beg 参数，不设置 lmt
+            # 有 limit 时使用 lmt 参数，不设置 beg
+            if start_date:
+                params['beg'] = start_date
+                # 不设置 lmt，让 API 返回从 start_date 到 end_date 的所有数据
+            elif limit is not None:
+                params['lmt'] = str(limit)
+            else:
+                # 如果都没有提供，使用默认 limit
+                params['lmt'] = '5000'
             
             response = requests.get(
                 self.base_url,

@@ -1184,3 +1184,45 @@ class DataManager:
         if not self._trading_date_cache:
             raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
         return self._trading_date_cache
+    
+    def get_stocks_latest_corporate_update_quarter(self) -> List[Dict[str, Any]]:
+        """
+        获取不在当前季度的企业财务数据股票列表
+        
+        查询逻辑：找出所有股票中，最新财务数据季度不等于当前季度的股票
+        
+        Args:
+            current_quarter: 当前季度（YYYYQ[1-4]格式）
+        
+        Returns:
+            List[Dict]: 股票列表，每个元素包含：
+                - id: 股票代码
+        """
+        corporate_finance_model = self.get_model('corporate_finance')
+        
+        # 查询每个股票的最新季度
+        # SQL: SELECT id, MAX(quarter) as last_updated_quarter FROM corporate_finance GROUP BY id
+        query = f"""
+            SELECT id, MAX(quarter) as last_updated_quarter
+            FROM {corporate_finance_model.table_name}
+            GROUP BY id
+        """
+        
+        try:
+            results = corporate_finance_model.db.execute_sync_query(query)
+
+            raw_map = {}
+            for row in results or []:
+                stock_id = row.get("id")
+                if not stock_id:
+                    continue
+                raw_map[stock_id] = row.get("last_updated_quarter")
+            
+            return raw_map
+            
+
+        except Exception as e:
+            logger.error(f"查询企业财务数据股票列表失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return []

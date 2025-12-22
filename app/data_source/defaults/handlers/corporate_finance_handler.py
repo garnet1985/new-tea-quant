@@ -3,10 +3,11 @@
 
 从 Tushare 获取企业财务指标数据（季度）
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from loguru import logger
 
+from app.conf.conf import data_default_start_date
 from app.data_source.data_source_handler import BaseDataSourceHandler
 from app.data_source.api_job import DataSourceTask, ApiJob
 from utils.date.date_utils import DateUtils
@@ -29,14 +30,26 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
     data_source = "corporate_finance"
     renew_type = "incremental"  # 增量更新
     description = "获取企业财务指标数据（季度）"
-    dependencies = ["stock_list"]  # 依赖股票列表
+    dependencies = []  # 依赖数据源
     
     # 可选类属性
     requires_date_range = True  # 需要日期范围参数
     
     def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
         super().__init__(schema, params or {}, data_manager)
-    
+
+        # 滚动窗口：默认每次至少覆盖最近 N 个季度
+        # 说明：
+        # - 对“已跟上节奏”的股票，每次会刷新最近 ROLLING_QUARTERS 个季度
+        # - 对于长期未更新的股票，不再做最大季度数限制，而是从上次更新的季度起点一路补到当前有效季度
+        #   （数据一致性优先于单次任务性能）
+        self.ROLLING_QUARTERS = 3
+        # 轮转批次数：当数据表不为空时，将当前 stock_list 按轮转游标切成批次，
+        # 每次 run 只处理约 1/RENEW_ROLLING_BATCH 的股票，长期来看覆盖整个股票池。
+        # 示例：RENEW_ROLLING_BATCH = 10 且 stock_list 长度为 5000，
+        #      每次大约处理 500 只股票。
+        self.RENEW_ROLLING_BATCH = 10
+
     async def before_fetch(self, context: Dict[str, Any] = None):
         """
         数据准备阶段
@@ -45,83 +58,205 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         获取股票列表
         """
         context = context or {}
+        stock_list = context.get("stock_list", [])
         
-        # 如果 context 中已有日期范围，直接使用
-        if "start_date" in context and "end_date" in context:
-            logger.debug(f"使用 context 中的日期范围: {context['start_date']} 至 {context['end_date']}")
-        else:
-            # 从 data_manager 查询数据库获取最新季度
+        # 获取最新完成交易日（从 context 或 DataManager）
+        latest_completed_trading_date = context.get("latest_completed_trading_date")
+        if not latest_completed_trading_date:
             if self.data_manager:
-                try:
-                    # TODO: 查询数据库获取最新季度
-                    logger.debug("从数据库查询最新季度（待实现）")
-                except Exception as e:
-                    logger.warning(f"查询数据库失败，使用默认日期范围: {e}")
-            
-            # 如果没有数据库或查询失败，使用默认范围（最近 2 年）
-            if "start_date" not in context or "end_date" not in context:
-                # 默认：最近 2 年的数据
-                current_year = datetime.now().year
-                current_month = datetime.now().month
-                # 计算当前季度
-                if current_month <= 3:
-                    current_quarter = 1
-                elif current_month <= 6:
-                    current_quarter = 2
-                elif current_month <= 9:
-                    current_quarter = 3
-                else:
-                    current_quarter = 4
-                
-                context["start_date"] = f"{current_year - 2}Q1"
-                context["end_date"] = f"{current_year}Q{current_quarter}"
-                logger.debug(f"使用默认日期范围: {context['start_date']} 至 {context['end_date']}")
+                latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
+            else:
+                logger.warning("无法获取最新完成交易日，跳过企业财务数据更新")
+                return context
         
-        # 获取股票列表（从依赖或 context）
-        if "stock_list" not in context:
-            # TODO: 从依赖的 stock_list data source 获取
-            # 或者从 data_manager 查询数据库
-            logger.warning("股票列表未提供，将无法获取财务数据")
-            context["stock_list"] = []
-    
-    async def fetch(self, context: Dict[str, Any] = None) -> List:
+        # 构建需要更新的股票列表
+        target_list = self._build_renewable_stock_list(latest_completed_trading_date, stock_list)
+
+        if len(target_list) == 0:
+            logger.info("没有需要更新的股票")
+            return context
+        
+        context["target_list"] = target_list
+        context["latest_completed_trading_date"] = latest_completed_trading_date
+        
+        logger.info(f"✅ 筛选出 {len(target_list)} 只股票需要更新企业财务数据")
+        return context
+
+    def _build_renewable_stock_list(self, latest_completed_trading_date: str, stock_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        构建需要更新的股票列表
+        
+        Args:
+            latest_completed_trading_date: 最新完成交易日（YYYYMMDD格式）
+        
+        Returns:
+            List[Dict]: 需要更新的股票列表，每个元素包含：
+                - stock_id: 股票代码
+                - start_date: 起始日期（YYYYMMDD格式）
+                - end_date: 结束日期（YYYYMMDD格式）
+        """
+        if not self.data_manager:
+            logger.warning("DataManager 未初始化，无法构建股票列表")
+            return []
+        
+        # 计算当前季度，作为本次任务的“有效上界”季度
+        # 简化规则：不再等待额外的 buffer，只要 latest_completed_trading_date
+        # 落在某个季度内，就认为该季度可以参与 renew。
+        max_effective_quarter = DateUtils.get_current_quarter(latest_completed_trading_date)
+        # 以 max_effective_quarter 为窗口上界，默认滚动覆盖最近 ROLLING_QUARTERS 个季度
+        # 从 DB 中获取所有股票最新的财报季度信息：{stock_id: last_updated_quarter}
+        raw_map = self.data_manager.get_stocks_latest_corporate_update_quarter()
+        
+        # 如果 DB 里完全没有企业财务数据，这是第一次跑：
+        # 为了建立基准数据，对所有股票从默认起点开始全量拉取到当前有效季度。
+        is_first_run = not raw_map
+        
+        target_list = []
+        # end_date 直接使用 latest_completed_trading_date
+        # （我们以自然日为上界，不再强制截到季度末尾）
+        end_date = latest_completed_trading_date
+        
+        # 系统的历史起点季度（由 data_default_start_date 决定）
+        base_quarter = DateUtils.date_to_quarter(data_default_start_date)
+        
+        # 工具函数：将季度转为线性索引，便于计算季度差距
+        def quarter_to_index(q_str: str) -> int:
+            year = int(q_str[:4])
+            quarter = int(q_str[5])
+            return year * 4 + quarter
+        
+        max_index = quarter_to_index(max_effective_quarter)
+
+        # ========== 轮转批次选择 ==========
+        # - 首次跑（is_first_run=True）：对传入的 stock_list 全量处理，建立基准库
+        # - 非首次：使用 meta_info 表中的游标进行轮转，避免总是命中前缀
+        all_stocks = list(stock_list or [])
+        if not all_stocks:
+            return []
+
+        effective_stock_list = all_stocks
+        batch_size = len(all_stocks)
+        batch_offset = 0
+
+        if not is_first_run and self.RENEW_ROLLING_BATCH and len(all_stocks) > 0:
+            from app.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
+
+            batch_size = max(1, len(all_stocks) // self.RENEW_ROLLING_BATCH)
+
+            try:
+                meta_model: MetaInfoModel = self.data_manager.get_model('meta_info')  # type: ignore
+                meta_key = 'corporate_finance_batch_offset'
+                meta_row = meta_model.load_by_key(meta_key)
+                if meta_row and meta_row.get('value') is not None:
+                    try:
+                        batch_offset = int(meta_row['value'])
+                    except (TypeError, ValueError):
+                        batch_offset = 0
+                else:
+                    batch_offset = 0
+            except Exception as e:
+                logger.warning(f"读取 meta_info 批次游标失败，将从头开始轮转: {e}")
+                batch_offset = 0
+
+            # 根据 offset 做环形切片
+            L = len(all_stocks)
+            indices = [(batch_offset + i) % L for i in range(batch_size)]
+            effective_stock_list = [all_stocks[i] for i in indices]
+
+            # 预先计算新的 offset，用于本次 run 结束后持久化
+            new_offset = (batch_offset + batch_size) % L
+        else:
+            new_offset = 0  # 首次跑或不开启轮转时，不使用 offset
+
+        # 针对本次选中的股票逐一决定起始日期
+        for stock in effective_stock_list:
+            stock_id = stock.get("id") or stock.get("ts_code")
+            if not stock_id:
+                continue
+            
+            # 第一次跑：对所有股票从系统默认起点全量拉取
+            if is_first_run:
+                start_date = data_default_start_date
+            else:
+                last_q = raw_map.get(stock_id)
+                
+                if not last_q:
+                    # DB 中没有这只股票：视为新股，从默认起点开始全量拉取
+                    start_date = data_default_start_date
+                else:
+                    # 下一个应更新的季度
+                    next_q = DateUtils.get_next_quarter(last_q)
+                    next_index = quarter_to_index(next_q)
+                    
+                    # 计算“滚动窗口”的最老季度：max_q 往前 ROLLING_QUARTERS-1 个季度
+                    window_oldest_index = max_index - (self.ROLLING_QUARTERS - 1)
+                    window_oldest_quarter = base_quarter
+                    if quarter_to_index(base_quarter) < window_oldest_index:
+                        tmp_q = base_quarter
+                        while quarter_to_index(tmp_q) < window_oldest_index:
+                            tmp_q = DateUtils.get_next_quarter(tmp_q)
+                        window_oldest_quarter = tmp_q
+                    
+                    # 情况 1：如果 next_q 已经落在或早于窗口起点，说明“追平进度”后，
+                    # 只需要滚动刷新最近 ROLLING_QUARTERS 个季度即可。
+                    if next_index <= window_oldest_index:
+                        start_quarter = window_oldest_quarter
+                    else:
+                        # 情况 2：这只股票落后超过 ROLLING_QUARTERS 个季度，
+                        # 需要从 last_q 对应季度的起点开始回补，一路补到当前有效季度。
+                        start_quarter = last_q
+                    
+                    # 将起始季度转换为日期
+                    start_date = DateUtils.get_start_date_of_quarter(start_quarter)
+            
+            target_list.append({
+                "stock_id": stock_id,
+                "start_date": start_date,
+                "end_date": end_date,
+            })
+
+        # 非首次跑时，将新的 batch_offset 写回 meta_info，作为下次轮转的起点
+        if not is_first_run and self.RENEW_ROLLING_BATCH and target_list:
+            try:
+                from app.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
+                meta_model: MetaInfoModel = self.data_manager.get_model('meta_info')  # type: ignore
+                meta_key = 'corporate_finance_batch_offset'
+                meta_model.save_meta(
+                    key=meta_key,
+                    value=str(new_offset),
+                    description='Corporate finance renew rolling batch offset'
+                )
+            except Exception as e:
+                logger.warning(f"写入 meta_info 批次游标失败，不影响本次任务: {e}")
+        
+        return target_list
+
+    async def fetch(self, context: Dict[str, Any] = None) -> List[DataSourceTask]:
         """
         生成获取企业财务数据的 Tasks
         
         逻辑：
-        1. 从 context 获取股票列表和日期范围
+        1. 从 context 获取需要更新的股票列表（包含 start_date 和 end_date）
         2. 为每个股票创建一个 Task（包含一个 ApiJob）
         3. 每个 ApiJob 调用 Tushare fina_indicator API
         """
         context = context or {}
+        target_list = context.get("target_list", [])
         
-        stock_list = context.get("stock_list", [])
-        start_date = context.get("start_date")
-        end_date = context.get("end_date")
-        
-        if not stock_list:
-            logger.warning("股票列表为空，无法获取财务数据")
+        if not target_list:
+            logger.info("没有需要更新的股票")
             return []
-        
-        if not start_date or not end_date:
-            raise ValueError("Corporate Finance Handler 需要 start_date 和 end_date 参数")
-        
-        # 如果日期是季度格式（YYYYQ[1-4]），转换为日期格式（YYYYMMDD）
-        # Tushare fina_indicator API 需要日期格式
-        if len(start_date) == 6 and start_date[4] == 'Q':
-            start_date = DateUtils.quarter_to_date(start_date, is_start=True)
-        if len(end_date) == 6 and end_date[4] == 'Q':
-            end_date = DateUtils.quarter_to_date(end_date, is_start=False)
-        
-        logger.debug(f"为 {len(stock_list)} 只股票生成财务数据获取任务: {start_date} 至 {end_date}")
-        
-        # 为每个股票创建一个 Task
+
         tasks = []
-        for stock in stock_list:
-            stock_id = stock.get('id') if isinstance(stock, dict) else stock
-            if not stock_id:
-                continue
+        for stock in target_list:
+            stock_id = stock.get('stock_id')
+            start_date = stock.get('start_date')
+            end_date = stock.get('end_date')
             
+            if not stock_id or not start_date or not end_date:
+                logger.warning(f"股票 {stock_id} 缺少必要参数（start_date 或 end_date）")
+                continue
+
             # 创建 ApiJob
             api_job = ApiJob(
                 provider_name="tushare",
@@ -130,20 +265,76 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
                     "ts_code": stock_id,
                     "start_date": start_date,
                     "end_date": end_date,
-                }
+                },
+                job_id=f"{stock_id}_finance",
+                api_name="get_finance_data"
             )
             
             # 创建 Task
             task = DataSourceTask(
                 task_id=f"corporate_finance_{stock_id}",
                 api_jobs=[api_job],
+                description=f"获取 {stock_id} 的企业财务数据（{start_date} 至 {end_date}）"
             )
-            
+
             tasks.append(task)
         
-        logger.info(f"✅ 生成了 {len(tasks)} 个财务数据获取任务")
-        
+        logger.info(f"✅ 生成了 {len(tasks)} 个企业财务数据获取任务")
         return tasks
+
+    # ========== 执行阶段钩子 ==========
+
+    async def after_single_task_execute(
+        self,
+        task_id: str,
+        task_result: Dict[str, Any],
+        context: Dict[str, Any]
+    ):
+        """
+        单个 Task 执行完成后的钩子：就地保存该股票的企业财务数据。
+
+        和复权因子类似，避免在所有股票都跑完之后一次性落库，
+        改为“一个股票一保存”，减少大批量写入导致的风险。
+        """
+        context = context or {}
+
+        # 干运行模式：只跑流程，不写库
+        if context.get("dry_run"):
+            logger.info(f"🧪 干运行模式：跳过 {task_id} 的企业财务数据保存")
+            return
+
+        if not self.data_manager:
+            logger.warning("DataManager 未初始化，无法保存企业财务数据")
+            return
+
+        try:
+            # 复用 normalize 逻辑，对单个 task 结果做标准化
+            single_raw = {task_id: task_result}
+            normalized = await self.normalize(single_raw)
+
+            data_list = self._validate_data_for_save(normalized)
+            if not data_list:
+                logger.info(f"ℹ️ {task_id} 没有有效企业财务数据，跳过保存")
+                return
+
+            corporate_finance_model = self.data_manager.get_model('corporate_finance')
+            saved_count = corporate_finance_model.save_finance_data(data_list)
+            logger.info(f"✅ [单股票保存] {task_id}: 保存 {saved_count} 条企业财务记录")
+        except Exception as e:
+            logger.error(f"❌ 保存 {task_id} 企业财务数据失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    
+    async def after_normalize(self, normalized_data: Dict[str, Any]):
+        """
+        标准化后处理（全局）：这里只做日志，不再统一写库。
+
+        企业财务数据的落库已经在 after_single_task_execute 中
+        按股票粒度完成，避免重复保存。
+        """
+        data_list = normalized_data.get("data") or []
+        logger.info(f"✅ 企业财务数据标准化完成（按股票已分别保存），总记录数: {len(data_list)}")
     
     async def normalize(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -173,9 +364,14 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
             for item in records:
                 # 将 end_date 转换为 quarter
                 end_date = str(item.get('end_date', ''))
+                # 确保 end_date 是 YYYYMMDD 格式
+                if '-' in end_date:
+                    end_date = end_date.replace('-', '')
+                
                 quarter = DateUtils.date_to_quarter(end_date)
                 
                 if not quarter:
+                    logger.debug(f"无法将日期 {end_date} 转换为季度，跳过该记录")
                     continue
                 
                 # 字段映射（根据 legacy config）

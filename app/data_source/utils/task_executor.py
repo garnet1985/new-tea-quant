@@ -13,13 +13,14 @@ from app.data_source.api_job import ApiJob, DataSourceTask
 
 class RateLimiter:
     """
-    固定窗口限流器（不使用 buffer，直接使用注册的限流值）
+    固定窗口限流器
     
     核心设计：
     1. 窗口起点对齐到分钟（自然分钟边界）
-    2. sleep 不在锁里，使用条件变量通知等待线程
-    3. 每个 (provider, api_name) 一个 limiter
-    4. 并发线程只会阻塞自己，不会拖死别人
+    2. 在 TaskExecutor 中对 max_per_minute 做安全折扣和并发扣减
+    3. sleep 不在锁里，使用条件变量通知等待线程
+    4. 每个 (provider, api_name) 一个 limiter
+    5. 并发线程只会阻塞自己，不会拖死别人
     """
     
     def __init__(self, max_per_minute: int, api_name: str = "default"):
@@ -27,7 +28,7 @@ class RateLimiter:
         初始化限流器
         
         Args:
-            max_per_minute: 每分钟最大请求数（不使用 buffer）
+            max_per_minute: 每分钟最大请求数（已经在 TaskExecutor 侧做过 buffer/并发扣减）
             api_name: API 名称，用于日志
         """
         self.max_per_minute = max_per_minute
@@ -112,6 +113,8 @@ class TaskExecutor:
         # 限流器缓存（按 api_name 缓存）
         self._rate_limiters: Dict[str, RateLimiter] = {}
         self._rate_limiters_lock = threading.Lock()
+        # 全局线程数（用于根据并发数折扣限流值）
+        self._global_workers: int = 1
         
         # 用于增量保存的 handler 和 context（可选）
         self._handler = None
@@ -164,6 +167,9 @@ class TaskExecutor:
             logger.info(f"📊 共 {len(tasks)} 个 Tasks，最小限流: {min_rate_limit}/分钟，使用 {workers} 个线程执行")
         else:
             logger.info(f"📊 共 {len(tasks)} 个 Tasks，使用 {workers} 个线程执行")
+        
+        # 记录全局线程数，用于限流时按并发数做扣减
+        self._global_workers = max(1, workers)
         
         # 如果只有1个 task，直接执行（也要调用钩子）
         if len(tasks) == 1:
@@ -538,9 +544,21 @@ class TaskExecutor:
         Returns:
             RateLimiter 实例
         """
+        # 在这里统一做安全折扣和并发扣减，避免真实请求数逼近硬性上限
+        # 1) 安全折扣：只使用声明限流的 90%
+        buffered_limit = int(max_per_minute * 0.9)
+        if buffered_limit <= 0:
+            buffered_limit = max_per_minute - 1 if max_per_minute > 1 else 1
+        
+        # 2) 并发扣减：多线程时按 "限流值 - 线程数" 再做一次收缩
+        #    防止多个线程同时打到窗口边界时瞬间超限
+        effective_limit = buffered_limit - max(0, self._global_workers)
+        if effective_limit <= 0:
+            effective_limit = 1
+
         with self._rate_limiters_lock:
             if api_name not in self._rate_limiters:
-                self._rate_limiters[api_name] = RateLimiter(max_per_minute, api_name)
+                self._rate_limiters[api_name] = RateLimiter(effective_limit, api_name)
             return self._rate_limiters[api_name]
     
     async def _execute_single_api_job(self, api_job: ApiJob, api_limits: Dict[str, int] = None) -> Any:

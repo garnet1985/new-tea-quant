@@ -42,5 +42,7 @@ class CorporateFinanceModel(DbBaseModel):
     
     def save_finance_data(self, finance_data: List[Dict[str, Any]]) -> int:
         """批量保存财务数据（自动去重）"""
-        return self.replace(finance_data, unique_keys=['id', 'end_date'])
+        # 主键/唯一键与 schema.json 保持一致：['id', 'quarter']
+        # quarter 已由上游 Handler 从 end_date 转换并写入记录
+        return self.replace(finance_data, unique_keys=['id', 'quarter'])
 

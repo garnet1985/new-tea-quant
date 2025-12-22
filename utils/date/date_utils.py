@@ -342,6 +342,85 @@ class DateUtils:
                 return f"{year}1231"
     
     @staticmethod
+    def get_current_quarter(date_str: str = None) -> str:
+        """
+        根据日期获取当前季度
+        
+        Args:
+            date_str: 日期字符串（YYYYMMDD格式），如果为 None 则使用当前日期
+        
+        Returns:
+            str: 季度字符串（YYYYQ[1-4]）
+        """
+        if date_str is None:
+            date_str = DateUtils.get_current_date_str()
+        return DateUtils.date_to_quarter(date_str)
+    
+    @staticmethod
+    def get_start_date_of_quarter(quarter_str: str) -> str:
+        """
+        获取季度的开始日期
+        
+        Args:
+            quarter_str: 季度字符串（YYYYQ[1-4]格式）
+        
+        Returns:
+            str: 季度开始日期（YYYYMMDD格式）
+        """
+        return DateUtils.quarter_to_date(quarter_str, is_start=True)
+    
+    @staticmethod
+    def get_end_date_of_quarter(quarter_str: str) -> str:
+        """
+        获取季度的结束日期
+        
+        Args:
+            quarter_str: 季度字符串（YYYYQ[1-4]格式）
+        
+        Returns:
+            str: 季度结束日期（YYYYMMDD格式）
+        """
+        return DateUtils.quarter_to_date(quarter_str, is_start=False)
+
+    @staticmethod
+    def get_previous_quarter(quarter_str: str) -> str:
+        """
+        获取上一个季度
+        
+        Args:
+            quarter_str: 季度字符串（YYYYQ[1-4]格式）
+        
+        Returns:
+            str: 上一个季度（YYYYQ[1-4]格式）
+        """
+        year = int(quarter_str[:4])
+        quarter = int(quarter_str[5])
+        
+        if quarter > 1:
+            return f"{year}Q{quarter - 1}"
+        else:
+            return f"{year - 1}Q4"
+
+    @staticmethod
+    def get_next_quarter(quarter_str: str) -> str:
+        """
+        获取下一个季度
+        
+        Args:
+            quarter_str: 季度字符串（YYYYQ[1-4]格式）
+        
+        Returns:
+            str: 下一个季度（YYYYQ[1-4]格式）
+        """
+        year = int(quarter_str[:4])
+        quarter = int(quarter_str[5])
+        
+        if quarter < 4:
+            return f"{year}Q{quarter + 1}"
+        else:
+            return f"{year + 1}Q1"
+    
+    @staticmethod
     def get_previous_day(date_str: str) -> str:
         """
         获取前一个交易日（前一天的日期）

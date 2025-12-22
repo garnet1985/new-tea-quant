@@ -368,8 +368,44 @@ class DataSourceManager:
         dry_run: bool = False,
     ):
         """
-        更新企业财务数据"""
-        pass
+        更新企业财务数据（corporate_finance）
+        
+        - 使用 `corporate_finance` Handler 实现增量更新
+        - 依赖：
+          - 已更新的 `stock_list` 基础表
+        - 传入的 `stock_list` 用作"关注股票集合"，为空则让 Handler 自行决定覆盖范围
+        """
+        # 获取 / 回退最新交易日
+        if not latest_completed_trading_date:
+            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
+        
+        # 构建 context：只传递关心的股票 universe 和基准日期
+        context: Dict[str, Any] = {
+            "latest_completed_trading_date": latest_completed_trading_date,
+        }
+        if stock_list:
+            context["stock_list"] = stock_list
+        
+        if test_mode and stock_list:
+            # 测试模式下，仅使用前 N 只股票，减少 API/IO
+            max_test_stocks = 50
+            truncated = stock_list[:max_test_stocks]
+            context["stock_list"] = truncated
+            logger.info(f"🧪 测试模式：企业财务数据仅处理前 {len(truncated)} 只股票")
+        
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 corporate_finance Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+        
+        try:
+            result = await self.fetch("corporate_finance", context=context)
+            logger.info("✅ 企业财务数据更新完成（corporate_finance）")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新企业财务数据失败: {e}")
+            import traceback
+            traceback.format_exc()
+            return {"data": []}
 
     async def renew_macro_data(
         self,
@@ -437,30 +473,30 @@ class DataSourceManager:
         stock_list = self.data_manager.load_stock_list(filtered=True)
 
         # 1. 先更新行情数据（目前主要是 K 线）
-        logger.info("🧪 renew step 1: 行情数据更新开始...")
-        await self.renew_kline_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            stock_list=stock_list,
-            test_mode=test_mode,
-            dry_run=dry_run
-        )
+        # logger.info("🧪 renew step 1: 行情数据更新开始...")
+        # await self.renew_kline_data(
+        #     latest_completed_trading_date=latest_completed_trading_date,
+        #     stock_list=stock_list,
+        #     test_mode=test_mode,
+        #     dry_run=dry_run
+        # )
 
         # 2. 再更新标签数据（非 dry_run 模式才真正写入）
-        logger.info("🧪 renew step 2: 复权因子数据更新开始...")
-        await self.renew_adj_factor_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            stock_list=stock_list,
-            test_mode=test_mode,
-            dry_run=dry_run,
-        )
-
-        # logger.info("🧪 renew step 3: 企业财务数据更新开始...")
-        # await self.renew_corporate_finance_data(
+        # logger.info("🧪 renew step 2: 复权因子数据更新开始...")
+        # await self.renew_adj_factor_data(
         #     latest_completed_trading_date=latest_completed_trading_date,
         #     stock_list=stock_list,
         #     test_mode=test_mode,
         #     dry_run=dry_run,
         # )
+
+        logger.info("🧪 renew step 3: 企业财务数据更新开始...")
+        await self.renew_corporate_finance_data(
+            latest_completed_trading_date=latest_completed_trading_date,
+            stock_list=stock_list,
+            test_mode=test_mode,
+            dry_run=dry_run,
+        )
 
         # logger.info("🧪 renew step 4: 行业资本流动数据更新开始...")
         # await self.renew_industry_capital_flow_data(

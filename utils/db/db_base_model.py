@@ -40,6 +40,7 @@ DbBaseModel - 数据库表操作的通用基类
 
 更新日期：2024-12-04
 """
+import math
 from typing import Dict, List, Any, Optional
 from loguru import logger
 import json
@@ -107,14 +108,111 @@ class DBService:
         if missing_keys:
             raise ValueError(f"主键字段在数据中缺失: {missing_keys}")
         
+        # 为字段名添加反引号（处理 MySQL 保留字，如 'key'）
+        escaped_columns = [f"`{col}`" for col in columns]
+        
         # 构建 update 子句（排除 unique_keys 中的字段）
         update_fields = [k for k in columns if k not in unique_keys]
-        update_clause = ', '.join([f"{k} = VALUES({k})" for k in update_fields])
+        update_clause = ', '.join([f"`{k}` = VALUES(`{k}`)" for k in update_fields])
         
         # 构建值列表
         values = [tuple(data[col] for col in columns) for data in data_list]
         
-        return columns, values, update_clause
+        return escaped_columns, values, update_clause
+    
+    @staticmethod
+    def clean_nan_value(value: Any, default: Any = None) -> Any:
+        """
+        清理单个值中的 NaN，转换为 None 或默认值
+        
+        处理各种类型的 NaN：
+        - numpy.nan (float)
+        - pandas.NA
+        - pandas.NaT
+        - None
+        
+        Args:
+            value: 原始值（可能是 NaN）
+            default: 默认值（当值为 NaN 时返回，默认为 None）
+            
+        Returns:
+            清理后的值（NaN -> default，其他值保持原样）
+            
+        Example:
+            DBService.clean_nan_value(float('nan'))  # None
+            DBService.clean_nan_value(None)  # None
+            DBService.clean_nan_value(123.45)  # 123.45
+            DBService.clean_nan_value(float('nan'), default=0.0)  # 0.0
+        """
+        if value is None:
+            return default
+        
+        # 检查是否是 float 类型的 NaN
+        try:
+            if isinstance(value, float) and math.isnan(value):
+                return default
+        except (TypeError, ValueError):
+            pass
+        
+        # 检查是否是 pandas 的 NA 类型
+        try:
+            import pandas as pd
+            if pd.isna(value):
+                return default
+        except (ImportError, AttributeError, TypeError):
+            pass
+        
+        return value
+    
+    @staticmethod
+    def clean_nan_in_dict(data: Dict[str, Any], default: Any = None) -> Dict[str, Any]:
+        """
+        清理字典中所有值的 NaN
+        
+        Args:
+            data: 原始字典
+            default: 默认值（当值为 NaN 时替换为，默认为 None）
+            
+        Returns:
+            清理后的字典
+            
+        Example:
+            data = {'a': 1.0, 'b': float('nan'), 'c': None}
+            cleaned = DBService.clean_nan_in_dict(data, default=0.0)
+            # {'a': 1.0, 'b': 0.0, 'c': 0.0}
+        """
+        if not isinstance(data, dict):
+            return data
+        
+        cleaned = {}
+        for key, value in data.items():
+            cleaned[key] = DBService.clean_nan_value(value, default=default)
+        return cleaned
+    
+    @staticmethod
+    def clean_nan_in_list(data_list: List[Dict[str, Any]], default: Any = None) -> List[Dict[str, Any]]:
+        """
+        清理列表中所有字典的 NaN 值
+        
+        Args:
+            data_list: 字典列表
+            default: 默认值（当值为 NaN 时替换为，默认为 None）
+            
+        Returns:
+            清理后的字典列表
+            
+        Example:
+            data_list = [
+                {'id': '001', 'value': 1.0},
+                {'id': '002', 'value': float('nan')}
+            ]
+            cleaned = DBService.clean_nan_in_list(data_list, default=0.0)
+            # [{'id': '001', 'value': 1.0}, {'id': '002', 'value': 0.0}]
+        """
+        if not isinstance(data_list, list):
+            return data_list
+        
+        return [DBService.clean_nan_in_dict(item, default=default) for item in data_list]
 
 
 class DbBaseModel:

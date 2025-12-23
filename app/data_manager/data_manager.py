@@ -228,7 +228,6 @@ class DataManager:
             GdpModel, PriceIndexesModel, ShiborModel, LprModel,
             CorporateFinanceModel, StockLabelsModel,
             InvestmentTradesModel, InvestmentOperationsModel,
-            IndustryCapitalFlowModel,
             StockIndexIndicatorModel, StockIndexIndicatorWeightModel,
             MetaInfoModel
         )
@@ -246,7 +245,6 @@ class DataManager:
             'stock_labels': StockLabelsModel,
             'investment_trades': InvestmentTradesModel,
             'investment_operations': InvestmentOperationsModel,
-            'industry_capital_flow': IndustryCapitalFlowModel,
             'stock_index_indicator': StockIndexIndicatorModel,
             'stock_index_indicator_weight': StockIndexIndicatorWeightModel,
             'meta_info': MetaInfoModel,
@@ -603,9 +601,6 @@ class DataManager:
             data["index_indicators"] = self._load_index_indicators_data(index_indicators_settings)
         
         # 5. 加载行业资金流数据
-        industry_capital_flow_settings = settings.get("industry_capital_flow")
-        if industry_capital_flow_settings:
-            data["industry_capital_flow"] = self._load_industry_capital_flow_data(industry_capital_flow_settings)
         
         return data
     
@@ -927,12 +922,6 @@ class DataManager:
         """加载指数指标数据（暂未实现）"""
         logger.warning("_load_index_indicators_data 暂未实现")
         return {}
-    
-    def _load_industry_capital_flow_data(self, industry_capital_flow_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """加载行业资金流数据（暂未实现）"""
-        logger.warning("_load_industry_capital_flow_data 暂未实现")
-        return {}
-    
     def load_stock_list(self, 
                        filtered: bool = False,
                        industry: str = None,

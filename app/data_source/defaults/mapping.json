@@ -100,9 +100,9 @@
         },
         "industry_capital_flow": {
             "handler": "defaults.handlers.industry_capital_flow.IndustryCapitalFlowHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "params": {
-                "default_date_range": {"years": 1}
+                "default_date_range": { "start_date": "20080101" }
             }
         },
         "stock_index_indicator": {

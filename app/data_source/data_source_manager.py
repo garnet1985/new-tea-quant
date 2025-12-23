@@ -545,8 +545,28 @@ class DataSourceManager:
         dry_run: bool = False,
     ):
         """
-        更新行业资本流动数据"""
-        pass
+        更新行业资本流动数据（industry_capital_flow）
+        
+        - 使用专门的 `IndustryCapitalFlowHandler`，保持与 legacy 行为一致（增量更新）
+        - 数据格式：日度数据（YYYYMMDD）
+        - Handler 会根据数据库最新日期或默认范围自动计算需要更新的日期区间
+        - 不依赖 `latest_completed_trading_date` 和 `stock_list`
+        """
+        # 行业资金流向是宏观日度数据，这里不需要 latest_completed_trading_date / stock_list
+        context: Dict[str, Any] = {}
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 industry_capital_flow Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+
+        try:
+            result = await self.fetch("industry_capital_flow", context=context)
+            logger.info("✅ 行业资本流动数据更新完成（industry_capital_flow）")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新行业资本流动数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"data": []}
 
 
     async def renew_index_indicators_data(
@@ -612,22 +632,22 @@ class DataSourceManager:
         #     dry_run=dry_run,
         # )
 
-        logger.info("🧪 renew step 4: 宏观经济数据更新开始...")
-        await self.renew_gdp_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            test_mode=test_mode,
-            dry_run=dry_run,
-        )
-        await self.renew_shibor_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            test_mode=test_mode,
-            dry_run=dry_run,
-        )
-        await self.renew_lpr_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            test_mode=test_mode,
-            dry_run=dry_run,
-        )
+        # logger.info("🧪 renew step 4: 宏观经济数据更新开始...")
+        # await self.renew_gdp_data(
+        #     latest_completed_trading_date=latest_completed_trading_date,
+        #     test_mode=test_mode,
+        #     dry_run=dry_run,
+        # )
+        # await self.renew_shibor_data(
+        #     latest_completed_trading_date=latest_completed_trading_date,
+        #     test_mode=test_mode,
+        #     dry_run=dry_run,
+        # )
+        # await self.renew_lpr_data(
+        #     latest_completed_trading_date=latest_completed_trading_date,
+        #     test_mode=test_mode,
+        #     dry_run=dry_run,
+        # )
 
         # logger.info("🧪 renew step 4: 行业资本流动数据更新开始...")
         # await self.renew_industry_capital_flow_data(

@@ -11,6 +11,7 @@ from app.conf.conf import data_default_start_date
 from app.data_source.data_source_handler import BaseDataSourceHandler
 from app.data_source.api_job import DataSourceTask, ApiJob
 from utils.date.date_utils import DateUtils
+from utils.db.db_base_model import DBService
 
 
 class CorporateFinanceHandler(BaseDataSourceHandler):
@@ -360,6 +361,9 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
             # 转换为字典列表
             records = df.to_dict('records')
             
+            # 使用 DBService 清理所有记录中的 NaN 值
+            records = DBService.clean_nan_in_list(records, default=None)
+            
             # 字段映射和数据处理
             for item in records:
                 # 将 end_date 转换为 quarter
@@ -374,53 +378,69 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
                     logger.debug(f"无法将日期 {end_date} 转换为季度，跳过该记录")
                     continue
                 
+                # 辅助函数：安全地将值转换为 float，处理 NaN
+                def safe_float(value, default=0.0):
+                    """安全转换为 float，处理 NaN 和 None"""
+                    # 使用 DBService 的通用方法清理 NaN
+                    cleaned = DBService.clean_nan_value(value, default=None)
+                    if cleaned is None:
+                        return default
+                    try:
+                        result = float(cleaned)
+                        # 再次检查转换后的值是否是 NaN（双重保险）
+                        if cleaned is not None and isinstance(result, float):
+                            import math
+                            if math.isnan(result):
+                                return default
+                        return result
+                    except (TypeError, ValueError):
+                        return default
+                
                 # 字段映射（根据 legacy config）
                 mapped = {
                     "id": item.get('ts_code', ''),
                     "quarter": quarter,
                     # 盈利能力指标
-                    "eps": float(item.get('eps', 0)) if item.get('eps') is not None else 0.0,
-                    "dt_eps": float(item.get('dt_eps', 0)) if item.get('dt_eps') is not None else 0.0,
-                    "roe": float(item.get('roe', 0)) if item.get('roe') is not None else 0.0,
-                    "roe_dt": float(item.get('roe_dt', 0)) if item.get('roe_dt') is not None else 0.0,
-                    "roa": float(item.get('roa', 0)) if item.get('roa') is not None else 0.0,
-                    "netprofit_margin": float(item.get('netprofit_margin', 0)) if item.get('netprofit_margin') is not None else 0.0,
-                    "gross_profit_margin": float(item.get('grossprofit_margin', 0)) if item.get('grossprofit_margin') is not None else 0.0,  # API字段名差异
-                    "op_income": float(item.get('op_income', 0)) if item.get('op_income') is not None else 0.0,
-                    "roic": float(item.get('roic', 0)) if item.get('roic') is not None else 0.0,
-                    "ebit": float(item.get('ebit', 0)) if item.get('ebit') is not None else 0.0,
-                    "ebitda": float(item.get('ebitda', 0)) if item.get('ebitda') is not None else 0.0,
-                    "dtprofit_to_profit": float(item.get('dtprofit_to_profit', 0)) if item.get('dtprofit_to_profit') is not None else 0.0,
-                    "profit_dedt": float(item.get('profit_dedt', 0)) if item.get('profit_dedt') is not None else 0.0,
+                    "eps": safe_float(item.get('eps')),
+                    "dt_eps": safe_float(item.get('dt_eps')),
+                    "roe": safe_float(item.get('roe')),
+                    "roe_dt": safe_float(item.get('roe_dt')),
+                    "roa": safe_float(item.get('roa')),
+                    "netprofit_margin": safe_float(item.get('netprofit_margin')),
+                    "gross_profit_margin": safe_float(item.get('grossprofit_margin')),  # API字段名差异
+                    "op_income": safe_float(item.get('op_income')),
+                    "roic": safe_float(item.get('roic')),
+                    "ebit": safe_float(item.get('ebit')),
+                    "ebitda": safe_float(item.get('ebitda')),
+                    "dtprofit_to_profit": safe_float(item.get('dtprofit_to_profit')),
+                    "profit_dedt": safe_float(item.get('profit_dedt')),
                     # 成长能力指标
-                    "or_yoy": float(item.get('or_yoy', 0)) if item.get('or_yoy') is not None else 0.0,
-                    "netprofit_yoy": float(item.get('netprofit_yoy', 0)) if item.get('netprofit_yoy') is not None else 0.0,
-                    "basic_eps_yoy": float(item.get('basic_eps_yoy', 0)) if item.get('basic_eps_yoy') is not None else 0.0,
-                    "dt_eps_yoy": float(item.get('dt_eps_yoy', 0)) if item.get('dt_eps_yoy') is not None else 0.0,
-                    "tr_yoy": float(item.get('tr_yoy', 0)) if item.get('tr_yoy') is not None else 0.0,
+                    "or_yoy": safe_float(item.get('or_yoy')),
+                    "netprofit_yoy": safe_float(item.get('netprofit_yoy')),
+                    "basic_eps_yoy": safe_float(item.get('basic_eps_yoy')),
+                    "dt_eps_yoy": safe_float(item.get('dt_eps_yoy')),
+                    "tr_yoy": safe_float(item.get('tr_yoy')),
                     # 偿债能力指标
-                    "netdebt": float(item.get('netdebt', 0)) if item.get('netdebt') is not None else 0.0,
-                    "debt_to_eqt": float(item.get('debt_to_eqt', 0)) if item.get('debt_to_eqt') is not None else 0.0,
-                    "debt_to_assets": float(item.get('debt_to_assets', 0)) if item.get('debt_to_assets') is not None else 0.0,
-                    "interestdebt": float(item.get('interestdebt', 0)) if item.get('interestdebt') is not None else 0.0,
-                    "assets_to_eqt": float(item.get('assets_to_eqt', 0)) if item.get('assets_to_eqt') is not None else 0.0,
-                    "quick_ratio": float(item.get('quick_ratio', 0)) if item.get('quick_ratio') is not None else 0.0,
-                    "current_ratio": float(item.get('current_ratio', 0)) if item.get('current_ratio') is not None else 0.0,
+                    "netdebt": safe_float(item.get('netdebt')),
+                    "debt_to_eqt": safe_float(item.get('debt_to_eqt')),
+                    "debt_to_assets": safe_float(item.get('debt_to_assets')),
+                    "interestdebt": safe_float(item.get('interestdebt')),
+                    "assets_to_eqt": safe_float(item.get('assets_to_eqt')),
+                    "quick_ratio": safe_float(item.get('quick_ratio')),
+                    "current_ratio": safe_float(item.get('current_ratio')),
                     # 运营能力指标
-                    "ar_turn": float(item.get('ar_turn', 0)) if item.get('ar_turn') is not None else 0.0,
+                    "ar_turn": safe_float(item.get('ar_turn')),
                     # 资产状况指标
-                    "bps": float(item.get('bps', 0)) if item.get('bps') is not None else 0.0,
+                    "bps": safe_float(item.get('bps')),
                     # 现金流指标
-                    "ocfps": float(item.get('ocfps', 0)) if item.get('ocfps') is not None else 0.0,
-                    "fcff": float(item.get('fcff', 0)) if item.get('fcff') is not None else 0.0,
-                    "fcfe": float(item.get('fcfe', 0)) if item.get('fcfe') is not None else 0.0,
+                    "ocfps": safe_float(item.get('ocfps')),
+                    "fcff": safe_float(item.get('fcff')),
+                    "fcfe": safe_float(item.get('fcfe')),
                 }
                 
                 # 只保留有效的记录（必须有 id 和 quarter）
                 if mapped.get('id') and mapped.get('quarter'):
                     formatted.append(mapped)
-        
-        logger.info(f"✅ 企业财务数据处理完成，共 {len(formatted)} 条记录")
         
         return {
             "data": formatted

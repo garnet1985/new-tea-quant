@@ -30,7 +30,6 @@ from .corporate_finance.model import CorporateFinanceModel
 from .stock_labels.model import StockLabelsModel
 from .investment_trades.model import InvestmentTradesModel
 from .investment_operations.model import InvestmentOperationsModel
-from .industry_capital_flow.model import IndustryCapitalFlowModel
 from .stock_index_indicator.model import StockIndexIndicatorModel
 from .stock_index_indicator_weight.model import StockIndexIndicatorWeightModel
 from .meta_info.model import MetaInfoModel
@@ -48,7 +47,6 @@ __all__ = [
     'StockLabelsModel',
     'InvestmentTradesModel',
     'InvestmentOperationsModel',
-    'IndustryCapitalFlowModel',
     'StockIndexIndicatorModel',
     'StockIndexIndicatorWeightModel',
     'MetaInfoModel',

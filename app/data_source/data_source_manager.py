@@ -601,6 +601,36 @@ class DataSourceManager:
             return {"data": []}
 
 
+    async def renew_index_indicators_weight_data(
+        self,
+        latest_completed_trading_date: str = None,
+        stock_list: Optional[list] = None,
+        test_mode: bool = False,
+        dry_run: bool = False,
+    ):
+        """
+        更新股票指数成分股权重数据（stock_index_indicator_weight）
+        
+        - 使用 `StockIndexIndicatorWeightHandler` 获取指数成分股权重
+        - 指数成分股不常变化，至少间隔约 1 个月才会触发增量更新
+        - 不依赖 `latest_completed_trading_date` 和 `stock_list`
+        """
+        context: Dict[str, Any] = {}
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 stock_index_indicator_weight Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+
+        try:
+            result = await self.fetch("stock_index_indicator_weight", context=context)
+            logger.info("✅ 股票指数成分股权重数据更新完成（stock_index_indicator_weight）")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新股票指数成分股权重数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"data": []}
+
+
     async def renew_data(
         self,
         latest_completed_trading_date: str = None,
@@ -669,17 +699,16 @@ class DataSourceManager:
         #     dry_run=dry_run,
         # )
 
-        logger.info("🧪 renew step 5: 股票指数指标数据更新开始...")
-        await self.renew_index_indicators_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            test_mode=test_mode,
-            dry_run=dry_run,
-        )
-
-
         # logger.info("🧪 renew step 5: 股票指数指标数据更新开始...")
-        # await self.renew_index_indicators_weight_data(
+        # await self.renew_index_indicators_data(
         #     latest_completed_trading_date=latest_completed_trading_date,
         #     test_mode=test_mode,
         #     dry_run=dry_run,
         # )
+
+        logger.info("🧪 renew step 6: 股票指数指标权重数据更新开始...")
+        await self.renew_index_indicators_weight_data(
+            latest_completed_trading_date=latest_completed_trading_date,
+            test_mode=test_mode,
+            dry_run=dry_run,
+        )

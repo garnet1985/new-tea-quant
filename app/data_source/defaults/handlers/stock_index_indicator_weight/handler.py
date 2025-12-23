@@ -52,7 +52,10 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
         
         计算需要更新的日期范围（月度数据）
         """
-        context = context or {}
+        # 注意：不能用 context = context or {}，否则外部传入的空 dict 会被替换，
+        # 导致在 fetch 阶段拿不到这里写入的 index_latest_dates / end_date
+        if context is None:
+            context = {}
         
         # 如果 context 中已有日期范围，直接使用
         if "start_date" in context and "end_date" in context:
@@ -203,4 +206,41 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
         return {
             "data": formatted
         }
+
+    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
+        """
+        标准化后处理：保存股指成分股权重数据到数据库
+        """
+        context = context or {}
+
+        dry_run = context.get("dry_run", False)
+        if dry_run:
+            logger.info("🧪 干运行模式：跳过股指成分股权重数据保存")
+            return
+
+        if not self.data_manager:
+            logger.warning("DataManager 未初始化，无法保存股指成分股权重数据")
+            return
+
+        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
+        if not data_list:
+            logger.debug("股指成分股权重数据为空，无需保存")
+            return
+
+        try:
+            from utils.db.db_base_model import DBService
+            data_list = DBService.clean_nan_in_list(data_list, default=0.0)
+
+            model = self.data_manager.get_model("stock_index_indicator_weight")
+            if not model:
+                logger.error("未找到 stock_index_indicator_weight Model，无法保存数据")
+                return
+
+            # 使用表 schema 的主键 (id, date, stock_id) 去重
+            count = model.replace(data_list, unique_keys=["id", "date", "stock_id"])
+            logger.info(f"✅ 股指成分股权重数据保存完成，共 {count} 条记录")
+        except Exception as e:
+            logger.error(f"❌ 保存股指成分股权重数据失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 

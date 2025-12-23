@@ -221,11 +221,11 @@ class TushareProvider(BaseProvider):
         """
         获取 CPI 数据
         
-        Tushare API: cpi
+        Tushare API: cn_cpi
         
         Args:
-            start_date: 开始月份 (YYYYMM)
-            end_date: 结束月份 (YYYYMM)
+            start_date: 开始月份 (YYYYMM)，会转换为 start_m 参数
+            end_date: 结束月份 (YYYYMM)，会转换为 end_m 参数
         
         Returns:
             DataFrame: CPI数据
@@ -236,7 +236,7 @@ class TushareProvider(BaseProvider):
                 params["start_m"] = start_date
             if end_date:
                 params["end_m"] = end_date
-            return self.api.cpi(**params)
+            return self.api.cn_cpi(**params)
         except Exception as e:
             raise self.handle_error(e, "get_cpi")
     
@@ -244,11 +244,11 @@ class TushareProvider(BaseProvider):
         """
         获取 PPI 数据
         
-        Tushare API: ppi
+        Tushare API: cn_ppi
         
         Args:
-            start_date: 开始月份 (YYYYMM)
-            end_date: 结束月份 (YYYYMM)
+            start_date: 开始月份 (YYYYMM)，会转换为 start_m 参数
+            end_date: 结束月份 (YYYYMM)，会转换为 end_m 参数
         
         Returns:
             DataFrame: PPI数据
@@ -259,7 +259,7 @@ class TushareProvider(BaseProvider):
                 params["start_m"] = start_date
             if end_date:
                 params["end_m"] = end_date
-            return self.api.ppi(**params)
+            return self.api.cn_ppi(**params)
         except Exception as e:
             raise self.handle_error(e, "get_ppi")
     
@@ -267,11 +267,11 @@ class TushareProvider(BaseProvider):
         """
         获取 PMI 数据
         
-        Tushare API: pmi
+        Tushare API: cn_pmi
         
         Args:
-            start_date: 开始月份 (YYYYMM)
-            end_date: 结束月份 (YYYYMM)
+            start_date: 开始月份 (YYYYMM)，会转换为 start_m 参数
+            end_date: 结束月份 (YYYYMM)，会转换为 end_m 参数
         
         Returns:
             DataFrame: PMI数据
@@ -282,7 +282,7 @@ class TushareProvider(BaseProvider):
                 params["start_m"] = start_date
             if end_date:
                 params["end_m"] = end_date
-            return self.api.pmi(**params)
+            return self.api.cn_pmi(**params)
         except Exception as e:
             raise self.handle_error(e, "get_pmi")
     
@@ -313,7 +313,7 @@ class TushareProvider(BaseProvider):
         """
         获取 LPR 数据
         
-        Tushare API: lpr
+        Tushare API: shibor_lpr
         
         Args:
             start_date: 开始日期 (YYYYMMDD)
@@ -328,7 +328,7 @@ class TushareProvider(BaseProvider):
                 params["start_date"] = start_date
             if end_date:
                 params["end_date"] = end_date
-            return self.api.lpr(**params)
+            return self.api.shibor_lpr(**params)
         except Exception as e:
             raise self.handle_error(e, "get_lpr")
     
@@ -360,11 +360,11 @@ class TushareProvider(BaseProvider):
         """
         获取货币供应量数据
         
-        Tushare API: money_supply
+        Tushare API: cn_m
         
         Args:
-            start_date: 开始月份 (YYYYMM)
-            end_date: 结束月份 (YYYYMM)
+            start_date: 开始月份 (YYYYMM)，会转换为 start_m 参数
+            end_date: 结束月份 (YYYYMM)，会转换为 end_m 参数
         
         Returns:
             DataFrame: 货币供应量数据
@@ -375,7 +375,7 @@ class TushareProvider(BaseProvider):
                 params["start_m"] = start_date
             if end_date:
                 params["end_m"] = end_date
-            return self.api.money_supply(**params)
+            return self.api.cn_m(**params)
         except Exception as e:
             raise self.handle_error(e, "get_money_supply")
     

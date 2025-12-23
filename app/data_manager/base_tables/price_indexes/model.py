@@ -13,7 +13,7 @@ class PriceIndexesModel(DbBaseModel):
     
     def load_by_month(self, month: str) -> Optional[Dict[str, Any]]:
         """查询指定月份的价格指数"""
-        return self.load_one("month = %s", (month,))
+        return self.load_one("date = %s", (month,))
     
     def load_by_date_range(
         self, 
@@ -22,16 +22,16 @@ class PriceIndexesModel(DbBaseModel):
     ) -> List[Dict[str, Any]]:
         """查询指定月份范围的价格指数"""
         return self.load(
-            "month BETWEEN %s AND %s",
+            "date BETWEEN %s AND %s",
             (start_month, end_month),
-            order_by="month ASC"
+            order_by="date ASC"
         )
     
     def load_latest(self) -> Optional[Dict[str, Any]]:
         """查询最新的价格指数"""
-        return self.load_one("1=1", order_by="month DESC")
+        return self.load_one("1=1", order_by="date DESC")
     
     def save_price_indexes(self, indexes: List[Dict[str, Any]]) -> int:
         """批量保存价格指数（自动去重）"""
-        return self.replace(indexes, unique_keys=['month'])
+        return self.replace(indexes, unique_keys=['date'])
 

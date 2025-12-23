@@ -19,13 +19,14 @@
             "params": {}
         },
         "gdp": {
-            "handler": "defaults.handlers.simple_api.SimpleApiHandler",
+            "handler": "defaults.handlers.rolling.RollingHandler",
             "is_enabled": true,
             "params": {
                 "provider_name": "tushare",
                 "method": "get_gdp",
                 "date_format": "quarter",
                 "default_date_range": {"years": 5},
+                "rolling_periods": 4,
                 "field_mapping": {
                     "quarter": "quarter",
                     "gdp": "gdp",
@@ -43,17 +44,19 @@
             "handler": "defaults.handlers.price_indexes.PriceIndexesHandler",
             "is_enabled": true,
             "params": {
-                "default_date_range": {"years": 3}
+                "default_date_range": {"years": 3},
+                "rolling_months": 12
             }
         },
         "shibor": {
-            "handler": "defaults.handlers.simple_api.SimpleApiHandler",
+            "handler": "defaults.handlers.rolling.RollingHandler",
             "is_enabled": true,
             "params": {
                 "provider_name": "tushare",
                 "method": "get_shibor",
                 "date_format": "date",
                 "default_date_range": {"years": 1},
+                "rolling_periods": 30,
                 "field_mapping": {
                     "date": "date",
                     "one_night": "on",
@@ -65,13 +68,14 @@
             }
         },
         "lpr": {
-            "handler": "defaults.handlers.simple_api.SimpleApiHandler",
+            "handler": "defaults.handlers.rolling.RollingHandler",
             "is_enabled": true,
             "params": {
                 "provider_name": "tushare",
                 "method": "get_lpr",
                 "date_format": "date",
                 "default_date_range": {"years": 1},
+                "rolling_periods": 30,
                 "field_mapping": {
                     "date": "date",
                     "lpr_1_y": "1y",

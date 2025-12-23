@@ -1,10 +1,10 @@
 """
-价格指数 Handler - 合并 CPI、PPI、PMI 数据
+价格指数 Handler - 合并 CPI、PPI、PMI、货币供应量数据
 
-从 Tushare 获取 CPI、PPI、PMI 数据，合并到 price_indexes 表中。
+从 Tushare 获取 CPI、PPI、PMI、货币供应量数据，合并到 price_indexes 表中。
 
 业务逻辑：
-1. 调用三个 API：get_cpi, get_ppi, get_pmi
+1. 调用四个 API：get_cpi, get_ppi, get_pmi, get_money_supply
 2. 按月份合并数据
 3. 保存到 price_indexes 表
 """
@@ -19,12 +19,13 @@ from utils.date.date_utils import DateUtils
 
 class PriceIndexesHandler(BaseDataSourceHandler):
     """
-    价格指数 Handler - 合并 CPI、PPI、PMI 数据
+    价格指数 Handler - 合并 CPI、PPI、PMI、货币供应量数据
     
     特点：
-    - 需要多个 API 调用（Tushare get_cpi + get_ppi + get_pmi）
+    - 需要多个 API 调用（Tushare get_cpi + get_ppi + get_pmi + get_money_supply）
     - 增量更新（incremental）
     - 按月份合并数据
+    - 滚动刷新机制：每次运行都刷新最近 N 个月的数据（确保数据一致性）
     """
     
     # 类属性（必须定义）
@@ -38,53 +39,95 @@ class PriceIndexesHandler(BaseDataSourceHandler):
     
     def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
         super().__init__(schema, params or {}, data_manager)
-        # 默认日期范围：最近 3 年
+        # 默认日期范围：最近 3 年（用于首次运行或数据库为空时）
         self.default_date_range = params.get('default_date_range', {"years": 3})
+        # 滚动窗口：每次运行都刷新最近 N 个月的数据（确保数据一致性）
+        # 说明：宏观经济数据可能会被修正，滚动刷新可以确保最近 N 个月的数据是最新的
+        self.ROLLING_MONTHS = params.get('rolling_months', 12)  # 默认滚动刷新最近 12 个月
     
     async def before_fetch(self, context: Dict[str, Any] = None):
         """
         数据准备阶段
         
         计算需要更新的日期范围（月度数据）
+        
+        策略：
+        1. 如果数据库为空：使用默认日期范围（最近 3 年）
+        2. 如果数据库不为空：
+           - 计算最新日期距离当前月份的时间间隔
+           - 如果间隔 <= ROLLING_MONTHS：滚动刷新最近 ROLLING_MONTHS 个月
+           - 如果间隔 > ROLLING_MONTHS：从最新日期开始追赶（历史追赶）
         """
-        context = context or {}
+        if context is None:
+            context = {}
         
         # 如果 context 中已有日期范围，直接使用
         if "start_date" in context and "end_date" in context:
             logger.debug(f"使用 context 中的日期范围: {context['start_date']} 至 {context['end_date']}")
-            return
+            return context
+        
+        # 获取当前月份
+        current_date = DateUtils.get_current_date_str()
+        current_year = int(current_date[:4])
+        current_month = int(current_date[4:6])
+        current_month_ym = f"{current_year}{current_month:02d}"
         
         # 从 data_manager 查询数据库获取最新日期
+        latest_date_ym = None
         if self.data_manager:
             try:
                 price_indexes_model = self.data_manager.get_model('price_indexes')
                 if price_indexes_model:
-                    latest_record = price_indexes_model.load_one(
-                        condition="1=1",
-                        order_by="date DESC"
-                    )
+                    latest_record = price_indexes_model.load_latest()
                     if latest_record:
-                        latest_date = latest_record.get('date', '')
-                        if latest_date:
-                            # 最新日期是 YYYYMM 格式，计算下一个月作为开始日期
-                            year = int(latest_date[:4])
-                            month = int(latest_date[4:6])
-                            # 下一个月
-                            month += 1
-                            if month > 12:
-                                month = 1
-                                year += 1
-                            context["start_date"] = f"{year}{month:02d}"
-                            logger.debug(f"从数据库查询到最新日期: {latest_date}，开始日期: {context['start_date']}")
+                        latest_date_ym = latest_record.get('date', '')
             except Exception as e:
-                logger.warning(f"查询数据库失败，使用默认日期范围: {e}")
+                logger.warning(f"查询数据库失败: {e}")
         
-        # 计算默认日期范围（如果没有从数据库获取到）
-        if "start_date" not in context or "end_date" not in context:
+        # 计算需要更新的日期范围
+        if not latest_date_ym:
+            # 数据库为空：使用默认日期范围
             start_date, end_date = self._calculate_default_date_range()
             context["start_date"] = start_date
             context["end_date"] = end_date
-            logger.debug(f"使用默认日期范围: {start_date} 至 {end_date}")
+            logger.info(f"数据库为空，使用默认日期范围: {start_date} 至 {end_date}")
+        else:
+            # 数据库不为空：计算时间间隔
+            latest_year = int(latest_date_ym[:4])
+            latest_month = int(latest_date_ym[4:6])
+            
+            # 计算月份差
+            month_diff = (current_year - latest_year) * 12 + (current_month - latest_month)
+            
+            if month_diff <= self.ROLLING_MONTHS:
+                # 间隔 <= ROLLING_MONTHS：滚动刷新最近 ROLLING_MONTHS 个月
+                start_year = current_year
+                start_month = current_month - self.ROLLING_MONTHS + 1
+                while start_month < 1:
+                    start_month += 12
+                    start_year -= 1
+                start_date = f"{start_year}{start_month:02d}"
+                end_date = current_month_ym
+                context["start_date"] = start_date
+                context["end_date"] = end_date
+                logger.info(f"滚动刷新最近 {self.ROLLING_MONTHS} 个月: {start_date} 至 {end_date}（数据库最新: {latest_date_ym}）")
+                logger.debug(f"✅ before_fetch 设置 context: start_date={context.get('start_date')}, end_date={context.get('end_date')}")
+            else:
+                # 间隔 > ROLLING_MONTHS：从最新日期开始追赶
+                # 计算下一个月作为开始日期
+                start_year = latest_year
+                start_month = latest_month + 1
+                if start_month > 12:
+                    start_month = 1
+                    start_year += 1
+                start_date = f"{start_year}{start_month:02d}"
+                end_date = current_month_ym
+                context["start_date"] = start_date
+                context["end_date"] = end_date
+                logger.info(f"历史追赶: {start_date} 至 {end_date}（数据库最新: {latest_date_ym}，落后 {month_diff} 个月）")
+        
+        # 确保返回 context（虽然字典是可变对象，但为了代码清晰和一致性）
+        return context
     
     def _calculate_default_date_range(self) -> tuple[str, str]:
         """
@@ -130,12 +173,21 @@ class PriceIndexesHandler(BaseDataSourceHandler):
            - Tushare get_money_supply API
         3. 合并成一个 Task
         """
-        context = context or {}
+        if context is None:
+            context = {}
+        
+        # 调试：记录 context 内容
+        logger.debug(f"🔍 fetch 方法接收到的 context: {context}")
         
         start_date = context.get("start_date")
         end_date = context.get("end_date")
         
+        # 调试：如果找不到日期范围，记录 context 的内容
         if not start_date or not end_date:
+            logger.error(f"❌ PriceIndexesHandler 需要 start_date 和 end_date 参数")
+            logger.error(f"   context 内容: {context}")
+            logger.error(f"   context keys: {list(context.keys())}")
+            logger.error(f"   start_date: {start_date}, end_date: {end_date}")
             raise ValueError("PriceIndexesHandler 需要 start_date 和 end_date 参数")
         
         logger.debug(f"为价格指数数据生成任务: {start_date} 至 {end_date}")
@@ -373,4 +425,47 @@ class PriceIndexesHandler(BaseDataSourceHandler):
         else:
             logger.warning(f"月份格式异常: {month}，无法解析")
             return ""
+    
+    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
+        """
+        标准化后处理：保存数据到数据库
+        
+        Args:
+            normalized_data: 标准化后的数据（包含 'data' 键）
+            context: 执行上下文，可能包含 dry_run 标志
+        """
+        context = context or {}
+        
+        # 检查是否是 dry_run 模式
+        dry_run = context.get('dry_run', False)
+        if dry_run:
+            logger.info("🧪 干运行模式：跳过价格指数数据保存")
+            return
+        
+        if not self.data_manager:
+            logger.warning("DataManager 未初始化，无法保存价格指数数据")
+            return
+        
+        # 验证数据格式
+        data_list = self._validate_data_for_save(normalized_data)
+        if not data_list:
+            logger.debug("价格指数数据为空，无需保存")
+            return
+        
+        try:
+            # 清理 NaN 值
+            from utils.db.db_base_model import DBService
+            data_list = DBService.clean_nan_in_list(data_list, default=0.0)
+            
+            # 保存数据
+            price_indexes_model = self.data_manager.get_model('price_indexes')
+            if price_indexes_model:
+                count = price_indexes_model.save_price_indexes(data_list)
+                logger.info(f"✅ 价格指数数据保存完成，共 {count} 条记录")
+            else:
+                logger.error("未找到 price_indexes Model，无法保存数据")
+        except Exception as e:
+            logger.error(f"❌ 保存价格指数数据失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 

@@ -70,7 +70,8 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
         1. 获取最新交易日，并计算每个周期的结束日期
         2. 查询数据库获取每个指数在 3 个周期（daily/weekly/monthly）的最新日期
         """
-        context = context or {}
+        if context is None:
+            context = {}
         
         # 1. 获取最新交易日，并计算每个周期的结束日期
         if self.data_manager:
@@ -131,13 +132,7 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
         return context
     
     async def fetch(self, context: Dict[str, Any] = None) -> List[DataSourceTask]:
-        """
-        生成获取股指指标数据的 Tasks
-        
-        逻辑：
-        1. 为每个指数创建一个 Task
-        2. 每个 Task 包含 3 个 ApiJob（daily/weekly/monthly）
-        """
+        """生成获取股指指标数据的 Tasks"""
         context = context or {}
         
         end_dates = context.get("end_dates", {})
@@ -168,7 +163,7 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
                     # 无历史记录，使用默认起始日期
                     from app.conf.conf import data_default_start_date
                     start_date = data_default_start_date
-                
+
                 # 如果开始日期大于结束日期，跳过
                 if start_date > end_date:
                     continue
@@ -257,4 +252,43 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
         return {
             "data": formatted
         }
+
+    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
+        """
+        标准化后处理：保存股指指标数据到数据库
+        """
+        context = context or {}
+
+        # 当前框架调用 after_normalize 时没有把 context 传进来，
+        # 这里的 dry_run 暂时不会生效，但保留逻辑以便后续框架调整。
+        dry_run = context.get("dry_run", False)
+        if dry_run:
+            logger.info("🧪 干运行模式：跳过股指指标数据保存")
+            return
+
+        if not self.data_manager:
+            logger.warning("DataManager 未初始化，无法保存股指指标数据")
+            return
+
+        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
+        if not data_list:
+            logger.debug("股指指标数据为空，无需保存")
+            return
+
+        try:
+            from utils.db.db_base_model import DBService
+            data_list = DBService.clean_nan_in_list(data_list, default=0.0)
+
+            model = self.data_manager.get_model("stock_index_indicator")
+            if not model:
+                logger.error("未找到 stock_index_indicator Model，无法保存数据")
+                return
+
+            # 使用表 schema 的主键 (id, term, date) 去重
+            count = model.replace(data_list, unique_keys=["id", "term", "date"])
+            logger.info(f"✅ 股指指标数据保存完成，共 {count} 条记录")
+        except Exception as e:
+            logger.error(f"❌ 保存股指指标数据失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 

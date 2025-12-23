@@ -577,8 +577,28 @@ class DataSourceManager:
         dry_run: bool = False,
     ):
         """
-        更新股票指数指标数据"""
-        pass        
+        更新股票指数指标数据（stock_index_indicator）
+        
+        - 使用 `StockIndexIndicatorHandler` 获取指数 K 线数据
+        - 支持 daily / weekly / monthly 三个周期
+        - Handler 会根据数据库最新日期自动计算增量区间
+        - 不依赖 `latest_completed_trading_date` 和 `stock_list`
+        """
+        # 指数指标是宏观/指数类数据，这里不需要 latest_completed_trading_date / stock_list
+        context: Dict[str, Any] = {}
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 stock_index_indicator Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+
+        try:
+            result = await self.fetch("stock_index_indicator", context=context)
+            logger.info("✅ 股票指数指标数据更新完成（stock_index_indicator）")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新股票指数指标数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"data": []}
 
 
     async def renew_data(
@@ -649,17 +669,17 @@ class DataSourceManager:
         #     dry_run=dry_run,
         # )
 
-        # logger.info("🧪 renew step 4: 行业资本流动数据更新开始...")
-        # await self.renew_industry_capital_flow_data(
+        logger.info("🧪 renew step 5: 股票指数指标数据更新开始...")
+        await self.renew_index_indicators_data(
+            latest_completed_trading_date=latest_completed_trading_date,
+            test_mode=test_mode,
+            dry_run=dry_run,
+        )
+
+
+        # logger.info("🧪 renew step 5: 股票指数指标数据更新开始...")
+        # await self.renew_index_indicators_weight_data(
         #     latest_completed_trading_date=latest_completed_trading_date,
-        #     stock_list=stock_list,
         #     test_mode=test_mode,
         #     dry_run=dry_run,
         # )
-
-        # logger.info("🧪 renew step 5: 股票指数指标数据更新开始...")
-        # await self.renew_index_indicators_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # ）

@@ -49,7 +49,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         # 每次 run 只处理约 1/RENEW_ROLLING_BATCH 的股票，长期来看覆盖整个股票池。
         # 示例：RENEW_ROLLING_BATCH = 10 且 stock_list 长度为 5000，
         #      每次大约处理 500 只股票。
-        self.RENEW_ROLLING_BATCH = 10
+        self.RENEW_ROLLING_BATCH = 8
 
     async def before_fetch(self, context: Dict[str, Any] = None):
         """

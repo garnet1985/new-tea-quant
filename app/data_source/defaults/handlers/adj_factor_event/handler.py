@@ -16,7 +16,7 @@ import os
 
 from app.data_source.data_source_handler import BaseDataSourceHandler
 from app.data_source.api_job import DataSourceTask, ApiJob
-from app.data_source.defaults.handlers.adj_factor_event_handler_helper import AdjFactorEventHandlerHelper as helper
+from app.data_source.defaults.handlers.adj_factor_event.helper import AdjFactorEventHandlerHelper as helper
 from utils.date.date_utils import DateUtils
 
 

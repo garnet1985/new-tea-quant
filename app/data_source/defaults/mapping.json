@@ -2,24 +2,24 @@
     "_comment": "框架默认配置，不应修改。用户可以通过 custom/mapping.json 覆盖",
     "data_sources": {
         "stock_list": {
-            "handler": "defaults.handlers.stock_list_handler.TushareStockListHandler",
+            "handler": "defaults.handlers.stock_list.TushareStockListHandler",
             "is_enabled": true,
             "params": {
                 "api_fields": "ts_code,symbol,name,area,industry,market,exchange,list_date"
             }
         },
         "kline": {
-            "handler": "defaults.handlers.kline_handler.KlineHandler",
+            "handler": "defaults.handlers.kline.KlineHandler",
             "is_enabled": true,
             "params": {}
         },
         "corporate_finance": {
-            "handler": "defaults.handlers.corporate_finance_handler.CorporateFinanceHandler",
+            "handler": "defaults.handlers.corporate_finance.CorporateFinanceHandler",
             "is_enabled": true,
             "params": {}
         },
         "gdp": {
-            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
+            "handler": "defaults.handlers.simple_api.SimpleApiHandler",
             "is_enabled": true,
             "params": {
                 "provider_name": "tushare",
@@ -40,14 +40,14 @@
             }
         },
         "price_indexes": {
-            "handler": "defaults.handlers.price_indexes_handler.PriceIndexesHandler",
+            "handler": "defaults.handlers.price_indexes.PriceIndexesHandler",
             "is_enabled": true,
             "params": {
                 "default_date_range": {"years": 3}
             }
         },
         "shibor": {
-            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
+            "handler": "defaults.handlers.simple_api.SimpleApiHandler",
             "is_enabled": true,
             "params": {
                 "provider_name": "tushare",
@@ -65,7 +65,7 @@
             }
         },
         "lpr": {
-            "handler": "defaults.handlers.simple_api_handler.SimpleApiHandler",
+            "handler": "defaults.handlers.simple_api.SimpleApiHandler",
             "is_enabled": true,
             "params": {
                 "provider_name": "tushare",
@@ -80,14 +80,14 @@
             }
         },
         "latest_trading_date": {
-            "handler": "defaults.handlers.latest_trading_date_handler.LatestTradingDateHandler",
+            "handler": "defaults.handlers.latest_trading_date.LatestTradingDateHandler",
             "is_enabled": true,
             "params": {
                 "backward_checking_days": 15
             }
         },
         "adj_factor_event": {
-            "handler": "defaults.handlers.adj_factor_event_handler.AdjFactorEventHandler",
+            "handler": "defaults.handlers.adj_factor_event.AdjFactorEventHandler",
             "is_enabled": true,
             "params": {
                 "update_threshold_days": 15,
@@ -95,14 +95,14 @@
             }
         },
         "industry_capital_flow": {
-            "handler": "defaults.handlers.industry_capital_flow_handler.IndustryCapitalFlowHandler",
+            "handler": "defaults.handlers.industry_capital_flow.IndustryCapitalFlowHandler",
             "is_enabled": true,
             "params": {
                 "default_date_range": {"years": 1}
             }
         },
         "stock_index_indicator": {
-            "handler": "defaults.handlers.stock_index_indicator_handler.StockIndexIndicatorHandler",
+            "handler": "defaults.handlers.stock_index_indicator.StockIndexIndicatorHandler",
             "is_enabled": true,
             "params": {
                 "index_list": [
@@ -115,7 +115,7 @@
             }
         },
         "stock_index_indicator_weight": {
-            "handler": "defaults.handlers.stock_index_indicator_weight_handler.StockIndexIndicatorWeightHandler",
+            "handler": "defaults.handlers.stock_index_indicator_weight.StockIndexIndicatorWeightHandler",
             "is_enabled": true,
             "params": {
                 "index_list": [

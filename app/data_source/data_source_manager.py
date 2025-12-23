@@ -132,7 +132,7 @@ class DataSourceManager:
                 params = ds_config.get("params", {})
                 handler_instance = handler_class(schema, params, self.data_manager)
                 
-                # 如果是 SimpleApiHandler，需要设置 data_source 名称
+                # 如果是 RollingHandler，需要设置 data_source 名称
                 if hasattr(handler_instance, 'set_data_source_name'):
                     handler_instance.set_data_source_name(ds_name)
                 else:
@@ -407,7 +407,7 @@ class DataSourceManager:
             traceback.format_exc()
             return {"data": []}
 
-    async def renew_macro_data(
+    async def renew_gdp_data(
         self,
         latest_completed_trading_date: str = None,
         stock_list: Optional[list] = None,
@@ -415,8 +415,94 @@ class DataSourceManager:
         dry_run: bool = False,
     ):
         """
-        更新宏观经济数据"""
-        pass
+        更新 GDP 数据
+        
+        - 使用 `RollingHandler` 实现滚动刷新机制
+        - 数据格式：季度数据（YYYYQ1/YYYYQ2/YYYYQ3/YYYYQ4）
+        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
+        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
+        """
+        # 构建 context：宏观数据不需要 latest_completed_trading_date
+        context: Dict[str, Any] = {}
+        
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 GDP Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+        
+        try:
+            result = await self.fetch("gdp", context=context)
+            logger.info("✅ GDP 数据更新完成")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新 GDP 数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"data": []}
+    
+    async def renew_shibor_data(
+        self,
+        latest_completed_trading_date: str = None,
+        stock_list: Optional[list] = None,
+        test_mode: bool = False,
+        dry_run: bool = False,
+    ):
+        """
+        更新 Shibor 数据
+        
+        - 使用 `RollingHandler` 实现滚动刷新机制
+        - 数据格式：日期数据（YYYYMMDD）
+        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
+        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
+        """
+        # 构建 context：宏观数据不需要 latest_completed_trading_date
+        context: Dict[str, Any] = {}
+        
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 Shibor Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+        
+        try:
+            result = await self.fetch("shibor", context=context)
+            logger.info("✅ Shibor 数据更新完成")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新 Shibor 数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"data": []}
+    
+    async def renew_lpr_data(
+        self,
+        latest_completed_trading_date: str = None,
+        stock_list: Optional[list] = None,
+        test_mode: bool = False,
+        dry_run: bool = False,
+    ):
+        """
+        更新 LPR 数据
+        
+        - 使用 `RollingHandler` 实现滚动刷新机制
+        - 数据格式：日期数据（YYYYMMDD）
+        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
+        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
+        """
+        # 构建 context：宏观数据不需要 latest_completed_trading_date
+        context: Dict[str, Any] = {}
+        
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 LPR Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+        
+        try:
+            result = await self.fetch("lpr", context=context)
+            logger.info("✅ LPR 数据更新完成")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新 LPR 数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"data": []}
+    
 
     async def renew_price_indexes_data(
         self,
@@ -426,8 +512,29 @@ class DataSourceManager:
         dry_run: bool = False,
     ):
         """
-        更新宏观经济数据"""
-        pass
+        更新价格指数数据（CPI/PPI/PMI/货币供应量）
+        
+        - 使用 `price_indexes` Handler 实现增量更新
+        - 数据格式：月度数据（YYYYMM）
+        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
+        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
+        """
+        # 构建 context：price_indexes 是月度宏观数据，不需要 latest_completed_trading_date
+        context: Dict[str, Any] = {}
+        
+        if dry_run:
+            logger.info("🧪 干运行模式：仅执行 price_indexes Handler 逻辑，不写入数据库")
+            context["dry_run"] = True
+        
+        try:
+            result = await self.fetch("price_indexes", context=context)
+            logger.info("✅ 价格指数数据更新完成（price_indexes）")
+            return result
+        except Exception as e:
+            logger.error(f"❌ 更新价格指数数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"data": []}
 
 
     async def renew_industry_capital_flow_data(
@@ -490,10 +597,34 @@ class DataSourceManager:
         #     dry_run=dry_run,
         # )
 
-        logger.info("🧪 renew step 3: 企业财务数据更新开始...")
-        await self.renew_corporate_finance_data(
+        # logger.info("🧪 renew step 3: 企业财务数据更新开始...")
+        # await self.renew_corporate_finance_data(
+        #     latest_completed_trading_date=latest_completed_trading_date,
+        #     stock_list=stock_list,
+        #     test_mode=test_mode,
+        #     dry_run=dry_run,
+        # )
+
+        # logger.info("🧪 renew step 4: 价格指数数据更新开始...")
+        # await self.renew_price_indexes_data(
+        #     latest_completed_trading_date=latest_completed_trading_date,
+        #     test_mode=test_mode,
+        #     dry_run=dry_run,
+        # )
+
+        logger.info("🧪 renew step 4: 宏观经济数据更新开始...")
+        await self.renew_gdp_data(
             latest_completed_trading_date=latest_completed_trading_date,
-            stock_list=stock_list,
+            test_mode=test_mode,
+            dry_run=dry_run,
+        )
+        await self.renew_shibor_data(
+            latest_completed_trading_date=latest_completed_trading_date,
+            test_mode=test_mode,
+            dry_run=dry_run,
+        )
+        await self.renew_lpr_data(
+            latest_completed_trading_date=latest_completed_trading_date,
             test_mode=test_mode,
             dry_run=dry_run,
         )

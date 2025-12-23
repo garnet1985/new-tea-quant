@@ -333,21 +333,6 @@ LATEST_TRADING_DATE = DataSourceSchema(
 
 # ========== 行业和指数数据源 ==========
 
-INDUSTRY_CAPITAL_FLOW = DataSourceSchema(
-    name="industry_capital_flow",
-    description="行业资金流向数据（日度）",
-    schema={
-        "date": Field(str, required=True, description="日期（YYYYMMDD）"),
-        "industry": Field(str, required=True, description="行业名称"),
-        "industry_id": Field(str, required=True, description="行业代码"),
-        "company_number": Field(int, required=True, description="公司数量"),
-        "net_buy_amount": Field(float, required=True, description="净买入金额"),
-        "net_sell_amount": Field(float, required=True, description="净卖出金额"),
-        "net_amount": Field(float, required=True, description="净流入金额"),
-        "index_change_percent": Field(float, required=True, description="指数涨跌幅"),
-    }
-)
-
 STOCK_INDEX_INDICATOR = DataSourceSchema(
     name="stock_index_indicator",
     description="股指指标数据（指数K线，支持 daily/weekly/monthly 周期）",
@@ -393,7 +378,6 @@ DEFAULT_SCHEMAS = {
     "adj_factor": ADJ_FACTOR,
     "adj_factor_event": ADJ_FACTOR_EVENT,
     "latest_trading_date": LATEST_TRADING_DATE,
-    "industry_capital_flow": INDUSTRY_CAPITAL_FLOW,
     "stock_index_indicator": STOCK_INDEX_INDICATOR,
     "stock_index_indicator_weight": STOCK_INDEX_INDICATOR_WEIGHT,
 }

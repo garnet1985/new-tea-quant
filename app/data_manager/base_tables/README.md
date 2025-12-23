@@ -26,7 +26,6 @@ base_tables/
 │   └── schema.json
 ├── stock_labels/           # 股票标签表
 │   └── schema.json
-├── industry_capital_flow/  # 行业资金流表
 │   └── schema.json
 ├── stock_index_indicator/  # 股指指标表
 │   └── schema.json

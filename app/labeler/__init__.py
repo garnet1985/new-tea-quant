@@ -2,7 +2,7 @@
 """
 股票标签算法服务模块
 
-位置：app/labeler/（与analyzer、data_loader、data_source并列）
+位置：app/labeler/（与analyzer、data_manager、data_source并列）
 
 职责：
 - 股票标签的计算算法

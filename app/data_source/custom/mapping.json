@@ -1,0 +1,16 @@
+{
+    "_comment": "用户自定义配置，可以覆盖 defaults/mapping.json 的配置",
+    "data_sources": {
+        "stock_list": {
+            "handler": "defaults.handlers.stock_list.TushareStockListHandler",
+            "is_enabled": true,
+            "params": {}
+        },
+        "kline": {
+            "handler": "defaults.handlers.kline.KlineHandler",
+            "is_enabled": true,
+            "params": {}
+        }
+    }
+}
+

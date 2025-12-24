@@ -1,0 +1,36 @@
+{
+  "base": {
+    "name": "stocks-py",
+    "host": "localhost",
+    "user": "root",
+    "password": "your_password_here",
+    "database": "stocks-py",
+    "port": 3306,
+    "charset": "utf8mb4",
+    "autocommit": true
+  },
+  "pool": {
+    "pool_size_min": 5,
+    "pool_size_max": 30
+  },
+  "performance": {
+    "max_allowed_packet": 1073741824,
+    "_comment": "16MB * 64 = 1GB"
+  },
+  "timeout": {
+    "connection": 60,
+    "read": 60,
+    "write": 60
+  },
+  "thread_safety": {
+    "enable": true,
+    "queue_size": 1000,
+    "turn_to_batch_threshold": 1000,
+    "max_retries": 3
+  },
+  "stock_list": {
+    "ts_code_exclude_list": ["688%", "%BJ%"],
+    "_comment": "在数据库中获取股票列表时，排除这些代码（688开头的科创板和北交所的股票）。注意：这些股票仍然会在获取数据时存入数据库，只是在读取数据库时排除在外"
+  }
+}
+

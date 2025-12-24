@@ -1,0 +1,11 @@
+"""
+Tushare 认证 Token
+
+⚠️ 重要：
+1. 复制此文件为 auth_token.py
+2. 填入你的 Tushare token
+3. auth_token.py 已被 gitignore，不会提交到仓库
+"""
+
+TUSHARE_TOKEN = "your_tushare_token_here"
+

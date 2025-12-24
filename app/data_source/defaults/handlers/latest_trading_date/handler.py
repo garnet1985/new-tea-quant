@@ -20,7 +20,6 @@ class LatestTradingDateHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义）
     data_source = "latest_trading_date"
-    renew_type = "refresh"  # 每次都是刷新获取最新日期
     description = "获取最新交易日"
     dependencies = []  # 无依赖
     

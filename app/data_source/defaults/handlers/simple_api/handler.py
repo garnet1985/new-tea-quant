@@ -43,7 +43,6 @@ class SimpleApiHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义，但会被配置覆盖）
     data_source = "simple_api"  # 会被实际数据源名称覆盖
-    renew_type = "incremental"  # 默认增量更新
     description = "简单 API Handler（配置驱动）"
     dependencies = []
     

@@ -4,6 +4,10 @@
         "stock_list": {
             "handler": "defaults.handlers.stock_list.TushareStockListHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
             "params": {
                 "api_fields": "ts_code,symbol,name,area,industry,market,exchange,list_date"
             }
@@ -11,16 +15,28 @@
         "kline": {
             "handler": "defaults.handlers.kline.KlineHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": true,
+                "stock_list": true
+            },
             "params": {}
         },
         "corporate_finance": {
             "handler": "defaults.handlers.corporate_finance.CorporateFinanceHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": true,
+                "stock_list": true
+            },
             "params": {}
         },
         "gdp": {
             "handler": "defaults.handlers.rolling.RollingHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
             "params": {
                 "provider_name": "tushare",
                 "method": "get_gdp",
@@ -43,6 +59,10 @@
         "price_indexes": {
             "handler": "defaults.handlers.price_indexes.PriceIndexesHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
             "params": {
                 "default_date_range": {"years": 3},
                 "rolling_months": 12
@@ -51,6 +71,10 @@
         "shibor": {
             "handler": "defaults.handlers.rolling.RollingHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
             "params": {
                 "provider_name": "tushare",
                 "method": "get_shibor",
@@ -70,6 +94,10 @@
         "lpr": {
             "handler": "defaults.handlers.rolling.RollingHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
             "params": {
                 "provider_name": "tushare",
                 "method": "get_lpr",
@@ -86,6 +114,10 @@
         "latest_trading_date": {
             "handler": "defaults.handlers.latest_trading_date.LatestTradingDateHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
             "params": {
                 "backward_checking_days": 15
             }
@@ -93,6 +125,10 @@
         "adj_factor_event": {
             "handler": "defaults.handlers.adj_factor_event.AdjFactorEventHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": true,
+                "stock_list": true
+            },
             "params": {
                 "update_threshold_days": 15,
                 "max_workers": 10
@@ -101,6 +137,10 @@
         "industry_capital_flow": {
             "handler": "defaults.handlers.industry_capital_flow.IndustryCapitalFlowHandler",
             "is_enabled": false,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
             "params": {
                 "default_date_range": { "start_date": "20080101" }
             }
@@ -108,6 +148,10 @@
         "stock_index_indicator": {
             "handler": "defaults.handlers.stock_index_indicator.StockIndexIndicatorHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": true,
+                "stock_list": false
+            },
             "params": {
                 "index_list": [
                     {"id": "000001.SH", "name": "上证指数"},
@@ -121,6 +165,10 @@
         "stock_index_indicator_weight": {
             "handler": "defaults.handlers.stock_index_indicator_weight.StockIndexIndicatorWeightHandler",
             "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": true,
+                "stock_list": false
+            },
             "params": {
                 "index_list": [
                     {"id": "000001.SH", "name": "上证指数"},

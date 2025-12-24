@@ -31,7 +31,6 @@ class TushareStockListHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义）
     data_source = "stock_list"
-    renew_type = "upsert"  # 使用 upsert 模式，更新现有记录
     description = "获取股票列表"
     dependencies = []  # 无依赖
     

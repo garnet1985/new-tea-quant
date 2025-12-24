@@ -217,9 +217,11 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         
         adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
         
-        # 从 context 获取最新完成交易日（顶层已统一为 YYYYMMDD 格式，无需转换）
+        # 从 context 获取最新完成交易日（优先从 context 读取，由 renew_data() 统一获取并注入）
         latest_completed_trading_date = context.get("latest_completed_trading_date") or context.get("latest_trading_date")
         if not latest_completed_trading_date:
+            # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
+            logger.warning("AdjFactorEventHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
             latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
         
         stock_list = context.get("stock_list", [])

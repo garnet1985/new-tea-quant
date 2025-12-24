@@ -255,8 +255,10 @@ class DataSourceManager:
           3. 使用 `kline` Handler 做增量更新
         - `dry_run=True` 时，只执行计算和任务调度，不向数据库写入任何 K 线记录
         """
-        # 获取 / 回退最新交易日
+        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入，这里不再重复获取
+        # 如果确实为 None（不应该发生），才回退获取
         if not latest_completed_trading_date:
+            logger.warning("renew_kline_data: latest_completed_trading_date 为 None，回退获取")
             latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
 
         # 1. 更新股票列表（必须先更新，因为其他数据源依赖它）
@@ -325,8 +327,9 @@ class DataSourceManager:
           - 已具备一定覆盖率的 `stock_kline`（K 线）数据
         - 传入的 `stock_list` 用作“关注股票集合”，为空则让 Handler 自行决定覆盖范围
         """
-        # 获取 / 回退最新交易日
+        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入，这里不再重复获取
         if not latest_completed_trading_date:
+            logger.warning("renew_adj_factor_data: latest_completed_trading_date 为 None，回退获取")
             latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
 
         # 构建 context：只传递关心的股票 universe 和基准日期（如果上层已经算好）
@@ -375,10 +378,11 @@ class DataSourceManager:
           - 已更新的 `stock_list` 基础表
         - 传入的 `stock_list` 用作"关注股票集合"，为空则让 Handler 自行决定覆盖范围
         """
-        # 获取 / 回退最新交易日
+        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入，这里不再重复获取
         if not latest_completed_trading_date:
+            logger.warning("renew_corporate_finance_data: latest_completed_trading_date 为 None，回退获取")
             latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
-        
+
         # 构建 context：只传递关心的股票 universe 和基准日期
         context: Dict[str, Any] = {
             "latest_completed_trading_date": latest_completed_trading_date,
@@ -584,8 +588,11 @@ class DataSourceManager:
         - Handler 会根据数据库最新日期自动计算增量区间
         - 不依赖 `latest_completed_trading_date` 和 `stock_list`
         """
-        # 指数指标是宏观/指数类数据，这里不需要 latest_completed_trading_date / stock_list
-        context: Dict[str, Any] = {}
+        # 指数指标需要 latest_completed_trading_date 来计算各周期的结束日期
+        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入
+        context: Dict[str, Any] = {
+            "latest_completed_trading_date": latest_completed_trading_date,
+        }
         if dry_run:
             logger.info("🧪 干运行模式：仅执行 stock_index_indicator Handler 逻辑，不写入数据库")
             context["dry_run"] = True
@@ -615,7 +622,11 @@ class DataSourceManager:
         - 指数成分股不常变化，至少间隔约 1 个月才会触发增量更新
         - 不依赖 `latest_completed_trading_date` 和 `stock_list`
         """
-        context: Dict[str, Any] = {}
+        # 指数权重需要 latest_completed_trading_date 来计算结束日期
+        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入
+        context: Dict[str, Any] = {
+            "latest_completed_trading_date": latest_completed_trading_date,
+        }
         if dry_run:
             logger.info("🧪 干运行模式：仅执行 stock_index_indicator_weight Handler 逻辑，不写入数据库")
             context["dry_run"] = True
@@ -647,6 +658,12 @@ class DataSourceManager:
             test_mode: 测试模式，如果为 True，只处理前 10-20 个股票
             dry_run: 干运行模式，如果为 True，只更新行情流程，不写入任何标签
         """
+        # 统一获取一次 latest_completed_trading_date，避免多次获取导致数据不一致
+        # 这个值会在整个 renew_data 流程中保持一致，传递给所有 renew_*_data 方法和 handler
+        if not latest_completed_trading_date:
+            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
+            logger.debug(f"自动获取最新交易日: {latest_completed_trading_date}")
+        
         stock_list = self.data_manager.load_stock_list(filtered=True)
 
         # 1. 先更新行情数据（目前主要是 K 线）

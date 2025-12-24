@@ -248,13 +248,9 @@ def main():
         logger.info("=" * 60)
         
         if command == 'renew':
-            # 统一获取一次最新交易日；股票列表在各模块内部按需、按过滤规则自行缓存
-            latest_completed_trading_date = asyncio.run(app.get_latest_completed_trading_date())
-            logger.info(f"🔍 最新交易日: {latest_completed_trading_date}")
-            
-            asyncio.run(app.renew_data(
-                latest_completed_trading_date=latest_completed_trading_date,
-            ))
+            # latest_completed_trading_date 会在 renew_data() 内部统一获取，这里不再提前获取
+            # 避免缓存过期数据，确保每次 renew 都使用最新的交易日
+            asyncio.run(app.renew_data())
         elif command == 'scan':
             logger.info("🔍 扫描投资机会...")
             app.scan()

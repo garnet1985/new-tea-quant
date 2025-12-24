@@ -15,18 +15,18 @@ sys.path.insert(0, project_root)
 class StockApi:
     """股票相关API"""
     
-    def __init__(self, db_manager=None):
+    def __init__(self, data_mgr=None):
         """初始化
         
         Args:
-            db_manager: DatabaseManager实例，如果为None则自行创建
+            data_mgr: DataManager 实例，如果为 None 则使用全局单例
         """
-        if db_manager is None:
-            from utils.db.db_manager import DatabaseManager
-            self.db_manager = DatabaseManager()
-            self.db_manager.initialize()
+        if data_mgr is None:
+            from app.data_manager import DataManager
+            # 使用全局 DataManager 单例
+            self.data_mgr = DataManager(is_verbose=False)
         else:
-            self.db_manager = db_manager
+            self.data_mgr = data_mgr
     
     def get_stock_kline(self, stock_id: str, term: str = 'daily'):
         """
@@ -40,12 +40,8 @@ class StockApi:
             dict: 包含K线数据的响应
         """
         try:
-            # 使用缓存的 db_manager
-            from app.data_loader import DataLoader
-            
-            # 使用DataLoader加载K线数据（自动复权和过滤）
-            loader = DataLoader(self.db_manager)
-            qfq_kline_data = loader.load_klines(
+            # 使用 DataManager 加载K线数据（自动复权和过滤）
+            qfq_kline_data = self.data_mgr.load_klines(
                 stock_id=stock_id,
                 term=term,
                 adjust='qfq',

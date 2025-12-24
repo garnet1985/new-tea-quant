@@ -4,7 +4,6 @@
 """
 from typing import Dict, List, Any, Type
 from loguru import logger
-from utils.db.db_manager import DatabaseManager
 from .components.base_strategy import BaseStrategy
 from .components.settings_validator import SettingsValidator
 import importlib
@@ -16,16 +15,13 @@ import os
 class Analyzer:
     """策略管理器 - 统一管理所有策略"""
     
-    def __init__(self, connected_db: DatabaseManager = None, is_verbose: bool = False):
+    def __init__(self, is_verbose: bool = False):
         """
         初始化策略管理器
         
         Args:
-            connected_db: 已初始化的数据库管理器实例（可选，如果不提供则使用全局实例）
             is_verbose: 是否启用详细日志
         """
-
-        self.db = connected_db
         self.is_verbose = is_verbose
 
         # grab all existing strategies no matter if they are enabled or not
@@ -119,7 +115,7 @@ class Analyzer:
                 
                 try:
                     # 创建策略实例
-                    strategy_instance = strategy_class(db=self.db, is_verbose=self.is_verbose)
+                    strategy_instance = strategy_class(is_verbose=self.is_verbose)
 
                     is_valid, errors = self.settings_validator.validate_settings(strategy_settings, strategy_class.__name__)
                     

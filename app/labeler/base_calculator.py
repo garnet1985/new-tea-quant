@@ -16,14 +16,14 @@ from loguru import logger
 class BaseLabelCalculator(ABC):
     """标签计算器基类"""
     
-    def __init__(self, data_loader):
+    def __init__(self, data_mgr):
         """
         初始化标签计算器
         
         Args:
-            data_loader: 数据加载器实例
+            data_mgr: 数据管理器实例
         """
-        self.data_loader = data_loader
+        self.data_mgr = data_mgr
         self.label_category = self.get_label_category()
         self.calculated_labels = {}  # 缓存计算结果
     
@@ -61,7 +61,7 @@ class BaseLabelCalculator(ABC):
             target_date: 目标日期 (YYYYMMDD格式)
             **kwargs: 其他参数，可能包含：
                 - klines_data: 预加载的K线数据列表
-                - data_loader: 数据加载器（如果没有预加载数据时使用）
+                - data_mgr: 数据管理器（如果没有预加载数据时使用）
             
         Returns:
             List[str]: 标签ID列表
@@ -69,14 +69,14 @@ class BaseLabelCalculator(ABC):
         try:
             # 检查是否有预加载的K线数据
             klines_data = kwargs.get('klines_data')
-            data_loader = kwargs.get('data_loader')
+            data_mgr = kwargs.get('data_mgr')
             
             if klines_data is not None:
                 # 使用预加载的数据
                 kwargs_with_klines = {**kwargs, 'klines_data': klines_data}
-            elif data_loader is not None:
+            elif data_mgr is not None:
                 # 回退到动态加载数据
-                kwargs_with_klines = {**kwargs, 'data_loader': data_loader}
+                kwargs_with_klines = {**kwargs, 'data_mgr': data_mgr}
             else:
                 # 没有数据源，返回空列表
                 logger.warning(f"计算标签 {stock_id} {target_date} 没有可用的数据源")
@@ -210,13 +210,13 @@ class LabelCalculatorRegistry:
         self.calculators[category] = calculator_class
         self.categories[category] = category
     
-    def get_calculator(self, category: str, data_loader, label_definitions):
+    def get_calculator(self, category: str, data_mgr, label_definitions):
         """
         获取标签计算器实例
         
         Args:
             category: 标签分类
-            data_loader: 数据加载器
+            data_mgr: 数据管理器
             label_definitions: 标签定义管理器
             
         Returns:
@@ -226,7 +226,7 @@ class LabelCalculatorRegistry:
             raise ValueError(f"未注册的标签计算器分类: {category}")
         
         calculator_class = self.calculators[category]
-        return calculator_class(data_loader)
+        return calculator_class(data_mgr)
     
     def get_all_categories(self) -> List[str]:
         """

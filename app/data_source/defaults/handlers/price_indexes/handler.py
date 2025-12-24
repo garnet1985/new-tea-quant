@@ -62,7 +62,6 @@ class PriceIndexesHandler(BaseDataSourceHandler):
         
         # 如果 context 中已有日期范围，直接使用
         if "start_date" in context and "end_date" in context:
-            logger.debug(f"使用 context 中的日期范围: {context['start_date']} 至 {context['end_date']}")
             return context
         
         # 获取当前月份
@@ -110,7 +109,6 @@ class PriceIndexesHandler(BaseDataSourceHandler):
                 context["start_date"] = start_date
                 context["end_date"] = end_date
                 logger.info(f"滚动刷新最近 {self.ROLLING_MONTHS} 个月: {start_date} 至 {end_date}（数据库最新: {latest_date_ym}）")
-                logger.debug(f"✅ before_fetch 设置 context: start_date={context.get('start_date')}, end_date={context.get('end_date')}")
             else:
                 # 间隔 > ROLLING_MONTHS：从最新日期开始追赶
                 # 计算下一个月作为开始日期
@@ -175,9 +173,6 @@ class PriceIndexesHandler(BaseDataSourceHandler):
         if context is None:
             context = {}
         
-        # 调试：记录 context 内容
-        logger.debug(f"🔍 fetch 方法接收到的 context: {context}")
-        
         start_date = context.get("start_date")
         end_date = context.get("end_date")
         
@@ -189,7 +184,7 @@ class PriceIndexesHandler(BaseDataSourceHandler):
             logger.error(f"   start_date: {start_date}, end_date: {end_date}")
             raise ValueError("PriceIndexesHandler 需要 start_date 和 end_date 参数")
         
-        logger.debug(f"为价格指数数据生成任务: {start_date} 至 {end_date}")
+        logger.info(f"✅ 为价格指数数据生成任务: {start_date} 至 {end_date}")
         
         # 创建 4 个 ApiJob
         # 1. CPI API

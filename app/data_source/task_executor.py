@@ -21,24 +21,34 @@ class RateLimiter:
     3. sleep 不在锁里，使用条件变量通知等待线程
     4. 每个 (provider, api_name) 一个 limiter
     5. 并发线程只会阻塞自己，不会拖死别人
+    6. 等待时间增加 buffer，避免窗口边界时多个线程同时发起请求导致瞬间超限
     """
     
-    def __init__(self, max_per_minute: int, api_name: str = "default"):
+    def __init__(self, max_per_minute: int, api_name: str = "default", wait_buffer_seconds: float = 5.0):
         """
         初始化限流器
         
         Args:
             max_per_minute: 每分钟最大请求数（已经在 TaskExecutor 侧做过 buffer/并发扣减）
             api_name: API 名称，用于日志
+            wait_buffer_seconds: 等待时间的 buffer（秒），避免窗口边界时多个线程同时发起请求导致瞬间超限
         """
         self.max_per_minute = max_per_minute
         self.api_name = api_name
+        self.wait_buffer_seconds = wait_buffer_seconds
         
         # 窗口对齐到自然分钟
         self.lock = threading.Lock()
         self.condition = threading.Condition(self.lock)
         self.window_start = self._current_window()
         self.count = 0
+        
+        # 窗口切换时的冷却标记：在窗口切换后的 buffer 时间内，强制等待
+        # 这可以防止窗口边界时的瞬间突刺
+        self.window_cooldown_until = 0.0  # 窗口切换后的冷却截止时间
+        
+        # 限流器实例 ID（用于调试，检查是否有多个实例）
+        self._instance_id = hex(id(self))[-8:]
     
     def _current_window(self) -> int:
         """
@@ -54,37 +64,57 @@ class RateLimiter:
         获取 API 调用许可
         
         如果达到限制，会等待直到下一个窗口（使用条件变量，不阻塞其他线程）
+        
+        改进：
+        1. 窗口切换时强制冷却，防止边界突刺
+        2. 确保计数不会超过限制
         """
         while True:
             now = time.time()
             current_window = self._current_window()
             
             with self.lock:
-                # 新窗口：重置计数
+                # 新窗口：重置计数并设置冷却期
                 if current_window != self.window_start:
                     self.window_start = current_window
                     self.count = 0
+                    # 设置窗口切换后的冷却期：当前时间 + buffer 时间
+                    # 这可以防止窗口边界时多个线程同时通过检查，导致瞬间突刺
+                    self.window_cooldown_until = now + self.wait_buffer_seconds
                     # 通知所有等待的线程
                     self.condition.notify_all()
                 
-                # 如果还有配额，直接返回
-                if self.count < self.max_per_minute:
-                    self.count += 1
-                    return  # 允许请求
+                # 检查是否在窗口冷却期内（防止窗口边界突刺）
+                if now < self.window_cooldown_until:
+                    sleep_time = self.window_cooldown_until - now
+                    if sleep_time > 0:
+                        logger.debug(f"⏳ {self.api_name} API: 窗口切换冷却中，等待 {sleep_time:.2f} 秒...")
+                        self.condition.wait(timeout=sleep_time)
+                        continue  # 重新检查
                 
-                # 需要等待到下一个窗口
-                next_window_start = self.window_start + 60
-                sleep_time = next_window_start - now
-                
-                if sleep_time > 0:
-                    # 使用条件变量等待，而不是 sleep
-                    # 这样其他线程可以继续工作，只有这个线程等待
-                    logger.debug(f"⏸️  {self.api_name} API: 当前窗口已调用 {self.count} 次（限制: {self.max_per_minute}/分钟），等待 {sleep_time:.1f} 秒到下一窗口...")
-                    # 等待到下一个窗口开始，或者被通知（窗口重置时）
-                    self.condition.wait(timeout=sleep_time)
+                # 检查是否已达到限制（必须在锁内检查，确保原子性）
+                # 注意：使用 >= 确保 count 永远不会超过 max_per_minute
+                if self.count >= self.max_per_minute:
+                    # 需要等待到下一个窗口（加上 buffer，避免窗口边界时多个线程同时发起请求）
+                    next_window_start = self.window_start + 60
+                    sleep_time = next_window_start - now + self.wait_buffer_seconds
+                    
+                    if sleep_time > 0:
+                        # 使用条件变量等待，而不是 sleep
+                        # 这样其他线程可以继续工作，只有这个线程等待
+                        logger.warning(f"⏸️  {self.api_name} API: 当前窗口已调用 {self.count} 次（限制: {self.max_per_minute}/分钟），等待 {sleep_time:.1f} 秒到下一窗口（含 {self.wait_buffer_seconds} 秒 buffer）...")
+                        # 等待到下一个窗口开始 + buffer，或者被通知（窗口重置时）
+                        self.condition.wait(timeout=sleep_time)
+                    else:
+                        # 如果 sleep_time <= 0，说明已经到下一个窗口了，继续循环
+                        continue
                 else:
-                    # 如果 sleep_time <= 0，说明已经到下一个窗口了，继续循环
-                    continue
+                    # 如果还有配额，增加计数并返回
+                    self.count += 1
+                    # 当接近限制时记录日志，帮助调试
+                    if self.count >= self.max_per_minute * 0.95:
+                        logger.warning(f"⚠️ {self.api_name} API: 当前窗口已调用 {self.count}/{self.max_per_minute} 次（接近限制）")
+                    return  # 允许请求
 
 
 class TaskExecutor:
@@ -99,20 +129,23 @@ class TaskExecutor:
     5. 按 Task 分组收集结果
     """
     
-    def __init__(self, providers: Dict[str, Any] = None, rate_limiter=None):
+    # 类级别的限流器缓存（所有 TaskExecutor 实例共享）
+    # 这样可以确保多个 TaskExecutor 实例使用同一个限流器，避免总调用次数超过限制
+    _rate_limiters: Dict[str, RateLimiter] = {}
+    _rate_limiters_lock = threading.Lock()
+    
+    def __init__(self, providers: Dict[str, Any] = None, rate_limiter=None, wait_buffer_seconds: float = 5.0):
         """
         初始化执行器
         
         Args:
             providers: Provider 实例字典 {provider_name: provider}（可选，默认从 ProviderInstancePool 获取）
             rate_limiter: 限流器实例（可选，如果为 None，会根据 API 限流自动创建）
+            wait_buffer_seconds: 限流等待时间的 buffer（秒），避免窗口边界时多个线程同时发起请求导致瞬间超限，默认 5 秒
         """
         self.providers = providers or {}
         self.rate_limiter = rate_limiter
-        
-        # 限流器缓存（按 api_name 缓存）
-        self._rate_limiters: Dict[str, RateLimiter] = {}
-        self._rate_limiters_lock = threading.Lock()
+        self.wait_buffer_seconds = wait_buffer_seconds
         # 全局线程数（用于根据并发数折扣限流值）
         self._global_workers: int = 1
         
@@ -533,33 +566,54 @@ class TaskExecutor:
         else:
             return 2  # task 内部使用少量线程
     
-    def _get_rate_limiter(self, api_name: str, max_per_minute: int) -> RateLimiter:
+    def _get_rate_limiter(self, provider_name: str, api_name: str, max_per_minute: int) -> RateLimiter:
         """
-        获取或创建限流器（按 api_name 缓存）
+        获取或创建限流器（按 provider_name:api_name 缓存）
         
         Args:
-            api_name: API 名称
+            provider_name: Provider 名称（如 "tushare", "eastmoney"）
+            api_name: API 名称（如 "get_daily_kline"）
             max_per_minute: 每分钟最大请求数
             
         Returns:
             RateLimiter 实例
+            
+        改进：
+        - 使用 "provider_name:api_name" 作为 key，确保不同 Provider 的相同 API 名称独立限流
+        - 这解决了多个 Provider 共享限流器的问题
         """
-        # 在这里统一做安全折扣和并发扣减，避免真实请求数逼近硬性上限
-        # 1) 安全折扣：只使用声明限流的 90%
-        buffered_limit = int(max_per_minute * 0.9)
+        # 构建完整的限流器 key：provider_name:api_name
+        # 这确保不同 Provider 的相同 API 名称独立限流
+        limiter_key = f"{provider_name}:{api_name}"
+        
+        # 在这里统一做安全折扣，避免真实请求数逼近硬性上限
+        # 只使用声明限流的 95%（保留 5% 的安全余量，避免因时间窗口边界导致的超限）
+        buffered_limit = int(max_per_minute * 0.95)
         if buffered_limit <= 0:
             buffered_limit = max_per_minute - 1 if max_per_minute > 1 else 1
         
-        # 2) 并发扣减：多线程时按 "限流值 - 线程数" 再做一次收缩
-        #    防止多个线程同时打到窗口边界时瞬间超限
-        effective_limit = buffered_limit - max(0, self._global_workers)
-        if effective_limit <= 0:
-            effective_limit = 1
+        # 注意：不再做并发扣减，因为：
+        # 1. 限流器本身是线程安全的，计数是准确的
+        # 2. 多线程并发时，限流器会正确控制总调用次数
+        # 3. 之前的并发扣减逻辑（限流值 - 线程数）会导致限流值过低，实际调用可能超过限流器限制
+        effective_limit = buffered_limit
 
-        with self._rate_limiters_lock:
-            if api_name not in self._rate_limiters:
-                self._rate_limiters[api_name] = RateLimiter(effective_limit, api_name)
-            return self._rate_limiters[api_name]
+        # 使用类级别的限流器字典，确保所有 TaskExecutor 实例共享同一个限流器
+        with TaskExecutor._rate_limiters_lock:
+            if limiter_key not in TaskExecutor._rate_limiters:
+                limiter = RateLimiter(
+                    effective_limit, 
+                    limiter_key,  # 使用完整的 key 作为 api_name（用于日志）
+                    wait_buffer_seconds=self.wait_buffer_seconds
+                )
+                TaskExecutor._rate_limiters[limiter_key] = limiter
+                logger.info(f"🔧 创建限流器: {limiter_key}, 限流值: {effective_limit}/分钟 (原始: {max_per_minute})")
+            else:
+                existing_limiter = TaskExecutor._rate_limiters[limiter_key]
+                # 检查限流器配置是否一致
+                if existing_limiter.max_per_minute != effective_limit:
+                    logger.warning(f"⚠️ 限流器 {limiter_key} 已存在但限流值不一致: 现有={existing_limiter.max_per_minute}, 请求={effective_limit}")
+            return TaskExecutor._rate_limiters[limiter_key]
     
     async def _execute_single_api_job(self, api_job: ApiJob, api_limits: Dict[str, int] = None) -> Any:
         """执行单个 ApiJob（应用限流）"""
@@ -578,13 +632,26 @@ class TaskExecutor:
         
         # 应用限流（不使用 buffer，直接使用注册的限流值）
         api_name = api_job.api_name or api_job.method
+        provider_name = api_job.provider_name
+        
         if hasattr(provider, 'get_api_limit'):
             rate_limit = provider.get_api_limit(api_name)
             if rate_limit:
-                # 获取或创建限流器
-                limiter = self._get_rate_limiter(api_name, rate_limit)
-                # 同步调用（限流器是同步的）
-                limiter.acquire()
+                # 获取或创建限流器（使用 provider_name:api_name 作为 key）
+                limiter = self._get_rate_limiter(provider_name, api_name, rate_limit)
+                # 在线程中执行同步的 acquire()，确保在异步上下文中正确阻塞
+                # 注意：必须在调用 API 之前获取许可，确保限流生效
+                import asyncio
+                try:
+                    # Python 3.9+ 使用 asyncio.to_thread
+                    await asyncio.to_thread(limiter.acquire)
+                except AttributeError:
+                    # Python < 3.9 使用 run_in_executor
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, limiter.acquire)
+            else:
+                # 如果没有限流配置，记录警告
+                logger.warning(f"⚠️ API {api_name} 没有限流配置，可能超过 API 限制")
         
         # 调用 Provider 方法
         method = getattr(provider, api_job.method, None)

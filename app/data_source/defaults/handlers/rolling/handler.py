@@ -51,7 +51,6 @@ class RollingHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义，但会被配置覆盖）
     data_source = "rolling"  # 会被实际数据源名称覆盖
-    renew_type = "refresh"  # 滚动刷新（每次运行都刷新最近 N 个时间单位的数据）
     description = "滚动刷新 Handler（配置驱动）"
     dependencies = []
     

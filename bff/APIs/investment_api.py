@@ -7,6 +7,8 @@ from flask import jsonify
 from loguru import logger
 import json as json_lib
 
+from app.data_manager import DataManager
+
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
@@ -15,18 +17,8 @@ sys.path.insert(0, project_root)
 class InvestmentApi:
     """投资跟踪相关API"""
     
-    def __init__(self, db_manager=None):
-        """初始化
-        
-        Args:
-            db_manager: DatabaseManager实例，如果为None则自行创建
-        """
-        if db_manager is None:
-            from utils.db.db_manager import DatabaseManager
-            self.db_manager = DatabaseManager()
-            self.db_manager.initialize()
-        else:
-            self.db_manager = db_manager
+    def __init__(self):
+        self.data_mgr = DataManager()
         
         # 缓存表实例
         self.trades_model = None
@@ -37,25 +29,25 @@ class InvestmentApi:
     def _get_trades_model(self):
         """获取trades表实例"""
         if self.trades_model is None:
-            self.trades_model = self.db_manager.get_table_instance('investment_trades')
+            self.trades_model = self.data_mgr.get_model('investment_trades')
         return self.trades_model
     
     def _get_operations_model(self):
         """获取operations表实例"""
         if self.operations_model is None:
-            self.operations_model = self.db_manager.get_table_instance('investment_operations')
+            self.operations_model = self.data_mgr.get_model('investment_operations')
         return self.operations_model
     
     def _get_stock_list_model(self):
         """获取stock_list表实例"""
         if self.stock_list_model is None:
-            self.stock_list_model = self.db_manager.get_table_instance('stock_list')
+            self.stock_list_model = self.data_mgr.get_model('stock_list')
         return self.stock_list_model
     
     def _get_kline_model(self):
         """获取kline表实例"""
         if self.kline_model is None:
-            self.kline_model = self.db_manager.get_table_instance('stock_kline')
+            self.kline_model = self.data_mgr.get_model('stock_kline')
         return self.kline_model
     
     def get_all_closed_trades(self):
@@ -111,10 +103,10 @@ class InvestmentApi:
                 # 获取股票信息
                 stock_info = stock_info_map.get(stock_id, {})
                 
-                # 使用DataLoader获取股票详细信息（跨表业务）
-                from app.data_loader import DataLoader
-                data_loader = DataLoader(self.db_manager)
-                stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
+                # 使用DataManager获取股票详细信息（跨表业务）
+                from app.data_manager import DataManager
+                data_mgr = DataManager(db=self.db_manager, is_verbose=False)
+                stock_details = data_mgr.get_stock_with_latest_price(stock_id) or {}
                 
                 result.append({
                     'id': trade['id'],
@@ -206,15 +198,15 @@ class InvestmentApi:
                 # 获取股票信息
                 stock_info = stock_info_map.get(stock_id, {})
                 
-                # 使用DataLoader获取股票详细信息（跨表业务）
-                from app.data_loader import DataLoader
-                data_loader = DataLoader(self.db_manager)
-                stock_details = data_loader.get_stock_with_latest_price(stock_id) or {}
+                # 使用DataManager获取股票详细信息（跨表业务）
+                from app.data_manager import DataManager
+                data_mgr = DataManager(db=self.db_manager, is_verbose=False)
+                stock_details = data_mgr.get_stock_with_latest_price(stock_id) or {}
                 
                 # 计算下一目标（使用 TargetCalculator）
                 next_targets = None
                 try:
-                    from utils.db.tables.investment_trades.target_calculator import TargetCalculator
+                    from app.data_manager.helpers.target_calculator import TargetCalculator
                     
                     # 获取操作记录
                     operations = operations_model.load_by_trade(trade['id'], order_by="date DESC")

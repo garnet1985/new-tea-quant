@@ -1,74 +1,61 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
-Tushare API 配置管理
+Tushare Provider 配置
+
+从独立配置文件加载认证信息和其他配置
 """
-
-from dataclasses import dataclass
-from typing import Dict, Any
-
-
-@dataclass
-class APIRateLimit:
-    """API限流配置"""
-    max_per_minute: int
-    buffer: int = 20  # 缓冲次数，避免达到硬限制
-    
-    @property
-    def actual_limit(self) -> int:
-        """实际使用的限制次数"""
-        return self.max_per_minute - self.buffer
+import os
+from pathlib import Path
+from loguru import logger
 
 
-@dataclass
-class WorkerConfig:
-    """工作线程配置"""
-    workers: int  # 工作线程数量
-    timeout: float  # 秒
-    execution_mode: str = "PARALLEL"
-
-
-@dataclass
-class TushareConfig:
-    """Tushare API 统一配置"""
+def get_config() -> dict:
+    """
+    获取 Tushare Provider 配置
     
-    # Token配置
-    auth_token_file = 'app/data_source/providers/tushare/auth/token.txt'
+    配置来源：
+    1. auth_token.py 文件（用户上传，gitignore）
+    2. 环境变量 TUSHARE_TOKEN
+    3. 默认配置
     
-    # 市场日历设置
-    latest_market_open_day_backward_checking_days = 15
+    Returns:
+        配置字典
+    """
+    config = {}
     
-    # API限流配置
-    kline_rate_limit = APIRateLimit(max_per_minute=800, buffer=20)  # 780次/分钟
-    corp_finance_rate_limit = APIRateLimit(max_per_minute=500, buffer=20)  # 480次/分钟
+    # 1. 优先从 auth_token.py 读取（用户上传的文件）
+    auth_token_path = Path(__file__).parent / "auth_token.py"
+    if auth_token_path.exists():
+        try:
+            # 动态导入 auth_token 模块
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "auth_token", 
+                auth_token_path
+            )
+            auth_token_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(auth_token_module)
+            
+            if hasattr(auth_token_module, 'TUSHARE_TOKEN'):
+                config['token'] = auth_token_module.TUSHARE_TOKEN
+                logger.debug("✅ Loaded Tushare token from auth_token.py")
+            else:
+                logger.warning("auth_token.py exists but has no TUSHARE_TOKEN")
+        except Exception as e:
+            logger.warning(f"Failed to load auth_token.py: {e}")
     
-    # 工作线程配置
-    kline_worker = WorkerConfig(workers=5, timeout=3600.0)  # 1小时
-    corp_finance_worker = WorkerConfig(workers=5, timeout=3600.0)  # 1小时
+    # 2. 如果没有，尝试从环境变量读取
+    if 'token' not in config:
+        token = os.getenv('TUSHARE_TOKEN')
+        if token:
+            config['token'] = token
+            logger.debug("✅ Loaded Tushare token from environment variable")
     
-    # 进度显示配置
-    progress_update_interval = 1  # 每完成1个任务更新进度
-    progress_show_details = True  # 显示详细信息
+    # 3. 如果还没有，报错
+    if 'token' not in config:
+        raise ValueError(
+            "Tushare token not found. Please:\n"
+            "  1. Create providers/tushare/auth_token.py with: TUSHARE_TOKEN = 'your_token'\n"
+            "  2. Or set environment variable: TUSHARE_TOKEN=your_token"
+        )
     
-    # 数据库配置
-    enable_thread_safety = True
-    use_connection_pool = True
-    
-    @classmethod
-    def get_kline_config(cls) -> Dict[str, Any]:
-        """获取K线数据相关配置"""
-        return {
-            'rate_limit': cls.kline_rate_limit,
-            'worker': cls.kline_worker,
-            'api_name': 'K线数据'
-        }
-    
-    @classmethod
-    def get_corp_finance_config(cls) -> Dict[str, Any]:
-        """获取企业财务数据相关配置"""
-        return {
-            'rate_limit': cls.corp_finance_rate_limit,
-            'worker': cls.corp_finance_worker,
-            'api_name': '企业财务数据'
-        }
+    return config

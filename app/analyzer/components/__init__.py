@@ -4,7 +4,7 @@
 """
 
 # 核心组件
-from app.data_loader import DataLoader  # 使用全局DataLoader
+from app.data_manager import DataManager
 from .settings_validator import SettingsValidator
 from .entity.investment import Investment
 from .entity.opportunity import Opportunity
@@ -28,7 +28,7 @@ from .simulator.services.postprocess_service import PostprocessService
 
 __all__ = [
     # 核心组件
-    'DataLoader',
+    'DataManager',
     'SettingsValidator',
     'Investment',
     'Opportunity',

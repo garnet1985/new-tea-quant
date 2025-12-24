@@ -1,17 +1,17 @@
 """
-Database Package - 匹配Node.js项目表结构
+Database Package - 数据库基础设施层
 """
-from .db_config import DB_CONFIG
-from .db_enum import BaseTableNames
+from .db_config_manager import DB_CONFIG
 from .db_manager import DatabaseManager
+from .db_base_model import DbBaseModel
 
 __all__ = [
     # Config
     'DB_CONFIG',
-
-    # Enums
-    'BaseTableNames',
     
     # Database Manager
     'DatabaseManager',
+
+    # DB Model
+    'DbBaseModel',
 ] 

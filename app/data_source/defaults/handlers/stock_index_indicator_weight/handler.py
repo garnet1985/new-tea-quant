@@ -87,14 +87,23 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
         context["index_latest_dates"] = index_latest_dates
         
         # 获取最新交易日（用于计算结束日期）
-        if self.data_manager:
+        # 优先从 context 读取（由 renew_data() 统一获取并注入），避免多次获取导致数据不一致
+        latest_trading_date = context.get("latest_completed_trading_date")
+        if not latest_trading_date and self.data_manager:
+            # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
+            logger.warning("StockIndexIndicatorWeightHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
             try:
                 latest_trading_date = self.data_manager.get_latest_completed_trading_date()
-                # 实际结束日期是前一个交易日
-                context["end_date"] = DateUtils.get_date_before_days(latest_trading_date, 1)
             except Exception as e:
                 logger.warning(f"获取最新交易日失败: {e}")
-                context["end_date"] = DateUtils.get_current_date_str()
+                latest_trading_date = DateUtils.get_current_date_str()
+        
+        if latest_trading_date:
+            # 实际结束日期是前一个交易日
+            context["end_date"] = DateUtils.get_date_before_days(latest_trading_date, 1)
+        else:
+            # 如果仍然没有，使用当前日期作为兜底
+            context["end_date"] = DateUtils.get_current_date_str()
     
     async def fetch(self, context: Dict[str, Any] = None) -> List[DataSourceTask]:
         """

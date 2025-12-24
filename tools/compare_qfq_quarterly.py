@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT)
 
 from utils.db.db_manager import DatabaseManager
-from app.data_loader import DataLoader
+from app.data_manager import DataManager
 from app.data_source.providers.akshare.akshare_API_mod import AkshareAPIModified
 
 

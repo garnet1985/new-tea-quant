@@ -1,4 +1,4 @@
-from app.data_source.enums import KlineTerm
+from app.enums import KlineTerm
 
 settings = {
     # 策略启用状态

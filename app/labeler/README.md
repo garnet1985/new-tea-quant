@@ -188,15 +188,15 @@ def _calculate_single_stock_labels(stock_id: str, target_date: str, categories: 
     """
     计算单只股票的所有标签（多线程调用）
     """
-    # 1. 获取数据加载器
-    data_loader = self.data_loader
+    # 1. 获取数据管理器
+    data_mgr = self.data_mgr
     
     # 2. 计算所有标签分类
     all_labels = []
     for category in categories:
         calculator = self.get_calculator(category)
         if calculator:
-            labels = calculator.calculate_labels_for_stock(stock_id, target_date, data_loader)
+            labels = calculator.calculate_labels_for_stock(stock_id, target_date, data_mgr)
             if labels:
                 all_labels.extend(labels)
     
@@ -287,13 +287,13 @@ def batch_calculate_labels(stock_ids: List[str], target_date: str, categories: L
     """
     批量计算标签
     """
-    # 1. 获取数据加载器
-    data_loader = self.data_loader
+    # 1. 获取数据管理器
+    data_mgr = self.data_mgr
     
     # 2. 按分类计算标签
     for category in categories:
         calculator = self.get_calculator(category)
-        calculator.calculate_batch_labels(stock_ids, target_date, data_loader)
+        calculator.calculate_batch_labels(stock_ids, target_date, data_mgr)
     
     # 3. 保存标签到数据库
     self._save_stock_labels(stock_ids, target_date, calculated_labels)

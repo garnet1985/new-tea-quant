@@ -66,6 +66,8 @@ class LatestTradingDateHandler(BaseDataSourceHandler):
         标准化数据
         
         从 Tushare 返回的 DataFrame 中提取最新交易日
+        
+        返回格式：{"data": [{"date": "YYYYMMDD"}]}
         """
         # 使用辅助方法获取简单 Task 的结果
         df = self.get_simple_result(raw_data)
@@ -74,13 +76,13 @@ class LatestTradingDateHandler(BaseDataSourceHandler):
             # 如果查询失败，使用昨天作为默认值
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
             logger.warning(f"交易日历查询失败，使用昨天作为默认值: {yesterday}")
-            return {"date": yesterday}
+            return {"data": [{"date": yesterday}]}
         
         # 检查字段名
         if 'is_open' not in df.columns:
             logger.warning("交易日历数据缺少 is_open 字段，使用昨天作为默认值")
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-            return {"date": yesterday}
+            return {"data": [{"date": yesterday}]}
         
         # 筛选交易日（is_open == 1）
         trading_days = df[df['is_open'] == 1]
@@ -88,14 +90,15 @@ class LatestTradingDateHandler(BaseDataSourceHandler):
         if trading_days.empty:
             logger.warning("未找到交易日，使用昨天作为默认值")
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-            return {"date": yesterday}
+            return {"data": [{"date": yesterday}]}
         
         # 获取最大日期（最新交易日）
         latest_date = trading_days['cal_date'].max()
         
         logger.info(f"✅ 获取最新交易日: {latest_date}")
         
+        # 返回符合 schema 验证的格式：{"data": [{"date": "YYYYMMDD"}]}
         return {
-            "date": str(latest_date)
+            "data": [{"date": str(latest_date)}]
         }
 

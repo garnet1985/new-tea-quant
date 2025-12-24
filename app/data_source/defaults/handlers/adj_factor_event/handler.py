@@ -34,7 +34,6 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义）
     data_source = "adj_factor_event"
-    renew_type = "refresh"  # 替换更新
     description = "获取复权因子事件数据（只存储除权日）"
     dependencies = []  # 依赖：无
 

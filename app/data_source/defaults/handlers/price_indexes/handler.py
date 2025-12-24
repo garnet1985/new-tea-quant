@@ -30,7 +30,6 @@ class PriceIndexesHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义）
     data_source = "price_indexes"
-    renew_type = "incremental"  # 增量更新
     description = "获取价格指数数据（CPI/PPI/PMI，合并）"
     dependencies = []  # 不依赖其他数据源
     

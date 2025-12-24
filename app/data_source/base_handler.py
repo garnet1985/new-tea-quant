@@ -14,14 +14,12 @@ class BaseHandler(ABC):
     
     子类必须定义：
     - data_source: 数据源名称
-    - renew_type: "refresh" | "incremental"
     - description: 描述
     - dependencies: 依赖的其他数据源列表
     """
     
     # ========== 类属性（子类必须定义）==========
     data_source: str = None          # 数据源名称，如 "stock_list"
-    renew_type: str = None           # "refresh" 或 "incremental"
     description: str = ""            # Handler 描述
     dependencies: List[str] = []     # 依赖的其他数据源
     
@@ -48,10 +46,6 @@ class BaseHandler(ABC):
         """验证子类是否定义了必需的类属性"""
         if self.data_source is None:
             raise ValueError(f"{self.__class__.__name__} 必须定义 data_source")
-        if self.renew_type not in ["refresh", "incremental"]:
-            raise ValueError(
-                f"{self.__class__.__name__} 的 renew_type 必须是 'refresh' 或 'incremental'"
-            )
     
     # ========== 核心抽象方法（子类必须实现）==========
     
@@ -111,9 +105,9 @@ class BaseHandler(ABC):
     
     # ========== 完整的执行流程（模板方法）==========
     
-    async def fetch_and_normalize(self, context: Dict[str, Any]) -> Dict:
+    async def execute(self, context: Dict[str, Any]) -> Dict:
         """
-        完整的数据获取和标准化流程
+        执行 Handler 的完整生命周期流程
         
         一般情况下子类不需要覆盖此方法
         """
@@ -159,7 +153,6 @@ class BaseHandler(ABC):
         """获取 Handler 元信息"""
         return {
             "data_source": self.data_source,
-            "renew_type": self.renew_type,
             "description": self.description,
             "dependencies": self.dependencies,
             "rate_limit": self.rate_limit,

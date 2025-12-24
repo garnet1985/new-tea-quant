@@ -28,7 +28,6 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义）
     data_source = "stock_index_indicator_weight"
-    renew_type = "incremental"  # 增量更新
     description = "获取股指成分股权重数据"
     dependencies = []  # 不依赖其他数据源
     

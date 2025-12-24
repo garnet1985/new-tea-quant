@@ -24,14 +24,12 @@ class BaseDataSourceHandler(ABC):
     
     子类必须定义：
     - data_source: 数据源名称
-    - renew_type: "refresh" | "incremental" | "upsert"
     - description: 描述
     - dependencies: 依赖的其他数据源列表
     """
     
     # ========== 类属性（子类必须定义）==========
     data_source: str = None          # 数据源名称，如 "stock_list"
-    renew_type: str = None           # "refresh" | "incremental" | "upsert"
     description: str = ""            # Handler 描述
     dependencies: List[str] = []      # 依赖的其他数据源
     
@@ -66,10 +64,6 @@ class BaseDataSourceHandler(ABC):
         """验证子类是否定义了必需的类属性"""
         if self.data_source is None:
             raise ValueError(f"{self.__class__.__name__} 必须定义 data_source")
-        if self.renew_type not in ["refresh", "incremental", "upsert"]:
-            raise ValueError(
-                f"{self.__class__.__name__} 的 renew_type 必须是 'refresh'、'incremental' 或 'upsert'"
-            )
     
     # ========== 核心抽象方法（子类必须实现）==========
     
@@ -289,15 +283,15 @@ class BaseDataSourceHandler(ABC):
     
     # ========== 完整的执行流程（模板方法）==========
     
-    async def fetch_and_normalize(
+    async def execute(
         self, 
         context: Dict[str, Any],
         executor=None
     ) -> Dict:
         """
-        完整的数据获取和标准化流程
+        执行 Handler 的完整生命周期流程
         
-        流程：
+        这是 Handler 的主要执行入口，包含完整的生命周期：
         1. 数据准备阶段：before_fetch → fetch → after_fetch
         2. 执行阶段：
            - before_all_tasks_execute（所有 tasks 执行前）
@@ -330,7 +324,7 @@ class BaseDataSourceHandler(ABC):
             
             # 框架执行 Tasks
             if executor is None:
-                from app.data_source.utils.task_executor import TaskExecutor
+                from app.data_source.task_executor import TaskExecutor
                 executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
                 # 设置 handler 和 context（用于单个 task 执行前后的钩子）
                 executor.set_handler(self, context)
@@ -393,7 +387,7 @@ class BaseDataSourceHandler(ABC):
         
         注意：Handler 可以直接调用，也可以让框架自动调用
         """
-        from app.data_source.utils.task_executor import TaskExecutor
+        from app.data_source.task_executor import TaskExecutor
         executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
         return await executor.execute(tasks)
     
@@ -517,7 +511,6 @@ class BaseDataSourceHandler(ABC):
         """获取 Handler 元信息"""
         return {
             "data_source": self.data_source,
-            "renew_type": self.renew_type,
             "description": self.description,
             "dependencies": self.dependencies,
             "rate_limit": self.rate_limit,

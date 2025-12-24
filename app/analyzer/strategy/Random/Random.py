@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
 
 from app.analyzer.components.base_strategy import BaseStrategy
-from app.data_source.enums import KlineTerm
+from app.enums import KlineTerm
 from app.analyzer.components.entity.opportunity import Opportunity
 
 
@@ -25,14 +25,13 @@ class RandomStrategy(BaseStrategy):
     3. 止盈永远是止损的1.5倍
     """
     
-    def __init__(self, db=None, is_verbose=False, name="Random", description="Random策略：随机投资策略", key="Random"):
+    def __init__(self, is_verbose=False, name="Random", description="Random策略：随机投资策略", key="Random"):
         # 先设置version，再调用父类__init__
-        self.version = "0.1"
-        super().__init__(db, is_verbose, name, description, key)
+        self.version = "1.0.0"
+        super().__init__(is_verbose, name, description, key, self.version)
         self.strategy_name = "Lucky investment strategy"
-        if db is not None:
-            super().initialize()
-    
+        super().initialize()
+
     @staticmethod
     def scan_opportunity(stock_info: Dict[str, Any], data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

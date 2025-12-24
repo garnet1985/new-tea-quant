@@ -1,9 +1,9 @@
-from app.data_source.enums import KlineTerm, AdjustType
+from app.enums import KlineTerm, AdjustType
 from app.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态
-    "is_enabled": False,
+    "is_enabled": True,
 
     "core": {
         "investment_probability": 0.05,
@@ -34,7 +34,7 @@ settings = {
         "end_date": "",
 
         # 测试股票数量
-        "sampling_amount": 1,
+        "sampling_amount": 2,
 
          # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
         "record_summary" : True,
@@ -74,8 +74,8 @@ settings = {
         "stop_loss": {
             "stages": [
                 {
-                    "name": "loss20%",
-                    "ratio": -0.2,
+                    "name": "loss15%",
+                    "ratio": -0.15,
                     "close_invest": True
                 }
             ]
@@ -84,16 +84,9 @@ settings = {
         "take_profit": {
             "stages": [
                 {
-                    "name": "win10%",
-                    "ratio": 0.1,
-                    "sell_ratio": 0.3,
-                    "actions": ["set_protect_loss"]
-                },
-                {
-                    "name": "win20%",
-                    "ratio": 0.2,
-                    "sell_ratio": 0.5,
-                    "actions": ["set_dynamic_loss"]
+                    "name": "win30%",
+                    "ratio": 0.3,
+                    "sell_ratio": 1
                 }
             ]
         },

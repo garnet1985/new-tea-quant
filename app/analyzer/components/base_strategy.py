@@ -10,10 +10,9 @@ from app.analyzer.enums import InvestmentResult
 from utils.date.date_utils import DateUtils
 from loguru import logger
 from app.analyzer.analyzer_service import AnalyzerService
-from utils.db.db_manager import DatabaseManager
 from utils.icon.icon_service import IconService
 from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
-from app.data_loader import DataLoader
+from app.data_manager import DataManager
 import pandas
 from app.analyzer.analyzer_service import AnalyzerService
 
@@ -24,7 +23,7 @@ class BaseStrategy(ABC):
     # ========================================================
     """策略基类 - 所有策略必须继承此类"""
     
-    def __init__(self, db: DatabaseManager = None, 
+    def __init__(self, 
         is_verbose: bool = False, 
         name: str = None, 
         description: str = None, 
@@ -34,11 +33,14 @@ class BaseStrategy(ABC):
         初始化策略基类
         
         Args:
-            db_manager: 已初始化的数据库管理器实例
-            strategy_name: 策略名称
-            strategy_key: 策略key（用于表名和标识）
+            is_verbose: 是否启用详细日志
+            name: 策略名称
+            description: 策略描述
+            key: 策略key（用于表名和标识）
+            version: 策略版本
         """
-        self.db = db
+        # 统一使用 DataManager 单例作为数据访问入口
+        self.data_mgr = DataManager(is_verbose=False)
         self.is_verbose = is_verbose
 
         self.name = name
@@ -64,7 +66,7 @@ class BaseStrategy(ABC):
             self._register_strategy_tables()
             
             # 创建所有注册的表
-            self.db.create_registered_tables()
+            self.data_mgr.db.create_registered_tables()
             
             # 返回统一的tables字典
             self.table = self._get_required_tables()
@@ -130,7 +132,7 @@ class BaseStrategy(ABC):
                     attr = getattr(table_module, attr_name)
                     if (isinstance(attr, type) and 
                         hasattr(attr, '__bases__') and 
-                        any('BaseTableModel' in str(base) for base in attr.__bases__)):
+                        any('DbBaseModel' in str(base) for base in attr.__bases__)):
                         model_class = attr
                         break
                 
@@ -149,11 +151,13 @@ class BaseStrategy(ABC):
                         continue
                     
                     # 注册表到数据库管理器
-                    self.db.register_table(
-                        table_name=table_name,
-                        prefix=self.key,
-                        schema=schema,
-                        model_class=model_class
+                    # 保存 model_class 到 schema 中，以便后续创建表实例
+                    schema['_model_class'] = model_class
+                    # 使用带前缀的表名注册
+                    full_table_name = f"{self.key}_{table_name}"
+                    self.data_mgr.db.register_table(
+                        table_name=full_table_name,
+                        schema=schema
                     )
                     
                     if self.is_verbose:
@@ -166,32 +170,34 @@ class BaseStrategy(ABC):
     
     def _get_required_tables(self):
         """构建统一的tables字典，包含基础表和自定义表"""
-        # 直接构建基础表
+        # 使用 DataManager 获取基础表模型
         tables = {
-            "stock_kline": self.db.get_table_instance("stock_kline"),
-            "adj_factor": self.db.get_table_instance("adj_factor"),
+            "stock_kline": self.data_mgr.get_model("stock_kline"),
+            "adj_factor": self.data_mgr.get_model("adj_factor"),
         }
         
-        # 添加自定义表（从数据库管理器的tables中获取已创建的表实例）
+        # 添加自定义表（从数据库管理器的schema_manager中获取已注册的表信息）
         # 使用list()创建副本，避免在迭代时修改字典
-        for full_table_name, table_info in list(self.db.registered_tables.items()):
+        schema_manager = self.data_mgr.db.schema_manager
+        for full_table_name, schema in list(schema_manager.registered_tables.items()):
             # 检查是否是当前策略的表（通过表名前缀判断）
             if full_table_name.startswith(f"{self.key}_"):
                 # 这是策略的自定义表
                 # 从schema中获取原始表名
-                schema = table_info.get('schema', {})
                 original_table_name = schema.get('name', full_table_name.replace(f"{self.key}_", ""))
                 
-                # 直接使用已创建的表实例，而不是重新创建
-                if full_table_name in self.db.tables:
-                    table_instance = self.db.tables[full_table_name]
+                # 从 schema 中获取 model_class 并创建表实例
+                model_class = schema.get('_model_class')
+                if model_class:
+                    # 使用 model_class 创建表实例
+                    table_instance = model_class(db=self.data_mgr.db)
                     tables[original_table_name] = table_instance
                     
                     if self.is_verbose:
                         logger.info(f"✅ 策略 {self.name} 添加表到tables字典: {original_table_name}")
                 else:
                     if self.is_verbose:
-                        logger.warning(f"⚠️ 策略 {self.name} 表 {full_table_name} 未在db.tables中找到")
+                        logger.warning(f"⚠️ 策略 {self.name} 表 {full_table_name} 未找到 model_class")
         
         return tables
 
@@ -296,8 +302,8 @@ class BaseStrategy(ABC):
         
         strategy_settings = getattr(settings_module, "settings")
         
-        # 使用 DataLoader 加载股票列表（使用过滤规则，排除ST、科创板等）
-        loader = DataLoader(self.db)
+        # 使用 DataManager 加载股票列表（使用过滤规则，排除ST、科创板等）
+        loader = DataManager()
         stock_list = loader.load_stock_list(filtered=True)
 
         # 使用AnalyzerService的统一采样方法
@@ -363,9 +369,9 @@ class BaseStrategy(ABC):
         settings = job.get('settings', {}) or {}
         module_info = job.get('module_info', {}) or {}
 
-        # 子进程内直接使用 DataLoader，避免初始化 DatabaseManager
-        from app.data_loader import DataLoader
-        loader = DataLoader()  # 子进程内自行创建DatabaseManager
+        # 子进程内直接使用 DataManager，避免初始化 DatabaseManager
+        from app.data_manager import DataManager
+        loader = DataManager()  # 子进程内自行创建DatabaseManager
         data = loader.prepare_data(stock, settings)
 
         # 传入setting中配置的参数并且调用子类中的scan_opportunity方法

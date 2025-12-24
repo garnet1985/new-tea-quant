@@ -18,7 +18,7 @@ sys.path.append('/Users/garnet/Desktop/stocks-py')
 from app.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
 from app.analyzer.strategy.RTB.RTB import ReverseTrendBet
 from app.analyzer.strategy.RTB.settings import settings
-from app.data_loader.data_loader import DataLoader
+from app.data_manager.data_manager import DataManager
 from utils.db.db_manager import DatabaseManager
 
 def load_script_reversals():
@@ -71,7 +71,7 @@ def analyze_script_reversal_features(script_reversals):
     # 初始化RTB策略和数据加载器
     db_manager = DatabaseManager()
     rtb_strategy = ReverseTrendBet(db_manager)
-    data_loader = DataLoader()
+    data_mgr = DataManager(is_verbose=False)
     
     feature_stats = {
         'market_cap': [],
@@ -101,7 +101,7 @@ def analyze_script_reversal_features(script_reversals):
         
         try:
             # 获取周线数据
-            weekly_klines = data_loader.load_klines(
+            weekly_klines = data_mgr.load_klines(
                 stock_id=stock_code,
                 term='weekly'
             )

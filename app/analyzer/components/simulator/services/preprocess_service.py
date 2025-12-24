@@ -23,16 +23,11 @@ class PreprocessService:
         """
         
         try:
-            # 使用 DataLoader 加载股票列表
-            from utils.db.db_manager import DatabaseManager
-            from app.data_loader import DataLoader
+            # 使用 DataManager 加载股票列表
+            from app.data_manager import DataManager
             
-            # 创建数据库连接
-            db = DatabaseManager()
-            db.initialize()
-            
-            # 使用 DataLoader 加载股票列表（使用过滤规则，排除ST、科创板等）
-            loader = DataLoader(db)
+            # 使用 DataManager 单例加载股票列表（使用过滤规则，排除ST、科创板等）
+            loader = DataManager(is_verbose=False)
             stock_list = loader.load_stock_list(filtered=True)
             
             # 使用AnalyzerService的统一采样方法

@@ -45,7 +45,6 @@ class KlineHandler(BaseDataSourceHandler):
     - 不需要跨线程缓存机制
     """
     data_source = "kline"
-    renew_type = "incremental"
     description = "获取K线数据（包含 K 线和基本面指标），支持 daily/weekly/monthly 周期"
     dependencies = ["stock_list"]
     requires_date_range = True
@@ -70,7 +69,7 @@ class KlineHandler(BaseDataSourceHandler):
         """初始化 K 线 Handler"""
         super().__init__(schema, params, data_manager)
         # 用于增量保存的已保存任务集合（避免重复保存）
-        # 每次 fetch_and_normalize 开始时重置，确保每次运行都是新的状态
+        # 每次 execute 开始时重置，确保每次运行都是新的状态
         self._saved_tasks = set()
     
     async def before_fetch(self, context: Dict[str, Any] = None):

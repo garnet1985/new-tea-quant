@@ -29,7 +29,6 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
     
     # 类属性（必须定义）
     data_source = "corporate_finance"
-    renew_type = "incremental"  # 增量更新
     description = "获取企业财务指标数据（季度）"
     dependencies = []  # 依赖数据源
     

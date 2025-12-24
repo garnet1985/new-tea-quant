@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 from loguru import logger
 from app.data_manager import DataManager
 from app.labeler import LabelerService
+from utils.util import merge_mapping_configs
 
 
 class DataSourceManager:
@@ -67,17 +68,21 @@ class DataSourceManager:
         except Exception as e:
             logger.warning(f"⚠️ 加载 defaults/mapping.json 失败: {e}")
         
-        # 2. 加载 custom/mapping.json（覆盖 defaults）
+        # 2. 加载 custom/mapping.json（深度合并覆盖 defaults）
         try:
             custom_path = Path(__file__).parent / "custom" / "mapping.json"
             if custom_path.exists():
                 with open(custom_path, 'r', encoding='utf-8') as f:
                     custom_mapping = json.load(f)
-                    # 只更新已存在的或新增的 data_source
-                    for ds_name, ds_config in custom_mapping.get("data_sources", {}).items():
-                        if ds_config.get("is_enabled", True):
-                            self._mapping[ds_name] = ds_config
-                logger.debug(f"✅ 加载了 custom/mapping.json")
+                    # 使用工具方法深度合并 custom 配置到 defaults
+                    # params 需要深度合并，dependencies 需要完全覆盖
+                    self._mapping = merge_mapping_configs(
+                        self._mapping,
+                        custom_mapping.get("data_sources", {}),
+                        deep_merge_fields={"params"},
+                        override_fields={"dependencies"}
+                    )
+                logger.debug(f"✅ 加载了 custom/mapping.json（已合并到 defaults）")
         except Exception as e:
             logger.debug(f"custom/mapping.json 不存在或加载失败（这是正常的）: {e}")
     
@@ -153,12 +158,13 @@ class DataSourceManager:
         context: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
-        获取数据源数据
-        
+        获取数据源数据（测试用 API）
+
         执行指定数据源的 Handler，获取并标准化数据。
         
-        注意：数据保存由 Handler 在生命周期钩子中自行决定（如 after_normalize）。
-        如果需要保存数据，Handler 可以在钩子中调用 _save_to_data_manager() 方法。
+        注意：
+        - 数据保存由 Handler 在生命周期钩子中自行决定（如 after_normalize）
+        - 此方法会检查 mapping.json 中的 is_enabled 配置，只有启用的 handler 才能执行
         
         Args:
             ds_name: 数据源名称
@@ -166,17 +172,30 @@ class DataSourceManager:
         
         Returns:
             标准化后的数据
+        
+        Raises:
+            ValueError: 如果 handler 不存在或已被禁用
         """
+        # 检查 handler 是否存在
+        if ds_name not in self._mapping:
+            raise ValueError(f"数据源 {ds_name} 未找到（mapping.json 中不存在）")
+        
+        # 检查 handler 是否被禁用
+        handler_config = self._mapping[ds_name]
+        if not handler_config.get("is_enabled", True):
+            raise ValueError(f"数据源 {ds_name} 已被禁用（mapping.json 中 is_enabled: false）")
+        
+        # 检查 handler 是否已加载
         if ds_name not in self._handlers:
-            raise ValueError(f"数据源 {ds_name} 未找到或未启用")
+            raise ValueError(f"数据源 {ds_name} 的 Handler 未加载（可能配置错误或加载失败）")
         
         handler = self._handlers[ds_name]
         context = context or {}
         
         logger.info(f"🔄 开始获取数据源: {ds_name}")
         
-        # 执行 Handler 的 fetch_and_normalize
-        result = await handler.fetch_and_normalize(context)
+        # 执行 Handler 的完整生命周期
+        result = await handler.execute(context)
         
         logger.info(f"✅ 数据源 {ds_name} 获取完成")
         
@@ -232,415 +251,85 @@ class DataSourceManager:
         """获取数据源的 Schema"""
         return self._schemas.get(ds_name)
     
-    async def renew_kline_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
+    # ========== 依赖解析和注入 ==========
+    
+    # 全局依赖获取器注册表（可扩展）
+    _DEPENDENCY_FETCHERS = {
+        "latest_completed_trading_date": lambda dm: dm.get_latest_completed_trading_date(),
+        "stock_list": lambda dm: dm.load_stock_list(filtered=True),
+        # 未来可以添加：
+        # "market_status": lambda dm: dm.get_market_status(),
+        # "trading_calendar": lambda dm: dm.get_trading_calendar(),
+    }
+    
+    def _resolve_global_dependencies(self) -> set:
         """
-        更新 K 线数据（包括 daily/weekly/monthly K 线 + daily_basic）
+        解析所有启用的 handler 需要的全局依赖
+        
+        Returns:
+            Set[str]: 需要获取的全局依赖名称集合
+        """
+        required_deps = set()
+        
+        for ds_name, ds_config in self._mapping.items():
+            if not ds_config.get("is_enabled", True):
+                continue
+            
+            # 获取 handler 声明的依赖需求
+            dependencies = ds_config.get("dependencies", {})
+            
+            # 收集所有需要的依赖
+            for dep_name, required in dependencies.items():
+                if required:
+                    required_deps.add(dep_name)
+        
+        if required_deps:
+            logger.debug(f"📋 解析到需要获取的全局依赖: {', '.join(sorted(required_deps))}")
+        else:
+            logger.debug("📋 没有 handler 需要全局依赖")
+        
+        return required_deps
+    
+    def _fetch_global_dependencies(self, dep_names: set) -> Dict[str, Any]:
+        """
+        获取所有需要的全局依赖，构建 shared_context
         
         Args:
-            latest_completed_trading_date: 最新完成交易日（YYYYMMDD），为空时内部自动获取
-            stock_list: 股票列表（可选，默认由 DataManager 自行加载）
-            test_mode: 测试模式，只处理少量股票
-            dry_run: 干运行模式，只跑任务不写入数据库
-        
-        行为：
-        - 默认会：
-          1.（非 dry_run）更新一次股票列表数据源 `stock_list`
-          2. 从数据库读取股票列表（可选传入自定义列表）
-          3. 使用 `kline` Handler 做增量更新
-        - `dry_run=True` 时，只执行计算和任务调度，不向数据库写入任何 K 线记录
+            dep_names: 需要获取的依赖名称集合
+            
+        Returns:
+            Dict[str, Any]: shared_context，包含所有全局依赖
         """
-        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入，这里不再重复获取
-        # 如果确实为 None（不应该发生），才回退获取
-        if not latest_completed_trading_date:
-            logger.warning("renew_kline_data: latest_completed_trading_date 为 None，回退获取")
-            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
-
-        # 1. 更新股票列表（必须先更新，因为其他数据源依赖它）
-        # 注意：dry_run 模式下也更新股票列表（因为需要最新的股票列表来计算需要更新的股票）
-        if not dry_run:
-            logger.info("📋 步骤 1/3: 更新股票列表...")
-            await self.fetch("stock_list")  # Handler 会在 after_normalize 钩子中自动保存
-        else:
-            logger.info("📋 步骤 1/3: 跳过股票列表更新（dry_run 模式）...")
-
-        # 测试模式：只处理前 10-20 个股票
-        if test_mode:
-            stock_list = stock_list[:20]
-            logger.info(f"🧪 测试模式：只处理前 {len(stock_list)} 个股票")
-
-        logger.info(f"📊 共 {len(stock_list)} 只股票需要更新K线数据")
-
-        # 2. 更新K线数据（daily/weekly/monthly）
-        logger.info("📋 步骤 2/3: 更新K线数据...")
-        if dry_run:
-            logger.info("🧪 干运行模式：只计算和执行 task，不保存数据")
-
-        try:
-            # 构建 context（不再需要 term 参数，Handler 会处理所有周期）
-            context: Dict[str, Any] = {
-                "stock_list": stock_list,
-                "dry_run": dry_run,  # 传递 dry_run 标志给 Handler
-                "latest_completed_trading_date": latest_completed_trading_date,
-            }
-
-            # 调用 fetch，Handler 会自动处理所有周期的数据获取和保存
-            result = await self.fetch("kline", context=context)
-
-            data_count = len(result.get("data", []))
-            if dry_run:
-                if data_count > 0:
-                    logger.info(f"🧪 K线数据干运行完成，共 {data_count} 条记录（未保存，包含所有周期）")
-                else:
-                    logger.info("🧪 K线数据干运行完成，无需更新（数据已是最新）")
+        shared_context = {}
+        
+        for dep_name in dep_names:
+            if dep_name in self._DEPENDENCY_FETCHERS:
+                try:
+                    fetcher = self._DEPENDENCY_FETCHERS[dep_name]
+                    value = fetcher(self.data_manager)
+                    shared_context[dep_name] = value
+                    logger.debug(f"✅ 获取全局依赖: {dep_name}")
+                except Exception as e:
+                    logger.error(f"❌ 获取全局依赖失败 {dep_name}: {e}")
+                    # 如果关键依赖获取失败，可以选择中断或继续
+                    # 这里选择继续，让 handler 自己处理缺失的依赖
             else:
-                if data_count > 0:
-                    logger.info(f"✅ K线数据更新完成，共 {data_count} 条记录（包含所有周期）")
-                else:
-                    logger.info("ℹ️  K线数据无需更新（数据已是最新）")
-        except Exception as e:
-            logger.error(f"❌ 更新 K线数据失败: {e}")
-            import traceback
-
-            traceback.print_exc()
-
-
-
-    async def renew_adj_factor_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新复权因子事件数据（adj_factor_event）
-
-        - 使用 `adj_factor_event` Handler 实现增量/首建更新
-        - 依赖：
-          - 已更新的 `stock_list` 基础表
-          - 已具备一定覆盖率的 `stock_kline`（K 线）数据
-        - 传入的 `stock_list` 用作“关注股票集合”，为空则让 Handler 自行决定覆盖范围
-        """
-        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入，这里不再重复获取
-        if not latest_completed_trading_date:
-            logger.warning("renew_adj_factor_data: latest_completed_trading_date 为 None，回退获取")
-            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
-
-        # 构建 context：只传递关心的股票 universe 和基准日期（如果上层已经算好）
-        context: Dict[str, Any] = {
-            "latest_completed_trading_date": latest_completed_trading_date,
-            # 为兼容可能使用 latest_trading_date 命名的 Handler，这里同时提供别名
-            "latest_trading_date": latest_completed_trading_date,
-        }
-        if stock_list:
-            context["stock_list"] = stock_list
-
-        if test_mode and stock_list:
-            # 测试模式下，仅使用前 N 只股票作为预筛选集合，减少 API/IO
-            max_test_stocks = 50
-            truncated = stock_list[:max_test_stocks]
-            context["stock_list"] = truncated
-            logger.info(f"🧪 测试模式：复权因子事件仅处理前 {len(truncated)} 只股票")
-
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 adj_factor_event Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-
-        try:
-            result = await self.fetch("adj_factor_event", context=context)
-            # result["data"] 一般为空（adj_factor_event 的保存逻辑在 after_all_tasks_execute 中完成）
-            logger.info("✅ 复权因子事件数据更新完成（adj_factor_event）")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新复权因子事件数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
-
-    async def renew_corporate_finance_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新企业财务数据（corporate_finance）
+                logger.warning(f"⚠️ 未知的全局依赖: {dep_name}")
         
-        - 使用 `corporate_finance` Handler 实现增量更新
-        - 依赖：
-          - 已更新的 `stock_list` 基础表
-        - 传入的 `stock_list` 用作"关注股票集合"，为空则让 Handler 自行决定覆盖范围
-        """
-        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入，这里不再重复获取
-        if not latest_completed_trading_date:
-            logger.warning("renew_corporate_finance_data: latest_completed_trading_date 为 None，回退获取")
-            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
-
-        # 构建 context：只传递关心的股票 universe 和基准日期
-        context: Dict[str, Any] = {
-            "latest_completed_trading_date": latest_completed_trading_date,
-        }
-        if stock_list:
-            context["stock_list"] = stock_list
-        
-        if test_mode and stock_list:
-            # 测试模式下，仅使用前 N 只股票，减少 API/IO
-            max_test_stocks = 50
-            truncated = stock_list[:max_test_stocks]
-            context["stock_list"] = truncated
-            logger.info(f"🧪 测试模式：企业财务数据仅处理前 {len(truncated)} 只股票")
-        
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 corporate_finance Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-        
-        try:
-            result = await self.fetch("corporate_finance", context=context)
-            logger.info("✅ 企业财务数据更新完成（corporate_finance）")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新企业财务数据失败: {e}")
-            import traceback
-            traceback.format_exc()
-            return {"data": []}
-
-    async def renew_gdp_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新 GDP 数据
-        
-        - 使用 `RollingHandler` 实现滚动刷新机制
-        - 数据格式：季度数据（YYYYQ1/YYYYQ2/YYYYQ3/YYYYQ4）
-        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
-        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
-        """
-        # 构建 context：宏观数据不需要 latest_completed_trading_date
-        context: Dict[str, Any] = {}
-        
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 GDP Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-        
-        try:
-            result = await self.fetch("gdp", context=context)
-            logger.info("✅ GDP 数据更新完成")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新 GDP 数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
+        return shared_context
     
-    async def renew_shibor_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
+    def _get_enabled_handlers(self) -> Dict[str, Dict[str, Any]]:
         """
-        更新 Shibor 数据
+        获取所有启用的 handler 配置
         
-        - 使用 `RollingHandler` 实现滚动刷新机制
-        - 数据格式：日期数据（YYYYMMDD）
-        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
-        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
+        Returns:
+            Dict[str, Dict[str, Any]]: {handler_name: handler_config}
         """
-        # 构建 context：宏观数据不需要 latest_completed_trading_date
-        context: Dict[str, Any] = {}
-        
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 Shibor Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-        
-        try:
-            result = await self.fetch("shibor", context=context)
-            logger.info("✅ Shibor 数据更新完成")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新 Shibor 数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
-    
-    async def renew_lpr_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新 LPR 数据
-        
-        - 使用 `RollingHandler` 实现滚动刷新机制
-        - 数据格式：日期数据（YYYYMMDD）
-        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
-        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
-        """
-        # 构建 context：宏观数据不需要 latest_completed_trading_date
-        context: Dict[str, Any] = {}
-        
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 LPR Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-        
-        try:
-            result = await self.fetch("lpr", context=context)
-            logger.info("✅ LPR 数据更新完成")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新 LPR 数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
-    
-
-    async def renew_price_indexes_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新价格指数数据（CPI/PPI/PMI/货币供应量）
-        
-        - 使用 `price_indexes` Handler 实现增量更新
-        - 数据格式：月度数据（YYYYMM）
-        - Handler 会自动计算需要更新的日期范围（从数据库最新日期开始，或使用默认范围）
-        - 不依赖 `latest_completed_trading_date` 和 `stock_list`（宏观数据）
-        """
-        # 构建 context：price_indexes 是月度宏观数据，不需要 latest_completed_trading_date
-        context: Dict[str, Any] = {}
-        
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 price_indexes Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-        
-        try:
-            result = await self.fetch("price_indexes", context=context)
-            logger.info("✅ 价格指数数据更新完成（price_indexes）")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新价格指数数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
-
-
-    async def renew_industry_capital_flow_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新行业资本流动数据（industry_capital_flow）
-        
-        - 使用专门的 `IndustryCapitalFlowHandler`，保持与 legacy 行为一致（增量更新）
-        - 数据格式：日度数据（YYYYMMDD）
-        - Handler 会根据数据库最新日期或默认范围自动计算需要更新的日期区间
-        - 不依赖 `latest_completed_trading_date` 和 `stock_list`
-        """
-        # 行业资金流向是宏观日度数据，这里不需要 latest_completed_trading_date / stock_list
-        context: Dict[str, Any] = {}
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 industry_capital_flow Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-
-        try:
-            result = await self.fetch("industry_capital_flow", context=context)
-            logger.info("✅ 行业资本流动数据更新完成（industry_capital_flow）")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新行业资本流动数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
-
-
-    async def renew_index_indicators_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新股票指数指标数据（stock_index_indicator）
-        
-        - 使用 `StockIndexIndicatorHandler` 获取指数 K 线数据
-        - 支持 daily / weekly / monthly 三个周期
-        - Handler 会根据数据库最新日期自动计算增量区间
-        - 不依赖 `latest_completed_trading_date` 和 `stock_list`
-        """
-        # 指数指标需要 latest_completed_trading_date 来计算各周期的结束日期
-        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入
-        context: Dict[str, Any] = {
-            "latest_completed_trading_date": latest_completed_trading_date,
-        }
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 stock_index_indicator Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-
-        try:
-            result = await self.fetch("stock_index_indicator", context=context)
-            logger.info("✅ 股票指数指标数据更新完成（stock_index_indicator）")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新股票指数指标数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
-
-
-    async def renew_index_indicators_weight_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
-        """
-        更新股票指数成分股权重数据（stock_index_indicator_weight）
-        
-        - 使用 `StockIndexIndicatorWeightHandler` 获取指数成分股权重
-        - 指数成分股不常变化，至少间隔约 1 个月才会触发增量更新
-        - 不依赖 `latest_completed_trading_date` 和 `stock_list`
-        """
-        # 指数权重需要 latest_completed_trading_date 来计算结束日期
-        # latest_completed_trading_date 应该由 renew_data() 统一获取并传入
-        context: Dict[str, Any] = {
-            "latest_completed_trading_date": latest_completed_trading_date,
-        }
-        if dry_run:
-            logger.info("🧪 干运行模式：仅执行 stock_index_indicator_weight Handler 逻辑，不写入数据库")
-            context["dry_run"] = True
-
-        try:
-            result = await self.fetch("stock_index_indicator_weight", context=context)
-            logger.info("✅ 股票指数成分股权重数据更新完成（stock_index_indicator_weight）")
-            return result
-        except Exception as e:
-            logger.error(f"❌ 更新股票指数成分股权重数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"data": []}
-
+        enabled_handlers = {}
+        for ds_name, ds_config in self._mapping.items():
+            if ds_config.get("is_enabled", True):
+                enabled_handlers[ds_name] = ds_config
+        return enabled_handlers
 
     async def renew_data(
         self,
@@ -658,74 +347,54 @@ class DataSourceManager:
             test_mode: 测试模式，如果为 True，只处理前 10-20 个股票
             dry_run: 干运行模式，如果为 True，只更新行情流程，不写入任何标签
         """
-        # 统一获取一次 latest_completed_trading_date，避免多次获取导致数据不一致
-        # 这个值会在整个 renew_data 流程中保持一致，传递给所有 renew_*_data 方法和 handler
-        if not latest_completed_trading_date:
-            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
-            logger.debug(f"自动获取最新交易日: {latest_completed_trading_date}")
+        # Step 1: 依赖解析 - 解析所有启用的 handler 需要的全局依赖
+        enabled_handlers = self._get_enabled_handlers()
+        required_deps = self._resolve_global_dependencies()
         
-        stock_list = self.data_manager.load_stock_list(filtered=True)
-
-        # 1. 先更新行情数据（目前主要是 K 线）
-        # logger.info("🧪 renew step 1: 行情数据更新开始...")
-        # await self.renew_kline_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     stock_list=stock_list,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run
-        # )
-
-        # 2. 再更新标签数据（非 dry_run 模式才真正写入）
-        # logger.info("🧪 renew step 2: 复权因子数据更新开始...")
-        # await self.renew_adj_factor_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     stock_list=stock_list,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # )
-
-        # logger.info("🧪 renew step 3: 企业财务数据更新开始...")
-        # await self.renew_corporate_finance_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     stock_list=stock_list,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # )
-
-        # logger.info("🧪 renew step 4: 价格指数数据更新开始...")
-        # await self.renew_price_indexes_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # )
-
-        # logger.info("🧪 renew step 4: 宏观经济数据更新开始...")
-        # await self.renew_gdp_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # )
-        # await self.renew_shibor_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # )
-        # await self.renew_lpr_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # )
-
-        # logger.info("🧪 renew step 5: 股票指数指标数据更新开始...")
-        # await self.renew_index_indicators_data(
-        #     latest_completed_trading_date=latest_completed_trading_date,
-        #     test_mode=test_mode,
-        #     dry_run=dry_run,
-        # )
-
-        logger.info("🧪 renew step 6: 股票指数指标权重数据更新开始...")
-        await self.renew_index_indicators_weight_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            test_mode=test_mode,
-            dry_run=dry_run,
-        )
+        # Step 2: 依赖注入 - 获取所有需要的全局依赖，构建 shared_context
+        shared_context = self._fetch_global_dependencies(required_deps)
+        
+        # 如果外部传入了 latest_completed_trading_date 或 stock_list，覆盖 shared_context
+        if latest_completed_trading_date:
+            shared_context["latest_completed_trading_date"] = latest_completed_trading_date
+        if stock_list:
+            shared_context["stock_list"] = stock_list
+        
+        # 添加执行参数
+        shared_context.update({
+            "test_mode": test_mode,
+            "dry_run": dry_run,
+        })
+        
+        logger.info(f"🚀 开始执行数据更新，共 {len(enabled_handlers)} 个启用的 handler")
+        
+        # Step 3: 遍历所有启用的 handler，执行 build context + fetch
+        for handler_name, handler_config in enabled_handlers.items():
+            if handler_name not in self._handlers:
+                logger.warning(f"⚠️ Handler {handler_name} 未加载，跳过")
+                continue
+            
+            handler = self._handlers[handler_name]
+            
+            try:
+                logger.info(f"📊 处理数据源: {handler_name}")
+                
+                # 复制 shared_context，创建独立的 handler_context（避免污染）
+                # handler_context 会在 execute 中传递给 handler.before_fetch
+                handler_context = shared_context.copy()
+                
+                # Step 3: Handler Execution Layer
+                # before_fetch 会在 execute 中调用（作为生命周期钩子）
+                # 此时 handler_context 已经包含了所有全局依赖，handler 的 before_fetch
+                # 可以从 context 中读取这些依赖，并添加自己的特定 context
+                result = await self.fetch(handler_name, context=handler_context)
+                
+                logger.info(f"✅ 数据源 {handler_name} 处理完成")
+                
+            except Exception as e:
+                logger.error(f"❌ 处理数据源 {handler_name} 失败: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        logger.info("🎉 所有数据源更新完成")

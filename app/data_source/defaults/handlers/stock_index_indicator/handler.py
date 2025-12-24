@@ -30,7 +30,6 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
     3. get_index_monthly - 指数月线数据
     """
     data_source = "stock_index_indicator"
-    renew_type = "incremental"
     description = "获取股指指标数据（指数K线），支持 daily/weekly/monthly 周期"
     dependencies = []
     requires_date_range = True

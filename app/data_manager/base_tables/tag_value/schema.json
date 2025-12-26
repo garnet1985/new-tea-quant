@@ -8,7 +8,7 @@
       "length": 32,
       "isRequired": true,
       "default": "stock",
-      "description": "实体类型（如 \"stock\", \"index\" 等，默认 \"stock\"，方便未来扩展）"
+      "description": "实体类型（如 \"stock\", \"index\", \"kline_daily\", \"kline_weekly\", \"kline_monthly\" 等，默认 \"stock\"，方便未来扩展）"
     },
     {
       "name": "entity_id",

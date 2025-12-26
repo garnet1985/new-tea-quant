@@ -23,3 +23,9 @@ class VersionChangeAction(Enum):
     """版本变更时的行为枚举"""
     NEW_TAG = "new_tag"        # 创建新 tag（保留旧数据）
     FULL_REFRESH = "full_refresh"  # 全量刷新（覆盖旧数据）
+
+
+class SupportedDataSource(Enum):
+    """支持的数据源枚举"""
+    KLINE = "kline"
+    CORPORATE_FINANCE = "corporate_finance"

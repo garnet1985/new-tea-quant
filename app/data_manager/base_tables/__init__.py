@@ -33,6 +33,8 @@ from .investment_operations.model import InvestmentOperationsModel
 from .stock_index_indicator.model import StockIndexIndicatorModel
 from .stock_index_indicator_weight.model import StockIndexIndicatorWeightModel
 from .meta_info.model import MetaInfoModel
+from .tag.model import TagModel
+from .tag_value.model import TagValueModel
 
 __all__ = [
     'StockKlineModel',
@@ -50,5 +52,7 @@ __all__ = [
     'StockIndexIndicatorModel',
     'StockIndexIndicatorWeightModel',
     'MetaInfoModel',
+    'TagModel',
+    'TagValueModel',
 ]
 

@@ -3,18 +3,19 @@
   "primaryKey": ["entity_id", "tag_id", "as_of_date"],
   "fields": [
     {
-      "name": "id",
-      "type": "bigint",
+      "name": "entity_type",
+      "type": "varchar",
+      "length": 32,
       "isRequired": true,
-      "isAutoIncrement": true,
-      "description": "自增主键"
+      "default": "stock",
+      "description": "实体类型（如 \"stock\", \"index\" 等，默认 \"stock\"，方便未来扩展）"
     },
     {
       "name": "entity_id",
       "type": "varchar",
       "length": 64,
       "isRequired": true,
-      "description": "实体ID（可以是股票代码、指数代码等）"
+      "description": "实体ID（默认是股票代码，如 000001.SZ，但支持其他实体类型以保持通用性）"
     },
     {
       "name": "tag_id",
@@ -64,6 +65,11 @@
       "name": "idx_tag_date",
       "fields": ["tag_id", "as_of_date"],
       "description": "辅助查询：某个标签在某个日期的所有实体"
+    },
+    {
+      "name": "idx_entity_tag_date",
+      "fields": ["entity_id", "tag_id", "as_of_date"],
+      "description": "增量计算查询：优化查询每个 (entity_id, tag_id) 的最大 as_of_date，用于增量计算"
     }
   ]
 }

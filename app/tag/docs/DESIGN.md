@@ -1,7 +1,7 @@
 # Tag 系统设计文档
 
 **版本**: v2.0  
-**最后更新**: 2025-12-26  
+**最后更新**: 2025-12-19  
 **设计者**: System Architecture Team
 
 ---
@@ -12,9 +12,13 @@
 2. [数据模型设计](#数据模型设计)
 3. [核心组件](#核心组件)
 4. [配置设计](#配置设计)
-5. [职责边界](#职责边界)
-6. [设计原则](#设计原则)
-7. [关键设计决策](#关键设计决策)
+5. [执行流程](#执行流程)
+6. [多进程执行设计](#多进程执行设计)
+7. [版本管理](#版本管理)
+8. [职责边界](#职责边界)
+9. [设计原则](#设计原则)
+10. [关键设计决策](#关键设计决策)
+11. [文件组织](#文件组织)
 
 ---
 
@@ -25,7 +29,7 @@ Tag 系统是一个用于预计算和存储实体属性/状态的框架。系统
 ### 核心概念
 
 - **业务场景（Scenario）**：一个业务逻辑单元，对应一个 Calculator 和一个 Settings 配置
-  - 例如：市值分类（`market_value_bucket`）
+  - 例如：市值分类（`market_value`）
   - 一个 Scenario 可以产生多个 Tags
   - **版本（Version）**在 Scenario 级别管理
 
@@ -94,24 +98,23 @@ tag_scenario (业务场景层)
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `id` | BIGINT | 自增主键 |
-| `name` | VARCHAR(64) | 业务场景唯一代码（如 `market_value_bucket`） |
+| `name` | VARCHAR(64) | 业务场景唯一代码（如 `market_value`） |
 | `display_name` | VARCHAR(128) | 业务场景显示名称 |
 | `version` | VARCHAR(32) | **版本号**（如 `1.0`, `2.0`），代表算法版本 |
 | `description` | TEXT | 业务场景描述 |
-| `calculator_path` | VARCHAR(255) | Calculator 文件路径 |
-| `settings_path` | VARCHAR(255) | Settings 文件路径 |
-| `is_enabled` | TINYINT(1) | 是否启用（默认 1） |
+| `is_legacy` | TINYINT(1) | 是否已废弃（0=active, 1=legacy） |
 | `created_at` | DATETIME | 创建时间 |
 | `updated_at` | DATETIME | 更新时间 |
 
 **索引**：
 - `UNIQUE KEY uk_name_version (name, version)`：同一场景的不同版本
 - `INDEX idx_name (name)`：按场景名查询
+- `INDEX idx_is_legacy (is_legacy)`：查询 active/legacy 版本
 
 **设计要点**：
 - **Version 在 Scenario 级别**：代表整个业务场景的算法版本
-- 一个 Scenario 可以有多个版本（历史版本保留）
-- `is_enabled` 控制整个 Scenario 是否启用
+- 一个 Scenario 可以有多个版本（历史版本保留为 legacy）
+- `is_legacy` 用于标记旧版本（0=active, 1=legacy）
 
 ### 2. tag_definition 表
 
@@ -123,20 +126,24 @@ tag_scenario (业务场景层)
 |------|------|------|
 | `id` | BIGINT | 自增主键 |
 | `scenario_id` | BIGINT | 外键 → `tag_scenario.id` |
+| `scenario_version` | VARCHAR(32) | **冗余字段**：Scenario 版本（用于查询优化） |
 | `name` | VARCHAR(64) | 标签唯一代码（如 `large_market_value`） |
 | `display_name` | VARCHAR(128) | 标签显示名称 |
 | `description` | TEXT | 标签描述 |
+| `is_legacy` | TINYINT(1) | **冗余字段**：是否已废弃（用于查询优化） |
 | `created_at` | DATETIME | 创建时间 |
 | `updated_at` | DATETIME | 更新时间 |
 
 **索引**：
 - `UNIQUE KEY uk_scenario_name (scenario_id, name)`：同一 Scenario 下标签名唯一
 - `INDEX idx_scenario_id (scenario_id)`：按 Scenario 查询
+- `INDEX idx_scenario_version (scenario_version, is_legacy)`：查询优化
 
 **设计要点**：
 - 一个 Scenario 可以产生多个 Tag Definitions
 - Tag Definition 共享 Scenario 的版本
 - 标签名在同一 Scenario 内唯一
+- `scenario_version` 和 `is_legacy` 是冗余字段，用于查询优化
 
 ### 3. tag_value 表
 
@@ -146,7 +153,7 @@ tag_scenario (业务场景层)
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `entity_type` | VARCHAR(32) | 实体类型（如 `stock`, `kline_daily`，默认 `stock`） |
+| `entity_type` | VARCHAR(32) | 实体类型（如 `stock`，默认 `stock`） |
 | `entity_id` | VARCHAR(64) | 实体ID（如股票代码 `000001.SZ`） |
 | `tag_definition_id` | BIGINT | 外键 → `tag_definition.id` |
 | `as_of_date` | DATE | 业务日期（标签计算时间点） |
@@ -173,13 +180,14 @@ tag_scenario (业务场景层)
 ```
 tag_scenario
 ├─ id: 1
-├─ name: "market_value_bucket"
+├─ name: "market_value"
 ├─ version: "1.0"
+├─ is_legacy: 0
 └─ ...
 
 tag_definition
-├─ id: 10, scenario_id: 1, name: "large_market_value"
-├─ id: 11, scenario_id: 1, name: "small_market_value"
+├─ id: 10, scenario_id: 1, name: "large_market_value", scenario_version: "1.0"
+├─ id: 11, scenario_id: 1, name: "small_market_value", scenario_version: "1.0"
 └─ ...
 
 tag_value
@@ -194,14 +202,9 @@ tag_value
 
 ### 1. Settings (`settings.py`)
 
-**位置**：`app/tag/tags/<business_scenario>/settings.py`
+**位置**：`app/tag/scenarios/<scenario_name>/settings.py`
 
 **职责**：定义业务场景和标签的配置信息
-
-**设计初衷**：
-- 配置与代码分离，便于版本控制
-- 声明式配置，用户通过配置声明行为
-- 支持多 Tag：一个 Calculator 可以产生多个 Tags
 
 **配置结构**：
 
@@ -209,45 +212,45 @@ tag_value
 from app.tag.enums import KlineTerm, UpdateMode, VersionChangeAction
 
 Settings = {
-    # Calculator 级别配置（共享逻辑）
+    # 顶层配置
+    "is_enabled": True,  # 是否启用该 Scenario
+    
+    # Scenario 级别配置（对应 tag_scenario 表）
+    "scenario": {
+        "name": "market_value",  # 业务场景唯一代码
+        "display_name": "市值分类",  # 显示名称
+        "description": "按市值阈值给股票打大小市值标签",
+        "version": "1.0",  # 版本号
+        "on_version_change": VersionChangeAction.REFRESH_SCENARIO.value,  # 版本变更处理
+    },
+    
+    # Calculator 级别配置（计算逻辑相关，不存储到数据库）
     "calculator": {
-        "meta": {
-            "name": "MARKET_VALUE_BUCKET",  # 业务场景名
-            "description": "按市值阈值给股票打大小市值标签",
-            "is_enabled": True,  # 控制整个 Scenario 是否启用
-        },
-        "base_term": KlineTerm.DAILY.value,
-        "required_terms": [],
-        "required_data": [],
+        "base_term": KlineTerm.DAILY.value,  # 基础周期
+        "required_terms": [],  # 需要的其他周期
+        "required_data": [],  # 需要的数据源
+        "start_date": "",  # 计算开始日期（可选）
+        "end_date": "",  # 计算结束日期（可选）
         "core": {
-            "mkv_threshold": 1e10,
+            "mkv_threshold": 1e10,  # 市值阈值
         },
         "performance": {
-            "max_workers": 8,
-            "update_mode": UpdateMode.INCREMENTAL.value,
-            "on_version_change": VersionChangeAction.REFRESH_SCENARIO.value,
+            "max_workers": 8,  # 最大并发数
+            "update_mode": UpdateMode.INCREMENTAL.value,  # 更新模式
         },
     },
     
-    # Tag 级别配置（多个 tag）
+    # Tag 级别配置（对应 tag_definition 表，一个 Scenario 下多个 tags）
     "tags": [
         {
             "name": "large_market_value",
             "display_name": "大市值股票",
             "description": "市值大于阈值的股票",
-            "version": "1.0",  # 注意：这个 version 会被 scenario 的 version 覆盖
-            "core": {
-                "label": "large",
-            },
         },
         {
             "name": "small_market_value",
             "display_name": "小市值股票",
             "description": "市值小于等于阈值的股票",
-            "version": "1.0",
-            "core": {
-                "label": "small",
-            },
         },
     ],
 }
@@ -257,19 +260,14 @@ Settings = {
 - ✅ 定义配置结构
 - ✅ 声明 Scenario 和 Tag 的元信息
 - ✅ 声明计算参数和性能配置
-- ❌ 不负责验证配置（由 BaseTagCalculator 负责）
+- ❌ 不负责验证配置（由 SettingsValidator 负责）
 - ❌ 不负责执行计算（由 Calculator 负责）
 
 ### 2. Calculator (`calculator.py`)
 
-**位置**：`app/tag/tags/<business_scenario>/calculator.py`
+**位置**：`app/tag/scenarios/<scenario_name>/calculator.py`
 
 **职责**：实现业务场景的计算逻辑
-
-**设计初衷**：
-- 业务逻辑封装：每个 Calculator 封装一个业务场景
-- 用户自定义：用户继承 `BaseTagCalculator` 实现自己的逻辑
-- 可扩展性：支持扩展数据加载和自定义钩子函数
 
 **实现示例**：
 
@@ -278,7 +276,7 @@ from app.tag.base_tag_calculator import BaseTagCalculator
 from typing import Dict, Any, Optional
 
 class MarketValueCalculator(BaseTagCalculator):
-    """市值分类 Calculator（业务场景：market_value_bucket）"""
+    """市值分类 Calculator"""
     
     def calculate_tag(
         self, 
@@ -286,8 +284,8 @@ class MarketValueCalculator(BaseTagCalculator):
         entity_type: str,
         as_of_date: str, 
         historical_data: Dict[str, Any],
-        tag_config: Dict[str, Any]  # 已合并的配置
-    ) -> Optional[Any]:
+        tag_config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         计算 tag
         
@@ -304,10 +302,10 @@ class MarketValueCalculator(BaseTagCalculator):
         
         if tag_name == "large_market_value":
             if market_value > mkv_threshold:
-                return {"value": "1", "as_of_date": as_of_date}
+                return {"value": "1"}
         elif tag_name == "small_market_value":
             if market_value <= mkv_threshold:
-                return {"value": "1", "as_of_date": as_of_date}
+                return {"value": "1"}
         
         return None
 ```
@@ -317,7 +315,7 @@ class MarketValueCalculator(BaseTagCalculator):
 - ✅ 实现业务场景的计算逻辑
 - ✅ 一个 Calculator 可以为多个 Tags 提供计算
 - ✅ 可选：重写 `load_entity_data()` 支持自定义数据源
-- ❌ 不负责配置验证（由 BaseTagCalculator 负责）
+- ❌ 不负责配置验证（由 SettingsValidator 负责）
 - ❌ 不负责文件管理（由 TagManager 负责）
 
 ### 3. BaseTagCalculator (`base_tag_calculator.py`)
@@ -326,25 +324,26 @@ class MarketValueCalculator(BaseTagCalculator):
 
 **职责**：框架基类，提供 Calculator 的基础功能和框架支持
 
-**设计初衷**：
-- 统一接口：定义标准的 Calculator 接口
-- 框架功能：配置管理、数据加载、钩子函数支持
-- 减少重复代码：通用功能在基类中实现
-
 **核心功能**：
 
-1. **配置管理**
-   - `_load_and_process_settings()`: 加载并处理 settings
-   - `_validate_calculator_fields()`: 验证 calculator 配置
-   - `_validate_tags_fields()`: 验证 tags 配置
-   - `_apply_calculator_defaults()`: 应用默认值
-   - `_validate_calculator_enums()`: 验证枚举值
-   - `_merge_tag_config()`: 合并 calculator 和 tag 配置
+1. **执行流程**
+   - `run()`: Calculator 入口函数
+   - `ensure_metadata()`: 确保元信息存在
+   - `renew_or_create_values()`: 处理版本变更和更新模式
 
-2. **数据加载**
+2. **元信息管理**
+   - `ensure_scenario()`: 确保 scenario 存在
+   - `ensure_tags()`: 确保 tag definitions 存在
+
+3. **版本变更处理**
+   - `handle_version_change()`: 处理版本变更
+   - `handle_update_mode()`: 根据版本变更结果和 update_mode 计算
+   - `cleanup_legacy_versions()`: 清理旧的 legacy versions
+
+4. **数据加载**
    - `load_entity_data()`: 加载实体历史数据（默认支持股票，可扩展）
 
-3. **钩子函数**
+5. **钩子函数**
    - `on_init()`: 初始化钩子
    - `on_tag_created()`: Tag 创建后钩子
    - `on_calculate_error()`: 计算错误钩子
@@ -352,9 +351,9 @@ class MarketValueCalculator(BaseTagCalculator):
    - `on_finish()`: 完成钩子
 
 **责任边界**：
-- ✅ 配置读取和验证
-- ✅ 配置默认值处理
-- ✅ 配置合并（calculator + tag）
+- ✅ 执行流程管理
+- ✅ 元信息管理
+- ✅ 版本变更处理
 - ✅ 数据加载（默认实现）
 - ✅ 钩子函数框架支持
 - ❌ 不负责业务计算逻辑（由 Calculator 实现）
@@ -366,38 +365,60 @@ class MarketValueCalculator(BaseTagCalculator):
 
 **职责**：统一管理所有业务场景（按业务场景名管理）
 
-**设计初衷**：
-- 统一入口：提供统一的接口访问所有 Calculators
-- 早期过滤：在创建 Calculator 实例前就过滤掉不启用的
-- 生命周期管理：管理 Calculator 类的发现和加载
-
 **核心功能**：
 
-1. **发现和加载**
-   - `_load_calculators()`: 发现所有业务场景（遍历 tags 目录）
-   - `_check_calculator_enabled()`: 检查 calculator 是否启用
-   - `_load_calculator()`: 加载 calculator 类
+1. **发现和注册**
+   - `_discover_and_register_calculators()`: 发现所有业务场景
+   - `register_scenario()`: 注册 scenario（统一入口）
+   - `_validate_all_settings_and_remove_invalid()`: 验证所有 settings
 
 2. **管理接口**
-   - `get_calculator(business_scenario)`: 获取指定业务场景的 calculator 类
-   - `list_tags()`: 列出所有业务场景名称（不是 tag 名称）
-   - `create_calculator(business_scenario)`: 创建指定业务场景的 calculator 实例
+   - `run(scenario_name=None)`: 执行所有或单个 scenario
+   - `get_calculator(scenario_name)`: 获取指定 scenario 的 calculator 类
+   - `get_calculator_instance(scenario_name)`: 获取 calculator 实例（自动创建并缓存）
+   - `list_scenarios()`: 列出所有 scenario 名称
    - `reload()`: 重新发现所有 calculators
 
 **责任边界**：
-- ✅ 发现所有业务场景（遍历 tags 目录）
+- ✅ 发现所有业务场景（遍历 scenarios 目录）
 - ✅ 检查 calculator.py 文件存在性
 - ✅ 检查 settings.py 文件存在性
 - ✅ 检查 calculator 是否启用（早期过滤）
 - ✅ 加载 calculator 类
 - ✅ 管理 calculator 实例（按业务场景名）
-- ❌ 不负责配置验证（由 BaseTagCalculator 负责）
+- ❌ 不负责配置验证（由 SettingsValidator 负责）
 - ❌ 不负责业务计算逻辑（由 Calculator 负责）
 
 **重要说明**：
 - TagManager 管理的是**业务场景**（文件夹名），不是 tag
 - 一个业务场景可以产生多个 tags（在 settings.py 的 `tags` 列表中定义）
-- 要获取某个业务场景产生的所有 tags，需要通过 Calculator 实例访问
+
+### 5. SettingsValidator (`settings_validator.py`)
+
+**位置**：`app/tag/settings_validator.py`
+
+**职责**：提供静态方法用于验证 Tag Calculator 的 settings 配置
+
+**核心方法**：
+- `validate_scenario_fields()`: 验证 scenario 字段
+- `validate_calculator_fields()`: 验证 calculator 字段
+- `validate_tags_fields()`: 验证 tags 字段
+- `validate_enums()`: 验证枚举值
+- `validate_all()`: 完整验证流程
+
+### 6. SettingsProcessor (`settings_processor.py`)
+
+**位置**：`app/tag/settings_processor.py`
+
+**职责**：提供静态方法用于读取、处理和合并 Tag Calculator 的 settings 配置
+
+**核心方法**：
+- `read_settings_file()`: 读取 settings 文件
+- `apply_defaults()`: 应用默认值
+- `load_and_process_settings()`: 完整加载和处理流程
+- `merge_tag_config()`: 合并 calculator 和 tag 配置
+- `process_tags_config()`: 处理 tags 配置列表
+- `extract_calculator_config()`: 提取配置到字典
 
 ---
 
@@ -405,33 +426,45 @@ class MarketValueCalculator(BaseTagCalculator):
 
 ### 配置结构
 
-配置采用两层结构：Calculator 级别和 Tag 级别。
+配置采用三层结构：Scenario 级别、Calculator 级别和 Tag 级别。
 
 ```python
 Settings = {
+    "is_enabled": True,  # 顶层：是否启用
+    "scenario": {
+        # Scenario 级别配置（对应 tag_scenario 表）
+    },
     "calculator": {
-        # Calculator 级别配置（共享给所有 tags）
+        # Calculator 级别配置（计算逻辑相关）
     },
     "tags": [
-        # Tag 级别配置（每个 tag 独立）
+        # Tag 级别配置（对应 tag_definition 表，多个 tags）
     ],
 }
 ```
+
+### Scenario 级别配置
+
+| 配置项 | 类型 | 必需 | 说明 |
+|--------|------|------|------|
+| `name` | str | ✅ | 业务场景唯一代码 |
+| `version` | str | ✅ | 版本号（如 `1.0`） |
+| `display_name` | str | ❌ | 显示名称（默认同 name） |
+| `description` | str | ❌ | 描述（默认 `""`） |
+| `on_version_change` | str | ❌ | 版本变更处理（默认 `REFRESH_SCENARIO`） |
 
 ### Calculator 级别配置
 
 | 配置项 | 类型 | 必需 | 说明 |
 |--------|------|------|------|
-| `meta.name` | str | ✅ | 业务场景名（如 `MARKET_VALUE_BUCKET`） |
-| `meta.description` | str | ✅ | 业务场景描述 |
-| `meta.is_enabled` | bool | ✅ | 是否启用（控制整个 Scenario） |
 | `base_term` | str | ✅ | 基础周期（枚举：`daily`, `weekly`, `monthly`） |
 | `required_terms` | list | ❌ | 需要的其他周期（默认 `[]`） |
 | `required_data` | list | ❌ | 需要的数据源（默认 `[]`） |
+| `start_date` | str | ❌ | 计算开始日期（YYYYMMDD，默认系统默认值） |
+| `end_date` | str | ❌ | 计算结束日期（YYYYMMDD，默认最新交易日） |
 | `core` | dict | ❌ | 共享的计算参数（默认 `{}`） |
 | `performance.max_workers` | int | ❌ | 最大并发数（默认自动分配） |
-| `performance.update_mode` | str | ✅ | 更新模式（`incremental` 或 `refresh`） |
-| `performance.on_version_change` | str | ✅ | 版本变更处理（`refresh_scenario` 或 `new_scenario`） |
+| `performance.update_mode` | str | ❌ | 更新模式（`incremental` 或 `refresh`，默认 `incremental`） |
 
 ### Tag 级别配置
 
@@ -439,7 +472,7 @@ Settings = {
 |--------|------|------|------|
 | `name` | str | ✅ | 标签唯一代码 |
 | `display_name` | str | ✅ | 标签显示名称 |
-| `description` | str | ❌ | 标签描述 |
+| `description` | str | ❌ | 标签描述（默认 `""`） |
 
 **注意**：
 - Tag 级别**不支持** `core` 和 `performance`，只在 Calculator 级别配置
@@ -448,18 +481,474 @@ Settings = {
 
 ### 配置验证
 
+**顶层验证**：
+- `is_enabled`: 必需（在 TagManager 中检查）
+
+**Scenario 级别验证**：
+- `scenario.name`: 必需
+- `scenario.version`: 必需
+- `scenario.on_version_change`: 可选，必须在枚举中
+
 **Calculator 级别验证**：
-- `calculator.meta.name`: 必需
-- `calculator.meta.is_enabled`: 必需（在 TagManager 中检查）
 - `calculator.base_term`: 必需，必须在枚举中
-- `calculator.performance.update_mode`: 必需，必须在枚举中
-- `calculator.performance.on_version_change`: 必需，必须在枚举中
+- `calculator.performance.update_mode`: 可选，必须在枚举中
 
 **Tag 级别验证**：
 - `tags`: 必需，至少一个 tag
 - 每个 tag: `name`, `display_name` 必需
 - Tag name 在同一 Scenario 内唯一
-- Tag 级别不支持 `core` 和 `performance`（只在 calculator 级别配置）
+
+---
+
+## 执行流程
+
+### 整体流程
+
+```
+1. 用户创建 TagManager 并调用 run()
+2. TagManager 自动检查所有 scenarios，读取类和 settings
+3. Validation 后，每个 enable 的 calculator 缓存在 manager 里
+4. 循环执行每个 calculator 的入口函数（scenario 之间同步操作）
+5. 每个 calculator 的入口函数：
+   a. 确保元信息存在（ensure_metadata）
+   b. 处理版本变更和更新模式（renew_or_create_values）
+6. 版本变更处理：
+   a. 对比 version
+   b. 如果 version 不同，进入 on_version_change 流程
+   c. 如果 version 相同，按 update_mode 计算
+7. 计算流程：
+   a. 确定计算日期范围
+   b. 获取实体列表
+   c. 对每个实体和每个日期计算 tags
+```
+
+### TagManager 执行流程
+
+```python
+tag_manager = TagManager()
+tag_manager.run()  # 或 tag_manager.run(scenario_name="market_value")
+```
+
+**TagManager.run() 流程**：
+
+1. **发现和注册 Scenarios**
+   - `_discover_and_register_calculators()`: 遍历 scenarios 目录，加载 settings 和 calculator 类
+   - `register_scenario()`: 统一注册入口，验证并存储
+
+2. **验证所有 Settings**
+   - `_validate_all_settings_and_remove_invalid()`: 验证枚举值等，移除验证失败的 scenarios
+
+3. **执行每个 Calculator**
+   - 对每个 enable 的 scenario（同步执行）：
+     - 获取 calculator 实例（自动创建并缓存）
+     - 调用 `calculator.run()`
+     - 如果出错，记录日志但继续执行其他 scenarios
+
+### Calculator 执行流程
+
+```python
+def run(self):
+    # 1. 确保元信息存在
+    scenario, tag_defs = self.ensure_metadata()
+    
+    # 2. 处理版本变更和更新模式
+    self.renew_or_create_values()
+```
+
+#### ensure_metadata()
+
+```python
+def ensure_metadata(self):
+    # 1. 确保 scenario 存在
+    scenario = self.ensure_scenario()
+    
+    # 2. 确保 tag definitions 存在
+    tag_defs = self.ensure_tags(scenario)
+    
+    return scenario, tag_defs
+```
+
+**ensure_scenario()**：
+- 查询数据库中该 scenario name 的所有版本
+- 如果 settings.version 已存在：返回该 scenario
+- 如果 settings.version 不存在：创建新的 scenario
+
+**ensure_tags()**：
+- 检查该 scenario 下的 tag definitions 是否存在
+- 如果不存在，创建新的 tag definitions
+
+#### renew_or_create_values()
+
+```python
+def renew_or_create_values(self):
+    # 1. 处理版本变更
+    version_action = self.handle_version_change()
+    
+    # 2. 根据版本变更结果和 update_mode 计算
+    self.handle_update_mode(version_action)
+```
+
+**handle_version_change()**：
+- 查询数据库中该 scenario name 的所有版本
+- 如果 settings.version 在数据库中已存在且 is_legacy=0（active）：`version_action = "NO_CHANGE"`
+- 如果 settings.version 在数据库中已存在但 is_legacy=1（legacy）：处理版本回退（见[版本管理](#版本管理)）
+- 如果 settings.version 不在数据库中：
+  - `version_action = on_version_change`（REFRESH_SCENARIO 或 NEW_SCENARIO）
+  - 如果是 NEW_SCENARIO：创建新 scenario，标记旧的为 legacy，清理旧版本
+  - 如果是 REFRESH_SCENARIO：更新 scenario，删除旧的 tag definitions 和 tag values，创建新的
+
+**handle_update_mode(version_action)**：
+- 如果 `version_action == "NO_CHANGE"`：按 `update_mode` 计算（INCREMENTAL 或 REFRESH）
+- 如果 `version_action == "ROLLBACK"`：按照该版本的 update_mode 继续
+- 如果 `version_action == "NEW_SCENARIO"` 或 `"REFRESH_SCENARIO"`：重新计算所有 tags
+
+### 计算流程
+
+```python
+def handle_update_mode(self, version_action: str):
+    # 1. 确定计算日期范围（根据 version_action 和 update_mode）
+    # 2. 获取实体列表
+    # 3. 对每个实体：
+    #    a. 加载历史数据（调用 self.load_entity_data）
+    #    b. 对每个 tag：
+    #        * 对每个日期（从 start_date 到 end_date）：
+    #            - 调用 self.calculate_tag()
+    #            - 如果返回结果，保存 tag 值（调用 self.save_tag_value）
+    #    c. 如果出错，调用 self.on_calculate_error()
+    #    d. 调用 self.on_finish()
+```
+
+---
+
+## 多进程执行设计
+
+### 设计目标
+
+Tag 系统采用多进程并行执行，以提高计算效率，同时保证内存使用可控。设计参考了 Simulator 的成熟实现。
+
+### 核心设计原则
+
+1. **以 Entity 为单位分割 Jobs**：每个 entity（股票）一个 job，完成完整的 tag 计算后存储
+2. **根据 Job 数量决定进程数**：动态决定进程数，最多 10 个进程
+3. **主进程负责监控和管理**：主进程只负责任务分发和进度监控
+4. **子进程初始化后才读取数据**：保证内存使用可控，进程结束自动释放
+5. **最大 Worker 限制**：最多 10 个进程，适合个人电脑环境
+
+### 整体架构
+
+```
+BaseTagCalculator.handle_update_mode()
+    │
+    ├─▶ 1. 确定计算日期范围
+    │
+    ├─▶ 2. 获取实体列表
+    │
+    ├─▶ 3. 分割jobs（每个entity一个job）
+    │
+    ├─▶ 4. 决定进程数（根据job数量，最多10个）
+    │
+    ├─▶ 5. 创建ProcessWorker（使用QUEUE模式）
+    │
+    └─▶ 6. 执行jobs（子进程中加载数据、计算、存储）
+```
+
+### Job 分割策略
+
+**Job 结构**：
+
+```python
+job = {
+    'id': f"{entity_id}_{scenario_name}",
+    'payload': {
+        'entity_id': entity_id,
+        'entity_type': 'stock',
+        'scenario_name': self.scenario_name,
+        'scenario_version': self.scenario_version,
+        'tag_definitions': tag_defs,  # 该scenario的所有tag definitions
+        'tag_configs': self.tags_config,  # 所有tag的配置
+        'start_date': start_date,
+        'end_date': end_date,
+        'base_term': self.base_term,
+        'required_terms': self.required_terms,
+        'required_data': self.required_data,
+        'core': self.core,
+        'calculator_class': self.__class__,  # 用于子进程实例化
+        'settings_path': self.settings_path,  # 用于子进程加载配置
+    }
+}
+```
+
+**分割逻辑**：
+- 每个 entity 一个 job
+- Job 包含该 entity 的所有计算信息（tag definitions、配置、日期范围等）
+- Job ID 格式：`{entity_id}_{scenario_name}`
+
+### 进程数决定策略
+
+**策略**（参考 TaskExecutor 的实现）：
+
+```python
+def _decide_max_workers(job_count: int, max_workers_config: Optional[int] = None) -> int:
+    """
+    根据job数量决定进程数（最多10个）
+    
+    策略：
+    1. 如果配置了max_workers，使用配置值（但不超过10）
+    2. 如果job数量 <= 1，使用1个进程
+    3. 如果job数量 <= 5，使用2个进程
+    4. 如果job数量 <= 10，使用3个进程
+    5. 如果job数量 <= 20，使用5个进程
+    6. 如果job数量 <= 50，使用8个进程
+    7. 否则使用10个进程（最大）
+    """
+```
+
+**配置优先级**：
+1. 如果 `settings.calculator.performance.max_workers` 已配置，优先使用（但不超过 10）
+2. 否则根据 job 数量自动决定
+
+### 主进程职责
+
+**主进程（BaseTagCalculator.handle_update_mode）**：
+1. 确定计算日期范围
+2. 获取实体列表
+3. 分割 jobs（每个 entity 一个 job）
+4. 决定进程数
+5. 创建 ProcessWorker
+6. 监控执行进度
+7. 收集结果和统计信息
+
+**不负责**：
+- ❌ 不加载数据（由子进程负责）
+- ❌ 不执行计算（由子进程负责）
+- ❌ 不存储结果（由子进程负责）
+
+### 子进程职责
+
+**子进程执行函数（静态方法）**：
+
+```python
+@staticmethod
+def _process_single_entity_job(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    子进程执行函数：处理单个entity的tag计算
+    
+    流程：
+    1. 初始化DataManager和TagService（子进程中）
+    2. 加载entity的全量数据（子进程中，到end_date）
+    3. 对每个as_of_date：
+       a. 过滤数据到as_of_date（保证一致性，不包含未来数据）
+       b. 对每个tag计算
+       c. 收集结果
+    4. 批量存储结果
+    5. 返回统计信息
+    
+    注意：
+    - 数据加载在子进程中进行，保证内存可控
+    - 数据过滤到as_of_date，保证计算一致性（避免"上帝模式"问题）
+    - 批量存储，提高性能
+    - 进程结束自动释放内存
+    """
+```
+
+**关键点**：
+1. **数据加载时机**：子进程初始化后才加载数据
+2. **数据加载范围**：加载到 `end_date` 的全量数据（性能优化）
+3. **数据过滤**：框架层面自动过滤到 `as_of_date`（保证一致性）
+4. **批量存储**：收集所有结果后批量写入数据库
+5. **内存管理**：进程结束自动释放内存
+
+### 数据加载和过滤策略
+
+#### 数据加载策略
+
+**全量加载**：
+- 在子进程中一次性加载 entity 到 `end_date` 的全量数据
+- 避免重复 I/O，提高性能
+
+**内存控制**：
+- 每个进程只加载一个 entity 的数据
+- 最大 10 个进程，最多 10 个 entity 的数据在内存中
+- 进程结束自动释放内存
+
+#### 数据过滤策略
+
+**问题**：全量加载可能导致"上帝模式"问题（计算时看到未来数据）
+
+**解决方案**：框架层面强制过滤到 `as_of_date`
+
+```python
+def _filter_data_to_date(historical_data: Dict, as_of_date: str) -> Dict:
+    """
+    过滤数据到指定日期（不包含未来数据）
+    
+    过滤规则：
+    - K线数据：只保留 date <= as_of_date 的记录
+    - 财务数据：只保留 quarter/date <= as_of_date 的记录
+    - 其他时间序列数据：同样过滤
+    """
+```
+
+**调用时机**：
+- 在 `calculate_tag` 调用前，框架自动过滤数据
+- 用户无需关心数据过滤，保证计算一致性
+
+### 执行模式
+
+**使用 QUEUE 模式**（参考 ProcessWorker 的实现）：
+- 持续填充进程池，完成一个立即启动下一个
+- 适合 CPU 密集型任务
+- 充分利用进程池，提高效率
+
+**不使用 BATCH 模式**：
+- BATCH 模式适合内存敏感场景
+- Tag 系统已经通过单 entity 单进程控制内存，不需要 BATCH 模式
+
+### 错误处理
+
+**单个 Entity 失败不影响其他 Entity**：
+- 每个 job 独立执行，互不影响
+- 失败时记录错误日志，继续执行其他 jobs
+- 返回统计信息（成功数、失败数）
+
+**错误处理策略**：
+- 数据加载失败：记录错误，返回失败结果
+- 计算失败：调用 `on_calculate_error` 钩子，根据 `should_continue_on_error` 决定是否继续
+- 存储失败：记录错误，返回失败结果
+
+### 性能优化
+
+1. **全量加载 + 内存过滤**：
+   - 一次加载，多次使用（避免重复 I/O）
+   - 内存中过滤，速度快
+
+2. **批量存储**：
+   - 收集所有结果后批量写入数据库
+   - 减少数据库连接和事务开销
+
+3. **进程池复用**：
+   - 使用 ProcessPoolExecutor，进程池复用
+   - 完成一个 job 立即启动下一个
+
+4. **内存隔离**：
+   - 每个进程独立内存空间
+   - 进程结束自动释放，无需手动管理
+
+### 与 Simulator 的对比
+
+| 特性 | Simulator | Tag System |
+|------|-----------|------------|
+| Job 分割 | 每个 stock 一个 job | 每个 entity 一个 job |
+| 进程数决定 | 使用 CPU 核心数 | 根据 job 数量，最多 10 个 |
+| 数据加载 | 子进程中加载 | 子进程中加载 |
+| 执行模式 | QUEUE 模式 | QUEUE 模式 |
+| 最大 worker | CPU 核心数 | 10（可配置） |
+| 数据过滤 | 按日期过滤（get_data_of_today） | 按 as_of_date 过滤（_filter_data_to_date） |
+
+### 关键设计决策
+
+#### 1. 为什么使用多进程而不是多线程？
+
+**原因**：
+- Tag 计算是 CPU 密集型任务
+- 多进程绕过 Python GIL 限制，真正并行执行
+- 内存隔离，提高稳定性
+
+#### 2. 为什么最多 10 个进程？
+
+**原因**：
+- 适合个人电脑环境（内存压力可控）
+- 10 个进程已经能充分利用多核 CPU
+- 避免进程过多导致上下文切换开销
+
+#### 3. 为什么在子进程中加载数据？
+
+**原因**：
+- 保证内存使用可控（每个进程只加载一个 entity 的数据）
+- 进程结束自动释放内存
+- 参考 Simulator 的成熟实现
+
+#### 4. 为什么需要数据过滤？
+
+**原因**：
+- 全量加载可能导致"上帝模式"问题
+- 框架层面过滤保证计算一致性
+- 用户无需关心数据过滤细节
+
+#### 5. 为什么使用 QUEUE 模式？
+
+**原因**：
+- 持续填充进程池，充分利用资源
+- 适合 CPU 密集型任务
+- 单 entity 单进程已经控制内存，不需要 BATCH 模式
+
+### 实现要点
+
+1. **复用 ProcessWorker**：直接使用现有的 `ProcessWorker` 类
+2. **静态方法**：`_process_single_entity_job` 必须是静态方法（支持 pickle 序列化）
+3. **数据过滤**：实现 `_filter_data_to_date` 方法
+4. **批量存储**：实现 `batch_save_tag_values` 方法（TagService 中）
+5. **错误处理**：单个 entity 失败不影响其他 entity
+
+---
+
+## 版本管理
+
+### 版本变更处理
+
+版本变更在 `handle_version_change()` 中处理，支持以下场景：
+
+1. **NO_CHANGE**：版本未变，继续使用
+2. **NEW_SCENARIO**：创建新 scenario，保留旧的
+3. **REFRESH_SCENARIO**：删除之前结果，重新计算
+4. **ROLLBACK**：版本回退（需要配置允许）
+
+### 版本回退（Version Rollback）
+
+**场景**：用户把 version 从 "2.0" 改回 "1.0"（版本1已经存在且是 legacy）
+
+**处理逻辑**：
+
+1. **检查全局配置 `ALLOW_VERSION_ROLLBACK`**（默认 False）
+   - 如果 `ALLOW_VERSION_ROLLBACK = False`：
+     - 记录严重警告日志，明确告知风险
+     - 抛出 ValueError，阻止继续执行
+     - 用户需要明确配置 `ALLOW_VERSION_ROLLBACK = True` 才能继续
+   - 如果 `ALLOW_VERSION_ROLLBACK = True`：
+     - 记录警告日志，明确告知风险
+     - 查找当前的 active 版本（is_legacy=0）
+     - 如果存在 active 版本：标记之前的 active 版本为 legacy
+     - 把当前版本（settings.version）设置为 legacy=0（active）
+     - 注意：不删除旧的 tag definitions 和 tag values
+     - 确保 tag definitions 存在
+     - 按照该版本的 update_mode 继续（incremental 或 refresh）
+     - `version_action = "ROLLBACK"`
+
+2. **关键点**：
+   - **不删除旧数据**：保留历史数据，让用户可以查看
+   - **按照该版本的 update_mode 继续**：如果该版本之前是 incremental，继续 incremental；如果是 refresh，就 refresh
+   - **用户需要对自己的行为负责**：如果版本1之前是 incremental 跑的，现在继续 incremental 跑，可能会和之前的 tag 结果不一致
+
+3. **全局配置**（`app/tag/config.py`）：
+   ```python
+   ALLOW_VERSION_ROLLBACK = False  # 默认 False，需要用户明确配置为 True
+   ```
+
+### Legacy Version 清理
+
+**策略**：保留 active version + 最多 N 个 legacy versions（默认 N=3）
+
+**逻辑**：
+- 当创建新 scenario 时（NEW_SCENARIO），如果 legacy version 数量 >= keep_n，删除最老的
+- 所有 version 变化都统一处理，无论是手动还是自动创建
+
+**实现**：
+```python
+def cleanup_legacy_versions(self, scenario_name: str, keep_n: int = 3):
+    # 1. 查询所有 legacy scenarios（按 created_at 排序，最老的在前）
+    # 2. 如果数量 >= keep_n：
+    #    - 删除最老的 scenarios（调用 tag_service.delete_scenario）
+```
 
 ---
 
@@ -467,16 +956,18 @@ Settings = {
 
 ### 组件职责矩阵
 
-| 功能 | Settings | Calculator | BaseTagCalculator | TagManager |
-|------|----------|------------|-------------------|------------|
-| 定义配置 | ✅ | ❌ | ❌ | ❌ |
-| 验证配置 | ❌ | ❌ | ✅ | ❌ |
-| 读取配置 | ❌ | ❌ | ✅ | ❌ |
-| 检查启用状态 | ❌ | ❌ | ❌ | ✅ |
-| 实现计算逻辑 | ❌ | ✅ | ❌ | ❌ |
-| 加载数据 | ❌ | 可选 | ✅ (默认) | ❌ |
-| 发现业务场景 | ❌ | ❌ | ❌ | ✅ |
-| 管理实例 | ❌ | ❌ | ❌ | ✅ |
+| 功能 | Settings | Calculator | BaseTagCalculator | TagManager | SettingsValidator | SettingsProcessor |
+|------|----------|------------|-------------------|------------|-------------------|-------------------|
+| 定义配置 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 验证配置 | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| 读取配置 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 检查启用状态 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| 实现计算逻辑 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 加载数据 | ❌ | 可选 | ✅ (默认) | ❌ | ❌ | ❌ |
+| 发现业务场景 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| 管理实例 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| 执行流程 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| 版本管理 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 ### 责任边界总结
 
@@ -491,13 +982,23 @@ Settings = {
 - ❌ 不验证配置结构
 
 **BaseTagCalculator**：
-- ✅ 只提供框架支持
+- ✅ 只提供框架支持（执行流程、版本管理、数据加载）
 - ❌ 不实现业务逻辑
 
 **TagManager**：
 - ✅ 只管理业务场景
 - ❌ 不计算
 - ❌ 不验证配置结构
+
+**SettingsValidator**：
+- ✅ 只验证配置
+- ❌ 不处理配置
+- ❌ 不执行计算
+
+**SettingsProcessor**：
+- ✅ 只处理配置（读取、默认值、合并）
+- ❌ 不验证配置
+- ❌ 不执行计算
 
 ---
 
@@ -510,6 +1011,8 @@ Settings = {
 - Calculator 只实现计算
 - Manager 只管理
 - BaseTagCalculator 只提供框架
+- SettingsValidator 只验证
+- SettingsProcessor 只处理
 
 ### 2. 配置驱动
 
@@ -555,7 +1058,7 @@ Settings = {
 - 一个 Scenario 的所有 Tags 应该共享同一个版本
 - 便于版本管理和历史追溯
 
-### 3. 为什么 is_enabled 只在 Calculator 级别？
+### 3. 为什么 is_enabled 在顶层？
 
 **原因**：
 - `is_enabled` 控制整个业务场景是否启用
@@ -574,8 +1077,8 @@ Settings = {
 
 **原因**：
 - 算法改变影响的是整个业务场景，不是单个 Tag
-- `refresh_scenario`：刷新该 Scenario 下所有 Tags 的值
-- `new_scenario`：创建新的 Scenario（保留旧 Scenario 的数据）
+- `REFRESH_SCENARIO`：刷新该 Scenario 下所有 Tags 的值
+- `NEW_SCENARIO`：创建新的 Scenario（保留旧 Scenario 的数据）
 - 更符合业务逻辑和版本管理
 
 ### 6. 为什么 Settings 和 Calculator 分离？
@@ -592,12 +1095,21 @@ Settings = {
 - Manager 负责管理，应该知道哪些 Calculator 可用
 - 职责清晰：Manager 管理，Calculator 计算
 
-### 8. 为什么 BaseTagCalculator 负责配置验证？
+### 8. 为什么配置验证和处理分离？
 
 **原因**：
-- 配置验证是 Calculator 初始化的必要步骤
-- 验证逻辑与 Calculator 紧密相关
-- 用户创建 Calculator 实例时自动验证，确保配置正确
+- 职责单一：验证和处理是不同的职责
+- 代码复用：TagManager 和 BaseTagCalculator 可以共享验证逻辑
+- 易于测试：静态方法易于单元测试
+- 易于维护：配置相关逻辑集中管理
+
+### 9. 为什么版本回退需要全局配置？
+
+**原因**：
+- 版本回退可能导致数据不一致
+- 只有 calculator 逻辑和 version 都回退，才能保证结果一致
+- 用户需要明确知晓风险并主动配置
+- 默认不允许，确保安全性
 
 ---
 
@@ -609,25 +1121,27 @@ Settings = {
 app/tag/
 ├── base_tag_calculator.py      # 框架基类
 ├── tag_manager.py               # 业务场景管理器
+├── settings_validator.py        # 配置验证器（静态方法）
+├── settings_processor.py        # 配置处理器（静态方法）
+├── scenario_identifier.py       # Scenario 标识符类
 ├── enums.py                     # 枚举定义
+├── config.py                    # 全局配置
 ├── docs/
 │   └── DESIGN.md               # 本文档
-└── tags/
-    ├── market_value_bucket/     # 业务场景名（不是 tag name）
-    │   ├── settings.py         # 定义 calculator 和多个 tags 配置
-    │   └── calculator.py       # 实现市值分类计算逻辑
-    │
-    ├── momentum_classifier/     # 另一个业务场景
+└── scenarios/
+    ├── example/                # 示例场景
     │   ├── settings.py
     │   └── calculator.py
-    │
+    ├── market_value/            # 市值分类场景
+    │   ├── settings.py
+    │   └── calculator.py
     └── ...
 ```
 
 ### 重要概念
 
 **业务场景 vs Tag**：
-- **业务场景**（文件夹名）：如 `market_value_bucket`（市值分类）
+- **业务场景**（文件夹名）：如 `market_value`（市值分类）
 - **Tag**（settings 中定义）：如 `large_market_value`, `small_market_value`
 - 一个业务场景可以产生多个 tags
 - TagManager 管理的是业务场景，不是 tag
@@ -641,13 +1155,16 @@ app/tag/
 **重大变更**：
 - 采用三层表结构：`tag_scenario`, `tag_definition`, `tag_value`
 - Version 移到 Scenario 级别
-- `on_version_change` 改为 Scenario 级别（`refresh_scenario` / `new_scenario`）
-- `is_enabled` 只在 Calculator 级别，不在 Tag 级别
+- `on_version_change` 改为 Scenario 级别（`REFRESH_SCENARIO` / `NEW_SCENARIO`）
+- `is_enabled` 移到顶层
+- 配置验证和处理分离（SettingsValidator 和 SettingsProcessor）
+- 支持版本回退（需要全局配置允许）
 
 **设计改进**：
 - 数据模型更清晰
 - 版本管理更合理
 - 职责边界更明确
+- 代码结构更简洁
 
 ### v1.0 (之前版本)
 
@@ -674,169 +1191,23 @@ app/tag/
 - `REFRESH_SCENARIO`: 刷新该 Scenario 下所有 Tags 的值
 - `NEW_SCENARIO`: 创建新的 Scenario（保留旧 Scenario 的数据）
 
-**SupportedDataSource**：
-- `KLINE`: K线数据
-- `CORPORATE_FINANCE`: 财务数据
+**VersionAction**（内部使用）：
+- `NO_CHANGE`: 版本未变
+- `NEW_SCENARIO`: 创建新 scenario
+- `REFRESH_SCENARIO`: 刷新 scenario
+- `ROLLBACK`: 版本回退
+
+### 全局配置
+
+**app/tag/config.py**：
+```python
+# Scenarios 根目录配置
+DEFAULT_SCENARIOS_ROOT = "app/tag/scenarios"
+
+# 版本回退配置
+ALLOW_VERSION_ROLLBACK = False  # 是否允许版本回退（默认 False）
+```
 
 ---
 
 **文档结束**
-
-
-顶层：TagManager 启动整体流程
-[用户代码]
-    |
-    v
-+----------------------+
-| TagManager.run()     |
-+----------------------+
-    |
-    v
-+-------------------------------------+
-| _discover_and_register_calculators()|
-+-------------------------------------+
-    |
-    v
-+-----------------------------+
-| _validate_all_settings()    |
-+-----------------------------+
-    |
-    v
-+-----------------------------+
-| for calc in self.calculators|
-|     calc.run()              |
-+-----------------------------+
-
-核心函数（TagManager）
-TagManager.run()
-TagManager.register_scenario(settings_dict) ← 支持“无 settings 文件”的入口
-TagManager._discover_and_register_calculators() ← 扫描静态 settings / modules
-TagManager._validate_all_settings() ← 统一做 schema 校验，抛出早期错误
-
-
-单个 Calculator 的生命周期（核心）
-
-BaseCalculator.run()
-    |
-    v
-+--------------------------------+
-| ensure_metadata()              |
-|  - ensure_scenario()           |
-|  - ensure_tags()               |
-+--------------------------------+
-    |
-    v
-+--------------------------------+
-| renew_or_create_values()       |
-|  - handle_version_change()     |
-|  - handle_update_mode()        |
-+--------------------------------+
-
-
-创建 / 同步元信息
-
-BaseCalculator.run()
-    |
-    v
-+--------------------------+
-| ensure_metadata()        |
-+--------------------------+
-    |
-    v
-+-------------------------------+
-| scenario = ensure_scenario()  |
-+-------------------------------+
-    |
-    v
-+--------------------------------------------+
-| tag_defs = ensure_tags(scenario)           |
-+--------------------------------------------+
-    |
-    v
-(进入 renew_or_create_values)
-
-
-核心函数（Calculator 内）
-BaseCalculator.run()
-BaseCalculator.ensure_metadata()
-BaseCalculator.ensure_scenario() -> ScenarioRecord
-BaseCalculator.ensure_tags(scenario: ScenarioRecord) -> List[TagDefinition]
-
-
-ensure_scenario()
-    |
-    v
-+---------------------------------------------------+
-| existing = repo.get_scenarios_by_name(name)       |
-+---------------------------------------------------+
-    |
-    v
-+------------------------------------------------------+
-| target = _select_or_create_scenario(existing,        |
-|                                     settings.version)|
-+------------------------------------------------------+
-    |
-    v
-return target
-
-renew_or_create_values：版本 & 更新模式控制
-
-
-BaseCalculator.run()
-    |
-    v
-+------------------------------+
-| renew_or_create_values()     |
-+------------------------------+
-    |
-    v
-+-----------------------------------------+
-| version_action = handle_version_change()|
-+-----------------------------------------+
-    |
-    v
-+--------------------------------------------+
-| handle_update_mode(version_action)         |
-+--------------------------------------------+
-
-
-handle_version_change()
-
-handle_version_change()
-    |
-    v
-+-------------------------------------------------+
-| db_versions = repo.get_scenarios_by_name(name)  |
-+-------------------------------------------------+
-    |
-    v
-+------------------------------+
-| if settings.version 在 db 中?|
-+------------------------------+
-    | Yes                             | No
-    |                                 |
-    v                                 v
-+-------------------+        +----------------------------+
-| version_action =  |        | version_action =           |
-| "NO_CHANGE"       |        | on_version_change          |
-+-------------------+        |  (REFRESH_SCENARIO /      |
-                             |   NEW_SCENARIO)           |
-                             +----------------------------+
-                                      |
-                                      v
-                            +-----------------------------+
-                            | new_scenario =             |
-                            |   create_new_scenario()    |
-                            +-----------------------------+
-                                      |
-                                      v
-                            +-----------------------------+
-                            | cleanup_legacy_versions()   |
-                            +-----------------------------+
-
-return version_action
-核心函数
-BaseCalculator.handle_version_change() -> VersionAction
-BaseCalculator.create_new_scenario() -> ScenarioRecord
-BaseCalculator.cleanup_legacy_versions(name: str, keep_n: int = 3)
-

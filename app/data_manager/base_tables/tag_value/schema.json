@@ -65,11 +65,6 @@
       "name": "idx_tag_date",
       "fields": ["tag_definition_id", "as_of_date"],
       "description": "辅助查询：某个标签在某个日期的所有实体"
-    },
-    {
-      "name": "idx_entity_tag_date",
-      "fields": ["entity_id", "tag_definition_id", "as_of_date"],
-      "description": "增量计算查询：优化查询每个 (entity_id, tag_definition_id) 的最大 as_of_date，用于增量计算"
     }
   ]
 }

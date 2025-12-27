@@ -295,17 +295,17 @@ class MarketValueCalculator(BaseTagCalculator):
         - large_market_value: 大市值股票
         - small_market_value: 小市值股票
         """
-        # 获取配置参数
+        # 获取配置参数（所有 tags 共享 calculator 的 core 配置）
         mkv_threshold = tag_config["core"]["mkv_threshold"]
-        tag_label = tag_config["core"].get("label", "")
+        tag_name = tag_config["tag_meta"]["name"]
         
         # 实现计算逻辑
         market_value = historical_data.get("market_value", {}).get("current", 0)
         
-        if tag_label == "large":
+        if tag_name == "large_market_value":
             if market_value > mkv_threshold:
                 return {"value": "1", "as_of_date": as_of_date}
-        elif tag_label == "small":
+        elif tag_name == "small_market_value":
             if market_value <= mkv_threshold:
                 return {"value": "1", "as_of_date": as_of_date}
         
@@ -440,19 +440,11 @@ Settings = {
 | `name` | str | ✅ | 标签唯一代码 |
 | `display_name` | str | ✅ | 标签显示名称 |
 | `description` | str | ❌ | 标签描述 |
-| `version` | str | ✅ | 版本号（会被 Scenario 的 version 覆盖） |
-| `core` | dict | ❌ | Tag 特定的计算参数（会合并到 calculator.core） |
-| `performance` | dict | ❌ | Tag 特定的性能配置（会覆盖 calculator.performance） |
 
 **注意**：
-- `is_enabled` **不在** Tag 级别，只在 Calculator 级别
-- 如果 Calculator 启用，所有 Tags 都会被计算
-
-### 配置合并规则
-
-1. **core 合并**：`tag.core` 会合并到 `calculator.core`（tag 的 core 覆盖 calculator 的 core）
-2. **performance 覆盖**：`tag.performance` 会覆盖 `calculator.performance`（如果存在）
-3. **其他字段**：Tag 级别优先
+- Tag 级别**不支持** `core` 和 `performance`，只在 Calculator 级别配置
+- 所有 Tags 共享 Calculator 的 `core` 和 `performance` 配置
+- 简化设计：避免配置复杂性，所有 tags 使用相同的计算参数和性能配置
 
 ### 配置验证
 
@@ -465,8 +457,9 @@ Settings = {
 
 **Tag 级别验证**：
 - `tags`: 必需，至少一个 tag
-- 每个 tag: `name`, `display_name`, `version` 必需
+- 每个 tag: `name`, `display_name` 必需
 - Tag name 在同一 Scenario 内唯一
+- Tag 级别不支持 `core` 和 `performance`（只在 calculator 级别配置）
 
 ---
 

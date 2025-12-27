@@ -234,8 +234,8 @@ class BaseTagCalculator(ABC):
             if not isinstance(tag, dict):
                 raise ValueError(f"tags[{i}] 必须是字典，当前类型: {type(tag)}")
             
-            # 必需字段（注意：is_enabled 只在 calculator 级别，不在 tag 级别）
-            required_fields = ["name", "display_name", "version"]
+            # 必需字段（注意：version 在 scenario 级别，不在 tag 级别）
+            required_fields = ["name", "display_name"]
             for field in required_fields:
                 if field not in tag:
                     raise ValueError(f"tags[{i}] 缺少必需字段: {field}")
@@ -246,9 +246,6 @@ class BaseTagCalculator(ABC):
             
             if not isinstance(tag["display_name"], str):
                 raise ValueError(f"tags[{i}].display_name 必须是字符串，当前类型: {type(tag['display_name'])}")
-            
-            if not isinstance(tag["version"], str):
-                raise ValueError(f"tags[{i}].version 必须是字符串，当前类型: {type(tag['version'])}")
             
             # 检查 tag name 唯一性
             tag_name = tag["name"]
@@ -370,6 +367,8 @@ class BaseTagCalculator(ABC):
         """
         合并 calculator 和 tag 配置
         
+        注意：tag 级别不支持 core 和 performance，只在 calculator 级别配置
+        
         Args:
             tag_config: tag 配置字典
             
@@ -379,21 +378,13 @@ class BaseTagCalculator(ABC):
         calculator = self.settings["calculator"]
         merged = calculator.copy()
         
-        # 合并 core（tag 覆盖 calculator）
-        merged_core = calculator.get("core", {}).copy()
-        if "core" in tag_config:
-            merged_core.update(tag_config["core"])
-        merged["core"] = merged_core
+        # 注意：tag 级别不支持 core 和 performance，直接使用 calculator 的配置
+        # core 和 performance 只在 calculator 级别配置，所有 tags 共享
         
-        # 覆盖 performance（如果 tag 有）
-        if "performance" in tag_config:
-            merged["performance"] = tag_config["performance"]
-        
-        # 添加 tag 元信息（注意：is_enabled 只在 calculator 级别）
+        # 添加 tag 元信息
         merged["tag_meta"] = {
             "name": tag_config["name"],
             "display_name": tag_config["display_name"],
-            "version": tag_config["version"],
             "description": tag_config.get("description", ""),
         }
         
@@ -502,10 +493,10 @@ class BaseTagCalculator(ABC):
                 - base_term: 基础周期
                 - required_terms: 需要的周期列表
                 - required_data: 需要的数据源列表
-                - core: 合并后的 core 参数（calculator.core + tag.core）
-                - performance: performance 配置（tag 覆盖 calculator）
-                - tag_meta: tag 元信息（name, display_name, version, description）
-                   注意：is_enabled 只在 calculator 级别，不在 tag 级别
+                - core: calculator 的 core 参数（所有 tags 共享）
+                - performance: calculator 的 performance 配置（所有 tags 共享）
+                - tag_meta: tag 元信息（name, display_name, description）
+                   注意：tag 级别不支持 core 和 performance，只在 calculator 级别配置
         
         Returns:
             TagEntity 或 None（不创建 tag）

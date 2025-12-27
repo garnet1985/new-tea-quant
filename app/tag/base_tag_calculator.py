@@ -31,8 +31,7 @@ class BaseTagCalculator(ABC):
         self, 
         settings_path: str,
         data_mgr=None,
-        data_source_mgr=None,
-        tag_value_model=None
+        tag_service=None
     ):
         """
         初始化 Calculator
@@ -40,13 +39,11 @@ class BaseTagCalculator(ABC):
         Args:
             settings_path: settings 文件路径（相对于 calculator 同级目录）
             data_mgr: DataManager 实例（用于访问数据库模型）
-            data_source_mgr: DataSourceManager 实例（用于加载数据源）
-            tag_value_model: TagValueModel 实例（用于保存 tag 值）
+            tag_service: TagService 实例（用于访问 tag 相关的数据库操作）
         """
         self.settings_path = settings_path
         self.data_mgr = data_mgr
-        self.data_source_mgr = data_source_mgr
-        self.tag_value_model = tag_value_model
+        self.tag_service = tag_service
         
         # 获取 calculator 文件路径（用于确定 settings 的相对路径）
         import inspect
@@ -403,13 +400,14 @@ class BaseTagCalculator(ABC):
         """
         加载实体历史数据（可扩展接口）
         
-        默认实现：只支持股票
-        - entity_id 就是股票代码（如 "000001.SZ"）
-        - 从 data_source 系统加载股票数据
+        默认实现：只支持股票，从数据库加载数据
+        
+        Tag 系统是预计算系统，数据应该已经存储在数据库中。
+        所有数据都通过 DataManager 从数据库加载，不使用第三方数据源。
         
         高级用户扩展：
         - 重写此方法，支持其他 entity（指数、板块、kline 等）
-        - 使用 self.data_source_mgr 加载自定义数据
+        - 使用 self.data_mgr 从数据库加载自定义数据
         
         Args:
             entity_id: 实体ID（默认是股票代码）
@@ -422,6 +420,9 @@ class BaseTagCalculator(ABC):
                 - finance: List[Dict] - 财务数据（如果有）
                 - ... 其他历史数据
         """
+        if not self.data_mgr:
+            raise ValueError("DataManager 未初始化，无法加载数据")
+        
         historical_data = {}
         
         # 加载 kline 数据（根据 base_term 和 required_terms）
@@ -429,37 +430,21 @@ class BaseTagCalculator(ABC):
         klines = {}
         
         for term in kline_terms:
-            if self.data_source_mgr:
-                # 从 data_source 系统加载
-                kline_data = self.data_source_mgr.load_kline(
-                    entity_id=entity_id,
-                    term=term,
-                    end_date=as_of_date
-                )
+            # 从数据库加载（通过 DataManager）
+            kline_model = self.data_mgr.get_model(f"stock_kline_{term}")
+            if kline_model:
+                kline_data = kline_model.load_by_stock(entity_id, end_date=as_of_date)
                 klines[term] = kline_data
-            elif self.data_mgr:
-                # 从数据库加载（备用方案）
-                kline_model = self.data_mgr.get_model(f"stock_kline_{term}")
-                if kline_model:
-                    kline_data = kline_model.load_by_stock(entity_id, end_date=as_of_date)
-                    klines[term] = kline_data
         
         historical_data["klines"] = klines
         
         # 加载其他数据源
         for data_source in self.required_data:
             if data_source == "corporate_finance":
-                if self.data_source_mgr:
-                    finance_data = self.data_source_mgr.load_corporate_finance(
-                        entity_id=entity_id,
-                        end_date=as_of_date
-                    )
+                finance_model = self.data_mgr.get_model("corporate_finance")
+                if finance_model:
+                    finance_data = finance_model.load_by_stock(entity_id, end_date=as_of_date)
                     historical_data["finance"] = finance_data
-                elif self.data_mgr:
-                    finance_model = self.data_mgr.get_model("corporate_finance")
-                    if finance_model:
-                        finance_data = finance_model.load_by_stock(entity_id, end_date=as_of_date)
-                        historical_data["finance"] = finance_data
         
         return historical_data
     

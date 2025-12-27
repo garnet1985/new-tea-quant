@@ -1,528 +1,690 @@
-# Tag 系统架构设计文档
+# Tag 系统设计文档
 
-**版本：** 1.0  
-**日期：** 2025-12-24  
-**状态：** 设计阶段
+**版本**: v2.0  
+**最后更新**: 2025-12-26  
+**设计者**: System Architecture Team
 
 ---
 
 ## 📋 目录
 
-1. [设计动机](#设计动机)
-2. [核心设计思想](#核心设计思想)
-3. [需要覆盖的场景](#需要覆盖的场景)
-4. [系统架构](#系统架构)
-5. [数据库设计](#数据库设计)
-6. [Calculator 设计](#calculator-设计)
-7. [执行流程](#执行流程)
-8. [与 Labeler 的关系](#与-labeler-的关系)
-9. [值缓存机制](#值缓存机制)
+1. [概述](#概述)
+2. [数据模型设计](#数据模型设计)
+3. [核心组件](#核心组件)
+4. [配置设计](#配置设计)
+5. [职责边界](#职责边界)
+6. [设计原则](#设计原则)
+7. [关键设计决策](#关键设计决策)
 
 ---
 
-## 设计动机
+## 概述
 
-### 问题背景
+Tag 系统是一个用于预计算和存储实体属性/状态的框架。系统采用配置驱动的方式，允许用户通过 Python 配置文件定义业务场景（Scenario），每个场景可以产生多个标签（Tag）。
 
-在策略回测中，经常需要根据股票的状态、特征等信息进行判断和筛选。这些判断逻辑可能：
+### 核心概念
 
-1. **计算复杂且耗时**：如"牛市/熊市"划分需要分析长期趋势，遍历所有历史数据
-2. **多策略复用**：多个策略都需要相同的标签（如"大市值"、"高动量"）
-3. **需要提前预处理**：在回测时实时计算会影响回测速度
-4. **数据一致性要求**：多个策略使用相同的标签定义，需要保证数据一致性
+- **业务场景（Scenario）**：一个业务逻辑单元，对应一个 Calculator 和一个 Settings 配置
+  - 例如：市值分类（`market_value_bucket`）
+  - 一个 Scenario 可以产生多个 Tags
+  - **版本（Version）**在 Scenario 级别管理
 
-### 现有 Labeler 系统的局限性
+- **标签定义（Tag Definition）**：Scenario 产生的具体标签
+  - 例如：大市值股票（`large_market_value`）、小市值股票（`small_market_value`）
+  - 属于某个 Scenario，共享 Scenario 的版本
 
-现有的 `labeler` 系统存在以下局限性：
+- **标签值（Tag Value）**：标签的实际计算结果
+  - 存储实体在某个日期的标签值
+  - 引用 Tag Definition
 
-1. **固定时间切片**：只能按固定间隔（30天）计算标签，不够灵活
-2. **单一计算模式**：只能返回标签ID字符串，不支持复杂的数据结构
-3. **缺乏时间段支持**：无法表示标签的起始和结束时间
-4. **难以扩展**：添加新的标签计算逻辑需要修改核心代码
+### 系统架构
 
-### Tag 系统的设计目标
-
-1. **灵活的标签计算**：支持自定义计算逻辑和定期切片两种模式
-2. **时间段支持**：支持标签的起始和结束时间，满足连续标签和切片标签的需求
-3. **配置驱动**：通过配置文件定义 tag，无需修改核心代码
-4. **性能优化**：支持增量计算、多线程/进程并行计算
-5. **存储层极简**：只负责存和查，不关心怎么算
-6. **解释权在 Strategy**：tag 的值由 strategy 自己解释和使用
-
----
-
-## 核心设计思想
-
-### 1. Tag 是快速缓存机制（包含值缓存）
-
-Tag 系统的本质是**一种提前计算的缓存机制**，用于：
-
-- **性能优化**：避免在回测时重复计算相同的指标
-- **多策略复用**：一次计算，多个策略使用
-- **复杂计算预处理**：耗时计算提前完成，回测时直接查询
-- **值缓存机制**：Tag 的 `value` 不仅可以存储分类标签，还可以存储计算值（如动量值、波动率等），用于横向切片和排序
-
-**值缓存示例**：
-- **月动量 Tag**：每个股票在每个月的第一天计算动量值，存储在 `value` 中（如 `"0.15"`）
-- **策略使用**：回测时，查询所有股票的"月动量" tag，根据 `value` 进行排序，选出前10个
-- **优势**：避免在回测时重新计算所有股票的动量，大大降低计算量和内存使用
-
-**注意**：Tag 不是必须的，策略完全可以自己计算。Tag 的价值在于：
-- 多策略复用场景
-- 复杂计算场景
-- 通用标签场景
-- **值缓存场景**：需要横向切片和排序的场景（如每月动量前10）
-
-### 2. 存储层极简，计算层灵活
-
-- **存储层**：只负责存和查，不关心怎么算
-- **计算层**：支持自定义 calculator，可以很复杂，但不影响存储层
-
-### 3. 两种计算模式
-
-Tag 系统支持两种计算模式：
-
-- **自定义 Tag**：用户通过 calculator 定义计算逻辑，遍历历史数据
-- **切片 Tag**：定期切片（如每月），系统自动生成切片，也可以有 calculator 计算切片内的值
-
-### 4. 配置驱动
-
-Tag 的定义和计算逻辑通过配置文件定义，无需修改核心代码。
-
-**目录组织**：
-- 每个 tag 类型一个文件夹（`app/tag/tags/<tag_name>/`）
-- 每个文件夹包含：
-  - `config.py`：Tag 配置（tag 元信息、计算参数等）
-  - `calculator.py`：Tag 计算方法（继承 `BaseTagCalculator`）
-
-**优势**：
-- 便于管理：每个 tag 的逻辑独立
-- 易于扩展：添加新 tag 只需新建文件夹
-- 配置清晰：配置和计算逻辑分离
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Tag 系统架构                          │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  ┌──────────────┐      ┌──────────────┐                  │
+│  │ TagManager   │─────▶│  Calculator  │                  │
+│  │ (发现/管理)   │      │  (业务逻辑)   │                  │
+│  └──────────────┘      └──────────────┘                  │
+│         │                    │                            │
+│         │                    │                            │
+│         ▼                    ▼                            │
+│  ┌──────────────┐      ┌──────────────┐                  │
+│  │   Settings    │      │ BaseTagCalc  │                  │
+│  │  (配置文件)   │      │  (框架基类)   │                  │
+│  └──────────────┘      └──────────────┘                  │
+│                                                           │
+│         │                    │                            │
+│         └────────────────────┘                            │
+│                    │                                      │
+│                    ▼                                      │
+│         ┌──────────────────────┐                          │
+│         │   Database Tables    │                          │
+│         │  - tag_scenario      │                          │
+│         │  - tag_definition    │                          │
+│         │  - tag_value         │                          │
+│         └──────────────────────┘                          │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 需要覆盖的场景
+## 数据模型设计
 
-### 场景 A：连续但间隔不固定的 Tag
+### 三层表结构
 
-**示例**：市场状态划分（牛市、震荡市、熊市）
+系统采用三层表结构，清晰分离业务场景、标签定义和标签值：
 
-- **特点**：
-  - 连续交替出现
-  - 没有明确的结束时间（直到下一个状态开始）
-  - 上一个 tag 的结束时间 = 下一个 tag 的开始时间 - 1 天
+```
+tag_scenario (业务场景层)
+    │
+    ├─▶ tag_definition (标签定义层)
+            │
+            └─▶ tag_value (标签值层)
+```
 
-**实现**：
-- 在 tag 配置中声明 `is_continuous: true`
-- 系统自动处理连续关系：上一个 tag 的 `end_date` = 下一个 tag 的 `start_date` - 1 天
+### 1. tag_scenario 表
 
-### 场景 B：定期切片 Tag（值缓存）
+**用途**：存储业务场景的元信息和版本管理
 
-**示例**：每月动量最大的10个股票
+**表结构**：
 
-- **特点**：
-  - 有明确的起始和结束时间（一个月）
-  - 定期重复（每月）
-  - 需要提前计算，提升回测效率
-  - **值缓存机制**：每个股票的动量值存储在 tag 的 `value` 中
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | BIGINT | 自增主键 |
+| `name` | VARCHAR(64) | 业务场景唯一代码（如 `market_value_bucket`） |
+| `display_name` | VARCHAR(128) | 业务场景显示名称 |
+| `version` | VARCHAR(32) | **版本号**（如 `1.0`, `2.0`），代表算法版本 |
+| `description` | TEXT | 业务场景描述 |
+| `calculator_path` | VARCHAR(255) | Calculator 文件路径 |
+| `settings_path` | VARCHAR(255) | Settings 文件路径 |
+| `is_enabled` | TINYINT(1) | 是否启用（默认 1） |
+| `created_at` | DATETIME | 创建时间 |
+| `updated_at` | DATETIME | 更新时间 |
 
-**实现方式**：
-1. **计算阶段**：
-   - 在每个月的第一天，使用多线程按股票逐个计算动量值
-   - 将动量值存储在"月动量" tag 的 `value` 中（如 `"0.15"`）
-   - 每个股票一个 tag 记录，内存使用量低
+**索引**：
+- `UNIQUE KEY uk_name_version (name, version)`：同一场景的不同版本
+- `INDEX idx_name (name)`：按场景名查询
 
-2. **策略使用阶段**：
-   - 查询所有股票的"月动量" tag
-   - 根据 `value` 进行排序，选出前10个
-   - 不需要重新计算，大大降低计算量和内存使用
+**设计要点**：
+- **Version 在 Scenario 级别**：代表整个业务场景的算法版本
+- 一个 Scenario 可以有多个版本（历史版本保留）
+- `is_enabled` 控制整个 Scenario 是否启用
 
-**实现**：
-- 在 tag 配置中声明 `type: "slice"` 和 `slice_policy: "MONTHLY"`
-- 系统自动生成每月切片
-- Calculator 计算每个股票的动量值，存储在 `value` 中
+### 2. tag_definition 表
 
-### 场景 C：离散的 Tag
+**用途**：存储标签定义，属于某个 Scenario
 
-**示例**：大市值股票（超过100亿市值）
+**表结构**：
 
-- **特点**：
-  - 一只股票可能出现多次
-  - 每个 tag 有明确的起始和终点
-  - 例如：市值超过100亿时打 tag，市值低于100亿时结束
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | BIGINT | 自增主键 |
+| `scenario_id` | BIGINT | 外键 → `tag_scenario.id` |
+| `name` | VARCHAR(64) | 标签唯一代码（如 `large_market_value`） |
+| `display_name` | VARCHAR(128) | 标签显示名称 |
+| `description` | TEXT | 标签描述 |
+| `created_at` | DATETIME | 创建时间 |
+| `updated_at` | DATETIME | 更新时间 |
 
-**实现**：
-- 在 tag 配置中声明 `type: "custom"`
-- Calculator 遍历历史数据，根据市值变化决定 tag 的起始和结束
+**索引**：
+- `UNIQUE KEY uk_scenario_name (scenario_id, name)`：同一 Scenario 下标签名唯一
+- `INDEX idx_scenario_id (scenario_id)`：按 Scenario 查询
+
+**设计要点**：
+- 一个 Scenario 可以产生多个 Tag Definitions
+- Tag Definition 共享 Scenario 的版本
+- 标签名在同一 Scenario 内唯一
+
+### 3. tag_value 表
+
+**用途**：存储标签的实际计算结果
+
+**表结构**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `entity_type` | VARCHAR(32) | 实体类型（如 `stock`, `kline_daily`，默认 `stock`） |
+| `entity_id` | VARCHAR(64) | 实体ID（如股票代码 `000001.SZ`） |
+| `tag_definition_id` | BIGINT | 外键 → `tag_definition.id` |
+| `as_of_date` | DATE | 业务日期（标签计算时间点） |
+| `start_date` | DATE | 起始日期（时间切片标签用） |
+| `end_date` | DATE | 结束日期（时间切片标签用） |
+| `value` | TEXT | 标签值（字符串，由策略自己解析） |
+| `calculated_at` | DATETIME | 计算时间 |
+
+**主键**：
+- `PRIMARY KEY (entity_id, tag_definition_id, as_of_date)`
+
+**索引**：
+- `INDEX idx_entity_date (entity_id, as_of_date)`：核心查询
+- `INDEX idx_tag_date (tag_definition_id, as_of_date)`：辅助查询
+- `INDEX idx_entity_tag_date (entity_id, tag_definition_id, as_of_date)`：增量计算
+
+**设计要点**：
+- 使用复合主键，避免自增 ID
+- 支持增量计算（通过 `idx_entity_tag_date` 查询最大 `as_of_date`）
+- 支持时间切片标签（`start_date`, `end_date`）
+
+### 数据模型关系图
+
+```
+tag_scenario
+├─ id: 1
+├─ name: "market_value_bucket"
+├─ version: "1.0"
+└─ ...
+
+tag_definition
+├─ id: 10, scenario_id: 1, name: "large_market_value"
+├─ id: 11, scenario_id: 1, name: "small_market_value"
+└─ ...
+
+tag_value
+├─ entity_id: "000001.SZ", tag_definition_id: 10, as_of_date: "2025-12-19", value: "1"
+├─ entity_id: "000002.SZ", tag_definition_id: 10, as_of_date: "2025-12-19", value: "1"
+└─ ...
+```
 
 ---
 
-## 系统架构
+## 核心组件
+
+### 1. Settings (`settings.py`)
+
+**位置**：`app/tag/tags/<business_scenario>/settings.py`
+
+**职责**：定义业务场景和标签的配置信息
+
+**设计初衷**：
+- 配置与代码分离，便于版本控制
+- 声明式配置，用户通过配置声明行为
+- 支持多 Tag：一个 Calculator 可以产生多个 Tags
+
+**配置结构**：
+
+```python
+from app.tag.enums import KlineTerm, UpdateMode, VersionChangeAction
+
+Settings = {
+    # Calculator 级别配置（共享逻辑）
+    "calculator": {
+        "meta": {
+            "name": "MARKET_VALUE_BUCKET",  # 业务场景名
+            "description": "按市值阈值给股票打大小市值标签",
+            "is_enabled": True,  # 控制整个 Scenario 是否启用
+        },
+        "base_term": KlineTerm.DAILY.value,
+        "required_terms": [],
+        "required_data": [],
+        "core": {
+            "mkv_threshold": 1e10,
+        },
+        "performance": {
+            "max_workers": 8,
+            "update_mode": UpdateMode.INCREMENTAL.value,
+            "on_version_change": VersionChangeAction.REFRESH_SCENARIO.value,
+        },
+    },
+    
+    # Tag 级别配置（多个 tag）
+    "tags": [
+        {
+            "name": "large_market_value",
+            "display_name": "大市值股票",
+            "description": "市值大于阈值的股票",
+            "version": "1.0",  # 注意：这个 version 会被 scenario 的 version 覆盖
+            "core": {
+                "label": "large",
+            },
+        },
+        {
+            "name": "small_market_value",
+            "display_name": "小市值股票",
+            "description": "市值小于等于阈值的股票",
+            "version": "1.0",
+            "core": {
+                "label": "small",
+            },
+        },
+    ],
+}
+```
+
+**责任边界**：
+- ✅ 定义配置结构
+- ✅ 声明 Scenario 和 Tag 的元信息
+- ✅ 声明计算参数和性能配置
+- ❌ 不负责验证配置（由 BaseTagCalculator 负责）
+- ❌ 不负责执行计算（由 Calculator 负责）
+
+### 2. Calculator (`calculator.py`)
+
+**位置**：`app/tag/tags/<business_scenario>/calculator.py`
+
+**职责**：实现业务场景的计算逻辑
+
+**设计初衷**：
+- 业务逻辑封装：每个 Calculator 封装一个业务场景
+- 用户自定义：用户继承 `BaseTagCalculator` 实现自己的逻辑
+- 可扩展性：支持扩展数据加载和自定义钩子函数
+
+**实现示例**：
+
+```python
+from app.tag.base_tag_calculator import BaseTagCalculator
+from typing import Dict, Any, Optional
+
+class MarketValueCalculator(BaseTagCalculator):
+    """市值分类 Calculator（业务场景：market_value_bucket）"""
+    
+    def calculate_tag(
+        self, 
+        entity_id: str,
+        entity_type: str,
+        as_of_date: str, 
+        historical_data: Dict[str, Any],
+        tag_config: Dict[str, Any]  # 已合并的配置
+    ) -> Optional[Any]:
+        """
+        计算 tag
+        
+        这个 Calculator 可以为多个 tag 提供计算：
+        - large_market_value: 大市值股票
+        - small_market_value: 小市值股票
+        """
+        # 获取配置参数
+        mkv_threshold = tag_config["core"]["mkv_threshold"]
+        tag_label = tag_config["core"].get("label", "")
+        
+        # 实现计算逻辑
+        market_value = historical_data.get("market_value", {}).get("current", 0)
+        
+        if tag_label == "large":
+            if market_value > mkv_threshold:
+                return {"value": "1", "as_of_date": as_of_date}
+        elif tag_label == "small":
+            if market_value <= mkv_threshold:
+                return {"value": "1", "as_of_date": as_of_date}
+        
+        return None
+```
+
+**责任边界**：
+- ✅ 实现 `calculate_tag()` 方法（必需）
+- ✅ 实现业务场景的计算逻辑
+- ✅ 一个 Calculator 可以为多个 Tags 提供计算
+- ✅ 可选：重写 `load_entity_data()` 支持自定义数据源
+- ❌ 不负责配置验证（由 BaseTagCalculator 负责）
+- ❌ 不负责文件管理（由 TagManager 负责）
+
+### 3. BaseTagCalculator (`base_tag_calculator.py`)
+
+**位置**：`app/tag/base_tag_calculator.py`
+
+**职责**：框架基类，提供 Calculator 的基础功能和框架支持
+
+**设计初衷**：
+- 统一接口：定义标准的 Calculator 接口
+- 框架功能：配置管理、数据加载、钩子函数支持
+- 减少重复代码：通用功能在基类中实现
+
+**核心功能**：
+
+1. **配置管理**
+   - `_load_and_process_settings()`: 加载并处理 settings
+   - `_validate_calculator_fields()`: 验证 calculator 配置
+   - `_validate_tags_fields()`: 验证 tags 配置
+   - `_apply_calculator_defaults()`: 应用默认值
+   - `_validate_calculator_enums()`: 验证枚举值
+   - `_merge_tag_config()`: 合并 calculator 和 tag 配置
+
+2. **数据加载**
+   - `load_entity_data()`: 加载实体历史数据（默认支持股票，可扩展）
+
+3. **钩子函数**
+   - `on_init()`: 初始化钩子
+   - `on_tag_created()`: Tag 创建后钩子
+   - `on_calculate_error()`: 计算错误钩子
+   - `should_continue_on_error()`: 错误时是否继续
+   - `on_finish()`: 完成钩子
+
+**责任边界**：
+- ✅ 配置读取和验证
+- ✅ 配置默认值处理
+- ✅ 配置合并（calculator + tag）
+- ✅ 数据加载（默认实现）
+- ✅ 钩子函数框架支持
+- ❌ 不负责业务计算逻辑（由 Calculator 实现）
+- ❌ 不负责文件发现和管理（由 TagManager 负责）
+
+### 4. TagManager (`tag_manager.py`)
+
+**位置**：`app/tag/tag_manager.py`
+
+**职责**：统一管理所有业务场景（按业务场景名管理）
+
+**设计初衷**：
+- 统一入口：提供统一的接口访问所有 Calculators
+- 早期过滤：在创建 Calculator 实例前就过滤掉不启用的
+- 生命周期管理：管理 Calculator 类的发现和加载
+
+**核心功能**：
+
+1. **发现和加载**
+   - `_load_calculators()`: 发现所有业务场景（遍历 tags 目录）
+   - `_check_calculator_enabled()`: 检查 calculator 是否启用
+   - `_load_calculator()`: 加载 calculator 类
+
+2. **管理接口**
+   - `get_calculator(business_scenario)`: 获取指定业务场景的 calculator 类
+   - `list_tags()`: 列出所有业务场景名称（不是 tag 名称）
+   - `create_calculator(business_scenario)`: 创建指定业务场景的 calculator 实例
+   - `reload()`: 重新发现所有 calculators
+
+**责任边界**：
+- ✅ 发现所有业务场景（遍历 tags 目录）
+- ✅ 检查 calculator.py 文件存在性
+- ✅ 检查 settings.py 文件存在性
+- ✅ 检查 calculator 是否启用（早期过滤）
+- ✅ 加载 calculator 类
+- ✅ 管理 calculator 实例（按业务场景名）
+- ❌ 不负责配置验证（由 BaseTagCalculator 负责）
+- ❌ 不负责业务计算逻辑（由 Calculator 负责）
+
+**重要说明**：
+- TagManager 管理的是**业务场景**（文件夹名），不是 tag
+- 一个业务场景可以产生多个 tags（在 settings.py 的 `tags` 列表中定义）
+- 要获取某个业务场景产生的所有 tags，需要通过 Calculator 实例访问
+
+---
+
+## 配置设计
+
+### 配置结构
+
+配置采用两层结构：Calculator 级别和 Tag 级别。
+
+```python
+Settings = {
+    "calculator": {
+        # Calculator 级别配置（共享给所有 tags）
+    },
+    "tags": [
+        # Tag 级别配置（每个 tag 独立）
+    ],
+}
+```
+
+### Calculator 级别配置
+
+| 配置项 | 类型 | 必需 | 说明 |
+|--------|------|------|------|
+| `meta.name` | str | ✅ | 业务场景名（如 `MARKET_VALUE_BUCKET`） |
+| `meta.description` | str | ✅ | 业务场景描述 |
+| `meta.is_enabled` | bool | ✅ | 是否启用（控制整个 Scenario） |
+| `base_term` | str | ✅ | 基础周期（枚举：`daily`, `weekly`, `monthly`） |
+| `required_terms` | list | ❌ | 需要的其他周期（默认 `[]`） |
+| `required_data` | list | ❌ | 需要的数据源（默认 `[]`） |
+| `core` | dict | ❌ | 共享的计算参数（默认 `{}`） |
+| `performance.max_workers` | int | ❌ | 最大并发数（默认自动分配） |
+| `performance.update_mode` | str | ✅ | 更新模式（`incremental` 或 `refresh`） |
+| `performance.on_version_change` | str | ✅ | 版本变更处理（`refresh_scenario` 或 `new_scenario`） |
+
+### Tag 级别配置
+
+| 配置项 | 类型 | 必需 | 说明 |
+|--------|------|------|------|
+| `name` | str | ✅ | 标签唯一代码 |
+| `display_name` | str | ✅ | 标签显示名称 |
+| `description` | str | ❌ | 标签描述 |
+| `version` | str | ✅ | 版本号（会被 Scenario 的 version 覆盖） |
+| `core` | dict | ❌ | Tag 特定的计算参数（会合并到 calculator.core） |
+| `performance` | dict | ❌ | Tag 特定的性能配置（会覆盖 calculator.performance） |
+
+**注意**：
+- `is_enabled` **不在** Tag 级别，只在 Calculator 级别
+- 如果 Calculator 启用，所有 Tags 都会被计算
+
+### 配置合并规则
+
+1. **core 合并**：`tag.core` 会合并到 `calculator.core`（tag 的 core 覆盖 calculator 的 core）
+2. **performance 覆盖**：`tag.performance` 会覆盖 `calculator.performance`（如果存在）
+3. **其他字段**：Tag 级别优先
+
+### 配置验证
+
+**Calculator 级别验证**：
+- `calculator.meta.name`: 必需
+- `calculator.meta.is_enabled`: 必需（在 TagManager 中检查）
+- `calculator.base_term`: 必需，必须在枚举中
+- `calculator.performance.update_mode`: 必需，必须在枚举中
+- `calculator.performance.on_version_change`: 必需，必须在枚举中
+
+**Tag 级别验证**：
+- `tags`: 必需，至少一个 tag
+- 每个 tag: `name`, `display_name`, `version` 必需
+- Tag name 在同一 Scenario 内唯一
+
+---
+
+## 职责边界
+
+### 组件职责矩阵
+
+| 功能 | Settings | Calculator | BaseTagCalculator | TagManager |
+|------|----------|------------|-------------------|------------|
+| 定义配置 | ✅ | ❌ | ❌ | ❌ |
+| 验证配置 | ❌ | ❌ | ✅ | ❌ |
+| 读取配置 | ❌ | ❌ | ✅ | ❌ |
+| 检查启用状态 | ❌ | ❌ | ❌ | ✅ |
+| 实现计算逻辑 | ❌ | ✅ | ❌ | ❌ |
+| 加载数据 | ❌ | 可选 | ✅ (默认) | ❌ |
+| 发现业务场景 | ❌ | ❌ | ❌ | ✅ |
+| 管理实例 | ❌ | ❌ | ❌ | ✅ |
+
+### 责任边界总结
+
+**Settings**：
+- ✅ 只定义配置
+- ❌ 不验证配置
+- ❌ 不执行计算
+
+**Calculator**：
+- ✅ 只实现计算逻辑
+- ❌ 不管理文件
+- ❌ 不验证配置结构
+
+**BaseTagCalculator**：
+- ✅ 只提供框架支持
+- ❌ 不实现业务逻辑
+
+**TagManager**：
+- ✅ 只管理业务场景
+- ❌ 不计算
+- ❌ 不验证配置结构
+
+---
+
+## 设计原则
+
+### 1. 职责单一
+
+每个组件只负责自己的职责：
+- Settings 只定义配置
+- Calculator 只实现计算
+- Manager 只管理
+- BaseTagCalculator 只提供框架
+
+### 2. 配置驱动
+
+通过配置声明行为，而不是硬编码：
+- 配置与代码分离
+- 声明式配置，便于维护
+
+### 3. 可扩展性
+
+提供钩子函数和扩展点：
+- 用户可以在不修改框架代码的情况下扩展功能
+- 支持自定义数据加载和计算逻辑
+
+### 4. 早期验证
+
+在创建实例前就验证配置和启用状态：
+- 避免不必要的初始化开销
+- 提前发现问题
+
+### 5. 统一接口
+
+所有 Calculators 遵循相同的接口：
+- 便于统一管理和执行
+- 降低学习成本
+
+---
+
+## 关键设计决策
+
+### 1. 为什么采用三层表结构？
+
+**原因**：
+- **清晰的数据模型**：Scenario → Definition → Value 三层结构清晰
+- **版本管理合理**：Version 在 Scenario 级别，代表算法版本
+- **查询更方便**：可以按 Scenario 和 Version 查询
+- **数据一致性更好**：一个 Scenario 的所有 Tags 共享同一个版本
+
+### 2. 为什么 Version 在 Scenario 级别？
+
+**原因**：
+- Version 代表算法版本，属于整个业务场景
+- 算法改变时，整个 Scenario 的版本升级
+- 一个 Scenario 的所有 Tags 应该共享同一个版本
+- 便于版本管理和历史追溯
+
+### 3. 为什么 is_enabled 只在 Calculator 级别？
+
+**原因**：
+- `is_enabled` 控制整个业务场景是否启用
+- 如果 Calculator 启用，所有 Tags 都会被计算
+- 不能只启用一个 Tag 而舍弃另一个（因为 Tag 是业务场景的产物）
+- 符合业务逻辑：业务场景是一个整体
+
+### 4. 为什么支持一个 Calculator 打多个 Tag？
+
+**原因**：
+- 业务逻辑复用（如市值分类：大市值、小市值）
+- 减少重复代码
+- 配置更灵活（共享 calculator 配置，独立 tag 配置）
+
+### 5. 为什么 on_version_change 是 Scenario 级别的？
+
+**原因**：
+- 算法改变影响的是整个业务场景，不是单个 Tag
+- `refresh_scenario`：刷新该 Scenario 下所有 Tags 的值
+- `new_scenario`：创建新的 Scenario（保留旧 Scenario 的数据）
+- 更符合业务逻辑和版本管理
+
+### 6. 为什么 Settings 和 Calculator 分离？
+
+**原因**：
+- 配置与代码分离，便于维护和版本控制
+- 支持配置的热更新（未来可能支持）
+- 一个 Calculator 可以打多个 Tag，配置需要独立管理
+
+### 7. 为什么在 TagManager 中检查 is_enabled？
+
+**原因**：
+- 早期过滤，避免不必要的 Calculator 初始化
+- Manager 负责管理，应该知道哪些 Calculator 可用
+- 职责清晰：Manager 管理，Calculator 计算
+
+### 8. 为什么 BaseTagCalculator 负责配置验证？
+
+**原因**：
+- 配置验证是 Calculator 初始化的必要步骤
+- 验证逻辑与 Calculator 紧密相关
+- 用户创建 Calculator 实例时自动验证，确保配置正确
+
+---
+
+## 文件组织
 
 ### 目录结构
 
 ```
 app/tag/
-├── __init__.py
+├── base_tag_calculator.py      # 框架基类
+├── tag_manager.py               # 业务场景管理器
+├── enums.py                     # 枚举定义
 ├── docs/
-│   └── DESIGN.md          # 本文档
-├── base_calculator.py     # Tag Calculator 基类
-├── tag_service.py         # Tag 服务（主入口）
-├── tag_executor.py        # Tag 执行器（多线程/进程）
-└── tags/                  # Tag 实现目录（每个文件夹代表一类 tag）
-    ├── __init__.py
-    ├── market_regime/     # 市场状态 tag
-    │   ├── config.py      # Tag 配置
-    │   └── calculator.py  # Tag 计算方法
-    ├── monthly_momentum/  # 月动量 tag
-    │   ├── config.py
+│   └── DESIGN.md               # 本文档
+└── tags/
+    ├── market_value_bucket/     # 业务场景名（不是 tag name）
+    │   ├── settings.py         # 定义 calculator 和多个 tags 配置
+    │   └── calculator.py       # 实现市值分类计算逻辑
+    │
+    ├── momentum_classifier/     # 另一个业务场景
+    │   ├── settings.py
     │   └── calculator.py
-    └── market_cap/        # 市值分类 tag
-        ├── config.py
-        └── calculator.py
+    │
+    └── ...
 ```
 
-**目录组织原则**：
-- 每个 tag 类型一个文件夹
-- 每个文件夹包含 `config.py`（tag 配置）和 `calculator.py`（计算方法）
-- 便于管理和扩展
+### 重要概念
 
-### 核心组件
-
-1. **TagService**：主服务入口，负责 tag 的计算、存储和查询
-2. **BaseTagCalculator**：Calculator 基类，提供钩子函数接口
-3. **TagExecutor**：执行器，负责多线程/进程并行计算
-4. **TagConfig**：配置管理器，加载和管理 tag 配置
+**业务场景 vs Tag**：
+- **业务场景**（文件夹名）：如 `market_value_bucket`（市值分类）
+- **Tag**（settings 中定义）：如 `large_market_value`, `small_market_value`
+- 一个业务场景可以产生多个 tags
+- TagManager 管理的是业务场景，不是 tag
 
 ---
 
-## 数据库设计
+## 版本历史
 
-### 1. `tag` 表（标签元信息）
+### v2.0 (2025-12-19)
 
-```sql
-CREATE TABLE tag (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name            VARCHAR(64) NOT NULL UNIQUE,      -- 标签唯一代码（machine readable）
-    display_name    VARCHAR(128) NOT NULL,            -- 标签显示名称（用户可见）
-    is_enabled      TINYINT(1) NOT NULL DEFAULT 1,
-    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-```
+**重大变更**：
+- 采用三层表结构：`tag_scenario`, `tag_definition`, `tag_value`
+- Version 移到 Scenario 级别
+- `on_version_change` 改为 Scenario 级别（`refresh_scenario` / `new_scenario`）
+- `is_enabled` 只在 Calculator 级别，不在 Tag 级别
 
-### 2. `tag_value` 表（标签值存储）
+**设计改进**：
+- 数据模型更清晰
+- 版本管理更合理
+- 职责边界更明确
 
-```sql
-CREATE TABLE tag_value (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    entity_id       VARCHAR(64) NOT NULL,            -- 实体ID（股票代码、指数代码等）
-    tag_id          BIGINT NOT NULL,                 -- 标签ID（引用 tag.id）
-    as_of_date      DATE NOT NULL,                   -- 业务日期（tag 创建时间）
-    start_date      DATE NULL,                       -- tag 起始日期（时间切片 tag 用）
-    end_date        DATE NULL,                       -- tag 结束日期（时间切片 tag 用）
-    value           TEXT NOT NULL,                   -- 标签值（string，strategy 自己解释）
-    calculated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_tag (entity_id, tag_id, as_of_date),
-    KEY idx_entity_date (entity_id, as_of_date),
-    KEY idx_tag_date (tag_id, as_of_date)
-);
-```
+### v1.0 (之前版本)
 
-**字段说明**：
-- `start_date` / `end_date`：用于时间切片 tag 和连续 tag
-- `value`：TEXT 类型，strategy 自己解释和解析
-- `as_of_date`：tag 创建的时间点（业务日期）
+- 两层表结构：`tag`, `tag_value`
+- Version 在 Tag 级别
+- `on_version_change` 在 Tag 级别
 
 ---
 
-## Calculator 设计
+## 附录
 
-### BaseTagCalculator 基类
+### 枚举定义
 
-```python
-class BaseTagCalculator(ABC):
-    """Tag Calculator 基类"""
-    
-    def __init__(self, tag_id: int, tag_config: Dict[str, Any], data_mgr):
-        self.tag_id = tag_id
-        self.tag_config = tag_config
-        self.data_mgr = data_mgr
-    
-    @abstractmethod
-    def calculate_tag(
-        self, 
-        entity_id: str, 
-        as_of_date: str, 
-        historical_data: Dict[str, Any]  # 完整历史数据（上帝视角）
-    ) -> Optional[TagEntity]:
-        """
-        钩子函数：在每个时间点调用
-        
-        Args:
-            entity_id: 实体ID
-            as_of_date: 当前时间点
-            historical_data: 完整历史数据（上帝视角）
-                - klines: 所有历史K线数据
-                - finance: 所有历史财务数据
-                - ... 其他历史数据
-            
-        Returns:
-            TagEntity 或 None（不创建 tag）
-        """
-        pass
-    
-    def create_tag(
-        self, 
-        value: str,
-        start_date: str = None,
-        end_date: str = None
-    ) -> TagEntity:
-        """
-        创建 Tag 实体（辅助方法）
-        
-        Args:
-            value: 标签值（string）
-            start_date: 起始日期（可选）
-            end_date: 结束日期（可选）
-            
-        Returns:
-            TagEntity
-        """
-        return TagEntity(
-            tag_id=self.tag_id,
-            value=value,
-            as_of_date=as_of_date,  # 从上下文获取
-            start_date=start_date,
-            end_date=end_date
-        )
-```
+**KlineTerm**：
+- `DAILY`: 日线
+- `WEEKLY`: 周线
+- `MONTHLY`: 月线
 
-### TagEntity 结构
+**UpdateMode**：
+- `INCREMENTAL`: 增量更新
+- `REFRESH`: 全量刷新
 
-```python
-@dataclass
-class TagEntity:
-    """Tag 实体"""
-    tag_id: int
-    value: str
-    as_of_date: str
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-```
+**VersionChangeAction**：
+- `REFRESH_SCENARIO`: 刷新该 Scenario 下所有 Tags 的值
+- `NEW_SCENARIO`: 创建新的 Scenario（保留旧 Scenario 的数据）
+
+**SupportedDataSource**：
+- `KLINE`: K线数据
+- `CORPORATE_FINANCE`: 财务数据
 
 ---
 
-## 执行流程
-
-### 1. 增量计算流程
-
-```
-1. 加载 tag 配置
-2. 查询每个 (entity_id, tag_id) 的最大 as_of_date（最后计算时间点）
-3. 从最后计算时间点 + 1 天开始计算
-4. 遍历每个时间点，调用 calculator.calculate_tag()
-5. 如果返回 TagEntity，保存到数据库
-6. 如果是连续 tag，自动处理连续关系
-```
-
-### 2. 全量刷新流程
-
-```
-1. 加载 tag 配置
-2. 删除该 tag 的所有历史数据（可选，或标记为旧版本）
-3. 从 entity 的上市日期开始计算
-4. 遍历所有时间点，调用 calculator.calculate_tag()
-5. 保存所有计算结果
-```
-
-### 3. 多线程/进程执行
-
-```
-1. 将 entity 列表分成多个批次（每批最多10个）
-2. 每个批次并行计算（多线程或多进程）
-3. 每个线程处理一个 entity：
-   - 加载该 entity 的完整历史数据
-   - 遍历每个时间点，调用 calculator.calculate_tag()
-   - 保存计算结果
-   - 释放内存
-4. 继续下一批次
-```
-
-**内存管理**：
-- 每个线程只处理一个 entity，避免内存爆炸
-- 计算完成后立即存储并释放内存
-- 最多10个并行计算，控制内存使用
-
----
-
-## 与 Labeler 的关系
-
-### Labeler 的局限性
-
-- **固定时间切片**：只能按固定间隔（30天）计算
-- **单一计算模式**：只能返回标签ID字符串
-- **缺乏时间段支持**：无法表示标签的起始和结束时间
-
-### Tag 系统的扩展
-
-Tag 系统是对 Labeler 的扩展和替代：
-
-1. **灵活的标签计算**：支持自定义计算逻辑和定期切片
-2. **时间段支持**：支持标签的起始和结束时间
-3. **配置驱动**：通过配置文件定义 tag
-4. **更灵活的数据结构**：支持复杂的数据结构（通过 value 字段）
-
-### 迁移策略
-
-- **短期**：Tag 系统和 Labeler 系统并存
-- **长期**：逐步迁移到 Tag 系统，Labeler 标记为 legacy
-
----
-
-## 设计决策
-
-### 1. 为什么使用上帝视角？
-
-- **计算效率**：遍历历史数据时，一次性加载所有数据更高效
-- **灵活性**：Calculator 可以访问任意历史数据，满足复杂计算需求
-- **责任清晰**：Calculator 作者负责是否使用未来数据，系统只提供数据
-
-**注意**：如果 tag 用于回测，建议 Calculator 只使用 `as_of_date` 及之前的数据，避免数据泄露。
-
-### 2. 为什么 Tag 的 value 可以作为值缓存？
-
-**问题**：如果需要在回测时进行横向切片（如每月动量前10），传统方式需要：
-- 加载所有股票的数据
-- 计算所有股票的动量
-- 排序选出前10个
-- **问题**：内存爆炸，计算量大
-
-**Tag 值缓存方案**：
-- 提前计算：在每个月的第一天，使用多线程按股票逐个计算动量值
-- 存储值：将动量值存储在 tag 的 `value` 中（如 `"0.15"`）
-- 策略使用：查询所有股票的 tag，根据 `value` 排序，选出前10个
-- **优势**：避免在回测时重新计算，大大降低计算量和内存使用
-
-**示例**：
-```python
-# 计算阶段：每个股票计算动量值
-tag_value = {
-    "entity_id": "600000.SH",
-    "tag_id": 1,  # 月动量 tag
-    "as_of_date": "2025-01-01",
-    "value": "0.15"  # 动量值
-}
-
-# 策略使用：查询所有股票的月动量，排序选出前10
-all_tags = tag_service.get_all_entities_tags("2025-01-01", tag_id=1)
-sorted_tags = sorted(all_tags, key=lambda x: float(x['value']), reverse=True)
-top_10 = sorted_tags[:10]
-```
-
-### 2. 为什么统一为 tag 的两种模式？
-
-- **用户视角简单**：只需要理解一套概念
-- **查询接口统一**：无论是自定义 tag 还是切片 tag，查询方式相同
-- **可以灵活组合**：切片 tag 也可以有 calculator 计算切片内的值
-
-### 3. 为什么存储层极简？
-
-- **职责清晰**：存储层只负责存和查，不关心怎么算
-- **性能优先**：查询性能优先，索引针对核心查询优化
-- **计算解耦**：计算复杂度由 calculator 处理，存储层不关心
-
-### 4. 为什么 value 是 TEXT 而不是 JSON？
-
-- **简单**：TEXT 类型更简单，不需要解析 JSON
-- **灵活**：Strategy 自己解释和解析，系统不关心格式
-- **安全**：避免 JSON 注入等安全问题
-- **值缓存友好**：数值型 tag（如动量值）可以直接存储为字符串，查询时转换为数值进行排序
-
----
-
-## 未来扩展
-
-### 可能的扩展方向
-
-1. **Tag 版本管理**：支持 tag 的版本管理，参数变化时自动创建新版本
-2. **Tag 依赖关系**：支持 tag 之间的依赖关系（如 tag B 依赖 tag A）
-3. **Tag 缓存机制**：支持 tag 的缓存，提升查询性能
-4. **Tag 统计分析**：支持 tag 的统计分析（如 tag 覆盖率、tag 分布等）
-
----
-
-## 值缓存机制
-
-### 核心概念
-
-Tag 的 `value` 不仅可以存储分类标签（如 `"LARGE_CAP"`），还可以存储计算值（如动量值 `"0.15"`），用于横向切片和排序。
-
-### 典型场景：每月动量前10
-
-**问题**：
-- 策略需要每月选出动量最大的10个股票
-- 如果回测时实时计算，需要加载所有股票数据，计算量大，内存爆炸
-
-**Tag 值缓存方案**：
-
-1. **计算阶段**（提前计算）：
-   ```python
-   # 在每个月的第一天，使用多线程按股票逐个计算
-   for stock_id in stock_list:
-       momentum_value = calculate_momentum(stock_id, month_start_date)
-       tag_service.save_tag(
-           entity_id=stock_id,
-           tag_id=monthly_momentum_tag_id,
-           as_of_date=month_start_date,
-           value=str(momentum_value)  # 存储动量值
-       )
-   ```
-
-2. **策略使用阶段**（回测时）：
-   ```python
-   # 查询所有股票的月动量 tag
-   all_tags = tag_service.get_all_entities_tags(
-       as_of_date="2025-01-01",
-       tag_id=monthly_momentum_tag_id
-   )
-   
-   # 根据 value 排序，选出前10
-   sorted_tags = sorted(
-       all_tags, 
-       key=lambda x: float(x['value']), 
-       reverse=True
-   )
-   top_10_stocks = [tag['entity_id'] for tag in sorted_tags[:10]]
-   ```
-
-**优势**：
-- **计算量降低**：避免在回测时重新计算所有股票的动量
-- **内存使用降低**：不需要同时加载所有股票的数据
-- **性能提升**：回测时只需要查询和排序，速度更快
-
-### 值缓存 vs 分类标签
-
-| 类型 | 示例 | value 格式 | 使用场景 |
-|------|------|------------|----------|
-| 分类标签 | 市值分类 | `"LARGE_CAP"` | 用于过滤和分组 |
-| 值缓存 | 月动量 | `"0.15"` | 用于排序和横向切片 |
-
----
-
-## 总结
-
-Tag 系统是一个**灵活的标签计算和存储框架**，用于：
-
-- **性能优化**：避免在回测时重复计算
-- **多策略复用**：一次计算，多个策略使用
-- **复杂计算预处理**：耗时计算提前完成
-- **值缓存机制**：存储计算值，支持横向切片和排序
-
-**核心设计原则**：
-- 存储层极简：只负责存和查
-- 计算层灵活：支持自定义 calculator
-- 配置驱动：通过配置文件定义 tag
-- 解释权在 Strategy：tag 的值由 strategy 自己解释
-- **值缓存支持**：tag 的 value 可以作为值缓存，支持横向切片和排序
+**文档结束**

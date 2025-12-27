@@ -20,9 +20,9 @@ class UpdateMode(Enum):
 
 
 class VersionChangeAction(Enum):
-    """版本变更时的行为枚举"""
-    NEW_TAG = "new_tag"        # 创建新 tag（保留旧数据）
-    FULL_REFRESH = "full_refresh"  # 全量刷新（覆盖旧数据）
+    """版本变更时的行为枚举（Scenario 级别）"""
+    REFRESH_SCENARIO = "refresh_scenario"  # 刷新该 Scenario 下所有 Tags 的值
+    NEW_SCENARIO = "new_scenario"          # 创建新的 Scenario（保留旧 Scenario 的数据）
 
 
 class SupportedDataSource(Enum):

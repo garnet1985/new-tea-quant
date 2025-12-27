@@ -1,5 +1,5 @@
 {
-  "name": "tag",
+  "name": "tag_scenario",
   "primaryKey": "id",
   "fields": [
     {
@@ -14,27 +14,35 @@
       "type": "varchar",
       "length": 64,
       "isRequired": true,
-      "description": "标签唯一代码（machine readable），如 VOL_20D, MC_LARGE"
+      "description": "业务场景唯一代码（如 market_value_bucket, momentum_classifier）"
     },
     {
       "name": "display_name",
       "type": "varchar",
       "length": 128,
-      "isRequired": true,
-      "description": "标签显示名称（用户可见）"
+      "isRequired": false,
+      "description": "业务场景显示名称"
     },
     {
       "name": "version",
       "type": "varchar",
       "length": 32,
       "isRequired": true,
-      "description": "版本号（用户显式声明，用于版本管理，如 \"1.0\", \"2.0\"）"
+      "description": "版本号（用户显式声明，用于版本管理，如 \"1.0\", \"2.0\"）。代表整个业务场景的算法版本"
     },
     {
       "name": "description",
       "type": "text",
       "isRequired": false,
-      "description": "Tag 描述（用于文档和说明，存储到数据库便于查询）"
+      "description": "业务场景描述（用于文档和说明）"
+    },
+    {
+      "name": "is_legacy",
+      "type": "tinyint",
+      "length": 1,
+      "isRequired": true,
+      "default": 0,
+      "description": "是否为遗留业务场景（0: 否，1: 是）"
     },
     {
       "name": "created_at",
@@ -53,9 +61,15 @@
   ],
   "indexes": [
     {
+      "name": "uk_name_version",
+      "fields": ["name", "version"],
+      "isUnique": true,
+      "description": "唯一索引：同一场景的不同版本（允许一个场景有多个版本）"
+    },
+    {
       "name": "idx_name",
       "fields": ["name"],
-      "description": "标签名称索引（用于快速查找，name 字段有 UNIQUE 约束）"
+      "description": "业务场景名称索引（用于快速查找）"
     }
   ]
 }

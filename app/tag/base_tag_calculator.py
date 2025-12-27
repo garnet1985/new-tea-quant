@@ -2,29 +2,45 @@
 Tag Calculator 基类
 
 职责：
-1. 配置管理（读取、验证、处理）
-2. 数据加载（钩子函数，默认实现支持股票）
-3. 迭代逻辑（根据 base_term 迭代）
-4. 计算钩子（calculate_tag，用户实现）
-5. 其他钩子（初始化、清理、错误处理）
+1. 执行流程（run 方法，包含 ensure_metadata 和 renew_or_create_values）
+2. 元信息管理（ensure_scenario, ensure_tags）
+3. 版本变更处理（handle_version_change, handle_update_mode）
+4. 数据加载（钩子函数，默认实现支持股票，从数据库加载）
+5. 计算钩子（calculate_tag，用户实现）
+6. 其他钩子（初始化、清理、错误处理）
+
+注意：
+- Tag 系统是预计算系统，数据应该从数据库（通过 DataManager）加载
+- 不使用第三方数据源（DataSourceManager）
+- 配置验证和处理逻辑已提取到 settings_validator 和 settings_processor
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
-import importlib.util
-import os
-import warnings
-from app.tag.enums import KlineTerm, UpdateMode, VersionChangeAction
+from typing import Dict, Any, Optional, List, Tuple
+import inspect
+import logging
+from app.tag.enums import UpdateMode, VersionChangeAction
+from app.tag.config import ALLOW_VERSION_ROLLBACK
+from app.tag.settings_validator import SettingsValidator
+from app.tag.settings_processor import SettingsProcessor
+
+logger = logging.getLogger(__name__)
 
 
 class BaseTagCalculator(ABC):
-    """Tag Calculator 基类
+    """
+    Tag Calculator 基类
     
     职责：
-    1. 配置管理（读取、验证、处理）
-    2. 数据加载（钩子函数，默认实现支持股票）
-    3. 迭代逻辑（根据 base_term 迭代）
-    4. 计算钩子（calculate_tag，用户实现）
-    5. 其他钩子（初始化、清理、错误处理）
+    1. 执行流程（run 方法，包含 ensure_metadata 和 renew_or_create_values）
+    2. 元信息管理（ensure_scenario, ensure_tags）
+    3. 版本变更处理（handle_version_change, handle_update_mode）
+    4. 数据加载（钩子函数，默认实现支持股票，从数据库加载）
+    5. 计算钩子（calculate_tag，用户实现）
+    6. 其他钩子（初始化、清理、错误处理）
+    
+    注意：
+    - Tag 系统是预计算系统，数据应该从数据库（通过 DataManager）加载
+    - 不使用第三方数据源（DataSourceManager）
     """
     
     def __init__(
@@ -45,435 +61,145 @@ class BaseTagCalculator(ABC):
         self.data_mgr = data_mgr
         self.tag_service = tag_service
         
+        # 如果 tag_service 为 None，从 data_mgr 获取
+        if self.tag_service is None and self.data_mgr is not None:
+            self.tag_service = self.data_mgr.get_tag_service()
+        
         # 获取 calculator 文件路径（用于确定 settings 的相对路径）
-        import inspect
         calculator_file = inspect.getfile(self.__class__)
         
-        # 读取、验证和处理配置
-        self.settings = self._load_and_process_settings(settings_path, calculator_file)
+        # 读取、验证和处理配置（使用 helper）
+        self.settings = SettingsProcessor.load_and_process_settings(
+            settings_path, calculator_file
+        )
+        SettingsValidator.validate_all(self.settings)
         
         # 提取 calculator 配置到实例变量
-        self._extract_calculator_config()
+        config = SettingsProcessor.extract_calculator_config(self.settings)
+        self.scenario_name = config["scenario_name"]
+        self.scenario_version = config["scenario_version"]
+        self.base_term = config["base_term"]
+        self.required_terms = config["required_terms"]
+        self.required_data = config["required_data"]
+        self.core = config["core"]
+        self.performance = config["performance"]
         
         # 处理 tags 配置（合并、验证）
-        self.tags_config = self._process_tags_config()
+        self.tags_config = SettingsProcessor.process_tags_config(
+            self.settings["tags"],
+            self.settings["calculator"]
+        )
         
         # 初始化（钩子函数）
         self.on_init()
     
     # ========================================================================
-    # 1. 配置管理（读取、验证、处理）
-    # ========================================================================
-    
-    def _load_and_process_settings(
-        self, 
-        settings_path: str, 
-        calculator_path: str
-    ) -> Dict[str, Any]:
-        """
-        加载并处理 settings 文件
-        
-        注意：settings 文件存在性和 calculator 是否启用已在 TagManager 中检查
-        这里只负责读取和验证配置结构
-        
-        Args:
-            settings_path: settings 文件路径（相对路径）
-            calculator_path: calculator 文件路径（用于确定相对路径的基准）
-            
-        Returns:
-            Dict[str, Any]: 处理后的 settings 字典
-            
-        Raises:
-            FileNotFoundError: 文件不存在（理论上不应该发生，因为 Manager 已检查）
-            SyntaxError: 文件语法错误
-            ValueError: 配置验证失败
-            ImportError: 导入错误
-        """
-        # 1. 读取 settings 文件
-        settings = self._read_settings_file(settings_path, calculator_path)
-        
-        # 2. 验证 calculator 必需字段（不再检查 is_enabled，Manager 已检查）
-        self._validate_calculator_fields(settings)
-        
-        # 3. 处理 calculator 默认值
-        self._apply_calculator_defaults(settings)
-        
-        # 4. 验证 calculator 枚举值
-        self._validate_calculator_enums(settings)
-        
-        # 5. 验证 tags 配置
-        self._validate_tags_fields(settings)
-        
-        return settings
-    
-    def _read_settings_file(
-        self, 
-        settings_path: str, 
-        calculator_path: str
-    ) -> Dict[str, Any]:
-        """
-        读取 settings 文件（Python 文件）
-        
-        注意：文件存在性已在 TagManager 中检查
-        
-        Args:
-            settings_path: settings 文件路径（相对路径）
-            calculator_path: calculator 文件路径（用于确定相对路径的基准）
-            
-        Returns:
-            Dict[str, Any]: Settings 字典
-            
-        Raises:
-            FileNotFoundError: 文件不存在（理论上不应该发生）
-            SyntaxError: 文件语法错误
-            ValueError: 缺少 Settings 变量
-        """
-        # 转换为绝对路径
-        if not os.path.isabs(settings_path):
-            # 相对于 calculator 同级目录
-            calculator_dir = os.path.dirname(os.path.abspath(calculator_path))
-            settings_path = os.path.join(calculator_dir, settings_path)
-        
-        # 注意：文件存在性检查已在 TagManager 中完成，这里不再检查
-        # 但如果文件不存在，导入会失败，这是合理的
-        
-        # 动态导入模块
-        spec = importlib.util.spec_from_file_location("tag_settings", settings_path)
-        if spec is None or spec.loader is None:
-            raise ValueError(f"无法加载 settings 文件: {settings_path}")
-        
-        module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(module)
-        except SyntaxError as e:
-            raise SyntaxError(f"Settings 文件语法错误: {settings_path}\n{str(e)}")
-        except Exception as e:
-            raise ImportError(f"导入 settings 文件失败: {settings_path}\n{str(e)}")
-        
-        # 提取 Settings（注意：变量名是 Settings，不是 TAG_CONFIG）
-        if not hasattr(module, "Settings"):
-            raise ValueError(f"Settings 文件缺少 Settings 变量: {settings_path}")
-        
-        config = module.Settings
-        
-        if not isinstance(config, dict):
-            raise ValueError(f"Settings 必须是字典类型，当前类型: {type(config)}")
-        
-        return config
-    
-    def _validate_calculator_fields(self, settings: Dict[str, Any]):
-        """
-        验证 calculator 必需字段
-        
-        Args:
-            settings: settings 字典
-            
-        Raises:
-            ValueError: 缺少必需字段或字段类型错误
-        """
-        if "calculator" not in settings:
-            raise ValueError("配置缺少必需字段: calculator")
-        
-        calculator = settings["calculator"]
-        
-        # 验证 calculator.meta
-        if "meta" not in calculator:
-            raise ValueError("calculator 缺少必需字段: meta")
-        
-        calculator_meta = calculator["meta"]
-        if not isinstance(calculator_meta, dict):
-            raise ValueError(f"calculator.meta 必须是字典，当前类型: {type(calculator_meta)}")
-        
-        if "name" not in calculator_meta:
-            raise ValueError("calculator.meta 缺少必需字段: name")
-        
-        if not isinstance(calculator_meta["name"], str):
-            raise ValueError(f"calculator.meta.name 必须是字符串，当前类型: {type(calculator_meta['name'])}")
-        
-        # 验证 base_term
-        if "base_term" not in calculator:
-            raise ValueError("calculator 缺少必需字段: base_term")
-        
-        if not isinstance(calculator["base_term"], str):
-            raise ValueError(f"calculator.base_term 必须是字符串，当前类型: {type(calculator['base_term'])}")
-        
-        # 验证 performance（必需字段）
-        if "performance" not in calculator:
-            raise ValueError("calculator 缺少必需字段: performance")
-        
-        perf = calculator["performance"]
-        if not isinstance(perf, dict):
-            raise ValueError(f"calculator.performance 必须是字典，当前类型: {type(perf)}")
-    
-    def _validate_tags_fields(self, settings: Dict[str, Any]):
-        """
-        验证 tags 配置
-        
-        Args:
-            settings: settings 字典
-            
-        Raises:
-            ValueError: tags 配置错误
-        """
-        if "tags" not in settings:
-            raise ValueError("配置缺少必需字段: tags")
-        
-        tags = settings["tags"]
-        if not isinstance(tags, list):
-            raise ValueError(f"tags 必须是列表，当前类型: {type(tags)}")
-        
-        if len(tags) == 0:
-            raise ValueError("tags 列表不能为空，至少需要一个 tag")
-        
-        # 验证每个 tag
-        tag_names = set()
-        for i, tag in enumerate(tags):
-            if not isinstance(tag, dict):
-                raise ValueError(f"tags[{i}] 必须是字典，当前类型: {type(tag)}")
-            
-            # 必需字段（注意：version 在 scenario 级别，不在 tag 级别）
-            required_fields = ["name", "display_name"]
-            for field in required_fields:
-                if field not in tag:
-                    raise ValueError(f"tags[{i}] 缺少必需字段: {field}")
-            
-            # 验证字段类型
-            if not isinstance(tag["name"], str):
-                raise ValueError(f"tags[{i}].name 必须是字符串，当前类型: {type(tag['name'])}")
-            
-            if not isinstance(tag["display_name"], str):
-                raise ValueError(f"tags[{i}].display_name 必须是字符串，当前类型: {type(tag['display_name'])}")
-            
-            # 检查 tag name 唯一性
-            tag_name = tag["name"]
-            if tag_name in tag_names:
-                raise ValueError(f"tags 中存在重复的 tag name: {tag_name}")
-            tag_names.add(tag_name)
-    
-    def _apply_calculator_defaults(self, settings: Dict[str, Any]):
-        """
-        应用 calculator 默认值
-        
-        Args:
-            settings: settings 字典（会被修改）
-        """
-        calculator = settings["calculator"]
-        
-        # core 默认 {}（如果不存在）
-        if "core" not in calculator:
-            calculator["core"] = {}
-        
-        # required_terms 默认 []
-        if "required_terms" not in calculator or calculator["required_terms"] is None:
-            calculator["required_terms"] = []
-        
-        # required_data 默认 []
-        if "required_data" not in calculator:
-            calculator["required_data"] = []
-        
-        # performance 默认值
-        perf = calculator["performance"]
-        # update_mode 和 on_version_change 是必需字段，不设置默认值
-        # max_workers 是可选的，由系统根据 job 数量自动分配，不设置默认值
-    
-    def _validate_calculator_enums(self, settings: Dict[str, Any]):
-        """
-        验证 calculator 枚举值
-        
-        Args:
-            settings: settings 字典
-            
-        Raises:
-            ValueError: 枚举值无效
-        """
-        calculator = settings["calculator"]
-        
-        # 验证 base_term
-        base_term = calculator["base_term"]
-        valid_terms = [term.value for term in KlineTerm]
-        if base_term not in valid_terms:
-            raise ValueError(
-                f"calculator.base_term 必须是 {valid_terms} 之一（使用 KlineTerm 枚举），"
-                f"当前值: {base_term}"
-            )
-        
-        # 验证 required_terms（如果存在）
-        required_terms = calculator.get("required_terms", [])
-        if required_terms:
-            for term in required_terms:
-                if term not in valid_terms:
-                    raise ValueError(
-                        f"calculator.required_terms 中的值必须是 {valid_terms} 之一（使用 KlineTerm 枚举），"
-                        f"当前值: {term}"
-                    )
-        
-        # 验证 performance 中的枚举值（如果存在）
-        perf = calculator["performance"]
-        
-        # 验证 update_mode（如果存在）
-        if "update_mode" in perf:
-            update_mode = perf["update_mode"]
-            valid_modes = [mode.value for mode in UpdateMode]
-            if update_mode not in valid_modes:
-                raise ValueError(
-                    f"calculator.performance.update_mode 必须是 {valid_modes} 之一（使用 UpdateMode 枚举），"
-                    f"当前值: {update_mode}"
-                )
-        
-        # 验证 on_version_change（如果存在）
-        if "on_version_change" in perf:
-            on_version_change = perf["on_version_change"]
-            valid_actions = [action.value for action in VersionChangeAction]
-            if on_version_change not in valid_actions:
-                raise ValueError(
-                    f"calculator.performance.on_version_change 必须是 {valid_actions} 之一（使用 VersionChangeAction 枚举），"
-                    f"当前值: {on_version_change}"
-                )
-    
-    def _extract_calculator_config(self):
-        """提取 calculator 配置到实例变量"""
-        calculator = self.settings["calculator"]
-        self.calculator_name = calculator["meta"]["name"]
-        self.calculator_description = calculator["meta"].get("description", "")
-        self.base_term = calculator["base_term"]
-        self.required_terms = calculator.get("required_terms", [])
-        self.required_data = calculator.get("required_data", [])
-        self.calculator_core = calculator.get("core", {})
-        self.calculator_performance = calculator.get("performance", {})
-    
-    def _process_tags_config(self) -> List[Dict[str, Any]]:
-        """
-        处理 tags 配置，合并 calculator 和 tag 配置
-        
-        Returns:
-            List[Dict[str, Any]]: 处理后的 tags 配置列表（每个 tag 的配置已合并）
-        """
-        processed_tags = []
-        
-        for tag in self.settings["tags"]:
-            # 注意：is_enabled 只在 calculator 级别，不在 tag 级别
-            # 如果 calculator 启用，所有 tags 都会被处理
-            
-            # 合并配置
-            merged_config = self._merge_tag_config(tag)
-            processed_tags.append(merged_config)
-        
-        return processed_tags
-    
-    def _merge_tag_config(self, tag_config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        合并 calculator 和 tag 配置
-        
-        注意：tag 级别不支持 core 和 performance，只在 calculator 级别配置
-        
-        Args:
-            tag_config: tag 配置字典
-            
-        Returns:
-            Dict[str, Any]: 合并后的配置
-        """
-        calculator = self.settings["calculator"]
-        merged = calculator.copy()
-        
-        # 注意：tag 级别不支持 core 和 performance，直接使用 calculator 的配置
-        # core 和 performance 只在 calculator 级别配置，所有 tags 共享
-        
-        # 添加 tag 元信息
-        merged["tag_meta"] = {
-            "name": tag_config["name"],
-            "display_name": tag_config["display_name"],
-            "description": tag_config.get("description", ""),
-        }
-        
-        return merged
-    
-    # ========================================================================
-    # 2. 数据加载（钩子函数，默认实现支持股票）
+    # 1. 数据加载（钩子函数，默认实现支持股票）
     # ========================================================================
     
     def load_entity_data(
-        self, 
-        entity_id: str, 
+        self,
+        entity_id: str,
         entity_type: str = "stock",
         as_of_date: str = None
     ) -> Dict[str, Any]:
         """
-        加载实体历史数据（可扩展接口）
+        加载实体历史数据（默认实现支持股票）
         
-        默认实现：只支持股票，从数据库加载数据
-        
-        Tag 系统是预计算系统，数据应该已经存储在数据库中。
-        所有数据都通过 DataManager 从数据库加载，不使用第三方数据源。
-        
-        高级用户扩展：
-        - 重写此方法，支持其他 entity（指数、板块、kline 等）
-        - 使用 self.data_mgr 从数据库加载自定义数据
+        用户可以重写此方法以支持自定义数据源
         
         Args:
-            entity_id: 实体ID（默认是股票代码）
+            entity_id: 实体ID（如股票代码 "000001.SZ"）
             entity_type: 实体类型（默认 "stock"）
-            as_of_date: 当前时间点（用于过滤历史数据，YYYYMMDD 格式）
+            as_of_date: 截止日期（格式：YYYYMMDD，如果为 None，使用最新日期）
             
         Returns:
             Dict[str, Any]: 历史数据字典
-                - klines: Dict[str, List[Dict]] - K线数据，key 是 term（"daily", "weekly", "monthly"）
-                - finance: List[Dict] - 财务数据（如果有）
-                - ... 其他历史数据
+                {
+                    "klines": {
+                        "daily": [...],
+                        "weekly": [...],
+                        ...
+                    },
+                    "finance": {...},
+                    ...
+                }
         """
         if not self.data_mgr:
             raise ValueError("DataManager 未初始化，无法加载数据")
         
         historical_data = {}
         
-        # 加载 kline 数据（根据 base_term 和 required_terms）
+        # 1. 加载 K 线数据
         kline_terms = set([self.base_term] + (self.required_terms or []))
         klines = {}
         
         for term in kline_terms:
-            # 从数据库加载（通过 DataManager）
-            kline_model = self.data_mgr.get_model(f"stock_kline_{term}")
-            if kline_model:
-                kline_data = kline_model.load_by_stock(entity_id, end_date=as_of_date)
+            try:
+                if hasattr(self.data_mgr, "load_kline"):
+                    kline_data = self.data_mgr.load_kline(
+                        entity_id=entity_id,
+                        term=term,
+                        end_date=as_of_date
+                    )
+                else:
+                    # 备用方案：使用 model
+                    kline_model = self.data_mgr.get_model(f"stock_kline_{term}")
+                    if kline_model:
+                        kline_data = kline_model.load_by_stock(entity_id, end_date=as_of_date)
+                    else:
+                        kline_data = []
                 klines[term] = kline_data
+            except Exception as e:
+                logger.warning(f"加载 {term} K线数据失败: {entity_id}, 错误: {e}")
+                klines[term] = []
         
         historical_data["klines"] = klines
         
-        # 加载其他数据源
+        # 2. 加载其他数据源
         for data_source in self.required_data:
             if data_source == "corporate_finance":
-                finance_model = self.data_mgr.get_model("corporate_finance")
-                if finance_model:
-                    finance_data = finance_model.load_by_stock(entity_id, end_date=as_of_date)
+                try:
+                    if hasattr(self.data_mgr, "load_corporate_finance"):
+                        finance_data = self.data_mgr.load_corporate_finance(
+                            entity_id=entity_id,
+                            end_date=as_of_date
+                        )
+                    else:
+                        # 备用方案：使用 model
+                        finance_model = self.data_mgr.get_model("corporate_finance")
+                        if finance_model:
+                            finance_data = finance_model.load_by_stock(entity_id, end_date=as_of_date)
+                        else:
+                            finance_data = {}
                     historical_data["finance"] = finance_data
+                except Exception as e:
+                    logger.warning(f"加载财务数据失败: {entity_id}, 错误: {e}")
+                    historical_data["finance"] = {}
         
         return historical_data
     
     # ========================================================================
-    # 3. 计算钩子（用户实现）
+    # 2. 计算执行（用户实现）
     # ========================================================================
     
     @abstractmethod
     def calculate_tag(
-        self, 
+        self,
         entity_id: str,
         entity_type: str,
-        as_of_date: str, 
+        as_of_date: str,
         historical_data: Dict[str, Any],
         tag_config: Dict[str, Any]
     ) -> Optional[Any]:
         """
         计算 tag（用户实现）
         
-        钩子函数：为每个 tag 在每个时间点调用，用户实现计算逻辑
-        
         Args:
-            entity_id: 实体ID（如股票代码 "000001.SZ"）
-            entity_type: 实体类型（如 "stock", "kline_daily" 等）
-            as_of_date: 当前时间点（YYYYMMDD 格式，如 "20250101"）
-            historical_data: 完整历史数据（上帝视角）
-                - klines: Dict[str, List[Dict]] - K线数据，key 是 term
-                - finance: List[Dict] - 财务数据（如果有）
-                - ... 其他历史数据
+            entity_id: 实体ID
+            entity_type: 实体类型
+            as_of_date: 业务日期（格式：YYYYMMDD）
+            historical_data: 历史数据字典
             tag_config: 当前 tag 的配置（已合并 calculator 和 tag 配置）
                 - base_term: 基础周期
                 - required_terms: 需要的周期列表
@@ -481,15 +207,613 @@ class BaseTagCalculator(ABC):
                 - core: calculator 的 core 参数（所有 tags 共享）
                 - performance: calculator 的 performance 配置（所有 tags 共享）
                 - tag_meta: tag 元信息（name, display_name, description）
-                   注意：tag 级别不支持 core 和 performance，只在 calculator 级别配置
         
         Returns:
-            TagEntity 或 None（不创建 tag）
+            Dict[str, Any] 或 None:
+                - 如果返回 None，不创建 tag
+                - 如果返回字典，格式：
+                    {
+                        "value": str,  # 标签值（字符串）
+                        "start_date": str,  # 可选，起始日期（YYYYMMDD）
+                        "end_date": str,  # 可选，结束日期（YYYYMMDD）
+                    }
         """
         pass
     
     # ========================================================================
-    # 4. 其他钩子函数（可选实现）
+    # 3. Tag 值保存（通过 TagService）
+    # ========================================================================
+    
+    def save_tag_value(
+        self,
+        tag_definition_id: int,
+        entity_id: str,
+        entity_type: str,
+        as_of_date: str,
+        value: str,
+        start_date: str = None,
+        end_date: str = None
+    ):
+        """
+        保存 tag 值到数据库（通过 TagService）
+        
+        Args:
+            tag_definition_id: Tag Definition ID
+            entity_id: 实体ID
+            entity_type: 实体类型
+            as_of_date: 业务日期
+            value: 标签值（字符串）
+            start_date: 起始日期（可选）
+            end_date: 结束日期（可选）
+        """
+        if not self.tag_service:
+            raise ValueError("TagService 未初始化，无法保存 tag 值")
+        
+        self.tag_service.save_tag_value(
+            tag_definition_id=tag_definition_id,
+            entity_id=entity_id,
+            entity_type=entity_type,
+            as_of_date=as_of_date,
+            value=value,
+            start_date=start_date,
+            end_date=end_date
+        )
+    
+    # ========================================================================
+    # 4. 执行入口（Calculator 入口函数）
+    # ========================================================================
+    
+    def run(self):
+        """
+        Calculator 入口函数（由 TagManager.run() 调用）
+        
+        流程：
+        1. 确保元信息存在（ensure_metadata）
+        2. 处理版本变更和更新模式（renew_or_create_values）
+        """
+        # 1. 确保元信息存在
+        scenario, tag_defs = self.ensure_metadata()
+        
+        # 2. 处理版本变更和更新模式
+        self.renew_or_create_values()
+    
+    def ensure_metadata(self) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """
+        确保元信息存在（scenario 和 tag definitions）
+        
+        Returns:
+            Tuple[Dict[str, Any], List[Dict[str, Any]]]: (scenario, tag_definitions)
+        """
+        # 1. 确保 scenario 存在
+        scenario = self.ensure_scenario()
+        
+        # 2. 确保 tag definitions 存在
+        tag_defs = self.ensure_tags(scenario)
+        
+        return scenario, tag_defs
+    
+    def ensure_scenario(self) -> Dict[str, Any]:
+        """
+        确保 scenario 存在（如果不存在则创建）
+        
+        Returns:
+            Dict[str, Any]: Scenario 记录
+        """
+        if not self.tag_service:
+            raise ValueError("TagService 未初始化，无法确保 scenario 存在")
+        
+        # 1. 查询数据库中该 scenario name 的所有版本
+        existing_scenarios = self.tag_service.list_scenarios(
+            scenario_name=self.scenario_name
+        )
+        
+        # 2. 查找 settings.version 是否已存在
+        target_scenario = None
+        for s in existing_scenarios:
+            if s.get("version") == self.scenario_version:
+                target_scenario = s
+                break
+        
+        # 3. 如果已存在，返回该 scenario
+        if target_scenario:
+            return target_scenario
+        
+        # 4. 如果不存在，创建新的 scenario（通过 TagService）
+        scenario_id = self.tag_service.create_scenario(
+            name=self.scenario_name,
+            version=self.scenario_version,
+            display_name=self.settings["scenario"].get("display_name", self.scenario_name),
+            description=self.settings["scenario"].get("description", "")
+        )
+        target_scenario = self.tag_service.get_scenario(self.scenario_name, self.scenario_version)
+        
+        # 5. 返回 scenario
+        return target_scenario
+    
+    def ensure_tags(self, scenario: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        确保 tag definitions 存在（如果不存在则创建）
+        
+        Args:
+            scenario: Scenario 记录
+            
+        Returns:
+            List[Dict[str, Any]]: Tag Definition 列表
+        """
+        if not self.tag_service:
+            raise ValueError("TagService 未初始化，无法确保 tags 存在")
+        
+        scenario_id = scenario["id"]
+        
+        # 1. 查询该 scenario 下的所有 tag definitions
+        existing_tags = self.tag_service.get_tag_definitions(scenario_id=scenario_id)
+        existing_tag_names = {tag["name"] for tag in existing_tags}
+        
+        # 2. 对每个 settings.tags 中的 tag：
+        tag_definitions = []
+        for tag_config in self.settings["tags"]:
+            tag_name = tag_config["name"]
+            
+            # 检查是否已存在
+            if tag_name in existing_tag_names:
+                # 已存在，从 existing_tags 中获取
+                for tag in existing_tags:
+                    if tag["name"] == tag_name:
+                        tag_definitions.append(tag)
+                        break
+            else:
+                # 不存在，创建新的 tag definition
+                tag_definition_id = self.tag_service.create_tag_definition(
+                    scenario_id=scenario_id,
+                    scenario_version=self.scenario_version,
+                    name=tag_name,
+                    display_name=tag_config["display_name"],
+                    description=tag_config.get("description", "")
+                )
+                # 获取新创建的 tag definition
+                new_tag = self.tag_service.get_tag_definitions(scenario_id=scenario_id, include_legacy=False)
+                for tag in new_tag:
+                    if tag["name"] == tag_name:
+                        tag_definitions.append(tag)
+                        break
+        
+        # 3. 返回 tag definitions 列表
+        return tag_definitions
+    
+    def renew_or_create_values(self):
+        """
+        处理版本变更和更新模式
+        
+        流程：
+        1. 处理版本变更（handle_version_change）
+        2. 根据版本变更结果和 update_mode 计算（handle_update_mode）
+        """
+        # 1. 处理版本变更
+        version_action = self.handle_version_change()
+        
+        # 2. 根据版本变更结果和 update_mode 计算
+        self.handle_update_mode(version_action)
+    
+    def handle_version_change(self) -> str:
+        """
+        处理版本变更
+        
+        逻辑：
+        1. 如果 settings.version 在数据库中已存在且 is_legacy=0（active）：
+           - version_action = "NO_CHANGE"（版本未变，继续使用）
+        2. 如果 settings.version 在数据库中已存在但 is_legacy=1（legacy）：
+           - 这是用户把 version 改回到以前存在过的版本（版本回退）
+           - 检查全局配置 ALLOW_VERSION_ROLLBACK
+           - 如果 False：抛出 ValueError
+           - 如果 True：标记旧的 active 为 legacy，设置当前为 active，version_action = "ROLLBACK"
+        3. 如果 settings.version 在数据库中不存在：
+           - 读取 on_version_change 配置
+           - version_action = on_version_change（REFRESH_SCENARIO 或 NEW_SCENARIO）
+           - 根据 version_action 处理
+        
+        Returns:
+            str: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")
+        """
+        if not self.tag_service:
+            raise ValueError("TagService 未初始化，无法处理版本变更")
+        
+        # 1. 查询数据库中该 scenario name 的所有版本
+        db_scenarios = self.tag_service.list_scenarios(
+            scenario_name=self.scenario_name
+        )
+        
+        # 2. 查找 settings.version 是否在数据库中已存在
+        existing_scenario = None
+        for s in db_scenarios:
+            if s.get("version") == self.scenario_version:
+                existing_scenario = s
+                break
+        
+        # 3. 如果已存在且 is_legacy=0（active）：
+        if existing_scenario and existing_scenario.get("is_legacy", 0) == 0:
+            return "NO_CHANGE"
+        
+        # 4. 如果已存在但 is_legacy=1（legacy）：
+        if existing_scenario and existing_scenario.get("is_legacy", 0) == 1:
+            # 这是用户把 version 改回到以前存在过的版本（版本回退）
+            # 检查全局配置 ALLOW_VERSION_ROLLBACK
+            if not ALLOW_VERSION_ROLLBACK:
+                error_msg = (
+                    f"Version rollback detected but not allowed: "
+                    f"scenario={self.scenario_name}, version={self.scenario_version}. "
+                    "Version rollback may cause data inconsistency. "
+                    "Only rollback version if calculator logic is also rolled back. "
+                    "To allow version rollback, set ALLOW_VERSION_ROLLBACK=True in app/tag/config.py"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            # ALLOW_VERSION_ROLLBACK = True
+            warning_msg = (
+                f"Version rollback detected: "
+                f"scenario={self.scenario_name}, version={self.scenario_version}. "
+                "WARNING: Version rollback may cause data inconsistency. "
+                "Only rollback version if calculator logic is also rolled back. "
+                "User is responsible for ensuring algorithm consistency."
+            )
+            logger.warning(warning_msg)
+            
+            # 查找当前的 active 版本（is_legacy=0）
+            active_scenario = None
+            for s in db_scenarios:
+                if s.get("is_legacy", 0) == 0:
+                    active_scenario = s
+                    break
+            
+            # 如果存在 active 版本，标记为 legacy
+            if active_scenario:
+                self.tag_service.mark_scenario_as_legacy(active_scenario["id"])
+            
+            # 把当前版本（existing_scenario）设置为 legacy=0（active）
+            self.tag_service.update_scenario(
+                existing_scenario["id"],
+                is_legacy=0
+            )
+            
+            # 注意：不删除旧的 tag definitions 和 tag values
+            # 确保 tag definitions 存在（调用 ensure_tags，如果不存在则创建）
+            scenario = self.tag_service.get_scenario(self.scenario_name, self.scenario_version)
+            self.ensure_tags(scenario)
+            
+            return "ROLLBACK"
+        
+        # 5. 如果不存在：
+        # 读取 on_version_change 配置
+        on_version_change = self.settings["scenario"].get(
+            "on_version_change",
+            VersionChangeAction.REFRESH_SCENARIO.value
+        )
+        
+        if on_version_change == VersionChangeAction.NEW_SCENARIO.value:
+            # NEW_SCENARIO：创建新 scenario，保留旧的
+            # 查找当前的 active 版本（is_legacy=0）
+            active_scenario = None
+            for s in db_scenarios:
+                if s.get("is_legacy", 0) == 0:
+                    active_scenario = s
+                    break
+            
+            # 如果存在 active 版本，标记为 legacy
+            if active_scenario:
+                self.tag_service.mark_scenario_as_legacy(active_scenario["id"])
+            
+            # 创建新 scenario
+            scenario_id = self.tag_service.create_scenario(
+                name=self.scenario_name,
+                version=self.scenario_version,
+                display_name=self.settings["scenario"].get("display_name", self.scenario_name),
+                description=self.settings["scenario"].get("description", "")
+            )
+            
+            # 清理旧版本
+            self.cleanup_legacy_versions(self.scenario_name, keep_n=3)
+            
+            return "NEW_SCENARIO"
+        
+        elif on_version_change == VersionChangeAction.REFRESH_SCENARIO.value:
+            # REFRESH_SCENARIO：删除之前结果，重新计算
+            # 查找当前的 active 版本（is_legacy=0）
+            active_scenario = None
+            for s in db_scenarios:
+                if s.get("is_legacy", 0) == 0:
+                    active_scenario = s
+                    break
+            
+            if active_scenario:
+                # 更新 scenario（更新 version 等字段）
+                self.tag_service.update_scenario(
+                    active_scenario["id"],
+                    display_name=self.settings["scenario"].get("display_name", self.scenario_name),
+                    description=self.settings["scenario"].get("description", "")
+                )
+                # 删除旧的 tag definitions 和 tag values
+                self.tag_service.delete_tag_definitions_by_scenario(active_scenario["id"])
+                self.tag_service.delete_tag_values_by_scenario(active_scenario["id"])
+            else:
+                # 如果不存在 active 版本，创建新 scenario
+                self.tag_service.create_scenario(
+                    name=self.scenario_name,
+                    version=self.scenario_version,
+                    display_name=self.settings["scenario"].get("display_name", self.scenario_name),
+                    description=self.settings["scenario"].get("description", "")
+                )
+            
+            # 创建新的 tag definitions（调用 ensure_tags）
+            scenario = self.tag_service.get_scenario(self.scenario_name, self.scenario_version)
+            self.ensure_tags(scenario)
+            
+            return "REFRESH_SCENARIO"
+        
+        else:
+            raise ValueError(f"未知的 on_version_change 值: {on_version_change}")
+    
+    def handle_update_mode(self, version_action: str):
+        """
+        根据版本变更结果和 update_mode 计算
+        
+        Args:
+            version_action: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")
+        """
+        # 1. 获取 scenario 和 tag definitions
+        scenario = self.ensure_scenario()
+        tag_defs = self.ensure_tags(scenario)
+        
+        # 2. 确定计算日期范围
+        update_mode = self.performance.get("update_mode", UpdateMode.INCREMENTAL.value)
+        
+        if version_action == "NO_CHANGE":
+            # 按 update_mode 计算
+            if update_mode == UpdateMode.INCREMENTAL.value:
+                # 从上次计算的最大 as_of_date 继续
+                start_date = self._get_max_as_of_date(tag_defs)
+                if start_date:
+                    # 获取下一个交易日
+                    start_date = self._get_next_trading_date(start_date)
+                else:
+                    # 如果没有历史数据，从 start_date 开始
+                    start_date = self.settings["calculator"].get("start_date") or self._get_default_start_date()
+                end_date = self.settings["calculator"].get("end_date") or self._get_latest_trading_date()
+            elif update_mode == UpdateMode.REFRESH.value:
+                # 从 start_date 到 end_date
+                start_date = self.settings["calculator"].get("start_date") or self._get_default_start_date()
+                end_date = self.settings["calculator"].get("end_date") or self._get_latest_trading_date()
+            else:
+                raise ValueError(f"未知的 update_mode: {update_mode}")
+        
+        elif version_action == "ROLLBACK":
+            # 版本回退：按照该版本的 update_mode 继续
+            logger.warning(
+                f"Version rollback detected: scenario={self.scenario_name}, "
+                f"version={self.scenario_version}. "
+                f"Continuing with update_mode={update_mode}. "
+                f"User is responsible for ensuring algorithm consistency."
+            )
+            if update_mode == UpdateMode.INCREMENTAL.value:
+                # 从上次计算的最大 as_of_date 继续
+                start_date = self._get_max_as_of_date(tag_defs)
+                if start_date:
+                    start_date = self._get_next_trading_date(start_date)
+                else:
+                    start_date = self.settings["calculator"].get("start_date") or self._get_default_start_date()
+                end_date = self.settings["calculator"].get("end_date") or self._get_latest_trading_date()
+            elif update_mode == UpdateMode.REFRESH.value:
+                # 重新计算所有数据
+                start_date = self.settings["calculator"].get("start_date") or self._get_default_start_date()
+                end_date = self.settings["calculator"].get("end_date") or self._get_latest_trading_date()
+            else:
+                raise ValueError(f"未知的 update_mode: {update_mode}")
+        
+        else:
+            # version_action == "NEW_SCENARIO" 或 "REFRESH_SCENARIO"
+            # 重新计算所有 tags
+            start_date = self.settings["calculator"].get("start_date") or self._get_default_start_date()
+            end_date = self.settings["calculator"].get("end_date") or self._get_latest_trading_date()
+        
+        # 3. 获取实体列表
+        entities = self._get_entity_list()
+        
+        # 4. 对每个实体：
+        for entity_id in entities:
+            try:
+                # a. 加载历史数据（调用 self.load_entity_data）
+                historical_data = self.load_entity_data(
+                    entity_id=entity_id,
+                    entity_type="stock",
+                    as_of_date=end_date
+                )
+                
+                # b. 对每个 tag：
+                for tag_def in tag_defs:
+                    tag_config = None
+                    for tag_cfg in self.tags_config:
+                        if tag_cfg["tag_meta"]["name"] == tag_def["name"]:
+                            tag_config = tag_cfg
+                            break
+                    
+                    if tag_config is None:
+                        logger.warning(f"找不到 tag 配置: {tag_def['name']}")
+                        continue
+                    
+                    # 对每个日期（从 start_date 到 end_date）：
+                    for as_of_date in self._get_trading_dates(start_date, end_date):
+                        try:
+                            # 调用 self.calculate_tag()
+                            result = self.calculate_tag(
+                                entity_id=entity_id,
+                                entity_type="stock",
+                                as_of_date=as_of_date,
+                                historical_data=historical_data,
+                                tag_config=tag_config
+                            )
+                            
+                            # 如果返回结果，保存 tag 值（调用 self.save_tag_value）
+                            if result is not None:
+                                if isinstance(result, dict):
+                                    value = result.get("value", "")
+                                    start_date_override = result.get("start_date")
+                                    end_date_override = result.get("end_date")
+                                    
+                                    self.save_tag_value(
+                                        tag_definition_id=tag_def["id"],
+                                        entity_id=entity_id,
+                                        entity_type="stock",
+                                        as_of_date=as_of_date,
+                                        value=str(value),
+                                        start_date=start_date_override,
+                                        end_date=end_date_override
+                                    )
+                                    
+                                    # 调用 on_tag_created 钩子
+                                    self.on_tag_created(result, entity_id, as_of_date)
+                        except Exception as e:
+                            # 如果出错，调用 self.on_calculate_error()
+                            self.on_calculate_error(entity_id, as_of_date, e)
+                            
+                            # 根据 should_continue_on_error 决定是否继续
+                            if not self.should_continue_on_error():
+                                raise
+                
+                # c. 调用 on_finish 钩子
+                tag_count = len(tag_defs)
+                self.on_finish(entity_id, tag_count)
+                
+            except Exception as e:
+                logger.error(
+                    f"处理实体 '{entity_id}' 时出错: {e}",
+                    exc_info=True
+                )
+                if not self.should_continue_on_error():
+                    raise
+    
+    def cleanup_legacy_versions(self, scenario_name: str, keep_n: int = 3):
+        """
+        清理旧的 legacy versions
+        
+        如果 legacy version 数量 >= keep_n，删除最老的
+        
+        Args:
+            scenario_name: Scenario 名称
+            keep_n: 最大保留的 legacy version 数量（默认 3，可配置）
+        """
+        if not self.tag_service:
+            raise ValueError("TagService 未初始化，无法清理旧版本")
+        
+        # 1. 查询所有 legacy scenarios
+        all_scenarios = self.tag_service.list_scenarios(
+            scenario_name=scenario_name,
+            include_legacy=True
+        )
+        legacy_scenarios = [s for s in all_scenarios if s.get("is_legacy", 0) == 1]
+        legacy_scenarios.sort(key=lambda x: x.get("created_at", ""))
+        
+        # 2. 如果数量 >= keep_n，删除最老的
+        if len(legacy_scenarios) >= keep_n:
+            delete_count = len(legacy_scenarios) - keep_n + 1
+            for i in range(delete_count):
+                scenario_to_delete = legacy_scenarios[i]
+                self.tag_service.delete_scenario(scenario_to_delete["id"], cascade=True)
+                logger.info(f"已删除旧的 legacy scenario: {scenario_name}@{scenario_to_delete['version']}")
+    
+    # ========================================================================
+    # 5. 辅助方法（需要实现）
+    # ========================================================================
+    
+    def _get_max_as_of_date(self, tag_definitions: List[Dict[str, Any]]) -> Optional[str]:
+        """
+        获取 tag definitions 的最大 as_of_date
+        
+        Args:
+            tag_definitions: Tag Definition 列表
+            
+        Returns:
+            Optional[str]: 最大 as_of_date（YYYYMMDD 格式），如果没有数据则返回 None
+        """
+        if not tag_definitions:
+            return None
+        
+        max_dates = []
+        for tag_def in tag_definitions:
+            # 查询该 tag_definition 的最大 as_of_date
+            # 这里需要通过 tag_service 查询，或者直接查询数据库
+            # 暂时返回 None，需要实现具体的查询逻辑
+            pass
+        
+        if max_dates:
+            return max(max_dates)
+        return None
+    
+    def _get_next_trading_date(self, date: str) -> str:
+        """
+        获取下一个交易日
+        
+        Args:
+            date: 当前日期（YYYYMMDD 格式）
+            
+        Returns:
+            str: 下一个交易日（YYYYMMDD 格式）
+        """
+        # 从 DataManager 或交易日历获取下一个交易日
+        # 暂时返回原日期，需要实现具体的逻辑
+        return date
+    
+    def _get_latest_trading_date(self) -> str:
+        """
+        获取最新交易日
+        
+        Returns:
+            str: 最新交易日（YYYYMMDD 格式）
+        """
+        # 从 DataManager 获取最新交易日
+        if self.data_mgr and hasattr(self.data_mgr, "get_latest_completed_trading_date"):
+            return self.data_mgr.get_latest_completed_trading_date()
+        return ""
+    
+    def _get_default_start_date(self) -> str:
+        """
+        获取默认起始日期
+        
+        Returns:
+            str: 默认起始日期（YYYYMMDD 格式）
+        """
+        # 返回一个合理的默认起始日期
+        # 例如：一年前或系统配置的默认值
+        return ""
+    
+    def _get_entity_list(self) -> List[str]:
+        """
+        获取实体列表（如股票列表）
+        
+        Returns:
+            List[str]: 实体ID列表
+        """
+        # 从 DataManager 获取实体列表
+        if self.data_mgr and hasattr(self.data_mgr, "get_stock_list"):
+            return self.data_mgr.get_stock_list()
+        return []
+    
+    def _get_trading_dates(self, start_date: str, end_date: str) -> List[str]:
+        """
+        获取交易日列表
+        
+        Args:
+            start_date: 起始日期（YYYYMMDD 格式）
+            end_date: 结束日期（YYYYMMDD 格式）
+            
+        Returns:
+            List[str]: 交易日列表（YYYYMMDD 格式）
+        """
+        # 从 DataManager 或交易日历获取交易日列表
+        if self.data_mgr and hasattr(self.data_mgr, "get_trading_dates"):
+            return self.data_mgr.get_trading_dates(start_date, end_date)
+        return []
+    
+    # ========================================================================
+    # 6. 其他钩子函数（可选实现）
     # ========================================================================
     
     def on_init(self):
@@ -507,7 +831,7 @@ class BaseTagCalculator(ABC):
         """
         Tag 创建后钩子（可选实现）
         
-        在 calculate_tag 返回 TagEntity 后调用，用于：
+        在 calculate_tag 返回结果并保存后调用，用于：
         - 记录日志
         - 更新缓存
         - 触发其他操作
@@ -524,8 +848,6 @@ class BaseTagCalculator(ABC):
         - 其他错误处理
         """
         # 默认实现：记录错误
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(
             f"计算 tag 失败: entity_id={entity_id}, as_of_date={as_of_date}, error={error}",
             exc_info=True

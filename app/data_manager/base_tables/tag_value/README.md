@@ -3,13 +3,13 @@
 ## 表结构
 
 - **表名**: `tag_value`
-- **主键**: `(entity_id, tag_id, as_of_date)`
+- **主键**: `(entity_id, tag_definition_id, as_of_date)`
 
 ## 字段说明
 
 - `entity_type` (VARCHAR 32): 实体类型（如 "stock", "index" 等，默认 "stock"，方便未来扩展）
 - `entity_id` (VARCHAR 64): 实体ID（默认是股票代码，如 000001.SZ，但支持其他实体类型以保持通用性）
-- `tag_id` (BIGINT): 标签ID（引用 tag.id）
+- `tag_definition_id` (BIGINT): 标签定义ID（引用 tag_definition.id）
 - `as_of_date` (DATE): 业务日期（tag 创建时间点）
 - `start_date` (DATE, 可选): tag 起始日期（时间切片 tag 用，连续 tag 的上一个结束时间）
 - `end_date` (DATE, 可选): tag 结束日期（时间切片 tag 用，连续 tag 的下一个开始时间的前一个时间点）
@@ -17,14 +17,15 @@
 - `calculated_at` (DATETIME): 计算时间
 
 **注意**：
-- 使用联合主键 `(entity_id, tag_id, as_of_date)`，不使用自增主键
+- 使用联合主键 `(entity_id, tag_definition_id, as_of_date)`，不使用自增主键
 - `entity_type` 字段用于区分不同类型的实体，方便未来扩展（如指数、板块等）
+- `tag_definition_id` 引用 `tag_definition.id`，而不是旧的 `tag.id`
 
 ## 索引
 
 - `idx_entity_date`: `(entity_id, as_of_date)` - 核心查询：给定实体+日期，快速获取所有标签
-- `idx_tag_date`: `(tag_id, as_of_date)` - 辅助查询：某个标签在某个日期的所有实体
-- `idx_entity_tag_date`: `(entity_id, tag_id, as_of_date)` - 增量计算查询：优化查询每个 (entity_id, tag_id) 的最大 as_of_date
+- `idx_tag_date`: `(tag_definition_id, as_of_date)` - 辅助查询：某个标签在某个日期的所有实体
+- `idx_entity_tag_date`: `(entity_id, tag_definition_id, as_of_date)` - 增量计算查询：优化查询每个 (entity_id, tag_definition_id) 的最大 as_of_date
 
 ## 使用场景
 
@@ -34,8 +35,8 @@
 # 获取某个实体在某个时刻的所有标签
 tags = tag_value_model.get_entity_tags('600000.SH', '20250115')
 # 返回: [
-#   {"tag_id": 1, "value": "0.23", "start_date": None, "end_date": None},
-#   {"tag_id": 2, "value": "LARGE_CAP", "start_date": "2025-01-01", "end_date": "2025-01-31"},
+#   {"tag_definition_id": 1, "value": "0.23", "start_date": None, "end_date": None},
+#   {"tag_definition_id": 2, "value": "LARGE_CAP", "start_date": "2025-01-01", "end_date": "2025-01-31"},
 #   ...
 # ]
 ```

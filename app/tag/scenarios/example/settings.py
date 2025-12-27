@@ -10,7 +10,6 @@ Tag 配置示例（settings.py）
 
 注意：
 - version 在 settings.scenario 中指定（对应 tag_scenario.version）
-- is_enabled 不在 settings 中，在代码层面管理（TagManager 检查）
 - is_legacy 不在 settings 中，在代码层面管理
 - display_name 如果未指定，代码层面会默认使用 name
 """
@@ -21,7 +20,12 @@ Settings = {
     # Scenario 级别配置（对应 tag_scenario 表）
     # 每个Scenario对应一个calculator。
     # ========================================================================
+
+    "is_enabled": True,
+
+
     "scenario": {
+
         # 必须参数
         # 业务场景机器识别代码。请使用字母数字，并使用下划线连接，不能用特殊字符, 比如空格等（对应 tag_scenario.name）
         "name": "example",  

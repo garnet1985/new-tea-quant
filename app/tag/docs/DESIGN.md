@@ -681,3 +681,162 @@ app/tag/
 ---
 
 **文档结束**
+
+
+顶层：TagManager 启动整体流程
+[用户代码]
+    |
+    v
++----------------------+
+| TagManager.run()     |
++----------------------+
+    |
+    v
++-------------------------------------+
+| _discover_and_register_calculators()|
++-------------------------------------+
+    |
+    v
++-----------------------------+
+| _validate_all_settings()    |
++-----------------------------+
+    |
+    v
++-----------------------------+
+| for calc in self.calculators|
+|     calc.run()              |
++-----------------------------+
+
+核心函数（TagManager）
+TagManager.run()
+TagManager.register_scenario(settings_dict) ← 支持“无 settings 文件”的入口
+TagManager._discover_and_register_calculators() ← 扫描静态 settings / modules
+TagManager._validate_all_settings() ← 统一做 schema 校验，抛出早期错误
+
+
+单个 Calculator 的生命周期（核心）
+
+BaseCalculator.run()
+    |
+    v
++--------------------------------+
+| ensure_metadata()              |
+|  - ensure_scenario()           |
+|  - ensure_tags()               |
++--------------------------------+
+    |
+    v
++--------------------------------+
+| renew_or_create_values()       |
+|  - handle_version_change()     |
+|  - handle_update_mode()        |
++--------------------------------+
+
+
+创建 / 同步元信息
+
+BaseCalculator.run()
+    |
+    v
++--------------------------+
+| ensure_metadata()        |
++--------------------------+
+    |
+    v
++-------------------------------+
+| scenario = ensure_scenario()  |
++-------------------------------+
+    |
+    v
++--------------------------------------------+
+| tag_defs = ensure_tags(scenario)           |
++--------------------------------------------+
+    |
+    v
+(进入 renew_or_create_values)
+
+
+核心函数（Calculator 内）
+BaseCalculator.run()
+BaseCalculator.ensure_metadata()
+BaseCalculator.ensure_scenario() -> ScenarioRecord
+BaseCalculator.ensure_tags(scenario: ScenarioRecord) -> List[TagDefinition]
+
+
+ensure_scenario()
+    |
+    v
++---------------------------------------------------+
+| existing = repo.get_scenarios_by_name(name)       |
++---------------------------------------------------+
+    |
+    v
++------------------------------------------------------+
+| target = _select_or_create_scenario(existing,        |
+|                                     settings.version)|
++------------------------------------------------------+
+    |
+    v
+return target
+
+renew_or_create_values：版本 & 更新模式控制
+
+
+BaseCalculator.run()
+    |
+    v
++------------------------------+
+| renew_or_create_values()     |
++------------------------------+
+    |
+    v
++-----------------------------------------+
+| version_action = handle_version_change()|
++-----------------------------------------+
+    |
+    v
++--------------------------------------------+
+| handle_update_mode(version_action)         |
++--------------------------------------------+
+
+
+handle_version_change()
+
+handle_version_change()
+    |
+    v
++-------------------------------------------------+
+| db_versions = repo.get_scenarios_by_name(name)  |
++-------------------------------------------------+
+    |
+    v
++------------------------------+
+| if settings.version 在 db 中?|
++------------------------------+
+    | Yes                             | No
+    |                                 |
+    v                                 v
++-------------------+        +----------------------------+
+| version_action =  |        | version_action =           |
+| "NO_CHANGE"       |        | on_version_change          |
++-------------------+        |  (REFRESH_SCENARIO /      |
+                             |   NEW_SCENARIO)           |
+                             +----------------------------+
+                                      |
+                                      v
+                            +-----------------------------+
+                            | new_scenario =             |
+                            |   create_new_scenario()    |
+                            +-----------------------------+
+                                      |
+                                      v
+                            +-----------------------------+
+                            | cleanup_legacy_versions()   |
+                            +-----------------------------+
+
+return version_action
+核心函数
+BaseCalculator.handle_version_change() -> VersionAction
+BaseCalculator.create_new_scenario() -> ScenarioRecord
+BaseCalculator.cleanup_legacy_versions(name: str, keep_n: int = 3)
+

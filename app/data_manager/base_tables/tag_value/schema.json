@@ -1,6 +1,6 @@
 {
   "name": "tag_value",
-  "primaryKey": ["entity_id", "tag_id", "as_of_date"],
+  "primaryKey": ["entity_id", "tag_definition_id", "as_of_date"],
   "fields": [
     {
       "name": "entity_type",
@@ -18,10 +18,10 @@
       "description": "实体ID（默认是股票代码，如 000001.SZ，但支持其他实体类型以保持通用性）"
     },
     {
-      "name": "tag_id",
+      "name": "tag_definition_id",
       "type": "bigint",
       "isRequired": true,
-      "description": "标签ID（引用 tag.id）"
+      "description": "标签定义ID（引用 tag_definition.id）"
     },
     {
       "name": "as_of_date",
@@ -63,13 +63,13 @@
     },
     {
       "name": "idx_tag_date",
-      "fields": ["tag_id", "as_of_date"],
+      "fields": ["tag_definition_id", "as_of_date"],
       "description": "辅助查询：某个标签在某个日期的所有实体"
     },
     {
       "name": "idx_entity_tag_date",
-      "fields": ["entity_id", "tag_id", "as_of_date"],
-      "description": "增量计算查询：优化查询每个 (entity_id, tag_id) 的最大 as_of_date，用于增量计算"
+      "fields": ["entity_id", "tag_definition_id", "as_of_date"],
+      "description": "增量计算查询：优化查询每个 (entity_id, tag_definition_id) 的最大 as_of_date，用于增量计算"
     }
   ]
 }

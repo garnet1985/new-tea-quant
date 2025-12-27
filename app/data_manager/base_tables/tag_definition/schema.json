@@ -1,0 +1,91 @@
+{
+  "name": "tag_definition",
+  "primaryKey": "id",
+  "fields": [
+    {
+      "name": "id",
+      "type": "bigint",
+      "isRequired": true,
+      "isAutoIncrement": true,
+      "description": "自增主键"
+    },
+    {
+      "name": "scenario_id",
+      "type": "bigint",
+      "isRequired": true,
+      "description": "外键 → tag_scenario.id（所属的业务场景）"
+    },
+    {
+      "name": "scenario_version",
+      "type": "varchar",
+      "length": 32,
+      "isRequired": true,
+      "description": "业务场景版本号（冗余字段，与 tag_scenario.version 保持一致，用于查询优化）"
+    },
+    {
+      "name": "is_legacy",
+      "type": "tinyint",
+      "length": 1,
+      "isRequired": true,
+      "default": 0,
+      "description": "是否为遗留标签（冗余字段，与 tag_scenario.is_legacy 保持一致，用于查询优化）"
+    },
+    {
+      "name": "name",
+      "type": "varchar",
+      "length": 64,
+      "isRequired": true,
+      "description": "标签唯一代码（如 large_market_value, small_market_value）"
+    },
+    {
+      "name": "display_name",
+      "type": "varchar",
+      "length": 128,
+      "isRequired": true,
+      "description": "标签显示名称（用户可见）"
+    },
+    {
+      "name": "description",
+      "type": "text",
+      "isRequired": false,
+      "description": "标签描述（用于文档和说明）"
+    },
+    {
+      "name": "created_at",
+      "type": "datetime",
+      "isRequired": true,
+      "default": "CURRENT_TIMESTAMP",
+      "description": "创建时间"
+    },
+    {
+      "name": "updated_at",
+      "type": "datetime",
+      "isRequired": true,
+      "default": "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+      "description": "更新时间"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "uk_scenario_name",
+      "fields": ["scenario_id", "name"],
+      "isUnique": true,
+      "description": "唯一索引：同一 Scenario 下标签名唯一"
+    },
+    {
+      "name": "idx_scenario_id",
+      "fields": ["scenario_id"],
+      "description": "业务场景ID索引（用于快速查询某个场景下的所有标签）"
+    },
+    {
+      "name": "idx_scenario_version",
+      "fields": ["scenario_id", "scenario_version"],
+      "description": "业务场景版本索引（用于快速查询某个场景的某个版本下的所有标签）"
+    },
+    {
+      "name": "idx_scenario_legacy",
+      "fields": ["scenario_id", "is_legacy"],
+      "description": "业务场景遗留状态索引（用于快速查询某个场景的非遗留标签）"
+    }
+  ]
+}

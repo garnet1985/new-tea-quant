@@ -9,11 +9,11 @@ Tag Manager - 统一管理所有 Calculator
 5. 提供统一的接口访问 calculators
 """
 from typing import Dict, List, Optional, Type
-import os
 import importlib.util
 import warnings
 from pathlib import Path
 from app.tag.base_tag_calculator import BaseTagCalculator
+from utils.file.file_util import FileUtil
 
 
 class TagManager:
@@ -43,7 +43,7 @@ class TagManager:
         遍历 tags 目录，查找所有 calculator.py 文件
         检查 settings 文件存在性和 calculator 是否启用
         """
-        if not self.tags_root.exists():
+        if not FileUtil.dir_exists(str(self.tags_root)):
             return
         
         # 遍历所有子目录
@@ -51,29 +51,39 @@ class TagManager:
             if not tag_dir.is_dir():
                 continue
             
-            # 查找 calculator.py
-            calculator_file = tag_dir / "calculator.py"
-            if not calculator_file.exists():
+            tag_name = tag_dir.name
+            
+            # 检查 calculator.py 是否存在
+            calculator_file_path = FileUtil.find_file_in_folder(
+                "calculator.py",
+                str(tag_dir),
+                is_recursively=True
+            )
+            if not calculator_file_path:
                 continue
             
-            # 检查 settings 文件是否存在
-            settings_file = tag_dir / "settings.py"
-            if not settings_file.exists():
+            # 检查 settings.py 是否存在
+            settings_file_path = FileUtil.find_file_in_folder(
+                "settings.py",
+                str(tag_dir),
+                is_recursively=True
+            )
+            if not settings_file_path:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(
-                    f"Calculator '{tag_dir.name}' 缺少 settings.py 文件，跳过"
+                    f"Calculator '{tag_name}' 缺少 settings.py 文件，跳过"
                 )
                 continue
             
             # 检查 calculator 是否启用
             try:
-                is_enabled = self._check_calculator_enabled(settings_file)
+                is_enabled = self._check_calculator_enabled(Path(settings_file_path))
                 if not is_enabled:
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.info(
-                        f"Calculator '{tag_dir.name}' 未启用 (is_enabled = False)，跳过"
+                        f"Calculator '{tag_name}' 未启用 (is_enabled = False)，跳过"
                     )
                     continue
             except Exception as e:
@@ -81,15 +91,14 @@ class TagManager:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(
-                    f"检查 calculator '{tag_dir.name}' 启用状态失败: {e}",
+                    f"检查 calculator '{tag_name}' 启用状态失败: {e}",
                     exc_info=True
                 )
                 continue
             
             # 加载 calculator 类
             try:
-                calculator_class = self._load_calculator(calculator_file)
-                tag_name = tag_dir.name
+                calculator_class = self._load_calculator(Path(calculator_file_path))
                 self.calculators[tag_name] = calculator_class
                 self.enabled_calculators[tag_name] = calculator_class
             except Exception as e:
@@ -97,7 +106,7 @@ class TagManager:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(
-                    f"加载 calculator 失败: {tag_dir.name}, 错误: {e}",
+                    f"加载 calculator 失败: {tag_name}, 错误: {e}",
                     exc_info=True
                 )
     
@@ -264,4 +273,5 @@ class TagManager:
         用于动态加载新添加的 tag
         """
         self.calculators.clear()
-        self._discover_calculators()
+        self.enabled_calculators.clear()
+        self._load_calculators()

@@ -234,8 +234,8 @@ class BaseTagCalculator(ABC):
             if not isinstance(tag, dict):
                 raise ValueError(f"tags[{i}] 必须是字典，当前类型: {type(tag)}")
             
-            # 必需字段
-            required_fields = ["name", "display_name", "version", "is_enabled"]
+            # 必需字段（注意：is_enabled 只在 calculator 级别，不在 tag 级别）
+            required_fields = ["name", "display_name", "version"]
             for field in required_fields:
                 if field not in tag:
                     raise ValueError(f"tags[{i}] 缺少必需字段: {field}")
@@ -249,9 +249,6 @@ class BaseTagCalculator(ABC):
             
             if not isinstance(tag["version"], str):
                 raise ValueError(f"tags[{i}].version 必须是字符串，当前类型: {type(tag['version'])}")
-            
-            if not isinstance(tag["is_enabled"], bool):
-                raise ValueError(f"tags[{i}].is_enabled 必须是布尔值，当前类型: {type(tag['is_enabled'])}")
             
             # 检查 tag name 唯一性
             tag_name = tag["name"]
@@ -360,9 +357,8 @@ class BaseTagCalculator(ABC):
         processed_tags = []
         
         for tag in self.settings["tags"]:
-            # 只处理启用的 tag
-            if not tag.get("is_enabled", False):
-                continue
+            # 注意：is_enabled 只在 calculator 级别，不在 tag 级别
+            # 如果 calculator 启用，所有 tags 都会被处理
             
             # 合并配置
             merged_config = self._merge_tag_config(tag)
@@ -393,13 +389,12 @@ class BaseTagCalculator(ABC):
         if "performance" in tag_config:
             merged["performance"] = tag_config["performance"]
         
-        # 添加 tag 元信息
+        # 添加 tag 元信息（注意：is_enabled 只在 calculator 级别）
         merged["tag_meta"] = {
             "name": tag_config["name"],
             "display_name": tag_config["display_name"],
             "version": tag_config["version"],
             "description": tag_config.get("description", ""),
-            "is_enabled": tag_config["is_enabled"],
         }
         
         return merged
@@ -509,7 +504,8 @@ class BaseTagCalculator(ABC):
                 - required_data: 需要的数据源列表
                 - core: 合并后的 core 参数（calculator.core + tag.core）
                 - performance: performance 配置（tag 覆盖 calculator）
-                - tag_meta: tag 元信息（name, display_name, version, description, is_enabled）
+                - tag_meta: tag 元信息（name, display_name, version, description）
+                   注意：is_enabled 只在 calculator 级别，不在 tag 级别
         
         Returns:
             TagEntity 或 None（不创建 tag）

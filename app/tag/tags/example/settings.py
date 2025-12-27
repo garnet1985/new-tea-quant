@@ -40,7 +40,7 @@ Settings = {
         "performance": {
             "max_workers": 8,  # 可选，默认自动分配
             "update_mode": UpdateMode.INCREMENTAL.value,  # 可选，有默认值
-            "on_version_change": VersionChangeAction.NEW_TAG.value,  # 可选，有默认值
+            "on_version_change": VersionChangeAction.REFRESH_SCENARIO.value,  # 可选，有默认值
         },
     },
     
@@ -53,7 +53,8 @@ Settings = {
             "display_name": "大市值股票",
             "description": "市值大于阈值的股票",
             "version": "1.0",
-            "is_enabled": True,
+            # 注意：is_enabled 只在 calculator.meta 级别
+            # 业务场景启用时，所有 tags 都会被计算
             
             # 这个 tag 自己特殊的参数（如果有的话）
             # tag.core 会合并到 calculator.core（tag 覆盖 calculator）
@@ -72,7 +73,7 @@ Settings = {
             "display_name": "小市值股票",
             "description": "市值小于等于阈值的股票",
             "version": "1.0",
-            "is_enabled": True,
+            # 注意：is_enabled 只在 calculator.meta 级别
             
             "core": {
                 "label": "small",

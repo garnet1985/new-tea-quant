@@ -20,6 +20,8 @@ from pathlib import Path
 from app.tag.base_tag_calculator import BaseTagCalculator
 from app.tag.config import DEFAULT_SCENARIOS_ROOT
 from app.tag.scenario_identifier import ScenarioIdentifier
+from app.tag.settings_validator import SettingsValidator
+from app.tag.settings_processor import SettingsProcessor
 from app.data_manager import DataManager
 from utils.file.file_util import FileUtil
 
@@ -266,31 +268,20 @@ class TagManager:
         
         验证失败的 scenarios 会被从 self.scenarios 中移除
         """
-        # 对每个已注册的 scenario：
-        #   1. 验证枚举值（KlineTerm, UpdateMode, VersionChangeAction）
-        #   2. 其他高级验证
-        #   3. 如果验证失败，从 self.scenarios 中移除并记录错误
-        
         invalid_scenarios = []
         
         for scenario_name, scenario_info in list(self.scenarios.items()):
             settings = scenario_info["settings"]
             try:
-                # 创建 ScenarioIdentifier（用于日志）
-                scenario_id = ScenarioIdentifier.from_settings(settings)
-                
-                # 验证枚举值（这里可以添加更详细的验证）
-                # 注意：详细的枚举值验证可以在 BaseTagCalculator 中完成
-                # 例如：验证 base_term 是否在 KlineTerm 枚举中
-                # 例如：验证 update_mode 是否在 UpdateMode 枚举中
-                # 例如：验证 on_version_change 是否在 VersionChangeAction 枚举中
+                # 验证枚举值（使用 SettingsValidator）
+                SettingsValidator.validate_enums(settings)
                 
             except ValueError as e:
                 # 如果验证失败，记录错误并标记为无效
                 logger.error(f"验证 scenario '{scenario_name}' 的 settings 失败: {e}")
                 invalid_scenarios.append(scenario_name)
             except Exception as e:
-                # 其他异常（如 ScenarioIdentifier 创建失败）
+                # 其他异常
                 logger.error(f"验证 scenario '{scenario_name}' 的 settings 时发生异常: {e}")
                 invalid_scenarios.append(scenario_name)
         
@@ -369,34 +360,15 @@ class TagManager:
         Raises:
             ValueError: 如果验证失败
         """
-        # 验证 scenario 部分
-        if "scenario" not in settings:
-            raise ValueError(f"Scenario '{scenario_name}': Settings 缺少 'scenario' 字段")
-        scenario = settings["scenario"]
-        if not isinstance(scenario, dict):
-            raise ValueError(f"Scenario '{scenario_name}': Settings.scenario 必须是字典类型")
-        if "name" not in scenario:
-            raise ValueError(f"Scenario '{scenario_name}': Settings.scenario 缺少 'name' 字段")
-        if "version" not in scenario:
-            raise ValueError(f"Scenario '{scenario_name}': Settings.scenario 缺少 'version' 字段")
-        
-        # 验证 calculator 部分
-        if "calculator" not in settings:
-            raise ValueError(f"Scenario '{scenario_name}': Settings 缺少 'calculator' 字段")
-        calculator = settings["calculator"]
-        if not isinstance(calculator, dict):
-            raise ValueError(f"Scenario '{scenario_name}': Settings.calculator 必须是字典类型")
-        if "base_term" not in calculator:
-            raise ValueError(f"Scenario '{scenario_name}': Settings.calculator 缺少 'base_term' 字段")
-        
-        # 验证 tags 部分
-        if "tags" not in settings:
-            raise ValueError(f"Scenario '{scenario_name}': Settings 缺少 'tags' 字段")
-        tags = settings["tags"]
-        if not isinstance(tags, list):
-            raise ValueError(f"Scenario '{scenario_name}': Settings.tags 必须是列表类型")
-        if len(tags) == 0:
-            raise ValueError(f"Scenario '{scenario_name}': Settings.tags 至少需要包含一个 tag")
+        # 使用 SettingsValidator 进行验证
+        # 注意：这里只做基本结构验证，枚举值验证在 _validate_all_settings_and_remove_invalid 中完成
+        try:
+            SettingsValidator.validate_scenario_fields(settings)
+            SettingsValidator.validate_calculator_fields(settings)
+            SettingsValidator.validate_tags_fields(settings)
+        except ValueError as e:
+            # 添加 scenario_name 前缀以便于调试
+            raise ValueError(f"Scenario '{scenario_name}': {str(e)}")
     
     def _load_settings(self, settings_file: Path) -> Dict[str, Any]:
         """
@@ -411,49 +383,12 @@ class TagManager:
         Raises:
             ValueError: settings 文件格式错误
         """
-        # 动态导入模块
-        # 提取 Settings 变量
-        # 验证 Settings 是字典类型
-        # 验证必需字段：scenario.name, scenario.version, calculator.base_term
-        # 返回 Settings 字典
-        
-        # 动态导入模块
-        spec = importlib.util.spec_from_file_location("tag_settings", settings_file)
-        if spec is None or spec.loader is None:
-            raise ValueError(f"无法加载 settings 文件: {settings_file}")
-        
-        module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(module)
-        except SyntaxError as e:
-            raise ValueError(f"Settings 文件语法错误: {settings_file}\n{str(e)}")
-        except Exception as e:
-            raise ValueError(f"导入 settings 文件失败: {settings_file}\n{str(e)}")
-        
-        # 提取 Settings 变量
-        if not hasattr(module, "Settings"):
-            raise ValueError(f"Settings 文件缺少 Settings 变量: {settings_file}")
-        
-        settings = module.Settings
-        
-        # 验证 Settings 是字典类型
-        if not isinstance(settings, dict):
-            raise ValueError(
-                f"Settings 必须是字典类型，当前类型: {type(settings)}"
-            )
-        
-        # 验证必需字段：scenario.name, scenario.version, calculator.base_term
-        if "scenario" not in settings:
-            raise ValueError("Settings 缺少 'scenario' 字段")
-        if "name" not in settings["scenario"]:
-            raise ValueError("Settings.scenario 缺少 'name' 字段")
-        if "version" not in settings["scenario"]:
-            raise ValueError("Settings.scenario 缺少 'version' 字段")
-        
-        if "calculator" not in settings:
-            raise ValueError("Settings 缺少 'calculator' 字段")
-        if "base_term" not in settings["calculator"]:
-            raise ValueError("Settings.calculator 缺少 'base_term' 字段")
+        # 使用 SettingsProcessor 读取 settings 文件
+        # 注意：这里只做基本验证，详细验证在 register_scenario 中完成
+        settings = SettingsProcessor.read_settings_file(
+            str(settings_file),
+            str(settings_file)  # calculator_path 这里用同一个路径（TagManager 不需要）
+        )
         
         return settings
     

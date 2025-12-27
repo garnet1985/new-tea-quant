@@ -15,7 +15,7 @@ Tag Calculator 基类
 - 配置验证和处理逻辑已提取到 settings_validator 和 settings_processor
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Type
 import inspect
 import logging
 from app.tag.enums import UpdateMode, VersionChangeAction
@@ -554,7 +554,7 @@ class BaseTagCalculator(ABC):
     
     def handle_update_mode(self, version_action: str):
         """
-        根据版本变更结果和 update_mode 计算
+        根据版本变更结果和 update_mode 计算（多进程版本）
         
         Args:
             version_action: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")
@@ -564,6 +564,67 @@ class BaseTagCalculator(ABC):
         tag_defs = self.ensure_tags(scenario)
         
         # 2. 确定计算日期范围
+        start_date, end_date = self._determine_date_range(version_action, tag_defs)
+        
+        # 3. 获取实体列表
+        entities = self._get_entity_list()
+        
+        if not entities:
+            logger.warning(f"没有实体需要计算: scenario={self.scenario_name}")
+            return
+        
+        # 4. 分割jobs（每个entity一个job）
+        jobs = self._build_entity_jobs(entities, tag_defs, start_date, end_date)
+        
+        # 5. 决定进程数
+        max_workers_config = self.performance.get("max_workers")
+        max_workers = self._decide_max_workers(len(jobs), max_workers_config)
+        
+        logger.info(
+            f"开始多进程计算: scenario={self.scenario_name}, "
+            f"entities={len(entities)}, jobs={len(jobs)}, max_workers={max_workers}"
+        )
+        
+        # 6. 使用ProcessWorker执行jobs
+        from utils.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
+        
+        worker = ProcessWorker(
+            max_workers=max_workers,
+            execution_mode=ExecutionMode.QUEUE,  # 队列模式，持续填充
+            job_executor=BaseTagCalculator._process_single_entity_job,  # 静态方法
+            is_verbose=True
+        )
+        
+        # 执行jobs
+        stats = worker.run_jobs(jobs)
+        
+        # 7. 收集结果和统计信息
+        successful_results = worker.get_successful_results()
+        failed_results = worker.get_failed_results()
+        
+        logger.info(
+            f"Tag计算完成: scenario={self.scenario_name}, "
+            f"成功={len(successful_results)}, 失败={len(failed_results)}"
+        )
+        
+        # 打印统计信息
+        worker.print_stats()
+    
+    def _determine_date_range(
+        self, 
+        version_action: str, 
+        tag_defs: List[Dict[str, Any]]
+    ) -> Tuple[str, str]:
+        """
+        确定计算日期范围
+        
+        Args:
+            version_action: VersionAction
+            tag_defs: Tag Definition 列表
+            
+        Returns:
+            Tuple[str, str]: (start_date, end_date)
+        """
         update_mode = self.performance.get("update_mode", UpdateMode.INCREMENTAL.value)
         
         if version_action == "NO_CHANGE":
@@ -614,81 +675,422 @@ class BaseTagCalculator(ABC):
             start_date = self.settings["calculator"].get("start_date") or self._get_default_start_date()
             end_date = self.settings["calculator"].get("end_date") or self._get_latest_trading_date()
         
-        # 3. 获取实体列表
-        entities = self._get_entity_list()
+        return start_date, end_date
+    
+    def _build_entity_jobs(
+        self, 
+        entities: List[str], 
+        tag_defs: List[Dict[str, Any]], 
+        start_date: str, 
+        end_date: str
+    ) -> List[Dict[str, Any]]:
+        """
+        构建entity jobs（每个entity一个job）
         
-        # 4. 对每个实体：
+        Args:
+            entities: 实体ID列表
+            tag_defs: Tag Definition 列表
+            start_date: 起始日期
+            end_date: 结束日期
+            
+        Returns:
+            List[Dict[str, Any]]: Job列表
+        """
+        jobs = []
+        
         for entity_id in entities:
+            job = {
+                'id': f"{entity_id}_{self.scenario_name}",
+                'payload': {
+                    'entity_id': entity_id,
+                    'entity_type': 'stock',
+                    'scenario_name': self.scenario_name,
+                    'scenario_version': self.scenario_version,
+                    'tag_definitions': tag_defs,
+                    'tag_configs': self.tags_config,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'base_term': self.base_term,
+                    'required_terms': self.required_terms,
+                    'required_data': self.required_data,
+                    'core': self.core,
+                    'calculator_class': self.__class__,
+                    'settings_path': self.settings_path,
+                }
+            }
+            jobs.append(job)
+        
+        return jobs
+    
+    def _decide_max_workers(self, job_count: int, max_workers_config: Optional[int] = None) -> int:
+        """
+        根据job数量决定进程数（最多10个）
+        
+        策略：
+        1. 如果配置了max_workers，使用配置值（但不超过10）
+        2. 如果job数量 <= 1，使用1个进程
+        3. 如果job数量 <= 5，使用2个进程
+        4. 如果job数量 <= 10，使用3个进程
+        5. 如果job数量 <= 20，使用5个进程
+        6. 如果job数量 <= 50，使用8个进程
+        7. 否则使用10个进程（最大）
+        
+        Args:
+            job_count: Job数量
+            max_workers_config: 配置的max_workers值
+            
+        Returns:
+            int: 进程数
+        """
+        # 如果配置了max_workers，优先使用（但不超过10）
+        if max_workers_config is not None:
+            return min(max_workers_config, 10)
+        
+        # 根据job数量决定
+        if job_count <= 1:
+            return 1
+        elif job_count <= 5:
+            return 2
+        elif job_count <= 10:
+            return 3
+        elif job_count <= 20:
+            return 5
+        elif job_count <= 50:
+            return 8
+        else:
+            return 10  # 最大10个进程
+    
+    @staticmethod
+    def _process_single_entity_job(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        子进程执行函数：处理单个entity的tag计算（静态方法）
+        
+        流程：
+        1. 初始化DataManager和TagService（子进程中）
+        2. 加载entity的全量数据（子进程中，到end_date）
+        3. 对每个as_of_date：
+           a. 过滤数据到as_of_date（保证一致性，不包含未来数据）
+           b. 对每个tag计算
+           c. 收集结果
+        4. 批量存储结果
+        5. 返回统计信息
+        
+        注意：
+        - 数据加载在子进程中进行，保证内存可控
+        - 数据过滤到as_of_date，保证计算一致性（避免"上帝模式"问题）
+        - 批量存储，提高性能
+        - 进程结束自动释放内存
+        
+        Args:
+            payload: Job payload字典
+            
+        Returns:
+            Dict[str, Any]: 统计信息
+        """
+        entity_id = payload['entity_id']
+        scenario_name = payload['scenario_name']
+        
+        try:
+            # 1. 初始化DataManager和TagService（子进程中）
+            from app.data_manager import DataManager
+            data_mgr = DataManager(is_verbose=False)
+            tag_service = data_mgr.get_tag_service()
+            
+            # 2. 加载全量数据（子进程中，到end_date）
+            historical_data = BaseTagCalculator._load_entity_data_in_process(
+                entity_id=payload['entity_id'],
+                entity_type=payload['entity_type'],
+                base_term=payload['base_term'],
+                required_terms=payload['required_terms'],
+                required_data=payload['required_data'],
+                as_of_date=payload['end_date'],  # 加载到end_date的全量数据
+                data_mgr=data_mgr
+            )
+            
+            # 3. 创建calculator实例（子进程中）
+            calculator = BaseTagCalculator._create_calculator_instance_in_process(
+                calculator_class=payload['calculator_class'],
+                settings_path=payload['settings_path'],
+                data_mgr=data_mgr,
+                tag_service=tag_service
+            )
+            
+            # 4. 获取交易日列表
+            trading_dates = BaseTagCalculator._get_trading_dates_static(
+                payload['start_date'],
+                payload['end_date'],
+                data_mgr
+            )
+            
+            # 5. 计算tags
+            results = []
+            tag_definitions = payload['tag_definitions']
+            tag_configs = payload['tag_configs']
+            
+            for as_of_date in trading_dates:
+                # 过滤数据到as_of_date（保证一致性）
+                filtered_data = BaseTagCalculator._filter_data_to_date(
+                    historical_data, 
+                    as_of_date
+                )
+                
+                # 对每个tag计算
+                for tag_def, tag_config in zip(tag_definitions, tag_configs):
+                    try:
+                        # 调用calculate_tag
+                        result = calculator.calculate_tag(
+                            entity_id=entity_id,
+                            entity_type=payload['entity_type'],
+                            as_of_date=as_of_date,
+                            historical_data=filtered_data,  # 已过滤
+                            tag_config=tag_config
+                        )
+                        
+                        if result is not None:
+                            if isinstance(result, dict):
+                                results.append({
+                                    'tag_definition_id': tag_def['id'],
+                                    'entity_id': entity_id,
+                                    'entity_type': payload['entity_type'],
+                                    'as_of_date': as_of_date,
+                                    'value': str(result.get('value', '')),
+                                    'start_date': result.get('start_date'),
+                                    'end_date': result.get('end_date'),
+                                })
+                    except Exception as e:
+                        # 调用on_calculate_error钩子
+                        calculator.on_calculate_error(entity_id, as_of_date, e)
+                        
+                        # 根据should_continue_on_error决定是否继续
+                        if not calculator.should_continue_on_error():
+                            raise
+            
+            # 6. 批量存储结果
+            if results:
+                BaseTagCalculator._batch_save_tag_values(results, tag_service)
+            
+            # 7. 返回统计信息
+            return {
+                'entity_id': entity_id,
+                'total_tags': len(results),
+                'success': True
+            }
+            
+        except Exception as e:
+            logger.exception(
+                f"子进程执行失败: entity_id={entity_id}, scenario={scenario_name}, error={e}"
+            )
+            return {
+                'entity_id': entity_id,
+                'total_tags': 0,
+                'success': False,
+                'error': str(e)
+            }
+    
+    @staticmethod
+    def _load_entity_data_in_process(
+        entity_id: str,
+        entity_type: str,
+        base_term: str,
+        required_terms: List[str],
+        required_data: List[str],
+        as_of_date: str,
+        data_mgr
+    ) -> Dict[str, Any]:
+        """
+        在子进程中加载entity数据（静态方法）
+        
+        Args:
+            entity_id: 实体ID
+            entity_type: 实体类型
+            base_term: 基础周期
+            required_terms: 需要的其他周期
+            required_data: 需要的数据源
+            as_of_date: 截止日期
+            data_mgr: DataManager实例
+            
+        Returns:
+            Dict[str, Any]: 历史数据字典
+        """
+        historical_data = {}
+        
+        # 1. 加载K线数据
+        kline_terms = set([base_term] + (required_terms or []))
+        klines = {}
+        
+        for term in kline_terms:
             try:
-                # a. 加载历史数据（调用 self.load_entity_data）
-                historical_data = self.load_entity_data(
-                    entity_id=entity_id,
-                    entity_type="stock",
-                    as_of_date=end_date
-                )
-                
-                # b. 对每个 tag：
-                for tag_def in tag_defs:
-                    tag_config = None
-                    for tag_cfg in self.tags_config:
-                        if tag_cfg["tag_meta"]["name"] == tag_def["name"]:
-                            tag_config = tag_cfg
-                            break
-                    
-                    if tag_config is None:
-                        logger.warning(f"找不到 tag 配置: {tag_def['name']}")
-                        continue
-                    
-                    # 对每个日期（从 start_date 到 end_date）：
-                    for as_of_date in self._get_trading_dates(start_date, end_date):
-                        try:
-                            # 调用 self.calculate_tag()
-                            result = self.calculate_tag(
-                                entity_id=entity_id,
-                                entity_type="stock",
-                                as_of_date=as_of_date,
-                                historical_data=historical_data,
-                                tag_config=tag_config
-                            )
-                            
-                            # 如果返回结果，保存 tag 值（调用 self.save_tag_value）
-                            if result is not None:
-                                if isinstance(result, dict):
-                                    value = result.get("value", "")
-                                    start_date_override = result.get("start_date")
-                                    end_date_override = result.get("end_date")
-                                    
-                                    self.save_tag_value(
-                                        tag_definition_id=tag_def["id"],
-                                        entity_id=entity_id,
-                                        entity_type="stock",
-                                        as_of_date=as_of_date,
-                                        value=str(value),
-                                        start_date=start_date_override,
-                                        end_date=end_date_override
-                                    )
-                                    
-                                    # 调用 on_tag_created 钩子
-                                    self.on_tag_created(result, entity_id, as_of_date)
-                        except Exception as e:
-                            # 如果出错，调用 self.on_calculate_error()
-                            self.on_calculate_error(entity_id, as_of_date, e)
-                            
-                            # 根据 should_continue_on_error 决定是否继续
-                            if not self.should_continue_on_error():
-                                raise
-                
-                # c. 调用 on_finish 钩子
-                tag_count = len(tag_defs)
-                self.on_finish(entity_id, tag_count)
-                
+                if hasattr(data_mgr, "load_kline"):
+                    kline_data = data_mgr.load_kline(
+                        entity_id=entity_id,
+                        term=term,
+                        end_date=as_of_date
+                    )
+                else:
+                    # 备用方案：使用model
+                    kline_model = data_mgr.get_model(f"stock_kline_{term}")
+                    if kline_model:
+                        kline_data = kline_model.load_by_stock(entity_id, end_date=as_of_date)
+                    else:
+                        kline_data = []
+                klines[term] = kline_data
             except Exception as e:
-                logger.error(
-                    f"处理实体 '{entity_id}' 时出错: {e}",
-                    exc_info=True
-                )
-                if not self.should_continue_on_error():
-                    raise
+                logger.warning(f"加载 {term} K线数据失败: {entity_id}, 错误: {e}")
+                klines[term] = []
+        
+        historical_data["klines"] = klines
+        
+        # 2. 加载其他数据源
+        for data_source in required_data:
+            if data_source == "corporate_finance":
+                try:
+                    if hasattr(data_mgr, "load_corporate_finance"):
+                        finance_data = data_mgr.load_corporate_finance(
+                            entity_id=entity_id,
+                            end_date=as_of_date
+                        )
+                    else:
+                        # 备用方案：使用model
+                        finance_model = data_mgr.get_model("corporate_finance")
+                        if finance_model:
+                            finance_data = finance_model.load_by_stock(entity_id, end_date=as_of_date)
+                        else:
+                            finance_data = {}
+                    historical_data["finance"] = finance_data
+                except Exception as e:
+                    logger.warning(f"加载财务数据失败: {entity_id}, 错误: {e}")
+                    historical_data["finance"] = {}
+        
+        return historical_data
+    
+    @staticmethod
+    def _filter_data_to_date(historical_data: Dict[str, Any], as_of_date: str) -> Dict[str, Any]:
+        """
+        过滤数据到指定日期（不包含未来数据）
+        
+        过滤规则：
+        - K线数据：只保留 date <= as_of_date 的记录
+        - 财务数据：只保留 quarter/date <= as_of_date 的记录
+        - 其他时间序列数据：同样过滤
+        
+        Args:
+            historical_data: 全量历史数据
+            as_of_date: 截止日期（YYYYMMDD格式）
+            
+        Returns:
+            Dict[str, Any]: 过滤后的数据
+        """
+        filtered = {}
+        
+        # 过滤K线数据
+        if "klines" in historical_data:
+            filtered["klines"] = {}
+            for term, klines in historical_data["klines"].items():
+                # 只保留date <= as_of_date的记录
+                filtered["klines"][term] = [
+                    k for k in klines
+                    if k.get("date", "") <= as_of_date
+                ]
+        
+        # 过滤财务数据
+        if "finance" in historical_data:
+            finance_data = historical_data["finance"]
+            if isinstance(finance_data, list):
+                # 如果是列表，过滤quarter/date
+                filtered["finance"] = [
+                    f for f in finance_data
+                    if (f.get("quarter", "") <= as_of_date or f.get("date", "") <= as_of_date)
+                ]
+            elif isinstance(finance_data, dict):
+                # 如果是字典，递归过滤
+                filtered["finance"] = {
+                    k: v for k, v in finance_data.items()
+                    if (k <= as_of_date if isinstance(k, str) else True)
+                }
+            else:
+                filtered["finance"] = finance_data
+        
+        # 其他数据源（如果有）也需要过滤
+        for key, value in historical_data.items():
+            if key not in ["klines", "finance"]:
+                # 对于其他数据源，暂时直接传递（可以根据需要添加过滤逻辑）
+                filtered[key] = value
+        
+        return filtered
+    
+    @staticmethod
+    def _create_calculator_instance_in_process(
+        calculator_class,
+        settings_path: str,
+        data_mgr,
+        tag_service
+    ):
+        """
+        在子进程中创建calculator实例（静态方法）
+        
+        Args:
+            calculator_class: Calculator类
+            settings_path: Settings文件路径
+            data_mgr: DataManager实例
+            tag_service: TagService实例
+            
+        Returns:
+            BaseTagCalculator: Calculator实例
+        """
+        return calculator_class(
+            settings_path=settings_path,
+            data_mgr=data_mgr,
+            tag_service=tag_service
+        )
+    
+    @staticmethod
+    def _batch_save_tag_values(results: List[Dict[str, Any]], tag_service):
+        """
+        批量保存tag值（静态方法）
+        
+        Args:
+            results: Tag值列表
+            tag_service: TagService实例
+        """
+        # 如果tag_service有batch_save_tag_values方法，使用它
+        if hasattr(tag_service, "batch_save_tag_values"):
+            tag_service.batch_save_tag_values(results)
+        else:
+            # 否则使用TagValueModel的batch_save_tag_values
+            from app.data_manager.base_tables.tag_value.model import TagValueModel
+            tag_value_model = TagValueModel()
+            
+            # 转换格式（tag_definition_id -> tag_id，兼容TagValueModel）
+            tag_values = []
+            for result in results:
+                tag_values.append({
+                    'entity_type': result.get('entity_type', 'stock'),
+                    'entity_id': result['entity_id'],
+                    'tag_id': result['tag_definition_id'],  # TagValueModel使用tag_id
+                    'as_of_date': result['as_of_date'],
+                    'start_date': result.get('start_date'),
+                    'end_date': result.get('end_date'),
+                    'value': result['value'],
+                })
+            
+            tag_value_model.batch_save_tag_values(tag_values)
+    
+    @staticmethod
+    def _get_trading_dates_static(start_date: str, end_date: str, data_mgr) -> List[str]:
+        """
+        获取交易日列表（静态方法，用于子进程）
+        
+        Args:
+            start_date: 起始日期（YYYYMMDD 格式）
+            end_date: 结束日期（YYYYMMDD 格式）
+            data_mgr: DataManager实例
+            
+        Returns:
+            List[str]: 交易日列表（YYYYMMDD 格式）
+        """
+        if data_mgr and hasattr(data_mgr, "get_trading_dates"):
+            return data_mgr.get_trading_dates(start_date, end_date)
+        return []
     
     def cleanup_legacy_versions(self, scenario_name: str, keep_n: int = 3):
         """

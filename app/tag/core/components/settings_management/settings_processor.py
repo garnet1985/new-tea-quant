@@ -6,7 +6,7 @@ Settings 处理器
 from typing import Dict, Any, List
 import importlib.util
 import os
-from app.tag.enums import UpdateMode, VersionChangeAction
+from app.tag.core.enums import UpdateMode, VersionChangeAction
 
 
 class SettingsProcessor:

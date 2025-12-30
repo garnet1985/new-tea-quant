@@ -1,5 +1,5 @@
 """
-Momentum Calculator - 动量因子计算（60天）
+Momentum TagWorker - 动量因子计算（60天）
 
 计算公式：
 MOM = (P_t-60d / P_t-5d) - 1
@@ -16,15 +16,15 @@ MOM = (P_t-60d / P_t-5d) - 1
 """
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
-from app.tag.base_tag_calculator import BaseTagCalculator
+from app.tag.core.base_tag_worker import BaseTagWorker
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class MomentumCalculator(BaseTagCalculator):
+class MomentumTagWorker(BaseTagWorker):
     """
-    动量因子计算器（60天）
+    动量因子 TagWorker（60天）
     
     计算过去60个交易日相对于过去5个交易日的动量值
     公式：MOM = (P_t-60d / P_t-5d) - 1
@@ -157,7 +157,7 @@ class MomentumCalculator(BaseTagCalculator):
         Returns:
             Optional[str]: 上次处理的日期（YYYYMMDD格式），如果没有则返回None
         """
-        if not self.tag_service:
+        if not self.tag_data_service:
             return None
         
         try:
@@ -167,14 +167,14 @@ class MomentumCalculator(BaseTagCalculator):
                 return None
             
             # 获取scenario和tag definition
-            scenario = self.tag_service.get_scenario(
+            scenario = self.tag_data_service.get_scenario(
                 self.scenario_name, 
                 self.scenario_version
             )
             if not scenario:
                 return None
             
-            tag_defs = self.tag_service.list_tag_definitions(
+            tag_defs = self.tag_data_service.list_tag_definitions(
                 scenario_id=scenario["id"]
             )
             

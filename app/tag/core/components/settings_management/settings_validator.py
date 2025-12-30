@@ -4,7 +4,7 @@ Settings 验证器
 提供静态方法用于验证 Tag Calculator 的 settings 配置。
 """
 from typing import Dict, Any
-from app.tag.enums import KlineTerm, UpdateMode, VersionChangeAction
+from app.tag.core.enums import KlineTerm, UpdateMode, VersionChangeAction
 
 
 class SettingsValidator:

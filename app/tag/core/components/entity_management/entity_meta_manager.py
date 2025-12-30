@@ -24,19 +24,13 @@ class EntityMetaManager:
     1. 确保 scenario 存在（如果不存在则创建）
     2. 确保 tag definitions 存在（如果不存在则创建）
     3. 提供统一的元信息管理接口
+    
+    所有方法都是静态方法，tag_data_service 作为参数传入
     """
     
-    def __init__(self, tag_data_service):
-        """
-        初始化 EntityMetaManager
-        
-        Args:
-            tag_data_service: TagDataService 实例（用于访问 tag 数据的存储和查询）
-        """
-        self.tag_data_service = tag_data_service
-    
+    @staticmethod
     def ensure_metadata(
-        self, 
+        tag_data_service,
         scenario_setting: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str, str, str]:
         """
@@ -50,6 +44,7 @@ class EntityMetaManager:
         5. 返回所有需要的信息
         
         Args:
+            tag_data_service: TagDataService 实例
             scenario_setting: Scenario settings 字典，包含：
                 - "scenario_name": str
                 - "settings": Dict[str, Any]
@@ -59,22 +54,23 @@ class EntityMetaManager:
             (scenario, tag_definitions, version_action, start_date, end_date)
         """
         # 1. 处理版本变更（可能创建或更新 scenario）
-        version_action = self.handle_version_change(scenario_setting)
+        version_action = EntityMetaManager.handle_version_change(tag_data_service, scenario_setting)
         
         # 2. 确保 scenario 存在（如果版本变更中已创建，这里会直接返回）
-        scenario = self.ensure_scenario(scenario_setting)
+        scenario = EntityMetaManager.ensure_scenario(tag_data_service, scenario_setting)
         
         # 3. 确保 tag definitions 存在
-        tag_defs = self.ensure_tags(scenario, scenario_setting)
+        tag_defs = EntityMetaManager.ensure_tags(tag_data_service, scenario, scenario_setting)
         
         # 4. 确定计算日期范围
-        start_date, end_date = self.determine_date_range(
-            scenario_setting, version_action, tag_defs
+        start_date, end_date = EntityMetaManager.determine_date_range(
+            tag_data_service, scenario_setting, version_action, tag_defs
         )
         
         return scenario, tag_defs, version_action, start_date, end_date
     
-    def ensure_scenario(self, scenario_setting: Dict[str, Any]) -> Dict[str, Any]:
+    @staticmethod
+    def ensure_scenario(tag_data_service, scenario_setting: Dict[str, Any]) -> Dict[str, Any]:
         """
         确保 scenario 存在（如果不存在则创建）
         
@@ -85,12 +81,13 @@ class EntityMetaManager:
         4. 如果不存在，创建新的 scenario
         
         Args:
+            tag_data_service: TagDataService 实例
             scenario_setting: Scenario settings 字典
         
         Returns:
             Dict[str, Any]: Scenario 记录
         """
-        if not self.tag_data_service:
+        if not tag_data_service:
             raise ValueError("TagDataService 未初始化，无法确保 scenario 存在")
         
         settings = scenario_setting["settings"]
@@ -98,7 +95,7 @@ class EntityMetaManager:
         scenario_version = settings["scenario"]["version"]
         
         # 1. 查询数据库中该 scenario name 的所有版本
-        existing_scenarios = self.tag_data_service.list_scenarios(
+        existing_scenarios = tag_data_service.list_scenarios(
             scenario_name=scenario_name
         )
         
@@ -114,7 +111,7 @@ class EntityMetaManager:
             return target_scenario
         
         # 4. 如果不存在，创建新的 scenario（通过 TagDataService）
-        scenario_id = self.tag_data_service.create_scenario(
+        scenario_id = tag_data_service.create_scenario(
             name=scenario_name,
             version=scenario_version,
             display_name=settings["scenario"].get("display_name", scenario_name),
@@ -122,7 +119,7 @@ class EntityMetaManager:
         )
         
         # 5. 获取新创建的 scenario
-        target_scenario = self.tag_data_service.get_scenario(scenario_name, scenario_version)
+        target_scenario = tag_data_service.get_scenario(scenario_name, scenario_version)
         
         if not target_scenario:
             raise ValueError(
@@ -131,8 +128,9 @@ class EntityMetaManager:
         
         return target_scenario
     
+    @staticmethod
     def ensure_tags(
-        self, 
+        tag_data_service,
         scenario: Dict[str, Any], 
         scenario_setting: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
@@ -147,13 +145,14 @@ class EntityMetaManager:
         3. 返回所有 tag definitions 列表
         
         Args:
+            tag_data_service: TagDataService 实例
             scenario: Scenario 记录
             scenario_setting: Scenario settings 字典
         
         Returns:
             List[Dict[str, Any]]: Tag Definition 列表
         """
-        if not self.tag_data_service:
+        if not tag_data_service:
             raise ValueError("TagDataService 未初始化，无法确保 tags 存在")
         
         scenario_id = scenario["id"]
@@ -161,7 +160,7 @@ class EntityMetaManager:
         settings = scenario_setting["settings"]
         
         # 1. 查询该 scenario 下的所有 tag definitions
-        existing_tags = self.tag_data_service.get_tag_definitions(scenario_id=scenario_id)
+        existing_tags = tag_data_service.get_tag_definitions(scenario_id=scenario_id)
         existing_tag_names = {tag["name"] for tag in existing_tags}
         
         # 2. 对每个 settings.tags 中的 tag：
@@ -178,7 +177,7 @@ class EntityMetaManager:
                         break
             else:
                 # 不存在，创建新的 tag definition
-                tag_definition_id = self.tag_data_service.create_tag_definition(
+                tag_definition_id = tag_data_service.create_tag_definition(
                     scenario_id=scenario_id,
                     scenario_version=scenario_version,
                     name=tag_name,
@@ -187,7 +186,7 @@ class EntityMetaManager:
                 )
                 
                 # 获取新创建的 tag definition
-                new_tags = self.tag_data_service.get_tag_definitions(
+                new_tags = tag_data_service.get_tag_definitions(
                     scenario_id=scenario_id, 
                     include_legacy=False
                 )
@@ -199,7 +198,8 @@ class EntityMetaManager:
         # 3. 返回 tag definitions 列表
         return tag_definitions
     
-    def handle_version_change(self, scenario_setting: Dict[str, Any]) -> str:
+    @staticmethod
+    def handle_version_change(tag_data_service, scenario_setting: Dict[str, Any]) -> str:
         """
         处理版本变更
         
@@ -222,12 +222,13 @@ class EntityMetaManager:
            - 根据 version_action 处理
         
         Args:
+            tag_data_service: TagDataService 实例
             scenario_setting: Scenario settings 字典
         
         Returns:
             str: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")
         """
-        if not self.tag_data_service:
+        if not tag_data_service:
             raise ValueError("TagDataService 未初始化，无法处理版本变更")
         
         settings = scenario_setting["settings"]
@@ -235,7 +236,7 @@ class EntityMetaManager:
         scenario_version = settings["scenario"]["version"]
         
         # 1. 查询数据库中该 scenario name 的所有版本
-        db_scenarios = self.tag_data_service.list_scenarios(
+        db_scenarios = tag_data_service.list_scenarios(
             scenario_name=scenario_name
         )
         
@@ -284,18 +285,18 @@ class EntityMetaManager:
             
             # 如果存在 active 版本，标记为 legacy
             if active_scenario:
-                self.tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
+                tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
             
             # 把当前版本（existing_scenario）设置为 legacy=0（active）
-            self.tag_data_service.update_scenario(
+            tag_data_service.update_scenario(
                 existing_scenario["id"],
                 is_legacy=0
             )
             
             # 注意：不删除旧的 tag definitions 和 tag values
             # 确保 tag definitions 存在（调用 ensure_tags，如果不存在则创建）
-            scenario = self.tag_data_service.get_scenario(scenario_name, scenario_version)
-            self.ensure_tags(scenario, scenario_setting)
+            scenario = tag_data_service.get_scenario(scenario_name, scenario_version)
+            EntityMetaManager.ensure_tags(tag_data_service, scenario, scenario_setting)
             
             return "ROLLBACK"
         
@@ -317,11 +318,11 @@ class EntityMetaManager:
             
             # 如果存在 active 版本，标记为 legacy
             if active_scenario:
-                self.tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
+                tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
             
             # 创建新 scenario（ensure_scenario 会处理）
             # 清理旧版本
-            self.cleanup_legacy_versions(scenario_name, keep_n=3)
+            EntityMetaManager.cleanup_legacy_versions(tag_data_service, scenario_name, keep_n=3)
             
             return "NEW_SCENARIO"
         
@@ -336,14 +337,14 @@ class EntityMetaManager:
             
             if active_scenario:
                 # 更新 scenario（更新 version 等字段）
-                self.tag_data_service.update_scenario(
+                tag_data_service.update_scenario(
                     active_scenario["id"],
                     display_name=settings["scenario"].get("display_name", scenario_name),
                     description=settings["scenario"].get("description", "")
                 )
                 # 删除旧的 tag definitions 和 tag values
-                self.tag_data_service.delete_tag_definitions_by_scenario(active_scenario["id"])
-                self.tag_data_service.delete_tag_values_by_scenario(active_scenario["id"])
+                tag_data_service.delete_tag_definitions_by_scenario(active_scenario["id"])
+                tag_data_service.delete_tag_values_by_scenario(active_scenario["id"])
             # 如果不存在 active 版本，ensure_scenario 会创建新 scenario
             
             # 创建新的 tag definitions（ensure_tags 会处理）
@@ -353,8 +354,9 @@ class EntityMetaManager:
         else:
             raise ValueError(f"未知的 on_version_change 值: {on_version_change}")
     
+    @staticmethod
     def determine_date_range(
-        self,
+        tag_data_service,
         scenario_setting: Dict[str, Any],
         version_action: str,
         tag_defs: List[Dict[str, Any]]
@@ -367,6 +369,7 @@ class EntityMetaManager:
         2. 返回 start_date 和 end_date
         
         Args:
+            tag_data_service: TagDataService 实例
             scenario_setting: Scenario settings 字典
             version_action: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")
             tag_defs: Tag Definition 列表
@@ -384,18 +387,18 @@ class EntityMetaManager:
             # 按 update_mode 计算
             if update_mode == UpdateMode.INCREMENTAL.value:
                 # 从上次计算的最大 as_of_date 继续
-                start_date = self._get_max_as_of_date(tag_defs)
+                start_date = EntityMetaManager._get_max_as_of_date(tag_data_service, tag_defs)
                 if start_date:
                     # 获取下一个交易日
-                    start_date = self._get_next_trading_date(start_date)
+                    start_date = EntityMetaManager._get_next_trading_date(start_date)
                 else:
                     # 如果没有历史数据，从 start_date 开始
-                    start_date = settings["calculator"].get("start_date") or self._get_default_start_date()
-                end_date = settings["calculator"].get("end_date") or self._get_latest_trading_date()
+                    start_date = settings["calculator"].get("start_date") or EntityMetaManager._get_default_start_date()
+                end_date = settings["calculator"].get("end_date") or EntityMetaManager._get_latest_trading_date()
             elif update_mode == UpdateMode.REFRESH.value:
                 # 从 start_date 到 end_date
-                start_date = settings["calculator"].get("start_date") or self._get_default_start_date()
-                end_date = settings["calculator"].get("end_date") or self._get_latest_trading_date()
+                start_date = settings["calculator"].get("start_date") or EntityMetaManager._get_default_start_date()
+                end_date = settings["calculator"].get("end_date") or EntityMetaManager._get_latest_trading_date()
             else:
                 raise ValueError(f"未知的 update_mode: {update_mode}")
         
@@ -409,33 +412,35 @@ class EntityMetaManager:
             )
             if update_mode == UpdateMode.INCREMENTAL.value:
                 # 从上次计算的最大 as_of_date 继续
-                start_date = self._get_max_as_of_date(tag_defs)
+                start_date = EntityMetaManager._get_max_as_of_date(tag_data_service, tag_defs)
                 if start_date:
-                    start_date = self._get_next_trading_date(start_date)
+                    start_date = EntityMetaManager._get_next_trading_date(start_date)
                 else:
-                    start_date = settings["calculator"].get("start_date") or self._get_default_start_date()
-                end_date = settings["calculator"].get("end_date") or self._get_latest_trading_date()
+                    start_date = settings["calculator"].get("start_date") or EntityMetaManager._get_default_start_date()
+                end_date = settings["calculator"].get("end_date") or EntityMetaManager._get_latest_trading_date()
             elif update_mode == UpdateMode.REFRESH.value:
-                start_date = settings["calculator"].get("start_date") or self._get_default_start_date()
-                end_date = settings["calculator"].get("end_date") or self._get_latest_trading_date()
+                start_date = settings["calculator"].get("start_date") or EntityMetaManager._get_default_start_date()
+                end_date = settings["calculator"].get("end_date") or EntityMetaManager._get_latest_trading_date()
             else:
                 raise ValueError(f"未知的 update_mode: {update_mode}")
         
         elif version_action in ["NEW_SCENARIO", "REFRESH_SCENARIO"]:
             # 新 scenario 或刷新：从 start_date 到 end_date
-            start_date = settings["calculator"].get("start_date") or self._get_default_start_date()
-            end_date = settings["calculator"].get("end_date") or self._get_latest_trading_date()
+            start_date = settings["calculator"].get("start_date") or EntityMetaManager._get_default_start_date()
+            end_date = settings["calculator"].get("end_date") or EntityMetaManager._get_latest_trading_date()
         
         else:
             raise ValueError(f"未知的 version_action: {version_action}")
         
         return start_date, end_date
     
-    def _get_max_as_of_date(self, tag_defs: List[Dict[str, Any]]) -> Optional[str]:
+    @staticmethod
+    def _get_max_as_of_date(tag_data_service, tag_defs: List[Dict[str, Any]]) -> Optional[str]:
         """
         获取 tag definitions 的最大 as_of_date
         
         Args:
+            tag_data_service: TagDataService 实例
             tag_defs: Tag Definition 列表
         
         Returns:
@@ -454,7 +459,8 @@ class EntityMetaManager:
         
         return max_date
     
-    def _get_next_trading_date(self, date: str) -> str:
+    @staticmethod
+    def _get_next_trading_date(date: str) -> str:
         """
         获取下一个交易日
         
@@ -468,7 +474,8 @@ class EntityMetaManager:
         # 暂时返回原日期，后续实现
         return date
     
-    def _get_default_start_date(self) -> str:
+    @staticmethod
+    def _get_default_start_date() -> str:
         """
         获取默认起始日期
         
@@ -478,7 +485,8 @@ class EntityMetaManager:
         # 返回一个默认日期，比如 "20000101"
         return "20000101"
     
-    def _get_latest_trading_date(self) -> str:
+    @staticmethod
+    def _get_latest_trading_date() -> str:
         """
         获取最新交易日
         
@@ -490,7 +498,8 @@ class EntityMetaManager:
         from datetime import datetime
         return datetime.now().strftime("%Y%m%d")
     
-    def cleanup_legacy_versions(self, scenario_name: str, keep_n: int = 3):
+    @staticmethod
+    def cleanup_legacy_versions(tag_data_service, scenario_name: str, keep_n: int = 3):
         """
         清理旧版本（保留最近的 N 个版本）
         
@@ -499,14 +508,15 @@ class EntityMetaManager:
         2. 如果数量 >= keep_n，删除最老的版本
         
         Args:
+            tag_data_service: TagDataService 实例
             scenario_name: Scenario 名称
             keep_n: 保留的版本数量（默认3个）
         """
-        if not self.tag_data_service:
+        if not tag_data_service:
             raise ValueError("TagDataService 未初始化，无法清理旧版本")
         
         # 1. 查询所有 legacy scenarios
-        all_scenarios = self.tag_data_service.list_scenarios(
+        all_scenarios = tag_data_service.list_scenarios(
             scenario_name=scenario_name,
             include_legacy=True
         )
@@ -517,7 +527,7 @@ class EntityMetaManager:
         if len(legacy_scenarios) >= keep_n:
             scenarios_to_delete = legacy_scenarios[:-keep_n]
             for scenario_to_delete in scenarios_to_delete:
-                self.tag_data_service.delete_scenario(scenario_to_delete["id"], cascade=True)
+                tag_data_service.delete_scenario(scenario_to_delete["id"], cascade=True)
                 logger.info(
                     f"已删除旧版本 scenario: {scenario_name}, version={scenario_to_delete.get('version')}"
                 )

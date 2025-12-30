@@ -90,6 +90,12 @@ class BaseTagCalculator(ABC):
             self.settings["calculator"]
         )
         
+        # 初始化 tracker：用于存储计算过程中的临时状态
+        # tracker 只在当前 calculator 实例的生命周期内存在
+        # 在多进程环境下，每个子进程有独立的 calculator 实例，因此 tracker 也是独立的
+        # 用户可以在 calculate_tag 等方法中使用 self.tracker 来存储和读取临时变量
+        self.tracker: Dict[str, Any] = {}
+        
         # 初始化（钩子函数）
         self.on_init()
     

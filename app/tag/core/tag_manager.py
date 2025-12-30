@@ -20,7 +20,6 @@ import logging
 from pathlib import Path
 from app.tag.core.base_tag_worker import BaseTagWorker
 from app.tag.core.components.settings_management.setting_manager import SettingsManager
-from app.tag.core.config import DEFAULT_SCENARIOS_ROOT
 from app.tag.core.models.scenario_identifier import ScenarioIdentifier
 from app.tag.core.components.entity_management.entity_meta_manager import (
     EntityMetaManager,
@@ -67,27 +66,23 @@ class TagManager:
 
         self.is_verbose = is_verbose
         
-        # 从配置读取 scenarios 根目录
-        self.scenarios_root = Path(DEFAULT_SCENARIOS_ROOT)
-        
         # 初始化字典：scenario 名称 -> scenario 信息字典
         # 每个 scenario 信息包含：
         #   - "worker_class": Type[BaseTagWorker]  # worker 类
         #   - "settings": Dict[str, Any]  # settings 字典
         #   - "instance": Optional[BaseTagWorker]  # worker 实例（缓存，可能为 None）
         self.scenarios: Dict[str, Dict[str, Any]] = {}  # scenario_name -> scenario_setting
-        
+
         # 初始化 data_mgr（单例模式，内部自动获取）
         self.data_mgr = DataManager(is_verbose=False)
         self.tag_data_service = self.data_mgr.get_tag_service()  # TagDataService（DataManager 提供）
         
-
     def execute(self):
         """
         执行所有可用的 scenarios（同步执行）
         
         职责：
-        1. 加载所有 scenarios
+        1. 使用 GeneralTagHelper.load_scenarios() 加载所有 scenarios
         2. 遍历执行每个 scenario（同步执行，一个完成后才执行下一个）
         
         注意：
@@ -95,54 +90,92 @@ class TagManager:
         - 每个 scenario 内部使用多进程并行处理 entities
         - 但 scenarios 之间是串行的
         """
-        all_scenario_settings = self._load_executable_scenarios()
+        # 1. 加载所有可执行的 scenarios（使用辅助方法）
+        all_scenarios = GeneralTagHelper.load_scenarios()
         
-        logger.info(f"开始执行 {len(all_scenario_settings)} 个 scenarios（同步执行）")
+        if not all_scenarios:
+            logger.info("没有可执行的 scenarios")
+            return
         
-        for scenario_setting in all_scenario_settings:
-            scenario_name = scenario_setting.get("scenario_name")
-            if scenario_name:
+        logger.info(f"开始执行 {len(all_scenarios)} 个 scenarios（同步执行）")
+        
+        # 2. 遍历执行每个 scenario（使用标准化的 scenario_info）
+        for scenario_info in all_scenarios:
+            scenario_name = scenario_info.get("scenario_name")
+            if not scenario_name:
+                continue
+                
+            try:
                 logger.info(f"开始执行 scenario: {scenario_name}")
-                try:
-                    self.execute_single(scenario_name)
-                    logger.info(f"完成执行 scenario: {scenario_name}")
-                except Exception as e:
-                    logger.error(
-                        f"执行 scenario '{scenario_name}' 时出错: {e}",
-                        exc_info=True
-                    )
-                    # 继续执行下一个 scenario，不中断整个流程
-                    continue
+                # 直接使用标准化的 scenario_info
+                self.execute_single(scenario_name, scenario_info)
+                logger.info(f"完成执行 scenario: {scenario_name}")
+            except Exception as e:
+                logger.error(
+                    f"执行 scenario '{scenario_name}' 时出错: {e}",
+                    exc_info=True
+                )
+                # 继续执行下一个 scenario，不中断整个流程
+                continue
         
         logger.info("所有 scenarios 执行完成")
 
-
-    def execute_single(self, scenario_name: str, scenario_setting: Dict[str, Any] = None):
+    def execute_single(
+        self, 
+        scenario_name: str, 
+        scenario_info: Dict[str, Any] = None
+    ):
         """
         执行单个 scenario
         
         职责：
-        1. 获取或验证 scenario_setting
-        2. 验证 settings 有效性
-        3. 检查 is_enabled
-        4. 构建 jobs
-        5. 执行多进程计算
+        1. 获取标准化的 scenario_info（使用 GeneralTagHelper 辅助方法）
+        2. 确保元信息存在（scenario 和 tag definitions）
+        3. 构建 jobs
+        4. 执行多进程计算
         
         支持两种场景：
-        1. 已存在的 scenario（只传 scenario_name）：从文件系统加载
-        2. 新的 scenario（传 scenario_name 和 scenario_setting）：使用传入的 settings
+        1. 没有 scenario_info：从文件系统加载（使用 GeneralTagHelper.load_scenario_by_name）
+        2. 有 scenario_info：使用提供的标准化 scenario_info（包含 scenario_name, settings, worker_class）
         
         Args:
             scenario_name: Scenario 名称（必需）
-            scenario_setting: Scenario settings 字典（可选，如果不提供则从文件系统加载）
+            scenario_info: 标准化的 scenario_info 字典（可选），包含：
+                - "scenario_name": str
+                - "settings": Dict[str, Any]
+                - "worker_class": type[BaseTagWorker]
+                如果不提供则从文件系统加载
         """
-        # 1. 验证 scenario 是否可执行
-        if not self._is_executable_scenario(scenario_name, scenario_setting):
-            return
+        # 1. 获取标准化的 scenario_info（使用辅助方法）
+        if not scenario_info:
+            # 场景1：从文件系统加载（用户单个执行某个 tag 的 job）
+            scenario_info = GeneralTagHelper.load_scenario_by_name(scenario_name)
+            if not scenario_info:
+                raise ValueError(f"can not find scenario by name: {scenario_name}")
+        else:
+            # 场景2：用户提供了 scenario_info，验证其结构
+            # 确保 scenario_name 一致
+            info_scenario_name = scenario_info.get("scenario_name")
+            if info_scenario_name and info_scenario_name != scenario_name:
+                logger.warning(
+                    f"scenario_info 中的 scenario_name ({info_scenario_name}) "
+                    f"与传入的 scenario_name ({scenario_name}) 不匹配，使用 scenario_info 中的 name"
+                )
+                scenario_name = info_scenario_name
         
-        # 2. 存储到内部字典（用于后续访问）
-        self.scenarios[scenario_name] = scenario_setting
-
+        # 2. 从标准化的 scenario_info 中提取信息
+        settings = scenario_info["settings"]
+        worker_class = scenario_info["worker_class"]
+        
+        # 3. 验证 settings 有效性（包装成 scenario_setting 格式）
+        scenario_setting = {
+            "scenario_name": scenario_name,
+            "settings": settings,
+            "worker_class": worker_class,
+        }
+        if not SettingsManager.is_valid_scenario_setting(scenario_setting):
+            raise ValueError(f"scenario {scenario_name} settings is not valid")
+        
         # 3. 确保元信息存在（scenario 和 tag definitions），并获取日期范围
         scenario, tag_defs, version_action, start_date, end_date = EntityMetaManager.ensure_metadata(
             self.tag_data_service, scenario_setting
@@ -155,10 +188,15 @@ class TagManager:
             logger.warning(f"No jobs to execute for scenario: {scenario_name}")
             return
 
-        # 6. 决定进程数（使用通用 helper）
+        # 5. 决定进程数（使用通用 helper）
         max_workers = GeneralTagHelper.decide_worker_amount(jobs)
 
-        # 7. 执行多进程计算
+        logger.info(
+            f"开始执行 scenario: {scenario_name}, "
+            f"jobs={len(jobs)}, max_workers={max_workers}"
+        )
+
+        # 6. 执行多进程计算
         from utils.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
         
         worker_pool = ProcessWorker(
@@ -171,7 +209,7 @@ class TagManager:
         # 执行 jobs
         stats = worker_pool.run_jobs(jobs)
         
-        # 8. 收集结果和统计信息
+        # 7. 收集结果和统计信息
         successful_results = worker_pool.get_successful_results()
         failed_results = worker_pool.get_failed_results()
         
@@ -182,36 +220,6 @@ class TagManager:
         
         # 打印统计信息
         worker_pool.print_stats()
-
-    def _is_executable_scenario(self, scenario_name: str, scenario_setting: Dict[str, Any] = None) -> bool:
-        """
-        验证 scenario
-        
-        职责：
-        1. 验证 scenario 是否有效
-        2. 返回验证结果
-        """
-        if scenario_name is None:
-            raise ValueError("scenario_name is required")
-
-        # 1. 获取 scenario_setting（如果未提供，从文件系统加载）
-        if scenario_setting is None:
-            scenario_setting = self._get_scenario_setting(scenario_name)
-
-        if not scenario_setting:
-            raise ValueError(f"can not find scenario by name {scenario_name}.")
-
-        # 2. 验证 settings 有效性
-        if not SettingsManager.is_valid_scenario_setting(scenario_setting):
-            logger.warning(f"{scenario_name} settings is not valid, skip execution")
-            return False
-
-        # 3. 检查 is_enabled
-        if not scenario_setting.get("is_enabled", False):
-            logger.info(f"{scenario_name} is not enabled, skip execution")
-            return False
-
-        return True
 
     def _build_jobs(
         self, 
@@ -310,76 +318,20 @@ class TagManager:
             logger.warning(f"获取股票列表失败: {e}")
         
         return []
-
-
-    def _load_executable_scenarios(self) -> List[Dict[str, Any]]:
-        """
-        加载所有可执行的 scenarios（扫描、加载、验证、过滤）
-        
-        职责：
-        1. 扫描 scenarios 目录，发现所有 scenario 子目录
-        2. 对每个 scenario：加载文件、验证配置、检查 is_enabled
-        3. 返回所有可执行的 scenario 列表
-        
-        Returns:
-            List[Dict[str, Any]]: 可执行的 scenario 列表
-        """
-        return GeneralTagHelper.load_executable_scenarios(
-            self.scenarios_root,
-            is_verbose=self.is_verbose,
-        )
-    
-    def _get_scenario_setting(self, scenario_name: str) -> Optional[Dict[str, Any]]:
-        """
-        根据 scenario_name 获取 scenario_setting
-        
-        职责：
-        1. 从内部字典（self.scenarios）中查找
-        2. 如果不存在，从文件系统加载
-        
-        Args:
-            scenario_name: Scenario 名称
-        
-        Returns:
-            Optional[Dict[str, Any]]: Scenario setting 字典，如果不存在返回 None
-        """
-        # 1. 先从内部字典查找（可能已经加载过）
-        if scenario_name in self.scenarios:
-            return self.scenarios[scenario_name]
-        
-        # 2. 从文件系统加载
-        scenario_dir = self.scenarios_root / scenario_name
-        if scenario_dir.is_dir():
-            scenario_info = GeneralTagHelper.load_single_scenario(
-                scenario_dir=scenario_dir,
-                scenario_name=scenario_name,
-                is_verbose=self.is_verbose,
-            )
-            if scenario_info:
-                return scenario_info
-        
-        return None
-    
-    def _load_settings(self, settings_file: Path) -> Dict[str, Any]:
-        """
-        保留占位以兼容旧接口（内部已迁移到 GeneralTagHelper）
-        """
-        return SettingsManager.load_settings_from_file(str(settings_file))
-
-
+  
     def refresh_scenarios(self):
         """
         刷新 scenarios（重新发现和加载）
         
         职责：
-        1. 重新发现所有 scenarios
-        2. 重新过滤可执行的 scenarios
-        3. 更新内部状态（如果需要）
+        1. 重新发现所有 scenarios（使用 GeneralTagHelper.load_scenarios）
+        2. 更新内部状态（如果需要）
         
         用于动态加载新添加的 scenario
         """
-        # 重新加载可执行的 scenarios
-        self._load_executable_scenarios()
+        # 重新加载所有 scenarios（使用辅助方法）
+        all_scenarios = GeneralTagHelper.load_scenarios()
+        logger.info(f"刷新完成，共 {len(all_scenarios)} 个可执行的 scenarios")
 
     # # ========================================================================
     # ========================================================================

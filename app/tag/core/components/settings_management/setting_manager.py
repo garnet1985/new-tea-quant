@@ -7,6 +7,7 @@ Settings Manager - 统一的 Settings 管理器
 3. 提供统一的验证接口给 TagManager 和 TagWorker 使用
 """
 from typing import Dict, Any, List
+from loguru import logger
 
 from app.tag.core.components.settings_management.settings_validator import (
     SettingsValidator,
@@ -96,6 +97,7 @@ class SettingsManager:
 
         settings = scenario_setting.get("settings")
         if not settings:
+            logger.warning(f"settings must be wrapped by a variable called 'settings'.")
             return False
 
         try:

@@ -1,6 +1,8 @@
 """
 Tag 配置示例（settings.py）
 
+拷贝这个文件到你的scenario目录下，然后修改文件名为settings.py，并修改内容。
+
 新设计：基于三层表结构（tag_scenario, tag_definition, tag_value）
 
 配置结构：
@@ -13,7 +15,7 @@ Tag 配置示例（settings.py）
 - is_legacy 不在 settings 中，在代码层面管理
 - display_name 如果未指定，代码层面会默认使用 name
 """
-from app.tag.enums import KlineTerm, UpdateMode, VersionChangeAction
+from app.tag.core.enums import KlineTerm, UpdateMode, VersionChangeAction
 
 Settings = {
     # ========================================================================

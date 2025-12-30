@@ -415,32 +415,24 @@ class MomentumTagWorker(BaseTagWorker):
 - TagManager 管理的是**业务场景**（文件夹名），不是 tag
 - 一个业务场景可以产生多个 tags（在 settings.py 的 `tags` 列表中定义）
 
-### 5. SettingsValidator (`settings_validator.py`)
+### 5. SettingsManager (`setting_manager.py`)
 
-**位置**：`app/tag/settings_validator.py`
+**位置**：`app/tag/core/components/settings_management/setting_manager.py`
 
-**职责**：提供静态方法用于验证 Tag Worker 的 settings 配置
+**职责**：统一管理 Tag Worker 的 settings 配置，内部组合 SettingsValidator 和 SettingsProcessor
 
-**核心方法**：
-- `validate_scenario_fields()`: 验证 scenario 字段
-- `validate_calculator_fields()`: 验证 calculator 字段
-- `validate_tags_fields()`: 验证 tags 字段
-- `validate_enums()`: 验证枚举值
-- `validate_all()`: 完整验证流程
+**核心职责**：
+- 从 `settings.py` 文件读取配置并应用默认值
+- 验证配置结构和枚举值
+- 为 TagManager / BaseTagWorker / TagWorker 提供统一的设置访问接口
 
-### 6. SettingsProcessor (`settings_processor.py`)
-
-**位置**：`app/tag/settings_processor.py`
-
-**职责**：提供静态方法用于读取、处理和合并 Tag Worker 的 settings 配置
-
-**核心方法**：
-- `read_settings_file()`: 读取 settings 文件
-- `apply_defaults()`: 应用默认值
-- `load_and_process_settings()`: 完整加载和处理流程
-- `merge_tag_config()`: 合并 calculator 和 tag 配置
-- `process_tags_config()`: 处理 tags 配置列表
-- `extract_calculator_config()`: 提取配置到字典
+**核心方法**（对外接口）：
+- `load_settings_from_file()`: 从文件读取 settings 并应用默认值（用于 TagManager 的场景发现）
+- `load_and_process_settings()`: 加载并处理 settings 文件（用于 BaseTagWorker 初始化）
+- `validate_settings()`: 验证配置（抛出异常）
+- `is_valid_scenario_setting()`: 验证 scenario_setting 是否有效（返回 bool，供 TagManager 过滤）
+- `extract_calculator_config()`: 提取 calculator 配置为扁平字典
+- `process_tags_config()`: 合并 calculator 与 tag 的配置，生成每个 tag 的最终配置列表
 
 ---
 
@@ -1098,21 +1090,21 @@ def cleanup_legacy_versions(self, scenario_name: str, keep_n: int = 3):
 
 ### 组件职责矩阵
 
-| 功能 | Settings | TagWorker | BaseTagWorker | TagManager | SettingsValidator | SettingsProcessor |
-|------|----------|------------|-------------------|------------|-------------------|-------------------|
-| 定义配置 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| 验证配置 | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| 读取配置 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| 检查启用状态 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| 实现计算逻辑 | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| 加载数据 | ❌ | 可选 | ✅ (默认) | ❌ | ❌ | ❌ |
-| 发现业务场景 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| 管理实例 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| 执行流程（子进程） | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| 版本管理 | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| **多进程调度** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **Job 构建** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| **进程数决定** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| 功能 | Settings | TagWorker | BaseTagWorker | TagManager | SettingsManager |
+|------|----------|-----------|---------------|------------|-----------------|
+| 定义配置 | ✅ | ❌ | ❌ | ❌ | ❌ |
+| 验证配置 | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 读取配置 | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 检查启用状态 | ❌ | ❌ | ❌ | ✅ | ❌ |
+| 实现计算逻辑 | ❌ | ✅ | ❌ | ❌ | ❌ |
+| 加载数据 | ❌ | 可选 | ✅ (默认) | ❌ | ❌ |
+| 发现业务场景 | ❌ | ❌ | ❌ | ✅ | ❌ |
+| 管理实例 | ❌ | ❌ | ❌ | ✅ | ❌ |
+| 执行流程（子进程） | ❌ | ❌ | ✅ | ❌ | ❌ |
+| 版本管理 | ❌ | ❌ | ✅ | ❌ | ❌ |
+| **多进程调度** | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Job 构建** | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **进程数决定** | ❌ | ❌ | ❌ | ✅ | ❌ |
 
 ### 责任边界总结
 
@@ -1141,14 +1133,8 @@ def cleanup_legacy_versions(self, scenario_name: str, keep_n: int = 3):
 - ❌ 不计算（由 TagWorker 负责）
 - ❌ 不验证配置结构（由 SettingsValidator 负责）
 
-**SettingsValidator**：
-- ✅ 只验证配置
-- ❌ 不处理配置
-- ❌ 不执行计算
-
-**SettingsProcessor**：
-- ✅ 只处理配置（读取、默认值、合并）
-- ❌ 不验证配置
+**SettingsManager**：
+- ✅ 统一读取、处理和验证配置
 - ❌ 不执行计算
 
 ---
@@ -1162,8 +1148,7 @@ def cleanup_legacy_versions(self, scenario_name: str, keep_n: int = 3):
 - TagWorker 只实现计算
 - Manager 只管理
 - BaseTagWorker 只提供框架
-- SettingsValidator 只验证
-- SettingsProcessor 只处理
+- SettingsManager 统一处理和验证配置
 
 ### 2. 配置驱动
 

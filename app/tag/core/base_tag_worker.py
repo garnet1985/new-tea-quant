@@ -22,9 +22,7 @@ import inspect
 import logging
 from app.tag.core.enums import UpdateMode, VersionChangeAction
 from app.tag.core.config import ALLOW_VERSION_ROLLBACK
-from app.tag.core.components.settings_management.setting_manager import (
-    settings_manager,
-)
+from app.tag.core.components.settings_management.setting_manager import SettingsManager
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +49,8 @@ class BaseTagWorker(ABC):
     
     def __init__(
         self, 
-        settings_path: str,
+        settings_path: str = None,
+        settings: Dict[str, Any] = None,
         data_mgr=None,
         tag_data_service=None
     ):
@@ -59,7 +58,8 @@ class BaseTagWorker(ABC):
         初始化 TagWorker
         
         Args:
-            settings_path: settings 文件路径（相对于 tag_worker 同级目录）
+            settings_path: settings 文件路径（可选，如果提供了 settings 字典则不需要）
+            settings: settings 字典（可选，如果提供了则直接使用，否则从 settings_path 加载）
             data_mgr: DataManager 实例（用于访问数据库模型）
             tag_data_service: TagDataService 实例（用于访问 tag 数据的存储和查询）
         """
@@ -71,18 +71,24 @@ class BaseTagWorker(ABC):
         if self.tag_data_service is None and self.data_mgr is not None:
             self.tag_data_service = self.data_mgr.get_tag_service()
         
-        # 获取 tag_worker 文件路径（用于确定 settings 的相对路径）
-        worker_file = inspect.getfile(self.__class__)
-        
-        # 读取、验证和处理配置（使用 SettingsManager）
-        self.settings = settings_manager.load_and_process_settings(
-            settings_path=settings_path,
-            calculator_path=worker_file,
-        )
-        settings_manager.validate_settings(self.settings)
+        # 加载 settings：优先使用传入的 settings 字典，否则从文件加载
+        if settings is not None:
+            # 直接使用传入的 settings（多进程场景，避免重复加载）
+            self.settings = settings.copy()  # 复制一份，避免修改原字典
+            SettingsManager.validate_settings(self.settings)
+        elif settings_path is not None:
+            # 从文件加载 settings（单进程或测试场景）
+            worker_file = inspect.getfile(self.__class__)
+            self.settings = SettingsManager.load_and_process_settings(
+                settings_path=settings_path,
+                calculator_path=worker_file,
+            )
+            SettingsManager.validate_settings(self.settings)
+        else:
+            raise ValueError("必须提供 settings_path 或 settings 参数之一")
         
         # 提取 worker 配置到实例变量
-        config = settings_manager.extract_calculator_config(self.settings)
+        config = SettingsManager.extract_calculator_config(self.settings)
         self.scenario_name = config["scenario_name"]
         self.scenario_version = config["scenario_version"]
         self.base_term = config["base_term"]
@@ -92,7 +98,7 @@ class BaseTagWorker(ABC):
         self.performance = config["performance"]
         
         # 处理 tags 配置（合并、验证）
-        self.tags_config = settings_manager.process_tags_config(
+        self.tags_config = SettingsManager.process_tags_config(
             tags=self.settings["tags"],
             calculator_config=self.settings["calculator"],
         )

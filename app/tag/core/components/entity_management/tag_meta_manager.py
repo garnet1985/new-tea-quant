@@ -1,5 +1,5 @@
 """
-Entity Meta Manager - Scenario 和 Tag 元信息管理器
+Tag Meta Manager - Scenario 和 Tag 元信息管理器
 
 职责：
 1. 确保 scenario 存在（如果不存在则创建）
@@ -18,16 +18,18 @@ from app.conf.conf import data_default_start_date
 logger = logging.getLogger(__name__)
 
 
-class EntityMetaManager:
+class TagMetaManager:
     """
-    Entity Meta Manager - Scenario 和 Tag 元信息管理器
+    Tag Meta Manager - Scenario 和 Tag 元信息管理器
     
     职责：
     1. 确保 scenario 存在（如果不存在则创建）
     2. 确保 tag definitions 存在（如果不存在则创建）
-    3. 提供统一的元信息管理接口
+    3. 处理版本变更
+    4. 确定计算日期范围
+    5. 提供统一的元信息管理接口
     
-    所有方法都是静态方法，tag_data_service 作为参数传入
+    实例类，可以缓存 DataManager 和 TagDataService 以便复用
     """
 
     def __init__(self):

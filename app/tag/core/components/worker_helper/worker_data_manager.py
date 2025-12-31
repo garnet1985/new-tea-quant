@@ -2,10 +2,10 @@
 Worker Data Manager - 子进程数据管理器
 
 职责：
-1. 管理数据缓存（按记录数切片加载）
-2. 管理切片状态（slice_state）和时间 cursor（time_cursor）
+1. 管理数据缓存（按记录数切片加载，滑动窗口最多保持 2 个 chunk）
+2. 管理切片状态（slice_state，用于决定下一次 DB 查询的 offset）
 3. 提供数据加载和过滤接口
-4. 确保 required_data 与 base entity 时间轴对齐
+4. required_data 全量加载到 as_of_date（不做 chunk，因为数据量小）
 
 注意：
 - 这是子进程中的数据管理器，在子进程中实例化
@@ -25,15 +25,20 @@ class WorkerDataManager:
     
     职责：
     1. 管理数据缓存（滑动窗口，最多保持 2 个 chunk）
-    2. 管理切片状态（slice_state）和时间 cursor（time_cursor）
+    2. 管理切片状态（slice_state，DB 维度，用于决定下一次 DB 查询的 offset）
     3. 提供数据加载和过滤接口
-    4. 确保 required_data 与 base entity 时间轴对齐
+    4. required_data 全量加载到 as_of_date（不做 chunk，因为数据量小）
     
     滑动窗口策略：
-    - 保持最多 2 个 chunk 的数据在内存中
+    - 保持最多 2 个 chunk 的 klines 数据在内存中
     - 支持需要历史数据的计算（如移动平均线）
     - 内存可控（最多 2 * data_slice_size 条记录）
-    - 当有第三个 chunk 时，自动删除第一个 chunk
+    - 当需要加载第三个 chunk 时，强制删除第一个 chunk（永远只保持 2 个）
+    
+    required_data 策略：
+    - 财报、估值等数据量远小于日线，全量加载不会成为内存瓶颈
+    - 每次调用按时间条件查数据库，结果放在 cache（可直接覆盖旧 cache）
+    - 不需要分块，逻辑简单可控
     
     使用方式：
         data_mgr = WorkerDataManager(
@@ -92,24 +97,11 @@ class WorkerDataManager:
         self.data_cache = {}  # 合并后的数据缓存（最多包含 2 个 chunk）
         self.chunk_count = 0  # 当前缓存中的 chunk 数量（最多 2 个）
         
-        # 切片状态记录：记录每个数据源已加载到的全局记录索引
+        # 切片状态记录：记录每个数据源已加载到的全局记录索引（DB维度）
         # 格式：{data_source_key: {term_or_key: global_index}}
-        # 例如：{'klines': {'daily': 1000, 'weekly': 500}, 'finance': 200}
+        # 例如：{'klines': {'daily': 1000, 'weekly': 500}}
+        # 注意：只用于决定下一次DB查询的offset，不跟内存删除关联
         self.slice_state = self._init_slice_state()
-        
-        # 时间 cursor：用于缓存每个数据源的当前索引位置（相对于整个 data_cache）
-        # 格式：{data_source_key: {term_or_key: current_index}}
-        # 例如：{'klines': {'daily': 100, 'weekly': 50}, 'finance': 20}
-        self.time_cursor = self._init_time_cursor()
-    
-    def _init_time_cursor(self) -> Dict[str, Any]:
-        """初始化 time_cursor"""
-        cursor = {}
-        kline_terms = set([self.base_term] + self.required_terms)
-        cursor['klines'] = {term: 0 for term in kline_terms}
-        for data_type in self.required_data:
-            cursor[data_type] = 0
-        return cursor
     
     def _init_slice_state(self) -> Dict[str, Any]:
         """初始化切片状态"""
@@ -155,76 +147,43 @@ class WorkerDataManager:
                 need_load = True
         
         if need_load:
-            # 如果已有 2 个 chunk，删除第一个 chunk（滑动窗口）
+            # 如果已有 2 个 chunk，强制删除最旧的 chunk（永远只保持 2 个 chunk）
             if self.chunk_count >= 2:
                 self._remove_first_chunk()
             
-            # 加载新数据切片
+            # 加载新数据切片（只加载 klines）
             new_slice = self._load_data_slice()
             
             # 合并到现有缓存
             if not self.data_cache:
-                self.data_cache = new_slice
-                self.chunk_count = 1
-            else:
-                # 合并 K 线数据
-                if 'klines' in new_slice:
-                    if 'klines' not in self.data_cache:
-                        self.data_cache['klines'] = {}
-                    for term, new_data in new_slice['klines'].items():
-                        if term in self.data_cache['klines']:
-                            self.data_cache['klines'][term].extend(new_data)
-                        else:
-                            self.data_cache['klines'][term] = new_data
-                
-                # 合并其他数据源（required_data，需要去重）
-                for key, new_data in new_slice.items():
-                    if key != 'klines':
-                        if key in self.data_cache:
-                            if isinstance(new_data, list) and isinstance(self.data_cache[key], list):
-                                # 去重合并
-                                existing_data = self.data_cache[key]
-                                if existing_data:
-                                    unique_key = self._get_unique_key_for_data_type(key)
-                                    existing_keys = {
-                                        self._extract_unique_key(record, unique_key)
-                                        for record in existing_data
-                                        if self._extract_unique_key(record, unique_key)
-                                    }
-                                    
-                                    for record in new_data:
-                                        record_key = self._extract_unique_key(record, unique_key)
-                                        if record_key and record_key not in existing_keys:
-                                            existing_data.append(record)
-                                            existing_keys.add(record_key)
-                                    
-                                    self.data_cache[key] = existing_data
-                                else:
-                                    self.data_cache[key] = new_data
-                            else:
-                                self.data_cache[key] = new_data
-                        else:
-                            self.data_cache[key] = new_data
+                self.data_cache = {'klines': {}}
+                self.chunk_count = 0
+            
+            # 合并 K 线数据
+            if 'klines' in new_slice:
+                if 'klines' not in self.data_cache:
+                    self.data_cache['klines'] = {}
+                for term, new_data in new_slice['klines'].items():
+                    if term in self.data_cache['klines']:
+                        self.data_cache['klines'][term].extend(new_data)
+                    else:
+                        self.data_cache['klines'][term] = new_data
                 
                 self.chunk_count += 1
             
-            # 更新 slice_state（只更新 base entity）
+            # 更新 slice_state（只更新 klines）
             self._update_slice_state(new_slice)
+        
+        # 加载 required_data（全量加载到 as_of_date，不做chunk）
+        self._load_required_data_upto(as_of_date)
     
     def _remove_first_chunk(self):
         """
-        删除第一个 chunk 的数据（滑动窗口）
+        删除第一个 chunk 的 K 线数据（滑动窗口）
         
-        当有第三个 chunk 时，删除第一个 chunk 以控制内存。
-        同时需要：
-        1. 从 data_cache 中删除第一个 chunk 的数据
-        2. 调整 time_cursor（减去删除的 chunk 的大小）
-        
-        注意：
-        - slice_state 记录的是数据库的全局 offset，不应该改变
-        - time_cursor 是相对于 data_cache 的索引，需要调整
+        简化逻辑：强制删除第一个 chunk，永远只保持 2 个 chunk。
+        注意：slice_state 记录的是数据库的全局 offset，不应该改变。
         """
-        # 1. 删除第一个 chunk 的 K 线数据
         if 'klines' in self.data_cache:
             for term in self.data_cache['klines']:
                 kline_list = self.data_cache['klines'][term]
@@ -232,44 +191,19 @@ class WorkerDataManager:
                     # 删除第一个 chunk
                     removed_count = min(self.data_slice_size, len(kline_list))
                     self.data_cache['klines'][term] = kline_list[removed_count:]
-                    
-                    # 调整 time_cursor（减去删除的 chunk 的大小）
-                    # 注意：slice_state 不改变，因为它记录的是数据库的全局 offset
-                    if term in self.time_cursor.get('klines', {}):
-                        current_cursor = self.time_cursor['klines'][term]
-                        self.time_cursor['klines'][term] = max(0, current_cursor - removed_count)
-        
-        # 2. 删除第一个 chunk 的其他数据源（required_data）
-        # 注意：required_data 是按时间范围加载的，删除逻辑更复杂
-        # 简单策略：如果数据量超过 2 * data_slice_size，删除前半部分
-        for key, data_list in self.data_cache.items():
-            if key == 'klines':
-                continue
-            
-            if isinstance(data_list, list) and len(data_list) > 2 * self.data_slice_size:
-                # 删除前半部分（粗略估计，因为 required_data 不是按记录数切片的）
-                remove_count = len(data_list) // 2
-                self.data_cache[key] = data_list[remove_count:]
-                
-                # 调整 time_cursor
-                if key in self.time_cursor:
-                    current_cursor = self.time_cursor[key]
-                    self.time_cursor[key] = max(0, current_cursor - remove_count)
         
         # 更新 chunk 数量
         self.chunk_count = 1
     
     def _load_data_slice(self) -> Dict[str, Any]:
         """
-        加载数据切片（按记录数，每次1000条）
+        加载 K 线数据切片（按记录数，每次 data_slice_size 条）
         
-        加载策略：
-        1. Base entity（klines）按记录数切片（1000条）
-        2. Required data 按时间范围加载（与 base entity 对齐）
+        注意：只加载 klines，required_data 由 _load_required_data_upto 单独处理
         """
         historical_data = {}
         
-        # 1. 加载 K 线数据（base entity + required_terms）
+        # 加载 K 线数据（base entity + required_terms）
         kline_terms = set([self.base_term] + self.required_terms)
         klines = {}
         
@@ -293,50 +227,47 @@ class WorkerDataManager:
                 klines[term] = []
         
         historical_data['klines'] = klines
+        return historical_data
+    
+    def _load_required_data_upto(self, as_of_date: str):
+        """
+        加载 required_data 到指定日期（全量加载，不做chunk）
         
-        # 2. 从 base entity 的切片中提取时间范围
-        base_kline_data = klines.get(self.base_term, [])
-        if base_kline_data:
-            first_date = base_kline_data[0].get('date', '') if base_kline_data else ''
-            last_date = base_kline_data[-1].get('date', '') if base_kline_data else ''
-            time_range = (first_date, last_date)
-        else:
-            time_range = (None, None)
-        
-        # 3. 加载 required_data（按时间范围，与 base entity 对齐）
+        策略：
+        - 财报、估值等数据量远小于日线，全量加载不会成为内存瓶颈
+        - 每次调用按时间条件查数据库，结果放在 cache（可直接覆盖旧 cache）
+        - 不需要分块，逻辑简单可控
+        """
         for data_type in self.required_data:
             try:
-                if not time_range[0] or not time_range[1]:
-                    historical_data[data_type] = []
-                    continue
-                
-                start_date, end_date = time_range
-                
                 if data_type == 'corporate_finance':
                     finance_model = self.data_mgr.get_model('corporate_finance')
                     if finance_model:
-                        start_quarter = self._date_to_quarter(start_date)
-                        end_quarter = self._date_to_quarter(end_date)
+                        # 加载所有季度数据到 as_of_date
+                        end_quarter = self._date_to_quarter(as_of_date)
                         finance_data = finance_model.load(
-                            condition="id = %s AND quarter >= %s AND quarter <= %s",
-                            params=(self.entity_id, start_quarter, end_quarter),
+                            condition="id = %s AND quarter <= %s",
+                            params=(self.entity_id, end_quarter),
                             order_by="quarter ASC"
                         )
+                        # 直接覆盖 cache（不需要去重，因为每次都是全量查询）
+                        self.data_cache['corporate_finance'] = finance_data or []
                     else:
-                        finance_data = []
-                    historical_data['finance'] = finance_data
+                        self.data_cache['corporate_finance'] = []
                 
                 elif data_type == 'market_value':
                     market_value_model = self.data_mgr.get_model('market_value')
                     if market_value_model:
+                        # 加载所有日期数据到 as_of_date
                         market_value_data = market_value_model.load(
-                            condition="id = %s AND date BETWEEN %s AND %s",
-                            params=(self.entity_id, start_date, end_date),
+                            condition="id = %s AND date <= %s",
+                            params=(self.entity_id, as_of_date),
                             order_by="date ASC"
                         )
+                        # 直接覆盖 cache
+                        self.data_cache['market_value'] = market_value_data or []
                     else:
-                        market_value_data = []
-                    historical_data['market_value'] = market_value_data
+                        self.data_cache['market_value'] = []
                 
                 else:
                     # 通用处理：尝试通过 model 加载
@@ -344,22 +275,20 @@ class WorkerDataManager:
                     if model:
                         try:
                             other_data = model.load(
-                                condition="id = %s AND date BETWEEN %s AND %s",
-                                params=(self.entity_id, start_date, end_date),
+                                condition="id = %s AND date <= %s",
+                                params=(self.entity_id, as_of_date),
                                 order_by="date ASC"
                             )
-                            historical_data[data_type] = other_data
+                            self.data_cache[data_type] = other_data or []
                         except Exception:
-                            logger.warning(f"无法按时间范围加载 {data_type} 数据，字段可能不匹配")
-                            historical_data[data_type] = []
+                            logger.warning(f"无法按时间条件加载 {data_type} 数据，字段可能不匹配")
+                            self.data_cache[data_type] = []
                     else:
-                        historical_data[data_type] = []
+                        self.data_cache[data_type] = []
                 
             except Exception as e:
                 logger.warning(f"加载 {data_type} 数据失败: entity_id={self.entity_id}, error={e}")
-                historical_data[data_type] = []
-        
-        return historical_data
+                self.data_cache[data_type] = []
     
     def _update_slice_state(self, new_slice: Dict[str, Any]):
         """更新切片状态（只更新 base entity）"""
@@ -372,72 +301,74 @@ class WorkerDataManager:
     
     def filter_data_to_date(self, as_of_date: str) -> Dict[str, Any]:
         """
-        使用 time_cursor 高效过滤数据到指定日期（避免"上帝模式"）
+        过滤数据到指定日期（避免"上帝模式"）
         
-        从上次 cursor 位置继续遍历，避免重复扫描已处理的数据。
+        返回从开始到 as_of_date 的所有历史数据（不是增量数据）。
+        
+        注意：
+        - 返回的是从开始到 as_of_date 的所有数据（用于计算移动平均线等指标）
+        - 简化实现：直接从头遍历，不做 cursor 优化（等未来真遇到性能瓶颈再加）
         
         Args:
             as_of_date: 业务日期（YYYYMMDD）
         
         Returns:
-            Dict[str, Any]: 过滤后的数据
+            Dict[str, Any]: 过滤后的数据（从开始到 as_of_date 的所有历史数据）
         """
         # 确保数据已加载
         self.ensure_data_loaded(as_of_date)
         
         filtered_data = {}
         
-        # 1. 过滤 K 线数据（使用 cursor 优化）
+        # 1. 过滤 K 线数据（返回从开始到 as_of_date 的所有数据）
         if 'klines' in self.data_cache:
             filtered_klines = {}
             for term, kline_list in self.data_cache['klines'].items():
-                start_idx = self.time_cursor.get('klines', {}).get(term, 0)
-                
                 filtered_records = []
-                current_idx = start_idx
-                
-                while current_idx < len(kline_list):
-                    record = kline_list[current_idx]
+                for record in kline_list:
                     record_date = record.get('date', '')
-                    
                     if record_date <= as_of_date:
                         filtered_records.append(record)
-                        current_idx += 1
                     else:
+                        # 遇到第一个超过 as_of_date 的记录，停止
                         break
-                
-                # 更新 cursor
-                if 'klines' not in self.time_cursor:
-                    self.time_cursor['klines'] = {}
-                self.time_cursor['klines'][term] = current_idx
-                
                 filtered_klines[term] = filtered_records
-            
             filtered_data['klines'] = filtered_klines
         
-        # 2. 过滤其他数据源（使用 cursor 优化）
+        # 2. 过滤其他数据源（返回从开始到 as_of_date 的所有数据）
         for key, data_list in self.data_cache.items():
             if key == 'klines':
                 continue
             
             if isinstance(data_list, list):
-                start_idx = self.time_cursor.get(key, 0)
-                date_field = 'date' if key != 'finance' else 'quarter'
+                date_field = 'date' if key != 'corporate_finance' else 'quarter'
                 
                 filtered_records = []
-                current_idx = start_idx
-                
-                while current_idx < len(data_list):
-                    record = data_list[current_idx]
+                for record in data_list:
                     record_date = record.get(date_field, '')
                     
-                    if self._compare_date(record_date, as_of_date):
-                        filtered_records.append(record)
-                        current_idx += 1
+                    if date_field == 'quarter':
+                        # 季度数据：转换为日期比较
+                        if record_date and as_of_date:
+                            record_year = int(record_date[:4])
+                            record_quarter = int(record_date[5])
+                            as_of_year = int(as_of_date[:4])
+                            as_of_month = int(as_of_date[4:6])
+                            as_of_quarter = (as_of_month - 1) // 3 + 1
+                            
+                            if record_year < as_of_year or (record_year == as_of_year and record_quarter <= as_of_quarter):
+                                filtered_records.append(record)
+                            else:
+                                break
+                        else:
+                            filtered_records.append(record)
                     else:
-                        break
+                        # 日期数据：直接比较
+                        if record_date <= as_of_date:
+                            filtered_records.append(record)
+                        else:
+                            break
                 
-                self.time_cursor[key] = current_idx
                 filtered_data[key] = filtered_records
             else:
                 filtered_data[key] = data_list

@@ -60,12 +60,14 @@ class EntityMetaManager:
         scenario_info = settings["scenario"]
         tags_info = settings["tags"]
 
-        scenario_meta = self._ensure_scenario(scenario_info)
+        # 先检测版本变更（在确保 scenario 存在之前）
+        version_action = self._detect_version_change(scenario_info)
+        
+        # 根据版本变更动作处理 scenario
+        scenario_meta = self._ensure_scenario(scenario_info, version_action)
+        
+        # 确保 tag definitions 存在
         tags_meta = self._ensure_tags(tags_info, scenario_meta)
-
-        # TODO: 实现版本变更处理（暂时返回 NO_CHANGE）
-        # 后续需要实现完整的版本变更逻辑（NEW_SCENARIO, REFRESH_SCENARIO, ROLLBACK）
-        version_action = VersionAction.NO_CHANGE.value
 
         # 确定计算日期范围
         start_date, end_date = self._determine_date_range(
@@ -133,12 +135,93 @@ class EntityMetaManager:
         
         return update_data
 
-    def _ensure_scenario(self, scenario_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _detect_version_change(self, scenario_info: Dict[str, Any]) -> str:
         """
-        确保 scenario 存在（如果不存在则创建，如果是 legacy 则处理版本回退）
+        检测版本变更动作
+        
+        逻辑：
+        1. 如果 settings.version 在数据库中已存在且 is_legacy=0（active）：
+           - version_action = "NO_CHANGE"（版本未变，继续使用）
+        2. 如果 settings.version 在数据库中已存在但 is_legacy=1（legacy）：
+           - version_action = "ROLLBACK"（版本回退）
+        3. 如果 settings.version 在数据库中不存在：
+           - 检查是否有其他 active 版本的 scenario
+           - 如果有，读取 on_version_change 配置
+           - version_action = on_version_change（REFRESH_SCENARIO 或 NEW_SCENARIO）
+           - 如果没有，version_action = "NEW_SCENARIO"（首次创建）
         
         Args:
             scenario_info: scenario 配置字典，包含 name 和 version
+        
+        Returns:
+            str: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")
+        """
+        scenario_name = scenario_info["name"]
+        scenario_version = scenario_info["version"]
+        
+        # 1. 查询数据库中该 scenario name 的所有版本
+        db_scenarios = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+        
+        # 2. 查找 settings.version 是否在数据库中已存在
+        existing_scenario = None
+        for s in db_scenarios:
+            if s.get("version") == scenario_version:
+                existing_scenario = s
+                break
+        
+        # 3. 如果已存在且 is_legacy=0（active）：
+        if existing_scenario and existing_scenario.get("is_legacy", 0) == 0:
+            return VersionAction.NO_CHANGE.value
+        
+        # 4. 如果已存在但 is_legacy=1（legacy）：
+        if existing_scenario and existing_scenario.get("is_legacy", 0) == 1:
+            # 这是用户把 version 改回到以前存在过的版本（版本回退）
+            if not ALLOW_VERSION_ROLLBACK:
+                error_msg = (
+                    f"Version rollback detected but not allowed: "
+                    f"scenario={scenario_name}, version={scenario_version}. "
+                    "Version rollback may cause data inconsistency. "
+                    "Only rollback version if worker logic is also rolled back. "
+                    "To allow version rollback, set ALLOW_VERSION_ROLLBACK=True in app/tag/core/config.py"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            logger.warning(
+                f"版本回退检测: scenario={scenario_name}, version={scenario_version}. "
+                f"警告：版本回退可能导致数据不一致，请确保计算逻辑也已回退。"
+            )
+            return VersionAction.ROLLBACK.value
+        
+        # 5. 如果不存在：检查是否有其他 active 版本的 scenario
+        active_scenario = None
+        for s in db_scenarios:
+            if s.get("is_legacy", 0) == 0:
+                active_scenario = s
+                break
+        
+        if active_scenario:
+            # 有 active 版本，读取 on_version_change 配置
+            on_version_change = scenario_info.get(
+                "on_version_change",
+                VersionChangeAction.REFRESH_SCENARIO.value
+            )
+            
+            if on_version_change == VersionChangeAction.NEW_SCENARIO.value:
+                return VersionAction.NEW_SCENARIO.value
+            else:  # REFRESH_SCENARIO
+                return VersionAction.REFRESH_SCENARIO.value
+        else:
+            # 没有 active 版本，这是首次创建
+            return VersionAction.NEW_SCENARIO.value
+
+    def _ensure_scenario(self, scenario_info: Dict[str, Any], version_action: str) -> Dict[str, Any]:
+        """
+        确保 scenario 存在（如果不存在则创建，根据版本变更动作处理）
+        
+        Args:
+            scenario_info: scenario 配置字典，包含 name 和 version
+            version_action: 版本变更动作（"NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO"）
         
         Returns:
             Dict[str, Any]: Scenario 记录
@@ -148,21 +231,29 @@ class EntityMetaManager:
         scenario_meta = self.tag_data_service.load_scenario(scenario_name, scenario_version)
 
         if scenario_meta:
-            # scenario 存在，检查是否是 legacy
-            if scenario_meta.get('is_legacy') == 1:
-                # 这是版本回退的情况
-                if ALLOW_VERSION_ROLLBACK:
-                    logger.warning(f"警告：您正在试图把当前 {scenario_name} 场景回退到一个已经存在的老版本 {scenario_version}, 请注意：")
-                    logger.warning(f"如果版本号和之前对应的tag计算逻辑不一样，很可能会导致数据和计算结果不一致。")
-                    # 只更新 is_legacy，不更新 name 和 version
-                    return self.tag_data_service.update_scenario(scenario_meta['id'], is_legacy=0)
-                else:
-                    logger.warning(f"警告：您正在试图把当前 {scenario_name} 场景回退到一个已经存在的老版本 {scenario_version}, 请注意：")
-                    logger.warning(f"您需要同时修改版本号和逻辑，否则可能会导致数据不一致。")
-                    logger.warning(f"如果您就是需要恢复老版本号，您需要修改 app/tag/core/config.py 文件，将 ALLOW_VERSION_ROLLBACK 设置为 true 来完成这一步。")
-                    raise ValueError(f"版本回退被禁止: scenario={scenario_name}, version={scenario_version}")
-            else:
-                # scenario 存在且是 active，检查并更新非关键字段
+            # scenario 存在
+            if version_action == VersionAction.ROLLBACK.value:
+                # 版本回退：标记旧的 active 为 legacy，设置当前为 active
+                # 查找当前的 active 版本（is_legacy=0）
+                db_scenarios = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+                active_scenario = None
+                for s in db_scenarios:
+                    if s.get("is_legacy", 0) == 0 and s.get("version") != scenario_version:
+                        active_scenario = s
+                        break
+                
+                # 如果存在 active 版本，标记为 legacy
+                if active_scenario:
+                    self.tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
+                
+                # 把当前版本设置为 active
+                return self.tag_data_service.update_scenario(
+                    scenario_meta['id'],
+                    is_legacy=0,
+                    current_scenario=scenario_meta
+                )
+            elif version_action == VersionAction.NO_CHANGE.value:
+                # 版本未变，检查并更新非关键字段
                 field_configs = [
                     {'field_name': 'display_name', 'default_from': 'name'},
                     {'field_name': 'description', 'default_value': ''}
@@ -183,8 +274,38 @@ class EntityMetaManager:
                     )
                 
                 return scenario_meta
+            else:
+                # NEW_SCENARIO 或 REFRESH_SCENARIO：不应该走到这里（scenario 应该不存在）
+                logger.warning(
+                    f"意外的版本变更动作: scenario={scenario_name}, version={scenario_version}, "
+                    f"version_action={version_action}, 但 scenario 已存在"
+                )
+                return scenario_meta
         else:
             # scenario 不存在，创建新的
+            # 如果是 NEW_SCENARIO 或 REFRESH_SCENARIO，需要处理旧的 active scenario
+            if version_action in [VersionAction.NEW_SCENARIO.value, VersionAction.REFRESH_SCENARIO.value]:
+                # 查找当前的 active 版本（is_legacy=0）
+                db_scenarios = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+                active_scenario = None
+                for s in db_scenarios:
+                    if s.get("is_legacy", 0) == 0:
+                        active_scenario = s
+                        break
+                
+                # 如果存在 active 版本，标记为 legacy
+                if active_scenario:
+                    self.tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
+                    
+                    # 如果是 REFRESH_SCENARIO，删除旧的 tag values
+                    if version_action == VersionAction.REFRESH_SCENARIO.value:
+                        logger.info(
+                            f"REFRESH_SCENARIO: 删除旧的 tag values, "
+                            f"scenario_id={active_scenario['id']}"
+                        )
+                        self.tag_data_service.delete_tag_values_by_scenario(active_scenario["id"])
+            
+            # 创建新的 scenario
             display_name = scenario_info.get("display_name", scenario_name)
             description = scenario_info.get("description", "")
             return self.tag_data_service.save_scenario(

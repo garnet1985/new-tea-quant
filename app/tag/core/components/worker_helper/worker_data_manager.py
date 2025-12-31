@@ -415,21 +415,3 @@ class WorkerDataManager:
         month = int(date_str[4:6])
         quarter = (month - 1) // 3 + 1
         return f"{year}Q{quarter}"
-    
-    def _get_unique_key_for_data_type(self, data_type: str) -> str:
-        """获取数据源类型的唯一键字段名"""
-        if data_type == 'corporate_finance':
-            return 'quarter'
-        else:
-            return 'date'
-    
-    def _extract_unique_key(self, record: Dict[str, Any], unique_key: str) -> Optional[str]:
-        """从记录中提取唯一键值"""
-        return record.get(unique_key)
-    
-    def _compare_date(self, date1: str, date2: str) -> bool:
-        """比较日期（date1 <= date2）"""
-        if len(date1) == 8 and len(date2) == 8:
-            return date1 <= date2
-        # TODO: 实现季度等其他格式的比较
-        return True

@@ -21,9 +21,13 @@ from pathlib import Path
 from app.tag.core.base_tag_worker import BaseTagWorker
 from app.tag.core.components.settings_management.setting_manager import SettingsManager
 from app.tag.core.models.scenario_identifier import ScenarioIdentifier
-from app.tag.core.components.entity_management.entity_meta_manager import (
-    EntityMetaManager,
+from app.tag.core.components.entity_management.tag_meta_manager import (
+    TagMetaManager,
 )
+from app.tag.core.components.entity_management.entity_list_loader import (
+    EntityListLoader,
+)
+from app.tag.core.components.job_builder.job_builder import JobBuilder
 from app.tag.core.components.helper.general_tag_helper import GeneralTagHelper
 from app.data_manager import DataManager
 
@@ -75,7 +79,8 @@ class TagManager:
         # 初始化 data_mgr（单例模式，内部自动获取）
         self.data_mgr = DataManager(is_verbose=False)
 
-        self.entity_meta_manager = EntityMetaManager()
+        self.tag_meta_manager = TagMetaManager()
+        self.entity_list_loader = EntityListLoader()
         
     def execute(self):
         """
@@ -149,76 +154,14 @@ class TagManager:
         scenario_setting = self._build_scenario_info(scenario_name, scenario_info)
         
         # 阶段2：确保元信息存在
-        scenario, tag_defs, version_action, start_date, end_date = self.entity_meta_manager.ensure_metadata(scenario_setting)
+        scenario, tag_defs, version_action, start_date, end_date = self.tag_meta_manager.ensure_metadata(scenario_setting)
         
         # 阶段3：解析所需数据
-        entity_list = self._resolve_tagging_target_entity_list(scenario_setting);
+        entity_list = self.entity_list_loader.resolve_tagging_target_entity_list(scenario_setting)
 
         # 阶段4：执行 jobs
         self._execute_jobs(scenario_setting, tag_defs, start_date, end_date, entity_list)
 
-    def _resolve_tagging_target_entity_list(self, scenario_setting: Dict[str, Any]) -> List[str]:
-        """
-        解析需要打 tag 的实体列表
-        
-        职责：
-        1. 从 settings 中检查是否有配置实体列表（预留扩展）
-        2. 如果没有配置，使用 DataManager 获取默认的股票列表
-        3. 返回实体ID列表
-        
-        Args:
-            scenario_setting: scenario_setting 字典，包含：
-                - "scenario_name": str
-                - "settings": Dict[str, Any]
-        
-        Returns:
-            List[str]: 实体ID列表（如股票代码列表）
-        """
-        settings = scenario_setting.get("settings", {})
-        calculator = settings.get("calculator", {})
-
-        # TODO：current tagging only support stock entity，will support macro，corporate finance in the future
-        
-        # 预留：检查 settings 中是否有配置实体列表
-        # 例如：calculator.get("entity_list") 或 calculator.get("entity_filter")
-        # 目前暂不支持，直接使用默认逻辑
-        
-        # 使用 DataManager 获取股票列表
-        if not self.data_mgr:
-            raise ValueError("DataManager 未初始化，无法获取实体列表")
-        
-        try:
-            # 使用 DataManager 的 load_stock_list 方法（使用过滤规则，排除ST、科创板等）
-            stock_list = self.data_mgr.load_stock_list(filtered=True)
-            
-            if not stock_list:
-                logger.warning("DataManager 返回的股票列表为空")
-                return []
-            
-            # 提取股票ID列表
-            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
-            
-            logger.info(
-                f"解析实体列表完成: scenario={scenario_setting['scenario_name']}, "
-                f"entities={len(entity_list)}"
-            )
-            
-            return entity_list
-            
-        except Exception as e:
-            logger.error(f"获取实体列表失败: {e}", exc_info=True)
-            # 备用方案：尝试使用 StockModel
-            try:
-                stock_model = self.data_mgr.get_model("stock_list")
-                if stock_model:
-                    stocks = stock_model.load_active_stocks()
-                    entity_list = [stock.get('id') for stock in stocks if stock.get('id')]
-                    logger.info(f"使用备用方案获取实体列表: {len(entity_list)} 个实体")
-                    return entity_list
-            except Exception as e2:
-                logger.error(f"备用方案也失败: {e2}", exc_info=True)
-            
-            return []
 
     def _build_scenario_info(
         self,
@@ -302,14 +245,14 @@ class TagManager:
         scenario_name = scenario_setting["scenario_name"]
         
         # 1. 构建 jobs
-        jobs = self._build_jobs(scenario_setting, tag_defs, start_date, end_date, entity_list)
+        jobs = JobBuilder.build_jobs(scenario_setting, tag_defs, start_date, end_date, entity_list)
         
         if not jobs:
             logger.warning(f"No jobs to execute for scenario: {scenario_name}")
             return
 
-        # 2. 决定进程数（使用通用 helper）
-        max_workers = GeneralTagHelper.decide_worker_amount(jobs)
+        # 2. 决定进程数
+        max_workers = JobBuilder.decide_worker_amount(jobs)
 
         logger.info(
             f"开始执行 scenario: {scenario_name}, "
@@ -340,72 +283,6 @@ class TagManager:
         
         # 打印统计信息
         worker_pool.print_stats()
-
-    def _build_jobs(
-        self, 
-        scenario_setting: Dict[str, Any],
-        tag_defs: List[Dict[str, Any]],
-        start_date: str,
-        end_date: str,
-        entity_list: List[str]
-    ) -> List[Dict[str, Any]]:
-        """
-        构建 jobs（每个 entity 一个 job）
-        
-        职责：
-        1. 为每个 entity 创建一个 job
-        
-        Args:
-            scenario_setting: Scenario settings 字典，包含：
-                - "scenario_name": str
-                - "worker_class": Type[BaseTagWorker]
-                - "settings": Dict[str, Any]
-                - "worker_file_path": str
-                - "settings_file_path": str
-            tag_defs: Tag Definition 列表
-            start_date: 起始日期
-            end_date: 结束日期
-            entity_list: 实体ID列表
-        
-        Returns:
-            List[Dict[str, Any]]: Job列表
-        """
-        jobs = []
-        
-        if not entity_list:
-            logger.warning(f"没有实体需要计算: scenario={scenario_setting['scenario_name']}")
-            return jobs
-        
-        # 为每个 entity 创建 job
-        # 注意：直接传递完整的 settings 字典，避免在子进程中重复加载
-        # 这样如果 settings 结构变化，只需要改 BaseTagWorker 一处即可
-        for entity_id in entity_list:
-            job = {
-                "id": f"{entity_id}_{scenario_setting['scenario_name']}",
-                "payload": {
-                    # 实体信息
-                    "entity_id": entity_id,
-                    "entity_type": "stock",
-                    
-                    # Scenario 信息
-                    "scenario_name": scenario_setting["scenario_name"],
-                    "scenario_version": scenario_setting["settings"]["scenario"]["version"],
-                    
-                    # Tag 信息（必需，因为需要 tag_definition_id）
-                    "tag_definitions": tag_defs,
-                    
-                    # 日期范围（必需）
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    
-                    # Worker 实例化所需（子进程中需要）
-                    "worker_class": scenario_setting["worker_class"],
-                    "settings": scenario_setting["settings"],  # 直接传完整的 settings 字典
-                }
-            }
-            jobs.append(job)
-        
-        return jobs
 
     def refresh_scenarios(self):
         """

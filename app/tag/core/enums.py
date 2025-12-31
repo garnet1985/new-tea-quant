@@ -25,6 +25,14 @@ class VersionChangeAction(Enum):
     NEW_SCENARIO = "new_scenario"          # 创建新的 Scenario（保留旧 Scenario 的数据）
 
 
+class VersionAction(Enum):
+    """版本变更动作枚举（内部使用）"""
+    NO_CHANGE = "no_change"              # 版本未变
+    ROLLBACK = "rollback"                # 版本回退
+    NEW_SCENARIO = "new_scenario"        # 创建新 scenario
+    REFRESH_SCENARIO = "refresh_scenario"  # 刷新 scenario
+
+
 class SupportedDataSource(Enum):
     """支持的数据源枚举"""
     KLINE = "kline"

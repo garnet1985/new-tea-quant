@@ -178,24 +178,6 @@ class GeneralTagHelper:
         return None
 
     @staticmethod
-    def load_scenario_settings(scenario_dir: Path) -> Optional[Path]:
-        """
-        查找 scenario 目录中的 settings.py 文件
-        
-        Args:
-            scenario_dir: Scenario 目录路径
-            
-        Returns:
-            Optional[Path]: settings.py 文件路径，如果不存在返回 None
-        """
-        settings_file_path = FileUtil.find_file_in_folder(
-            "settings.py",
-            str(scenario_dir),
-            is_recursively=True,
-        )
-        return Path(settings_file_path) if settings_file_path else None
-
-    @staticmethod
     def is_scenario_settings_file_exists(scenario_dir: Path) -> bool:
         """
         验证 scenario 文件是否有效
@@ -211,7 +193,7 @@ class GeneralTagHelper:
         Returns:
             bool: 如果有效返回 True，否则返回 False
         """
-        settings_file_path = GeneralTagHelper.load_scenario_settings(scenario_dir)
+        settings_file_path = SettingsManager.load_scenario_settings(scenario_dir)
         if not settings_file_path:
             return False
         
@@ -346,7 +328,7 @@ class GeneralTagHelper:
             logger.debug(f"Scenario '{scenario_dir.name}' 缺少 settings.py 文件或验证失败，跳过")
             return None
 
-        settings_file_path = GeneralTagHelper.load_scenario_settings(scenario_dir)
+        settings_file_path = SettingsManager.load_scenario_settings(scenario_dir)
         if not settings_file_path:
             return None
 

@@ -16,39 +16,7 @@ class GeneralTagHelper:
 
     职责：
     1. 发现和加载可执行的 scenarios（文件扫描 + settings 验证）
-    2. 决定多进程 worker 数量
     """
-
-    # -------------------------------------------------------------------------
-    # 多进程 worker 数量决策
-    # -------------------------------------------------------------------------
-
-    @staticmethod
-    def decide_worker_amount(jobs: List[Dict[str, Any]], max_workers: int = os.cpu_count()) -> int:
-        """
-        根据 job 数量决定进程数（最多 max_workers 个）
-        
-        策略：
-        - 100个job及以下：1个worker
-        - 500个job及以下，100个以上：2个worker
-        - 1000个job及以下，500个以上：4个worker
-        - 2000个job及以下，1000个以上：8个worker
-        - 2000个job以上：最大worker（max_workers）
-        """
-        job_count = len(jobs)
-
-        if job_count <= 100:
-            worker_amount = 1
-        elif job_count <= 500:
-            worker_amount = 2
-        elif job_count <= 1000:
-            worker_amount = 4
-        elif job_count <= 2000:
-            worker_amount = 8
-        else:
-            worker_amount = max_workers
-
-        return min(worker_amount, max_workers)
 
     # -------------------------------------------------------------------------
     # Scenario 发现与加载

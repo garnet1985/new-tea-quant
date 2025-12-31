@@ -922,6 +922,7 @@ class DataManager:
         """加载指数指标数据（暂未实现）"""
         logger.warning("_load_index_indicators_data 暂未实现")
         return {}
+        
     def load_stock_list(self, 
                        filtered: bool = False,
                        industry: str = None,

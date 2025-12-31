@@ -176,6 +176,8 @@ class TagManager:
         """
         settings = scenario_setting.get("settings", {})
         calculator = settings.get("calculator", {})
+
+        # TODO：current tagging only support stock entity，will support macro，corporate finance in the future
         
         # 预留：检查 settings 中是否有配置实体列表
         # 例如：calculator.get("entity_list") 或 calculator.get("entity_filter")

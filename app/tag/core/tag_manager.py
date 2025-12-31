@@ -15,7 +15,7 @@ Tag Manager - 统一管理所有业务场景（Scenario）
 - DataManager 是单例模式，内部自动获取
 - 多进程调度由 TagManager 负责
 """
-from typing import Dict, List, Optional, Type, Any
+from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
 from pathlib import Path
 from app.tag.core.base_tag_worker import BaseTagWorker
@@ -128,11 +128,10 @@ class TagManager:
         """
         执行单个 scenario
         
-        职责：
-        1. 获取标准化的 scenario_info（使用 GeneralTagHelper 辅助方法）
+        流程分为三个阶段：
+        1. 构建 scenario_info（加载、验证、标准化）
         2. 确保元信息存在（scenario 和 tag definitions）
-        3. 构建 jobs
-        4. 执行多进程计算
+        3. 执行 jobs（构建 jobs、多进程计算）
         
         支持两种场景：
         1. 没有 scenario_info：从文件系统加载（使用 GeneralTagHelper.load_scenario_by_name）
@@ -145,6 +144,38 @@ class TagManager:
                 - "settings": Dict[str, Any]
                 - "worker_class": type[BaseTagWorker]
                 如果不提供则从文件系统加载
+        """
+        # 阶段1：构建 scenario_info
+        scenario_setting = self._build_scenario_info(scenario_name, scenario_info)
+        
+        # 阶段2：确保元信息存在
+        scenario, tag_defs, version_action, start_date, end_date = self._ensure_metadata(scenario_setting)
+        
+        # 阶段3：执行 jobs
+        self._execute_jobs(scenario_setting, tag_defs, start_date, end_date)
+
+    def _build_scenario_info(
+        self,
+        scenario_name: str,
+        scenario_info: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        阶段1：构建和验证 scenario_info
+        
+        职责：
+        1. 加载或验证 scenario_info（从文件系统或使用提供的）
+        2. 验证 settings 有效性
+        3. 返回标准化的 scenario_setting
+        
+        Args:
+            scenario_name: Scenario 名称
+            scenario_info: 标准化的 scenario_info 字典（可选）
+        
+        Returns:
+            Dict[str, Any]: scenario_setting，包含：
+                - "scenario_name": str
+                - "settings": Dict[str, Any]
+                - "worker_class": type[BaseTagWorker]
         """
         # 1. 获取标准化的 scenario_info（使用辅助方法）
         if not scenario_info:
@@ -176,19 +207,68 @@ class TagManager:
         if not SettingsManager.is_valid_scenario_setting(scenario_setting):
             raise ValueError(f"scenario {scenario_name} settings is not valid")
         
-        # 3. 确保元信息存在（scenario 和 tag definitions），并获取日期范围
+        return scenario_setting
+
+    def _ensure_metadata(
+        self,
+        scenario_setting: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str, str, str]:
+        """
+        阶段2：确保元信息存在
+        
+        职责：
+        1. 确保 scenario 和 tag definitions 在数据库中存在
+        2. 处理版本变更（如果需要）
+        3. 确定计算的日期范围
+        
+        Args:
+            scenario_setting: scenario_setting 字典
+        
+        Returns:
+            Tuple[Dict, List[Dict], str, str, str]: 
+                - scenario: scenario 字典
+                - tag_defs: tag definitions 列表
+                - version_action: 版本变更动作
+                - start_date: 起始日期
+                - end_date: 结束日期
+        """
         scenario, tag_defs, version_action, start_date, end_date = EntityMetaManager.ensure_metadata(
             self.tag_data_service, scenario_setting
         )
+        return scenario, tag_defs, version_action, start_date, end_date
 
-        # 4. 构建 jobs
+    def _execute_jobs(
+        self,
+        scenario_setting: Dict[str, Any],
+        tag_defs: List[Dict[str, Any]],
+        start_date: str,
+        end_date: str
+    ):
+        """
+        阶段3：执行 jobs
+        
+        职责：
+        1. 构建 jobs（每个 entity 一个 job）
+        2. 决定进程数
+        3. 执行多进程计算
+        4. 收集和打印统计信息
+        
+        Args:
+            scenario_setting: scenario_setting 字典
+            tag_defs: tag definitions 列表
+            start_date: 起始日期
+            end_date: 结束日期
+        """
+        scenario_name = scenario_setting["scenario_name"]
+        
+        # 1. 构建 jobs
         jobs = self._build_jobs(scenario_setting, tag_defs, start_date, end_date)
         
         if not jobs:
             logger.warning(f"No jobs to execute for scenario: {scenario_name}")
             return
 
-        # 5. 决定进程数（使用通用 helper）
+        # 2. 决定进程数（使用通用 helper）
         max_workers = GeneralTagHelper.decide_worker_amount(jobs)
 
         logger.info(
@@ -196,20 +276,20 @@ class TagManager:
             f"jobs={len(jobs)}, max_workers={max_workers}"
         )
 
-        # 6. 执行多进程计算
+        # 3. 执行多进程计算
         from utils.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
         
         worker_pool = ProcessWorker(
             max_workers=max_workers,
             execution_mode=ExecutionMode.QUEUE,  # 队列模式，持续填充
-            job_executor=TagManager._tag_worker_wrapper,  # 静态方法
+            job_executor=TagManager._execute_single_job,  # 静态方法
             is_verbose=self.is_verbose
         )
         
         # 执行 jobs
         stats = worker_pool.run_jobs(jobs)
         
-        # 7. 收集结果和统计信息
+        # 4. 收集结果和统计信息
         successful_results = worker_pool.get_successful_results()
         failed_results = worker_pool.get_failed_results()
         
@@ -339,7 +419,7 @@ class TagManager:
     # ========================================================================
     
     @staticmethod
-    def _tag_worker_wrapper(payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
         """
         Tag Worker 包装函数（用于 ProcessWorker 的 job_executor）
         

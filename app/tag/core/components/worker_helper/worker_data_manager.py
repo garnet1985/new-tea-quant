@@ -24,10 +24,16 @@ class WorkerDataManager:
     Worker Data Manager - 子进程数据管理器
     
     职责：
-    1. 管理数据缓存（按记录数切片，每次1000条）
+    1. 管理数据缓存（滑动窗口，最多保持 2 个 chunk）
     2. 管理切片状态（slice_state）和时间 cursor（time_cursor）
     3. 提供数据加载和过滤接口
     4. 确保 required_data 与 base entity 时间轴对齐
+    
+    滑动窗口策略：
+    - 保持最多 2 个 chunk 的数据在内存中
+    - 支持需要历史数据的计算（如移动平均线）
+    - 内存可控（最多 2 * data_slice_size 条记录）
+    - 当有第三个 chunk 时，自动删除第一个 chunk
     
     使用方式：
         data_mgr = WorkerDataManager(
@@ -36,7 +42,7 @@ class WorkerDataManager:
             base_term='daily',
             required_terms=['weekly'],
             required_data=['corporate_finance'],
-            data_slice_size=1000
+            data_slice_size=1000  # 每个 chunk 1000 条记录，最多保持 2000 条
         )
         
         # 确保数据已加载
@@ -81,15 +87,17 @@ class WorkerDataManager:
         else:
             self.data_mgr = data_mgr
         
-        # 数据缓存（按需加载）
-        self.data_cache = {}  # 当前加载的数据切片
+        # 数据缓存（滑动窗口，最多保持 2 个 chunk）
+        # 这样可以支持需要历史数据的计算（如移动平均线）
+        self.data_cache = {}  # 合并后的数据缓存（最多包含 2 个 chunk）
+        self.chunk_count = 0  # 当前缓存中的 chunk 数量（最多 2 个）
         
         # 切片状态记录：记录每个数据源已加载到的全局记录索引
         # 格式：{data_source_key: {term_or_key: global_index}}
         # 例如：{'klines': {'daily': 1000, 'weekly': 500}, 'finance': 200}
         self.slice_state = self._init_slice_state()
         
-        # 时间 cursor：用于缓存每个数据源的当前索引位置（相对于当前缓存）
+        # 时间 cursor：用于缓存每个数据源的当前索引位置（相对于整个 data_cache）
         # 格式：{data_source_key: {term_or_key: current_index}}
         # 例如：{'klines': {'daily': 100, 'weekly': 50}, 'finance': 20}
         self.time_cursor = self._init_time_cursor()
@@ -115,12 +123,14 @@ class WorkerDataManager:
         """
         确保当前 as_of_date 所需的数据已加载到缓存中
         
-        按需加载数据切片（每次1000条记录），避免内存爆炸
+        滑动窗口策略：保持最多 2 个 chunk 的数据
+        - 支持需要历史数据的计算（如移动平均线）
+        - 内存可控（最多 2 * data_slice_size 条记录）
         
         检查逻辑：
-        1. 如果缓存为空，加载第一个切片
-        2. 如果当前切片的 cursor 接近末尾（剩余记录 < 20%），加载下一个切片
-        3. 如果当前 as_of_date 的数据不在缓存中（需要更早的数据），加载新切片
+        1. 如果缓存为空，加载第一个 chunk
+        2. 如果当前 as_of_date 的数据不在缓存中（缓存的最后一条记录日期 < as_of_date），加载新 chunk
+        3. 如果已有 2 个 chunk，加载新 chunk 时删除第一个 chunk
         
         Args:
             as_of_date: 当前业务日期
@@ -132,32 +142,30 @@ class WorkerDataManager:
         if not self.data_cache:
             need_load = True
         else:
-            # 情况2：检查 base_term 的 cursor 是否接近缓存末尾
-            base_cursor = self.time_cursor.get('klines', {}).get(self.base_term, 0)
+            # 情况2：检查当前 as_of_date 的数据是否在缓存中
+            # 如果缓存的最后一条记录日期 < as_of_date，说明数据用完了，需要加载新切片
             base_data = self.data_cache.get('klines', {}).get(self.base_term, [])
             
             if base_data:
-                current_cache_size = len(base_data)
-                remaining = current_cache_size - base_cursor
-                threshold = max(10, int(current_cache_size * 0.2))  # 至少保留10条，或20%
-                
-                if remaining < threshold:
+                last_record = base_data[-1] if base_data else None
+                if last_record and last_record.get('date', '') < as_of_date:
                     need_load = True
-                else:
-                    # 情况3：检查当前 as_of_date 的数据是否在缓存中
-                    last_record = base_data[-1] if base_data else None
-                    if last_record and last_record.get('date', '') < as_of_date:
-                        need_load = True
             else:
+                # 如果 base_data 为空，需要加载
                 need_load = True
         
         if need_load:
+            # 如果已有 2 个 chunk，删除第一个 chunk（滑动窗口）
+            if self.chunk_count >= 2:
+                self._remove_first_chunk()
+            
             # 加载新数据切片
             new_slice = self._load_data_slice()
             
             # 合并到现有缓存
             if not self.data_cache:
                 self.data_cache = new_slice
+                self.chunk_count = 1
             else:
                 # 合并 K 线数据
                 if 'klines' in new_slice:
@@ -197,9 +205,59 @@ class WorkerDataManager:
                                 self.data_cache[key] = new_data
                         else:
                             self.data_cache[key] = new_data
+                
+                self.chunk_count += 1
             
             # 更新 slice_state（只更新 base entity）
             self._update_slice_state(new_slice)
+    
+    def _remove_first_chunk(self):
+        """
+        删除第一个 chunk 的数据（滑动窗口）
+        
+        当有第三个 chunk 时，删除第一个 chunk 以控制内存。
+        同时需要：
+        1. 从 data_cache 中删除第一个 chunk 的数据
+        2. 调整 time_cursor（减去删除的 chunk 的大小）
+        
+        注意：
+        - slice_state 记录的是数据库的全局 offset，不应该改变
+        - time_cursor 是相对于 data_cache 的索引，需要调整
+        """
+        # 1. 删除第一个 chunk 的 K 线数据
+        if 'klines' in self.data_cache:
+            for term in self.data_cache['klines']:
+                kline_list = self.data_cache['klines'][term]
+                if len(kline_list) > self.data_slice_size:
+                    # 删除第一个 chunk
+                    removed_count = min(self.data_slice_size, len(kline_list))
+                    self.data_cache['klines'][term] = kline_list[removed_count:]
+                    
+                    # 调整 time_cursor（减去删除的 chunk 的大小）
+                    # 注意：slice_state 不改变，因为它记录的是数据库的全局 offset
+                    if term in self.time_cursor.get('klines', {}):
+                        current_cursor = self.time_cursor['klines'][term]
+                        self.time_cursor['klines'][term] = max(0, current_cursor - removed_count)
+        
+        # 2. 删除第一个 chunk 的其他数据源（required_data）
+        # 注意：required_data 是按时间范围加载的，删除逻辑更复杂
+        # 简单策略：如果数据量超过 2 * data_slice_size，删除前半部分
+        for key, data_list in self.data_cache.items():
+            if key == 'klines':
+                continue
+            
+            if isinstance(data_list, list) and len(data_list) > 2 * self.data_slice_size:
+                # 删除前半部分（粗略估计，因为 required_data 不是按记录数切片的）
+                remove_count = len(data_list) // 2
+                self.data_cache[key] = data_list[remove_count:]
+                
+                # 调整 time_cursor
+                if key in self.time_cursor:
+                    current_cursor = self.time_cursor[key]
+                    self.time_cursor[key] = max(0, current_cursor - remove_count)
+        
+        # 更新 chunk 数量
+        self.chunk_count = 1
     
     def _load_data_slice(self) -> Dict[str, Any]:
         """

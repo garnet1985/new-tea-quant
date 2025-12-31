@@ -32,6 +32,10 @@ Settings = {
         # 业务场景机器识别代码。请使用字母数字，并使用下划线连接，不能用特殊字符, 比如空格等（对应 tag_scenario.name）
         "name": "example",  
 
+        # 必须参数
+        # 版本号可以自己定义，字符串类型
+        "version": "1.0",
+
         # 可选参数，默认同name
         # 业务场景UI显示名称（对应 tag_scenario.display_name）
         "display_name": "示例场景",      
@@ -39,10 +43,6 @@ Settings = {
         # 可选参数，默认为空字符串
         # 业务场景描述（对应 tag_scenario.description）
         "description": "一个展示所有可用settings的示例",  
-        
-        # 必须参数
-        # 版本号可以自己定义，字符串类型
-        "version": "1.0",
         
         # 可选参数，默认为 REFRESH_SCENARIO
         # 定义如果检查到版本变更后该采取什么行为（Scenario 级别）。可选值：

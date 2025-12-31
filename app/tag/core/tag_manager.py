@@ -259,30 +259,60 @@ class TagManager:
             f"jobs={len(jobs)}, max_workers={max_workers}"
         )
 
-        # 3. 执行多进程计算
+        # 3. 执行多进程计算（带进度反馈）
         from utils.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
+        from concurrent.futures import as_completed
+        import time
         
         worker_pool = ProcessWorker(
             max_workers=max_workers,
             execution_mode=ExecutionMode.QUEUE,  # 队列模式，持续填充
             job_executor=TagManager._execute_single_job,  # 静态方法
-            is_verbose=self.is_verbose
+            is_verbose=False  # 关闭 ProcessWorker 的详细日志，由 TagManager 统一控制
         )
         
-        # 执行 jobs
+        # 执行 jobs 并实时反馈进度
+        total_jobs = len(jobs)
+        start_time = time.time()
+        
+        logger.info(f"开始执行 {total_jobs} 个 jobs...")
+        
+        # 执行 jobs（ProcessWorker 内部会处理多进程和进度）
+        # 注意：进度反馈在 ProcessWorker 内部已经实现（每10个job输出一次）
+        # 如果需要更详细的进度，可以在 ProcessWorker 中添加回调机制
         stats = worker_pool.run_jobs(jobs)
+        
+        # 在等待期间，定期输出进度（如果 ProcessWorker 支持）
+        # 由于 ProcessWorker 内部已经处理了进度，我们主要在这里做最终统计
         
         # 4. 收集结果和统计信息
         successful_results = worker_pool.get_successful_results()
         failed_results = worker_pool.get_failed_results()
         
+        # 计算最终统计
+        completed_jobs = len(successful_results)
+        failed_jobs = len(failed_results)
+        elapsed_time = time.time() - start_time
+        
         logger.info(
             f"Tag计算完成: scenario={scenario_name}, "
-            f"成功={len(successful_results)}, 失败={len(failed_results)}"
+            f"总jobs={total_jobs}, 成功={completed_jobs}, 失败={failed_jobs}, "
+            f"耗时={elapsed_time:.2f}秒"
         )
         
-        # 打印统计信息
-        worker_pool.print_stats()
+        # 打印详细统计信息
+        if self.is_verbose:
+            worker_pool.print_stats()
+        
+        # 返回统计信息（可选，用于上层调用）
+        return {
+            'scenario_name': scenario_name,
+            'total_jobs': total_jobs,
+            'completed_jobs': completed_jobs,
+            'failed_jobs': failed_jobs,
+            'elapsed_time': elapsed_time,
+            'stats': stats
+        }
 
     def refresh_scenarios(self):
         """
@@ -304,47 +334,85 @@ class TagManager:
     # ========================================================================
     
     @staticmethod
-    def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_single_job(job: Dict[str, Any]) -> Dict[str, Any]:
         """
         Tag Worker 包装函数（用于 ProcessWorker 的 job_executor）
         
         在子进程中：
-        1. 初始化 DataManager 和 TagDataService
-        2. 实例化 TagWorker（从 settings 自动加载所有配置）
-        3. 调用 worker.process_entity() 处理单个 entity
+        1. 从 job payload 中提取信息
+        2. 实例化 TagWorker（传入完整的 job_payload）
+        3. 调用 worker.run() 执行计算
         
         Args:
-            payload: Job payload 字典，包含：
-                - entity_id: 实体ID
-                - entity_type: 实体类型
-                - scenario_name: Scenario 名称
-                - scenario_version: Scenario 版本
-                - tag_definitions: Tag Definition 列表
-                - start_date: 起始日期
-                - end_date: 结束日期
-                - worker_class: Worker 类（用于实例化）
-                - settings: Settings 字典（完整的 settings 配置）
+            job: Job 字典，包含：
+                - id: job ID
+                - payload: Job payload 字典，包含：
+                    - entity_id: 实体ID
+                    - entity_type: 实体类型
+                    - scenario_name: Scenario 名称
+                    - scenario_version: Scenario 版本
+                    - tag_definitions: Tag Definition 列表
+                    - start_date: 起始日期
+                    - end_date: 结束日期
+                    - worker_class: Worker 类（用于实例化）
+                    - settings: Settings 字典（完整的 settings 配置）
         
         Returns:
             Dict[str, Any]: 统计信息
+                {
+                    'job_id': str,
+                    'entity_id': str,
+                    'success': bool,
+                    'total_tags': int,
+                    'error': str (可选)
+                }
         """
-        # 1. 初始化 DataManager 和 TagDataService（子进程中）
-        from app.data_manager import DataManager
-        data_mgr = DataManager(is_verbose=False)
-        tag_data_service = data_mgr.get_tag_service()
+        from utils.worker.multi_process.process_worker import JobResult, JobStatus
+        from datetime import datetime
         
-        # 2. 获取 worker 类和 settings 字典
-        worker_class = payload['worker_class']
-        settings = payload['settings']  # 直接使用传入的完整 settings 字典
+        job_id = job.get('id', 'unknown')
+        payload = job.get('payload', {})
         
-        # 3. 创建 worker 实例（子进程中）
-        # 注意：直接传入 settings 字典，避免重复加载文件
-        # 这样如果 settings 结构变化，只需要改 BaseTagWorker 一处即可
-        worker = worker_class(
-            settings=settings,  # 直接传入 settings 字典
-            data_mgr=data_mgr,
-            tag_data_service=tag_data_service
-        )
-        
-        # 4. 调用 process_entity 方法
-        return worker.process_entity(payload)
+        try:
+            # 1. 获取 worker 类和 settings 字典
+            worker_class = payload['worker_class']
+            job_payload = payload  # 完整的 payload 传给 worker
+            
+            # 2. 创建 worker 实例（子进程中）
+            # 注意：
+            # - 直接传入 job_payload，包含所有必要信息
+            # - DataManager 是单例模式，在 BaseTagWorker.__init__ 中会自动初始化
+            worker = worker_class(job_payload=job_payload)
+            
+            # 3. 调用 run() 方法执行计算
+            worker.run()
+            
+            # 4. 返回成功结果
+            return JobResult(
+                job_id=job_id,
+                status=JobStatus.COMPLETED,
+                result={
+                    'entity_id': payload.get('entity_id'),
+                    'success': True,
+                    'total_tags': 0  # TODO: 从 worker 获取实际 tag 数量
+                },
+                start_time=datetime.now(),
+                end_time=datetime.now()
+            )
+            
+        except Exception as e:
+            # 返回失败结果
+            import traceback
+            logger.exception(f"Job {job_id} failed: {e}")
+            return JobResult(
+                job_id=job_id,
+                status=JobStatus.FAILED,
+                error=str(e),
+                result={
+                    'entity_id': payload.get('entity_id'),
+                    'success': False,
+                    'error': str(e)
+                },
+                start_time=datetime.now(),
+                end_time=datetime.now()
+            )

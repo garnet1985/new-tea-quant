@@ -95,13 +95,6 @@ class ScenarioModel:
         self._ensure_tags_metadata(tag_data_mgr, self._meta_action)
         self._is_ensured = True
         
-        # TODO: 伪代码，待完善
-        # 确定计算日期范围（从 TagMetaManager 获取或从 settings 中读取）
-        start_date = None  # 待实现
-        end_date = None  # 待实现
-        
-        return start_date, end_date
-    
     @staticmethod
     def is_setting_valid(settings: Dict[str, Any] = None) -> bool:
         """
@@ -221,7 +214,8 @@ class ScenarioModel:
         """
         确保 scenario 元信息存在
         """
-        scenario_metadata = tag_data_mgr.load_scenario_by_name_and_version(self.name, self.version)
+        # 使用 TagDataService 的 load_scenario 方法
+        scenario_metadata = tag_data_mgr.load_scenario(self.name, self.version)
         
         if not scenario_metadata:
             # 首次创建 scenario

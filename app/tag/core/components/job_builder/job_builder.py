@@ -30,14 +30,37 @@ class JobBuilder:
     """
 
     @staticmethod
-    def build_jobs(scenario_model: ScenarioModel, entity_list: List[str]) -> List[Dict[str, Any]]:
+    def build_jobs(scenario_model: ScenarioModel, entity_list: List[str], start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
         """
         构建 jobs（每个 entity 一个 job）
+        
+        Args:
+            scenario_model: ScenarioModel 实例（已 ensure_metadata）
+            entity_list: 实体ID列表
+            start_date: 起始日期（YYYYMMDD 格式，可选）
+            end_date: 结束日期（YYYYMMDD 格式，可选）
+        
+        Returns:
+            List[Dict[str, Any]]: Job列表，每个 job 包含：
+                - "id": str - job ID
+                - "payload": Dict[str, Any] - job payload（伪代码，待完善）
         """
         jobs = []
         for entity_id in entity_list:
             job = {
-                "id": JobBuilder._generate_job_id(entity_id, scenario_model.name),
+                "id": JobBuilder._generate_job_id(entity_id, scenario_model.get_name()),
+                "payload": {
+                    # TODO: 伪代码，待完善
+                    # - entity_id: 实体ID
+                    # - entity_type: 实体类型（从 scenario_model 获取）
+                    # - scenario_name: Scenario 名称
+                    # - scenario_version: Scenario 版本
+                    # - tag_definitions: Tag Definition 列表（从 scenario_model.get_tag_models() 获取并转换为字典）
+                    # - start_date: 起始日期
+                    # - end_date: 结束日期
+                    # - worker_class: Worker 类（需要从 scenario_cache 或 settings 获取）
+                    # - settings: Settings 字典（从 scenario_model.get_settings() 获取）
+                }
             }
             jobs.append(job)
         return jobs

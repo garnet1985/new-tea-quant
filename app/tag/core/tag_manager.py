@@ -170,7 +170,7 @@ class TagManager:
             self._execute_single(scenario_name)
 
     def _run_execute_pipeline(self, scenario_model: ScenarioModel):
-        if not scenario_model.is_enabled:
+        if not scenario_model.is_enabled():
             logger.warning(f"场景 {scenario_model.name} 未开启（is_enabled=False）, 跳过执行")
             return
 
@@ -199,11 +199,22 @@ class TagManager:
             return entity_list
 
 
-    def _build_jobs(self, scenario_model: ScenarioModel, entity_list: List[str]):
-        jobs = JobBuilder.build_jobs(scenario_model, entity_list)
+    def _build_jobs(self, scenario_model: ScenarioModel, entity_list: List[str], start_date: str = None, end_date: str = None):
+        jobs = JobBuilder.build_jobs(scenario_model, entity_list, start_date, end_date)
         return jobs
 
-    def _execute_jobs(self, jobs: List[Dict[str, Any]]):
+    def _execute_jobs(self, jobs: List[Dict[str, Any]], scenario_name: str = None):
+        """
+        执行 jobs
+        
+        Args:
+            jobs: Job 列表
+            scenario_name: Scenario 名称（可选，如果未提供则从 jobs 中提取）
+        """
+        # 如果没有提供 scenario_name，从第一个 job 中提取
+        if not scenario_name and jobs:
+            scenario_name = jobs[0].get("payload", {}).get("scenario_name", "unknown")
+        
         # 决定进程数
         max_workers = JobBuilder.decide_worker_amount(jobs)
 

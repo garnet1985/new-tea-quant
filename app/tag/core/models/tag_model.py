@@ -2,6 +2,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from loguru import logger
 
+from app.tag.core.enums import EnsureMetaAction
+
 
 class TagModel:
     """
@@ -107,15 +109,107 @@ class TagModel:
             'updated_at': self.updated_at
         }
 
-    def ensure_metadata(self):
+    def ensure_metadata(self, tag_data_mgr, meta_action, scenario_id: int):
         """
         确保元信息存在
+        
+        逻辑：
+        - NEW_SCENARIO: 直接 save_tag（tag 不存在）
+        - 其他情况（META_UPDATE, ROLLBACK, NO_CHANGE）: 统一处理为 load → diff → update
+        
+        Args:
+            tag_data_mgr: TagDataManager 实例
+            meta_action: EnsureMetaAction 枚举值
+            scenario_id: Scenario ID（从 ScenarioModel 传入）
         """
-        pass
+        # 设置 scenario_id（在调用 save_tag/update_tag 前必须设置）
+        self.scenario_id = scenario_id
+        
+        if meta_action == EnsureMetaAction.NEW_SCENARIO.value:
+            # 首次创建 tag（scenario 不存在，所以 tag 也不存在）
+            # TODO: 修复 API 调用方式，使用正确的参数
+            # new_meta = tag_data_mgr.save_tag(
+            #     self.tag_name,
+            #     scenario_id,
+            #     self.scenario_version,
+            #     self.display_name,
+            #     self.description
+            # )
+            new_meta = tag_data_mgr.save_tag(self.to_dict())  # 伪代码，待修复
+            self._set_meta(new_meta)
+        else:
+            # 其他情况（META_UPDATE, ROLLBACK, NO_CHANGE）统一处理：
+            # scenario 已存在，所以 tag 也应该已存在，只需要检查 diff 并 update
+            existing_tag = tag_data_mgr.load_tag(
+                self.tag_name, 
+                scenario_id, 
+                self.scenario_version
+            )
+            
+            if not existing_tag:
+                # 不应该发生（scenario 存在但 tag 不存在），但为了安全还是创建
+                logger.warning(
+                    f"Tag 不存在但 scenario 已存在: "
+                    f"tag_name={self.tag_name}, scenario_id={scenario_id}, "
+                    f"meta_action={meta_action}"
+                )
+                # TODO: 修复 API 调用方式
+                new_meta = tag_data_mgr.save_tag(self.to_dict())  # 伪代码，待修复
+                self._set_meta(new_meta)
+            else:
+                # 检查是否有差异
+                if self._has_meta_diff(existing_tag):
+                    # 有差异，需要更新
+                    # TODO: 修复 API 调用方式，使用正确的参数
+                    # new_meta = tag_data_mgr.update_tag_definition(
+                    #     existing_tag.get('id'),
+                    #     display_name=self.display_name,
+                    #     description=self.description,
+                    #     current_tag=existing_tag
+                    # )
+                    new_meta = tag_data_mgr.update_tag(self.to_dict())  # 伪代码，待修复
+                    self._set_meta(new_meta)
+                else:
+                    # 无差异，直接加载现有 metadata（不更新）
+                    self._set_meta(existing_tag)
+
+
+
+        self._is_ensured = True
 
     # ================================================================
     # Private implementations
     # ================================================================
+    def _set_meta(self, new_meta):
+        """
+        设置 meta
+        """
+        self.id = new_meta.id
+        self.display_name = new_meta.display_name
+        self.description = new_meta.description
+        self.is_legacy = new_meta.is_legacy
+        self.created_at = new_meta.created_at
+        self.updated_at = new_meta.updated_at
+
+
+    def _has_meta_diff(self, db_meta: Dict[str, Any]) -> bool:
+        """
+        比较 meta 差异
+        
+        Args:
+            db_meta: 数据库中的 tag metadata 字典
+        
+        Returns:
+            bool: 如果有差异返回 True，否则返回 False
+        """
+        # TODO: 伪代码，待完善
+        # 比较 display_name 和 description 是否有变化
+        if self.display_name != db_meta.get('display_name'):
+            return True
+        if self.description != db_meta.get('description'):
+            return True
+        return False
+
     def _fill_in_default_values_to_settings(self, tag_setting: Dict[str, Any]) -> Dict[str, Any]:
         """
         填充默认值到settings字典中
@@ -134,32 +228,3 @@ class TagModel:
         self._is_configured = True
         self._is_ensured = False
         return self
-
-   
-    # @classmethod
-    # def from_dict(cls, data: Dict[str, Any]) -> 'TagModel':
-    #     """
-    #     从字典创建 Model（通常是从数据库加载）
-        
-    #     Args:
-    #         data: 数据库记录字典
-        
-    #     Returns:
-    #         TagModel: 完整的 Model（所有字段都有值）
-    #     """
-    #     instance = cls()
-    #     instance.id = data.get('id')
-    #     instance.tag_name = data.get('tag_name', '')
-    #     instance.scenario_id = data.get('scenario_id')
-    #     instance.scenario_version = data.get('scenario_version', '')
-    #     instance.display_name = data.get('display_name', '')
-    #     instance.description = data.get('description', '')
-    #     instance.is_legacy = bool(data.get('is_legacy', 0))
-    #     instance.created_at = data.get('created_at')
-    #     instance.updated_at = data.get('updated_at')
-        
-    #     # 标记状态
-    #     instance._is_configured = True
-    #     instance._is_ensured = True  # 从数据库加载的是完整的
-        
-    #     return instance

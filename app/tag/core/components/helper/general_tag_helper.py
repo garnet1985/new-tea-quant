@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Type
 from pathlib import Path
 import importlib.util
 import logging
@@ -360,6 +360,30 @@ class GeneralTagHelper:
             result["settings_file_path"] = str(settings_file_path)
 
         return result
+
+    @staticmethod
+    def _load_worker_class(scenario_folder: Path) -> Optional[Type[BaseTagWorker]]:
+        """
+        加载 scenario 的 worker_class（placeholder）
+        
+        Args:
+            scenario_folder: Scenario 目录路径
+        
+        Returns:
+            Optional[Type[BaseTagWorker]]: Worker 类，如果加载失败返回 None
+        """
+        # TODO: 伪代码，待完善
+        # 调用 _load_and_validate_single_scenario 获取 worker_class
+        scenario_info = GeneralTagHelper._load_and_validate_single_scenario(
+            scenario_dir=scenario_folder,
+            target_scenario_name=None,
+            include_worker_class=True
+        )
+        
+        if scenario_info:
+            return scenario_info.get("worker_class")
+        
+        return None
 
     @staticmethod
     def find_duplicated_scenario_names(scenarios: List[Dict[str, Any]]) -> List[str]:

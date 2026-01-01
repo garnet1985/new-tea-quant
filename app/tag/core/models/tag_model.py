@@ -34,11 +34,14 @@ class TagModel:
         self._is_configured = False  # 是否已从 settings 配置
         self._is_ensured = False  # 是否已 ensure_metadata（完整）
 
-        self.set_values_from_settings(tag_setting)
+        self._set_values_from_settings(tag_setting)
         self._settings = self._fill_in_default_values_to_settings(tag_setting)
 
+    # ================================================================
+    # Public APIs
+    # ================================================================
     @classmethod
-    def create_from_settings(cls, tag_setting: Dict[str, Any], scenario_version: str) -> 'TagModel':
+    def create_from_settings(cls, tag_setting: Dict[str, Any], scenario_version: str = None) -> 'TagModel':
         """
         从 settings 字典配置当前实例
         
@@ -90,25 +93,6 @@ class TagModel:
     def get_settings(self) -> Dict[str, Any]:
         return self._settings
 
-    def _fill_in_default_values_to_settings(self, tag_setting: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        填充默认值到settings字典中
-        """
-        pass
-
-    def set_values_from_settings(self, tag_setting: Dict[str, Any]) -> 'TagModel':
-        """
-        从 settings 字典配置当前实例
-        """
-        self.tag_name = tag_setting["name"]
-        self.display_name = tag_setting.get("display_name") or self.tag_name  # 如果没有则使用 tag_name
-        self.description = tag_setting.get("description") or ""  # 如果没有则为空字符串
-        self.is_legacy = False  # 默认值
-
-        self._is_configured = True
-        self._is_ensured = False
-        return self
-
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         return {
@@ -122,37 +106,60 @@ class TagModel:
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
-   
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'TagModel':
-        """
-        从字典创建 Model（通常是从数据库加载）
-        
-        Args:
-            data: 数据库记录字典
-        
-        Returns:
-            TagModel: 完整的 Model（所有字段都有值）
-        """
-        instance = cls()
-        instance.id = data.get('id')
-        instance.tag_name = data.get('tag_name', '')
-        instance.scenario_id = data.get('scenario_id')
-        instance.scenario_version = data.get('scenario_version', '')
-        instance.display_name = data.get('display_name', '')
-        instance.description = data.get('description', '')
-        instance.is_legacy = bool(data.get('is_legacy', 0))
-        instance.created_at = data.get('created_at')
-        instance.updated_at = data.get('updated_at')
-        
-        # 标记状态
-        instance._is_configured = True
-        instance._is_ensured = True  # 从数据库加载的是完整的
-        
-        return instance
 
     def ensure_metadata(self):
         """
         确保元信息存在
         """
         pass
+
+    # ================================================================
+    # Private implementations
+    # ================================================================
+    def _fill_in_default_values_to_settings(self, tag_setting: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        填充默认值到settings字典中
+        """
+        pass
+
+    def _set_values_from_settings(self, tag_setting: Dict[str, Any]) -> 'TagModel':
+        """
+        从 settings 字典配置当前实例
+        """
+        self.tag_name = tag_setting["name"]
+        self.display_name = tag_setting.get("display_name") or self.tag_name  # 如果没有则使用 tag_name
+        self.description = tag_setting.get("description") or ""  # 如果没有则为空字符串
+        self.is_legacy = False  # 默认值
+
+        self._is_configured = True
+        self._is_ensured = False
+        return self
+
+   
+    # @classmethod
+    # def from_dict(cls, data: Dict[str, Any]) -> 'TagModel':
+    #     """
+    #     从字典创建 Model（通常是从数据库加载）
+        
+    #     Args:
+    #         data: 数据库记录字典
+        
+    #     Returns:
+    #         TagModel: 完整的 Model（所有字段都有值）
+    #     """
+    #     instance = cls()
+    #     instance.id = data.get('id')
+    #     instance.tag_name = data.get('tag_name', '')
+    #     instance.scenario_id = data.get('scenario_id')
+    #     instance.scenario_version = data.get('scenario_version', '')
+    #     instance.display_name = data.get('display_name', '')
+    #     instance.description = data.get('description', '')
+    #     instance.is_legacy = bool(data.get('is_legacy', 0))
+    #     instance.created_at = data.get('created_at')
+    #     instance.updated_at = data.get('updated_at')
+        
+    #     # 标记状态
+    #     instance._is_configured = True
+    #     instance._is_ensured = True  # 从数据库加载的是完整的
+        
+    #     return instance

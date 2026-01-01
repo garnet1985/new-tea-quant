@@ -154,12 +154,20 @@ class TagManager:
         self._run_execute_pipeline(scenario_model)
 
     def _execute_single(self, scenario_name: str):
+        """
+        执行单个 scenario（从缓存加载）
+        
+        Args:
+            scenario_name: Scenario 名称
+        """
         scenario_cache = self._load_scenario_from_cache_by_name(scenario_name)
         if not scenario_cache:
             logger.warning(f"找不到场景名: {scenario_name}，跳过执行")
             return
-        scenario_setting = scenario_cache.get("settings", {}).get("scenario", {})
-        scenario_model =ScenarioModel.create_from_settings(scenario_setting);
+        
+        # ScenarioModel.create_from_settings 需要完整的 settings 字典（包含 "scenario" 和 "tags"）
+        settings = scenario_cache.get("settings", {})
+        scenario_model = ScenarioModel.create_from_settings(settings)
         if not scenario_model:
             logger.warning(f"场景模型无效，跳过执行")
             return
@@ -170,24 +178,63 @@ class TagManager:
             self._execute_single(scenario_name)
 
     def _run_execute_pipeline(self, scenario_model: ScenarioModel):
+        """
+        执行 scenario 的完整流程
+        
+        Args:
+            scenario_model: ScenarioModel 实例
+        """
+        # 1. 检查是否启用
         if not scenario_model.is_enabled():
-            logger.warning(f"场景 {scenario_model.name} 未开启（is_enabled=False）, 跳过执行")
+            logger.warning(f"场景 {scenario_model.get_name()} 未开启（is_enabled=False）, 跳过执行")
             return
 
-        scenario_model.ensure_metadata()
+        # 2. 获取 tag_data_service 并确保元信息存在
+        # TODO: 确认 DataManager 中 tag_data_service 的获取方式
+        # 可能是 get_tag_service() 或 get_data_service('tag') 或直接创建 TagDataService 实例
+        try:
+            tag_data_service = self.data_mgr.get_tag_service()
+        except AttributeError:
+            # 如果 get_tag_service 不存在，尝试其他方式
+            # TODO: 实现 tag_data_service 的获取逻辑
+            from app.data_manager.data_services.tag.tag_data_service import TagDataService
+            tag_data_service = TagDataService(self.data_mgr)
+        
+        if not tag_data_service:
+            logger.error(f"无法获取 tag_data_service，跳过执行")
+            return
+        
+        scenario_model.ensure_metadata(tag_data_service)
 
+        # 3. 获取实体列表
         entity_list = self._get_entity_list(scenario_model)
+
+        tag_value_last_update_info = tag_data_service.get_tag_value_last_update_info(scenario_model.get_name())
 
         if not entity_list:
             logger.warning(f"无法获取实体列表，跳过执行")
             return
 
-        jobs = self._build_jobs(scenario_model, entity_list)
+        settings = scenario_model.get_settings()
+
+        # 4. 构建 jobs
+        jobs = JobBuilder.build_jobs(
+            scenario_model, 
+            entity_list, 
+            tag_value_last_update_info, 
+            settings.get("update_mode", {})
+        )
+
         if not jobs:
-            logger.warning(f"无法构建 jobs，跳过执行")
+            logger.warning(f"无法构建 jobs，跳过执行: scenario={scenario_model.get_name()}")
             return
 
-        self._execute_jobs(jobs)
+        if len(jobs) == 0:
+            logger.warning(f"没有新的计算任务，跳过执行: scenario={scenario_model.get_name()}")
+            return
+
+        # 5. 执行 jobs
+        self._execute_jobs(jobs, scenario_model.get_name())
 
     def _get_entity_list(self, scenario_model: ScenarioModel):
         target_entity = scenario_model.get_target_entity()
@@ -199,8 +246,8 @@ class TagManager:
             return entity_list
 
 
-    def _build_jobs(self, scenario_model: ScenarioModel, entity_list: List[str], start_date: str = None, end_date: str = None):
-        jobs = JobBuilder.build_jobs(scenario_model, entity_list, start_date, end_date)
+    def _build_jobs(self, scenario_model: ScenarioModel, entity_list: List[str], tag_value_last_update_info: Dict[str, Any]):
+        jobs = JobBuilder.build_jobs(scenario_model, entity_list, tag_value_last_update_info)
         return jobs
 
     def _execute_jobs(self, jobs: List[Dict[str, Any]], scenario_name: str = None):

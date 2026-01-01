@@ -8,9 +8,10 @@ Job Builder - Job 构建器
 
 所有方法都是静态方法，不需要实例化，类似 helper 职责
 """
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 import os
 import logging
+from app.enums import UpdateMode
 from app.tag.core.models.scenario_model import ScenarioModel
 from app.tag.core.models.tag_model import TagModel
 
@@ -30,15 +31,19 @@ class JobBuilder:
     """
 
     @staticmethod
-    def build_jobs(scenario_model: ScenarioModel, entity_list: List[str], start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
+    def build_jobs(
+        scenario_model: ScenarioModel, 
+        entity_list: List[str], 
+        tag_value_last_update_info: Dict[str, Any],
+        update_mode: UpdateMode) -> List[Dict[str, Any]]:
         """
         构建 jobs（每个 entity 一个 job）
         
         Args:
             scenario_model: ScenarioModel 实例（已 ensure_metadata）
             entity_list: 实体ID列表
-            start_date: 起始日期（YYYYMMDD 格式，可选）
-            end_date: 结束日期（YYYYMMDD 格式，可选）
+            tag_value_last_update_info: 上次计算的 tag 值更新信息
+            update_mode: 更新模式
         
         Returns:
             List[Dict[str, Any]]: Job列表，每个 job 包含：
@@ -47,6 +52,9 @@ class JobBuilder:
         """
         jobs = []
         for entity_id in entity_list:
+            last_update_info = tag_value_last_update_info[entity_id]
+            start_date, end_date = JobBuilder.calculate_start_and_end_date(last_update_info, update_mode)
+
             job = {
                 "id": JobBuilder._generate_job_id(entity_id, scenario_model.get_name()),
                 "payload": {
@@ -64,6 +72,20 @@ class JobBuilder:
             }
             jobs.append(job)
         return jobs
+
+    @staticmethod
+    def calculate_start_and_end_date(last_update_info: Dict[str, Any], update_mode: UpdateMode) -> Tuple[str, str]:
+        """
+        计算起始日期和结束日期
+        """
+        pass
+        # if update_mode == UpdateMode.INCREMENTAL:
+        #     return last_update_info["start_date"], last_update_info["end_date"]
+        # else:
+        #     return default_data_start_date, latest_completed_trading_date
+    
+
+
     
     # @staticmethod
     # def build_jobs(

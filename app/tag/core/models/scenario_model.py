@@ -20,7 +20,7 @@ class ScenarioModel:
     - 在 ensure_metadata 之后，Model 必须是完整的（所有字段都有值）
     """
 
-    def __init__(self, settings: Dict[str, Any] = None):
+    def __init__(self, settings: Dict[str, Any]):
         """初始化 ScenarioModel（所有字段为 None/False）"""
         self.id = None
         self.name = None
@@ -53,7 +53,7 @@ class ScenarioModel:
         """
         if not cls.is_setting_valid(settings):
             return None
-        instance = cls()
+        instance = cls(settings)
         return instance
         
     def is_enabled(self) -> bool:
@@ -80,6 +80,24 @@ class ScenarioModel:
     def get_identifier(self) -> str:
         """获取 scenario 标识符（name:version）"""
         return f"{self.name}:{self.version}"
+
+    def ensure_metadata(self):
+        """
+        确保元信息存在
+        
+        Returns:
+            Tuple[str, str]: (start_date, end_date) 计算日期范围
+        """
+        self._ensure_scenario_metadata()
+        self._ensure_tags_metadata()
+        self._is_ensured = True
+        
+        # TODO: 伪代码，待完善
+        # 确定计算日期范围（从 TagMetaManager 获取或从 settings 中读取）
+        start_date = None  # 待实现
+        end_date = None  # 待实现
+        
+        return start_date, end_date
     
     @staticmethod
     def is_setting_valid(settings: Dict[str, Any] = None) -> bool:
@@ -179,17 +197,12 @@ class ScenarioModel:
         """
         tag_models = []
         for tag_setting in settings["tags"]:
-            tag_model = TagModel.create_from_settings(tag_setting)
+            tag_model = TagModel.create_from_settings(tag_setting, self.version)
             tag_models.append(tag_model)
             
         return tag_models
 
-    def _ensure_metadata(self):
-        """
-        确保元信息存在
-        """
-        self._ensure_scenario_metadata()
-        self._ensure_tags_metadata()
+    
 
     def _ensure_scenario_metadata(self):
         """

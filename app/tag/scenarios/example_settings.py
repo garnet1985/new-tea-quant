@@ -103,6 +103,12 @@ Settings = {
         },
     ],
 
+    # 可选参数，默认为 INCREMENTAL
+    # 更新模式。可选值：
+    # - INCREMENTAL: 增量更新：继续你上次产生的最新的一个tag的时间点后继续计算。
+    # - REFRESH: 全量刷新：重新计算该Scenario下所有tags的值。
+    "update_mode": UpdateMode.INCREMENTAL.value,
+
     # 可选参数，默认为空字典
     # 可以自定义你自己的核心参数/阈值等在core里边。
     "core": {},
@@ -112,12 +118,6 @@ Settings = {
     "performance": {
         # 可选参数，默认"auto"，会根据job数量自动分配worker
         "max_workers": "auto",
-
-        # 可选参数，默认为 INCREMENTAL
-        # 更新模式。可选值：
-        # - INCREMENTAL: 增量更新：继续你上次产生的最新的一个tag的时间点后继续计算。
-        # - REFRESH: 全量刷新：重新计算该Scenario下所有tags的值。
-        "update_mode": UpdateMode.INCREMENTAL.value,
 
         # 可选参数，默认为 500
         # 运行时数据切片大小（记录数）。切片越大，运行时内存占用越小但IO次数越多

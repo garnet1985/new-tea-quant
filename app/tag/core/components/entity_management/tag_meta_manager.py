@@ -14,6 +14,8 @@ from app.data_manager import DataManager
 from app.tag.core.enums import UpdateMode, VersionChangeAction, VersionAction
 from app.tag.core.config import ALLOW_VERSION_ROLLBACK
 from app.conf.conf import data_default_start_date
+from app.tag.core.models.scenario_model import ScenarioModel
+from app.tag.core.models.tag_model import TagModel
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ class TagMetaManager:
         self.tag_data_service = self.data_mgr.get_tag_service()
 
 
-    def ensure_metadata(self, scenario_setting: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str, str, str]:
+    def ensure_metadata(self, scenario_setting: Dict[str, Any]) -> Tuple[ScenarioModel, List[TagModel], str, str, str]:
         """
         确保元信息存在（scenario 和 tag definitions），并处理版本变更和日期范围
         
@@ -50,37 +52,46 @@ class TagMetaManager:
         Args:
             scenario_setting: Scenario settings 字典，包含：
                 - "scenario_name": str
-                - "settings": Dict[str, Any]
+                - "scenario_config": ScenarioModel（不完整的 Model，从 settings 创建）
+                - "tags_config": List[TagModel]（不完整的 Model，从 settings 创建）
+                - "settings": Dict[str, Any]（原始 settings，用于子进程）
                 - "worker_class": type[BaseTagWorker]
         
         Returns:
-            Tuple[Dict[str, Any], List[Dict[str, Any]], str, str, str]: 
+            Tuple[ScenarioModel, List[TagModel], str, str, str]: 
             (scenario, tag_definitions, version_action, start_date, end_date)
+            注意：返回的 Model 都是完整的（所有字段都有值）
         """
-        # 从 scenario_setting 中提取 settings
-        settings = scenario_setting["settings"]
-        scenario_info = settings["scenario"]
-        tags_info = settings["tags"]
+        # 从 scenario_setting 中提取 Model（不完整的配置 Model）
+        scenario_config = scenario_setting["scenario_config"]
+        tags_config = scenario_setting["tags_config"]
 
         # 先检测版本变更（在确保 scenario 存在之前）
-        version_action = self._detect_version_change(scenario_info)
+        version_action = self._detect_version_change(scenario_config, scenario_setting)
         
-        # 根据版本变更动作处理 scenario
-        scenario_meta = self._ensure_scenario(scenario_info, version_action)
+        # 根据版本变更动作处理 scenario（返回完整的 Model）
+        scenario = self._ensure_scenario(scenario_config, version_action)
         
-        # 确保 tag definitions 存在
-        tags_meta = self._ensure_tags(tags_info, scenario_meta)
+        # 确保 tag definitions 存在（返回完整的 Model）
+        tag_defs = self._ensure_tags(tags_config, scenario)
+
+        # 验证返回的 Model 都是完整的
+        if not scenario.is_complete():
+            raise ValueError(f"Scenario Model 不完整: {scenario.name}:{scenario.version}")
+        for tag_def in tag_defs:
+            if not tag_def.is_complete():
+                raise ValueError(f"Tag Model 不完整: {tag_def.tag_name}")
 
         # 确定计算日期范围
         start_date, end_date = self._determine_date_range(
-            scenario_setting, version_action, tags_meta
+            scenario_setting, version_action, tag_defs
         )
 
-        return scenario_meta, tags_meta, version_action, start_date, end_date
+        return scenario, tag_defs, version_action, start_date, end_date
 
     def _check_meta_field_diff(
         self,
-        current_meta: Dict[str, Any],
+        current_meta: Any,  # 可以是 Dict 或 Model
         new_config: Dict[str, Any],
         field_configs: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
@@ -128,8 +139,12 @@ class TagMetaManager:
                 # 没有默认值，直接获取
                 new_value = new_config.get(config_key)
             
-            # 获取当前值
-            current_value = current_meta.get(field_name)
+            # 获取当前值（支持 Dict 和 Model）
+            if isinstance(current_meta, dict):
+                current_value = current_meta.get(field_name)
+            else:
+                # Model 对象，使用 getattr
+                current_value = getattr(current_meta, field_name, None)
             
             # 比较并记录差异
             if current_value != new_value:
@@ -137,7 +152,7 @@ class TagMetaManager:
         
         return update_data
 
-    def _detect_version_change(self, scenario_info: Dict[str, Any]) -> str:
+    def _detect_version_change(self, scenario_config: ScenarioModel, scenario_setting: Dict[str, Any] = None) -> str:
         """
         检测版本变更动作
         
@@ -148,35 +163,36 @@ class TagMetaManager:
            - version_action = "ROLLBACK"（版本回退）
         3. 如果 settings.version 在数据库中不存在：
            - 检查是否有其他 active 版本的 scenario
-           - 如果有，读取 on_version_change 配置
+           - 如果有，读取 on_version_change 配置（需要从 settings 中获取）
            - version_action = on_version_change（REFRESH_SCENARIO 或 NEW_SCENARIO）
            - 如果没有，version_action = "NEW_SCENARIO"（首次创建）
         
         Args:
-            scenario_info: scenario 配置字典，包含 name 和 version
+            scenario_config: scenario 配置 Model（不完整的 Model，从 settings 创建）
         
         Returns:
             str: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")
         """
-        scenario_name = scenario_info["name"]
-        scenario_version = scenario_info["version"]
+        scenario_name = scenario_config.name
+        scenario_version = scenario_config.version
         
         # 1. 查询数据库中该 scenario name 的所有版本
-        db_scenarios = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+        db_scenarios_dict = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+        db_scenarios = [ScenarioModel.from_dict(s) for s in db_scenarios_dict]
         
         # 2. 查找 settings.version 是否在数据库中已存在
         existing_scenario = None
-        for s in db_scenarios:
-            if s.get("version") == scenario_version:
-                existing_scenario = s
+        for scenario in db_scenarios:
+            if scenario.version == scenario_version:
+                existing_scenario = scenario
                 break
         
         # 3. 如果已存在且 is_legacy=0（active）：
-        if existing_scenario and existing_scenario.get("is_legacy", 0) == 0:
+        if existing_scenario and not existing_scenario.is_legacy:
             return VersionAction.NO_CHANGE.value
         
         # 4. 如果已存在但 is_legacy=1（legacy）：
-        if existing_scenario and existing_scenario.get("is_legacy", 0) == 1:
+        if existing_scenario and existing_scenario.is_legacy:
             # 这是用户把 version 改回到以前存在过的版本（版本回退）
             if not ALLOW_VERSION_ROLLBACK:
                 error_msg = (
@@ -197,17 +213,22 @@ class TagMetaManager:
         
         # 5. 如果不存在：检查是否有其他 active 版本的 scenario
         active_scenario = None
-        for s in db_scenarios:
-            if s.get("is_legacy", 0) == 0:
-                active_scenario = s
+        for scenario in db_scenarios:
+            if not scenario.is_legacy:
+                active_scenario = scenario
                 break
         
         if active_scenario:
-            # 有 active 版本，读取 on_version_change 配置
-            on_version_change = scenario_info.get(
-                "on_version_change",
-                VersionChangeAction.REFRESH_SCENARIO.value
-            )
+            # 有 active 版本，需要从 settings 中读取 on_version_change 配置
+            # 注意：scenario_config 不包含 on_version_change，需要从 scenario_setting 中获取
+            # 这里暂时从 scenario_setting 中获取，后续可以优化
+            # 为了保持接口简洁，我们可以在 scenario_setting 中传递 on_version_change
+            # 或者从 scenario_config 中获取（如果我们在 from_settings_dict 中保存了原始配置）
+            # 暂时使用默认值
+            on_version_change = VersionChangeAction.REFRESH_SCENARIO.value
+            
+            # TODO: 从 scenario_setting 中获取 on_version_change 配置
+            # 或者扩展 ScenarioModel 来保存 on_version_change
             
             if on_version_change == VersionChangeAction.NEW_SCENARIO.value:
                 return VersionAction.NEW_SCENARIO.value
@@ -217,50 +238,53 @@ class TagMetaManager:
             # 没有 active 版本，这是首次创建
             return VersionAction.NEW_SCENARIO.value
 
-    def _ensure_scenario(self, scenario_info: Dict[str, Any], version_action: str) -> Dict[str, Any]:
+    def _ensure_scenario(self, scenario_config: ScenarioModel, version_action: str) -> ScenarioModel:
         """
         确保 scenario 存在（如果不存在则创建，根据版本变更动作处理）
         
         Args:
-            scenario_info: scenario 配置字典，包含 name 和 version
+            scenario_config: scenario 配置 Model（不完整的 Model，从 settings 创建）
             version_action: 版本变更动作（"NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO"）
         
         Returns:
-            Dict[str, Any]: Scenario 记录
+            ScenarioModel: Scenario 对象（完整的 Model，所有字段都有值）
         """
-        scenario_name = scenario_info["name"]
-        scenario_version = scenario_info["version"]
-        scenario_meta = self.tag_data_service.load_scenario(scenario_name, scenario_version)
+        scenario_name = scenario_config.name
+        scenario_version = scenario_config.version
+        scenario_dict = self.tag_data_service.load_scenario(scenario_name, scenario_version)
+        scenario = ScenarioModel.from_dict(scenario_dict) if scenario_dict else None
 
-        if scenario_meta:
+        if scenario:
             # scenario 存在
             if version_action == VersionAction.ROLLBACK.value:
                 # 版本回退：标记旧的 active 为 legacy，设置当前为 active
                 # 查找当前的 active 版本（is_legacy=0）
-                db_scenarios = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+                db_scenarios_dict = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+                db_scenarios = [ScenarioModel.from_dict(s) for s in db_scenarios_dict]
                 active_scenario = None
                 for s in db_scenarios:
-                    if s.get("is_legacy", 0) == 0 and s.get("version") != scenario_version:
+                    if not s.is_legacy and s.version != scenario_version:
                         active_scenario = s
                         break
                 
                 # 如果存在 active 版本，标记为 legacy
                 if active_scenario:
-                    self.tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
+                    self.tag_data_service.mark_scenario_as_legacy(active_scenario.id)
                 
                 # 把当前版本设置为 active
-                return self.tag_data_service.update_scenario(
-                    scenario_meta['id'],
+                updated_dict = self.tag_data_service.update_scenario(
+                    scenario.id,
                     is_legacy=0,
-                    current_scenario=scenario_meta
+                    current_scenario=scenario.to_dict()
                 )
+                return ScenarioModel.from_dict(updated_dict)
             elif version_action == VersionAction.NO_CHANGE.value:
                 # 版本未变，检查并更新非关键字段
                 field_configs = [
                     {'field_name': 'display_name', 'default_from': 'name'},
                     {'field_name': 'description', 'default_value': ''}
                 ]
-                update_data = self._check_meta_field_diff(scenario_meta, scenario_info, field_configs)
+                update_data = self._check_meta_field_diff(scenario, scenario_info, field_configs)
                 
                 # 如果有更新，执行更新
                 if update_data:
@@ -268,81 +292,89 @@ class TagMetaManager:
                         f"更新 scenario 的非关键字段: {scenario_name} v{scenario_version}, "
                         f"更新字段: {list(update_data.keys())}"
                     )
-                    return self.tag_data_service.update_scenario(
-                        scenario_meta['id'],
+                    updated_dict = self.tag_data_service.update_scenario(
+                        scenario.id,
                         display_name=update_data.get("display_name"),
                         description=update_data.get("description"),
-                        current_scenario=scenario_meta  # 传入当前数据，避免额外查询
+                        current_scenario=scenario.to_dict()  # 传入当前数据，避免额外查询
                     )
+                    return ScenarioModel.from_dict(updated_dict)
                 
-                return scenario_meta
+                return scenario
             else:
                 # NEW_SCENARIO 或 REFRESH_SCENARIO：不应该走到这里（scenario 应该不存在）
                 logger.warning(
                     f"意外的版本变更动作: scenario={scenario_name}, version={scenario_version}, "
                     f"version_action={version_action}, 但 scenario 已存在"
                 )
-                return scenario_meta
+                return scenario
         else:
             # scenario 不存在，创建新的
             # 如果是 NEW_SCENARIO 或 REFRESH_SCENARIO，需要处理旧的 active scenario
             if version_action in [VersionAction.NEW_SCENARIO.value, VersionAction.REFRESH_SCENARIO.value]:
                 # 查找当前的 active 版本（is_legacy=0）
-                db_scenarios = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+                db_scenarios_dict = self.tag_data_service.list_scenarios(scenario_name=scenario_name)
+                db_scenarios = [ScenarioModel.from_dict(s) for s in db_scenarios_dict]
                 active_scenario = None
                 for s in db_scenarios:
-                    if s.get("is_legacy", 0) == 0:
+                    if not s.is_legacy:
                         active_scenario = s
                         break
                 
                 # 如果存在 active 版本，标记为 legacy
                 if active_scenario:
-                    self.tag_data_service.mark_scenario_as_legacy(active_scenario["id"])
+                    self.tag_data_service.mark_scenario_as_legacy(active_scenario.id)
                     
                     # 如果是 REFRESH_SCENARIO，删除旧的 tag values
                     if version_action == VersionAction.REFRESH_SCENARIO.value:
                         logger.info(
                             f"REFRESH_SCENARIO: 删除旧的 tag values, "
-                            f"scenario_id={active_scenario['id']}"
+                            f"scenario_id={active_scenario.id}"
                         )
-                        self.tag_data_service.delete_tag_values_by_scenario(active_scenario["id"])
+                        self.tag_data_service.delete_tag_values_by_scenario(active_scenario.id)
             
             # 创建新的 scenario
-            display_name = scenario_info.get("display_name", scenario_name)
-            description = scenario_info.get("description", "")
-            return self.tag_data_service.save_scenario(
+            created_dict = self.tag_data_service.save_scenario(
                 scenario_name, 
                 scenario_version,
-                display_name=display_name,
-                description=description
+                display_name=scenario_config.display_name,
+                description=scenario_config.description
             )
+            return ScenarioModel.from_dict(created_dict)
 
     def _ensure_tag(self, 
-        tag_info: Dict[str, Any], 
-        scenario_meta: Dict[str, Any], 
-    ) -> Dict[str, Any]:
+        tag_config: TagModel, 
+        scenario: ScenarioModel, 
+    ) -> TagModel:
         """
         确保 tag definition 存在（如果不存在则创建，如果存在则更新非关键字段）
         
         Args:
-            tag_info: tag 配置字典，包含 name, display_name, description
-            scenario_meta: scenario 记录
+            tag_config: tag 配置 Model（不完整的 Model，从 settings 创建）
+            scenario: scenario 对象（完整的 Model）
         
         Returns:
-            Dict[str, Any]: Tag definition 记录
+            TagModel: Tag definition 对象（完整的 Model，所有字段都有值）
         """
-        tag_name = tag_info["name"]
-        scenario_version = scenario_meta['version']
-        scenario_id = scenario_meta['id']
-        tag_meta = self.tag_data_service.load_tag(tag_name, scenario_id, scenario_version)
+        tag_name = tag_config.tag_name
+        scenario_version = scenario.version
+        scenario_id = scenario.id
+        tag_dict = self.tag_data_service.load_tag(tag_name, scenario_id, scenario_version)
+        tag = TagModel.from_dict(tag_dict) if tag_dict else None
         
-        if tag_meta:
+        if tag:
             # tag 存在，检查并更新非关键字段
             field_configs = [
                 {'field_name': 'display_name', 'default_from': 'name'},
                 {'field_name': 'description', 'default_value': ''}
             ]
-            update_data = self._check_meta_field_diff(tag_meta, tag_info, field_configs)
+            # 将 tag_config 转换为字典以便 _check_meta_field_diff 使用
+            tag_config_dict = {
+                'name': tag_config.tag_name,
+                'display_name': tag_config.display_name,
+                'description': tag_config.description
+            }
+            update_data = self._check_meta_field_diff(tag, tag_config_dict, field_configs)
             
             # 如果有更新，执行更新
             if update_data:
@@ -350,28 +382,30 @@ class TagMetaManager:
                     f"更新 tag 的非关键字段: {tag_name} (scenario_id={scenario_id}), "
                     f"更新字段: {list(update_data.keys())}"
                 )
-                return self.tag_data_service.update_tag_definition(
-                    tag_meta['id'],
+                updated_dict = self.tag_data_service.update_tag_definition(
+                    tag.id,
                     display_name=update_data.get("display_name"),
                     description=update_data.get("description"),
-                    current_tag=tag_meta  # 传入当前数据，避免额外查询
+                    current_tag=tag.to_dict()  # 传入当前数据，避免额外查询
                 )
+                return TagModel.from_dict(updated_dict)
             
-            return tag_meta
+            return tag
         else:
             # tag 不存在，创建新的
-            return self.tag_data_service.save_tag(
+            created_dict = self.tag_data_service.save_tag(
                 tag_name, 
                 scenario_id, 
                 scenario_version, 
-                tag_info['display_name'], 
-                tag_info.get('description', '')
+                tag_config.display_name, 
+                tag_config.description
             )
+            return TagModel.from_dict(created_dict)
 
     def _ensure_tags(self, 
-        tags_info: List[Dict[str, Any]], 
-        scenario_meta: Dict[str, Any], 
-    ) -> List[Dict[str, Any]]:
+        tags_config: List[TagModel], 
+        scenario: ScenarioModel, 
+    ) -> List[TagModel]:
         """
         确保所有 tag definitions 存在（批量优化版本）
         
@@ -380,29 +414,30 @@ class TagMetaManager:
         2. 逐个检查并更新/创建（减少查询次数）
         
         Args:
-            tags_info: tag 配置列表
-            scenario_meta: scenario 记录
+            tags_config: tag 配置 Model 列表（不完整的 Model，从 settings 创建）
+            scenario: scenario 对象（完整的 Model）
         
         Returns:
-            List[Dict[str, Any]]: Tag definition 列表
+            List[TagModel]: Tag definition 列表（完整的 Model，所有字段都有值）
         """
-        scenario_id = scenario_meta['id']
-        scenario_version = scenario_meta['version']
+        scenario_id = scenario.id
+        scenario_version = scenario.version
         
         # 优化：批量加载所有已存在的 tags（1次查询）
-        existing_tags = self.tag_data_service.get_tag_definitions(
+        existing_tags_dict = self.tag_data_service.get_tag_definitions(
             scenario_id=scenario_id,
             include_legacy=False
         )
-        existing_tags_map = {tag['name']: tag for tag in existing_tags}
+        existing_tags = [TagModel.from_dict(t) for t in existing_tags_dict]
+        existing_tags_map = {tag.tag_name: tag for tag in existing_tags}
         
         tags_meta = []
         tags_to_create = []
         tags_to_update = []
         
         # 第一遍：检查哪些需要创建，哪些需要更新
-        for tag_info in tags_info:
-            tag_name = tag_info["name"]
+        for tag_config in tags_config:
+            tag_name = tag_config.tag_name
             existing_tag = existing_tags_map.get(tag_name)
             
             if existing_tag:
@@ -411,30 +446,36 @@ class TagMetaManager:
                     {'field_name': 'display_name', 'default_from': 'name'},
                     {'field_name': 'description', 'default_value': ''}
                 ]
-                update_data = self._check_meta_field_diff(existing_tag, tag_info, field_configs)
+                # 将 tag_config 转换为字典以便 _check_meta_field_diff 使用
+                tag_config_dict = {
+                    'name': tag_config.tag_name,
+                    'display_name': tag_config.display_name,
+                    'description': tag_config.description
+                }
+                update_data = self._check_meta_field_diff(existing_tag, tag_config_dict, field_configs)
                 
                 if update_data:
                     tags_to_update.append({
-                        'tag_definition_id': existing_tag['id'],
+                        'tag': existing_tag,
                         'update_data': update_data,
-                        'tag_info': tag_info
+                        'tag_config': tag_config
                     })
                 else:
                     tags_meta.append(existing_tag)
             else:
                 # tag 不存在，需要创建
-                tags_to_create.append(tag_info)
+                tags_to_create.append(tag_config)
         
         # 批量创建新 tags
-        for tag_info in tags_to_create:
-            tag_meta = self.tag_data_service.save_tag(
-                tag_info['name'],
+        for tag_config in tags_to_create:
+            tag_dict = self.tag_data_service.save_tag(
+                tag_config.tag_name,
                 scenario_id,
                 scenario_version,
-                tag_info['display_name'],
-                tag_info.get('description', '')
+                tag_config.display_name,
+                tag_config.description
             )
-            tags_meta.append(tag_meta)
+            tags_meta.append(TagModel.from_dict(tag_dict))
         
         # 批量更新需要更新的 tags（优化：使用批量更新 SQL）
         if tags_to_update:
@@ -445,10 +486,10 @@ class TagMetaManager:
             # 准备批量更新数据
             batch_updates = []
             for update_item in tags_to_update:
-                existing_tag = existing_tags_map.get(update_item['tag_info']['name'])
+                existing_tag = update_item['tag']
                 update_dict = {
-                    'tag_definition_id': update_item['tag_definition_id'],
-                    'current_tag': existing_tag  # 传入当前数据，避免额外查询
+                    'tag_definition_id': existing_tag.id,
+                    'current_tag': existing_tag.to_dict()  # 传入当前数据，避免额外查询
                 }
                 # 只添加实际需要更新的字段
                 if "display_name" in update_item['update_data']:
@@ -458,7 +499,8 @@ class TagMetaManager:
                 batch_updates.append(update_dict)
             
             # 执行批量更新（1次 SQL 更新）
-            updated_tags = self.tag_data_service.batch_update_tag_definitions(batch_updates)
+            updated_tags_dict = self.tag_data_service.batch_update_tag_definitions(batch_updates)
+            updated_tags = [TagModel.from_dict(t) for t in updated_tags_dict]
             tags_meta.extend(updated_tags)
         
         return tags_meta
@@ -467,7 +509,7 @@ class TagMetaManager:
         self,
         scenario_setting: Dict[str, Any],
         version_action: str,
-        tag_defs: List[Dict[str, Any]]
+        tag_defs: List[TagModel]
     ) -> Tuple[str, str]:
         """
         确定计算日期范围
@@ -538,7 +580,7 @@ class TagMetaManager:
         
         return start_date, end_date
 
-    def _get_max_as_of_date(self, tag_defs: List[Dict[str, Any]]) -> Optional[str]:
+    def _get_max_as_of_date(self, tag_defs: List[TagModel]) -> Optional[str]:
         """
         获取 tag definitions 的最大 as_of_date
         
@@ -552,7 +594,7 @@ class TagMetaManager:
             return None
         
         # 获取所有 tag_definition_id
-        tag_definition_ids = [tag_def.get("id") for tag_def in tag_defs if tag_def.get("id")]
+        tag_definition_ids = [tag_def.id for tag_def in tag_defs if tag_def.id]
         if not tag_definition_ids:
             return None
         

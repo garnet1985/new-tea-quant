@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from loguru import logger
 
+from app.tag.core.config import ALLOW_VERSION_ROLLBACK, MAX_LEGACY_VERSIONS
+from app.tag.core.enums import EnsureMetaAction, VersionChangeAction
 from app.tag.core.models.tag_model import TagModel
 
 
@@ -35,6 +37,7 @@ class ScenarioModel:
         self._is_configured = False  # 是否已从 settings 配置
         self._is_ensured = False  # 是否已 ensure_metadata（完整）
         self._is_enabled = False
+        self._meta_action = None
 
         # 其他字段
         self._target_entity = None
@@ -81,15 +84,15 @@ class ScenarioModel:
         """获取 scenario 标识符（name:version）"""
         return f"{self.name}:{self.version}"
 
-    def ensure_metadata(self):
+    def ensure_metadata(self, tag_data_mgr):
         """
         确保元信息存在
         
         Returns:
             Tuple[str, str]: (start_date, end_date) 计算日期范围
         """
-        self._ensure_scenario_metadata()
-        self._ensure_tags_metadata()
+        self._ensure_scenario_metadata(tag_data_mgr)
+        self._ensure_tags_metadata(tag_data_mgr, self._meta_action)
         self._is_ensured = True
         
         # TODO: 伪代码，待完善
@@ -202,20 +205,135 @@ class ScenarioModel:
             
         return tag_models
 
-    
+    def _ensure_tags_metadata(self, tag_data_mgr, meta_action):
+        """
+        确保 tags 元信息存在
+        
+        Args:
+            tag_data_mgr: TagDataManager 实例
+            meta_action: EnsureMetaAction 枚举值
+        """
+        for tag_model in self._tag_models:
+            # 传入 scenario_id 作为参数
+            tag_model.ensure_metadata(tag_data_mgr, meta_action, self.id)
 
-    def _ensure_scenario_metadata(self):
+    def _ensure_scenario_metadata(self, tag_data_mgr):
         """
         确保 scenario 元信息存在
         """
-        pass
-
-    def _ensure_tags_metadata(self):
-        """
-        确保 tags 元信息存在
-        """
-        for tag_model in self._tag_models:
-            tag_model.ensure_metadata()
-
-
+        scenario_metadata = tag_data_mgr.load_scenario_by_name_and_version(self.name, self.version)
         
+        if not scenario_metadata:
+            # 首次创建 scenario
+            self._meta_action = EnsureMetaAction.NEW_SCENARIO.value
+            # TODO: 修复 API 调用方式，使用正确的参数
+            # new_meta = tag_data_mgr.save_scenario(
+            #     self.name,
+            #     self.version,
+            #     display_name=self.display_name,
+            #     description=self.description
+            # )
+            new_meta = tag_data_mgr.save_scenario(self.to_dict())  # 伪代码，待修复
+            self._set_meta(new_meta)
+            self._clear_legacy_scenarios_and_tags(tag_data_mgr)
+        else:
+            # scenario_metadata 是字典，使用字典访问
+            if scenario_metadata.get('is_legacy', 0) == 1:
+                # 版本回退
+                if self._should_rollback():
+                    self._meta_action = EnsureMetaAction.ROLLBACK.value
+                    # TODO: 修复 API 调用方式，使用正确的参数
+                    # new_meta = tag_data_mgr.update_scenario(
+                    #     scenario_metadata.get('id'),
+                    #     is_legacy=0,  # 激活当前版本
+                    #     display_name=self.display_name,
+                    #     description=self.description,
+                    #     current_scenario=scenario_metadata
+                    # )
+                    new_meta = tag_data_mgr.update_scenario(self.to_dict())  # 伪代码，待修复
+                    self._set_meta(new_meta)
+                else:
+                    self._meta_action = EnsureMetaAction.NO_CHANGE.value
+            else:
+                # 更新 scenario 元信息
+                # 如果 version 没有变化，则更新 scenario 元信息
+                if self._has_meta_diff(scenario_metadata):
+                    self._meta_action = EnsureMetaAction.META_UPDATE.value
+                    # TODO: 修复 API 调用方式，使用正确的参数
+                    # new_meta = tag_data_mgr.update_scenario(
+                    #     scenario_metadata.get('id'),
+                    #     display_name=self.display_name,
+                    #     description=self.description,
+                    #     current_scenario=scenario_metadata
+                    # )
+                    new_meta = tag_data_mgr.update_scenario(self.to_dict())  # 伪代码，待修复
+                    self._set_meta(new_meta)
+                else:
+                    self._meta_action = EnsureMetaAction.NO_CHANGE.value
+
+    def _set_meta(self, new_meta: Dict[str, Any]):
+        """
+        设置 meta
+        
+        Args:
+            new_meta: 包含完整数据库字段的字典
+        """
+        self.id = new_meta.get('id')
+        self.display_name = new_meta.get('display_name')
+        self.description = new_meta.get('description')
+        self.is_legacy = bool(new_meta.get('is_legacy', 0))
+        self.created_at = new_meta.get('created_at')
+        self.updated_at = new_meta.get('updated_at')
+
+    def _clear_legacy_scenarios_and_tags(self, tag_data_mgr):
+        """
+        清理 legacy scenarios
+        """
+        logger.info(f"检测到需要创建一个新的场景版本, 场景名称: {self.name}, 场景版本: {self.version}")
+        logger.info(f"请注意如果当前场景的不同版本数量超过{MAX_LEGACY_VERSIONS}个，最老的场景版本和所产生的tags都将被删除。"
+                    f"如果想修改这个限制，请在tag/core/config.py手动修改设置 MAX_LEGACY_VERSIONS={MAX_LEGACY_VERSIONS}。")
+        tag_data_mgr.clear_legacy_scenarios_and_tags(self.name, MAX_LEGACY_VERSIONS)
+
+
+    def _has_meta_diff(self, db_meta: Dict[str, Any]) -> bool:
+        """
+        比较 meta 差异
+        
+        Args:
+            db_meta: 数据库中的 scenario metadata 字典
+        
+        Returns:
+            bool: 如果有差异返回 True，否则返回 False
+        """
+        # TODO: 伪代码，待完善
+        # 比较 display_name 和 description 是否有变化
+        if self.display_name != db_meta.get('display_name'):
+            return True
+        if self.description != db_meta.get('description'):
+            return True
+        return False
+
+
+    def _should_rollback(self):
+        """
+        处理版本回退
+        """
+        warning_msg = (
+            f"请注意您的当前配置中的版本信息已经存在，信息如下："
+            f"scenario={self.name}, version={self.version}. "
+            "如果您是想会退版本，仅仅修改配置中的版本号到老版本是不够的，您还需要确保计算逻辑(tag worker中的代码逻辑)也已回退。"
+        )
+        action_msg = (
+            f"当前回退行为已经被系统默认阻止。如果逻辑和版本号不匹配，计算的tag很可能不准确。"
+            "如果您已经确认逻辑已经会退或者想继续执行，请在tag/core/config.py手动修改设置 ALLOW_VERSION_ROLLBACK=True 允许回退。"
+        )
+
+        logger.warning(warning_msg)
+
+        if ALLOW_VERSION_ROLLBACK:
+            return True
+
+        logger.warning(action_msg)
+        return False
+
+        # str: VersionAction ("NO_CHANGE", "ROLLBACK", "NEW_SCENARIO", "REFRESH_SCENARIO")

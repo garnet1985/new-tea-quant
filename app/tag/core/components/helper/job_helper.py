@@ -11,6 +11,7 @@ Job Builder - Job 构建器
 from typing import Dict, List, Any, Tuple
 import os
 import logging
+from app.data_manager.data_services.tag.tag_data_service import TagDataService
 from app.enums import UpdateMode
 from app.tag.core.models.scenario_model import ScenarioModel
 from app.tag.core.models.tag_model import TagModel
@@ -18,7 +19,7 @@ from app.tag.core.models.tag_model import TagModel
 logger = logging.getLogger(__name__)
 
 
-class JobBuilder:
+class JobHelper:
     """
     Job Builder - Job 构建器
     
@@ -30,47 +31,66 @@ class JobBuilder:
     所有方法都是静态方法，不需要实例化
     """
 
-    @staticmethod
-    def build_jobs(
-        scenario_model: ScenarioModel, 
-        entity_list: List[str], 
-        tag_value_last_update_info: Dict[str, Any],
-        update_mode: UpdateMode) -> List[Dict[str, Any]]:
-        """
-        构建 jobs（每个 entity 一个 job）
+    # @staticmethod
+    # def build_jobs(
+    #     entity_list: List[str], 
+    #     settings: Dict[str, Any], 
+    #     scenario_model: ScenarioModel,
+    #     tag_data_service: TagDataService) -> List[Dict[str, Any]]:
+    #     """
+    #     构建 jobs（每个 entity 一个 job）
         
-        Args:
-            scenario_model: ScenarioModel 实例（已 ensure_metadata）
-            entity_list: 实体ID列表
-            tag_value_last_update_info: 上次计算的 tag 值更新信息
-            update_mode: 更新模式
-        
-        Returns:
-            List[Dict[str, Any]]: Job列表，每个 job 包含：
-                - "id": str - job ID
-                - "payload": Dict[str, Any] - job payload（伪代码，待完善）
-        """
-        jobs = []
-        for entity_id in entity_list:
-            last_update_info = tag_value_last_update_info[entity_id]
-            start_date, end_date = JobBuilder.calculate_start_and_end_date(last_update_info, update_mode)
+    #     Args:
+    #         entity_list: 实体ID列表
+    #         settings: Settings 字典
+    #         tag_data_service: TagDataService 实例
+    #     """
 
-            job = {
-                "id": JobBuilder._generate_job_id(entity_id, scenario_model.get_name()),
-                "payload": {
-                    # TODO: 伪代码，待完善
-                    # - entity_id: 实体ID
-                    # - entity_type: 实体类型（从 scenario_model 获取）
-                    # - scenario_name: Scenario 名称
-                    # - tag_definitions: Tag Definition 列表（从 scenario_model.get_tag_models() 获取并转换为字典）
-                    # - start_date: 起始日期
-                    # - end_date: 结束日期
-                    # - worker_class: Worker 类（需要从 scenario_cache 或 settings 获取）
-                    # - settings: Settings 字典（从 scenario_model.get_settings() 获取）
-                }
-            }
-            jobs.append(job)
-        return jobs
+        
+
+    #     performance = settings.get("performance", {})
+
+    # @staticmethod
+    # def build_jobs(
+    #     scenario_model: ScenarioModel, 
+    #     entity_list: List[str], 
+    #     tag_value_last_update_info: Dict[str, Any],
+    #     update_mode: UpdateMode) -> List[Dict[str, Any]]:
+    #     """
+    #     构建 jobs（每个 entity 一个 job）
+        
+    #     Args:
+    #         scenario_model: ScenarioModel 实例（已 ensure_metadata）
+    #         entity_list: 实体ID列表
+    #         tag_value_last_update_info: 上次计算的 tag 值更新信息
+    #         update_mode: 更新模式
+        
+    #     Returns:
+    #         List[Dict[str, Any]]: Job列表，每个 job 包含：
+    #             - "id": str - job ID
+    #             - "payload": Dict[str, Any] - job payload（伪代码，待完善）
+    #     """
+    #     jobs = []
+    #     for entity_id in entity_list:
+    #         last_update_info = tag_value_last_update_info[entity_id]
+    #         start_date, end_date = JobBuilder.calculate_start_and_end_date(last_update_info, update_mode)
+
+    #         job = {
+    #             "id": JobBuilder._generate_job_id(entity_id, scenario_model.get_name()),
+    #             "payload": {
+    #                 # TODO: 伪代码，待完善
+    #                 # - entity_id: 实体ID
+    #                 # - entity_type: 实体类型（从 scenario_model 获取）
+    #                 # - scenario_name: Scenario 名称
+    #                 # - tag_definitions: Tag Definition 列表（从 scenario_model.get_tag_models() 获取并转换为字典）
+    #                 # - start_date: 起始日期
+    #                 # - end_date: 结束日期
+    #                 # - worker_class: Worker 类（需要从 scenario_cache 或 settings 获取）
+    #                 # - settings: Settings 字典（从 scenario_model.get_settings() 获取）
+    #             }
+    #         }
+    #         jobs.append(job)
+    #     return jobs
 
     @staticmethod
     def calculate_start_and_end_date(last_update_info: Dict[str, Any], update_mode: UpdateMode) -> Tuple[str, str]:
@@ -170,7 +190,7 @@ class JobBuilder:
     #     return jobs
     
     @staticmethod
-    def decide_worker_amount(jobs: List[Dict[str, Any]], max_workers: int = None) -> int:
+    def decide_worker_amount(estimated_job_count: int, max_workers: int = None) -> int:
         """
         根据 job 数量决定进程数（最多 max_workers 个）
         
@@ -188,18 +208,18 @@ class JobBuilder:
         Returns:
             int: 建议的 worker 数量
         """
-        if max_workers is None:
-            max_workers = os.cpu_count() or 10  # 默认最多 10 个
+        # TODO: need a better way to decide worker amount
+        if max_workers == "auto":
+            return os.cpu_count() or 10
         
-        job_count = len(jobs)
-        
-        if job_count <= 100:
+        worker_amount = 1
+        if estimated_job_count <= 100:
             worker_amount = 1
-        elif job_count <= 500:
+        elif estimated_job_count <= 500:
             worker_amount = 2
-        elif job_count <= 1000:
+        elif estimated_job_count <= 1000:
             worker_amount = 4
-        elif job_count <= 2000:
+        elif estimated_job_count <= 2000:
             worker_amount = 8
         else:
             worker_amount = max_workers

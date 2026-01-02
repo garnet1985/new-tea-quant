@@ -1,6 +1,6 @@
 # Tag Data Service API 清单
 
-本文档列出了 Tag 系统中所有需要在 `TagDataService`（位于 `app/data_manager`）中实现的数据库操作 API。
+本文档列出了 Tag 系统中所有需要在 `TagDataService`（位于 `app/core_modules/data_manager`）中实现的数据库操作 API。
 
 ## 说明
 

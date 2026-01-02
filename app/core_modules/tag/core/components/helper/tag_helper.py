@@ -1,10 +1,10 @@
-from typing import Dict, Optional, Type
+from typing import Any, Dict, Optional, Type
 from pathlib import Path
 import importlib.util
 import logging
 
-from app.tag.core.base_tag_worker import BaseTagWorker
-from app.tag.core.enums import FileName
+from app.core_modules.tag.core.base_tag_worker import BaseTagWorker
+from app.core_modules.tag.core.enums import FileName
 from utils.file.file_util import FileUtil
 
 logger = logging.getLogger(__name__)

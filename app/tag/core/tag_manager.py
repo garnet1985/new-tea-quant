@@ -15,24 +15,20 @@ Tag Manager - 统一管理所有业务场景（Scenario）
 - DataManager 是单例模式，内部自动获取
 - 多进程调度由 TagManager 负责
 """
+import time
 from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
 from pathlib import Path
+from app.enums import UpdateMode
 from app.tag.core.base_tag_worker import BaseTagWorker
-from app.tag.core.components.settings_management.setting_manager import SettingsManager
-# TagMetaManager 已废弃，ensure_metadata 现在直接在 ScenarioModel 中处理
-# from app.tag.core.components.entity_management.tag_meta_manager import (
-#     TagMetaManager,
-# )
-from app.tag.core.components.entity_management.entity_list_loader import (
-    EntityListLoader,
-)
-from app.tag.core.components.job_builder.job_builder import JobBuilder
-from app.tag.core.components.helper.general_tag_helper import GeneralTagHelper
+from app.tag.core.components.helper.tag_helper import TagHelper
+
+from app.tag.core.components.helper.job_helper import JobHelper
 from app.data_manager import DataManager
 from app.tag.core.config import DEFAULT_SCENARIOS_ROOT
+from app.tag.core.enums import FileName
 from app.tag.core.models.scenario_model import ScenarioModel
-from app.tag.core.models.tag_model import TagModel
+from utils.worker.multi_process.process_worker import ExecutionMode, ProcessWorker
 
 logger = logging.getLogger(__name__)
 
@@ -70,88 +66,45 @@ class TagManager:
         # 初始化 DataManager 的 tag 服务：
         # 注意：不在这里发现 scenarios，延迟到 run() 时
 
+        # 是否输出详细日志
         self.is_verbose = is_verbose
         
         # 初始化 data_mgr（单例模式，内部自动获取）
         self.data_mgr = DataManager(is_verbose=False)
+        self.tag_data_service = self.data_mgr.get_tag_service()
 
-        # self.tag_meta_manager = TagMetaManager()  # 已废弃
-        self.entity_list_loader = EntityListLoader()
-
+        # 可用场景缓存
         self.scenario_cache = {}
+
+        # 不同场景间的实体列表缓存
         self.entity_list_cache = {}
 
+        # 场景发现并缓存
+        self._discover_scenarios_from_folder()
+
     def refresh_scenario(self):
-        self.scenario_cache = self._discover_scenario_settings_from_folder()
+        self._clear_cache()
+        self.scenario_cache = self._discover_scenarios_from_folder()
 
     def execute(self, scenario_name: str = None, settings: Dict[str, Any] = None):
         if settings:
-            self._execute_single_from_tmp_settings(scenario_name, settings)
-            self.clear_cache()
-            return
-
-        if scenario_name:
+            self._execute_single_from_tmp_settings(settings)
+        elif scenario_name:  
             self._execute_single(scenario_name)
-            self.clear_cache()
-            return 
-
-        self._execute_all()
-        self.clear_cache()
-
-    def clear_cache(self):
-        self.scenario_cache = {}
-        self.entity_list_cache = {}
-
-    # discover and cache scenario settings from folder
-    def _discover_scenario_settings_from_folder(self):
-        scenario_cache = {}
-        root_folder = Path(DEFAULT_SCENARIOS_ROOT)
-
-        for scenario_folder in root_folder.iterdir():
-            if not scenario_folder.is_dir():
-                continue
-
-            cache_item = self._build_scenario_cache(scenario_folder)
-            if not cache_item:
-                continue
-
-            scenario_cache[cache_item["name"]] = cache_item
-        return scenario_cache
-
-    def _build_scenario_cache(self, scenario_folder: Path):
-        settings_file = SettingsManager.load_scenario_settings(scenario_folder)
-        if not settings_file:
-            return None
-        settings = SettingsManager.load_settings_from_file(settings_file)
-        scenario_name = settings.get("scenario", {}).get("name")
-        if not scenario_name:
-            return None
-        
-        # 加载 worker_class
-        worker_class = GeneralTagHelper._load_worker_class(scenario_folder)
-        if not worker_class:
-            logger.warning(f"无法加载 worker_class: {scenario_folder.name}")
-            return None
-        
-        return {
-            "name": scenario_name,
-            "settings": settings,
-            "dir_name": scenario_folder.name,
-            "worker_class": worker_class,
-        }
-
-    def _load_scenario_from_cache_by_name(self, name: str):
-        if name in self.scenario_cache:
-            return self.scenario_cache[name]
         else:
-            return None
+            self._execute_all()
+        self._clear_cache()
 
+    # -------------------------------------------------------------------------
+    # Scenario 执行
+    # -------------------------------------------------------------------------
 
     def _execute_single_from_tmp_settings(self, settings: Dict[str, Any]):
         scenario_model = ScenarioModel.create_from_settings(settings)
         if not scenario_model:
             logger.info(f"创建场景模型失败，跳过执行")
             return
+ 
         self._run_execute_pipeline(scenario_model)
 
     def _execute_single(self, scenario_name: str):
@@ -163,20 +116,142 @@ class TagManager:
         """
         scenario_cache = self._load_scenario_from_cache_by_name(scenario_name)
         if not scenario_cache:
-            logger.warning(f"找不到场景名: {scenario_name}，跳过执行")
+            logger.info(f"找不到场景名: {scenario_name}，跳过执行")
             return
         
         # ScenarioModel.create_from_settings 需要完整的 settings 字典（包含 "scenario" 和 "tags"）
         settings = scenario_cache.get("settings", {})
         scenario_model = ScenarioModel.create_from_settings(settings)
         if not scenario_model:
-            logger.warning(f"场景模型无效，跳过执行")
             return
+
         self._run_execute_pipeline(scenario_model)
 
     def _execute_all(self):
         for scenario_name in self.scenario_cache:
             self._execute_single(scenario_name)
+
+
+    # -------------------------------------------------------------------------
+    # Scenario 发现与加载
+    # -------------------------------------------------------------------------
+
+    # discover and cache scenario settings from folder
+    def _discover_scenarios_from_folder(self):
+        scenario_cache = {}
+        root_folder = Path(DEFAULT_SCENARIOS_ROOT)
+
+        for scenario_folder in root_folder.iterdir():
+            if not scenario_folder.is_dir():
+                continue
+
+            cache_item = self._build_scenario_cache(scenario_folder)
+            if not cache_item:
+                continue      
+
+            scenario_cache[cache_item["name"]] = cache_item
+            logger.info(f"发现可用场景: {cache_item["name"]}, 文件夹: {scenario_folder.name}")
+        return scenario_cache
+
+    def _build_scenario_cache(self, scenario_folder: Path):
+        settings_path, settings_dict = TagHelper.load_scenario_settings(scenario_folder)
+        if not settings_path:
+            self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下找不到 {FileName.SETTINGS.value} 文件，跳过。")
+            return None
+        worker_class_path, worker_class = TagHelper.load_worker_class(scenario_folder)
+        if not worker_class_path:
+            self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下找不到 {FileName.TAG_WORKER.value} 文件，跳过。")
+            return None
+
+        if not settings_dict:
+            self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下的 {FileName.SETTINGS.value} 文件内容无效，跳过。")
+            return None
+        if not worker_class:
+            self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下的 {FileName.TAG_WORKER.value} 文件内容无效，跳过。")
+            return None
+
+        scenario_name = settings_dict.get("scenario", {}).get("name")
+        if not scenario_name:
+            self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下的 {FileName.SETTINGS.value} 文件中缺少 name 字段，跳过。")
+            return None
+
+        return {
+            "name": scenario_name,
+            "scenario_folder_path": scenario_folder.name,
+            "settings": settings_dict,
+            "settings_file_path": settings_path,
+            "worker_class": worker_class,
+            "worker_file_path": worker_class_path,
+        }
+
+    def _load_scenario_from_cache_by_name(self, name: str):
+        if name in self.scenario_cache:
+            return self.scenario_cache[name]
+        else:
+            return None
+
+    def _get_entity_list(self, scenario_model: ScenarioModel) -> List[str]:
+        """
+        获取实体列表（伪代码）
+        
+        Args:
+            scenario_model: ScenarioModel 实例
+            
+        Returns:
+            List[str]: 实体ID列表
+        """
+        target_entity = scenario_model.get_target_entity()
+        
+        # 使用缓存
+        if target_entity in self.entity_list_cache:
+            return self.entity_list_cache[target_entity]
+        
+        # TODO: 实现从 data_mgr 加载实体列表的逻辑
+        # 当前仅支持 stock 实体，未来需要扩展支持其他实体类型
+        if target_entity == "stock":
+            stock_list = self.data_mgr.load_stock_list(filtered=True)
+            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
+        else:
+            logger.warning(f"不支持的实体类型: {target_entity}")
+            entity_list = []
+        
+        # 缓存结果
+        self.entity_list_cache[target_entity] = entity_list
+        return entity_list
+
+    def _get_worker_class(self, scenario_name: str, scenario_model: ScenarioModel) -> Optional[Type[BaseTagWorker]]:
+        """
+        获取 worker_class
+        
+        优先从 cache 中获取，如果不在 cache 中，尝试从 scenario_model 的 settings 中加载
+        
+        Args:
+            scenario_name: Scenario 名称
+            scenario_model: ScenarioModel 实例
+            
+        Returns:
+            Optional[Type[BaseTagWorker]]: Worker 类，如果获取失败返回 None
+        """
+        # 优先从 cache 中获取
+        if scenario_name in self.scenario_cache:
+            return self.scenario_cache[scenario_name].get("worker_class")
+        
+        # 如果不在 cache 中（例如从 _execute_single_from_tmp_settings 进入），尝试从 settings 加载
+        # TODO: 实现从 settings 中加载 worker_class 的逻辑
+        # 需要知道 scenario 的文件夹路径，或者从 settings 中解析
+        logger.warning(f"Scenario {scenario_name} 不在 cache 中，无法获取 worker_class")
+        return None
+
+    def _clear_cache(self):
+        self.scenario_cache = {}
+        self.entity_list_cache = {}
+
+
+
+    # -------------------------------------------------------------------------
+    # Scenario job 构建与执行
+    # -------------------------------------------------------------------------
+
 
     def _run_execute_pipeline(self, scenario_model: ScenarioModel):
         """
@@ -185,113 +260,86 @@ class TagManager:
         Args:
             scenario_model: ScenarioModel 实例
         """
-        # 1. 检查是否启用
+        # 检查场景是否启用
         if not scenario_model.is_enabled():
-            logger.warning(f"场景 {scenario_model.get_name()} 未开启（is_enabled=False）, 跳过执行")
+            logger.info(f"场景 {scenario_model.get_name()} 未开启（is_enabled=False）, 跳过执行")
             return
 
-        # 2. 获取 tag_data_service 并确保元信息存在
+        # 获取 tag_data_service 并确保元信息存在
         # TODO: 确认 DataManager 中 tag_data_service 的获取方式
-        # 可能是 get_tag_service() 或 get_data_service('tag') 或直接创建 TagDataService 实例
-        try:
-            tag_data_service = self.data_mgr.get_tag_service()
-        except AttributeError:
-            # 如果 get_tag_service 不存在，尝试其他方式
-            # TODO: 实现 tag_data_service 的获取逻辑
-            from app.data_manager.data_services.tag.tag_data_service import TagDataService
-            tag_data_service = TagDataService(self.data_mgr)
-        
+        tag_data_service = self.data_mgr.get_tag_service()
         if not tag_data_service:
             logger.error(f"无法获取 tag_data_service，跳过执行")
             return
-        
         scenario_model.ensure_metadata(tag_data_service)
 
-        # 3. 获取实体列表
+        # 获取实体列表
         entity_list = self._get_entity_list(scenario_model)
-
-        tag_value_last_update_info = tag_data_service.get_tag_value_last_update_info(scenario_model.get_name())
-
         if not entity_list:
-            logger.warning(f"无法获取实体列表，跳过执行")
+            logger.info(f"无法获取实体列表，跳过执行")
             return
 
-        settings = scenario_model.get_settings()
-        calculator = settings.get("calculator", {})
-        performance = calculator.get("performance", {})
-        update_mode_str = performance.get("update_mode", "incremental")
-        
-        # 转换为 UpdateMode 枚举
-        from app.tag.core.enums import UpdateMode
-        try:
-            update_mode = UpdateMode(update_mode_str)
-        except ValueError:
-            logger.warning(f"无效的 update_mode: {update_mode_str}，使用默认值 INCREMENTAL")
-            update_mode = UpdateMode.INCREMENTAL
+        # 获取 worker_class（从 cache 中获取，如果不在 cache 中则尝试从 settings 加载）
+        scenario_name = scenario_model.get_name()
+        worker_class = self._get_worker_class(scenario_name, scenario_model)
+        if not worker_class:
+            logger.error(f"无法获取 worker_class，跳过执行: scenario={scenario_name}")
+            return
 
-        # 4. 构建 jobs
-        jobs = JobBuilder.build_jobs(
-            scenario_model, 
-            entity_list, 
-            tag_value_last_update_info, 
-            update_mode
-        )
+        # 获取更新模式
+        settings = scenario_model.get_settings()
+
+        jobs = self._build_jobs(entity_list, settings, scenario_model, worker_class)
 
         if not jobs:
-            logger.warning(f"无法构建 jobs，跳过执行: scenario={scenario_model.get_name()}")
+            logger.warning(f"没有新的计算任务，跳过执行: scenario={scenario_name}")
             return
-
-        if len(jobs) == 0:
-            logger.warning(f"没有新的计算任务，跳过执行: scenario={scenario_model.get_name()}")
-            return
-
-        # 5. 执行 jobs
-        self._execute_jobs(jobs, scenario_model.get_name())
-
-    def _get_entity_list(self, scenario_model: ScenarioModel):
-        target_entity = scenario_model.get_target_entity()
-        if target_entity in self.entity_list_cache:
-            return self.entity_list_cache[target_entity]
-        else:
-            entity_list = self.data_mgr.load_entity_list(target_entity)
-            self.entity_list_cache[target_entity] = entity_list
-            return entity_list
-
-
-    def _build_jobs(self, scenario_model: ScenarioModel, entity_list: List[str], tag_value_last_update_info: Dict[str, Any]):
-        jobs = JobBuilder.build_jobs(scenario_model, entity_list, tag_value_last_update_info)
-        return jobs
-
-    def _execute_jobs(self, jobs: List[Dict[str, Any]], scenario_name: str = None):
-        """
-        执行 jobs
-        
-        Args:
-            jobs: Job 列表
-            scenario_name: Scenario 名称（可选，如果未提供则从 jobs 中提取）
-        """
-        # 如果没有提供 scenario_name，从第一个 job 中提取
-        if not scenario_name and jobs:
-            scenario_name = jobs[0].get("payload", {}).get("scenario_name", "unknown")
-        
-        # 决定进程数
-        max_workers = JobBuilder.decide_worker_amount(jobs)
 
         # 执行 jobs
-        from utils.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
-        import time
+        worker_amount = JobHelper.decide_worker_amount(len(jobs))
+        self._execute_jobs(jobs, scenario_name, worker_class, worker_amount)
+
+    def _build_jobs(self, entity_list: List[str], settings: Dict[str, Any], scenario_model: ScenarioModel, worker_class: Type[BaseTagWorker]):
+        update_mode = scenario_model.calculate_update_mode()
+        
+        # TODO: 实现 calculate_start_and_end_date 的正确逻辑
+        # 当前使用伪代码，需要根据 last_update_info 和 update_mode 计算
+        start_date = settings.get("performance", {}).get("start_date")
+        end_date = settings.get("performance", {}).get("end_date")
+        # start_date, end_date = JobHelper.calculate_start_and_end_date(last_update_info, update_mode)
+
+        jobs = []
+
+        for entity_id in entity_list:
+            job = {
+                "id": scenario_model.get_identifier() + "_" + entity_id,
+                "payload": {
+                    "entity_id": entity_id,
+                    "scenario_name": scenario_model.get_name(),
+                    "update_mode": update_mode,
+                    "tags": scenario_model.get_tags_dict(),
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "worker_class": worker_class,  # 将 worker_class 放入 payload
+                },
+            }
+            jobs.append(job)
+
+        return jobs
+
+    def _execute_jobs(self, jobs: List[Dict[str, Any]], scenario_name: str, worker_class: Type[BaseTagWorker], worker_amount: int):
         
         worker_pool = ProcessWorker(
-            max_workers=max_workers,
+            max_workers=worker_amount,
             execution_mode=ExecutionMode.QUEUE,  # 队列模式，持续填充
             job_executor=TagManager._execute_single_job,  # 静态方法
             is_verbose=False  # 关闭 ProcessWorker 的详细日志，由 TagManager 统一控制
         )
-        
+
         # 执行 jobs 并实时反馈进度
         total_jobs = len(jobs)
         start_time = time.time()
-        
+
         logger.info(f"开始执行 {total_jobs} 个 jobs...")
         
         # 执行 jobs（ProcessWorker 内部会处理多进程和进度）
@@ -340,29 +388,6 @@ class TagManager:
         1. 从 job payload 中提取信息
         2. 实例化 TagWorker（传入完整的 job_payload）
         3. 调用 worker.run() 执行计算
-        
-        Args:
-            job: Job 字典，包含：
-                - id: job ID
-                - payload: Job payload 字典，包含：
-                    - entity_id: 实体ID
-                    - entity_type: 实体类型
-                    - scenario_name: Scenario 名称
-                    - tag_definitions: Tag Definition 列表
-                    - start_date: 起始日期
-                    - end_date: 结束日期
-                    - worker_class: Worker 类（用于实例化）
-                    - settings: Settings 字典（完整的 settings 配置）
-        
-        Returns:
-            Dict[str, Any]: 统计信息
-                {
-                    'job_id': str,
-                    'entity_id': str,
-                    'success': bool,
-                    'total_tags': int,
-                    'error': str (可选)
-                }
         """
         from utils.worker.multi_process.process_worker import JobResult, JobStatus
         from datetime import datetime
@@ -414,276 +439,3 @@ class TagManager:
                 end_time=datetime.now()
             )
 
-        
-    # def execute(self):
-    #     """
-    #     执行所有可用的 scenarios（同步执行）
-        
-    #     职责：
-    #     1. 使用 GeneralTagHelper.load_scenarios() 加载所有 scenarios
-    #     2. 遍历执行每个 scenario（同步执行，一个完成后才执行下一个）
-        
-    #     注意：
-    #     - 执行是同步的：每个 scenario 完全执行完成后，才会执行下一个
-    #     - 每个 scenario 内部使用多进程并行处理 entities
-    #     - 但 scenarios 之间是串行的
-    #     """
-    #     # 1. 加载所有可执行的 scenarios（使用辅助方法）
-    #     all_scenarios = GeneralTagHelper.load_scenarios()
-        
-    #     if not all_scenarios:
-    #         logger.info("没有可执行的 scenarios")
-    #         return
-        
-    #     logger.info(f"开始执行 {len(all_scenarios)} 个 scenarios（同步执行）")
-        
-    #     # 2. 遍历执行每个 scenario（使用标准化的 scenario_info）
-    #     for scenario_info in all_scenarios:
-    #         scenario_name = scenario_info.get("scenario_name")
-    #         if not scenario_name:
-    #             continue
-                
-    #         try:
-    #             logger.info(f"开始执行 scenario: {scenario_name}")
-    #             # 直接使用标准化的 scenario_info
-    #             self.execute_single(scenario_name, scenario_info)
-    #             logger.info(f"完成执行 scenario: {scenario_name}")
-    #         except Exception as e:
-    #             logger.error(
-    #                 f"执行 scenario '{scenario_name}' 时出错: {e}",
-    #                 exc_info=True
-    #             )
-    #             # 继续执行下一个 scenario，不中断整个流程
-    #             continue
-        
-    #     logger.info("所有 scenarios 执行完成")
-
-    # def execute_single(
-    #     self, 
-    #     scenario_name: str, 
-    #     scenario_info: Dict[str, Any] = None
-    # ):
-    #     """
-    #     执行单个 scenario
-        
-    #     流程分为三个阶段：
-    #     1. 构建 scenario_info（加载、验证、标准化）
-    #     2. 确保元信息存在（scenario 和 tag definitions）
-    #     3. 执行 jobs（构建 jobs、多进程计算）
-        
-    #     支持两种场景：
-    #     1. 没有 scenario_info：从文件系统加载（使用 GeneralTagHelper.load_scenario_by_name）
-    #     2. 有 scenario_info：使用提供的标准化 scenario_info（包含 scenario_name, settings, worker_class）
-        
-    #     Args:
-    #         scenario_name: Scenario 名称（必需）
-    #         scenario_info: 标准化的 scenario_info 字典（可选），包含：
-    #             - "scenario_name": str
-    #             - "settings": Dict[str, Any]
-    #             - "worker_class": type[BaseTagWorker]
-    #             如果不提供则从文件系统加载
-    #     """
-    #     # 阶段1：构建 scenario_info
-    #     scenario_setting = self._build_scenario_info(scenario_name, scenario_info)
-        
-    #     # 阶段2：确保元信息存在
-    #     scenario, tag_defs, version_action, start_date, end_date = self.tag_meta_manager.ensure_metadata(scenario_setting)
-        
-    #     # 阶段3：解析所需数据
-    #     entity_list = self.entity_list_loader.resolve_tagging_target_entity_list(scenario_setting)
-
-    #     # 阶段4：执行 jobs
-    #     self._execute_jobs(scenario_setting, tag_defs, start_date, end_date, entity_list)
-
-
-    # def _build_scenario_info(
-    #     self,
-    #     scenario_name: str,
-    #     scenario_info: Dict[str, Any] = None
-    # ) -> Dict[str, Any]:
-    #     """
-    #     阶段1：构建和验证 scenario_info
-        
-    #     职责：
-    #     1. 加载或验证 scenario_info（从文件系统或使用提供的）
-    #     2. 验证 settings 有效性
-    #     3. 返回标准化的 scenario_setting
-        
-    #     Args:
-    #         scenario_name: Scenario 名称
-    #         scenario_info: 标准化的 scenario_info 字典（可选）
-        
-    #     Returns:
-    #         Dict[str, Any]: scenario_setting，包含：
-    #             - "scenario_name": str
-    #             - "settings": Dict[str, Any]
-    #             - "worker_class": type[BaseTagWorker]
-    #     """
-    #     # 1. 获取标准化的 scenario_info（使用辅助方法）
-    #     if not scenario_info:
-    #         # 场景1：从文件系统加载（用户单个执行某个 tag 的 job）
-    #         scenario_info = GeneralTagHelper.load_scenario_by_name(scenario_name)
-    #         if not scenario_info:
-    #             raise ValueError(f"can not find scenario by name: {scenario_name}")
-    #     else:
-    #         # 场景2：用户提供了 scenario_info，验证其结构
-    #         # 确保 scenario_name 一致
-    #         info_scenario_name = scenario_info.get("scenario_name")
-    #         if info_scenario_name and info_scenario_name != scenario_name:
-    #             logger.warning(
-    #                 f"scenario_info 中的 scenario_name ({info_scenario_name}) "
-    #                 f"与传入的 scenario_name ({scenario_name}) 不匹配，使用 scenario_info 中的 name"
-    #             )
-    #             scenario_name = info_scenario_name
-        
-    #     # 2. 从标准化的 scenario_info 中提取信息
-    #     settings = scenario_info["settings"]
-    #     worker_class = scenario_info["worker_class"]
-        
-    #     # 3. 从 settings 创建 Model（不完整的 Model，ID=None）
-    #     # 创建实例并配置
-    #     scenario_config = ScenarioModel()
-    #     scenario_config.create_from_settings(settings["scenario"])
-        
-    #     tags_config = []
-    #     for tag_info in settings["tags"]:
-    #         tag_config = TagModel()
-    #         tag_config.create_from_settings(tag_info, scenario_config.version)
-    #         tags_config.append(tag_config)
-        
-    #     # 4. 验证 Model 配置有效性（使用 is_valid() 验证配置字段）
-    #     if not scenario_config.is_valid():
-    #         raise ValueError(f"Scenario 配置无效: {scenario_name}")
-    #     for tag_config in tags_config:
-    #         if not tag_config.is_valid():
-    #             raise ValueError(f"Tag 配置无效: {tag_config.tag_name}")
-        
-    #     # 5. 包装成 scenario_setting 格式（包含 Model 和原始 settings）
-    #     scenario_setting = {
-    #         "scenario_name": scenario_name,
-    #         "scenario_config": scenario_config,  # Model 对象（不完整）
-    #         "tags_config": tags_config,  # List[TagModel]（不完整）
-    #         "settings": settings,  # 保留原始 settings（用于子进程）
-    #         "worker_class": worker_class,
-    #     }
-    #     if not SettingsManager.is_valid_scenario_setting(scenario_setting):
-    #         raise ValueError(f"scenario {scenario_name} settings is not valid")
-        
-    #     return scenario_setting
-
-    # def _execute_jobs(
-    #     self,
-    #     scenario_setting: Dict[str, Any],
-    #     tag_defs: List[TagModel],
-    #     start_date: str,
-    #     end_date: str,
-    #     entity_list: List[str]
-    # ):
-    #     """
-    #     阶段4：执行 jobs
-        
-    #     职责：
-    #     1. 构建 jobs（每个 entity 一个 job）
-    #     2. 决定进程数
-    #     3. 执行多进程计算
-    #     4. 收集和打印统计信息
-        
-    #     Args:
-    #         scenario_setting: scenario_setting 字典
-    #         tag_defs: tag definitions 列表（TagModel 对象）
-    #         start_date: 起始日期
-    #         end_date: 结束日期
-    #         entity_list: 实体ID列表
-    #     """
-    #     scenario_name = scenario_setting["scenario_name"]
-        
-    #     # 1. 构建 jobs
-    #     jobs = JobBuilder.build_jobs(scenario_setting, tag_defs, start_date, end_date, entity_list)
-        
-    #     if not jobs:
-    #         logger.warning(f"No jobs to execute for scenario: {scenario_name}")
-    #         return
-
-    #     # 2. 决定进程数
-    #     max_workers = JobBuilder.decide_worker_amount(jobs)
-
-    #     logger.info(
-    #         f"开始执行 scenario: {scenario_name}, "
-    #         f"jobs={len(jobs)}, max_workers={max_workers}"
-    #     )
-
-    #     # 3. 执行多进程计算（带进度反馈）
-    #     from utils.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
-    #     from concurrent.futures import as_completed
-    #     import time
-        
-    #     worker_pool = ProcessWorker(
-    #         max_workers=max_workers,
-    #         execution_mode=ExecutionMode.QUEUE,  # 队列模式，持续填充
-    #         job_executor=TagManager._execute_single_job,  # 静态方法
-    #         is_verbose=False  # 关闭 ProcessWorker 的详细日志，由 TagManager 统一控制
-    #     )
-        
-    #     # 执行 jobs 并实时反馈进度
-    #     total_jobs = len(jobs)
-    #     start_time = time.time()
-        
-    #     logger.info(f"开始执行 {total_jobs} 个 jobs...")
-        
-    #     # 执行 jobs（ProcessWorker 内部会处理多进程和进度）
-    #     # 注意：进度反馈在 ProcessWorker 内部已经实现（每10个job输出一次）
-    #     # 如果需要更详细的进度，可以在 ProcessWorker 中添加回调机制
-    #     stats = worker_pool.run_jobs(jobs)
-        
-    #     # 在等待期间，定期输出进度（如果 ProcessWorker 支持）
-    #     # 由于 ProcessWorker 内部已经处理了进度，我们主要在这里做最终统计
-        
-    #     # 4. 收集结果和统计信息
-    #     successful_results = worker_pool.get_successful_results()
-    #     failed_results = worker_pool.get_failed_results()
-        
-    #     # 计算最终统计
-    #     completed_jobs = len(successful_results)
-    #     failed_jobs = len(failed_results)
-    #     elapsed_time = time.time() - start_time
-        
-    #     logger.info(
-    #         f"Tag计算完成: scenario={scenario_name}, "
-    #         f"总jobs={total_jobs}, 成功={completed_jobs}, 失败={failed_jobs}, "
-    #         f"耗时={elapsed_time:.2f}秒"
-    #     )
-        
-    #     # 打印详细统计信息
-    #     if self.is_verbose:
-    #         worker_pool.print_stats()
-        
-    #     # 返回统计信息（可选，用于上层调用）
-    #     return {
-    #         'scenario_name': scenario_name,
-    #         'total_jobs': total_jobs,
-    #         'completed_jobs': completed_jobs,
-    #         'failed_jobs': failed_jobs,
-    #         'elapsed_time': elapsed_time,
-    #         'stats': stats
-    #     }
-
-    # def refresh_scenarios(self):
-    #     """
-    #     刷新 scenarios（重新发现和加载）
-        
-    #     职责：
-    #     1. 重新发现所有 scenarios（使用 GeneralTagHelper.load_scenarios）
-    #     2. 更新内部状态（如果需要）
-        
-    #     用于动态加载新添加的 scenario
-    #     """
-    #     # 重新加载所有 scenarios（使用辅助方法）
-    #     all_scenarios = GeneralTagHelper.load_scenarios()
-    #     logger.info(f"刷新完成，共 {len(all_scenarios)} 个可执行的 scenarios")
-
-    # # # ========================================================================
-    # # ========================================================================
-    # # 多进程 Worker Wrapper（静态方法，用于 ProcessWorker）
-    # # ========================================================================
-    
-  

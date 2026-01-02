@@ -20,9 +20,10 @@ import logging
 from pathlib import Path
 from app.tag.core.base_tag_worker import BaseTagWorker
 from app.tag.core.components.settings_management.setting_manager import SettingsManager
-from app.tag.core.components.entity_management.tag_meta_manager import (
-    TagMetaManager,
-)
+# TagMetaManager 已废弃，ensure_metadata 现在直接在 ScenarioModel 中处理
+# from app.tag.core.components.entity_management.tag_meta_manager import (
+#     TagMetaManager,
+# )
 from app.tag.core.components.entity_management.entity_list_loader import (
     EntityListLoader,
 )
@@ -74,7 +75,7 @@ class TagManager:
         # 初始化 data_mgr（单例模式，内部自动获取）
         self.data_mgr = DataManager(is_verbose=False)
 
-        self.tag_meta_manager = TagMetaManager()
+        # self.tag_meta_manager = TagMetaManager()  # 已废弃
         self.entity_list_loader = EntityListLoader()
 
         self.scenario_cache = {}
@@ -216,13 +217,24 @@ class TagManager:
             return
 
         settings = scenario_model.get_settings()
+        calculator = settings.get("calculator", {})
+        performance = calculator.get("performance", {})
+        update_mode_str = performance.get("update_mode", "incremental")
+        
+        # 转换为 UpdateMode 枚举
+        from app.tag.core.enums import UpdateMode
+        try:
+            update_mode = UpdateMode(update_mode_str)
+        except ValueError:
+            logger.warning(f"无效的 update_mode: {update_mode_str}，使用默认值 INCREMENTAL")
+            update_mode = UpdateMode.INCREMENTAL
 
         # 4. 构建 jobs
         jobs = JobBuilder.build_jobs(
             scenario_model, 
             entity_list, 
             tag_value_last_update_info, 
-            settings.get("update_mode", {})
+            update_mode
         )
 
         if not jobs:
@@ -336,7 +348,6 @@ class TagManager:
                     - entity_id: 实体ID
                     - entity_type: 实体类型
                     - scenario_name: Scenario 名称
-                    - scenario_version: Scenario 版本
                     - tag_definitions: Tag Definition 列表
                     - start_date: 起始日期
                     - end_date: 结束日期

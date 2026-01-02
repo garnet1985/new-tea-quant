@@ -1,16 +1,17 @@
 """
-Worker Data Manager - 子进程数据管理器
+Tag Worker Data Manager - Tag Worker 数据管理器
 
 职责：
-1. 管理数据缓存（按记录数切片加载，滑动窗口最多保持 2 个 chunk）
-2. 管理切片状态（slice_state，用于决定下一次 DB 查询的 offset）
-3. 提供数据加载和过滤接口
-4. required_data 全量加载到 as_of_date（不做 chunk，因为数据量小）
+1. 从 settings 解析 target_entity 和 required_entities
+2. 管理数据缓存（按记录数切片加载，滑动窗口最多保持 2 个 chunk）
+3. 管理切片状态（slice_state，用于决定下一次 DB 查询的 offset）
+4. 提供数据加载和过滤接口
+5. required_data 全量加载到 as_of_date（不做 chunk，因为数据量小）
 
 注意：
 - 这是子进程中的数据管理器，在子进程中实例化
 - 负责所有数据加载、缓存、过滤逻辑
-- BaseTagWorker 通过此管理器获取数据，专注于 tag 计算
+- BaseTagWorker 通过此管理器获取数据，专注于 tag 计算流程
 """
 from typing import Dict, Any, List, Optional
 import logging
@@ -19,7 +20,7 @@ from app.data_manager import DataManager
 logger = logging.getLogger(__name__)
 
 
-class WorkerDataManager:
+class TagWorkerDataManager:
     """
     Worker Data Manager - 子进程数据管理器
     
@@ -41,50 +42,42 @@ class WorkerDataManager:
     - 不需要分块，逻辑简单可控
     
     使用方式：
-        data_mgr = WorkerDataManager(
+        data_mgr = TagWorkerDataManager(
             entity_id='000001.SZ',
             entity_type='stock',
-            base_term='daily',
-            required_terms=['weekly'],
-            required_data=['corporate_finance'],
-            data_slice_size=1000  # 每个 chunk 1000 条记录，最多保持 2000 条
+            settings=settings  # 完整的 settings 字典，data_manager 会自动解析
         )
         
-        # 确保数据已加载
-        data_mgr.ensure_data_loaded(as_of_date='20240101')
+        # 获取交易日列表
+        trading_dates = data_mgr.get_trading_dates(start_date, end_date)
         
-        # 过滤数据到指定日期
-        filtered_data = data_mgr.filter_data_to_date(as_of_date='20240101')
+        # 遍历每个日期，获取历史数据（自动按需加载）
+        for as_of_date in trading_dates:
+            historical_data = data_mgr.filter_data_to_date(as_of_date)
     """
     
     def __init__(
         self,
         entity_id: str,
         entity_type: str,
-        base_term: str,
-        required_terms: List[str],
-        required_data: List[str],
-        data_slice_size: int = 1000,
+        settings: Dict[str, Any],
         data_mgr: DataManager = None
     ):
         """
-        初始化 Worker Data Manager
+        初始化 Tag Worker Data Manager
         
         Args:
             entity_id: 实体ID
             entity_type: 实体类型
-            base_term: 基础周期（如 "daily"）
-            required_terms: 需要的其他周期（如 ["weekly", "monthly"]）
-            required_data: 需要的数据源（如 ["corporate_finance", "market_value"]）
-            data_slice_size: 数据切片大小（记录数，默认1000）
+            settings: Settings 字典（完整的 settings 配置）
             data_mgr: DataManager 实例（可选，如果不提供则自动初始化单例）
         """
         self.entity_id = entity_id
         self.entity_type = entity_type
-        self.base_term = base_term
-        self.required_terms = required_terms or []
-        self.required_data = required_data or []
-        self.data_slice_size = data_slice_size
+        self.settings = settings
+        
+        # 从 settings 解析数据需求
+        self._parse_data_requirements()
         
         # 初始化 DataManager（单例模式）
         if data_mgr is None:
@@ -102,6 +95,95 @@ class WorkerDataManager:
         # 例如：{'klines': {'daily': 1000, 'weekly': 500}}
         # 注意：只用于决定下一次DB查询的offset，不跟内存删除关联
         self.slice_state = self._init_slice_state()
+    
+    def _parse_data_requirements(self):
+        """
+        从 settings 解析数据需求
+        
+        解析：
+        1. target_entity.type -> base_term（主数据源）
+        2. required_entities -> required_terms（其他 kline 周期）和 required_data（其他数据源）
+        3. performance.data_chunk_size -> data_slice_size
+        """
+        # 从 target_entity.type 提取 base_term
+        target_entity = self.settings.get('target_entity', {})
+        if isinstance(target_entity, dict):
+            target_entity_type = target_entity.get('type', '')
+        else:
+            target_entity_type = target_entity
+        
+        self.base_term = self._extract_term_from_entity_type(target_entity_type) or 'daily'
+        
+        # 从 required_entities 提取 required_terms 和 required_data
+        required_entities = self.settings.get('required_entities', [])
+        self.required_terms = []
+        self.required_data = []
+        
+        for entity in required_entities:
+            if isinstance(entity, dict):
+                entity_type = entity.get('type', '')
+            else:
+                entity_type = entity
+            
+            # 判断是 kline 类型还是其他数据源
+            term = self._extract_term_from_entity_type(entity_type)
+            if term:
+                # 是 kline 类型，添加到 required_terms
+                if term != self.base_term:  # 避免重复添加 base_term
+                    self.required_terms.append(term)
+            else:
+                # 不是 kline 类型，添加到 required_data
+                data_source = self._extract_data_source_from_entity_type(entity_type)
+                if data_source:
+                    self.required_data.append(data_source)
+        
+        # 数据切片大小配置（从 performance 中读取，默认 500）
+        performance = self.settings.get('performance', {})
+        self.data_slice_size = performance.get('data_chunk_size', 500)
+    
+    def _extract_term_from_entity_type(self, entity_type: str) -> Optional[str]:
+        """
+        从 EntityType 字符串中提取 term（daily/weekly/monthly）
+        
+        Args:
+            entity_type: EntityType 值（如 "stock_kline_daily", "stock_kline_weekly" 等）
+        
+        Returns:
+            Optional[str]: term 字符串（"daily", "weekly", "monthly"），如果不是 kline 类型则返回 None
+        """
+        if not entity_type:
+            return None
+        
+        # 提取 kline 类型中的 term
+        if 'kline_daily' in entity_type:
+            return 'daily'
+        elif 'kline_weekly' in entity_type:
+            return 'weekly'
+        elif 'kline_monthly' in entity_type:
+            return 'monthly'
+        
+        return None
+    
+    def _extract_data_source_from_entity_type(self, entity_type: str) -> Optional[str]:
+        """
+        从 EntityType 字符串中提取数据源名称
+        
+        Args:
+            entity_type: EntityType 值（如 "corporate_finance", "gdp" 等）
+        
+        Returns:
+            Optional[str]: 数据源名称，如果是 kline 类型则返回 None
+        """
+        if not entity_type:
+            return None
+        
+        # 如果是 kline 类型，返回 None
+        if 'kline' in entity_type:
+            return None
+        
+        # 直接返回 entity_type 作为数据源名称
+        # 例如: "corporate_finance" -> "corporate_finance"
+        return entity_type
     
     def _init_slice_state(self) -> Dict[str, Any]:
         """初始化切片状态"""

@@ -141,7 +141,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         batch_offset = 0
 
         if not is_first_run and self.RENEW_ROLLING_BATCH and len(all_stocks) > 0:
-            from app.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
+            from app.core_modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
 
             batch_size = max(1, len(all_stocks) // self.RENEW_ROLLING_BATCH)
 
@@ -220,7 +220,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         # 非首次跑时，将新的 batch_offset 写回 meta_info，作为下次轮转的起点
         if not is_first_run and self.RENEW_ROLLING_BATCH and target_list:
             try:
-                from app.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
+                from app.core_modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
                 meta_model: MetaInfoModel = self.data_manager.get_model('meta_info')  # type: ignore
                 meta_key = 'corporate_finance_batch_offset'
                 meta_model.save_meta(

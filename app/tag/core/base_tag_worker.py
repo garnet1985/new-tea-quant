@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple, Type
 import inspect
 import logging
-from app.tag.core.enums import UpdateMode
+from app.tag.core.enums import TagUpdateMode
 from app.tag.core.components.helper.settings_helper import SettingsHelper
 from app.tag.core.components.helper.tag_helper import TagHelper
 from app.data_manager import DataManager

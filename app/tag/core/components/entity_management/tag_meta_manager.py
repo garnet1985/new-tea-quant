@@ -11,7 +11,7 @@ Tag Meta Manager - Scenario 和 Tag 元信息管理器
 from typing import Dict, Any, List, Optional, Tuple
 import logging
 from app.data_manager import DataManager
-from app.tag.core.enums import UpdateMode, VersionChangeAction, VersionAction
+from app.tag.core.enums import TagUpdateMode, VersionChangeAction, VersionAction
 from app.tag.core.config import ALLOW_VERSION_ROLLBACK
 from app.conf.conf import data_default_start_date
 from app.tag.core.models.scenario_model import ScenarioModel
@@ -529,7 +529,7 @@ class TagMetaManager:
     #     settings = scenario_setting["settings"]
     #     calculator = settings.get("calculator", {})
     #     performance = calculator.get("performance", {})
-    #     update_mode = performance.get("update_mode", UpdateMode.INCREMENTAL.value)
+    #     update_mode = performance.get("update_mode", TagUpdateMode.INCREMENTAL.value)
         
     #     # 获取用户配置的日期（如果有）
     #     user_start_date = calculator.get("start_date", "")
@@ -546,7 +546,7 @@ class TagMetaManager:
             
     #     elif version_action == VersionAction.ROLLBACK.value:
     #         # 版本回退：按照该版本的 update_mode 继续
-    #         if update_mode == UpdateMode.INCREMENTAL.value:
+    #         if update_mode == TagUpdateMode.INCREMENTAL.value:
     #             # 增量模式：从上次计算的最大 as_of_date 继续
     #             max_as_of_date = self._get_max_as_of_date(tag_defs)
     #             if max_as_of_date:
@@ -563,7 +563,7 @@ class TagMetaManager:
                 
     #     else:  # NO_CHANGE
     #         # 版本未变：按 update_mode 计算
-    #         if update_mode == UpdateMode.INCREMENTAL.value:
+    #         if update_mode == TagUpdateMode.INCREMENTAL.value:
     #             # 增量模式：从上次计算的最大 as_of_date 继续
     #             max_as_of_date = self._get_max_as_of_date(tag_defs)
     #             if max_as_of_date:

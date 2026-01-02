@@ -4,10 +4,9 @@
 包含整个应用程序级别的枚举类型和系统常量
 """
 from enum import Enum
-from token import LPAR
 
 class EntityType(Enum):
-    """实体类型枚举"""
+    """实体类型枚举(有时序的)"""
     STOCK_KLINE_DAILY = "stock_kline_daily"
     STOCK_KLINE_WEEKLY = "stock_kline_weekly"
     STOCK_KLINE_MONTHLY = "stock_kline_monthly"

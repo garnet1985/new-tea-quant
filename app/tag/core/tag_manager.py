@@ -151,8 +151,9 @@ class TagManager:
                 continue      
 
             scenario_cache[cache_item["name"]] = cache_item
-            logger.info(f"发现可用场景: {cache_item["name"]}, 文件夹: {scenario_folder.name}")
-        return scenario_cache
+            logger.info(f"发现可用场景: {cache_item['name']}, 文件夹: {scenario_folder.name}")
+        
+        self.scenario_cache = scenario_cache
 
     def _build_scenario_cache(self, scenario_folder: Path):
         settings_path, settings_dict = TagHelper.load_scenario_settings(scenario_folder)
@@ -243,9 +244,8 @@ class TagManager:
         if scenario_name in self.scenario_cache:
             return self.scenario_cache[scenario_name].get("worker_class")
         
-        # 如果不在 cache 中（例如从 _execute_single_from_tmp_settings 进入），尝试从 settings 加载
-        # TODO: 实现从 settings 中加载 worker_class 的逻辑
-        # 需要知道 scenario 的文件夹路径，或者从 settings 中解析
+        # 如果不在 cache 中（例如从 _execute_single_from_tmp_settings 进入），返回 None
+        # 注意：通常 scenario 应该通过 execute() 方法执行，会自动加载到 cache
         logger.warning(f"Scenario {scenario_name} 不在 cache 中，无法获取 worker_class")
         return None
 
@@ -325,6 +325,13 @@ class TagManager:
         default_start_date = settings.get("start_date")
         default_end_date = settings.get("end_date")
         
+        # 获取实体类型（从 scenario_model 获取）
+        entity_type = scenario_model.get_target_entity()
+        
+        # 获取 tag definitions 列表（从 scenario_model 获取）
+        tag_models = scenario_model.get_tag_models()
+        tag_definitions = [tag_model.to_dict() for tag_model in tag_models]
+        
         # 如果是 INCREMENTAL 模式，需要获取该 scenario 下所有 tag values 的最近记录
         # 查询逻辑：找到该 scenario 下所有 tag_definition_ids 对应的 tag_value 记录，
         # 按 entity_id 分组，找到每个 entity 的最大 as_of_date
@@ -358,11 +365,13 @@ class TagManager:
                 "id": scenario_model.get_identifier() + "_" + entity_id,
                 "payload": {
                     "entity_id": entity_id,
+                    "entity_type": entity_type,  # 添加 entity_type
                     "scenario_name": scenario_name,
                     "update_mode": update_mode,
-                    "tags": scenario_model.get_tags_dict(),
+                    "tag_definitions": tag_definitions,  # 使用 tag_definitions 列表
                     "start_date": start_date,
                     "end_date": end_date,
+                    "settings": settings,  # 添加完整的 settings
                     "worker_class": worker_class,  # 将 worker_class 放入 payload
                 },
             }
@@ -449,8 +458,8 @@ class TagManager:
             # - DataManager 是单例模式，在 BaseTagWorker.__init__ 中会自动初始化
             worker = worker_class(job_payload=job_payload)
             
-            # 3. 调用 run() 方法执行计算
-            worker.run()
+            # 3. 调用 process_entity() 方法执行计算
+            result = worker.process_entity()
             
             # 4. 返回成功结果
             return JobResult(
@@ -458,8 +467,10 @@ class TagManager:
                 status=JobStatus.COMPLETED,
                 result={
                     'entity_id': payload.get('entity_id'),
-                    'success': True,
-                    'total_tags': 0  # TODO: 从 worker 获取实际 tag 数量
+                    'success': result.get('success', True),
+                    'total_tags': result.get('total_tags_created', 0),
+                    'processed_dates': result.get('processed_dates', 0),
+                    'total_dates': result.get('total_dates', 0)
                 },
                 start_time=datetime.now(),
                 end_time=datetime.now()

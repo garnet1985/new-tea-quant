@@ -42,38 +42,35 @@ class TagDataService(BaseDataService):
     # Scenario 相关 API
     # ========================================================================
     
-    def load_scenario(self, scenario_name: str, scenario_version: str) -> Optional[Dict[str, Any]]:
+    def load_scenario(self, scenario_name: str) -> Optional[Dict[str, Any]]:
         """
-        加载指定名称和版本的 scenario
+        加载指定名称的 scenario
         
         Args:
             scenario_name: Scenario 名称
-            scenario_version: Scenario 版本
         
         Returns:
-            Dict[str, Any]: Scenario 记录（包含 id, name, version, is_legacy, display_name, description, created_at 等）
+            Dict[str, Any]: Scenario 记录（包含 id, name, display_name, description, created_at 等）
             None: 如果不存在
         """
-        return self.tag_scenario_model.load_by_name_and_version(scenario_name, scenario_version)
+        return self.tag_scenario_model.load_by_name(scenario_name)
     
-    def get_scenario(self, scenario_name: str, scenario_version: str) -> Optional[Dict[str, Any]]:
+    def get_scenario(self, scenario_name: str) -> Optional[Dict[str, Any]]:
         """
-        获取指定名称和版本的 scenario（与 load_scenario 功能相同）
+        获取指定名称的 scenario（与 load_scenario 功能相同）
         
         Args:
             scenario_name: Scenario 名称
-            scenario_version: Scenario 版本
         
         Returns:
             Dict[str, Any]: Scenario 记录
             None: 如果不存在
         """
-        return self.load_scenario(scenario_name, scenario_version)
+        return self.load_scenario(scenario_name)
     
     def save_scenario(
         self,
         scenario_name: str,
-        scenario_version: str,
         display_name: str = None,
         description: str = None
     ) -> Dict[str, Any]:
@@ -82,7 +79,6 @@ class TagDataService(BaseDataService):
         
         Args:
             scenario_name: Scenario 名称
-            scenario_version: Scenario 版本
             display_name: 显示名称（可选，默认使用 scenario_name）
             description: 描述（可选，默认空字符串）
         
@@ -91,21 +87,18 @@ class TagDataService(BaseDataService):
         """
         scenario_data = {
             'name': scenario_name,
-            'version': scenario_version,
             'display_name': display_name or scenario_name,
-            'description': description or '',
-            'is_legacy': 0
+            'description': description or ''
         }
         
         self.tag_scenario_model.save_scenario(scenario_data)
         
         # 返回新创建的 scenario
-        return self.load_scenario(scenario_name, scenario_version)
+        return self.load_scenario(scenario_name)
     
     def create_scenario(
         self,
         name: str,
-        version: str,
         display_name: str = None,
         description: str = None
     ) -> int:
@@ -114,22 +107,19 @@ class TagDataService(BaseDataService):
         
         Args:
             name: Scenario 名称
-            version: Scenario 版本
             display_name: 显示名称（可选）
             description: 描述（可选）
         
         Returns:
             int: 新创建的 scenario ID
         """
-        scenario = self.save_scenario(name, version, display_name, description)
+        scenario = self.save_scenario(name, display_name, description)
         return scenario['id']
     
     def update_scenario(
         self,
         scenario_id: int,
         scenario_name: str = None,
-        scenario_version: str = None,
-        is_legacy: int = None,
         display_name: str = None,
         description: str = None,
         current_scenario: Dict[str, Any] = None
@@ -140,8 +130,6 @@ class TagDataService(BaseDataService):
         Args:
             scenario_id: Scenario ID
             scenario_name: Scenario 名称（可选）
-            scenario_version: Scenario 版本（可选）
-            is_legacy: 是否 legacy（0=active, 1=legacy）（可选）
             display_name: 显示名称（可选）
             description: 描述（可选）
             current_scenario: 当前的 scenario 数据（可选，如果提供则避免额外查询）
@@ -152,10 +140,6 @@ class TagDataService(BaseDataService):
         update_data = {}
         if scenario_name is not None:
             update_data['name'] = scenario_name
-        if scenario_version is not None:
-            update_data['version'] = scenario_version
-        if is_legacy is not None:
-            update_data['is_legacy'] = is_legacy
         if display_name is not None:
             update_data['display_name'] = display_name
         if description is not None:
@@ -182,42 +166,22 @@ class TagDataService(BaseDataService):
     
     def list_scenarios(
         self,
-        scenario_name: str = None,
-        include_legacy: bool = False
+        scenario_name: str = None
     ) -> List[Dict[str, Any]]:
         """
         列出所有 scenarios（支持按名称过滤）
         
         Args:
-            scenario_name: Scenario 名称（可选，如果提供则只返回该名称的所有版本）
-            include_legacy: 是否包含 legacy 版本（默认 False）
+            scenario_name: Scenario 名称（可选，如果提供则只返回该名称的 scenario）
         
         Returns:
             List[Dict[str, Any]]: Scenario 列表
         """
         if scenario_name:
-            return self.tag_scenario_model.load_by_name(scenario_name, include_legacy)
+            scenario = self.tag_scenario_model.load_by_name(scenario_name)
+            return [scenario] if scenario else []
         else:
-            return self.tag_scenario_model.load_all(include_legacy)
-    
-    def mark_scenario_as_legacy(self, scenario_id: int) -> None:
-        """
-        将 scenario 标记为 legacy（设置 is_legacy=1）
-        
-        Args:
-            scenario_id: Scenario ID
-        
-        Returns:
-            None
-        """
-        self.tag_scenario_model.mark_as_legacy(scenario_id)
-        
-        # 同时更新该 scenario 下的所有 tag definitions 的 is_legacy
-        self.tag_definition_model.update(
-            "scenario_id = %s",
-            (scenario_id,),
-            {'is_legacy': 1}
-        )
+            return self.tag_scenario_model.load_all()
     
     def delete_scenario(self, scenario_id: int, cascade: bool = False) -> None:
         """
@@ -244,8 +208,7 @@ class TagDataService(BaseDataService):
     def load_tag(
         self,
         tag_name: str,
-        scenario_id: int,
-        scenario_version: str
+        scenario_id: int
     ) -> Optional[Dict[str, Any]]:
         """
         加载指定名称的 tag definition
@@ -253,21 +216,19 @@ class TagDataService(BaseDataService):
         Args:
             tag_name: Tag 名称
             scenario_id: Scenario ID
-            scenario_version: Scenario 版本
         
         Returns:
-            Dict[str, Any]: Tag definition 记录（包含 id, name, scenario_id, scenario_version, display_name, description, is_legacy 等）
+            Dict[str, Any]: Tag definition 记录（包含 id, name, scenario_id, display_name, description 等）
             None: 如果不存在
         """
         return self.tag_definition_model.load_by_name_and_scenario(
-            tag_name, scenario_id, scenario_version
+            tag_name, scenario_id
         )
     
     def save_tag(
         self,
         tag_name: str,
         scenario_id: int,
-        scenario_version: str,
         display_name: str,
         description: str = ""
     ) -> Dict[str, Any]:
@@ -277,7 +238,6 @@ class TagDataService(BaseDataService):
         Args:
             tag_name: Tag 名称
             scenario_id: Scenario ID
-            scenario_version: Scenario 版本
             display_name: 显示名称
             description: 描述（可选，默认空字符串）
         
@@ -286,22 +246,19 @@ class TagDataService(BaseDataService):
         """
         tag_data = {
             'scenario_id': scenario_id,
-            'scenario_version': scenario_version,
             'name': tag_name,
             'display_name': display_name,
-            'description': description or '',
-            'is_legacy': 0
+            'description': description or ''
         }
         
         self.tag_definition_model.save_tag_definition(tag_data)
         
         # 返回新创建的 tag definition
-        return self.load_tag(tag_name, scenario_id, scenario_version)
+        return self.load_tag(tag_name, scenario_id)
     
     def create_tag_definition(
         self,
         scenario_id: int,
-        scenario_version: str,
         name: str,
         display_name: str,
         description: str = ""
@@ -311,7 +268,6 @@ class TagDataService(BaseDataService):
         
         Args:
             scenario_id: Scenario ID
-            scenario_version: Scenario 版本
             name: Tag 名称
             display_name: 显示名称
             description: 描述（可选，默认空字符串）
@@ -319,49 +275,42 @@ class TagDataService(BaseDataService):
         Returns:
             int: 新创建的 tag definition ID
         """
-        tag = self.save_tag(name, scenario_id, scenario_version, display_name, description)
+        tag = self.save_tag(name, scenario_id, display_name, description)
         return tag['id']
     
     def get_tag_definitions(
         self,
-        scenario_id: int = None,
-        include_legacy: bool = False
+        scenario_id: int = None
     ) -> List[Dict[str, Any]]:
         """
         获取 tag definitions 列表
         
         Args:
             scenario_id: Scenario ID（可选，如果提供则只返回该 scenario 下的 tags）
-            include_legacy: 是否包含 legacy tags（默认 False）
         
         Returns:
             List[Dict[str, Any]]: Tag definition 列表
         """
         if scenario_id:
-            return self.tag_definition_model.load_by_scenario_id(scenario_id, include_legacy)
+            return self.tag_definition_model.load_by_scenario_id(scenario_id)
         else:
             # 查询所有 tag definitions
-            if include_legacy:
-                return self.tag_definition_model.load("1=1", order_by="scenario_id ASC, name ASC")
-            else:
-                return self.tag_definition_model.load("is_legacy = 0", order_by="scenario_id ASC, name ASC")
+            return self.tag_definition_model.load("1=1", order_by="scenario_id ASC, name ASC")
     
     def list_tag_definitions(
         self,
-        scenario_id: int = None,
-        include_legacy: bool = False
+        scenario_id: int = None
     ) -> List[Dict[str, Any]]:
         """
         列出 tag definitions（与 get_tag_definitions 功能相同）
         
         Args:
             scenario_id: Scenario ID（可选）
-            include_legacy: 是否包含 legacy tags（默认 False）
         
         Returns:
             List[Dict[str, Any]]: Tag definition 列表
         """
-        return self.get_tag_definitions(scenario_id, include_legacy)
+        return self.get_tag_definitions(scenario_id)
     
     def update_tag_definition(
         self,
@@ -521,6 +470,18 @@ class TagDataService(BaseDataService):
         
         return result
     
+    def delete_tag_definition(self, tag_definition_id: int) -> None:
+        """
+        删除指定的 tag definition
+        
+        Args:
+            tag_definition_id: Tag definition ID
+        
+        Returns:
+            None
+        """
+        self.tag_definition_model.delete("id = %s", (tag_definition_id,))
+    
     def delete_tag_definitions_by_scenario(self, scenario_id: int) -> None:
         """
         删除指定 scenario 下的所有 tag definitions
@@ -581,7 +542,7 @@ class TagDataService(BaseDataService):
             None
         """
         # 1. 获取该 scenario 下的所有 tag_definition_ids
-        tag_defs = self.get_tag_definitions(scenario_id=scenario_id, include_legacy=True)
+        tag_defs = self.get_tag_definitions(scenario_id=scenario_id)
         tag_definition_ids = [tag_def['id'] for tag_def in tag_defs]
         
         if not tag_definition_ids:
@@ -642,6 +603,54 @@ class TagDataService(BaseDataService):
     # ========================================================================
     # 辅助 API
     # ========================================================================
+    
+    def get_tag_value_last_update_info(self, scenario_name: str) -> Dict[str, Any]:
+        """
+        获取 scenario 下所有 tag values 的最后更新信息（按 entity 分组）
+        
+        Args:
+            scenario_name: Scenario 名称
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: 每个 entity_id 对应的最后更新信息
+                {
+                    "entity_id": {
+                        "max_as_of_date": "20250101",  # 最大 as_of_date
+                        "tag_definition_ids": [1, 2, 3]  # 相关的 tag definition IDs
+                    }
+                }
+        """
+        # TODO: 伪代码，待实现
+        # 1. 根据 scenario_name 查找 scenario_id
+        scenario = self.load_scenario(scenario_name)
+        if not scenario:
+            return {}
+        
+        scenario_id = scenario.get('id')
+        
+        # 2. 获取该 scenario 下的所有 tag definitions
+        tag_defs = self.get_tag_definitions(scenario_id)
+        tag_definition_ids = [tag_def['id'] for tag_def in tag_defs]
+        
+        if not tag_definition_ids:
+            return {}
+        
+        # 3. 查询每个 entity 的最大 as_of_date
+        # TODO: 实现 SQL 查询，按 entity_id 分组，获取每个 entity 的最大 as_of_date
+        # SELECT entity_id, MAX(as_of_date) as max_as_of_date
+        # FROM tag_value
+        # WHERE tag_definition_id IN (...)
+        # GROUP BY entity_id
+        
+        result = {}
+        # 伪代码：遍历查询结果，构建 result 字典
+        # for row in query_results:
+        #     result[row['entity_id']] = {
+        #         "max_as_of_date": row['max_as_of_date'],
+        #         "tag_definition_ids": tag_definition_ids
+        #     }
+        
+        return result
     
     def get_next_trading_date(self, date: str) -> str:
         """

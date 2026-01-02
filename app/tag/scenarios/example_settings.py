@@ -31,8 +31,10 @@ Settings = {
     "name": "example",
 
     # 必须参数
-    # 版本号可以自己定义，字符串类型
-    "version": "1.0",
+    # 是不是重新生成所有tags
+    # - 当为false时，会使用update mode来决定是否重新生成tags
+    # - 当为true时，会重新生成所有tags
+    "recompute": False,
 
     # 必须参数
     "target_entity": {
@@ -66,12 +68,6 @@ Settings = {
     # 可选参数
     # 业务场景描述
     "description": "一个展示所有可用settings的示例",
-
-    # 可选参数
-    # 定义如果检查到版本变更后该采取什么行为（Scenario 级别）。可选值：
-    # - REFRESH_SCENARIO: 舍弃原来的tags，重新计算该Scenario下所有tags的值。
-    # - NEW_SCENARIO: 保留原来版本的tags，创建一组新的tags。
-    "on_version_change": VersionChangeAction.REFRESH_SCENARIO.value,
 
     # 可选参数，默认为空字符串: 使用系统级别默认开始日期data_default_start_date
     # 计算开始日期。格式为YYYYMMDD（字符串，如 "20200101"）

@@ -56,7 +56,6 @@ class BaseTagWorker(ABC):
                 - entity_id: 实体ID
                 - entity_type: 实体类型
                 - scenario_name: Scenario 名称
-                - scenario_version: Scenario 版本
                 - tag_definitions: Tag Definition 列表
                 - start_date: 起始日期
                 - end_date: 结束日期
@@ -109,7 +108,6 @@ class BaseTagWorker(ABC):
         
         # 基础配置
         self.scenario_name = scenario_config.get('name', '')
-        self.scenario_version = scenario_config.get('version', '1.0')
         self.base_term = calculator_config.get('base_term', 'daily')
         self.required_terms = calculator_config.get('required_terms', [])
         self.required_data = calculator_config.get('required_data', [])
@@ -154,7 +152,6 @@ class BaseTagWorker(ABC):
                     "entity_id": str,
                     "entity_type": str,
                     "scenario_name": str,
-                    "scenario_version": str,
                     "total_dates": int,
                     "processed_dates": int,
                     "total_tags_created": int,
@@ -183,7 +180,6 @@ class BaseTagWorker(ABC):
                 "entity_id": self.entity_id,
                 "entity_type": self.entity_type,
                 "scenario_name": self.scenario_name,
-                "scenario_version": self.scenario_version,
                 "total_dates": 0,
                 "processed_dates": 0,
                 "total_tags_created": 0,
@@ -327,7 +323,6 @@ class BaseTagWorker(ABC):
             "entity_id": self.entity_id,
             "entity_type": self.entity_type,
             "scenario_name": self.scenario_name,
-            "scenario_version": self.scenario_version,
             "total_dates": total_dates,
             "processed_dates": processed_dates,
             "total_tags_created": total_tags_created,

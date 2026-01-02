@@ -62,7 +62,6 @@ class JobBuilder:
                     # - entity_id: 实体ID
                     # - entity_type: 实体类型（从 scenario_model 获取）
                     # - scenario_name: Scenario 名称
-                    # - scenario_version: Scenario 版本
                     # - tag_definitions: Tag Definition 列表（从 scenario_model.get_tag_models() 获取并转换为字典）
                     # - start_date: 起始日期
                     # - end_date: 结束日期
@@ -239,7 +238,6 @@ class JobBuilder:
             "entity_id",
             "entity_type",
             "scenario_name",
-            "scenario_version",
             "tag_definitions",
             "start_date",
             "end_date",

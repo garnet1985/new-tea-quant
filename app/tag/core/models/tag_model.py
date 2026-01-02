@@ -2,8 +2,6 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from loguru import logger
 
-from app.tag.core.enums import EnsureMetaAction
-
 
 class TagModel:
     """
@@ -11,24 +9,21 @@ class TagModel:
     
     使用流程：
     1. 创建实例：tag = TagModel()
-    2. 从 settings 配置：tag.create_from_settings(settings["tags"][i], scenario_version)
-    3. 验证配置：tag.is_valid()  # 验证配置字段（tag_name, scenario_version）
-    4. ensure_metadata 后：tag.is_complete()  # 验证完整性（所有字段都有值）
+    2. 从 settings 配置：tag.create_from_settings(settings["tags"][i])
+    3. ensure_metadata 后：tag 完整（所有字段都有值）
     
     注意：
     - 在 ensure_metadata 之前，Model 可以是不完整的（ID=None, scenario_id=None, created_at=None 等）
     - 在 ensure_metadata 之后，Model 必须是完整的（所有字段都有值）
     """
 
-    def __init__(self, tag_setting: Dict[str, Any], scenario_version: str):
+    def __init__(self, tag_setting: Dict[str, Any]):
         """初始化 TagModel（所有字段为 None/False）"""
         self.id = None
         self.tag_name = None
         self.scenario_id = None
-        self.scenario_version = scenario_version
         self.display_name = None
         self.description = None
-        self.is_legacy = False
         self.created_at = None
         self.updated_at = None
         
@@ -43,29 +38,26 @@ class TagModel:
     # Public APIs
     # ================================================================
     @classmethod
-    def create_from_settings(cls, tag_setting: Dict[str, Any], scenario_version: str = None) -> 'TagModel':
+    def create_from_settings(cls, tag_setting: Dict[str, Any]) -> 'TagModel':
         """
         从 settings 字典配置当前实例
         
         用于在 ensure_metadata 之前从 settings 创建配置 Model。
-        配置后应立即调用 is_valid() 验证配置有效性。
         
         Args:
-            settings: settings["tags"][i] 字典，必须包含 "name"
-            scenario_version: scenario 的版本（从 scenario 配置中获取）
+            tag_setting: settings["tags"][i] 字典，必须包含 "name"
         
         Returns:
-            TagModel: 返回自身（支持链式调用）
+            TagModel: 返回实例
         """
-        if not TagModel.is_setting_valid(tag_setting, scenario_version):
+        if not TagModel.is_setting_valid(tag_setting):
             raise ValueError("Settings is not valid")
         
-        # # 设置必需字段
-        instance = cls(tag_setting, scenario_version)
+        instance = cls(tag_setting)
         return instance
 
     @staticmethod
-    def is_setting_valid(tag_setting: Dict[str, Any], scenario_version: str) -> bool:
+    def is_setting_valid(tag_setting: Dict[str, Any]) -> bool:
         """
         验证 tag_setting 字典是否有效（静态方法，在创建实例前验证）
         
@@ -83,10 +75,6 @@ class TagModel:
             logger.debug(f"当前tag_setting字典内缺少必要字段: name")
             return False
         
-        if scenario_version is None or not scenario_version:
-            logger.debug(f"当前传入的 scenario_version 字符串为空值")
-            return False
-        
         return True
 
     def get_name(self) -> str:
@@ -101,73 +89,66 @@ class TagModel:
             'id': self.id,
             'tag_name': self.tag_name,
             'scenario_id': self.scenario_id,
-            'scenario_version': self.scenario_version,
             'display_name': self.display_name,
             'description': self.description,
-            'is_legacy': self.is_legacy,
             'created_at': self.created_at,
             'updated_at': self.updated_at
         }
 
-    def ensure_metadata(self, tag_data_mgr, meta_action, scenario_id: int):
+    def ensure_metadata(self, tag_data_mgr, scenario_id: int, recompute: bool = False):
         """
         确保元信息存在
         
-        逻辑：
-        - NEW_SCENARIO: 直接 save_tag（tag 不存在）
-        - 其他情况（META_UPDATE, ROLLBACK, NO_CHANGE）: 统一处理为 load → diff → update
+        简化逻辑：
+        - 如果 recompute=True 或 tag 不存在：创建新的 tag
+        - 如果 recompute=False 且 tag 存在：检查 diff 并更新（如果需要）
         
         Args:
             tag_data_mgr: TagDataManager 实例
-            meta_action: EnsureMetaAction 枚举值
             scenario_id: Scenario ID（从 ScenarioModel 传入）
+            recompute: 是否强制重新计算（从 ScenarioModel 传入）
         """
         # 设置 scenario_id（在调用 save_tag/update_tag 前必须设置）
         self.scenario_id = scenario_id
         
-        if meta_action == EnsureMetaAction.NEW_SCENARIO.value:
-            # 首次创建 tag（scenario 不存在，所以 tag 也不存在）
-            # TODO: 修复 API 调用方式，使用正确的参数
-            # new_meta = tag_data_mgr.save_tag(
-            #     self.tag_name,
-            #     scenario_id,
-            #     self.scenario_version,
-            #     self.display_name,
-            #     self.description
-            # )
-            new_meta = tag_data_mgr.save_tag(self.to_dict())  # 伪代码，待修复
+        if recompute:
+            # 强制重新计算：删除旧的 tag（如果存在）并创建新的
+            existing_tag = tag_data_mgr.load_tag(self.tag_name, scenario_id)
+            if existing_tag:
+                # 删除旧的 tag definition（tag values 会在 scenario 级别删除）
+                tag_data_mgr.delete_tag_definition(existing_tag.get('id'))
+            
+            # 创建新的 tag
+            new_meta = tag_data_mgr.save_tag(
+                self.tag_name,
+                scenario_id,
+                self.display_name,
+                self.description
+            )
             self._set_meta(new_meta)
         else:
-            # 其他情况（META_UPDATE, ROLLBACK, NO_CHANGE）统一处理：
-            # scenario 已存在，所以 tag 也应该已存在，只需要检查 diff 并 update
-            existing_tag = tag_data_mgr.load_tag(
-                self.tag_name, 
-                scenario_id, 
-                self.scenario_version
-            )
+            # 检查 tag 是否存在
+            existing_tag = tag_data_mgr.load_tag(self.tag_name, scenario_id)
             
             if not existing_tag:
-                # 不应该发生（scenario 存在但 tag 不存在），但为了安全还是创建
-                logger.warning(
-                    f"Tag 不存在但 scenario 已存在: "
-                    f"tag_name={self.tag_name}, scenario_id={scenario_id}, "
-                    f"meta_action={meta_action}"
+                # tag 不存在，创建新的
+                new_meta = tag_data_mgr.save_tag(
+                    self.tag_name,
+                    scenario_id,
+                    self.display_name,
+                    self.description
                 )
-                # TODO: 修复 API 调用方式
-                new_meta = tag_data_mgr.save_tag(self.to_dict())  # 伪代码，待修复
                 self._set_meta(new_meta)
             else:
-                # 检查是否有差异
+                # tag 存在，检查是否有差异
                 if self._has_meta_diff(existing_tag):
                     # 有差异，需要更新
-                    # TODO: 修复 API 调用方式，使用正确的参数
-                    # new_meta = tag_data_mgr.update_tag_definition(
-                    #     existing_tag.get('id'),
-                    #     display_name=self.display_name,
-                    #     description=self.description,
-                    #     current_tag=existing_tag
-                    # )
-                    new_meta = tag_data_mgr.update_tag(self.to_dict())  # 伪代码，待修复
+                    new_meta = tag_data_mgr.update_tag_definition(
+                        existing_tag.get('id'),
+                        display_name=self.display_name,
+                        description=self.description,
+                        current_tag=existing_tag
+                    )
                     self._set_meta(new_meta)
                 else:
                     # 无差异，直接加载现有 metadata（不更新）
@@ -180,16 +161,19 @@ class TagModel:
     # ================================================================
     # Private implementations
     # ================================================================
-    def _set_meta(self, new_meta):
+    def _set_meta(self, new_meta: Dict[str, Any]):
         """
         设置 meta
+        
+        Args:
+            new_meta: 包含完整数据库字段的字典
         """
-        self.id = new_meta.id
-        self.display_name = new_meta.display_name
-        self.description = new_meta.description
-        self.is_legacy = new_meta.is_legacy
-        self.created_at = new_meta.created_at
-        self.updated_at = new_meta.updated_at
+        self.id = new_meta.get('id')
+        self.scenario_id = new_meta.get('scenario_id')  # 确保 scenario_id 也被设置
+        self.display_name = new_meta.get('display_name')
+        self.description = new_meta.get('description')
+        self.created_at = new_meta.get('created_at')
+        self.updated_at = new_meta.get('updated_at')
 
 
     def _has_meta_diff(self, db_meta: Dict[str, Any]) -> bool:
@@ -202,7 +186,6 @@ class TagModel:
         Returns:
             bool: 如果有差异返回 True，否则返回 False
         """
-        # TODO: 伪代码，待完善
         # 比较 display_name 和 description 是否有变化
         if self.display_name != db_meta.get('display_name'):
             return True
@@ -223,7 +206,6 @@ class TagModel:
         self.tag_name = tag_setting["name"]
         self.display_name = tag_setting.get("display_name") or self.tag_name  # 如果没有则使用 tag_name
         self.description = tag_setting.get("description") or ""  # 如果没有则为空字符串
-        self.is_legacy = False  # 默认值
 
         self._is_configured = True
         self._is_ensured = False

@@ -12,42 +12,33 @@ class TagDefinitionModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__('tag_definition', db)
     
-    def load_by_name_and_scenario(self, name: str, scenario_id: int, scenario_version: str) -> Optional[Dict[str, Any]]:
+    def load_by_name_and_scenario(self, name: str, scenario_id: int) -> Optional[Dict[str, Any]]:
         """
-        根据名称、scenario_id 和 scenario_version 查询 tag definition
+        根据名称和 scenario_id 查询 tag definition
         
         Args:
             name: Tag 名称
             scenario_id: Scenario ID
-            scenario_version: Scenario 版本
             
         Returns:
             Dict 或 None
         """
         return self.load_one(
-            "name = %s AND scenario_id = %s AND scenario_version = %s",
-            (name, scenario_id, scenario_version)
+            "name = %s AND scenario_id = %s",
+            (name, scenario_id)
         )
     
-    def load_by_scenario_id(self, scenario_id: int, include_legacy: bool = False) -> List[Dict[str, Any]]:
+    def load_by_scenario_id(self, scenario_id: int) -> List[Dict[str, Any]]:
         """
         根据 scenario_id 查询所有 tag definitions
         
         Args:
             scenario_id: Scenario ID
-            include_legacy: 是否包含 legacy tags（默认 False）
             
         Returns:
             List[Dict]: Tag definition 列表
         """
-        if include_legacy:
-            return self.load("scenario_id = %s", (scenario_id,), order_by="name ASC")
-        else:
-            return self.load(
-                "scenario_id = %s AND is_legacy = 0",
-                (scenario_id,),
-                order_by="name ASC"
-            )
+        return self.load("scenario_id = %s", (scenario_id,), order_by="name ASC")
     
     def save_tag_definition(self, tag_data: Dict[str, Any]) -> int:
         """
@@ -56,19 +47,13 @@ class TagDefinitionModel(DbBaseModel):
         Args:
             tag_data: Tag definition 数据字典，包含：
                 - scenario_id: int
-                - scenario_version: str
                 - name: str
                 - display_name: str
                 - description: str (可选)
-                - is_legacy: int (可选，默认 0)
         
         Returns:
             int: 保存的记录数（通常是 1）
         """
-        # 设置默认值
-        if 'is_legacy' not in tag_data:
-            tag_data['is_legacy'] = 0
-        
         return self.replace_one(
             tag_data,
             unique_keys=['scenario_id', 'name']

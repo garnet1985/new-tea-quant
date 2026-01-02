@@ -27,8 +27,7 @@ if TYPE_CHECKING:
     from app.enums import EntityType
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
-from app.conf.conf import data_default_start_date
-from app.enums import KlineTerm, AdjustType
+from app.core_modules.conf.conf import data_default_start_date
 from utils.date.date_utils import DateUtils
 
 
@@ -49,7 +48,7 @@ class DataManager:
     - 支持通过 force_new=True 强制创建新实例
 
     使用方式：
-        from app.data_manager import DataManager
+        from app.core_modules.data_manager import DataManager
 
         # 自动使用单例（推荐）
         data_mgr = DataManager(is_verbose=True)
@@ -188,7 +187,7 @@ class DataManager:
             # 3. 初始化 TradingDateCache
             if self.is_verbose:
                 logger.info("🔧 初始化 TradingDateCache...")
-            from app.data_manager.data_services.trading_date.trading_date_cache import TradingDateCache
+            from app.core_modules.data_manager.data_services.trading_date.trading_date_cache import TradingDateCache
             self._trading_date_cache = TradingDateCache()
 
             # 4. 初始化 DataService（按业务领域分类）
@@ -226,7 +225,7 @@ class DataManager:
             klines = kline_model.load_by_stock_and_date_range(...)
         """
         # 表名到 Model 类的映射
-        from app.data_manager.base_tables import (
+        from app.core_modules.data_manager.base_tables import (
             StockKlineModel, StockListModel, AdjFactorModel, AdjFactorEventModel,
             GdpModel, PriceIndexesModel, ShiborModel, LprModel,
             CorporateFinanceModel, StockLabelsModel,
@@ -280,7 +279,7 @@ class DataManager:
         """
         # 1. stock_related 大类
         try:
-            from app.data_manager.data_services.stock_related import StockRelatedDataService
+            from app.core_modules.data_manager.data_services.stock_related import StockRelatedDataService
             stock_related = StockRelatedDataService(self)
             stock_related.initialize()
             
@@ -309,7 +308,7 @@ class DataManager:
         
         # 2. macro_system 大类
         try:
-            from app.data_manager.data_services.macro_system import MacroSystemDataService
+            from app.core_modules.data_manager.data_services.macro_system import MacroSystemDataService
             macro_system = MacroSystemDataService(self)
             macro_system.initialize()
             
@@ -331,7 +330,7 @@ class DataManager:
         
         # 3. ui_transit 大类
         try:
-            from app.data_manager.data_services.ui_transit import UiTransitDataService
+            from app.core_modules.data_manager.data_services.ui_transit import UiTransitDataService
             ui_transit = UiTransitDataService(self)
             ui_transit.initialize()
             
@@ -352,7 +351,7 @@ class DataManager:
         
         # 4. tag 大类
         try:
-            from app.data_manager.data_services.tag.tag_data_service import TagDataService
+            from app.core_modules.data_manager.data_services.tag.tag_data_service import TagDataService
             tag_service = TagDataService(self)
             
             # 注册 tag service
@@ -609,7 +608,7 @@ class DataManager:
             
             # 应用技术指标（如果配置）
             if data["klines"] and klines_settings.get('indicators'):
-                from app.analyzer.components.indicators import Indicators
+                from app.core_modules.analyzer.components.indicators import Indicators
                 data["klines"] = Indicators.add_indicators(data["klines"], klines_settings['indicators'])
         
         # 2. 加载宏观数据
@@ -681,68 +680,6 @@ class DataManager:
             logger.error(f"加载股票标签数据失败 {stock_id}: {e}")
             return {}
     
-    # ============ 标签相关方法 ============
-    
-    def get_stock_labels(self, stock_id: str, target_date: Optional[str] = None) -> List[str]:
-        """
-        获取股票在指定日期的标签
-        
-        Args:
-            stock_id: 股票代码
-            target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
-            
-        Returns:
-            List[str]: 标签ID列表
-        """
-        label_service = self.get_data_service('label')
-        if label_service:
-            result = label_service.get_stock_labels(stock_id, target_date)
-            return result.get('labels', []) if isinstance(result, dict) else []
-        return []
-    
-    def save_stock_labels(self, stock_id: str, label_date: str, labels: List[str]):
-        """
-        保存股票标签
-        
-        Args:
-            stock_id: 股票代码
-            label_date: 标签日期 (YYYY-MM-DD)
-            labels: 标签ID列表
-        """
-        label_service = self.get_data_service('label')
-        if label_service:
-            label_service.save_stock_labels(stock_id, label_date, labels)
-    
-    def get_stocks_with_label(self, label_id: str, target_date: Optional[str] = None) -> List[str]:
-        """
-        获取具有指定标签的股票列表
-        
-        Args:
-            label_id: 标签ID
-            target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
-            
-        Returns:
-            List[str]: 股票代码列表
-        """
-        label_service = self.get_data_service('label')
-        if label_service:
-            return label_service.get_stocks_with_label(label_id, target_date)
-        return []
-    
-    def get_label_statistics(self, target_date: Optional[str] = None) -> Dict[str, Any]:
-        """
-        获取标签统计信息
-        
-        Args:
-            target_date: 目标日期 (YYYY-MM-DD)，None表示当前日期
-            
-        Returns:
-            Dict: 统计信息
-        """
-        label_service = self.get_data_service('label')
-        if label_service:
-            return label_service.get_label_statistics(target_date)
-        return {}
     
     # ============ 私有方法（委托给 DataServices）============
     

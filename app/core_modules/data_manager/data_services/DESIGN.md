@@ -60,7 +60,7 @@ DataService 层负责：
 ## 目录结构
 
 ```
-app/data_manager/data_services/
+app/core_modules/data_manager/data_services/
 ├── DESIGN.md                           # 本文档
 ├── __init__.py                         # 导出 BaseDataService
 │

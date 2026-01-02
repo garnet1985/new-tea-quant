@@ -15,9 +15,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple, Type
 import inspect
 import logging
-from app.tag.core.enums import TagUpdateMode
-from app.data_manager import DataManager
-from app.tag.core.models.tag_model import TagModel
+from app.core_modules.tag.core.enums import TagUpdateMode
+from app.core_modules.data_manager import DataManager
+from app.core_modules.tag.core.models.tag_model import TagModel
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ class BaseTagWorker(ABC):
         
         # 初始化数据管理器（负责所有数据加载、缓存、过滤逻辑）
         # 数据管理器会从 settings 中自动解析 target_entity 和 required_entities
-        from app.tag.core.components.tag_worker_helper.tag_worker_data_manager import TagWorkerDataManager
+        from app.core_modules.tag.core.components.tag_worker_helper.tag_worker_data_manager import TagWorkerDataManager
         self.tag_worker_data_manager = TagWorkerDataManager(
             entity_id=self.entity['id'],
             entity_type=self.entity['type'],

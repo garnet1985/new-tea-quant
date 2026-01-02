@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Tuple
 import os
 import logging
 from app.data_manager.data_services.tag.tag_data_service import TagDataService
-from app.enums import UpdateMode
+from app.tag.core.enums import TagUpdateMode
 from app.tag.core.models.scenario_model import ScenarioModel
 from app.tag.core.models.tag_model import TagModel
 
@@ -55,7 +55,7 @@ class JobHelper:
     #     scenario_model: ScenarioModel, 
     #     entity_list: List[str], 
     #     tag_value_last_update_info: Dict[str, Any],
-    #     update_mode: UpdateMode) -> List[Dict[str, Any]]:
+    #     update_mode: TagUpdateMode) -> List[Dict[str, Any]]:
     #     """
     #     构建 jobs（每个 entity 一个 job）
         
@@ -93,12 +93,12 @@ class JobHelper:
     #     return jobs
 
     @staticmethod
-    def calculate_start_and_end_date(last_update_info: Dict[str, Any], update_mode: UpdateMode) -> Tuple[str, str]:
+    def calculate_start_and_end_date(last_update_info: Dict[str, Any], update_mode: TagUpdateMode) -> Tuple[str, str]:
         """
         计算起始日期和结束日期
         """
         pass
-        # if update_mode == UpdateMode.INCREMENTAL:
+        # if update_mode == TagUpdateMode.INCREMENTAL:
         #     return last_update_info["start_date"], last_update_info["end_date"]
         # else:
         #     return default_data_start_date, latest_completed_trading_date

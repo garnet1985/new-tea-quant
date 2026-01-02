@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from loguru import logger
 
+from app.enums import UpdateMode
 from app.tag.core.models.tag_model import TagModel
 
 
@@ -95,6 +96,28 @@ class ScenarioModel:
         self._ensure_scenario_metadata(tag_data_mgr)
         self._ensure_tags_metadata(tag_data_mgr)
         self._is_ensured = True
+
+    def calculate_update_mode(self) -> UpdateMode:
+        """
+        计算更新模式
+        
+        Returns:
+            UpdateMode: 更新模式枚举
+        """
+        if self._recompute:
+            return UpdateMode.REFRESH
+        
+        # 从 settings 中获取 update_mode（可能在 calculator.performance.update_mode 中）
+        calculator = self._settings.get("calculator", {})
+        performance = calculator.get("performance", {})
+        update_mode_str = performance.get("update_mode", "incremental")
+        
+        # 转换为 UpdateMode 枚举
+        try:
+            return UpdateMode(update_mode_str)
+        except ValueError:
+            logger.warning(f"无效的 update_mode: {update_mode_str}，使用默认值 INCREMENTAL")
+            return UpdateMode.INCREMENTAL
         
     @staticmethod
     def is_setting_valid(settings: Dict[str, Any] = None) -> bool:
@@ -112,10 +135,7 @@ class ScenarioModel:
             logger.warning(f"传入的settings 为空")
             return False
 
-        if settings.get("name") is None or not settings.get("name"):
-            logger.debug(f"当前传入的settings内缺少必要字段: name")
-            return False
-
+        # name 已经在发现场景时验证过了
         scenario_name = settings.get("name")
         
         if settings.get("target_entity") is None or not settings.get("target_entity"):

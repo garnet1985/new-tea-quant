@@ -9,7 +9,7 @@ Tag 系统全局配置
 # ========================================================================
 
 # Scenarios 根目录（相对于项目根目录）
-DEFAULT_SCENARIOS_ROOT = "app/tag/scenarios"
+DEFAULT_SCENARIOS_ROOT = "app/core_modules/tag/scenarios"
 
 # ========================================================================
 # 版本管理配置（已废弃）

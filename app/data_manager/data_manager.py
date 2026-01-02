@@ -16,12 +16,15 @@
   - MacroDataService: 宏观经济数据服务
   - CorporateFinanceDataService: 企业财务数据服务
 """
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING
 import pandas as pd
 from loguru import logger
 import threading
 
 from utils.db.db_manager import DatabaseManager
+
+if TYPE_CHECKING:
+    from app.enums import EntityType
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
 from app.conf.conf import data_default_start_date
@@ -346,6 +349,20 @@ class DataManager:
         except ImportError as e:
             if self.is_verbose:
                 logger.debug(f"UiTransitDataService 未实现，跳过: {e}")
+        
+        # 4. tag 大类
+        try:
+            from app.data_manager.data_services.tag.tag_data_service import TagDataService
+            tag_service = TagDataService(self)
+            
+            # 注册 tag service
+            self._data_services['tag'] = tag_service
+            
+            if self.is_verbose:
+                logger.info("✅ TagDataService 已注册")
+        except ImportError as e:
+            if self.is_verbose:
+                logger.debug(f"TagDataService 未实现，跳过: {e}")
 
     def get_data_service(self, name: str) -> Any:
         """
@@ -358,7 +375,7 @@ class DataManager:
 
         Args:
             name: DataService 名称
-                - 大类: 'stock_related', 'macro_system', 'ui_transit'
+                - 大类: 'stock_related', 'macro_system', 'ui_transit', 'tag'
                 - 子级: 'stock_related.stock', 'macro_system.macro'
                 - 别名: 'macro' (等同于 'macro_system')
 
@@ -369,6 +386,16 @@ class DataManager:
         if not service:
             logger.warning(f"DataService '{name}' 未注册。可用的: {list(self._data_services.keys())}")
         return service
+    
+    @property
+    def tag(self):
+        """
+        Tag DataService 属性访问
+        
+        Returns:
+            TagDataService 实例
+        """
+        return self.get_data_service('tag')
     
     def resolve_data_requirements(self, settings: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -652,40 +679,6 @@ class DataManager:
             
         except Exception as e:
             logger.error(f"加载股票标签数据失败 {stock_id}: {e}")
-            return {}
-    
-    @staticmethod
-    def filter_labels_by_category(all_labels: List[str], target_categories: List[str]) -> Dict[str, List[str]]:
-        """
-        静态方法：按标签种类过滤标签
-        
-        Args:
-            all_labels: 所有标签ID列表
-            target_categories: 目标标签种类列表（如 ['market_cap', 'volatility']）
-            
-        Returns:
-            Dict: 按种类分组的标签，格式为 {category: [label_ids]}
-        """
-        try:
-            from app.labeler.conf.label_mapping import LabelMapping
-            label_mapping = LabelMapping()
-            
-            filtered_labels = {}
-            for category in target_categories:
-                # 获取该分类的所有可能标签
-                category_labels = label_mapping.get_labels_by_category(category)
-                if category_labels:
-                    # 过滤出属于该分类的标签
-                    category_filtered = []
-                    for label in all_labels:
-                        if label in category_labels:
-                            category_filtered.append(label)
-                    filtered_labels[category] = category_filtered
-            
-            return filtered_labels
-            
-        except Exception as e:
-            logger.error(f"按种类过滤标签失败: {e}")
             return {}
     
     # ============ 标签相关方法 ============
@@ -990,6 +983,69 @@ class DataManager:
         else:
             # 加载所有活跃股票（不过滤）
             return stock_service.load_all_stocks()
+    
+    def load_entity_list(
+        self,
+        entity_type: 'EntityType',
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        **filters
+    ) -> List[str]:
+        """
+        加载实体ID列表
+        
+        Args:
+            entity_type: 实体类型枚举（EntityType.STOCK_KLINE_DAILY 等）
+            start_date: 起始日期（可选，用于过滤有日期范围的实体）
+            end_date: 结束日期（可选）
+            **filters: 其他过滤条件（如 filtered, industry, stock_type 等）
+            
+        Returns:
+            List[str]: 实体ID列表
+            
+        示例：
+            # 加载所有股票ID
+            stock_ids = data_mgr.load_entity_list(EntityType.STOCK_KLINE_DAILY)
+            
+            # 加载过滤后的股票ID
+            stock_ids = data_mgr.load_entity_list(
+                EntityType.STOCK_KLINE_DAILY,
+                filtered=True
+            )
+        """
+        from app.enums import EntityType as EntityTypeEnum
+        
+        # 当前只支持 stock 相关的实体类型
+        if entity_type in [EntityTypeEnum.STOCK_KLINE_DAILY, EntityTypeEnum.STOCK_KLINE_WEEKLY, EntityTypeEnum.STOCK_KLINE_MONTHLY]:
+            # 使用 load_stock_list 加载股票列表
+            filtered = filters.get('filtered', False)
+            industry = filters.get('industry')
+            stock_type = filters.get('stock_type')
+            exchange_center = filters.get('exchange_center')
+            order_by = filters.get('order_by', 'id')
+            
+            stock_list = self.load_stock_list(
+                filtered=filtered,
+                industry=industry,
+                stock_type=stock_type,
+                exchange_center=exchange_center,
+                order_by=order_by
+            )
+            
+            # 提取股票ID列表
+            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
+            
+            # TODO: 如果提供了 start_date 和 end_date，可以根据 K线数据的时间范围进一步过滤
+            # 例如：只返回在指定时间范围内有交易数据的股票
+            if start_date or end_date:
+                # 暂时不实现时间过滤，直接返回所有股票ID
+                # 未来可以实现：查询 stock_kline 表，只返回有数据的股票
+                pass
+            
+            return entity_list
+        else:
+            logger.warning(f"不支持的实体类型: {entity_type}，当前只支持 STOCK_KLINE_* 类型")
+            return []
     
     def load_klines(self, stock_id: str, term: str = 'daily',
                     start_date: Optional[str] = None, end_date: Optional[str] = None,

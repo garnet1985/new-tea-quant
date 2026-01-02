@@ -59,7 +59,7 @@ __all__ = ['StockDataService']
 **使用方式**：
 ```python
 # DataManager 中导入
-from app.data_manager.data_services.stock import StockDataService
+from app.core_modules.data_manager.data_services.stock import StockDataService
 
 # 外部使用（通过 DataManager）
 stock_service = data_manager.get_data_service('stock')
@@ -83,7 +83,7 @@ stock_service = data_manager.get_data_service('stock')
 
 1. **创建文件夹**：
    ```bash
-   mkdir app/data_manager/data_services/<domain>
+   mkdir app/core_modules/data_manager/data_services/<domain>
    ```
 
 2. **创建主文件**：
@@ -107,7 +107,7 @@ stock_service = data_manager.get_data_service('stock')
 4. **在 DataManager 中注册**：
    ```python
    # data_manager.py 的 _init_data_services() 方法
-   from app.data_manager.data_services.<domain> import <Domain>DataService
+   from app.core_modules.data_manager.data_services.<domain> import <Domain>DataService
    self._data_services['<domain>'] = <Domain>DataService(self)
    ```
 

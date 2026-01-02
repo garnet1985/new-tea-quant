@@ -23,7 +23,7 @@ sys.path.append(str(rtb_root))
 from app.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
 from app.analyzer.strategy.RTB.RTB import ReverseTrendBet
 from app.analyzer.strategy.RTB.settings import settings
-from app.data_manager.data_manager import DataManager
+from app.core_modules.data_manager.data_manager import DataManager
 
 def load_rtb_trading_results():
     """加载RTB策略的交易结果"""

@@ -18,7 +18,7 @@ sys.path.append('/Users/garnet/Desktop/stocks-py')
 from app.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
 from app.analyzer.strategy.RTB.RTB import ReverseTrendBet
 from app.analyzer.strategy.RTB.settings import settings
-from app.data_manager.data_manager import DataManager
+from app.core_modules.data_manager.data_manager import DataManager
 from utils.db.db_manager import DatabaseManager
 
 def load_script_reversals():

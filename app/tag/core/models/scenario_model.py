@@ -305,12 +305,6 @@ class ScenarioModel:
         
         if not scenario_metadata:
             # 首次创建 scenario
-            # TODO: 修复 API 调用方式，使用正确的参数
-            # new_meta = tag_data_mgr.save_scenario(
-            #     self.name,
-            #     display_name=self.display_name,
-            #     description=self.description
-            # )
             new_meta = tag_data_mgr.save_scenario(
                 self.name,
                 display_name=self.display_name,
@@ -341,13 +335,6 @@ class ScenarioModel:
             else:
                 # 检查 meta 差异并更新（如果需要）
                 if self._has_meta_diff(scenario_metadata):
-                    # TODO: 修复 API 调用方式，使用正确的参数
-                    # new_meta = tag_data_mgr.update_scenario(
-                    #     scenario_metadata.get('id'),
-                    #     display_name=self.display_name,
-                    #     description=self.description,
-                    #     current_scenario=scenario_metadata
-                    # )
                     new_meta = tag_data_mgr.update_scenario(
                         scenario_metadata.get('id'),
                         display_name=self.display_name,

@@ -19,7 +19,7 @@ import time
 from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
 from pathlib import Path
-from app.enums import UpdateMode
+from app.tag.core.enums import TagUpdateMode
 from app.tag.core.base_tag_worker import BaseTagWorker
 from app.tag.core.components.helper.tag_helper import TagHelper
 

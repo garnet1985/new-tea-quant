@@ -36,7 +36,7 @@ class TagMetaManager:
 
     def __init__(self):
         self.data_mgr = DataManager()
-        self.tag_data_service = self.data_mgr.get_tag_service()
+        self.tag_data_service = self.data_mgr.tag
 
 
     def ensure_metadata(self, scenario_setting: Dict[str, Any]) -> Tuple[ScenarioModel, List[TagModel], str, str, str]:

@@ -71,7 +71,7 @@ class TagManager:
         
         # 初始化 data_mgr（单例模式，内部自动获取）
         self.data_mgr = DataManager(is_verbose=False)
-        self.tag_data_service = self.data_mgr.get_tag_service()
+        self.tag_data_service = self.data_mgr.tag
 
         # 可用场景缓存
         self.scenario_cache = {}
@@ -192,7 +192,7 @@ class TagManager:
 
     def _get_entity_list(self, scenario_model: ScenarioModel) -> List[str]:
         """
-        获取实体列表（伪代码）
+        获取实体列表
         
         Args:
             scenario_model: ScenarioModel 实例
@@ -200,23 +200,29 @@ class TagManager:
         Returns:
             List[str]: 实体ID列表
         """
-        target_entity = scenario_model.get_target_entity()
+        from app.enums import EntityType
+        
+        target_entity_str = scenario_model.get_target_entity()
         
         # 使用缓存
-        if target_entity in self.entity_list_cache:
-            return self.entity_list_cache[target_entity]
+        if target_entity_str in self.entity_list_cache:
+            return self.entity_list_cache[target_entity_str]
         
-        # TODO: 实现从 data_mgr 加载实体列表的逻辑
-        # 当前仅支持 stock 实体，未来需要扩展支持其他实体类型
-        if target_entity == "stock":
-            stock_list = self.data_mgr.load_stock_list(filtered=True)
-            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
-        else:
-            logger.warning(f"不支持的实体类型: {target_entity}")
-            entity_list = []
+        # 将字符串转换为 EntityType 枚举
+        try:
+            entity_type = EntityType(target_entity_str)
+        except ValueError:
+            logger.warning(f"不支持的实体类型: {target_entity_str}")
+            return []
+        
+        # 使用 DataManager 的 load_entity_list 方法
+        entity_list = self.data_mgr.load_entity_list(
+            entity_type=entity_type,
+            filtered=True  # 默认使用过滤规则
+        )
         
         # 缓存结果
-        self.entity_list_cache[target_entity] = entity_list
+        self.entity_list_cache[target_entity_str] = entity_list
         return entity_list
 
     def _get_worker_class(self, scenario_name: str, scenario_model: ScenarioModel) -> Optional[Type[BaseTagWorker]]:
@@ -266,8 +272,7 @@ class TagManager:
             return
 
         # 获取 tag_data_service 并确保元信息存在
-        # TODO: 确认 DataManager 中 tag_data_service 的获取方式
-        tag_data_service = self.data_mgr.get_tag_service()
+        tag_data_service = self.data_mgr.tag
         if not tag_data_service:
             logger.error(f"无法获取 tag_data_service，跳过执行")
             return

@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from loguru import logger
 
+from app.conf.conf import data_default_start_date
 from app.tag.core.enums import TagUpdateMode
 from app.tag.core.models.tag_model import TagModel
 
@@ -173,6 +174,14 @@ class ScenarioModel:
         # 设置必需字段
         self.name = scenario_setting["name"]
         
+        # 设置 target_entity（从 target_entity.type 获取）
+        target_entity_config = scenario_setting.get("target_entity", {})
+        if isinstance(target_entity_config, dict):
+            self._target_entity = target_entity_config.get("type")
+        else:
+            # 向后兼容：如果 target_entity 是字符串
+            self._target_entity = target_entity_config
+        
         # 设置可选字段（有默认值）
         self.display_name = scenario_setting.get("display_name") or self.name  # 如果没有则使用 name
         self.description = scenario_setting.get("description") or ""  # 如果没有则为空字符串
@@ -188,11 +197,65 @@ class ScenarioModel:
         
         return self
 
-    def _fill_in_default_values_to_settings(self, settings: Dict[str, Any]):
+    def _fill_in_default_values_to_settings(self, settings: Dict[str, Any]) -> Dict[str, Any]:
         """
         填充默认值到settings字典中
+        
+        根据 example_settings.py 的结构，填充所有可选字段的默认值。
+        
+        Args:
+            settings: 原始 settings 字典（已通过验证）
+            
+        Returns:
+            Dict[str, Any]: 填充了默认值的 settings 字典
         """
-        pass
+        # 创建 settings 的副本，避免修改原始字典
+        filled_settings = settings.copy()
+        
+        # Scenario 级别可选字段（顶层）
+        # display_name: 如果没有则使用 name（在 _set_values_from_setting 中处理，这里不需要）
+        # description: 默认空字符串（在 _set_values_from_setting 中处理，这里不需要）
+        # start_date: 默认使用系统默认开始日期
+        if "start_date" not in filled_settings or filled_settings.get("start_date") == "":
+            filled_settings["start_date"] = data_default_start_date
+        
+        # end_date: 默认使用最新已完成交易日
+        if "end_date" not in filled_settings or filled_settings.get("end_date") == "":
+            # 从 DataManager 获取最新已完成交易日（单例模式）
+            try:
+                from app.data_manager import DataManager
+                data_mgr = DataManager(is_verbose=False)
+                filled_settings["end_date"] = data_mgr.get_latest_completed_trading_date()
+            except Exception as e:
+                logger.warning(f"获取最新交易日失败，使用空字符串: {e}")
+                filled_settings["end_date"] = ""
+        
+        # required_entities: 默认空列表 []
+        if "required_entities" not in filled_settings:
+            filled_settings["required_entities"] = []
+        
+
+        # calculator.performance: 确保存在
+        if "performance" not in filled_settings:
+            filled_settings["performance"] = {}
+        
+        performance = filled_settings["performance"]
+        # calculator.performance.update_mode: 默认 "incremental"
+        if "update_mode" not in performance:
+            performance["update_mode"] = "incremental"
+        
+        # calculator.performance.max_workers: 默认 "auto"
+        if "max_workers" not in performance:
+            performance["max_workers"] = "auto"
+        
+        # calculator.performance.data_chunk_size: 默认 500
+        if "data_chunk_size" not in performance:
+            performance["data_chunk_size"] = 500
+        
+        # tags: 必须字段，不需要默认值（已在验证中检查）
+        # 但需要为每个 tag 填充默认值（在 TagModel 中处理）
+        
+        return filled_settings
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""

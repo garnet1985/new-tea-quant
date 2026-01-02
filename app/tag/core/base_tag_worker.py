@@ -2,17 +2,12 @@
 Tag Worker 基类
 
 职责：
-1. 初始化（加载 settings，初始化 DataManager 和 TagDataService）
-2. 数据加载（钩子函数，默认实现支持股票，从数据库加载）
-3. 计算钩子（calculate_tag，用户实现）
-4. 子进程 worker 方法（process_entity，处理单个 entity）
-5. 其他钩子（初始化、清理、错误处理）
+1. 定义 tag 计算的生命周期流程
+2. 提供钩子函数供用户实现业务逻辑
+3. 管理 tag values 的保存
 
 注意：
-- Tag 系统是预计算系统，数据应该从数据库（通过 DataManager）加载
-- 不使用第三方数据源（DataSourceManager）
-- 配置验证和处理逻辑已提取到 SettingsManager
-- 元信息管理、版本变更处理等已移到 TagMetaManager
+- 数据加载细节由 TagWorkerDataManager 负责
 - 这是子进程 worker 基类，会在子进程中实例化
 - 包含 tracker 等子进程状态管理
 """
@@ -21,7 +16,6 @@ from typing import Dict, Any, Optional, List, Tuple, Type
 import inspect
 import logging
 from app.tag.core.enums import TagUpdateMode
-from app.tag.core.components.helper.tag_helper import TagHelper
 from app.data_manager import DataManager
 from app.tag.core.models.tag_model import TagModel
 
@@ -33,18 +27,23 @@ class BaseTagWorker(ABC):
     Tag Worker 基类（子进程 worker）
     
     职责：
-    1. 初始化（加载 settings，初始化 DataManager 和 TagDataService）
-    2. 数据加载（钩子函数，默认实现支持股票，从数据库加载）
-    3. 计算钩子（calculate_tag，用户实现）
-    4. 子进程 worker 方法（process_entity，处理单个 entity）
-    5. 其他钩子（初始化、清理、错误处理）
+    1. 定义 tag 计算的生命周期流程（预处理、执行、后处理）
+    2. 提供钩子函数供用户实现业务逻辑（calculate_tag 等）
+    3. 管理 tag values 的批量保存
+    
+    只读数据（归类存储）：
+    - self.entity: {'id': str, 'type': str} - entity信息
+    - self.scenario: {'name': str, 'update_mode': TagUpdateMode} - scenario信息
+    - self.job: {'start_date': str, 'end_date': str} - job信息
+    - self.config: {'core': dict, 'performance': dict} - 配置信息
+    - self.tag_definitions: List[TagModel] - tag定义列表
+    
+    可写状态：
+    - self.tracker: dict - 用于存储计算过程中的临时状态
     
     注意：
-    - Tag 系统是预计算系统，数据应该从数据库（通过 DataManager）加载
-    - 不使用第三方数据源（DataSourceManager）
-    - 元信息管理、版本变更处理等已移到 TagMetaManager
+    - 数据加载细节由 TagWorkerDataManager 负责（按需加载、缓存、过滤）
     - 这是子进程 worker，会在子进程中实例化
-    - 包含 tracker 等子进程状态管理
     """
     
     def __init__(self, job_payload: Dict[str, Any]):
@@ -56,10 +55,11 @@ class BaseTagWorker(ABC):
                 - entity_id: 实体ID
                 - entity_type: 实体类型
                 - scenario_name: Scenario 名称
-                - tag_definitions: Tag Definition 列表
+                - tag_definitions: Tag Definition 列表（字典格式）
                 - start_date: 起始日期
                 - end_date: 结束日期
                 - settings: Settings 字典（完整的 settings 配置）
+                - update_mode: 更新模式（TagUpdateMode 枚举）
         
         注意：
         - DataManager 是单例模式，自动初始化
@@ -67,12 +67,33 @@ class BaseTagWorker(ABC):
         """
         self.job_payload = job_payload
         
-        # 从 payload 提取常用字段
-        self.entity_id = job_payload.get('entity_id')
-        self.entity_type = job_payload.get('entity_type', 'stock')
+        # 归类只读数据
+        self.entity = {
+            'id': job_payload.get('entity_id'),
+            'type': job_payload.get('entity_type', 'stock')
+        }
+        
+        scenario_name = job_payload.get('scenario_name', '')
+        # 如果 payload 中没有，从 settings 中获取
+        if not scenario_name:
+            settings = job_payload.get('settings', {})
+            scenario_name = settings.get('name', '')
+        
+        self.scenario = {
+            'name': scenario_name,
+            'update_mode': job_payload.get('update_mode')
+        }
+        
+        self.job = {
+            'start_date': job_payload.get('start_date'),
+            'end_date': job_payload.get('end_date')
+        }
+        
         # tag_definitions 从字典转换为 TagModel 对象
         tag_defs_dict = job_payload.get('tag_definitions', [])
         self.tag_definitions = [TagModel.from_dict(t) for t in tag_defs_dict]
+        
+        # settings 字典（完整的 settings 配置）
         self.settings = job_payload.get('settings', {})
         
         # 初始化服务
@@ -86,15 +107,12 @@ class BaseTagWorker(ABC):
         self._extract_settings()
         
         # 初始化数据管理器（负责所有数据加载、缓存、过滤逻辑）
-        # 注意：data_slice_size 在 _extract_settings 中提取，所以这里需要在 _extract_settings 之后初始化
-        from app.tag.core.components.worker_helper.worker_data_manager import WorkerDataManager
-        self.data_manager = WorkerDataManager(
-            entity_id=self.entity_id,
-            entity_type=self.entity_type,
-            base_term=self.base_term,
-            required_terms=self.required_terms,
-            required_data=self.required_data,
-            data_slice_size=self.data_slice_size,  # 从 settings 中读取，默认 1000
+        # 数据管理器会从 settings 中自动解析 target_entity 和 required_entities
+        from app.tag.core.components.tag_worker_helper.tag_worker_data_manager import TagWorkerDataManager
+        self.tag_worker_data_manager = TagWorkerDataManager(
+            entity_id=self.entity['id'],
+            entity_type=self.entity['type'],
+            settings=self.settings,  # 传递完整的 settings，让 data_manager 自己解析
             data_mgr=self.data_mgr
         )
         
@@ -102,36 +120,12 @@ class BaseTagWorker(ABC):
         self.on_init()
     
     def _extract_settings(self):
-        """从 settings 中提取配置到实例变量"""
-        calculator_config = self.settings.get('calculator', {})
-        scenario_config = self.settings.get('scenario', {})
-        
-        # 基础配置
-        self.scenario_name = scenario_config.get('name', '')
-        self.base_term = calculator_config.get('base_term', 'daily')
-        self.required_terms = calculator_config.get('required_terms', [])
-        self.required_data = calculator_config.get('required_data', [])
-        
-        # 业务配置
-        self.core = calculator_config.get('core', {})
-        self.performance = calculator_config.get('performance', {})
-        
-        # 数据切片大小配置（从 performance 中读取，默认 1000）
-        self.data_slice_size = self.performance.get('data_slice_size', 1000)
-        
-        # 处理 tags 配置（合并 worker 级别和 tag 级别）
-        self.tags_config = []
-        tags_info = self.settings.get('tags', [])
-        for tag_info in tags_info:
-            tag_config = {
-                'tag_meta': tag_info,
-                'base_term': self.base_term,
-                'required_terms': self.required_terms,
-                'required_data': self.required_data,
-                'core': self.core,
-                'performance': self.performance,
-            }
-            self.tags_config.append(tag_config)
+        """从 settings 中提取配置到实例变量（只提取流程需要的配置，数据加载细节交给 tag_worker_data_manager）"""
+        # 配置信息归类
+        self.config = {
+            'core': self.settings.get('core', {}),
+            'performance': self.settings.get('performance', {})
+        }
     
     # ==================== 生命周期方法 ====================
     
@@ -172,14 +166,14 @@ class BaseTagWorker(ABC):
             return result
         except Exception as e:
             logger.error(
-                f"处理 entity 失败: entity_id={self.entity_id}, "
-                f"scenario_name={self.scenario_name}, error={e}",
+                f"处理 entity 失败: entity_id={self.entity['id']}, "
+                f"scenario_name={self.scenario['name']}, error={e}",
                 exc_info=True
             )
             return {
-                "entity_id": self.entity_id,
-                "entity_type": self.entity_type,
-                "scenario_name": self.scenario_name,
+                "entity_id": self.entity['id'],
+                "entity_type": self.entity['type'],
+                "scenario_name": self.scenario['name'],
                 "total_dates": 0,
                 "processed_dates": 0,
                 "total_tags_created": 0,
@@ -191,77 +185,56 @@ class BaseTagWorker(ABC):
         """
         预处理阶段
         
-        1. 获取交易日列表
+        1. 获取交易日列表（委托给 tag_worker_data_manager）
         2. 调用 on_before_execute_tagging 钩子
         """
-        # 获取交易日列表
-        start_date = self.job_payload.get('start_date')
-        end_date = self.job_payload.get('end_date')
-        self.trading_dates = self.data_manager.get_trading_dates(start_date, end_date)
+        self.trading_dates = self.tag_worker_data_manager.get_trading_dates(
+            self.job['start_date'],
+            self.job['end_date']
+        )
         
-        # 调用执行前钩子
         self.on_before_execute_tagging()
     
     def _execute_tagging(self) -> Dict[str, Any]:
         """
         执行标签计算阶段
         
-        遍历每个交易日，对每个日期：
-        1. 过滤数据到 as_of_date（保证一致性，不包含未来数据）
-        2. 对每个 tag 调用 calculate_tag()
-        3. 收集结果
-        4. 调用 on_as_of_date_calculate_complete 钩子
+        流程：
+        1. 遍历每个交易日
+        2. 对每个日期：获取历史数据（委托给 tag_worker_data_manager）
+        3. 对每个 tag：调用 calculate_tag()
+        4. 收集结果
+        5. 调用钩子函数
         
         Returns:
             Dict[str, Any]: 执行结果统计信息
         """
-        # 初始化结果统计
         total_dates = len(self.trading_dates)
         processed_dates = 0
         total_tags_created = 0
         errors = []
-        tag_values_to_save = []  # 收集所有要保存的 tag values
+        tag_values_to_save = []
         
-        # 遍历每个交易日
         for as_of_date in self.trading_dates:
             try:
-                # 1. 过滤数据到 as_of_date（保证一致性，不包含未来数据）
-                filtered_data = self.data_manager.filter_data_to_date(as_of_date)
+                # 获取历史数据（tag_worker_data_manager 负责按需加载和过滤）
+                historical_data = self.tag_worker_data_manager.filter_data_to_date(as_of_date)
                 
-                # 2. 对每个 tag 调用 calculate_tag()
-                for tag_config in self.tags_config:
-                    tag_meta = tag_config.get('tag_meta', {})
-                    tag_name = tag_meta.get('name', '')
-                    
-                    # 找到对应的 tag_definition
-                    tag_definition = None
-                    for tag_def in self.tag_definitions:
-                        if tag_def.tag_name == tag_name:
-                            tag_definition = tag_def
-                            break
-                    
-                    if not tag_definition:
-                        logger.warning(
-                            f"未找到 tag definition: tag_name={tag_name}, "
-                            f"entity_id={self.entity_id}, as_of_date={as_of_date}"
-                        )
-                        continue
-                    
+                # 对每个 tag 调用 calculate_tag()
+                for tag_definition in self.tag_definitions:
                     try:
-                        # 调用用户实现的 calculate_tag 方法
+                        # 调用用户实现的 calculate_tag 方法（方案1：最小化参数）
                         tag_result = self.calculate_tag(
-                            entity_id=self.entity_id,
-                            entity_type=self.entity_type,
                             as_of_date=as_of_date,
-                            historical_data=filtered_data,
-                            tag_config=tag_config
+                            historical_data=historical_data,
+                            tag_definition=tag_definition
                         )
                         
                         # 如果返回结果，创建 tag value
                         if tag_result is not None:
                             tag_value = {
-                                "entity_id": self.entity_id,
-                                "entity_type": self.entity_type,
+                                "entity_id": self.entity['id'],
+                                "entity_type": self.entity['type'],
                                 "tag_definition_id": tag_definition.id,
                                 "as_of_date": as_of_date,
                                 "value": tag_result.get("value", ""),
@@ -273,44 +246,38 @@ class BaseTagWorker(ABC):
                             
                             # 调用 tag 创建后钩子
                             self.on_tag_created(
-                                tag_name=tag_name,
                                 as_of_date=as_of_date,
-                                tag_value=tag_value,
-                                tag_result=tag_result
+                                tag_definition=tag_definition,
+                                tag_value=tag_value
                             )
                     
                     except Exception as e:
                         error_msg = (
-                            f"计算 tag 失败: tag_name={tag_name}, "
-                            f"entity_id={self.entity_id}, as_of_date={as_of_date}, error={e}"
+                            f"计算 tag 失败: tag_name={tag_definition.tag_name}, "
+                            f"entity_id={self.entity['id']}, as_of_date={as_of_date}, error={e}"
                         )
                         logger.error(error_msg, exc_info=True)
                         errors.append(error_msg)
                         
                         # 调用错误处理钩子
                         should_continue = self.on_calculate_error(
-                            tag_name=tag_name,
                             as_of_date=as_of_date,
                             error=e,
-                            tag_config=tag_config
+                            tag_definition=tag_definition
                         )
                         
                         if not should_continue:
                             # 如果钩子返回 False，停止处理该 tag
                             break
                 
-                # 3. 调用每个日期计算完成钩子
-                self.on_as_of_date_calculate_complete(
-                    as_of_date=as_of_date,
-                    filtered_data=filtered_data,
-                    tag_values_count=len(tag_values_to_save)
-                )
+                # 调用每个日期计算完成钩子
+                self.on_as_of_date_calculate_complete(as_of_date)
                 
                 processed_dates += 1
                 
             except Exception as e:
                 error_msg = (
-                    f"处理日期失败: entity_id={self.entity_id}, "
+                    f"处理日期失败: entity_id={self.entity['id']}, "
                     f"as_of_date={as_of_date}, error={e}"
                 )
                 logger.error(error_msg, exc_info=True)
@@ -320,9 +287,9 @@ class BaseTagWorker(ABC):
         self._tag_values_to_save = tag_values_to_save
         
         return {
-            "entity_id": self.entity_id,
-            "entity_type": self.entity_type,
-            "scenario_name": self.scenario_name,
+            "entity_id": self.entity['id'],
+            "entity_type": self.entity['type'],
+            "scenario_name": self.scenario['name'],
             "total_dates": total_dates,
             "processed_dates": processed_dates,
             "total_tags_created": total_tags_created,
@@ -357,12 +324,12 @@ class BaseTagWorker(ABC):
         try:
             self.tag_data_service.batch_save_tag_values(tag_values)
             logger.debug(
-                f"批量保存 tag values 成功: entity_id={self.entity_id}, "
+                f"批量保存 tag values 成功: entity_id={self.entity['id']}, "
                 f"count={len(tag_values)}"
             )
         except Exception as e:
             logger.error(
-                f"批量保存 tag values 失败: entity_id={self.entity_id}, "
+                f"批量保存 tag values 失败: entity_id={self.entity['id']}, "
                 f"count={len(tag_values)}, error={e}",
                 exc_info=True
             )
@@ -392,31 +359,31 @@ class BaseTagWorker(ABC):
     @abstractmethod
     def calculate_tag(
         self,
-        entity_id: str,
-        entity_type: str,
         as_of_date: str,
         historical_data: Dict[str, Any],
-        tag_config: Dict[str, Any]
+        tag_definition: TagModel
     ) -> Optional[Dict[str, Any]]:
         """
         计算 tag（用户必须实现）
         
         Args:
-            entity_id: 实体ID
-            entity_type: 实体类型
-            as_of_date: 业务日期（YYYYMMDD格式）
-            historical_data: 历史数据字典，包含：
-                - klines: {term: [records]}  # K线数据
-                - corporate_finance: [records]  # 财报数据（如果有）
-                - market_value: [records]  # 市值数据（如果有）
-                - 其他 required_data
-            tag_config: Tag配置（已合并calculator和tag配置）
-                - tag_meta: Tag元信息
-                - base_term: 基础周期
-                - required_terms: 需要的其他周期
-                - required_data: 需要的数据源
-                - core: 业务配置
-                - performance: 性能配置
+            as_of_date: 当前业务日期（YYYYMMDD格式）
+            historical_data: 历史数据字典，结构根据 settings 中的配置保持一致：
+                - klines: {term: [records]}  # K线数据，例如 {'daily': [...], 'weekly': [...]}
+                - corporate_finance: [records]  # 财报数据（如果 settings 中配置了）
+                - gdp: [records]  # GDP数据（如果 settings 中配置了）
+                - 其他 required_data 按配置名称作为 key
+            tag_definition: Tag定义对象（TagModel），包含：
+                - id: Tag定义ID
+                - tag_name: Tag名称
+                - display_name: 显示名称
+                - description: Tag描述（重要，用于理解tag的意义）
+                - 其他元信息
+        
+        注意：
+        - entity信息可通过 self.entity['id'] 和 self.entity['type'] 访问
+        - 配置信息可通过 self.config['core'] 和 self.config['performance'] 访问
+        - 临时状态可通过 self.tracker 存储和访问
         
         Returns:
             Dict[str, Any] 或 None:
@@ -432,10 +399,9 @@ class BaseTagWorker(ABC):
     
     def on_tag_created(
         self,
-        tag_name: str,
         as_of_date: str,
-        tag_value: Dict[str, Any],
-        tag_result: Dict[str, Any]
+        tag_definition: TagModel,
+        tag_value: Dict[str, Any]
     ):
         """
         Tag 创建后的钩子
@@ -444,19 +410,24 @@ class BaseTagWorker(ABC):
         用户可以在这里进行自定义处理，如记录日志、更新 tracker 等。
         
         Args:
-            tag_name: Tag名称
-            as_of_date: 业务日期
-            tag_value: 创建的 tag value 字典
-            tag_result: calculate_tag 返回的结果
+            as_of_date: 业务日期（YYYYMMDD格式）
+            tag_definition: Tag定义对象（TagModel），包含完整的tag信息
+            tag_value: 创建的 tag value 字典，包含：
+                - entity_id: 实体ID
+                - entity_type: 实体类型
+                - tag_definition_id: Tag定义ID
+                - as_of_date: 业务日期
+                - value: Tag值
+                - start_date: 起始日期（可选）
+                - end_date: 结束日期（可选）
+        
+        注意：
+        - tag名称可通过 tag_definition.tag_name 获取
+        - tag描述可通过 tag_definition.description 获取
         """
         pass
     
-    def on_as_of_date_calculate_complete(
-        self,
-        as_of_date: str,
-        filtered_data: Dict[str, Any],
-        tag_values_count: int
-    ):
+    def on_as_of_date_calculate_complete(self, as_of_date: str):
         """
         每个日期计算完成后的钩子
         
@@ -464,18 +435,19 @@ class BaseTagWorker(ABC):
         用户可以在这里进行自定义处理，如更新 tracker、记录进度等。
         
         Args:
-            as_of_date: 业务日期
-            filtered_data: 过滤后的历史数据
-            tag_values_count: 该日期创建的 tag values 数量
+            as_of_date: 业务日期（YYYYMMDD格式）
+        
+        注意：
+        - 如果需要历史数据，可以在 calculate_tag 中处理
+        - 如果需要统计该日期创建的 tag 数量，可以通过 self.tracker 维护
         """
         pass
     
     def on_calculate_error(
         self,
-        tag_name: str,
         as_of_date: str,
         error: Exception,
-        tag_config: Dict[str, Any]
+        tag_definition: TagModel
     ) -> bool:
         """
         计算错误钩子
@@ -484,21 +456,16 @@ class BaseTagWorker(ABC):
         用户可以在这里进行错误处理，如记录日志、发送通知等。
         
         Args:
-            tag_name: Tag名称
-            as_of_date: 业务日期
+            as_of_date: 业务日期（YYYYMMDD格式）
             error: 异常对象
-            tag_config: Tag配置
+            tag_definition: Tag定义对象（TagModel），包含完整的tag信息
+        
+        注意：
+        - tag名称可通过 tag_definition.tag_name 获取
+        - entity信息可通过 self.entity 访问
         
         Returns:
             bool: 是否继续处理（True=继续，False=停止）
-        """
-        return True
-    
-    def should_continue_on_error(self, error: Exception) -> bool:
-        """
-        错误时是否继续（已废弃，使用 on_calculate_error 代替）
-        
-        为了向后兼容保留，但建议使用 on_calculate_error。
         """
         return True
     
@@ -510,6 +477,18 @@ class BaseTagWorker(ABC):
         用户可以在这里进行清理工作，如释放资源、记录统计信息等。
         
         Args:
-            result: 执行结果统计信息
+            result: 执行结果统计信息字典，包含：
+                - entity_id: 实体ID
+                - entity_type: 实体类型
+                - scenario_name: Scenario名称
+                - total_dates: 总日期数
+                - processed_dates: 已处理日期数
+                - total_tags_created: 创建的tag总数
+                - errors: 错误列表
+                - success: 是否成功
+        
+        注意：
+        - entity信息也可通过 self.entity 访问
+        - scenario信息也可通过 self.scenario 访问
         """
         pass

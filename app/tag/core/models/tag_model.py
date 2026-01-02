@@ -56,6 +56,45 @@ class TagModel:
         instance = cls(tag_setting)
         return instance
 
+    @classmethod
+    def from_dict(cls, tag_dict: Dict[str, Any]) -> 'TagModel':
+        """
+        从字典创建 TagModel 实例（用于从数据库加载或从 to_dict() 恢复）
+        
+        Args:
+            tag_dict: Tag 字典，包含：
+                - id: int
+                - tag_name: str
+                - scenario_id: int
+                - display_name: str
+                - description: str
+                - created_at: datetime
+                - updated_at: datetime
+        
+        Returns:
+            TagModel: TagModel 实例
+        """
+        # 创建一个临时的 tag_setting 字典（用于初始化）
+        # 注意：from_dict 用于从数据库加载，所以 tag_name 应该已经存在
+        tag_setting = {
+            "name": tag_dict.get("tag_name", ""),
+            "display_name": tag_dict.get("display_name", ""),
+            "description": tag_dict.get("description", "")
+        }
+        
+        instance = cls(tag_setting)
+        
+        # 设置数据库字段
+        instance.id = tag_dict.get("id")
+        instance.scenario_id = tag_dict.get("scenario_id")
+        instance.created_at = tag_dict.get("created_at")
+        instance.updated_at = tag_dict.get("updated_at")
+        
+        # 标记为已确保（因为是从数据库加载的完整数据）
+        instance._is_ensured = True
+        
+        return instance
+
     @staticmethod
     def is_setting_valid(tag_setting: Dict[str, Any]) -> bool:
         """

@@ -12,7 +12,7 @@ import importlib.util
 import os
 from loguru import logger
 
-from app.tag.core.enums import KlineTerm, UpdateMode, VersionChangeAction
+from app.tag.core.enums import KlineTerm, UpdateMode
 from utils.file.file_util import FileUtil
 
 
@@ -94,8 +94,9 @@ class SettingsManager:
             scenario["display_name"] = scenario["name"]
         if "description" not in scenario:
             scenario["description"] = ""
-        if "on_version_change" not in scenario:
-            scenario["on_version_change"] = VersionChangeAction.REFRESH_SCENARIO.value
+        # on_version_change 已废弃，使用 recompute 字段替代
+        # if "on_version_change" not in scenario:
+        #     scenario["on_version_change"] = VersionChangeAction.REFRESH_SCENARIO.value
         
         # calculator 默认值
         calculator = settings["calculator"]
@@ -338,16 +339,13 @@ class SettingsManager:
                     f"当前值: {update_mode}"
                 )
         
-        # 验证 on_version_change
-        scenario = settings["scenario"]
-        if "on_version_change" in scenario:
-            on_version_change = scenario["on_version_change"]
-            valid_actions = [action.value for action in VersionChangeAction]
-            if on_version_change not in valid_actions:
-                raise ValueError(
-                    f"scenario.on_version_change 必须是 {valid_actions} 之一（使用 VersionChangeAction 枚举），"
-                    f"当前值: {on_version_change}"
-                )
+        # on_version_change 已废弃，不再验证
+        # scenario = settings["scenario"]
+        # if "on_version_change" in scenario:
+        #     on_version_change = scenario["on_version_change"]
+        #     valid_actions = [action.value for action in VersionChangeAction]
+        #     if on_version_change not in valid_actions:
+        #         raise ValueError(...)
 
     @staticmethod
     def validate_settings(settings: Dict[str, Any]) -> None:
@@ -416,7 +414,6 @@ class SettingsManager:
         Returns:
             Dict[str, Any]: 提取的配置字典
                 - scenario_name: str
-                - scenario_version: str
                 - base_term: str
                 - required_terms: List[str]
                 - required_data: List[str]
@@ -428,7 +425,6 @@ class SettingsManager:
         
         return {
             "scenario_name": scenario["name"],
-            "scenario_version": scenario["version"],
             "base_term": calculator["base_term"],
             "required_terms": calculator.get("required_terms", []),
             "required_data": calculator.get("required_data", []),

@@ -19,18 +19,18 @@ class UpdateMode(Enum):
     REFRESH = "refresh"          # 全量刷新
 
 
-class VersionChangeAction(Enum):
-    """版本变更时的行为枚举（Scenario 级别）"""
-    REFRESH_SCENARIO = "refresh_scenario"  # 刷新该 Scenario 下所有 Tags 的值
-    NEW_SCENARIO = "new_scenario"          # 创建新的 Scenario（保留旧 Scenario 的数据）
+# 已废弃：版本管理相关枚举已移除
+# class VersionChangeAction(Enum):
+#     """版本变更时的行为枚举（Scenario 级别）"""
+#     REFRESH_SCENARIO = "refresh_scenario"
+#     NEW_SCENARIO = "new_scenario"
 
-
-class EnsureMetaAction(Enum):
-    """确保元信息动作枚举（内部使用）"""
-    NO_CHANGE = "no_change"              # 元信息未变
-    META_UPDATE = "meta_update"          # 更新元信息
-    NEW_SCENARIO = "new_scenario"        # 创建新的 Scenario
-    ROLLBACK = "rollback"                # 版本回退
+# class EnsureMetaAction(Enum):
+#     """确保元信息动作枚举（内部使用）"""
+#     NO_CHANGE = "no_change"
+#     META_UPDATE = "meta_update"
+#     NEW_SCENARIO = "new_scenario"
+#     ROLLBACK = "rollback"
 
 
 class SupportedDataSource(Enum):

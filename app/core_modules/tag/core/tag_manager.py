@@ -19,16 +19,14 @@ import time
 from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
 from pathlib import Path
-from app.tag.core.enums import TagUpdateMode
-from app.tag.core.base_tag_worker import BaseTagWorker
-from app.tag.core.components.helper.tag_helper import TagHelper
-
-from app.tag.core.components.helper.job_helper import JobHelper
-from app.tag.core.enums import TagUpdateMode
-from app.data_manager import DataManager
-from app.tag.core.config import DEFAULT_SCENARIOS_ROOT
-from app.tag.core.enums import FileName
-from app.tag.core.models.scenario_model import ScenarioModel
+from app.core_modules.tag.core.enums import TagUpdateMode
+from app.core_modules.tag.core.base_tag_worker import BaseTagWorker
+from app.core_modules.tag.core.components.helper.tag_helper import TagHelper
+from app.core_modules.tag.core.components.helper.job_helper import JobHelper
+from app.core_modules.data_manager import DataManager
+from app.core_modules.tag.core.config import DEFAULT_SCENARIOS_ROOT
+from app.core_modules.tag.core.enums import FileName
+from app.core_modules.tag.core.models.scenario_model import ScenarioModel
 from utils.worker.multi_process.process_worker import ExecutionMode, ProcessWorker
 
 logger = logging.getLogger(__name__)

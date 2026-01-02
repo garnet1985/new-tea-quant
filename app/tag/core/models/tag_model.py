@@ -196,8 +196,28 @@ class TagModel:
     def _fill_in_default_values_to_settings(self, tag_setting: Dict[str, Any]) -> Dict[str, Any]:
         """
         填充默认值到settings字典中
+        
+        根据 example_settings.py 的结构，填充所有可选字段的默认值。
+        
+        Args:
+            tag_setting: 原始 tag_setting 字典（已通过验证）
+            
+        Returns:
+            Dict[str, Any]: 填充了默认值的 tag_setting 字典
         """
-        pass
+        # 创建 tag_setting 的副本，避免修改原始字典
+        filled_tag_setting = tag_setting.copy()
+        
+        # display_name: 如果没有则使用 name（在 _set_values_from_settings 中处理，这里不需要）
+        # description: 默认空字符串（在 _set_values_from_settings 中处理，这里不需要）
+        # 但为了保持 settings 完整，确保这些字段存在
+        if "display_name" not in filled_tag_setting:
+            filled_tag_setting["display_name"] = filled_tag_setting.get("name", "")
+        
+        if "description" not in filled_tag_setting:
+            filled_tag_setting["description"] = ""
+        
+        return filled_tag_setting
 
     def _set_values_from_settings(self, tag_setting: Dict[str, Any]) -> 'TagModel':
         """

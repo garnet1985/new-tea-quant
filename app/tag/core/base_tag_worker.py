@@ -78,7 +78,7 @@ class BaseTagWorker(ABC):
         
         # 初始化服务
         self.data_mgr = DataManager(is_verbose=False)
-        self.tag_data_service = self.data_mgr.get_tag_service()
+        self.tag_data_service = self.data_mgr.tag
         
         # 状态管理
         self.tracker = {}  # 用于存储计算过程中的临时状态

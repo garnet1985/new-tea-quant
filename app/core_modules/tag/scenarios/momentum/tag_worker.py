@@ -16,7 +16,7 @@ MOM = (P_t-60d / P_t-5d) - 1
 """
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
-from app.tag.core.base_tag_worker import BaseTagWorker
+from app.core_modules.tag.core.base_tag_worker import BaseTagWorker
 import logging
 
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ class MomentumTagWorker(BaseTagWorker):
                 return None
             
             # 查询该entity的最后一个tag的as_of_date
-            from app.data_manager.base_tables.tag_value.model import TagValueModel
+            from app.core_modules.data_manager.base_tables.tag_value.model import TagValueModel
             tag_value_model = TagValueModel()
             
             # 查询该entity和tag_definition的最大as_of_date

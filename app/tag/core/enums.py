@@ -17,8 +17,8 @@ class FileName(Enum):
     SETTINGS = "settings.py"
     TAG_WORKER = "tag_worker.py"
 
-class UpdateMode(Enum):
-    """更新模式枚举"""
+class TagUpdateMode(Enum):
+    """Tag 系统更新模式枚举（只支持增量更新和全量刷新）"""
     INCREMENTAL = "incremental"  # 增量更新
     REFRESH = "refresh"          # 全量刷新
 

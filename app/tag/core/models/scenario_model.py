@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from loguru import logger
 
-from app.enums import UpdateMode
+from app.tag.core.enums import TagUpdateMode
 from app.tag.core.models.tag_model import TagModel
 
 
@@ -97,27 +97,27 @@ class ScenarioModel:
         self._ensure_tags_metadata(tag_data_mgr)
         self._is_ensured = True
 
-    def calculate_update_mode(self) -> UpdateMode:
+    def calculate_update_mode(self) -> TagUpdateMode:
         """
         计算更新模式
         
         Returns:
-            UpdateMode: 更新模式枚举
+            TagUpdateMode: Tag 系统更新模式枚举
         """
         if self._recompute:
-            return UpdateMode.REFRESH
+            return TagUpdateMode.REFRESH
         
         # 从 settings 中获取 update_mode（可能在 calculator.performance.update_mode 中）
         calculator = self._settings.get("calculator", {})
         performance = calculator.get("performance", {})
         update_mode_str = performance.get("update_mode", "incremental")
         
-        # 转换为 UpdateMode 枚举
+        # 转换为 TagUpdateMode 枚举
         try:
-            return UpdateMode(update_mode_str)
+            return TagUpdateMode(update_mode_str)
         except ValueError:
             logger.warning(f"无效的 update_mode: {update_mode_str}，使用默认值 INCREMENTAL")
-            return UpdateMode.INCREMENTAL
+            return TagUpdateMode.INCREMENTAL
         
     @staticmethod
     def is_setting_valid(settings: Dict[str, Any] = None) -> bool:

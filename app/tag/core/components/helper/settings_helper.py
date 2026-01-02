@@ -12,7 +12,7 @@ import importlib.util
 import os
 from loguru import logger
 
-from app.tag.core.enums import KlineTerm, UpdateMode
+from app.tag.core.enums import KlineTerm, TagUpdateMode
 from utils.file.file_util import FileUtil
 
 
@@ -186,10 +186,10 @@ class SettingsHelper:
         perf = calculator.get("performance", {})
         if "update_mode" in perf:
             update_mode = perf["update_mode"]
-            valid_modes = [mode.value for mode in UpdateMode]
+            valid_modes = [mode.value for mode in TagUpdateMode]
             if update_mode not in valid_modes:
                 raise ValueError(
-                    f"calculator.performance.update_mode 必须是 {valid_modes} 之一（使用 UpdateMode 枚举），"
+                    f"calculator.performance.update_mode 必须是 {valid_modes} 之一（使用 TagUpdateMode 枚举），"
                     f"当前值: {update_mode}"
                 )
         

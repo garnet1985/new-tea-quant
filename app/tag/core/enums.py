@@ -12,6 +12,10 @@ class KlineTerm(Enum):
     WEEKLY = "weekly"    # 周线
     MONTHLY = "monthly"  # 月线
 
+class FileName(Enum):
+    """文件名枚举"""
+    SETTINGS = "settings.py"
+    TAG_WORKER = "tag_worker.py"
 
 class UpdateMode(Enum):
     """更新模式枚举"""

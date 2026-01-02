@@ -1,7 +1,7 @@
 """
 数据管理服务 - 统一的数据访问层
 
-位置：app/data_manager/（应用层，与analyzer、data_source并列）
+位置：app/core_modules/data_manager/（应用层，与analyzer、data_source并列）
 
 导出：
 - DataManager: 数据管理器（主类）
@@ -15,7 +15,7 @@
 - 协调各专用 Loader
 
 使用方式：
-    from app.data_manager import DataManager
+    from app.core_modules.data_manager import DataManager
     
     # 初始化（自动创建数据库、连接池、表）
     data_mgr = DataManager(is_verbose=True)
@@ -27,7 +27,7 @@
 
 架构说明：
 - utils/db/ = 基础设施层（连接池、CRUD、Schema管理）
-- app/data_manager/ = 数据访问层（业务数据服务、表管理）
+- app/core_modules/data_manager/ = 数据访问层（业务数据服务、表管理）
 - app/analyzer/ = 业务层（策略分析）
 - app/data_source/ = 业务层（数据源管理）
 """

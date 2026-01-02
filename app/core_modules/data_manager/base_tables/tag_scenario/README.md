@@ -41,8 +41,8 @@ scenario = TagScenarioModel.create(
     display_name="市值分类",
     version="1.0",
     description="按市值阈值给股票打大小市值标签",
-    calculator_path="app/tag/tags/market_value_bucket/calculator.py",
-    settings_path="app/tag/tags/market_value_bucket/settings.py",
+    calculator_path="app/core_modules/tag/scenarios/market_value_bucket/tag_worker.py",
+    settings_path="app/core_modules/tag/scenarios/market_value_bucket/settings.py",
     is_enabled=True
 )
 ```

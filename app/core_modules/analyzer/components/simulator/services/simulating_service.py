@@ -96,7 +96,7 @@ class SimulatingService:
             settings = payload['settings']
             strategy_class = payload['strategy_class']
 
-            from app.data_manager import DataManager
+            from app.core_modules.data_manager import DataManager
             loader = DataManager(is_verbose=False)
             data = loader.prepare_data(stock, settings)
 

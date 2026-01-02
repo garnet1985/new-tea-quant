@@ -4,7 +4,7 @@
 """
 
 # 核心组件
-from app.data_manager import DataManager
+from app.core_modules.data_manager import DataManager
 from .settings_validator import SettingsValidator
 from .entity.investment import Investment
 from .entity.opportunity import Opportunity

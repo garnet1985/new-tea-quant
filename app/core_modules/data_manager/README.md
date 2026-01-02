@@ -3,7 +3,7 @@
 ## 📦 架构设计
 
 ```
-app/data_manager/
+app/core_modules/data_manager/
 ├── data_manager.py              # 主入口
 ├── loaders/
 │   ├── __init__.py
@@ -34,7 +34,7 @@ app/data_manager/
 ### 快捷方法（80%场景）
 
 ```python
-from app.data_manager import DataManager
+from app.core_modules.data_manager import DataManager
 
 data_mgr = DataManager(db=db)
 

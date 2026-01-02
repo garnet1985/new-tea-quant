@@ -24,7 +24,7 @@ class PreprocessService:
         
         try:
             # 使用 DataManager 加载股票列表
-            from app.data_manager import DataManager
+            from app.core_modules.data_manager import DataManager
             
             # 使用 DataManager 单例加载股票列表（使用过滤规则，排除ST、科创板等）
             loader = DataManager(is_verbose=False)

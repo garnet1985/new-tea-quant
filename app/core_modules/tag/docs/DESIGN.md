@@ -184,13 +184,13 @@ tag_value
 
 ### 1. Settings (`settings.py`)
 
-**位置**：`app/tag/scenarios/<scenario_name>/settings.py`
+**位置**：`app/core_modules/tag/scenarios/<scenario_name>/settings.py`
 
 **职责**：定义业务场景和标签的配置信息
 
 **配置结构**：
 
-> **注意**：详细的配置结构请参考 `app/tag/scenarios/example_settings.py`，该文件包含完整的配置示例和每个属性的详细解释。
+> **注意**：详细的配置结构请参考 `app/core_modules/tag/scenarios/example_settings.py`，该文件包含完整的配置示例和每个属性的详细解释。
 
 主要配置项：
 - `is_enabled`: 是否启用该 Scenario
@@ -211,7 +211,7 @@ tag_value
 
 ### 2. TagWorker (`tag_worker.py`)
 
-**位置**：`app/tag/scenarios/<scenario_name>/tag_worker.py`
+**位置**：`app/core_modules/tag/scenarios/<scenario_name>/tag_worker.py`
 
 **职责**：实现业务场景的计算逻辑（子进程 worker）
 
@@ -222,8 +222,8 @@ tag_value
 **实现示例**：
 
 ```python
-from app.tag.core.base_tag_worker import BaseTagWorker
-from app.tag.core.models.tag_model import TagModel
+from app.core_modules.tag.core.base_tag_worker import BaseTagWorker
+from app.core_modules.tag.core.models.tag_model import TagModel
 from typing import Dict, Any, Optional
 
 class MomentumTagWorker(BaseTagWorker):
@@ -278,7 +278,7 @@ class MomentumTagWorker(BaseTagWorker):
 
 ### 3. BaseTagWorker (`base_tag_worker.py`)
 
-**位置**：`app/tag/core/base_tag_worker.py`
+**位置**：`app/core_modules/tag/core/base_tag_worker.py`
 
 **职责**：框架基类，提供 TagWorker 的基础功能和框架支持
 
@@ -326,7 +326,7 @@ class MomentumTagWorker(BaseTagWorker):
 
 ### 4. TagWorkerDataManager (`tag_worker_data_manager.py`)
 
-**位置**：`app/tag/core/components/tag_worker_helper/tag_worker_data_manager.py`
+**位置**：`app/core_modules/tag/core/components/tag_worker_helper/tag_worker_data_manager.py`
 
 **职责**：子进程数据管理器，负责所有数据加载、缓存、过滤逻辑
 
@@ -372,7 +372,7 @@ historical_data = self.tag_worker_data_manager.filter_data_to_date(as_of_date)
 
 ### 5. TagManager (`tag_manager.py`)
 
-**位置**：`app/tag/tag_manager.py`
+**位置**：`app/core_modules/tag/core/tag_manager.py`
 
 **职责**：统一管理所有业务场景（按业务场景名管理）
 
@@ -417,7 +417,7 @@ historical_data = self.tag_worker_data_manager.filter_data_to_date(as_of_date)
 
 ### 配置结构
 
-> **详细配置结构请参考** `app/tag/scenarios/example_settings.py`，该文件包含完整的配置示例和每个属性的详细解释。
+> **详细配置结构请参考** `app/core_modules/tag/scenarios/example_settings.py`，该文件包含完整的配置示例和每个属性的详细解释。
 
 配置采用扁平化结构，主要包含：
 - **顶层配置**：`is_enabled`, `name`, `recompute` 等
@@ -883,7 +883,7 @@ ProcessWorker 在子进程中实例化 TagWorker 类并调用 `process_entity()`
 ### 目录结构
 
 ```
-app/tag/
+app/core_modules/tag/
 ├── base_tag_worker.py          # 框架基类
 ├── tag_manager.py               # 业务场景管理器
 ├── enums.py                     # 枚举定义
@@ -915,18 +915,18 @@ app/tag/
 
 ### 枚举定义
 
-**TagUpdateMode**（`app/tag/core/enums.py`）：
+**TagUpdateMode**（`app/core_modules/tag/core/enums.py`）：
 - `INCREMENTAL`: 增量更新
 - `REFRESH`: 全量刷新
 
-详细枚举定义请参考 `app/tag/core/enums.py`。
+详细枚举定义请参考 `app/core_modules/tag/core/enums.py`。
 
 ### 全局配置
 
-**app/tag/config.py**：
+**app/core_modules/tag/core/config.py**：
 ```python
 # Scenarios 根目录配置
-DEFAULT_SCENARIOS_ROOT = "app/tag/scenarios"
+DEFAULT_SCENARIOS_ROOT = "app/core_modules/tag/scenarios"
 ```
 
 ---

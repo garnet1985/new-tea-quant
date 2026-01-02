@@ -15,7 +15,7 @@
 创建了3大类数据服务目录：
 
 ```
-app/data_manager/data_services/
+app/core_modules/data_manager/data_services/
 ├── DESIGN.md                           # 设计文档
 ├── REFACTOR_COMPLETE.md                # 本文档
 ├── __init__.py                         # BaseDataService
@@ -214,20 +214,20 @@ portfolio = investment_service.load_portfolio_summary(strategy='Waly')
 ## 文件清单
 
 ### 新增文件
-- `app/data_manager/data_services/DESIGN.md`
-- `app/data_manager/data_services/REFACTOR_COMPLETE.md`
-- `app/data_manager/data_services/stock_related/__init__.py`
-- `app/data_manager/data_services/stock_related/corporate_finance/corporate_finance_data_service.py`
-- `app/data_manager/data_services/macro_system/__init__.py`
-- `app/data_manager/data_services/ui_transit/__init__.py`
-- `app/data_manager/data_services/ui_transit/investment/investment_data_service.py`
+- `app/core_modules/data_manager/data_services/DESIGN.md`
+- `app/core_modules/data_manager/data_services/REFACTOR_COMPLETE.md`
+- `app/core_modules/data_manager/data_services/stock_related/__init__.py`
+- `app/core_modules/data_manager/data_services/stock_related/corporate_finance/corporate_finance_data_service.py`
+- `app/core_modules/data_manager/data_services/macro_system/__init__.py`
+- `app/core_modules/data_manager/data_services/ui_transit/__init__.py`
+- `app/core_modules/data_manager/data_services/ui_transit/investment/investment_data_service.py`
 
 ### 移动文件
 - `stock/` → `stock_related/stock/`
 - `macro/` → `macro_system/macro/`
 
 ### 修改文件
-- `app/data_manager/data_manager.py`
+- `app/core_modules/data_manager/data_manager.py`
   - 更新 `_init_data_services()` 注册3大类
   - 更新 `get_data_service()` 支持两级访问
   - 新增 `resolve_data_requirements()` 配置驱动接口

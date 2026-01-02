@@ -24,6 +24,7 @@ from app.tag.core.base_tag_worker import BaseTagWorker
 from app.tag.core.components.helper.tag_helper import TagHelper
 
 from app.tag.core.components.helper.job_helper import JobHelper
+from app.tag.core.enums import TagUpdateMode
 from app.data_manager import DataManager
 from app.tag.core.config import DEFAULT_SCENARIOS_ROOT
 from app.tag.core.enums import FileName
@@ -305,22 +306,59 @@ class TagManager:
         self._execute_jobs(jobs, scenario_name, worker_class, worker_amount)
 
     def _build_jobs(self, entity_list: List[str], settings: Dict[str, Any], scenario_model: ScenarioModel, worker_class: Type[BaseTagWorker]):
-        update_mode = scenario_model.calculate_update_mode()
+        """
+        构建 jobs（每个 entity 一个 job）
         
-        # TODO: 实现 calculate_start_and_end_date 的正确逻辑
-        # 当前使用伪代码，需要根据 last_update_info 和 update_mode 计算
-        start_date = settings.get("performance", {}).get("start_date")
-        end_date = settings.get("performance", {}).get("end_date")
-        # start_date, end_date = JobHelper.calculate_start_and_end_date(last_update_info, update_mode)
-
+        针对当前 scenario，为每个 entity 构建一个 job。
+        对于 INCREMENTAL 模式，需要查询该 scenario 下所有 tag values 的最近记录，找到每个 entity 的最大 as_of_date。
+        
+        Args:
+            entity_list: 实体ID列表
+            settings: Settings 字典
+            scenario_model: ScenarioModel 实例
+            worker_class: Worker 类
+        """
+        update_mode = scenario_model.calculate_update_mode()
+        scenario_name = scenario_model.get_name()
+        
+        # 获取默认日期
+        default_start_date = settings.get("start_date")
+        default_end_date = settings.get("end_date")
+        
+        # 如果是 INCREMENTAL 模式，需要获取该 scenario 下所有 tag values 的最近记录
+        # 查询逻辑：找到该 scenario 下所有 tag_definition_ids 对应的 tag_value 记录，
+        # 按 entity_id 分组，找到每个 entity 的最大 as_of_date
+        entity_last_update_info = {}
+        if update_mode == TagUpdateMode.INCREMENTAL:
+            # 获取该 scenario 下所有 entity 的最后更新信息
+            # 返回格式：{entity_id: {"max_as_of_date": "20250101", ...}, ...}
+            tag_data_service = self.data_mgr.tag
+            if tag_data_service:
+                entity_last_update_info = tag_data_service.get_tag_value_last_update_info(scenario_name)
+        
         jobs = []
 
         for entity_id in entity_list:
+            # 获取该 entity 的最后更新日期（INCREMENTAL 模式）
+            # 从该 scenario 下所有 tag values 中找到该 entity 的最大 as_of_date
+            entity_last_update_date = None
+            if update_mode == TagUpdateMode.INCREMENTAL:
+                entity_info = entity_last_update_info.get(entity_id, {})
+                entity_last_update_date = entity_info.get("max_as_of_date")
+            
+            # 计算该 entity 的 start_date 和 end_date
+            start_date, end_date = JobHelper.calculate_start_and_end_date(
+                update_mode=update_mode,
+                entity_last_update_date=entity_last_update_date,
+                default_start_date=default_start_date,
+                default_end_date=default_end_date
+            )
+            
             job = {
                 "id": scenario_model.get_identifier() + "_" + entity_id,
                 "payload": {
                     "entity_id": entity_id,
-                    "scenario_name": scenario_model.get_name(),
+                    "scenario_name": scenario_name,
                     "update_mode": update_mode,
                     "tags": scenario_model.get_tags_dict(),
                     "start_date": start_date,

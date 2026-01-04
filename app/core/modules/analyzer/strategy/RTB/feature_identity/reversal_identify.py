@@ -24,7 +24,7 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 
 from app.core.modules.analyzer.analyzer_service import AnalyzerService
-from app.conf.conf import data_default_start_date
+from app.core.conf.conf import data_default_start_date
 
 
 def identify_major_reversals(stock_id: str = "000001.SZ", 

@@ -37,9 +37,9 @@ python rtb_quick_start.py simulate     # 运行模拟
 #### 方法2：直接运行脚本
 ```bash
 # 在项目根目录运行
-python app/analyzer/strategy/RTB/ml/analyze_rtb_trading_results.py
-python app/analyzer/strategy/RTB/ml/compare_rtb_vs_script_reversals.py
-python app/analyzer/strategy/RTB/ml/simple_rtb_condition_optimization.py
+python app/core/modules/analyzer/strategy/RTB/ml/analyze_rtb_trading_results.py
+python app/core/modules/analyzer/strategy/RTB/ml/compare_rtb_vs_script_reversals.py
+python app/core/modules/analyzer/strategy/RTB/ml/simple_rtb_condition_optimization.py
 ```
 
 ## 工作流程

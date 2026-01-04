@@ -136,7 +136,7 @@ cust_my_analysis       # 用户自定义分析表
 基础表由 `DatabaseManager` 在初始化时自动创建：
 
 ```python
-from utils.db.db_manager import DatabaseManager
+from app.core.infra.db.db_manager import DatabaseManager
 
 # 初始化时会自动创建所有基础表
 db = DatabaseManager()
@@ -185,7 +185,7 @@ EOF
 基础表的数据访问通过 `DataManager` 及其子 Loader：
 
 ```python
-from app.core_modules.data_manager import DataManager
+from app.core.modules.data_manager import DataManager
 
 data_mgr = DataManager(db=db)
 

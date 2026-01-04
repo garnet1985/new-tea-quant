@@ -44,7 +44,7 @@
 ### 1. 获取 Model 实例
 
 ```python
-from app.core_modules.data_manager.data_manager import DataManager
+from app.core.modules.data_manager.data_manager import DataManager
 
 data_manager = DataManager()
 data_manager.initialize()
@@ -125,7 +125,7 @@ def calculate_qfq_price(stock_id: str, date: str, raw_price: float) -> float:
 ### 6. 使用 DataService 计算前复权 K 线
 
 ```python
-from app.core_modules.data_manager.data_manager import DataManager
+from app.core.modules.data_manager.data_manager import DataManager
 
 data_manager = DataManager()
 data_manager.initialize()

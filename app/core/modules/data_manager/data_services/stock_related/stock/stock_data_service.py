@@ -37,7 +37,7 @@ class StockDataService(BaseDataService):
         self.adj_factor_event = data_manager.get_model('adj_factor_event')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
-        from utils.db import DatabaseManager
+        from app.core.infra.db import DatabaseManager
         self.db = DatabaseManager.get_default()
     
     # ==================== 股票基础信息 ====================
@@ -337,7 +337,7 @@ class StockDataService(BaseDataService):
         Returns:
             复权因子事件列表，按日期升序排列
         """
-        from utils.date.date_utils import DateUtils
+        from app.core.utils.date.date_utils import DateUtils
         
         # 确定日期范围
         kline_dates = [k.get('date') for k in raw_klines if k.get('date')]
@@ -394,7 +394,7 @@ class StockDataService(BaseDataService):
         Returns:
             前复权K线数据列表
         """
-        from utils.date.date_utils import DateUtils
+        from app.core.utils.date.date_utils import DateUtils
         
         qfq_klines = []
         event_idx = 0  # 当前复权事件索引

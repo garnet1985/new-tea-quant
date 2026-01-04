@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from loguru import logger
 
-from app.data_source.api_job import ApiJob, DataSourceTask
+from app.core.modules.data_source.api_job import ApiJob, DataSourceTask
 
 
 class BaseDataSourceHandler(ABC):
@@ -324,7 +324,7 @@ class BaseDataSourceHandler(ABC):
             
             # 框架执行 Tasks
             if executor is None:
-                from app.data_source.task_executor import TaskExecutor
+                from app.core.modules.data_source.task_executor import TaskExecutor
                 executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
                 # 设置 handler 和 context（用于单个 task 执行前后的钩子）
                 executor.set_handler(self, context)
@@ -387,7 +387,7 @@ class BaseDataSourceHandler(ABC):
         
         注意：Handler 可以直接调用，也可以让框架自动调用
         """
-        from app.data_source.task_executor import TaskExecutor
+        from app.core.modules.data_source.task_executor import TaskExecutor
         executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
         return await executor.execute(tasks)
     

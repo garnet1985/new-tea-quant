@@ -19,15 +19,15 @@ import time
 from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
 from pathlib import Path
-from app.core_modules.tag.core.enums import TagUpdateMode
-from app.core_modules.tag.core.base_tag_worker import BaseTagWorker
-from app.core_modules.tag.core.components.helper.tag_helper import TagHelper
-from app.core_modules.tag.core.components.helper.job_helper import JobHelper
-from app.core_modules.data_manager import DataManager
-from app.core_modules.tag.core.config import DEFAULT_SCENARIOS_ROOT
-from app.core_modules.tag.core.enums import FileName
-from app.core_modules.tag.core.models.scenario_model import ScenarioModel
-from utils.worker.multi_process.process_worker import ExecutionMode, ProcessWorker
+from app.core.modules.tag.core.enums import TagUpdateMode
+from app.core.modules.tag.core.base_tag_worker import BaseTagWorker
+from app.core.modules.tag.core.components.helper.tag_helper import TagHelper
+from app.core.modules.tag.core.components.helper.job_helper import JobHelper
+from app.core.modules.data_manager import DataManager
+from app.core.modules.tag.core.config import DEFAULT_SCENARIOS_ROOT
+from app.core.modules.tag.core.enums import FileName
+from app.core.modules.tag.core.models.scenario_model import ScenarioModel
+from app.core.infra.worker.multi_process.process_worker import ExecutionMode, ProcessWorker
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +439,7 @@ class TagManager:
         2. 实例化 TagWorker（传入完整的 job_payload）
         3. 调用 worker.run() 执行计算
         """
-        from utils.worker.multi_process.process_worker import JobResult, JobStatus
+        from app.core.infra.worker.multi_process.process_worker import JobResult, JobStatus
         from datetime import datetime
         
         job_id = job.get('id', 'unknown')

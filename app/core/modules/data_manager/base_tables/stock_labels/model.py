@@ -3,8 +3,8 @@
 """
 from typing import List, Dict, Any, Optional
 from loguru import logger
-from utils.db import DbBaseModel
-from utils.date.date_utils import DateUtils
+from app.core.infra.db import DbBaseModel
+from app.core.utils.date.date_utils import DateUtils
 
 
 class StockLabelsModel(DbBaseModel):

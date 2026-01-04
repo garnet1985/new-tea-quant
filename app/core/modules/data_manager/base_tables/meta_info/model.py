@@ -5,7 +5,7 @@
 使用固定的 id 来标识不同的元信息项，info 字段直接存储值
 """
 from typing import List, Dict, Any, Optional
-from utils.db import DbBaseModel
+from app.core.infra.db import DbBaseModel
 from loguru import logger
 
 

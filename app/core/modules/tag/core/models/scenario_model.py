@@ -2,9 +2,9 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from loguru import logger
 
-from app.conf.conf import data_default_start_date
-from app.core_modules.tag.core.enums import TagUpdateMode
-from app.core_modules.tag.core.models.tag_model import TagModel
+from app.core.conf.conf import data_default_start_date
+from app.core.modules.tag.core.enums import TagUpdateMode
+from app.core.modules.tag.core.models.tag_model import TagModel
 
 
 class ScenarioModel:
@@ -223,7 +223,7 @@ class ScenarioModel:
         if "end_date" not in filled_settings or filled_settings.get("end_date") == "":
             # 从 DataManager 获取最新已完成交易日（单例模式）
             try:
-                from app.core_modules.data_manager import DataManager
+                from app.core.modules.data_manager import DataManager
                 data_mgr = DataManager(is_verbose=False)
                 filled_settings["end_date"] = data_mgr.get_latest_completed_trading_date()
             except Exception as e:

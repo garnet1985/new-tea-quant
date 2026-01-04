@@ -9,7 +9,7 @@ import threading
 import importlib
 import pkgutil
 
-from app.data_source.base_provider import BaseProvider
+from app.core.modules.data_source.base_provider import BaseProvider
 
 
 class ProviderInstancePool:
@@ -120,7 +120,7 @@ class ProviderInstancePool:
         """
         try:
             # 导入 providers 包
-            providers_package = importlib.import_module('app.data_source.providers')
+            providers_package = importlib.import_module('app.core.modules.data_source.providers')
             package_path = providers_package.__path__
             
             # 使用 pkgutil 遍历所有子包
@@ -130,7 +130,7 @@ class ProviderInstancePool:
                 
                 # 尝试导入该子包的 provider 模块
                 try:
-                    module_path = f'app.data_source.providers.{modname}.provider'
+                    module_path = f'app.core.modules.data_source.providers.{modname}.provider'
                     provider_module = importlib.import_module(module_path)
                     
                     # 查找所有继承 BaseProvider 的类
@@ -221,7 +221,7 @@ class ProviderInstancePool:
         if provider_name in self._provider_classes:
             provider_class = self._provider_classes[provider_name]
             # 从类的模块路径提取目录名
-            # 例如：app.data_source.providers.tushare.provider -> tushare
+            # 例如：app.core.modules.data_source.providers.tushare.provider -> tushare
             module_path = provider_class.__module__
             parts = module_path.split('.')
             if len(parts) >= 4:
@@ -242,7 +242,7 @@ class ProviderInstancePool:
         # 动态导入对应 Provider 的配置模块
         try:
             config_module = __import__(
-                f'app.data_source.providers.{folder_name}.config',
+                f'app.core.modules.data_source.providers.{folder_name}.config',
                 fromlist=['get_config']
             )
             

@@ -222,8 +222,8 @@ tag_value
 **实现示例**：
 
 ```python
-from app.core_modules.tag.core.base_tag_worker import BaseTagWorker
-from app.core_modules.tag.core.models.tag_model import TagModel
+from app.core.modules.tag.core.base_tag_worker import BaseTagWorker
+from app.core.modules.tag.core.models.tag_model import TagModel
 from typing import Dict, Any, Optional
 
 class MomentumTagWorker(BaseTagWorker):

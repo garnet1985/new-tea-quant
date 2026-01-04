@@ -34,7 +34,7 @@
 ### 基本用法
 
 ```python
-from utils.worker import FuturesWorker, ThreadExecutionMode
+from app.core.infra.worker import FuturesWorker, ThreadExecutionMode
 
 # 创建多线程执行器
 worker = FuturesWorker(

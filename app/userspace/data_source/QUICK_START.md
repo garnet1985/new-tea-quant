@@ -11,9 +11,9 @@
 ```python
 # custom/handlers/my_stock_list.py
 from typing import Dict, Any, List
-from app.data_source.data_source_handler import BaseDataSourceHandler
-from app.data_source.api_job import ApiJob, DataSourceTask
-from app.data_source.providers import get_provider_pool
+from app.core.modules.data_source.data_source_handler import BaseDataSourceHandler
+from app.core.modules.data_source.api_job import ApiJob, DataSourceTask
+from app.core.modules.data_source.providers import get_provider_pool
 
 
 class MyStockListHandler(BaseDataSourceHandler):
@@ -101,7 +101,7 @@ class MyStockListHandler(BaseDataSourceHandler):
 ## 步骤 3：运行
 
 ```python
-from app.data_source.data_source_manager import DataSourceManager
+from app.core.modules.data_source.data_source_manager import DataSourceManager
 
 manager = DataSourceManager(is_verbose=False)
 await manager.renew_data()
@@ -183,7 +183,7 @@ async def fetch(self, context: Dict[str, Any]) -> List[DataSourceTask]:
 ## 测试单个 Handler
 
 ```python
-from app.data_source.data_source_manager import DataSourceManager
+from app.core.modules.data_source.data_source_manager import DataSourceManager
 
 manager = DataSourceManager()
 result = await manager.fetch("stock_list", context={})

@@ -12,7 +12,7 @@ import requests
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from app.data_source.base_provider import BaseProvider
+from app.core.modules.data_source.base_provider import BaseProvider
 
 
 class EastMoneyProvider(BaseProvider):

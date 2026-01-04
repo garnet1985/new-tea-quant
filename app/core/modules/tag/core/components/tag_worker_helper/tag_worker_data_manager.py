@@ -222,7 +222,8 @@ class TagWorkerDataManager:
             
             if base_data:
                 last_record = base_data[-1] if base_data else None
-                if last_record and last_record.get('date', '') < as_of_date:
+                last_date = last_record.get('date', '') if last_record else None
+                if last_date and as_of_date and last_date < as_of_date:
                     need_load = True
             else:
                 # 如果 base_data 为空，需要加载
@@ -409,9 +410,10 @@ class TagWorkerDataManager:
                 filtered_records = []
                 for record in kline_list:
                     record_date = record.get('date', '')
-                    if record_date <= as_of_date:
+                    # 确保 record_date 和 as_of_date 都不为 None 或空字符串
+                    if record_date and as_of_date and record_date <= as_of_date:
                         filtered_records.append(record)
-                    else:
+                    elif record_date and as_of_date:
                         # 遇到第一个超过 as_of_date 的记录，停止
                         break
                 filtered_klines[term] = filtered_records
@@ -445,10 +447,10 @@ class TagWorkerDataManager:
                         else:
                             filtered_records.append(record)
                     else:
-                        # 日期数据：直接比较
-                        if record_date <= as_of_date:
+                        # 日期数据：直接比较（确保都不为 None 或空字符串）
+                        if record_date and as_of_date and record_date <= as_of_date:
                             filtered_records.append(record)
-                        else:
+                        elif record_date and as_of_date:
                             break
                 
                 filtered_data[key] = filtered_records
@@ -469,20 +471,26 @@ class TagWorkerDataManager:
             List[str]: 交易日列表（YYYYMMDD 格式）
         """
         # 方案1：从 DataManager 获取交易日历（推荐）
-        if self.data_mgr and hasattr(self.data_mgr, 'get_trading_dates'):
-            trading_dates = self.data_mgr.get_trading_dates(start_date, end_date)
-            if trading_dates:
-                return trading_dates
+        # 注意：DataManager 可能没有 get_trading_dates 方法，需要从其他方式获取
+        # 暂时跳过，使用方案2
+        # if self.data_mgr and hasattr(self.data_mgr, 'get_trading_dates'):
+        #     trading_dates = self.data_mgr.get_trading_dates(start_date, end_date)
+        #     if trading_dates:
+        #         return trading_dates
         
         # 方案2：从数据缓存中提取（如果已加载）
         if self.data_cache and 'klines' in self.data_cache:
             base_kline = self.data_cache['klines'].get(self.base_term, [])
             if base_kline:
                 all_dates = sorted(set(record.get('date', '') for record in base_kline if record.get('date')))
-                trading_dates = [
-                    date for date in all_dates
-                    if start_date <= date <= end_date
-                ]
+                # 确保 start_date 和 end_date 不为 None
+                if start_date and end_date:
+                    trading_dates = [
+                        date for date in all_dates
+                        if start_date <= date <= end_date
+                    ]
+                else:
+                    trading_dates = []
                 return trading_dates
         
         # 如果都失败，返回空列表

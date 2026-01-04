@@ -6,7 +6,7 @@
       "name": "id",
       "type": "bigint",
       "isRequired": true,
-      "isAutoIncrement": true,
+      "autoIncrement": true,
       "description": "自增主键"
     },
     {

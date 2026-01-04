@@ -24,7 +24,7 @@ import threading
 from app.core.infra.db.db_manager import DatabaseManager
 
 if TYPE_CHECKING:
-    from app.enums import EntityType
+    from app.core.global_enums.enums import EntityType
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
 from app.core.conf.conf import data_default_start_date
@@ -226,18 +226,18 @@ class DataManager:
         """
         # 表名到 Model 类的映射
         from app.core.modules.data_manager.base_tables import (
-            StockKlineModel, StockListModel, AdjFactorModel, AdjFactorEventModel,
+            StockKlineModel, StockListModel, AdjFactorEventModel,
             GdpModel, PriceIndexesModel, ShiborModel, LprModel,
             CorporateFinanceModel, StockLabelsModel,
             InvestmentTradesModel, InvestmentOperationsModel,
             StockIndexIndicatorModel, StockIndexIndicatorWeightModel,
-            MetaInfoModel
+            MetaInfoModel, TagScenarioModel, TagDefinitionModel, TagValueModel
         )
         
         model_map = {
             'stock_kline': StockKlineModel,
             'stock_list': StockListModel,
-            'adj_factor': AdjFactorModel,
+            # 'adj_factor': AdjFactorModel,  # 已移除，使用 adj_factor_event 替代
             'adj_factor_event': AdjFactorEventModel,
             'gdp': GdpModel,
             'price_indexes': PriceIndexesModel,
@@ -250,6 +250,9 @@ class DataManager:
             'stock_index_indicator': StockIndexIndicatorModel,
             'stock_index_indicator_weight': StockIndexIndicatorWeightModel,
             'meta_info': MetaInfoModel,
+            'tag_scenario': TagScenarioModel,
+            'tag_definition': TagDefinitionModel,
+            'tag_value': TagValueModel,
         }
         
         model_class = model_map.get(table_name)
@@ -950,7 +953,7 @@ class DataManager:
                 filtered=True
             )
         """
-        from app.enums import EntityType as EntityTypeEnum
+        from app.core.global_enums.enums import EntityType as EntityTypeEnum
         
         # 当前只支持 stock 相关的实体类型
         if entity_type in [EntityTypeEnum.STOCK_KLINE_DAILY, EntityTypeEnum.STOCK_KLINE_WEEKLY, EntityTypeEnum.STOCK_KLINE_MONTHLY]:

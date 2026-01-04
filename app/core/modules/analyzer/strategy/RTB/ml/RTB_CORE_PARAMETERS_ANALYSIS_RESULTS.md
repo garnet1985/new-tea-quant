@@ -108,6 +108,6 @@
 ---
 
 **分析完成时间**: 2025-10-21  
-**数据文件**: `/app/analyzer/strategy/RTB/ml/data/reversal_ml_data_complete_20251021_143000.csv`  
+**数据文件**: `/app/core/modules/analyzer/strategy/RTB/ml/data/reversal_ml_data_complete_20251021_143000.csv`  
 **分析脚本**: `ml_analysis_500_stocks.py`  
 **可视化图表**: `complete_ml_analysis_500_stocks.png`

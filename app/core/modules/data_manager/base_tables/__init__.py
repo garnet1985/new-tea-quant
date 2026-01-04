@@ -20,7 +20,8 @@ Base Tables Models - 所有基础表的 Model 类
 # 导出所有 Model 类
 from .stock_kline.model import StockKlineModel
 from .stock_list.model import StockListModel
-from .adj_factor.model import AdjFactorModel
+# adj_factor 模块已移除，使用 adj_factor_event 替代
+# from .adj_factor.model import AdjFactorModel
 from .adj_factor_event.model import AdjFactorEventModel
 from .gdp.model import GdpModel
 from .price_indexes.model import PriceIndexesModel
@@ -40,7 +41,7 @@ from .tag_value.model import TagValueModel
 __all__ = [
     'StockKlineModel',
     'StockListModel',
-    'AdjFactorModel',
+    # 'AdjFactorModel',  # 已移除，使用 adj_factor_event 替代
     'AdjFactorEventModel',
     'GdpModel',
     'PriceIndexesModel',

@@ -170,18 +170,41 @@ class TagManager:
             self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下的 {FileName.TAG_WORKER.value} 文件内容无效，跳过。")
             return None
 
-        scenario_name = settings_dict.get("scenario", {}).get("name")
+        # 新结构：name 直接在顶层，不在 scenario 子字典中
+        scenario_name = settings_dict.get("name")
         if not scenario_name:
             self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下的 {FileName.SETTINGS.value} 文件中缺少 name 字段，跳过。")
             return None
 
+        # 获取 worker_class 的模块路径和类名（用于子进程重新导入）
+        worker_class_name = worker_class.__name__
+        # 构建完整的模块路径（相对于项目根目录）
+        # 例如：app/userspace/tags/momentum/tag_worker.py -> app.userspace.tags.momentum.tag_worker
+        cwd = Path.cwd()
+        abs_path = worker_class_path.resolve()
+        try:
+            relative_path = abs_path.relative_to(cwd)
+            worker_module_full_path = str(relative_path.with_suffix('')).replace('/', '.').replace('\\', '.')
+        except ValueError:
+            # 如果无法计算相对路径，使用字符串操作
+            abs_path_str = str(abs_path)
+            cwd_str = str(cwd)
+            if abs_path_str.startswith(cwd_str):
+                rel_str = abs_path_str[len(cwd_str)+1:]
+                worker_module_full_path = rel_str.replace('.py', '').replace('/', '.').replace('\\', '.')
+            else:
+                # 最后的后备方案：使用文件名
+                worker_module_full_path = worker_class_path.stem
+        
         return {
             "name": scenario_name,
             "scenario_folder_path": scenario_folder.name,
             "settings": settings_dict,
             "settings_file_path": settings_path,
-            "worker_class": worker_class,
+            "worker_class": worker_class,  # 保留用于非多进程场景
             "worker_file_path": worker_class_path,
+            "worker_module_path": worker_module_full_path,  # 用于子进程重新导入
+            "worker_class_name": worker_class_name,  # 用于子进程重新导入
         }
 
     def _load_scenario_from_cache_by_name(self, name: str):
@@ -200,7 +223,7 @@ class TagManager:
         Returns:
             List[str]: 实体ID列表
         """
-        from app.enums import EntityType
+        from app.core.global_enums.enums import EntityType
         
         target_entity_str = scenario_model.get_target_entity()
         
@@ -300,7 +323,10 @@ class TagManager:
             return
 
         # 执行 jobs
-        worker_amount = JobHelper.decide_worker_amount(len(jobs))
+        # 从 settings 中获取 max_workers 配置
+        performance = settings.get("performance", {})
+        max_workers = performance.get("max_workers", "auto")
+        worker_amount = JobHelper.decide_worker_amount(len(jobs), max_workers=max_workers)
         self._execute_jobs(jobs, scenario_name, worker_class, worker_amount)
 
     def _build_jobs(self, entity_list: List[str], settings: Dict[str, Any], scenario_model: ScenarioModel, worker_class: Type[BaseTagWorker]):
@@ -359,6 +385,11 @@ class TagManager:
                 default_end_date=default_end_date
             )
             
+            # 从 cache 获取 worker 模块信息（用于子进程重新导入）
+            scenario_cache = self.scenario_cache.get(scenario_name, {})
+            worker_module_path = scenario_cache.get("worker_module_path")
+            worker_class_name = scenario_cache.get("worker_class_name")
+            
             job = {
                 "id": scenario_model.get_identifier() + "_" + entity_id,
                 "payload": {
@@ -370,7 +401,8 @@ class TagManager:
                     "start_date": start_date,
                     "end_date": end_date,
                     "settings": settings,  # 添加完整的 settings
-                    "worker_class": worker_class,  # 将 worker_class 放入 payload
+                    "worker_module_path": worker_module_path,  # 用于子进程重新导入
+                    "worker_class_name": worker_class_name,  # 用于子进程重新导入
                 },
             }
             jobs.append(job)
@@ -446,8 +478,18 @@ class TagManager:
         payload = job.get('payload', {})
         
         try:
-            # 1. 获取 worker 类和 settings 字典
-            worker_class = payload['worker_class']
+            # 1. 在子进程中重新导入 worker_class（避免 pickle 问题）
+            import importlib
+            worker_module_path = payload.get('worker_module_path')
+            worker_class_name = payload.get('worker_class_name')
+            
+            if not worker_module_path or not worker_class_name:
+                raise ValueError(f"缺少 worker 模块信息: worker_module_path={worker_module_path}, worker_class_name={worker_class_name}")
+            
+            # 动态导入模块和类
+            worker_module = importlib.import_module(worker_module_path)
+            worker_class = getattr(worker_module, worker_class_name)
+            
             job_payload = payload  # 完整的 payload 传给 worker
             
             # 2. 创建 worker 实例（子进程中）

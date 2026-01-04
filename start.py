@@ -8,11 +8,14 @@
     python start.py simulate             # 模拟回测
     python start.py renew                # 更新数据
     python start.py analysis             # 分析结果
+    python start.py tag                  # 执行所有标签场景
+    python start.py tag --scenario xxx   # 执行指定标签场景
     
     python start.py -c                   # 快捷: 扫描（等价于: python start.py scan）
     python start.py -s                   # 快捷: 模拟（等价于: python start.py simulate）
     python start.py -r                   # 快捷: 更新（等价于: python start.py renew）
     python start.py -a                   # 快捷: 分析（等价于: python start.py analysis）
+    python start.py -t                   # 快捷: 标签（等价于: python start.py tag）
     python start.py -h                   # 查看帮助
 """
 import sys
@@ -25,10 +28,10 @@ import asyncio
 from utils.warning_suppressor import setup_warning_suppression
 setup_warning_suppression()
 
-from app.data_manager.data_manager import DataManager
-from app.data_source.data_source_manager import DataSourceManager
+from app.core_modules.data_manager import DataManager
+from app.core_modules.data_source.data_source_manager import DataSourceManager
 from app.analyzer import Analyzer
-from app.labeler import LabelerService
+from app.core_modules.tag import TagManager
 from utils.icon.icon_service import IconService
 
 
@@ -50,11 +53,12 @@ class App:
         # 所有模块都接收 is_verbose 参数以控制日志详细程度
         self.data_source = DataSourceManager(is_verbose=self.is_verbose)
         self.analyzer = Analyzer(is_verbose=self.is_verbose)
-        # LabelerService 由 DataSourceManager 在数据更新管线中统一调度，这里保留实例以兼容旧代码
-        self.labeler = LabelerService(is_verbose=self.is_verbose)
         
         # 4. 初始化策略（这会注册表到数据库）
         self.analyzer.initialize()
+        
+        # 5. 初始化 TagManager（延迟初始化，只在需要时创建）
+        self.tag_manager = None
 
     async def get_latest_completed_trading_date(self):
         """
@@ -100,6 +104,12 @@ class App:
     def analysis(self, session_id: str = None):
         """分析所有策略的模拟结果"""
         self.analyzer.analysis(session_id)
+    
+    def tag(self, scenario_name: str = None):
+        """执行标签计算"""
+        if self.tag_manager is None:
+            self.tag_manager = TagManager(is_verbose=self.is_verbose)
+        self.tag_manager.execute(scenario_name=scenario_name)
 
 
 def parse_args():
@@ -114,12 +124,14 @@ def parse_args():
   simulate    模拟回测（使用历史数据测试策略表现）
   renew       更新数据（更新股票行情、标签等数据）
   analysis    分析结果（分析模拟回测的结果）
+  tag         执行标签计算（计算并存储所有或指定场景的标签）
 
 快捷缩写:
   -c          等同于 scan（Check opportunities）
   -s          等同于 simulate（Simulate backtest）
   -r          等同于 renew（Renew data）
   -a          等同于 analysis（Analysis results）
+  -t          等同于 tag（Tag calculation）
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 使用示例:
@@ -130,11 +142,14 @@ def parse_args():
     %(prog)s simulate             模拟回测
     %(prog)s renew                更新数据
     %(prog)s analysis             分析结果
+    %(prog)s tag                  执行所有标签场景
+    %(prog)s tag --scenario xxx   执行指定标签场景
 
   快捷方式:
     %(prog)s -c                   快速扫描
     %(prog)s -s                   快速模拟
     %(prog)s -r                   快速更新
+    %(prog)s -t                   快速标签
 
   组合命令（按顺序执行）:
     %(prog)s renew scan           更新数据 → 扫描
@@ -148,6 +163,7 @@ def parse_args():
   额外参数:
     %(prog)s simulate --strategy RTB    只运行指定策略
     %(prog)s analysis --session xxx     分析指定session
+    %(prog)s tag --scenario xxx         执行指定标签场景
     %(prog)s -s -v                      详细输出模式
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -159,7 +175,7 @@ def parse_args():
     parser.add_argument(
         'command',
         nargs='?',
-        help='要执行的命令（scan/simulate/renew/analysis），省略则默认 simulate'
+        help='要执行的命令（scan/simulate/renew/analysis/tag），省略则默认 simulate'
     )
     
     # 快捷flag（避免大小写混淆）
@@ -171,10 +187,13 @@ def parse_args():
                         help='更新数据（renew）')
     parser.add_argument('-a', '--analysis-flag', dest='analysis_flag', action='store_true', 
                         help='分析结果（analysis）')
+    parser.add_argument('-t', '--tag-flag', dest='tag_flag', action='store_true', 
+                        help='执行标签计算（tag）')
     
     # 额外参数
     parser.add_argument('--strategy', type=str, help='指定策略名称（用于 scan/simulate）')
     parser.add_argument('--session', type=str, help='指定session ID（用于 analysis）')
+    parser.add_argument('--scenario', type=str, help='指定场景名称（用于 tag）')
     parser.add_argument('-v', '--verbose', action='store_true', help='详细输出模式')
     
     return parser.parse_args()
@@ -190,7 +209,7 @@ def resolve_command(args) -> str:
     - 如果同时给了多个互斥命令，报错退出
     - 如果都没给，默认 simulate
     """
-    valid_commands = {'scan', 'simulate', 'renew', 'analysis'}
+    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag'}
     
     cmd_from_positional = None
     if args.command:
@@ -209,6 +228,8 @@ def resolve_command(args) -> str:
         flags.append('simulate')
     if args.analysis_flag:
         flags.append('analysis')
+    if args.tag_flag:
+        flags.append('tag')
     
     # 如果位置参数和 flag 同时指定，并且不一致，则报错
     if cmd_from_positional and flags and cmd_from_positional not in flags:
@@ -260,6 +281,9 @@ def main():
         elif command == 'analysis':
             logger.info("📊 分析模拟结果...")
             app.analysis(session_id=args.session)
+        elif command == 'tag':
+            logger.info("🏷️  执行标签计算...")
+            app.tag(scenario_name=args.scenario)
         
         logger.info("")
         logger.info("=" * 60)

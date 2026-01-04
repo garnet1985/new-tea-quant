@@ -38,9 +38,13 @@ class ScenarioModel:
 
         # 其他字段
         self._target_entity = None
-        # tagModel列表
-        self._tag_models = self._cache_tag_models(settings)
+        
+        # 先填充默认值，然后从 settings 设置值
         self._settings = self._fill_in_default_values_to_settings(settings)
+        self._set_values_from_setting(self._settings)
+        
+        # tagModel列表（在设置值之后）
+        self._tag_models = self._cache_tag_models(self._settings)
 
 
     # ================================================================
@@ -108,10 +112,12 @@ class ScenarioModel:
         if self._recompute:
             return TagUpdateMode.REFRESH
         
-        # 从 settings 中获取 update_mode（可能在 calculator.performance.update_mode 中）
-        calculator = self._settings.get("calculator", {})
-        performance = calculator.get("performance", {})
-        update_mode_str = performance.get("update_mode", "incremental")
+        # 从 settings 中获取 update_mode（新结构：直接在顶层或 performance.update_mode）
+        # 优先从顶层获取，如果没有则从 performance 获取
+        update_mode_str = self._settings.get("update_mode")
+        if not update_mode_str:
+            performance = self._settings.get("performance", {})
+            update_mode_str = performance.get("update_mode", "incremental")
         
         # 转换为 TagUpdateMode 枚举
         try:

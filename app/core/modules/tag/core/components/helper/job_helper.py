@@ -101,7 +101,7 @@ class JobHelper:
 
 
     @staticmethod
-    def decide_worker_amount(estimated_job_count: int, max_workers: int = None) -> int:
+    def decide_worker_amount(estimated_job_count: int, max_workers: Any = None) -> int:
         """
         根据 job 数量决定进程数（最多 max_workers 个）
         
@@ -113,14 +113,14 @@ class JobHelper:
         - 2000个job以上：最大worker（max_workers，默认 CPU 核心数）
         
         Args:
-            jobs: Job 列表
-            max_workers: 最大 worker 数量（可选，默认使用 CPU 核心数）
+            estimated_job_count: 预估的 job 数量
+            max_workers: 最大 worker 数量（可选，可以是 "auto"、int 或 None，默认使用 CPU 核心数）
         
         Returns:
             int: 建议的 worker 数量
         """
-        if max_workers == "auto":
-            return os.cpu_count() or 10
+        if max_workers == "auto" or max_workers is None:
+            max_workers = os.cpu_count() or 10
         
         worker_amount = 1
         if estimated_job_count <= 100:
@@ -133,6 +133,6 @@ class JobHelper:
             worker_amount = 8
         else:
             worker_amount = max_workers
-        
+            
         return min(worker_amount, max_workers)
     

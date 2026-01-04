@@ -212,7 +212,7 @@ class KlineHandler(BaseDataSourceHandler):
             raise ValueError(f"{self.__class__.__name__} 需要 end_dates 参数（包含 daily/weekly/monthly 的结束日期）")
         
         tasks = []
-        from app.conf.conf import data_default_start_date
+        from app.core.conf.conf import data_default_start_date
         
         for stock in stock_list:
             stock_id = stock.get("ts_code") or stock.get("id")

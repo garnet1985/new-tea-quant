@@ -4,7 +4,7 @@
 """
 
 # 核心组件
-from app.core_modules.data_manager import DataManager
+from app.core.modules.data_manager import DataManager
 from .settings_validator import SettingsValidator
 from .entity.investment import Investment
 from .entity.opportunity import Opportunity
@@ -15,7 +15,7 @@ from .indicators import Indicators
 
 # 实体组件
 # 枚举组件
-from app.analyzer.enums import InvestmentResult
+from app.core.modules.analyzer.enums import InvestmentResult
 
 # 投资管理组件
 from .investment.investment_recorder import InvestmentRecorder

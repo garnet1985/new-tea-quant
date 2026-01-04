@@ -119,7 +119,7 @@ STOCK_LIST_SCHEMA = {
 
 **使用示例：**
 ```python
-from app.data_source.data_source_manager import DataSourceManager
+from app.core.modules.data_source.data_source_manager import DataSourceManager
 
 # 初始化
 manager = DataSourceManager(is_verbose=False)
@@ -278,7 +278,7 @@ app/data_source/
 ### 1. 初始化 DataSourceManager
 
 ```python
-from app.data_source.data_source_manager import DataSourceManager
+from app.core.modules.data_source.data_source_manager import DataSourceManager
 
 # 初始化
 manager = DataSourceManager(is_verbose=False)

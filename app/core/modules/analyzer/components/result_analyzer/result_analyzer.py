@@ -1,12 +1,12 @@
 from typing import Any, Dict, List
 from loguru import logger
-from utils.date.date_utils import DateUtils
-from utils.icon.icon_service import IconService
+from app.core.utils.date.date_utils import DateUtils
+from app.core.utils.icon.icon_service import IconService
 
 
 class ResultAnalyzer:
     def __init__(self):
-        from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
+        from app.core.modules.analyzer.components.investment.investment_recorder import InvestmentRecorder
         self.investment_recorder = InvestmentRecorder()
 
     # ==================================================

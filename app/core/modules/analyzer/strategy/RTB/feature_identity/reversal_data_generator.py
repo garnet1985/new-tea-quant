@@ -11,9 +11,9 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 os.chdir(str(project_root))
 
-from app.core_modules.data_manager.data_manager import DataManager
-from app.analyzer.strategy.RTB.settings import settings
-from app.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
+from app.core.modules.data_manager.data_manager import DataManager
+from app.core.modules.analyzer.strategy.RTB.settings import settings
+from app.core.modules.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class ReversalDataGenerator:
         """获取股票样本列表 - 使用RTB策略的抽样方式"""
         try:
             # 直接使用RTB settings中的配置
-            from app.analyzer.strategy.RTB.settings import settings
+            from app.core.modules.analyzer.strategy.RTB.settings import settings
             
             # 获取所有股票
             all_stocks = self.data_mgr.load_stock_list(filtered=True)

@@ -13,7 +13,7 @@ Tag 配置示例（settings.py）
 - is_legacy 不在 settings 中，在代码层面管理
 - display_name 如果未指定，代码层面会默认使用 name
 """
-from app.core_modules.tag.core.enums import KlineTerm, UpdateMode, VersionChangeAction
+from app.core.modules.tag.core.enums import KlineTerm, UpdateMode, VersionChangeAction
 
 Settings = {
     # ========================================================================

@@ -16,7 +16,7 @@ Tag 配置示例（settings.py）
 - display_name 如果未指定，代码层面会默认使用 name
 """
 from app.enums import EntityType, IndicatorType
-from app.core_modules.tag.core.enums import UpdateMode, VersionChangeAction
+from app.core.modules.tag.core.enums import UpdateMode, VersionChangeAction
 
 Settings = {
     # ========================================================================

@@ -18,7 +18,7 @@ sys.path.insert(0, project_root)
 
 from bff.APIs.stock_api import StockApi
 from bff.APIs.investment_api import InvestmentApi
-from app.data_manager import DataManager
+from app.core.modules.data_manager import DataManager
 
 
 class BFFApi:

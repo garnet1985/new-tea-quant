@@ -17,9 +17,9 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 os.chdir(str(project_root))
 
-from app.core_modules.data_manager.data_manager import DataManager
-from app.analyzer.strategy.RTB import settings
-from app.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
+from app.core.modules.data_manager.data_manager import DataManager
+from app.core.modules.analyzer.strategy.RTB import settings
+from app.core.modules.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
 
 logger = logging.getLogger(__name__)
 

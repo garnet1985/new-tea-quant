@@ -3,9 +3,9 @@ from pathlib import Path
 import importlib.util
 import logging
 
-from app.core_modules.tag.core.base_tag_worker import BaseTagWorker
-from app.core_modules.tag.core.enums import FileName
-from utils.file.file_util import FileUtil
+from app.core.modules.tag.core.base_tag_worker import BaseTagWorker
+from app.core.modules.tag.core.enums import FileName
+from app.core.utils.file.file_util import FileUtil
 
 logger = logging.getLogger(__name__)
 

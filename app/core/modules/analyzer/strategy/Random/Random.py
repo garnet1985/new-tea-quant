@@ -10,9 +10,9 @@ import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
 
-from app.analyzer.components.base_strategy import BaseStrategy
+from app.core.modules.analyzer.components.base_strategy import BaseStrategy
 from app.enums import KlineTerm
-from app.analyzer.components.entity.opportunity import Opportunity
+from app.core.modules.analyzer.components.entity.opportunity import Opportunity
 
 
 class RandomStrategy(BaseStrategy):

@@ -438,14 +438,14 @@ def save_reversal_results(reversals: List[Dict[str, Any]], stock_id: str):
         return
     
     # 保存为JSON格式
-    json_file = f"app/analyzer/strategy/RTB/ml/precise_reversals_{stock_id}.json"
+    json_file = f"app/core/modules/analyzer/strategy/RTB/ml/precise_reversals_{stock_id}.json"
     with open(json_file, 'w', encoding='utf-8') as f:
         json.dump(reversals, f, ensure_ascii=False, indent=2)
     logger.info(f"💾 结果已保存到: {json_file}")
     
     # 保存为CSV格式
     df = pd.DataFrame(reversals)
-    csv_file = f"app/analyzer/strategy/RTB/ml/precise_reversals_{stock_id}.csv"
+    csv_file = f"app/core/modules/analyzer/strategy/RTB/ml/precise_reversals_{stock_id}.csv"
     df.to_csv(csv_file, index=False, encoding='utf-8')
     logger.info(f"💾 结果已保存到: {csv_file}")
 

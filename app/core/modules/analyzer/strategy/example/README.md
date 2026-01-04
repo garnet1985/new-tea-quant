@@ -4,8 +4,8 @@
 
 ### 目录结构与命名约定
 
-- **策略目录**: 在 `app/analyzer/strategy/` 下新建你的策略文件夹，例如 `MYST/`。注意：你的策略文件夹必须是你的基类里的`key`的值
-- **策略设置**: 在 `app/analyzer/strategy/` 下新建你的策略设置文件，名字必须是`settings.py`, 并且里边的变量名必须叫`settings`
+- **策略目录**: 在 `app/userspace/strategies/` 下新建你的策略文件夹，例如 `MYST/`。注意：你的策略文件夹必须是你的基类里的`key`的值
+- **策略设置**: 在 `app/userspace/strategies/` 下新建你的策略设置文件，名字必须是`settings.py`, 并且里边的变量名必须叫`settings`
 - **入口文件命名**: 入口文件需与文件夹同名，例如 `MyStrategy/MYST.py`。注意：你的策略文件名必须是你的基类里的`key`的值
 - **策略类**: 在入口文件中定义一个继承自 `BaseStrategy` 的类（类名不限）
 - **是否启用**: 在 `settings.py` 中通过 `is_enabled` 配置控制是否参与扫描/模拟
@@ -81,13 +81,13 @@ settings = {
 
 ### 自动发现与注册
 
-应用会在启动时自动扫描 `app/analyzer/strategy/*/*`：
+应用会在启动时自动扫描 `app/userspace/strategies/*/*` 和 `app/core/modules/analyzer/strategy/*/*`：
 
 - 目录名为 `YourStrategy`，入口文件为 `YourStrategy.py`
 - 入口文件内存在一个继承 `BaseStrategy` 的类，且 `settings.py` 中配置了 `is_enabled`
 - 若 `settings` 中 `is_enabled = True`，系统会实例化并调用 `initialize()`，注册所需表；随后即可参与 `scan()` 与 `simulate()`
 
-相关代码参考：`app/analyzer/analyzer.py` 中的策略注册逻辑。
+相关代码参考：`app/core/modules/analyzer/analyzer_service.py` 中的策略注册逻辑。
 
 ### 启用与运行
 

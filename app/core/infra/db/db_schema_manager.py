@@ -38,11 +38,11 @@ class DbSchemaManager:
         if tables_dir:
             self.tables_dir = tables_dir
         else:
-            # 默认指向 app/data_manager/base_tables
-            # 从 utils/db 向上找到项目根，再定位到 app/data_manager/base_tables
-            current_dir = os.path.dirname(__file__)  # utils/db
-            project_root = os.path.dirname(os.path.dirname(current_dir))  # 项目根
-            self.tables_dir = os.path.join(project_root, 'app', 'data_manager', 'base_tables')
+            # 默认指向 app/core/modules/data_manager/base_tables
+            # 从 app/core/infra/db 向上找到项目根，再定位到 app/core/modules/data_manager/base_tables
+            current_dir = os.path.dirname(__file__)  # app/core/infra/db
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))  # 项目根
+            self.tables_dir = os.path.join(project_root, 'app', 'core', 'modules', 'data_manager', 'base_tables')
         self.charset = charset
         self.is_verbose = is_verbose
         
@@ -168,6 +168,9 @@ CREATE TABLE IF NOT EXISTS `{table_name}` (
         field_name = field['name']
         field_type = field['type'].upper()
         is_required = field.get('isRequired', False)
+        # 支持两种命名：autoIncrement 和 isAutoIncrement
+        is_auto_increment = field.get('autoIncrement', False) or field.get('isAutoIncrement', False)
+        default_value = field.get('default')
         
         # 处理字段类型
         if field_type == 'VARCHAR' and 'length' in field:
@@ -179,7 +182,24 @@ CREATE TABLE IF NOT EXISTS `{table_name}` (
         
         # 构建字段定义（字段名用反引号包裹，避免 SQL 关键字冲突）
         field_def = f"`{field_name}` {type_def}"
-        field_def += " NOT NULL" if is_required else " NULL"
+        
+        # 处理 AUTO_INCREMENT（必须在 NOT NULL 之前）
+        if is_auto_increment:
+            field_def += " AUTO_INCREMENT"
+            field_def += " NOT NULL"  # AUTO_INCREMENT 字段必须是 NOT NULL
+        else:
+            field_def += " NOT NULL" if is_required else " NULL"
+        
+        # 处理默认值（如果不是 AUTO_INCREMENT）
+        if not is_auto_increment and default_value is not None:
+            if isinstance(default_value, str) and default_value.upper() in ['CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP']:
+                field_def += f" DEFAULT {default_value}"
+            else:
+                # 字符串类型的默认值需要加引号
+                if field_type in ['VARCHAR', 'TEXT', 'CHAR', 'DATE', 'DATETIME', 'TIME', 'TIMESTAMP']:
+                    field_def += f" DEFAULT '{default_value}'"
+                else:
+                    field_def += f" DEFAULT {default_value}"
         
         # 添加注释（转义单引号）
         if 'description' in field:

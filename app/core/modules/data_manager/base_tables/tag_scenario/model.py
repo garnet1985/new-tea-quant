@@ -2,7 +2,7 @@
 Tag Scenario Model - 业务场景表
 """
 from typing import List, Dict, Any, Optional
-from utils.db import DbBaseModel
+from app.core.infra.db import DbBaseModel
 from loguru import logger
 
 

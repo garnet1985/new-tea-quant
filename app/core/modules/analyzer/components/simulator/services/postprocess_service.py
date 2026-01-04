@@ -6,9 +6,9 @@
 
 from typing import Dict, List, Any
 from loguru import logger
-from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.enums import InvestmentResult
-from utils.icon.icon_service import IconService
+from app.core.modules.analyzer.analyzer_service import AnalyzerService
+from app.core.modules.analyzer.enums import InvestmentResult
+from app.core.utils.icon.icon_service import IconService
 
 class PostprocessService:
     """后处理服务类"""

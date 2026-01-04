@@ -13,7 +13,7 @@
 
 ```python
 # custom/handlers/my_handler.py
-from app.data_source.base_handler import BaseHandler
+from app.core.modules.data_source.base_handler import BaseHandler
 
 class MyHandler(BaseHandler):
     async def fetch_and_normalize(self, context):
@@ -49,7 +49,7 @@ class MyHandler(BaseHandler):
 
 ```python
 # custom/schemas.py
-from app.data_source.defaults.schemas import DataSourceSchema, Field
+from app.core.modules.data_source.handlers.schemas import DataSourceSchema, Field
 
 MY_CUSTOM_SCHEMA = DataSourceSchema(
     name="my_custom_data",
@@ -62,6 +62,10 @@ MY_CUSTOM_SCHEMA = DataSourceSchema(
 
 CUSTOM_SCHEMAS = {
     "my_custom_data": MY_CUSTOM_SCHEMA,
+}
+```
+
+HEMA,
 }
 ```
 

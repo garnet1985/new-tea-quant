@@ -20,7 +20,7 @@ sys.path.append(str(project_root))
 rtb_root = Path(__file__).parent.parent
 sys.path.append(str(rtb_root))
 
-from app.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
+from app.core.modules.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
 
 def analyze_script_reversal_statistics():
     """分析脚本反转点统计信息"""

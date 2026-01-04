@@ -8,7 +8,7 @@ import importlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from loguru import logger
-from app.core_modules.data_manager import DataManager
+from app.core.modules.data_manager import DataManager
 from utils.util import merge_mapping_configs
 
 
@@ -45,7 +45,7 @@ class DataSourceManager:
     def _load_schemas(self):
         """加载 Schema 定义"""
         try:
-            from app.data_source.defaults.schemas import DEFAULT_SCHEMAS
+            from app.core.modules.data_source.defaults.schemas import DEFAULT_SCHEMAS
             self._schemas = DEFAULT_SCHEMAS.copy()
             logger.debug(f"✅ 加载了 {len(self._schemas)} 个 Schema")
         except Exception as e:
@@ -98,7 +98,7 @@ class DataSourceManager:
         """
         try:
             module_path, class_name = handler_path.rsplit('.', 1)
-            module = importlib.import_module(f"app.data_source.{module_path}")
+            module = importlib.import_module(f"app.core.modules.data_source.{module_path}")
             handler_class = getattr(module, class_name)
             if self.is_verbose:
                 logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({handler_path})")

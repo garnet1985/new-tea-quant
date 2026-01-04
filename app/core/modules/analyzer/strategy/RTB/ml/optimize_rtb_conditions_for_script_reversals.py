@@ -15,11 +15,11 @@ import os
 # 添加项目根目录到Python路径
 sys.path.append('/Users/garnet/Desktop/stocks-py')
 
-from app.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
-from app.analyzer.strategy.RTB.RTB import ReverseTrendBet
-from app.analyzer.strategy.RTB.settings import settings
-from app.core_modules.data_manager.data_manager import DataManager
-from utils.db.db_manager import DatabaseManager
+from app.core.modules.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
+from app.core.modules.analyzer.strategy.RTB.RTB import ReverseTrendBet
+from app.core.modules.analyzer.strategy.RTB.settings import settings
+from app.core.modules.data_manager.data_manager import DataManager
+from app.core.infra.db.db_manager import DatabaseManager
 
 def load_script_reversals():
     """加载脚本找到的反转点"""

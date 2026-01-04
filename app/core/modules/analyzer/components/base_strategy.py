@@ -5,16 +5,16 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
-from app.analyzer.components.entity.target import InvestmentTarget
-from app.analyzer.enums import InvestmentResult
-from utils.date.date_utils import DateUtils
+from app.core.modules.analyzer.components.entity.target import InvestmentTarget
+from app.core.modules.analyzer.enums import InvestmentResult
+from app.core.utils.date.date_utils import DateUtils
 from loguru import logger
-from app.analyzer.analyzer_service import AnalyzerService
-from utils.icon.icon_service import IconService
-from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
-from app.core_modules.data_manager import DataManager
+from app.core.modules.analyzer.analyzer_service import AnalyzerService
+from app.core.utils.icon.icon_service import IconService
+from app.core.modules.analyzer.components.investment.investment_recorder import InvestmentRecorder
+from app.core.modules.data_manager import DataManager
 import pandas
-from app.analyzer.analyzer_service import AnalyzerService
+from app.core.modules.analyzer.analyzer_service import AnalyzerService
 
 
 class BaseStrategy(ABC):
@@ -123,7 +123,7 @@ class BaseStrategy(ABC):
             
             try:
                 # 动态导入表模型
-                module_name = f"app.analyzer.strategy.{self.key}.tables.{table_name}.model"
+                module_name = f"app.core.modules.analyzer.strategy.{self.key}.tables.{table_name}.model"
                 table_module = importlib.import_module(module_name)
                 
                 # 获取模型类（通常是模块中唯一的类）
@@ -297,7 +297,7 @@ class BaseStrategy(ABC):
         """
 
         import importlib
-        strategy_setting_path = f"app.analyzer.strategy.{self.get_key()}.settings"
+        strategy_setting_path = f"app.core.modules.analyzer.strategy.{self.get_key()}.settings"
         settings_module = importlib.import_module(strategy_setting_path)
         
         strategy_settings = getattr(settings_module, "settings")
@@ -345,7 +345,7 @@ class BaseStrategy(ABC):
         """
         执行扫描任务
         """
-        from utils.worker.multi_process.process_worker import ProcessWorker
+        from app.core.infra.worker.multi_process.process_worker import ProcessWorker
 
         # 使用静态执行函数，避免pickle绑定到实例
         worker = ProcessWorker(
@@ -370,7 +370,7 @@ class BaseStrategy(ABC):
         module_info = job.get('module_info', {}) or {}
 
         # 子进程内直接使用 DataManager，避免初始化 DatabaseManager
-        from app.core_modules.data_manager import DataManager
+        from app.core.modules.data_manager import DataManager
         loader = DataManager()  # 子进程内自行创建DatabaseManager
         data = loader.prepare_data(stock, settings)
 
@@ -816,17 +816,17 @@ class BaseStrategy(ABC):
 
     def analyze_simulation_results(self, simulation_results: Dict[str, Any]) -> Dict[str, Any]:
         """Delegate to ResultAnalyzer (migrated)."""
-        from app.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
+        from app.core.modules.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
         return ResultAnalyzer().analyze_simulation_results(simulation_results)
 
     def get_base_analysis(self, strategy_folder_name: str = "HL", session_id: str = None) -> Dict[str, Any]:
         """Delegate to ResultAnalyzer (migrated)."""
-        from app.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
+        from app.core.modules.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
         return ResultAnalyzer().get_base_analysis(strategy_folder_name, session_id)
 
     def analysis(self, session_id: str = None) -> Dict[str, Any]:
         """Delegate to ResultAnalyzer and keep output behavior."""
-        from app.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
+        from app.core.modules.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
         ra = ResultAnalyzer()
         analysis_result = ra.get_base_analysis(self.key, session_id)
         if 'error' in analysis_result:
@@ -837,7 +837,7 @@ class BaseStrategy(ABC):
 
     def _print_analysis_results(self, analysis: Dict[str, Any]) -> None:
         """Deprecated: use ResultAnalyzer.print_analysis_results"""
-        from app.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
+        from app.core.modules.analyzer.components.result_analyzer.result_analyzer import ResultAnalyzer
         ResultAnalyzer().print_analysis_results(analysis)
 
     # ========================================================
@@ -854,14 +854,14 @@ class BaseStrategy(ABC):
         return {
             'strategy_class_name': self.__class__.__name__,
             'strategy_folder_name': key,
-            'strategy_module_path': f"app.analyzer.strategy.{key}.{key}",
-            'strategy_settings_path': f"app.analyzer.strategy.{key}.settings"
+            'strategy_module_path': f"app.core.modules.analyzer.strategy.{key}.{key}",
+            'strategy_settings_path': f"app.core.modules.analyzer.strategy.{key}.settings"
         }
 
     def get_settings(self) -> Dict[str, Any]:
         """获取策略设置"""
         import importlib
-        strategy_setting_path = f"app.analyzer.strategy.{self.get_key()}.settings"
+        strategy_setting_path = f"app.core.modules.analyzer.strategy.{self.get_key()}.settings"
         settings_module = importlib.import_module(strategy_setting_path)
         return getattr(settings_module, "settings")
 

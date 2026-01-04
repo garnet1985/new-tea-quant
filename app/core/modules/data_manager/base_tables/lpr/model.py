@@ -2,7 +2,7 @@
 LPR利率 Model
 """
 from typing import List, Dict, Any, Optional
-from utils.db import DbBaseModel
+from app.core.infra.db import DbBaseModel
 
 class LprModel(DbBaseModel):
     """LPR利率 Model"""

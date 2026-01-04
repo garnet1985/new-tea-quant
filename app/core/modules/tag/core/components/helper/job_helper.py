@@ -11,7 +11,7 @@ Job Builder - Job 构建器
 from typing import Dict, List, Any, Tuple, Optional
 import os
 import logging
-from app.core_modules.tag.core.enums import TagUpdateMode
+from app.core.modules.tag.core.enums import TagUpdateMode
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class JobHelper:
         Returns:
             Tuple[str, str]: (start_date, end_date)
         """
-        from app.core_modules.conf.conf import data_default_start_date
+        from app.core.conf.conf import data_default_start_date
         
         # 确定 end_date（两种模式都使用最新已完成交易日）
         if default_end_date:
@@ -56,7 +56,7 @@ class JobHelper:
         else:
             # 从 DataManager 获取最新已完成交易日
             try:
-                from app.core_modules.data_manager import DataManager
+                from app.core.modules.data_manager import DataManager
                 data_mgr = DataManager(is_verbose=False)
                 end_date = data_mgr.get_latest_completed_trading_date()
             except Exception as e:
@@ -75,8 +75,8 @@ class JobHelper:
             if entity_last_update_date:
                 # 获取下一个交易日
                 try:
-                    from app.core_modules.data_manager import DataManager
-                    from app.core_modules.data_manager.data_services.tag.tag_data_service import TagDataService
+                    from app.core.modules.data_manager import DataManager
+                    from app.core.modules.data_manager.data_services.tag.tag_data_service import TagDataService
                     data_mgr = DataManager(is_verbose=False)
                     tag_service = data_mgr.tag
                     if tag_service:
@@ -84,7 +84,7 @@ class JobHelper:
                     else:
                         # 如果无法获取下一个交易日，使用最后更新日期的下一天（简单处理）
                         logger.warning(f"无法获取 TagDataService，使用简单日期计算")
-                        from utils.date.date_utils import DateUtils
+                        from app.core.utils.date.date_utils import DateUtils
                         start_date = DateUtils.get_next_date(entity_last_update_date)
                 except Exception as e:
                     logger.warning(f"获取下一个交易日失败，使用最后更新日期: {e}")

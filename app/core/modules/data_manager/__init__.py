@@ -15,7 +15,7 @@
 - 协调各专用 Loader
 
 使用方式：
-    from app.core_modules.data_manager import DataManager
+    from app.core.modules.data_manager import DataManager
     
     # 初始化（自动创建数据库、连接池、表）
     data_mgr = DataManager(is_verbose=True)

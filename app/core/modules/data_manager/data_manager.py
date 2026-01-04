@@ -21,14 +21,14 @@ import pandas as pd
 from loguru import logger
 import threading
 
-from utils.db.db_manager import DatabaseManager
+from app.core.infra.db.db_manager import DatabaseManager
 
 if TYPE_CHECKING:
     from app.enums import EntityType
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
-from app.core_modules.conf.conf import data_default_start_date
-from utils.date.date_utils import DateUtils
+from app.core.conf.conf import data_default_start_date
+from app.core.utils.date.date_utils import DateUtils
 
 
 class DataManager:
@@ -48,7 +48,7 @@ class DataManager:
     - 支持通过 force_new=True 强制创建新实例
 
     使用方式：
-        from app.core_modules.data_manager import DataManager
+        from app.core.modules.data_manager import DataManager
 
         # 自动使用单例（推荐）
         data_mgr = DataManager(is_verbose=True)
@@ -187,7 +187,7 @@ class DataManager:
             # 3. 初始化 TradingDateCache
             if self.is_verbose:
                 logger.info("🔧 初始化 TradingDateCache...")
-            from app.core_modules.data_manager.data_services.trading_date.trading_date_cache import TradingDateCache
+            from app.core.modules.data_manager.data_services.trading_date.trading_date_cache import TradingDateCache
             self._trading_date_cache = TradingDateCache()
 
             # 4. 初始化 DataService（按业务领域分类）
@@ -225,7 +225,7 @@ class DataManager:
             klines = kline_model.load_by_stock_and_date_range(...)
         """
         # 表名到 Model 类的映射
-        from app.core_modules.data_manager.base_tables import (
+        from app.core.modules.data_manager.base_tables import (
             StockKlineModel, StockListModel, AdjFactorModel, AdjFactorEventModel,
             GdpModel, PriceIndexesModel, ShiborModel, LprModel,
             CorporateFinanceModel, StockLabelsModel,
@@ -279,7 +279,7 @@ class DataManager:
         """
         # 1. stock_related 大类
         try:
-            from app.core_modules.data_manager.data_services.stock_related import StockRelatedDataService
+            from app.core.modules.data_manager.data_services.stock_related import StockRelatedDataService
             stock_related = StockRelatedDataService(self)
             stock_related.initialize()
             
@@ -308,7 +308,7 @@ class DataManager:
         
         # 2. macro_system 大类
         try:
-            from app.core_modules.data_manager.data_services.macro_system import MacroSystemDataService
+            from app.core.modules.data_manager.data_services.macro_system import MacroSystemDataService
             macro_system = MacroSystemDataService(self)
             macro_system.initialize()
             
@@ -330,7 +330,7 @@ class DataManager:
         
         # 3. ui_transit 大类
         try:
-            from app.core_modules.data_manager.data_services.ui_transit import UiTransitDataService
+            from app.core.modules.data_manager.data_services.ui_transit import UiTransitDataService
             ui_transit = UiTransitDataService(self)
             ui_transit.initialize()
             
@@ -351,7 +351,7 @@ class DataManager:
         
         # 4. tag 大类
         try:
-            from app.core_modules.data_manager.data_services.tag.tag_data_service import TagDataService
+            from app.core.modules.data_manager.data_services.tag.tag_data_service import TagDataService
             tag_service = TagDataService(self)
             
             # 注册 tag service
@@ -608,7 +608,7 @@ class DataManager:
             
             # 应用技术指标（如果配置）
             if data["klines"] and klines_settings.get('indicators'):
-                from app.core_modules.analyzer.components.indicators import Indicators
+                from app.core.modules.analyzer.components.indicators import Indicators
                 data["klines"] = Indicators.add_indicators(data["klines"], klines_settings['indicators'])
         
         # 2. 加载宏观数据

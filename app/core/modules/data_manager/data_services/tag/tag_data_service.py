@@ -12,7 +12,7 @@ Tag Data Service - Tag 系统数据服务
 """
 from typing import List, Dict, Any, Optional
 from loguru import logger
-from utils.date.date_utils import DateUtils
+from app.core.utils.date.date_utils import DateUtils
 
 from ... import BaseDataService
 
@@ -35,7 +35,7 @@ class TagDataService(BaseDataService):
         self.tag_value_model = data_manager.get_model('tag_value')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
-        from utils.db import DatabaseManager
+        from app.core.infra.db import DatabaseManager
         self.db = DatabaseManager.get_default()
     
     # ========================================================================

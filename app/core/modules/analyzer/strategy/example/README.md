@@ -15,8 +15,8 @@
 1) 继承 `BaseStrategy` 并声明必要信息
 
 ```python
-from app.analyzer.libs.base_strategy import BaseStrategy
-from app.analyzer.libs.simulator.simulator import Simulator
+from app.core.modules.analyzer.components.base_strategy import BaseStrategy
+from app.core.modules.analyzer.components.simulator.simulator import Simulator
 
 class MyStrategy(BaseStrategy):
     def __init__(self, db, is_verbose: bool = False):

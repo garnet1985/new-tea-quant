@@ -32,7 +32,7 @@ utils/db/
 DatabaseManager 提供默认实例机制，支持多进程场景下的自动初始化：
 
 ```python
-from utils.db.db_manager import DatabaseManager
+from app.core.infra.db.db_manager import DatabaseManager
 
 # 主进程：初始化并设置为默认
 db = DatabaseManager(is_verbose=True)
@@ -40,7 +40,7 @@ db.initialize()
 DatabaseManager.set_default(db)
 
 # 任何地方（包括子进程）
-from app.data_manager.base_tables import StockKlineModel
+from app.core.modules.data_manager.base_tables import StockKlineModel
 
 kline_model = StockKlineModel()  # ✅ 自动使用默认 db
 # 如果在子进程中 context 丢失，会自动重新初始化
@@ -54,7 +54,7 @@ kline_model = StockKlineModel()  # ✅ 自动使用默认 db
 #### 基础 CRUD 示例
 
 ```python
-from utils.db.db_manager import DatabaseManager
+from app.core.infra.db.db_manager import DatabaseManager
 
 # 初始化
 db = DatabaseManager(is_verbose=True)
@@ -230,8 +230,8 @@ if model.exists("id = %s AND date = %s", ('000001.SZ', '20240101')):
 
 **示例 1：直接使用（自动获取 db）**
 ```python
-from utils.db.db_manager import DatabaseManager
-from app.data_manager.base_tables import StockKlineModel
+from app.core.infra.db.db_manager import DatabaseManager
+from app.core.modules.data_manager.base_tables import StockKlineModel
 
 # 主进程初始化一次
 db = DatabaseManager(is_verbose=True)
@@ -249,7 +249,7 @@ records = kline_model.load_by_stock_and_date_range(
 ```python
 # app/data_manager/base_tables/stock_kline/model.py
 from typing import List, Dict, Any
-from utils.db.db_base_model import DbBaseModel 
+from app.core.infra.db.db_base_model import DbBaseModel 
 
 class StockKlineModel(DbBaseModel):
     """K线数据 Model"""
@@ -302,7 +302,7 @@ print(f"最新数据日期: {latest_date}")
 
 **使用示例**：
 ```python
-from utils.db.db_schema_manager import SchemaManager
+from app.core.infra.db.db_schema_manager import SchemaManager
 
 # 初始化
 schema_mgr = SchemaManager(is_verbose=True)
@@ -342,7 +342,7 @@ schema_mgr.register_table('my_strategy_table', schema)
 
 **使用示例**：
 ```python
-from utils.db.db_base_model import DBService
+from app.core.infra.db.db_base_model import DBService
 
 # INSERT 参数
 columns, placeholders = DBService.to_columns_and_values([
@@ -724,7 +724,7 @@ db.initialize()
 DatabaseManager.set_default(db)
 
 # 2. 使用 Model（任何地方）
-from app.data_manager.base_tables import StockKlineModel
+from app.core.modules.data_manager.base_tables import StockKlineModel
 
 kline_model = StockKlineModel()  # ✅ 自动获取 db
 klines = kline_model.load_by_stock_and_date_range('000001.SZ', '20200101', '20201231')

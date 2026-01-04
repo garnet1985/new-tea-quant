@@ -7,8 +7,8 @@ Base Tables Models - 所有基础表的 Model 类
 - 批量操作方法
 
 使用示例：
-    from app.core_modules.data_manager.base_tables.stock_kline.model import StockKlineModel
-    from utils.db import DatabaseManager
+    from app.core.modules.data_manager.base_tables.stock_kline.model import StockKlineModel
+    from app.core.infra.db import DatabaseManager
     
     db = DatabaseManager()
     db.initialize()

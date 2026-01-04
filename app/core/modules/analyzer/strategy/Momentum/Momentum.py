@@ -9,10 +9,10 @@ from datetime import datetime, timedelta
 from loguru import logger
 import pandas as pd
 import numpy as np
-from app.analyzer.components.entity.opportunity import Opportunity
+from app.core.modules.analyzer.components.entity.opportunity import Opportunity
 
-from app.analyzer.components.base_strategy import BaseStrategy
-from app.analyzer.components.entity.target import InvestmentTarget
+from app.core.modules.analyzer.components.base_strategy import BaseStrategy
+from app.core.modules.analyzer.components.entity.target import InvestmentTarget
 
 
 class MomentumStrategy(BaseStrategy):
@@ -429,7 +429,7 @@ class MomentumStrategy(BaseStrategy):
         Returns:
             List: 重建后的股票汇总列表
         """
-        from app.analyzer.analyzer_service import AnalyzerService
+        from app.core.modules.analyzer.analyzer_service import AnalyzerService
         
         # 将筛选后的投资记录按股票分组
         filtered_investment_by_stock = {}
@@ -522,7 +522,7 @@ class MomentumStrategy(BaseStrategy):
         Returns:
             Dict: 自定义会话汇总
         """
-        from app.analyzer.components.simulator.services.postprocess_service import PostprocessService
+        from app.core.modules.analyzer.components.simulator.services.postprocess_service import PostprocessService
         
         # 使用筛选后的数据重新计算session summary
         filtered_session_summary = PostprocessService.summarize_session_by_default_way(filtered_stock_summaries)

@@ -44,7 +44,7 @@ utils/worker/
 ### ProcessWorker (多进程)
 
 ```python
-from utils.worker import ProcessWorker, ProcessExecutionMode
+from app.core.infra.worker import ProcessWorker, ProcessExecutionMode
 
 # 创建多进程执行器
 worker = ProcessWorker(
@@ -62,7 +62,7 @@ worker.print_stats()
 ### FuturesWorker (多线程)
 
 ```python
-from utils.worker import FuturesWorker, ThreadExecutionMode
+from app.core.infra.worker import FuturesWorker, ThreadExecutionMode
 
 # 创建多线程执行器
 worker = FuturesWorker(
@@ -107,7 +107,7 @@ worker.print_stats()
 
 ### 股票策略分析 (CPU密集型)
 ```python
-from utils.worker import ProcessWorker, ProcessExecutionMode
+from app.core.infra.worker import ProcessWorker, ProcessExecutionMode
 
 def analyze_stock_strategy(data):
     """分析单只股票的策略"""
@@ -134,7 +134,7 @@ worker = ProcessWorker(
 
 ### API数据获取 (IO密集型)
 ```python
-from utils.worker import FuturesWorker, ThreadExecutionMode
+from app.core.infra.worker import FuturesWorker, ThreadExecutionMode
 
 def fetch_api_data(data):
     """获取API数据"""

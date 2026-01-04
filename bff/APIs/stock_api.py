@@ -22,7 +22,7 @@ class StockApi:
             data_mgr: DataManager 实例，如果为 None 则使用全局单例
         """
         if data_mgr is None:
-            from app.data_manager import DataManager
+            from app.core.modules.data_manager import DataManager
             # 使用全局 DataManager 单例
             self.data_mgr = DataManager(is_verbose=False)
         else:

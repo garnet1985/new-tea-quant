@@ -20,10 +20,10 @@ sys.path.append(str(project_root))
 rtb_root = Path(__file__).parent.parent
 sys.path.append(str(rtb_root))
 
-from app.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
-from app.analyzer.strategy.RTB.RTB import ReverseTrendBet
-from app.analyzer.strategy.RTB.settings import settings
-from app.core_modules.data_manager.data_manager import DataManager
+from app.core.modules.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
+from app.core.modules.analyzer.strategy.RTB.RTB import ReverseTrendBet
+from app.core.modules.analyzer.strategy.RTB.settings import settings
+from app.core.modules.data_manager.data_manager import DataManager
 
 def load_rtb_trading_results():
     """加载RTB策略的交易结果"""
@@ -201,7 +201,7 @@ def analyze_filtering_reasons(filtered_reversals):
     print("="*60)
     
     # 使用RTB策略检查被过滤的反转点
-    from utils.db.db_manager import DatabaseManager
+    from app.core.infra.db.db_manager import DatabaseManager
     db_manager = DatabaseManager()
     rtb_strategy = ReverseTrendBet(db_manager)
     data_mgr = DataManager(is_verbose=False)

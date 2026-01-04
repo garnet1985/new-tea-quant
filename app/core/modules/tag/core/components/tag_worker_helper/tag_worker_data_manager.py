@@ -15,7 +15,7 @@ Tag Worker Data Manager - Tag Worker 数据管理器
 """
 from typing import Dict, Any, List, Optional
 import logging
-from app.core_modules.data_manager import DataManager
+from app.core.modules.data_manager import DataManager
 
 logger = logging.getLogger(__name__)
 

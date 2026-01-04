@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-from app.analyzer.analyzer_service import AnalyzerService
+from app.core.modules.analyzer.analyzer_service import AnalyzerService
 from app.conf.conf import data_default_start_date
 
 
@@ -51,8 +51,8 @@ def identify_major_reversals(stock_id: str = "000001.SZ",
     
     try:
         # 初始化数据加载器
-        from utils.db.db_manager import DatabaseManager
-        from app.core_modules.data_manager import DataManager
+        from app.core.infra.db.db_manager import DatabaseManager
+        from app.core.modules.data_manager import DataManager
         
         data_mgr = DataManager()
         stock_service = data_mgr.get_data_service('stock_related.stock')

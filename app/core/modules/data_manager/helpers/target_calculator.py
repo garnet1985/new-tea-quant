@@ -85,7 +85,7 @@ class TargetCalculator:
             if strategy_name:
                 try:
                     # 加载策略
-                    from utils.db.db_manager import DatabaseManager
+                    from app.core.infra.db.db_manager import DatabaseManager
                     db = DatabaseManager()
                     db.initialize()
                     
@@ -379,7 +379,7 @@ class TargetCalculator:
     def _load_strategy(strategy_name: str):
         """加载策略类"""
         try:
-            strategy_module_path = f"app.analyzer.strategy.{strategy_name}.{strategy_name}"
+            strategy_module_path = f"app.core.modules.analyzer.strategy.{strategy_name}.{strategy_name}"
             strategy_module = importlib.import_module(strategy_module_path)
             
             # 获取策略类（通常是模块中唯一的类）
@@ -398,7 +398,7 @@ class TargetCalculator:
     def _load_strategy_settings(strategy_name: str) -> Dict[str, Any]:
         """加载策略配置"""
         try:
-            settings_module_path = f"app.analyzer.strategy.{strategy_name}.settings"
+            settings_module_path = f"app.core.modules.analyzer.strategy.{strategy_name}.settings"
             settings_module = importlib.import_module(settings_module_path)
             return getattr(settings_module, 'settings', {})
         except Exception as e:

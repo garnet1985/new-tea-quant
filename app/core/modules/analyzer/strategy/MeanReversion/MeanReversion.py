@@ -8,8 +8,8 @@ import numpy as np
 from typing import Dict, Any, Optional, Tuple, List
 from loguru import logger
 
-from app.analyzer.components.base_strategy import BaseStrategy
-from app.analyzer.components.entity.opportunity import Opportunity
+from app.core.modules.analyzer.components.base_strategy import BaseStrategy
+from app.core.modules.analyzer.components.entity.opportunity import Opportunity
 
 
 class MeanReversionStrategy(BaseStrategy):
@@ -138,7 +138,7 @@ class MeanReversionStrategy(BaseStrategy):
         Returns:
             List[InvestmentTarget]: 止盈目标列表
         """
-        from app.analyzer.components.entity.target import InvestmentTarget
+        from app.core.modules.analyzer.components.entity.target import InvestmentTarget
         
         return [
             InvestmentTarget(

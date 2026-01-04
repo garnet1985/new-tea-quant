@@ -2,7 +2,7 @@
 Tag Definition Model - 标签定义表
 """
 from typing import List, Dict, Any, Optional
-from utils.db import DbBaseModel
+from app.core.infra.db import DbBaseModel
 from loguru import logger
 
 

@@ -10,7 +10,7 @@
 """
 from typing import List, Dict, Any, Optional
 from loguru import logger
-from utils.date.date_utils import DateUtils
+from app.core.utils.date.date_utils import DateUtils
 
 from ... import BaseDataService
 

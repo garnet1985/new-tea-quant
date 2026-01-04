@@ -5,12 +5,12 @@ HistoricLow 策略 - 寻找股票的历史低点，识别可能的买入机会
 from typing import Dict, List, Any, Optional
 from loguru import logger
 
-from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.components.entity.opportunity import Opportunity
-from app.analyzer.strategy.HL.HL_service import HistoricLowService
+from app.core.modules.analyzer.analyzer_service import AnalyzerService
+from app.core.modules.analyzer.components.entity.opportunity import Opportunity
+from app.core.modules.analyzer.strategy.HL.HL_service import HistoricLowService
 from ...components.base_strategy import BaseStrategy
 from .settings import settings
-from utils.icon.icon_service import IconService
+from app.core.utils.icon.icon_service import IconService
 
 class HistoricLow(BaseStrategy):
     """HistoricLow 策略实现"""

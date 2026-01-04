@@ -36,7 +36,7 @@ class MacroDataService(BaseDataService):
         self.lpr = data_manager.get_model('lpr')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
-        from utils.db import DatabaseManager
+        from app.core.infra.db import DatabaseManager
         self.db = DatabaseManager.get_default()
     
     # ==================== GDP 数据 ====================

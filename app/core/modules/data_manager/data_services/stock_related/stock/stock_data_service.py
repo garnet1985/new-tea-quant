@@ -29,11 +29,13 @@ class StockDataService(BaseDataService):
         """
         super().__init__(data_manager)
         
+        # TODO: 这里应该是自动发现
         # 获取相关 Model（通过 DataManager，自动绑定默认 db）
         self.stock_list = data_manager.get_model('stock_list')
         self.stock_kline = data_manager.get_model('stock_kline')
         self.stock_labels = data_manager.get_model('stock_labels')
-        self.adj_factor = data_manager.get_model('adj_factor')
+        # adj_factor 已废弃，使用 adj_factor_event 替代
+        # self.adj_factor = data_manager.get_model('adj_factor')
         self.adj_factor_event = data_manager.get_model('adj_factor_event')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询

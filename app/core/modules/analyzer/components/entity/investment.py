@@ -2,9 +2,9 @@ from enum import Enum
 from typing import Any, Dict, List, Tuple
 
 from loguru import logger
-from app.analyzer.components.entity.target import InvestmentTarget
-from utils.date.date_utils import DateUtils
-from utils.icon.icon_service import IconService 
+from app.core.modules.analyzer.components.entity.target import InvestmentTarget
+from app.core.utils.date.date_utils import DateUtils
+from app.core.utils.icon.icon_service import IconService 
 
 
 class Investment:

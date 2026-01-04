@@ -6,11 +6,11 @@ import time
 from typing import Dict, List, Any
 from loguru import logger
 
-from app.analyzer.components.investment.investment_recorder import InvestmentRecorder
+from app.core.modules.analyzer.components.investment.investment_recorder import InvestmentRecorder
 from .services.simulating_service import SimulatingService
 from .services.preprocess_service import PreprocessService
 from .services.postprocess_service import PostprocessService
-from utils.icon.icon_service import IconService
+from app.core.utils.icon.icon_service import IconService
 
 
 class Simulator:

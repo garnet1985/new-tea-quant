@@ -2,8 +2,8 @@
 Tag Value Model - 标签值存储
 """
 from typing import List, Dict, Any, Optional
-from utils.db import DbBaseModel
-from utils.date.date_utils import DateUtils
+from app.core.infra.db import DbBaseModel
+from app.core.utils.date.date_utils import DateUtils
 
 
 class TagValueModel(DbBaseModel):

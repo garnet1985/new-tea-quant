@@ -65,8 +65,8 @@ class Analyzer:
             
             # 尝试导入策略模块
             try:
-                module_path = f"app.analyzer.strategy.{strategy_folder.name}.{strategy_folder.name}"
-                settings_path = f"app.analyzer.strategy.{strategy_folder.name}.settings"
+                module_path = f"app.core.modules.analyzer.strategy.{strategy_folder.name}.{strategy_folder.name}"
+                settings_path = f"app.core.modules.analyzer.strategy.{strategy_folder.name}.settings"
                 strategy_module = importlib.import_module(module_path)
 
                 settings_module = importlib.import_module(settings_path)

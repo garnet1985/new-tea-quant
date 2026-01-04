@@ -17,8 +17,8 @@ DbBaseModel - 数据库表操作的通用基类
 
 使用方式：
     # 方式 1: 直接使用（简单场景）
-    from utils.db import DbBaseModel
-    from utils.db import DatabaseManager
+    from app.core.infra.db import DbBaseModel
+    from app.core.infra.db import DatabaseManager
     
     db = DatabaseManager()
     db.initialize()

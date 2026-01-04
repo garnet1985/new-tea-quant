@@ -230,7 +230,7 @@ cd app/analyzer/strategy/MyStrategy
 2. **实现策略类**
 ```python
 # MyStrategy.py
-from app.analyzer.components.base_strategy import BaseStrategy
+from app.core.modules.analyzer.components.base_strategy import BaseStrategy
 
 class MyStrategy(BaseStrategy):
     def __init__(self):
@@ -289,7 +289,7 @@ present_extra_session_report(session_summary, settings)
 ### 统一数据加载
 
 ```python
-from app.data_manager import DataManager
+from app.core.modules.data_manager import DataManager
 
 data_mgr = DataManager()
 

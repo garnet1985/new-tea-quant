@@ -34,7 +34,7 @@ app/core_modules/data_manager/
 ### 快捷方法（80%场景）
 
 ```python
-from app.core_modules.data_manager import DataManager
+from app.core.modules.data_manager import DataManager
 
 data_mgr = DataManager(db=db)
 

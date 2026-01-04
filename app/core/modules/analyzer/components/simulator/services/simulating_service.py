@@ -4,11 +4,11 @@ SimulatingService - 多进程模拟服务
 """
 from typing import Dict, List, Any, Optional
 from loguru import logger
-from app.analyzer.analyzer_service import AnalyzerService
-from app.analyzer.enums import InvestmentResult
-from utils.icon.icon_service import IconService
-from utils.worker.multi_process.process_worker import ProcessWorker
-from app.analyzer.components.entity.investment import Investment
+from app.core.modules.analyzer.analyzer_service import AnalyzerService
+from app.core.modules.analyzer.enums import InvestmentResult
+from app.core.utils.icon.icon_service import IconService
+from app.core.infra.worker.multi_process.process_worker import ProcessWorker
+from app.core.modules.analyzer.components.entity.investment import Investment
 
 class SimulatingService:
     """静态模拟方法，支持多进程"""
@@ -96,7 +96,7 @@ class SimulatingService:
             settings = payload['settings']
             strategy_class = payload['strategy_class']
 
-            from app.core_modules.data_manager import DataManager
+            from app.core.modules.data_manager import DataManager
             loader = DataManager(is_verbose=False)
             data = loader.prepare_data(stock, settings)
 

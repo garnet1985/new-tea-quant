@@ -3,7 +3,7 @@
 ## 📁 目录结构
 
 ```
-utils/db/
+app/core/infra/db/
 ├── db_manager.py              # 数据库管理器（核心）
 ├── db_schema_manager.py       # Schema 管理器
 ├── db_config_manager.py       # 数据库配置加载器
@@ -334,7 +334,7 @@ schema_mgr.register_table('my_strategy_table', schema)
 
 **职责**：提供 SQL 构建的静态工具方法
 
-**位置**：`utils/db/db_base_model.py`（内部工具类）
+**位置**：`app/core/infra/db/db_base_model.py`（内部工具类）
 
 **方法**：
 - `to_columns_and_values(data_list)` - 转换为 INSERT 参数
@@ -488,7 +488,7 @@ model.replace(large_data_list, unique_keys=['id', 'date'])
 ## 🏗️ 架构建议
 
 ```
-utils/db/                          ← 基础设施层（工具类）
+app/core/infra/db/                 ← 基础设施层（工具类）
 ├── db_manager.py                  # 连接池 + 基础 CRUD
 ├── db_base_model.py               # DbBaseModel / DbModel（通用工具）
 ├── db_schema_manager.py           # Schema 管理
@@ -694,8 +694,8 @@ class StockKlineModel(DbBaseModel):
 - 补充兼容方法 `queue_write()`、`wait_for_writes()`
 
 **✅ 架构优化**：
-- DbBaseModel 保留在 `utils/db/`（通用工具类定位）
-- 具体 Model 放在 `app/data_manager/base_tables/*/model.py`
+- DbBaseModel 保留在 `app/core/infra/db/`（通用工具类定位）
+- 具体 Model 放在 `app/core/modules/data_manager/base_tables/*/model.py`
 - 跨表查询使用 Repository 模式
 
 ---

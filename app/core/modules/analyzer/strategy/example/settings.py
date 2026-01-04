@@ -47,7 +47,7 @@ settings = {
                 "std_multiplier": 2.0,  # 标准差倍数，默认2.0
             },
 
-            # 是否使用股票的分类标签 - 标签类型见 labeler/conf/label_mapping.py
+            # 是否使用股票的分类标签 - 标签类型见 tag 系统
             "stock_labels": False
         },
     },

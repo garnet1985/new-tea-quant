@@ -9,11 +9,4 @@ Tag 系统全局配置
 # ========================================================================
 
 # Scenarios 根目录（相对于项目根目录）
-DEFAULT_SCENARIOS_ROOT = "app/core_modules/tag/scenarios"
-
-# ========================================================================
-# 版本管理配置（已废弃）
-# ========================================================================
-# 版本管理功能已移除，使用 recompute 字段替代
-# ALLOW_VERSION_ROLLBACK = False
-# MAX_LEGACY_VERSIONS = 3
+DEFAULT_SCENARIOS_ROOT = "app/userspace/tags"

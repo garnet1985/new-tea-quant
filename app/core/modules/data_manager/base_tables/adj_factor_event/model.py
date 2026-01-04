@@ -9,8 +9,8 @@ from loguru import logger
 import pandas as pd
 import os
 from datetime import datetime
-from utils.db import DbBaseModel
-from utils.date.date_utils import DateUtils
+from app.core.infra.db import DbBaseModel
+from app.core.utils.date.date_utils import DateUtils
 
 
 class AdjFactorEventModel(DbBaseModel):

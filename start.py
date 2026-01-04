@@ -28,11 +28,11 @@ import asyncio
 from utils.warning_suppressor import setup_warning_suppression
 setup_warning_suppression()
 
-from app.core_modules.data_manager import DataManager
-from app.core_modules.data_source.data_source_manager import DataSourceManager
-from app.analyzer import Analyzer
-from app.core_modules.tag import TagManager
-from utils.icon.icon_service import IconService
+from app.core.modules.data_manager import DataManager
+from app.core.modules.data_source.data_source_manager import DataSourceManager
+from app.core.modules.analyzer import Analyzer
+from app.core.modules.tag import TagManager
+from app.core.utils.icon.icon_service import IconService
 
 
 # 添加项目根目录到Python路径

@@ -8,7 +8,7 @@ from loguru import logger
 import time
 import threading
 
-from app.data_source.api_job import ApiJob, DataSourceTask
+from app.core.modules.data_source.api_job import ApiJob, DataSourceTask
 
 
 class RateLimiter:
@@ -233,7 +233,7 @@ class TaskExecutor:
             return {task.task_id: task_result}
         
         # 多个 tasks，使用多线程执行
-        from utils.worker.multi_thread.futures_worker import FuturesWorker, ExecutionMode
+        from app.core.infra.worker.multi_thread.futures_worker import FuturesWorker, ExecutionMode
         import threading
         
         # 初始化进度计数器
@@ -402,7 +402,7 @@ class TaskExecutor:
                 provider = self.providers.get(api_job.provider_name)
                 if not provider:
                     try:
-                        from app.data_source.providers.provider_instance_pool import get_provider_pool
+                        from app.core.modules.data_source.providers.provider_instance_pool import get_provider_pool
                         pool = get_provider_pool()
                         provider = pool.get_provider(api_job.provider_name)
                     except Exception:
@@ -621,7 +621,7 @@ class TaskExecutor:
         provider = self.providers.get(api_job.provider_name)
         if not provider:
             try:
-                from app.data_source.providers.provider_instance_pool import get_provider_pool
+                from app.core.modules.data_source.providers.provider_instance_pool import get_provider_pool
                 pool = get_provider_pool()
                 provider = pool.get_provider(api_job.provider_name)
             except Exception as e:

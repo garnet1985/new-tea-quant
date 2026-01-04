@@ -9,7 +9,7 @@ import threading
 from typing import Dict, Any, Optional
 from datetime import datetime
 from loguru import logger
-from utils.progress.progress_bar import ProgressBarManager
+from app.core.utils.progress.progress_bar import ProgressBarManager
 
 
 class ProgressTracker:

@@ -7,7 +7,7 @@ stocks-py/
 │   │   ├── conf/                 # 核心配置
 │   │   │   ├── conf.py
 │   │   │   └── db.py
-│   │   ├── core_modules/         # 核心业务模块
+│   │   ├── modules/              # 核心业务模块
 │   │   │   ├── analyzer/         # 策略分析器
 │   │   │   │   ├── components/   # 组件
 │   │   │   │   │   ├── entity/   # 实体（投资、机会、目标）
@@ -126,7 +126,7 @@ stocks-py/
 #### 1. **app/core/** - 核心框架层
 框架提供的核心功能，用户不应修改：
 
-- **core_modules/** - 核心业务模块
+- **modules/** - 核心业务模块
   - `analyzer/` - 策略分析器框架
   - `data_manager/` - 数据管理器框架
   - `data_source/` - 数据源管理框架
@@ -162,23 +162,23 @@ stocks-py/
 
 ## 核心模块说明
 
-### 1. **app/core/core_modules/analyzer** - 策略分析器
+### 1. **app/core/modules/analyzer** - 策略分析器
 - 负责策略的扫描、模拟、分析
 - 包含策略组件和策略实现
 - 用户策略放在 `app/userspace/strategies/`
 
-### 2. **app/core/core_modules/data_manager** - 数据管理器
+### 2. **app/core/modules/data_manager** - 数据管理器
 - 统一的数据访问层
 - 管理所有基础表和数据服务
 - 提供数据访问API
 
-### 3. **app/core/core_modules/data_source** - 数据源管理
+### 3. **app/core/modules/data_source** - 数据源管理
 - 管理外部数据源的获取
 - 支持多种数据提供方（Tushare、AKShare等）
 - 配置驱动的数据更新流程
 - 用户自定义处理器放在 `app/userspace/data_source/`
 
-### 4. **app/core/core_modules/tag** - 标签系统
+### 4. **app/core/modules/tag** - 标签系统
 - 标签计算和存储框架
 - 支持自定义标签场景
 - 多进程并行计算

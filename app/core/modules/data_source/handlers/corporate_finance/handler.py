@@ -8,10 +8,10 @@ from typing import List, Dict, Any
 from loguru import logger
 
 from app.conf.conf import data_default_start_date
-from app.data_source.data_source_handler import BaseDataSourceHandler
-from app.data_source.api_job import DataSourceTask, ApiJob
-from utils.date.date_utils import DateUtils
-from utils.db.db_base_model import DBService
+from app.core.modules.data_source.data_source_handler import BaseDataSourceHandler
+from app.core.modules.data_source.api_job import DataSourceTask, ApiJob
+from app.core.utils.date.date_utils import DateUtils
+from app.core.infra.db.db_base_model import DBService
 
 
 class CorporateFinanceHandler(BaseDataSourceHandler):
@@ -141,7 +141,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         batch_offset = 0
 
         if not is_first_run and self.RENEW_ROLLING_BATCH and len(all_stocks) > 0:
-            from app.core_modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
+            from app.core.modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
 
             batch_size = max(1, len(all_stocks) // self.RENEW_ROLLING_BATCH)
 
@@ -220,7 +220,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         # 非首次跑时，将新的 batch_offset 写回 meta_info，作为下次轮转的起点
         if not is_first_run and self.RENEW_ROLLING_BATCH and target_list:
             try:
-                from app.core_modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
+                from app.core.modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
                 meta_model: MetaInfoModel = self.data_manager.get_model('meta_info')  # type: ignore
                 meta_key = 'corporate_finance_batch_offset'
                 meta_model.save_meta(

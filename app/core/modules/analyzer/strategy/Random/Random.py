@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
 
 from app.core.modules.analyzer.components.base_strategy import BaseStrategy
-from app.enums import KlineTerm
+from app.core.global_enums.enums import KlineTerm
 from app.core.modules.analyzer.components.entity.opportunity import Opportunity
 
 

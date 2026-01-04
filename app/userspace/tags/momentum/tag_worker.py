@@ -38,21 +38,17 @@ class MomentumTagWorker(BaseTagWorker):
     
     def calculate_tag(
         self,
-        entity_id: str,
-        entity_type: str,
         as_of_date: str,
         historical_data: Dict[str, Any],
-        tag_config: Dict[str, Any]
+        tag_definition: Any
     ) -> Optional[Dict[str, Any]]:
         """
         计算动量tag
         
         Args:
-            entity_id: 实体ID（股票代码）
-            entity_type: 实体类型
             as_of_date: 业务日期（YYYYMMDD格式）
             historical_data: 历史数据字典，包含klines等
-            tag_config: Tag配置（已合并calculator和tag配置）
+            tag_definition: Tag定义对象（TagModel）
             
         Returns:
             Dict[str, Any] 或 None:
@@ -64,6 +60,10 @@ class MomentumTagWorker(BaseTagWorker):
                         "end_date": str,  # 可选，结束日期（YYYYMMDD）
                     }
         """
+        # 获取 entity 信息
+        entity_id = self.entity['id']
+        entity_type = self.entity['type']
+        
         # 1. 获取日线数据
         klines = historical_data.get("klines", {})
         daily_klines = klines.get("daily", [])
@@ -96,7 +96,7 @@ class MomentumTagWorker(BaseTagWorker):
         
         # 如果tracker中没有，从数据库查询（首次处理或tracker未初始化）
         if last_processed_date is None:
-            last_processed_date = self._get_last_processed_date(entity_id, tag_config)
+            last_processed_date = self._get_last_processed_date(entity_id, tag_definition)
             # 存入tracker
             self.tracker[tracker_key] = last_processed_date
         
@@ -145,14 +145,14 @@ class MomentumTagWorker(BaseTagWorker):
     def _get_last_processed_date(
         self, 
         entity_id: str, 
-        tag_config: Dict[str, Any]
+        tag_definition: Any
     ) -> Optional[str]:
         """
         获取上次处理的日期（从数据库查询该entity的最后一个tag的as_of_date）
         
         Args:
             entity_id: 实体ID
-            tag_config: Tag配置
+            tag_definition: Tag定义对象（TagModel）
             
         Returns:
             Optional[str]: 上次处理的日期（YYYYMMDD格式），如果没有则返回None
@@ -161,32 +161,6 @@ class MomentumTagWorker(BaseTagWorker):
             return None
         
         try:
-            # 获取tag_definition_id
-            tag_name = tag_config.get("tag_meta", {}).get("name")
-            if not tag_name:
-                return None
-            
-            # 获取scenario和tag definition
-            scenario = self.tag_data_service.get_scenario(
-                self.scenario_name, 
-                self.scenario_version
-            )
-            if not scenario:
-                return None
-            
-            tag_defs = self.tag_data_service.list_tag_definitions(
-                scenario_id=scenario["id"]
-            )
-            
-            tag_def = None
-            for td in tag_defs:
-                if td.get("name") == tag_name:
-                    tag_def = td
-                    break
-            
-            if not tag_def:
-                return None
-            
             # 查询该entity的最后一个tag的as_of_date
             from app.core.modules.data_manager.base_tables.tag_value.model import TagValueModel
             tag_value_model = TagValueModel()
@@ -200,7 +174,7 @@ class MomentumTagWorker(BaseTagWorker):
             
             result = tag_value_model.db.execute_sync_query(
                 sql, 
-                (entity_id, tag_def["id"])
+                (entity_id, tag_definition.id)
             )
             
             if result and result[0].get("max_date"):

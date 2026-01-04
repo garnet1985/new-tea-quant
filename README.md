@@ -94,7 +94,7 @@ pip install -r requirements.txt
 #### Tushare配置
 ```bash
 # 创建token文件
-echo "your_tushare_token" > app/data_source/providers/tushare/auth/token.txt
+echo "your_tushare_token" > app/core/modules/data_source/providers/tushare/auth/token.txt
 ```
 
 ### 5. 运行策略回测
@@ -223,8 +223,8 @@ def should_take_profit(...) -> Tuple[bool, Dict]:
 
 1. **创建策略目录**
 ```bash
-mkdir app/analyzer/strategy/MyStrategy
-cd app/analyzer/strategy/MyStrategy
+mkdir app/userspace/strategies/MyStrategy
+cd app/userspace/strategies/MyStrategy
 ```
 
 2. **实现策略类**
@@ -313,7 +313,7 @@ klines = data_mgr.load_klines(
 
 ```bash
 # 结果保存在策略的tmp目录
-cd app/analyzer/strategy/RTB/tmp/
+cd app/core/modules/analyzer/strategy/RTB/tmp/
 
 # 最新会话目录
 ls -lt | head

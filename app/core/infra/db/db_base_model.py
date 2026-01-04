@@ -251,13 +251,16 @@ class DbBaseModel:
         """
         加载表的 schema
         
-        优先从 app/data_manager/base_tables 加载，
+        优先从 app/core/modules/data_manager/base_tables 加载，
         如果不存在则尝试从策略自定义表加载
         """
         # 尝试从 base_tables 加载
+        # 从 app/core/infra/db 向上找到项目根，再定位到 app/core/modules/data_manager/base_tables
+        current_dir = os.path.dirname(__file__)  # app/core/infra/db
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))  # 项目根
         base_schema_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'app', 'data_manager', 'base_tables', 
+            project_root,
+            'app', 'core', 'modules', 'data_manager', 'base_tables', 
             self.table_name, 'schema.json'
         )
         

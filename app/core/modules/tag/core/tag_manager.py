@@ -176,35 +176,13 @@ class TagManager:
             self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下的 {FileName.SETTINGS.value} 文件中缺少 name 字段，跳过。")
             return None
 
-        # 获取 worker_class 的模块路径和类名（用于子进程重新导入）
-        worker_class_name = worker_class.__name__
-        # 构建完整的模块路径（相对于项目根目录）
-        # 例如：app/userspace/tags/momentum/tag_worker.py -> app.userspace.tags.momentum.tag_worker
-        cwd = Path.cwd()
-        abs_path = worker_class_path.resolve()
-        try:
-            relative_path = abs_path.relative_to(cwd)
-            worker_module_full_path = str(relative_path.with_suffix('')).replace('/', '.').replace('\\', '.')
-        except ValueError:
-            # 如果无法计算相对路径，使用字符串操作
-            abs_path_str = str(abs_path)
-            cwd_str = str(cwd)
-            if abs_path_str.startswith(cwd_str):
-                rel_str = abs_path_str[len(cwd_str)+1:]
-                worker_module_full_path = rel_str.replace('.py', '').replace('/', '.').replace('\\', '.')
-            else:
-                # 最后的后备方案：使用文件名
-                worker_module_full_path = worker_class_path.stem
-        
         return {
             "name": scenario_name,
             "scenario_folder_path": scenario_folder.name,
             "settings": settings_dict,
             "settings_file_path": settings_path,
-            "worker_class": worker_class,  # 保留用于非多进程场景
+            "worker_class": worker_class,
             "worker_file_path": worker_class_path,
-            "worker_module_path": worker_module_full_path,  # 用于子进程重新导入
-            "worker_class_name": worker_class_name,  # 用于子进程重新导入
         }
 
     def _load_scenario_from_cache_by_name(self, name: str):

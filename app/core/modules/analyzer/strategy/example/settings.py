@@ -1,5 +1,5 @@
 from app.enums import KlineTerm, AdjustType
-from app.conf.conf import data_default_start_date
+from app.core.conf.conf import data_default_start_date
 
 settings = {
     # 策略启用状态

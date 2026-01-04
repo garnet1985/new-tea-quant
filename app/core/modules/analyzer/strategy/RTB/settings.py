@@ -1,5 +1,5 @@
 from app.enums import KlineTerm, AdjustType
-from app.conf.conf import data_default_start_date
+from app.core.conf.conf import data_default_start_date
 
 # ML增强版本设置 - 基于机器学习验证的重要参数
 settings = {

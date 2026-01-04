@@ -3,7 +3,7 @@ MeanReversion 策略配置
 均值回归策略 - 基于价格偏离均线的历史分位数进行交易
 """
 
-from app.enums import KlineTerm, AdjustType
+from app.core.global_enums.enums import KlineTerm, AdjustType
 
 settings = {
     # 策略启用状态

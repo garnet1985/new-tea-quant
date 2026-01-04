@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 from app.core.utils.date.date_utils import DateUtils
 
-from ... import BaseDataService
+from app.core.modules.data_manager.data_services import BaseDataService
 
 
 class TagDataService(BaseDataService):

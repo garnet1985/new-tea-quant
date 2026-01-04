@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from loguru import logger
 from app.core_modules.data_manager import DataManager
-from app.labeler import LabelerService
 from utils.util import merge_mapping_configs
 
 

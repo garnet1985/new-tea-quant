@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from loguru import logger
 
-from app.conf.conf import data_default_start_date
+from app.core.conf.conf import data_default_start_date
 from app.core.modules.data_source.data_source_handler import BaseDataSourceHandler
 from app.core.modules.data_source.api_job import DataSourceTask, ApiJob
 from app.core.utils.date.date_utils import DateUtils

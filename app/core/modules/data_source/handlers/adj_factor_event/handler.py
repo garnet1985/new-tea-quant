@@ -291,7 +291,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         end_date_ymd = latest_completed_trading_date
         
         # 默认起始日期（用于所有 API）
-        from app.conf.conf import data_default_start_date
+        from app.core.conf.conf import data_default_start_date
         default_start_date = data_default_start_date
         
         for stock_info in target_stock_list:

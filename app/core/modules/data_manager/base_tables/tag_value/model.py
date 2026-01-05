@@ -25,7 +25,7 @@ class TagValueModel(DbBaseModel):
             as_of_date: 业务日期（YYYYMMDD 或 YYYY-MM-DD）
             
         Returns:
-            List[Dict]: [{"tag_id": 1, "value": "0.23", "start_date": "2025-01-01", "end_date": "2025-01-31"}, ...]
+            List[Dict]: [{"tag_definition_id": 1, "value": "0.23", "start_date": "2025-01-01", "end_date": "2025-01-31"}, ...]
         """
         normalized_date = DateUtils.normalize_date(as_of_date)
         if not normalized_date:
@@ -43,7 +43,7 @@ class TagValueModel(DbBaseModel):
                 OR (start_date IS NOT NULL AND end_date IS NOT NULL 
                     AND start_date <= %s AND end_date >= %s)
             )
-            ORDER BY tag_id ASC
+            ORDER BY tag_definition_id ASC
         """
         
         try:
@@ -53,15 +53,15 @@ class TagValueModel(DbBaseModel):
             logger.error(f"获取实体标签失败 {entity_id} {as_of_date}: {e}")
             return []
     
-    def get_tag_value(self, entity_id: str, tag_id: int, as_of_date: str) -> Optional[Dict[str, Any]]:
+    def get_tag_value(self, entity_id: str, tag_definition_id: int, as_of_date: str) -> Optional[Dict[str, Any]]:
         """
         获取指定实体、指定标签、指定日期的值
         
         Args:
             entity_id: 实体ID
-            tag_id: 标签ID
+            tag_definition_id: 标签定义ID
             as_of_date: 业务日期
-            
+        
         Returns:
             Dict 或 None
         """
@@ -72,18 +72,18 @@ class TagValueModel(DbBaseModel):
         db_date = DateUtils.yyyymmdd_to_yyyy_mm_dd(normalized_date)
         
         return self.load_one(
-            "entity_id = %s AND tag_id = %s AND as_of_date = %s",
-            (entity_id, tag_id, db_date)
+            "entity_id = %s AND tag_definition_id = %s AND as_of_date = %s",
+            (entity_id, tag_definition_id, db_date)
         )
     
-    def get_entities_with_tag(self, tag_id: int, as_of_date: str) -> List[str]:
+    def get_entities_with_tag(self, tag_definition_id: int, as_of_date: str) -> List[str]:
         """
         获取在指定日期拥有某个标签的实体列表
         
         Args:
-            tag_id: 标签ID
+            tag_definition_id: 标签定义ID
             as_of_date: 业务日期
-            
+        
         Returns:
             List[str]: 实体ID列表
         """
@@ -94,8 +94,8 @@ class TagValueModel(DbBaseModel):
         db_date = DateUtils.yyyymmdd_to_yyyy_mm_dd(normalized_date)
         
         records = self.load(
-            "tag_id = %s AND as_of_date = %s",
-            (tag_id, db_date)
+            "tag_definition_id = %s AND as_of_date = %s",
+            (tag_definition_id, db_date)
         )
         
         return [r['entity_id'] for r in records if r.get('entity_id')]
@@ -110,9 +110,10 @@ class TagValueModel(DbBaseModel):
                 if normalized:
                     tag_value_data[field] = DateUtils.yyyymmdd_to_yyyy_mm_dd(normalized)
         
+        # 主键字段：entity_id, tag_definition_id, as_of_date（与 schema.json 一致）
         return self.replace_one(
             tag_value_data,
-            unique_keys=['entity_id', 'tag_id', 'as_of_date']
+            unique_keys=['entity_id', 'tag_definition_id', 'as_of_date']
         )
     
     def batch_save_tag_values(self, tag_values: List[Dict[str, Any]]) -> int:
@@ -126,7 +127,8 @@ class TagValueModel(DbBaseModel):
                     if normalized:
                         tv[field] = DateUtils.yyyymmdd_to_yyyy_mm_dd(normalized)
         
+        # 主键字段：entity_id, tag_definition_id, as_of_date（与 schema.json 一致）
         return self.replace(
             tag_values,
-            unique_keys=['entity_id', 'tag_id', 'as_of_date']
+            unique_keys=['entity_id', 'tag_definition_id', 'as_of_date']
         )

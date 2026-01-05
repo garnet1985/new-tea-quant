@@ -56,7 +56,6 @@ class TushareProvider(BaseProvider):
         
         ts.set_token(token)
         self.api = ts.pro_api()
-        logger.debug("Tushare API client initialized")
     
     # ========== API 方法（纯封装）==========
     

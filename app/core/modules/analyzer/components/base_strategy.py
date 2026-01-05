@@ -173,7 +173,9 @@ class BaseStrategy(ABC):
         # 使用 DataManager 获取基础表模型
         tables = {
             "stock_kline": self.data_mgr.get_model("stock_kline"),
-            "adj_factor": self.data_mgr.get_model("adj_factor"),
+            # adj_factor 已废弃，使用 adj_factor_event 替代
+            # "adj_factor": self.data_mgr.get_model("adj_factor"),
+            "adj_factor_event": self.data_mgr.get_model("adj_factor_event"),
         }
         
         # 添加自定义表（从数据库管理器的schema_manager中获取已注册的表信息）

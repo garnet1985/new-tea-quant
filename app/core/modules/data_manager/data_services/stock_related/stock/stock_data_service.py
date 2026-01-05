@@ -9,7 +9,7 @@
 - stock_list: 股票列表
 - stock_kline: K线数据
 - stock_labels: 股票标签
-- adj_factor: 复权因子
+- adj_factor_event: 复权因子事件（adj_factor 已废弃）
 """
 from typing import List, Dict, Any, Optional, Union
 from loguru import logger

@@ -65,6 +65,7 @@ yarn-error.log*
 .DS_Store
 .DS_Store?
 ._*
+.cursor
 
 ########################
 # Auth / secrets
@@ -74,4 +75,5 @@ config.ini
 secrets.json
 .env.local
 .env.production
-app/data_source/providers/*/auth_token.py
+app/**/auth_token.txt
+app/**/token.txt

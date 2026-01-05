@@ -85,7 +85,6 @@ class ProviderInstancePool:
             
             provider = provider_class(config)
             self._pool[provider_name] = provider
-            logger.info(f"✅ Provider '{provider_name}' created and cached")
             
             return provider
     
@@ -215,34 +214,41 @@ class ProviderInstancePool:
         
         注意：
         - 从 Provider 类所在的目录加载 config.py
-        - 如果 Provider 类已注册，通过类的模块路径找到目录
+        - auth_token.py 固定放在 provider 根目录下
+        - 通过 Provider 类的模块路径直接构建 config 模块路径
         """
-        # 如果 Provider 类已注册，通过类的模块路径找到目录
+        # 获取 Provider 类
         if provider_name in self._provider_classes:
             provider_class = self._provider_classes[provider_name]
-            # 从类的模块路径提取目录名
-            # 例如：app.core.modules.data_source.providers.tushare.provider -> tushare
-            module_path = provider_class.__module__
-            parts = module_path.split('.')
-            if len(parts) >= 4:
-                folder_name = parts[3]  # 提取文件夹名
-            else:
-                folder_name = provider_name
         else:
             # 如果还没注册，先发现 Provider（这会注册它）
             provider_class = self._discover_provider(provider_name)
-            if provider_class:
-                module_path = provider_class.__module__
-                parts = module_path.split('.')
-                folder_name = parts[3] if len(parts) >= 4 else provider_name
-            else:
-                # 回退：尝试直接用 provider_name 作为文件夹名
-                folder_name = provider_name
+            if not provider_class:
+                logger.warning(f"Provider '{provider_name}' not found, cannot load config")
+                return {}
         
-        # 动态导入对应 Provider 的配置模块
+        # 从 Provider 类的模块路径构建 config 模块路径
+        # 例如：app.core.modules.data_source.providers.tushare.provider 
+        #   -> app.core.modules.data_source.providers.tushare.config
+        provider_module_path = provider_class.__module__
+        
+        # 将模块路径中的最后一个部分（通常是 'provider'）替换为 'config'
+        # 例如：'...tushare.provider' -> '...tushare.config'
+        if provider_module_path.endswith('.provider'):
+            config_module_path = provider_module_path[:-9] + '.config'  # 去掉 '.provider'，加上 '.config'
+        else:
+            # 如果模块路径不是以 '.provider' 结尾，尝试直接替换最后一个部分
+            parts = provider_module_path.rsplit('.', 1)
+            if len(parts) == 2:
+                config_module_path = f"{parts[0]}.config"
+            else:
+                # 回退：尝试直接用 provider_name 构建路径
+                config_module_path = f'app.core.modules.data_source.providers.{provider_name}.config'
+        
+        # 动态导入配置模块
         try:
             config_module = __import__(
-                f'app.core.modules.data_source.providers.{folder_name}.config',
+                config_module_path,
                 fromlist=['get_config']
             )
             
@@ -255,7 +261,7 @@ class ProviderInstancePool:
         except ImportError as e:
             logger.warning(
                 f"Failed to load config for '{provider_name}' "
-                f"(tried folder: {folder_name}): {e}"
+                f"(tried module: {config_module_path}): {e}"
             )
             return {}
     

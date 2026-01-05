@@ -45,9 +45,8 @@ class DataSourceManager:
     def _load_schemas(self):
         """加载 Schema 定义"""
         try:
-            from app.core.modules.data_source.defaults.schemas import DEFAULT_SCHEMAS
+            from app.core.modules.data_source.schemas import DEFAULT_SCHEMAS
             self._schemas = DEFAULT_SCHEMAS.copy()
-            logger.debug(f"✅ 加载了 {len(self._schemas)} 个 Schema")
         except Exception as e:
             logger.error(f"❌ 加载 Schema 失败: {e}")
             self._schemas = {}

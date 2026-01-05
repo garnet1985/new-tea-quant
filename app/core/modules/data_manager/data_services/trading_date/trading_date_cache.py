@@ -59,8 +59,6 @@ class TradingDateCache:
             end_date = yesterday.strftime('%Y%m%d')
             start_date = (yesterday - timedelta(days=15)).strftime('%Y%m%d')
             
-            logger.debug(f"从 API 获取最新交易日: {start_date} 至 {end_date}")
-            
             # 调用 API
             df = provider.get_trade_cal(
                 exchange="",  # 空字符串表示所有交易所

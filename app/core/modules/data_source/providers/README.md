@@ -32,27 +32,28 @@ tushare = pool.get_provider("tushare")
 
 每个 Provider 都有自己的配置模块（`providers/{provider_name}/config.py`），负责：
 
-1. 从 `auth_token.py` 读取认证信息（用户上传，gitignore）
+1. 从 `auth_token.txt` 读取认证信息（用户上传，gitignore）
 2. 从环境变量读取（备选）
 3. 提供默认配置
 
 **配置优先级：**
-1. `auth_token.py` 文件（最高优先级）
+1. `auth_token.txt` 文件（最高优先级）
 2. 环境变量
 3. 默认配置
 
 ### Auth Token 文件
 
-每个 Provider 需要用户上传 `auth_token.py` 文件：
+每个 Provider 需要用户上传 `auth_token.txt` 文件：
 
-```python
-# providers/tushare/auth_token.py
-TUSHARE_TOKEN = "your_token_here"
+```text
+# providers/tushare/auth_token.txt
+your_token_here
 ```
 
 **注意：**
-- `auth_token.py` 已被 gitignore，不会提交到仓库
-- 参考 `auth_token.py.example` 创建自己的文件
+- `auth_token.txt` 已被 gitignore，不会提交到仓库
+- 参考 `auth_token.txt.example` 创建自己的文件
+- 文件内容只需要一行 token 字符串，会自动去除首尾空白字符
 
 ## 📁 文件结构
 
@@ -64,8 +65,8 @@ providers/
 │   ├── __init__.py
 │   ├── provider.py                # TushareProvider 实现
 │   ├── config.py                  # 配置加载逻辑
-│   ├── auth_token.py.example      # 配置示例
-│   └── auth_token.py              # 用户上传（gitignore）
+│   ├── auth_token.txt.example     # 配置示例
+│   └── auth_token.txt             # 用户上传（gitignore）
 └── akshare/
     └── ...
 ```

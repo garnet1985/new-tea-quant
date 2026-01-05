@@ -1,15 +1,7 @@
 """
 Tag Worker 基类
 
-职责：
-1. 定义 tag 计算的生命周期流程
-2. 提供钩子函数供用户实现业务逻辑
-3. 管理 tag values 的保存
-
-注意：
-- 数据加载细节由 TagWorkerDataManager 负责
-- 这是子进程 worker 基类，会在子进程中实例化
-- 包含 tracker 等子进程状态管理
+定义 tag 计算的生命周期流程，提供钩子函数供用户实现业务逻辑。
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple, Type
@@ -23,61 +15,20 @@ logger = logging.getLogger(__name__)
 
 
 class BaseTagWorker(ABC):
-    """
-    Tag Worker 基类（子进程 worker）
-    
-    职责：
-    1. 定义 tag 计算的生命周期流程（预处理、执行、后处理）
-    2. 提供钩子函数供用户实现业务逻辑（calculate_tag 等）
-    3. 管理 tag values 的批量保存
-    
-    只读数据（归类存储）：
-    - self.entity: {'id': str, 'type': str} - entity信息
-    - self.scenario: {'name': str, 'update_mode': TagUpdateMode} - scenario信息
-    - self.job: {'start_date': str, 'end_date': str} - job信息
-    - self.config: {'core': dict, 'performance': dict} - 配置信息
-    - self.tag_definitions: List[TagModel] - tag定义列表
-    
-    可写状态：
-    - self.tracker: dict - 用于存储计算过程中的临时状态
-    
-    注意：
-    - 数据加载细节由 TagWorkerDataManager 负责（按需加载、缓存、过滤）
-    - 这是子进程 worker，会在子进程中实例化
-    """
+    """Tag Worker 基类（子进程 worker）"""
     
     def __init__(self, job_payload: Dict[str, Any]):
-        """
-        初始化 TagWorker
-        
-        Args:
-            job_payload: Job payload 字典，包含：
-                - entity_id: 实体ID
-                - entity_type: 实体类型
-                - scenario_name: Scenario 名称
-                - tag_definitions: Tag Definition 列表（字典格式）
-                - start_date: 起始日期
-                - end_date: 结束日期
-                - settings: Settings 字典（完整的 settings 配置）
-                - update_mode: 更新模式（TagUpdateMode 枚举）
-        
-        注意：
-        - DataManager 是单例模式，自动初始化
-        - 在子进程中实例化，进程结束后自动清理
-        """
+        """初始化 TagWorker"""
         self.job_payload = job_payload
         
-        # 归类只读数据
         self.entity = {
             'id': job_payload.get('entity_id'),
             'type': job_payload.get('entity_type', 'stock')
         }
         
         scenario_name = job_payload.get('scenario_name', '')
-        # 如果 payload 中没有，从 settings 中获取
         if not scenario_name:
-            settings = job_payload.get('settings', {})
-            scenario_name = settings.get('name', '')
+            scenario_name = job_payload.get('settings', {}).get('name', '')
         
         self.scenario = {
             'name': scenario_name,
@@ -89,39 +40,27 @@ class BaseTagWorker(ABC):
             'end_date': job_payload.get('end_date')
         }
         
-        # tag_definitions 从字典转换为 TagModel 对象
         tag_defs_dict = job_payload.get('tag_definitions', [])
         self.tag_definitions = [TagModel.from_dict(t) for t in tag_defs_dict]
-        
-        # settings 字典（完整的 settings 配置）
         self.settings = job_payload.get('settings', {})
         
-        # 初始化服务
         self.data_mgr = DataManager(is_verbose=False)
         self.tag_data_service = self.data_mgr.tag
-        
-        # 状态管理
-        self.tracker = {}  # 用于存储计算过程中的临时状态
-        
-        # 处理 settings，提取配置
+        self.tracker = {}
         self._extract_settings()
         
-        # 初始化数据管理器（负责所有数据加载、缓存、过滤逻辑）
-        # 数据管理器会从 settings 中自动解析 target_entity 和 required_entities
         from app.core.modules.tag.core.components.tag_worker_helper.tag_worker_data_manager import TagWorkerDataManager
         self.tag_worker_data_manager = TagWorkerDataManager(
             entity_id=self.entity['id'],
             entity_type=self.entity['type'],
-            settings=self.settings,  # 传递完整的 settings，让 data_manager 自己解析
+            settings=self.settings,
             data_mgr=self.data_mgr
         )
         
-        # 调用初始化钩子
         self.on_init()
     
     def _extract_settings(self):
-        """从 settings 中提取配置到实例变量（只提取流程需要的配置，数据加载细节交给 tag_worker_data_manager）"""
-        # 配置信息归类
+        """从 settings 中提取配置"""
         self.config = {
             'core': self.settings.get('core', {}),
             'performance': self.settings.get('performance', {})
@@ -130,29 +69,7 @@ class BaseTagWorker(ABC):
     # ==================== 生命周期方法 ====================
     
     def process_entity(self) -> Dict[str, Any]:
-        """
-        处理单个 entity 的 tag 计算（子进程 worker）
-        
-        这是子进程的主要入口方法，由 ProcessWorker 调用。
-        
-        流程：
-        1. 预处理（_preprocess）：获取交易日列表，调用 on_before_execute_tagging
-        2. 执行标签计算（_execute_tagging）：遍历每个日期，计算 tags
-        3. 后处理（_postprocess）：批量保存结果，调用 on_after_execute_tagging
-        
-        Returns:
-            Dict[str, Any]: 执行结果统计信息
-                {
-                    "entity_id": str,
-                    "entity_type": str,
-                    "scenario_name": str,
-                    "total_dates": int,
-                    "processed_dates": int,
-                    "total_tags_created": int,
-                    "errors": List[str],
-                    "success": bool
-                }
-        """
+        """处理单个 entity 的 tag 计算（子进程入口）"""
         try:
             # 1. 预处理
             self._preprocess()
@@ -182,13 +99,7 @@ class BaseTagWorker(ABC):
             }
     
     def _preprocess(self):
-        """
-        预处理阶段
-        
-        1. 获取交易日列表（委托给 tag_worker_data_manager）
-        2. 在 INCREMENTAL 模式下初始化数据加载（加载当前 chunk 和前一个 chunk）
-        3. 调用 on_before_execute_tagging 钩子
-        """
+        """预处理阶段"""
         # 在 INCREMENTAL 模式下，初始化数据加载
         if self.scenario['update_mode'] and self.scenario['update_mode'].value == 'incremental':
             self.tag_worker_data_manager.initialize_for_incremental(self.job['start_date'])

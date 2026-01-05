@@ -237,7 +237,7 @@ class BaseTagWorker(ABC):
                                 "entity_type": self.entity['type'],
                                 "tag_definition_id": tag_definition.id,
                                 "as_of_date": as_of_date,
-                                "value": tag_result.get("value", ""),
+                                "json_value": tag_result.get("value", ""),  # 使用 json_value 字段名
                                 "start_date": tag_result.get("start_date"),
                                 "end_date": tag_result.get("end_date"),
                             }
@@ -390,10 +390,17 @@ class BaseTagWorker(ABC):
                 - 如果返回None，不创建tag
                 - 如果返回字典，格式：
                     {
-                        "value": str,  # Tag值（必填）
+                        "value": str | dict | list,  # Tag值（必填），支持字符串（向后兼容）或 JSON 格式（dict/list）
                         "start_date": str,  # 可选，起始日期（YYYYMMDD）
                         "end_date": str,  # 可选，结束日期（YYYYMMDD）
                     }
+                
+                注意：
+                - value 可以是字符串（向后兼容）或 JSON 格式（dict/list）
+                - 推荐使用 JSON 格式存储结构化数据，例如：
+                  {"momentum": 0.1234, "year_month": "202501"}
+                - 系统会自动将 dict/list 转换为 JSON 字符串存储到数据库
+                - 读取时会自动解析 JSON 字符串为 Python dict/list
         """
         pass
     
@@ -417,7 +424,7 @@ class BaseTagWorker(ABC):
                 - entity_type: 实体类型
                 - tag_definition_id: Tag定义ID
                 - as_of_date: 业务日期
-                - value: Tag值
+                - json_value: Tag值（JSON 格式）
                 - start_date: 起始日期（可选）
                 - end_date: 结束日期（可选）
         

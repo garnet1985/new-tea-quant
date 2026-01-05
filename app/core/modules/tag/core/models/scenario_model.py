@@ -170,6 +170,29 @@ class ScenarioModel:
             logger.debug(f"当前传入的{scenario_name} settings内的tags字段必须至少包含一个 tag")
             return False
         
+        # 验证 incremental_required_records_before_as_of_date
+        # 如果 update_mode == INCREMENTAL，必须显式声明此配置
+        update_mode_str = settings.get("update_mode")
+        if not update_mode_str:
+            performance = settings.get("performance", {})
+            update_mode_str = performance.get("update_mode", "incremental")
+        
+        try:
+            update_mode = TagUpdateMode(update_mode_str)
+            if update_mode == TagUpdateMode.INCREMENTAL:
+                # INCREMENTAL 模式下，必须显式声明 incremental_required_records_before_as_of_date
+                if "incremental_required_records_before_as_of_date" not in settings:
+                    logger.error(f"当前传入的{scenario_name} settings在INCREMENTAL模式下缺少必须参数: incremental_required_records_before_as_of_date")
+                    return False
+                # 验证值是否为非负整数
+                required_records = settings.get("incremental_required_records_before_as_of_date")
+                if not isinstance(required_records, int) or required_records < 0:
+                    logger.error(f"当前传入的{scenario_name} settings的incremental_required_records_before_as_of_date必须是非负整数，当前值: {required_records}")
+                    return False
+        except ValueError:
+            # update_mode 无效，但这里不验证（会在其他地方处理）
+            pass
+        
         return True
 
 
@@ -304,6 +327,7 @@ class ScenarioModel:
         简化逻辑：
         - 如果 scenario 不存在：创建新的
         - 如果 scenario 存在且 recompute=True：删除旧的 scenario 和 tags，创建新的
+        - 如果 scenario 存在且 update_mode=REFRESH：删除 tag values（保留 scenario 和 tag definitions）
         - 如果 scenario 存在且 recompute=False：检查 meta 差异并更新（如果需要）
         """
         # 使用 TagDataService 的 load_scenario 方法（只按 name 查询）
@@ -319,9 +343,10 @@ class ScenarioModel:
             self._set_meta(new_meta)
         else:
             # scenario 已存在
+            scenario_id = scenario_metadata.get('id')
+            
             if self._recompute:
                 # 强制重新计算：删除旧的 scenario 和 tags
-                scenario_id = scenario_metadata.get('id')
                 logger.info(f"检测到 recompute=True，删除旧的 scenario 和 tags: {self.name}")
                 
                 # 删除 tag values
@@ -339,6 +364,13 @@ class ScenarioModel:
                 )
                 self._set_meta(new_meta)
             else:
+                # 检查 update_mode，如果是 REFRESH 模式，删除 tag values
+                update_mode = self.calculate_update_mode()
+                if update_mode == TagUpdateMode.REFRESH:
+                    logger.info(f"检测到 update_mode=REFRESH，删除旧的 tag values: {self.name}")
+                    # 只删除 tag values，保留 scenario 和 tag definitions
+                    tag_data_mgr.delete_tag_values_by_scenario(scenario_id)
+                
                 # 检查 meta 差异并更新（如果需要）
                 if self._has_meta_diff(scenario_metadata):
                     new_meta = tag_data_mgr.update_scenario(

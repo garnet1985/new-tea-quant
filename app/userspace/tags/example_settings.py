@@ -105,6 +105,14 @@ Settings = {
     # - REFRESH: 全量刷新：重新计算该Scenario下所有tags的值。
     "update_mode": UpdateMode.INCREMENTAL.value,
 
+    # 可选参数，默认为 0
+    # 在增量模式下，确保加载足够的历史数据（记录数）。
+    # 用于计算tag时，确保往前N条记录的数据也在缓存中，避免数据不足导致计算失败。
+    # 例如：动量计算需要60根K线，设置为60，框架会确保从as_of_date往前60条记录的数据也在缓存中。
+    # 框架内部会自动转换为chunk数量（ceil(records / data_chunk_size)）。
+    # 注意：只在INCREMENTAL模式下生效，REFRESH模式下会加载所有历史数据，不需要此配置。
+    "incremental_required_records_before_as_of_date": 0,
+
     # 可选参数，默认为空字典
     # 可以自定义你自己的核心参数/阈值等在core里边。
     "core": {},

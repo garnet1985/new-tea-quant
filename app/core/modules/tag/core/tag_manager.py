@@ -83,7 +83,7 @@ class TagManager:
 
     def refresh_scenario(self):
         self._clear_cache()
-        self.scenario_cache = self._discover_scenarios_from_folder()
+        self._discover_scenarios_from_folder()
 
     def execute(self, scenario_name: str = None, settings: Dict[str, Any] = None):
         if settings:
@@ -92,7 +92,8 @@ class TagManager:
             self._execute_single(scenario_name)
         else:
             self._execute_all()
-        self._clear_cache()
+        # 注意：不清空缓存，因为缓存中的 worker_module_path 等信息在子进程中需要用到
+        # self._clear_cache()
 
     # -------------------------------------------------------------------------
     # Scenario 执行
@@ -176,13 +177,37 @@ class TagManager:
             self.is_verbose and logger.warning(f"文件夹 {scenario_folder.name} 下的 {FileName.SETTINGS.value} 文件中缺少 name 字段，跳过。")
             return None
 
+        logger.debug(f"发现场景: {worker_class_path}, 文件夹: {scenario_folder.name}")
+
+        # 获取 worker_class 的模块路径和类名（用于子进程重新导入，避免 pickle 问题）
+        worker_class_name = worker_class.__name__
+        # 构建完整的模块路径（相对于项目根目录）
+        # 例如：app/userspace/tags/momentum/tag_worker.py -> app.userspace.tags.momentum.tag_worker
+        cwd = Path.cwd()
+        abs_path = worker_class_path.resolve()
+        try:
+            relative_path = abs_path.relative_to(cwd)
+            worker_module_full_path = str(relative_path.with_suffix('')).replace('/', '.').replace('\\', '.')
+        except ValueError:
+            # 如果无法计算相对路径，使用字符串操作
+            abs_path_str = str(abs_path)
+            cwd_str = str(cwd)
+            if abs_path_str.startswith(cwd_str):
+                rel_str = abs_path_str[len(cwd_str)+1:]
+                worker_module_full_path = rel_str.replace('.py', '').replace('/', '.').replace('\\', '.')
+            else:
+                # 最后的后备方案：使用文件名
+                worker_module_full_path = worker_class_path.stem
+
         return {
             "name": scenario_name,
             "scenario_folder_path": scenario_folder.name,
             "settings": settings_dict,
             "settings_file_path": settings_path,
-            "worker_class": worker_class,
+            "worker_class": worker_class,  # 保留用于非多进程场景
             "worker_file_path": worker_class_path,
+            "worker_module_path": worker_module_full_path,  # 用于子进程重新导入
+            "worker_class_name": worker_class_name,  # 用于子进程重新导入
         }
 
     def _load_scenario_from_cache_by_name(self, name: str):
@@ -283,6 +308,11 @@ class TagManager:
         if not entity_list:
             logger.info(f"无法获取实体列表，跳过执行")
             return
+        
+        # 测试阶段：只使用前2个股票进行可行性测试
+        if len(entity_list) > 2:
+            logger.info(f"🧪 测试模式：从 {len(entity_list)} 个实体中只选择前 2 个进行测试")
+            entity_list = entity_list[:2]
 
         # 获取 worker_class（从 cache 中获取，如果不在 cache 中则尝试从 settings 加载）
         scenario_name = scenario_model.get_name()
@@ -293,6 +323,14 @@ class TagManager:
 
         # 获取更新模式
         settings = scenario_model.get_settings()
+
+        # 调试：在调用 _build_jobs 前检查缓存
+        if self.is_verbose:
+            logger.debug(f"🔍 _run_execute_pipeline: 准备构建 jobs")
+            logger.debug(f"   scenario_name: {scenario_name}")
+            logger.debug(f"   scenario_cache exists: {scenario_name in self.scenario_cache}")
+            if scenario_name in self.scenario_cache:
+                logger.debug(f"   Cache has worker_module_path: {'worker_module_path' in self.scenario_cache[scenario_name]}")
 
         jobs = self._build_jobs(entity_list, settings, scenario_model, worker_class)
 
@@ -322,6 +360,22 @@ class TagManager:
         """
         update_mode = scenario_model.calculate_update_mode()
         scenario_name = scenario_model.get_name()
+        
+        # 调试：检查缓存状态（强制输出，不依赖 is_verbose）
+        logger.info(f"🔍 _build_jobs: 开始构建 jobs for scenario: {scenario_name}")
+        logger.info(f"   scenario_cache exists: {scenario_name in self.scenario_cache}")
+        logger.info(f"   All cached scenarios: {list(self.scenario_cache.keys())}")
+        if scenario_name in self.scenario_cache:
+            cache_keys = list(self.scenario_cache[scenario_name].keys())
+            logger.info(f"   Cache keys for {scenario_name}: {cache_keys}")
+            logger.info(f"   worker_module_path in cache: {'worker_module_path' in self.scenario_cache[scenario_name]}")
+            logger.info(f"   worker_class_name in cache: {'worker_class_name' in self.scenario_cache[scenario_name]}")
+            if 'worker_module_path' in self.scenario_cache[scenario_name]:
+                logger.info(f"   worker_module_path value: {self.scenario_cache[scenario_name].get('worker_module_path')}")
+            if 'worker_class_name' in self.scenario_cache[scenario_name]:
+                logger.info(f"   worker_class_name value: {self.scenario_cache[scenario_name].get('worker_class_name')}")
+        else:
+            logger.error(f"   ❌ Scenario {scenario_name} 不在缓存中!")
         
         # 获取默认日期
         default_start_date = settings.get("start_date")
@@ -364,9 +418,41 @@ class TagManager:
             )
             
             # 从 cache 获取 worker 模块信息（用于子进程重新导入）
-            scenario_cache = self.scenario_cache.get(scenario_name, {})
+            # 注意：每次循环都要重新获取，确保获取到最新的缓存
+            scenario_cache = self.scenario_cache.get(scenario_name)
+            if not scenario_cache:
+                logger.error(f"❌ Scenario {scenario_name} 不在缓存中!")
+                logger.error(f"   Available scenarios: {list(self.scenario_cache.keys())}")
+                logger.error(f"   scenario_cache type: {type(self.scenario_cache)}")
+                logger.error(f"   scenario_cache content: {self.scenario_cache}")
+                raise ValueError(f"Scenario {scenario_name} 不在缓存中")
+            
             worker_module_path = scenario_cache.get("worker_module_path")
             worker_class_name = scenario_cache.get("worker_class_name")
+            
+            # 调试：如果值为 None，记录详细警告
+            if not worker_module_path or not worker_class_name:
+                logger.error(f"❌ Scenario {scenario_name} 的缓存中缺少 worker 模块信息!")
+                logger.error(f"   worker_module_path={worker_module_path}")
+                logger.error(f"   worker_class_name={worker_class_name}")
+                logger.error(f"   scenario_cache type: {type(scenario_cache)}")
+                logger.error(f"   scenario_cache keys: {list(scenario_cache.keys()) if isinstance(scenario_cache, dict) else 'Not a dict'}")
+                logger.error(f"   scenario_cache full content: {scenario_cache}")
+                logger.error(f"   Available scenarios: {list(self.scenario_cache.keys())}")
+                raise ValueError(f"缺少 worker 模块信息: worker_module_path={worker_module_path}, worker_class_name={worker_class_name}")
+            
+            # 确保 worker_module_path 和 worker_class_name 不为 None
+            if not worker_module_path or not worker_class_name:
+                logger.error(f"❌ 在构建 job 时发现 worker 模块信息为 None!")
+                logger.error(f"   entity_id: {entity_id}")
+                logger.error(f"   scenario_name: {scenario_name}")
+                logger.error(f"   worker_module_path: {worker_module_path}")
+                logger.error(f"   worker_class_name: {worker_class_name}")
+                logger.error(f"   scenario_cache exists: {scenario_name in self.scenario_cache}")
+                if scenario_name in self.scenario_cache:
+                    logger.error(f"   Cache keys: {list(self.scenario_cache[scenario_name].keys())}")
+                    logger.error(f"   Full cache: {self.scenario_cache[scenario_name]}")
+                raise ValueError(f"缺少 worker 模块信息: worker_module_path={worker_module_path}, worker_class_name={worker_class_name}")
             
             job = {
                 "id": scenario_model.get_identifier() + "_" + entity_id,
@@ -383,6 +469,21 @@ class TagManager:
                     "worker_class_name": worker_class_name,  # 用于子进程重新导入
                 },
             }
+            
+            # 调试：验证 payload 中是否包含 worker 模块信息
+            payload_worker_module_path = job["payload"].get("worker_module_path")
+            payload_worker_class_name = job["payload"].get("worker_class_name")
+            if not payload_worker_module_path or not payload_worker_class_name:
+                logger.error(f"❌ Job payload 中缺少 worker 模块信息!")
+                logger.error(f"   Payload keys: {list(job['payload'].keys())}")
+                logger.error(f"   worker_module_path in payload: {'worker_module_path' in job['payload']}")
+                logger.error(f"   worker_class_name in payload: {'worker_class_name' in job['payload']}")
+                logger.error(f"   payload_worker_module_path value: {payload_worker_module_path}")
+                logger.error(f"   payload_worker_class_name value: {payload_worker_class_name}")
+                logger.error(f"   Original worker_module_path: {worker_module_path}")
+                logger.error(f"   Original worker_class_name: {worker_class_name}")
+                raise ValueError(f"Job payload 中缺少 worker 模块信息: worker_module_path={payload_worker_module_path}, worker_class_name={payload_worker_class_name}")
+                raise ValueError(f"Job payload 中缺少 worker 模块信息")
             jobs.append(job)
 
         return jobs
@@ -440,35 +541,49 @@ class TagManager:
         }
 
     @staticmethod
-    def _execute_single_job(job: Dict[str, Any]) -> Dict[str, Any]:
+    def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
         """
         Tag Worker 包装函数（用于 ProcessWorker 的 job_executor）
         
+        注意：ProcessWorker 只传递 job['payload']，不传递整个 job
+        
         在子进程中：
-        1. 从 job payload 中提取信息
-        2. 实例化 TagWorker（传入完整的 job_payload）
+        1. 从 payload 中提取信息
+        2. 实例化 TagWorker（传入完整的 payload）
         3. 调用 worker.run() 执行计算
         """
         from app.core.infra.worker.multi_process.process_worker import JobResult, JobStatus
         from datetime import datetime
         
-        job_id = job.get('id', 'unknown')
-        payload = job.get('payload', {})
+        # ProcessWorker 只传递 payload，不传递整个 job
+        # 所以 payload 就是完整的 job payload
+        job_id = payload.get('entity_id', 'unknown')  # 从 payload 中获取 entity_id 作为 job_id
+        job_payload = payload
+        
+        # 调试：检查 payload 内容
+        logger.info(f"🔍 _execute_single_job: job_id={job_id}")
+        logger.info(f"   payload keys: {list(job_payload.keys())}")
+        logger.info(f"   worker_module_path in payload: {'worker_module_path' in job_payload}")
+        logger.info(f"   worker_class_name in payload: {'worker_class_name' in job_payload}")
+        if 'worker_module_path' in job_payload:
+            logger.info(f"   worker_module_path value: {job_payload.get('worker_module_path')}")
+        if 'worker_class_name' in job_payload:
+            logger.info(f"   worker_class_name value: {job_payload.get('worker_class_name')}")
         
         try:
             # 1. 在子进程中重新导入 worker_class（避免 pickle 问题）
             import importlib
-            worker_module_path = payload.get('worker_module_path')
-            worker_class_name = payload.get('worker_class_name')
+            worker_module_path = job_payload.get('worker_module_path')
+            worker_class_name = job_payload.get('worker_class_name')
             
             if not worker_module_path or not worker_class_name:
+                logger.error(f"❌ Payload 中缺少 worker 模块信息!")
+                logger.error(f"   Full payload: {payload}")
                 raise ValueError(f"缺少 worker 模块信息: worker_module_path={worker_module_path}, worker_class_name={worker_class_name}")
             
             # 动态导入模块和类
             worker_module = importlib.import_module(worker_module_path)
             worker_class = getattr(worker_module, worker_class_name)
-            
-            job_payload = payload  # 完整的 payload 传给 worker
             
             # 2. 创建 worker 实例（子进程中）
             # 注意：
@@ -484,7 +599,7 @@ class TagManager:
                 job_id=job_id,
                 status=JobStatus.COMPLETED,
                 result={
-                    'entity_id': payload.get('entity_id'),
+                    'entity_id': job_payload.get('entity_id'),
                     'success': result.get('success', True),
                     'total_tags': result.get('total_tags_created', 0),
                     'processed_dates': result.get('processed_dates', 0),
@@ -503,7 +618,7 @@ class TagManager:
                 status=JobStatus.FAILED,
                 error=str(e),
                 result={
-                    'entity_id': payload.get('entity_id'),
+                    'entity_id': job_payload.get('entity_id'),
                     'success': False,
                     'error': str(e)
                 },

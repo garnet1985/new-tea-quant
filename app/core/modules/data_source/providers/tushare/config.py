@@ -13,7 +13,7 @@ def get_config() -> dict:
     获取 Tushare Provider 配置
     
     配置来源：
-    1. auth_token.py 文件（用户上传，gitignore）
+    1. auth_token.txt 文件（用户上传，gitignore）
     2. 环境变量 TUSHARE_TOKEN
     3. 默认配置
     
@@ -22,39 +22,30 @@ def get_config() -> dict:
     """
     config = {}
     
-    # 1. 优先从 auth_token.py 读取（用户上传的文件）
-    auth_token_path = Path(__file__).parent / "auth_token.py"
+    # 1. 优先从 auth_token.txt 读取（用户上传的文件）
+    auth_token_path = Path(__file__).parent / "auth_token.txt"
     if auth_token_path.exists():
         try:
-            # 动态导入 auth_token 模块
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "auth_token", 
-                auth_token_path
-            )
-            auth_token_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(auth_token_module)
-            
-            if hasattr(auth_token_module, 'TUSHARE_TOKEN'):
-                config['token'] = auth_token_module.TUSHARE_TOKEN
-                logger.debug("✅ Loaded Tushare token from auth_token.py")
+            # 读取文件内容，去除首尾空白字符
+            token = auth_token_path.read_text(encoding='utf-8').strip()
+            if token:
+                config['token'] = token
             else:
-                logger.warning("auth_token.py exists but has no TUSHARE_TOKEN")
+                logger.warning("auth_token.txt exists but is empty")
         except Exception as e:
-            logger.warning(f"Failed to load auth_token.py: {e}")
+            logger.warning(f"Failed to load auth_token.txt: {e}")
     
     # 2. 如果没有，尝试从环境变量读取
     if 'token' not in config:
         token = os.getenv('TUSHARE_TOKEN')
         if token:
             config['token'] = token
-            logger.debug("✅ Loaded Tushare token from environment variable")
     
     # 3. 如果还没有，报错
     if 'token' not in config:
         raise ValueError(
             "Tushare token not found. Please:\n"
-            "  1. Create providers/tushare/auth_token.py with: TUSHARE_TOKEN = 'your_token'\n"
+            "  1. Create providers/tushare/auth_token.txt with your token (one line)\n"
             "  2. Or set environment variable: TUSHARE_TOKEN=your_token"
         )
     

@@ -186,8 +186,13 @@ class BaseTagWorker(ABC):
         预处理阶段
         
         1. 获取交易日列表（委托给 tag_worker_data_manager）
-        2. 调用 on_before_execute_tagging 钩子
+        2. 在 INCREMENTAL 模式下初始化数据加载（加载当前 chunk 和前一个 chunk）
+        3. 调用 on_before_execute_tagging 钩子
         """
+        # 在 INCREMENTAL 模式下，初始化数据加载
+        if self.scenario['update_mode'] and self.scenario['update_mode'].value == 'incremental':
+            self.tag_worker_data_manager.initialize_for_incremental(self.job['start_date'])
+        
         self.trading_dates = self.tag_worker_data_manager.get_trading_dates(
             self.job['start_date'],
             self.job['end_date']

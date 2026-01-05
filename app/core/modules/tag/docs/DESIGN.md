@@ -143,7 +143,7 @@ tag_scenario (业务场景层)
 | `as_of_date` | DATE | 业务日期（标签计算时间点） |
 | `start_date` | DATE | 起始日期（时间切片标签用） |
 | `end_date` | DATE | 结束日期（时间切片标签用） |
-| `value` | TEXT | 标签值（字符串，由策略自己解析） |
+| `value` | JSON | 标签值（JSON 格式，支持键值对等结构化数据，由策略自己解释和解析） |
 | `calculated_at` | DATETIME | 计算时间 |
 
 **主键**：
@@ -173,8 +173,8 @@ tag_definition
 └─ ...
 
 tag_value
-├─ entity_id: "000001.SZ", tag_definition_id: 10, as_of_date: "2025-12-19", value: "1"
-├─ entity_id: "000002.SZ", tag_definition_id: 10, as_of_date: "2025-12-19", value: "1"
+├─ entity_id: "000001.SZ", tag_definition_id: 10, as_of_date: "2025-12-19", json_value: {"momentum": 0.23}
+├─ entity_id: "000002.SZ", tag_definition_id: 10, as_of_date: "2025-12-19", json_value: {"momentum": 0.15}
 └─ ...
 ```
 
@@ -265,7 +265,13 @@ class MomentumTagWorker(BaseTagWorker):
         # 实现计算逻辑
         # ...
         
-        return {"value": "some_value"}
+        # 返回 JSON 格式的 value（推荐）
+        return {
+            "value": {"momentum": 0.1234, "year_month": "202501"}
+        }
+        
+        # 或者返回字符串格式（向后兼容）
+        # return {"value": "some_value"}
 ```
 
 **责任边界**：

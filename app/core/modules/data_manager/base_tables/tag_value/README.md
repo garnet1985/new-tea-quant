@@ -1,5 +1,18 @@
 # Tag Value 标签值表
 
+## ⚠️ 重要更新
+
+**字段已重命名为 `json_value` 并改为 JSON 类型**（支持键值对等结构化数据）
+
+如果表已存在且字段名是 `value` 且类型是 TEXT/LONGTEXT，需要执行迁移：
+```sql
+ALTER TABLE tag_value CHANGE COLUMN value json_value JSON NOT NULL;
+```
+
+**注意**：虽然 `DESCRIBE tag_value` 可能显示 `longtext`，但实际类型是 JSON（可用 `JSON_TYPE(json_value)` 验证）。
+
+详见 `migrate_to_json.sql` 文件。
+
 ## 表结构
 
 - **表名**: `tag_value`
@@ -13,7 +26,7 @@
 - `as_of_date` (DATE): 业务日期（tag 创建时间点）
 - `start_date` (DATE, 可选): tag 起始日期（时间切片 tag 用，连续 tag 的上一个结束时间）
 - `end_date` (DATE, 可选): tag 结束日期（时间切片 tag 用，连续 tag 的下一个开始时间的前一个时间点）
-- `value` (TEXT): 标签值（string，strategy 自己解释和解析）
+- `json_value` (JSON): 标签值（JSON 格式，支持键值对等结构化数据，strategy 自己解释和解析）
 - `calculated_at` (DATETIME): 计算时间
 
 **注意**：
@@ -35,10 +48,11 @@
 # 获取某个实体在某个时刻的所有标签
 tags = tag_value_model.get_entity_tags('600000.SH', '20250115')
 # 返回: [
-#   {"tag_definition_id": 1, "value": "0.23", "start_date": None, "end_date": None},
-#   {"tag_definition_id": 2, "value": "LARGE_CAP", "start_date": "2025-01-01", "end_date": "2025-01-31"},
+#   {"tag_definition_id": 1, "json_value": {"momentum": 0.23, "year_month": "202501"}, "start_date": None, "end_date": None},
+#   {"tag_definition_id": 2, "json_value": {"category": "LARGE_CAP", "score": 85}, "start_date": "2025-01-01", "end_date": "2025-01-31"},
 #   ...
 # ]
+# 注意：json_value 字段是 JSON 格式，自动解析为 Python dict/list，如果不是 JSON 则保持字符串格式（向后兼容）
 ```
 
 **查询逻辑**：
@@ -47,11 +61,34 @@ tags = tag_value_model.get_entity_tags('600000.SH', '20250115')
 
 ### 值存储格式
 
-- **数值型**: `"0.23"` - 波动率、动量等（strategy 自己解析为 float）
-- **文本型**: `"LARGE_CAP"` - 分类、等级等
-- **复杂结构**: `"{\"roe\":0.15,\"roa\":0.08}"` - 多维度指标（JSON string）
+`json_value` 字段使用 **JSON 类型**，支持以下格式：
 
-**注意**: `value` 是 string 类型，解释权完全在 strategy，tag 系统只负责存储和查询。
+- **简单值**: `"0.23"` 或 `0.23` - 数值型标签（向后兼容字符串格式）
+- **键值对**: `{"momentum": 0.1234, "year_month": "202501"}` - 多维度指标
+- **数组**: `[1, 2, 3]` - 列表型数据
+- **嵌套结构**: `{"metrics": {"roe": 0.15, "roa": 0.08}, "category": "LARGE_CAP"}` - 复杂结构
+
+**使用示例**：
+```python
+# 保存 JSON 格式的 json_value
+tag_value = {
+    "entity_id": "000001.SZ",
+    "tag_definition_id": 1,
+    "as_of_date": "20250101",
+    "json_value": {"momentum": 0.1234, "year_month": "202501"}  # 直接传入 dict
+}
+
+# 读取时自动解析为 Python dict/list
+result = tag_value_model.get_tag_value("000001.SZ", 1, "20250101")
+value = result['json_value']  # 自动是 dict 类型，无需手动 json.loads()
+momentum = value['momentum']  # 直接访问
+```
+
+**向后兼容**：
+- 如果 value 是字符串且不是有效 JSON，会保持原样（向后兼容旧数据）
+- 如果 value 是字符串且是有效 JSON，会自动解析为 Python 对象
+
+**注意**: `json_value` 字段的 JSON 格式由 strategy 自己定义，tag 系统只负责存储和查询，不关心具体结构。
 
 ### 时间段支持
 

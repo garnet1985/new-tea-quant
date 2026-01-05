@@ -42,10 +42,10 @@
       "description": "tag 结束日期（时间切片 tag 用，连续 tag 的下一个开始时间的前一个时间点）"
     },
     {
-      "name": "value",
-      "type": "text",
+      "name": "json_value",
+      "type": "json",
       "isRequired": true,
-      "description": "标签值（string，strategy 自己解释和解析）"
+      "description": "标签值（JSON 格式，支持键值对等结构化数据，strategy 自己解释和解析）"
     },
     {
       "name": "calculated_at",

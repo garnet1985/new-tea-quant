@@ -1,0 +1,679 @@
+#!/usr/bin/env python3
+"""
+Momentum策略实现
+核心思想：基于均线动量，定期调仓，筛选前10%动量股票
+"""
+
+from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from loguru import logger
+import pandas as pd
+import numpy as np
+from app.core.modules.analyzer.components.entity.opportunity import Opportunity
+
+from app.core.modules.analyzer.components.base_strategy import BaseStrategy
+from app.core.modules.analyzer.components.entity.target import InvestmentTarget
+
+
+class MomentumStrategy(BaseStrategy):
+    """
+    Momentum策略：动量投资策略
+    
+    核心逻辑：
+    1. 在每个周期（月/季度/年）的第一天买入
+    2. 买入时计算动量 = (MA短期 - MA长期) / MA长期
+    3. 在周期最后一天卖出
+    4. 后处理时按动能在同一天买入的股票中筛选前10%
+    """
+    
+    def __init__(self, is_verbose=False, name="Momentum", description="Momentum策略：动量投资策略", key="Momentum"):
+        # 先设置version，再调用父类__init__
+        self.version = "1.0.0"
+        super().__init__(is_verbose, name, description, key, self.version)
+        super().initialize()
+    
+    @staticmethod
+    def scan_opportunity(stock_info: Dict[str, Any], required_data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        扫描投资机会 - 周期调仓策略
+        
+        在新周期的第一个交易日买入（不一定是日历第一天）
+        通过比较前一个交易日和当前交易日的周期来判断
+        
+        Args:
+            stock_info: 股票信息
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            Optional[Dict]: 投资机会，包含动量数据
+        """
+        try:
+            # 获取K线数据
+            klines = required_data.get('klines').get('daily', [])
+            
+            if len(klines) < 2:
+                return None
+            
+            # 获取当前日期和前一个交易日
+            current_date_str = klines[-1]['date']
+            previous_date_str = klines[-2]['date']
+            
+            # 获取周期类型
+            period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
+            
+            # 比较当前日期和前一个交易日的周期
+            current_period = MomentumStrategy._get_period_id(current_date_str, period_type)
+            previous_period = MomentumStrategy._get_period_id(previous_date_str, period_type)
+            
+            # 如果周期发生变化，说明今天是新周期的第一个交易日
+            is_first_trading_day_of_new_period = (current_period != previous_period)
+            
+            if is_first_trading_day_of_new_period:
+                # 计算动量
+                momentum = MomentumStrategy._calculate_momentum(required_data, settings)
+                
+                if momentum is None:
+                    return None
+                
+                # 买入并记录动能
+                # 初始化 period_tracker，用于后续卖出时检测周期变化
+                return Opportunity(
+                    stock=stock_info,
+                    record_of_today=klines[-1],  # 使用最新K线记录
+                    extra_fields={
+                        'momentum': momentum,
+                        'is_momentum_strategy': True,
+                        'rebalance_date': current_date_str,
+                        'period_tracker': {
+                            'last_period': current_period  # 初始化为当前周期
+                        }
+                    }
+                )
+            
+            # 其他日子不做任何操作
+            # 卖出由goal的take_profit在周期结束时触发
+            else:
+                return None
+                
+        except Exception as e:
+            logger.error(f"Momentum扫描机会时出错: {e}")
+            return None
+
+
+    @staticmethod
+    def create_customized_take_profit_targets(investment: Dict[str, Any], record_of_today: Dict[str, Any], extra_fields: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            InvestmentTarget(
+                target_type=InvestmentTarget.TargetType.TAKE_PROFIT,
+                start_record=record_of_today,
+                stage={
+                    'name': 'customized_take_profit',
+                    'ratio': 0,
+                    'close_invest': True,
+                },
+                extra_fields=extra_fields,
+            )
+        ]
+
+
+    @staticmethod
+    def is_customized_take_profit_target_complete(
+        target: Any,  # InvestmentTarget object
+        record_of_today: Dict[str, Any],
+        required_data: Dict[str, Any],
+        remaining_investment_ratio: float,
+        settings: Dict[str, Any],
+    ) -> Tuple[bool, float]:
+        """
+        自定义止盈逻辑 - 在周期结束时卖出
+        
+        使用周期追踪器检测周期变化：当检测到新周期开始时，说明上一个周期已经结束，触发卖出。
+        
+        Args:
+            target: InvestmentTarget 对象
+            record_of_today: 当前交易日记录
+            required_data: 所需数据
+            remaining_investment_ratio: 剩余投资比例
+            settings: 策略设置
+        Returns:
+            (是否触发止盈, 更新后的剩余投资比例)
+        """
+        current_date = record_of_today['date']
+        period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
+
+        # 从 target 的 extra_fields 中获取或初始化周期追踪器
+        extra_fields = target.tracker.get('extra_fields', {})
+        if extra_fields is None:
+            extra_fields = {}
+            target.tracker['extra_fields'] = extra_fields
+        
+        # 初始化周期追踪器（如果不存在）
+        if 'period_tracker' not in extra_fields:
+            extra_fields['period_tracker'] = {}
+        
+        period_tracker = extra_fields['period_tracker']
+        
+        # 保存更新前的 last_period，用于判断是否是首次执行
+        last_period_before_update = period_tracker.get('last_period')
+        
+        # 使用 detect_period_change 检测周期变化
+        is_first_day, is_last_day = MomentumStrategy.detect_period_change(
+            current_date, 
+            period_type, 
+            period_tracker
+        )
+        
+        # 更新 extra_fields（确保修改被保存）
+        extra_fields['period_tracker'] = period_tracker
+        
+        # 如果检测到周期变化（新周期第一天），说明上一个周期已经结束，触发卖出
+        # 需要同时满足：
+        # 1. 是新周期第一天（is_first_day = True）
+        # 2. 不是首次执行（last_period_before_update is not None）
+        if is_first_day and last_period_before_update is not None:
+            # 检测到周期变化：上一个周期已结束，触发卖出
+            return True, remaining_investment_ratio
+
+        
+        # 周期未结束，继续持有
+        return False, remaining_investment_ratio
+
+    @staticmethod
+    def _get_period_id(date_str: str, period_type: str) -> str:
+        """
+        根据日期返回周期编号
+        quarterly -> 2024Q1
+        monthly   -> 2024M03
+        yearly    -> 2024
+        """
+        date = datetime.strptime(date_str, '%Y%m%d')
+        year, month = date.year, date.month
+
+        if period_type == 'monthly':
+            return f"{year}M{month:02d}"
+        elif period_type == 'quarterly':
+            quarter = (month - 1) // 3 + 1
+            return f"{year}Q{quarter}"
+        elif period_type == 'yearly':
+            return str(year)
+        else:
+            raise ValueError(f"Unsupported period type: {period_type}")
+
+    @staticmethod
+    def detect_period_change(current_date: str, period_type: str, tracker: Dict[str, Any]) -> Tuple[bool, bool]:
+        """
+        动态判断当前日期是否为周期首日/末日
+        无需完整交易日表，适用于逐日模拟。
+
+        Args:
+            current_date: 当前交易日 (YYYYMMDD)
+            period_type: 周期类型 (monthly / quarterly / yearly)
+            tracker: 存储上次周期编号 {'last_period': '2024Q1'}
+
+        Returns:
+            (is_first_day, is_last_day)
+        """
+        period_id = MomentumStrategy._get_period_id(current_date, period_type)
+        last_period = tracker.get('last_period')
+
+        # 默认都不是
+        is_first, is_last = False, False
+
+        if last_period is None:
+            # 首次执行：视为新周期首日
+            is_first = True
+        elif last_period != period_id:
+            # 检测到周期变化：上一周期刚结束，本周期刚开始
+            is_last = True   # 上一周期末日（发生在昨天）
+            is_first = True  # 当前天是新周期首日
+
+        # 更新追踪器
+        tracker['last_period'] = period_id
+
+        return is_first, is_last
+
+    @staticmethod
+    def _is_last_day_of_period(date_str: str, period_type: str) -> bool:
+        """
+        判断是否是周期的最后一天
+        
+        Args:
+            date_str: 日期字符串 (YYYYMMDD)
+            period_type: 周期类型 (monthly, quarterly, yearly)
+            
+        Returns:
+            bool: 是否是周期最后一天
+        """
+        try:
+            date = datetime.strptime(date_str, '%Y%m%d')
+            year, month, day = date.year, date.month, date.day
+            
+            # 计算下一天
+            next_day = date + timedelta(days=1)
+            
+            if period_type == 'monthly':
+                # 下一天是下个月第一天，今天就是本月最后一天
+                return next_day.month != month
+                
+            elif period_type == 'quarterly':
+                # 季度最后一天：3/31, 6/30, 9/30, 12/31
+                return next_day.month != month and month in [3, 6, 9, 12]
+                
+            elif period_type == 'yearly':
+                # 下一天是下一年的第一天，今天就是本年最后一天
+                return next_day.month == 1 and next_day.day == 1
+                
+            else:
+                return False
+                
+        except Exception as e:
+            logger.error(f"判断周期最后一天时出错: {e}")
+            return False
+
+    @staticmethod
+    def _is_first_day_of_period(date_str: str, period_type: str) -> bool:
+        """
+        判断是否是周期的第一天
+        
+        Args:
+            date_str: 日期字符串 (YYYYMMDD)
+            period_type: 周期类型 (monthly, quarterly, yearly)
+            
+        Returns:
+            bool: 是否是周期第一天
+        """
+        try:
+            date = datetime.strptime(date_str, '%Y%m%d')
+            year, month, day = date.year, date.month, date.day
+            
+            if period_type == 'monthly':
+                # 每个月第一天
+                return day == 1
+                
+            elif period_type == 'quarterly':
+                # 每个季度第一天: 1/1, 4/1, 7/1, 10/1
+                return day == 1 and month in [1, 4, 7, 10]
+                
+            elif period_type == 'yearly':
+                # 每年第一天
+                return day == 1 and month == 1
+                
+            else:
+                return False
+                
+        except Exception as e:
+            logger.error(f"判断周期第一天时出错: {e}")
+            return False
+
+    @staticmethod
+    def _collect_investments_by_period(stock_summaries: List[Dict[str, Any]], period_type: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        收集所有投资记录，按周期分组
+        
+        Args:
+            stock_summaries: 所有股票的汇总结果
+            period_type: 周期类型 (monthly, quarterly, yearly)
+            
+        Returns:
+            Dict: {周期ID: [投资记录列表]}，例如 {"2024Q1": [...]}
+        """
+        investments_by_period = {}
+        
+        for stock_summary in stock_summaries:
+            investments = stock_summary.get('investments', [])
+            
+            for investment in investments:
+                entry_date = investment.get('entry_date') or investment.get('start_date')
+                momentum = investment.get('extra_fields', {}).get('momentum')
+                
+                if entry_date and momentum is not None:
+                    period_id = MomentumStrategy._get_period_id(entry_date, period_type)
+                    
+                    if period_id not in investments_by_period:
+                        investments_by_period[period_id] = []
+                    
+                    investments_by_period[period_id].append({
+                        'investment': investment,
+                        'momentum': momentum,
+                        'stock_id': stock_summary.get('stock_id'),
+                        'stock_name': stock_summary.get('stock_name')
+                    })
+        
+        return investments_by_period
+    
+    @staticmethod
+    def _calculate_filter_count(total: int, top_percentile: float, top_n_min: int, top_n_max: int) -> int:
+        """
+        计算筛选数量
+        
+        Args:
+            total: 总投资数
+            top_percentile: 顶部百分比
+            top_n_min: 最小数量
+            top_n_max: 最大数量
+            
+        Returns:
+            int: 筛选数量
+        """
+        # 1. 按百分比计算
+        n_by_percentile = max(1, int(total * top_percentile))
+        
+        # 2. 应用最小和最大限制
+        n_filtered = max(top_n_min, min(top_n_max, n_by_percentile))
+        
+        # 3. 不能超过实际数量
+        n_filtered = min(n_filtered, total)
+        
+        return n_filtered
+    
+    @staticmethod
+    def _filter_top_momentum_investments(
+        investments_by_period: Dict[str, List[Dict[str, Any]]],
+        top_percentile: float,
+        top_n_max: int,
+        top_n_min: int
+    ) -> tuple:
+        """
+        按周期筛选每期的前N只股票
+        
+        Args:
+            investments_by_period: 按周期分组的投资记录
+            top_percentile: 顶部百分比
+            top_n_max: 最大数量
+            top_n_min: 最小数量
+            
+        Returns:
+            Tuple: (筛选后的投资列表, 原始总数, 筛选后总数)
+        """
+        filtered_investments = []
+        total_original = 0
+        total_filtered = 0
+        
+        for period_id, investments in sorted(investments_by_period.items()):
+            total_original += len(investments)
+            
+            # 按动量排序（降序）
+            sorted_investments = sorted(investments, key=lambda x: x['momentum'], reverse=True)
+            
+            # 计算筛选数量
+            n_filtered = MomentumStrategy._calculate_filter_count(
+                len(sorted_investments),
+                top_percentile,
+                top_n_min,
+                top_n_max
+            )
+            
+            # 获取前N只
+            selected = sorted_investments[:n_filtered]
+            total_filtered += len(selected)
+            
+            # 将选中的investment加入结果
+            for item in selected:
+                filtered_investments.append(item['investment'])
+        
+        return filtered_investments, total_original, total_filtered
+    
+    @staticmethod
+    def _rebuild_stock_summaries(
+        filtered_investments: List[Dict[str, Any]],
+        stock_summaries: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        重建筛选后的股票汇总
+        
+        Args:
+            filtered_investments: 筛选后的投资记录
+            stock_summaries: 原始股票汇总
+            
+        Returns:
+            List: 重建后的股票汇总列表
+        """
+        from app.core.modules.analyzer.analyzer_service import AnalyzerService
+        
+        # 将筛选后的投资记录按股票分组
+        filtered_investment_by_stock = {}
+        
+        for item in filtered_investments:
+            found = False
+            for stock_summary in stock_summaries:
+                for inv in stock_summary.get('investments', []):
+                    # 通过唯一标识符比较（entry_date或start_date + momentum）
+                    item_date = item.get('entry_date') or item.get('start_date')
+                    inv_date = inv.get('entry_date') or inv.get('start_date')
+                    item_momentum = item.get('extra_fields', {}).get('momentum')
+                    inv_momentum = inv.get('extra_fields', {}).get('momentum')
+                    
+                    if item_date == inv_date and item_momentum == inv_momentum:
+                        stock_id = stock_summary.get('stock', {}).get('id')
+                        if stock_id not in filtered_investment_by_stock:
+                            filtered_investment_by_stock[stock_id] = {
+                                'stock': stock_summary.get('stock'),
+                                'investments': []
+                            }
+                        filtered_investment_by_stock[stock_id]['investments'].append(item)
+                        found = True
+                        break
+                if found:
+                    break
+        
+        # 对每个股票重新计算summary
+        filtered_stock_summaries = []
+        
+        for stock_id, stock_data in filtered_investment_by_stock.items():
+            investments = stock_data['investments']
+            
+            # 手动构建summary
+            total = len(investments)
+            total_win = sum(1 for inv in investments if inv.get('result') == 'win')
+            total_loss = sum(1 for inv in investments if inv.get('result') == 'loss')
+            total_open = sum(1 for inv in investments if inv.get('result') == 'open')
+            
+            total_roi = sum(inv.get('roi', 0) for inv in investments)
+            total_duration = sum(inv.get('duration_in_days', 0) for inv in investments)
+            
+            avg_roi = total_roi / total if total > 0 else 0
+            avg_duration = total_duration / total if total > 0 else 0
+            
+            win_rate = AnalyzerService.to_percent(total_win, total)
+            annual_return = AnalyzerService.get_annual_return(avg_roi, avg_duration)
+            annual_return_in_trading_days = AnalyzerService.get_annual_return(avg_roi, avg_duration, is_trading_days=True)
+            
+            filtered_summary = {
+                'stock': stock_data['stock'],
+                'investments': investments,
+                'summary': {
+                    'total_investments': total,
+                    'total_win': total_win,
+                    'total_loss': total_loss,
+                    'total_open': total_open,
+                    'win_rate': win_rate,
+                    'avg_roi': avg_roi,
+                    'avg_duration_in_days': avg_duration,
+                    'annual_return': annual_return,
+                    'annual_return_in_trading_days': annual_return_in_trading_days,
+                }
+            }
+            
+            filtered_stock_summaries.append(filtered_summary)
+        
+        return filtered_stock_summaries
+    
+    @staticmethod
+    def _build_custom_session_summary(
+        filtered_stock_summaries: List[Dict[str, Any]],
+        total_original: int,
+        total_filtered: int,
+        top_percentile: float,
+        top_n_max: int,
+        top_n_min: int
+    ) -> Dict[str, Any]:
+        """
+        构建自定义会话汇总
+        
+        Args:
+            filtered_stock_summaries: 筛选后的股票汇总
+            total_original: 原始总数
+            total_filtered: 筛选后总数
+            top_percentile: 顶部百分比
+            top_n_max: 最大数量
+            top_n_min: 最小数量
+            
+        Returns:
+            Dict: 自定义会话汇总
+        """
+        from app.core.modules.analyzer.components.simulator.services.postprocess_service import PostprocessService
+        
+        # 使用筛选后的数据重新计算session summary
+        filtered_session_summary = PostprocessService.summarize_session_by_default_way(filtered_stock_summaries)
+        
+        # 添加筛选统计信息
+        filtered_session_summary['momentum_filter_summary'] = {
+            'total_original_investments': total_original,
+            'total_filtered_investments': total_filtered,
+            'filter_rate': total_filtered / total_original if total_original > 0 else 0,
+            'top_percentile': top_percentile,
+            'top_n_max': top_n_max,
+            'top_n_min': top_n_min,
+        }
+        
+        # 添加自定义模式标记
+        filtered_session_summary['is_customized'] = True
+        filtered_session_summary['custom_stock_summaries_file'] = '0_stock_summaries_custom.json'
+        filtered_session_summary['custom_stock_summaries'] = filtered_stock_summaries
+        
+        return filtered_session_summary
+    
+    @staticmethod
+    def on_summarize_session(base_session_summary: Dict[str, Any], stock_summaries: List[Dict[str, Any]], settings: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        整个会话汇总 - Momentum策略需要筛选前N只股票
+        
+        Args:
+            base_session_summary: 默认的汇总结果
+            stock_summaries: 所有股票的汇总结果
+            settings: 策略设置
+            
+        Returns:
+            Dict: 追加到默认session summary的字段
+        """
+        try:
+            # 获取配置
+            top_percentile = settings.get('core', {}).get('top_percentile', 0.10)
+            top_n_max = settings.get('core', {}).get('top_n_max', 50)
+            top_n_min = settings.get('core', {}).get('top_n_min', 1)
+            
+            period_type = settings.get('core', {}).get('rebalance_period', 'quarterly')
+            logger.info(f"🎯 Momentum策略开始筛选：前{top_percentile*100}%，最少{top_n_min}只，最多{top_n_max}只")
+            
+            # 1. 收集所有投资记录，按周期分组
+            investments_by_period = MomentumStrategy._collect_investments_by_period(stock_summaries, period_type)
+            logger.info(f"📊 共找到 {len(investments_by_period)} 个调仓周期")
+            
+            # 2. 按周期筛选每期的前N只股票
+            filtered_investments, total_original, total_filtered = MomentumStrategy._filter_top_momentum_investments(
+                investments_by_period, top_percentile, top_n_max, top_n_min
+            )
+            logger.info(f"✅ Momentum筛选完成：原始{total_original}笔 → 筛选后{total_filtered}笔")
+            
+            # 3. 重建筛选后的股票汇总
+            filtered_stock_summaries = MomentumStrategy._rebuild_stock_summaries(filtered_investments, stock_summaries)
+            
+            # 4. 构建自定义会话汇总
+            if len(filtered_stock_summaries) > 0:
+                return MomentumStrategy._build_custom_session_summary(
+                    filtered_stock_summaries,
+                    total_original,
+                    total_filtered,
+                    top_percentile,
+                    top_n_max,
+                    top_n_min
+                )
+            else:
+                logger.warning("⚠️ Momentum筛选后没有找到任何投资记录")
+                return base_session_summary
+            
+        except Exception as e:
+            logger.error(f"Momentum汇总时出错: {e}")
+            import traceback
+            traceback.print_exc()
+            return {}
+    
+    @staticmethod
+    def present_extra_session_report(session_summary: Dict[str, Any], settings: Dict[str, Any] = None) -> None:
+        """
+        输出扩展报告 - 显示筛选统计信息
+        """
+        filter_summary = session_summary.get('momentum_filter_summary')
+        if not filter_summary:
+            return
+        
+        print("\n" + "="*60)
+        print("🎯 Momentum策略筛选统计")
+        print("="*60)
+        print(f"📊 原始投资记录: {filter_summary.get('total_original_investments', 0)}笔")
+        print(f"✅ 筛选后记录: {filter_summary.get('total_filtered_investments', 0)}笔")
+        print(f"📉 筛选率: {filter_summary.get('filter_rate', 0)*100:.1f}%")
+        print(f"🎯 筛选策略: 前{filter_summary.get('top_percentile', 0)*100:.0f}%，")
+        print(f"   最少{filter_summary.get('top_n_min', 0)}只，最多{filter_summary.get('top_n_max', 0)}只")
+        print("="*60)
+
+
+    @staticmethod
+    def _calculate_momentum(required_data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[float]:
+        """
+        计算动量指标
+        
+        Args:
+            required_data: 所需数据
+            settings: 策略设置
+            
+        Returns:
+            Optional[float]: 动量值（百分比），如果无法计算返回None
+        """
+        try:
+            # 获取K线数据
+            klines = required_data.get('klines', [])
+            
+            # 从klines字典中获取日线数据
+            if isinstance(klines, dict):
+                klines = klines.get('daily', [])
+            
+            if len(klines) < 60:  # 需要至少60天数据
+                return None
+            
+            # 转换为DataFrame
+            df = pd.DataFrame(klines)
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date')
+            
+            # 获取配置
+            short_ma = settings.get('core', {}).get('short_ma', 20)
+            long_ma = settings.get('core', {}).get('long_ma', 60)
+            
+            # 计算均线
+            df[f'ma{short_ma}'] = df['close'].rolling(window=short_ma).mean()
+            df[f'ma{long_ma}'] = df['close'].rolling(window=long_ma).mean()
+            
+            # 获取最新数据
+            latest = df.iloc[-1]
+            ma_short = latest[f'ma{short_ma}']
+            ma_long = latest[f'ma{long_ma}']
+            
+            # 检查数据有效性
+            if pd.isna(ma_short) or pd.isna(ma_long) or ma_long == 0:
+                return None
+            
+            # 动量计算：(短期均线 - 长期均线) / 长期均线
+            # 只计算上行趋势（短期 > 长期）
+            if ma_short > ma_long:
+                momentum = (ma_short - ma_long) / ma_long
+                return momentum
+            else:
+                return None  # 下行趋势不计算动量
+                
+        except Exception as e:
+            logger.error(f"计算动量时出错: {e}")
+            return None
+    
+

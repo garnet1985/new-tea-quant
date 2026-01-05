@@ -260,7 +260,7 @@
   - `entity_id`: 实体ID
   - `tag_definition_id`: Tag definition ID
   - `as_of_date`: 业务日期（YYYYMMDD）
-  - `value`: 标签值（字符串）
+  - `json_value`: 标签值（JSON 格式，可以是 dict/list，会自动转换为 JSON 字符串存储）
   - `start_date`: 起始日期（可选，YYYYMMDD）
   - `end_date`: 结束日期（可选，YYYYMMDD）
   - `entity_type`: 实体类型（可选，默认 "stock"）

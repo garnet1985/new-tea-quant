@@ -67,6 +67,12 @@ Settings = {
     # - REFRESH: 全量刷新：重新计算该Scenario下所有tags的值。
     "update_mode": UpdateMode.INCREMENTAL.value,
 
+    # 可选参数，默认为 0
+    # 在增量模式下，确保加载足够的历史数据（记录数）。
+    # 在INCREMENTAL模式下，默认加载最近更新时的date作为as of date，然后取前后2个chunk进行初始化
+    # 如果chunk size无法满足下列配置的需求，会停止执行并且警告用户需要增加chunk size或者设置use chunk为false
+    "incremental_required_records_before_as_of_date": 60,
+
     # 可选参数，默认为空字典
     # 可以自定义你自己的核心参数/阈值等在core里边。
     "core": {
@@ -78,6 +84,9 @@ Settings = {
     "performance": {
         # 可选参数，默认"auto"，会根据job数量自动分配worker
         "max_workers": "auto",
+
+
+        "use_chunk": True,
 
         # 可选参数，默认为 500
         # 运行时数据切片大小（记录数）。切片越大，运行时内存占用越小但IO次数越多

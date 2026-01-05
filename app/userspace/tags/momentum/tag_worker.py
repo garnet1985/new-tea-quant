@@ -136,9 +136,12 @@ class MomentumTagWorker(BaseTagWorker):
         tracker_key = f"last_processed_date_{entity_id}"
         self.tracker[tracker_key] = as_of_date
         
-        # 9. 返回结果（value格式：YYYYMM:动量值）
+        # 9. 返回结果（value格式：JSON 键值对）
         return {
-            "value": f"{last_month_year_month}:{momentum:.4f}",
+            "value": {
+                "year_month": last_month_year_month,
+                "momentum": momentum
+            },
             # 不设置start_date和end_date，表示这是一个点状tag
         }
     

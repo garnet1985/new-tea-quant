@@ -470,15 +470,7 @@ class TagWorkerDataManager:
         Returns:
             List[str]: 交易日列表（YYYYMMDD 格式）
         """
-        # 方案1：从 DataManager 获取交易日历（推荐）
-        # 注意：DataManager 可能没有 get_trading_dates 方法，需要从其他方式获取
-        # 暂时跳过，使用方案2
-        # if self.data_mgr and hasattr(self.data_mgr, 'get_trading_dates'):
-        #     trading_dates = self.data_mgr.get_trading_dates(start_date, end_date)
-        #     if trading_dates:
-        #         return trading_dates
-        
-        # 方案2：从数据缓存中提取（如果已加载）
+        # 方案1：从数据缓存中提取（如果已加载）
         if self.data_cache and 'klines' in self.data_cache:
             base_kline = self.data_cache['klines'].get(self.base_term, [])
             if base_kline:
@@ -489,9 +481,35 @@ class TagWorkerDataManager:
                         date for date in all_dates
                         if start_date <= date <= end_date
                     ]
-                else:
-                    trading_dates = []
-                return trading_dates
+                    if trading_dates:
+                        return trading_dates
+        
+        # 方案2：如果缓存中没有数据，先加载数据再提取交易日
+        # 先加载一个 chunk 的数据来获取交易日列表
+        if not self.data_cache or 'klines' not in self.data_cache:
+            # 加载初始数据切片
+            initial_slice = self._load_data_slice()
+            if initial_slice and 'klines' in initial_slice:
+                if not self.data_cache:
+                    self.data_cache = {'klines': {}}
+                for term, new_data in initial_slice['klines'].items():
+                    if term not in self.data_cache['klines']:
+                        self.data_cache['klines'][term] = []
+                    self.data_cache['klines'][term].extend(new_data)
+                self.chunk_count = 1
+        
+        # 再次尝试从缓存中提取
+        if self.data_cache and 'klines' in self.data_cache:
+            base_kline = self.data_cache['klines'].get(self.base_term, [])
+            if base_kline:
+                all_dates = sorted(set(record.get('date', '') for record in base_kline if record.get('date')))
+                if start_date and end_date:
+                    trading_dates = [
+                        date for date in all_dates
+                        if start_date <= date <= end_date
+                    ]
+                    if trading_dates:
+                        return trading_dates
         
         # 如果都失败，返回空列表
         logger.warning(f"无法获取交易日列表: entity_id={self.entity_id}, start_date={start_date}, end_date={end_date}")

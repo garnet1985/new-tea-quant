@@ -1,19 +1,7 @@
 """
 Tag Manager - 统一管理所有业务场景（Scenario）
 
-职责：
-1. 发现和加载所有 scenario workers
-2. 检查 settings 文件存在性
-3. 统一验证所有 settings（schema 校验）
-4. 提供统一的接口访问 workers
-5. 负责多进程调度（job构建、进程数决定、ProcessWorker调用）
-6. 支持手动注册 scenario（未来实现）
-
-注意：
-- 元信息的创建在 Worker 中处理（支持手动注册）
-- Settings 验证在 TagManager 层统一处理
-- DataManager 是单例模式，内部自动获取
-- 多进程调度由 TagManager 负责
+负责发现、验证和执行所有 scenario workers。
 """
 import time
 from typing import Dict, List, Optional, Type, Any, Tuple
@@ -32,53 +20,15 @@ from app.core.infra.worker.multi_process.process_worker import ExecutionMode, Pr
 logger = logging.getLogger(__name__)
 
 class TagManager:
-    """
-    Tag Manager - 统一管理所有业务场景（Scenario）
-    
-    职责：
-    1. 发现和加载所有 scenario workers
-    2. 检查 settings 文件存在性
-    3. 统一验证所有 settings（schema 校验）
-    4. 提供统一的接口访问 workers
-    5. 负责多进程调度（job构建、进程数决定、ProcessWorker调用）
-    6. 支持手动注册 scenario（未来实现）
-    
-    注意：
-    - 元信息的创建在 Worker 中处理（支持手动注册）
-    - Settings 验证在 TagManager 层统一处理
-    - 多进程调度由 TagManager 负责
-    """
+    """Tag Manager - 统一管理所有业务场景"""
     
     def __init__(self, is_verbose = False):
-        """
-        初始化 TagManager
-        
-        DataManager 是单例模式，内部自动获取，不需要外部注入
-        """
-        # 从配置读取 scenarios 根目录（DEFAULT_SCENARIOS_ROOT）
-        # 初始化字典：scenario 名称 -> scenario 信息字典
-        # 每个 scenario 信息包含：
-        #   - "worker_class": Type[BaseTagWorker]  # worker 类
-        #   - "settings": Dict[str, Any]  # settings 字典
-        #   - "instance": Optional[BaseTagWorker]  # worker 实例（缓存，可能为 None）
-        # 初始化 data_mgr（单例模式，内部自动获取）
-        # 初始化 DataManager 的 tag 服务：
-        # 注意：不在这里发现 scenarios，延迟到 run() 时
-
-        # 是否输出详细日志
+        """初始化 TagManager"""
         self.is_verbose = is_verbose
-        
-        # 初始化 data_mgr（单例模式，内部自动获取）
         self.data_mgr = DataManager(is_verbose=False)
         self.tag_data_service = self.data_mgr.tag
-
-        # 可用场景缓存
         self.scenario_cache = {}
-
-        # 不同场景间的实体列表缓存
         self.entity_list_cache = {}
-
-        # 场景发现并缓存
         self._discover_scenarios_from_folder()
 
     def refresh_scenario(self):

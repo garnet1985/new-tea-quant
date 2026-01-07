@@ -67,40 +67,52 @@ class JobBuilderHelper:
     
     @staticmethod
     def build_simulate_jobs(
-        opportunities: List[Dict[str, Any]],
+        stock_list: List[str],
         strategy_info: Dict[str, Any],
         session_id: str,
-        end_date: str = None
+        start_date: str,
+        end_date: str
     ) -> List[Dict[str, Any]]:
         """
-        构建模拟作业
+        构建模拟作业（历史回测）
         
-        每个 Opportunity 一个 job
+        每个股票一个 job，在历史数据上逐日运行
         
         Args:
-            opportunities: 机会列表
+            stock_list: 股票列表 ['000001.SZ', '000002.SZ', ...]
             strategy_info: 策略信息
             session_id: Session ID
-            end_date: 结束日期（默认今天）
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
         
         Returns:
-            jobs: [...]
+            jobs: [
+                {
+                    'stock_id': '000001.SZ',
+                    'execution_mode': 'simulate',
+                    'strategy_name': 'momentum',
+                    'settings': {...},
+                    'session_id': 'sim_20251219_123456',
+                    'start_date': '20230101',
+                    'end_date': '20251219',
+                    'worker_module_path': 'app.userspace.strategies.momentum.strategy_worker',
+                    'worker_class_name': 'MomentumStrategyWorker'
+                },
+                ...
+            ]
         """
         from app.core.modules.strategy.enums import ExecutionMode
         
         jobs = []
         
-        if end_date is None:
-            end_date = strategy_info['settings'].end_date or datetime.now().strftime('%Y%m%d')
-        
-        for opp in opportunities:
+        for stock_id in stock_list:
             job = {
-                'stock_id': opp['stock_id'],
+                'stock_id': stock_id,
                 'execution_mode': ExecutionMode.SIMULATE.value,
                 'strategy_name': strategy_info['name'],
                 'settings': strategy_info['settings'].to_dict(),
-                'opportunity': opp,
                 'session_id': session_id,
+                'start_date': start_date,
                 'end_date': end_date,
                 'worker_module_path': strategy_info['worker_module_path'],
                 'worker_class_name': strategy_info['worker_class_name']

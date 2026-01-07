@@ -64,6 +64,25 @@
   - ✅ Session ID 生成：`create_session()`
   - ✅ Meta 文件管理：`_load_meta()`, `_save_meta()`
 
+- ✅ **IndicatorService** (446 行) - **新增**
+  - ✅ Proxy 模式：代理 pandas-ta-classic 的 150+ 指标
+  - ✅ 便捷 API：8 个常用指标
+    - ✅ `ma()` - 简单移动平均
+    - ✅ `ema()` - 指数移动平均
+    - ✅ `rsi()` - 相对强弱指标
+    - ✅ `macd()` - MACD 指标
+    - ✅ `bbands()` - 布林带
+    - ✅ `atr()` - 真实波动幅度
+    - ✅ `stoch()` - 随机指标（KDJ）
+    - ✅ `adx()` - 平均趋向指数
+    - ✅ `obv()` - 能量潮
+  - ✅ 通用 API：`calculate()` - 支持所有指标
+  - ✅ 数据转换：`List[Dict]` ↔ `DataFrame` 自动转换
+  - ✅ 工具方法：`list_indicators()`, `get_indicator_help()`
+  - ✅ 静态工具类：无需实例化
+  - ✅ 延迟加载：首次使用时加载 pandas-ta-classic
+  - ✅ 完整测试：所有功能测试通过
+
 ### 3. 示例策略 (100%)
 
 - ✅ **ExampleStrategyWorker** (84 行)
@@ -91,10 +110,11 @@
 | Worker 基类 | 1 | 445 | ✅ 完成 |
 | 数据管理 | 1 | 318 | ✅ 完成 |
 | 服务组件 | 2 | 379 | ✅ 完成 |
+| Indicator 组件 | 1 | 446 | ✅ 完成 |
 | 模型 | 3 | 278 | ✅ 完成 |
 | 示例策略 | 2 | 303 | ✅ 完成 |
-| 文档 | 4 | 2336 | ✅ 完成 |
-| **总计** | **14** | **~4807** | **✅ 完成** |
+| 文档 | 2 | 1800+ | ✅ 完成 |
+| **总计** | **13** | **~4717** | **✅ 完成** |
 
 ---
 
@@ -152,6 +172,16 @@
 - ✅ Summary 汇总
 - ✅ Latest 软链接
 
+### 7. 技术指标计算
+
+- ✅ 基于 pandas-ta-classic（150+ 指标）
+- ✅ Proxy 模式（不搬运代码）
+- ✅ 便捷 API（常用指标）
+- ✅ 通用 API（所有指标）
+- ✅ 自动数据转换
+- ✅ 按需计算（不缓存）
+- ✅ 静态工具类
+
 ---
 
 ## 🔄 与 Tag 系统对比
@@ -200,6 +230,14 @@
   - [ ] 动态止损
   - [ ] 到期平仓
 
+- [x] **Indicator 测试**
+  - [x] MA 计算
+  - [x] RSI 计算
+  - [x] MACD 计算
+  - [x] BBANDS 计算
+  - [x] 通用 API（CCI, ATR）
+  - [x] 数据转换
+
 ---
 
 ## 📋 下一步计划
@@ -222,7 +260,7 @@ python app/core/modules/strategy/strategy_manager.py simulate example
 
 ### 2. 完善功能
 
-- [ ] 添加指标计算支持（`klines.indicators`）
+- [x] 添加指标计算支持（IndicatorService）✅
 - [ ] 完善 Summary 统计（更多指标）
 - [ ] 添加结果可视化
 - [ ] 添加回测报告生成

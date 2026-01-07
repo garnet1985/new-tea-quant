@@ -59,6 +59,14 @@ class Opportunity:
         #   "min_reached_date": "20251222"
         # }
     
+    # ===== 止盈止损追踪状态（Simulator 内部使用）=====
+    protect_loss_active: bool = False        # 保本止损是否激活
+    dynamic_loss_active: bool = False        # 动态止损是否激活
+    dynamic_loss_highest: Optional[float] = None  # 动态止损的最高点
+    triggered_stop_loss_idx: int = -1        # 已触发的止损阶段索引
+    triggered_take_profit_idx: int = -1      # 已触发的止盈阶段索引
+    roi: Optional[float] = None              # 收益率（price_return 的别名）
+    
     # ===== 状态管理 =====
     status: str = 'active'                   # 状态（active/testing/closed/expired）
     expired_date: Optional[str] = None       # 失效日期

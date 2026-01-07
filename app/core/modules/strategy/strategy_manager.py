@@ -161,7 +161,16 @@ class StrategyManager:
             self._simulate_single_strategy(strat_name, session_id, date)
     
     def _simulate_single_strategy(self, strategy_name: str, session_id: str = None, date: str = None):
-        """模拟单个策略"""
+        """
+        模拟单个策略（历史回测）
+        
+        流程：
+        1. 获取股票列表（通过采样策略）
+        2. 对每只股票在历史数据上逐日回测
+        3. 每天调用用户的 scan_opportunity()
+        4. 追踪投资状态（止盈止损）
+        5. 返回所有已完成的 opportunities
+        """
         logger.info(f"🎮 开始模拟策略: {strategy_name}")
         
         # 1. 获取策略信息
@@ -172,14 +181,16 @@ class StrategyManager:
         
         settings = strategy_info['settings']
         
-        # 2. 加载历史机会
-        from app.core.modules.strategy.components.opportunity_service import OpportunityService
-        opp_service = OpportunityService(strategy_name)
-        opportunities = opp_service.load_scan_opportunities(date)
-        logger.info(f"📊 加载机会: {len(opportunities)}")
+        # 2. 获取股票列表（使用 StockSamplingHelper）
+        stock_list = StockSamplingHelper.get_stock_list(
+            global_stock_list=self.global_cache['stock_list'],
+            sampling_config=settings.sampling_config,
+            data_mgr=self.data_mgr
+        )
+        logger.info(f"📊 股票数量: {len(stock_list)}")
         
-        if not opportunities:
-            logger.warning("没有找到历史机会，无法回测")
+        if not stock_list:
+            logger.warning("没有股票可模拟")
             return
         
         # 3. 创建 session
@@ -190,23 +201,29 @@ class StrategyManager:
         
         logger.info(f"📝 Session ID: {session_id}")
         
-        # 4. 构建作业（使用 JobBuilderHelper）
-        end_date = settings.end_date or datetime.now().strftime('%Y%m%d')
+        # 4. 确定回测日期范围
+        simulation_config = settings.simulation
+        start_date = simulation_config.get('start_date', '20200101')
+        end_date = simulation_config.get('end_date', datetime.now().strftime('%Y%m%d'))
+        
+        logger.info(f"📅 回测日期范围: {start_date} ~ {end_date}")
+        
+        # 5. 构建作业（使用 JobBuilderHelper）
         jobs = JobBuilderHelper.build_simulate_jobs(
-            opportunities, strategy_info, session_id, end_date
+            stock_list, strategy_info, session_id, start_date, end_date
         )
         logger.info(f"📦 作业数量: {len(jobs)}")
         
-        # 5. 多进程执行
+        # 6. 多进程执行
         max_workers = self._get_max_workers(settings.max_workers)
         results = self._execute_jobs(jobs, strategy_info, max_workers)
         
-        # 6. 收集结果
-        updated_opportunities = self._collect_simulate_results(results)
-        logger.info(f"✅ 完成回测: {len(updated_opportunities)}")
+        # 7. 收集结果（所有已完成的 opportunities）
+        all_opportunities = self._collect_simulate_results(results)
+        logger.info(f"✅ 完成回测: 共发现 {len(all_opportunities)} 个投资机会")
         
-        # 7. 保存结果
-        self._save_simulate_results(strategy_name, session_id, updated_opportunities, settings)
+        # 8. 保存结果
+        self._save_simulate_results(strategy_name, session_id, all_opportunities, settings)
         
         logger.info(f"✅ 模拟完成: {strategy_name}")
     
@@ -299,8 +316,20 @@ class StrategyManager:
         return [r.get('opportunity') for r in results if r.get('success') and r.get('opportunity')]
     
     def _collect_simulate_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """收集模拟结果"""
-        return [r.get('opportunity') for r in results if r.get('success') and r.get('opportunity')]
+        """
+        收集模拟结果
+        
+        注意：每个 result 包含 'settled' 列表（一只股票可能有多个 opportunities）
+        
+        Returns:
+            所有 opportunities 的扁平列表
+        """
+        all_opportunities = []
+        for r in results:
+            if r.get('success'):
+                settled = r.get('settled', [])
+                all_opportunities.extend(settled)
+        return all_opportunities
     
     def _save_scan_results(
         self, 

@@ -151,224 +151,371 @@ class BaseStrategyWorker(ABC):
     
     def _execute_simulate(self) -> Dict[str, Any]:
         """
-        执行模拟模式（框架自动实现回测逻辑）
+        执行模拟模式（逐日回测，参考 legacy）
         
-        流程：
-        1. 加载历史数据（从 trigger_date 到 end_date）
-        2. 根据 goal 配置自动执行回测
-        3. 返回更新后的 Opportunity
+        流程（避免上帝模式）：
+        1. 加载全量历史数据（从更早的日期开始，确保有足够 lookback）
+        2. 逐日遍历 K 线
+        3. 每天使用游标过滤"今天及之前"的数据
+        4. 调用用户的 scan_opportunity() 查找机会
+        5. 追踪投资状态（止盈止损）
+        6. 返回所有已完成的 opportunities
         
         Returns:
             {
                 'success': True,
                 'stock_id': '000001.SZ',
-                'opportunity': {...}  # 更新后的 Opportunity
+                'settled': [...]  # 所有已完成的 opportunities
             }
         """
-        # 1. 加载历史数据
+        # 1. 计算真正的开始日期（需要预留 lookback 窗口）
+        lookback_days = self.settings.params.get('lookback_days', 60)
+        
+        # 从更早的日期开始加载，确保第一天就有足够的历史数据
+        actual_start_date = self._get_date_before(
+            self.job_payload.get('start_date'),  # simulate 的开始日期
+            lookback_days
+        )
+        
+        # 2. 加载全量历史数据
         self.data_manager.load_historical_data(
-            start_date=self.opportunity.trigger_date,
+            start_date=actual_start_date,
             end_date=self.end_date
         )
         
-        # 2. 调用用户钩子
-        self.on_before_simulate(self.opportunity)
+        # 3. 获取 K 线数据
+        all_klines = self.data_manager.get_klines()
         
-        # 3. 框架自动执行回测（根据 goal 配置）
-        updated_opportunity = self._auto_simulate_opportunity(self.opportunity)
+        if not all_klines:
+            logger.warning(f"没有K线数据: stock={self.stock_id}")
+            return {
+                'success': True,
+                'stock_id': self.stock_id,
+                'settled': []
+            }
         
-        # 4. 调用用户钩子
-        self.on_after_simulate(updated_opportunity)
+        # 4. 初始化追踪器（参考 legacy）
+        tracker = {
+            'stock_id': self.stock_id,
+            'passed_dates': [],      # 已经过的日期
+            'investing': None,        # 当前投资（Opportunity 对象）
+            'settled': []            # 已完成的投资
+        }
         
-        # 5. 返回结果
+        # 5. 获取最小所需 K 线数
+        min_required_kline = self.settings.params.get('min_required_kline', 0)
+        
+        # 6. 逐日遍历 K 线（避免上帝模式）
+        last_kline = None
+        for i, current_kline in enumerate(all_klines):
+            virtual_date_of_today = current_kline['date']
+            tracker['passed_dates'].append(virtual_date_of_today)
+            
+            # 如果未达到最小所需K线数，跳过
+            if len(tracker['passed_dates']) < min_required_kline:
+                continue
+            
+            # 使用游标获取"今天及之前"的数据（避免上帝模式）
+            data_of_today = self.data_manager.get_data_until(virtual_date_of_today)
+            
+            # 执行单日模拟
+            self._execute_single_day(tracker, current_kline, data_of_today)
+            
+            last_kline = current_kline
+        
+        # 7. 回测结束，清算未结投资
+        if tracker['investing'] and last_kline:
+            self._settle_open_opportunity(tracker, last_kline)
+        
+        # 8. 清理临时数据
+        del tracker['passed_dates']
+        del tracker['investing']
+        
+        # 9. 返回结果
         return {
             'success': True,
             'stock_id': self.stock_id,
-            'opportunity': updated_opportunity.to_dict()
+            'settled': tracker['settled']  # 所有已完成的 opportunities
         }
     
-    def _auto_simulate_opportunity(self, opportunity: 'Opportunity') -> 'Opportunity':
+    def _execute_single_day(
+        self, 
+        tracker: Dict[str, Any], 
+        current_kline: Dict[str, Any], 
+        data_of_today: Dict[str, Any]
+    ):
         """
-        框架自动执行回测（根据 goal 配置）
+        执行单日模拟（参考 legacy）
         
-        用户不需要实现此方法，框架根据 settings.goal 自动执行：
-        - 止盈止损
-        - 分段止盈止损
-        - 动态止损
-        - 保本止损
-        - 到期平仓
+        流程：
+        1. 如果有持仓，检查止盈止损
+        2. 如果没持仓，调用用户的 scan_opportunity() 查找机会
         
         Args:
-            opportunity: 要回测的机会
+            tracker: 追踪器 {'investing': Opportunity or None, 'settled': [...]}
+            current_kline: 当天的 K 线
+            data_of_today: 今天及之前的所有数据（通过游标获取）
+        """
+        # 1. 检查现有投资
+        if tracker['investing']:
+            is_completed, updated_opportunity = self._check_opportunity_completion(
+                opportunity=tracker['investing'],
+                current_kline=current_kline
+            )
+            
+            if is_completed:
+                # 投资完成，记录结果
+                tracker['settled'].append(updated_opportunity.to_dict())
+                tracker['investing'] = None
+                
+                logger.debug(
+                    f"投资完成: stock={self.stock_id}, "
+                    f"date={current_kline['date']}, "
+                    f"reason={updated_opportunity.sell_reason}"
+                )
+        
+        # 2. 如果没有投资，扫描新机会
+        if tracker['investing'] is None:
+            # 调用用户实现的扫描方法
+            opportunity = self.scan_opportunity_with_data(data_of_today)
+            
+            if opportunity:
+                # 设置买入信息
+                opportunity.trigger_date = current_kline['date']
+                opportunity.trigger_price = current_kline['close']
+                opportunity.status = 'active'
+                
+                # 开始追踪这个投资
+                tracker['investing'] = opportunity
+                
+                logger.debug(
+                    f"发现机会: stock={self.stock_id}, "
+                    f"date={current_kline['date']}, "
+                    f"price={current_kline['close']}"
+                )
+    
+    def _check_opportunity_completion(
+        self, 
+        opportunity: 'Opportunity', 
+        current_kline: Dict[str, Any]
+    ) -> tuple:
+        """
+        检查投资是否完成（止盈止损）
+        
+        Args:
+            opportunity: 当前投资
+            current_kline: 当天的 K 线
         
         Returns:
-            Opportunity: 更新后的机会
+            (is_completed, updated_opportunity)
         """
-        # 获取 K线 数据
-        klines = self.data_manager.get_klines()
+        current_price = current_kline['close']
+        current_date = current_kline['date']
         
-        # 找到买入日期的索引
-        buy_index = None
-        for i, k in enumerate(klines):
-            if k['date'] == opportunity.trigger_date:
-                buy_index = i
-                break
+        # 计算持有天数和收益率
+        holding_days = self._calculate_holding_days(opportunity.trigger_date, current_date)
+        price_return = (current_price - opportunity.trigger_price) / opportunity.trigger_price
         
-        if buy_index is None:
-            opportunity.status = 'expired'
-            opportunity.expired_reason = 'trigger_date_not_found'
-            return opportunity
+        # 更新追踪数据
+        opportunity.max_price = max(opportunity.max_price or 0, current_price)
+        opportunity.min_price = min(opportunity.min_price or float('inf'), current_price)
         
-        buy_price = opportunity.trigger_price
         goal_config = self.settings.goal
         
-        # 初始化追踪变量
-        sell_date = None
-        sell_price = None
-        sell_reason = None
-        max_price = buy_price
-        min_price = buy_price
-        tracking_prices = []
-        tracking_returns = []
-        
-        # 止盈止损状态追踪
-        stop_loss_stages = goal_config.get('stop_loss', {}).get('stages', [])
-        take_profit_stages = goal_config.get('take_profit', {}).get('stages', [])
+        # 1. 检查到期平仓
         expiration_config = goal_config.get('expiration', {})
+        if expiration_config:
+            fixed_period = expiration_config.get('fixed_period', 0)
+            if holding_days >= fixed_period:
+                opportunity.sell_date = current_date
+                opportunity.sell_price = current_price
+                opportunity.sell_reason = 'expiration'
+                opportunity.status = 'completed'
+                opportunity.roi = price_return
+                return True, opportunity
         
-        # 已触发的阶段索引
-        triggered_stop_loss_idx = -1
-        triggered_take_profit_idx = -1
+        # 2. 检查保本止损
+        if opportunity.protect_loss_active:
+            protect_loss_config = goal_config.get('protect_loss', {})
+            protect_ratio = protect_loss_config.get('ratio', 0)
+            
+            if price_return <= protect_ratio:
+                opportunity.sell_date = current_date
+                opportunity.sell_price = current_price
+                opportunity.sell_reason = 'protect_loss'
+                opportunity.status = 'completed'
+                opportunity.roi = price_return
+                return True, opportunity
         
-        # 动态止损相关
-        protect_loss_active = False
-        dynamic_loss_active = False
-        dynamic_loss_highest = buy_price
+        # 3. 检查动态止损
+        if opportunity.dynamic_loss_active:
+            dynamic_loss_config = goal_config.get('dynamic_loss', {})
+            dynamic_ratio = dynamic_loss_config.get('ratio', -0.1)
+            
+            # 更新最高点
+            if not opportunity.dynamic_loss_highest:
+                opportunity.dynamic_loss_highest = opportunity.trigger_price
+            opportunity.dynamic_loss_highest = max(opportunity.dynamic_loss_highest, current_price)
+            
+            # 检查回撤
+            dynamic_threshold = (current_price - opportunity.dynamic_loss_highest) / opportunity.dynamic_loss_highest
+            if dynamic_threshold <= dynamic_ratio:
+                opportunity.sell_date = current_date
+                opportunity.sell_price = current_price
+                opportunity.sell_reason = 'dynamic_loss'
+                opportunity.status = 'completed'
+                opportunity.roi = price_return
+                return True, opportunity
         
-        # 遍历持有期
-        for i in range(buy_index + 1, len(klines)):
-            current_kline = klines[i]
-            current_price = current_kline['close']
-            holding_days = i - buy_index
+        # 4. 检查分段止损
+        stop_loss_stages = goal_config.get('stop_loss', {}).get('stages', [])
+        for idx, stage in enumerate(stop_loss_stages):
+            if idx <= opportunity.triggered_stop_loss_idx:
+                continue
             
-            # 记录追踪数据
-            tracking_prices.append(current_price)
-            price_return = (current_price - buy_price) / buy_price
-            tracking_returns.append(price_return)
-            
-            # 更新最高最低价
-            max_price = max(max_price, current_price)
-            min_price = min(min_price, current_price)
-            
-            # 更新动态止损最高点
-            if dynamic_loss_active:
-                dynamic_loss_highest = max(dynamic_loss_highest, current_price)
-            
-            # 1. 检查到期平仓
-            if expiration_config:
-                fixed_period = expiration_config.get('fixed_period', 0)
-                is_trading_period = expiration_config.get('is_trading_period', True)
+            stage_ratio = stage.get('ratio', 0)
+            if price_return <= stage_ratio:
+                # 触发止损
+                opportunity.triggered_stop_loss_idx = idx
                 
-                if is_trading_period and holding_days >= fixed_period:
-                    sell_date = current_kline['date']
-                    sell_price = current_price
-                    sell_reason = 'expiration'
-                    break
-            
-            # 2. 检查保本止损
-            if protect_loss_active:
-                protect_loss_config = goal_config.get('protect_loss', {})
-                protect_ratio = protect_loss_config.get('ratio', 0)
-                
-                if price_return <= protect_ratio:
-                    sell_date = current_kline['date']
-                    sell_price = current_price
-                    sell_reason = 'protect_loss'
-                    break
-            
-            # 3. 检查动态止损
-            if dynamic_loss_active:
-                dynamic_loss_config = goal_config.get('dynamic_loss', {})
-                dynamic_ratio = dynamic_loss_config.get('ratio', -0.1)
-                dynamic_threshold = (current_price - dynamic_loss_highest) / dynamic_loss_highest
-                
-                if dynamic_threshold <= dynamic_ratio:
-                    sell_date = current_kline['date']
-                    sell_price = current_price
-                    sell_reason = 'dynamic_loss'
-                    break
-            
-            # 4. 检查分段止损
-            for idx, stage in enumerate(stop_loss_stages):
-                if idx <= triggered_stop_loss_idx:
-                    continue
-                
-                stage_ratio = stage.get('ratio', 0)
-                if price_return <= stage_ratio:
-                    # 触发止损
-                    triggered_stop_loss_idx = idx
-                    
-                    # 判断是否清仓
-                    if stage.get('close_invest', False):
-                        sell_date = current_kline['date']
-                        sell_price = current_price
-                        sell_reason = f"stop_loss_{stage.get('name', idx)}"
-                        break
-            
-            if sell_date:
-                break
-            
-            # 5. 检查分段止盈
-            for idx, stage in enumerate(take_profit_stages):
-                if idx <= triggered_take_profit_idx:
-                    continue
-                
-                stage_ratio = stage.get('ratio', 0)
-                if price_return >= stage_ratio:
-                    # 触发止盈
-                    triggered_take_profit_idx = idx
-                    
-                    # 执行动作
-                    actions = stage.get('actions', [])
-                    if 'set_protect_loss' in actions:
-                        protect_loss_active = True
-                    if 'set_dynamic_loss' in actions:
-                        dynamic_loss_active = True
-                        dynamic_loss_highest = current_price
-                    
-                    # 判断是否清仓
-                    if stage.get('close_invest', False):
-                        sell_date = current_kline['date']
-                        sell_price = current_price
-                        sell_reason = f"take_profit_{stage.get('name', idx)}"
-                        break
-            
-            if sell_date:
-                break
+                # 判断是否清仓
+                if stage.get('close_invest', False):
+                    opportunity.sell_date = current_date
+                    opportunity.sell_price = current_price
+                    opportunity.sell_reason = f"stop_loss_{stage.get('name', idx)}"
+                    opportunity.status = 'completed'
+                    opportunity.roi = price_return
+                    return True, opportunity
         
-        # 如果没有触发卖出，最后一天卖出
-        if not sell_date:
-            sell_date = klines[-1]['date']
-            sell_price = klines[-1]['close']
-            sell_reason = 'end_of_period'
+        # 5. 检查分段止盈
+        take_profit_stages = goal_config.get('take_profit', {}).get('stages', [])
+        for idx, stage in enumerate(take_profit_stages):
+            if idx <= opportunity.triggered_take_profit_idx:
+                continue
+            
+            stage_ratio = stage.get('ratio', 0)
+            if price_return >= stage_ratio:
+                # 触发止盈
+                opportunity.triggered_take_profit_idx = idx
+                
+                # 执行动作
+                actions = stage.get('actions', [])
+                if 'set_protect_loss' in actions:
+                    opportunity.protect_loss_active = True
+                if 'set_dynamic_loss' in actions:
+                    opportunity.dynamic_loss_active = True
+                    opportunity.dynamic_loss_highest = current_price
+                
+                # 判断是否清仓
+                if stage.get('close_invest', False):
+                    opportunity.sell_date = current_date
+                    opportunity.sell_price = current_price
+                    opportunity.sell_reason = f"take_profit_{stage.get('name', idx)}"
+                    opportunity.status = 'completed'
+                    opportunity.roi = price_return
+                    return True, opportunity
         
-        # 更新 Opportunity
-        opportunity.sell_date = sell_date
-        opportunity.sell_price = sell_price
-        opportunity.sell_reason = sell_reason
-        opportunity.price_return = (sell_price - buy_price) / buy_price
-        opportunity.holding_days = len(tracking_prices)
-        opportunity.max_price = max_price
-        opportunity.min_price = min_price
-        opportunity.max_drawdown = (min_price - buy_price) / buy_price
-        opportunity.tracking = {
-            'daily_prices': tracking_prices,
-            'daily_returns': tracking_returns
-        }
-        opportunity.status = 'closed'
-        opportunity.updated_at = datetime.now().isoformat()
+        # 未完成，继续持有
+        return False, opportunity
+    
+    def _settle_open_opportunity(self, tracker: Dict[str, Any], last_kline: Dict[str, Any]):
+        """
+        回测结束时清算未结投资
         
-        return opportunity
+        Args:
+            tracker: 追踪器
+            last_kline: 最后一个交易日的 K 线
+        """
+        opportunity = tracker.get('investing')
+        if not opportunity:
+            return
+        
+        # 按最后一天价格强制平仓
+        opportunity.sell_date = last_kline['date']
+        opportunity.sell_price = last_kline['close']
+        opportunity.sell_reason = 'backtest_end'
+        opportunity.status = 'completed'
+        
+        # 计算收益率
+        price_return = (opportunity.sell_price - opportunity.trigger_price) / opportunity.trigger_price
+        opportunity.roi = price_return
+        
+        # 记录到已完成列表
+        tracker['settled'].append(opportunity.to_dict())
+        tracker['investing'] = None
+        
+        logger.debug(
+            f"清算未结投资: stock={self.stock_id}, "
+            f"date={last_kline['date']}, "
+            f"roi={price_return:.2%}"
+        )
+    
+    def _calculate_holding_days(self, start_date: str, end_date: str) -> int:
+        """
+        计算持有天数（交易日）
+        
+        Args:
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
+        
+        Returns:
+            holding_days: 持有天数
+        """
+        from datetime import datetime
+        
+        try:
+            start_dt = datetime.strptime(start_date, '%Y%m%d')
+            end_dt = datetime.strptime(end_date, '%Y%m%d')
+            return (end_dt - start_dt).days
+        except Exception as e:
+            logger.error(f"计算持有天数失败: {e}")
+            return 0
+    
+    def _get_date_before(self, date: str, days: int) -> str:
+        """
+        获取 N 天前的日期（自然日）
+        
+        Args:
+            date: 基准日期（YYYYMMDD）
+            days: 天数
+        
+        Returns:
+            earlier_date: N 天前的日期（YYYYMMDD）
+        """
+        from datetime import datetime, timedelta
+        
+        try:
+            dt = datetime.strptime(date, '%Y%m%d')
+            # 使用自然日 * 1.5 倍，确保有足够的交易日数据
+            dt_before = dt - timedelta(days=int(days * 1.5))
+            return dt_before.strftime('%Y%m%d')
+        except Exception as e:
+            logger.error(f"计算日期失败: date={date}, days={days}, error={e}")
+            return date
+    
+    def scan_opportunity_with_data(self, data: Dict[str, Any]) -> Optional['Opportunity']:
+        """
+        使用指定数据扫描机会（Simulator 内部调用）
+        
+        这是对用户 scan_opportunity() 的包装，允许传入特定的数据
+        
+        Args:
+            data: 数据字典（通过游标过滤后的"今天及之前"的数据）
+        
+        Returns:
+            Opportunity or None
+        """
+        # 临时存储数据，让用户的 scan_opportunity 可以访问
+        original_data = self.data_manager._current_data.copy()
+        self.data_manager._current_data = data
+        
+        try:
+            # 调用用户实现的扫描方法
+            opportunity = self.scan_opportunity()
+            return opportunity
+        finally:
+            # 恢复原始数据
+            self.data_manager._current_data = original_data
     
     # =========================================================================
     # 抽象方法（用户必须实现）

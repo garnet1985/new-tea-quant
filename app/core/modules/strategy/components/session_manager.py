@@ -8,6 +8,7 @@ Session Manager - Session 管理器
 """
 
 from pathlib import Path
+from typing import Dict, Any
 import json
 import logging
 from datetime import datetime

@@ -15,6 +15,7 @@ class EntityType(Enum):
     LPR = "lpr"
     SHIBOR = "shibor"
     PRICE_INDEXES = "price_indexes"
+    TAG_SCENARIO = "tag_scenario"
 
 
 class TermType(Enum):

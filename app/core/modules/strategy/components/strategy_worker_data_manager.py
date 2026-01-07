@@ -3,9 +3,14 @@
 Strategy Worker Data Manager - 策略数据管理器
 
 职责：
-- 加载 K-line、财务等数据
-- 缓存数据（避免重复加载）
-- 按日期过滤数据
+- 加载当前股票的 K-line、财务等数据
+- 提供数据访问接口
+- 数据生命周期：仅存在于当前 Worker 实例中
+
+重要：不缓存股票级别的数据！
+- ✅ 全局缓存（在 StrategyManager 中）：stock_list, GDP, LPR 等宏观数据
+- ❌ 不缓存股票数据：K线、财务数据等（内存占用大）
+- 📝 当前股票数据存储在 Worker 实例中，Worker 销毁时自动清理
 
 类比 TagWorkerDataManager
 """
@@ -18,7 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 class StrategyWorkerDataManager:
-    """策略数据管理器（类比 TagWorkerDataManager）"""
+    """
+    策略数据管理器（Worker 级别）
+    
+    重要说明：
+    - 此类只管理【当前股票】的数据
+    - 数据存储在 Worker 实例中，不是全局缓存
+    - Worker 执行完毕后，实例销毁，数据自动清理
+    - 通过限制 Worker 数量控制内存使用
+    """
     
     def __init__(self, stock_id: str, settings: 'StrategySettings', data_mgr: 'DataManager'):
         """
@@ -33,11 +46,18 @@ class StrategyWorkerDataManager:
         self.settings = settings
         self.data_mgr = data_mgr
         
-        # 数据缓存
-        self.data_cache = {
+        # 当前股票的数据存储（NOT 缓存！）
+        # 生命周期：仅在当前 Worker 实例存活期间
+        # Worker 销毁时，这些数据自动被垃圾回收
+        self._current_data = {
             'klines': [],
             # 其他数据类型...
         }
+        
+        # 游标状态（用于 Simulator 逐日遍历）
+        # 存储各类数据的游标位置和累积数据
+        # 格式：{ 'klines': {'cursor': int, 'acc': list}, 'tags': {'cursor': int, 'acc': list}, ... }
+        self._cursor_state = {}
     
     # =========================================================================
     # Scanner 数据加载
@@ -71,16 +91,16 @@ class StrategyWorkerDataManager:
         adjust = self.settings.adjust_type
         
         klines = self._load_klines(start_date, latest_date, term, adjust)
-        self.data_cache['klines'] = klines
+        self._current_data['klines'] = klines
         
         logger.debug(f"加载最新数据: stock={self.stock_id}, term={term}, "
                     f"records={len(klines)}, date_range={start_date}-{latest_date}")
         
-        # 5. 加载其他依赖数据
+        # 5. 加载其他依赖数据（也是临时存储，不缓存）
         for entity_config in self.settings.required_entities:
             entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
             data = self._load_entity(entity_config, start_date, latest_date)
-            self.data_cache[entity_type] = data
+            self._current_data[entity_type] = data
     
     # =========================================================================
     # Simulator 数据加载
@@ -91,28 +111,34 @@ class StrategyWorkerDataManager:
         加载历史数据（Simulator 使用）
         
         Args:
-            start_date: 开始日期（trigger_date）
+            start_date: 开始日期
             end_date: 结束日期
         
         流程：
-        1. 加载 K-line（从 start_date 到 end_date）
-        2. 加载其他数据
+        1. 加载全量 K-line（从 start_date 到 end_date）
+        2. 加载其他全量数据
+        3. 初始化游标状态
+        
+        注意：这里加载全量数据，后续通过游标逐日过滤
         """
-        # 1. 加载 K-line
+        # 1. 加载全量 K-line
         term = self._extract_term_from_kline_base(self.settings.base_kline_type)
         adjust = self.settings.adjust_type
         
         klines = self._load_klines(start_date, end_date, term, adjust)
-        self.data_cache['klines'] = klines
+        self._current_data['klines'] = klines
         
         logger.debug(f"加载历史数据: stock={self.stock_id}, term={term}, "
                     f"records={len(klines)}, date_range={start_date}-{end_date}")
         
-        # 2. 加载其他依赖数据
+        # 2. 加载其他依赖数据（全量）
         for entity_config in self.settings.required_entities:
             entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
             data = self._load_entity(entity_config, start_date, end_date)
-            self.data_cache[entity_type] = data
+            self._current_data[entity_type] = data
+        
+        # 3. 初始化游标状态
+        self._init_cursor_state()
     
     # =========================================================================
     # 数据访问接口
@@ -120,7 +146,9 @@ class StrategyWorkerDataManager:
     
     def get_klines(self) -> List[Dict[str, Any]]:
         """
-        获取 K-line 数据
+        获取当前股票的 K-line 数据
+        
+        注意：这不是缓存，只是当前 Worker 实例的临时数据
         
         Returns:
             klines: [
@@ -128,11 +156,13 @@ class StrategyWorkerDataManager:
                 ...
             ]
         """
-        return self.data_cache.get('klines', [])
+        return self._current_data.get('klines', [])
     
     def get_entity_data(self, entity_type: str) -> List[Dict[str, Any]]:
         """
-        获取其他实体数据
+        获取当前股票的其他实体数据
+        
+        注意：这不是缓存，只是当前 Worker 实例的临时数据
         
         Args:
             entity_type: 数据类型（如 'corporate_finance'）
@@ -140,7 +170,120 @@ class StrategyWorkerDataManager:
         Returns:
             data: [...]
         """
-        return self.data_cache.get(entity_type, [])
+        return self._current_data.get(entity_type, [])
+    
+    # =========================================================================
+    # 游标机制（Simulator 逐日遍历使用）
+    # =========================================================================
+    
+    def get_data_until(self, date_of_today: str) -> Dict[str, Any]:
+        """
+        使用游标获取指定日期（含）之前的所有数据
+        
+        核心思想（参考 legacy）:
+        - 维护每类数据的游标位置（cursor）和累积数据（acc）
+        - 每次调用只 append 新增的数据，不重新切片
+        - 大幅提高效率，避免重复复制
+        
+        Args:
+            date_of_today: 当前虚拟日期（YYYYMMDD）
+        
+        Returns:
+            data_of_today: {
+                'klines': [...],
+                'tags': [...],
+                'corporate_finance': [...],
+                ...
+            }
+        """
+        result = {}
+        
+        # 1. 处理 K线 数据
+        klines_state = self._cursor_state.get('klines')
+        if klines_state:
+            self._advance_cursor_until(
+                data_list=self._current_data['klines'],
+                state=klines_state,
+                date_of_today=date_of_today,
+                date_field='date'
+            )
+            result['klines'] = klines_state['acc']
+        
+        # 2. 处理其他数据类型
+        for entity_type in self._current_data.keys():
+            if entity_type == 'klines':
+                continue
+            
+            state = self._cursor_state.get(entity_type)
+            if state:
+                # 判断日期字段（财务数据用 quarter，其他用 date）
+                date_field = 'quarter' if 'finance' in entity_type.lower() else 'date'
+                
+                self._advance_cursor_until(
+                    data_list=self._current_data[entity_type],
+                    state=state,
+                    date_of_today=date_of_today,
+                    date_field=date_field
+                )
+                result[entity_type] = state['acc']
+        
+        return result
+    
+    def _init_cursor_state(self):
+        """
+        初始化游标状态
+        
+        为每类数据创建：{'cursor': -1, 'acc': []}
+        """
+        self._cursor_state = {}
+        
+        # 初始化 K线 游标
+        if 'klines' in self._current_data:
+            self._cursor_state['klines'] = {'cursor': -1, 'acc': []}
+        
+        # 初始化其他数据类型的游标
+        for entity_type in self._current_data.keys():
+            if entity_type != 'klines':
+                self._cursor_state[entity_type] = {'cursor': -1, 'acc': []}
+        
+        logger.debug(f"初始化游标状态: stock={self.stock_id}, types={list(self._cursor_state.keys())}")
+    
+    def _advance_cursor_until(
+        self, 
+        data_list: List[Dict[str, Any]], 
+        state: Dict[str, Any], 
+        date_of_today: str,
+        date_field: str = 'date'
+    ):
+        """
+        推进游标直到指定日期（含）
+        
+        Args:
+            data_list: 全量数据列表
+            state: 游标状态 {'cursor': int, 'acc': list}
+            date_of_today: 当前日期
+            date_field: 日期字段名（'date' 或 'quarter'）
+        """
+        cursor = state['cursor']
+        acc = state['acc']
+        
+        i = cursor + 1
+        n = len(data_list)
+        
+        while i < n:
+            record = data_list[i]
+            record_date = record.get(date_field)
+            
+            # 如果记录日期为空或超过今天，停止
+            if not record_date or record_date > date_of_today:
+                break
+            
+            # 追加到累积数据
+            acc.append(record)
+            i += 1
+        
+        # 更新游标位置
+        state['cursor'] = i - 1
     
     # =========================================================================
     # 私有方法

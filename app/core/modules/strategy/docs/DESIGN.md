@@ -13,13 +13,15 @@
 2. [设计动机](#设计动机)
 3. [核心概念](#核心概念)
 4. [架构设计](#架构设计)
-5. [核心模块](#核心模块)
-6. [核心模型](#核心模型)
-7. [数据存储](#数据存储)
-8. [执行流程](#执行流程)
-9. [与 Legacy 系统的关系](#与-legacy-系统的关系)
-10. [与 Tag 系统的对比](#与-tag-系统的对比)
-11. [未来扩展](#未来扩展)
+5. [内存管理](#内存管理)
+6. [核心模块](#核心模块)
+7. [核心模型](#核心模型)
+8. [Indicator 组件](#indicator-组件)
+9. [数据存储](#数据存储)
+10. [执行流程](#执行流程)
+11. [与 Legacy 系统的关系](#与-legacy-系统的关系)
+12. [与 Tag 系统的对比](#与-tag-系统的对比)
+13. [未来扩展](#未来扩展)
 
 ---
 
@@ -262,6 +264,137 @@ app/userspace/strategies/        # 用户策略（类比 userspace/tags）
 - Strategy：双核心逻辑（scan_opportunity + simulate_opportunity）
 - Tag：数据库存储
 - Strategy：JSON 文件存储
+
+---
+
+## 内存管理
+
+### 核心原则
+
+#### ✅ 可以缓存的数据（全局级别）
+
+**位置**: `StrategyManager.global_cache`
+
+**特点**:
+- 数据量小
+- 全局共享
+- 生命周期：一次扫描/模拟
+
+**示例**:
+- ✅ `stock_list` - 股票列表（几千条记录）
+- ✅ `GDP` - 宏观经济数据
+- ✅ `LPR` - 利率数据
+- ✅ `trading_dates` - 交易日历
+
+#### ❌ 不可以缓存的数据（股票级别）
+
+**位置**: `StrategyWorkerDataManager._current_data`
+
+**特点**:
+- 数据量大（每只股票几千到上万条记录）
+- 单个股票独有
+- 生命周期：仅在 Worker 实例存活期间
+
+**示例**:
+- ❌ `股票 K线` - 每只股票数千条记录
+- ❌ `公司财务数据` - 每只股票数百条记录
+- ❌ `Tag 数据` - 每只股票数千条记录
+
+### 内存管理架构
+
+```
+StrategyManager（主进程）
+├─ global_cache（全局缓存，数据量小）
+│  ├─ stock_list ✅
+│  ├─ trading_dates ✅
+│  └─ macro_data ✅
+│
+└─ ProcessWorker（多进程执行）
+    ├─ Worker 1（子进程）
+    │  └─ StrategyWorkerDataManager
+    │     └─ _current_data（临时数据，Worker 销毁时清理）
+    │        ├─ klines ❌
+    │        └─ finance ❌
+    │
+    ├─ Worker 2（子进程）
+    │  └─ StrategyWorkerDataManager
+    │     └─ _current_data（临时数据）
+    │
+    └─ Worker N（子进程）
+```
+
+### 内存占用估算
+
+**单只股票数据量**:
+- K线数据：1000 条 × 100 字节 = **100KB**
+- 财务数据：100 条 × 200 字节 = **20KB**
+- Tag 数据：1000 条 × 50 字节 = **50KB**
+- **单只股票总计**: ~170KB
+
+**多进程并发**:
+- 8 个 Worker: 8 × 170KB = **~1.4MB** ✅
+- 5000 只股票（无控制）: 5000 × 170KB = **~850MB** ⚠️ 危险！
+
+### 正确设计
+
+**Worker 级别的数据管理**:
+
+```python
+class StrategyWorkerDataManager:
+    """
+    数据管理器（Worker 级别）
+    
+    重要：
+    - 只管理当前股票的数据
+    - 不是全局缓存
+    - Worker 销毁时自动清理
+    """
+    
+    def __init__(self, stock_id, settings, data_mgr):
+        # 临时数据存储（不是缓存！）
+        # 生命周期：仅在当前 Worker 实例存活期间
+        self._current_data = {
+            'klines': [],
+            'finance': []
+        }
+```
+
+**控制 Worker 数量**:
+
+```python
+class StrategyManager:
+    def _get_max_workers(self, config_value):
+        """控制 Worker 数量 = 控制内存使用"""
+        if config_value == 'auto':
+            cpu_count = os.cpu_count() or 4
+            return max(1, cpu_count - 1)  # 通常 4-8 个
+        return int(config_value)
+```
+
+### 最佳实践
+
+1. **明确区分缓存和临时数据**
+   - 全局缓存（数据量小）：`StrategyManager.global_cache`
+   - 临时数据（Worker 级别）：`StrategyWorkerDataManager._current_data`
+
+2. **通过命名体现设计意图**
+   - ❌ `self.data_cache` - 容易误解为全局缓存
+   - ✅ `self._current_data` - 明确是临时数据
+
+3. **限制 Worker 数量**
+   - 推荐：`max_workers: 'auto'` （4-8 个）
+   - 谨慎：手动设置大数值
+
+### 内存管理总结
+
+| 数据类型 | 位置 | 缓存 | 生命周期 | 内存影响 |
+|---------|------|------|---------|---------|
+| 股票列表 | StrategyManager | ✅ | 一次扫描/模拟 | 小（~KB） |
+| 宏观数据 | StrategyManager | ✅ | 一次扫描/模拟 | 小（~KB） |
+| 股票K线 | Worker | ❌ | Worker 实例 | 大（~100KB/股票） |
+| 财务数据 | Worker | ❌ | Worker 实例 | 中（~20KB/股票） |
+
+**核心原则**: 全局数据（小）→ 可缓存；股票数据（大）→ 不缓存，通过限制 Worker 数量控制内存。
 
 ---
 
@@ -715,6 +848,260 @@ class ExecutionSettings:
     take_profit: float               # 止盈比例（如 0.10 = 10%）
     max_holding_days: int            # 最大持有天数（如 20）
 ```
+
+---
+
+## Indicator 组件
+
+### 概述
+
+`IndicatorService` 是技术指标计算服务，作为 `pandas-ta-classic` 库的代理层，提供：
+- ✅ **150+ 技术指标**：支持所有 pandas-ta-classic 的指标
+- ✅ **便捷 API**：常用指标的快速调用方法
+- ✅ **通用 API**：支持任意指标的通用接口
+- ✅ **自动数据转换**：`List[Dict]` ↔ `DataFrame` 无缝转换
+- ✅ **静态工具类**：无需实例化，直接调用
+- ✅ **按需计算**：不缓存（除非发现性能瓶颈）
+
+### 设计原则
+
+**Proxy 模式**：不搬运 150+ 个指标的代码，直接代理到底层库
+- 用户调用 → `IndicatorService` → 数据转换 → `pandas-ta-classic` → 返回结果
+- 职责单一：只做数据转换和方法转发
+
+**不缓存计算结果**：
+- 指标计算速度快（毫秒级）
+- 避免内存占用
+- 等发现性能瓶颈再优化
+
+### 核心 API
+
+#### 1. 便捷 API（常用指标）
+
+```python
+from app.core.modules.indicator import IndicatorService
+
+# 移动平均（MA）
+ma20 = IndicatorService.ma(klines, length=20)
+# 返回: [10.1, 10.2, 10.3, ...]
+
+# 相对强弱指标（RSI）
+rsi14 = IndicatorService.rsi(klines, length=14)
+# 返回: [45.2, 48.3, 52.1, ...]
+
+# MACD
+macd = IndicatorService.macd(klines, fast=12, slow=26, signal=9)
+# 返回: {
+#     'MACD_12_26_9': [...],
+#     'MACDs_12_26_9': [...],
+#     'MACDh_12_26_9': [...]
+# }
+
+# 布林带（Bollinger Bands）
+bbands = IndicatorService.bbands(klines, length=20, std=2.0)
+# 返回: {
+#     'BBL_20_2.0': [...],  # 下轨
+#     'BBM_20_2.0': [...],  # 中轨
+#     'BBU_20_2.0': [...]   # 上轨
+# }
+
+# 真实波动幅度（ATR）
+atr = IndicatorService.atr(klines, length=14)
+
+# 随机指标（KDJ）
+stoch = IndicatorService.stoch(klines, k=14, d=3, smooth_k=3)
+
+# 平均趋向指数（ADX）
+adx = IndicatorService.adx(klines, length=14)
+
+# 能量潮（OBV）
+obv = IndicatorService.obv(klines)
+```
+
+#### 2. 通用 API（支持所有指标）
+
+```python
+# 支持 pandas-ta-classic 的所有 150+ 指标
+result = IndicatorService.calculate(indicator_name, klines, **params)
+
+# 示例：CCI（顺势指标）
+cci = IndicatorService.calculate('cci', klines, length=20)
+
+# 示例：Williams %R
+willr = IndicatorService.calculate('willr', klines, length=14)
+
+# 示例：Stochastic Oscillator
+stoch = IndicatorService.calculate('stoch', klines, k=14, d=3)
+```
+
+### 在策略中使用
+
+```python
+class MyStrategyWorker(BaseStrategyWorker):
+    def scan_opportunity(self):
+        # 获取 K 线数据
+        klines = self.data_manager.get_klines()
+        
+        if len(klines) < 60:
+            return None
+        
+        # 方式1: 使用便捷 API（推荐）
+        ma20 = IndicatorService.ma(klines, length=20)
+        ma60 = IndicatorService.ma(klines, length=60)
+        rsi = IndicatorService.rsi(klines, length=14)
+        
+        # 策略逻辑：金叉 + RSI 超卖
+        if ma20[-1] > ma60[-1] and rsi[-1] < 30:
+            return Opportunity(
+                opportunity_id=str(uuid.uuid4()),
+                stock_id=self.stock_id,
+                trigger_date=klines[-1]['date'],
+                trigger_price=klines[-1]['close'],
+                trigger_conditions={
+                    'ma20': ma20[-1],
+                    'ma60': ma60[-1],
+                    'rsi': rsi[-1],
+                    'signal': 'golden_cross_oversold'
+                }
+            )
+        
+        # 方式2: 使用通用 API
+        cci = IndicatorService.calculate('cci', klines, length=20)
+        if cci[-1] > 100:  # CCI 超买
+            return Opportunity(...)
+        
+        return None
+```
+
+### 数据格式
+
+**输入格式**（我们的 K 线格式）:
+```python
+klines = [
+    {
+        'date': '20251219',
+        'open': 10.0,
+        'high': 10.5,
+        'low': 9.8,
+        'close': 10.2,
+        'volume': 1000
+    },
+    ...
+]
+```
+
+**输出格式**:
+- **单列指标**（MA, RSI, ATR 等）: `List[float]`
+  ```python
+  [10.1, 10.2, 10.3, ...]
+  ```
+
+- **多列指标**（MACD, BBANDS 等）: `Dict[str, List[float]]`
+  ```python
+  {
+      'MACD_12_26_9': [...],
+      'MACDs_12_26_9': [...],
+      'MACDh_12_26_9': [...]
+  }
+  ```
+
+### 工具方法
+
+```python
+# 列出所有可用指标
+all_indicators = IndicatorService.list_indicators()
+# ['adx', 'atr', 'bbands', 'cci', 'macd', 'rsi', 'sma', ...]
+
+# 查看指标帮助文档
+help_text = IndicatorService.get_indicator_help('macd')
+```
+
+### 技术栈
+
+- **底层库**: `pandas-ta-classic` 0.3.59
+  - 社区维护，免费开源
+  - 纯 Python 实现，易安装
+  - 150+ 技术指标
+  - 活跃维护，定期更新
+
+- **依赖**:
+  - `pandas >= 2.0.0`
+  - `numpy >= 2.0.0`
+
+### 性能考虑
+
+**计算速度**:
+- 单个指标计算：< 10ms（1000 条 K 线）
+- 性能目标：< 200ms（用户可接受）
+- 实测：绝大多数指标远低于目标
+
+**内存占用**:
+- 不缓存计算结果
+- 按需计算，用完即释放
+- 内存占用：可忽略
+
+**未来优化**（如果需要）:
+1. Worker 级别缓存（生命周期：单个股票处理期间）
+2. 批量计算优化（共享中间结果）
+3. 切换到 TA-Lib（C 实现，快 4 倍）
+
+### 扩展性
+
+**自定义指标**（未来）:
+```python
+# 用户可以注册自定义指标
+def my_custom_indicator(klines, period):
+    # 自定义计算逻辑
+    return result
+
+# 注册（TODO：未来功能）
+IndicatorService.register('my_indicator', my_custom_indicator)
+```
+
+**切换底层库**（未来）:
+```python
+# 在 IndicatorService 中添加 backend 参数
+# 支持切换到 TA-Lib 等其他库
+```
+
+### 最佳实践
+
+1. **检查数据长度**
+   ```python
+   klines = self.data_manager.get_klines()
+   if len(klines) < 60:  # 确保有足够数据
+       return None
+   ```
+
+2. **处理 None 返回**
+   ```python
+   ma20 = IndicatorService.ma(klines, 20)
+   if ma20 is None:  # 数据不足或计算失败
+       return None
+   ```
+
+3. **使用便捷 API**
+   ```python
+   # ✅ 推荐：便捷 API
+   ma20 = IndicatorService.ma(klines, 20)
+   
+   # ⚠️ 也可以：通用 API
+   ma20 = IndicatorService.calculate('sma', klines, length=20)
+   ```
+
+4. **参数化配置**
+   ```python
+   # settings.py
+   "params": {
+       "ma_short": 20,
+       "ma_long": 60,
+       "rsi_period": 14
+   }
+   
+   # strategy_worker.py
+   params = self.settings.params
+   ma_short = IndicatorService.ma(klines, params['ma_short'])
+   ```
 
 ---
 

@@ -1,219 +1,231 @@
-from app.core.global_enums.enums import EntityType, KlineTerm, AdjustType
-from app.core.conf.conf import data_default_start_date
+from app.core.global_enums.enums import EntityType, AdjustType
 
 settings = {
-
+    # ========================================
+    # 策略基本信息
+    # ========================================
+    
+    # 策略唯一名字，程序中的 key
     "name": "example",
-
-    "description": "example strategy",
-
-    # 策略启用状态
+    
+    # 策略描述
+    "description": "Example momentum strategy with technical indicators",
+    
+    # 策略是否启用
     "is_enabled": False,
-
+    
+    # ========================================
+    # 策略核心参数
+    # ========================================
     "core": {
-        # 你当前的策略是否需要额外的核心参数，如果有，请在这里配置
+        # 你的策略特有参数
+        # 例如：
+        # "momentum_threshold": 0.05,
+        # "volume_multiplier": 1.5,
     },
     
-    # 数据要求配置
-    "klines": {
-        # 数据周期 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
+    # ========================================
+    # 数据配置
+    # ========================================
+    "data": {
+        # 基础 K 线配置
         "base": EntityType.STOCK_KLINE_DAILY.value,
-
-        # 最小要求的基础周期记录数
-        "min_required_base_records": 1000,
-
+        
         # 复权方式
         "adjust": AdjustType.QFQ.value,
-
-        # TODO: use new indicators libs to achieve below:
-        # 要在K线上增加的技术指标
-        "indicators": {
-            # 移动平均线 (Simple Moving Average)
-            "moving_average": {
-                "periods": [5, 10, 20, 60],  # 计算多个周期的移动平均线
-            },
-            
-            # MACD 指标 (Moving Average Convergence Divergence)
-            "macd": {
-                # 使用默认参数: fast=12, slow=26, signal=9
-                "fast": 12,
-                "slow": 26,
-                "signal": 9,
-            },
-            
-            # RSI 指标 (Relative Strength Index)
-            "rsi": {
-                "period": 14,  # RSI计算周期，默认14
-            },
-            
-            # 布林带指标 (Bollinger Bands)
-            "bollinger": {
-                "period": 20,  # 布林带计算周期，默认20
-                "std_multiplier": 2.0,  # 标准差倍数，默认2.0
-            },
-        },
-    },
-
-    "required_entities": [
-        {
-            "type": EntityType.GDP.value,
-        },
-        {
-            "type": EntityType.TAG_SCENARIO.value,
-            "name": "momentum_mid_term",
-        },
-        {
-            "type": EntityType.CORPORATE_FINANCE.value,
-        },
-    ],
-
-    # 模拟时间范围 - 日期格式YYYYMMDD
-    "simulation": {
-
-        # 模拟开始日期 - 空指代使用默认开始日期
-        "start_date": "",
-
-        # 模拟结束日期 - 空指代到最新的记录
-        "end_date": "",
-
-        # 测试股票数量
-        "sampling_amount": 10,
-
-         # 是否记录模拟结果，结果会自动存在{folder_name}的tmp文件夹下
-        "record_summary" : True,
         
-        # 是否分析模拟结果，结果会自动存在{folder_name}的analysis文件夹下
-        "analysis" : True,
-
-        'sampling': {
-            # 采样策略类型
-            "strategy": "uniform",  # uniform, stratified, random, continuous, pool, blacklist
+        # 最小要求的基础周期记录数
+        "min_required_records": 1000,
+        
+        # ========================================
+        # 技术指标配置（框架自动计算）
+        # ========================================
+        "indicators": {
+            # 移动平均线（可配置多个周期）
+            "ma": [
+                {"period": 5},
+                {"period": 10},
+                {"period": 20},
+                {"period": 60}
+            ],
             
-            # 各策略的专用配置
-            "uniform": {
-                # 均匀采样无需额外配置
-                "description": "均匀间隔采样 - 每间隔N个股票抽取一个，结果可重现"
-            },
+            # 指数移动平均线
+            "ema": [
+                {"period": 12},
+                {"period": 26}
+            ],
             
-            "stratified": {
-                # 分层采样配置
-                "seed": 42,  # 随机种子 - None表示每次运行都使用不同的随机种子
-                "description": "分层采样 - 按市场类型（沪深主板，中小板，创业板，科创板）采样，科学合理，依赖seed"
-            },
+            # RSI 指标
+            "rsi": [
+                {"period": 14}
+            ],
             
-            "random": {
-                # 随机采样配置
-                "seed": 42,  # 随机种子 - None表示每次运行都使用不同的随机种子
-                "description": "随机采样 - 随机抽取test_amount个股票，依赖seed保证可重现"
-            },
+            # MACD 指标
+            "macd": [
+                {"fast": 12, "slow": 26, "signal": 9}
+            ],
             
-            "continuous": {
-                # 连续采样配置
-                "start_idx": 0,  # 起始索引
-                "description": "连续采样 - 从start_idx开始取test_amount个股票"
-            },
-
-            "pool": {
-                # 股票池采样配置
-                "stock_pool": ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ", "000007.SZ", "000008.SZ", "000009.SZ", "000010.SZ"],
-                "description": "股票池采样 - 从stock_pool中抽取test_amount个股票"
-            },
-
-            "blacklist": {
-                # 黑名单采样配置
-                "blacklist": ["000001.SZ", "000002.SZ", "000003.SZ", "000004.SZ", "000005.SZ", "000006.SZ", "000007.SZ", "000008.SZ", "000009.SZ", "000010.SZ"],
-                "description": "黑名单采样 - 从blacklist中抽取test_amount个股票"
-            },
-        },
-    },
-
-
-    # 投资目标设置
-    "goal": {
-        # 固定期限强制平仓（可选，仅用于到期平仓，不属于止盈/止损）。
-        # 如不配置，框架不会进行“到期平仓”判断；可同时配置自然日与交易日。
-        # 到期时默认对剩余仓位执行结算。
-        "expiration": {
-            "fixed_period": 30,
-            "is_trading_period": True,
-        },
-
-        # fixed days 是交易日还是自然日，默认是交易日
-        # "is_trading_days": True,
-
-        # 保本止损 - 可选
-        "protect_loss": {
-            "ratio": 0,
-            # close invest 代表卖出剩余所有仓位
-            "close_invest": True  # 止损时：清仓
-        },
-        # 动态止损（追损）- 可选
-        "dynamic_loss": {
-            # ratio 代表在止损设置后累计出现过的最高点的下方10%为止损值
-            "ratio": -0.1,
-            "close_invest": True  # 动态止损时：清仓
-        },
-
-        # 止损目标设置
-        "stop_loss": {
-            # 自定义止损 - 可选, 如果定义，需要重写基类里的should_stop_loss方法
-            # "is_customized": False,
-
-            # 分段止损 - 可选（至少一个阶段）
-            "stages": [
-                # 止损阶段
-                {
-                    # 名字随便取，只负责展示
-                    "name": "loss20%",
-                    # 当前价格低于买入价格的20%时触发止损
-                    "ratio": -0.2,
-                    # 止损行为是卖出所有仓位
-                    "sell_ratio": 0.5,
-                },
-                # 止损阶段
-                {
-                    # 名字随便取，只负责展示
-                    "name": "loss30%",
-                    # 当前价格低于买入价格的30%时触发止损
-                    "ratio": -0.3,
-                    # 止损行为是卖出所有剩余仓位
-                    "close_invest": True
-                }
+            # 布林带指标
+            "bbands": [
+                {"period": 20, "std": 2.0}
+            ],
+            
+            # ATR 指标（真实波动幅度）
+            "atr": [
+                {"period": 14}
             ]
         },
-        # 止盈目标设置
-        "take_profit": {
-            # 自定义止盈 - 可选, 如果定义，需要重写基类里的should_take_profit方法
-            # "is_customized": False,
-
-            # 分段止盈 - 可选（至少一个阶段）
-            "stages": [
-                {
-                    "name": "win10%",
-                    # 当前价格高于买入价格的10%时触发止盈
-                    "ratio": 0.1,
-                    # 止盈时：卖出总仓位的20%
-                    "sell_ratio": 0.2,  
-                    # 止盈时：启动保本止损
-                    "actions": ["set_protect_loss"],
-                },
-                {
-                    "name": "win20%",
-                    "ratio": 0.2,
-                    "sell_ratio": 0.2 
-                },
-                {
-                    "name": "win30%",
-                    "ratio": 0.3,
-                    "sell_ratio": 0.2,
-                    # 止盈时：启动动态止损
-                    "actions": ["set_dynamic_loss"]
-                }
-            ]
-        },
+        
+        # ========================================
+        # 外部数据依赖
+        # ========================================
+        "required_entities": [
+            {
+                "type": EntityType.GDP.value,
+            },
+            {
+                "type": EntityType.TAG_SCENARIO.value,
+                "name": "momentum_mid_term"
+            }
+        ]
     },
-
+    
+    # ========================================
+    # 股票采样配置
+    # ========================================
+    "sampling": {
+        # 采样策略类型
+        "strategy": "pool",  # uniform / stratified / random / continuous / pool / blacklist
+        
+        # 采样数量
+        "sampling_amount": 50,
+        
+        # ========================================
+        # 各采样策略的专用配置
+        # ========================================
+        
+        # 均匀采样
+        "uniform": {
+            "description": "均匀间隔采样 - 每间隔 N 个股票抽取一个，结果可重现"
+        },
+        
+        # 分层采样
+        "stratified": {
+            "seed": 42,
+            "description": "分层采样 - 按市场类型（沪深主板，中小板，创业板，科创板）采样，科学合理"
+        },
+        
+        # 随机采样
+        "random": {
+            "seed": 42,
+            "description": "随机采样 - 随机抽取指定数量的股票"
+        },
+        
+        # 连续采样
+        "continuous": {
+            "start_idx": 0,
+            "description": "连续采样 - 从 start_idx 开始连续取指定数量的股票"
+        },
+        
+        # 股票池采样
+        "pool": {
+            # 方式 1：文件路径（推荐：长列表、易迁移）
+            "id_list_path": "../pools/high_quality_stocks.txt",
+            
+            # 方式 2：直接数组（推荐：短列表、快速测试）
+            # "stock_pool": ["000001.SZ", "000002.SZ", "000333.SZ"],
+            
+            # 说明：如果两个都配置，优先使用 id_list_path
+            "description": "股票池采样 - 从指定股票池中抽取"
+        },
+        
+        # 黑名单采样
+        "blacklist": {
+            # 方式 1：文件路径（推荐）
+            "id_list_path": "../blacklists/st_stocks.txt",
+            
+            # 方式 2：直接数组（备选）
+            # "blacklist": ["ST*", "退市*"],
+            
+            "description": "黑名单采样 - 排除黑名单后抽取"
+        }
+    },
+    
+    # ========================================
+    # Simulator 配置
+    # ========================================
+    "simulator": {
+        # 回测时间范围
+        "start_date": "20230101",  # 空字符串 = 使用默认开始日期
+        "end_date": "",            # 空字符串 = 到最新记录
+        
+        # ========================================
+        # 投资目标设置（止盈止损）
+        # ========================================
+        "goal": {
+            # 到期平仓（可选）
+            "expiration": {
+                "fixed_period": 30,           # 持仓天数
+                "is_trading_period": True     # True = 交易日，False = 自然日
+            },
+            
+            # 保本止损（可选）
+            "protect_loss": {
+                "ratio": 0,                   # 回到成本价
+                "close_invest": True          # 触发时清仓
+            },
+            
+            # 动态止损（可选）
+            "dynamic_loss": {
+                "ratio": -0.1,                # 从最高点回撤 10%
+                "close_invest": True          # 触发时清仓
+            },
+            
+            # 分段止损
+            "stop_loss": {
+                "stages": [
+                    {
+                        "name": "loss20%",
+                        "ratio": -0.2,        # 亏损 20%
+                        "sell_ratio": 0.5     # 卖出 50%
+                    },
+                    {
+                        "name": "loss30%",
+                        "ratio": -0.3,        # 亏损 30%
+                        "close_invest": True  # 清仓
+                    }
+                ]
+            },
+            
+            # 分段止盈
+            "take_profit": {
+                "stages": [
+                    {
+                        "name": "win10%",
+                        "ratio": 0.1,                      # 盈利 10%
+                        "sell_ratio": 0.2,                 # 卖出 20%
+                        "actions": ["set_protect_loss"]    # 启动保本止损
+                    },
+                    {
+                        "name": "win20%",
+                        "ratio": 0.2,
+                        "sell_ratio": 0.2
+                    },
+                    {
+                        "name": "win30%",
+                        "ratio": 0.3,
+                        "sell_ratio": 0.2,
+                        "actions": ["set_dynamic_loss"]    # 启动动态止损
+                    }
+                ]
+            }
+        }
+    },
+    
+    # ========================================
+    # 性能配置
+    # ========================================
     "performance": {
-        "max_workers": "auto",
-    },
+        "max_workers": "auto"  # "auto" / 数字（进程数）
+    }
 }

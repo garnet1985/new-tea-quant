@@ -10,12 +10,14 @@
     python start.py analysis             # 分析结果
     python start.py tag                  # 执行所有标签场景
     python start.py tag --scenario xxx   # 执行指定标签场景
+    python start.py enumerate            # 枚举投资机会（测试用）
     
     python start.py -c                   # 快捷: 扫描（等价于: python start.py scan）
     python start.py -s                   # 快捷: 模拟（等价于: python start.py simulate）
     python start.py -r                   # 快捷: 更新（等价于: python start.py renew）
     python start.py -a                   # 快捷: 分析（等价于: python start.py analysis）
     python start.py -t                   # 快捷: 标签（等价于: python start.py tag）
+    python start.py -e                   # 快捷: 枚举（等价于: python start.py enumerate）
     python start.py -h                   # 查看帮助
 """
 import sys
@@ -30,7 +32,7 @@ setup_warning_suppression()
 
 from app.core.modules.data_manager import DataManager
 from app.core.modules.data_source.data_source_manager import DataSourceManager
-from app.core.modules.analyzer import Analyzer
+# from app.core.modules.analyzer_legacy.analyzer import Analyzer  # 暂时注释，测试枚举器
 from app.core.modules.tag import TagManager
 from app.core.utils.icon.icon_service import IconService
 
@@ -52,10 +54,10 @@ class App:
         # 3. 创建数据源和策略管理器
         # 所有模块都接收 is_verbose 参数以控制日志详细程度
         self.data_source = DataSourceManager(is_verbose=self.is_verbose)
-        self.analyzer = Analyzer(is_verbose=self.is_verbose)
+        # self.analyzer = Analyzer(is_verbose=self.is_verbose)  # 暂时注释
         
         # 4. 初始化策略（这会注册表到数据库）
-        self.analyzer.initialize()
+        # self.analyzer.initialize()  # 暂时注释
         
         # 5. 初始化 TagManager（延迟初始化，只在需要时创建）
         self.tag_manager = None
@@ -95,21 +97,69 @@ class App:
     
     def simulate(self):
         """运行模拟回测"""
-        self.analyzer.simulate()
+        # self.analyzer.simulate()  # 暂时注释
+        logger.warning("⚠️ simulate 功能暂时禁用，正在测试枚举器")
 
     def scan(self):
         """扫描投资机会"""
-        self.analyzer.scan()
+        # self.analyzer.scan()  # 暂时注释
+        logger.warning("⚠️ scan 功能暂时禁用，正在测试枚举器")
 
     def analysis(self, session_id: str = None):
         """分析所有策略的模拟结果"""
-        self.analyzer.analysis(session_id)
+        # self.analyzer.analysis(session_id)  # 暂时注释
+        logger.warning("⚠️ analysis 功能暂时禁用，正在测试枚举器")
     
     def tag(self, scenario_name: str = None):
         """执行标签计算"""
         if self.tag_manager is None:
             self.tag_manager = TagManager(is_verbose=self.is_verbose)
         self.tag_manager.execute(scenario_name=scenario_name)
+    
+    def enumerate(self, strategy_name: str = 'example', stock_count: int = 2):
+        """
+        枚举投资机会（测试用）
+        
+        Args:
+            strategy_name: 策略名称
+            stock_count: 测试股票数量
+        """
+        from app.core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
+        
+        logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count}")
+        
+        # 获取股票列表（测试用，硬编码）
+        all_stocks = ['000001.SZ', '000002.SZ', '000333.SZ', '600000.SH', '600004.SH']
+        stock_list = all_stocks[:stock_count]
+        
+        logger.info(f"测试股票: {stock_list}")
+        
+        # 设置测试时间范围（只测试最近 10 天）
+        latest_date = self.data_manager.get_latest_completed_trading_date()
+        from datetime import datetime, timedelta
+        start_date_obj = datetime.strptime(latest_date, '%Y%m%d') - timedelta(days=10)
+        start_date = start_date_obj.strftime('%Y%m%d')
+        
+        logger.info(f"测试时间范围: {start_date} ~ {latest_date}")
+        
+        # 枚举所有机会
+        opportunities = OpportunityEnumerator.enumerate(
+            strategy_name=strategy_name,
+            start_date=start_date,
+            end_date=latest_date,
+            stock_list=stock_list,
+            max_workers='auto'  # 自动计算
+        )
+        
+        logger.info(f"✅ 枚举完成！找到 {len(opportunities)} 个机会")
+        
+        # 显示部分结果
+        if opportunities:
+            logger.info(f"\n前 3 个机会示例:")
+            for i, opp in enumerate(opportunities[:3], 1):
+                logger.info(f"  {i}. {opp.get('stock_id')} - {opp.get('trigger_date')} - ROI: {opp.get('roi', 0):.2%}")
+        
+        return opportunities
 
 
 def parse_args():
@@ -125,6 +175,7 @@ def parse_args():
   renew       更新数据（更新股票行情、标签等数据）
   analysis    分析结果（分析模拟回测的结果）
   tag         执行标签计算（计算并存储所有或指定场景的标签）
+  enumerate   枚举投资机会（测试用，枚举所有可能的机会）
 
 快捷缩写:
   -c          等同于 scan（Check opportunities）
@@ -132,6 +183,7 @@ def parse_args():
   -r          等同于 renew（Renew data）
   -a          等同于 analysis（Analysis results）
   -t          等同于 tag（Tag calculation）
+  -e          等同于 enumerate（Enumerate opportunities）
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 使用示例:
@@ -189,11 +241,14 @@ def parse_args():
                         help='分析结果（analysis）')
     parser.add_argument('-t', '--tag-flag', dest='tag_flag', action='store_true', 
                         help='执行标签计算（tag）')
+    parser.add_argument('-e', '--enumerate-flag', dest='enumerate_flag', action='store_true', 
+                        help='枚举投资机会（enumerate）')
     
     # 额外参数
-    parser.add_argument('--strategy', type=str, help='指定策略名称（用于 scan/simulate）')
+    parser.add_argument('--strategy', type=str, help='指定策略名称（用于 scan/simulate/enumerate）')
     parser.add_argument('--session', type=str, help='指定session ID（用于 analysis）')
     parser.add_argument('--scenario', type=str, help='指定场景名称（用于 tag）')
+    parser.add_argument('--stocks', type=int, default=2, help='测试股票数量（用于 enumerate，默认 2）')
     parser.add_argument('-v', '--verbose', action='store_true', help='详细输出模式')
     
     return parser.parse_args()
@@ -209,7 +264,7 @@ def resolve_command(args) -> str:
     - 如果同时给了多个互斥命令，报错退出
     - 如果都没给，默认 simulate
     """
-    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag'}
+    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag', 'enumerate'}
     
     cmd_from_positional = None
     if args.command:
@@ -230,6 +285,8 @@ def resolve_command(args) -> str:
         flags.append('analysis')
     if args.tag_flag:
         flags.append('tag')
+    if args.enumerate_flag:
+        flags.append('enumerate')
     
     # 如果位置参数和 flag 同时指定，并且不一致，则报错
     if cmd_from_positional and flags and cmd_from_positional not in flags:
@@ -284,6 +341,10 @@ def main():
         elif command == 'tag':
             logger.info("🏷️  执行标签计算...")
             app.tag(scenario_name=args.scenario)
+        elif command == 'enumerate':
+            logger.info("🔢 枚举投资机会...")
+            strategy = args.strategy or 'example'
+            app.enumerate(strategy_name=strategy, stock_count=args.stocks)
         
         logger.info("")
         logger.info("=" * 60)

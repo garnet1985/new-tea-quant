@@ -258,20 +258,21 @@ class BaseStrategyWorker(ABC):
         """
         # 1. 检查现有投资
         if tracker['investing']:
-            is_completed, updated_opportunity = self._check_opportunity_completion(
-                opportunity=tracker['investing'],
-                current_kline=current_kline
+            # ⭐ 使用 Opportunity 实例方法
+            is_completed = tracker['investing'].check_targets(
+                current_kline=current_kline,
+                goal_config=self.settings.goal
             )
             
             if is_completed:
                 # 投资完成，记录结果
-                tracker['settled'].append(updated_opportunity.to_dict())
+                tracker['settled'].append(tracker['investing'].to_dict())
                 tracker['investing'] = None
                 
                 logger.debug(
                     f"投资完成: stock={self.stock_id}, "
                     f"date={current_kline['date']}, "
-                    f"reason={updated_opportunity.sell_reason}"
+                    f"reason={tracker['investing'].sell_reason}"
                 )
         
         # 2. 如果没有投资，扫描新机会
@@ -294,130 +295,6 @@ class BaseStrategyWorker(ABC):
                     f"price={current_kline['close']}"
                 )
     
-    def _check_opportunity_completion(
-        self, 
-        opportunity: 'Opportunity', 
-        current_kline: Dict[str, Any]
-    ) -> tuple:
-        """
-        检查投资是否完成（止盈止损）
-        
-        Args:
-            opportunity: 当前投资
-            current_kline: 当天的 K 线
-        
-        Returns:
-            (is_completed, updated_opportunity)
-        """
-        current_price = current_kline['close']
-        current_date = current_kline['date']
-        
-        # 计算持有天数和收益率
-        holding_days = self._calculate_holding_days(opportunity.trigger_date, current_date)
-        price_return = (current_price - opportunity.trigger_price) / opportunity.trigger_price
-        
-        # 更新追踪数据
-        opportunity.max_price = max(opportunity.max_price or 0, current_price)
-        opportunity.min_price = min(opportunity.min_price or float('inf'), current_price)
-        
-        goal_config = self.settings.goal
-        
-        # 1. 检查到期平仓
-        expiration_config = goal_config.get('expiration', {})
-        if expiration_config:
-            fixed_period = expiration_config.get('fixed_period', 0)
-            if holding_days >= fixed_period:
-                opportunity.sell_date = current_date
-                opportunity.sell_price = current_price
-                opportunity.sell_reason = 'expiration'
-                opportunity.status = 'completed'
-                opportunity.roi = price_return
-                return True, opportunity
-        
-        # 2. 检查保本止损
-        if opportunity.protect_loss_active:
-            protect_loss_config = goal_config.get('protect_loss', {})
-            protect_ratio = protect_loss_config.get('ratio', 0)
-            
-            if price_return <= protect_ratio:
-                opportunity.sell_date = current_date
-                opportunity.sell_price = current_price
-                opportunity.sell_reason = 'protect_loss'
-                opportunity.status = 'completed'
-                opportunity.roi = price_return
-                return True, opportunity
-        
-        # 3. 检查动态止损
-        if opportunity.dynamic_loss_active:
-            dynamic_loss_config = goal_config.get('dynamic_loss', {})
-            dynamic_ratio = dynamic_loss_config.get('ratio', -0.1)
-            
-            # 更新最高点
-            if not opportunity.dynamic_loss_highest:
-                opportunity.dynamic_loss_highest = opportunity.trigger_price
-            opportunity.dynamic_loss_highest = max(opportunity.dynamic_loss_highest, current_price)
-            
-            # 检查回撤
-            dynamic_threshold = (current_price - opportunity.dynamic_loss_highest) / opportunity.dynamic_loss_highest
-            if dynamic_threshold <= dynamic_ratio:
-                opportunity.sell_date = current_date
-                opportunity.sell_price = current_price
-                opportunity.sell_reason = 'dynamic_loss'
-                opportunity.status = 'completed'
-                opportunity.roi = price_return
-                return True, opportunity
-        
-        # 4. 检查分段止损
-        stop_loss_stages = goal_config.get('stop_loss', {}).get('stages', [])
-        for idx, stage in enumerate(stop_loss_stages):
-            if idx <= opportunity.triggered_stop_loss_idx:
-                continue
-            
-            stage_ratio = stage.get('ratio', 0)
-            if price_return <= stage_ratio:
-                # 触发止损
-                opportunity.triggered_stop_loss_idx = idx
-                
-                # 判断是否清仓
-                if stage.get('close_invest', False):
-                    opportunity.sell_date = current_date
-                    opportunity.sell_price = current_price
-                    opportunity.sell_reason = f"stop_loss_{stage.get('name', idx)}"
-                    opportunity.status = 'completed'
-                    opportunity.roi = price_return
-                    return True, opportunity
-        
-        # 5. 检查分段止盈
-        take_profit_stages = goal_config.get('take_profit', {}).get('stages', [])
-        for idx, stage in enumerate(take_profit_stages):
-            if idx <= opportunity.triggered_take_profit_idx:
-                continue
-            
-            stage_ratio = stage.get('ratio', 0)
-            if price_return >= stage_ratio:
-                # 触发止盈
-                opportunity.triggered_take_profit_idx = idx
-                
-                # 执行动作
-                actions = stage.get('actions', [])
-                if 'set_protect_loss' in actions:
-                    opportunity.protect_loss_active = True
-                if 'set_dynamic_loss' in actions:
-                    opportunity.dynamic_loss_active = True
-                    opportunity.dynamic_loss_highest = current_price
-                
-                # 判断是否清仓
-                if stage.get('close_invest', False):
-                    opportunity.sell_date = current_date
-                    opportunity.sell_price = current_price
-                    opportunity.sell_reason = f"take_profit_{stage.get('name', idx)}"
-                    opportunity.status = 'completed'
-                    opportunity.roi = price_return
-                    return True, opportunity
-        
-        # 未完成，继续持有
-        return False, opportunity
-    
     def _settle_open_opportunity(self, tracker: Dict[str, Any], last_kline: Dict[str, Any]):
         """
         回测结束时清算未结投资
@@ -430,15 +307,11 @@ class BaseStrategyWorker(ABC):
         if not opportunity:
             return
         
-        # 按最后一天价格强制平仓
-        opportunity.sell_date = last_kline['date']
-        opportunity.sell_price = last_kline['close']
-        opportunity.sell_reason = 'backtest_end'
-        opportunity.status = 'completed'
-        
-        # 计算收益率
-        price_return = (opportunity.sell_price - opportunity.trigger_price) / opportunity.trigger_price
-        opportunity.roi = price_return
+        # ⭐ 使用 Opportunity 实例方法
+        opportunity.settle(
+            last_kline=last_kline,
+            reason='backtest_end'
+        )
         
         # 记录到已完成列表
         tracker['settled'].append(opportunity.to_dict())
@@ -447,29 +320,8 @@ class BaseStrategyWorker(ABC):
         logger.debug(
             f"清算未结投资: stock={self.stock_id}, "
             f"date={last_kline['date']}, "
-            f"roi={price_return:.2%}"
+            f"roi={opportunity.roi:.2%}"
         )
-    
-    def _calculate_holding_days(self, start_date: str, end_date: str) -> int:
-        """
-        计算持有天数（交易日）
-        
-        Args:
-            start_date: 开始日期（YYYYMMDD）
-            end_date: 结束日期（YYYYMMDD）
-        
-        Returns:
-            holding_days: 持有天数
-        """
-        from datetime import datetime
-        
-        try:
-            start_dt = datetime.strptime(start_date, '%Y%m%d')
-            end_dt = datetime.strptime(end_date, '%Y%m%d')
-            return (end_dt - start_dt).days
-        except Exception as e:
-            logger.error(f"计算持有天数失败: {e}")
-            return 0
     
     def _get_date_before(self, date: str, days: int) -> str:
         """

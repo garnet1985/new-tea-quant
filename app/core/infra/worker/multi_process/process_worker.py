@@ -20,6 +20,10 @@ from dataclasses import dataclass
 from datetime import datetime
 import os
 
+# Worker 配置
+from app.core.infra.worker.multi_process.task_type import TaskType
+from app.core.config.worker_config import get_module_config
+
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -78,6 +82,102 @@ class ProcessWorker:
     ✅ 实时进度监控
     ✅ 内存使用监控
     """
+    
+    # =========================================================================
+    # 静态方法：Worker 数量计算
+    # =========================================================================
+    
+    @staticmethod
+    def calculate_workers(
+        task_type: TaskType,
+        reserve_cores: int = 2
+    ) -> int:
+        """
+        根据任务类型计算建议的 worker 数量
+        
+        Args:
+            task_type: 任务类型（CPU_INTENSIVE / IO_INTENSIVE / MIXED）
+            reserve_cores: 预留核心数（给系统和其他进程）
+        
+        Returns:
+            建议的 worker 数量（至少为 1）
+        """
+        cpu_count = mp.cpu_count() or 1
+        
+        if task_type == TaskType.CPU_INTENSIVE:
+            # CPU 密集型：使用物理核心数 - 预留
+            # 假设超线程：物理核心 ≈ cpu_count / 2
+            physical_cores = max(1, cpu_count // 2)
+            return max(1, physical_cores - reserve_cores)
+        
+        elif task_type == TaskType.IO_INTENSIVE:
+            # I/O 密集型：可以使用全部逻辑核心（等待 I/O 时 CPU 闲置）
+            return max(2, cpu_count - reserve_cores + 1)
+        
+        else:  # MIXED（默认）
+            # 混合型：使用逻辑核心数 - 预留
+            return max(1, cpu_count - reserve_cores)
+    
+    @staticmethod
+    def resolve_max_workers(
+        max_workers: Union[str, int],
+        module_name: str
+    ) -> int:
+        """
+        解析 max_workers 参数（支持 'auto' 或数字）
+        
+        Args:
+            max_workers: 
+                - 'auto': 自动计算（根据模块配置）
+                - 数字: 手动指定（会做保护）
+            module_name: 模块名称（用于查找配置）
+        
+        Returns:
+            实际使用的 worker 数量
+        
+        示例:
+            >>> ProcessWorker.resolve_max_workers('auto', 'OpportunityEnumerator')
+            6  # 根据 CPU 和任务类型自动计算
+            
+            >>> ProcessWorker.resolve_max_workers(10, 'OpportunityEnumerator')
+            10  # 手动指定，通过验证
+            
+            >>> ProcessWorker.resolve_max_workers(99999, 'OpportunityEnumerator')
+            32  # 手动指定但超过上限，自动保护
+        """
+        # 1. 如果是 'auto'，自动计算
+        if isinstance(max_workers, str) and max_workers.lower() == 'auto':
+            # 从配置获取任务类型
+            config = get_module_config(module_name)
+            task_type = config['task_type']
+            reserve_cores = config['reserve_cores']
+            
+            calculated = ProcessWorker.calculate_workers(task_type, reserve_cores)
+            
+            logger.info(
+                f"✅ Worker 数量（自动）: {calculated} "
+                f"(模块={module_name}, 类型={task_type.value}, "
+                f"CPU核心={mp.cpu_count()}, 预留={reserve_cores})"
+            )
+            
+            return calculated
+        else:
+            # 手动指定：做保护
+            validated = ProcessWorker._validate_workers(max_workers)
+            
+            if validated != max_workers:
+                logger.warning(
+                    f"⚠️ Worker 数量超过上限，已调整: {max_workers} → {validated} "
+                    f"(最大允许: {mp.cpu_count() * 2})"
+                )
+            else:
+                logger.info(f"✅ Worker 数量（手动）: {validated}")
+            
+            return validated
+    
+    # =========================================================================
+    # 实例方法
+    # =========================================================================
     
     def __init__(self, 
                  max_workers: Optional[int] = None,

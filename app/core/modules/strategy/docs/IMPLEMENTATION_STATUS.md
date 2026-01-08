@@ -1,282 +1,337 @@
 # Strategy 系统实现状态
 
-**日期**: 2025-12-19  
-**状态**: ✅ 核心组件实现完成
+**日期**: 2026-01-08  
+**状态**: 🔄 设计完成，待实施
 
 ---
 
-## ✅ 已完成的实现
+## 📋 核心设计决策
 
-### 1. 核心模型 (100%)
+### 1. Settings 设计：字典结构（保持一致性）
 
-- ✅ **StrategySettings** - 灵活的配置模型（支持用户复杂配置）
-- ✅ **Opportunity** - 投资机会模型（完整字段）
-- ✅ **枚举类** - ExecutionMode, OpportunityStatus, SellReason
+**决策**：使用字典结构，与项目其他模块保持一致。
 
-### 2. 核心组件 (100%)
+**结构**：
+- per strategy 配置：`strategies/{name}/settings.py`（字典）
+- 全局配置：`strategies/global_settings.py`（只有 Allocation）
 
-- ✅ **StrategyManager** (748 行)
-  - ✅ 策略发现：`_discover_strategies()`
-  - ✅ Scanner 执行：`scan()`（支持单个或全部 enabled 策略）
-  - ✅ Simulator 执行：`simulate()`（支持单个或全部 enabled 策略）
-  - ✅ 作业构建：`_build_scan_jobs()`, `_build_simulate_jobs()`
-  - ✅ 多进程执行：`_execute_jobs()`, `_execute_single_job()`
-  - ✅ 全局缓存：`_load_global_cache()`
-  - ✅ 股票列表获取：`_get_stock_list()`（支持 6 种采样策略）
-  - ✅ Performance 配置：`_get_max_workers()`（支持 "auto"）
-
-- ✅ **BaseStrategyWorker** (445 行)
-  - ✅ 生命周期管理：`run()`
-  - ✅ Scanner 执行：`_execute_scan()`
-  - ✅ Simulator 执行：`_execute_simulate()`
-  - ✅ 自动回测：`_auto_simulate_opportunity()`（200+ 行）
-    - ✅ 分段止损
-    - ✅ 分段止盈
-    - ✅ 保本止损
-    - ✅ 动态止损
-    - ✅ 到期平仓
-    - ✅ Actions 支持
-  - ✅ 抽象方法：`scan_opportunity()`
-  - ✅ 钩子方法：`on_init()`, `on_before_scan()`, 等
-
-- ✅ **StrategyWorkerDataManager** (318 行)
-  - ✅ Scanner 数据加载：`load_latest_data()`
-  - ✅ Simulator 数据加载：`load_historical_data()`
-  - ✅ K线加载：`_load_klines()`（使用 DataManager API）
-  - ✅ 实体数据加载：`_load_entity()`
-    - ✅ Tag 数据：`_load_tag_data()`
-    - ✅ 财务数据：`_load_finance_data()`
-    - ✅ 宏观数据：`_load_macro_data()`
-  - ✅ 交易日获取：`_get_latest_trading_date()`
-  - ✅ 日期计算：`_get_date_before()`
-  - ✅ 数据访问：`get_klines()`, `get_entity_data()`
-
-- ✅ **OpportunityService** (295 行)
-  - ✅ Scanner 结果保存：`save_scan_opportunities()`
-  - ✅ Simulator 结果保存：`save_simulate_opportunities()`
-  - ✅ 机会加载：`load_scan_opportunities()`
-  - ✅ Summary 保存：`save_scan_summary()`, `save_simulate_summary()`
-  - ✅ 配置保存：`save_scan_config()`, `save_simulate_config()`
-  - ✅ Summary 计算：`_calculate_summary()`
-  - ✅ Latest 软链接：`_update_latest_link()`
-
-- ✅ **SessionManager** (84 行)
-  - ✅ Session ID 生成：`create_session()`
-  - ✅ Meta 文件管理：`_load_meta()`, `_save_meta()`
-
-- ✅ **IndicatorService** (446 行) - **新增**
-  - ✅ Proxy 模式：代理 pandas-ta-classic 的 150+ 指标
-  - ✅ 便捷 API：8 个常用指标
-    - ✅ `ma()` - 简单移动平均
-    - ✅ `ema()` - 指数移动平均
-    - ✅ `rsi()` - 相对强弱指标
-    - ✅ `macd()` - MACD 指标
-    - ✅ `bbands()` - 布林带
-    - ✅ `atr()` - 真实波动幅度
-    - ✅ `stoch()` - 随机指标（KDJ）
-    - ✅ `adx()` - 平均趋向指数
-    - ✅ `obv()` - 能量潮
-  - ✅ 通用 API：`calculate()` - 支持所有指标
-  - ✅ 数据转换：`List[Dict]` ↔ `DataFrame` 自动转换
-  - ✅ 工具方法：`list_indicators()`, `get_indicator_help()`
-  - ✅ 静态工具类：无需实例化
-  - ✅ 延迟加载：首次使用时加载 pandas-ta-classic
-  - ✅ 完整测试：所有功能测试通过
-
-### 3. 示例策略 (100%)
-
-- ✅ **ExampleStrategyWorker** (84 行)
-  - ✅ 买入信号实现：`scan_opportunity()`
-  - ✅ 简化为只需实现 scan（回测由框架自动完成）
-
-- ✅ **Example Settings** (219 行)
-  - ✅ 完整的配置示例
-  - ✅ 复杂的 goal 配置（分段止盈止损、动态止损等）
-
-### 4. 文档 (100%)
-
-- ✅ **DESIGN.md** (1444 行) - 完整设计文档
-- ✅ **CHANGES.md** (303 行) - 重构总结
-- ✅ **PSEUDOCODE_SUMMARY.md** (286 行) - 伪代码总结
-- ✅ **IMPLEMENTATION_STATUS.md** - 本文档
-
----
-
-## 📊 代码统计
-
-| 组件 | 文件数 | 行数 | 状态 |
-|------|--------|------|------|
-| 核心管理器 | 1 | 748 | ✅ 完成 |
-| Worker 基类 | 1 | 445 | ✅ 完成 |
-| 数据管理 | 1 | 318 | ✅ 完成 |
-| 服务组件 | 2 | 379 | ✅ 完成 |
-| Indicator 组件 | 1 | 446 | ✅ 完成 |
-| 模型 | 3 | 278 | ✅ 完成 |
-| 示例策略 | 2 | 303 | ✅ 完成 |
-| 文档 | 2 | 1800+ | ✅ 完成 |
-| **总计** | **13** | **~4717** | **✅ 完成** |
-
----
-
-## 🎯 核心特性
-
-### 1. 灵活的 Settings 支持
-
-- ✅ 支持复杂的 legacy 配置结构
-- ✅ 支持 `is_enabled` 开关
-- ✅ 支持 `klines.indicators` 配置
-- ✅ 支持 6 种采样策略
-- ✅ 支持复杂的 `goal` 配置（分段止盈止损等）
-- ✅ 支持 `performance.max_workers = "auto"`
-
-### 2. 自动回测引擎
-
-- ✅ 用户只需实现 `scan_opportunity()`
-- ✅ 框架根据 `goal` 配置自动执行回测
-- ✅ 支持分段止损（stages）
-- ✅ 支持分段止盈（stages + actions）
-- ✅ 支持保本止损（protect_loss）
-- ✅ 支持动态止损（dynamic_loss）
-- ✅ 支持到期平仓（expiration）
-
-### 3. 多进程执行
-
-- ✅ 使用 ProcessWorker（QUEUE 模式）
-- ✅ 动态加载 Worker 类
-- ✅ 自动进程数管理（支持 "auto"）
-- ✅ 完整的错误处理和日志
-
-### 4. 数据加载
-
-- ✅ 集成现有 DataManager API
-- ✅ 支持 K线加载（多周期、复权）
-- ✅ 支持 Tag 数据加载
-- ✅ 支持财务数据加载
-- ✅ 支持宏观数据加载
-- ✅ 智能缓存管理
-
-### 5. 股票采样
-
-- ✅ uniform - 均匀采样
-- ✅ stratified - 分层采样（按市场）
-- ✅ random - 随机采样
-- ✅ continuous - 连续采样
-- ✅ pool - 股票池采样
-- ✅ blacklist - 黑名单采样
-
-### 6. 结果存储
-
-- ✅ JSON 文件存储（直观易读）
-- ✅ 按日期/session 组织
-- ✅ 配置文件保存（确保可复现）
-- ✅ Summary 汇总
-- ✅ Latest 软链接
-
-### 7. 技术指标计算
-
-- ✅ 基于 pandas-ta-classic（150+ 指标）
-- ✅ Proxy 模式（不搬运代码）
-- ✅ 便捷 API（常用指标）
-- ✅ 通用 API（所有指标）
-- ✅ 自动数据转换
-- ✅ 按需计算（不缓存）
-- ✅ 静态工具类
-
----
-
-## 🔄 与 Tag 系统对比
-
-| 特性 | Tag 系统 | Strategy 系统 | 状态 |
-|------|----------|--------------|------|
-| Manager-Worker 模式 | ✅ | ✅ | 完成 |
-| 动态加载 Worker | ✅ | ✅ | 完成 |
-| 多进程执行 | ✅ | ✅ | 完成 |
-| 数据管理器 | ✅ | ✅ | 完成 |
-| 灵活配置 | ✅ | ✅ | 完成 |
-| 全局缓存 | ✅ | ✅ | 完成 |
-| 枚举类型 | ✅ | ✅ | 完成 |
-| 进度监控 | ✅ | ✅ (由 ProcessWorker 提供) | 完成 |
-
----
-
-## 🚀 集成和测试
-
-### 集成的现有组件
-
-- ✅ **DataManager** - 数据加载API
-- ✅ **ProcessWorker** - 多进程执行
-- ✅ **StockDataService** - 股票服务
-- ✅ **全局枚举** - EntityType, KlineTerm, AdjustType
-
-### 待测试功能
-
-- [ ] **基础功能测试**
-  - [ ] 策略发现
-  - [ ] Scanner 执行（单个策略）
-  - [ ] Scanner 执行（全部 enabled 策略）
-  - [ ] Simulator 执行
-  - [ ] 配置文件保存
-
-- [ ] **数据加载测试**
-  - [ ] K线加载
-  - [ ] Tag 数据加载
-  - [ ] 财务数据加载
-  - [ ] 采样策略测试
-
-- [ ] **自动回测测试**
-  - [ ] 分段止损
-  - [ ] 分段止盈
-  - [ ] 保本止损
-  - [ ] 动态止损
-  - [ ] 到期平仓
-
-- [x] **Indicator 测试**
-  - [x] MA 计算
-  - [x] RSI 计算
-  - [x] MACD 计算
-  - [x] BBANDS 计算
-  - [x] 通用 API（CCI, ATR）
-  - [x] 数据转换
-
----
-
-## 📋 下一步计划
-
-### 1. 测试和调试
-
-```bash
-# 1. 测试策略发现
-python -c "from app.core.modules.strategy import StrategyManager; m = StrategyManager(); print(m.list_strategies())"
-
-# 2. 测试 Scanner（示例策略）
-python app/core/modules/strategy/strategy_manager.py scan example
-
-# 3. 测试 Scanner（全部 enabled）
-python app/core/modules/strategy/strategy_manager.py scan
-
-# 4. 测试 Simulator
-python app/core/modules/strategy/strategy_manager.py simulate example
+**分层**：
+```python
+settings = {
+    "data": {...},           # 数据配置
+    "sampling": {...},       # 股票采样（per strategy）
+    "simulator": {...},      # Simulator 专用
+    "performance": {...}     # 性能配置（per strategy）
+}
 ```
 
-### 2. 完善功能
+---
 
-- [x] 添加指标计算支持（IndicatorService）✅
-- [ ] 完善 Summary 统计（更多指标）
-- [ ] 添加结果可视化
-- [ ] 添加回测报告生成
+### 2. Indicators 配置：统一数组格式
 
-### 3. 性能优化
+**决策**：所有指标都用数组，参数统一。
 
-- [ ] 数据预加载优化
-- [ ] 缓存策略优化
-- [ ] 内存使用监控
+**格式**：
+```python
+"indicators": {
+    "ma": [{"period": 5}, {"period": 10}],
+    "rsi": [{"period": 14}],
+    "macd": [{"fast": 12, "slow": 26, "signal": 9}]
+}
+```
 
-### 4. 文档完善
+**适用范围**：只用于 K 线数据（不用于 GDP、财务数据等）
 
-- [ ] 用户使用指南
-- [ ] API 文档
-- [ ] 策略开发教程
+**工作流**：
+1. 用户配置 → 2. 框架自动计算 → 3. 添加到 klines → 4. 用户直接使用
 
 ---
 
-**实现完成！准备测试！** 🎉
+### 3. Pools/Blacklists：per strategy + 纯文本
+
+**决策**：pools 和 blacklists 在策略文件夹下，纯文本格式。
+
+**结构**：
+```
+strategies/example/
+├── pools/
+│   └── high_quality.txt    # 纯文本，一行一个股票代码
+└── blacklists/
+    └── st_stocks.txt
+```
+
+**配置**：
+```python
+"pool": {
+    "id_list_path": "pools/high_quality.txt"  # 相对路径
+}
+```
+
+---
+
+### 4. OpportunityEnumerator 存储：CSV 双表
+
+**决策**：CSV 双表（opportunities + targets）+ JSON 元信息
+
+**原因**：数据量大，JSON 性能不够，CSV 文件小 5-8 倍，加载快 5 倍。
+
+---
+
+
+
+## 📋 实施计划
+
+### Phase 1: Opportunity 模型增强 + OpportunityEnumerator（3 天）✅
+
+**目标**：建立 Layer 0（底层公用组件）
+
+**任务**：
+1. **Opportunity 模型增强**（1 天）✅
+   - [x] 添加 `check_targets()` 实例方法（止盈止损检查）
+   - [x] 添加 `settle()` 实例方法（强制结算）
+   - [x] 添加 `completed_targets` 字段（枚举器专用）
+   - [x] Simulator 适配验证（使用实例方法）
+
+2. **OpportunityEnumerator**（2 天）✅
+   - [x] 实现完整枚举（每天都扫描）
+   - [x] 实现 CSV 双表存储（opportunities.csv + targets.csv）
+   - [x] 实现多进程并行
+   - [x] 使用 Opportunity 实例方法
+   - [x] 简化设计（去掉 mode、signal_window、use_cache）
+
+**产出**：✅
+- `app/core/modules/strategy/models/opportunity.py`（增强的模型）
+  - `check_targets()` - 止盈止损检查
+  - `settle()` - 强制结算
+  - `completed_targets` - 完成目标列表
+- `app/core/modules/strategy/components/opportunity_enumerator/`
+  - `opportunity_enumerator.py`（Manager）
+  - `enumerator_worker.py`（Worker）
+  - `__init__.py`（模块入口）
+  - `README.md`（使用文档）
+
+**设计决策**：
+- ❌ 删除 `mode`/`signal_window`：只保留完整枚举
+- ❌ 删除 `use_cache`：专注于生成，不管理缓存
+- ✅ 每次重新计算：保证结果最新
+- ✅ 简单 > 复杂：职责单一
+
+---
+
+### Phase 2: CapitalAllocationSimulator 核心（2 天）
+
+**目标**：实现资金分配模拟核心逻辑
+
+**任务**：
+1. **Step 1: 获取 Opportunities**（0.5 天）
+   - [ ] 配置验证
+   - [ ] 调用 OpportunityEnumerator.enumerate()
+   - [ ] 添加策略信息（priority）
+
+2. **Step 2: Timeline 构建**（0.5 天）
+   - [ ] 事件驱动 Timeline
+   - [ ] 买卖事件排序（先卖后买）
+
+3. **Step 3: 执行模拟**（0.5 天）
+   - [ ] Account 管理
+   - [ ] 按时间轴推进
+   - [ ] 优先级排序
+   - [ ] 持仓管理
+
+4. **Step 4: 结果输出**（0.5 天）
+   - [ ] 统计计算
+   - [ ] JSON 保存
+   - [ ] 控制台输出
+
+**产出**：
+- `app/core/modules/capital_allocation_simulator/`
+  - `capital_allocation_simulator.py`（主类）
+  - `timeline_builder.py`（Timeline 构建）
+  - `account.py`（账户管理）
+  - `models.py`（数据模型）
+
+---
+
+### Phase 3: 测试和验证（2 天）
+
+**任务**：
+- [ ] OpportunityEnumerator 单元测试
+- [ ] CapitalAllocationSimulator 单元测试
+- [ ] 端到端集成测试
+- [ ] 性能测试（CSV 加载速度）
+- [ ] 对比验证
+
+---
+
+### Phase 4: 文档和示例（1 天）
+
+**任务**：
+- [ ] Settings 模板（单文件 + 类分层）
+- [ ] 用户使用教程
+- [ ] 配置说明
+- [ ] 示例代码
+
+---
+
+## 📊 当前状态
+
+### ✅ 已完成
+
+**核心架构设计**：
+- ✅ 四层架构（Layer 0-3）
+- ✅ OpportunityEnumerator 设计
+- ✅ CapitalAllocationSimulator 设计
+- ✅ CSV 双表存储方案
+- ✅ Settings 设计（类分层 + 继承）
+- ✅ 设计文档（506 行，精简版）
+
+**已实施模块**：
+- ✅ StrategyManager（748 行）
+- ✅ BaseStrategyWorker（445 行）
+- ✅ StrategyWorkerDataManager（318 行）
+- ✅ OpportunityService（295 行）
+- ✅ SessionManager（84 行）
+- ✅ IndicatorService（446 行）
+- ✅ Opportunity 模型
+- ✅ StrategySettings 模型
+
+---
+
+### 🔄 待实施（按 Phase 顺序）
+
+| Phase | 模块 | 预计时间 | 优先级 | 状态 |
+|-------|------|---------|--------|------|
+| Phase 1 | OpportunityCalculator | 1 天 | P0 | ⏳ 待开始 |
+| Phase 1 | OpportunityEnumerator | 2 天 | P0 | ⏳ 待开始 |
+| Phase 2 | CapitalAllocationSimulator | 2 天 | P0 | ⏳ 待开始 |
+| Phase 3 | 测试验证 | 2 天 | P0 | ⏳ 待开始 |
+| Phase 4 | 文档示例 | 1 天 | P1 | ⏳ 待开始 |
+
+**总计**：8 天（1.5 周）
+
+---
+
+## 🎯 核心技术栈
+
+### Layer 0: OpportunityEnumerator
+
+**存储方案**：CSV 双表
+```
+opportunities.csv  # 主表（~500 KB）
+targets.csv       # 子表（~800 KB）
+metadata.json     # 元信息（~5 KB）
+```
+
+**性能指标**：
+- 文件大小：1-2 MB（vs JSON 5-10 MB）
+- 加载速度：0.1-0.2 秒（vs JSON 0.5-1 秒）
+- 用户友好：Excel 直接打开
+
+**技术选型**：
+- pandas：CSV 读写
+- multiprocessing：并行枚举
+
+---
+
+### Layer 3: CapitalAllocationSimulator
+
+**核心算法**：
+- Timeline 构建：事件驱动（O(N) vs 时钟 Tick O(N×D)）
+- 买卖顺序：先卖后买
+- 优先级排序：用户定义
+
+**数据模型**：
+- Account（账户）
+- Position（持仓）
+- ExecutionRecord（执行记录）
+
+---
+
+## 📈 性能目标
+
+| 指标 | 目标值 | 测试场景 |
+|------|--------|---------|
+| OpportunityEnumerator（简化版） | < 5 秒 | 100 股票，3 天窗口 |
+| OpportunityEnumerator（完整版） | < 30 秒 | 100 股票，250 天，多进程 |
+| CSV 加载 | < 0.2 秒 | 5000 opportunities |
+| Timeline 构建 | < 1 秒 | 5000 opportunities |
+| Allocation 模拟 | < 5 秒 | 2 策略，100 股票，1 年 |
+
+---
+
+## 🔧 开发环境要求
+
+**Python 版本**：3.8+
+
+**核心依赖**：
+- pandas >= 2.0.0（CSV 读写）
+- numpy >= 1.24.0
+- pandas-ta-classic >= 0.3.59（技术指标）
+
+**新增依赖**：无（复用现有）
+
+---
+
+## ✅ 验收标准
+
+### Phase 1: OpportunityEnumerator
+
+- [ ] 能够枚举单个策略的所有 opportunities
+- [ ] CSV 文件正确生成（opportunities.csv + targets.csv）
+- [ ] 缓存正确加载（pandas 读取）
+- [ ] 多版本管理正常（latest 软链接）
+- [ ] 性能达标（< 5 秒，简化版）
+
+### Phase 2: CapitalAllocationSimulator
+
+- [ ] 能够加载多个策略的 opportunities
+- [ ] Timeline 正确构建（事件驱动）
+- [ ] 资金约束正确执行（买入 vs 跳过）
+- [ ] 优先级排序正确
+- [ ] 统计结果正确（总收益、胜率等）
+
+### Phase 3: 集成测试
+
+- [ ] 端到端流程通过（Simulator → Enumerator → Allocation）
+- [ ] 性能达标（全流程 < 1 分钟）
+- [ ] 结果可复现
+
+---
+
+## 🚀 快速开始（Phase 1 完成后）
+
+```python
+# 1. 枚举 opportunities
+from app.core.modules.opportunity_enumerator import OpportunityEnumerator
+
+all_opps = OpportunityEnumerator.enumerate(
+    strategy_name='momentum',
+    start_date='20230101',
+    end_date='20231231',
+    stock_list=['000001.SZ', '000002.SZ'],
+    mode='simplified',
+    signal_window=3
+)
+
+# 2. 运行资金分配模拟
+from app.core.modules.capital_allocation_simulator import CapitalAllocationSimulator
+
+simulator = CapitalAllocationSimulator({
+    'strategies': [
+        {'name': 'momentum', 'priority': 1},
+        {'name': 'value', 'priority': 2}
+    ],
+    'capital': {
+        'initial_capital': 100000,
+        'fixed_amount_per_trade': 5000
+    }
+})
+
+result = simulator.run()
+print(f"最终资金: {result['final_capital']}")
+print(f"总收益: {result['total_return']}")
+```
+
+---
+
+**下一步**：开始 Phase 1 实施！🎯

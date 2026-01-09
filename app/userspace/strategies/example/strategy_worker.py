@@ -46,29 +46,16 @@ class ExampleStrategyWorker(BaseStrategyWorker):
             Opportunity: 如果发现买入信号
             None: 如果没有发现机会
         """
-        # 1. 获取配置参数（从 settings 参数中获取）
-        core_config = settings.get('core', {})
-        data_config = settings.get('data', {})
-        indicators_cfg = (data_config.get('indicators') or {}).get('rsi') or []
-
-        # RSI 周期仅从 indicators 中读取，避免与 core 重复配置
-        if indicators_cfg and isinstance(indicators_cfg, list):
-            rsi_length = int(indicators_cfg[0].get('period', 14))
-        else:
-            rsi_length = 14
-
-        # 超卖阈值仍然放在 core 中
-        rsi_threshold = core_config.get('rsi_oversold_threshold', 35)
+        core_config = settings['core']
+        rsi_length = int(settings['data']['indicators']['rsi'][0].get('period'))
         
-        # 2. 从 data 参数中获取 K-line 数据（避免 IO 操作）
         klines = data.get('klines', [])
+
         if not klines or len(klines) < rsi_length:
             return None  # 数据不足，无法计算 RSI
         
-        # 3. 获取最新 K 线（K 线数据已包含技术指标，直接从字段中读取）
         latest_kline = klines[-1]
         
-        # 4. 从 K 线中读取 RSI 值（指标已在数据准备阶段计算并写入）
         rsi_field = f'rsi{rsi_length}'
         latest_rsi = latest_kline.get(rsi_field)
 
@@ -76,13 +63,9 @@ class ExampleStrategyWorker(BaseStrategyWorker):
         if latest_rsi is None:
             return None
         
-        # 5. 判断买入条件：RSI 低于超卖阈值（例如 35）
-        if latest_rsi >= rsi_threshold:
+        if latest_rsi >= core_config['rsi_oversold_threshold']:
             return None
         
-        # 5. 发现买入机会！
-        # 注意：不需要手动构建 stock_info，框架会自动使用 Worker 预加载的完整股票信息
-        # 如果用户提供了 stock，会与预加载的信息合并；如果没提供，框架会自动使用预加载的信息
         return Opportunity(
             stock=self.stock_info,  # 使用 Worker 预加载的完整股票信息
             record_of_today=latest_kline,

@@ -173,6 +173,20 @@ class OpportunityEnumeratorWorker:
                     'opportunity_count': 0,
                 }
             
+            # 3.1 数据质量检查：如果股票的总 K 线数 < min_required_records，跳过这个股票
+            min_required_kline = self.settings.min_required_records
+            if len(all_klines) < min_required_kline:
+                logger.warning(
+                    f"股票数据不足: stock={self.stock_id}, "
+                    f"total_klines={len(all_klines)}, "
+                    f"min_required={min_required_kline}"
+                )
+                return {
+                    'success': True,
+                    'stock_id': self.stock_id,
+                    'opportunity_count': 0,
+                }
+            
             # 4. 初始化追踪器（⭐ 支持多投资）
             tracker = {
                 'stock_id': self.stock_id,
@@ -180,9 +194,6 @@ class OpportunityEnumeratorWorker:
                 'active_opportunities': [],  # ⭐ 改为列表
                 'all_opportunities': []      # ⭐ 所有机会（包含已完成和未完成）
             }
-            
-            # 5. 获取最小所需 K 线数
-            min_required_kline = self.settings.min_required_records
             
             # 6. 逐日遍历 K 线
             t_enum_start = time.perf_counter()

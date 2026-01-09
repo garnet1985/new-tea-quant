@@ -13,29 +13,32 @@ class StrategySettings:
     """
     策略配置（基于字典的灵活配置）
     
-    用户 settings 结构：
+    用户 settings 结构（新格式）：
     {
         "name": "strategy_name",
         "description": "...",
         "is_enabled": True/False,
         "core": {...},
-        "klines": {
+        "data": {
             "base": "stock_kline_daily",
-            "min_required_base_records": 1000,
             "adjust": "qfq",
-            "indicators": {...}
+            "min_required_records": 1000,
+            "indicators": {...},
+            "required_entities": [...]
         },
-        "required_entities": [...],
-        "simulation": {
+        "sampling": {
+            "strategy": "random",
+            "sampling_amount": 50,
+            ...
+        },
+        "simulator": {
             "start_date": "",
             "end_date": "",
-            "sampling_amount": 10,
-            "sampling": {...}
-        },
-        "goal": {
-            "expiration": {...},
-            "stop_loss": {...},
-            "take_profit": {...}
+            "goal": {
+                "expiration": {...},
+                "stop_loss": {...},
+                "take_profit": {...}
+            }
         },
         "performance": {
             "max_workers": "auto" or int
@@ -60,17 +63,17 @@ class StrategySettings:
         # 核心配置
         self.core = settings_dict.get('core', {})
         
-        # K线配置
-        self.klines = settings_dict.get('klines', {})
+        # 数据配置（新格式：使用 "data" 字段）
+        self.data = settings_dict.get('data', {})
         
-        # 依赖实体
-        self.required_entities = settings_dict.get('required_entities', [])
+        # 采样配置（新格式：顶层 "sampling"）
+        self.sampling = settings_dict.get('sampling', {})
         
-        # 模拟配置
-        self.simulation = settings_dict.get('simulation', {})
+        # Simulator 配置（新格式：使用 "simulator" 字段）
+        self.simulator = settings_dict.get('simulator', {})
         
-        # 投资目标配置
-        self.goal = settings_dict.get('goal', {})
+        # 投资目标配置（在 simulator.goal 中）
+        self.goal = self.simulator.get('goal', {})
         
         # 性能配置
         self.performance = settings_dict.get('performance', {})
@@ -82,42 +85,47 @@ class StrategySettings:
     @property
     def base_kline_type(self) -> str:
         """基础 K线 类型"""
-        return self.klines.get('base', 'stock_kline_daily')
+        return self.data.get('base', 'stock_kline_daily')
     
     @property
     def min_required_records(self) -> int:
         """最小要求记录数"""
-        return self.klines.get('min_required_base_records', 1000)
+        return self.data.get('min_required_records', 1000)
     
     @property
     def adjust_type(self) -> str:
         """复权类型"""
-        return self.klines.get('adjust', 'qfq')
+        return self.data.get('adjust', 'qfq')
     
     @property
     def indicators(self) -> Dict[str, Any]:
         """技术指标配置"""
-        return self.klines.get('indicators', {})
+        return self.data.get('indicators', {})
+    
+    @property
+    def required_entities(self) -> list:
+        """依赖实体列表"""
+        return self.data.get('required_entities', [])
     
     @property
     def start_date(self) -> str:
         """模拟开始日期"""
-        return self.simulation.get('start_date', '')
+        return self.simulator.get('start_date', '')
     
     @property
     def end_date(self) -> str:
         """模拟结束日期"""
-        return self.simulation.get('end_date', '')
+        return self.simulator.get('end_date', '')
     
     @property
     def sampling_amount(self) -> int:
         """采样数量"""
-        return self.simulation.get('sampling_amount', 10)
+        return self.sampling.get('sampling_amount', 10)
     
     @property
     def sampling_config(self) -> Dict[str, Any]:
         """采样配置"""
-        return self.simulation.get('sampling', {})
+        return self.sampling
     
     @property
     def max_workers(self) -> Any:

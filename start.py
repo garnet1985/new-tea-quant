@@ -116,7 +116,7 @@ class App:
             self.tag_manager = TagManager(is_verbose=self.is_verbose)
         self.tag_manager.execute(scenario_name=scenario_name)
     
-    def enumerate(self, strategy_name: str = 'example', stock_count: int = 2):
+    def enumerate(self, strategy_name: str = 'random', stock_count: int = 2):
         """
         枚举投资机会（测试用）
         

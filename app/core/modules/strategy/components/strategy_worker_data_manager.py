@@ -19,6 +19,8 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 import logging
 
+from app.core.modules.indicator import IndicatorService
+
 logger = logging.getLogger(__name__)
 
 
@@ -92,6 +94,9 @@ class StrategyWorkerDataManager:
         
         klines = self._load_klines(start_date, latest_date, term, adjust)
         self._current_data['klines'] = klines
+
+        # 4.1 计算技术指标（仅基于 K 线，一次性完成）
+        self._apply_indicators()
         
         logger.debug(f"加载最新数据: stock={self.stock_id}, term={term}, "
                     f"records={len(klines)}, date_range={start_date}-{latest_date}")
@@ -127,6 +132,9 @@ class StrategyWorkerDataManager:
         
         klines = self._load_klines(start_date, end_date, term, adjust)
         self._current_data['klines'] = klines
+
+        # 1.1 计算技术指标（仅基于 K 线，一次性完成）
+        self._apply_indicators()
         
         logger.debug(f"加载历史数据: stock={self.stock_id}, term={term}, "
                     f"records={len(klines)}, date_range={start_date}-{end_date}")
@@ -288,6 +296,118 @@ class StrategyWorkerDataManager:
     # =========================================================================
     # 私有方法
     # =========================================================================
+
+    def _apply_indicators(self) -> None:
+        """
+        根据 settings.data.indicators 使用 IndicatorService 计算指标，
+        并将结果直接写回到 K 线字典中。
+
+        重要：
+        - 在子进程中对“单只股票 + 整个时间区间”一次性计算
+        - 后续通过 get_data_until(date) 游标切片时，只会看到 date 之前的数据，避免上帝模式
+        """
+        indicators_cfg = getattr(self.settings, "indicators", None)
+        klines = self._current_data.get("klines") or []
+
+        if not indicators_cfg or not klines:
+            return
+
+        for name, configs in indicators_cfg.items():
+            if not configs:
+                continue
+            # 统一为列表
+            if not isinstance(configs, list):
+                configs = [configs]
+
+            for cfg in configs:
+                try:
+                    if name.lower() == "ma":
+                        length = cfg.get("period") or cfg.get("length")
+                        if not length:
+                            continue
+                        values = IndicatorService.ma(klines, length=int(length))
+                        if not values:
+                            continue
+                        field = f"ma{length}"
+                        for rec, val in zip(klines, values):
+                            rec[field] = val
+
+                    elif name.lower() == "ema":
+                        length = cfg.get("period") or cfg.get("length")
+                        if not length:
+                            continue
+                        values = IndicatorService.ema(klines, length=int(length))
+                        if not values:
+                            continue
+                        field = f"ema{length}"
+                        for rec, val in zip(klines, values):
+                            rec[field] = val
+
+                    elif name.lower() == "rsi":
+                        length = cfg.get("period") or cfg.get("length")
+                        if not length:
+                            continue
+                        values = IndicatorService.rsi(klines, length=int(length))
+                        if not values:
+                            continue
+                        # 如果只有一个 RSI，可以直接叫 'rsi'；多个周期时加后缀
+                        field = "rsi" if len(indicators_cfg.get("rsi", [])) == 1 else f"rsi{length}"
+                        for rec, val in zip(klines, values):
+                            rec[field] = val
+
+                    elif name.lower() == "macd":
+                        # macd 返回 dict: {'macd': [...], 'macds': [...], 'macdh': [...]}
+                        fast = cfg.get("fast", 12)
+                        slow = cfg.get("slow", 26)
+                        signal = cfg.get("signal", 9)
+                        result = IndicatorService.macd(klines, fast=int(fast), slow=int(slow), signal=int(signal))
+                        if not result:
+                            continue
+                        for key, series in result.items():
+                            # 字段名如 macd, macds, macdh
+                            for rec, val in zip(klines, series):
+                                rec[key] = val
+
+                    else:
+                        # 通用入口：IndicatorService.calculate
+                        result = IndicatorService.calculate(name, klines, **cfg)
+                        if not result:
+                            continue
+                        # 单列：直接生成一个字段名
+                        if isinstance(result, list):
+                            field = self._build_indicator_field_name(name, cfg)
+                            for rec, val in zip(klines, result):
+                                rec[field] = val
+                        # 多列：result 是 dict[str, list]
+                        elif isinstance(result, dict):
+                            for key, series in result.items():
+                                field = self._build_indicator_field_name(f"{name}_{key}", cfg)
+                                for rec, val in zip(klines, series):
+                                    rec[field] = val
+                except Exception as e:
+                    logger.error(f"计算指标失败: stock={self.stock_id}, indicator={name}, params={cfg}, error={e}")
+
+    def _build_indicator_field_name(self, name: str, params: Dict[str, Any]) -> str:
+        """
+        根据指标名和参数生成一个简洁可读的字段名。
+
+        约定（尽量与设计文档保持一致）：
+        - ma + period=5   -> ma5
+        - rsi + period=14 -> rsi14
+        - 其他：name_keyValueKeyValue... （例如 cci_len20 -> cci20）
+        """
+        name = name.lower()
+        period = params.get("period") or params.get("length")
+        if period is not None and isinstance(period, (int, float, str)):
+            return f"{name}{int(period)}"
+
+        # 无明显 period 时，退化为 name 加上关键参数的摘要
+        parts = [name]
+        for k in sorted(params.keys()):
+            v = params[k]
+            if isinstance(v, (int, float, str)):
+                parts.append(f"{k}{v}")
+        return "_".join(parts)
     
     def _load_klines(
         self, 

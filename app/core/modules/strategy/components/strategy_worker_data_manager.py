@@ -209,12 +209,29 @@ class StrategyWorkerDataManager:
         # 1. 处理 K线 数据
         klines_state = self._cursor_state.get('klines')
         if klines_state:
+            # 记录累积前的状态（用于调试）
+            before_count = len(klines_state['acc'])
+            before_cursor = klines_state['cursor']
+            
             self._advance_cursor_until(
                 data_list=self._current_data['klines'],
                 state=klines_state,
                 date_of_today=date_of_today,
                 date_field='date'
             )
+            
+            after_count = len(klines_state['acc'])
+            after_cursor = klines_state['cursor']
+            
+            # 调试日志：如果累积的数据量异常，记录详细信息
+            if before_count == 0 and after_count < len(self._current_data['klines']):
+                logger.debug(
+                    f"游标累积: stock={self.stock_id}, date={date_of_today}, "
+                    f"before_cursor={before_cursor}, after_cursor={after_cursor}, "
+                    f"before_count={before_count}, after_count={after_count}, "
+                    f"total_klines={len(self._current_data['klines'])}"
+                )
+            
             result['klines'] = klines_state['acc']
         
         # 2. 处理其他数据类型

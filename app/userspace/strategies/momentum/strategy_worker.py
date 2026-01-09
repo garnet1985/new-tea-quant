@@ -10,15 +10,13 @@ Momentum Strategy Worker - 动量策略
 
 from app.core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from app.core.modules.strategy.models.opportunity import Opportunity
-from typing import Optional
-import uuid
-from datetime import datetime
+from typing import Optional, Dict, Any
 
 
 class MomentumStrategyWorker(BaseStrategyWorker):
     """动量策略 Worker"""
     
-    def scan_opportunity(self) -> Optional[Opportunity]:
+    def scan_opportunity(self, data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Opportunity]:
         """
         扫描动量机会
         
@@ -26,9 +24,19 @@ class MomentumStrategyWorker(BaseStrategyWorker):
         1. 获取最新 60 天的 K-line
         2. 计算动量 = (最近20天均价 - 之前40天均价) / 之前40天均价
         3. 如果动量 > 阈值，返回 Opportunity
+        
+        Args:
+            data: 数据字典，包含：
+                - data['klines']: List[Dict] - K线数据（已包含技术指标）
+                - data.get('tags', []): List[Dict] - 标签数据（如果配置了）
+                - data.get('corporate_finance', []): List[Dict] - 财务数据（如果配置了）
+                - data.get('macro', {}): Dict - 宏观数据（如果配置了）
+            settings: 策略配置字典
         """
-        # 1. 获取数据
-        klines = self.data_manager.get_klines()
+        from typing import Dict, Any
+        
+        # 1. 从 data 参数中获取 K-line 数据（避免 IO 操作）
+        klines = data.get('klines', [])
         
         if len(klines) < 60:
             return None  # 数据不足
@@ -42,32 +50,22 @@ class MomentumStrategyWorker(BaseStrategyWorker):
         
         momentum = (recent_avg - prev_avg) / prev_avg
         
-        # 3. 判断是否满足条件
-        momentum_threshold = self.settings.params.get('momentum_threshold', 0.05)
+        # 3. 判断是否满足条件（从 settings 参数中获取）
+        core_config = settings.get('core', {})
+        momentum_threshold = core_config.get('momentum_threshold', 0.05)
         
         if momentum > momentum_threshold:
             # 发现机会！
+            # 注意：使用 Worker 预加载的完整股票信息（包含 id, name, industry, type, exchange_center）
+            latest_kline = klines[-1]
             return Opportunity(
-                opportunity_id=str(uuid.uuid4()),
-                stock_id=self.stock_id,
-                stock_name=klines[-1].get('name', ''),
-                strategy_name=self.strategy_name,
-                strategy_version=self.settings.version,
-                scan_date=self.scan_date,
-                trigger_date=klines[-1]['date'],
-                trigger_price=klines[-1]['close'],
-                trigger_conditions={
+                stock=self.stock_info,  # 使用 Worker 预加载的完整股票信息
+                record_of_today=latest_kline,
+                extra_fields={
                     'momentum': momentum,
                     'recent_avg': recent_avg,
                     'prev_avg': prev_avg
-                },
-                expected_return=momentum * 0.5,  # 简化估计
-                confidence=0.75,
-                status='active',
-                config_hash='',  # TODO: 计算 hash
-                created_at=datetime.now().isoformat(),
-                updated_at=datetime.now().isoformat(),
-                metadata={}
+                }
             )
         
         return None  # 不满足条件

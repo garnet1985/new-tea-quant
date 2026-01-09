@@ -11,18 +11,20 @@ Opportunity Enumerator - 机会枚举器
 
 from typing import List, Dict, Any, Union
 import json
-import pandas as pd
 from pathlib import Path
+from datetime import datetime
 import logging
+
+from app.core.modules.strategy.components.opportunity_enumerator.enumerator_settings import (
+    OpportunityEnumeratorSettings,
+)
+from app.core.modules.strategy.models.strategy_settings import StrategySettings
 
 logger = logging.getLogger(__name__)
 
 
 class OpportunityEnumerator:
     """机会枚举器（主进程）"""
-    
-    # 固定配置
-    OUTPUT_BASE_DIR = "results/opportunity_enumerator"
     
     @staticmethod
     def enumerate(
@@ -61,71 +63,145 @@ class OpportunityEnumerator:
             f"workers={max_workers}"
         )
         
-        # 1. 加载策略配置
-        settings = OpportunityEnumerator._load_strategy_settings(strategy_name)
-        
-        # 2. 构建作业
+        # 1. 加载策略配置（通用 StrategySettings 模型）
+        base_settings = OpportunityEnumerator._load_strategy_settings(strategy_name)
+
+        # 1.1 通过枚举器专用 Settings 视图进行校验与补全（组合，而非继承）
+        enum_settings = OpportunityEnumeratorSettings.from_base(base_settings)
+        validated_settings = enum_settings.to_dict()
+
+        # 1.2 准备版本目录（一次枚举 = 一个版本）
+        root_dir = Path("app") / "userspace" / "strategies" / strategy_name / "results" / "opportunity_enums"
+        root_dir.mkdir(parents=True, exist_ok=True)
+
+        meta_path = root_dir / "meta.json"
+        if meta_path.exists():
+            try:
+                with meta_path.open("r", encoding="utf-8") as f:
+                    meta = json.load(f)
+            except Exception:
+                meta = {}
+        else:
+            meta = {}
+
+        next_version_id = int(meta.get("next_version_id", 1))
+        now = datetime.now()
+        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+        version_dir_name = f"{next_version_id}_{timestamp_str}"
+        output_dir = root_dir / version_dir_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1.3 立刻更新 meta.json（版本管理），不依赖后续流程是否成功
+        new_meta = {
+            "next_version_id": next_version_id + 1,
+            "last_updated": now.isoformat(),
+            "strategy_name": strategy_name,
+        }
+        with meta_path.open("w", encoding="utf-8") as f:
+            json.dump(new_meta, f, indent=2, ensure_ascii=False)
+
+        # 2. 构建作业（每只股票一个 job）
         jobs = []
         for stock_id in stock_list:
             jobs.append({
                 'stock_id': stock_id,
                 'strategy_name': strategy_name,
-                'settings': settings,
+                # 传入“已校验 & 补全”的 settings 视图，供 Worker 使用
+                'settings': validated_settings,
                 'start_date': start_date,
-                'end_date': end_date
+                'end_date': end_date,
+                # 让子进程知道自身应将 CSV 写到哪里
+                'output_dir': str(output_dir),
             })
         
         # 3. 多进程执行
-        from app.core.infra.worker.multi_process.process_worker import ProcessWorker
-        from app.core.modules.strategy.components.opportunity_enumerator.enumerator_worker import OpportunityEnumeratorWorker
+        from app.core.infra.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
         
-        results = ProcessWorker.execute(
-            worker_class=OpportunityEnumeratorWorker,
-            job_payloads=jobs,
-            max_workers=max_workers
+        # 创建 ProcessWorker 实例
+        worker_pool = ProcessWorker(
+            max_workers=max_workers,
+            execution_mode=ExecutionMode.QUEUE,
+            job_executor=OpportunityEnumerator._execute_single_job,
+            is_verbose=False
         )
         
-        # 4. 聚合结果
-        all_opportunities = []
+        # 构建 ProcessWorker 格式的 jobs
+        process_jobs = [{'id': job['stock_id'], 'payload': job} for job in jobs]
+        
+        # 执行作业
+        worker_pool.run_jobs(process_jobs)
+        
+        # 获取结果
+        job_results = worker_pool.get_results()
+        
+        # 4. 聚合结果（只聚合 summary，不再拉回全量 opportunities）
+        total_opportunities = 0
         success_count = 0
         failed_count = 0
         
-        for result in results:
-            if result['success']:
-                success_count += 1
-                all_opportunities.extend(result['opportunities'])
+        for job_result in job_results:
+            if job_result.status.value == 'completed':
+                result = job_result.result
+                if result.get('success'):
+                    success_count += 1
+                    total_opportunities += int(result.get('opportunity_count', 0))
+                else:
+                    failed_count += 1
+                    logger.warning(
+                        f"枚举失败: stock={result.get('stock_id')}, "
+                        f"error={result.get('error')}"
+                    )
             else:
                 failed_count += 1
                 logger.warning(
-                    f"枚举失败: stock={result['stock_id']}, "
-                    f"error={result.get('error')}"
+                    f"任务失败: job_id={job_result.job_id}, "
+                    f"error={job_result.error}"
                 )
         
         logger.info(
             f"✅ 枚举完成: 成功={success_count}, 失败={failed_count}, "
-            f"机会数={len(all_opportunities)}"
+            f"机会数={total_opportunities}"
         )
         
-        # 5. 保存结果到 CSV
+        # 5. 保存 metadata（含 settings 快照、版本信息）
         OpportunityEnumerator._save_results(
             strategy_name=strategy_name,
             start_date=start_date,
             end_date=end_date,
-            opportunities=all_opportunities
+            output_dir=output_dir,
+            version_id=next_version_id,
+            version_dir_name=version_dir_name,
+            opportunity_count=total_opportunities,
+            settings_snapshot=validated_settings,
         )
         
-        # 6. 返回结果（字典列表）
-        return all_opportunities
+        # 6. 返回结果（目前直接返回 summary，而不是全量 opportunities）
+        return [{
+            'strategy_name': strategy_name,
+            'version_id': next_version_id,
+            'version_dir': version_dir_name,
+            'opportunity_count': total_opportunities,
+            'success_stocks': success_count,
+            'failed_stocks': failed_count,
+        }]
     
     @staticmethod
-    def _load_strategy_settings(strategy_name: str) -> Dict[str, Any]:
-        """加载策略配置"""
+    def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Worker 包装函数（在子进程中调用，必须是模块级函数才能被 pickle）"""
+        from app.core.modules.strategy.components.opportunity_enumerator.enumerator_worker import OpportunityEnumeratorWorker
+        worker = OpportunityEnumeratorWorker(payload)
+        return worker.run()
+    
+    @staticmethod
+    def _load_strategy_settings(strategy_name: str) -> StrategySettings:
+        """加载策略配置，并封装为通用 StrategySettings 模型"""
         import importlib
         
         module_path = f"app.userspace.strategies.{strategy_name}.settings"
         try:
             module = importlib.import_module(module_path)
-            return module.settings
+            raw_settings = module.settings
+            return StrategySettings.from_dict(raw_settings)
         except Exception as e:
             logger.error(f"加载策略配置失败: {strategy_name}, error={e}")
             raise
@@ -135,57 +211,28 @@ class OpportunityEnumerator:
         strategy_name: str,
         start_date: str,
         end_date: str,
-        opportunities: List[Dict[str, Any]]
+        output_dir: Path,
+        version_id: int,
+        version_dir_name: str,
+        opportunity_count: int,
+        settings_snapshot: Dict[str, Any]
     ):
         """
-        保存枚举结果到 CSV
-        
-        文件结构：
-        results/opportunity_enumerator/
-        └── {strategy_name}/
-            └── {start_date}_{end_date}/
-                ├── opportunities.csv  # 主表
-                ├── targets.csv        # 子表
-                └── metadata.json      # 元信息
+        保存本次枚举运行的 metadata（不再在这里写 CSV，CSV 由子进程按股票各自写出）
         """
-        # 1. 构建输出路径
-        output_dir = Path(OpportunityEnumerator.OUTPUT_BASE_DIR) / strategy_name / f"{start_date}_{end_date}"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 2. 准备数据
-        opps_data = []
-        targets_data = []
-        
-        for opp in opportunities:
-            # 主表数据（排除 completed_targets）
-            opp_row = {k: v for k, v in opp.items() if k != 'completed_targets'}
-            opps_data.append(opp_row)
-            
-            # 子表数据
-            for target in opp.get('completed_targets', []):
-                target_row = {
-                    'opportunity_id': opp['opportunity_id'],
-                    **target
-                }
-                targets_data.append(target_row)
-        
-        # 3. 保存 CSV
-        df_opps = pd.DataFrame(opps_data)
-        df_targets = pd.DataFrame(targets_data)
-        
-        df_opps.to_csv(output_dir / 'opportunities.csv', index=False)
-        df_targets.to_csv(output_dir / 'targets.csv', index=False)
-        
-        # 4. 保存元信息
+        now = datetime.now()
         metadata = {
             'strategy_name': strategy_name,
             'start_date': start_date,
             'end_date': end_date,
-            'opportunity_count': len(opportunities),
-            'created_at': pd.Timestamp.now().isoformat()
+            'opportunity_count': opportunity_count,
+            'created_at': now.isoformat(),
+            'version_id': version_id,
+            'version_dir': version_dir_name,
+            'settings_snapshot': settings_snapshot
         }
         
         with open(output_dir / 'metadata.json', 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"✅ 结果已保存: {output_dir}")
+        logger.info(f"✅ 枚举 metadata 已保存: {output_dir}")

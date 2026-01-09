@@ -62,6 +62,30 @@ settings = {
             "expiration": {
                 "fixed_period": 30,
                 "is_trading_period": True
+            },
+            # 简单的止损
+            "stop_loss": {
+                "stages": [
+                    {
+                        "name": "loss10%",
+                        "ratio": -0.1,
+                        "close_invest": True
+                    }
+                ]
+            },
+            "take_profit": {
+                "stages": [
+                    {
+                        "name": "win10%",
+                        "ratio": 0.1,
+                        "sell_ratio": 0.5,
+                    },
+                    {
+                        "name": "win20%",
+                        "ratio": 0.2,
+                        "close_invest": True
+                    }
+                ]
             }
         }
     },

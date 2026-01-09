@@ -243,7 +243,13 @@ class Opportunity:
                 
                 # 判断是否清仓
                 if stage.get('close_invest', False):
-                    reason = f"stop_loss_{stage.get('name', idx)}"
+                    # reason: 优先使用 stage 的 name，如果没有则使用 ratio 生成
+                    stage_name = stage.get('name')
+                    if stage_name:
+                        reason = stage_name
+                    else:
+                        ratio_percent = int(stage_ratio * 100)
+                        reason = f"stop_loss_{ratio_percent}%"
                     self._settle(current_date, current_price, reason, price_return)
                     return True
         
@@ -266,11 +272,31 @@ class Opportunity:
                     self.dynamic_loss_active = True
                     self.dynamic_loss_highest = current_price
                 
+                # ⭐ 记录止盈目标达成
+                # reason: 优先使用 stage 的 name，如果没有则使用 ratio 生成
+                stage_name = stage.get('name')
+                if stage_name:
+                    reason = stage_name
+                else:
+                    ratio_percent = int(stage_ratio * 100)
+                    reason = f"take_profit_{ratio_percent}%"
+                
                 # 判断是否清仓
                 if stage.get('close_invest', False):
-                    reason = f"take_profit_{stage.get('name', idx)}"
+                    # 如果清仓，由 _settle 统一记录到 completed_targets
                     self._settle(current_date, current_price, reason, price_return)
                     return True
+                else:
+                    # 如果不清仓（只有 sell_ratio 或没有 close_invest），记录目标达成但继续持有
+                    if not self.completed_targets:
+                        self.completed_targets = []
+                    self.completed_targets.append({
+                        'date': current_date,
+                        'price': current_price,
+                        'reason': reason,
+                        'roi': price_return
+                    })
+                    # 继续持有，不返回 True
         
         # 未完成，继续持有
         return False

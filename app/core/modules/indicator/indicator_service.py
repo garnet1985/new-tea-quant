@@ -163,7 +163,27 @@ class IndicatorService:
         Returns:
             List[float]: RSI值列表（0-100）
         """
-        return cls.calculate('rsi', klines, length=length)
+        # RSI 只依赖收盘价，为了兼容只有 close / highest / lowest 的数据，单独实现，
+        # 避免 _klines_to_dataframe 对 high/low/open 的强依赖。
+        try:
+            cls._init_ta()
+            import pandas as pd
+
+            if not klines:
+                return None
+
+            # 提取收盘价序列
+            closes = [k.get("close") for k in klines if "close" in k]
+            if not closes:
+                logger.error("K线数据缺少必要列: close")
+                return None
+
+            close_series = pd.Series(closes)
+            result = cls._ta.rsi(close_series, length=length)
+            return cls._result_to_list(result)
+        except Exception as e:
+            logger.error(f"RSI 计算失败: {e}")
+            return None
     
     @classmethod
     def macd(
@@ -322,6 +342,13 @@ class IndicatorService:
                 return None
             
             df = pd.DataFrame(klines)
+
+            # 兼容 legacy 字段名：highest/lowest -> high/low
+            # schema 中字段为 highest/lowest，但技术指标和 pandas-ta 习惯使用 high/low
+            if 'high' not in df.columns and 'highest' in df.columns:
+                df['high'] = df['highest']
+            if 'low' not in df.columns and 'lowest' in df.columns:
+                df['low'] = df['lowest']
             
             # 确保必要的列存在
             required_columns = ['open', 'high', 'low', 'close']

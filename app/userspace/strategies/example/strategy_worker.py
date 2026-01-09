@@ -10,11 +10,8 @@ Example Strategy Worker - 示例策略
 
 from app.core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from app.core.modules.strategy.models.opportunity import Opportunity
-from app.core.modules.indicator.indicator_service import IndicatorService
-from typing import Optional
-import uuid
-from datetime import datetime
-import random
+from typing import Optional, Dict, Any
+from loguru import logger
 
 
 class ExampleStrategyWorker(BaseStrategyWorker):
@@ -26,71 +23,72 @@ class ExampleStrategyWorker(BaseStrategyWorker):
     - 使用固定随机种子保证结果可复现（主要用于 opportunity_id）
     """
     
-    def scan_opportunity(self) -> Optional[Opportunity]:
+    def scan_opportunity(self, data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Opportunity]:
         """
         扫描投资机会
         
         用户只需实现此方法，定义买入信号逻辑。
         框架会自动处理回测（根据 settings.goal 配置）。
         
+        Args:
+            data: 数据字典，包含：
+                - data['klines']: List[Dict] - K线数据（已包含技术指标，如 ma5, rsi14 等）
+                - data.get('tags', []): List[Dict] - 标签数据（如果配置了 required_entities）
+                - data.get('corporate_finance', []): List[Dict] - 财务数据（如果配置了）
+                - data.get('macro', {}): Dict - 宏观数据（如果配置了）
+            settings: 策略配置字典，包含：
+                - settings['core']: Dict - 核心配置（如 random_seed, rsi_length 等）
+                - settings['data']: Dict - 数据配置
+                - settings['simulator']: Dict - 模拟器配置
+                - settings['goal']: Dict - 止盈止损配置
+        
         Returns:
             Opportunity: 如果发现买入信号
             None: 如果没有发现机会
         """
-        # 1. 获取配置参数（用于保证可复现性和 RSI 阈值）
-        random_seed = self.settings.core.get('random_seed', 42)
-        rsi_length = self.settings.core.get('rsi_length', 14)
-        rsi_threshold = self.settings.core.get('rsi_oversold_threshold', 35)
+        # 1. 获取配置参数（从 settings 参数中获取）
+        core_config = settings.get('core', {})
+        data_config = settings.get('data', {})
+        indicators_cfg = (data_config.get('indicators') or {}).get('rsi') or []
+
+        # RSI 周期仅从 indicators 中读取，避免与 core 重复配置
+        if indicators_cfg and isinstance(indicators_cfg, list):
+            rsi_length = int(indicators_cfg[0].get('period', 14))
+        else:
+            rsi_length = 14
+
+        # 超卖阈值仍然放在 core 中
+        rsi_threshold = core_config.get('rsi_oversold_threshold', 35)
         
-        # 2. 获取 K-line 数据
-        klines = self.data_manager.get_klines()
+        # 2. 从 data 参数中获取 K-line 数据（避免 IO 操作）
+        klines = data.get('klines', [])
         if not klines or len(klines) < rsi_length:
             return None  # 数据不足，无法计算 RSI
         
-        # 3. 计算 RSI
-        rsi_values = IndicatorService.rsi(klines, length=rsi_length)
-        if not rsi_values or len(rsi_values) == 0:
+        # 3. 获取最新 K 线（K 线数据已包含技术指标，直接从字段中读取）
+        latest_kline = klines[-1]
+        
+        # 4. 从 K 线中读取 RSI 值（指标已在数据准备阶段计算并写入）
+        rsi_field = f'rsi{rsi_length}'
+        latest_rsi = latest_kline.get(rsi_field)
+
+        # 如果 RSI 字段不存在，说明指标计算失败，返回 None
+        if latest_rsi is None:
             return None
         
-        latest_kline = klines[-1]
-        latest_price = latest_kline['close']
-        latest_rsi = rsi_values[-1]
-        
-        # 4. 判断买入条件：RSI 低于超卖阈值（例如 35）
+        # 5. 判断买入条件：RSI 低于超卖阈值（例如 35）
         if latest_rsi >= rsi_threshold:
             return None
         
-        # 5. 使用固定种子生成 UUID（保证可复现性）
-        # 组合种子：基础种子 + 股票代码 + 日期
-        date_str = latest_kline['date']
-        combined_seed = hash(f"{random_seed}_{self.stock_id}_{date_str}") % (2**31)
-        rng = random.Random(combined_seed)
-        opportunity_uuid = uuid.UUID(int=rng.getrandbits(128))
-        
-        # 发现买入机会！
+        # 5. 发现买入机会！
+        # 注意：不需要手动构建 stock_info，框架会自动使用 Worker 预加载的完整股票信息
+        # 如果用户提供了 stock，会与预加载的信息合并；如果没提供，框架会自动使用预加载的信息
         return Opportunity(
-            opportunity_id=str(opportunity_uuid),
-            stock_id=self.stock_id,
-            stock_name=latest_kline.get('name', ''),
-            strategy_name=self.strategy_name,
-            strategy_version='1.0',
-            scan_date=datetime.now().strftime('%Y%m%d'),
-            trigger_date=latest_kline['date'],
-            trigger_price=latest_price,
-            trigger_conditions={
-                'rsi_length': rsi_length,
+            stock=self.stock_info,  # 使用 Worker 预加载的完整股票信息
+            record_of_today=latest_kline,
+            extra_fields={
                 'rsi_value': latest_rsi,
-                'rsi_oversold_threshold': rsi_threshold,
-                'signal': 'rsi_oversold',
-                'random_seed': random_seed,
-                'combined_seed': combined_seed,
-            },
-            expected_return=0.10,  # 示例：预期 10% 收益
-            confidence=0.50,       # 示例：50% 置信度
-            status='active',
-            config_hash=str(hash(str(self.settings.to_dict()))),
-            created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            }
         )
     
     # =========================================================================

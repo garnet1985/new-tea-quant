@@ -143,9 +143,19 @@ class OpportunityEnumeratorSettings:
         simulator = dict(settings.get("simulator") or {})
 
         goal = simulator.get("goal")
-        if goal is None:
-            # 允许没有 goal（即不设置止盈止损），但明确为一个空 dict，方便下游使用
-            goal = {}
+        if goal is None or not goal:
+            # ⚠️ 致命错误：枚举器必须配置 goal（止盈止损），否则所有机会都无法完成，会被标记为 expired
+            # 如果没有 goal，机会会一直持有直到回测结束，导致 completed_targets 为空
+            raise ValueError(
+                f"策略 '{self.strategy_name}' 的 settings.simulator.goal 配置缺失或为空！\n"
+                f"枚举器需要 goal 配置来定义止盈止损规则，否则所有机会都无法完成。\n"
+                f"请在 settings.py 中添加 simulator.goal 配置，例如：\n"
+                f"  'simulator': {{\n"
+                f"    'goal': {{\n"
+                f"      'expiration': {{'fixed_period': 30, 'is_trading_period': True}}\n"
+                f"    }}\n"
+                f"  }}"
+            )
         simulator["goal"] = goal
 
         self.simulator = simulator

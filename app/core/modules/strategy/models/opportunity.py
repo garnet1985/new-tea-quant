@@ -18,25 +18,33 @@ class Opportunity:
     """
     投资机会（唯一核心对象）
     
+    用户创建时只需要提供：
+    - stock: Dict[str, Any] - 股票信息（包含 id, name 等）
+    - record_of_today: Dict[str, Any] - 当天的K线记录（包含 date, close 等）
+    - extra_fields: Optional[Dict[str, Any]] - 策略特定的额外信息（可选）
+    
+    框架会自动填充：
+    - opportunity_id, strategy_name, strategy_version, scan_date, status 等
+    
     生命周期：
     1. Scanner 创建 -> status = 'active'
     2. Simulator 更新 -> status = 'closed'
     """
     
-    # ===== 基本信息 =====
-    opportunity_id: str              # 机会唯一ID（UUID）
-    stock_id: str                    # 股票代码
-    stock_name: str                  # 股票名称
-    strategy_name: str               # 策略名称
-    strategy_version: str            # 策略版本
+    # ===== 用户提供的核心字段 =====
+    stock: Dict[str, Any]            # 股票信息（legacy 兼容）
+    record_of_today: Dict[str, Any]   # 当天的K线记录（legacy 兼容）
+    extra_fields: Optional[Dict[str, Any]] = None  # 策略特定的额外信息
     
-    # ===== Scanner 阶段字段 =====
-    scan_date: str                   # 扫描日期（YYYYMMDD）
-    trigger_date: str                # 触发日期（买入信号日期）
-    trigger_price: float             # 触发价格（买入价格）
-    trigger_conditions: Dict[str, Any]  # 触发条件（JSON）
-    expected_return: Optional[float] = None  # 预期收益率
-    confidence: Optional[float] = None       # 置信度（0-1）
+    # ===== 框架自动填充的字段（用户不需要关心）=====
+    opportunity_id: str = ''         # 机会唯一ID（UUID，框架自动生成）
+    stock_id: str = ''               # 股票代码（从 stock['id'] 提取）
+    stock_name: str = ''             # 股票名称（从 stock['name'] 提取）
+    strategy_name: str = ''          # 策略名称（框架自动填充）
+    strategy_version: str = ''       # 策略版本（框架自动填充）
+    scan_date: str = ''              # 扫描日期（框架自动填充）
+    trigger_date: str = ''           # 触发日期（从 record_of_today['date'] 提取）
+    trigger_price: float = 0.0       # 触发价格（从 record_of_today['close'] 提取）
     
     # ===== Simulator 阶段字段 =====
     sell_date: Optional[str] = None          # 卖出日期
@@ -93,6 +101,38 @@ class Opportunity:
     
     def __post_init__(self):
         """初始化后处理"""
+        # 如果 stock 是 None 或空，尝试从 stock_id 自动加载（延迟加载，避免循环依赖）
+        # 注意：这里不自动加载，因为需要 DataManager，应该在 Worker 中提前加载
+        
+        # 从 stock 和 record_of_today 提取字段（如果用户没有提供）
+        if not self.stock_id and self.stock:
+            self.stock_id = self.stock.get('id', '')
+        if not self.stock_name and self.stock:
+            self.stock_name = self.stock.get('name', '')
+        if not self.trigger_date and self.record_of_today:
+            self.trigger_date = self.record_of_today.get('date', '')
+        if not self.trigger_price and self.record_of_today:
+            self.trigger_price = self.record_of_today.get('close', 0.0)
+        
+        # 确保 stock 字典包含完整字段（如果缺少）
+        if self.stock:
+            # 确保有 id
+            if 'id' not in self.stock and self.stock_id:
+                self.stock['id'] = self.stock_id
+            # 确保有 name
+            if 'name' not in self.stock and self.stock_name:
+                self.stock['name'] = self.stock_name
+            # 确保有 industry, type, exchange_center（如果缺失，设为空字符串）
+            if 'industry' not in self.stock:
+                self.stock['industry'] = self.stock.get('industry', '')
+            if 'type' not in self.stock:
+                self.stock['type'] = self.stock.get('type', '')
+            if 'exchange_center' not in self.stock:
+                self.stock['exchange_center'] = self.stock.get('exchange_center', '')
+        
+        # 初始化可选字段
+        if self.extra_fields is None:
+            self.extra_fields = {}
         if self.metadata is None:
             self.metadata = {}
         
@@ -101,6 +141,8 @@ class Opportunity:
         
         if not self.updated_at:
             self.updated_at = datetime.now().isoformat()
+        
+        # 如果没有 opportunity_id，框架会在使用时自动生成（见 enrich_from_framework）
     
     # =========================================================================
     # 业务方法
@@ -301,6 +343,46 @@ class Opportunity:
             return (end - start).days
         except Exception:
             return 0
+    
+    # =========================================================================
+    # 框架辅助方法
+    # =========================================================================
+    
+    def enrich_from_framework(
+        self,
+        strategy_name: str,
+        strategy_version: str = '1.0',
+        opportunity_id: Optional[str] = None
+    ):
+        """
+        框架调用：自动填充框架字段
+        
+        Args:
+            strategy_name: 策略名称
+            strategy_version: 策略版本
+            opportunity_id: 机会ID（如果不提供，自动生成UUID）
+        """
+        import uuid
+        
+        self.strategy_name = strategy_name
+        self.strategy_version = strategy_version
+        self.scan_date = datetime.now().strftime('%Y%m%d')
+        
+        if not self.opportunity_id:
+            if opportunity_id:
+                self.opportunity_id = opportunity_id
+            else:
+                self.opportunity_id = str(uuid.uuid4())
+        
+        # 确保从 stock 和 record_of_today 提取的字段已填充
+        if not self.stock_id and self.stock:
+            self.stock_id = self.stock.get('id', '')
+        if not self.stock_name and self.stock:
+            self.stock_name = self.stock.get('name', '')
+        if not self.trigger_date and self.record_of_today:
+            self.trigger_date = self.record_of_today.get('date', '')
+        if not self.trigger_price and self.record_of_today:
+            self.trigger_price = self.record_of_today.get('close', 0.0)
     
     # =========================================================================
     # 序列化方法

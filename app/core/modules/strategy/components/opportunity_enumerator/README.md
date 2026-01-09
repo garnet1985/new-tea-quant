@@ -323,18 +323,24 @@ OpportunityEnumerator.enumerate(
 )
 ```
 
-### 场景 2：完整回测
+### 场景 2：完整回测（全量历史）
 
 ```python
-# 完整枚举
+# 完整枚举（注意：Layer 0 始终从 DEFAULT_START_DATE 开始加载全量历史）
 OpportunityEnumerator.enumerate(
     strategy_name='momentum',
-    start_date='20230101',
-    end_date='20231231',     # ⭐ 完整一年
-    stock_list=all_stocks,   # ⭐ 所有股票
-    max_workers=10           # ⭐ 全速并行
+    start_date='20230101',      # 仅用于 metadata 记录 & 上层消费窗口
+    end_date='20231231',
+    stock_list=all_stocks,      # ⭐ 所有股票
+    max_workers=10              # ⭐ 全速并行
 )
 ```
+
+> 关键点：
+> - **枚举器始终做“全量历史枚举”**：真实加载的数据范围从统一的 `DateUtils.DEFAULT_START_DATE` 开始，到 `end_date` 为止；
+> - `start_date` 参数只影响：
+>   - metadata 里的记录范围；
+>   - 上层应用如何切片使用这些机会（例如只分析某个时间窗口）。
 
 ### 场景 3：CapitalAllocationSimulator 使用（未来）
 

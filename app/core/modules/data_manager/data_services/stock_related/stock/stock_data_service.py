@@ -304,7 +304,12 @@ class StockDataService(BaseDataService):
             原始K线数据列表
         """
         if start_date and end_date:
-            return self.stock_kline.load_by_date_range(stock_id, start_date, end_date)
+            # ⚠️ 修复：load_by_date_range 没有过滤 term，需要显式添加 term 过滤
+            return self.stock_kline.load(
+                "id = %s AND date >= %s AND date <= %s AND term = %s",
+                (stock_id, start_date, end_date, term),
+                order_by="date ASC"
+            )
         elif start_date:
             return self.stock_kline.load(
                 "id = %s AND date >= %s AND term = %s",

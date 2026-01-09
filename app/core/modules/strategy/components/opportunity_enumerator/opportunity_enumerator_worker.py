@@ -96,7 +96,8 @@ class OpportunityEnumeratorWorker:
         """
         try:
             # 1. 计算真正的开始日期（需要预留 lookback 窗口）
-            lookback_days = self.settings.params.get('lookback_days', 60)
+            # 使用 min_required_records 作为 lookback，但限制最大为 60 天
+            lookback_days = min(self.settings.min_required_records, 60)
             actual_start_date = self._get_date_before(self.start_date, lookback_days)
             
             # 2. 加载全量历史数据
@@ -125,7 +126,7 @@ class OpportunityEnumeratorWorker:
             }
             
             # 5. 获取最小所需 K 线数
-            min_required_kline = self.settings.params.get('min_required_kline', 0)
+            min_required_kline = self.settings.min_required_records
             
             # 6. 逐日遍历 K 线
             last_kline = None

@@ -188,7 +188,7 @@ class ProcessWorker:
                  timeout: float = 300.0,
                  is_verbose: bool = False,
                  debug: bool = False,
-                 start_method: str = "fork"):
+                 start_method: str = "spawn"):
         """
         初始化多进程任务执行器
         
@@ -491,6 +491,18 @@ class ProcessWorker:
         start_time = datetime.now()
         
         try:
+            # 每个子进程内重置 DatabaseManager 默认实例，避免父进程继承的连接池
+            # 在 fork + pymysql/DBUtils 场景下，否则容易出现：
+            # - "Command Out of Sync"
+            # - "Packet sequence number wrong"
+            # 等连接状态错误。
+            try:
+                from app.core.infra.db.db_manager import DatabaseManager
+                DatabaseManager.reset_default()
+            except Exception:
+                # 重置失败不应影响任务执行本身，最多失去连接池复用
+                pass
+
             if self.job_executor is None:
                 raise ValueError("Job executor not set")
             

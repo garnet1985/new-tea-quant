@@ -142,8 +142,8 @@ class App:
         
         logger.info(f"测试时间范围: {start_date} ~ {latest_date}")
         
-        # 枚举所有机会
-        opportunities = OpportunityEnumerator.enumerate(
+        # 枚举所有机会（返回 summary，而不是全量机会列表）
+        summary_results = OpportunityEnumerator.enumerate(
             strategy_name=strategy_name,
             start_date=start_date,
             end_date=latest_date,
@@ -151,15 +151,27 @@ class App:
             max_workers='auto'  # 自动计算
         )
         
-        logger.info(f"✅ 枚举完成！找到 {len(opportunities)} 个机会")
+        # 按当前设计，enumerator 返回的是 summary 列表，每个元素是一次 run 的概要信息
+        if summary_results:
+            total_opps = summary_results[0].get('opportunity_count', 0)
+        else:
+            total_opps = 0
+
+        logger.info(f"✅ 枚举完成！找到 {total_opps} 个机会")
+
+        # 显示概要信息（版本目录等），不再尝试打印具体机会字段
+        if summary_results:
+            logger.info(f"\n枚举结果概要:")
+            for res in summary_results:
+                logger.info(
+                    f"  strategy={res.get('strategy_name')}, "
+                    f"version={res.get('version_dir')}, "
+                    f"opportunities={res.get('opportunity_count', 0)}, "
+                    f"success_stocks={res.get('success_stocks', 0)}, "
+                    f"failed_stocks={res.get('failed_stocks', 0)}"
+                )
         
-        # 显示部分结果
-        if opportunities:
-            logger.info(f"\n前 3 个机会示例:")
-            for i, opp in enumerate(opportunities[:3], 1):
-                logger.info(f"  {i}. {opp.get('stock_id')} - {opp.get('trigger_date')} - ROI: {opp.get('roi', 0):.2%}")
-        
-        return opportunities
+        return summary_results
 
 
 def parse_args():

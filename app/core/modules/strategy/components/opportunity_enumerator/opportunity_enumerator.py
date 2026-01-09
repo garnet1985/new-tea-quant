@@ -101,6 +101,14 @@ class OpportunityEnumerator:
             json.dump(new_meta, f, indent=2, ensure_ascii=False)
 
         # 2. 构建作业（每只股票一个 job）
+        # 重要：枚举器（Layer 0）始终做“全量枚举”，不再按照调用方传入的 start_date 截断历史。
+        # start_date/end_date 只用于：
+        #   - metadata 记录
+        #   - 上层应用决定如何消费结果（例如只用某个时间窗口内的机会）
+        # 实际加载的数据范围由 Worker 使用统一的 DEFAULT_START_DATE 决定。
+        from app.core.utils.date.date_utils import DateUtils
+        enum_start_date = DateUtils.DEFAULT_START_DATE
+
         jobs = []
         for stock_id in stock_list:
             jobs.append({
@@ -108,7 +116,8 @@ class OpportunityEnumerator:
                 'strategy_name': strategy_name,
                 # 传入“已校验 & 补全”的 settings 视图，供 Worker 使用
                 'settings': validated_settings,
-                'start_date': start_date,
+                # 对 Worker 而言，start_date 固定为 DEFAULT_START_DATE（全量历史）
+                'start_date': enum_start_date,
                 'end_date': end_date,
                 # 让子进程知道自身应将 CSV 写到哪里
                 'output_dir': str(output_dir),

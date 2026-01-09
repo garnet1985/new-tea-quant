@@ -52,6 +52,9 @@ class BaseStrategyWorker(ABC):
         from app.core.modules.data_manager import DataManager
         self.data_mgr = DataManager(is_verbose=False)
         
+        # 加载完整的股票信息（提前组织好，避免每次创建 Opportunity 时重复查询）
+        self.stock_info = self._load_stock_info()
+        
         from app.core.modules.strategy.components.strategy_worker_data_manager import StrategyWorkerDataManager
         self.data_manager = StrategyWorkerDataManager(
             stock_id=self.stock_id,
@@ -69,6 +72,51 @@ class BaseStrategyWorker(ABC):
         
         # 调用用户钩子
         self.on_init()
+    
+    # =========================================================================
+    # 私有方法
+    # =========================================================================
+    
+    def _load_stock_info(self) -> Dict[str, Any]:
+        """
+        加载完整的股票信息（子进程初始化时调用一次）
+        
+        Returns:
+            Dict: 股票信息，包含 id, name, industry, type, exchange_center 等
+        """
+        try:
+            # 使用 StockDataService 加载股票信息
+            stock_service = self.data_mgr.get_data_service('stock_related.stock')
+            if stock_service:
+                stock_info = stock_service.load_stock_info(self.stock_id)
+                if stock_info:
+                    return stock_info
+            
+            # 如果服务不可用，直接从 model 加载
+            stock_model = self.data_mgr.get_model('stock_list')
+            if stock_model:
+                stock_info = stock_model.load_one("id = %s", (self.stock_id,))
+                if stock_info:
+                    return stock_info
+            
+            # 如果都不可用，返回最小信息
+            logger.warning(f"无法加载股票信息: {self.stock_id}，使用最小信息")
+            return {
+                'id': self.stock_id,
+                'name': self.stock_id,
+                'industry': '',
+                'type': '',
+                'exchange_center': ''
+            }
+        except Exception as e:
+            logger.error(f"加载股票信息失败: {self.stock_id}, error: {e}")
+            return {
+                'id': self.stock_id,
+                'name': self.stock_id,
+                'industry': '',
+                'type': '',
+                'exchange_center': ''
+            }
     
     # =========================================================================
     # 生命周期方法（框架调用，用户不需要重写）
@@ -134,13 +182,28 @@ class BaseStrategyWorker(ABC):
         lookback = min(self.settings.min_required_records, 60)
         self.data_manager.load_latest_data(lookback=lookback)
         
-        # 2. 调用用户钩子
+        # 2. 构建数据字典（从 data_manager._current_data 中提取）
+        # 格式与 get_data_until() 返回的格式一致
+        data = {
+            'klines': self.data_manager._current_data.get('klines', []),
+        }
+        # 添加其他 required_entities
+        for entity_type in self.data_manager._current_data.keys():
+            if entity_type != 'klines':
+                data[entity_type] = self.data_manager._current_data.get(entity_type, [])
+        
+        # 3. 调用用户钩子
         self.on_before_scan()
         
-        # 3. 调用用户实现的扫描逻辑
-        opportunity = self.scan_opportunity()
+        # 4. 调用用户实现的扫描逻辑（传入数据字典和配置，避免 IO）
+        opportunity = self.scan_opportunity(data, self.settings.to_dict())
         
-        # 4. 调用用户钩子
+        # 5. 如果用户返回了 Opportunity，确保 stock 信息完整（使用 Worker 预加载的 stock_info）
+        if opportunity and opportunity.stock:
+            # 合并预加载的完整股票信息（如果用户只提供了部分字段）
+            opportunity.stock = {**self.stock_info, **opportunity.stock}
+        
+        # 5. 调用用户钩子
         self.on_after_scan(opportunity)
         
         # 5. 返回结果
@@ -351,60 +414,67 @@ class BaseStrategyWorker(ABC):
         """
         使用指定数据扫描机会（Simulator 内部调用）
         
-        这是对用户 scan_opportunity() 的包装，允许传入特定的数据
+        这是对用户 scan_opportunity() 的包装，直接传入数据字典和配置
         
         Args:
             data: 数据字典（通过游标过滤后的"今天及之前"的数据）
+                包含：klines, tags, corporate_finance, macro 等
         
         Returns:
             Opportunity or None
         """
-        # 临时存储数据，让用户的 scan_opportunity 可以访问
-        original_data = self.data_manager._current_data.copy()
-        self.data_manager._current_data = data
-        
-        try:
-            # 调用用户实现的扫描方法
-            opportunity = self.scan_opportunity()
-            return opportunity
-        finally:
-            # 恢复原始数据
-            self.data_manager._current_data = original_data
+        # 直接调用用户实现的扫描方法，传入数据和配置
+        return self.scan_opportunity(data, self.settings.to_dict())
     
     # =========================================================================
     # 抽象方法（用户必须实现）
     # =========================================================================
     
     @abstractmethod
-    def scan_opportunity(self) -> Optional['Opportunity']:
+    def scan_opportunity(self, data: Dict[str, Any], settings: Dict[str, Any]) -> Optional['Opportunity']:
         """
         扫描投资机会（用户必须实现）
         
         框架提供：
         - self.stock_id: 当前股票代码
-        - self.data_manager: 数据管理器
-            - self.data_manager.get_klines() -> List[Dict]
-            - self.data_manager.get_entity_data(type) -> List[Dict]
-        - self.settings: 策略配置
+        - data: 数据字典（通过游标过滤后的"今天及之前"的数据）
+            - data['klines']: List[Dict] - K线数据（已包含技术指标）
+            - data.get('tags', []): List[Dict] - 标签数据（如果配置了 required_entities）
+            - data.get('corporate_finance', []): List[Dict] - 财务数据（如果配置了）
+            - data.get('macro', {}): Dict - 宏观数据（如果配置了）
+        - settings: 策略配置字典（包含 core、data、simulator、goal 等）
+        
+        重要：
+        - 数据通过参数传入，避免每次调用触发 IO
+        - 直接从 data 字典中获取数据，不要通过 self.data_manager.get_klines()
+        - 配置通过 settings 参数传入，不要使用 self.settings
         
         用户需要：
-        1. 获取数据：klines = self.data_manager.get_klines()
-        2. 分析最新数据
-        3. 判断是否有买入信号
-        4. 如果有，创建并返回 Opportunity 对象
-        5. 如果没有，返回 None
+        1. 从 data 参数中获取数据：klines = data.get('klines', [])
+        2. 从 settings 参数中获取配置：rsi_threshold = settings.get('core', {}).get('rsi_oversold_threshold', 35)
+        3. 分析最新数据
+        4. 判断是否有买入信号
+        5. 如果有，创建并返回 Opportunity 对象
+        6. 如果没有，返回 None
+        
+        Args:
+            data: 数据字典，包含 klines、required_entities 等
+            settings: 策略配置字典
         
         Returns:
             Opportunity: 投资机会（如果发现）
             None: 没有发现机会
         
         示例：
-            klines = self.data_manager.get_klines()
+            klines = data.get('klines', [])
             if len(klines) < 60:
                 return None
             
-            # 计算指标
-            ma20 = sum(k['close'] for k in klines[-20:]) / 20
+            # 获取配置
+            rsi_threshold = settings.get('core', {}).get('rsi_oversold_threshold', 35)
+            
+            # 获取最新 K 线
+            latest_kline = klines[-1]
             
             # 判断条件
             if klines[-1]['close'] > ma20:

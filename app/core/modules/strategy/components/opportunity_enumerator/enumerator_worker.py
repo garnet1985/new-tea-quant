@@ -59,11 +59,36 @@ class OpportunityEnumeratorWorker:
     def _load_user_strategy(self):
         """动态加载用户策略"""
         import importlib
+        import inspect
+        from app.core.modules.strategy.base_strategy_worker import BaseStrategyWorker
         
         module_path = f"app.userspace.strategies.{self.strategy_name}.strategy_worker"
         try:
             module = importlib.import_module(module_path)
-            strategy_class = getattr(module, 'StrategyWorker')
+            
+            # 尝试多种类名查找方式
+            strategy_class = None
+            
+            # 1. 尝试查找 'StrategyWorker'
+            if hasattr(module, 'StrategyWorker'):
+                strategy_class = getattr(module, 'StrategyWorker')
+            # 2. 尝试查找 '{StrategyName}StrategyWorker'（首字母大写）
+            else:
+                strategy_name_capitalized = self.strategy_name.capitalize()
+                class_name = f"{strategy_name_capitalized}StrategyWorker"
+                if hasattr(module, class_name):
+                    strategy_class = getattr(module, class_name)
+            # 3. 如果还找不到，查找所有继承自 BaseStrategyWorker 的类
+            if strategy_class is None:
+                for name, obj in inspect.getmembers(module):
+                    if (inspect.isclass(obj) and 
+                        issubclass(obj, BaseStrategyWorker) and 
+                        obj != BaseStrategyWorker):
+                        strategy_class = obj
+                        break
+            
+            if strategy_class is None:
+                raise ValueError(f"找不到策略类: {module_path}")
             
             # 创建一个临时实例来获取 scan_opportunity 方法
             dummy_payload = {
@@ -91,7 +116,8 @@ class OpportunityEnumeratorWorker:
         """
         try:
             # 1. 计算真正的开始日期（需要预留 lookback 窗口）
-            lookback_days = self.settings.params.get('lookback_days', 60)
+            # 使用 min_required_records 作为 lookback，但限制最大为 60 天
+            lookback_days = min(self.settings.min_required_records, 60)
             actual_start_date = self._get_date_before(self.start_date, lookback_days)
             
             # 2. 加载全量历史数据
@@ -120,7 +146,7 @@ class OpportunityEnumeratorWorker:
             }
             
             # 5. 获取最小所需 K 线数
-            min_required_kline = self.settings.params.get('min_required_kline', 0)
+            min_required_kline = self.settings.min_required_records
             
             # 6. 逐日遍历 K 线
             last_kline = None
@@ -144,15 +170,19 @@ class OpportunityEnumeratorWorker:
             if tracker['active_opportunities'] and last_kline:
                 self._close_all_open_opportunities(tracker, last_kline)
             
-            # 8. 序列化并返回结果
-            opportunities_dict = [
-                opp.to_dict() for opp in tracker['all_opportunities']
-            ]
-            
+            # 8. 序列化并写出本股票的 CSV，再返回精简 summary
+            opportunities_dict = [opp.to_dict() for opp in tracker['all_opportunities']]
+
+            opportunity_count = len(opportunities_dict)
+            # 如果 payload 中有 output_dir，则将当前股票的结果写入对应目录
+            output_dir = self.job_payload.get('output_dir')
+            if output_dir and opportunity_count > 0:
+                self._save_stock_results(output_dir, opportunities_dict)
+
             return {
                 'success': True,
                 'stock_id': self.stock_id,
-                'opportunities': opportunities_dict
+                'opportunity_count': opportunity_count,
             }
         
         except Exception as e:
@@ -163,7 +193,7 @@ class OpportunityEnumeratorWorker:
             return {
                 'success': False,
                 'stock_id': self.stock_id,
-                'opportunities': [],
+                'opportunity_count': 0,
                 'error': str(e)
             }
     
@@ -246,13 +276,20 @@ class OpportunityEnumeratorWorker:
         Returns:
             Opportunity or None
         """
-        # 临时设置数据（模拟 BaseStrategyWorker 的行为）
-        self.strategy_instance.data_manager._current_data = data
+        # 保存原始数据（确保数据隔离）
+        original_data = self.strategy_instance.data_manager._current_data.copy()
         
-        # 调用用户实现的扫描方法
-        opportunity = self.strategy_instance.scan_opportunity()
-        
-        return opportunity
+        try:
+            # 临时设置数据（模拟 BaseStrategyWorker 的行为）
+            self.strategy_instance.data_manager._current_data = data
+            
+            # 调用用户实现的扫描方法
+            opportunity = self.strategy_instance.scan_opportunity()
+            
+            return opportunity
+        finally:
+            # 恢复原始数据（确保数据隔离）
+            self.strategy_instance.data_manager._current_data = original_data
     
     def _close_all_open_opportunities(self, tracker: Dict[str, Any], last_kline: Dict[str, Any]):
         """
@@ -277,6 +314,82 @@ class OpportunityEnumeratorWorker:
         
         # 清空 active list（所有都已完成）
         tracker['active_opportunities'].clear()
+    
+    def _save_stock_results(self, output_dir: str, opportunities: List[Dict[str, Any]]):
+        """
+        将当前股票的机会和 completed_targets 写入单独的 CSV 文件：
+        - {stock_id}_opportunities.csv
+        - {stock_id}_targets.csv
+        """
+        from pathlib import Path
+        import csv
+        import json
+
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        opp_rows: List[Dict[str, Any]] = []
+        target_rows: List[Dict[str, Any]] = []
+
+        for opp in opportunities:
+            # 主表数据（排除 completed_targets）
+            row = {k: v for k, v in opp.items() if k != "completed_targets"}
+
+            # 兼容旧字段名：sell_* -> exit_*
+            if "sell_date" in row and "exit_date" not in row:
+                row["exit_date"] = row.pop("sell_date")
+            if "sell_price" in row and "exit_price" not in row:
+                row["exit_price"] = row.pop("sell_price")
+            if "sell_reason" in row and "exit_reason" not in row:
+                row["exit_reason"] = row.pop("sell_reason")
+
+            # 只保留 price_return，若只有 roi 则重命名
+            if "price_return" not in row and "roi" in row:
+                row["price_return"] = row.pop("roi")
+            elif "roi" in row:
+                row.pop("roi", None)
+
+            # extra_fields 如果是 dict，则序列化为 JSON 字符串
+            if "extra_fields" in row and isinstance(row["extra_fields"], dict):
+                try:
+                    row["extra_fields"] = json.dumps(row["extra_fields"], ensure_ascii=False)
+                except Exception:
+                    row["extra_fields"] = str(row["extra_fields"])
+
+            opp_rows.append(row)
+
+            # 子表数据
+            for target in opp.get("completed_targets", []) or []:
+                t_row = {
+                    "opportunity_id": opp.get("opportunity_id"),
+                    **target,
+                }
+                if "extra_fields" in t_row and isinstance(t_row["extra_fields"], dict):
+                    try:
+                        t_row["extra_fields"] = json.dumps(t_row["extra_fields"], ensure_ascii=False)
+                    except Exception:
+                        t_row["extra_fields"] = str(t_row["extra_fields"])
+                target_rows.append(t_row)
+
+        # 写 opportunities CSV
+        if opp_rows:
+            opp_file = output_path / f"{self.stock_id}_opportunities.csv"
+            fieldnames = sorted({k for row in opp_rows for k in row.keys()})
+            with opp_file.open("w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in opp_rows:
+                    writer.writerow(row)
+
+        # 写 targets CSV
+        if target_rows:
+            target_file = output_path / f"{self.stock_id}_targets.csv"
+            fieldnames = sorted({k for row in target_rows for k in row.keys()})
+            with target_file.open("w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in target_rows:
+                    writer.writerow(row)
     
     def _get_date_before(self, date_str: str, days: int) -> str:
         """

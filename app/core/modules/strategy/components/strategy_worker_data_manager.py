@@ -350,8 +350,8 @@ class StrategyWorkerDataManager:
                         values = IndicatorService.rsi(klines, length=int(length))
                         if not values:
                             continue
-                        # 如果只有一个 RSI，可以直接叫 'rsi'；多个周期时加后缀
-                        field = "rsi" if len(indicators_cfg.get("rsi", [])) == 1 else f"rsi{length}"
+                        # 统一使用 rsi{length} 作为字段名（例如 rsi14），保持与其他指标（ma5, ma10）命名一致
+                        field = f"rsi{length}"
                         for rec, val in zip(klines, values):
                             rec[field] = val
 

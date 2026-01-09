@@ -12,10 +12,8 @@ Random Strategy Worker - 随机策略（用于测试）
 
 from app.core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from app.core.modules.strategy.models.opportunity import Opportunity
-from typing import Optional
-import uuid
+from typing import Optional, Dict, Any
 import random
-from datetime import datetime
 
 
 class StrategyWorker(BaseStrategyWorker):
@@ -27,20 +25,31 @@ class StrategyWorker(BaseStrategyWorker):
     - 保证结果可复现（相同种子产生相同结果）
     """
     
-    def scan_opportunity(self) -> Optional[Opportunity]:
+    def scan_opportunity(self, data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Opportunity]:
         """
         扫描投资机会（随机策略）
+        
+        Args:
+            data: 数据字典，包含：
+                - data['klines']: List[Dict] - K线数据
+                - data.get('tags', []): List[Dict] - 标签数据（如果配置了）
+                - data.get('corporate_finance', []): List[Dict] - 财务数据（如果配置了）
+                - data.get('macro', {}): Dict - 宏观数据（如果配置了）
+            settings: 策略配置字典
         
         Returns:
             Opportunity: 如果随机决定发现买入信号
             None: 如果没有发现机会
         """
-        # 1. 获取配置参数
-        random_seed = self.settings.core.get('random_seed', 42)
-        probability = self.settings.core.get('probability', 0.1)  # 默认 10% 概率
+        from typing import Dict, Any
         
-        # 2. 获取 K-line 数据（用于生成机会信息）
-        klines = self.data_manager.get_klines()
+        # 1. 获取配置参数（从 settings 参数中获取）
+        core_config = settings.get('core', {})
+        random_seed = core_config.get('random_seed', 42)
+        probability = core_config.get('probability', 0.1)  # 默认 10% 概率
+        
+        # 2. 从 data 参数中获取 K-line 数据（避免 IO 操作）
+        klines = data.get('klines', [])
         
         if not klines or len(klines) < 1:
             return None  # 数据不足
@@ -55,28 +64,17 @@ class StrategyWorker(BaseStrategyWorker):
         # 4. 随机决定是否发现机会
         if rng.random() < probability:
             # 发现买入机会！
+            # 注意：使用 Worker 预加载的完整股票信息（包含 id, name, industry, type, exchange_center）
             return Opportunity(
-                opportunity_id=str(uuid.uuid4()),
-                stock_id=self.stock_id,
-                stock_name=latest_kline.get('name', ''),
-                strategy_name=self.strategy_name,
-                strategy_version='1.0',
-                scan_date=datetime.now().strftime('%Y%m%d'),
-                trigger_date=latest_kline['date'],
-                trigger_price=latest_kline['close'],
-                trigger_conditions={
+                stock=self.stock_info,  # 使用 Worker 预加载的完整股票信息
+                record_of_today=latest_kline,
+                extra_fields={
                     'random_seed': random_seed,
                     'combined_seed': combined_seed,
                     'probability': probability,
                     'random_value': rng.random(),
                     'signal': 'random_signal'
-                },
-                expected_return=0.05,  # 预期 5% 收益
-                confidence=0.50,  # 50% 置信度（随机策略）
-                status='active',
-                config_hash=str(hash(str(self.settings.to_dict()))),
-                created_at=datetime.now().isoformat(),
-                updated_at=datetime.now().isoformat()
+                }
             )
         
         return None  # 不满足买入条件（随机决定不买入）

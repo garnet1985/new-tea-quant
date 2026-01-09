@@ -130,7 +130,8 @@ class BaseStrategyWorker(ABC):
             }
         """
         # 1. 加载最新数据
-        lookback = self.settings.params.get('lookback_days', 60)
+        # 使用 min_required_records 作为 lookback，但限制最大为 60 天
+        lookback = min(self.settings.min_required_records, 60)
         self.data_manager.load_latest_data(lookback=lookback)
         
         # 2. 调用用户钩子
@@ -169,7 +170,8 @@ class BaseStrategyWorker(ABC):
             }
         """
         # 1. 计算真正的开始日期（需要预留 lookback 窗口）
-        lookback_days = self.settings.params.get('lookback_days', 60)
+        # 使用 min_required_records 作为 lookback，但限制最大为 60 天
+        lookback_days = min(self.settings.min_required_records, 60)
         
         # 从更早的日期开始加载，确保第一天就有足够的历史数据
         actual_start_date = self._get_date_before(
@@ -203,7 +205,7 @@ class BaseStrategyWorker(ABC):
         }
         
         # 5. 获取最小所需 K 线数
-        min_required_kline = self.settings.params.get('min_required_kline', 0)
+        min_required_kline = self.settings.min_required_records
         
         # 6. 逐日遍历 K 线（避免上帝模式）
         last_kline = None

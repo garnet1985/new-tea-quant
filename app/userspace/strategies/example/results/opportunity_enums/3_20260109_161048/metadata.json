@@ -1,0 +1,167 @@
+{
+  "strategy_name": "example",
+  "start_date": "20251229",
+  "end_date": "20260108",
+  "opportunity_count": 0,
+  "created_at": "2026-01-09T16:10:48.876307",
+  "version_id": 3,
+  "version_dir": "3_20260109_161048",
+  "settings_snapshot": {
+    "name": "example",
+    "description": "Example momentum strategy with technical indicators",
+    "is_enabled": false,
+    "core": {
+      "random_seed": 42,
+      "rsi_length": 14,
+      "rsi_oversold_threshold": 35
+    },
+    "data": {
+      "base": "stock_kline_daily",
+      "adjust": "qfq",
+      "min_required_records": 1000,
+      "indicators": {
+        "ma": [
+          {
+            "period": 5
+          },
+          {
+            "period": 10
+          },
+          {
+            "period": 20
+          },
+          {
+            "period": 60
+          }
+        ],
+        "ema": [
+          {
+            "period": 12
+          },
+          {
+            "period": 26
+          }
+        ],
+        "rsi": [
+          {
+            "period": 14
+          }
+        ],
+        "macd": [
+          {
+            "fast": 12,
+            "slow": 26,
+            "signal": 9
+          }
+        ],
+        "bbands": [
+          {
+            "period": 20,
+            "std": 2.0
+          }
+        ],
+        "atr": [
+          {
+            "period": 14
+          }
+        ]
+      },
+      "required_entities": [
+        {
+          "type": "gdp"
+        },
+        {
+          "type": "tag_scenario",
+          "name": "momentum_mid_term"
+        }
+      ]
+    },
+    "sampling": {
+      "strategy": "pool",
+      "sampling_amount": 50,
+      "uniform": {
+        "description": "均匀间隔采样 - 每间隔 N 个股票抽取一个，结果可重现"
+      },
+      "stratified": {
+        "seed": 42,
+        "description": "分层采样 - 按市场类型（沪深主板，中小板，创业板，科创板）采样，科学合理"
+      },
+      "random": {
+        "seed": 42,
+        "description": "随机采样 - 随机抽取指定数量的股票"
+      },
+      "continuous": {
+        "start_idx": 0,
+        "description": "连续采样 - 从 start_idx 开始连续取指定数量的股票"
+      },
+      "pool": {
+        "id_list_path": "../pools/high_quality_stocks.txt",
+        "description": "股票池采样 - 从指定股票池中抽取"
+      },
+      "blacklist": {
+        "id_list_path": "../blacklists/st_stocks.txt",
+        "description": "黑名单采样 - 排除黑名单后抽取"
+      }
+    },
+    "simulator": {
+      "start_date": "20230101",
+      "end_date": "",
+      "goal": {
+        "expiration": {
+          "fixed_period": 30,
+          "is_trading_period": true
+        },
+        "protect_loss": {
+          "ratio": 0,
+          "close_invest": true
+        },
+        "dynamic_loss": {
+          "ratio": -0.1,
+          "close_invest": true
+        },
+        "stop_loss": {
+          "stages": [
+            {
+              "name": "loss20%",
+              "ratio": -0.2,
+              "sell_ratio": 0.5
+            },
+            {
+              "name": "loss30%",
+              "ratio": -0.3,
+              "close_invest": true
+            }
+          ]
+        },
+        "take_profit": {
+          "stages": [
+            {
+              "name": "win10%",
+              "ratio": 0.1,
+              "sell_ratio": 0.2,
+              "actions": [
+                "set_protect_loss"
+              ]
+            },
+            {
+              "name": "win20%",
+              "ratio": 0.2,
+              "sell_ratio": 0.2
+            },
+            {
+              "name": "win30%",
+              "ratio": 0.3,
+              "sell_ratio": 0.2,
+              "actions": [
+                "set_dynamic_loss"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "performance": {
+      "max_workers": "auto"
+    }
+  }
+}

@@ -10,9 +10,11 @@ Example Strategy Worker - 示例策略
 
 from app.core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from app.core.modules.strategy.models.opportunity import Opportunity
+from app.core.modules.indicator.indicator_service import IndicatorService
 from typing import Optional
 import uuid
 from datetime import datetime
+import random
 
 
 class ExampleStrategyWorker(BaseStrategyWorker):
@@ -20,7 +22,8 @@ class ExampleStrategyWorker(BaseStrategyWorker):
     示例策略 Worker
     
     策略逻辑：
-    - 如果最新收盘价突破 20 日均线，则发现买入机会
+    - 当最新 RSI(14) 低于阈值（默认 35）时认为超卖，产生买入机会
+    - 使用固定随机种子保证结果可复现（主要用于 opportunity_id）
     """
     
     def scan_opportunity(self) -> Optional[Opportunity]:
@@ -34,44 +37,61 @@ class ExampleStrategyWorker(BaseStrategyWorker):
             Opportunity: 如果发现买入信号
             None: 如果没有发现机会
         """
-        # 1. 获取 K-line 数据
+        # 1. 获取配置参数（用于保证可复现性和 RSI 阈值）
+        random_seed = self.settings.core.get('random_seed', 42)
+        rsi_length = self.settings.core.get('rsi_length', 14)
+        rsi_threshold = self.settings.core.get('rsi_oversold_threshold', 35)
+        
+        # 2. 获取 K-line 数据
         klines = self.data_manager.get_klines()
+        if not klines or len(klines) < rsi_length:
+            return None  # 数据不足，无法计算 RSI
         
-        if len(klines) < 20:
-            return None  # 数据不足
+        # 3. 计算 RSI
+        rsi_values = IndicatorService.rsi(klines, length=rsi_length)
+        if not rsi_values or len(rsi_values) == 0:
+            return None
         
-        # 2. 计算 20 日均线
-        ma20 = sum(k['close'] for k in klines[-20:]) / 20
-        latest_price = klines[-1]['close']
+        latest_kline = klines[-1]
+        latest_price = latest_kline['close']
+        latest_rsi = rsi_values[-1]
         
-        # 3. 判断买入条件：价格突破均线
-        price_above_ma = (latest_price - ma20) / ma20
+        # 4. 判断买入条件：RSI 低于超卖阈值（例如 35）
+        if latest_rsi >= rsi_threshold:
+            return None
         
-        if price_above_ma > 0:  # 价格高于均线
-            # 发现买入机会！
-            return Opportunity(
-                opportunity_id=str(uuid.uuid4()),
-                stock_id=self.stock_id,
-                stock_name=klines[-1].get('name', ''),
-                strategy_name=self.strategy_name,
-                strategy_version='1.0',
-                scan_date=datetime.now().strftime('%Y%m%d'),
-                trigger_date=klines[-1]['date'],
-                trigger_price=latest_price,
-                trigger_conditions={
-                    'ma20': ma20,
-                    'price_above_ma': price_above_ma,
-                    'signal': 'price_breakout_ma20'
-                },
-                expected_return=0.10,  # 预期 10% 收益
-                confidence=0.70,  # 70% 置信度
-                status='active',
-                config_hash=str(hash(str(self.settings.to_dict()))),
-                created_at=datetime.now().isoformat(),
-                updated_at=datetime.now().isoformat()
-            )
+        # 5. 使用固定种子生成 UUID（保证可复现性）
+        # 组合种子：基础种子 + 股票代码 + 日期
+        date_str = latest_kline['date']
+        combined_seed = hash(f"{random_seed}_{self.stock_id}_{date_str}") % (2**31)
+        rng = random.Random(combined_seed)
+        opportunity_uuid = uuid.UUID(int=rng.getrandbits(128))
         
-        return None  # 不满足买入条件
+        # 发现买入机会！
+        return Opportunity(
+            opportunity_id=str(opportunity_uuid),
+            stock_id=self.stock_id,
+            stock_name=latest_kline.get('name', ''),
+            strategy_name=self.strategy_name,
+            strategy_version='1.0',
+            scan_date=datetime.now().strftime('%Y%m%d'),
+            trigger_date=latest_kline['date'],
+            trigger_price=latest_price,
+            trigger_conditions={
+                'rsi_length': rsi_length,
+                'rsi_value': latest_rsi,
+                'rsi_oversold_threshold': rsi_threshold,
+                'signal': 'rsi_oversold',
+                'random_seed': random_seed,
+                'combined_seed': combined_seed,
+            },
+            expected_return=0.10,  # 示例：预期 10% 收益
+            confidence=0.50,       # 示例：50% 置信度
+            status='active',
+            config_hash=str(hash(str(self.settings.to_dict()))),
+            created_at=datetime.now().isoformat(),
+            updated_at=datetime.now().isoformat()
+        )
     
     # =========================================================================
     # 注意：不需要实现 simulate_opportunity() 方法！

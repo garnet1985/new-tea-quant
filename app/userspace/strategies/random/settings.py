@@ -6,29 +6,24 @@ settings = {
     # ========================================
     
     # 策略唯一名字，程序中的 key
-    "name": "example",
+    "name": "random",
     
     # 策略描述
-    "description": "Example momentum strategy with technical indicators",
+    "description": "Random strategy for testing (with fixed random seed for reproducibility)",
     
     # 策略是否启用
-    "is_enabled": False,
+    "is_enabled": True,  # 启用用于测试
     
     # ========================================
     # 策略核心参数
     # ========================================
     "core": {
-        # 随机种子（用于保证结果可复现）
+        # 随机种子（保证结果可复现）
         "random_seed": 42,
-
-        # RSI 参数（示例策略用）
-        "rsi_length": 14,
-        "rsi_oversold_threshold": 35,
         
-        # 你的策略特有参数
-        # 例如：
-        # "momentum_threshold": 0.05,
-        # "volume_multiplier": 1.5,
+        # 发现机会的概率（0.0 ~ 1.0）
+        # 0.1 = 10% 概率发现机会
+        "probability": 0.1
     },
     
     # ========================================
@@ -42,59 +37,23 @@ settings = {
         "adjust": AdjustType.QFQ.value,
         
         # 最小要求的基础周期记录数
-        "min_required_records": 1000,
+        "min_required_records": 100,
         
         # ========================================
         # 技术指标配置（框架自动计算）
         # ========================================
         "indicators": {
-            # 移动平均线（可配置多个周期）
+            # 移动平均线（简单配置，用于测试）
             "ma": [
                 {"period": 5},
-                {"period": 10},
-                {"period": 20},
-                {"period": 60}
-            ],
-            
-            # 指数移动平均线
-            "ema": [
-                {"period": 12},
-                {"period": 26}
-            ],
-            
-            # RSI 指标
-            "rsi": [
-                {"period": 14}
-            ],
-            
-            # MACD 指标
-            "macd": [
-                {"fast": 12, "slow": 26, "signal": 9}
-            ],
-            
-            # 布林带指标
-            "bbands": [
-                {"period": 20, "std": 2.0}
-            ],
-            
-            # ATR 指标（真实波动幅度）
-            "atr": [
-                {"period": 14}
+                {"period": 10}
             ]
         },
         
         # ========================================
-        # 外部数据依赖
+        # 外部数据依赖（测试用，不需要）
         # ========================================
-        "required_entities": [
-            {
-                "type": EntityType.GDP.value,
-            },
-            {
-                "type": EntityType.TAG_SCENARIO.value,
-                "name": "momentum_mid_term"
-            }
-        ]
+        "required_entities": []
     },
     
     # ========================================
@@ -102,59 +61,15 @@ settings = {
     # ========================================
     "sampling": {
         # 采样策略类型
-        "strategy": "pool",  # uniform / stratified / random / continuous / pool / blacklist
+        "strategy": "random",  # 使用随机采样
         
         # 采样数量
         "sampling_amount": 50,
         
-        # ========================================
-        # 各采样策略的专用配置
-        # ========================================
-        
-        # 均匀采样
-        "uniform": {
-            "description": "均匀间隔采样 - 每间隔 N 个股票抽取一个，结果可重现"
-        },
-        
-        # 分层采样
-        "stratified": {
-            "seed": 42,
-            "description": "分层采样 - 按市场类型（沪深主板，中小板，创业板，科创板）采样，科学合理"
-        },
-        
-        # 随机采样
+        # 随机采样配置
         "random": {
-            "seed": 42,
-            "description": "随机采样 - 随机抽取指定数量的股票"
-        },
-        
-        # 连续采样
-        "continuous": {
-            "start_idx": 0,
-            "description": "连续采样 - 从 start_idx 开始连续取指定数量的股票"
-        },
-        
-        # 股票池采样
-        "pool": {
-            # 方式 1：文件路径（推荐：长列表、易迁移）
-            "id_list_path": "../pools/high_quality_stocks.txt",
-            
-            # 方式 2：直接数组（推荐：短列表、快速测试）
-            # "stock_pool": ["000001.SZ", "000002.SZ", "000333.SZ"],
-            
-            # 说明：如果两个都配置，优先使用 id_list_path
-            "description": "股票池采样 - 从指定股票池中抽取"
-        },
-        
-        # 黑名单采样
-        "blacklist": {
-            # 方式 1：文件路径（推荐）
-            "id_list_path": "../blacklists/st_stocks.txt",
-            
-            # 方式 2：直接数组（备选）
-            # "blacklist": ["ST*", "退市*"],
-            
-            "description": "黑名单采样 - 排除黑名单后抽取"
+            "seed": 42,  # 随机种子
+            "description": "随机采样 - 用于测试"
         }
     },
     

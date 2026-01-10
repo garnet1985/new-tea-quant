@@ -417,14 +417,9 @@ class StrategyManager:
         """加载全局缓存"""
         if self.global_cache['stock_list'] is None:
             try:
-                stock_service = self.data_mgr.get_data_service('stock_related.stock')
-                if stock_service:
-                    stock_list = stock_service.load_filtered_stock_list()
-                    self.global_cache['stock_list'] = stock_list
-                    logger.info(f"📊 加载股票列表: {len(stock_list)} 只")
-                else:
-                    logger.error("无法获取 stock service")
-                    self.global_cache['stock_list'] = []
+                stock_list = self.data_mgr.stock.load_filtered_stock_list()
+                self.global_cache['stock_list'] = stock_list
+                logger.info(f"📊 加载股票列表: {len(stock_list)} 只")
             except Exception as e:
                 logger.error(f"加载股票列表失败: {e}")
                 self.global_cache['stock_list'] = []

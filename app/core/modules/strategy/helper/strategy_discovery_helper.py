@@ -140,20 +140,35 @@ class StrategyDiscoveryHelper:
     @staticmethod
     def validate_settings(settings_dict: Dict[str, Any]) -> bool:
         """
-        验证 settings 有效性
+        验证 settings 有效性（新格式）
         
         必须包含：
         - name: str
-        - klines: dict
+        - data: dict（新格式，替代旧的 klines）
         """
         if not isinstance(settings_dict, dict):
             logger.error("settings 必须是字典")
             return False
         
-        required_keys = ['name', 'klines']
+        # 新格式：必须包含 name 和 data
+        required_keys = ['name', 'data']
         for key in required_keys:
             if key not in settings_dict:
                 logger.error(f"settings 缺少必需字段: {key}")
                 return False
+        
+        # 验证 data 字段的必要子字段
+        data = settings_dict.get('data', {})
+        if not isinstance(data, dict):
+            logger.error("settings.data 必须是字典")
+            return False
+        
+        if 'base' not in data:
+            logger.error("settings.data.base 不能为空")
+            return False
+        
+        if 'adjust' not in data:
+            logger.error("settings.data.adjust 不能为空")
+            return False
         
         return True

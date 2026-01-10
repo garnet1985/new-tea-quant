@@ -214,6 +214,8 @@ class OpportunityEnumerator:
             logger.info(f"📊 性能报告已保存: {performance_file}")
         
         # 5. 保存 metadata（含 settings 快照、版本信息）
+        # 注意：is_full_enumeration 标记在所有子进程完成后才设置，避免异常中断导致数据不全
+        is_full_enumeration = not enum_settings.is_test_mode  # False = 测试模式（采样），True = 生产模式（全量）
         OpportunityEnumerator._save_results(
             strategy_name=strategy_name,
             start_date=start_date,
@@ -223,9 +225,18 @@ class OpportunityEnumerator:
             version_dir_name=version_dir_name,
             opportunity_count=total_opportunities,
             settings_snapshot=validated_settings,
+            is_full_enumeration=is_full_enumeration,
         )
         
-        # 6. 返回结果（目前直接返回 summary，而不是全量 opportunities）
+        # 6. 清理旧版本（只清理全量枚举的版本，测试模式版本不清理）
+        if is_full_enumeration:
+            OpportunityEnumerator._cleanup_old_versions(
+                root_dir=root_dir,
+                max_keep_versions=enum_settings.max_keep_versions,
+                strategy_name=strategy_name
+            )
+        
+        # 7. 返回结果（目前直接返回 summary，而不是全量 opportunities）
         return [{
             'strategy_name': strategy_name,
             'version_id': next_version_id,
@@ -265,10 +276,17 @@ class OpportunityEnumerator:
         version_id: int,
         version_dir_name: str,
         opportunity_count: int,
-        settings_snapshot: Dict[str, Any]
+        settings_snapshot: Dict[str, Any],
+        is_full_enumeration: bool = False
     ):
         """
         保存本次枚举运行的 metadata（不再在这里写 CSV，CSV 由子进程按股票各自写出）
+        
+        Args:
+            is_full_enumeration: 是否为全量枚举
+                - True: 全量股票枚举，可以作为上层应用的基础数据
+                - False: 测试模式（采样枚举），不能作为上层应用的基础数据
+                注意：此标记在所有子进程完成后才设置，避免异常中断导致数据不全
         """
         now = datetime.now()
         metadata = {
@@ -279,10 +297,105 @@ class OpportunityEnumerator:
             'created_at': now.isoformat(),
             'version_id': version_id,
             'version_dir': version_dir_name,
-            'settings_snapshot': settings_snapshot
+            'settings_snapshot': settings_snapshot,
+            'is_full_enumeration': is_full_enumeration  # 标记是否为全量枚举
         }
         
         with open(output_dir / 'metadata.json', 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"✅ 枚举 metadata 已保存: {output_dir}")
+        enum_mode = "全量枚举" if is_full_enumeration else "测试模式（采样）"
+        logger.info(f"✅ 枚举 metadata 已保存: {output_dir} ({enum_mode})")
+    
+    @staticmethod
+    def _cleanup_old_versions(
+        root_dir: Path,
+        max_keep_versions: int,
+        strategy_name: str
+    ):
+        """
+        清理旧的全量枚举版本
+        
+        只清理全量枚举的版本（is_full_enumeration: true），测试模式版本不清理。
+        按照版本 ID 排序，保留最新的 max_keep_versions 个版本，删除最早的版本。
+        
+        Args:
+            root_dir: 版本目录的根目录
+            max_keep_versions: 最多保留的版本数
+            strategy_name: 策略名称（用于日志）
+        """
+        if max_keep_versions < 1:
+            return  # 至少保留 1 个版本
+        
+        try:
+            # 1. 扫描所有版本目录
+            version_dirs = []
+            for item in root_dir.iterdir():
+                if item.is_dir() and item.name != "__pycache__":
+                    # 版本目录格式：{version_id}_{timestamp}
+                    if "_" in item.name:
+                        version_dirs.append(item)
+            
+            if not version_dirs:
+                return
+            
+            # 2. 读取每个版本的 metadata.json，筛选出全量枚举的版本
+            full_enum_versions = []
+            for version_dir in version_dirs:
+                metadata_path = version_dir / "metadata.json"
+                if not metadata_path.exists():
+                    continue
+                
+                try:
+                    with metadata_path.open("r", encoding="utf-8") as f:
+                        metadata = json.load(f)
+                    
+                    # 只处理全量枚举的版本
+                    if metadata.get("is_full_enumeration", False):
+                        version_id = metadata.get("version_id", 0)
+                        created_at = metadata.get("created_at", "")
+                        full_enum_versions.append({
+                            "version_id": version_id,
+                            "created_at": created_at,
+                            "version_dir": version_dir,
+                            "version_dir_name": version_dir.name
+                        })
+                except Exception as e:
+                    logger.warning(f"读取版本 metadata 失败: {version_dir}, error={e}")
+                    continue
+            
+            if len(full_enum_versions) <= max_keep_versions:
+                return  # 版本数未超过限制，无需清理
+            
+            # 3. 按版本 ID 排序（降序，最新的在前）
+            full_enum_versions.sort(key=lambda x: x["version_id"], reverse=True)
+            
+            # 4. 保留最新的 max_keep_versions 个版本，删除其余的
+            versions_to_delete = full_enum_versions[max_keep_versions:]
+            
+            if not versions_to_delete:
+                return
+            
+            logger.info(
+                f"🧹 开始清理旧版本: 策略={strategy_name}, "
+                f"全量版本总数={len(full_enum_versions)}, "
+                f"保留={max_keep_versions}, "
+                f"删除={len(versions_to_delete)}"
+            )
+            
+            deleted_count = 0
+            for version_info in versions_to_delete:
+                version_dir = version_info["version_dir"]
+                try:
+                    import shutil
+                    shutil.rmtree(version_dir)
+                    deleted_count += 1
+                    logger.info(f"  ✅ 已删除旧版本: {version_info['version_dir_name']} (version_id={version_info['version_id']})")
+                except Exception as e:
+                    logger.warning(f"  ⚠️  删除版本失败: {version_info['version_dir_name']}, error={e}")
+            
+            if deleted_count > 0:
+                logger.info(f"✅ 版本清理完成: 已删除 {deleted_count} 个旧版本")
+        
+        except Exception as e:
+            logger.error(f"❌ 清理旧版本时发生错误: {e}", exc_info=True)

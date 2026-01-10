@@ -138,26 +138,37 @@ class App:
         
         settings = StrategySettings.from_dict(strategy_info['settings'])
         
-        # 2. 获取股票列表（从 settings 读取采样配置）
+        # 2. 获取股票列表（根据 is_test_mode 决定使用采样还是全量）
         all_stocks = self.data_manager.load_stock_list(filtered=True)  # 加载所有活跃股票（已过滤）
         
-        # 如果提供了 stock_count 参数，优先使用（用于测试）
-        if stock_count is not None:
-            sampling_amount = stock_count
-            sampling_config = {'strategy': 'continuous', 'continuous': {'start_idx': 0}}
-            logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count} (测试模式)")
-        else:
-            # 从 settings 读取采样配置
-            sampling_amount = settings.sampling_amount
-            sampling_config = settings.sampling_config
-            logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, sampling_amount={sampling_amount}, sampling_strategy={sampling_config.get('strategy')}")
+        # 检查 is_test_mode（从枚举器设置中读取）
+        from app.core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
+        enum_settings = OpportunityEnumeratorSettings.from_base(settings)
+        is_test_mode = enum_settings.is_test_mode
         
-        # 使用 StockSamplingHelper 获取股票列表
-        stock_list = StockSamplingHelper.get_stock_list(
-            all_stocks=all_stocks,
-            sampling_amount=sampling_amount,
-            sampling_config=sampling_config
-        )
+        if is_test_mode:
+            # 测试模式：使用 sampling 配置进行采样
+            # 如果提供了 stock_count 参数，优先使用（用于测试）
+            if stock_count is not None:
+                sampling_amount = stock_count
+                sampling_config = {'strategy': 'continuous', 'continuous': {'start_idx': 0}}
+                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count} (测试模式)")
+            else:
+                # 从 settings 读取采样配置
+                sampling_amount = settings.sampling_amount
+                sampling_config = settings.sampling_config
+                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, sampling_amount={sampling_amount}, sampling_strategy={sampling_config.get('strategy')} (测试模式)")
+            
+            # 使用 StockSamplingHelper 获取股票列表
+            stock_list = StockSamplingHelper.get_stock_list(
+                all_stocks=all_stocks,
+                sampling_amount=sampling_amount,
+                sampling_config=sampling_config
+            )
+        else:
+            # 生产模式：使用全量股票列表
+            stock_list = [s['id'] for s in all_stocks]
+            logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={len(stock_list)} (全量枚举模式)")
         
         logger.info(f"📊 实际股票数量: {len(stock_list)}")
         

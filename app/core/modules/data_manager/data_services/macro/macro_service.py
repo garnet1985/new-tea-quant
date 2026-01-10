@@ -1,5 +1,5 @@
 """
-宏观经济数据服务（MacroDataService）
+宏观经济服务（MacroService）
 
 职责：
 - 封装宏观经济相关的跨表查询和数据组装
@@ -17,7 +17,7 @@ from loguru import logger
 from .. import BaseDataService
 
 
-class MacroDataService(BaseDataService):
+class MacroService(BaseDataService):
     """宏观经济数据服务"""
     
     def __init__(self, data_manager: Any):

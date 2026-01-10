@@ -60,6 +60,7 @@ class OpportunityEnumeratorSettings:
     data: Dict[str, Any] = field(init=False)
     simulator: Dict[str, Any] = field(init=False)
     goal: Dict[str, Any] = field(init=False)
+    is_test_mode: bool = field(init=False)
 
     min_required_records: int = field(init=False)
 
@@ -139,6 +140,27 @@ class OpportunityEnumeratorSettings:
         self.data = data
         self.min_required_records = mrr_int
 
+        # ----- enumerator 部分 -----
+        enumerator = dict(settings.get("enumerator") or {})
+        
+        # is_test_mode：默认 True（测试模式：使用 sampling 配置）
+        # False 表示生产模式：使用全量股票列表
+        is_test_mode = enumerator.get("is_test_mode", True)
+        if not isinstance(is_test_mode, bool):
+            is_test_mode = True  # 如果不是 bool，默认 True
+        self.is_test_mode = is_test_mode
+        
+        # max_keep_versions：最多保留的全量枚举版本数，默认 3
+        # 超过此数量的全量版本会被自动清理（删除最早的版本）
+        max_keep_versions = enumerator.get("max_keep_versions", 3)
+        try:
+            max_keep_versions_int = int(max_keep_versions)
+        except (TypeError, ValueError):
+            max_keep_versions_int = 3
+        if max_keep_versions_int < 1:
+            max_keep_versions_int = 3  # 至少保留 1 个版本
+        self.max_keep_versions = max_keep_versions_int
+
         # ----- simulator 部分 -----
         simulator = dict(settings.get("simulator") or {})
 
@@ -176,6 +198,11 @@ class OpportunityEnumeratorSettings:
         merged = dict(self.raw or {})
         merged["data"] = self.data
         merged["simulator"] = self.simulator
+        # 确保 enumerator 配置存在
+        if "enumerator" not in merged:
+            merged["enumerator"] = {}
+        merged["enumerator"]["is_test_mode"] = self.is_test_mode
+        merged["enumerator"]["max_keep_versions"] = self.max_keep_versions
         # goal/min_required_records 已经写回 simulator/data 内部，这里不单独暴露
         return merged
 

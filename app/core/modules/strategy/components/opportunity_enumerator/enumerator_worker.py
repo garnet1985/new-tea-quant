@@ -13,6 +13,11 @@ from typing import Dict, Any, List
 import logging
 import time
 
+from app.core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
+    PerformanceProfiler,
+    PerformanceMetrics
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +43,9 @@ class OpportunityEnumeratorWorker:
         self.strategy_name = job_payload['strategy_name']
         self.start_date = job_payload['start_date']
         self.end_date = job_payload['end_date']
+        
+        # 初始化性能分析器（必须在最前面，以便记录整个生命周期）
+        self.profiler = PerformanceProfiler(self.stock_id)
         
         # 解析配置
         from app.core.modules.strategy.models.strategy_settings import StrategySettings
@@ -147,6 +155,7 @@ class OpportunityEnumeratorWorker:
             }
         """
         t_start = time.perf_counter()
+        self.profiler.start_timer('total')
         try:
             # 1. 计算真正的开始日期（需要预留 lookback 窗口）
             # 使用 min_required_records 作为 lookback，但限制最大为 60 天。
@@ -155,12 +164,29 @@ class OpportunityEnumeratorWorker:
             actual_start_date = self._get_date_before(self.start_date, lookback_days)
             
             # 2. 加载全量历史数据
-            t_load_start = time.perf_counter()
+            self.profiler.start_timer('load_data')
+            
+            # 包装数据加载以统计 IO
+            # 注意：load_qfq_klines 内部会执行多次数据库查询：
+            # 1. _load_raw_klines: 1 次查询（加载原始 K 线）
+            # 2. _load_factor_events: 1 次查询（加载复权因子事件）
+            # 3. _get_latest_factor: 1 次查询（获取最新复权因子）
+            # 总共约 3 次查询
+            import time as time_module
+            db_query_start = time_module.perf_counter()
             self.data_manager.load_historical_data(
                 start_date=actual_start_date,
                 end_date=self.end_date
             )
-            t_load_end = time.perf_counter()
+            db_query_time = time_module.perf_counter() - db_query_start
+            
+            # 记录数据库查询（估算：每次 load_historical_data 约 3 次查询）
+            estimated_queries = 3
+            avg_query_time = db_query_time / estimated_queries if estimated_queries > 0 else 0
+            for _ in range(estimated_queries):
+                self.profiler.record_db_query(avg_query_time)
+            
+            self.profiler.metrics.time_load_data = self.profiler.end_timer('load_data')
             
             # 3. 获取 K 线数据
             all_klines = self.data_manager.get_klines()
@@ -196,7 +222,7 @@ class OpportunityEnumeratorWorker:
             }
             
             # 6. 逐日遍历 K 线
-            t_enum_start = time.perf_counter()
+            self.profiler.start_timer('enumerate')
             last_kline = None
             for i, current_kline in enumerate(all_klines):
                 virtual_date_of_today = current_kline['date']
@@ -213,40 +239,59 @@ class OpportunityEnumeratorWorker:
                 self._enumerate_single_day(tracker, current_kline, data_of_today)
                 
                 last_kline = current_kline
-            t_enum_end = time.perf_counter()
+            self.profiler.metrics.time_enumerate = self.profiler.end_timer('enumerate')
             
             # 7. 回测结束，强制平仓所有未结投资
             if tracker['active_opportunities'] and last_kline:
                 self._close_all_open_opportunities(tracker, last_kline)
             
             # 8. 序列化并写出本股票的 CSV，再返回精简 summary
-            t_serialize_start = time.perf_counter()
+            self.profiler.start_timer('serialize')
             opportunities_dict = [opp.to_dict() for opp in tracker['all_opportunities']]
+            self.profiler.metrics.time_serialize = self.profiler.end_timer('serialize')
 
             opportunity_count = len(opportunities_dict)
+            
             # 如果 payload 中有 output_dir，则将当前股票的结果写入对应目录
             output_dir = self.job_payload.get('output_dir')
             if output_dir and opportunity_count > 0:
+                self.profiler.start_timer('save_csv')
                 self._save_stock_results(output_dir, opportunities_dict)
-            t_serialize_end = time.perf_counter()
-
-            t_end = time.perf_counter()
+                self.profiler.metrics.time_save_csv = self.profiler.end_timer('save_csv')
+            
+            # 更新数据统计
+            self.profiler.metrics.kline_count = len(all_klines)
+            self.profiler.metrics.opportunity_count = opportunity_count
+            self.profiler.metrics.target_count = sum(
+                len(opp.get('completed_targets', []) or []) 
+                for opp in opportunities_dict
+            )
+            
+            # 完成性能分析
+            self.profiler.metrics.time_total = self.profiler.end_timer('total')
+            metrics = self.profiler.finalize()
 
             logger.info(
-                "⏱ 枚举性能[stock=%s]: load=%.1fms, enum=%.1fms, serialize+save=%.1fms, total=%.1fms, days=%d, opps=%d",
+                "⏱ 枚举性能[stock=%s]: load=%.1fms, enum=%.1fms, serialize=%.1fms, save=%.1fms, total=%.1fms, "
+                "days=%d, opps=%d, db_queries=%d, file_writes=%d, memory_peak=%.1fMB",
                 self.stock_id,
-                (t_load_end - t_load_start) * 1000.0,
-                (t_enum_end - t_enum_start) * 1000.0,
-                (t_serialize_end - t_serialize_start) * 1000.0,
-                (t_end - t_start) * 1000.0,
+                metrics.time_load_data * 1000.0,
+                metrics.time_enumerate * 1000.0,
+                metrics.time_serialize * 1000.0,
+                metrics.time_save_csv * 1000.0,
+                metrics.time_total * 1000.0,
                 len(all_klines),
                 opportunity_count,
+                metrics.db_queries,
+                metrics.file_writes,
+                metrics.memory_peak,
             )
 
             return {
                 'success': True,
                 'stock_id': self.stock_id,
                 'opportunity_count': opportunity_count,
+                'performance_metrics': metrics.to_dict(),  # 返回性能指标
             }
         
         except Exception as e:
@@ -380,9 +425,12 @@ class OpportunityEnumeratorWorker:
         from pathlib import Path
         import csv
         import json
+        import time as time_module
 
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
+        
+        total_write_size = 0
 
         opp_rows: List[Dict[str, Any]] = []
         target_rows: List[Dict[str, Any]] = []
@@ -454,21 +502,31 @@ class OpportunityEnumeratorWorker:
         if opp_rows:
             opp_file = output_path / f"{self.stock_id}_opportunities.csv"
             fieldnames = sorted({k for row in opp_rows for k in row.keys()})
+            t_write_start = time_module.perf_counter()
             with opp_file.open("w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 for row in opp_rows:
                     writer.writerow(row)
+            write_size = opp_file.stat().st_size
+            total_write_size += write_size
+            write_time = time_module.perf_counter() - t_write_start
+            self.profiler.record_file_write(write_size, write_time)
 
         # 写 targets CSV
         if target_rows:
             target_file = output_path / f"{self.stock_id}_targets.csv"
             fieldnames = sorted({k for row in target_rows for k in row.keys()})
+            t_write_start = time_module.perf_counter()
             with target_file.open("w", encoding="utf-8", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 for row in target_rows:
                     writer.writerow(row)
+            write_size = target_file.stat().st_size
+            total_write_size += write_size
+            write_time = time_module.perf_counter() - t_write_start
+            self.profiler.record_file_write(write_size, write_time)
     
     def _get_date_before(self, date_str: str, days: int) -> str:
         """

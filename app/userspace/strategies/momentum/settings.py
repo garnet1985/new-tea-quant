@@ -4,6 +4,7 @@ Momentum Strategy Settings - 动量策略配置
 """
 
 settings = {
+    "is_enabled": False,
     "name": "momentum",
     "version": "1.0",
     "description": "动量策略 - 基于价格趋势的买入信号",

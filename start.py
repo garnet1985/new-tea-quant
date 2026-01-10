@@ -116,39 +116,71 @@ class App:
             self.tag_manager = TagManager(is_verbose=self.is_verbose)
         self.tag_manager.execute(scenario_name=scenario_name)
     
-    def enumerate(self, strategy_name: str = 'random', stock_count: int = 2):
+    def enumerate(self, strategy_name: str = 'example', stock_count: int = None):
         """
-        枚举投资机会（测试用）
+        枚举投资机会
         
         Args:
             strategy_name: 策略名称
-            stock_count: 测试股票数量
+            stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
         """
         from app.core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
+        from app.core.modules.strategy.models.strategy_settings import StrategySettings
+        from app.core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
         
-        logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count}")
+        # 1. 加载策略配置
+        from app.core.modules.strategy.strategy_manager import StrategyManager
+        strategy_manager = StrategyManager()
+        strategy_info = strategy_manager.strategy_cache.get(strategy_name)
+        if not strategy_info:
+            logger.error(f"策略不存在: {strategy_name}")
+            return []
         
-        # 获取股票列表（测试用，硬编码）
-        all_stocks = ['000001.SZ', '000002.SZ', '000333.SZ', '600000.SH', '600004.SH']
-        stock_list = all_stocks[:stock_count]
+        settings = StrategySettings.from_dict(strategy_info['settings'])
         
-        logger.info(f"测试股票: {stock_list}")
+        # 2. 获取股票列表（从 settings 读取采样配置）
+        all_stocks = self.data_manager.load_stock_list(filtered=True)  # 加载所有活跃股票（已过滤）
         
-        # 设置测试时间范围（只测试最近 10 天）
+        # 如果提供了 stock_count 参数，优先使用（用于测试）
+        if stock_count is not None:
+            sampling_amount = stock_count
+            sampling_config = {'strategy': 'continuous', 'continuous': {'start_idx': 0}}
+            logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count} (测试模式)")
+        else:
+            # 从 settings 读取采样配置
+            sampling_amount = settings.sampling_amount
+            sampling_config = settings.sampling_config
+            logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, sampling_amount={sampling_amount}, sampling_strategy={sampling_config.get('strategy')}")
+        
+        # 使用 StockSamplingHelper 获取股票列表
+        stock_list = StockSamplingHelper.get_stock_list(
+            all_stocks=all_stocks,
+            sampling_amount=sampling_amount,
+            sampling_config=sampling_config
+        )
+        
+        logger.info(f"📊 实际股票数量: {len(stock_list)}")
+        
+        # 3. 设置时间范围（从 settings 读取，如果没有则使用默认值）
         latest_date = self.data_manager.get_latest_completed_trading_date()
-        from datetime import datetime, timedelta
-        start_date_obj = datetime.strptime(latest_date, '%Y%m%d') - timedelta(days=10)
-        start_date = start_date_obj.strftime('%Y%m%d')
+        start_date = settings.start_date or ''
         
-        logger.info(f"测试时间范围: {start_date} ~ {latest_date}")
+        # 如果 start_date 为空，使用默认开始日期
+        if not start_date:
+            from app.core.utils.date.date_utils import DateUtils
+            start_date = DateUtils.DEFAULT_START_DATE
+        
+        end_date = settings.end_date or latest_date
+        
+        logger.info(f"📅 时间范围: {start_date} ~ {end_date}")
         
         # 枚举所有机会（返回 summary，而不是全量机会列表）
         summary_results = OpportunityEnumerator.enumerate(
             strategy_name=strategy_name,
             start_date=start_date,
-            end_date=latest_date,
+            end_date=end_date,
             stock_list=stock_list,
-            max_workers='auto'  # 自动计算
+            max_workers=settings.max_workers  # 从 settings 读取，默认 'auto'
         )
         
         # 按当前设计，enumerator 返回的是 summary 列表，每个元素是一次 run 的概要信息
@@ -260,7 +292,7 @@ def parse_args():
     parser.add_argument('--strategy', type=str, help='指定策略名称（用于 scan/simulate/enumerate）')
     parser.add_argument('--session', type=str, help='指定session ID（用于 analysis）')
     parser.add_argument('--scenario', type=str, help='指定场景名称（用于 tag）')
-    parser.add_argument('--stocks', type=int, default=2, help='测试股票数量（用于 enumerate，默认 2）')
+    parser.add_argument('--stocks', type=int, default=None, help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
     parser.add_argument('-v', '--verbose', action='store_true', help='详细输出模式')
     
     return parser.parse_args()

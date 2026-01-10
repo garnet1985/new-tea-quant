@@ -143,7 +143,13 @@ class OpportunityEnumerator:
         # 获取结果
         job_results = worker_pool.get_results()
         
-        # 4. 聚合结果（只聚合 summary，不再拉回全量 opportunities）
+        # 4. 聚合结果和性能指标
+        from app.core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
+            AggregateProfiler,
+            PerformanceMetrics
+        )
+        aggregate_profiler = AggregateProfiler()
+        
         total_opportunities = 0
         success_count = 0
         failed_count = 0
@@ -154,6 +160,30 @@ class OpportunityEnumerator:
                 if result.get('success'):
                     success_count += 1
                     total_opportunities += int(result.get('opportunity_count', 0))
+                    
+                    # 聚合性能指标
+                    perf_data = result.get('performance_metrics')
+                    if perf_data:
+                        metrics = PerformanceMetrics()
+                        metrics.time_load_data = perf_data.get('time', {}).get('load_data', 0)
+                        metrics.time_calculate_indicators = perf_data.get('time', {}).get('calculate_indicators', 0)
+                        metrics.time_enumerate = perf_data.get('time', {}).get('enumerate', 0)
+                        metrics.time_serialize = perf_data.get('time', {}).get('serialize', 0)
+                        metrics.time_save_csv = perf_data.get('time', {}).get('save_csv', 0)
+                        metrics.time_total = perf_data.get('time', {}).get('total', 0)
+                        metrics.db_queries = perf_data.get('io', {}).get('db_queries', 0)
+                        metrics.db_query_time = perf_data.get('io', {}).get('db_query_time', 0)
+                        metrics.file_writes = perf_data.get('io', {}).get('file_writes', 0)
+                        metrics.file_write_time = perf_data.get('io', {}).get('file_write_time', 0)
+                        metrics.file_write_size = int(perf_data.get('io', {}).get('file_write_size_mb', 0) * 1024 * 1024)
+                        metrics.kline_count = perf_data.get('data', {}).get('kline_count', 0)
+                        metrics.opportunity_count = perf_data.get('data', {}).get('opportunity_count', 0)
+                        metrics.target_count = perf_data.get('data', {}).get('target_count', 0)
+                        metrics.memory_peak = perf_data.get('memory', {}).get('peak_mb', 0)
+                        metrics.memory_start = perf_data.get('memory', {}).get('start_mb', 0)
+                        metrics.memory_end = perf_data.get('memory', {}).get('end_mb', 0)
+                        
+                        aggregate_profiler.add_stock_metrics(result.get('stock_id'), metrics)
                 else:
                     failed_count += 1
                     logger.warning(
@@ -171,6 +201,17 @@ class OpportunityEnumerator:
             f"✅ 枚举完成: 成功={success_count}, 失败={failed_count}, "
             f"机会数={total_opportunities}"
         )
+        
+        # 打印性能报告
+        if success_count > 0:
+            aggregate_profiler.print_report()
+            
+            # 同时保存性能报告到文件
+            performance_summary = aggregate_profiler.get_summary()
+            performance_file = output_dir / "performance_report.json"
+            with performance_file.open("w", encoding="utf-8") as f:
+                json.dump(performance_summary, f, indent=2, ensure_ascii=False)
+            logger.info(f"📊 性能报告已保存: {performance_file}")
         
         # 5. 保存 metadata（含 settings 快照、版本信息）
         OpportunityEnumerator._save_results(

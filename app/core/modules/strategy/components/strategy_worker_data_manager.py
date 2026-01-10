@@ -576,11 +576,9 @@ class StrategyWorkerDataManager:
         """
         try:
             # 尝试获取最新K线数据
-            stock_service = self.data_mgr.get_data_service('stock_related.stock')
-            if stock_service:
-                latest_kline = stock_service.load_latest_kline(self.stock_id)
-                if latest_kline:
-                    return latest_kline['date']
+            latest_kline = self.data_mgr.stock.kline.load_latest_kline(self.stock_id)
+            if latest_kline:
+                return latest_kline['date']
             
             # 如果没有数据，返回当前日期
             logger.warning(f"无法获取最新交易日，使用当前日期: stock={self.stock_id}")

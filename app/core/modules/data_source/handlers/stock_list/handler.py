@@ -153,12 +153,8 @@ class TushareStockListHandler(BaseDataSourceHandler):
             return
         
         try:
-            stock_service = self.data_manager.get_data_service('stock_related.stock')
-            if stock_service:
-                count = stock_service.save_stocks(data_list)
-                logger.info(f"✅ 保存 {self.data_source} 数据完成，共 {count} 条记录")
-            else:
-                logger.warning(f"未找到 stock service，无法保存 {self.data_source} 数据")
+            count = self.data_manager.stock.save_stocks(data_list)
+            logger.info(f"✅ 保存 {self.data_source} 数据完成，共 {count} 条记录")
         except Exception as e:
             logger.error(f"❌ 保存 {self.data_source} 数据失败: {e}")
             raise

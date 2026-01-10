@@ -132,11 +132,8 @@ class DataManager:
         self.db = db
         self._initialized = False
 
-        # TradingDateCache（交易日缓存）
-        self._trading_date_cache = None
-
-        # DataService 容器（按名称索引，例如：'stock'、'macro'、'waly' 等）
-        self._data_services: Dict[str, Any] = {}
+        # DataService 主类（跨service协调器）
+        self._data_service = None
 
         # 策略表 & 策略 Model 注册信息
         # {(strategy_name, table_name): schema_path}
@@ -184,16 +181,11 @@ class DataManager:
 
             self.db.schema_manager.create_all_tables(self.db.get_connection)
 
-            # 3. 初始化 TradingDateCache
-            if self.is_verbose:
-                logger.info("🔧 初始化 TradingDateCache...")
-            from app.core.modules.data_manager.data_services.trading_date.trading_date_cache import TradingDateCache
-            self._trading_date_cache = TradingDateCache()
-
-            # 4. 初始化 DataService（按业务领域分类）
+            # 3. 初始化 DataService（跨service协调器）
             if self.is_verbose:
                 logger.info("🔧 初始化 DataService...")
-            self._init_data_services()
+            from app.core.modules.data_manager.data_services import DataService
+            self._data_service = DataService(self)
 
             self._initialized = True
             
@@ -264,140 +256,58 @@ class DataManager:
         return model_class()
 
     # ------------------------------------------------------------------
-    # DataService 相关
+    # DataService 属性访问
     # ------------------------------------------------------------------
-
-    def _init_data_services(self):
-        """
-        初始化3大类 DataService
-        
-        数据分类：
-        1. stock_related: 股票相关数据（K线、财务、行业）
-        2. macro_system: 宏观/系统数据（GDP、CPI、Shibor、元信息）
-        3. ui_transit: UI/中转数据（投资记录、扫描结果）
-        
-        支持两级访问：
-        - 'stock_related' 访问大类统一接口
-        - 'stock_related.stock' 访问子 Service
-        """
-        # 1. stock_related 大类
-        try:
-            from app.core.modules.data_manager.data_services.stock_related import StockRelatedDataService
-            stock_related = StockRelatedDataService(self)
-            stock_related.initialize()
-            
-            # 注册大类
-            self._data_services['stock_related'] = stock_related
-            
-            # 注册子 Service（支持 'stock_related.stock' 访问）
-            if stock_related.stock_service:
-                self._data_services['stock_related.stock'] = stock_related.stock_service
-            
-            if stock_related.label_service:
-                self._data_services['stock_related.label'] = stock_related.label_service
-                # 为了向后兼容，保留简短别名
-                self._data_services['label'] = stock_related.label_service
-            
-            if stock_related.finance_service:
-                self._data_services['stock_related.corporate_finance'] = stock_related.finance_service
-                # 为了向后兼容，保留简短别名
-                self._data_services['corporate_finance'] = stock_related.finance_service
-            
-            if self.is_verbose:
-                logger.info("✅ StockRelatedDataService 已注册")
-        except ImportError as e:
-            if self.is_verbose:
-                logger.debug(f"StockRelatedDataService 未实现，跳过: {e}")
-        
-        # 2. macro_system 大类
-        try:
-            from app.core.modules.data_manager.data_services.macro_system import MacroSystemDataService
-            macro_system = MacroSystemDataService(self)
-            macro_system.initialize()
-            
-            # 注册大类
-            self._data_services['macro_system'] = macro_system
-            
-            # 注册子 Service
-            if macro_system.macro_service:
-                self._data_services['macro_system.macro'] = macro_system.macro_service
-            
-            # 为了向后兼容，保留 'macro' 这个简短别名
-            self._data_services['macro'] = macro_system
-            
-            if self.is_verbose:
-                logger.info("✅ MacroSystemDataService 已注册")
-        except ImportError as e:
-            if self.is_verbose:
-                logger.debug(f"MacroSystemDataService 未实现，跳过: {e}")
-        
-        # 3. ui_transit 大类
-        try:
-            from app.core.modules.data_manager.data_services.ui_transit import UiTransitDataService
-            ui_transit = UiTransitDataService(self)
-            ui_transit.initialize()
-            
-            # 注册大类
-            self._data_services['ui_transit'] = ui_transit
-            
-            # 注册子 Service
-            if ui_transit.investment_service:
-                self._data_services['ui_transit.investment'] = ui_transit.investment_service
-                # 为了向后兼容，保留简短别名
-                self._data_services['investment'] = ui_transit.investment_service
-            
-            if self.is_verbose:
-                logger.info("✅ UiTransitDataService 已注册")
-        except ImportError as e:
-            if self.is_verbose:
-                logger.debug(f"UiTransitDataService 未实现，跳过: {e}")
-        
-        # 4. tag 大类
-        try:
-            from app.core.modules.data_manager.data_services.tag.tag_data_service import TagDataService
-            tag_service = TagDataService(self)
-            
-            # 注册 tag service
-            self._data_services['tag'] = tag_service
-            
-            if self.is_verbose:
-                logger.info("✅ TagDataService 已注册")
-        except ImportError as e:
-            if self.is_verbose:
-                logger.debug(f"TagDataService 未实现，跳过: {e}")
-
-    def get_data_service(self, name: str) -> Any:
-        """
-        获取指定名称的 DataService
-        
-        支持两级访问：
-        - 'stock_related': 获取大类统一接口
-        - 'stock_related.stock': 获取子 Service
-        - 'macro': 快捷别名，等同于 'macro_system'
-
-        Args:
-            name: DataService 名称
-                - 大类: 'stock_related', 'macro_system', 'ui_transit', 'tag'
-                - 子级: 'stock_related.stock', 'macro_system.macro'
-                - 别名: 'macro' (等同于 'macro_system')
-
-        Returns:
-            对应的 DataService 实例，未找到返回 None
-        """
-        service = self._data_services.get(name)
-        if not service:
-            logger.warning(f"DataService '{name}' 未注册。可用的: {list(self._data_services.keys())}")
-        return service
     
     @property
-    def tag(self):
+    def stock(self):
         """
-        Tag DataService 属性访问
+        股票数据服务（属性访问）
         
         Returns:
-            TagDataService 实例
+            StockService 实例
         """
-        return self.get_data_service('tag')
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service.stock
+    
+    @property
+    def macro(self):
+        """
+        宏观经济数据服务（属性访问）
+        
+        Returns:
+            MacroService 实例
+        """
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service.macro
+    
+    @property
+    def calendar(self):
+        """
+        日期服务（属性访问）
+        
+        Returns:
+            CalendarService 实例
+        """
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service.calendar
+    
+    @property
+    def service(self):
+        """
+        跨service协调器（属性访问）
+        
+        用于跨service方法，如 prepare_data
+        
+        Returns:
+            DataService 实例
+        """
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service
     
     def resolve_data_requirements(self, settings: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -430,24 +340,7 @@ class DataManager:
         result = {}
         processed = set()
         
-        # ========== 检查预设组合 ==========
-        
-        # 预设1: stock_kline + corporate_finance (股票相关大类内)
-        if 'stock_kline' in settings and 'corporate_finance' in settings and 'stock_kline' not in processed:
-            stock_related = self.get_data_service('stock_related')
-            if stock_related and 'ts_code' in context and 'date' in context and 'quarter' in context:
-                try:
-                    combined = stock_related.load_stock_with_finance(
-                        context['ts_code'], context['date'], context['quarter']
-                    )
-                    result['stock_kline'] = combined['kline']
-                    result['corporate_finance'] = combined['finance']
-                    processed.add('stock_kline')
-                    processed.add('corporate_finance')
-                except Exception as e:
-                    logger.debug(f"预设组合查询失败，将使用默认方式: {e}")
-        
-        # ========== 默认查询（没有命中预设的数据） ==========
+        # ========== 默认查询 ==========
         
         for data_type, config in settings.items():
             if data_type in processed:
@@ -455,61 +348,56 @@ class DataManager:
             
             # 股票K线数据
             if data_type == 'stock_kline':
-                stock_service = self.get_data_service('stock_related.stock')
-                if stock_service and 'ts_code' in context and 'date' in context:
+                if 'ts_code' in context and 'date' in context:
                     # TODO: 根据 config 参数调用对应的方法
-                    result['stock_kline'] = stock_service.load_kline(
-                        context['ts_code'], context['date']
+                    result['stock_kline'] = self.stock.kline.load_kline_series(
+                        context['ts_code'], start_date=context['date'], end_date=context['date']
                     )
             
             # 财务数据
             elif data_type == 'corporate_finance':
-                finance_service = self.get_data_service('corporate_finance')
-                if finance_service and 'ts_code' in context and 'quarter' in context:
+                if 'ts_code' in context and 'quarter' in context:
                     indicators = config.get('indicators') if isinstance(config, dict) else None
-                    result['corporate_finance'] = finance_service.load_financials(
-                        context['ts_code'], context['quarter'], indicators
+                    result['corporate_finance'] = self.stock.corporate_finance.load_financials(
+                        context['ts_code'], indicators, context['quarter']
                     )
             
             # 股票标签
             elif data_type == 'stock_labels':
-                stock_service = self.get_data_service('stock_related.stock')
-                if stock_service and 'ts_code' in context and 'date' in context:
-                    result['stock_labels'] = stock_service.load_labels(
-                        context['ts_code'], context['date']
+                if 'ts_code' in context and 'date' in context:
+                    result['stock_labels'] = self.stock.load_tags(
+                        context['ts_code'], date=context['date']
                     )
             
             # 宏观经济数据
             elif data_type == 'macro_economy':
-                macro_service = self.get_data_service('macro')
-                if macro_service and 'date' in context:
+                if 'date' in context:
                     # 如果配置要求完整快照
                     if isinstance(config, dict) and config.get('full_snapshot'):
-                        result['macro_economy'] = macro_service.load_macro_snapshot(context['date'])
+                        result['macro_economy'] = self.macro.load_macro_snapshot(context['date'])
                     # 如果指定了指标
                     elif isinstance(config, dict) and 'indicators' in config:
                         result['macro_economy'] = {}
                         for indicator in config['indicators']:
                             if indicator == 'shibor':
-                                result['macro_economy']['shibor'] = macro_service.load_shibor(
+                                result['macro_economy']['shibor'] = self.macro.load_shibor(
                                     context['date'], context['date']
                                 )
                             elif indicator == 'lpr':
-                                result['macro_economy']['lpr'] = macro_service.load_lpr(
+                                result['macro_economy']['lpr'] = self.macro.load_lpr(
                                     context['date'], context['date']
                                 )
                             # 其他指标...
                     # 默认加载快照
                     else:
-                        result['macro_economy'] = macro_service.load_macro_snapshot(context['date'])
+                        result['macro_economy'] = self.macro.load_macro_snapshot(context['date'])
             
             # 投资记录
             elif data_type == 'investment_operations':
-                investment_service = self.get_data_service('investment')
-                if investment_service and 'ts_code' in context:
-                    result['investment_operations'] = investment_service.load_trades_by_stock(
-                        context['ts_code']
-                    )
+                if 'ts_code' in context:
+                    # TODO: 需要实现 InvestmentService
+                    logger.warning("investment_operations 暂未实现")
+                    result['investment_operations'] = []
             
             # 未知数据类型，记录警告
             else:
@@ -565,7 +453,7 @@ class DataManager:
         """
         准备所有需要的数据（聚合方法）
         
-        用于策略分析，一次性加载所有需要的数据
+        委托给 DataService.prepare_data()
         
         Args:
             stock: 股票信息
@@ -580,109 +468,7 @@ class DataManager:
                 ...
             }
         """
-        data = {}
-        stock_id = stock.get('id')
-        
-        # 1. 加载K线数据
-        klines_settings = settings.get("klines")
-        if klines_settings:
-            # 将 simulation 中的 start_date 和 end_date 传递给 klines_settings
-            # 创建副本避免修改原始 settings
-            klines_settings_with_dates = klines_settings.copy()
-            simulation_settings = settings.get("simulation", {})
-            if simulation_settings.get('start_date') and 'start_date' not in klines_settings_with_dates:
-                klines_settings_with_dates['start_date'] = simulation_settings['start_date']
-            if simulation_settings.get('end_date') and 'end_date' not in klines_settings_with_dates:
-                klines_settings_with_dates['end_date'] = simulation_settings['end_date']
-            
-            stock_service = self.get_data_service('stock_related.stock')
-            if stock_service:
-                data["klines"] = stock_service.load_multiple_terms(stock_id, klines_settings_with_dates)
-            else:
-                data["klines"] = {}
-            
-            # 确保返回dict类型
-            if not isinstance(data.get("klines"), dict):
-                data["klines"] = {}
-            
-            # 加载股票标签数据（如果配置）
-            if klines_settings.get('stock_labels', False):
-                data["stock_labels"] = self._load_stock_labels_data_for_simulation(stock_id, klines_settings)
-            
-            # 应用技术指标（如果配置）
-            if data["klines"] and klines_settings.get('indicators'):
-                from app.core.modules.analyzer.components.indicators import Indicators
-                data["klines"] = Indicators.add_indicators(data["klines"], klines_settings['indicators'])
-        
-        # 2. 加载宏观数据
-        macro_settings = settings.get("macro")
-        if macro_settings:
-            data["macro"] = self._load_macro_data(macro_settings)
-        
-        # 3. 加载企业财务数据
-        corporate_finance_settings = settings.get("corporate_finance")
-        if corporate_finance_settings:
-            data["corporate_finance"] = self._load_corporate_finance_data(stock_id, corporate_finance_settings)
-        
-        # 4. 加载指数指标数据
-        index_indicators_settings = settings.get("index_indicators")
-        if index_indicators_settings:
-            data["index_indicators"] = self._load_index_indicators_data(index_indicators_settings)
-        
-        # 5. 加载行业资金流数据
-        
-        return data
-    
-    def _load_stock_labels_data_for_simulation(self, stock_id: str, klines_settings: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        为模拟器加载股票标签数据（一次性加载所有历史标签，按日期升序）
-        
-        Args:
-            stock_id: 股票代码
-            klines_settings: K线设置（包含模拟时间范围等信息）
-            
-        Returns:
-            Dict: 按日期分组的标签数据，格式为 {date: [label_objects]}
-        """
-        try:
-            # 获取模拟时间范围
-            simulation_settings = klines_settings.get('simulation', {})
-            start_date = simulation_settings.get('start_date')
-            end_date = simulation_settings.get('end_date')
-            
-            # 验证必要的时间范围配置
-            if not start_date:
-                # 使用默认开始日期
-                start_date = DateUtils.DEFAULT_START_DATE
-            if not end_date:
-                end_date = DateUtils.get_current_date_str()  # 只有end_date可以使用当前日期作为默认值
-            
-            # 一次性获取时间范围内的所有标签数据
-            label_service = self.get_data_service('label')
-            if label_service:
-                all_labels = label_service.get_stock_labels_by_date_range(stock_id, start_date, end_date)
-            else:
-                all_labels = []
-            
-            # 按日期分组标签数据，只保存标签ID
-            labels_by_date = {}
-            for label_record in all_labels:
-                date = label_record.get('date')
-                label_id = label_record.get('label_id')
-                if date and label_id:
-                    if date not in labels_by_date:
-                        labels_by_date[date] = []
-                    labels_by_date[date].append(label_id)
-            
-            # 按日期排序
-            sorted_labels = dict(sorted(labels_by_date.items()))
-            
-            return sorted_labels
-            
-        except Exception as e:
-            logger.error(f"加载股票标签数据失败 {stock_id}: {e}")
-            return {}
-    
+        return self.service.prepare_data(stock, settings)
     
     # ============ 私有方法（委托给 DataServices）============
     
@@ -719,11 +505,7 @@ class DataManager:
             try:
                 start_quarter = self._convert_date_to_quarter(start_date) if start_date else None
                 end_quarter = self._convert_date_to_quarter(end_date) if end_date else None
-                macro_service = self.get_data_service('macro')
-                if macro_service:
-                    result['gdp'] = macro_service.load_gdp(start_quarter, end_quarter)
-                else:
-                    result['gdp'] = []
+                result['gdp'] = self.macro.load_gdp(start_quarter, end_quarter)
             except Exception as e:
                 logger.error(f"加载GDP数据失败: {e}")
                 result['gdp'] = []
@@ -731,11 +513,7 @@ class DataManager:
         # 处理LPR数据
         if macro_settings.get('LPR'):
             try:
-                macro_service = self.get_data_service('macro')
-                if macro_service:
-                    result['lpr'] = macro_service.load_lpr(start_date, end_date)
-                else:
-                    result['lpr'] = []
+                result['lpr'] = self.macro.load_lpr(start_date, end_date)
             except Exception as e:
                 logger.error(f"加载LPR数据失败: {e}")
                 result['lpr'] = []
@@ -743,11 +521,7 @@ class DataManager:
         # 处理Shibor数据
         if macro_settings.get('Shibor'):
             try:
-                macro_service = self.get_data_service('macro')
-                if macro_service:
-                    result['shibor'] = macro_service.load_shibor(start_date, end_date)
-                else:
-                    result['shibor'] = []
+                result['shibor'] = self.macro.load_shibor(start_date, end_date)
             except Exception as e:
                 logger.error(f"加载Shibor数据失败: {e}")
                 result['shibor'] = []
@@ -762,29 +536,13 @@ class DataManager:
             for index_type in price_indexes:
                 try:
                     if index_type == 'CPI':
-                        macro_service = self.get_data_service('macro')
-                        if macro_service:
-                            result['cpi'] = macro_service.load_cpi(month_start, month_end)
-                        else:
-                            result['cpi'] = []
+                        result['cpi'] = self.macro.load_cpi(month_start, month_end)
                     elif index_type == 'PPI':
-                        macro_service = self.get_data_service('macro')
-                        if macro_service:
-                            result['ppi'] = macro_service.load_ppi(month_start, month_end)
-                        else:
-                            result['ppi'] = []
+                        result['ppi'] = self.macro.load_ppi(month_start, month_end)
                     elif index_type == 'PMI':
-                        macro_service = self.get_data_service('macro')
-                        if macro_service:
-                            result['pmi'] = macro_service.load_pmi(month_start, month_end)
-                        else:
-                            result['pmi'] = []
+                        result['pmi'] = self.macro.load_pmi(month_start, month_end)
                     elif index_type == 'MoneySupply':
-                        macro_service = self.get_data_service('macro')
-                        if macro_service:
-                            result['money_supply'] = macro_service.load_money_supply(month_start, month_end)
-                        else:
-                            result['money_supply'] = []
+                        result['money_supply'] = self.macro.load_money_supply(month_start, month_end)
                 except Exception as e:
                     logger.error(f"加载{index_type}数据失败: {e}")
                     result[index_type.lower()] = []
@@ -846,10 +604,7 @@ class DataManager:
         if end_date == '':
             end_date = None
         
-        finance_service = self.get_data_service('corporate_finance')
-        if finance_service:
-            return finance_service.load(stock_id, categories, start_date, end_date)
-        return {}
+        return self.stock.corporate_finance.load(stock_id, categories, start_date, end_date)
     
     def _load_index_indicators_data(self, index_indicators_settings: Dict[str, Any]) -> Dict[str, Any]:
         """加载指数指标数据（暂未实现）"""
@@ -888,25 +643,7 @@ class DataManager:
             # 加载特定交易所
             stocks = loader.load_stock_list(exchange_center='SSE')
         """
-        # 使用 StockDataService 获取股票列表（业务逻辑层）
-        stock_service = self.get_data_service('stock_related.stock')
-        
-        if not stock_service:
-            # 如果 Service 未初始化，降级到 Model 层（向后兼容）
-            stock_list_model = self.get_model('stock_list')
-            if industry:
-                return stock_list_model.load_by_industry(industry, order_by)
-            elif stock_type:
-                return stock_list_model.load_by_type(stock_type, order_by)
-            elif exchange_center:
-                return stock_list_model.load_by_exchange_center(exchange_center, order_by)
-            elif filtered:
-                # 降级：直接使用 Service 的过滤方法（如果可能）
-                logger.warning("StockDataService 未初始化，使用 Model 层（过滤功能不可用）")
-                return stock_list_model.load_active_stocks()
-            else:
-                return stock_list_model.load_active_stocks()
-        
+        # 使用 StockService 获取股票列表
         # 优先使用简单条件过滤（性能更好）
         if industry:
             stock_list_model = self.get_model('stock_list')
@@ -917,12 +654,9 @@ class DataManager:
         elif exchange_center:
             stock_list_model = self.get_model('stock_list')
             return stock_list_model.load_by_exchange_center(exchange_center, order_by)
-        elif filtered:
-            # 使用 Service 层的过滤规则（业务逻辑）
-            return stock_service.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
         else:
-            # 加载所有活跃股票（不过滤）
-            return stock_service.load_all_stocks()
+            # 使用 Service 层的过滤规则（业务逻辑）
+            return self.stock.load_stock_list(filtered=filtered, order_by=order_by)
     
     def load_entity_list(
         self,
@@ -992,7 +726,7 @@ class DataManager:
                     adjust: str = 'qfq', filter_negative: bool = True,
                     as_dataframe: bool = False) -> Union[pd.DataFrame, List[Dict]]:
         """
-        加载K线数据（委托给KlineLoader）
+        加载K线数据（委托给 StockService）
         
         Args:
             stock_id: 股票代码
@@ -1006,12 +740,9 @@ class DataManager:
         Returns:
             DataFrame or List[Dict]: K线数据
         """
-        stock_service = self.get_data_service('stock_related.stock')
-        if stock_service:
-            return stock_service.load(
-                stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
-            )
-        return [] if not as_dataframe else None
+        return self.stock.load_klines(
+            stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
+        )
     
     def load_qfq_klines(
         self,
@@ -1021,10 +752,7 @@ class DataManager:
         end_date: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        加载前复权（QFQ）K线数据（使用新的 adj_factor_event 表）
-        
-        使用新的 adj_factor_event 表计算前复权价格：
-        qfq_price = raw_price + constantDiff
+        加载前复权（QFQ）K线数据（委托给 StockService）
         
         Args:
             stock_id: 股票代码
@@ -1033,22 +761,13 @@ class DataManager:
             end_date: 结束日期（YYYYMMDD 或 YYYY-MM-DD，可选）
         
         Returns:
-            List[Dict]: 前复权K线数据列表，每条记录包含原始字段 + qfq_* 字段：
-                - 原始字段：id, term, date, open, close, high, low, pre_close, ...
-                - 前复权字段：qfq_open, qfq_close, qfq_high, qfq_low, qfq_pre_close
+            List[Dict]: 前复权K线数据列表
         
         示例:
             # 加载平安银行的前复权日线数据
             qfq_klines = data_manager.load_qfq_klines('000001.SZ', 'daily', '20240101', '20241231')
-            for kline in qfq_klines:
-                print(f"{kline['date']}: 原始收盘价={kline['close']}, 前复权收盘价={kline['qfq_close']}")
         """
-        stock_service = self.get_data_service('stock_related.stock')
-        if stock_service:
-            return stock_service.load_qfq_klines(stock_id, term, start_date, end_date)
-        else:
-            logger.warning("StockDataService 未初始化，无法加载前复权K线数据")
-            return []
+        return self.stock.load_qfq_klines(stock_id, term, start_date, end_date)
     
     def get_stock_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -1127,8 +846,7 @@ class DataManager:
         """
         获取最新已完成的交易日（上一个交易日）
         
-        使用 TradingDateCache 获取最新交易日，支持缓存和自动刷新
-        注意：返回的是上一个交易日，不是今天（即使今天是交易日）
+        委托给 CalendarService
         
         Returns:
             最新已完成的交易日（YYYYMMDD）
@@ -1136,9 +854,7 @@ class DataManager:
         示例：
             latest_date = data_manager.get_latest_completed_trading_date()
         """
-        if not self._trading_date_cache:
-            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
-        return self._trading_date_cache.get_latest_trading_date()
+        return self.calendar.get_latest_trading_date()
     
     def get_latest_trading_date(self) -> str:
         """
@@ -1155,21 +871,17 @@ class DataManager:
         Returns:
             最新交易日（YYYYMMDD）
         """
-        if not self._trading_date_cache:
-            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
-        return self._trading_date_cache.refresh()
+        return self.calendar.refresh()
     
     @property
     def trading_date_cache(self):
         """
-        获取 TradingDateCache 实例（直接访问）
+        获取 CalendarService 实例（向后兼容）
         
         Returns:
-            TradingDateCache 实例
+            CalendarService 实例
         """
-        if not self._trading_date_cache:
-            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
-        return self._trading_date_cache
+        return self.calendar
     
     def get_stocks_latest_corporate_update_quarter(self) -> List[Dict[str, Any]]:
         """

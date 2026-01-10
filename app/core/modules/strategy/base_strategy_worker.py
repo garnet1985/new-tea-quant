@@ -85,12 +85,10 @@ class BaseStrategyWorker(ABC):
             Dict: 股票信息，包含 id, name, industry, type, exchange_center 等
         """
         try:
-            # 使用 StockDataService 加载股票信息
-            stock_service = self.data_mgr.get_data_service('stock_related.stock')
-            if stock_service:
-                stock_info = stock_service.load_stock_info(self.stock_id)
-                if stock_info:
-                    return stock_info
+            # 使用 StockService 加载股票信息
+            stock_info = self.data_mgr.stock.load_stock_info(self.stock_id)
+            if stock_info:
+                return stock_info
             
             # 如果服务不可用，直接从 model 加载
             stock_model = self.data_mgr.get_model('stock_list')

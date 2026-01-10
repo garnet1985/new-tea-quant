@@ -55,13 +55,11 @@ def identify_major_reversals(stock_id: str = "000001.SZ",
         from app.core.modules.data_manager import DataManager
         
         data_mgr = DataManager()
-        stock_service = data_mgr.get_data_service('stock_related.stock')
         
         # 第一步：加载整个时间的月K线数据
         logger.info("📊 第一步：加载月K线数据")
-        if stock_service:
-            monthly_klines = stock_service.load_qfq_klines(stock_id, 'monthly', start_date, end_date)
-        else:
+        monthly_klines = data_mgr.stock.load_qfq_klines(stock_id, 'monthly', start_date, end_date)
+        if monthly_klines:
             monthly_klines = []
         
         if len(monthly_klines) < 12:

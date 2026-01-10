@@ -45,7 +45,7 @@ class BaseTagWorker(ABC):
         self.settings = job_payload.get('settings', {})
         
         self.data_mgr = DataManager(is_verbose=False)
-        self.tag_data_service = self.data_mgr.tag
+        self.tag_data_service = self.data_mgr.stock.tags
         self.tracker = {}
         self._extract_settings()
         

@@ -12,7 +12,7 @@ settings = {
     "description": "Random strategy for testing (with fixed random seed for reproducibility)",
     
     # 策略是否启用
-    "is_enabled": True,  # 启用用于测试
+    "is_enabled": False,  # 启用用于测试
     
     # ========================================
     # 策略核心参数

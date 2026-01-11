@@ -434,6 +434,48 @@ data = data_mgr.prepare_data(stock, settings)
 3. **延迟初始化**：部分 Model 使用延迟初始化，减少启动开销
 4. **缓存策略**：交易日数据使用内存缓存，每天只请求一次 API
 
+## 🔒 封装性保证
+
+### Model 访问限制
+
+**重要原则**：底层的 `base_tables` Model 类不应被外部代码直接访问。
+
+#### ❌ 错误做法
+
+```python
+# 不要直接导入 Model
+from app.core.modules.data_manager.base_tables import StockKlineModel
+
+# 不要直接实例化 Model
+kline_model = StockKlineModel()
+klines = kline_model.load_by_date_range(...)
+
+# 不要通过服务访问私有 Model
+klines = data_mgr.stock._stock_kline.load_by_date_range(...)  # 错误！
+```
+
+#### ✅ 正确做法
+
+```python
+# 通过 DataService 层访问
+klines = data_mgr.stock.load_klines('000001.SZ', start_date='20240101')
+qfq_klines = data_mgr.stock.kline.load_qfq_klines('000001.SZ', start_date='20240101')
+```
+
+### 实现细节
+
+1. **私有属性**：所有 DataService 中的 Model 实例都使用 `_` 前缀（如 `_stock_kline`, `_gdp`），表示私有属性
+2. **内部访问**：Model 只在 DataService 内部使用，不对外暴露
+3. **警告注释**：`base_tables/__init__.py` 包含警告，说明不应被外部导入
+4. **封装边界**：`DataManager.get_model()` 方法仅供内部使用，外部不应直接调用
+
+### 为什么需要封装？
+
+1. **解耦**：外部代码不依赖底层 Model 实现，只依赖稳定的 DataService API
+2. **灵活性**：可以自由重构 Model 层，而不影响外部代码
+3. **一致性**：所有数据访问都通过统一的 DataService 接口，保证行为一致
+4. **可维护性**：清晰的边界使得代码更容易理解和维护
+
 ## 🔄 迁移指南
 
 从旧 API 迁移到新 API：

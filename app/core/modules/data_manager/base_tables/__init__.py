@@ -1,20 +1,32 @@
 """
 Base Tables Models - 所有基础表的 Model 类
 
+⚠️ 警告：本模块仅供 DataManager 内部使用，不应被外部代码直接导入！
+
+设计原则：
+- 所有 Model 类都是 DataManager 的内部实现细节
+- 外部代码应通过 DataManager 的 DataService 层访问数据
+- 直接导入和使用 Model 会破坏封装性，导致代码耦合
+
+正确的使用方式：
+    # ✅ 正确：通过 DataManager 访问
+    from app.core.modules.data_manager import DataManager
+    
+    data_mgr = DataManager()
+    data_mgr.initialize()
+    klines = data_mgr.stock.load_klines('000001.SZ', start_date='20200101')
+    
+    # ❌ 错误：直接导入 Model（不要这样做）
+    # from app.core.modules.data_manager.base_tables import StockKlineModel
+    # kline_model = StockKlineModel()
+    # klines = kline_model.load_by_date_range(...)
+
 每个表都有自己的 Model 类，继承自 DbBaseModel，提供：
 - 单表的 CRUD 操作
 - 常用的业务查询方法
 - 批量操作方法
 
-使用示例：
-    from app.core.modules.data_manager.base_tables.stock_kline.model import StockKlineModel
-    from app.core.infra.db import DatabaseManager
-    
-    db = DatabaseManager()
-    db.initialize()
-    
-    kline_model = StockKlineModel(db)
-    klines = kline_model.load_by_date_range('000001.SZ', '20200101', '20201231')
+这些 Model 仅由 DataManager 和 DataService 内部使用。
 """
 
 # 导出所有 Model 类

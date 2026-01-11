@@ -34,7 +34,7 @@ class ReversalDataGenerator:
             from app.core.modules.analyzer.strategy.RTB.settings import settings
             
             # 获取所有股票
-            all_stocks = self.data_mgr.load_stock_list(filtered=True)
+            all_stocks = self.data_mgr.stock.list.load(filtered=True)
             
             # 使用RTB的抽样数量
             sample_count = settings.get('mode', {}).get('test_amount', 500)

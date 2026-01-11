@@ -13,7 +13,7 @@ K线数据服务（KlineService）
 from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
-from .. import BaseDataService
+from ... import BaseDataService
 
 
 class KlineService(BaseDataService):
@@ -38,7 +38,7 @@ class KlineService(BaseDataService):
     
     # ==================== K线基础方法 ====================
     
-    def load_kline_series(
+    def load_series(
         self, 
         stock_id: str, 
         start_date: Optional[str] = None,
@@ -72,7 +72,7 @@ class KlineService(BaseDataService):
         else:
             return self._stock_kline.load_by_stock(stock_id)
     
-    def load_latest_kline(self, stock_id: str) -> Optional[Dict[str, Any]]:
+    def load_latest(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
         加载最新K线
         
@@ -84,7 +84,7 @@ class KlineService(BaseDataService):
         """
         return self._stock_kline.load_latest(stock_id)
     
-    def load_kline_by_date(self, date: str) -> List[Dict[str, Any]]:
+    def load_by_date(self, date: str) -> List[Dict[str, Any]]:
         """
         加载指定日期的所有股票K线
         
@@ -96,7 +96,7 @@ class KlineService(BaseDataService):
         """
         return self._stock_kline.load_by_date(date)
     
-    def load_qfq_klines(
+    def load_qfq(
         self,
         stock_id: str,
         term: str = 'daily',
@@ -163,12 +163,12 @@ class KlineService(BaseDataService):
         kline_data = {}
         
         for term in settings.get('terms', []):
-            # 使用 load_qfq_klines 方法（如果 adjust='qfq'）
+            # 使用 load_qfq 方法（如果 adjust='qfq'）
             if adjust == 'qfq':
-                records = self.load_qfq_klines(stock_id, term, start_date, end_date)
+                records = self.load_qfq(stock_id, term, start_date, end_date)
             else:
                 # 对于其他复权方式，使用原始数据加载
-                records = self.load_kline_series(stock_id, start_date, end_date)
+                records = self.load_series(stock_id, start_date, end_date)
                 # 过滤 term
                 records = [r for r in records if r.get('term') == term]
             
@@ -209,10 +209,10 @@ class KlineService(BaseDataService):
             DataFrame or List[Dict]: K线数据
         """
         if adjust == 'qfq':
-            result = self.load_qfq_klines(stock_id, term, start_date, end_date)
+            result = self.load_qfq(stock_id, term, start_date, end_date)
         else:
             # 对于其他复权方式，返回原始数据
-            result = self.load_kline_series(stock_id, start_date, end_date)
+            result = self.load_series(stock_id, start_date, end_date)
             # 过滤 term
             result = [r for r in result if r.get('term') == term]
         
@@ -222,7 +222,7 @@ class KlineService(BaseDataService):
         
         return result
     
-    def save_klines(self, klines: List[Dict[str, Any]]) -> int:
+    def save(self, klines: List[Dict[str, Any]]) -> int:
         """
         批量保存K线数据（自动去重）
         
@@ -234,7 +234,7 @@ class KlineService(BaseDataService):
         """
         return self._stock_kline.save_klines(klines)
     
-    def load_stock_with_latest_kline(self, stock_id: str) -> Optional[Dict[str, Any]]:
+    def load_with_latest(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
         加载股票信息 + 最新K线（SQL JOIN）
         
@@ -258,7 +258,7 @@ class KlineService(BaseDataService):
         results = self.db.execute_sync_query(sql, (stock_id,))
         return results[0] if results else None
     
-    def load_stocks_with_kline_by_date(self, date: str) -> List[Dict[str, Any]]:
+    def load_all_by_date(self, date: str) -> List[Dict[str, Any]]:
         """
         加载指定日期的所有股票信息 + K线（SQL JOIN）
         

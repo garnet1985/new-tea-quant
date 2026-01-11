@@ -58,7 +58,7 @@ def identify_major_reversals(stock_id: str = "000001.SZ",
         
         # 第一步：加载整个时间的月K线数据
         logger.info("📊 第一步：加载月K线数据")
-        monthly_klines = data_mgr.stock.load_qfq_klines(stock_id, 'monthly', start_date, end_date)
+        monthly_klines = data_mgr.stock.kline.load_qfq(stock_id, 'monthly', start_date, end_date)
         if monthly_klines:
             monthly_klines = []
         

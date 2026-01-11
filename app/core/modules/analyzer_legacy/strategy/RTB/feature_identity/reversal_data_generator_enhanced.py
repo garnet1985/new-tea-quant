@@ -46,7 +46,7 @@ class EnhancedReversalDataGenerator:
                 sample_count = 500
             
             # 获取所有股票
-            all_stocks = self.data_manager.load_stock_list(filtered=True)
+            all_stocks = self.data_manager.stock.list.load(filtered=True)
             
             if len(all_stocks) > sample_count:
                 candidates = np.random.choice(all_stocks, sample_count, replace=False).tolist()

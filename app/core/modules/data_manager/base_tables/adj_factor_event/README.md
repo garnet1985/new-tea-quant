@@ -133,7 +133,7 @@ data_manager.initialize()
 stock_service = data_manager.get_data_service('stock_related.stock')
 
 # 加载前复权 K 线数据
-qfq_klines = stock_service.load_qfq_klines(
+qfq_klines = stock_service.kline.load_qfq_klines(
     stock_id='000001.SZ',
     term='daily',
     start_date='2024-01-01',

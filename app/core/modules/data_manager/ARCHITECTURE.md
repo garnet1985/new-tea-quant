@@ -60,7 +60,6 @@ data_manager/
 ├── base_tables/               # 基础表 Models
 │   ├── stock_list/
 │   ├── stock_kline/
-│   ├── stock_labels/
 │   ├── corporate_finance/
 │   ├── gdp/
 │   ├── price_indexes/
@@ -316,10 +315,6 @@ settings = {
         'end_date': '20241231',
         'adjust': 'qfq'
     },
-    'stock_labels': {
-        'start_date': '20240101',
-        'end_date': '20241231'
-    },
     'macro': {
         'GDP': True,
         'Shibor': True,
@@ -336,7 +331,7 @@ settings = {
 
 stock = {'id': '000001.SZ'}
 data = data_mgr.prepare_data(stock, settings)
-# data 包含：kline, stock_labels, macro, corporate_finance
+# data 包含：kline, macro, corporate_finance
 ```
 
 ## 🔧 扩展指南
@@ -476,35 +471,48 @@ qfq_klines = data_mgr.stock.kline.load_qfq_klines('000001.SZ', start_date='20240
 3. **一致性**：所有数据访问都通过统一的 DataService 接口，保证行为一致
 4. **可维护性**：清晰的边界使得代码更容易理解和维护
 
-## 🔄 迁移指南
+## 🔄 API 变更说明
 
-从旧 API 迁移到新 API：
+### 已移除的向后兼容方法
+
+以下方法已从 `DataManager` 中移除，请使用新的属性访问方式：
+
+#### ❌ 已移除的方法
+
+1. **`load_stock_list()`** → 使用 `data_mgr.stock.load_stock_list()`
+2. **`load_klines()`** → 使用 `data_mgr.stock.load_klines()`
+3. **`load_qfq_klines()`** → 使用 `data_mgr.stock.load_qfq_klines()`
+4. **`get_stock_with_latest_price()`** → 使用 `data_mgr.stock.load_stock_with_latest_price()`
+5. **`get_latest_completed_trading_date()`** → 使用 `data_mgr.calendar.get_latest_trading_date()`
+6. **`get_latest_trading_date()`** → 使用 `data_mgr.calendar.get_latest_trading_date()`
+7. **`refresh_trading_date()`** → 使用 `data_mgr.calendar.refresh()`
+8. **`trading_date_cache`** → 使用 `data_mgr.calendar`
+9. **`get_stocks_latest_corporate_update_quarter()`** → 使用 `data_mgr.stock.corporate_finance.get_stocks_latest_update_quarter()`
+10. **`resolve_data_requirements()`** → 使用 `data_mgr.prepare_data()`
+11. **`load_entity_list()`** → 使用 `data_mgr.stock.load_stock_list()` 然后提取 ID
+
+#### ✅ 新的 API 使用方式
 
 ```python
-# 旧方式
-stock_service = data_mgr.get_data_service('stock_related.stock')
-klines = stock_service.load_klines(...)
+# 股票列表
+stocks = data_mgr.stock.load_stock_list(filtered=True)
 
-# 新方式
-klines = data_mgr.stock.load_klines(...)
-```
+# K线数据
+klines = data_mgr.stock.load_klines('000001.SZ', start_date='20200101')
+qfq_klines = data_mgr.stock.load_qfq_klines('000001.SZ', start_date='20200101')
 
-```python
-# 旧方式
-tag_service = data_mgr.get_data_service('tag')
-tags = tag_service.load_tags(...)
+# 股票信息和最新价格
+stock_with_price = data_mgr.stock.load_stock_with_latest_price('000001.SZ')
 
-# 新方式
-tags = data_mgr.stock.tags.load_scenario(...)
-```
+# 交易日
+latest_date = data_mgr.calendar.get_latest_trading_date()
+data_mgr.calendar.refresh()
 
-```python
-# 旧方式
-trading_date_cache = get_trading_date_cache()
-date = trading_date_cache.get_latest_trading_date()
+# 财务数据更新季度
+update_quarters = data_mgr.stock.corporate_finance.get_stocks_latest_update_quarter()
 
-# 新方式
-date = data_mgr.calendar.get_latest_trading_date()
+# 配置驱动数据准备
+data = data_mgr.service.prepare_data(stock, settings)
 ```
 
 ## 📚 相关文档

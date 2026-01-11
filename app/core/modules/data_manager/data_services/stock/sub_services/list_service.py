@@ -112,7 +112,7 @@ class ListService(BaseDataService):
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按类型加载股票列表
+        按类型加载股票列表（使用 SQL WHERE 优化）
         
         Args:
             stock_type: 股票类型（如 'main', 'gem', 'star' 等，具体类型取决于数据库字段）
@@ -122,20 +122,27 @@ class ListService(BaseDataService):
         Returns:
             List[Dict]: 指定类型的股票列表
         """
-        # 先获取基础列表
+        # 构建 SQL WHERE 条件
+        conditions = ["type = %s"]
+        params = [stock_type]
+        
+        # 如果 filtered=True，添加默认过滤条件
         if filtered:
-            stocks = self.load_filtered(exclude_patterns=None, order_by=order_by)
-        else:
-            stocks = self.load_all()
+            # 排除科创板（id 以 688 开头）
+            conditions.append("id NOT LIKE %s")
+            params.append("688%")
+            # 排除 ST 股票（name 以 *ST、ST、退 开头）
+            conditions.append("name NOT LIKE %s")
+            params.append("*ST%")
+            conditions.append("name NOT LIKE %s")
+            params.append("ST%")
+            conditions.append("name NOT LIKE %s")
+            params.append("退%")
         
-        # 按类型过滤（如果 stock_list 表有 type 字段）
-        # 注意：这里假设有 type 字段，如果没有，需要根据实际数据库结构调整
-        filtered_by_type = [
-            stock for stock in stocks
-            if stock.get('type') == stock_type
-        ]
+        where_clause = " AND ".join(conditions)
         
-        return self._sort_stocks(filtered_by_type, order_by)
+        # 使用 SQL 查询而不是先加载所有再过滤
+        return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
     
     def load_by_industry(
         self,
@@ -144,7 +151,7 @@ class ListService(BaseDataService):
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按行业加载股票列表
+        按行业加载股票列表（使用 SQL WHERE 优化）
         
         Args:
             industry: 行业名称
@@ -154,19 +161,27 @@ class ListService(BaseDataService):
         Returns:
             List[Dict]: 指定行业的股票列表
         """
-        # 先获取基础列表
+        # 构建 SQL WHERE 条件
+        conditions = ["industry = %s"]
+        params = [industry]
+        
+        # 如果 filtered=True，添加默认过滤条件
         if filtered:
-            stocks = self.load_filtered(exclude_patterns=None, order_by=order_by)
-        else:
-            stocks = self.load_all()
+            # 排除科创板（id 以 688 开头）
+            conditions.append("id NOT LIKE %s")
+            params.append("688%")
+            # 排除 ST 股票（name 以 *ST、ST、退 开头）
+            conditions.append("name NOT LIKE %s")
+            params.append("*ST%")
+            conditions.append("name NOT LIKE %s")
+            params.append("ST%")
+            conditions.append("name NOT LIKE %s")
+            params.append("退%")
         
-        # 按行业过滤
-        filtered_by_industry = [
-            stock for stock in stocks
-            if stock.get('industry') == industry
-        ]
+        where_clause = " AND ".join(conditions)
         
-        return self._sort_stocks(filtered_by_industry, order_by)
+        # 使用 SQL 查询而不是先加载所有再过滤
+        return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
     
     def save(self, stocks: List[Dict[str, Any]]) -> int:
         """

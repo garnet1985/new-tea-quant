@@ -384,7 +384,7 @@ class TagDataService(BaseDataService):
     
     def delete_tag_values_by_scenario(self, scenario_id: int) -> None:
         """
-        删除指定 scenario 下的所有 tag values
+        删除指定 scenario 下的所有 tag values（使用 JOIN 优化）
         
         注意：需要通过 tag_definition_id 关联删除，因为 tag_value 表中没有直接的 scenario_id
         
@@ -394,21 +394,19 @@ class TagDataService(BaseDataService):
         Returns:
             None
         """
-        # 1. 获取该 scenario 下的所有 tag_definition_ids
-        tag_defs = self.get_tag_definitions(scenario_id=scenario_id)
-        tag_definition_ids = [tag_def['id'] for tag_def in tag_defs]
-        
-        if not tag_definition_ids:
-            logger.debug(f"Scenario {scenario_id} 下没有 tag definitions，无需删除 tag values")
-            return
-        
-        # 2. 删除这些 tag_definition_id 对应的所有 tag values
-        placeholders = ','.join(['%s'] * len(tag_definition_ids))
-        sql = f"DELETE FROM tag_value WHERE tag_definition_id IN ({placeholders})"
+        # 使用 JOIN 一次删除，避免先查询 tag_definitions
+        sql = """
+        DELETE tv FROM tag_value tv
+        INNER JOIN tag_definition td ON tv.tag_definition_id = td.id
+        WHERE td.scenario_id = %s
+        """
         
         try:
-            self.db.execute_sync_query(sql, tuple(tag_definition_ids))
-            logger.info(f"已删除 scenario {scenario_id} 下的 {len(tag_definition_ids)} 个 tag definitions 对应的所有 tag values")
+            with self.db.get_sync_cursor() as cursor:
+                cursor.execute(sql, (scenario_id,))
+                cursor.connection.commit()
+                affected_rows = cursor.rowcount
+                logger.info(f"已删除 scenario {scenario_id} 下的 {affected_rows} 条 tag values")
         except Exception as e:
             logger.error(f"删除 tag values 失败: scenario_id={scenario_id}, error={e}")
             raise

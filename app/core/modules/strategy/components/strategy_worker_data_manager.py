@@ -446,8 +446,8 @@ class StrategyWorkerDataManager:
             klines: [{'date': '20251219', 'open': 10.0, 'close': 10.5, ...}, ...]
         """
         try:
-            # 使用 DataManager 的统一加载接口
-            klines = self.data_mgr.load_klines(
+            # 使用 DataManager 的 K线服务加载接口
+            klines = self.data_mgr.stock.kline.load(
                 stock_id=self.stock_id,
                 term=term,
                 start_date=start_date,
@@ -576,7 +576,7 @@ class StrategyWorkerDataManager:
         """
         try:
             # 尝试获取最新K线数据
-            latest_kline = self.data_mgr.stock.kline.load_latest_kline(self.stock_id)
+            latest_kline = self.data_mgr.stock.kline.load_latest(self.stock_id)
             if latest_kline:
                 return latest_kline['date']
             

@@ -112,7 +112,7 @@ data_mgr = DataManager(is_verbose=True)
 data_mgr.initialize()
 
 # 属性访问
-klines = data_mgr.stock.load_klines('000001.SZ', term='daily')
+klines = data_mgr.stock.kline.load('000001.SZ', term='daily')
 gdp = data_mgr.macro.load_gdp('2020Q1', '2024Q4')
 latest_date = data_mgr.calendar.get_latest_trading_date()
 ```
@@ -137,9 +137,10 @@ tags = data_service.stock.tags.load_scenario('my_scenario')
 ### 3. StockService
 
 **职责**：
-- 股票相关数据的统一入口
+- 股票基础信息相关的数据操作（股票列表、股票信息）
+- 提供股票列表的查询、过滤、保存功能
+- 提供跨表查询（组合多个表的数据）
 - 管理子服务（`kline`, `tags`, `corporate_finance`）
-- 提供常用方法的便捷访问
 
 **子服务**：
 - `kline`: K线数据（加载、保存、QFQ调整、多周期）
@@ -148,14 +149,23 @@ tags = data_service.stock.tags.load_scenario('my_scenario')
 
 **使用方式**：
 ```python
-# 常用方法（直接访问）
-klines = data_mgr.stock.load_klines('000001.SZ', term='daily')
-tags = data_mgr.stock.load_tags('000001.SZ', date='20241201')
-finance = data_mgr.stock.load_corporate_finance('000001.SZ', categories=['profitability'])
+# 股票基础信息
+stock_info = data_mgr.stock.load_stock_info('000001.SZ')
+stock_list = data_mgr.stock.load_stock_list(filtered=True)
 
-# 复杂方法（通过子服务）
+# K线数据（通过子服务）
+klines = data_mgr.stock.kline.load('000001.SZ', term='daily')
 qfq_klines = data_mgr.stock.kline.load_qfq_klines('000001.SZ', start_date='20240101')
+
+# 标签数据（通过子服务）
 scenario_tags = data_mgr.stock.tags.load_scenario('my_scenario')
+tags = data_mgr.stock.tags.load_tag_values('000001.SZ', date='20241201')
+
+# 财务数据（通过子服务）
+finance = data_mgr.stock.corporate_finance.load('000001.SZ', categories=['profitability'])
+
+# 跨表查询
+stock_with_price = data_mgr.stock.load_stock_with_latest_price('000001.SZ')
 ```
 
 ### 4. KlineService
@@ -243,31 +253,40 @@ data_mgr.stock.tags
 data_mgr.stock.corporate_finance
 
 # 方法调用
-data_mgr.stock.load_klines(...)           # 常用方法，直接访问
-data_mgr.stock.kline.load_qfq_klines(...)  # 复杂方法，通过子服务
+data_mgr.stock.kline.load(...)           # K线数据，通过子服务
+data_mgr.stock.tags.load_scenario(...)    # 标签数据，通过子服务
+data_mgr.stock.corporate_finance.load(...)  # 财务数据，通过子服务
 ```
 
 ### 设计原则
 
-1. **常用方法直接访问**：高频使用的简单方法直接在 `StockService` 上提供
+1. **严格职责分离**：每个服务专注于自己的领域，不提供便捷委托方法
    ```python
-   data_mgr.stock.load_klines(...)
-   data_mgr.stock.load_tags(...)
+   # StockService 只负责股票基础信息
+   data_mgr.stock.load_stock_info(...)
+   data_mgr.stock.load_stock_list(...)
+   
+   # K线数据通过 KlineService
+   data_mgr.stock.kline.load(...)
+   data_mgr.stock.kline.load_qfq_klines(...)
    ```
 
-2. **复杂方法通过子服务**：复杂或低频的方法通过子服务访问
-   ```python
-   data_mgr.stock.kline.load_multiple_terms(...)
-   data_mgr.stock.tags.load_scenario(...)
-   ```
-
-3. **明确性优于简洁性**：遵循 Python "Explicit is better than implicit" 原则
+2. **明确性优先**：遵循 Python "Explicit is better than implicit" 原则，明确指定服务
    ```python
    # ✅ 明确指定服务
    data_mgr.stock.kline.load_qfq_klines(...)
+   data_mgr.stock.corporate_finance.load(...)
    
    # ❌ 避免隐式路由
+   # data_mgr.stock.load_klines(...)  # 已移除，避免混淆
    # data_mgr.load_qfq_klines(...)  # 不清楚是哪个服务
+   ```
+
+3. **子服务访问**：所有子服务功能通过子服务访问
+   ```python
+   data_mgr.stock.kline.load_multiple_terms(...)
+   data_mgr.stock.tags.load_scenario(...)
+   data_mgr.stock.corporate_finance.load(...)
    ```
 
 ## 📊 数据访问示例
@@ -275,20 +294,21 @@ data_mgr.stock.kline.load_qfq_klines(...)  # 复杂方法，通过子服务
 ### 基础数据加载
 
 ```python
-# K线数据
-klines = data_mgr.stock.load_klines('000001.SZ', term='daily', start_date='20240101')
+# K线数据（通过 KlineService）
+klines = data_mgr.stock.kline.load('000001.SZ', term='daily', start_date='20240101')
 qfq_klines = data_mgr.stock.kline.load_qfq_klines('000001.SZ', start_date='20240101')
 
-# 股票信息
+# 股票基础信息（StockService 核心职责）
 stock_info = data_mgr.stock.load_stock_info('000001.SZ')
 stock_list = data_mgr.stock.load_stock_list(filtered=True)
+stock_with_price = data_mgr.stock.load_stock_with_latest_price('000001.SZ')
 
-# 标签数据
-tags = data_mgr.stock.load_tags('000001.SZ', date='20241201')
+# 标签数据（通过 TagService）
+tags = data_mgr.stock.tags.load_tag_values('000001.SZ', date='20241201')
 scenario_tags = data_mgr.stock.tags.load_scenario('my_scenario')
 
-# 财务数据
-finance = data_mgr.stock.load_corporate_finance(
+# 财务数据（通过 CorporateFinanceService）
+finance = data_mgr.stock.corporate_finance.load(
     '000001.SZ',
     categories=['profitability', 'growth'],
     start_date='20240101',
@@ -406,21 +426,19 @@ data = data_mgr.prepare_data(stock, settings)
        self.new_sub_service = NewSubService(data_manager)
    ```
 
-4. **在 StockService 中添加便捷方法（可选）**：
+4. **使用子服务**：
    ```python
-   def load_new_data(self, *args, **kwargs):
-       """常用方法，统一入口"""
-       return self.new_sub_service.load_data(*args, **kwargs)
+   # 直接通过子服务访问，不提供便捷方法
+   data_mgr.stock.new_sub_service.load_data(...)
    ```
 
 ## 🎨 设计原则总结
 
-1. **单一职责**：每个服务专注于特定领域
+1. **单一职责**：每个服务专注于特定领域，不提供便捷委托方法
 2. **分层清晰**：Facade → Coordinator → Service
 3. **属性访问**：统一的属性访问模式，直观易用
 4. **明确性优先**：明确指定服务，避免隐式路由
-5. **常用方法便捷**：高频方法直接访问，复杂方法通过子服务
-6. **向后兼容**：保留必要的向后兼容接口
+5. **严格职责分离**：K线、标签、财务等功能通过各自的子服务访问
 
 ## 📝 注意事项
 
@@ -480,26 +498,30 @@ qfq_klines = data_mgr.stock.kline.load_qfq_klines('000001.SZ', start_date='20240
 #### ❌ 已移除的方法
 
 1. **`load_stock_list()`** → 使用 `data_mgr.stock.load_stock_list()`
-2. **`load_klines()`** → 使用 `data_mgr.stock.load_klines()`
-3. **`load_qfq_klines()`** → 使用 `data_mgr.stock.load_qfq_klines()`
-4. **`get_stock_with_latest_price()`** → 使用 `data_mgr.stock.load_stock_with_latest_price()`
-5. **`get_latest_completed_trading_date()`** → 使用 `data_mgr.calendar.get_latest_trading_date()`
-6. **`get_latest_trading_date()`** → 使用 `data_mgr.calendar.get_latest_trading_date()`
-7. **`refresh_trading_date()`** → 使用 `data_mgr.calendar.refresh()`
-8. **`trading_date_cache`** → 使用 `data_mgr.calendar`
-9. **`get_stocks_latest_corporate_update_quarter()`** → 使用 `data_mgr.stock.corporate_finance.get_stocks_latest_update_quarter()`
-10. **`resolve_data_requirements()`** → 使用 `data_mgr.prepare_data()`
-11. **`load_entity_list()`** → 使用 `data_mgr.stock.load_stock_list()` 然后提取 ID
+2. **`load_klines()`** → 使用 `data_mgr.stock.kline.load()`
+3. **`load_qfq_klines()`** → 使用 `data_mgr.stock.kline.load_qfq_klines()`
+4. **`load_corporate_finance()`** → 使用 `data_mgr.stock.corporate_finance.load()`
+5. **`get_stock_with_latest_price()`** → 使用 `data_mgr.stock.load_stock_with_latest_price()`
+6. **`get_latest_completed_trading_date()`** → 使用 `data_mgr.calendar.get_latest_trading_date()`
+7. **`get_latest_trading_date()`** → 使用 `data_mgr.calendar.get_latest_trading_date()`
+8. **`refresh_trading_date()`** → 使用 `data_mgr.calendar.refresh()`
+9. **`trading_date_cache`** → 使用 `data_mgr.calendar`
+10. **`get_stocks_latest_corporate_update_quarter()`** → 使用 `data_mgr.stock.corporate_finance.get_stocks_latest_update_quarter()`
+11. **`resolve_data_requirements()`** → 使用 `data_mgr.service.prepare_data()`
+12. **`load_entity_list()`** → 使用 `data_mgr.stock.load_stock_list()` 然后提取 ID
 
 #### ✅ 新的 API 使用方式
 
 ```python
-# 股票列表
+# 股票列表（StockService 核心职责）
 stocks = data_mgr.stock.load_stock_list(filtered=True)
 
-# K线数据
-klines = data_mgr.stock.load_klines('000001.SZ', start_date='20200101')
-qfq_klines = data_mgr.stock.load_qfq_klines('000001.SZ', start_date='20200101')
+# K线数据（通过 KlineService）
+klines = data_mgr.stock.kline.load('000001.SZ', start_date='20200101')
+qfq_klines = data_mgr.stock.kline.load_qfq_klines('000001.SZ', start_date='20200101')
+
+# 财务数据（通过 CorporateFinanceService）
+finance = data_mgr.stock.corporate_finance.load('000001.SZ', categories=['profitability'])
 
 # 股票信息和最新价格
 stock_with_price = data_mgr.stock.load_stock_with_latest_price('000001.SZ')

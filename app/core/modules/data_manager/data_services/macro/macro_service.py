@@ -20,6 +20,26 @@ from .. import BaseDataService
 class MacroService(BaseDataService):
     """宏观经济数据服务"""
     
+    # 指标分类映射
+    INDICATOR_CATEGORIES = {
+        'price_indexes': {  # 价格指数（月度）
+            'cpi': ['cpi', 'cpi_yoy', 'cpi_mom'],  # 消费者价格指数
+            'ppi': ['ppi', 'ppi_yoy', 'ppi_mom'],  # 生产者价格指数
+            'pmi': ['pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale'],  # 采购经理人指数
+            'money_supply': ['m0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 'm2', 'm2_yoy', 'm2_mom']  # 货币供应量
+        },
+        'gdp': [  # GDP数据（季度）
+            'gdp', 'gdp_yoy', 
+            'primary_industry', 'primary_industry_yoy',  # 第一产业
+            'secondary_industry', 'secondary_industry_yoy',  # 第二产业
+            'tertiary_industry', 'tertiary_industry_yoy'  # 第三产业
+        ],
+        'interest_rates': {  # 利率数据（日度）
+            'shibor': ['one_night', 'one_week', 'one_month', 'three_month', 'one_year'],  # Shibor利率
+            'lpr': ['lpr_1_y', 'lpr_5_y']  # LPR利率
+        }
+    }
+    
     def __init__(self, data_manager: Any):
         """
         初始化宏观经济数据服务
@@ -155,11 +175,8 @@ class MacroService(BaseDataService):
         Returns:
             CPI数据列表（只包含 date, cpi, cpi_yoy, cpi_mom 字段）
         """
-        return self._load_price_indexes(
-            start_date, 
-            end_date, 
-            fields=['cpi', 'cpi_yoy', 'cpi_mom']
-        )
+        fields = self.INDICATOR_CATEGORIES['price_indexes']['cpi']
+        return self._load_price_indexes(start_date, end_date, fields=fields)
     
     def load_ppi(
         self, 
@@ -176,11 +193,8 @@ class MacroService(BaseDataService):
         Returns:
             PPI数据列表（只包含 date, ppi, ppi_yoy, ppi_mom 字段）
         """
-        return self._load_price_indexes(
-            start_date, 
-            end_date, 
-            fields=['ppi', 'ppi_yoy', 'ppi_mom']
-        )
+        fields = self.INDICATOR_CATEGORIES['price_indexes']['ppi']
+        return self._load_price_indexes(start_date, end_date, fields=fields)
     
     def load_pmi(
         self, 
@@ -197,11 +211,8 @@ class MacroService(BaseDataService):
         Returns:
             PMI数据列表（只包含 date, pmi, pmi_l_scale, pmi_m_scale, pmi_s_scale 字段）
         """
-        return self._load_price_indexes(
-            start_date, 
-            end_date, 
-            fields=['pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale']
-        )
+        fields = self.INDICATOR_CATEGORIES['price_indexes']['pmi']
+        return self._load_price_indexes(start_date, end_date, fields=fields)
     
     def load_money_supply(
         self, 
@@ -218,11 +229,8 @@ class MacroService(BaseDataService):
         Returns:
             货币供应量数据列表（只包含 date, m0, m0_yoy, m0_mom, m1, m1_yoy, m1_mom, m2, m2_yoy, m2_mom 字段）
         """
-        return self._load_price_indexes(
-            start_date, 
-            end_date, 
-            fields=['m0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 'm2', 'm2_yoy', 'm2_mom']
-        )
+        fields = self.INDICATOR_CATEGORIES['price_indexes']['money_supply']
+        return self._load_price_indexes(start_date, end_date, fields=fields)
     
     # ==================== 利率数据（Shibor、LPR）====================
     

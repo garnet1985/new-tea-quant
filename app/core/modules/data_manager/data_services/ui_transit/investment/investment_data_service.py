@@ -35,13 +35,13 @@ class InvestmentDataService:
     def _get_trades_model(self):
         """获取交易表 Model（延迟初始化）"""
         if not self.trades_model:
-            self.trades_model = self.data_manager.get_model('investment_trades')
+            self.trades_model = self.data_manager.get_table('investment_trades')
         return self.trades_model
     
     def _get_operations_model(self):
         """获取操作表 Model（延迟初始化）"""
         if not self.operations_model:
-            self.operations_model = self.data_manager.get_model('investment_operations')
+            self.operations_model = self.data_manager.get_table('investment_operations')
         return self.operations_model
     
     # ========== 交易记录 (Trades) ==========

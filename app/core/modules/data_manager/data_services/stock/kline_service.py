@@ -29,8 +29,8 @@ class KlineService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model - 私有属性，不对外暴露
-        self._stock_kline = data_manager.get_model('stock_kline')
-        self._adj_factor_event = data_manager.get_model('adj_factor_event')
+        self._stock_kline = data_manager.get_table('stock_kline')
+        self._adj_factor_event = data_manager.get_table('adj_factor_event')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager

@@ -59,14 +59,14 @@ class CorporateFinanceService(BaseDataService):
         Args:
             data_manager: DataManager 实例
         """
-        self.data_manager = data_manager
-        self.finance_model = None
+        super().__init__(data_manager)
+        self._finance_model = None
     
     def _get_model(self):
-        """获取财务数据 Model（延迟初始化）"""
-        if not self.finance_model:
-            self.finance_model = self.data_manager.get_model('corporate_finance')
-        return self.finance_model
+        """获取财务数据 Model（延迟初始化）- 私有方法，内部使用"""
+        if not self._finance_model:
+            self._finance_model = self.data_manager.get_model('corporate_finance')
+        return self._finance_model
     
     def load_financials(
         self, 

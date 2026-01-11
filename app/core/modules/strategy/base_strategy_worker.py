@@ -86,7 +86,7 @@ class BaseStrategyWorker(ABC):
         """
         try:
             # 使用 StockService 加载股票信息
-            stock_info = self.data_mgr.stock.load_stock_info(self.stock_id)
+            stock_info = self.data_mgr.stock.load_info(self.stock_id)
             if stock_info:
                 return stock_info
             

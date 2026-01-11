@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional
 from loguru import logger
 from app.core.utils.date.date_utils import DateUtils
 
-from .. import BaseDataService
+from ... import BaseDataService
 
 
 class TagDataService(BaseDataService):
@@ -205,7 +205,7 @@ class TagDataService(BaseDataService):
     # Tag Definition 相关 API
     # ========================================================================
     
-    def load_tag(
+    def load(
         self,
         tag_name: str,
         scenario_id: int
@@ -254,7 +254,7 @@ class TagDataService(BaseDataService):
         self._tag_definition_model.save_tag_definition(tag_data)
         
         # 返回新创建的 tag definition
-        return self.load_tag(tag_name, scenario_id)
+        return self.load(tag_name, scenario_id)
     
     def create_tag_definition(
         self,
@@ -275,7 +275,7 @@ class TagDataService(BaseDataService):
         Returns:
             int: 新创建的 tag definition ID
         """
-        tag = self.save_tag(name, scenario_id, display_name, description)
+        tag = self.save(name, scenario_id, display_name, description)
         return tag['id']
     
     def get_tag_definitions(
@@ -498,7 +498,7 @@ class TagDataService(BaseDataService):
     # Tag Value 相关 API
     # ========================================================================
     
-    def save_tag_value(self, tag_value_data: Dict[str, Any]) -> int:
+    def save_value(self, tag_value_data: Dict[str, Any]) -> int:
         """
         保存单个 tag value
         
@@ -517,7 +517,7 @@ class TagDataService(BaseDataService):
         """
         return self._tag_value_model.save_tag_value(tag_value_data)
     
-    def batch_save_tag_values(self, tag_values: List[Dict[str, Any]]) -> int:
+    def save_batch(self, tag_values: List[Dict[str, Any]]) -> int:
         """
         批量保存 tag values
         

@@ -21,6 +21,7 @@ class SystemCacheModel(DbBaseModel):
     # 预定义的系统缓存项 ID 映射
     CACHE_IDS = {
         'corporate_finance_batch_offset': 1,
+        'latest_completed_trading_date': 2,
         # 未来可以添加更多映射
     }
     

@@ -1,0 +1,17 @@
+{
+    "name": "system_cache",
+    "primaryKey": "id",
+    "fields": [
+        {
+            "name": "id",
+            "type": "int",
+            "isRequired": true,
+            "autoIncrement": true
+        },
+        {
+            "name": "value",
+            "type": "text",
+            "isRequired": true
+        }
+    ]
+}

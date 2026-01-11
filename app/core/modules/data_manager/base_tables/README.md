@@ -24,8 +24,6 @@ base_tables/
 │   └── schema.json
 ├── price_indexes/          # 价格指数表
 │   └── schema.json
-├── stock_labels/           # 股票标签表
-│   └── schema.json
 │   └── schema.json
 ├── stock_index_indicator/  # 股指指标表
 │   └── schema.json
@@ -33,7 +31,7 @@ base_tables/
 │   └── schema.json
 ├── adj_factor/             # 复权因子表
 │   └── schema.json
-├── meta_info/              # 元数据表
+├── system_cache/           # 系统缓存表
 │   └── schema.json
 ├── investment_trades/      # 投资交易表
 │   └── schema.json

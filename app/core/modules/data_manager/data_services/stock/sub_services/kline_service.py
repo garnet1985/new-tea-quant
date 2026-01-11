@@ -15,6 +15,9 @@ from loguru import logger
 
 from ... import BaseDataService
 
+# 价格字段配置（用于复权计算）
+_PRICE_FIELDS = ['open', 'close', 'highest', 'lowest', 'pre_close']
+
 
 class KlineService(BaseDataService):
     """K线数据服务"""
@@ -37,40 +40,34 @@ class KlineService(BaseDataService):
         self.db = DatabaseManager.get_default()
     
     # ==================== K线基础方法 ====================
-    
-    def load_series(
-        self, 
-        stock_id: str, 
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+
+    def load_raw(
+        self,
+        stock_id: str,
+        term: Optional[str],
+        start_date: Optional[str],
+        end_date: Optional[str]
     ) -> List[Dict[str, Any]]:
-        """
-        加载K线序列
+        """加载原始K线数据（内部方法）"""
+        # 构建查询条件
+        conditions = ["id = %s"]
+        params = [stock_id]
         
-        Args:
-            stock_id: 股票代码
-            start_date: 开始日期（可选）
-            end_date: 结束日期（可选）
-            
-        Returns:
-            K线数据列表
-        """
-        if start_date and end_date:
-            return self._stock_kline.load_by_date_range(stock_id, start_date, end_date)
-        elif start_date:
-            return self._stock_kline.load(
-                "id = %s AND date >= %s",
-                (stock_id, start_date),
-                order_by="date ASC"
-            )
-        elif end_date:
-            return self._stock_kline.load(
-                "id = %s AND date <= %s",
-                (stock_id, end_date),
-                order_by="date ASC"
-            )
-        else:
-            return self._stock_kline.load_by_stock(stock_id)
+        if term:
+            conditions.append("term = %s")
+            params.append(term)
+        
+        if start_date:
+            conditions.append("date >= %s")
+            params.append(start_date)
+        
+        if end_date:
+            conditions.append("date <= %s")
+            params.append(end_date)
+        
+        where_clause = " AND ".join(conditions)
+        return self._stock_kline.load(where_clause, tuple(params), order_by="date ASC")
+   
     
     def load_latest(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -109,6 +106,8 @@ class KlineService(BaseDataService):
         使用新的 adj_factor_event 表计算前复权价格：
         qfq_price = raw_price - qfq_diff
         
+        优化：使用 JOIN 一次查询出所有需要的数据，减少数据库查询次数
+        
         Args:
             stock_id: 股票代码
             term: 周期（daily/weekly/monthly，默认 daily）
@@ -118,29 +117,74 @@ class KlineService(BaseDataService):
         Returns:
             List[Dict]: 前复权K线数据列表，每条记录包含原始字段 + qfq_* 字段
         """
-        # 第一步：获取日期范围内的raw data
-        raw_klines = self._load_raw_klines(stock_id, term, start_date, end_date)
-        if not raw_klines:
-            return []
+        # 统一日期格式为 YYYYMMDD
+        start_date = self._normalize_date(start_date)
+        end_date = self._normalize_date(end_date)
         
-        # 第二步：获取日期范围内的复权因子事件
-        factor_events = self._load_factor_events(stock_id, raw_klines)
-        if not factor_events:
-            logger.warning(f"{stock_id} 没有复权因子事件，返回原始K线数据")
-            return raw_klines
+        # 使用 JOIN 一次查询出 K 线数据和对应的复权因子事件
+        # 对于每个 K 线日期，找到小于等于该日期的最近一个复权因子事件
+        # 使用子查询而不是窗口函数，以兼容更多数据库版本
+        sql = """
+        SELECT 
+            k.*,
+            e.event_date as adj_event_date,
+            e.factor as adj_factor,
+            e.qfq_diff as adj_qfq_diff
+        FROM stock_kline k
+        LEFT JOIN adj_factor_event e ON (
+            e.id = k.id 
+            AND e.event_date = (
+                SELECT MAX(e2.event_date)
+                FROM adj_factor_event e2
+                WHERE e2.id = k.id 
+                AND e2.event_date <= k.date
+            )
+        )
+        WHERE k.id = %s AND k.term = %s
+            AND (k.date >= %s OR %s IS NULL)
+            AND (k.date <= %s OR %s IS NULL)
+        ORDER BY k.date ASC
+        """
         
-        # 第三步：计算日期范围内的复权因子F(t) / F(T)（获取F(T)）
-        F_T = self._get_latest_factor(stock_id)
-        if F_T is None:
-            logger.warning(f"{stock_id} 没有最新复权因子，返回原始K线数据")
-            return raw_klines
+        params = (stock_id, term, start_date, start_date, end_date, end_date)
         
-        # 第四步：遍历K线，让每个K线找到小于或等于当前时间最近的一个复权因子，并且加上diff变成复权后价格
-        qfq_klines = self._apply_qfq_adjustment(raw_klines, factor_events, F_T)
-        
-        return qfq_klines
+        try:
+            results = self.db.execute_sync_query(sql, params)
+            if not results:
+                return []
+            
+            # 转换结果并计算 QFQ 价格
+            qfq_klines = []
+            for row in results:
+                qfq_kline = dict(row)
+                
+                # 获取复权因子信息
+                qfq_diff = qfq_kline.get('adj_qfq_diff')
+                if qfq_diff is None:
+                    # 如果没有复权因子事件，使用默认值 0.0
+                    qfq_diff = 0.0
+                else:
+                    qfq_diff = float(qfq_diff)
+                
+                # 移除临时字段
+                qfq_kline.pop('adj_event_date', None)
+                qfq_kline.pop('adj_factor', None)
+                qfq_kline.pop('adj_qfq_diff', None)
+                
+                # 计算前复权价格字段
+                self._apply_qfq_prices(qfq_kline, qfq_diff)
+                
+                qfq_klines.append(qfq_kline)
+            
+            return qfq_klines
+            
+        except Exception as e:
+            logger.error(f"查询 QFQ K 线数据失败: {e}")
+            # 如果 JOIN 查询失败，回退到原来的多次查询方式
+            logger.warning(f"回退到多次查询方式")
+            return self._load_qfq_fallback(stock_id, term, start_date, end_date)
     
-    def load_multiple_terms(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict]]:
+    def load_multiple(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict]]:
         """
         加载多个周期的K线数据
         
@@ -168,9 +212,7 @@ class KlineService(BaseDataService):
                 records = self.load_qfq(stock_id, term, start_date, end_date)
             else:
                 # 对于其他复权方式，使用原始数据加载
-                records = self.load_series(stock_id, start_date, end_date)
-                # 过滤 term
-                records = [r for r in records if r.get('term') == term]
+                records = self.load_raw(stock_id, term, start_date, end_date)
             
             kline_data[term] = records
         
@@ -212,9 +254,7 @@ class KlineService(BaseDataService):
             result = self.load_qfq(stock_id, term, start_date, end_date)
         else:
             # 对于其他复权方式，返回原始数据
-            result = self.load_series(stock_id, start_date, end_date)
-            # 过滤 term
-            result = [r for r in result if r.get('term') == term]
+            result = self.load_raw(stock_id, term, start_date, end_date)
         
         if as_dataframe:
             import pandas as pd
@@ -234,12 +274,13 @@ class KlineService(BaseDataService):
         """
         return self._stock_kline.save_klines(klines)
     
-    def load_with_latest(self, stock_id: str) -> Optional[Dict[str, Any]]:
+    def load_with_latest(self, stock_id: str, term: str = 'daily') -> Optional[Dict[str, Any]]:
         """
         加载股票信息 + 最新K线（SQL JOIN）
         
         Args:
             stock_id: 股票代码
+            term: 周期（默认 'daily'）
             
         Returns:
             包含股票信息和最新K线的字典，如果不存在返回 None
@@ -250,12 +291,12 @@ class KlineService(BaseDataService):
             k.date as kline_date,
             k.open, k.high, k.low, k.close, k.volume, k.amount
         FROM stock_list s
-        LEFT JOIN stock_kline k ON s.id = k.id
+        LEFT JOIN stock_kline k ON s.id = k.id AND k.term = %s
         WHERE s.id = %s
         ORDER BY k.date DESC
         LIMIT 1
         """
-        results = self.db.execute_sync_query(sql, (stock_id,))
+        results = self.db.execute_sync_query(sql, (term, stock_id))
         return results[0] if results else None
     
     def load_all_by_date(self, date: str) -> List[Dict[str, Any]]:
@@ -281,47 +322,41 @@ class KlineService(BaseDataService):
     
     # ==================== 私有方法（复权计算）====================
     
-    def _load_raw_klines(
+    def _load_qfq_fallback(
         self,
         stock_id: str,
         term: str,
         start_date: Optional[str],
         end_date: Optional[str]
     ) -> List[Dict[str, Any]]:
-        """第一步：获取日期范围内的raw data"""
-        if start_date and end_date:
-            return self._stock_kline.load(
-                "id = %s AND date >= %s AND date <= %s AND term = %s",
-                (stock_id, start_date, end_date, term),
-                order_by="date ASC"
-            )
-        elif start_date:
-            return self._stock_kline.load(
-                "id = %s AND date >= %s AND term = %s",
-                (stock_id, start_date, term),
-                order_by="date ASC"
-            )
-        elif end_date:
-            return self._stock_kline.load(
-                "id = %s AND date <= %s AND term = %s",
-                (stock_id, end_date, term),
-                order_by="date ASC"
-            )
-        else:
-            return self._stock_kline.load(
-                "id = %s AND term = %s",
-                (stock_id, term),
-                order_by="date ASC"
-            )
-    
+        """
+        回退方法：使用多次查询的方式加载 QFQ K 线数据
+        
+        当 JOIN 查询失败时使用此方法
+        """
+        # 获取日期范围内的raw data
+        raw_klines = self.load_raw(stock_id, term, start_date, end_date)
+        if not raw_klines:
+            return []
+        
+        # 获取日期范围内的复权因子事件
+        factor_events = self._load_factor_events(stock_id, raw_klines)
+        if not factor_events:
+            logger.warning(f"{stock_id} 没有复权因子事件，返回原始K线数据")
+            return raw_klines
+        
+        # 获取最新复权因子（保留以兼容接口）
+        F_T = self._get_latest_factor(stock_id) or 1.0
+        
+        # 遍历K线，让每个K线找到小于或等于当前时间最近的一个复权因子，并且加上diff变成复权后价格
+        return self._apply_qfq_adjustment(raw_klines, factor_events, F_T)
+     
     def _load_factor_events(
         self,
         stock_id: str,
         raw_klines: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """第二步：获取日期范围内的复权因子事件"""
-        from app.core.utils.date.date_utils import DateUtils
-        
+        """获取日期范围内的复权因子事件"""
         # 确定日期范围
         kline_dates = [k.get('date') for k in raw_klines if k.get('date')]
         if not kline_dates:
@@ -329,7 +364,7 @@ class KlineService(BaseDataService):
         
         max_date = max(kline_dates)
         # 转换为 YYYYMMDD 格式（event_date 字段使用此格式）
-        max_date_ymd = max_date.replace('-', '') if '-' in max_date else max_date
+        max_date_ymd = self._normalize_date(max_date)
         
         # 加载所有 event_date <= max_date 的复权因子事件
         return self._adj_factor_event.load(
@@ -339,7 +374,7 @@ class KlineService(BaseDataService):
         )
     
     def _get_latest_factor(self, stock_id: str) -> Optional[float]:
-        """第三步：获取最新复权因子 F(T)"""
+        """获取最新复权因子 F(T)"""
         latest_event = self._adj_factor_event.load_latest_factor(stock_id)
         if not latest_event:
             return None
@@ -354,24 +389,19 @@ class KlineService(BaseDataService):
         self,
         raw_klines: List[Dict[str, Any]],
         factor_events: List[Dict[str, Any]],
-        F_T: float
+        F_T: float  # 保留参数以保持接口兼容性（虽然未使用）
     ) -> List[Dict[str, Any]]:
         """
-        第四步：遍历K线，让每个K线找到小于或等于当前时间最近的一个复权因子，并且加上diff变成复权后价格
-        """
-        from app.core.utils.date.date_utils import DateUtils
+        遍历K线，让每个K线找到小于或等于当前时间最近的一个复权因子，并且加上diff变成复权后价格
         
+        Args:
+            raw_klines: 原始K线数据列表
+            factor_events: 复权因子事件列表
+            F_T: 最新复权因子（保留以兼容接口，实际未使用）
+        """
         qfq_klines = []
         event_idx = 0
-        current_factor = 1.0
         current_qfq_diff = 0.0
-        
-        # 价格字段映射
-        price_fields = ['open', 'close', 'highest', 'lowest', 'pre_close']
-        field_mapping = {
-            'highest': 'high',
-            'lowest': 'low'
-        }
         
         for kline in raw_klines:
             kline_date = kline.get('date')
@@ -379,43 +409,62 @@ class KlineService(BaseDataService):
                 continue
             
             # K线日期统一为 YYYYMMDD 格式
-            kline_date_ymd = kline_date.replace('-', '') if '-' in kline_date else kline_date
+            kline_date_ymd = self._normalize_date(kline_date)
             
-            # 更新当前适用的因子
+            # 更新当前适用的因子（找到小于等于当前K线日期的最近事件）
             while event_idx < len(factor_events):
                 event = factor_events[event_idx]
                 event_date = event.get('event_date')
-                event_date_ymd = event_date.replace('-', '') if '-' in str(event_date) else str(event_date)
+                event_date_ymd = self._normalize_date(str(event_date))
                 
                 if event_date_ymd <= kline_date_ymd:
-                    factor_val = event.get('factor', 1.0)
-                    qfq_diff_val = event.get('qfq_diff', 0.0)
-                    current_factor = float(factor_val)
-                    current_qfq_diff = float(qfq_diff_val)
+                    current_qfq_diff = float(event.get('qfq_diff', 0.0))
                     event_idx += 1
                 else:
                     break
             
             # 计算前复权价格：qfq_price = raw_price - qfq_diff
-            applicable_qfq_diff = current_qfq_diff
             qfq_kline = kline.copy()
-            
-            # 计算前复权价格字段
-            for field in price_fields:
-                raw_value = kline.get(field)
-                if raw_value is not None:
-                    try:
-                        raw_price = float(raw_value)
-                        qfq_price = raw_price - applicable_qfq_diff
-                        output_field = field_mapping.get(field, field)
-                        qfq_kline[f'qfq_{output_field}'] = qfq_price
-                    except (ValueError, TypeError):
-                        output_field = field_mapping.get(field, field)
-                        qfq_kline[f'qfq_{output_field}'] = None
-                else:
-                    output_field = field_mapping.get(field, field)
-                    qfq_kline[f'qfq_{output_field}'] = None
-            
+            self._apply_qfq_prices(qfq_kline, current_qfq_diff)
             qfq_klines.append(qfq_kline)
         
         return qfq_klines
+    
+    # ==================== 辅助方法 ====================
+    
+    @staticmethod
+    def _normalize_date(date_str: Optional[str]) -> Optional[str]:
+        """
+        统一日期格式为 YYYYMMDD
+        
+        Args:
+            date_str: 日期字符串（YYYYMMDD 或 YYYY-MM-DD 格式，或 None）
+            
+        Returns:
+            YYYYMMDD 格式的日期字符串，如果输入为 None 则返回 None
+        """
+        if not date_str:
+            return None
+        return date_str.replace('-', '') if '-' in str(date_str) else str(date_str)
+    
+    @staticmethod
+    def _apply_qfq_prices(kline: Dict[str, Any], qfq_diff: float) -> None:
+        """
+        对K线数据应用前复权价格计算
+        
+        Args:
+            kline: K线数据字典（会被修改）
+            qfq_diff: 前复权差异值
+        """
+        for field in _PRICE_FIELDS:
+            raw_value = kline.get(field)
+            
+            if raw_value is not None:
+                try:
+                    raw_price = float(raw_value)
+                    qfq_price = raw_price - qfq_diff
+                    kline[f'qfq_{field}'] = qfq_price
+                except (ValueError, TypeError):
+                    kline[f'qfq_{field}'] = None
+            else:
+                kline[f'qfq_{field}'] = None

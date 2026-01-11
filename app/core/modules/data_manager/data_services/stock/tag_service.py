@@ -30,9 +30,9 @@ class TagDataService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model（通过 DataManager，自动绑定默认 db）- 私有属性，不对外暴露
-        self._tag_scenario_model = data_manager.get_model('tag_scenario')
-        self._tag_definition_model = data_manager.get_model('tag_definition')
-        self._tag_value_model = data_manager.get_model('tag_value')
+        self._tag_scenario_model = data_manager.get_table('tag_scenario')
+        self._tag_definition_model = data_manager.get_table('tag_definition')
+        self._tag_value_model = data_manager.get_table('tag_value')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager

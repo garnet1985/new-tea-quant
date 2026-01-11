@@ -29,11 +29,11 @@ class MacroService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 获取相关 Model（通过 DataManager，自动绑定默认 db）
-        self.gdp = data_manager.get_model('gdp')
-        self.price_indexes = data_manager.get_model('price_indexes')
-        self.shibor = data_manager.get_model('shibor')
-        self.lpr = data_manager.get_model('lpr')
+        # 获取相关 Model（通过 DataManager，自动绑定默认 db）- 私有属性，不对外暴露
+        self._gdp = data_manager.get_model('gdp')
+        self._price_indexes = data_manager.get_model('price_indexes')
+        self._shibor = data_manager.get_model('shibor')
+        self._lpr = data_manager.get_model('lpr')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager
@@ -57,21 +57,21 @@ class MacroService(BaseDataService):
             GDP数据列表
         """
         if start_quarter and end_quarter:
-            return self.gdp.load_by_date_range(start_quarter, end_quarter)
+            return self._gdp.load_by_date_range(start_quarter, end_quarter)
         elif start_quarter:
-            return self.gdp.load(
+            return self._gdp.load(
                 "quarter >= %s",
                 (start_quarter,),
                 order_by="quarter ASC"
             )
         elif end_quarter:
-            return self.gdp.load(
+            return self._gdp.load(
                 "quarter <= %s",
                 (end_quarter,),
                 order_by="quarter ASC"
             )
         else:
-            return self.gdp.load(order_by="quarter ASC")
+            return self._gdp.load(order_by="quarter ASC")
     
     def load_latest_gdp(self) -> Optional[Dict[str, Any]]:
         """
@@ -80,7 +80,7 @@ class MacroService(BaseDataService):
         Returns:
             最新GDP数据，如果不存在返回 None
         """
-        return self.gdp.load_latest()
+        return self._gdp.load_latest()
     
     def load_gdp_by_quarter(self, quarter: str) -> Optional[Dict[str, Any]]:
         """
@@ -92,7 +92,7 @@ class MacroService(BaseDataService):
         Returns:
             GDP数据，如果不存在返回 None
         """
-        return self.gdp.load_by_quarter(quarter)
+        return self._gdp.load_by_quarter(quarter)
     
     # ==================== 价格指数（CPI、PPI、PMI、货币供应量）====================
     
@@ -123,7 +123,7 @@ class MacroService(BaseDataService):
         
         # price_indexes 表是扁平结构，所有指标在同一行
         # 返回所有字段，调用方可以只取 cpi 相关字段
-        return self.price_indexes.load(
+        return self._price_indexes.load(
             condition,
             tuple(params) if params else (),
             order_by="date ASC"
@@ -155,7 +155,7 @@ class MacroService(BaseDataService):
             params.append(end_date)
         
         # price_indexes 表是扁平结构，所有指标在同一行
-        return self.price_indexes.load(
+        return self._price_indexes.load(
             condition,
             tuple(params) if params else (),
             order_by="date ASC"
@@ -187,7 +187,7 @@ class MacroService(BaseDataService):
             params.append(end_date)
         
         # price_indexes 表是扁平结构，所有指标在同一行
-        return self.price_indexes.load(
+        return self._price_indexes.load(
             condition,
             tuple(params) if params else (),
             order_by="date ASC"
@@ -219,7 +219,7 @@ class MacroService(BaseDataService):
             params.append(end_date)
         
         # price_indexes 表是扁平结构，所有指标在同一行
-        return self.price_indexes.load(
+        return self._price_indexes.load(
             condition,
             tuple(params) if params else (),
             order_by="date ASC"
@@ -243,21 +243,21 @@ class MacroService(BaseDataService):
             Shibor利率数据列表
         """
         if start_date and end_date:
-            return self.shibor.load_by_date_range(start_date, end_date)
+            return self._shibor.load_by_date_range(start_date, end_date)
         elif start_date:
-            return self.shibor.load(
+            return self._shibor.load(
                 "date >= %s",
                 (start_date,),
                 order_by="date ASC"
             )
         elif end_date:
-            return self.shibor.load(
+            return self._shibor.load(
                 "date <= %s",
                 (end_date,),
                 order_by="date ASC"
             )
         else:
-            return self.shibor.load(order_by="date ASC")
+            return self._shibor.load(order_by="date ASC")
     
     def load_shibor_by_date(self, date: str, fallback: bool = True) -> Optional[Dict[str, Any]]:
         """
@@ -271,9 +271,9 @@ class MacroService(BaseDataService):
             Shibor利率数据，如果不存在返回 None
         """
         if fallback:
-            return self.shibor.load_by_date(date)  # Model 已实现回退逻辑
+            return self._shibor.load_by_date(date)  # Model 已实现回退逻辑
         else:
-            return self.shibor.load_one("date = %s", (date,))
+            return self._shibor.load_one("date = %s", (date,))
     
     def load_latest_shibor(self) -> Optional[Dict[str, Any]]:
         """
@@ -282,7 +282,7 @@ class MacroService(BaseDataService):
         Returns:
             最新Shibor利率数据，如果不存在返回 None
         """
-        return self.shibor.load_latest()
+        return self._shibor.load_latest()
     
     def load_lpr(
         self, 
@@ -300,21 +300,21 @@ class MacroService(BaseDataService):
             LPR利率数据列表
         """
         if start_date and end_date:
-            return self.lpr.load_by_date_range(start_date, end_date)
+            return self._lpr.load_by_date_range(start_date, end_date)
         elif start_date:
-            return self.lpr.load(
+            return self._lpr.load(
                 "date >= %s",
                 (start_date,),
                 order_by="date ASC"
             )
         elif end_date:
-            return self.lpr.load(
+            return self._lpr.load(
                 "date <= %s",
                 (end_date,),
                 order_by="date ASC"
             )
         else:
-            return self.lpr.load(order_by="date ASC")
+            return self._lpr.load(order_by="date ASC")
     
     def load_lpr_by_date(self, date: str, fallback: bool = True) -> Optional[Dict[str, Any]]:
         """
@@ -328,9 +328,9 @@ class MacroService(BaseDataService):
             LPR利率数据，如果不存在返回 None
         """
         if fallback:
-            return self.lpr.load_by_date(date)  # Model 已实现回退逻辑
+            return self._lpr.load_by_date(date)  # Model 已实现回退逻辑
         else:
-            return self.lpr.load_one("date = %s", (date,))
+            return self._lpr.load_one("date = %s", (date,))
     
     def load_latest_lpr(self) -> Optional[Dict[str, Any]]:
         """
@@ -339,7 +339,7 @@ class MacroService(BaseDataService):
         Returns:
             最新LPR利率数据，如果不存在返回 None
         """
-        return self.lpr.load_latest()
+        return self._lpr.load_latest()
     
     # ==================== 跨表查询（SQL JOIN）====================
     
@@ -408,7 +408,7 @@ class MacroService(BaseDataService):
         quarter = f"{year}Q{(month_num - 1) // 3 + 1}"
         
         # 加载价格指数数据（一次性加载，包含所有指标）
-        price_indexes_data = self.price_indexes.load_one("date = %s", (month,))
+        price_indexes_data = self._price_indexes.load_one("date = %s", (month,))
         
         snapshot = {
             'date': date,
@@ -433,7 +433,7 @@ class MacroService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self.gdp.save_gdp_data(gdp_data)
+        return self._gdp.save_gdp_data(gdp_data)
     
     def save_shibor_data(self, shibor_data: List[Dict[str, Any]]) -> int:
         """
@@ -445,7 +445,7 @@ class MacroService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self.shibor.save_shibor_data(shibor_data)
+        return self._shibor.save_shibor_data(shibor_data)
     
     def save_lpr_data(self, lpr_data: List[Dict[str, Any]]) -> int:
         """
@@ -457,5 +457,5 @@ class MacroService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self.lpr.save_lpr_data(lpr_data) if hasattr(self.lpr, 'save_lpr_data') else self.lpr.replace(lpr_data, unique_keys=['date'])
+        return self._lpr.save_lpr_data(lpr_data) if hasattr(self._lpr, 'save_lpr_data') else self._lpr.replace(lpr_data, unique_keys=['date'])
 

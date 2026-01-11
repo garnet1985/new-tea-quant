@@ -78,11 +78,9 @@ class CalendarService(BaseDataService):
             # 如果缓存未过期（今天更新的），使用它
             if not self._is_cache_expired(updated_at):
                 self._save_to_memory_cache(cached_date)
-                logger.debug(f"使用数据库缓存的最新交易日: {cached_date}")
                 return cached_date
         
         # 3. 缓存过期或不存在，从API获取（多fallback机制）
-        logger.info("🔄 刷新最新交易日...")
         new_trading_date, provider = self._fetch_with_fallback()
         
         # 4. 记录交易日变化（如果有）

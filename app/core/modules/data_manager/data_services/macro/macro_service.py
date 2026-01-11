@@ -96,6 +96,50 @@ class MacroService(BaseDataService):
     
     # ==================== 价格指数（CPI、PPI、PMI、货币供应量）====================
     
+    def _load_price_indexes(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        fields: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        加载价格指数数据（通用方法）
+        
+        Args:
+            start_date: 开始月份（YYYYMM格式，如202001）
+            end_date: 结束月份（YYYYMM格式，如202412）
+            fields: 需要返回的字段列表（如果为None，返回所有字段）
+            
+        Returns:
+            价格指数数据列表（只包含指定的字段，如果fields为None则包含所有字段）
+        """
+        condition = "1=1"
+        params = []
+        
+        if start_date:
+            condition += " AND date >= %s"
+            params.append(start_date)
+        if end_date:
+            condition += " AND date <= %s"
+            params.append(end_date)
+        
+        # 加载数据
+        data = self._price_indexes.load(
+            condition,
+            tuple(params) if params else (),
+            order_by="date ASC"
+        )
+        
+        # 如果指定了字段，只返回这些字段（始终包含date字段）
+        if fields:
+            result_fields = ['date'] + fields
+            return [
+                {k: v for k, v in item.items() if k in result_fields}
+                for item in data
+            ]
+        
+        return data
+    
     def load_cpi(
         self, 
         start_date: Optional[str] = None, 
@@ -109,24 +153,12 @@ class MacroService(BaseDataService):
             end_date: 结束月份（YYYYMM格式，如202412）
             
         Returns:
-            CPI数据列表（包含 cpi, cpi_yoy, cpi_mom 字段）
+            CPI数据列表（只包含 date, cpi, cpi_yoy, cpi_mom 字段）
         """
-        condition = "1=1"
-        params = []
-        
-        if start_date:
-            condition += " AND date >= %s"
-            params.append(start_date)
-        if end_date:
-            condition += " AND date <= %s"
-            params.append(end_date)
-        
-        # price_indexes 表是扁平结构，所有指标在同一行
-        # 返回所有字段，调用方可以只取 cpi 相关字段
-        return self._price_indexes.load(
-            condition,
-            tuple(params) if params else (),
-            order_by="date ASC"
+        return self._load_price_indexes(
+            start_date, 
+            end_date, 
+            fields=['cpi', 'cpi_yoy', 'cpi_mom']
         )
     
     def load_ppi(
@@ -142,23 +174,12 @@ class MacroService(BaseDataService):
             end_date: 结束月份（YYYYMM格式，如202412）
             
         Returns:
-            PPI数据列表（包含 ppi, ppi_yoy, ppi_mom 字段）
+            PPI数据列表（只包含 date, ppi, ppi_yoy, ppi_mom 字段）
         """
-        condition = "1=1"
-        params = []
-        
-        if start_date:
-            condition += " AND date >= %s"
-            params.append(start_date)
-        if end_date:
-            condition += " AND date <= %s"
-            params.append(end_date)
-        
-        # price_indexes 表是扁平结构，所有指标在同一行
-        return self._price_indexes.load(
-            condition,
-            tuple(params) if params else (),
-            order_by="date ASC"
+        return self._load_price_indexes(
+            start_date, 
+            end_date, 
+            fields=['ppi', 'ppi_yoy', 'ppi_mom']
         )
     
     def load_pmi(
@@ -174,23 +195,12 @@ class MacroService(BaseDataService):
             end_date: 结束月份（YYYYMM格式，如202412）
             
         Returns:
-            PMI数据列表（包含 pmi, pmi_l_scale, pmi_m_scale, pmi_s_scale 字段）
+            PMI数据列表（只包含 date, pmi, pmi_l_scale, pmi_m_scale, pmi_s_scale 字段）
         """
-        condition = "1=1"
-        params = []
-        
-        if start_date:
-            condition += " AND date >= %s"
-            params.append(start_date)
-        if end_date:
-            condition += " AND date <= %s"
-            params.append(end_date)
-        
-        # price_indexes 表是扁平结构，所有指标在同一行
-        return self._price_indexes.load(
-            condition,
-            tuple(params) if params else (),
-            order_by="date ASC"
+        return self._load_price_indexes(
+            start_date, 
+            end_date, 
+            fields=['pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale']
         )
     
     def load_money_supply(
@@ -206,26 +216,71 @@ class MacroService(BaseDataService):
             end_date: 结束月份（YYYYMM格式，如202412）
             
         Returns:
-            货币供应量数据列表（包含 m0, m0_yoy, m0_mom, m1, m1_yoy, m1_mom, m2, m2_yoy, m2_mom 字段）
+            货币供应量数据列表（只包含 date, m0, m0_yoy, m0_mom, m1, m1_yoy, m1_mom, m2, m2_yoy, m2_mom 字段）
         """
-        condition = "1=1"
-        params = []
-        
-        if start_date:
-            condition += " AND date >= %s"
-            params.append(start_date)
-        if end_date:
-            condition += " AND date <= %s"
-            params.append(end_date)
-        
-        # price_indexes 表是扁平结构，所有指标在同一行
-        return self._price_indexes.load(
-            condition,
-            tuple(params) if params else (),
-            order_by="date ASC"
+        return self._load_price_indexes(
+            start_date, 
+            end_date, 
+            fields=['m0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 'm2', 'm2_yoy', 'm2_mom']
         )
     
     # ==================== 利率数据（Shibor、LPR）====================
+    
+    def _load_rate_data(
+        self,
+        model,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        加载利率数据（通用方法，用于Shibor和LPR）
+        
+        Args:
+            model: 利率数据Model（_shibor 或 _lpr）
+            start_date: 开始日期（YYYYMMDD格式，如20200101）
+            end_date: 结束日期（YYYYMMDD格式，如20241231）
+            
+        Returns:
+            利率数据列表
+        """
+        if start_date and end_date:
+            return model.load_by_date_range(start_date, end_date)
+        elif start_date:
+            return model.load(
+                "date >= %s",
+                (start_date,),
+                order_by="date ASC"
+            )
+        elif end_date:
+            return model.load(
+                "date <= %s",
+                (end_date,),
+                order_by="date ASC"
+            )
+        else:
+            return model.load(order_by="date ASC")
+    
+    def _load_rate_by_date(
+        self,
+        model,
+        date: str,
+        fallback: bool = True
+    ) -> Optional[Dict[str, Any]]:
+        """
+        加载指定日期的利率数据（通用方法，支持回退）
+        
+        Args:
+            model: 利率数据Model（_shibor 或 _lpr）
+            date: 日期（YYYYMMDD格式）
+            fallback: 如果指定日期没有数据，是否回退到最近的数据
+            
+        Returns:
+            利率数据，如果不存在返回 None
+        """
+        if fallback:
+            return model.load_by_date(date)  # Model 已实现回退逻辑
+        else:
+            return model.load_one("date = %s", (date,))
     
     def load_shibor(
         self, 
@@ -242,22 +297,7 @@ class MacroService(BaseDataService):
         Returns:
             Shibor利率数据列表
         """
-        if start_date and end_date:
-            return self._shibor.load_by_date_range(start_date, end_date)
-        elif start_date:
-            return self._shibor.load(
-                "date >= %s",
-                (start_date,),
-                order_by="date ASC"
-            )
-        elif end_date:
-            return self._shibor.load(
-                "date <= %s",
-                (end_date,),
-                order_by="date ASC"
-            )
-        else:
-            return self._shibor.load(order_by="date ASC")
+        return self._load_rate_data(self._shibor, start_date, end_date)
     
     def load_shibor_by_date(self, date: str, fallback: bool = True) -> Optional[Dict[str, Any]]:
         """
@@ -270,10 +310,7 @@ class MacroService(BaseDataService):
         Returns:
             Shibor利率数据，如果不存在返回 None
         """
-        if fallback:
-            return self._shibor.load_by_date(date)  # Model 已实现回退逻辑
-        else:
-            return self._shibor.load_one("date = %s", (date,))
+        return self._load_rate_by_date(self._shibor, date, fallback)
     
     def load_latest_shibor(self) -> Optional[Dict[str, Any]]:
         """
@@ -299,22 +336,7 @@ class MacroService(BaseDataService):
         Returns:
             LPR利率数据列表
         """
-        if start_date and end_date:
-            return self._lpr.load_by_date_range(start_date, end_date)
-        elif start_date:
-            return self._lpr.load(
-                "date >= %s",
-                (start_date,),
-                order_by="date ASC"
-            )
-        elif end_date:
-            return self._lpr.load(
-                "date <= %s",
-                (end_date,),
-                order_by="date ASC"
-            )
-        else:
-            return self._lpr.load(order_by="date ASC")
+        return self._load_rate_data(self._lpr, start_date, end_date)
     
     def load_lpr_by_date(self, date: str, fallback: bool = True) -> Optional[Dict[str, Any]]:
         """
@@ -327,10 +349,7 @@ class MacroService(BaseDataService):
         Returns:
             LPR利率数据，如果不存在返回 None
         """
-        if fallback:
-            return self._lpr.load_by_date(date)  # Model 已实现回退逻辑
-        else:
-            return self._lpr.load_one("date = %s", (date,))
+        return self._load_rate_by_date(self._lpr, date, fallback)
     
     def load_latest_lpr(self) -> Optional[Dict[str, Any]]:
         """
@@ -358,26 +377,24 @@ class MacroService(BaseDataService):
         Returns:
             利率数据字典，包含 source 字段标识数据来源
         """
+        # 定义优先级顺序
         if prefer_shibor:
-            shibor = self.load_shibor_by_date(date, fallback=True)
-            if shibor:
-                shibor['source'] = 'shibor'
-                return shibor
-            
-            lpr = self.load_lpr_by_date(date, fallback=True)
-            if lpr:
-                lpr['source'] = 'lpr'
-                return lpr
+            sources = [
+                (self.load_shibor_by_date, 'shibor'),
+                (self.load_lpr_by_date, 'lpr')
+            ]
         else:
-            lpr = self.load_lpr_by_date(date, fallback=True)
-            if lpr:
-                lpr['source'] = 'lpr'
-                return lpr
-            
-            shibor = self.load_shibor_by_date(date, fallback=True)
-            if shibor:
-                shibor['source'] = 'shibor'
-                return shibor
+            sources = [
+                (self.load_lpr_by_date, 'lpr'),
+                (self.load_shibor_by_date, 'shibor')
+            ]
+        
+        # 按优先级尝试获取数据
+        for load_func, source_name in sources:
+            data = load_func(date, fallback=True)
+            if data:
+                data['source'] = source_name
+                return data
         
         return None
     

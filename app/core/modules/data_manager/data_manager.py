@@ -202,7 +202,17 @@ class DataManager:
 
     def get_model(self, table_name: str) -> Any:
         """
-        获取指定表对应的 Model 实例
+        获取指定表对应的 Model 实例（内部方法，仅供 DataService 使用）
+        
+        ⚠️ 警告：此方法仅供 DataManager 内部和 DataService 使用，外部代码不应直接调用！
+        
+        外部代码应通过 DataService 层访问数据：
+            # ✅ 正确方式
+            klines = data_mgr.stock.load_klines('000001.SZ', start_date='20200101')
+            
+            # ❌ 错误方式（不要这样做）
+            # kline_model = data_mgr.get_model('stock_kline')
+            # klines = kline_model.load_by_date_range(...)
         
         返回的是个性化 Model（如 StockKlineModel），而不是 DbBaseModel
         
@@ -211,10 +221,6 @@ class DataManager:
             
         Returns:
             对应的 Model 实例（已自动绑定默认 db）
-            
-        Example:
-            kline_model = data_manager.get_model('stock_kline')
-            klines = kline_model.load_by_stock_and_date_range(...)
         """
         # 表名到 Model 类的映射
         from app.core.modules.data_manager.base_tables import (

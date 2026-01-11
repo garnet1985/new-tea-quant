@@ -153,7 +153,7 @@ class TushareStockListHandler(BaseDataSourceHandler):
             return
         
         try:
-            count = self.data_manager.stock.save_stocks(data_list)
+            count = self.data_manager.stock.list.save(data_list)
             logger.info(f"✅ 保存 {self.data_source} 数据完成，共 {count} 条记录")
         except Exception as e:
             logger.error(f"❌ 保存 {self.data_source} 数据失败: {e}")

@@ -30,10 +30,10 @@ class MacroService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model（通过 DataManager，自动绑定默认 db）- 私有属性，不对外暴露
-        self._gdp = data_manager.get_model('gdp')
-        self._price_indexes = data_manager.get_model('price_indexes')
-        self._shibor = data_manager.get_model('shibor')
-        self._lpr = data_manager.get_model('lpr')
+        self._gdp = data_manager.get_table('gdp')
+        self._price_indexes = data_manager.get_table('price_indexes')
+        self._shibor = data_manager.get_table('shibor')
+        self._lpr = data_manager.get_table('lpr')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager

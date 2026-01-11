@@ -37,7 +37,7 @@ class StockService(BaseDataService):
         self.corporate_finance = CorporateFinanceService(data_manager)
         
         # 获取相关 Model（股票基础数据）- 私有属性，不对外暴露
-        self._stock_list = data_manager.get_model('stock_list')
+        self._stock_list = data_manager.get_table('stock_list')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager

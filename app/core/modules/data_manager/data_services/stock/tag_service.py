@@ -29,10 +29,10 @@ class TagDataService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 获取相关 Model（通过 DataManager，自动绑定默认 db）
-        self.tag_scenario_model = data_manager.get_model('tag_scenario')
-        self.tag_definition_model = data_manager.get_model('tag_definition')
-        self.tag_value_model = data_manager.get_model('tag_value')
+        # 获取相关 Model（通过 DataManager，自动绑定默认 db）- 私有属性，不对外暴露
+        self._tag_scenario_model = data_manager.get_model('tag_scenario')
+        self._tag_definition_model = data_manager.get_model('tag_definition')
+        self._tag_value_model = data_manager.get_model('tag_value')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager
@@ -53,7 +53,7 @@ class TagDataService(BaseDataService):
             Dict[str, Any]: Scenario 记录（包含 id, name, display_name, description, created_at 等）
             None: 如果不存在
         """
-        return self.tag_scenario_model.load_by_name(scenario_name)
+        return self._tag_scenario_model.load_by_name(scenario_name)
     
     def get_scenario(self, scenario_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -91,7 +91,7 @@ class TagDataService(BaseDataService):
             'description': description or ''
         }
         
-        self.tag_scenario_model.save_scenario(scenario_data)
+        self._tag_scenario_model.save_scenario(scenario_data)
         
         # 返回新创建的 scenario
         return self.load_scenario(scenario_name)
@@ -150,9 +150,9 @@ class TagDataService(BaseDataService):
             # 返回当前 scenario
             if current_scenario:
                 return current_scenario
-            return self.tag_scenario_model.load_one("id = %s", (scenario_id,))
+            return self._tag_scenario_model.load_one("id = %s", (scenario_id,))
         
-        self.tag_scenario_model.update_scenario(scenario_id, update_data)
+        self._tag_scenario_model.update_scenario(scenario_id, update_data)
         
         # 优化：如果提供了 current_scenario，直接在内存中更新，避免额外查询
         if current_scenario:
@@ -162,7 +162,7 @@ class TagDataService(BaseDataService):
             return updated_scenario
         
         # 如果没有提供 current_scenario，查询一次
-        return self.tag_scenario_model.load_one("id = %s", (scenario_id,))
+        return self._tag_scenario_model.load_one("id = %s", (scenario_id,))
     
     def list_scenarios(
         self,
@@ -178,10 +178,10 @@ class TagDataService(BaseDataService):
             List[Dict[str, Any]]: Scenario 列表
         """
         if scenario_name:
-            scenario = self.tag_scenario_model.load_by_name(scenario_name)
+            scenario = self._tag_scenario_model.load_by_name(scenario_name)
             return [scenario] if scenario else []
         else:
-            return self.tag_scenario_model.load_all()
+            return self._tag_scenario_model.load_all()
     
     def delete_scenario(self, scenario_id: int, cascade: bool = False) -> None:
         """
@@ -199,7 +199,7 @@ class TagDataService(BaseDataService):
             self.delete_tag_values_by_scenario(scenario_id)
             self.delete_tag_definitions_by_scenario(scenario_id)
         
-        self.tag_scenario_model.delete_scenario(scenario_id)
+        self._tag_scenario_model.delete_scenario(scenario_id)
     
     # ========================================================================
     # Tag Definition 相关 API
@@ -221,7 +221,7 @@ class TagDataService(BaseDataService):
             Dict[str, Any]: Tag definition 记录（包含 id, name, scenario_id, display_name, description 等）
             None: 如果不存在
         """
-        return self.tag_definition_model.load_by_name_and_scenario(
+        return self._tag_definition_model.load_by_name_and_scenario(
             tag_name, scenario_id
         )
     
@@ -251,7 +251,7 @@ class TagDataService(BaseDataService):
             'description': description or ''
         }
         
-        self.tag_definition_model.save_tag_definition(tag_data)
+        self._tag_definition_model.save_tag_definition(tag_data)
         
         # 返回新创建的 tag definition
         return self.load_tag(tag_name, scenario_id)
@@ -292,10 +292,10 @@ class TagDataService(BaseDataService):
             List[Dict[str, Any]]: Tag definition 列表
         """
         if scenario_id:
-            return self.tag_definition_model.load_by_scenario_id(scenario_id)
+            return self._tag_definition_model.load_by_scenario_id(scenario_id)
         else:
             # 查询所有 tag definitions
-            return self.tag_definition_model.load("1=1", order_by="scenario_id ASC, name ASC")
+            return self._tag_definition_model.load("1=1", order_by="scenario_id ASC, name ASC")
     
     def list_tag_definitions(
         self,
@@ -342,9 +342,9 @@ class TagDataService(BaseDataService):
             # 返回当前 tag definition
             if current_tag:
                 return current_tag
-            return self.tag_definition_model.load_one("id = %s", (tag_definition_id,))
+            return self._tag_definition_model.load_one("id = %s", (tag_definition_id,))
         
-        self.tag_definition_model.update("id = %s", (tag_definition_id,), update_data)
+        self._tag_definition_model.update("id = %s", (tag_definition_id,), update_data)
         
         # 优化：如果提供了 current_tag，直接在内存中更新，避免额外查询
         if current_tag:
@@ -353,7 +353,7 @@ class TagDataService(BaseDataService):
             return updated_tag
         
         # 如果没有提供 current_tag，查询一次
-        return self.tag_definition_model.load_one("id = %s", (tag_definition_id,))
+        return self._tag_definition_model.load_one("id = %s", (tag_definition_id,))
     
     def batch_update_tag_definitions(
         self,
@@ -390,7 +390,7 @@ class TagDataService(BaseDataService):
                     result.append(update_item['current_tag'])
                 else:
                     tag_id = update_item['tag_definition_id']
-                    tag = self.tag_definition_model.load_one("id = %s", (tag_id,))
+                    tag = self._tag_definition_model.load_one("id = %s", (tag_id,))
                     if tag:
                         result.append(tag)
             return result
@@ -464,7 +464,7 @@ class TagDataService(BaseDataService):
                 result.append(updated_tag)
             else:
                 # 查询数据库
-                tag = self.tag_definition_model.load_one("id = %s", (tag_id,))
+                tag = self._tag_definition_model.load_one("id = %s", (tag_id,))
                 if tag:
                     result.append(tag)
         
@@ -480,7 +480,7 @@ class TagDataService(BaseDataService):
         Returns:
             None
         """
-        self.tag_definition_model.delete("id = %s", (tag_definition_id,))
+        self._tag_definition_model.delete("id = %s", (tag_definition_id,))
     
     def delete_tag_definitions_by_scenario(self, scenario_id: int) -> None:
         """
@@ -492,7 +492,7 @@ class TagDataService(BaseDataService):
         Returns:
             None
         """
-        self.tag_definition_model.delete_by_scenario_id(scenario_id)
+        self._tag_definition_model.delete_by_scenario_id(scenario_id)
     
     # ========================================================================
     # Tag Value 相关 API
@@ -515,7 +515,7 @@ class TagDataService(BaseDataService):
         Returns:
             int: 保存的记录数（通常是 1）
         """
-        return self.tag_value_model.save_tag_value(tag_value_data)
+        return self._tag_value_model.save_tag_value(tag_value_data)
     
     def batch_save_tag_values(self, tag_values: List[Dict[str, Any]]) -> int:
         """
@@ -527,7 +527,7 @@ class TagDataService(BaseDataService):
         Returns:
             int: 保存的记录数
         """
-        return self.tag_value_model.batch_save_tag_values(tag_values)
+        return self._tag_value_model.batch_save_tag_values(tag_values)
     
     def delete_tag_values_by_scenario(self, scenario_id: int) -> None:
         """

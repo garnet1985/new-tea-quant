@@ -28,9 +28,9 @@ class KlineService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 获取相关 Model
-        self.stock_kline = data_manager.get_model('stock_kline')
-        self.adj_factor_event = data_manager.get_model('adj_factor_event')
+        # 获取相关 Model - 私有属性，不对外暴露
+        self._stock_kline = data_manager.get_model('stock_kline')
+        self._adj_factor_event = data_manager.get_model('adj_factor_event')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager
@@ -56,21 +56,21 @@ class KlineService(BaseDataService):
             K线数据列表
         """
         if start_date and end_date:
-            return self.stock_kline.load_by_date_range(stock_id, start_date, end_date)
+            return self._stock_kline.load_by_date_range(stock_id, start_date, end_date)
         elif start_date:
-            return self.stock_kline.load(
+            return self._stock_kline.load(
                 "id = %s AND date >= %s",
                 (stock_id, start_date),
                 order_by="date ASC"
             )
         elif end_date:
-            return self.stock_kline.load(
+            return self._stock_kline.load(
                 "id = %s AND date <= %s",
                 (stock_id, end_date),
                 order_by="date ASC"
             )
         else:
-            return self.stock_kline.load_by_stock(stock_id)
+            return self._stock_kline.load_by_stock(stock_id)
     
     def load_latest_kline(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -82,7 +82,7 @@ class KlineService(BaseDataService):
         Returns:
             最新K线数据，如果不存在返回 None
         """
-        return self.stock_kline.load_latest(stock_id)
+        return self._stock_kline.load_latest(stock_id)
     
     def load_kline_by_date(self, date: str) -> List[Dict[str, Any]]:
         """
@@ -94,7 +94,7 @@ class KlineService(BaseDataService):
         Returns:
             K线数据列表
         """
-        return self.stock_kline.load_by_date(date)
+        return self._stock_kline.load_by_date(date)
     
     def load_qfq_klines(
         self,
@@ -232,7 +232,7 @@ class KlineService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self.stock_kline.save_klines(klines)
+        return self._stock_kline.save_klines(klines)
     
     def load_stock_with_latest_kline(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -290,25 +290,25 @@ class KlineService(BaseDataService):
     ) -> List[Dict[str, Any]]:
         """第一步：获取日期范围内的raw data"""
         if start_date and end_date:
-            return self.stock_kline.load(
+            return self._stock_kline.load(
                 "id = %s AND date >= %s AND date <= %s AND term = %s",
                 (stock_id, start_date, end_date, term),
                 order_by="date ASC"
             )
         elif start_date:
-            return self.stock_kline.load(
+            return self._stock_kline.load(
                 "id = %s AND date >= %s AND term = %s",
                 (stock_id, start_date, term),
                 order_by="date ASC"
             )
         elif end_date:
-            return self.stock_kline.load(
+            return self._stock_kline.load(
                 "id = %s AND date <= %s AND term = %s",
                 (stock_id, end_date, term),
                 order_by="date ASC"
             )
         else:
-            return self.stock_kline.load(
+            return self._stock_kline.load(
                 "id = %s AND term = %s",
                 (stock_id, term),
                 order_by="date ASC"
@@ -332,7 +332,7 @@ class KlineService(BaseDataService):
         max_date_ymd = max_date.replace('-', '') if '-' in max_date else max_date
         
         # 加载所有 event_date <= max_date 的复权因子事件
-        return self.adj_factor_event.load(
+        return self._adj_factor_event.load(
             "id = %s AND event_date <= %s",
             (stock_id, max_date_ymd),
             order_by="event_date ASC"
@@ -340,7 +340,7 @@ class KlineService(BaseDataService):
     
     def _get_latest_factor(self, stock_id: str) -> Optional[float]:
         """第三步：获取最新复权因子 F(T)"""
-        latest_event = self.adj_factor_event.load_latest_factor(stock_id)
+        latest_event = self._adj_factor_event.load_latest_factor(stock_id)
         if not latest_event:
             return None
         

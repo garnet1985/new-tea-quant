@@ -37,9 +37,9 @@ class StockService(BaseDataService):
         self.tags = TagDataService(data_manager)
         self.corporate_finance = CorporateFinanceService(data_manager)
         
-        # 获取相关 Model（股票基础数据）
-        self.stock_list = data_manager.get_model('stock_list')
-        self.stock_labels = data_manager.get_model('stock_labels')
+        # 获取相关 Model（股票基础数据）- 私有属性，不对外暴露
+        self._stock_list = data_manager.get_model('stock_list')
+        self._stock_labels = data_manager.get_model('stock_labels')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager
@@ -57,7 +57,7 @@ class StockService(BaseDataService):
         Returns:
             股票信息字典，如果不存在返回 None
         """
-        return self.stock_list.load_one("id = %s", (stock_id,))
+        return self._stock_list.load_one("id = %s", (stock_id,))
     
     def load_stock_list(
         self,
@@ -86,7 +86,7 @@ class StockService(BaseDataService):
         Returns:
             股票列表
         """
-        return self.stock_list.load_active_stocks()
+        return self._stock_list.load_active_stocks()
     
     def load_filtered_stock_list(
         self, 
@@ -140,7 +140,7 @@ class StockService(BaseDataService):
             exclude = default_exclude
         
         # 加载所有活跃股票
-        all_stocks = self.stock_list.load_active_stocks()
+        all_stocks = self._stock_list.load_active_stocks()
         
         # 应用过滤规则
         filtered_stocks = []
@@ -194,7 +194,7 @@ class StockService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self.stock_list.save_stocks(stocks)
+        return self._stock_list.save_stocks(stocks)
     
     # ==================== K线常用方法（统一入口）====================
     
@@ -290,10 +290,10 @@ class StockService(BaseDataService):
         """
         if date:
             # 如果指定日期，使用 load_by_date_range 返回该日期范围内的所有标签记录
-            return self.stock_labels.load_by_date_range(stock_id, date, date)
+            return self._stock_labels.load_by_date_range(stock_id, date, date)
         else:
             # 如果没有指定日期，返回该股票的所有标签记录
-            return self.stock_labels.load_by_stock(stock_id)
+            return self._stock_labels.load_by_stock(stock_id)
     
     def load_stock_labels_by_date_range(
         self,
@@ -314,7 +314,7 @@ class StockService(BaseDataService):
         Returns:
             List[Dict]: 标签列表（每条记录包含 date, labels 等字段）
         """
-        return self.stock_labels.load_by_date_range(stock_id, start_date, end_date)
+        return self._stock_labels.load_by_date_range(stock_id, start_date, end_date)
     
     # ==================== 财务常用方法（统一入口）====================
     
@@ -365,12 +365,12 @@ class StockService(BaseDataService):
         
         # 查询标签
         if date:
-            labels = self.stock_labels.load(
+            labels = self._stock_labels.load(
                 "id = %s AND date = %s",
                 (stock_id, date)
             )
         else:
-            labels = self.stock_labels.load("id = %s", (stock_id,))
+            labels = self._stock_labels.load("id = %s", (stock_id,))
         
         stock_info['labels'] = labels
         return stock_info

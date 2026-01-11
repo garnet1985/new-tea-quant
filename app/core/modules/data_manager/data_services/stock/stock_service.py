@@ -8,7 +8,6 @@
 
 涉及的表：
 - stock_list: 股票列表
-- stock_labels: 股票标签
 """
 from typing import List, Dict, Any, Optional, Union
 from loguru import logger
@@ -39,7 +38,6 @@ class StockService(BaseDataService):
         
         # 获取相关 Model（股票基础数据）- 私有属性，不对外暴露
         self._stock_list = data_manager.get_model('stock_list')
-        self._stock_labels = data_manager.get_model('stock_labels')
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from app.core.infra.db import DatabaseManager
@@ -267,55 +265,6 @@ class StockService(BaseDataService):
         """
         return self.kline.load_multiple_terms(stock_id, settings)
     
-    # ==================== 标签常用方法（统一入口）====================
-    
-    def load_tags(
-        self,
-        stock_id: str,
-        date: Optional[str] = None,
-        **kwargs
-    ) -> List[Dict[str, Any]]:
-        """
-        加载股票标签（常用方法，统一入口）
-        
-        使用 stock_labels Model 直接加载
-        
-        Args:
-            stock_id: 股票代码
-            date: 日期（可选）
-            **kwargs: 其他参数
-            
-        Returns:
-            List[Dict]: 标签列表
-        """
-        if date:
-            # 如果指定日期，使用 load_by_date_range 返回该日期范围内的所有标签记录
-            return self._stock_labels.load_by_date_range(stock_id, date, date)
-        else:
-            # 如果没有指定日期，返回该股票的所有标签记录
-            return self._stock_labels.load_by_stock(stock_id)
-    
-    def load_stock_labels_by_date_range(
-        self,
-        stock_id: str,
-        start_date: str,
-        end_date: str
-    ) -> List[Dict[str, Any]]:
-        """
-        加载时间范围内的标签（常用方法，统一入口）
-        
-        使用 stock_labels Model 直接加载
-        
-        Args:
-            stock_id: 股票代码
-            start_date: 开始日期
-            end_date: 结束日期
-            
-        Returns:
-            List[Dict]: 标签列表（每条记录包含 date, labels 等字段）
-        """
-        return self._stock_labels.load_by_date_range(stock_id, start_date, end_date)
-    
     # ==================== 财务常用方法（统一入口）====================
     
     def load_corporate_finance(
@@ -343,34 +292,66 @@ class StockService(BaseDataService):
     
     # ==================== 跨表查询 ====================
     
-    def load_stock_with_labels(
-        self, 
-        stock_id: str, 
-        date: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def load_stock_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
-        加载股票信息 + 标签（SQL JOIN）
+        获取股票基本信息和最新价格
+        
+        跨表业务方法，组合stock_list和stock_kline的数据
         
         Args:
-            stock_id: 股票代码
-            date: 日期（可选，如果提供则只查询该日期的标签）
+            stock_id: 股票ID
             
         Returns:
-            包含股票信息和标签列表的字典
+            Dict: {
+                'id': 股票ID,
+                'name': 股票名称,
+                'industry': 行业,
+                'current_price': 最新收盘价,
+                'current_price_date': 最新价格日期,
+                'market_cap': 市值,
+                'pe': PE,
+                'pb': PB,
+                'total_share': 总股本,
+                'float_share': 流通股本,
+                'turnover_vol': 成交量,
+                'turnover_value': 成交额,
+                'turnover_rate': 换手率,
+                'high': 最高价,
+                'low': 最低价,
+                'open': 开盘价,
+                'close': 收盘价,
+                ...
+            }
         """
-        # 先获取股票信息
+        # 1. 获取股票基本信息
         stock_info = self.load_stock_info(stock_id)
         if not stock_info:
-            return {}
+            return None
         
-        # 查询标签
-        if date:
-            labels = self._stock_labels.load(
-                "id = %s AND date = %s",
-                (stock_id, date)
-            )
-        else:
-            labels = self._stock_labels.load("id = %s", (stock_id,))
+        result = {
+            'id': stock_info.get('id'),
+            'name': stock_info.get('name'),
+            'industry': stock_info.get('industry'),
+        }
         
-        stock_info['labels'] = labels
-        return stock_info
+        # 2. 获取最新K线数据
+        latest_kline = self.kline.load_latest_kline(stock_id)
+        if latest_kline:
+            result.update({
+                'current_price': latest_kline.get('close'),
+                'current_price_date': latest_kline.get('date'),
+                'market_cap': latest_kline.get('total_market_value'),  # 总市值
+                'pe': latest_kline.get('pe'),
+                'pb': latest_kline.get('pb'),
+                'total_share': latest_kline.get('total_share'),
+                'float_share': latest_kline.get('float_share'),
+                'turnover_vol': latest_kline.get('volume'),  # 成交量
+                'turnover_value': latest_kline.get('amount'),  # 成交额（字段名是amount）
+                'turnover_rate': latest_kline.get('turnover_rate'),  # 换手率
+                'high': latest_kline.get('highest'),  # 最高价
+                'low': latest_kline.get('lowest'),    # 最低价
+                'open': latest_kline.get('open'),
+                'close': latest_kline.get('close'),
+            })
+        
+        return result

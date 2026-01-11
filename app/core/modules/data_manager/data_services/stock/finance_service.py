@@ -240,6 +240,48 @@ class CorporateFinanceService(BaseDataService):
         affected = model.replace(data_list, unique_keys)
         return affected >= 0
     
+    def get_stocks_latest_update_quarter(self) -> Dict[str, str]:
+        """
+        获取所有股票的最新财务数据更新季度
+        
+        查询逻辑：找出所有股票中，最新财务数据季度
+        
+        Returns:
+            Dict[str, str]: 股票ID到最新季度的映射
+                {
+                    '000001.SZ': '2024Q3',
+                    '000002.SZ': '2024Q2',
+                    ...
+                }
+        """
+        model = self._get_model()
+        
+        # 查询每个股票的最新季度
+        # SQL: SELECT id, MAX(quarter) as last_updated_quarter FROM corporate_finance GROUP BY id
+        query = f"""
+            SELECT id, MAX(quarter) as last_updated_quarter
+            FROM {model.table_name}
+            GROUP BY id
+        """
+        
+        try:
+            results = model.db.execute_sync_query(query)
+            
+            result_map = {}
+            for row in results or []:
+                stock_id = row.get("id")
+                if not stock_id:
+                    continue
+                result_map[stock_id] = row.get("last_updated_quarter")
+            
+            return result_map
+            
+        except Exception as e:
+            logger.error(f"查询企业财务数据股票列表失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {}
+    
     def load(
         self,
         stock_id: str,

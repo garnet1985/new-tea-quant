@@ -40,12 +40,11 @@ from .price_indexes.model import PriceIndexesModel
 from .shibor.model import ShiborModel
 from .lpr.model import LprModel
 from .corporate_finance.model import CorporateFinanceModel
-from .stock_labels.model import StockLabelsModel
 from .investment_trades.model import InvestmentTradesModel
 from .investment_operations.model import InvestmentOperationsModel
 from .stock_index_indicator.model import StockIndexIndicatorModel
 from .stock_index_indicator_weight.model import StockIndexIndicatorWeightModel
-from .meta_info.model import MetaInfoModel
+from .system_cache.model import SystemCacheModel
 from .tag_definition.model import TagDefinitionModel
 from .tag_scenario.model import TagScenarioModel
 from .tag_value.model import TagValueModel
@@ -60,12 +59,11 @@ __all__ = [
     'ShiborModel',
     'LprModel',
     'CorporateFinanceModel',
-    'StockLabelsModel',
     'InvestmentTradesModel',
     'InvestmentOperationsModel',
     'StockIndexIndicatorModel',
     'StockIndexIndicatorWeightModel',
-    'MetaInfoModel',
+    'SystemCacheModel',
     'TagDefinitionModel',
     'TagScenarioModel',
     'TagValueModel',

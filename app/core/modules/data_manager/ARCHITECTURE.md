@@ -77,8 +77,7 @@ data_manager/
 │   │   ├── kline_service.py  # KlineService（K线数据）
 │   │   ├── tag_service.py    # TagService（标签系统）
 │   │   ├── finance_service.py # CorporateFinanceService（财务数据）
-│   │   └── helpers/
-│   │       └── adjustment.py  # 复权计算工具
+│   │   └── helpers/           # 辅助工具（暂无）
 │   │
 │   ├── macro/                 # 宏观经济服务
 │   │   ├── __init__.py

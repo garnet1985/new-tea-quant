@@ -77,7 +77,7 @@ class StockService(BaseDataService):
     
     def load_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
-        获取股票基本信息和最新价格
+        获取股票基本信息和最新价格（使用 JOIN 优化）
         
         跨表业务方法，组合stock_list和stock_kline的数据
         
@@ -106,35 +106,91 @@ class StockService(BaseDataService):
                 ...
             }
         """
-        # 1. 获取股票基本信息
-        stock_info = self.load_info(stock_id)
-        if not stock_info:
-            return None
+        # 使用 JOIN 一次查询出股票信息和最新K线数据
+        sql = """
+        SELECT 
+            s.*,
+            k.date as kline_date,
+            k.open, k.high, k.low, k.close, k.volume, k.amount,
+            k.total_market_value, k.pe, k.pb, k.total_share, k.float_share,
+            k.turnover_rate, k.highest, k.lowest
+        FROM stock_list s
+        LEFT JOIN stock_kline k ON (
+            s.id = k.id 
+            AND k.term = 'daily'
+            AND k.date = (
+                SELECT MAX(k2.date)
+                FROM stock_kline k2
+                WHERE k2.id = s.id AND k2.term = 'daily'
+            )
+        )
+        WHERE s.id = %s
+        LIMIT 1
+        """
         
-        result = {
-            'id': stock_info.get('id'),
-            'name': stock_info.get('name'),
-            'industry': stock_info.get('industry'),
-        }
-        
-        # 2. 获取最新K线数据
-        latest_kline = self.kline.load_latest(stock_id)
-        if latest_kline:
-            result.update({
-                'current_price': latest_kline.get('close'),
-                'current_price_date': latest_kline.get('date'),
-                'market_cap': latest_kline.get('total_market_value'),  # 总市值
-                'pe': latest_kline.get('pe'),
-                'pb': latest_kline.get('pb'),
-                'total_share': latest_kline.get('total_share'),
-                'float_share': latest_kline.get('float_share'),
-                'turnover_vol': latest_kline.get('volume'),  # 成交量
-                'turnover_value': latest_kline.get('amount'),  # 成交额（字段名是amount）
-                'turnover_rate': latest_kline.get('turnover_rate'),  # 换手率
-                'high': latest_kline.get('highest'),  # 最高价
-                'low': latest_kline.get('lowest'),    # 最低价
-                'open': latest_kline.get('open'),
-                'close': latest_kline.get('close'),
-            })
-        
-        return result
+        try:
+            results = self.db.execute_sync_query(sql, (stock_id,))
+            if not results:
+                return None
+            
+            row = results[0]
+            result = {
+                'id': row.get('id'),
+                'name': row.get('name'),
+                'industry': row.get('industry'),
+            }
+            
+            # 如果有K线数据，添加价格相关字段
+            if row.get('kline_date'):
+                result.update({
+                    'current_price': row.get('close'),
+                    'current_price_date': row.get('kline_date'),
+                    'market_cap': row.get('total_market_value'),
+                    'pe': row.get('pe'),
+                    'pb': row.get('pb'),
+                    'total_share': row.get('total_share'),
+                    'float_share': row.get('float_share'),
+                    'turnover_vol': row.get('volume'),
+                    'turnover_value': row.get('amount'),
+                    'turnover_rate': row.get('turnover_rate'),
+                    'high': row.get('highest'),
+                    'low': row.get('lowest'),
+                    'open': row.get('open'),
+                    'close': row.get('close'),
+                })
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"查询股票信息和最新价格失败: {e}")
+            # 回退到原来的多次查询方式
+            stock_info = self.load_info(stock_id)
+            if not stock_info:
+                return None
+            
+            result = {
+                'id': stock_info.get('id'),
+                'name': stock_info.get('name'),
+                'industry': stock_info.get('industry'),
+            }
+            
+            latest_kline = self.kline.load_latest(stock_id)
+            if latest_kline:
+                result.update({
+                    'current_price': latest_kline.get('close'),
+                    'current_price_date': latest_kline.get('date'),
+                    'market_cap': latest_kline.get('total_market_value'),
+                    'pe': latest_kline.get('pe'),
+                    'pb': latest_kline.get('pb'),
+                    'total_share': latest_kline.get('total_share'),
+                    'float_share': latest_kline.get('float_share'),
+                    'turnover_vol': latest_kline.get('volume'),
+                    'turnover_value': latest_kline.get('amount'),
+                    'turnover_rate': latest_kline.get('turnover_rate'),
+                    'high': latest_kline.get('highest'),
+                    'low': latest_kline.get('lowest'),
+                    'open': latest_kline.get('open'),
+                    'close': latest_kline.get('close'),
+                })
+            
+            return result

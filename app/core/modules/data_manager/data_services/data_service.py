@@ -81,44 +81,6 @@ class DataService:
             if not isinstance(data.get("klines"), dict):
                 data["klines"] = {}
             
-            # 加载股票标签数据（如果配置）
-            if klines_settings.get('stock_labels', False):
-                # 获取时间范围
-                start_date = klines_settings_with_dates.get('start_date')
-                end_date = klines_settings_with_dates.get('end_date')
-                if not start_date:
-                    from app.core.conf.conf import data_default_start_date
-                    start_date = data_default_start_date
-                if not end_date:
-                    from app.core.utils.date.date_utils import DateUtils
-                    end_date = DateUtils.get_current_date_str()
-                
-                # 使用 stock.load_stock_labels_by_date_range 加载标签
-                # 返回的是标签记录列表，需要按日期分组
-                all_labels = self.stock.load_stock_labels_by_date_range(
-                    stock_id, start_date, end_date
-                )
-                
-                # 按日期分组标签数据
-                labels_by_date = {}
-                for label_record in all_labels:
-                    # stock_labels 表的字段可能是 date 或 label_date
-                    label_date = label_record.get('date') or label_record.get('label_date')
-                    # labels 字段可能是字符串（逗号分隔）或列表
-                    labels_value = label_record.get('labels', '')
-                    if label_date:
-                        if label_date not in labels_by_date:
-                            labels_by_date[label_date] = []
-                        # 解析 labels 字符串（如果是字符串）
-                        if isinstance(labels_value, str):
-                            # 假设是逗号分隔的字符串
-                            label_ids = [l.strip() for l in labels_value.split(',') if l.strip()]
-                            labels_by_date[label_date].extend(label_ids)
-                        elif isinstance(labels_value, list):
-                            labels_by_date[label_date].extend(labels_value)
-                
-                data["stock_labels"] = dict(sorted(labels_by_date.items()))
-            
             # 应用技术指标（如果配置）
             if data["klines"] and klines_settings.get('indicators'):
                 from app.core.modules.indicator import IndicatorService

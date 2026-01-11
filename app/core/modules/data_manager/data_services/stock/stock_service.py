@@ -2,14 +2,31 @@
 股票数据服务（StockService）
 
 职责：
-- 封装股票相关的跨表查询和数据组装
-- 提供领域级的业务方法
-- 作为统一入口，协调子服务（kline, tags, corporate_finance）
+1. 提供单个股票的基础信息查询
+2. 提供跨表查询（组合多个表的数据）
+3. 作为子服务的入口，提供子服务属性访问
 
 涉及的表：
 - stock_list: 股票列表
+
+子服务：
+- list: 股票列表服务（data_mgr.stock.list.load()）
+- kline: K线数据服务（data_mgr.stock.kline.load_qfq()）
+- tags: 标签数据服务（data_mgr.stock.tags.load_scenario()）
+- corporate_finance: 财务数据服务（data_mgr.stock.corporate_finance.load()）
+
+使用示例：
+    # 单个股票信息
+    stock_info = data_mgr.stock.load_info('000001.SZ')
+    
+    # 股票列表（通过 list 服务）
+    stock_list = data_mgr.stock.list.load(filtered=True)
+    all_stocks = data_mgr.stock.list.load_all()
+    
+    # 跨表查询
+    stock_with_price = data_mgr.stock.load_with_latest_price('000001.SZ')
 """
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 from loguru import logger
 
 from .. import BaseDataService
@@ -27,11 +44,10 @@ class StockService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 初始化子服务
-        from .kline_service import KlineService
-        from .tag_service import TagDataService
-        from .finance_service import CorporateFinanceService
+        # 初始化子服务（从 sub_services 目录导入）
+        from .sub_services import ListService, KlineService, TagDataService, CorporateFinanceService
         
+        self.list = ListService(data_manager)
         self.kline = KlineService(data_manager)
         self.tags = TagDataService(data_manager)
         self.corporate_finance = CorporateFinanceService(data_manager)
@@ -44,8 +60,8 @@ class StockService(BaseDataService):
         self.db = DatabaseManager.get_default()
     
     # ==================== 股票基础信息 ====================
-    
-    def load_stock_info(self, stock_id: str) -> Optional[Dict[str, Any]]:
+
+    def load_info(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
         加载股票基本信息
         
@@ -53,246 +69,13 @@ class StockService(BaseDataService):
             stock_id: 股票代码
             
         Returns:
-            股票信息字典，如果不存在返回 None
+            Optional[Dict[str, Any]]: 股票信息字典，如果不存在返回 None
         """
         return self._stock_list.load_one("id = %s", (stock_id,))
     
-    def load_stock_list(
-        self,
-        filtered: bool = True,
-        order_by: str = 'id'
-    ) -> List[Dict[str, Any]]:
-        """
-        加载股票列表
-        
-        Args:
-            filtered: 是否使用过滤规则（默认True，排除ST、科创板等）
-            order_by: 排序字段（默认 'id'）
-            
-        Returns:
-            List[Dict]: 股票列表
-        """
-        if filtered:
-            return self.load_filtered_stock_list(exclude_patterns=None, order_by=order_by)
-        else:
-            return self.load_all_stocks()
-    
-    def load_all_stocks(self) -> List[Dict[str, Any]]:
-        """
-        加载所有股票列表
-        
-        Returns:
-            股票列表
-        """
-        return self._stock_list.load_active_stocks()
-    
-    def load_filtered_stock_list(
-        self, 
-        exclude_patterns: Optional[Dict[str, List[str]]] = None,
-        order_by: str = 'id'
-    ) -> List[Dict[str, Any]]:
-        """
-        加载过滤后的股票列表（排除ST、科创板等）
-        
-        默认过滤规则：
-        - 排除 id 以 "688" 开头的（科创板）
-        - 排除 name 以 "*ST"、"ST"、"退" 开头的（ST股票和退市股票）
-        - 注意：北交所（BJ）不排除（根据用户要求）
-        
-        Args:
-            exclude_patterns: 自定义排除规则（可选）
-            order_by: 排序字段（默认 'id'）
-            
-        Returns:
-            List[Dict]: 过滤后的股票列表
-        """
-        # 默认过滤规则
-        default_exclude = {
-            "start_with": {
-                "id": ["688"],  # 科创板
-                "name": ["*ST", "ST", "退"]  # ST股票和退市股票
-            },
-            "contains": {
-                # 注意：北交所（BJ）不排除（根据用户要求）
-            }
-        }
-        
-        # 合并用户自定义规则
-        if exclude_patterns:
-            exclude = exclude_patterns.copy()
-            if "start_with" in exclude_patterns:
-                exclude["start_with"] = {
-                    **default_exclude["start_with"],
-                    **exclude_patterns["start_with"]
-                }
-            else:
-                exclude["start_with"] = default_exclude["start_with"]
-            if "contains" in exclude_patterns:
-                exclude["contains"] = {
-                    **default_exclude["contains"],
-                    **exclude_patterns["contains"]
-                }
-            else:
-                exclude["contains"] = default_exclude["contains"]
-        else:
-            exclude = default_exclude
-        
-        # 加载所有活跃股票
-        all_stocks = self._stock_list.load_active_stocks()
-        
-        # 应用过滤规则
-        filtered_stocks = []
-        for stock in all_stocks:
-            stock_id = str(stock.get('id', ''))
-            stock_name = str(stock.get('name', ''))
-            
-            should_exclude = False
-            
-            # 检查 start_with 规则
-            for field, patterns in exclude.get("start_with", {}).items():
-                value = stock_id if field == "id" else stock_name
-                for pattern in patterns:
-                    if value.startswith(pattern):
-                        should_exclude = True
-                        break
-                if should_exclude:
-                    break
-            
-            # 检查 contains 规则
-            if not should_exclude:
-                for field, patterns in exclude.get("contains", {}).items():
-                    value = stock_id if field == "id" else stock_name
-                    for pattern in patterns:
-                        if pattern in value:
-                            should_exclude = True
-                            break
-                    if should_exclude:
-                        break
-            
-            if not should_exclude:
-                filtered_stocks.append(stock)
-        
-        # 排序
-        if order_by:
-            try:
-                filtered_stocks.sort(key=lambda x: x.get(order_by, ''))
-            except Exception as e:
-                logger.warning(f"排序失败，使用默认排序: {e}")
-                filtered_stocks.sort(key=lambda x: x.get('id', ''))
-        
-        return filtered_stocks
-    
-    def save_stocks(self, stocks: List[Dict[str, Any]]) -> int:
-        """
-        批量保存股票列表（自动去重）
-        
-        Args:
-            stocks: 股票数据列表
-            
-        Returns:
-            影响的行数
-        """
-        return self._stock_list.save_stocks(stocks)
-    
-    # ==================== K线常用方法（统一入口）====================
-    
-    def load_klines(
-        self,
-        stock_id: str,
-        term: str = 'daily',
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        adjust: str = 'qfq',
-        filter_negative: bool = True,
-        as_dataframe: bool = False
-    ) -> Union[List[Dict], Any]:
-        """
-        加载K线数据（常用方法，统一入口）
-        
-        委托给 KlineService
-        
-        Args:
-            stock_id: 股票代码
-            term: 周期（daily/weekly/monthly）
-            start_date: 开始日期（YYYYMMDD）
-            end_date: 结束日期（YYYYMMDD）
-            adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
-            filter_negative: 是否过滤负值（默认True，暂不支持）
-            as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
-            
-        Returns:
-            DataFrame or List[Dict]: K线数据
-        """
-        return self.kline.load(
-            stock_id, term, start_date, end_date, adjust, filter_negative, as_dataframe
-        )
-    
-    def load_qfq_klines(
-        self,
-        stock_id: str,
-        term: str = 'daily',
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        加载前复权（QFQ）K线数据（常用方法，统一入口）
-        
-        委托给 KlineService
-        
-        Args:
-            stock_id: 股票代码
-            term: 周期（daily/weekly/monthly，默认 daily）
-            start_date: 开始日期（YYYYMMDD 或 YYYY-MM-DD，可选）
-            end_date: 结束日期（YYYYMMDD 或 YYYY-MM-DD，可选）
-        
-        Returns:
-            List[Dict]: 前复权K线数据列表
-        """
-        return self.kline.load_qfq_klines(stock_id, term, start_date, end_date)
-    
-    def load_multiple_terms(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict]]:
-        """
-        加载多个周期的K线数据（常用方法，统一入口）
-        
-        委托给 KlineService
-        
-        Args:
-            stock_id: 股票代码
-            settings: 配置字典，包含terms、adjust、allow_negative_records等
-            
-        Returns:
-            Dict[term, List[Dict]]: 各周期的K线数据
-        """
-        return self.kline.load_multiple_terms(stock_id, settings)
-    
-    # ==================== 财务常用方法（统一入口）====================
-    
-    def load_corporate_finance(
-        self,
-        stock_id: str,
-        categories: Optional[List[str]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        加载企业财务数据（常用方法，统一入口）
-        
-        委托给 CorporateFinanceService.load()
-        
-        Args:
-            stock_id: 股票代码
-            categories: 指标类别列表（可选，如 ['profitability', 'growth']）
-            start_date: 开始日期（可选）
-            end_date: 结束日期（可选）
-            
-        Returns:
-            Dict: 财务数据字典
-        """
-        return self.corporate_finance.load(stock_id, categories, start_date, end_date)
-    
     # ==================== 跨表查询 ====================
     
-    def load_stock_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
+    def load_with_latest_price(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """
         获取股票基本信息和最新价格
         
@@ -324,7 +107,7 @@ class StockService(BaseDataService):
             }
         """
         # 1. 获取股票基本信息
-        stock_info = self.load_stock_info(stock_id)
+        stock_info = self.load_info(stock_id)
         if not stock_info:
             return None
         
@@ -335,7 +118,7 @@ class StockService(BaseDataService):
         }
         
         # 2. 获取最新K线数据
-        latest_kline = self.kline.load_latest_kline(stock_id)
+        latest_kline = self.kline.load_latest(stock_id)
         if latest_kline:
             result.update({
                 'current_price': latest_kline.get('close'),

@@ -14,7 +14,7 @@ Base Tables Models - 所有基础表的 Model 类
     
     data_mgr = DataManager()
     data_mgr.initialize()
-    klines = data_mgr.stock.load_klines('000001.SZ', start_date='20200101')
+    klines = data_mgr.stock.kline.load('000001.SZ', start_date='20200101')
     
     # ❌ 错误：直接导入 Model（不要这样做）
     # from app.core.modules.data_manager.base_tables import StockKlineModel

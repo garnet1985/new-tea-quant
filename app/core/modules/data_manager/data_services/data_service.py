@@ -18,7 +18,7 @@ class DataService:
     
     使用方式：
         data_service = DataService(data_manager)
-        klines = data_service.stock.load_klines('000001.SZ')
+        klines = data_service.stock.kline.load('000001.SZ')
         gdp = data_service.macro.load_gdp('2020Q1', '2024Q4')
         latest_date = data_service.calendar.get_latest_trading_date()
     """
@@ -75,7 +75,7 @@ class DataService:
                 klines_settings_with_dates['end_date'] = simulation_settings['end_date']
             
             # 使用 stock.kline 加载多周期K线
-            data["klines"] = self.stock.kline.load_multiple_terms(stock_id, klines_settings_with_dates)
+            data["klines"] = self.stock.kline.load_multiple(stock_id, klines_settings_with_dates)
             
             # 确保返回dict类型
             if not isinstance(data.get("klines"), dict):

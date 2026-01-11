@@ -10,8 +10,8 @@
 from typing import List, Dict, Any, Optional
 from loguru import logger
 
-
-from .. import BaseDataService
+from app.core.utils.date.date_utils import DateUtils
+from ... import BaseDataService
 
 
 class CorporateFinanceService(BaseDataService):
@@ -68,7 +68,52 @@ class CorporateFinanceService(BaseDataService):
             self._finance_model = self.data_manager.get_table('corporate_finance')
         return self._finance_model
     
-    def load_financials(
+    def _filter_fields(self, data: Dict[str, Any], indicators: Optional[List[str]]) -> Dict[str, Any]:
+        """
+        过滤数据字段（通用方法）
+        
+        Args:
+            data: 原始数据字典
+            indicators: 需要保留的字段列表，如果为None返回所有字段
+            
+        Returns:
+            过滤后的数据字典
+        """
+        if not indicators:
+            return data
+        return {k: data.get(k) for k in indicators if k in data}
+    
+    def _filter_fields_list(self, data_list: List[Dict[str, Any]], indicators: Optional[List[str]]) -> List[Dict[str, Any]]:
+        """
+        过滤数据列表的字段（通用方法）
+        
+        Args:
+            data_list: 原始数据列表
+            indicators: 需要保留的字段列表，如果为None返回所有字段
+            
+        Returns:
+            过滤后的数据列表
+        """
+        if not indicators:
+            return data_list
+        return [self._filter_fields(data, indicators) for data in data_list]
+    
+    def _validate_financial_data(self, data: Dict[str, Any]) -> bool:
+        """
+        验证财务数据是否包含必要字段
+        
+        Args:
+            data: 财务数据字典
+            
+        Returns:
+            是否验证通过
+        """
+        if 'id' not in data or 'quarter' not in data:
+            logger.error(f"财务数据缺少必要字段 'id' 或 'quarter': {data}")
+            return False
+        return True
+    
+    def load(
         self, 
         ts_code: str, 
         quarter: str,
@@ -95,14 +140,9 @@ class CorporateFinanceService(BaseDataService):
             return None
         
         data = results[0]
-        
-        # 如果指定了指标，只返回指定的字段
-        if indicators:
-            return {k: data.get(k) for k in indicators if k in data}
-        
-        return data
+        return self._filter_fields(data, indicators)
     
-    def load_financials_by_category(
+    def load_by_category(
         self,
         ts_code: str,
         quarter: str,
@@ -130,9 +170,9 @@ class CorporateFinanceService(BaseDataService):
             return None
         
         indicators = self.INDICATOR_CATEGORIES[category]
-        return self.load_financials(ts_code, quarter, indicators)
+        return self.load(ts_code, quarter, indicators)
     
-    def load_financials_trend(
+    def load_trend(
         self,
         ts_code: str,
         start_quarter: str,
@@ -158,14 +198,9 @@ class CorporateFinanceService(BaseDataService):
         order_by = "quarter ASC"
         
         results = model.load(condition, params, order_by=order_by)
-        
-        # 如果指定了指标，只返回指定的字段
-        if indicators and results:
-            return [{k: data.get(k) for k in indicators if k in data} for data in results]
-        
-        return results
+        return self._filter_fields_list(results, indicators)
     
-    def load_latest_financials(
+    def load_latest(
         self,
         ts_code: str,
         indicators: Optional[List[str]] = None
@@ -192,13 +227,9 @@ class CorporateFinanceService(BaseDataService):
             return None
         
         data = results[0]
-        
-        if indicators:
-            return {k: data.get(k) for k in indicators if k in data}
-        
-        return data
+        return self._filter_fields(data, indicators)
     
-    def save_financials(self, data: Dict[str, Any]) -> bool:
+    def save(self, data: Dict[str, Any]) -> bool:
         """
         保存财务数据
         
@@ -208,8 +239,7 @@ class CorporateFinanceService(BaseDataService):
         Returns:
             是否保存成功
         """
-        if 'id' not in data or 'quarter' not in data:
-            logger.error("财务数据必须包含 'id' 和 'quarter' 字段")
+        if not self._validate_financial_data(data):
             return False
         
         model = self._get_model()
@@ -217,7 +247,7 @@ class CorporateFinanceService(BaseDataService):
         affected = model.replace([data], unique_keys)
         return affected >= 0
     
-    def save_financials_batch(self, data_list: List[Dict[str, Any]]) -> bool:
+    def save_batch(self, data_list: List[Dict[str, Any]]) -> bool:
         """
         批量保存财务数据
         
@@ -230,9 +260,9 @@ class CorporateFinanceService(BaseDataService):
         if not data_list:
             return True
         
+        # 验证所有数据
         for data in data_list:
-            if 'id' not in data or 'quarter' not in data:
-                logger.error(f"财务数据缺少必要字段: {data}")
+            if not self._validate_financial_data(data):
                 return False
         
         model = self._get_model()
@@ -266,15 +296,15 @@ class CorporateFinanceService(BaseDataService):
         
         try:
             results = model.db.execute_sync_query(query)
+            if not results:
+                return {}
             
-            result_map = {}
-            for row in results or []:
-                stock_id = row.get("id")
-                if not stock_id:
-                    continue
-                result_map[stock_id] = row.get("last_updated_quarter")
-            
-            return result_map
+            # 使用字典推导式简化
+            return {
+                row['id']: row['last_updated_quarter']
+                for row in results
+                if row.get('id')
+            }
             
         except Exception as e:
             logger.error(f"查询企业财务数据股票列表失败: {e}")
@@ -301,53 +331,46 @@ class CorporateFinanceService(BaseDataService):
         Returns:
             Dict: 财务数据字典，按类别组织
         """
-        model = self._get_model()
-        result = {}
+        # 转换日期为季度范围
+        start_quarter = self._convert_date_to_quarter(start_date) if start_date else None
+        end_quarter = self._convert_date_to_quarter(end_date) if end_date else None
+        has_date_range = start_quarter and end_quarter
         
-        # 如果提供了日期范围，需要转换为季度范围
-        start_quarter = None
-        end_quarter = None
-        if start_date or end_date:
-            # 将日期转换为季度
-            if start_date:
-                start_quarter = self._convert_date_to_quarter(start_date)
-            if end_date:
-                end_quarter = self._convert_date_to_quarter(end_date)
-        else:
-            # 如果没有提供日期，加载最新季度
-            latest = self.load_latest_financials(stock_id)
-            if latest:
-                return latest
-            return {}
+        # 如果没有日期范围，直接返回最新数据
+        if not has_date_range:
+            if categories:
+                # 按类别加载最新数据
+                result = {}
+                for category in categories:
+                    if category in self.INDICATOR_CATEGORIES:
+                        indicators = self.INDICATOR_CATEGORIES[category]
+                        latest = self.load_latest(stock_id, indicators)
+                        if latest:
+                            result[category] = latest
+                return result
+            else:
+                # 加载所有最新数据
+                return self.load_latest(stock_id) or {}
         
-        # 如果指定了类别，按类别加载
+        # 有日期范围，加载趋势数据
         if categories:
+            # 按类别加载趋势数据
+            result = {}
             for category in categories:
                 if category in self.INDICATOR_CATEGORIES:
                     indicators = self.INDICATOR_CATEGORIES[category]
-                    # 加载该类别的时间范围数据
-                    if start_quarter and end_quarter:
-                        trend_data = self.load_financials_trend(
-                            stock_id, start_quarter, end_quarter, indicators
-                        )
+                    trend_data = self.load_trend(
+                        stock_id, start_quarter, end_quarter, indicators
+                    )
+                    if trend_data:
                         result[category] = trend_data
-                    else:
-                        # 只加载最新季度
-                        latest = self.load_latest_financials(stock_id, indicators)
-                        if latest:
-                            result[category] = latest
+            return result
         else:
-            # 如果没有指定类别，加载所有数据
-            if start_quarter and end_quarter:
-                trend_data = self.load_financials_trend(
-                    stock_id, start_quarter, end_quarter
-                )
-                result = trend_data[0] if trend_data else {}
-            else:
-                latest = self.load_latest_financials(stock_id)
-                result = latest if latest else {}
-        
-        return result
+            # 加载所有趋势数据
+            trend_data = self.load_trend(
+                stock_id, start_quarter, end_quarter
+            )
+            return trend_data[0] if trend_data else {}
     
     @staticmethod
     def _convert_date_to_quarter(date_str: str) -> Optional[str]:
@@ -361,21 +384,16 @@ class CorporateFinanceService(BaseDataService):
             季度字符串（YYYYQ[1-4]），如果转换失败返回 None
         """
         try:
+            # 如果包含 '-'，先转换为 YYYYMMDD 格式
             if '-' in date_str:
-                date_str = date_str.replace('-', '')
+                date_str = DateUtils.yyyy_mm_dd_to_yyyymmdd(date_str)
             
-            if len(date_str) != 8:
-                return None
-            
-            year = int(date_str[:4])
-            month = int(date_str[4:6])
-            
-            quarter = (month - 1) // 3 + 1
-            return f"{year}Q{quarter}"
+            # 使用 DateUtils 的 date_to_quarter 方法
+            return DateUtils.date_to_quarter(date_str)
         except Exception as e:
             logger.warning(f"日期转季度失败: {date_str}, error={e}")
             return None
 
 
-__all__ = ['CorporateFinanceDataService']
+__all__ = ['CorporateFinanceService']
 

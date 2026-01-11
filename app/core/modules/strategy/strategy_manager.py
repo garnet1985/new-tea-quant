@@ -417,7 +417,7 @@ class StrategyManager:
         """加载全局缓存"""
         if self.global_cache['stock_list'] is None:
             try:
-                stock_list = self.data_mgr.stock.load_filtered_stock_list()
+                stock_list = self.data_mgr.stock.list.load_filtered()
                 self.global_cache['stock_list'] = stock_list
                 logger.info(f"📊 加载股票列表: {len(stock_list)} 只")
             except Exception as e:

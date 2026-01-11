@@ -306,7 +306,7 @@ class BaseStrategy(ABC):
         
         # 使用 DataManager 加载股票列表（使用过滤规则，排除ST、科创板等）
         loader = DataManager()
-        stock_list = loader.load_stock_list(filtered=True)
+        stock_list = loader.stock.list.load(filtered=True)
 
         # 使用AnalyzerService的统一采样方法
         stock_list = AnalyzerService.sample_stock_list(stock_list, strategy_settings)

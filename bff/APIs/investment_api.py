@@ -206,7 +206,7 @@ class InvestmentApi:
                 # 计算下一目标（使用 TargetCalculator）
                 next_targets = None
                 try:
-                    from app.core.modules.data_manager.helpers.target_calculator import TargetCalculator
+                    from app.core.modules.data_manager.data_services.ui_transit.investment.target_calculator import TargetCalculator
                     
                     # 获取操作记录
                     operations = operations_model.load_by_trade(trade['id'], order_by="date DESC")

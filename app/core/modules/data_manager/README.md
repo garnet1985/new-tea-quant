@@ -10,7 +10,6 @@ app/core_modules/data_manager/
 │   └── kline_loader.py        # K线专用加载器（~280行）
 └── helpers/
     ├── __init__.py
-    ├── adjustment.py          # 复权计算工具（~140行）
     └── filtering.py           # 数据过滤工具（~40行）
 ```
 
@@ -19,7 +18,7 @@ app/core_modules/data_manager/
 ### 1. 按业务领域分层
 - **DataManager**: 主入口，统一API
 - **KlineLoader**: K线数据专用加载器
-- **Helpers**: 底层工具（复权、过滤）
+- **Helpers**: 底层工具（过滤等）
 
 ### 2. 便捷方法优先
 - **80%场景**: 快捷方法，零配置

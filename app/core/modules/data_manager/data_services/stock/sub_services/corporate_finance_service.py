@@ -312,7 +312,7 @@ class CorporateFinanceService(BaseDataService):
             logger.error(traceback.format_exc())
             return {}
     
-    def load(
+    def load_by_categories(
         self,
         stock_id: str,
         categories: Optional[List[str]] = None,
@@ -320,7 +320,7 @@ class CorporateFinanceService(BaseDataService):
         end_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        加载企业财务数据（兼容接口）
+        按类别加载企业财务数据（兼容接口）
         
         Args:
             stock_id: 股票代码

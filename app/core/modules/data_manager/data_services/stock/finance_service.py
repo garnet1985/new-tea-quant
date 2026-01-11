@@ -65,7 +65,7 @@ class CorporateFinanceService(BaseDataService):
     def _get_model(self):
         """获取财务数据 Model（延迟初始化）- 私有方法，内部使用"""
         if not self._finance_model:
-            self._finance_model = self.data_manager.get_model('corporate_finance')
+            self._finance_model = self.data_manager.get_table('corporate_finance')
         return self._finance_model
     
     def load_financials(

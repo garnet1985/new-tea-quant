@@ -26,7 +26,7 @@ class TagManager:
         """初始化 TagManager"""
         self.is_verbose = is_verbose
         self.data_mgr = DataManager(is_verbose=False)
-        self.tag_data_service = self.data_mgr.tag
+        self.tag_data_service = self.data_mgr.stock.tags
         self.scenario_cache = {}
         self.entity_list_cache = {}
         self._discover_scenarios_from_folder()
@@ -247,7 +247,7 @@ class TagManager:
             return
 
         # 获取 tag_data_service 并确保元信息存在
-        tag_data_service = self.data_mgr.tag
+        tag_data_service = self.data_mgr.stock.tags
         if not tag_data_service:
             logger.error(f"无法获取 tag_data_service，跳过执行")
             return
@@ -345,7 +345,7 @@ class TagManager:
         if update_mode == TagUpdateMode.INCREMENTAL:
             # 获取该 scenario 下所有 entity 的最后更新信息
             # 返回格式：{entity_id: {"max_as_of_date": "20250101", ...}, ...}
-            tag_data_service = self.data_mgr.tag
+            tag_data_service = self.data_mgr.stock.tags
             if tag_data_service:
                 entity_last_update_info = tag_data_service.get_tag_value_last_update_info(scenario_name)
         

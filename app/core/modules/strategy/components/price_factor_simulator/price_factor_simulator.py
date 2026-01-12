@@ -129,20 +129,26 @@ class PriceFactorSimulator:
         base_settings = StrategySettings.from_dict(raw_settings)
         simulator_config = self._build_config_from_settings(base_settings)
 
-        # 2. 解析 SOT 版本目录
-        sot_root, version_dir = self._resolve_sot_version_dir(strategy_name, simulator_config.sot_version)
+        # 2. 解析 SOT 版本目录（依赖的枚举版本）
+        sot_root, sot_version_dir = self._resolve_sot_version_dir(strategy_name, simulator_config.sot_version)
         logger.info(
             f"[PriceFactorSimulator] 使用 SOT 版本: strategy={strategy_name}, "
-            f"sot_version={version_dir.name}"
+            f"sot_version={sot_version_dir.name}"
         )
 
-        # 3. 扫描 SOT 目录下的机会/目标文件，按股票分组
-        stock_files = self._scan_sot_files(version_dir)
+        # 3. 创建模拟器版本目录（使用自己的版本管理）
+        sim_version_dir, sim_version_id = self._create_simulation_version_dir(strategy_name)
+        logger.info(
+            f"[PriceFactorSimulator] 模拟器版本: {sim_version_dir.name} (version_id={sim_version_id})"
+        )
+
+        # 4. 扫描 SOT 目录下的机会/目标文件，按股票分组
+        stock_files = self._scan_sot_files(sot_version_dir)
         if not stock_files:
-            logger.warning(f"[PriceFactorSimulator] 在 SOT 目录中未找到任何机会文件: {version_dir}")
+            logger.warning(f"[PriceFactorSimulator] 在 SOT 目录中未找到任何机会文件: {sot_version_dir}")
             return {}
 
-        # 4. 根据 use_sampling 配置过滤股票列表
+        # 5. 根据 use_sampling 配置过滤股票列表
         from app.core.modules.data_manager import DataManager
         from app.core.modules.strategy.helper.stock_sampling_helper import (
             StockSamplingHelper,
@@ -184,7 +190,7 @@ class PriceFactorSimulator:
                 f"[PriceFactorSimulator] 全量模式: {len(stock_files)} 只股票"
             )
 
-        # 5. 构建 job 列表（每只股票一个作业）
+        # 6. 构建 job 列表（每只股票一个作业）
         jobs: List[Dict[str, Any]] = []
         for stock_id, paths in stock_files.items():
             jobs.append(
@@ -192,14 +198,14 @@ class PriceFactorSimulator:
                     "stock_id": stock_id,
                     "strategy_name": strategy_name,
                     "stock_info": stock_info_map.get(stock_id, {"id": stock_id}),
-                    "sot_version_dir": str(version_dir),
+                    "sim_version_dir": str(sim_version_dir),
                     "opportunities_path": str(paths["opportunities"]),
                     "targets_path": str(paths["targets"]),
                     "config": simulator_config.__dict__,
                 }
             )
 
-        # 6. 使用多进程 Worker 执行（沿用 OpportunityEnumerator 的用法）
+        # 7. 使用多进程 Worker 执行（沿用 OpportunityEnumerator 的用法）
         from app.core.infra.worker.multi_process.process_worker import (
             ProcessWorker,
             ExecutionMode as ProcessExecutionMode,
@@ -252,7 +258,7 @@ class PriceFactorSimulator:
                     f"[PriceFactorSimulator] 任务失败: job_id={jr.job_id}, error={jr.error}"
                 )
 
-        # 7. 汇总结果并生成 session summary
+        # 8. 汇总结果并生成 session summary
         stock_summaries: List[Dict[str, Any]] = []
         for r in results:
             if r.get("success", False):
@@ -263,21 +269,34 @@ class PriceFactorSimulator:
             return {}
         
         session_summary = self._aggregate_results(stock_summaries)
+        
+        # 在 session_summary 中添加 SOT 版本依赖信息
+        session_summary["sot_version"] = {
+            "version_dir": sot_version_dir.name,
+            "sot_root": str(sot_version_dir.parent.name),
+        }
+        session_summary["sim_version"] = {
+            "version_id": sim_version_id,
+            "version_dir": sim_version_dir.name,
+        }
 
-        # 8. 保存 session summary（主进程负责）
+        # 9. 保存结果和 metadata（主进程负责）
         try:
-            self._save_session_summary(
+            self._save_results(
                 strategy_name=strategy_name,
-                sot_version_dir=version_dir,
+                sim_version_dir=sim_version_dir,
+                sim_version_id=sim_version_id,
+                sot_version_dir=sot_version_dir,
                 session_summary=session_summary,
+                settings_snapshot=base_settings.to_dict(),
             )
         except Exception as e:
-            logger.error(f"[PriceFactorSimulator] 保存 session summary 失败: {e}")
+            logger.error(f"[PriceFactorSimulator] 保存结果失败: {e}")
 
-        # 9. 展示结果
+        # 10. 展示结果
         self._present_results(session_summary, strategy_name)
 
-        # 10. 同时返回内存结构
+        # 11. 同时返回内存结构
         return session_summary
 
     # ------------------------------------------------------------------ #
@@ -391,6 +410,7 @@ class PriceFactorSimulator:
         transfer_fee_rate = float(fees_cfg.get("transfer_fee_rate", 0.0) or 0.0)
 
         # max_workers 优先级：simulator > enumerator > performance > "auto"
+        # TODO: max workers should not fetch from other different components, they work differently
         max_workers = (
             simulator_cfg.get("max_workers")
             or enumerator_cfg.get("max_workers")
@@ -409,6 +429,58 @@ class PriceFactorSimulator:
             transfer_fee_rate=transfer_fee_rate,
             max_workers=max_workers,
         )
+
+    def _create_simulation_version_dir(self, strategy_name: str) -> Tuple[Path, int]:
+        """
+        创建模拟器版本目录（使用自己的版本管理，类似枚举器）。
+        
+        目录结构：
+            app/userspace/strategies/{strategy}/results/simulations/price_factor/
+                meta.json  # 版本管理元信息
+                {version_id}_{YYYYMMDD_HHMMSS}/  # 模拟器版本目录
+        
+        Returns:
+            (version_dir, version_id): 版本目录路径和版本ID
+        """
+        root_dir = (
+            Path("app")
+            / "userspace"
+            / "strategies"
+            / strategy_name
+            / "results"
+            / "simulations"
+            / "price_factor"
+        )
+        root_dir.mkdir(parents=True, exist_ok=True)
+
+        # 读取或创建 meta.json
+        meta_path = root_dir / "meta.json"
+        if meta_path.exists():
+            try:
+                with meta_path.open("r", encoding="utf-8") as f:
+                    meta = json.load(f)
+            except Exception:
+                meta = {}
+        else:
+            meta = {}
+
+        next_version_id = int(meta.get("next_version_id", 1))
+        now = datetime.now()
+        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+        version_dir_name = f"{next_version_id}_{timestamp_str}"
+        version_dir = root_dir / version_dir_name
+        version_dir.mkdir(parents=True, exist_ok=True)
+
+        # 立刻更新 meta.json（版本管理），不依赖后续流程是否成功
+        new_meta = {
+            "next_version_id": next_version_id + 1,
+            "last_updated": now.isoformat(),
+            "strategy_name": strategy_name,
+        }
+        with meta_path.open("w", encoding="utf-8") as f:
+            json.dump(new_meta, f, indent=2, ensure_ascii=False)
+
+        return version_dir, next_version_id
 
     def _resolve_sot_version_dir(self, strategy_name: str, sot_version: str) -> Tuple[Path, Path]:
         """
@@ -585,35 +657,47 @@ class PriceFactorSimulator:
     # ------------------------------------------------------------------ #
     # 结果落盘
     # ------------------------------------------------------------------ #
-    def _save_session_summary(
+    def _save_results(
         self,
         strategy_name: str,
+        sim_version_dir: Path,
+        sim_version_id: int,
         sot_version_dir: Path,
         session_summary: Dict[str, Any],
+        settings_snapshot: Dict[str, Any],
     ) -> None:
         """
-        保存会话级 summary（主进程负责）。
+        保存模拟器结果和 metadata（主进程负责）。
 
         注意：每个股票的 JSON 文件由 Worker 在子进程中独立保存。
         """
-        root = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / strategy_name
-            / "results"
-            / "simulations"
-            / "price_factor"
-            / sot_version_dir.name
-        )
-        root.mkdir(parents=True, exist_ok=True)
-
         # 写入会话级 summary
-        session_path = root / "0_session_summary.json"
+        session_path = sim_version_dir / "0_session_summary.json"
         with session_path.open("w", encoding="utf-8") as f:
             json.dump(session_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
-        logger.info(f"[PriceFactorSimulator] Session summary 已保存: {session_path}")
+        # 写入 metadata.json（包含依赖的 SOT 版本信息）
+        now = datetime.now()
+        metadata = {
+            "strategy_name": strategy_name,
+            "sim_version_id": sim_version_id,
+            "sim_version_dir": sim_version_dir.name,
+            "created_at": now.isoformat(),
+            "sot_version": {
+                "version_dir": sot_version_dir.name,
+                "sot_root": str(sot_version_dir.parent),
+            },
+            "session_summary": session_summary,
+            "settings_snapshot": settings_snapshot,
+        }
+        
+        metadata_path = sim_version_dir / "metadata.json"
+        with metadata_path.open("w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+        
+        logger.info(f"[PriceFactorSimulator] 结果已保存: {sim_version_dir}")
+        logger.info(f"[PriceFactorSimulator] - Session summary: {session_path}")
+        logger.info(f"[PriceFactorSimulator] - Metadata: {metadata_path}")
 
 
 class PriceFactorSimulatorWorker:
@@ -635,7 +719,7 @@ class PriceFactorSimulatorWorker:
         self.stock_info: Dict[str, Any] = job_payload.get("stock_info", {"id": self.stock_id})
         self.opportunities_path = Path(job_payload["opportunities_path"])
         self.targets_path = Path(job_payload["targets_path"])
-        self.sot_version_dir = Path(job_payload["sot_version_dir"])
+        self.sim_version_dir = Path(job_payload["sim_version_dir"])
         self.config_dict: Dict[str, Any] = job_payload.get("config", {})
 
     # ------------------------------------------------------------------ #
@@ -1028,16 +1112,8 @@ class PriceFactorSimulatorWorker:
         目录结构：
             app/userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.json
         """
-        root = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / self.strategy_name
-            / "results"
-            / "simulations"
-            / "price_factor"
-            / self.sot_version_dir.name
-        )
+        # 使用传入的 sim_version_dir（模拟器版本目录）
+        root = Path(self.sim_version_dir)
         root.mkdir(parents=True, exist_ok=True)
 
         stock_path = root / f"{self.stock_id}.json"

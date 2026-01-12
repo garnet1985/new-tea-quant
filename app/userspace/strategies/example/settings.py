@@ -107,6 +107,7 @@ settings = {
     # ========================================
     # 模拟器配置
     # ========================================
+    # TODO：to be renamed to price_simulator
     "simulator": {
         # 时间窗口（可选），为空表示使用 SOT 全量时间
         "start_date": "",
@@ -124,5 +125,63 @@ settings = {
         
         # 模拟器专用 worker 数量（"auto" 或具体数字）
         "max_workers": "auto",
+    },
+
+    # ========================================
+    # 交易成本配置（公用配置，可被 simulator / capital_simulator 覆盖）
+    # ========================================
+    "fees": {
+        "commission_rate": 0.00025,      # 佣金率（双边，万2.5）
+        "min_commission": 5.0,            # 最低佣金（元）
+        "stamp_duty_rate": 0.001,         # 印花税率（卖出时，千1）
+        "transfer_fee_rate": 0.0,         # 过户费（如需要）
+    },
+
+    # ========================================
+    # 资金分配模拟器配置（CapitalAllocationSimulator）
+    # ========================================
+    "capital_simulator": {
+        # 枚举版本依赖（与 PriceFactor 一样的语义）
+        # "latest" / "test/latest" / "1_20260112_161317" 等
+        "sot_version": "latest",
+
+        # 初始资金（元）
+        "initial_capital": 1_000_000,
+
+        # 资金分配策略
+        "allocation": {
+            # 分配模式：
+            #   - "equal_capital": 每个机会等额资金（按 initial_capital / max_portfolio_size 分配）
+            #   - "equal_shares": 每个机会固定股数（按 lot_size * lots_per_trade 计算）
+            #   - "kelly": 使用 Kelly 公式计算仓位
+            "mode": "equal_capital",
+
+            # 最大组合持仓数（同时最多持有多少只股票）
+            "max_portfolio_size": 10,
+
+            # 单只股票最大权重（0~1，防止过度集中）
+            # 例如：总资产100万，某只股票最多占30万（30%），超过时需要减仓
+            "max_weight_per_stock": 0.3,
+
+            # equal_shares 模式下的配置
+            "lot_size": 100,              # 1手对应的股票数（A股通常是100股）
+            "lots_per_trade": 1,          # 每次买入的手数（例如：1手、2手等）
+
+            # kelly 模式下的配置
+            "kelly_fraction": 0.5,        # Kelly 仓位的折扣比例（0~1，用于风险控制）
+        },
+
+        # 输出控制（可选）
+        "output": {
+            # 是否保存逐笔交易日志
+            "save_trades": True,
+            # 是否保存每日权益曲线
+            "save_equity_curve": True,
+        },
+    },
+
+    "scanner": {
+        "max_workers": "auto",
+        "adapter_name": "console"
     },
 }

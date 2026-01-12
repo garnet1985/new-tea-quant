@@ -170,11 +170,10 @@ class OpportunityEnumeratorWorker:
             self.profiler.start_timer('load_data')
             
             # 包装数据加载以统计 IO
-            # 注意：load_qfq_klines 内部会执行多次数据库查询：
-            # 1. _load_raw_klines: 1 次查询（加载原始 K 线）
-            # 2. _load_factor_events: 1 次查询（加载复权因子事件）
-            # 3. _get_latest_factor: 1 次查询（获取最新复权因子）
-            # 总共约 3 次查询
+            # 注意：load_historical_data 内部会执行数据库查询：
+            # 1. load_qfq: 1 次查询（使用 JOIN 优化，一次查询出 K 线和复权因子）
+            # 2. required_entities: 每个实体 1 次查询（如果有配置）
+            # 对于 example 策略（没有 required_entities），总共 1 次查询
             import time as time_module
             db_query_start = time_module.perf_counter()
             self.data_manager.load_historical_data(
@@ -183,8 +182,10 @@ class OpportunityEnumeratorWorker:
             )
             db_query_time = time_module.perf_counter() - db_query_start
             
-            # 记录数据库查询（估算：每次 load_historical_data 约 3 次查询）
-            estimated_queries = 3
+            # 计算实际查询次数：1（K线 JOIN 查询）+ required_entities 数量
+            # 注意：load_qfq 已优化为单次 JOIN 查询，不再是 3 次
+            required_entities_count = len(self.settings.required_entities) if hasattr(self.settings, 'required_entities') else 0
+            estimated_queries = 1 + required_entities_count  # 1 次 K 线查询 + N 次实体查询
             avg_query_time = db_query_time / estimated_queries if estimated_queries > 0 else 0
             for _ in range(estimated_queries):
                 self.profiler.record_db_query(avg_query_time)

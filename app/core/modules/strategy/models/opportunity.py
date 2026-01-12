@@ -11,6 +11,7 @@ Opportunity Model - 投资机会模型
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional
 from datetime import datetime
+from loguru import logger
 
 
 @dataclass
@@ -37,7 +38,7 @@ class Opportunity:
     extra_fields: Optional[Dict[str, Any]] = None  # 策略特定的额外信息
     
     # ===== 框架自动填充的字段（用户不需要关心）=====
-    opportunity_id: str = ''         # 机会唯一ID（UUID，框架自动生成）
+    opportunity_id: str = ''         # 机会唯一ID（简单整数，如 "1", "2", "3"，框架自动生成）
     stock_id: str = ''               # 股票代码（从 stock['id'] 提取）
     stock_name: str = ''             # 股票名称（从 stock['name'] 提取）
     strategy_name: str = ''          # 策略名称（框架自动填充）
@@ -87,7 +88,11 @@ class Opportunity:
         # ]
     
     # ===== 状态管理 =====
-    status: str = 'active'                   # 状态（active/testing/closed/expired）
+    status: str = 'active'                   # 状态（active/open/win/loss）
+                                            # - active: 正在追踪中（枚举过程中）
+                                            # - open: 枚举结束时仍有未完成的 target
+                                            # - win: 所有 target 完成且 ROI > 0
+                                            # - loss: 所有 target 完成且 ROI <= 0
     expired_date: Optional[str] = None       # 失效日期
     expired_reason: Optional[str] = None     # 失效原因
     
@@ -202,7 +207,7 @@ class Opportunity:
         if expiration_config:
             fixed_period = expiration_config.get('fixed_period', 0)
             if fixed_period > 0 and holding_days >= fixed_period:
-                self._settle(current_date, current_price, 'expiration', price_return)
+                self._settle(current_date, current_price, 'expiration', price_return, sell_ratio=1.0)
                 return True
         
         # 2. 检查保本止损
@@ -211,7 +216,7 @@ class Opportunity:
             protect_ratio = protect_loss_config.get('ratio', 0)
             
             if price_return <= protect_ratio:
-                self._settle(current_date, current_price, 'protect_loss', price_return)
+                self._settle(current_date, current_price, 'protect_loss', price_return, sell_ratio=1.0)
                 return True
         
         # 3. 检查动态止损
@@ -227,7 +232,7 @@ class Opportunity:
             # 检查回撤
             dynamic_threshold = (current_price - self.dynamic_loss_highest) / self.dynamic_loss_highest
             if dynamic_threshold <= dynamic_ratio:
-                self._settle(current_date, current_price, 'dynamic_loss', price_return)
+                self._settle(current_date, current_price, 'dynamic_loss', price_return, sell_ratio=1.0)
                 return True
         
         # 4. 检查分段止损
@@ -250,7 +255,8 @@ class Opportunity:
                     else:
                         ratio_percent = int(stage_ratio * 100)
                         reason = f"stop_loss_{ratio_percent}%"
-                    self._settle(current_date, current_price, reason, price_return)
+                    # 清仓时 sell_ratio = 1.0
+                    self._settle(current_date, current_price, reason, price_return, sell_ratio=1.0)
                     return True
         
         # 5. 检查分段止盈
@@ -284,17 +290,29 @@ class Opportunity:
                 # 判断是否清仓
                 if stage.get('close_invest', False):
                     # 如果清仓，由 _settle 统一记录到 completed_targets
-                    self._settle(current_date, current_price, reason, price_return)
+                    # 清仓时 sell_ratio = 1.0
+                    self._settle(current_date, current_price, reason, price_return, sell_ratio=1.0)
                     return True
                 else:
                     # 如果不清仓（只有 sell_ratio 或没有 close_invest），记录目标达成但继续持有
                     if not self.completed_targets:
                         self.completed_targets = []
+                    
+                    # 获取 sell_ratio（如果配置中有）
+                    sell_ratio = stage.get('sell_ratio', 1.0)  # 默认 1.0（全部卖出）
+                    
+                    # 计算 profit 和 weighted_profit（用于加权 ROI 计算）
+                    profit = current_price - self.trigger_price
+                    weighted_profit = profit * sell_ratio
+                    
                     self.completed_targets.append({
                         'date': current_date,
                         'price': current_price,
                         'reason': reason,
-                        'roi': price_return
+                        'roi': price_return,
+                        'sell_ratio': sell_ratio,
+                        'profit': profit,
+                        'weighted_profit': weighted_profit
                     })
                     # 继续持有，不返回 True
         
@@ -317,14 +335,16 @@ class Opportunity:
         current_date = last_kline['date']
         price_return = (current_price - self.trigger_price) / self.trigger_price
         
-        self._settle(current_date, current_price, reason, price_return)
+        # 强制结算时 sell_ratio = 1.0（全部卖出）
+        self._settle(current_date, current_price, reason, price_return, sell_ratio=1.0)
     
     def _settle(
         self,
         sell_date: str,
         sell_price: float,
         sell_reason: str,
-        roi: float
+        roi: float,
+        sell_ratio: float = 1.0
     ):
         """
         内部结算方法
@@ -333,24 +353,53 @@ class Opportunity:
             sell_date: 卖出日期
             sell_price: 卖出价格
             sell_reason: 卖出原因
-            roi: 收益率
+            roi: 收益率（单个 target 的 ROI，用于兼容）
+            sell_ratio: 卖出比例（默认 1.0，即全部卖出）
         """
         self.sell_date = sell_date
         self.sell_price = sell_price
         self.sell_reason = sell_reason
-        self.status = 'completed'
-        self.roi = roi
         
         # 添加到 completed_targets
         if not self.completed_targets:
             self.completed_targets = []
         
+        # 计算 profit 和 weighted_profit（用于加权 ROI 计算）
+        profit = sell_price - self.trigger_price
+        weighted_profit = profit * sell_ratio
+        
         self.completed_targets.append({
             'date': sell_date,
             'price': sell_price,
             'reason': sell_reason,
-            'roi': roi
+            'roi': roi,
+            'sell_ratio': sell_ratio,
+            'profit': profit,
+            'weighted_profit': weighted_profit
         })
+        
+        # 计算加权 ROI（参考 legacy 方法）
+        # ROI = sum(weighted_profit) / trigger_price
+        total_weighted_profit = sum(
+            target.get('weighted_profit', 0) 
+            for target in self.completed_targets
+        )
+        self.roi = total_weighted_profit / self.trigger_price if self.trigger_price > 0 else 0.0
+        
+        # 判断是否全部完成（sell_ratio 累计是否达到 1.0）
+        total_sell_ratio = sum(
+            target.get('sell_ratio', 0) 
+            for target in self.completed_targets
+        )
+        is_fully_completed = total_sell_ratio >= 1.0
+        
+        # 设置状态：win / loss / open
+        if is_fully_completed:
+            # 全部完成，根据 ROI 判断 win 或 loss
+            self.status = 'win' if self.roi > 0 else 'loss'
+        else:
+            # 未全部完成，保持 open 状态（会在枚举结束时统一处理）
+            self.status = 'open'
     
     def _calculate_holding_days(self, start_date: str, end_date: str) -> int:
         """
@@ -386,10 +435,8 @@ class Opportunity:
         Args:
             strategy_name: 策略名称
             strategy_version: 策略版本
-            opportunity_id: 机会ID（如果不提供，自动生成UUID）
+            opportunity_id: 机会ID（如果不提供，自动生成短ID）
         """
-        import uuid
-        
         self.strategy_name = strategy_name
         self.strategy_version = strategy_version
         self.scan_date = datetime.now().strftime('%Y%m%d')
@@ -398,6 +445,13 @@ class Opportunity:
             if opportunity_id:
                 self.opportunity_id = opportunity_id
             else:
+                # 如果未提供 opportunity_id，说明应该在 Worker 中已经设置
+                # 这里不应该发生，但为了安全起见，记录警告
+                import uuid
+                logger.warning(
+                    f"⚠️  Opportunity ID 未设置，使用 UUID 作为临时方案。"
+                    f"请确保在 Worker 中创建 Opportunity 时设置 opportunity_id"
+                )
                 self.opportunity_id = str(uuid.uuid4())
         
         # 确保从 stock 和 record_of_today 提取的字段已填充

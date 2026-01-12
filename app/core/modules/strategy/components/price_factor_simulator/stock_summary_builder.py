@@ -30,6 +30,7 @@ class StockSummaryBuilder:
         total_win = 0
         total_loss = 0
         total_open = 0
+
         total_profit = 0.0
         total_duration = 0.0
         total_roi = 0.0
@@ -39,11 +40,12 @@ class StockSummaryBuilder:
         unprofitable_count = 0
         minor_unprofitable_count = 0
 
-        for inv in investments:
-            result = inv.get("result", "")
-            total_profit += inv.get("overall_profit", 0.0)
-            total_duration += inv.get("duration_in_days", 0)
-            total_roi += inv.get("roi", 0.0)
+        for investment in investments:
+            result = investment.get("result", "")
+            total_profit += investment.get("overall_profit", 0.0)
+            total_duration += investment.get("duration_in_days", 0)
+            roi = investment.get("roi", 0.0)
+            total_roi += roi
 
             if result == "win":
                 total_win += 1
@@ -52,7 +54,7 @@ class StockSummaryBuilder:
             elif result == "open":
                 total_open += 1
 
-            roi = inv.get("roi", 0.0)
+            # ROI 分类
             if roi >= 0.2:
                 profitable_count += 1
             elif 0 <= roi < 0.2:
@@ -87,6 +89,7 @@ class StockSummaryBuilder:
             else 0.0
         )
 
+        # 计算胜率
         win_rate = to_ratio(
             profitable_count + minor_profitable_count, total_investments, 3
         )
@@ -111,7 +114,7 @@ class StockSummaryBuilder:
 
     @staticmethod
     def _empty_summary() -> Dict[str, Any]:
-        """返回空的 summary"""
+        """返回空的 summary 字典"""
         return {
             "total_investments": 0,
             "total_win": 0,

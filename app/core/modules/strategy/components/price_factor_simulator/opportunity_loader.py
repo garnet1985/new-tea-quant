@@ -25,7 +25,7 @@ class OpportunityLoader:
         end_date: str = "",
     ) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
         """
-        从 CSV 文件加载 opportunities 和 targets 数据
+        加载 opportunities 和 targets 数据
         
         Args:
             opportunities_path: opportunities CSV 文件路径
@@ -54,7 +54,7 @@ class OpportunityLoader:
                         row["weighted_profit"] = 0.0
                     targets_map[opp_id].append(row)
 
-        # 2. 读取所有机会并过滤
+        # 2. 读取所有机会
         opportunities: List[Dict[str, Any]] = []
         if not opportunities_path.exists():
             logger.warning(

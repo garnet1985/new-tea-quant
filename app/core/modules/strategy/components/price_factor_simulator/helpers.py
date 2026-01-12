@@ -10,6 +10,22 @@ PriceFactorSimulator 的计算辅助函数
 
 from datetime import datetime
 from typing import Optional
+import json
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """自定义 JSON 编码器，处理 datetime 对象和其他不可序列化的类型"""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, (int, float)):
+            # 处理 numpy 类型（如果存在）
+            return float(obj) if isinstance(obj, float) else int(obj)
+        elif hasattr(obj, '__dict__'):
+            # 处理其他对象，尝试转换为字典
+            return obj.__dict__
+        return super().default(obj)
 
 
 def parse_yyyymmdd(date_str: str) -> Optional[datetime]:

@@ -202,17 +202,20 @@ class AggregateProfiler:
         return {
             'summary': {
                 'total_stocks': len(self.stock_metrics),
-                'total_time_seconds': total_time,
+                'total_time_seconds': total_time,  # 实际墙钟时间（主进程）
                 'total_time_minutes': total_time / 60,
                 'avg_time_per_stock_seconds': avg_time_per_stock,
             },
             'io': {
                 'total_db_queries': total_db_queries,
                 'avg_db_queries_per_stock': avg_db_queries_per_stock,
+                # 注意：这是累加的所有进程的查询时间总和（多进程并行时，会大于实际墙钟时间）
+                # 实际墙钟时间请参考 summary.total_time_seconds
                 'total_db_time_seconds': total_db_time,
                 'avg_db_time_per_query_ms': (total_db_time / total_db_queries * 1000) if total_db_queries > 0 else 0,
                 'total_file_writes': total_file_writes,
                 'total_file_size_mb': total_file_size / (1024 * 1024),
+                # 注意：这是累加的所有进程的文件写入时间总和
                 'total_file_time_seconds': total_file_time,
             },
             'data': {
@@ -255,11 +258,11 @@ class AggregateProfiler:
         logger.info(f"\n【IO 统计】")
         logger.info(f"  数据库查询总数: {summary['io']['total_db_queries']}")
         logger.info(f"  平均每只股票查询: {summary['io']['avg_db_queries_per_stock']:.1f} 次")
-        logger.info(f"  数据库查询总时间: {summary['io']['total_db_time_seconds']:.2f} 秒")
+        logger.info(f"  数据库查询累计时间: {summary['io']['total_db_time_seconds']:.2f} 秒 (所有进程累加，非实际墙钟时间)")
         logger.info(f"  平均每次查询: {summary['io']['avg_db_time_per_query_ms']:.2f} ms")
         logger.info(f"  文件写入总数: {summary['io']['total_file_writes']}")
         logger.info(f"  文件写入总大小: {summary['io']['total_file_size_mb']:.2f} MB")
-        logger.info(f"  文件写入总时间: {summary['io']['total_file_time_seconds']:.2f} 秒")
+        logger.info(f"  文件写入累计时间: {summary['io']['total_file_time_seconds']:.2f} 秒 (所有进程累加，非实际墙钟时间)")
         
         # 数据统计
         logger.info(f"\n【数据统计】")

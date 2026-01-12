@@ -150,16 +150,27 @@ class OpportunityEnumeratorSettings:
             is_test_mode = True  # 如果不是 bool，默认 True
         self.is_test_mode = is_test_mode
         
-        # max_keep_versions：最多保留的全量枚举版本数，默认 3
-        # 超过此数量的全量版本会被自动清理（删除最早的版本）
-        max_keep_versions = enumerator.get("max_keep_versions", 3)
+        # max_test_versions：最多保留的测试模式版本数，默认 10
+        # 超过此数量的测试版本会被自动清理（删除最早的版本）
+        max_test_versions = enumerator.get("max_test_versions", 10)
         try:
-            max_keep_versions_int = int(max_keep_versions)
+            max_test_versions_int = int(max_test_versions)
         except (TypeError, ValueError):
-            max_keep_versions_int = 3
-        if max_keep_versions_int < 1:
-            max_keep_versions_int = 3  # 至少保留 1 个版本
-        self.max_keep_versions = max_keep_versions_int
+            max_test_versions_int = 10
+        if max_test_versions_int < 1:
+            max_test_versions_int = 10  # 至少保留 1 个版本
+        self.max_test_versions = max_test_versions_int
+        
+        # max_sot_versions：最多保留的全量枚举（SOT）版本数，默认 3
+        # 超过此数量的全量版本会被自动清理（删除最早的版本）
+        max_sot_versions = enumerator.get("max_sot_versions", 3)
+        try:
+            max_sot_versions_int = int(max_sot_versions)
+        except (TypeError, ValueError):
+            max_sot_versions_int = 3
+        if max_sot_versions_int < 1:
+            max_sot_versions_int = 3  # 至少保留 1 个版本
+        self.max_sot_versions = max_sot_versions_int
 
         # ----- simulator 部分 -----
         simulator = dict(settings.get("simulator") or {})
@@ -202,7 +213,8 @@ class OpportunityEnumeratorSettings:
         if "enumerator" not in merged:
             merged["enumerator"] = {}
         merged["enumerator"]["is_test_mode"] = self.is_test_mode
-        merged["enumerator"]["max_keep_versions"] = self.max_keep_versions
+        merged["enumerator"]["max_test_versions"] = self.max_test_versions
+        merged["enumerator"]["max_sot_versions"] = self.max_sot_versions
         # goal/min_required_records 已经写回 simulator/data 内部，这里不单独暴露
         return merged
 

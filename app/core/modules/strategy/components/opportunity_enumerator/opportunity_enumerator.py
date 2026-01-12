@@ -71,10 +71,16 @@ class OpportunityEnumerator:
         validated_settings = enum_settings.to_dict()
 
         # 1.2 准备版本目录（一次枚举 = 一个版本）
+        # 根据 is_test_mode 选择不同的子目录：test/ 或 sot/
+        is_test_mode = enum_settings.is_test_mode
+        sub_dir_name = "test" if is_test_mode else "sot"
+        
         root_dir = Path("app") / "userspace" / "strategies" / strategy_name / "results" / "opportunity_enums"
-        root_dir.mkdir(parents=True, exist_ok=True)
+        sub_dir = root_dir / sub_dir_name
+        sub_dir.mkdir(parents=True, exist_ok=True)
 
-        meta_path = root_dir / "meta.json"
+        # 每个子目录（test/sot）维护独立的 meta.json
+        meta_path = sub_dir / "meta.json"
         if meta_path.exists():
             try:
                 with meta_path.open("r", encoding="utf-8") as f:
@@ -88,7 +94,7 @@ class OpportunityEnumerator:
         now = datetime.now()
         timestamp_str = now.strftime("%Y%m%d_%H%M%S")
         version_dir_name = f"{next_version_id}_{timestamp_str}"
-        output_dir = root_dir / version_dir_name
+        output_dir = sub_dir / version_dir_name
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 1.3 立刻更新 meta.json（版本管理），不依赖后续流程是否成功
@@ -96,6 +102,7 @@ class OpportunityEnumerator:
             "next_version_id": next_version_id + 1,
             "last_updated": now.isoformat(),
             "strategy_name": strategy_name,
+            "mode": sub_dir_name,  # 记录模式：test 或 sot
         }
         with meta_path.open("w", encoding="utf-8") as f:
             json.dump(new_meta, f, indent=2, ensure_ascii=False)
@@ -234,12 +241,22 @@ class OpportunityEnumerator:
             is_full_enumeration=is_full_enumeration,
         )
         
-        # 6. 清理旧版本（只清理全量枚举的版本，测试模式版本不清理）
-        if is_full_enumeration:
+        # 6. 清理旧版本（根据模式选择对应的清理配置）
+        if is_test_mode:
+            # 测试模式：清理 test/ 目录
             OpportunityEnumerator._cleanup_old_versions(
-                root_dir=root_dir,
-                max_keep_versions=enum_settings.max_keep_versions,
-                strategy_name=strategy_name
+                root_dir=sub_dir,
+                max_keep_versions=enum_settings.max_test_versions,
+                strategy_name=strategy_name,
+                mode="test"
+            )
+        else:
+            # 全量模式：清理 sot/ 目录
+            OpportunityEnumerator._cleanup_old_versions(
+                root_dir=sub_dir,
+                max_keep_versions=enum_settings.max_sot_versions,
+                strategy_name=strategy_name,
+                mode="sot"
             )
         
         # 7. 返回结果（目前直接返回 summary，而不是全量 opportunities）
@@ -317,18 +334,19 @@ class OpportunityEnumerator:
     def _cleanup_old_versions(
         root_dir: Path,
         max_keep_versions: int,
-        strategy_name: str
+        strategy_name: str,
+        mode: str = "test"
     ):
         """
-        清理旧的全量枚举版本
+        清理旧的枚举版本
         
-        只清理全量枚举的版本（is_full_enumeration: true），测试模式版本不清理。
         按照版本 ID 排序，保留最新的 max_keep_versions 个版本，删除最早的版本。
         
         Args:
-            root_dir: 版本目录的根目录
+            root_dir: 版本目录的根目录（test/ 或 sot/）
             max_keep_versions: 最多保留的版本数
             strategy_name: 策略名称（用于日志）
+            mode: 模式名称（"test" 或 "sot"），用于日志
         """
         if max_keep_versions < 1:
             return  # 至少保留 1 个版本
@@ -337,7 +355,7 @@ class OpportunityEnumerator:
             # 1. 扫描所有版本目录
             version_dirs = []
             for item in root_dir.iterdir():
-                if item.is_dir() and item.name != "__pycache__":
+                if item.is_dir() and item.name != "__pycache__" and item.name != "meta.json":
                     # 版本目录格式：{version_id}_{timestamp}
                     if "_" in item.name:
                         version_dirs.append(item)
@@ -345,46 +363,55 @@ class OpportunityEnumerator:
             if not version_dirs:
                 return
             
-            # 2. 读取每个版本的 metadata.json，筛选出全量枚举的版本
-            full_enum_versions = []
+            # 2. 读取每个版本的 metadata.json，提取版本信息
+            versions = []
             for version_dir in version_dirs:
                 metadata_path = version_dir / "metadata.json"
                 if not metadata_path.exists():
+                    # 如果没有 metadata.json，尝试从目录名解析版本 ID
+                    try:
+                        version_id = int(version_dir.name.split("_")[0])
+                        versions.append({
+                            "version_id": version_id,
+                            "created_at": "",
+                            "version_dir": version_dir,
+                            "version_dir_name": version_dir.name
+                        })
+                    except (ValueError, IndexError):
+                        continue
                     continue
                 
                 try:
                     with metadata_path.open("r", encoding="utf-8") as f:
                         metadata = json.load(f)
                     
-                    # 只处理全量枚举的版本
-                    if metadata.get("is_full_enumeration", False):
-                        version_id = metadata.get("version_id", 0)
-                        created_at = metadata.get("created_at", "")
-                        full_enum_versions.append({
-                            "version_id": version_id,
-                            "created_at": created_at,
-                            "version_dir": version_dir,
-                            "version_dir_name": version_dir.name
-                        })
+                    version_id = metadata.get("version_id", 0)
+                    created_at = metadata.get("created_at", "")
+                    versions.append({
+                        "version_id": version_id,
+                        "created_at": created_at,
+                        "version_dir": version_dir,
+                        "version_dir_name": version_dir.name
+                    })
                 except Exception as e:
                     logger.warning(f"读取版本 metadata 失败: {version_dir}, error={e}")
                     continue
             
-            if len(full_enum_versions) <= max_keep_versions:
+            if len(versions) <= max_keep_versions:
                 return  # 版本数未超过限制，无需清理
             
             # 3. 按版本 ID 排序（降序，最新的在前）
-            full_enum_versions.sort(key=lambda x: x["version_id"], reverse=True)
+            versions.sort(key=lambda x: x["version_id"], reverse=True)
             
             # 4. 保留最新的 max_keep_versions 个版本，删除其余的
-            versions_to_delete = full_enum_versions[max_keep_versions:]
+            versions_to_delete = versions[max_keep_versions:]
             
             if not versions_to_delete:
                 return
             
             logger.info(
-                f"🧹 开始清理旧版本: 策略={strategy_name}, "
-                f"全量版本总数={len(full_enum_versions)}, "
+                f"🧹 开始清理旧版本: 策略={strategy_name}, 模式={mode}, "
+                f"版本总数={len(versions)}, "
                 f"保留={max_keep_versions}, "
                 f"删除={len(versions_to_delete)}"
             )
@@ -401,7 +428,7 @@ class OpportunityEnumerator:
                     logger.warning(f"  ⚠️  删除版本失败: {version_info['version_dir_name']}, error={e}")
             
             if deleted_count > 0:
-                logger.info(f"✅ 版本清理完成: 已删除 {deleted_count} 个旧版本")
+                logger.info(f"✅ 版本清理完成 ({mode}): 已删除 {deleted_count} 个旧版本")
         
         except Exception as e:
-            logger.error(f"❌ 清理旧版本时发生错误: {e}", exc_info=True)
+            logger.error(f"❌ 清理旧版本时发生错误 ({mode}): {e}", exc_info=True)

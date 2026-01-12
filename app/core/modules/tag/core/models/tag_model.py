@@ -152,13 +152,13 @@ class TagModel:
         
         if recompute:
             # 强制重新计算：删除旧的 tag（如果存在）并创建新的
-            existing_tag = tag_data_mgr.load_tag(self.tag_name, scenario_id)
+            existing_tag = tag_data_mgr.load(self.tag_name, scenario_id)
             if existing_tag:
                 # 删除旧的 tag definition（tag values 会在 scenario 级别删除）
                 tag_data_mgr.delete_tag_definition(existing_tag.get('id'))
             
             # 创建新的 tag
-            new_meta = tag_data_mgr.save_tag(
+            new_meta = tag_data_mgr.save(
                 self.tag_name,
                 scenario_id,
                 self.display_name,
@@ -167,11 +167,11 @@ class TagModel:
             self._set_meta(new_meta)
         else:
             # 检查 tag 是否存在
-            existing_tag = tag_data_mgr.load_tag(self.tag_name, scenario_id)
+            existing_tag = tag_data_mgr.load(self.tag_name, scenario_id)
             
             if not existing_tag:
                 # tag 不存在，创建新的
-                new_meta = tag_data_mgr.save_tag(
+                new_meta = tag_data_mgr.save(
                     self.tag_name,
                     scenario_id,
                     self.display_name,

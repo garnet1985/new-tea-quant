@@ -87,7 +87,7 @@ class KlineHandler(BaseDataSourceHandler):
             if self.data_manager:
                 try:
                     # 使用过滤规则，排除ST、科创板等（不是所有股票都需要renew）
-                    stock_list = self.data_manager.load_stock_list(filtered=True)
+                    stock_list = self.data_manager.stock.list.load(filtered=True)
                     context["stock_list"] = stock_list
                     logger.info(f"✅ 从数据库获取股票列表（已过滤），共 {len(stock_list)} 只股票")
                 except Exception as e:
@@ -539,12 +539,8 @@ class KlineHandler(BaseDataSourceHandler):
                 
                 try:
                     # 直接调用 data_manager 的 service 方法保存数据
-                    stock_service = self.data_manager.get_data_service('stock_related.stock')
-                    if stock_service:
-                        count = stock_service.save_klines(records)
-                        logger.info(f"✅ [增量保存] 股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
-                    else:
-                        logger.warning(f"未找到 stock service，无法保存股票 {stock_id} K 线数据")
+                    count = self.data_manager.stock.kline.save(records)
+                    logger.info(f"✅ [增量保存] 股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
                 except Exception as e:
                     logger.error(f"❌ [增量保存] 股票 {stock_id} K 线数据失败: {e}")
                     import traceback
@@ -605,13 +601,9 @@ class KlineHandler(BaseDataSourceHandler):
             
             try:
                 # 直接调用 data_manager 的 service 方法保存数据
-                stock_service = self.data_manager.get_data_service('stock_related.stock')
-                if stock_service:
-                    count = stock_service.save_klines(records)
-                    total_saved += count
-                    logger.debug(f"✅ 保存股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
-                else:
-                    logger.warning(f"未找到 stock service，无法保存股票 {stock_id} K 线数据")
+                count = self.data_manager.stock.kline.save(records)
+                total_saved += count
+                logger.debug(f"✅ 保存股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
             except Exception as e:
                 logger.error(f"❌ 保存股票 {stock_id} K 线数据失败: {e}")
                 # 继续处理其他股票，不中断整个流程

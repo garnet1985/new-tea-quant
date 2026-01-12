@@ -65,6 +65,9 @@ class OpportunityEnumeratorWorker:
             data_mgr=self.data_mgr
         )
         
+        # Opportunity ID 计数器（每个股票从 1 开始自增）
+        self.opportunity_counter = 0
+        
         # 动态导入用户策略
         self._load_user_strategy()
     
@@ -358,13 +361,24 @@ class OpportunityEnumeratorWorker:
             else:
                 opportunity.stock = self.stock_info
             
-            # 框架自动填充字段（opportunity_id、strategy_name 等）
-            opportunity.enrich_from_framework(
-                strategy_name=self.strategy_name,
-                strategy_version='1.0'  # TODO: 从 settings 获取
-            )
+            # 设置买入信息
+            opportunity.stock_id = self.stock_id
+            opportunity.strategy_name = self.strategy_name
+            opportunity.trigger_date = current_kline['date']
+            opportunity.trigger_price = current_kline['close']
             opportunity.status = 'active'
             opportunity.completed_targets = []
+            
+            # 生成简单整数 ID（1, 2, 3, ...）
+            self.opportunity_counter += 1
+            opportunity.opportunity_id = str(self.opportunity_counter)
+            
+            # 框架自动填充其他字段（传入已设置的 opportunity_id）
+            opportunity.enrich_from_framework(
+                strategy_name=self.strategy_name,
+                strategy_version='1.0',  # TODO: 从 settings 获取
+                opportunity_id=opportunity.opportunity_id  # 已经设置，传入避免重复生成
+            )
             
             # 加入追踪列表
             tracker['active_opportunities'].append(opportunity)
@@ -448,7 +462,7 @@ class OpportunityEnumeratorWorker:
             "expired_date",        # 失效日期（当前设计不使用，总是为空）
             "exit_reason",         # 退出原因（在 targets CSV 中已有 reason 字段，重复）
             "protect_loss_active", # 保本止损激活状态（内部追踪，CSV 不需要）
-            "opportunity_id",      # 机会ID（元数据，文件名已表明股票，可通过 trigger_date+trigger_price 唯一标识）
+            # opportunity_id 保留在 CSV 中，用于关联 targets
             "scan_date",           # 扫描日期（元数据，CSV 不需要）
             "stock",               # 股票完整信息（已有 stock_id 和 stock_name，重复）
             "stock_id",            # 股票代码（文件名已表明，CSV 不需要）
@@ -487,10 +501,13 @@ class OpportunityEnumeratorWorker:
 
             opp_rows.append(row)
 
-            # 子表数据（不再包含 opportunity_id，因为 opportunities CSV 中已移除）
-            # 如果需要关联，可以通过 trigger_date + trigger_price 唯一标识
+            # 子表数据（添加 opportunity_id 用于关联）
+            opp_id = opp.get("opportunity_id")
             for target in opp.get("completed_targets", []) or []:
-                t_row = dict(target)  # 直接使用 target 的字段，不添加 opportunity_id
+                t_row = dict(target)  # 直接使用 target 的字段
+                # 添加 opportunity_id 用于关联
+                if opp_id:
+                    t_row["opportunity_id"] = opp_id
                 if "extra_fields" in t_row and isinstance(t_row["extra_fields"], dict):
                     try:
                         t_row["extra_fields"] = json.dumps(t_row["extra_fields"], ensure_ascii=False)

@@ -57,6 +57,9 @@ class OpportunityEnumeratorWorker:
             data_mgr=self.data_mgr
         )
         
+        # Opportunity ID 计数器（每个股票从 1 开始自增）
+        self.opportunity_counter = 0
+        
         # 动态导入用户策略
         self._load_user_strategy()
     
@@ -220,16 +223,18 @@ class OpportunityEnumeratorWorker:
         
         if opportunity:
             from app.core.modules.strategy.models.opportunity import Opportunity
-            import uuid
             
             # 设置买入信息
-            opportunity.opportunity_id = str(uuid.uuid4())
             opportunity.stock_id = self.stock_id
             opportunity.strategy_name = self.strategy_name
             opportunity.trigger_date = current_kline['date']
             opportunity.trigger_price = current_kline['close']
             opportunity.status = 'active'
             opportunity.completed_targets = []
+            
+            # 生成简单整数 ID（1, 2, 3, ...）
+            self.opportunity_counter += 1
+            opportunity.opportunity_id = str(self.opportunity_counter)
             
             # 加入追踪列表
             tracker['active_opportunities'].append(opportunity)

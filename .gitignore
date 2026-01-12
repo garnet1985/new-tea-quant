@@ -77,3 +77,6 @@ secrets.json
 .env.production
 app/**/auth_token.txt
 app/**/token.txt
+
+# User strategy results (enumerator, simulator outputs)
+app/userspace/strategies/**/results/

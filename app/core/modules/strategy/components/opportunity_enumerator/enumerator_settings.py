@@ -14,11 +14,11 @@ settings = {
     "is_enabled": True/False,
     "core": {...},
     "data": {
-        "base": ...,
-        "adjust": ...,
+        "base_price_source": ...,
+        "adjust_type": ...,
         "min_required_records": ...,
         "indicators": {...},
-        "required_entities": [...]
+        "extra_data_sources": [...]
     },
     "sampling": {...},
     "simulator": {
@@ -60,8 +60,8 @@ class OpportunityEnumeratorSettings:
     data: Dict[str, Any] = field(init=False)
     simulator: Dict[str, Any] = field(init=False)
     goal: Dict[str, Any] = field(init=False)
-    is_test_mode: bool = field(init=False)
-
+    use_sampling: bool = field(init=False)
+    max_workers: "str | int" = field(init=False)
     min_required_records: int = field(init=False)
 
     def __post_init__(self) -> None:
@@ -96,8 +96,8 @@ class OpportunityEnumeratorSettings:
     def _validate_and_normalize(self) -> None:
         """
         1. 检查必要字段：
-           - data.base 存在且非空
-           - data.adjust 存在且非空
+           - data.base_price_source 存在且非空
+           - data.adjust_type 存在且非空
         2. 补全可选字段：
            - data.min_required_records：缺失或非法时使用默认值 100
            - data.indicators：缺失时设为空 dict
@@ -108,13 +108,19 @@ class OpportunityEnumeratorSettings:
 
         # ----- data 部分 -----
         data = dict(settings.get("data") or {})
-        base = data.get("base")
-        adjust = data.get("adjust")
+        base = data.get("base_price_source")
+        adjust = data.get("adjust_type")
 
         if not base:
-            raise ValueError(f"[OpportunityEnumeratorSettings] 策略 {self.strategy_name} 的 settings.data.base 不能为空")
+            raise ValueError(
+                f"[OpportunityEnumeratorSettings] 策略 {self.strategy_name} 的 "
+                f"settings.data.base_price_source 不能为空"
+            )
         if not adjust:
-            raise ValueError(f"[OpportunityEnumeratorSettings] 策略 {self.strategy_name} 的 settings.data.adjust 不能为空")
+            raise ValueError(
+                f"[OpportunityEnumeratorSettings] 策略 {self.strategy_name} 的 "
+                f"settings.data.adjust_type 不能为空"
+            )
 
         # min_required_records：记录数下限（用于预读和游标起点），默认 100
         mrr = data.get("min_required_records", 100)
@@ -132,10 +138,10 @@ class OpportunityEnumeratorSettings:
             indicators = {}
         data["indicators"] = indicators
 
-        required_entities = data.get("required_entities")
+        required_entities = data.get("extra_data_sources")
         if required_entities is None:
             required_entities = []
-        data["required_entities"] = required_entities
+        data["extra_data_sources"] = required_entities
 
         self.data = data
         self.min_required_records = mrr_int
@@ -143,12 +149,12 @@ class OpportunityEnumeratorSettings:
         # ----- enumerator 部分 -----
         enumerator = dict(settings.get("enumerator") or {})
         
-        # is_test_mode：默认 True（测试模式：使用 sampling 配置）
-        # False 表示生产模式：使用全量股票列表
-        is_test_mode = enumerator.get("is_test_mode", True)
-        if not isinstance(is_test_mode, bool):
-            is_test_mode = True  # 如果不是 bool，默认 True
-        self.is_test_mode = is_test_mode
+        # use_sampling：默认 True（使用 sampling 配置进行采样）
+        # False 表示使用全量股票列表
+        use_sampling = enumerator.get("use_sampling", True)
+        if not isinstance(use_sampling, bool):
+            use_sampling = True  # 如果不是 bool，默认 True
+        self.use_sampling = use_sampling
         
         # max_test_versions：最多保留的测试模式版本数，默认 10
         # 超过此数量的测试版本会被自动清理（删除最早的版本）
@@ -172,25 +178,26 @@ class OpportunityEnumeratorSettings:
             max_sot_versions_int = 3  # 至少保留 1 个版本
         self.max_sot_versions = max_sot_versions_int
 
+        # max_workers：枚举器专用 worker 数量
+        max_workers = enumerator.get("max_workers", "auto")
+        self.max_workers = max_workers
+
         # ----- simulator 部分 -----
         simulator = dict(settings.get("simulator") or {})
 
-        goal = simulator.get("goal")
+        # goal 配置：优先从顶层 goal 读取，如果没有则从 simulator.goal 读取（向后兼容）
+        goal = settings.get("goal") or simulator.get("goal")
         if goal is None or not goal:
             # ⚠️ 致命错误：枚举器必须配置 goal（止盈止损），否则所有机会都无法完成，会被标记为 expired
             # 如果没有 goal，机会会一直持有直到回测结束，导致 completed_targets 为空
             raise ValueError(
-                f"策略 '{self.strategy_name}' 的 settings.simulator.goal 配置缺失或为空！\n"
+                f"策略 '{self.strategy_name}' 的 goal 配置缺失或为空！\n"
                 f"枚举器需要 goal 配置来定义止盈止损规则，否则所有机会都无法完成。\n"
-                f"请在 settings.py 中添加 simulator.goal 配置，例如：\n"
-                f"  'simulator': {{\n"
-                f"    'goal': {{\n"
-                f"      'expiration': {{'fixed_period': 30, 'is_trading_period': True}}\n"
-                f"    }}\n"
+                f"请在 settings.py 中添加顶层 goal 配置，例如：\n"
+                f"  'goal': {{\n"
+                f"    'expiration': {{'fixed_window_in_days': 30, 'is_trading_days': True}}\n"
                 f"  }}"
             )
-        simulator["goal"] = goal
-
         self.simulator = simulator
         self.goal = goal
 
@@ -212,9 +219,10 @@ class OpportunityEnumeratorSettings:
         # 确保 enumerator 配置存在
         if "enumerator" not in merged:
             merged["enumerator"] = {}
-        merged["enumerator"]["is_test_mode"] = self.is_test_mode
+        merged["enumerator"]["use_sampling"] = self.use_sampling
         merged["enumerator"]["max_test_versions"] = self.max_test_versions
         merged["enumerator"]["max_sot_versions"] = self.max_sot_versions
+        merged["enumerator"]["max_workers"] = self.max_workers
         # goal/min_required_records 已经写回 simulator/data 内部，这里不单独暴露
         return merged
 

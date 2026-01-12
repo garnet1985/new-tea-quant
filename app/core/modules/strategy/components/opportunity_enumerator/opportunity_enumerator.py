@@ -109,8 +109,12 @@ class OpportunityEnumerator:
         from app.core.utils.date.date_utils import DateUtils
         enum_start_date = DateUtils.DEFAULT_START_DATE
 
+        # 为每个子进程分配 ID 起始值（避免进程间冲突）
+        # 假设每个股票最多产生 10000 个机会（实际可能更少，但留有余量）
+        id_block_size = 10000
         jobs = []
-        for stock_id in stock_list:
+        for idx, stock_id in enumerate(stock_list):
+            start_id = idx * id_block_size + 1  # 从 1 开始，每个股票分配 10000 个 ID
             jobs.append({
                 'stock_id': stock_id,
                 'strategy_name': strategy_name,
@@ -121,6 +125,8 @@ class OpportunityEnumerator:
                 'end_date': end_date,
                 # 让子进程知道自身应将 CSV 写到哪里
                 'output_dir': str(output_dir),
+                # ID 起始值（由主进程分配，避免进程间冲突）
+                'opportunity_id_start': start_id,
             })
         
         # 3. 多进程执行

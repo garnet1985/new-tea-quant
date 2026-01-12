@@ -45,7 +45,7 @@ class BaseTagWorker(ABC):
         self.settings = job_payload.get('settings', {})
         
         self.data_mgr = DataManager(is_verbose=False)
-        self.tag_data_service = self.data_mgr.tag
+        self.tag_data_service = self.data_mgr.stock.tags
         self.tracker = {}
         self._extract_settings()
         
@@ -238,7 +238,7 @@ class BaseTagWorker(ABC):
             return
         
         try:
-            self.tag_data_service.batch_save_tag_values(tag_values)
+            self.tag_data_service.save_batch(tag_values)
             logger.debug(
                 f"批量保存 tag values 成功: entity_id={self.entity['id']}, "
                 f"count={len(tag_values)}"

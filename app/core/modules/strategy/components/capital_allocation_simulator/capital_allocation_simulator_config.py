@@ -25,6 +25,9 @@ class CapitalAllocationSimulatorConfig:
     #   - "sot/latest": 使用最新的 SOT 版本（sot/ 目录，默认）
     sot_version: str = "latest"
 
+    # 是否使用采样配置（默认 True，使用 sampling 配置过滤股票）
+    use_sampling: bool = True
+
     # 初始资金（元）
     initial_capital: float = 1_000_000.0
 
@@ -72,6 +75,11 @@ class CapitalAllocationSimulatorConfig:
         # SOT 版本号（枚举版本依赖）
         sot_version = capital_sim_cfg.get("sot_version", "latest")
 
+        # 是否使用采样（默认 True）
+        use_sampling = capital_sim_cfg.get("use_sampling", True)
+        if not isinstance(use_sampling, bool):
+            use_sampling = True  # 如果不是 bool，默认 True
+
         # 初始资金
         initial_capital = float(capital_sim_cfg.get("initial_capital", 1_000_000) or 1_000_000)
 
@@ -102,6 +110,7 @@ class CapitalAllocationSimulatorConfig:
 
         return cls(
             sot_version=sot_version,
+            use_sampling=use_sampling,
             initial_capital=initial_capital,
             allocation_mode=allocation_mode,
             max_portfolio_size=max_portfolio_size,

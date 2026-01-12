@@ -76,7 +76,7 @@ settings = {
     # ========================================
     "sampling": {
         "strategy": "continuous",
-        "sampling_amount": 20,
+        "sampling_amount": 200,
         # "pool": {
         #     # 直接在配置中给出一个很小的股票池，方便快速测试
         #     "stock_pool": ["000001.SZ", "000002.SZ"],
@@ -144,6 +144,9 @@ settings = {
         # 枚举版本依赖（与 PriceFactor 一样的语义）
         # "latest" / "test/latest" / "1_20260112_161317" 等
         "sot_version": "latest",
+
+        # 是否使用采样配置（默认 True，使用 sampling 配置过滤股票）
+        "use_sampling": True,
 
         # 初始资金（元）
         "initial_capital": 1_000_000,

@@ -12,6 +12,7 @@
     python start.py tag --scenario xxx   # 执行指定标签场景
     python start.py enumerate            # 枚举投资机会（测试用）
     python start.py price_factor         # 价格因子回放模拟（基于 SOT 结果）
+    python start.py capital_allocation   # 资金分配模拟（基于 SOT 结果，真实资金约束）
     
     python start.py -c                   # 快捷: 扫描（等价于: python start.py scan）
     python start.py -s                   # 快捷: 模拟（等价于: python start.py simulate）
@@ -37,6 +38,7 @@ from app.core.modules.data_source.data_source_manager import DataSourceManager
 from app.core.modules.tag import TagManager
 from app.core.utils.icon.icon_service import IconService
 from app.core.modules.strategy.components import PriceFactorSimulator
+from app.core.modules.strategy.components.capital_allocation_simulator import CapitalAllocationSimulator
 
 
 # 添加项目根目录到Python路径
@@ -130,6 +132,20 @@ class App:
         summary = simulator.run(strategy_name=strategy_name)
         if not summary:
             logger.warning("PriceFactorSimulator 未返回任何结果")
+            return
+
+    def capital_allocation_simulate(self, strategy_name: str = 'example'):
+        """
+        基于 SOT 结果的资金分配模拟（CapitalAllocationSimulator）
+        
+        - 输入：opportunity_enumerator 的 SOT 版本（由 userspace settings 决定）
+        - 行为：在真实资金约束下，对枚举器 SOT 结果进行全市场回放，维护全局账户和持仓
+        """
+        logger.info(f"💰 运行 CapitalAllocationSimulator, strategy={strategy_name}")
+        simulator = CapitalAllocationSimulator(is_verbose=self.is_verbose)
+        summary = simulator.run(strategy_name=strategy_name)
+        if not summary:
+            logger.warning("CapitalAllocationSimulator 未返回任何结果")
             return
     
     def enumerate(self, strategy_name: str = 'example', stock_count: int = None):
@@ -248,7 +264,8 @@ def parse_args():
   analysis     分析结果（分析模拟回测的结果）
   tag          执行标签计算（计算并存储所有或指定场景的标签）
   enumerate    枚举投资机会（测试用，枚举所有可能的机会）
-  price_factor 价格因子回放模拟（基于 SOT 机会结果）
+    price_factor 价格因子回放模拟（基于 SOT 机会结果）
+    capital_allocation 资金分配模拟（基于 SOT 机会结果，真实资金约束）
 
 快捷缩写:
   -c           等同于 scan（Check opportunities）
@@ -302,7 +319,7 @@ def parse_args():
     parser.add_argument(
         'command',
         nargs='?',
-        help='要执行的命令（scan/simulate/renew/analysis/tag/enumerate/price_factor），省略则默认 simulate'
+        help='要执行的命令（scan/simulate/renew/analysis/tag/enumerate/price_factor/capital_allocation），省略则默认 simulate'
     )
     
     # 快捷flag（避免大小写混淆）
@@ -341,7 +358,7 @@ def resolve_command(args) -> str:
     - 如果同时给了多个互斥命令，报错退出
     - 如果都没给，默认 simulate
     """
-    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag', 'enumerate', 'price_factor'}
+    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag', 'enumerate', 'price_factor', 'capital_allocation'}
     
     cmd_from_positional = None
     if args.command:
@@ -428,6 +445,10 @@ def main():
             logger.info("🎯 运行价格因子回放模拟 (PriceFactorSimulator)...")
             strategy = args.strategy or 'example'
             app.price_factor_simulate(strategy_name=strategy)
+        elif command == 'capital_allocation':
+            logger.info("💰 运行资金分配模拟 (CapitalAllocationSimulator)...")
+            strategy = args.strategy or 'example'
+            app.capital_allocation_simulate(strategy_name=strategy)
         
         logger.info("")
         logger.info("=" * 60)

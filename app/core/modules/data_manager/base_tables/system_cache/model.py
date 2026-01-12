@@ -1,29 +1,21 @@
 """
 系统缓存 Model
 
-适配实际表结构：id (int, auto_increment), value (text)
-使用固定的 id 来标识不同的系统缓存项，value 字段直接存储值
+适配实际表结构：key (varchar(100), PRIMARY KEY), value (varchar(255)), updated_at (datetime)
+使用 key 字段直接存储缓存键名，value 字段存储缓存值
 """
 from typing import List, Dict, Any, Optional
 from app.core.infra.db import DbBaseModel
 from loguru import logger
+from datetime import datetime
 
 
 class SystemCacheModel(DbBaseModel):
     """系统缓存 Model
     
-    实际表结构：id (int, auto_increment), value (text)
-    使用固定的 id 来标识不同的系统缓存项：
-    - id=1: corporate_finance_batch_offset
-    - 未来可以扩展：id=2, id=3 等对应其他用途
+    实际表结构：key (varchar(100), PRIMARY KEY), value (varchar(255)), updated_at (datetime)
+    使用 key 字段直接存储缓存键名（如 'corporate_finance_batch_offset'）
     """
-    
-    # 预定义的系统缓存项 ID 映射
-    CACHE_IDS = {
-        'corporate_finance_batch_offset': 1,
-        'latest_completed_trading_date': 2,
-        # 未来可以添加更多映射
-    }
     
     def __init__(self, db=None):
         super().__init__('system_cache', db)
@@ -38,13 +30,8 @@ class SystemCacheModel(DbBaseModel):
         Returns:
             Dict 包含 'value'，如果不存在返回 None
         """
-        cache_id = self.CACHE_IDS.get(key)
-        if not cache_id:
-            logger.warning(f"未知的系统缓存键: {key}")
-            return None
-        
         try:
-            record = self.load_one("id = %s", (cache_id,))
+            record = self.load_one("`key` = %s", (key,))
             if record:
                 return {'value': record.get('value')}
             return None
@@ -63,40 +50,25 @@ class SystemCacheModel(DbBaseModel):
         Returns:
             保存的记录数
         """
-        cache_id = self.CACHE_IDS.get(key)
-        if not cache_id:
-            logger.warning(f"未知的系统缓存键: {key}")
-            return 0
-        
         try:
-            # 检查记录是否存在
-            existing = self.load_one("id = %s", (cache_id,))
-            if existing:
-                # 更新现有记录
-                return self.update({'value': value}, "id = %s", (cache_id,))
-            else:
-                # 插入新记录（需要指定 id）
-                # 注意：由于 id 是 auto_increment，我们需要手动插入指定 id
-                with self.db.get_sync_cursor() as cursor:
-                    cursor.execute(
-                        f"INSERT INTO {self.table_name} (id, value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE value = %s",
-                        (cache_id, value, value)
-                    )
-                    cursor.connection.commit()
-                    return 1
+            # 使用 replace_one 实现 upsert（插入或更新）
+            # unique_keys=['key'] 表示如果 key 已存在则更新，否则插入
+            return self.replace_one(
+                {
+                    'key': key,
+                    'value': value,
+                    'updated_at': datetime.now()
+                },
+                unique_keys=['key']
+            )
         except Exception as e:
             logger.error(f"保存系统缓存失败: {e}")
             return 0
     
     def delete_by_key(self, key: str) -> int:
         """删除指定key的系统缓存"""
-        cache_id = self.CACHE_IDS.get(key)
-        if not cache_id:
-            logger.warning(f"未知的系统缓存键: {key}")
-            return 0
-        
         try:
-            return self.delete("id = %s", (cache_id,))
+            return self.delete("`key` = %s", (key,))
         except Exception as e:
             logger.error(f"删除系统缓存失败: {e}")
             return 0

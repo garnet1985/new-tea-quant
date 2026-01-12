@@ -1,16 +1,22 @@
 {
     "name": "system_cache",
-    "primaryKey": "id",
+    "primaryKey": "key",
     "fields": [
         {
-            "name": "id",
-            "type": "int",
-            "isRequired": true,
-            "autoIncrement": true
+            "name": "key",
+            "type": "varchar",
+            "length": 100,
+            "isRequired": true
         },
         {
             "name": "value",
-            "type": "text",
+            "type": "varchar",
+            "length": 255,
+            "isRequired": true
+        },
+        {
+            "name": "updated_at",
+            "type": "datetime",
             "isRequired": true
         }
     ]

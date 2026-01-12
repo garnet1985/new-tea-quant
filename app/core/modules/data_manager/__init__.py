@@ -34,7 +34,7 @@
 
 from .data_manager import DataManager
 from .enums import BaseTableNames
-from .data_services.trading_date.trading_date_cache import TradingDateCache, get_trading_date_cache
+from .data_services.calendar import CalendarService, TradingDateCache, get_trading_date_cache
 
-__all__ = ['DataManager', 'BaseTableNames', 'TradingDateCache', 'get_trading_date_cache']
+__all__ = ['DataManager', 'BaseTableNames', 'CalendarService', 'TradingDateCache', 'get_trading_date_cache']
 

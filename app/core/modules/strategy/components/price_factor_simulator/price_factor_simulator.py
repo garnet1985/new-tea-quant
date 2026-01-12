@@ -14,32 +14,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
-import csv
+from typing import Dict, Any, List, Optional
+from collections import defaultdict
 import logging
 import json
-from collections import defaultdict
 from datetime import datetime
 
-from .helpers import parse_yyyymmdd, to_ratio, to_percent, get_annual_return
-from app.core.utils.icon.icon_service import IconService
+from .helpers import DateTimeEncoder
+from .version_manager import SimulationVersionManager
+from .result_presenter import ResultPresenter
+from .result_aggregator import ResultAggregator
+from .investment_builder import InvestmentBuilder
+from .stock_summary_builder import StockSummaryBuilder
+from .opportunity_loader import OpportunityLoader
 
 logger = logging.getLogger(__name__)
-
-
-class DateTimeEncoder(json.JSONEncoder):
-    """自定义 JSON 编码器，处理 datetime 对象和其他不可序列化的类型"""
-    
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        elif isinstance(obj, (int, float)):
-            # 处理 numpy 类型（如果存在）
-            return float(obj) if isinstance(obj, float) else int(obj)
-        elif hasattr(obj, '__dict__'):
-            # 处理其他对象，尝试转换为字典
-            return obj.__dict__
-        return super().default(obj)
 
 
 @dataclass
@@ -130,14 +119,18 @@ class PriceFactorSimulator:
         simulator_config = self._build_config_from_settings(base_settings)
 
         # 2. 解析 SOT 版本目录（依赖的枚举版本）
-        sot_root, sot_version_dir = self._resolve_sot_version_dir(strategy_name, simulator_config.sot_version)
+        sot_root, sot_version_dir = SimulationVersionManager.resolve_sot_version_dir(
+            strategy_name, simulator_config.sot_version
+        )
         logger.info(
             f"[PriceFactorSimulator] 使用 SOT 版本: strategy={strategy_name}, "
             f"sot_version={sot_version_dir.name}"
         )
 
         # 3. 创建模拟器版本目录（使用自己的版本管理）
-        sim_version_dir, sim_version_id = self._create_simulation_version_dir(strategy_name)
+        sim_version_dir, sim_version_id = SimulationVersionManager.create_simulation_version_dir(
+            strategy_name
+        )
         logger.info(
             f"[PriceFactorSimulator] 模拟器版本: {sim_version_dir.name} (version_id={sim_version_id})"
         )
@@ -268,7 +261,7 @@ class PriceFactorSimulator:
             logger.warning("[PriceFactorSimulator] 没有成功的结果，无法生成 session summary")
             return {}
         
-        session_summary = self._aggregate_results(stock_summaries)
+        session_summary = ResultAggregator.aggregate_results(stock_summaries)
         
         # 在 session_summary 中添加 SOT 版本依赖信息
         session_summary["sot_version"] = {
@@ -294,84 +287,10 @@ class PriceFactorSimulator:
             logger.error(f"[PriceFactorSimulator] 保存结果失败: {e}")
 
         # 10. 展示结果
-        self._present_results(session_summary, strategy_name)
+        ResultPresenter.present_results(session_summary, strategy_name)
 
         # 11. 同时返回内存结构
         return session_summary
-
-    # ------------------------------------------------------------------ #
-    # 结果展示
-    # ------------------------------------------------------------------ #
-    def _present_results(self, session_summary: Dict[str, Any], strategy_name: str) -> None:
-        """
-        展示 PriceFactorSimulator 的结果（类似 legacy 的展示方式）
-        
-        Args:
-            session_summary: 会话汇总结果
-            strategy_name: 策略名称
-        """
-        if not session_summary:
-            logger.warning("[PriceFactorSimulator] 没有结果可展示")
-            return
-
-        print("\n" + "="*60)
-        print(f"📊 {strategy_name} 策略价格因子回测结果")
-        print("="*60)
-
-        win_rate = session_summary.get('win_rate', 0)
-        annual_return = session_summary.get('annual_return', 0)
-        annual_return_in_trading_days = session_summary.get('annual_return_in_trading_days', 0)
-        avg_roi = session_summary.get('avg_roi', 0) * 100.0  # 转换为百分比
-
-        # 胜率
-        if win_rate >= 50:
-            win_rate_dot = IconService.get('green_dot')
-        else:
-            win_rate_dot = IconService.get('red_dot')
-        print(f"{win_rate_dot} 胜率: {win_rate:.1f}%")
-
-        # 平均 ROI
-        if avg_roi >= 5:
-            avg_roi_dot = IconService.get('green_dot')
-        else:
-            avg_roi_dot = IconService.get('red_dot')
-        print(f"{avg_roi_dot} 平均每笔投资回报率(ROI): {avg_roi:.2f}%")
-
-        # 年化收益率
-        if annual_return >= 0.15:
-            annual_return_dot = IconService.get('green_dot')
-        else:
-            annual_return_dot = IconService.get('red_dot')
-
-        if annual_return_in_trading_days >= 0.1:
-            annual_return_in_trading_days_dot = IconService.get('green_dot')
-        else:
-            annual_return_in_trading_days_dot = IconService.get('red_dot')
-
-        print(f"折算后平均每笔投资年化收益率: ")
-        print(f" - {annual_return_dot} 按自然日: {annual_return * 100:.2f}%")
-        print(f" - {annual_return_in_trading_days_dot} 按交易日: {annual_return_in_trading_days * 100:.2f}%")
-
-        # 其他统计信息
-        print(f"{IconService.get('clock')} 平均投资时长: {session_summary.get('avg_duration_in_days', 0):.1f} 自然日")
-        print(f"{IconService.get('bar_chart')} 总投资次数: {session_summary.get('total_investments', 0)}")
-        print(f"{IconService.get('success')} 成功次数: {session_summary.get('total_win_investments', 0)}")
-        print(f"{IconService.get('error')} 失败次数: {session_summary.get('total_loss_investments', 0)}")
-        print(f"{IconService.get('ongoing')} 未完成次数: {session_summary.get('total_open_investments', 0)}")
-        
-        # 总盈利
-        total_profit = session_summary.get('total_profit', 0.0)
-        if total_profit >= 0:
-            profit_icon = IconService.get('green_dot')
-        else:
-            profit_icon = IconService.get('red_dot')
-        print(f"{profit_icon} 总盈利: {total_profit:.2f}")
-        
-        # 产生机会的股票数
-        stocks_with_opportunities = session_summary.get('stocks_have_opportunities', 0)
-        print(f"{IconService.get('money')} 产生机会的股票数: {stocks_with_opportunities}")
-        
-        print("")
 
     # ------------------------------------------------------------------ #
     # 配置与 SOT 解析
@@ -409,14 +328,8 @@ class PriceFactorSimulator:
         stamp_duty_rate = float(fees_cfg.get("stamp_duty_rate", 0.0) or 0.0)
         transfer_fee_rate = float(fees_cfg.get("transfer_fee_rate", 0.0) or 0.0)
 
-        # max_workers 优先级：simulator > enumerator > performance > "auto"
-        # TODO: max workers should not fetch from other different components, they work differently
-        max_workers = (
-            simulator_cfg.get("max_workers")
-            or enumerator_cfg.get("max_workers")
-            or performance_cfg.get("max_workers")
-            or "auto"
-        )
+        # max_workers：只从 simulator 配置读取，如果没有则使用 "auto"
+        max_workers = simulator_cfg.get("max_workers", "auto")
 
         return PriceFactorSimulatorConfig(
             sot_version=sot_version,
@@ -430,120 +343,6 @@ class PriceFactorSimulator:
             max_workers=max_workers,
         )
 
-    def _create_simulation_version_dir(self, strategy_name: str) -> Tuple[Path, int]:
-        """
-        创建模拟器版本目录（使用自己的版本管理，类似枚举器）。
-        
-        目录结构：
-            app/userspace/strategies/{strategy}/results/simulations/price_factor/
-                meta.json  # 版本管理元信息
-                {version_id}_{YYYYMMDD_HHMMSS}/  # 模拟器版本目录
-        
-        Returns:
-            (version_dir, version_id): 版本目录路径和版本ID
-        """
-        root_dir = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / strategy_name
-            / "results"
-            / "simulations"
-            / "price_factor"
-        )
-        root_dir.mkdir(parents=True, exist_ok=True)
-
-        # 读取或创建 meta.json
-        meta_path = root_dir / "meta.json"
-        if meta_path.exists():
-            try:
-                with meta_path.open("r", encoding="utf-8") as f:
-                    meta = json.load(f)
-            except Exception:
-                meta = {}
-        else:
-            meta = {}
-
-        next_version_id = int(meta.get("next_version_id", 1))
-        now = datetime.now()
-        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-        version_dir_name = f"{next_version_id}_{timestamp_str}"
-        version_dir = root_dir / version_dir_name
-        version_dir.mkdir(parents=True, exist_ok=True)
-
-        # 立刻更新 meta.json（版本管理），不依赖后续流程是否成功
-        new_meta = {
-            "next_version_id": next_version_id + 1,
-            "last_updated": now.isoformat(),
-            "strategy_name": strategy_name,
-        }
-        with meta_path.open("w", encoding="utf-8") as f:
-            json.dump(new_meta, f, indent=2, ensure_ascii=False)
-
-        return version_dir, next_version_id
-
-    def _resolve_sot_version_dir(self, strategy_name: str, sot_version: str) -> Tuple[Path, Path]:
-        """
-        解析枚举版本目录：
-        
-        支持的格式：
-        - "latest": 使用最新的 SOT 版本（sot/ 目录）
-        - "test/latest": 使用最新的测试版本（test/ 目录）
-        - "sot/latest": 使用最新的 SOT 版本（sot/ 目录）
-        - "1_20260112_161317": 使用指定版本号（默认在 sot/ 目录查找）
-        - "test/1_20260112_161317": 使用指定测试版本号（test/ 目录）
-        - "sot/1_20260112_161317": 使用指定 SOT 版本号（sot/ 目录）
-        """
-        base_root = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / strategy_name
-            / "results"
-            / "opportunity_enums"
-        )
-
-        # 解析目录类型和版本号
-        if "/" in sot_version:
-            # 格式：test/latest 或 sot/latest 或 test/1_xxx 或 sot/1_xxx
-            parts = sot_version.split("/", 1)
-            sub_dir_name = parts[0]  # test 或 sot
-            version_str = parts[1]  # latest 或具体版本号
-        else:
-            # 格式：latest 或 1_xxx（默认使用 sot 目录）
-            sub_dir_name = "sot"
-            version_str = sot_version
-
-        root = base_root / sub_dir_name
-        if not root.exists():
-            raise FileNotFoundError(
-                f"[PriceFactorSimulator] 枚举目录不存在: {root} (sot_version={sot_version})"
-            )
-
-        if version_str == "latest":
-            # 查找最新的版本目录
-            candidates = [p for p in root.iterdir() if p.is_dir() and "_" in p.name]
-            if not candidates:
-                raise FileNotFoundError(
-                    f"[PriceFactorSimulator] {sub_dir_name} 目录下没有任何版本: {root}"
-                )
-            # 版本名形如: {version_id}_{YYYYMMDD_HHMMSS}，直接按 name 排序即可
-            version_dir = sorted(candidates, key=lambda p: p.name)[-1]
-            logger.info(
-                f"[PriceFactorSimulator] 使用最新版本: {sub_dir_name}/{version_dir.name}"
-            )
-            return root, version_dir
-
-        # 使用指定版本号
-        version_dir = root / version_str
-        if not version_dir.exists() or not version_dir.is_dir():
-            raise FileNotFoundError(
-                f"[PriceFactorSimulator] 指定版本目录不存在: {version_dir} (sot_version={sot_version})"
-            )
-        logger.info(
-            f"[PriceFactorSimulator] 使用指定版本: {sub_dir_name}/{version_str}"
-        )
-        return root, version_dir
 
     def _scan_sot_files(self, version_dir: Path) -> Dict[str, Dict[str, Path]]:
         """
@@ -575,87 +374,7 @@ class PriceFactorSimulator:
         return filtered
 
     # ------------------------------------------------------------------ #
-    # 结果汇总（初版）
-    # ------------------------------------------------------------------ #
-    def _aggregate_results(self, stock_summaries: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        将各 Worker 的结果聚合为一个策略级 summary。
-
-        复用 legacy 的 summarize_session_by_default_way 思路：
-        - 按单股 summary 的 avg_roi 和 avg_duration 做加权
-        - 得到会话级 avg_roi / avg_duration，再推导 annual_return 系列
-        """
-        if not stock_summaries:
-            return {}
-
-        total_investments = 0
-        total_win = 0
-        total_loss = 0
-        total_open = 0
-        total_profit = 0.0
-        total_roi = 0.0
-        total_duration_days = 0.0
-
-        stocks_with_opportunities = len(stock_summaries)
-
-        for stock_summary in stock_summaries:
-            summary = stock_summary.get("summary", {})
-            investment_count = summary.get("total_investments", 0)
-
-            if investment_count > 0:
-                total_investments += investment_count
-                total_win += summary.get("total_win", 0)
-                total_loss += summary.get("total_loss", 0)
-                total_open += summary.get("total_open", 0)
-                total_profit += summary.get("total_profit", 0.0)
-
-                stock_avg_roi = summary.get("avg_roi", 0.0)
-                total_roi += stock_avg_roi * investment_count
-                total_duration_days += summary.get("avg_duration_in_days", 0.0) * investment_count
-
-        # 计算整体平均值
-        avg_roi = to_ratio(total_roi, total_investments, decimals=4)
-        avg_duration_days = to_ratio(total_duration_days, total_investments)
-
-        annual_return_raw = get_annual_return(avg_roi, avg_duration_days)
-        annual_return = (
-            float(annual_return_raw.real)
-            if isinstance(annual_return_raw, complex)
-            else float(annual_return_raw)
-            if isinstance(annual_return_raw, (int, float))
-            else 0.0
-        )
-        annual_return_in_trading_days_raw = get_annual_return(
-            avg_roi, avg_duration_days, is_trading_days=True
-        )
-        annual_return_in_trading_days = (
-            float(annual_return_in_trading_days_raw.real)
-            if isinstance(annual_return_in_trading_days_raw, complex)
-            else float(annual_return_in_trading_days_raw)
-            if isinstance(annual_return_in_trading_days_raw, (int, float))
-            else 0.0
-        )
-
-        win_rate = to_percent(total_win, total_investments)
-
-        session_summary: Dict[str, Any] = {
-            "win_rate": win_rate,
-            "avg_roi": avg_roi,
-            "annual_return": annual_return,
-            "annual_return_in_trading_days": annual_return_in_trading_days,
-            "avg_duration_in_days": avg_duration_days,
-            "total_investments": total_investments,
-            "total_open_investments": total_open,
-            "total_win_investments": total_win,
-            "total_loss_investments": total_loss,
-            "total_profit": round(total_profit, 2),
-            "stocks_have_opportunities": stocks_with_opportunities,
-        }
-
-        return session_summary
-
-    # ------------------------------------------------------------------ #
-    # 结果落盘
+    # 结果保存
     # ------------------------------------------------------------------ #
     def _save_results(
         self,
@@ -781,122 +500,36 @@ class PriceFactorSimulatorWorker:
         self,
     ) -> Dict[str, Any]:
         """
-        基于 opportunities / targets 做“1 股级机会回放”：
+        基于 opportunities / targets 做"1 股级机会回放"：
 
         - 使用 targets 表中预先计算好的 weighted_profit 字段来还原整体 PnL
-          （sum(weighted_profit) 即视为持有 1 股的总盈利）
-        - 若某机会没有 targets 记录，则回退为: pnl = trigger_price * roi
-        - 同一只股票在任意时刻只能有一笔持仓：
-          - 若已有持仓未结束，新机会的 trigger_date 落在持仓区间内，则跳过该机会
+        - 同一只股票在任意时刻只能有一笔持仓
         - 没有资金约束：只要不与当前持仓重叠，就视为可以买 1 股
         """
-        opp_path = self.opportunities_path
-        if not opp_path.exists():
-            logger.warning(
-                f"[PriceFactorSimulatorWorker] opportunities 文件不存在: {opp_path}"
-            )
-            return {
-                "stock": self.stock_info,
-                "investments": [],
-                "summary": {
-                    "total_investments": 0,
-                    "total_win": 0,
-                    "total_loss": 0,
-                    "total_open": 0,
-                    "profitable": 0,
-                    "minor_profitable": 0,
-                    "unprofitable": 0,
-                    "minor_unprofitable": 0,
-                    "win_rate": 0.0,
-                    "total_profit": 0.0,
-                    "avg_profit": 0.0,
-                    "avg_duration_in_days": 0.0,
-                    "avg_roi": 0.0,
-                    "annual_return": 0.0,
-                    "annual_return_in_trading_days": 0.0,
-                },
-            }
-
         cfg = self.config_dict or {}
         start_date: str = cfg.get("start_date") or ""
         end_date: str = cfg.get("end_date") or ""
 
-        # 1. 读取 targets，按 opportunity_id 分组
-        targets_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-        if self.targets_path.exists():
-            with self.targets_path.open("r", encoding="utf-8") as f_t:
-                t_reader = csv.DictReader(f_t)
-                for row in t_reader:
-                    opp_id = str(row.get("opportunity_id") or "").strip()
-                    if not opp_id:
-                        continue
-                    # 规范化数值字段
-                    try:
-                        row["weighted_profit"] = float(row.get("weighted_profit") or 0.0)
-                    except ValueError:
-                        row["weighted_profit"] = 0.0
-                    targets_map[opp_id].append(row)
+        # 1. 加载 opportunities 和 targets
+        opportunities, targets_map = OpportunityLoader.load_opportunities_and_targets(
+            self.opportunities_path,
+            self.targets_path,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
-        # 2. 读取所有机会
-        opportunities: List[Dict[str, Any]] = []
-        with opp_path.open("r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                trigger_date = row.get("trigger_date") or ""
-                exit_date = row.get("exit_date") or ""
-
-                # 时间窗口过滤（基于字符串比较，YYYYMMDD 形式）
-                if start_date and trigger_date < start_date:
-                    continue
-                if end_date and trigger_date > end_date:
-                    continue
-
-                opportunities.append(row)
-
-        total_count = len(opportunities)
-        if total_count == 0:
+        if not opportunities:
             return {
                 "stock": self.stock_info,
                 "investments": [],
-                "summary": {
-                    "total_investments": 0,
-                    "total_win": 0,
-                    "total_loss": 0,
-                    "total_open": 0,
-                    "profitable": 0,
-                    "minor_profitable": 0,
-                    "unprofitable": 0,
-                    "minor_unprofitable": 0,
-                    "win_rate": 0.0,
-                    "total_profit": 0.0,
-                    "avg_profit": 0.0,
-                    "avg_duration_in_days": 0.0,
-                    "avg_roi": 0.0,
-                    "annual_return": 0.0,
-                    "annual_return_in_trading_days": 0.0,
-                },
+                "summary": StockSummaryBuilder._empty_summary(),
             }
 
-        # 3. 按 trigger_date 排序
+        # 2. 按 trigger_date 排序
         opportunities.sort(key=lambda r: (r.get("trigger_date") or "", r.get("opportunity_id") or ""))
 
-        # 4. 模拟：同一时刻只持有一个机会（1 股），并构造 investments 列表
+        # 3. 模拟：同一时刻只持有一个机会（1 股），并构造 investments 列表
         investments: List[Dict[str, Any]] = []
-
-        total_investments = 0
-        total_win = 0
-        total_loss = 0
-        total_open = 0
-
-        total_profit = 0.0
-        total_duration = 0.0
-        total_roi = 0.0
-
-        profitable_count = 0
-        minor_profitable_count = 0
-        unprofitable_count = 0
-        minor_unprofitable_count = 0
-
         holding: bool = False
         current_exit_date: Optional[str] = None
 
@@ -913,188 +546,17 @@ class PriceFactorSimulatorWorker:
             holding = True
             current_exit_date = exit_date
 
-            # 解析基础字段
-            try:
-                trigger_price = float(row.get("trigger_price") or 0.0)
-            except ValueError:
-                trigger_price = 0.0
-            try:
-                roi = float(row.get("roi") or 0.0)
-            except ValueError:
-                roi = 0.0
-
-            # 4.1 计算该机会的整体 PnL（1 股）：
+            # 使用 InvestmentBuilder 构建 investment 记录
             t_list = targets_map.get(opp_id) or []
-            if t_list:
-                pnl = sum(t.get("weighted_profit", 0.0) for t in t_list)
-            else:
-                # 回退：使用整体 ROI 估算
-                pnl = trigger_price * roi
-
-            # 4.2 计算持续天数（自然日）
-            start_dt = parse_yyyymmdd(trigger_date)
-            end_dt = parse_yyyymmdd(exit_date)
-            if start_dt and end_dt:
-                duration_in_days = max((end_dt - start_dt).days, 1)
-            else:
-                duration_in_days = 1
-
-            # 4.3 构造 tracking（暂时使用 start/end_date 作为 min/max 日期近似）
-            try:
-                max_price = float(row.get("max_price") or 0.0)
-            except ValueError:
-                max_price = 0.0
-            try:
-                min_price = float(row.get("min_price") or 0.0)
-            except ValueError:
-                min_price = 0.0
-
-            if trigger_price > 0:
-                max_ratio = (max_price - trigger_price) / trigger_price if max_price > 0 else 0.0
-                min_ratio = (min_price - trigger_price) / trigger_price if min_price > 0 else 0.0
-            else:
-                max_ratio = 0.0
-                min_ratio = 0.0
-
-            tracking = {
-                "max_close_reached": {
-                    "price": max_price if max_price > 0 else trigger_price,
-                    "date": exit_date,
-                    "ratio": max_ratio,
-                },
-                "min_close_reached": {
-                    "price": min_price if min_price > 0 else trigger_price,
-                    "date": trigger_date,
-                    "ratio": min_ratio,
-                },
-            }
-
-            # 4.4 构造 completed_targets
-            completed_targets: List[Dict[str, Any]] = []
-            for t in t_list:
-                sell_price = float(t.get("price") or 0.0)
-                profit = float(t.get("profit") or 0.0)
-                weighted_profit = float(t.get("weighted_profit") or 0.0)
-                t_roi = float(t.get("roi") or 0.0)
-                sell_ratio = float(t.get("sell_ratio") or 0.0)
-                sell_date = t.get("date") or ""
-                reason = (t.get("reason") or "").lower()
-
-                if "win" in reason:
-                    target_type = "take_profit"
-                    name = reason
-                elif "loss" in reason:
-                    target_type = "stop_loss"
-                    name = reason
-                elif "expiration" in reason:
-                    target_type = "expired"
-                    name = "expiration"
-                else:
-                    target_type = "unknown"
-                    name = reason or "unknown"
-
-                completed_targets.append(
-                    {
-                        "name": name,
-                        "target_type": target_type,
-                        "sell_price": sell_price,
-                        "sell_date": sell_date,
-                        "sell_ratio": sell_ratio,
-                        "profit": profit,
-                        "weighted_profit": weighted_profit,
-                        "profit_ratio": t_roi,
-                        "target_price": trigger_price,
-                        "extra_fields": {},
-                    }
-                )
-
-            # 4.5 result 分类
-            status = (row.get("status") or "").lower()
-            if status in ("win", "loss", "open"):
-                result = status
-            else:
-                if pnl > 0:
-                    result = "win"
-                elif pnl < 0:
-                    result = "loss"
-                else:
-                    result = "open"
-
-            # 4.6 构造 investment 记录
-            overall_annual_return = get_annual_return(roi, duration_in_days)
-            investment = {
-                "result": result,
-                "start_date": trigger_date,
-                "end_date": exit_date,
-                "purchase_price": trigger_price,
-                "duration_in_days": duration_in_days,
-                "overall_profit": pnl,
-                "roi": roi,
-                "overall_annual_return": overall_annual_return,
-                "tracking": tracking,
-                "completed_targets": completed_targets,
-            }
-
+            investment = InvestmentBuilder.build_investment(row, t_list)
             investments.append(investment)
 
-            # 4.7 累计 summary 所需数据
-            total_investments += 1
-            total_profit += pnl
-            total_duration += duration_in_days
-            total_roi += roi
-
-            if result == "win":
-                total_win += 1
-            elif result == "loss":
-                total_loss += 1
-            elif result == "open":
-                total_open += 1
-
-            if roi >= 0.2:
-                profitable_count += 1
-            elif 0 <= roi < 0.2:
-                minor_profitable_count += 1
-            elif roi < 0 and roi > -0.2:
-                minor_unprofitable_count += 1
-            else:
-                unprofitable_count += 1
-
+            # 更新持仓状态
             holding = False
             current_exit_date = exit_date
 
-        # 5. 计算单股 summary（复用 legacy 逻辑）
-        avg_profit = to_ratio(total_profit, total_investments)
-        avg_duration_in_days = to_ratio(total_duration, total_investments)
-        avg_roi = to_ratio(total_roi, total_investments, decimals=4)
-
-        annual_return_raw = get_annual_return(avg_roi, avg_duration_in_days)
-        annual_return = float(annual_return_raw.real) if isinstance(annual_return_raw, complex) else float(annual_return_raw) if isinstance(annual_return_raw, (int, float)) else 0.0
-        annual_return_in_trading_days_raw = get_annual_return(
-            avg_roi, avg_duration_in_days, is_trading_days=True
-        )
-        annual_return_in_trading_days = float(annual_return_in_trading_days_raw.real) if isinstance(annual_return_in_trading_days_raw, complex) else float(annual_return_in_trading_days_raw) if isinstance(annual_return_in_trading_days_raw, (int, float)) else 0.0
-
-        win_rate = to_ratio(
-            profitable_count + minor_profitable_count, total_investments, 3
-        )
-
-        summary = {
-            "total_investments": total_investments,
-            "total_win": total_win,
-            "total_loss": total_loss,
-            "total_open": total_open,
-            "profitable": profitable_count,
-            "minor_profitable": minor_profitable_count,
-            "unprofitable": unprofitable_count,
-            "minor_unprofitable": minor_unprofitable_count,
-            "win_rate": round(win_rate, 1),
-            "total_profit": round(total_profit, 2),
-            "avg_profit": round(avg_profit, 2),
-            "avg_duration_in_days": round(avg_duration_in_days, 1),
-            "avg_roi": round(avg_roi, 4),
-            "annual_return": round(annual_return, 2),
-            "annual_return_in_trading_days": round(annual_return_in_trading_days, 2),
-        }
+        # 4. 构建 summary
+        summary = StockSummaryBuilder.build_summary(investments)
 
         return {
             "stock": self.stock_info,

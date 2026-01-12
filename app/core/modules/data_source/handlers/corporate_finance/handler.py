@@ -141,23 +141,23 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         batch_offset = 0
 
         if not is_first_run and self.RENEW_ROLLING_BATCH and len(all_stocks) > 0:
-            from app.core.modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
+            from app.core.modules.data_manager.base_tables.system_cache.model import SystemCacheModel  # type: ignore
 
             batch_size = max(1, len(all_stocks) // self.RENEW_ROLLING_BATCH)
 
             try:
-                meta_model: MetaInfoModel = self.data_manager.get_model('meta_info')  # type: ignore
-                meta_key = 'corporate_finance_batch_offset'
-                meta_row = meta_model.load_by_key(meta_key)
-                if meta_row and meta_row.get('value') is not None:
+                cache_model: SystemCacheModel = self.data_manager.get_model('system_cache')  # type: ignore
+                cache_key = 'corporate_finance_batch_offset'
+                cache_row = cache_model.load_by_key(cache_key)
+                if cache_row and cache_row.get('value') is not None:
                     try:
-                        batch_offset = int(meta_row['value'])
+                        batch_offset = int(cache_row['value'])
                     except (TypeError, ValueError):
                         batch_offset = 0
                 else:
                     batch_offset = 0
             except Exception as e:
-                logger.warning(f"读取 meta_info 批次游标失败，将从头开始轮转: {e}")
+                logger.warning(f"读取 system_cache 批次游标失败，将从头开始轮转: {e}")
                 batch_offset = 0
 
             # 根据 offset 做环形切片
@@ -217,19 +217,18 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
                 "end_date": end_date,
             })
 
-        # 非首次跑时，将新的 batch_offset 写回 meta_info，作为下次轮转的起点
+        # 非首次跑时，将新的 batch_offset 写回 system_cache，作为下次轮转的起点
         if not is_first_run and self.RENEW_ROLLING_BATCH and target_list:
             try:
-                from app.core.modules.data_manager.base_tables.meta_info.model import MetaInfoModel  # type: ignore
-                meta_model: MetaInfoModel = self.data_manager.get_model('meta_info')  # type: ignore
-                meta_key = 'corporate_finance_batch_offset'
-                meta_model.save_meta(
-                    key=meta_key,
-                    value=str(new_offset),
-                    description='Corporate finance renew rolling batch offset'
+                from app.core.modules.data_manager.base_tables.system_cache.model import SystemCacheModel  # type: ignore
+                cache_model: SystemCacheModel = self.data_manager.get_model('system_cache')  # type: ignore
+                cache_key = 'corporate_finance_batch_offset'
+                cache_model.save_cache(
+                    key=cache_key,
+                    value=str(new_offset)
                 )
             except Exception as e:
-                logger.warning(f"写入 meta_info 批次游标失败，不影响本次任务: {e}")
+                logger.warning(f"写入 system_cache 批次游标失败，不影响本次任务: {e}")
         
         return target_list
 

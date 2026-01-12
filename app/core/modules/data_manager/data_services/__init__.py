@@ -36,6 +36,10 @@ class BaseDataService:
         self.data_manager = data_manager
 
 
+# 导出 DataService 主类
+from .data_service import DataService
+
 __all__ = [
     "BaseDataService",
+    "DataService",
 ]

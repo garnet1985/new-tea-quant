@@ -254,7 +254,7 @@ class DataSourceManager:
     # 全局依赖获取器注册表（可扩展）
     _DEPENDENCY_FETCHERS = {
         "latest_completed_trading_date": lambda dm: dm.get_latest_completed_trading_date(),
-        "stock_list": lambda dm: dm.load_stock_list(filtered=True),
+        "stock_list": lambda dm: dm.stock.list.load(filtered=True),
         # 未来可以添加：
         # "market_status": lambda dm: dm.get_market_status(),
         # "trading_calendar": lambda dm: dm.get_trading_calendar(),

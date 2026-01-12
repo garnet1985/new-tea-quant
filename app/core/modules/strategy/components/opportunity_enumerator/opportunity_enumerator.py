@@ -71,9 +71,8 @@ class OpportunityEnumerator:
         validated_settings = enum_settings.to_dict()
 
         # 1.2 准备版本目录（一次枚举 = 一个版本）
-        # 根据 is_test_mode 选择不同的子目录：test/ 或 sot/
-        is_test_mode = enum_settings.is_test_mode
-        sub_dir_name = "test" if is_test_mode else "sot"
+        # 根据 use_sampling 选择不同的子目录：test/ 或 sot/
+        sub_dir_name = "test" if enum_settings.use_sampling else "sot"
         
         root_dir = Path("app") / "userspace" / "strategies" / strategy_name / "results" / "opportunity_enums"
         sub_dir = root_dir / sub_dir_name
@@ -228,7 +227,7 @@ class OpportunityEnumerator:
         
         # 5. 保存 metadata（含 settings 快照、版本信息）
         # 注意：is_full_enumeration 标记在所有子进程完成后才设置，避免异常中断导致数据不全
-        is_full_enumeration = not enum_settings.is_test_mode  # False = 测试模式（采样），True = 生产模式（全量）
+        is_full_enumeration = not enum_settings.use_sampling  # False = 采样模式，True = 全量模式
         OpportunityEnumerator._save_results(
             strategy_name=strategy_name,
             start_date=start_date,
@@ -242,7 +241,7 @@ class OpportunityEnumerator:
         )
         
         # 6. 清理旧版本（根据模式选择对应的清理配置）
-        if is_test_mode:
+        if use_sampling:
             # 测试模式：清理 test/ 目录
             OpportunityEnumerator._cleanup_old_versions(
                 root_dir=sub_dir,

@@ -11,6 +11,7 @@
     python start.py tag                  # 执行所有标签场景
     python start.py tag --scenario xxx   # 执行指定标签场景
     python start.py enumerate            # 枚举投资机会（测试用）
+    python start.py price_factor         # 价格因子回放模拟（基于 SOT 结果）
     
     python start.py -c                   # 快捷: 扫描（等价于: python start.py scan）
     python start.py -s                   # 快捷: 模拟（等价于: python start.py simulate）
@@ -35,6 +36,7 @@ from app.core.modules.data_source.data_source_manager import DataSourceManager
 # from app.core.modules.analyzer_legacy.analyzer import Analyzer  # 暂时注释，测试枚举器
 from app.core.modules.tag import TagManager
 from app.core.utils.icon.icon_service import IconService
+from app.core.modules.strategy.components import PriceFactorSimulator
 
 
 # 添加项目根目录到Python路径
@@ -115,6 +117,20 @@ class App:
         if self.tag_manager is None:
             self.tag_manager = TagManager(is_verbose=self.is_verbose)
         self.tag_manager.execute(scenario_name=scenario_name)
+
+    def price_factor_simulate(self, strategy_name: str = 'example'):
+        """
+        基于 SOT 结果的价格因子回放模拟（PriceFactorSimulator）
+        
+        - 输入：opportunity_enumerator 的 SOT 版本（由 userspace settings 决定）
+        - 行为：对每只股票按机会时间轴做 1 股级机会回放，统计因子/信号质量
+        """
+        logger.info(f"🎯 运行 PriceFactorSimulator, strategy={strategy_name}")
+        simulator = PriceFactorSimulator(is_verbose=self.is_verbose)
+        summary = simulator.run(strategy_name=strategy_name)
+        if not summary:
+            logger.warning("PriceFactorSimulator 未返回任何结果")
+            return
     
     def enumerate(self, strategy_name: str = 'example', stock_count: int = None):
         """
@@ -138,26 +154,27 @@ class App:
         
         settings = StrategySettings.from_dict(strategy_info['settings'])
         
-        # 2. 获取股票列表（根据 is_test_mode 决定使用采样还是全量）
-        all_stocks = self.data_manager.service.stock.list.load(filtered=True)  # 加载所有活跃股票（已过滤）
-        
-        # 检查 is_test_mode（从枚举器设置中读取）
+        # 2. 获取枚举器设置
         from app.core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
         enum_settings = OpportunityEnumeratorSettings.from_base(settings)
-        is_test_mode = enum_settings.is_test_mode
+        use_sampling = enum_settings.use_sampling
+        max_workers = enum_settings.max_workers
         
-        if is_test_mode:
-            # 测试模式：使用 sampling 配置进行采样
+        # 3. 获取股票列表（根据 use_sampling 决定使用采样还是全量）
+        all_stocks = self.data_manager.service.stock.list.load(filtered=True)  # 加载所有活跃股票（已过滤）
+        
+        if use_sampling:
+            # 采样模式：使用 sampling 配置进行采样
             # 如果提供了 stock_count 参数，优先使用（用于测试）
             if stock_count is not None:
                 sampling_amount = stock_count
                 sampling_config = {'strategy': 'continuous', 'continuous': {'start_idx': 0}}
-                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count} (测试模式)")
+                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count} (采样模式)")
             else:
                 # 从 settings 读取采样配置
                 sampling_amount = settings.sampling_amount
                 sampling_config = settings.sampling_config
-                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, sampling_amount={sampling_amount}, sampling_strategy={sampling_config.get('strategy')} (测试模式)")
+                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, sampling_amount={sampling_amount}, sampling_strategy={sampling_config.get('strategy')} (采样模式)")
             
             # 使用 StockSamplingHelper 获取股票列表
             stock_list = StockSamplingHelper.get_stock_list(
@@ -166,13 +183,13 @@ class App:
                 sampling_config=sampling_config
             )
         else:
-            # 生产模式：使用全量股票列表
+            # 全量模式：使用全量股票列表
             stock_list = [s['id'] for s in all_stocks]
             logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={len(stock_list)} (全量枚举模式)")
         
         logger.info(f"📊 实际股票数量: {len(stock_list)}")
         
-        # 3. 设置时间范围（从 settings 读取，如果没有则使用默认值）
+        # 4. 设置时间范围（从 settings 读取，如果没有则使用默认值）
         latest_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
         start_date = settings.start_date or ''
         
@@ -185,13 +202,13 @@ class App:
         
         logger.info(f"📅 时间范围: {start_date} ~ {end_date}")
         
-        # 枚举所有机会（返回 summary，而不是全量机会列表）
+        # 5. 枚举所有机会（返回 summary，而不是全量机会列表）
         summary_results = OpportunityEnumerator.enumerate(
             strategy_name=strategy_name,
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
-            max_workers=settings.max_workers  # 从 settings 读取，默认 'auto'
+            max_workers=max_workers  # 从枚举器设置读取
         )
         
         # 按当前设计，enumerator 返回的是 summary 列表，每个元素是一次 run 的概要信息
@@ -225,20 +242,22 @@ def parse_args():
         epilog='''
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 命令说明:
-  scan        扫描投资机会（根据策略筛选当前符合条件的股票）
-  simulate    模拟回测（使用历史数据测试策略表现）
-  renew       更新数据（更新股票行情、标签等数据）
-  analysis    分析结果（分析模拟回测的结果）
-  tag         执行标签计算（计算并存储所有或指定场景的标签）
-  enumerate   枚举投资机会（测试用，枚举所有可能的机会）
+  scan         扫描投资机会（根据策略筛选当前符合条件的股票）
+  simulate     模拟回测（使用历史数据测试策略表现）
+  renew        更新数据（更新股票行情、标签等数据）
+  analysis     分析结果（分析模拟回测的结果）
+  tag          执行标签计算（计算并存储所有或指定场景的标签）
+  enumerate    枚举投资机会（测试用，枚举所有可能的机会）
+  price_factor 价格因子回放模拟（基于 SOT 机会结果）
 
 快捷缩写:
-  -c          等同于 scan（Check opportunities）
-  -s          等同于 simulate（Simulate backtest）
-  -r          等同于 renew（Renew data）
-  -a          等同于 analysis（Analysis results）
-  -t          等同于 tag（Tag calculation）
-  -e          等同于 enumerate（Enumerate opportunities）
+  -c           等同于 scan（Check opportunities）
+  -s           等同于 simulate（Simulate backtest）
+  -r           等同于 renew（Renew data）
+  -a           等同于 analysis（Analysis results）
+  -t           等同于 tag（Tag calculation）
+  -e           等同于 enumerate（Enumerate opportunities）
+  -p           等同于 price_factor（PriceFactorSimulator）
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 使用示例:
@@ -268,10 +287,11 @@ def parse_args():
     %(prog)s -r -c -s             快捷: 全流程
 
   额外参数:
-    %(prog)s simulate --strategy RTB    只运行指定策略
-    %(prog)s analysis --session xxx     分析指定session
-    %(prog)s tag --scenario xxx         执行指定标签场景
-    %(prog)s -s -v                      详细输出模式
+    %(prog)s simulate --strategy RTB        只运行指定策略
+    %(prog)s analysis --session xxx         分析指定session
+    %(prog)s tag --scenario xxx             执行指定标签场景
+    %(prog)s price_factor --strategy xx     使用 PriceFactorSimulator 对指定策略做因子回放
+    %(prog)s -s -v                          详细输出模式
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         '''
@@ -282,7 +302,7 @@ def parse_args():
     parser.add_argument(
         'command',
         nargs='?',
-        help='要执行的命令（scan/simulate/renew/analysis/tag），省略则默认 simulate'
+        help='要执行的命令（scan/simulate/renew/analysis/tag/enumerate/price_factor），省略则默认 simulate'
     )
     
     # 快捷flag（避免大小写混淆）
@@ -298,6 +318,8 @@ def parse_args():
                         help='执行标签计算（tag）')
     parser.add_argument('-e', '--enumerate-flag', dest='enumerate_flag', action='store_true', 
                         help='枚举投资机会（enumerate）')
+    parser.add_argument('-p', '--price-factor-flag', dest='price_factor_flag', action='store_true',
+                        help='运行价格因子回放模拟（price_factor）')
     
     # 额外参数
     parser.add_argument('--strategy', type=str, help='指定策略名称（用于 scan/simulate/enumerate）')
@@ -319,7 +341,7 @@ def resolve_command(args) -> str:
     - 如果同时给了多个互斥命令，报错退出
     - 如果都没给，默认 simulate
     """
-    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag', 'enumerate'}
+    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag', 'enumerate', 'price_factor'}
     
     cmd_from_positional = None
     if args.command:
@@ -342,6 +364,8 @@ def resolve_command(args) -> str:
         flags.append('tag')
     if args.enumerate_flag:
         flags.append('enumerate')
+    if getattr(args, 'price_factor_flag', False):
+        flags.append('price_factor')
     
     # 如果位置参数和 flag 同时指定，并且不一致，则报错
     if cmd_from_positional and flags and cmd_from_positional not in flags:
@@ -400,6 +424,10 @@ def main():
             logger.info("🔢 枚举投资机会...")
             strategy = args.strategy or 'example'
             app.enumerate(strategy_name=strategy, stock_count=args.stocks)
+        elif command == 'price_factor':
+            logger.info("🎯 运行价格因子回放模拟 (PriceFactorSimulator)...")
+            strategy = args.strategy or 'example'
+            app.price_factor_simulate(strategy_name=strategy)
         
         logger.info("")
         logger.info("=" * 60)

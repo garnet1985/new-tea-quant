@@ -76,9 +76,8 @@ class JobHelper:
                 # 获取下一个交易日
                 try:
                     from app.core.modules.data_manager import DataManager
-                    from app.core.modules.data_manager.data_services.tag.tag_data_service import TagDataService
                     data_mgr = DataManager(is_verbose=False)
-                    tag_service = data_mgr.tag
+                    tag_service = data_mgr.stock.tags
                     if tag_service:
                         start_date = tag_service.get_next_trading_date(entity_last_update_date)
                     else:

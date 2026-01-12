@@ -477,7 +477,7 @@ class BaseStrategyWorker(ABC):
             # 判断条件
             if klines[-1]['close'] > ma20:
                 return Opportunity(
-                    opportunity_id=str(uuid.uuid4()),
+                    # opportunity_id 会在 enrich_from_framework 中自动生成
                     stock_id=self.stock_id,
                     trigger_date=klines[-1]['date'],
                     trigger_price=klines[-1]['close'],

@@ -111,12 +111,12 @@ app/userspace/strategies/{strategy_name}/results/opportunity_enums/
 
 ```csv
 opportunity_id,stock_id,stock_name,strategy_name,trigger_date,trigger_price,status,price_return,extra_fields
-uuid-1,000001.SZ,平安银行,momentum,20230115,10.50,completed,0.067,"{\"momentum\": 0.12}"
-uuid-2,000001.SZ,平安银行,momentum,20230116,10.55,completed,-0.023,"{\"momentum\": -0.03}"
+1,000001.SZ,平安银行,momentum,20230115,10.50,completed,0.067,"{\"momentum\": 0.12}"
+2,000001.SZ,平安银行,momentum,20230116,10.55,completed,-0.023,"{\"momentum\": -0.03}"
 ```
 
 **字段说明**：
-- `opportunity_id`：机会唯一 ID
+- `opportunity_id`：机会唯一 ID（简单整数，如 `1`, `2`, `3`，相比 UUID 的 36 个字符大幅减少，文件大小优化）
 - `stock_id` / `stock_name`：股票代码和名称
 - `trigger_date` / `trigger_price`：触发日期和价格
 - `exit_date` / `exit_price` / `exit_reason`：退出信息（与 `trigger_*` 对称）
@@ -128,9 +128,9 @@ uuid-2,000001.SZ,平安银行,momentum,20230116,10.55,completed,-0.023,"{\"momen
 
 ```csv
 opportunity_id,date,price,reason,roi,sell_ratio,extra_fields
-uuid-1,20230125,11.20,take_profit_stage1,0.067,0.5,"{\"triggered_by_target\": \"win10%\"}"
-uuid-1,20230130,11.50,take_profit_stage2,0.095,0.5,"{\"triggered_by_action\": \"set_dynamic_loss\"}"
-uuid-2,20230120,10.31,stop_loss,-0.023,1.0,"{}"
+1,20230125,11.20,take_profit_stage1,0.067,0.5,"{\"triggered_by_target\": \"win10%\"}"
+1,20230130,11.50,take_profit_stage2,0.095,0.5,"{\"triggered_by_action\": \"set_dynamic_loss\"}"
+2,20230120,10.31,stop_loss,-0.023,1.0,"{}"
 ```
 
 **说明**：
@@ -412,7 +412,7 @@ A:
 从枚举器视角，至少会用到这些字段：
 
 - **标识 & 基本信息**
-  - `opportunity_id: str`：唯一 ID（UUID，可由策略决定，但要求在一次运行内唯一）
+  - `opportunity_id: str`：唯一 ID（简单整数，如 `1`, `2`, `3`，框架自动生成，单次运行内唯一）
   - `stock: Dict[str, Any]`：股票元信息（结构与 legacy 对齐），至少包含：
     - `id`: `"000001.SZ"`
     - `name`: `"平安银行"`

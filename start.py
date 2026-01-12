@@ -70,7 +70,7 @@ class App:
             str: 最新交易日（YYYYMMDD 格式）
         """
         # 使用 data_manager 的 TradingDateCache（更高效）
-        return self.data_manager.get_latest_completed_trading_date()
+        return self.data_manager.service.calendar.get_latest_completed_trading_date()
     
     async def renew_data(
         self,
@@ -139,7 +139,7 @@ class App:
         settings = StrategySettings.from_dict(strategy_info['settings'])
         
         # 2. 获取股票列表（根据 is_test_mode 决定使用采样还是全量）
-        all_stocks = self.data_manager.load_stock_list(filtered=True)  # 加载所有活跃股票（已过滤）
+        all_stocks = self.data_manager.service.stock.list.load(filtered=True)  # 加载所有活跃股票（已过滤）
         
         # 检查 is_test_mode（从枚举器设置中读取）
         from app.core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
@@ -173,7 +173,7 @@ class App:
         logger.info(f"📊 实际股票数量: {len(stock_list)}")
         
         # 3. 设置时间范围（从 settings 读取，如果没有则使用默认值）
-        latest_date = self.data_manager.get_latest_completed_trading_date()
+        latest_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
         start_date = settings.start_date or ''
         
         # 如果 start_date 为空，使用默认开始日期

@@ -7,8 +7,10 @@ Capital Allocation Simulator
 
 from .capital_allocation_simulator_config import CapitalAllocationSimulatorConfig
 from .version_manager import CapitalAllocationSimulationVersionManager
+from .capital_allocation_simulator import CapitalAllocationSimulator
 
 __all__ = [
     "CapitalAllocationSimulatorConfig",
     "CapitalAllocationSimulationVersionManager",
+    "CapitalAllocationSimulator",
 ]

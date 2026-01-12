@@ -20,28 +20,35 @@ class StrategySettings:
         "is_enabled": True/False,
         "core": {...},
         "data": {
-            "base": "stock_kline_daily",
-            "adjust": "qfq",
+            "base_price_source": "stock_kline_daily",
+            "adjust_type": "qfq",
             "min_required_records": 1000,
             "indicators": {...},
-            "required_entities": [...]
+            "extra_data_sources": [...]
         },
         "sampling": {
             "strategy": "random",
             "sampling_amount": 50,
             ...
         },
+        "goal": {
+            "expiration": {
+                "fixed_window_in_days": 30,
+                "is_trading_days": True
+            },
+            "stop_loss": {...},
+            "take_profit": {...}
+        },
         "simulator": {
             "start_date": "",
             "end_date": "",
-            "goal": {
-                "expiration": {...},
-                "stop_loss": {...},
-                "take_profit": {...}
-            }
+            "sot_version": "latest",
+            "use_sampling": True,
+            "max_workers": "auto"
         },
-        "performance": {
-            "max_workers": "auto" or int
+        "enumerator": {
+            "use_sampling": True,
+            "max_workers": "auto"
         }
     }
     """
@@ -72,8 +79,9 @@ class StrategySettings:
         # Simulator 配置（新格式：使用 "simulator" 字段）
         self.simulator = settings_dict.get('simulator', {})
         
-        # 投资目标配置（在 simulator.goal 中）
-        self.goal = self.simulator.get('goal', {})
+        # 投资目标配置（提升为顶层配置，跨模块使用）
+        # 优先从顶层 goal 读取，如果没有则从 simulator.goal 读取（向后兼容）
+        self.goal = settings_dict.get('goal') or self.simulator.get('goal', {})
         
         # 性能配置
         self.performance = settings_dict.get('performance', {})
@@ -85,7 +93,7 @@ class StrategySettings:
     @property
     def base_kline_type(self) -> str:
         """基础 K线 类型"""
-        return self.data.get('base', 'stock_kline_daily')
+        return self.data.get('base_price_source', 'stock_kline_daily')
     
     @property
     def min_required_records(self) -> int:
@@ -95,7 +103,7 @@ class StrategySettings:
     @property
     def adjust_type(self) -> str:
         """复权类型"""
-        return self.data.get('adjust', 'qfq')
+        return self.data.get('adjust_type', 'qfq')
     
     @property
     def indicators(self) -> Dict[str, Any]:
@@ -105,7 +113,7 @@ class StrategySettings:
     @property
     def required_entities(self) -> list:
         """依赖实体列表"""
-        return self.data.get('required_entities', [])
+        return self.data.get('extra_data_sources', [])
     
     @property
     def start_date(self) -> str:
@@ -129,8 +137,21 @@ class StrategySettings:
     
     @property
     def max_workers(self) -> Any:
-        """最大进程数（'auto' 或具体数字）"""
-        return self.performance.get('max_workers', 'auto')
+        """
+        最大进程数（'auto' 或具体数字）
+        
+        优先级：simulator.max_workers > enumerator.max_workers > performance.max_workers > "auto"
+        """
+        simulator_cfg = self.simulator or {}
+        enumerator_cfg = self.get('enumerator') or {}
+        performance_cfg = self.performance or {}
+        
+        return (
+            simulator_cfg.get('max_workers')
+            or enumerator_cfg.get('max_workers')
+            or performance_cfg.get('max_workers')
+            or 'auto'
+        )
     
     # =========================================================================
     # 序列化方法

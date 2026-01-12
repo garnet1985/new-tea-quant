@@ -205,8 +205,8 @@ class Opportunity:
         # 1. 检查到期平仓
         expiration_config = goal_config.get('expiration', {})
         if expiration_config:
-            fixed_period = expiration_config.get('fixed_period', 0)
-            if fixed_period > 0 and holding_days >= fixed_period:
+            fixed_window_in_days = expiration_config.get('fixed_window_in_days', 0)
+            if fixed_window_in_days > 0 and holding_days >= fixed_window_in_days:
                 self._settle(current_date, current_price, 'expiration', price_return, sell_ratio=1.0)
                 return True
         

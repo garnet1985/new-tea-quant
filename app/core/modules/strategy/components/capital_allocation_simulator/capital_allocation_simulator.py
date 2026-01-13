@@ -14,7 +14,7 @@ from datetime import datetime
 
 from .capital_allocation_simulator_config import CapitalAllocationSimulatorConfig
 from app.core.modules.strategy.managers.version_manager import VersionManager
-from .models import Account, Position
+from app.core.modules.strategy.models.account import Account, Position
 from .fee_calculator import FeeCalculator
 from .allocation_strategy import AllocationStrategy
 from .event_builder import EventBuilder

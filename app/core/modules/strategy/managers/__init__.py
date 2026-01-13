@@ -6,7 +6,9 @@ Strategy Managers
 """
 
 from .version_manager import VersionManager
+from .data_loader import DataLoader
 
 __all__ = [
     'VersionManager',
+    'DataLoader',
 ]

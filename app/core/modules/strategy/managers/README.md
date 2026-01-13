@@ -9,14 +9,14 @@
 1. **统一接口**：所有组件使用相同的版本管理接口
 2. **消除重复**：避免各组件重复实现版本管理逻辑
 3. **易于维护**：版本管理逻辑集中管理，便于修改和扩展
-4. **简洁清晰**：提供统一的 `resolve_sot_version` 方法作为通用接口
+4. **简洁清晰**：提供统一的 `resolve_sot_version` 方法（机会池版本）作为通用接口
 
 ## 📦 功能特性
 
 ### 支持的组件类型
 
 1. **枚举器（Opportunity Enumerator）**
-   - 支持 `test/` 和 `sot/` 两个子目录
+   - 支持 `test/` 和 `pool/` 两个子目录
    - 根据 `use_sampling` 参数自动选择子目录
 
 2. **价格因子模拟器（Price Factor Simulator）**
@@ -32,10 +32,10 @@
 所有版本目录统一使用以下格式：
 
 ```
-{version_id}_{YYYYMMDD_HHMMSS}
+{version_id}
 ```
 
-例如：`1_20260112_161317`
+例如：`1`
 
 ### Meta.json 管理
 
@@ -51,13 +51,13 @@
 
 #### `create_enumerator_version(strategy_name, use_sampling=False)`
 
-创建枚举器版本目录。
+创建枚举器版本目录（机会池或测试采样）。
 
 **参数**：
 - `strategy_name` (str): 策略名称
 - `use_sampling` (bool): 是否使用采样模式
-  - `True`: 使用 `test/` 子目录
-  - `False`: 使用 `sot/` 子目录
+  - `True`: 使用 `test/` 子目录（采样）
+  - `False`: 使用 `pool/` 子目录（完整机会池）
 
 **返回**：
 - `(version_dir, version_id)`: 版本目录路径和版本ID
@@ -84,12 +84,12 @@ version_dir, version_id = VersionManager.create_enumerator_version(
 解析枚举器版本目录。
 
 **支持的格式**：
-- `"latest"`: 使用最新的 SOT 版本（`sot/` 目录）
+- `"latest"`: 使用最新的机会池版本（`pool/` 目录）
 - `"test/latest"`: 使用最新的测试版本（`test/` 目录）
-- `"sot/latest"`: 使用最新的 SOT 版本（`sot/` 目录）
-- `"1_20260112_161317"`: 使用指定版本号（默认在 `sot/` 目录查找）
-- `"test/1_20260112_161317"`: 使用指定测试版本号（`test/` 目录）
-- `"sot/1_20260112_161317"`: 使用指定 SOT 版本号（`sot/` 目录）
+- `"pool/latest"`: 使用最新的机会池版本（`pool/` 目录）
+- `"1"`: 使用指定版本号（默认在 `pool/` 目录查找）
+- `"test/1"`: 使用指定测试版本号（`test/` 目录）
+- `"pool/1"`: 使用指定机会池版本号（`pool/` 目录）
 
 **参数**：
 - `strategy_name` (str): 策略名称
@@ -191,20 +191,20 @@ version_dir, version_id = VersionManager.resolve_capital_allocation_version(
 )
 ```
 
-### 通用 SOT 版本解析
+### 通用机会池版本解析
 
 #### `resolve_sot_version(strategy_name, sot_version)`
 
-解析 SOT（枚举器）版本目录（通用方法）。
+解析机会池（枚举器）版本目录（通用方法）。
 
 这是 `resolve_enumerator_version` 的包装方法，提供统一的接口。返回子目录路径而不是基础目录路径，便于直接使用。
 
 **参数**：
 - `strategy_name` (str): 策略名称
-- `sot_version` (str): SOT 版本标识符
+- `sot_version` (str): 机会池版本标识符（兼容旧命名）
 
 **返回**：
-- `(version_dir, sub_dir)`: 版本目录路径和子目录路径（test/ 或 sot/）
+- `(version_dir, sub_dir)`: 版本目录路径和子目录路径（test/ 或 pool/）
 
 **示例**：
 ```python
@@ -263,7 +263,7 @@ version_dir, base_dir = VersionManager.resolve_enumerator_version(
 ```python
 from app.core.modules.strategy.managers.version_manager import VersionManager
 
-# 1. 解析依赖的 SOT 版本
+# 1. 解析依赖的机会池版本
 sot_version_dir, _ = VersionManager.resolve_sot_version(
     strategy_name="example",
     sot_version="latest"
@@ -283,7 +283,7 @@ sim_version_dir, sim_version_id = VersionManager.create_price_factor_version(
 ```python
 from app.core.modules.strategy.managers.version_manager import VersionManager
 
-# 1. 解析依赖的 SOT 版本
+# 1. 解析依赖的机会池版本
 sot_version_dir, _ = VersionManager.resolve_sot_version(
     strategy_name="example",
     sot_version="latest"
@@ -319,10 +319,6 @@ sim_version_dir, sim_version_id = VersionManager.create_capital_allocation_versi
 
 版本ID从 1 开始，每次创建新版本时自动递增。`meta.json` 文件记录下一个版本ID，确保版本ID的唯一性和连续性。
 
-### 时间戳格式
-
-时间戳使用 `YYYYMMDD_HHMMSS` 格式（例如：`20260112_161317`），便于按时间排序和查找。
-
 ## 📝 使用说明
 
 ### 导入方式
@@ -334,7 +330,7 @@ from app.core.modules.strategy.managers.version_manager import VersionManager
 ### 返回值顺序
 
 - `create_*_version` 方法返回 `(version_dir, version_id)`
-- `resolve_sot_version` 方法返回 `(version_dir, sub_dir)`，其中 `sub_dir` 是 `test/` 或 `sot/` 子目录
+- `resolve_sot_version` 方法返回 `(version_dir, sub_dir)`，其中 `sub_dir` 是 `test/` 或 `pool/` 子目录
 - `resolve_enumerator_version` 方法返回 `(version_dir, base_dir)`，其中 `base_dir` 是基础目录路径
 
 ## 🐛 常见问题

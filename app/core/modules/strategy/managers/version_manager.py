@@ -5,11 +5,11 @@ Version Manager - 统一版本管理器
 职责：
 - 统一管理所有组件的版本目录创建和解析
 - 支持枚举器、价格因子模拟器、资金分配模拟器的版本管理
-- 提供统一的 SOT 版本解析接口
+- 提供统一的机会池（opportunity pool）版本解析接口
 
 设计原则：
 - 使用静态方法（无状态，高效）
-- 统一的版本目录命名格式：{version_id}_{YYYYMMDD_HHMMSS}
+- 统一的版本目录命名格式：{version_id}
 - 统一的 meta.json 管理
 """
 
@@ -35,24 +35,24 @@ class VersionManager:
         use_sampling: bool = False
     ) -> Tuple[Path, int]:
         """
-        创建枚举器版本目录
+        创建机会枚举器版本目录
         
         目录结构：
             app/userspace/strategies/{strategy}/results/opportunity_enums/
-                {test|sot}/
+                {test|pool}/
                     meta.json  # 版本管理元信息
-                    {version_id}_{YYYYMMDD_HHMMSS}/  # 版本目录
+                    {version_id}/  # 版本目录（纯自增 ID）
         
         Args:
             strategy_name: 策略名称
             use_sampling: 是否使用采样模式
-                - True: 使用 test/ 子目录
-                - False: 使用 sot/ 子目录
+                - True: 使用 test/ 子目录（采样枚举）
+                - False: 使用 pool/ 子目录（完整机会池）
         
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        sub_dir_name = "test" if use_sampling else "sot"
+        sub_dir_name = "test" if use_sampling else "pool"
         root_dir = (
             Path("app")
             / "userspace"
@@ -77,8 +77,8 @@ class VersionManager:
         
         next_version_id = int(meta.get("next_version_id", 1))
         now = datetime.now()
-        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-        version_dir_name = f"{next_version_id}_{timestamp_str}"
+        # 简化目录名，仅使用自增版本号（执行时间写入 session/metadata 文件）
+        version_dir_name = str(next_version_id)
         version_dir = sub_dir / version_dir_name
         version_dir.mkdir(parents=True, exist_ok=True)
         
@@ -87,7 +87,7 @@ class VersionManager:
             "next_version_id": next_version_id + 1,
             "last_updated": now.isoformat(),
             "strategy_name": strategy_name,
-            "mode": sub_dir_name,  # 记录模式：test 或 sot
+            "mode": sub_dir_name,  # 记录模式：test 或 pool
         }
         with meta_path.open("w", encoding="utf-8") as f:
             json.dump(new_meta, f, indent=2, ensure_ascii=False)
@@ -108,12 +108,12 @@ class VersionManager:
         解析枚举器版本目录
         
         支持的格式：
-        - "latest": 使用最新的 SOT 版本（sot/ 目录）
+        - "latest": 使用最新的机会池版本（pool/ 目录）
         - "test/latest": 使用最新的测试版本（test/ 目录）
-        - "sot/latest": 使用最新的 SOT 版本（sot/ 目录）
-        - "1_20260112_161317": 使用指定版本号（默认在 sot/ 目录查找）
-        - "test/1_20260112_161317": 使用指定测试版本号（test/ 目录）
-        - "sot/1_20260112_161317": 使用指定 SOT 版本号（sot/ 目录）
+        - "pool/latest": 使用最新的机会池版本（pool/ 目录）
+        - "1": 使用指定版本号（默认在 pool/ 目录查找）
+        - "test/1": 使用指定测试版本号（test/ 目录）
+        - "pool/1": 使用指定机会池版本号（pool/ 目录）
         
         Args:
             strategy_name: 策略名称
@@ -133,13 +133,13 @@ class VersionManager:
         
         # 解析目录类型和版本号
         if "/" in version_spec:
-            # 格式：test/latest 或 sot/latest 或 test/1_xxx 或 sot/1_xxx
+            # 格式：test/latest 或 pool/latest 或 test/1 或 pool/1
             parts = version_spec.split("/", 1)
-            sub_dir_name = parts[0]  # test 或 sot
+            sub_dir_name = parts[0]  # test 或 pool
             version_str = parts[1]  # latest 或具体版本号
         else:
-            # 格式：latest 或 1_xxx（默认使用 sot 目录）
-            sub_dir_name = "sot"
+            # 格式：latest 或 1（默认使用 pool 目录）
+            sub_dir_name = "pool"
             version_str = version_spec
         
         root = base_root / sub_dir_name
@@ -150,12 +150,12 @@ class VersionManager:
         
         if version_str == "latest":
             # 查找最新的版本目录
-            candidates = [p for p in root.iterdir() if p.is_dir() and "_" in p.name]
+            candidates = [p for p in root.iterdir() if p.is_dir() and p.name[0].isdigit()]
             if not candidates:
                 raise FileNotFoundError(
                     f"[VersionManager] {sub_dir_name} 目录下没有任何版本: {root}"
                 )
-            # 版本名形如: {version_id}_{YYYYMMDD_HHMMSS}，直接按 name 排序即可
+            # 版本名形如: {version_id}，直接按 name 排序即可
             version_dir = sorted(candidates, key=lambda p: p.name)[-1]
             logger.info(
                 f"[VersionManager] 使用最新枚举器版本: {sub_dir_name}/{version_dir.name}"
@@ -185,7 +185,7 @@ class VersionManager:
         目录结构：
             app/userspace/strategies/{strategy}/results/simulations/price_factor/
                 meta.json  # 版本管理元信息
-                {version_id}_{YYYYMMDD_HHMMSS}/  # 模拟器版本目录
+                {version_id}/  # 模拟器版本目录
         
         Args:
             strategy_name: 策略名称
@@ -217,8 +217,8 @@ class VersionManager:
         
         next_version_id = int(meta.get("next_version_id", 1))
         now = datetime.now()
-        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-        version_dir_name = f"{next_version_id}_{timestamp_str}"
+        # 简化目录名，仅使用自增版本号
+        version_dir_name = str(next_version_id)
         version_dir = root_dir / version_dir_name
         version_dir.mkdir(parents=True, exist_ok=True)
         
@@ -270,14 +270,14 @@ class VersionManager:
         
         if version_spec == "latest":
             # 查找最新的版本目录
-            candidates = [p for p in root_dir.iterdir() if p.is_dir() and "_" in p.name]
+            candidates = [p for p in root_dir.iterdir() if p.is_dir() and p.name[0].isdigit()]
             if not candidates:
                 raise FileNotFoundError(
                     f"[VersionManager] 价格因子模拟器目录下没有任何版本: {root_dir}"
                 )
             version_dir = sorted(candidates, key=lambda p: p.name)[-1]
-            # 从目录名提取版本ID：{version_id}_{timestamp}
-            version_id = int(version_dir.name.split("_")[0])
+            # 从目录名提取版本ID：{version_id}
+            version_id = int(version_dir.name)
             logger.info(
                 f"[VersionManager] 使用最新价格因子模拟器版本: {version_dir.name}"
             )
@@ -289,7 +289,7 @@ class VersionManager:
             raise FileNotFoundError(
                 f"[VersionManager] 指定价格因子模拟器版本目录不存在: {version_dir}"
             )
-        version_id = int(version_spec.split("_")[0])
+        version_id = int(version_spec)
         logger.info(
             f"[VersionManager] 使用指定价格因子模拟器版本: {version_spec}"
         )
@@ -307,7 +307,7 @@ class VersionManager:
         目录结构：
             app/userspace/strategies/{strategy}/results/capital_allocation/
                 meta.json  # 版本管理元信息
-                {version_id}_{YYYYMMDD_HHMMSS}/  # 模拟器版本目录
+                {version_id}/  # 模拟器版本目录
         
         Args:
             strategy_name: 策略名称
@@ -334,9 +334,8 @@ class VersionManager:
         else:
             next_version_id = 1
         
-        # 生成版本目录名：{version_id}_{timestamp}
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        version_dir_name = f"{next_version_id}_{timestamp}"
+        # 生成版本目录名：{version_id}
+        version_dir_name = str(next_version_id)
         version_dir = base_dir / version_dir_name
         version_dir.mkdir(parents=True, exist_ok=True)
         
@@ -385,10 +384,10 @@ class VersionManager:
                 raise FileNotFoundError(
                     f"[VersionManager] 资金分配模拟器目录下没有任何版本: {base_dir}"
                 )
-            # 按版本号排序（假设目录名格式为 {version_id}_{timestamp}）
+            # 按版本号排序（假设目录名格式为 {version_id}）
             version_dirs.sort(key=lambda d: d.name, reverse=True)
             version_dir = version_dirs[0]
-            version_id = int(version_dir.name.split("_")[0])
+            version_id = int(version_dir.name)
             logger.info(
                 f"[VersionManager] 使用最新资金分配模拟器版本: {version_dir.name}"
             )
@@ -400,14 +399,14 @@ class VersionManager:
             raise FileNotFoundError(
                 f"[VersionManager] 指定资金分配模拟器版本目录不存在: {version_dir}"
             )
-        version_id = int(version_spec.split("_")[0])
+        version_id = int(version_spec)
         logger.info(
             f"[VersionManager] 使用指定资金分配模拟器版本: {version_spec}"
         )
         return version_dir, version_id
     
     # =========================================================================
-    # 通用 SOT 版本解析
+    # 通用机会池版本解析
     # =========================================================================
     
     @staticmethod
@@ -416,20 +415,20 @@ class VersionManager:
         sot_version: str
     ) -> Tuple[Path, Path]:
         """
-        解析 SOT（枚举器）版本目录（通用方法）
+        解析机会池（枚举器）版本目录（通用方法）
         
         这是 resolve_enumerator_version 的包装方法，提供统一的接口。
         返回格式：`(version_dir, sub_dir)`
-        其中 `sub_dir` 是 `test/` 或 `sot/` 子目录。
+        其中 `sub_dir` 是 `test/` 或 `pool/` 子目录。
         
         Args:
             strategy_name: 策略名称
-            sot_version: SOT 版本标识符
+            sot_version: 机会池版本标识符（兼容旧名称）
         
         Returns:
             (version_dir, sub_dir): 版本目录路径和子目录路径（test/ 或 sot/）
         """
         version_dir, base_dir = VersionManager.resolve_enumerator_version(strategy_name, sot_version)
-        # 返回子目录（test/ 或 sot/）
+        # 返回子目录（test/ 或 pool/）
         sub_dir = version_dir.parent
         return version_dir, sub_dir

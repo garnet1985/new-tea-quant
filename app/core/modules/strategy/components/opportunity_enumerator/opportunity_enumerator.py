@@ -71,40 +71,12 @@ class OpportunityEnumerator:
         validated_settings = enum_settings.to_dict()
 
         # 1.2 准备版本目录（一次枚举 = 一个版本）
-        # 根据 use_sampling 选择不同的子目录：test/ 或 sot/
-        sub_dir_name = "test" if enum_settings.use_sampling else "sot"
-        
-        root_dir = Path("app") / "userspace" / "strategies" / strategy_name / "results" / "opportunity_enums"
-        sub_dir = root_dir / sub_dir_name
-        sub_dir.mkdir(parents=True, exist_ok=True)
-
-        # 每个子目录（test/sot）维护独立的 meta.json
-        meta_path = sub_dir / "meta.json"
-        if meta_path.exists():
-            try:
-                with meta_path.open("r", encoding="utf-8") as f:
-                    meta = json.load(f)
-            except Exception:
-                meta = {}
-        else:
-            meta = {}
-
-        next_version_id = int(meta.get("next_version_id", 1))
-        now = datetime.now()
-        timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-        version_dir_name = f"{next_version_id}_{timestamp_str}"
-        output_dir = sub_dir / version_dir_name
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        # 1.3 立刻更新 meta.json（版本管理），不依赖后续流程是否成功
-        new_meta = {
-            "next_version_id": next_version_id + 1,
-            "last_updated": now.isoformat(),
-            "strategy_name": strategy_name,
-            "mode": sub_dir_name,  # 记录模式：test 或 sot
-        }
-        with meta_path.open("w", encoding="utf-8") as f:
-            json.dump(new_meta, f, indent=2, ensure_ascii=False)
+        # 使用统一的 VersionManager 创建版本目录
+        from app.core.modules.strategy.managers.version_manager import VersionManager
+        output_dir, version_id = VersionManager.create_enumerator_version(
+            strategy_name=strategy_name,
+            use_sampling=enum_settings.use_sampling
+        )
 
         # 2. 构建作业（每只股票一个 job）
         # 重要：枚举器（Layer 0）始终做“全量枚举”，不再按照调用方传入的 start_date 截断历史。

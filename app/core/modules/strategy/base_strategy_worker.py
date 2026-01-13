@@ -492,6 +492,8 @@ class BaseStrategyWorker(ABC):
     # 钩子方法（用户可选重写）
     # =========================================================================
     
+    # ---- 枚举 / 回测通用钩子 -------------------------------------------------
+    
     def on_init(self):
         """初始化钩子（可选重写）"""
         pass
@@ -511,3 +513,187 @@ class BaseStrategyWorker(ABC):
     def on_after_simulate(self, opportunity: 'Opportunity'):
         """模拟后钩子（可选重写）"""
         pass
+    
+    # ---- PriceFactorSimulator 相关钩子 --------------------------------------
+    
+    def on_price_factor_before_process_stock(
+        self,
+        stock_id: str,
+        opportunities: 'list[dict]',
+        config: 'dict',
+    ) -> None:
+        """
+        价格因子模拟：处理单只股票前钩子（可选重写）
+        
+        Args:
+            stock_id: 股票代码
+            opportunities: 该股的机会原始记录列表（CSV 行字典）
+            config: PriceFactorSimulatorConfig 的字典视图
+        """
+        return None
+    
+    def on_price_factor_after_process_stock(
+        self,
+        stock_id: str,
+        stock_summary: 'dict',
+        config: 'dict',
+    ) -> 'dict':
+        """
+        价格因子模拟：处理单只股票后钩子（可选重写，可修改汇总结果）
+        
+        Args:
+            stock_id: 股票代码
+            stock_summary: {
+                "stock": {...},
+                "investments": [...],
+                "summary": {...},
+            }
+            config: PriceFactorSimulatorConfig 的字典视图
+        
+        Returns:
+            修改后的 stock_summary 字典；默认返回原样
+        """
+        return stock_summary
+    
+    def on_price_factor_opportunity_trigger(
+        self,
+        opportunity_row: 'dict',
+        config: 'dict',
+    ) -> 'dict':
+        """
+        价格因子模拟：机会触发时钩子（可选重写，可修改机会数据）
+        
+        Args:
+            opportunity_row: 来自 opportunities.csv 的单行记录
+            config: PriceFactorSimulatorConfig 的字典视图
+        
+        Returns:
+            修改后的机会字典；默认返回原样
+        """
+        return opportunity_row
+    
+    def on_price_factor_target_hit(
+        self,
+        target_row: 'dict',
+        opportunity_row: 'dict',
+        config: 'dict',
+    ) -> 'dict':
+        """
+        价格因子模拟：目标命中时钩子（可选重写，可修改目标数据）
+        
+        Args:
+            target_row: 来自 targets.csv 的单行记录
+            opportunity_row: 对应的机会记录
+            config: PriceFactorSimulatorConfig 的字典视图
+        
+        Returns:
+            修改后的目标字典；默认返回原样
+        """
+        return target_row
+    
+    # ---- CapitalAllocationSimulator 相关钩子 --------------------------------
+    
+    def on_capital_allocation_before_trigger_event(
+        self,
+        event: 'Any',
+        account: 'Any',
+        config: 'Any',
+    ):
+        """
+        资金分配模拟：触发事件处理前钩子（可选重写，可修改事件）
+        
+        Args:
+            event: Event 实例
+            account: Account 实例
+            config: CapitalAllocationSimulatorConfig 实例
+        
+        Returns:
+            修改后的 event；默认返回原样
+        """
+        return event
+    
+    def on_capital_allocation_after_trigger_event(
+        self,
+        event: 'Any',
+        trade: 'dict',
+        account: 'Any',
+        config: 'Any',
+    ):
+        """
+        资金分配模拟：触发事件处理后钩子（可选重写，可修改交易记录）
+        
+        Args:
+            event: Event 实例
+            trade: 本次买入生成的交易字典
+            account: Account 实例
+            config: CapitalAllocationSimulatorConfig 实例
+        
+        Returns:
+            修改后的 trade 字典；默认返回原样
+        """
+        return trade
+    
+    def on_capital_allocation_before_target_event(
+        self,
+        event: 'Any',
+        account: 'Any',
+        config: 'Any',
+    ):
+        """
+        资金分配模拟：目标事件处理前钩子（可选重写，可修改事件）
+        """
+        return event
+    
+    def on_capital_allocation_after_target_event(
+        self,
+        event: 'Any',
+        trade: 'dict',
+        account: 'Any',
+        config: 'Any',
+    ):
+        """
+        资金分配模拟：目标事件处理后钩子（可选重写，可修改交易记录）
+        """
+        return trade
+    
+    def on_capital_allocation_calculate_shares_to_buy(
+        self,
+        event: 'Any',
+        account: 'Any',
+        config: 'Any',
+        default_shares: int,
+    ):
+        """
+        资金分配模拟：计算买入股数钩子（可选重写，可自定义分配逻辑）
+        
+        Args:
+            event: 触发事件
+            account: Account 实例
+            config: CapitalAllocationSimulatorConfig 实例
+            default_shares: 默认计算出的买入股数
+        
+        Returns:
+            int: 自定义买入股数；返回 None 表示使用默认值
+        """
+        return None
+    
+    def on_capital_allocation_calculate_shares_to_sell(
+        self,
+        event: 'Any',
+        position: 'Any',
+        config: 'Any',
+        default_shares: int,
+    ):
+        """
+        资金分配模拟：计算卖出股数钩子（可选重写，可自定义卖出逻辑）
+        
+        Args:
+            event: 目标事件
+            position: Position 实例
+            config: CapitalAllocationSimulatorConfig 实例
+            default_shares: 默认计算出的卖出股数
+        
+        Returns:
+            int: 自定义卖出股数；返回 None 表示使用默认值
+        """
+        return None

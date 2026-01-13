@@ -107,13 +107,26 @@
 
 ---
 
-## Phase 3：API 与文档对齐
+## Phase 3：Scanner 模块（已完成）
+
+1. **Scanner 基础设施**
+   - [x] 扩展 `ScannerSettings`：添加 `use_strict_previous_trading_day` 和 `max_cache_days`
+   - [x] 实现 `ScanDateResolver`：日期解析逻辑（strict vs non-strict）
+   - [x] 实现 `ScanCacheManager`：CSV 缓存读写 + 自动清理
+   - [x] 定义 `BaseOpportunityAdapter` 接口和 `AdapterDispatcher`
+   - [x] 实现 `Scanner` 主类：整合所有组件 + 多进程扫描
+   - [ ] 实现 `ConsoleAdapter` 示例：打印机会 + 历史胜率统计
+
+---
+
+## Phase 4：API 与文档对齐
 
 1. **对外 API 收敛**
-   - [ ] 为枚举器与两个模拟器提供统一入口：
+   - [ ] 为枚举器、模拟器和扫描器提供统一入口：
      - `OpportunityEnumerator.enumerate(...)`
      - `PriceFactorSimulator.run(strategy_name)`
      - `CapitalAllocationSimulator.run(strategy_name)`
+     - `Scanner.scan(strategy_name)`
    - [ ] 在 `strategy_manager.py` 或上层 BFF 中提供统一调用示例
 
 2. **文档更新**

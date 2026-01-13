@@ -10,5 +10,6 @@ Adapter 模块
 
 from .base_adapter import BaseOpportunityAdapter
 from .adapter_validator import validate_adapter
+from .history_loader import HistoryLoader
 
-__all__ = ['BaseOpportunityAdapter', 'validate_adapter']
+__all__ = ['BaseOpportunityAdapter', 'validate_adapter', 'HistoryLoader']

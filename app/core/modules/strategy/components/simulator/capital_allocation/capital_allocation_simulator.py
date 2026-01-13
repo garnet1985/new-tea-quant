@@ -14,11 +14,17 @@ from datetime import datetime
 
 from .capital_allocation_simulator_config import CapitalAllocationSimulatorConfig
 from app.core.modules.strategy.managers.version_manager import VersionManager
+from app.core.modules.strategy.managers.data_loader import DataLoader
+from app.core.modules.strategy.managers.result_path_manager import ResultPathManager
+from app.core.modules.strategy.components.simulator.base.simulator_hooks_dispatcher import (
+    SimulatorHooksDispatcher,
+)
 from app.core.modules.strategy.models.account import Account, Position
+from app.core.modules.strategy.models.event import Event
 from .fee_calculator import FeeCalculator
 from .allocation_strategy import AllocationStrategy
-from .event_builder import EventBuilder
 from .helpers import DateTimeEncoder
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +43,7 @@ class CapitalAllocationSimulator:
 
     def __init__(self, is_verbose: bool = False) -> None:
         self.is_verbose = is_verbose
+        self.hooks_dispatcher: Optional[SimulatorHooksDispatcher] = None
 
     def run(self, strategy_name: str) -> Dict[str, Any]:
         """
@@ -87,8 +94,16 @@ class CapitalAllocationSimulator:
             f"[CapitalAllocationSimulator] 模拟器版本: {sim_version_dir.name} (version_id={sim_version_id})"
         )
 
-        # 4. 构建事件流
-        events = EventBuilder.build_event_stream(sot_version_dir)
+        # 4. 初始化钩子分发器
+        self.hooks_dispatcher = SimulatorHooksDispatcher(strategy_name)
+
+        # 5. 创建 DataLoader 并构建事件流
+        data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
+        events = data_loader.build_event_stream(
+            sot_version_dir,
+            start_date=config.start_date or "",
+            end_date=config.end_date or "",
+        )
 
         if not events:
             logger.warning(
@@ -96,7 +111,7 @@ class CapitalAllocationSimulator:
             )
             return {}
 
-        # 5. 根据 use_sampling 配置过滤事件（只保留采样股票的事件）
+        # 6. 根据 use_sampling 配置过滤事件（只保留采样股票的事件）
         if config.use_sampling:
             from app.core.modules.data_manager import DataManager
             from app.core.modules.strategy.helper.stock_sampling_helper import (
@@ -139,7 +154,7 @@ class CapitalAllocationSimulator:
                 f"(涉及 {len(stock_ids)} 只股票)"
             )
 
-        # 6. 初始化账户和策略
+        # 7. 初始化账户和策略
         account = Account(initial_cash=config.initial_capital, cash=config.initial_capital)
         fee_calculator = FeeCalculator(
             commission_rate=config.commission_rate,
@@ -157,7 +172,7 @@ class CapitalAllocationSimulator:
             fee_calculator=fee_calculator,
         )
 
-        # 7. 执行主循环
+        # 8. 执行主循环
         trades: List[Dict[str, Any]] = []
         equity_curve: List[Dict[str, Any]] = []
         current_date: Optional[str] = None
@@ -167,14 +182,14 @@ class CapitalAllocationSimulator:
         completed_opportunities_map: Dict[str, Dict[str, Any]] = {}
 
         for event in events:
-            event_date = event.get("date", "")
-            event_type = event.get("event_type", "")
+            event_date = event.date
+            event_type = event.event_type
 
             # 如果是新的一天，更新权益曲线
             if event_date != current_date:
                 if current_date is not None and config.save_equity_curve:
                     stock_prices = self._get_stock_prices_for_date(
-                        account, event.get("opportunity") or event.get("target", {})
+                        account, event.opportunity or (event.target or {})
                     )
                     equity = account.get_equity(stock_prices)
                     equity_curve.append({
@@ -186,13 +201,13 @@ class CapitalAllocationSimulator:
                 current_date = event_date
 
             # 处理事件
-            if event_type == "trigger":
+            if event.is_trigger():
                 trade = self._handle_trigger_event(
                     event, account, allocation_strategy, completed_opportunities_map
                 )
                 if trade:
                     trades.append(trade)
-            elif event_type == "target":
+            elif event.is_target():
                 trade = self._handle_target_event(event, account, fee_calculator)
                 if trade:
                     trades.append(trade)
@@ -215,12 +230,12 @@ class CapitalAllocationSimulator:
                 "portfolio_size": account.get_portfolio_size(),
             })
 
-        # 8. 计算汇总统计
+        # 9. 计算汇总统计
         summary = self._calculate_summary(
             account, trades, equity_curve, config.initial_capital
         )
 
-        # 9. 保存结果
+        # 10. 保存结果
         self._save_results(
             sim_version_dir,
             sim_version_id,
@@ -243,19 +258,36 @@ class CapitalAllocationSimulator:
 
     def _handle_trigger_event(
         self,
-        event: Dict[str, Any],
+        event: Event,
         account: Account,
         allocation_strategy: AllocationStrategy,
         completed_opportunities_map: Dict[str, Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
         """处理 trigger 事件（开仓）"""
-        stock_id = event.get("stock_id", "")
-        opportunity = event.get("opportunity", {})
+        stock_id = event.stock_id
+        opportunity = event.opportunity or {}
         opp_id = str(opportunity.get("opportunity_id", "")).strip()
         trigger_price = float(opportunity.get("trigger_price", 0.0) or 0.0)
 
         if not stock_id or not opp_id or trigger_price <= 0:
             return None
+
+        # 钩子：触发事件处理前，允许用户修改 event
+        if self.hooks_dispatcher is not None:
+            modified_event = self.hooks_dispatcher.call_hook(
+                "on_capital_allocation_before_trigger_event",
+                event,
+                account,
+                allocation_strategy,
+            )
+            if isinstance(modified_event, Event):
+                event = modified_event
+                stock_id = event.stock_id
+                opportunity = event.opportunity or {}
+                opp_id = str(opportunity.get("opportunity_id", "")).strip()
+                trigger_price = float(opportunity.get("trigger_price", 0.0) or 0.0)
+                if not stock_id or not opp_id or trigger_price <= 0:
+                    return None
 
         # 检查是否已有持仓
         if account.has_position(stock_id):
@@ -274,6 +306,18 @@ class CapitalAllocationSimulator:
         buy_shares = allocation_strategy.calculate_shares_to_buy(
             account, trigger_price, win_rate
         )
+
+        # 钩子：允许用户自定义买入股数
+        if self.hooks_dispatcher is not None and buy_shares != 0:
+            custom_shares = self.hooks_dispatcher.call_hook(
+                "on_capital_allocation_calculate_shares_to_buy",
+                event,
+                account,
+                allocation_strategy,
+                buy_shares,
+            )
+            if isinstance(custom_shares, int) and custom_shares >= 0:
+                buy_shares = custom_shares
 
         if buy_shares == 0:
             return None  # 无法买入（资金不足等）
@@ -300,8 +344,8 @@ class CapitalAllocationSimulator:
         position.current_opportunity_id = opp_id
 
         # 记录交易
-        return {
-            "date": event.get("date", ""),
+        trade = {
+            "date": event.date,
             "stock_id": stock_id,
             "opportunity_id": opp_id,
             "side": "buy",
@@ -314,21 +358,53 @@ class CapitalAllocationSimulator:
             "equity_after": account.get_equity({stock_id: trigger_price}),
         }
 
+        # 钩子：触发事件处理后，允许用户修改 trade
+        if self.hooks_dispatcher is not None:
+            modified_trade = self.hooks_dispatcher.call_hook(
+                "on_capital_allocation_after_trigger_event",
+                event,
+                trade,
+                account,
+                allocation_strategy,
+            )
+            if isinstance(modified_trade, dict):
+                trade = modified_trade
+
+        return trade
+
     def _handle_target_event(
         self,
-        event: Dict[str, Any],
+        event: Event,
         account: Account,
         fee_calculator: FeeCalculator,
     ) -> Optional[Dict[str, Any]]:
         """处理 target 事件（平仓）"""
-        stock_id = event.get("stock_id", "")
-        target = event.get("target", {})
+        stock_id = event.stock_id
+        target = event.target or {}
         opp_id = str(target.get("opportunity_id", "")).strip()
         target_price = float(target.get("price", 0.0) or 0.0)
         sell_ratio = float(target.get("sell_ratio", 0.0) or 0.0)
 
         if not stock_id or not opp_id or target_price <= 0 or sell_ratio <= 0:
             return None
+
+        # 钩子：目标事件处理前，允许用户修改 event
+        if self.hooks_dispatcher is not None:
+            modified_event = self.hooks_dispatcher.call_hook(
+                "on_capital_allocation_before_target_event",
+                event,
+                account,
+                fee_calculator,
+            )
+            if isinstance(modified_event, Event):
+                event = modified_event
+                stock_id = event.stock_id
+                target = event.target or {}
+                opp_id = str(target.get("opportunity_id", "")).strip()
+                target_price = float(target.get("price", 0.0) or 0.0)
+                sell_ratio = float(target.get("sell_ratio", 0.0) or 0.0)
+                if not stock_id or not opp_id or target_price <= 0 or sell_ratio <= 0:
+                    return None
 
         # 检查持仓
         position = account.get_position(stock_id)
@@ -341,6 +417,19 @@ class CapitalAllocationSimulator:
 
         # 计算卖出股数
         sell_shares = int(position.shares * sell_ratio)
+
+        # 钩子：允许用户自定义卖出股数
+        if self.hooks_dispatcher is not None and sell_shares > 0:
+            custom_sell = self.hooks_dispatcher.call_hook(
+                "on_capital_allocation_calculate_shares_to_sell",
+                event,
+                position,
+                fee_calculator,
+                sell_shares,
+            )
+            if isinstance(custom_sell, int) and 0 <= custom_sell <= position.shares:
+                sell_shares = custom_sell
+
         if sell_shares == 0:
             return None
 
@@ -363,8 +452,8 @@ class CapitalAllocationSimulator:
             position.current_opportunity_id = None
 
         # 记录交易
-        return {
-            "date": event.get("date", ""),
+        trade = {
+            "date": event.date,
             "stock_id": stock_id,
             "opportunity_id": opp_id,
             "side": "sell",
@@ -378,6 +467,20 @@ class CapitalAllocationSimulator:
             "equity_after": account.get_equity({stock_id: target_price}),
         }
 
+        # 钩子：目标事件处理后，允许用户修改 trade
+        if self.hooks_dispatcher is not None:
+            modified_trade = self.hooks_dispatcher.call_hook(
+                "on_capital_allocation_after_target_event",
+                event,
+                trade,
+                account,
+                fee_calculator,
+            )
+            if isinstance(modified_trade, dict):
+                trade = modified_trade
+
+        return trade
+
     def _calculate_win_rate(self, completed_opportunities_map: Dict[str, Dict[str, Any]]) -> float:
         """计算胜率（用于 Kelly 模式）"""
         if not completed_opportunities_map:
@@ -389,14 +492,14 @@ class CapitalAllocationSimulator:
 
     def _update_completed_opportunities(
         self,
-        event: Dict[str, Any],
+        event: Event,
         completed_opportunities_map: Dict[str, Dict[str, Any]],
         account: Account,
     ) -> None:
         """更新已完成机会列表（用于 Kelly 模式）"""
-        target = event.get("target", {})
+        target = event.target or {}
         opp_id = str(target.get("opportunity_id", "")).strip()
-        stock_id = event.get("stock_id", "")
+        stock_id = event.stock_id
 
         if not opp_id:
             return
@@ -405,7 +508,7 @@ class CapitalAllocationSimulator:
         position = account.get_position(stock_id)
         if position and position.current_opportunity_id == opp_id and position.shares == 0:
             # 机会已完全结束，添加到已完成列表
-            opportunity = event.get("opportunity", {})
+            opportunity = event.opportunity or {}
             if opportunity and opp_id not in completed_opportunities_map:
                 completed_opportunities_map[opp_id] = opportunity
 
@@ -496,20 +599,22 @@ class CapitalAllocationSimulator:
         settings_snapshot: Dict[str, Any],
     ) -> None:
         """保存模拟结果"""
+        path_mgr = ResultPathManager(sim_version_dir=sim_version_dir)
+
         # 保存交易记录
         if config.save_trades:
-            trades_path = sim_version_dir / "trades.json"
+            trades_path = path_mgr.trades_path()
             with trades_path.open("w", encoding="utf-8") as f:
                 json.dump(trades, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
 
         # 保存权益曲线
         if config.save_equity_curve:
-            equity_path = sim_version_dir / "portfolio_timeseries.json"
+            equity_path = path_mgr.equity_timeseries_path()
             with equity_path.open("w", encoding="utf-8") as f:
                 json.dump(equity_curve, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
 
         # 保存汇总
-        summary_path = sim_version_dir / "summary_strategy.json"
+        summary_path = path_mgr.strategy_summary_path()
         with summary_path.open("w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
 
@@ -521,6 +626,7 @@ class CapitalAllocationSimulator:
             "settings_snapshot": settings_snapshot,
             "created_at": datetime.now().isoformat(),
         }
-        metadata_path = sim_version_dir / "metadata.json"
+        metadata_path = path_mgr.metadata_path()
         with metadata_path.open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+

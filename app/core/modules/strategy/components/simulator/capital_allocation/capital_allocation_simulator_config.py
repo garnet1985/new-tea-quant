@@ -125,3 +125,4 @@ class CapitalAllocationSimulatorConfig:
             save_trades=save_trades,
             save_equity_curve=save_equity_curve,
         )
+

@@ -6,7 +6,7 @@
 """
 
 from typing import Dict, Any, Optional, Literal
-from .models import Account
+from app.core.modules.strategy.models.account import Account
 from .fee_calculator import FeeCalculator
 
 

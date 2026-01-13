@@ -7,7 +7,14 @@
     "database": "stocks-py",
     "port": 3306,
     "charset": "utf8mb4",
-    "autocommit": true
+    "autocommit": true,
+    "_comment": "⚠️ 仅 MySQL 模式使用，迁移到 DuckDB 后可以忽略"
+  },
+  "duckdb": {
+    "db_path": "data/stocks.duckdb",
+    "threads": 4,
+    "memory_limit": "8GB",
+    "_comment": "DuckDB 配置：数据库文件路径、线程数、内存限制"
   },
   "pool": {
     "pool_size_min": 5,

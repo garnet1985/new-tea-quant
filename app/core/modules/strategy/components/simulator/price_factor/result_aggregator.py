@@ -89,3 +89,5 @@ class ResultAggregator:
         }
 
         return session_summary
+
+

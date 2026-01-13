@@ -187,3 +187,4 @@ class AllocationStrategy:
             buy_shares = lots * self.lot_size
 
         return buy_shares
+

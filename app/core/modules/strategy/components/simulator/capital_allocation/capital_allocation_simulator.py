@@ -254,6 +254,22 @@ class CapitalAllocationSimulator:
             f"总收益={summary.get('total_return', 0):.2%}"
         )
 
+        # 运行 Analyzer（如果启用）
+        try:
+            from app.core.modules.strategy.components.analyzer import Analyzer
+
+            Analyzer.run_for_simulator(
+                strategy_name=strategy_name,
+                sim_type="capital_allocation",
+                sim_version_dir=sim_version_dir,
+                raw_settings=base_settings.to_dict(),
+            )
+        except Exception as exc:
+            logger.warning(
+                "[CapitalAllocationSimulator] Analyzer 执行失败（不影响主流程）: %s",
+                exc,
+            )
+
         return summary
 
     def _handle_trigger_event(

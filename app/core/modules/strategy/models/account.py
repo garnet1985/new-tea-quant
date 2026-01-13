@@ -2,7 +2,7 @@
 """
 账户和持仓模型
 
-定义 Account 和 Position 数据结构
+定义 Account 和 Position 数据结构，用于资金分配模拟器
 """
 
 from typing import Dict, Optional

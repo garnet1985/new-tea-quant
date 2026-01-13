@@ -117,6 +117,8 @@ echo "your_tushare_token" > app/core/modules/data_source/providers/tushare/auth/
 
 ### 5. 运行策略回测
 
+#### 主要命令
+
 ```bash
 # 机会枚举（生成投资机会）
 python start.py enumerate --strategy example
@@ -127,8 +129,54 @@ python start.py price_factor --strategy example
 # 资金分配模拟（真实资金约束下的组合回测）
 python start.py capital_allocation --strategy example
 
+# 数据更新（更新股票行情、标签等数据）
+python start.py renew
+
+# 扫描机会（根据策略筛选当前符合条件的股票）
+python start.py scan --strategy example
+
+# 标签计算（计算并存储标签）
+python start.py tag
+python start.py tag --scenario market_value  # 指定场景
+
 # 查看帮助
 python start.py --help
+```
+
+#### 快捷命令
+
+```bash
+python start.py -c    # 快捷: 扫描（等价于 scan）
+python start.py -s    # 快捷: 模拟（等价于 simulate）
+python start.py -r    # 快捷: 更新（等价于 renew）
+python start.py -a    # 快捷: 分析（等价于 analysis）
+python start.py -t    # 快捷: 标签（等价于 tag）
+python start.py -e    # 快捷: 枚举（等价于 enumerate）
+python start.py -p    # 快捷: 价格因子模拟（等价于 price_factor）
+```
+
+#### 组合命令
+
+```bash
+# 按顺序执行多个命令
+python start.py renew scan          # 更新数据 → 扫描
+python start.py renew simulate       # 更新数据 → 模拟
+python start.py -r -c -s            # 快捷: 全流程（更新 → 扫描 → 模拟）
+```
+
+#### 命令参数
+
+```bash
+# 指定策略
+python start.py enumerate --strategy example
+python start.py price_factor --strategy example
+python start.py capital_allocation --strategy example
+
+# 指定标签场景
+python start.py tag --scenario market_value
+
+# 详细输出模式
+python start.py enumerate --strategy example --verbose
 ```
 
 ## 核心概念
@@ -589,6 +637,56 @@ cci = IndicatorService.calculate('cci', klines, length=20)
 - 可扩展的适配器架构
 - 统一的适配器管理接口
 
+## 模块间关系
+
+### 数据流向
+
+```
+DataSource (外部数据源: Tushare, AKShare等)
+    ↓
+DataManager (统一数据访问层)
+    ├── StockService (股票数据)
+    ├── MacroService (宏观经济)
+    └── CalendarService (交易日历)
+    ↓
+Strategy Components (策略组件)
+    ├── OpportunityEnumerator (机会枚举)
+    ├── PriceFactorSimulator (价格因子模拟)
+    └── CapitalAllocationSimulator (资金分配模拟)
+    ↓
+Results (回测结果: JSON文件)
+```
+
+### 典型工作流程
+
+1. **数据准备阶段**
+   - DataSource 从第三方 API 获取数据（Tushare/AKShare）
+   - DataManager 存储和管理数据到数据库
+   - Tag 系统计算标签（可选，用于策略筛选）
+
+2. **策略开发阶段**
+   - 在 `userspace/strategies/` 下创建策略目录
+   - 配置 `settings.py`（核心参数、数据配置、投资目标等）
+   - 实现策略逻辑（扫描机会、自定义结算等）
+
+3. **回测执行阶段**
+   - `enumerate`: 扫描全市场，生成投资机会（SOT结果）
+   - `price_factor`: 评估信号质量，无资金约束（快速验证）
+   - `capital_allocation`: 真实资金约束下的组合回测（完整回测）
+
+4. **结果分析阶段**
+   - 查看生成的 JSON 文件（汇总统计、交易记录、权益曲线）
+   - 分析收益曲线和统计指标
+   - 对比不同版本的结果（版本管理系统）
+
+### 模块依赖关系
+
+- **Strategy** 依赖: DataManager, Indicator, Database, Worker
+- **Tag** 依赖: DataManager, Indicator, Database, Worker
+- **DataManager** 依赖: Database, DataSource
+- **DataSource** 依赖: Database (用于缓存)
+- **Indicator** 独立模块，无依赖
+
 ## Infrastructure 基础设施
 
 框架的基础设施由 `app/core/infra/` 提供，包括数据库管理和 Worker 系统。
@@ -702,6 +800,9 @@ cat 1_20260112_161317/portfolio_timeseries.json  # 权益曲线
 
 ```python
 from app.core.modules.indicator import IndicatorService
+from app.core.modules.data_manager import DataManager
+
+data_mgr = DataManager()
 
 # 在策略中使用
 klines = data_mgr.service.stock.kline.load_qfq('000001.SZ')
@@ -717,13 +818,13 @@ if rsi[-1] < 30 and klines[-1]['close'] > ma20[-1]:
 
 ```python
 from app.core.modules.tag import TagManager
+from app.core.modules.data_manager import DataManager
 
 # 执行标签计算
 tag_mgr = TagManager()
 tag_mgr.run_scenario('market_value')
 
 # 在策略中查询标签
-from app.core.modules.data_manager import DataManager
 data_mgr = DataManager()
 tags = data_mgr.service.stock.tag.get_tags(
     stock_id='000001.SZ',
@@ -735,9 +836,34 @@ tags = data_mgr.service.stock.tag.get_tags(
 ### 自定义数据源
 
 ```python
-# 在 data_source/handlers/ 下创建新的 handler
-# 在 data_source/providers/ 下创建新的 provider
-# 在 mapping.json 中配置 handler 和 provider 的映射关系
+# 1. 在 data_source/handlers/ 下创建新的 handler
+# 2. 在 data_source/providers/ 下创建新的 provider
+# 3. 在 mapping.json 中配置 handler 和 provider 的映射关系
+# 4. 通过 DataSourceManager 使用
+```
+
+### 创建自定义标签场景
+
+```python
+from app.core.modules.tag import BaseTagWorker
+
+class MyTagWorker(BaseTagWorker):
+    def calculate_tag(self, entity_id, date):
+        # 计算标签逻辑
+        return {
+            'tag_name': tag_value
+        }
+
+# 在 scenarios/ 目录下创建配置文件
+# 通过 TagManager 执行
+```
+
+### 扩展数据服务
+
+```python
+# 在 data_manager/data_services/ 下创建新的服务
+# 继承 BaseDataService
+# 在 DataService 中注册新服务
 ```
 
 ### 自定义报告
@@ -766,18 +892,61 @@ def analysis(self):
 
 ## 性能优化
 
-- **多进程模拟**: 自动并行化处理多只股票
-- **批量数据加载**: 一次性加载所需数据
-- **内存优化**: 及时释放不需要的数据
-- **进度追踪**: 实时显示处理进度
+### 数据库优化
+- **连接池管理**: 使用 DBUtils 管理连接，支持多进程环境
+- **批量操作**: 支持批量插入、批量更新，减少数据库交互
+- **SQL 优化**: 优先使用 JOIN 查询，减少查询次数
+- **索引优化**: 自动创建和维护索引，提升查询性能
+
+### 并行处理
+- **多进程模拟**: 自动并行化处理多只股票（OpportunityEnumerator, PriceFactorSimulator）
+- **多线程支持**: 适合 I/O 密集型任务（数据获取、标签计算）
+- **自动资源管理**: 子进程自动重置数据库连接，避免连接状态错误
+
+### 数据加载优化
+- **批量数据加载**: 一次性加载所需数据，减少数据库查询
+- **缓存机制**: DataSource 支持缓存，避免重复获取
+- **增量计算**: Tag 系统支持增量更新，只计算新增数据
+- **内存优化**: 及时释放不需要的数据，避免内存泄漏
+
+### 进度追踪
+- **实时进度显示**: 内置进度条和结果统计
+- **性能分析**: 支持性能分析，追踪数据库查询次数和执行时间
 
 ## 开发指南
 
 ### 代码规范
-- 遵循PEP 8
-- 使用类型注解
-- 添加适当的日志
-- 最小化注释（只注释必要部分）
+- **PEP 8**: 遵循 Python 代码风格指南
+- **类型注解**: 使用 `typing` 模块提供类型提示
+- **日志记录**: 使用 `logging` 模块，合理设置日志级别
+- **文档字符串**: 为公共 API 提供清晰的文档字符串
+- **最小化注释**: 代码即文档，只注释必要部分
+
+### 模块开发规范
+
+#### 创建新的数据服务
+```python
+# 1. 在 data_services/ 下创建服务目录
+# 2. 继承 BaseDataService
+# 3. 实现领域特定的数据访问方法
+# 4. 在 DataService 中注册服务
+```
+
+#### 创建新的策略组件
+```python
+# 1. 在 strategy/components/ 下创建组件目录
+# 2. 实现核心逻辑（枚举器、模拟器等）
+# 3. 创建配置模型（如需要）
+# 4. 在 start.py 中添加 CLI 入口
+```
+
+#### 创建新的标签场景
+```python
+# 1. 继承 BaseTagWorker
+# 2. 实现 calculate_tag 方法
+# 3. 创建场景配置文件
+# 4. 在 scenarios/ 目录下注册
+```
 
 ### 提交规范
 ```
@@ -786,7 +955,16 @@ fix: 修复bug
 refactor: 代码重构
 docs: 更新文档
 chore: 构建工具变动
+perf: 性能优化
+test: 添加测试
+style: 代码格式调整
 ```
+
+### 测试建议
+- 使用虚拟环境进行测试
+- 使用采样模式快速验证功能
+- 检查生成的 JSON 文件格式
+- 验证数据库查询性能
 
 ## 更新日志
 
@@ -798,6 +976,11 @@ chore: 构建工具变动
 - ⚙️ **配置系统重构**: 统一的配置结构，移除向后兼容，更清晰的字段命名
 - 🔄 **模块化优化**: 代码拆分和重构，提高可维护性
 - 📊 **结果输出优化**: 详细的交易记录、权益曲线、汇总统计
+- 🗄️ **DataManager 重构**: Facade + Service 架构，职责分离，明确性优先
+- 📦 **DataSource 系统**: Handler + Provider 架构，配置驱动，易于扩展，支持多数据源切换
+- 🏷️ **Tag 系统**: Scenario + Tag 三层架构，配置驱动的标签计算框架，支持多进程并行计算
+- 📈 **Indicator 模块**: 基于 pandas-ta-classic，支持 150+ 技术指标，通用模块设计
+- 🔧 **Infrastructure 完善**: Database 和 Worker 系统优化，多进程安全，自动资源管理
 
 ### v3.0.0 (2024-XX-XX)
 - 重构策略框架，支持插件化策略
@@ -811,6 +994,24 @@ chore: 构建工具变动
 - 从Node.js迁移到Python
 - 重构系统架构
 - 添加多数据源支持
+
+## 相关资源
+
+### 文档
+- [DataManager 架构文档](app/core/modules/data_manager/ARCHITECTURE.md)
+- [DataSource 设计文档](app/core/modules/data_source/docs/DESIGN.md)
+- [Strategy 框架设计](app/core/modules/strategy/docs/DESIGN.md)
+- [Tag 系统设计](app/core/modules/tag/docs/DESIGN.md)
+- [数据库模块文档](app/core/infra/db/README.md)
+
+### 示例策略
+- [Example 策略](app/userspace/strategies/example/) - 完整的策略示例，包含配置和文档
+
+### 工具脚本
+- `tools/` - 辅助工具脚本
+  - `fix_incomplete_kline_data.py` - 修复不完整的K线数据
+  - `generate_comparison_excel.py` - 生成对比Excel
+  - `improve_stock_sampling.py` - 改进股票采样
 
 ## 许可证
 

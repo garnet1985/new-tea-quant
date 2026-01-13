@@ -21,7 +21,7 @@ import json
 from datetime import datetime
 
 from .helpers import DateTimeEncoder
-from .version_manager import SimulationVersionManager
+from app.core.modules.strategy.managers.version_manager import VersionManager
 from .result_presenter import ResultPresenter
 from .result_aggregator import ResultAggregator
 from .investment_builder import InvestmentBuilder
@@ -119,7 +119,7 @@ class PriceFactorSimulator:
         simulator_config = self._build_config_from_settings(base_settings)
 
         # 2. 解析 SOT 版本目录（依赖的枚举版本）
-        sot_root, sot_version_dir = SimulationVersionManager.resolve_sot_version_dir(
+        sot_version_dir, sot_root = VersionManager.resolve_sot_version(
             strategy_name, simulator_config.sot_version
         )
         logger.info(
@@ -127,8 +127,8 @@ class PriceFactorSimulator:
             f"sot_version={sot_version_dir.name}"
         )
 
-        # 3. 创建模拟器版本目录（使用自己的版本管理）
-        sim_version_dir, sim_version_id = SimulationVersionManager.create_simulation_version_dir(
+        # 3. 创建模拟器版本目录（使用统一的版本管理）
+        sim_version_dir, sim_version_id = VersionManager.create_price_factor_version(
             strategy_name
         )
         logger.info(

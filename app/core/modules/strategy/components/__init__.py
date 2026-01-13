@@ -5,7 +5,7 @@ from .opportunity_enumerator import OpportunityEnumerator, OpportunityEnumerator
 from .opportunity_service import OpportunityService
 from .session_manager import SessionManager
 from .strategy_worker_data_manager import StrategyWorkerDataManager
-from .price_factor_simulator import PriceFactorSimulator, PriceFactorSimulatorWorker
+from .simulator.price_factor import PriceFactorSimulator, PriceFactorSimulatorWorker
 
 __all__ = [
     'OpportunityEnumerator',

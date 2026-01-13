@@ -302,22 +302,24 @@ app/userspace/
 
 ---
 
-## 实施计划
+## 实施计划（已完成 ✅）
 
 ### Phase 1：基础设施
-1. [ ] 扩展 `ScannerSettings`：添加 `use_strict_previous_trading_day` 和 `max_cache_days`
-2. [ ] 实现 `ScanDateResolver`：日期解析逻辑
-3. [ ] 实现 `ScanCacheManager`：CSV 缓存读写 + 清理
+1. [x] 扩展 `ScannerSettings`：添加 `use_strict_previous_trading_day` 和 `max_cache_days`
+2. [x] 实现 `ScanDateResolver`：日期解析逻辑
+3. [x] 实现 `ScanCacheManager`：CSV 缓存读写 + 清理
 
 ### Phase 2：Adapter 机制
-4. [ ] 定义 `BaseOpportunityAdapter` 接口
-5. [ ] 实现 `AdapterDispatcher`：动态加载 userspace adapter
-6. [ ] 实现 `ConsoleAdapter` 示例：打印机会 + 历史统计
+4. [x] 定义 `BaseOpportunityAdapter` 接口（位于 `app/core/modules/adapter/`）
+5. [x] 实现 `AdapterDispatcher`：动态加载 userspace adapter
+6. [x] 实现 `ConsoleAdapter` 示例：打印机会 + 历史统计
+7. [x] 实现 `HistoryLoader`：加载历史模拟结果并计算统计
 
 ### Phase 3：Scanner 主类
-7. [ ] 实现 `Scanner` 主类：整合所有组件
-8. [ ] 多进程扫描：复用 `ProcessWorker` + `BaseStrategyWorker.scan_opportunity()`
-9. [ ] 集成测试：验证完整流程
+8. [x] 实现 `Scanner` 主类：整合所有组件
+9. [x] 多进程扫描：复用 `ProcessWorker` + `BaseStrategyWorker.scan_opportunity()`
+10. [x] Adapter 验证：在 ScannerSettings 中验证 adapter 是否可用
+11. [x] 默认输出：当所有 adapter 失败时使用默认输出
 
 ---
 

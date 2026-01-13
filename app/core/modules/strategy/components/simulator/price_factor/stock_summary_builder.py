@@ -132,3 +132,4 @@ class StockSummaryBuilder:
             "annual_return": 0.0,
             "annual_return_in_trading_days": 0.0,
         }
+

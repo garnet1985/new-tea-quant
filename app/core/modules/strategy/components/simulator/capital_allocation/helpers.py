@@ -20,3 +20,4 @@ class DateTimeEncoder(json.JSONEncoder):
         elif hasattr(obj, "__dict__"):
             return obj.__dict__
         return super().default(obj)
+

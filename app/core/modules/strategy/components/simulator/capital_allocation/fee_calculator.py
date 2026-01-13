@@ -79,3 +79,4 @@ class FeeCalculator:
             return amount + fees  # 买入：总成本 = 金额 + 费用
         else:
             return amount - fees  # 卖出：净收入 = 金额 - 费用
+

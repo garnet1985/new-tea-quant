@@ -101,6 +101,7 @@ class DBService:
         if not data_list:
             return [], [], ""
         
+        # 使用原始列名（DuckDB 不需要反引号）
         columns = list(data_list[0].keys())
         
         # 检查 unique_keys 是否都在数据列中存在
@@ -108,17 +109,15 @@ class DBService:
         if missing_keys:
             raise ValueError(f"主键字段在数据中缺失: {missing_keys}")
         
-        # 为字段名添加反引号（处理 MySQL 保留字，如 'key'）
-        escaped_columns = [f"`{col}`" for col in columns]
-        
-        # 构建 update 子句（排除 unique_keys 中的字段）
+        # 构建 ON CONFLICT ... DO UPDATE 子句（排除 unique_keys 中的字段）
+        # 适用于 DuckDB / PostgreSQL 风格的 Upsert
         update_fields = [k for k in columns if k not in unique_keys]
-        update_clause = ', '.join([f"`{k}` = VALUES(`{k}`)" for k in update_fields])
+        update_clause = ', '.join([f"{k} = EXCLUDED.{k}" for k in update_fields]) if update_fields else ''
         
         # 构建值列表
         values = [tuple(data[col] for col in columns) for data in data_list]
         
-        return escaped_columns, values, update_clause
+        return columns, values, update_clause
     
     @staticmethod
     def clean_nan_value(value: Any, default: Any = None) -> Any:
@@ -643,81 +642,40 @@ class DbBaseModel:
     # ***********************************
     def replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
         """
-        批量插入或更新数据（支持线程安全）
+        批量插入或更新数据（DuckDB 版本）
         
-        对于大数据量，自动使用异步写入队列
-        对于小数据量，直接执行
+        实现策略：
+        - 统一使用 DatabaseManager.queue_write（内部使用 REPLACE INTO）
+        - DuckDB 是进程内数据库，同步写入即可，无需复杂的线程安全/重试逻辑
         """
         if not data_list:
             return 0
         
-        # 检查数据库管理器是否支持线程安全
-        if DB_CONFIG['thread_safety']['enable']:
-            # 对于大数据量，使用异步写入队列
-            if len(data_list) > DB_CONFIG['thread_safety']['turn_to_batch_threshold']:
-                if self.db.is_verbose:
-                    logger.info(f"Large dataset detected ({len(data_list)} records), using async write queue")
-                
-                # 定义回调函数
-                def write_callback(table_name, count):
-                    if self.db.is_verbose:
-                        logger.info(f"Async write completed for {table_name}: {count} records")
-                
-                # 加入写入队列
+        try:
+            # 定义回调函数（可选，仅用于日志）
+            def write_callback(table_name, count):
+                if getattr(self.db, 'is_verbose', False):
+                    logger.info(f"Upsert completed for {table_name}: {count} records")
+            
+            # 交给 DatabaseManager 统一处理（内部使用 REPLACE INTO）
+            if hasattr(self.db, 'queue_write'):
                 self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)
                 return len(data_list)
             
-            # 对于小数据量，使用线程安全的批量写入
-            try:
-                columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
-
-                query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))}) ON DUPLICATE KEY UPDATE {update_clause}"
-                with self.db.get_sync_cursor() as cursor:
-                    cursor.executemany(query, values)
-                    cursor.connection.commit()
-                    return len(data_list)
-                
-            except Exception as e:
-                logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
-                return 0
-        else:
-            # 原有模式：使用重试机制
-            retry_count = 0
-            max_retries = DB_CONFIG['thread_safety']['max_retries']
+            # 兜底方案：直接构建 REPLACE INTO 语句
+            columns, values, _ = DBService.to_upsert_params(data_list, unique_keys)
+            placeholders = ', '.join(['%s'] * len(columns))
+            query = f"REPLACE INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders})"
             
-            while retry_count < max_retries:
-                try:
-                    # 构建ON DUPLICATE KEY UPDATE子句
-                    columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
-                    
-                    query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))}) ON DUPLICATE KEY UPDATE {update_clause}"
-                    
-                    with self.db.get_sync_cursor() as cursor:
-                        cursor.executemany(query, values)
-                        cursor.connection.commit()
-                        return len(data_list)
-                        
-                except Exception as e:
-                    retry_count += 1
-                    error_msg = str(e)
-                    
-                    # 如果是连接相关错误，尝试重试
-                    if ("Packet sequence number wrong" in error_msg or 
-                        "settimeout" in error_msg or 
-                        "(0, '')" in error_msg):
-                        
-                        if retry_count < max_retries:
-                            logger.warning(f"Database connection error, retrying ({retry_count}/{max_retries}): {e}")
-                            import time
-                            time.sleep(0.1 * retry_count)  # 指数退避
-                            continue
-                        else:
-                            logger.error(f"Failed to batch upsert data in {self.table_name} after {max_retries} retries: {e}")
-                            return 0
-                    else:
-                        # 其他错误，不重试
-                        logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
-                        return 0
+            with self.db.get_sync_cursor() as cursor:
+                cursor.executemany(query, values)
+                # DuckDB 会自动提交，这里保留兼容调用
+                if hasattr(cursor, 'connection'):
+                    cursor.connection.commit()
+            return len(data_list)
+        
+        except Exception as e:
+            logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
             return 0
     
     def replace_one(self, data: Dict[str, Any], unique_keys: List[str]) -> int:

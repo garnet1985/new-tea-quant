@@ -177,3 +177,5 @@ class InvestmentBuilder:
                 return "loss"
             else:
                 return "open"
+
+

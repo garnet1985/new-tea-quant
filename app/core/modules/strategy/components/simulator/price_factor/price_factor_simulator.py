@@ -22,11 +22,16 @@ from datetime import datetime
 
 from .helpers import DateTimeEncoder
 from app.core.modules.strategy.managers.version_manager import VersionManager
+from app.core.modules.strategy.managers.data_loader import DataLoader
+from app.core.modules.strategy.managers.result_path_manager import ResultPathManager
+from app.core.modules.strategy.components.simulator.base.simulator_hooks_dispatcher import (
+    SimulatorHooksDispatcher,
+)
 from .result_presenter import ResultPresenter
 from .result_aggregator import ResultAggregator
 from .investment_builder import InvestmentBuilder
 from .stock_summary_builder import StockSummaryBuilder
-from .opportunity_loader import OpportunityLoader
+
 
 logger = logging.getLogger(__name__)
 
@@ -135,10 +140,15 @@ class PriceFactorSimulator:
             f"[PriceFactorSimulator] 模拟器版本: {sim_version_dir.name} (version_id={sim_version_id})"
         )
 
-        # 4. 扫描 SOT 目录下的机会/目标文件，按股票分组
+        # 4. 创建 DataLoader 实例
+        data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
+
+        # 5. 扫描 SOT 目录下的机会/目标文件，按股票分组
         stock_files = self._scan_sot_files(sot_version_dir)
         if not stock_files:
-            logger.warning(f"[PriceFactorSimulator] 在 SOT 目录中未找到任何机会文件: {sot_version_dir}")
+            logger.warning(
+                f"[PriceFactorSimulator] 在 SOT 目录中未找到任何机会文件: {sot_version_dir}"
+            )
             return {}
 
         # 5. 根据 use_sampling 配置过滤股票列表
@@ -203,8 +213,10 @@ class PriceFactorSimulator:
             ProcessWorker,
             ExecutionMode as ProcessExecutionMode,
         )
-        from app.core.infra.worker.multi_process.process_worker import JobStatus  # type: ignore
-        from app.core.modules.strategy.components.price_factor_simulator import (
+        from app.core.infra.worker.multi_process.process_worker import (  # type: ignore
+            JobStatus,
+        )
+        from app.core.modules.strategy.components.simulator.price_factor import (
             PriceFactorSimulatorWorker,
         )
 
@@ -390,8 +402,11 @@ class PriceFactorSimulator:
 
         注意：每个股票的 JSON 文件由 Worker 在子进程中独立保存。
         """
+        # 使用统一的 ResultPathManager 管理结果目录和文件名
+        path_mgr = ResultPathManager(sim_version_dir=sim_version_dir)
+
         # 写入会话级 summary
-        session_path = sim_version_dir / "0_session_summary.json"
+        session_path = path_mgr.session_summary_path()
         with session_path.open("w", encoding="utf-8") as f:
             json.dump(session_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
@@ -410,7 +425,7 @@ class PriceFactorSimulator:
             "settings_snapshot": settings_snapshot,
         }
         
-        metadata_path = sim_version_dir / "metadata.json"
+        metadata_path = path_mgr.metadata_path()
         with metadata_path.open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
@@ -440,6 +455,8 @@ class PriceFactorSimulatorWorker:
         self.targets_path = Path(job_payload["targets_path"])
         self.sim_version_dir = Path(job_payload["sim_version_dir"])
         self.config_dict: Dict[str, Any] = job_payload.get("config", {})
+        # 钩子分发器（按策略名加载用户 StrategyWorker）
+        self.hooks_dispatcher = SimulatorHooksDispatcher(self.strategy_name)
 
     # ------------------------------------------------------------------ #
     # 静态入口（供 ProcessWorker 使用）
@@ -510,59 +527,111 @@ class PriceFactorSimulatorWorker:
         start_date: str = cfg.get("start_date") or ""
         end_date: str = cfg.get("end_date") or ""
 
-        # 1. 加载 opportunities 和 targets
-        opportunities, targets_map = OpportunityLoader.load_opportunities_and_targets(
-            self.opportunities_path,
-            self.targets_path,
+        # 1. 创建 DataLoader 并加载 opportunities 和 targets
+        from app.core.modules.strategy.managers.data_loader import DataLoader
+        data_loader = DataLoader(strategy_name=self.strategy_name, cache_enabled=False)
+        
+        # 从路径中提取 SOT 版本目录和股票 ID
+        sot_version_dir = self.opportunities_path.parent
+        stock_id = self.stock_id
+        
+        opportunities, targets_map = data_loader.load_opportunities_and_targets(
+            sot_version_dir,
+            stock_id=stock_id,
             start_date=start_date,
             end_date=end_date,
         )
 
         if not opportunities:
-            return {
+            stock_summary = {
                 "stock": self.stock_info,
                 "investments": [],
                 "summary": StockSummaryBuilder._empty_summary(),
             }
+            # 允许用户在“空结果”场景也做一次 after_process_stock 钩子
+            modified = self.hooks_dispatcher.call_hook(
+                "on_price_factor_after_process_stock",
+                self.stock_id,
+                stock_summary,
+                cfg,
+            )
+            return modified or stock_summary
 
-        # 2. 按 trigger_date 排序
-        opportunities.sort(key=lambda r: (r.get("trigger_date") or "", r.get("opportunity_id") or ""))
-
-        # 3. 模拟：同一时刻只持有一个机会（1 股），并构造 investments 列表
+        # 2. 调用“单股处理前”钩子
+        self.hooks_dispatcher.call_hook(
+            "on_price_factor_before_process_stock",
+            self.stock_id,
+            opportunities,
+            cfg,
+        )
+        
+        # 3. 按 trigger_date 排序
+        opportunities.sort(
+            key=lambda r: (r.get("trigger_date") or "", r.get("opportunity_id") or "")
+        )
+        
+        # 4. 模拟：同一时刻只持有一个机会（1 股），并构造 investments 列表
         investments: List[Dict[str, Any]] = []
         holding: bool = False
         current_exit_date: Optional[str] = None
 
         for row in opportunities:
-            trigger_date = row.get("trigger_date") or ""
-            exit_date = row.get("exit_date") or ""
-            opp_id = str(row.get("opportunity_id") or "").strip()
+            # 钩子：允许用户修改机会原始行
+            modified_row = self.hooks_dispatcher.call_hook(
+                "on_price_factor_opportunity_trigger",
+                row,
+                cfg,
+            ) or row
+            
+            trigger_date = modified_row.get("trigger_date") or ""
+            exit_date = modified_row.get("exit_date") or ""
+            opp_id = str(modified_row.get("opportunity_id") or "").strip()
 
             # 若当前仍有持仓，且新机会的触发日早于当前持仓结束，则跳过
             if holding and current_exit_date is not None and trigger_date <= current_exit_date:
                 continue
-
+            
             # 接纳该机会：视为买入 1 股并持有至 exit_date
             holding = True
             current_exit_date = exit_date
-
+            
+            # 取出并通过钩子处理所有 target 行
+            raw_targets = targets_map.get(opp_id) or []
+            processed_targets: List[Dict[str, Any]] = []
+            for t in raw_targets:
+                modified_t = self.hooks_dispatcher.call_hook(
+                    "on_price_factor_target_hit",
+                    t,
+                    modified_row,
+                    cfg,
+                ) or t
+                processed_targets.append(modified_t)
+            
             # 使用 InvestmentBuilder 构建 investment 记录
-            t_list = targets_map.get(opp_id) or []
-            investment = InvestmentBuilder.build_investment(row, t_list)
+            investment = InvestmentBuilder.build_investment(modified_row, processed_targets)
             investments.append(investment)
 
             # 更新持仓状态
             holding = False
             current_exit_date = exit_date
 
-        # 4. 构建 summary
+        # 5. 构建 summary
         summary = StockSummaryBuilder.build_summary(investments)
-
-        return {
+        stock_summary = {
             "stock": self.stock_info,
             "investments": investments,
             "summary": summary,
         }
+        
+        # 6. 单股处理后钩子，允许用户调整结果
+        modified_summary = self.hooks_dispatcher.call_hook(
+            "on_price_factor_after_process_stock",
+            self.stock_id,
+            stock_summary,
+            cfg,
+        )
+        
+        return modified_summary or stock_summary
 
     # ------------------------------------------------------------------ #
     # 结果保存（Worker 独立保存）
@@ -574,11 +643,11 @@ class PriceFactorSimulatorWorker:
         目录结构：
             app/userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.json
         """
-        # 使用传入的 sim_version_dir（模拟器版本目录）
-        root = Path(self.sim_version_dir)
-        root.mkdir(parents=True, exist_ok=True)
+        # 使用 ResultPathManager 统一管理结果目录与文件名
+        from app.core.modules.strategy.managers.result_path_manager import ResultPathManager
 
-        stock_path = root / f"{self.stock_id}.json"
+        path_mgr = ResultPathManager(sim_version_dir=self.sim_version_dir)
+        stock_path = path_mgr.stock_json_path(self.stock_id)
         with stock_path.open("w", encoding="utf-8") as f:
             json.dump(stock_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         

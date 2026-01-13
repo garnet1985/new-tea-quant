@@ -118,3 +118,5 @@ def get_annual_return(profit_rate: float, duration_in_days: int, is_trading_days
     # 使用复利公式：年化收益率 = ((1 + 总收益率) ^ (1/年数)) - 1
     annual_return = ((1 + profit_rate) ** (1 / years)) - 1
     return annual_return
+
+

@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 
 from .capital_allocation_simulator_config import CapitalAllocationSimulatorConfig
-from .version_manager import CapitalAllocationSimulationVersionManager
+from app.core.modules.strategy.managers.version_manager import VersionManager
 from .models import Account, Position
 from .fee_calculator import FeeCalculator
 from .allocation_strategy import AllocationStrategy
@@ -71,7 +71,7 @@ class CapitalAllocationSimulator:
         config = CapitalAllocationSimulatorConfig.from_settings(base_settings)
 
         # 2. 解析 SOT 版本目录
-        sot_version_dir, _ = CapitalAllocationSimulationVersionManager.resolve_sot_version_dir(
+        sot_version_dir, _ = VersionManager.resolve_sot_version(
             strategy_name, config.sot_version
         )
         logger.info(
@@ -80,8 +80,8 @@ class CapitalAllocationSimulator:
         )
 
         # 3. 创建模拟器版本目录
-        sim_version_dir, sim_version_id = (
-            CapitalAllocationSimulationVersionManager.create_simulation_version_dir(strategy_name)
+        sim_version_dir, sim_version_id = VersionManager.create_capital_allocation_version(
+            strategy_name
         )
         logger.info(
             f"[CapitalAllocationSimulator] 模拟器版本: {sim_version_dir.name} (version_id={sim_version_id})"

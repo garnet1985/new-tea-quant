@@ -407,7 +407,7 @@ class VersionManager:
         return version_dir, version_id
     
     # =========================================================================
-    # 通用 SOT 版本解析（向后兼容）
+    # 通用 SOT 版本解析
     # =========================================================================
     
     @staticmethod
@@ -416,16 +416,20 @@ class VersionManager:
         sot_version: str
     ) -> Tuple[Path, Path]:
         """
-        解析 SOT（枚举器）版本目录（通用方法，向后兼容）
+        解析 SOT（枚举器）版本目录（通用方法）
         
-        这是 resolve_enumerator_version 的别名，用于向后兼容。
-        建议新代码直接使用 resolve_enumerator_version。
+        这是 resolve_enumerator_version 的包装方法，提供统一的接口。
+        返回格式：`(version_dir, sub_dir)`
+        其中 `sub_dir` 是 `test/` 或 `sot/` 子目录。
         
         Args:
             strategy_name: 策略名称
             sot_version: SOT 版本标识符
         
         Returns:
-            (version_dir, base_dir): 版本目录路径和基础目录路径
+            (version_dir, sub_dir): 版本目录路径和子目录路径（test/ 或 sot/）
         """
-        return VersionManager.resolve_enumerator_version(strategy_name, sot_version)
+        version_dir, base_dir = VersionManager.resolve_enumerator_version(strategy_name, sot_version)
+        # 返回子目录（test/ 或 sot/）
+        sub_dir = version_dir.parent
+        return version_dir, sub_dir

@@ -1,25 +1,125 @@
 """
-DatabaseManager - 简化的 MySQL 数据库管理器
-- 使用 DBUtils 管理连接池（自动扩容、健康检查）
+DatabaseManager - DuckDB 数据库管理器
+- 使用 DuckDB 单文件数据库
 - 使用 DbSchemaManager 管理表结构
 - 提供简洁的 CRUD 接口
 """
-import pymysql
+import duckdb
 from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
+from pathlib import Path
 from loguru import logger
-from dbutils.pooled_db import PooledDB
 
-from .db_config_manager import DB_CONFIG
+from app.core.conf.db_conf import DUCKDB_CONF
 from .db_schema_manager import DbSchemaManager
+
+
+class DuckDBCursor:
+    """
+    DuckDB 游标包装类，兼容 MySQL cursor 接口
+    """
+    def __init__(self, conn: duckdb.DuckDBPyConnection):
+        self.conn = conn
+        self._result = None
+        self._description = None
+        self._cursor = None
+    
+    def execute(self, query: str, params: Any = None):
+        """执行 SQL 查询"""
+        # DuckDB 使用 ? 作为占位符，但我们的代码可能还在用 %s
+        # 统一转换
+        query = query.replace("%s", "?")
+        
+        # DuckDB 的 execute 返回一个结果对象
+        if params:
+            self._cursor = self.conn.execute(query, params)
+        else:
+            self._cursor = self.conn.execute(query)
+        
+        # 获取列信息
+        try:
+            # DuckDB 的 description 是列名列表
+            if hasattr(self._cursor, 'description'):
+                self._description = [col[0] for col in self._cursor.description]
+            else:
+                # 尝试从结果推断
+                self._result = self._cursor.fetchall()
+                if self._result and isinstance(self._result[0], dict):
+                    self._description = list(self._result[0].keys())
+                elif self._result:
+                    # 如果是元组，需要从 cursor 获取列名
+                    # DuckDB 的 fetchall() 可能返回字典或元组
+                    pass
+        except:
+            self._description = []
+        
+        return self
+    
+    def fetchall(self) -> List[Dict[str, Any]]:
+        """获取所有结果，转换为字典列表"""
+        if self._cursor is None:
+            return []
+        
+        try:
+            # DuckDB 的 fetchall() 可能返回字典列表或元组列表
+            result = self._cursor.fetchall()
+            
+            if not result:
+                return []
+            
+            # 如果已经是字典列表，直接返回
+            if isinstance(result[0], dict):
+                return list(result)
+            
+            # 如果是元组列表，需要转换为字典
+            if self._description:
+                return [dict(zip(self._description, row)) for row in result]
+            else:
+                # 尝试获取列名
+                try:
+                    if hasattr(self._cursor, 'description'):
+                        columns = [col[0] for col in self._cursor.description]
+                        return [dict(zip(columns, row)) for row in result]
+                except:
+                    pass
+                
+                # 最后使用数字索引
+                return [dict(enumerate(row)) for row in result]
+        except Exception as e:
+            logger.error(f"fetchall 失败: {e}")
+            return []
+    
+    def fetchone(self) -> Optional[Dict[str, Any]]:
+        """获取一条结果"""
+        results = self.fetchall()
+        return results[0] if results else None
+    
+    @property
+    def rowcount(self) -> int:
+        """返回影响的行数"""
+        if self._result:
+            return len(self._result)
+        return 0
+    
+    @property
+    def connection(self):
+        """
+        兼容属性：返回底层 DuckDB 连接
+        主要用于兼容旧代码中的 cursor.connection.commit() 等调用
+        """
+        return self.conn
+
+    def close(self):
+        """关闭游标（DuckDB 不需要显式关闭）"""
+        pass
 
 
 class DatabaseManager:
     """
-    简化的数据库管理器
+    DuckDB 数据库管理器
     
     职责：
-    - 连接池管理（使用 DBUtils）
+    - DuckDB 连接管理
     - 基础 CRUD 操作
     - 事务管理
     - 提供默认实例（支持多进程自动初始化）
@@ -27,8 +127,7 @@ class DatabaseManager:
     不再负责：
     - Schema 解析和建表（由 SchemaManager 负责）
     - 表模型缓存（归 DataManager）
-    - 异步操作
-    - 写入队列
+    - 连接池（DuckDB 单连接即可）
     """
     
     _default_instance = None  # 默认实例（支持多进程）
@@ -39,17 +138,17 @@ class DatabaseManager:
         初始化数据库管理器
         
         Args:
-            config: 数据库配置（默认使用 DB_CONFIG）
+            config: 数据库配置（默认使用 DUCKDB_CONF）
             is_verbose: 是否输出详细日志
         """
-        self.config = config or DB_CONFIG
+        self.config = config or DUCKDB_CONF
         self.is_verbose = is_verbose
-        self.pool = None
+        self.conn: Optional[duckdb.DuckDBPyConnection] = None
         self._initialized = False
         
-        # Schema 管理器
+        # Schema 管理器（不再需要 charset，但保留接口兼容）
         self.schema_manager = DbSchemaManager(
-            charset=self.config['base']['charset'],
+            charset='utf8',  # DuckDB 不需要 charset，但保留参数
             is_verbose=is_verbose
         )
     
@@ -106,156 +205,46 @@ class DatabaseManager:
         - 切换数据库配置
         """
         if cls._default_instance is not None:
-            # 关闭连接池
-            if hasattr(cls._default_instance, 'pool') and cls._default_instance.pool:
-                cls._default_instance.pool.close()
+            # 关闭连接
+            if hasattr(cls._default_instance, 'conn') and cls._default_instance.conn:
+                cls._default_instance.conn.close()
         cls._default_instance = None
         logger.info("🔄 DatabaseManager 默认实例已重置")
     
-    @classmethod
-    def set_default(cls, instance: 'DatabaseManager'):
-        """
-        设置默认的 DatabaseManager 实例
-        
-        Args:
-            instance: DatabaseManager 实例
-        """
-        cls._default_instance = instance
-    
-    @classmethod
-    def get_default(cls) -> 'DatabaseManager':
-        """
-        获取默认的 DatabaseManager 实例
-        
-        如果实例不存在（如多进程场景），会自动创建并初始化
-        
-        Returns:
-            DatabaseManager 实例
-        """
-        if cls._default_instance is None:
-            if cls._auto_init_enabled:
-                # 自动创建并初始化（多进程场景）
-                logger.info("🔄 检测到 DatabaseManager 未初始化（可能是多进程场景），自动创建实例")
-                instance = cls(is_verbose=False)
-                instance.initialize()
-                cls._default_instance = instance
-            else:
-                raise RuntimeError(
-                    "No default DatabaseManager instance. "
-                    "Call DatabaseManager.set_default(db) first."
-                )
-        
-        return cls._default_instance
-    
-    @classmethod
-    def reset_default(cls):
-        """
-        重置默认实例（主要用于测试）
-        """
-        cls._default_instance = None
-
     def initialize(self):
         """
-        初始化数据库管理器（仅基础设施）
+        初始化数据库管理器
         
         步骤：
-        1. 创建数据库（如果不存在）
-        2. 初始化连接池
+        1. 确保数据库文件目录存在
+        2. 连接 DuckDB
+        3. 设置性能参数
         
         注意：不再创建表，表的创建由 DataManager 负责
         """
         try:
-            # 1. 确保数据库存在
-            self._ensure_database_exists()
+            # 1. 确保数据库文件目录存在
+            db_path = Path(self.config['db_path'])
+            db_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # 2. 初始化连接池
-            self._init_connection_pool()
+            # 2. 连接 DuckDB
+            self.conn = duckdb.connect(str(db_path))
+            
+            # 3. 设置性能参数
+            threads = self.config.get('threads', 4)
+            memory_limit = self.config.get('memory_limit', '8GB')
+            
+            self.conn.execute(f"SET threads = {threads}")
+            self.conn.execute(f"SET memory_limit = '{memory_limit}'")
             
             self._initialized = True
             
             if self.is_verbose:
-                logger.info("✅ DatabaseManager 初始化完成（连接池已就绪）")
+                logger.info(f"✅ DatabaseManager 初始化完成（DuckDB: {db_path}）")
+                logger.info(f"   线程数: {threads}, 内存限制: {memory_limit}")
                 
         except Exception as e:
             logger.error(f"❌ DatabaseManager 初始化失败: {e}")
-            raise
-    
-    def _ensure_database_exists(self):
-        """确保数据库存在，不存在则创建"""
-        try:
-            # 先不指定数据库，连接到 MySQL
-            temp_conn = pymysql.connect(
-                host=self.config['base']['host'],
-                user=self.config['base']['user'],
-                password=self.config['base']['password'],
-                port=self.config['base']['port'],
-                charset=self.config['base']['charset']
-            )
-            
-            try:
-                with temp_conn.cursor() as cursor:
-                    db_name = self.config['base']['database']
-                    cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET {self.config['base']['charset']}")
-                    if self.is_verbose:
-                        logger.info(f"✅ 数据库 {db_name} 已就绪")
-            finally:
-                temp_conn.close()
-                
-        except Exception as e:
-            logger.error(f"❌ 创建数据库失败: {e}")
-            raise
-    
-    def _init_connection_pool(self):
-        """
-        初始化连接池（使用 DBUtils）
-        
-        特性：
-        - 自动扩容（从 min 到 max）
-        - 自动健康检查（ping=1）
-        - 线程安全
-        - 连接复用
-        """
-        try:
-            pool_config = self.config.get('pool', {})
-            timeout_config = self.config.get('timeout', {})
-            
-            self.pool = PooledDB(
-                creator=pymysql,
-                
-                # 连接池配置
-                maxconnections=pool_config.get('pool_size_max', 30),  # 最大连接数
-                mincached=pool_config.get('pool_size_min', 5),        # 最小空闲连接
-                maxcached=10,                                          # 最大空闲连接
-                maxshared=0,                                           # 最大共享连接（0=不共享）
-                blocking=True,                                         # 连接用完时阻塞等待
-                maxusage=None,                                         # 连接最大使用次数（None=无限制）
-                
-                # 健康检查
-                ping=1,  # 0=不检查, 1=默认检查, 2=事务开始时检查, 4=执行查询时检查, 7=总是检查
-                
-                # 数据库连接参数
-                host=self.config['base']['host'],
-                user=self.config['base']['user'],
-                password=self.config['base']['password'],
-                database=self.config['base']['database'],
-                port=self.config['base']['port'],
-                charset=self.config['base']['charset'],
-                
-                # 超时配置
-                connect_timeout=timeout_config.get('connection', 60),
-                read_timeout=timeout_config.get('read', 60),
-                write_timeout=timeout_config.get('write', 60),
-                
-                # 其他配置
-                autocommit=self.config['base'].get('autocommit', True),
-                cursorclass=pymysql.cursors.DictCursor,  # 返回字典格式
-            )
-            
-            if self.is_verbose:
-                logger.info(f"✅ 连接池初始化完成（最小: {pool_config.get('pool_size_min', 5)}, 最大: {pool_config.get('pool_size_max', 30)}）")
-            
-        except Exception as e:
-            logger.error(f"❌ 连接池初始化失败: {e}")
             raise
     
     # ==================== 连接管理 ====================
@@ -267,20 +256,13 @@ class DatabaseManager:
         
         使用方式:
             with db.get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(...)
+                # DuckDB 连接可以直接执行 SQL
+                conn.execute("SELECT ...")
         """
-        if not self.pool:
-            raise RuntimeError("连接池未初始化，请先调用 initialize()")
+        if not self.conn:
+            raise RuntimeError("数据库未初始化，请先调用 initialize()")
         
-        conn = self.pool.connection()
-        try:
-            yield conn
-        except Exception as e:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()  # DBUtils 会自动归还到池中
+        yield self.conn
     
     @contextmanager
     def transaction(self):
@@ -293,21 +275,17 @@ class DatabaseManager:
                 cursor.execute("UPDATE ...")
                 # 自动提交或回滚
         """
-        with self.get_connection() as conn:
-            # 临时关闭自动提交
-            old_autocommit = conn.get_autocommit()
-            conn.autocommit(False)
-            
-            cursor = conn.cursor()
-            try:
-                yield cursor
-                conn.commit()
-            except Exception as e:
-                conn.rollback()
-                raise
-            finally:
-                cursor.close()
-                conn.autocommit(old_autocommit)
+        if not self.conn:
+            raise RuntimeError("数据库未初始化，请先调用 initialize()")
+        
+        # DuckDB 自动管理事务，这里提供一个兼容接口
+        cursor = DuckDBCursor(self.conn)
+        try:
+            yield cursor
+            # DuckDB 的 execute 会自动提交
+        except Exception as e:
+            # 如果出错，DuckDB 会自动回滚
+            raise
     
     # ==================== 表管理（委托给 SchemaManager）====================
     
@@ -339,11 +317,18 @@ class DatabaseManager:
         Returns:
             是否存在
         """
-        return self.schema_manager.is_table_exists(
-            table_name, 
-            self.config['base']['database'], 
-            self.get_connection()
-        )
+        # DuckDB 使用 information_schema
+        query = """
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_name = ?
+        """
+        try:
+            result = self.execute_sync_query(query, (table_name,))
+            return result[0]['count'] > 0 if result else False
+        except Exception as e:
+            logger.error(f"检查表是否存在失败: {e}")
+            return False
     
     def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
@@ -372,28 +357,26 @@ class DatabaseManager:
     # ==================== 工具方法 ====================
     
     def close(self):
-        """关闭连接池"""
-        if self.pool:
-            self.pool.close()
-            self.pool = None
+        """关闭数据库连接"""
+        if self.conn:
+            self.conn.close()
+            self.conn = None
+            self._initialized = False
             if self.is_verbose:
-                logger.info("✅ 连接池已关闭")
+                logger.info("✅ 数据库连接已关闭")
     
     def get_stats(self) -> Dict:
         """
-        获取连接池统计信息
+        获取数据库统计信息
         
         Returns:
             统计信息字典
         """
-        if not self.pool:
-            return {}
-        
-        pool_config = self.config.get('pool', {})
         return {
             'initialized': self._initialized,
-            'max_connections': pool_config.get('pool_size_max', 30),
-            'min_cached': pool_config.get('pool_size_min', 5),
+            'db_path': str(self.config.get('db_path', '')),
+            'threads': self.config.get('threads', 4),
+            'memory_limit': self.config.get('memory_limit', '8GB'),
         }
     
     @contextmanager
@@ -406,46 +389,73 @@ class DatabaseManager:
                 cursor.execute("SELECT * FROM table")
                 results = cursor.fetchall()
         """
-        if not self._initialized:
+        if not self._initialized or not self.conn:
             raise RuntimeError("DatabaseManager not initialized. Call initialize() first.")
         
-        connection = self.pool.connection()
-        cursor = None
-        
+        cursor = DuckDBCursor(self.conn)
         try:
-            cursor = connection.cursor(pymysql.cursors.DictCursor)
             yield cursor
-            connection.commit()
         except Exception as e:
-            connection.rollback()
             logger.error(f"Database operation failed: {e}")
             raise
         finally:
-            if cursor:
-                cursor.close()
-            connection.close()
+            cursor.close()
     
     def execute_sync_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
         """
         执行同步查询语句
         
         Args:
-            query: SQL 查询语句
+            query: SQL 查询语句（可以使用 %s 占位符，会自动转换为 ?）
             params: 查询参数
             
         Returns:
-            查询结果列表
+            查询结果列表（字典格式）
         """
-        with self.get_sync_cursor() as cursor:
-            cursor.execute(query, params)
-            return cursor.fetchall()
+        if not self.conn:
+            raise RuntimeError("DatabaseManager not initialized. Call initialize() first.")
+        
+        # 统一转换占位符：%s -> ?
+        query = query.replace("%s", "?")
+        
+        try:
+            # DuckDB 的 execute 返回一个结果对象
+            if params:
+                cursor = self.conn.execute(query, params)
+            else:
+                cursor = self.conn.execute(query)
+            
+            # 获取结果
+            result = cursor.fetchall()
+            
+            # DuckDB 的 fetchall() 可能返回字典列表或元组列表
+            if not result:
+                return []
+            
+            # 如果已经是字典列表，直接返回
+            if isinstance(result[0], dict):
+                return list(result)
+            
+            # 如果是元组列表，转换为字典
+            # 获取列名
+            try:
+                # DuckDB 的 description 是列信息元组列表
+                if hasattr(cursor, 'description') and cursor.description:
+                    columns = [col[0] for col in cursor.description]
+                    return [dict(zip(columns, row)) for row in result]
+            except:
+                pass
+            
+            # 如果获取不到列名，使用数字索引
+            return [dict(enumerate(row)) for row in result]
+            
+        except Exception as e:
+            logger.error(f"执行查询失败: {e}\n查询: {query}\n参数: {params}")
+            raise
     
     def queue_write(self, table_name: str, data_list: List[Dict], unique_keys: List[str], callback: Callable = None):
         """
-        队列写入（兼容方法）
-        
-        由于新的 DatabaseManager 使用 DBUtils 管理连接，
-        队列写入已集成到连接池，此方法直接执行写入
+        队列写入（同步执行，DuckDB 不需要异步队列）
         
         Args:
             table_name: 表名
@@ -454,21 +464,38 @@ class DatabaseManager:
             callback: 回调函数
         """
         try:
-            # 直接执行批量插入/更新
             from .db_base_model import DBService
             
             if not data_list:
                 return
-        
-            columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
-            query = f"""
-                INSERT INTO {table_name} ({', '.join(columns)}) 
-                VALUES ({', '.join(['%s'] * len(columns))})
-                ON DUPLICATE KEY UPDATE {update_clause}
-            """
             
-            with self.get_sync_cursor() as cursor:
-                cursor.executemany(query, values)
+            # 使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB/PG 风格 Upsert）
+            columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
+            
+            if not columns:
+                return
+            
+            placeholders = ', '.join(['?' for _ in columns])
+            columns_sql = ', '.join(columns)
+            conflict_cols = ', '.join(unique_keys)
+            
+            if update_clause:
+                query = (
+                    f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
+                    f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
+                )
+            else:
+                # 没有需要更新的字段时，冲突直接忽略
+                query = (
+                    f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
+                    f"ON CONFLICT ({conflict_cols}) DO NOTHING"
+                )
+            
+            if not self.conn:
+                raise RuntimeError("DatabaseManager not initialized.")
+            
+            for val in values:
+                self.conn.execute(query, val)
             
             if callback:
                 callback(table_name, len(data_list))
@@ -479,14 +506,12 @@ class DatabaseManager:
     
     def wait_for_writes(self, timeout: float = 30.0):
         """
-        等待所有写入完成（兼容方法）
-        
-        新的 DatabaseManager 使用同步写入，此方法立即返回
+        等待所有写入完成（DuckDB 同步执行，此方法立即返回）
         """
         pass
     
     def __del__(self):
-        """析构函数：确保连接池关闭"""
+        """析构函数：确保连接关闭"""
         try:
             self.close()
         except:

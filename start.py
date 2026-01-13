@@ -38,7 +38,7 @@ from app.core.modules.data_source.data_source_manager import DataSourceManager
 from app.core.modules.tag import TagManager
 from app.core.utils.icon.icon_service import IconService
 from app.core.modules.strategy.components import PriceFactorSimulator
-from app.core.modules.strategy.components.capital_allocation_simulator import CapitalAllocationSimulator
+from app.core.modules.strategy.components.simulator.capital_allocation import CapitalAllocationSimulator
 
 
 # 添加项目根目录到Python路径

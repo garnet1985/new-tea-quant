@@ -9,7 +9,7 @@
 1. **统一接口**：所有组件使用相同的版本管理接口
 2. **消除重复**：避免各组件重复实现版本管理逻辑
 3. **易于维护**：版本管理逻辑集中管理，便于修改和扩展
-4. **向后兼容**：提供 `resolve_sot_version` 方法作为向后兼容接口
+4. **简洁清晰**：提供统一的 `resolve_sot_version` 方法作为通用接口
 
 ## 📦 功能特性
 
@@ -191,25 +191,25 @@ version_dir, version_id = VersionManager.resolve_capital_allocation_version(
 )
 ```
 
-### 通用 SOT 版本解析（向后兼容）
+### 通用 SOT 版本解析
 
 #### `resolve_sot_version(strategy_name, sot_version)`
 
-解析 SOT（枚举器）版本目录（通用方法，向后兼容）。
+解析 SOT（枚举器）版本目录（通用方法）。
 
-这是 `resolve_enumerator_version` 的别名，用于向后兼容。建议新代码直接使用 `resolve_enumerator_version`。
+这是 `resolve_enumerator_version` 的包装方法，提供统一的接口。返回子目录路径而不是基础目录路径，便于直接使用。
 
 **参数**：
 - `strategy_name` (str): 策略名称
 - `sot_version` (str): SOT 版本标识符
 
 **返回**：
-- `(version_dir, base_dir)`: 版本目录路径和基础目录路径
+- `(version_dir, sub_dir)`: 版本目录路径和子目录路径（test/ 或 sot/）
 
 **示例**：
 ```python
-# 向后兼容接口
-version_dir, base_dir = VersionManager.resolve_sot_version(
+# 通用接口
+version_dir, sub_dir = VersionManager.resolve_sot_version(
     strategy_name="example",
     sot_version="latest"
 )
@@ -323,35 +323,19 @@ sim_version_dir, sim_version_id = VersionManager.create_capital_allocation_versi
 
 时间戳使用 `YYYYMMDD_HHMMSS` 格式（例如：`20260112_161317`），便于按时间排序和查找。
 
-## 📝 迁移指南
+## 📝 使用说明
 
-### 从旧版本管理器迁移
+### 导入方式
 
-如果你之前使用的是组件特定的版本管理器（如 `SimulationVersionManager`、`CapitalAllocationSimulationVersionManager`），请按以下步骤迁移：
+```python
+from app.core.modules.strategy.managers.version_manager import VersionManager
+```
 
-1. **更新导入**：
-   ```python
-   # 旧代码
-   from .version_manager import SimulationVersionManager
-   
-   # 新代码
-   from app.core.modules.strategy.managers.version_manager import VersionManager
-   ```
+### 返回值顺序
 
-2. **更新方法调用**：
-   ```python
-   # 旧代码
-   version_dir, version_id = SimulationVersionManager.create_simulation_version_dir(strategy_name)
-   sot_root, sot_version_dir = SimulationVersionManager.resolve_sot_version_dir(strategy_name, sot_version)
-   
-   # 新代码
-   version_dir, version_id = VersionManager.create_price_factor_version(strategy_name)
-   sot_version_dir, sot_root = VersionManager.resolve_sot_version(strategy_name, sot_version)
-   ```
-
-3. **注意返回值顺序**：
-   - `resolve_sot_version` 的返回值顺序为 `(version_dir, base_dir)`，与旧版本可能不同
-   - 请检查代码中所有使用返回值的地方
+- `create_*_version` 方法返回 `(version_dir, version_id)`
+- `resolve_sot_version` 方法返回 `(version_dir, sub_dir)`，其中 `sub_dir` 是 `test/` 或 `sot/` 子目录
+- `resolve_enumerator_version` 方法返回 `(version_dir, base_dir)`，其中 `base_dir` 是基础目录路径
 
 ## 🐛 常见问题
 

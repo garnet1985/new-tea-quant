@@ -240,7 +240,7 @@ class TagWorkerDataManager:
     
     def _load_earlier_data_by_date(self, end_date: str, max_records: int) -> Dict[str, Any]:
         """通过日期范围查询加载更早的数据（不更新 slice_state）"""
-        kline_model = self.data_mgr.get_model('stock_kline')
+        kline_model = self.data_mgr.get_table('stock_kline')
         if not kline_model:
             return {'klines': {}}
         
@@ -271,7 +271,7 @@ class TagWorkerDataManager:
     
     def _load_all_klines_upto(self, as_of_date: str):
         """全量加载 K 线数据到指定日期（use_chunk=false）"""
-        kline_model = self.data_mgr.get_model('stock_kline')
+        kline_model = self.data_mgr.get_table('stock_kline')
         if not kline_model:
             return
         
@@ -293,7 +293,7 @@ class TagWorkerDataManager:
     
     def _load_data_slice(self) -> Dict[str, Any]:
         """加载 K 线数据切片（按记录数）"""
-        kline_model = self.data_mgr.get_model('stock_kline')
+        kline_model = self.data_mgr.get_table('stock_kline')
         if not kline_model:
             return {'klines': {}}
         
@@ -327,7 +327,7 @@ class TagWorkerDataManager:
                 lookback_start_date = self._get_record_date(base_data[0], is_last=False)
         
         try:
-            model = self.data_mgr.get_model(self.base_data_source)
+            model = self.data_mgr.get_table(self.base_data_source)
             if model:
                 data = self._load_data_by_date_range(model, self.base_data_source, lookback_start_date, as_of_date)
                 self.data_cache[self.base_data_source] = data or []
@@ -347,7 +347,7 @@ class TagWorkerDataManager:
         
         for data_type in self.required_data:
             try:
-                model = self.data_mgr.get_model(data_type)
+                model = self.data_mgr.get_table(data_type)
                 if model:
                     data = self._load_data_by_date_range(model, data_type, lookback_start_date, as_of_date)
                     self.data_cache[data_type] = data or []
@@ -445,7 +445,7 @@ class TagWorkerDataManager:
             return
         
         if self.use_chunk:
-            kline_model = self.data_mgr.get_model('stock_kline')
+            kline_model = self.data_mgr.get_table('stock_kline')
             if not kline_model:
                 logger.warning(f"无法获取 kline model，跳过初始化")
                 return

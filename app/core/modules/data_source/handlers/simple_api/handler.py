@@ -91,7 +91,6 @@ class SimpleApiHandler(BaseDataSourceHandler):
         
         # 如果 context 中已有日期范围，直接使用
         if "start_date" in context and "end_date" in context:
-            logger.debug(f"使用 context 中的日期范围: {context['start_date']} 至 {context['end_date']}")
             return
         
         # 如果不需要日期范围，直接返回
@@ -221,7 +220,7 @@ class SimpleApiHandler(BaseDataSourceHandler):
         context_params = context.get("extra_params", {})
         api_params.update(context_params)
         
-        logger.debug(f"获取 {self.data_source} 数据: {api_params}")
+        # 请求参数已经在上游构造，避免在 debug 级别打印完整参数以减少日志噪音
         
         # 创建简单的单 API 调用 Task
         task = self.create_simple_task(

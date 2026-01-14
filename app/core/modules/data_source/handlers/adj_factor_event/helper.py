@@ -431,7 +431,7 @@ class AdjFactorEventHandlerHelper:
                 raw_price_map, event_date_ymd
             )
             if raw_close is None or raw_close == 0:
-                logger.debug(f"{stock_id} {event_date_ymd}: 无原始收盘价数据（事件日可能不是交易日），跳过")
+                # 事件日没有原始收盘价属于正常情况，不再逐条打印 debug 日志
                 continue
             
             # 获取该事件日的 EastMoney QFQ 价格
@@ -444,27 +444,7 @@ class AdjFactorEventHandlerHelper:
             qfq_diff = AdjFactorEventHandlerHelper.calculate_qfq_diff(raw_close, eastmoney_qfq)
             
             if eastmoney_qfq is None:
-                # 添加更详细的诊断信息
-                if eastmoney_qfq_map:
-                    earliest_date = min(eastmoney_qfq_map.keys())
-                    latest_date = max(eastmoney_qfq_map.keys())
-                    # 检查事件日期是否在映射中
-                    has_exact_date = event_date_ymd in eastmoney_qfq_map
-                    exact_price = eastmoney_qfq_map.get(event_date_ymd) if has_exact_date else None
-                    # 检查是否有早于或等于事件日期的数据
-                    available_before = [d for d in eastmoney_qfq_map.keys() if d <= event_date_ymd]
-                    
-                    logger.debug(
-                        f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格。"
-                        f"EastMoney 数据范围: {earliest_date} ~ {latest_date}, "
-                        f"事件日期 {event_date_ymd} {'在范围外' if event_date_ymd < earliest_date else '在范围内但无数据'}, "
-                        f"精确匹配: {has_exact_date}"
-                        f"{', 精确匹配价格: ' + str(exact_price) if has_exact_date else ''}, "
-                        f"早于事件日期的数据: {len(available_before)} 条"
-                        f"{', 最近日期: ' + max(available_before) if available_before else ''}"
-                    )
-                else:
-                    logger.debug(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格（EastMoney 数据为空），qfq_diff 设为 0.0")
+                logger.warning(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格")
             
             events.append({
                 'id': stock_id,

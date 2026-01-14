@@ -229,7 +229,7 @@ class BaseTagWorker(ABC):
     
     def _batch_save_tag_values(self, tag_values: List[Dict[str, Any]]):
         """
-        批量保存 tag values
+        批量保存 tag values（使用批量写入队列，解决并发写入问题）
         
         Args:
             tag_values: Tag value 列表
@@ -238,11 +238,17 @@ class BaseTagWorker(ABC):
             return
         
         try:
+            # 使用 save_batch，内部会调用 model.batch_save_tag_values() → model.replace() → queue_write()
+            # 已经自动支持批量写入队列，无需额外修改
             self.tag_data_service.save_batch(tag_values)
             logger.debug(
                 f"批量保存 tag values 成功: entity_id={self.entity['id']}, "
                 f"count={len(tag_values)}"
             )
+            
+            # 注意：在多进程场景下，每个子进程有自己的 DatabaseManager 实例
+            # 但批量写入队列是进程级别的，所以每个进程的写入会进入各自的队列
+            # 这里不需要等待，因为 tag_manager 会在所有 jobs 完成后统一等待
         except Exception as e:
             logger.error(
                 f"批量保存 tag values 失败: entity_id={self.entity['id']}, "

@@ -396,3 +396,9 @@ class DataSourceManager:
                 continue
         
         logger.info("🎉 所有数据源更新完成")
+        
+        # 等待所有批量写入完成（DuckDB 并发写入需要）
+        if self.data_manager and self.data_manager.db:
+            logger.info("⏳ 等待所有数据写入完成...")
+            self.data_manager.db.wait_for_writes(timeout=60.0)
+            logger.info("✅ 所有数据写入完成")

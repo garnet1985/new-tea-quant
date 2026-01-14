@@ -29,25 +29,25 @@ class InvestmentApi:
     def _get_trades_model(self):
         """获取trades表实例"""
         if self.trades_model is None:
-            self.trades_model = self.data_mgr.get_model('investment_trades')
+            self.trades_model = self.data_mgr.get_table('investment_trades')
         return self.trades_model
     
     def _get_operations_model(self):
         """获取operations表实例"""
         if self.operations_model is None:
-            self.operations_model = self.data_mgr.get_model('investment_operations')
+            self.operations_model = self.data_mgr.get_table('investment_operations')
         return self.operations_model
     
     def _get_stock_list_model(self):
         """获取stock_list表实例"""
         if self.stock_list_model is None:
-            self.stock_list_model = self.data_mgr.get_model('stock_list')
+            self.stock_list_model = self.data_mgr.get_table('stock_list')
         return self.stock_list_model
     
     def _get_kline_model(self):
         """获取kline表实例"""
         if self.kline_model is None:
-            self.kline_model = self.data_mgr.get_model('stock_kline')
+            self.kline_model = self.data_mgr.get_table('stock_kline')
         return self.kline_model
     
     def get_all_closed_trades(self):

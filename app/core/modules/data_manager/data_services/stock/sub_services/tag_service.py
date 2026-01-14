@@ -314,7 +314,6 @@ class TagDataService(BaseDataService):
         try:
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(query, params)
-                cursor.connection.commit()
                 logger.info(f"批量更新 tag definitions: 更新了 {cursor.rowcount} 条记录")
         except Exception as e:
             logger.error(f"批量更新 tag definitions 失败: {e}")
@@ -404,7 +403,6 @@ class TagDataService(BaseDataService):
         try:
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(sql, (scenario_id,))
-                cursor.connection.commit()
                 affected_rows = cursor.rowcount
                 logger.info(f"已删除 scenario {scenario_id} 下的 {affected_rows} 条 tag values")
         except Exception as e:

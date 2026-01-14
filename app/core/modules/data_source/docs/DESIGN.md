@@ -361,7 +361,7 @@ renew_data()
 ```python
 # 在 DataSourceManager 类中定义
 _DEPENDENCY_FETCHERS = {
-    "latest_completed_trading_date": lambda dm: dm.get_latest_completed_trading_date(),
+    "latest_completed_trading_date": lambda dm: dm.service.calendar.get_latest_completed_trading_date(),
     "stock_list": lambda dm: dm.load_stock_list(filtered=True),
     # 未来可以添加：
     # "market_status": lambda dm: dm.get_market_status(),

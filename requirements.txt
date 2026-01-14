@@ -6,6 +6,7 @@ flask-cors==4.0.0
 pymysql==1.1.0
 DBUtils==3.1.0
 sqlalchemy==2.0.23
+duckdb
 
 # Data Processing
 pandas>=2.3.3
@@ -47,4 +48,4 @@ akshare==1.17.26
 # Development
 pytest==7.4.3
 black==23.11.0
-flake8==6.1.0 
+flake8==6.1.0

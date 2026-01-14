@@ -47,7 +47,7 @@
    -- 迁移数据（如果 meta_info 表有数据）
    INSERT INTO system_cache (id, value)
    SELECT id, info FROM meta_info
-   ON DUPLICATE KEY UPDATE value = VALUES(value);
+   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
    
    -- 删除 meta_info 表（迁移完成后）
    -- DROP TABLE IF EXISTS meta_info;

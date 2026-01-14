@@ -77,7 +77,7 @@ class ScanDateResolver:
         """非严格模式：使用 DB 中最新 K 线日期"""
         try:
             # 查询 DB 中最新 K 线日期
-            kline_model = self.data_manager.get_model('stock_kline')
+            kline_model = self.data_manager.get_table('stock_kline')
             if not kline_model:
                 raise ValueError("[ScanDateResolver] 无法获取 stock_kline model")
             
@@ -123,7 +123,7 @@ class ScanDateResolver:
         Returns:
             股票 ID 列表
         """
-        kline_model = self.data_manager.get_model('stock_kline')
+        kline_model = self.data_manager.get_table('stock_kline')
         if not kline_model:
             return []
         

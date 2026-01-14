@@ -597,12 +597,36 @@ class DbBaseModel:
     #        data insert & update operations
     # ***********************************
 
-    def insert(self, data_list: List[Dict[str, Any]]) -> int:
-        """批量插入数据"""
+    def insert(self, data_list: List[Dict[str, Any]], unique_keys: List[str] = None) -> int:
+        """
+        批量插入数据（使用批量写入队列，解决并发写入问题）
+        
+        Args:
+            data_list: 数据列表
+            unique_keys: 唯一键列表（可选）。如果提供，将使用 INSERT ... ON CONFLICT DO NOTHING
+                        如果不提供，使用纯 INSERT（可能重复插入）
+        
+        Returns:
+            插入的记录数
+        """
         if not data_list:
             return 0
         
         try:
+            # 定义回调函数（可选，仅用于日志）
+            def write_callback(table_name, count):
+                if getattr(self.db, 'is_verbose', False):
+                    logger.debug(f"Insert completed for {table_name}: {count} records")
+            
+            # 如果提供了 unique_keys，使用 queue_write（会使用 INSERT ... ON CONFLICT）
+            # 如果没有提供 unique_keys，也使用 queue_write，但需要特殊处理（纯 INSERT）
+            if hasattr(self.db, 'queue_write'):
+                # 如果没有 unique_keys，使用空列表（queue_write 会处理为纯 INSERT）
+                keys = unique_keys if unique_keys else []
+                self.db.queue_write(self.table_name, data_list, keys, write_callback)
+                return len(data_list)
+            
+            # 兜底方案：直接执行 INSERT（单线程场景或队列未启用）
             columns, placeholders = DBService.to_columns_and_values(data_list)
             query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders})"
             

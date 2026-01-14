@@ -137,7 +137,7 @@ class RollingHandler(BaseDataSourceHandler):
         latest_value = None
         if self.data_manager and self.rolling_periods > 0:
             try:
-                model = self.data_manager.get_model(self.table_name)
+                model = self.data_manager.get_table(self.table_name)
                 if model:
                     latest_record = model.load_latest()
                     if latest_record:
@@ -409,7 +409,6 @@ class RollingHandler(BaseDataSourceHandler):
         context_params = context.get("extra_params", {})
         api_params.update(context_params)
         
-        logger.debug(f"获取 {self.data_source} 数据: {api_params}")
         
         # 创建简单的单 API 调用 Task
         task = self.create_simple_task(
@@ -508,7 +507,7 @@ class RollingHandler(BaseDataSourceHandler):
             data_list = DBService.clean_nan_in_list(data_list, default=0.0)
             
             # 保存数据
-            model = self.data_manager.get_model(self.table_name)
+            model = self.data_manager.get_table(self.table_name)
             if model:
                 # 确定主键字段
                 date_field = self.date_field or self._get_default_date_field()

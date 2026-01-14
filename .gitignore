@@ -35,10 +35,13 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+*.duckdb
+*.duckdb.wal
 
 # Database configuration (real config, keep example files)
 config/database/db_config.py
 config/database/db_config.json
+config/database/db_conf.json
 
 # Data cache / downloads
 data/cache/
@@ -52,6 +55,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local service/frontends
+bff/
+fed/
 
 ########################
 # IDE / OS noise

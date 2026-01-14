@@ -249,6 +249,20 @@ class App:
         
         return summary_results
 
+    def export_adj_factor_csv(self, base_date: str = None):
+        """
+        手动导出复权因子事件季度 CSV。
+        
+        - base_date: 基准日期（YYYYMMDD 或 YYYY-MM-DD），用于推断“上一个完整季度”
+                     如果不提供，则使用当前日期所在季度的上一个季度。
+        """
+        adj_model = self.data_manager.stock.kline._adj_factor_event
+        file_name = adj_model.get_current_quarter_csv_name(base_date=base_date)
+        file_path = os.path.join(adj_model.csv_dir, file_name)
+        logger.info(f"📤 准备导出复权因子事件 CSV: {file_name}")
+        exported = adj_model.export_to_csv(file_path=file_path)
+        logger.info(f"✅ 手动导出复权因子事件 CSV 完成: {exported} 条记录 -> {file_path}")
+
 
 def parse_args():
     """解析命令行参数"""
@@ -258,14 +272,15 @@ def parse_args():
         epilog='''
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 命令说明:
-  scan         扫描投资机会（根据策略筛选当前符合条件的股票）
-  simulate     模拟回测（使用历史数据测试策略表现）
-  renew        更新数据（更新股票行情、标签等数据）
-  analysis     分析结果（分析模拟回测的结果）
-  tag          执行标签计算（计算并存储所有或指定场景的标签）
-  enumerate    枚举投资机会（测试用，枚举所有可能的机会）
-    price_factor 价格因子回放模拟（基于 SOT 机会结果）
-    capital_allocation 资金分配模拟（基于 SOT 机会结果，真实资金约束）
+  scan                 扫描投资机会（根据策略筛选当前符合条件的股票）
+  simulate             模拟回测（使用历史数据测试策略表现）
+  renew                更新数据（更新股票行情、标签等数据）
+  analysis             分析结果（分析模拟回测的结果）
+  tag                  执行标签计算（计算并存储所有或指定场景的标签）
+  enumerate            枚举投资机会（测试用，枚举所有可能的机会）
+  price_factor         价格因子回放模拟（基于 SOT 机会结果）
+  capital_allocation   资金分配模拟（基于 SOT 机会结果，真实资金约束）
+  export_adj_factor_csv 手动导出复权因子事件季度 CSV
 
 快捷缩写:
   -c           等同于 scan（Check opportunities）
@@ -319,7 +334,7 @@ def parse_args():
     parser.add_argument(
         'command',
         nargs='?',
-        help='要执行的命令（scan/simulate/renew/analysis/tag/enumerate/price_factor/capital_allocation），省略则默认 simulate'
+        help='要执行的命令（scan/simulate/renew/analysis/tag/enumerate/price_factor/capital_allocation/export_adj_factor_csv），省略则默认 simulate'
     )
     
     # 快捷flag（避免大小写混淆）
@@ -343,6 +358,7 @@ def parse_args():
     parser.add_argument('--session', type=str, help='指定session ID（用于 analysis）')
     parser.add_argument('--scenario', type=str, help='指定场景名称（用于 tag）')
     parser.add_argument('--stocks', type=int, default=None, help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
+    parser.add_argument('--base-date', type=str, help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
     parser.add_argument('-v', '--verbose', action='store_true', help='详细输出模式')
     
     return parser.parse_args()
@@ -449,6 +465,9 @@ def main():
             logger.info("💰 运行资金分配模拟 (CapitalAllocationSimulator)...")
             strategy = args.strategy or 'example'
             app.capital_allocation_simulate(strategy_name=strategy)
+        elif command == 'export_adj_factor_csv':
+            logger.info("📤 手动导出复权因子事件季度 CSV...")
+            app.export_adj_factor_csv(base_date=args.base_date)
         
         logger.info("")
         logger.info("=" * 60)

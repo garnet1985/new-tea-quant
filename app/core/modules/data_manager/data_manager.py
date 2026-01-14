@@ -168,9 +168,17 @@ class DataManager:
             
             # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
             if self.db is None:
+                # 检测是否是子进程（多进程场景），如果是则使用只读模式（避免写锁冲突）
+                import multiprocessing
+                is_child_process = multiprocessing.current_process().name != 'MainProcess'
+                read_only = is_child_process
+                
                 if self.is_verbose:
-                    logger.info("🔧 初始化 DatabaseManager...")
-                self.db = DatabaseManager(is_verbose=self.is_verbose)
+                    if read_only:
+                        logger.info("🔧 初始化 DatabaseManager（只读模式，子进程环境）...")
+                    else:
+                        logger.info("🔧 初始化 DatabaseManager...")
+                self.db = DatabaseManager(is_verbose=self.is_verbose, read_only=read_only)
                 self.db.initialize()
                 # 设置为默认实例，便于 DbBaseModel 等自动获取 db
                 DatabaseManager.set_default(self.db)
@@ -179,10 +187,13 @@ class DataManager:
                     logger.info("🔧 使用已提供的 DatabaseManager 实例...")
 
             # 2. 创建所有 Base Tables（业务逻辑）
-            if self.is_verbose:
-                logger.info("🔧 创建 Base Tables...")
-
-            self.db.schema_manager.create_all_tables(self.db.get_connection)
+            # 注意：只读模式下跳过表创建（子进程只需要读取，不需要创建表）
+            if not self.db.read_only:
+                if self.is_verbose:
+                    logger.info("🔧 创建 Base Tables...")
+                self.db.schema_manager.create_all_tables(self.db.get_connection)
+            elif self.is_verbose:
+                logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
 
             # 3. 自动发现并缓存 Base Tables
             if self.is_verbose:

@@ -127,16 +127,18 @@ class DatabaseManager:
     _default_instance = None  # 默认实例（支持多进程）
     _auto_init_enabled = True  # 是否启用自动初始化
     
-    def __init__(self, config: Dict = None, is_verbose: bool = False):
+    def __init__(self, config: Dict = None, is_verbose: bool = False, read_only: bool = False):
         """
         初始化数据库管理器
         
         Args:
             config: 数据库配置（默认使用 DUCKDB_CONF）
             is_verbose: 是否输出详细日志
+            read_only: 是否以只读模式打开（多进程读取场景使用）
         """
         self.config = config or DUCKDB_CONF
         self.is_verbose = is_verbose
+        self.read_only = read_only
         self.conn: Optional[duckdb.DuckDBPyConnection] = None
         self._initialized = False
         
@@ -171,6 +173,7 @@ class DatabaseManager:
         多进程安全：
         - 如果实例不存在（多进程场景下 context 丢失）
         - 会自动创建并初始化新实例
+        - 如果检测到是子进程，自动使用只读模式（避免写锁冲突）
         
         Args:
             auto_init: 是否自动初始化（默认 True）
@@ -180,9 +183,17 @@ class DatabaseManager:
         """
         if cls._default_instance is None:
             if auto_init and cls._auto_init_enabled:
+                # 检测是否是子进程（多进程场景）
+                import multiprocessing
+                is_child_process = multiprocessing.current_process().name != 'MainProcess'
+                
                 # 自动创建并初始化（多进程场景）
-                logger.info("🔄 检测到 DatabaseManager 未初始化（可能是多进程场景），自动创建实例")
-                instance = cls(is_verbose=False)
+                if is_child_process:
+                    logger.info("🔄 检测到子进程环境，自动创建只读 DatabaseManager 实例（避免写锁冲突）")
+                    instance = cls(is_verbose=False, read_only=True)
+                else:
+                    logger.info("🔄 检测到 DatabaseManager 未初始化，自动创建实例")
+                    instance = cls(is_verbose=False)
                 instance.initialize()
                 cls._default_instance = instance
                 logger.info("✅ DatabaseManager 自动初始化完成")
@@ -216,7 +227,7 @@ class DatabaseManager:
         
         步骤：
         1. 确保数据库文件目录存在
-        2. 连接 DuckDB
+        2. 连接 DuckDB（根据 read_only 参数决定是否只读）
         3. 设置性能参数
         
         注意：不再创建表，表的创建由 DataManager 负责
@@ -226,8 +237,13 @@ class DatabaseManager:
             db_path = Path(self.config['db_path'])
             db_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # 2. 连接 DuckDB
-            self.conn = duckdb.connect(str(db_path))
+            # 2. 连接 DuckDB（只读模式允许多进程并发读取）
+            if self.read_only:
+                self.conn = duckdb.connect(str(db_path), read_only=True)
+                if self.is_verbose:
+                    logger.info(f"📖 以只读模式连接 DuckDB: {db_path}")
+            else:
+                self.conn = duckdb.connect(str(db_path))
             
             # 3. 设置性能参数
             threads = self.config.get('threads', 4)
@@ -238,8 +254,11 @@ class DatabaseManager:
             
             self._initialized = True
             
-            # 初始化批量写入队列
-            self._init_write_queue()
+            # 初始化批量写入队列（只读模式下跳过）
+            if not self.read_only:
+                self._init_write_queue()
+            elif self.is_verbose:
+                logger.info("ℹ️  只读模式，跳过批量写入队列初始化")
             
             if self.is_verbose:
                 logger.info(f"✅ DatabaseManager 初始化完成（DuckDB: {db_path}）")

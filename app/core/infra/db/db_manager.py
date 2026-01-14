@@ -12,12 +12,13 @@ from loguru import logger
 from datetime import datetime, date
 
 from app.core.conf.db_conf import DUCKDB_CONF
+from app.core.infra.db.batch_write_queue import BatchWriteQueue
 from .db_schema_manager import DbSchemaManager
 
 
 class DuckDBCursor:
     """
-    DuckDB 游标包装类，兼容 MySQL cursor 接口
+    DuckDB 游标包装类
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         self.conn = conn
@@ -27,8 +28,7 @@ class DuckDBCursor:
     
     def execute(self, query: str, params: Any = None):
         """执行 SQL 查询"""
-        # DuckDB 使用 ? 作为占位符，但我们的代码可能还在用 %s
-        # 统一转换
+        # DuckDB 使用 ? 作为占位符，统一转换 %s -> ?
         query = query.replace("%s", "?")
         
         # DuckDB 的 execute 返回一个结果对象
@@ -102,13 +102,6 @@ class DuckDBCursor:
             return len(self._result)
         return 0
     
-    @property
-    def connection(self):
-        """
-        兼容属性：返回底层 DuckDB 连接
-        主要用于兼容旧代码中的 cursor.connection.commit() 等调用
-        """
-        return self.conn
 
     def close(self):
         """关闭游标（DuckDB 不需要显式关闭）"""
@@ -147,9 +140,8 @@ class DatabaseManager:
         self.conn: Optional[duckdb.DuckDBPyConnection] = None
         self._initialized = False
         
-        # Schema 管理器（不再需要 charset，但保留接口兼容）
+        # Schema 管理器
         self.schema_manager = DbSchemaManager(
-            charset='utf8',  # DuckDB 不需要 charset，但保留参数
             is_verbose=is_verbose
         )
         
@@ -314,7 +306,7 @@ class DatabaseManager:
         if not self.conn:
             raise RuntimeError("数据库未初始化，请先调用 initialize()")
         
-        # DuckDB 自动管理事务，这里提供一个兼容接口
+        # DuckDB 自动管理事务
         cursor = DuckDBCursor(self.conn)
         try:
             yield cursor

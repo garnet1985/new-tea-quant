@@ -286,6 +286,34 @@ class KlineService(BaseDataService):
         """
         return self._stock_kline.save_klines(klines)
     
+    def save_adj_factor_events(self, events: List[Dict[str, Any]]) -> int:
+        """
+        批量保存复权因子事件（自动去重）
+        
+        Args:
+            events: 复权因子事件列表，每个事件必须包含：
+                - id: 股票代码
+                - event_date: 除权日期（YYYYMMDD）
+                - factor: 复权因子
+                - qfq_diff: 价格差异（可选，默认0.0）
+            
+        Returns:
+            影响的行数
+        """
+        return self._adj_factor_event.save_events(events)
+    
+    def delete_adj_factor_events(self, stock_id: str) -> int:
+        """
+        删除指定股票的所有复权因子事件
+        
+        Args:
+            stock_id: 股票代码
+            
+        Returns:
+            影响的行数
+        """
+        return self._adj_factor_event.delete("id = %s", (stock_id,))
+    
     def load_with_latest(self, stock_id: str, term: str = 'daily') -> Optional[Dict[str, Any]]:
         """
         加载股票信息 + 最新K线（SQL JOIN）

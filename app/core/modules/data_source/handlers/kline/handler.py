@@ -71,6 +71,8 @@ class KlineHandler(BaseDataSourceHandler):
         # 用于增量保存的已保存任务集合（避免重复保存）
         # 每次 execute 开始时重置，确保每次运行都是新的状态
         self._saved_tasks = set()
+        # 调试模式：限制处理的股票数量（用于快速调试）
+        self._debug_limit_stocks = params.get('debug_limit_stocks', None) if params else None
     
     async def before_fetch(self, context: Dict[str, Any] = None):
         """
@@ -80,16 +82,26 @@ class KlineHandler(BaseDataSourceHandler):
         2. 查询数据库获取每个股票在 3 个周期（daily/weekly/monthly）的最新日期
         3. 计算每个周期需要更新的结束日期
         """
-        context = context or {}
+        # 注意：不能用 context = context or {}，否则外部传入的空 dict 会被替换，
+        # 导致在 fetch 阶段拿不到这里写入的 stock_latest_dates_by_term
+        if context is None:
+            context = {}
         
-        # 1. 获取股票列表（从数据库读取，使用过滤规则排除ST、科创板等）
+        # 1. 获取股票列表（从数据库读取，renew 时不使用过滤规则，包含所有股票）
         if "stock_list" not in context:
             if self.data_manager:
                 try:
-                    # 使用过滤规则，排除ST、科创板等（不是所有股票都需要renew）
-                    stock_list = self.data_manager.stock.list.load(filtered=True)
+                    # 使用过滤规则，排除ST、科创板等（所有股票都需要renew）
+                    stock_list = self.data_manager.stock.list.load(filtered=False)
+                    
+                    # 调试模式：限制股票数量（如果设置了 debug_limit_stocks 参数）
+                    if self._debug_limit_stocks and self._debug_limit_stocks > 0:
+                        original_count = len(stock_list)
+                        stock_list = stock_list[:self._debug_limit_stocks]
+                        logger.warning(f"🔧 [调试模式] 限制股票数量: {original_count} -> {len(stock_list)} 只股票")
+                    
                     context["stock_list"] = stock_list
-                    logger.info(f"✅ 从数据库获取股票列表（已过滤），共 {len(stock_list)} 只股票")
+                    logger.info(f"✅ 从数据库获取股票列表，共 {len(stock_list)} 只股票")
                 except Exception as e:
                     logger.warning(f"查询股票列表失败: {e}")
                     context["stock_list"] = []
@@ -104,7 +116,12 @@ class KlineHandler(BaseDataSourceHandler):
             # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
             logger.warning("KlineHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
             try:
-                latest_trading_date = self.data_manager.get_latest_completed_trading_date()
+                # 使用 service.calendar 获取最新交易日
+                if hasattr(self.data_manager, 'service') and hasattr(self.data_manager.service, 'calendar'):
+                    latest_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
+                else:
+                    # 如果 service 不可用，使用当前日期作为兜底
+                    latest_trading_date = DateUtils.get_current_date_str()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败: {e}")
                 latest_trading_date = DateUtils.get_current_date_str()
@@ -128,40 +145,142 @@ class KlineHandler(BaseDataSourceHandler):
         
         # 3. 查询数据库获取每个股票在 3 个周期的最新日期（批量查询，避免 O(N×3) 查询）
         stock_latest_dates_by_term = {}  # {stock_id: {term: latest_date}}
-        if self.data_manager and context.get("stock_list"):
+        stock_list = context.get("stock_list")
+        
+        # 确保 stock_latest_dates_by_term 总是被设置（即使查询失败）
+        # 在方法开始时立即设置，确保 fetch 方法能获取到
+        context["stock_latest_dates_by_term"] = stock_latest_dates_by_term
+        
+        if self.data_manager and stock_list and len(stock_list) > 0:
             try:
-                kline_model = self.data_manager.get_model('stock_kline')
-                stock_list = context["stock_list"]
+                # 使用 get_table 方法获取 model
+                kline_model = self.data_manager.get_table('stock_kline')
                 
                 # 使用批量查询：一次性获取所有股票的所有周期的最新记录
                 # 使用 load_latest_records 方法，它会使用 GROUP BY 和 MAX(date) 来高效查询
                 # 注意：load_latest_records 需要指定 primary_keys 和 date_field
                 # 这个方法会查询整个表，返回所有 (id, term) 组合的最新记录
-                all_latest_records = kline_model.load_latest_records(
-                    date_field='date',
-                    primary_keys=['id', 'term']  # 按 id 和 term 分组，获取每个组合的最新记录
-                )
+                try:
+                    # 先验证数据库连接和表数据
+                    count_query = "SELECT COUNT(*) as cnt FROM stock_kline"
+                    count_result = kline_model.execute_raw_query(count_query)
+                    total_records = count_result[0]['cnt'] if count_result else 0
+                    
+                    all_latest_records = kline_model.load_latest_records(
+                        date_field='date',
+                        primary_keys=['id', 'term']  # 按 id 和 term 分组，获取每个组合的最新记录
+                    )
+                    
+                    # 如果返回空，尝试手动查询验证
+                    if len(all_latest_records) == 0:
+                        logger.warning("⚠️  load_latest_records 返回空结果，尝试手动查询验证...")
+                        manual_query = """
+                            SELECT t1.* 
+                            FROM stock_kline t1
+                            INNER JOIN (
+                                SELECT id, term, MAX(date) as max_date
+                                FROM stock_kline
+                                GROUP BY id, term
+                            ) t2 
+                            ON t1.id = t2.id
+                            AND t1.term = t2.term
+                            AND t1.date = t2.max_date
+                            LIMIT 10
+                        """
+                        manual_result = kline_model.execute_raw_query(manual_query)
+                        logger.warning(f"⚠️  手动查询返回 {len(manual_result)} 条记录（前10条）")
+                        if manual_result:
+                            logger.warning(f"⚠️  手动查询示例: {manual_result[0]}")
+                except Exception as e:
+                    logger.error(f"❌ before_fetch: load_latest_records 调用失败: {e}")
+                    import traceback
+                    logger.error(f"异常堆栈: {traceback.format_exc()}")
+                    all_latest_records = []
                 
                 # 构建股票 ID 集合（用于快速过滤）
                 stock_id_set = set()
+                stock_id_to_ts_code = {}  # 映射：ts_code -> id（用于调试）
                 for stock in stock_list:
-                    stock_id = stock.get("ts_code") or stock.get("id")
-                    if stock_id:
-                        stock_id_set.add(stock_id)
+                    ts_code = stock.get("ts_code")
+                    stock_id = stock.get("id")
+                    # 优先使用 ts_code，如果没有则使用 id
+                    final_id = ts_code or stock_id
+                    if final_id:
+                        stock_id_set.add(final_id)
+                        if ts_code and stock_id and ts_code != stock_id:
+                            stock_id_to_ts_code[stock_id] = ts_code
+                
+                logger.debug(
+                    f"🔍 before_fetch: stock_list长度={len(stock_list)}, "
+                    f"stock_id_set大小={len(stock_id_set)}, "
+                    f"all_latest_records大小={len(all_latest_records)}"
+                )
                 
                 # 在 Python 中整理数据：只保留传入股票列表中的股票
                 # {stock_id: {term: latest_date}}
+                matched_records = 0
+                unmatched_stocks = set()  # 记录数据库中但不在股票列表中的股票
+                db_stock_ids = set()  # 数据库中所有的股票 ID
+                
                 for record in all_latest_records:
                     stock_id = record.get('id')
                     term = record.get('term')
                     latest_date = record.get('date')
                     
+                    if not stock_id or not term or not latest_date:
+                        continue
+                    
+                    db_stock_ids.add(stock_id)
+                    
                     # 只处理传入股票列表中的股票
-                    if stock_id in stock_id_set and term and latest_date:
+                    if stock_id in stock_id_set:
                         if stock_id not in stock_latest_dates_by_term:
                             stock_latest_dates_by_term[stock_id] = {}
                         stock_latest_dates_by_term[stock_id][term] = latest_date
+                        matched_records += 1
+                    else:
+                        # 记录数据库中但不在股票列表中的股票（用于调试）
+                        unmatched_stocks.add(stock_id)
                 
+                # 验证：检查 stock_id_set 中是否有数据库中的股票
+                missing_in_set = db_stock_ids - stock_id_set
+                if missing_in_set:
+                    logger.warning(
+                        f"⚠️  数据库中有 {len(missing_in_set)} 只股票不在 stock_id_set 中，"
+                        f"示例: {list(missing_in_set)[:5]}"
+                    )
+                
+                # 验证：检查 stock_id_set 中是否有数据库中没有的股票
+                extra_in_set = stock_id_set - db_stock_ids
+                if extra_in_set:
+                    logger.debug(
+                        f"📊 股票列表中有 {len(extra_in_set)} 只股票不在数据库中（可能是新上市），"
+                        f"示例: {list(extra_in_set)[:5]}"
+                    )
+                
+                # 诊断信息
+                logger.info(
+                    f"📊 匹配诊断: 数据库中有 {len(db_stock_ids)} 只不同的股票，"
+                    f"股票列表有 {len(stock_id_set)} 只股票，"
+                    f"匹配到 {len(stock_latest_dates_by_term)} 只股票"
+                )
+                
+                if len(unmatched_stocks) > 0:
+                    # 检查是否有格式问题：尝试匹配一些示例
+                    sample_unmatched = list(unmatched_stocks)[:10]
+                    logger.warning(
+                        f"⚠️  数据库中有 {len(unmatched_stocks)} 只股票不在股票列表中，"
+                        f"示例: {sample_unmatched}"
+                    )
+                    
+                    # 检查是否有 ID 格式问题（比如大小写、后缀等）
+                    if len(unmatched_stocks) > len(stock_latest_dates_by_term) * 2:
+                        logger.warning(
+                            f"⚠️  未匹配的股票数量 ({len(unmatched_stocks)}) 远大于匹配的股票数量 ({len(stock_latest_dates_by_term)})，"
+                            f"可能存在 ID 格式不一致的问题"
+                        )
+                
+                # 更新 context 中的 stock_latest_dates_by_term（已经提前设置了空字典）
                 context["stock_latest_dates_by_term"] = stock_latest_dates_by_term
                 
                 # 统计（只统计传入股票列表中的股票）
@@ -169,15 +288,36 @@ class KlineHandler(BaseDataSourceHandler):
                 stocks_with_daily = sum(1 for stock_id in stock_id_set if stock_id in stock_latest_dates_by_term and "daily" in stock_latest_dates_by_term[stock_id])
                 stocks_with_weekly = sum(1 for stock_id in stock_id_set if stock_id in stock_latest_dates_by_term and "weekly" in stock_latest_dates_by_term[stock_id])
                 stocks_with_monthly = sum(1 for stock_id in stock_id_set if stock_id in stock_latest_dates_by_term and "monthly" in stock_latest_dates_by_term[stock_id])
+                stocks_with_any = len(stock_latest_dates_by_term)
+                
                 logger.info(
                     f"✅ 批量查询完成：{total_stocks} 只股票，"
                     f"daily: {stocks_with_daily} 只有数据，"
                     f"weekly: {stocks_with_weekly} 只有数据，"
-                    f"monthly: {stocks_with_monthly} 只有数据"
+                    f"monthly: {stocks_with_monthly} 只有数据，"
+                    f"总计 {stocks_with_any} 只股票有历史数据"
                 )
+                
+                # 如果有很多未匹配的股票，记录警告
+                if len(unmatched_stocks) > 0:
+                    logger.debug(
+                        f"📊 数据库中有 {len(unmatched_stocks)} 只股票不在当前股票列表中"
+                        f"（可能是退市、停牌等），示例: {list(unmatched_stocks)[:5]}"
+                    )
             except Exception as e:
-                logger.warning(f"查询数据库获取最新日期失败: {e}")
+                logger.error(f"❌ 查询数据库获取最新日期失败: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                # 保持空字典（已经在前面设置了）
                 context["stock_latest_dates_by_term"] = {}
+        else:
+            logger.warning(
+                f"⚠️ before_fetch: 跳过查询最新日期，"
+                f"data_manager={self.data_manager is not None}, "
+                f"stock_list存在={stock_list is not None}, "
+                f"stock_list长度={len(stock_list) if stock_list else 0}"
+            )
+            # 已经提前设置了空字典，这里不需要再设置
     
     async def fetch(self, context: Dict[str, Any] = None) -> List['DataSourceTask']:
         """
@@ -196,13 +336,23 @@ class KlineHandler(BaseDataSourceHandler):
         - daily_basic 只调用一次，减少 API 调用次数（从 6N 降到 4N）
         - 逻辑更清晰（一个股票的所有数据一起处理）
         """
-        context = context or {}
+        # 注意：不能用 context = context or {}，否则外部传入的空 dict 会被替换
+        if context is None:
+            context = {}
         # 重置已保存任务集合（每次 fetch 开始时重置，确保增量保存状态正确）
         self._saved_tasks = set()
         
         stock_list = context.get("stock_list", [])
         end_dates = context.get("end_dates", {})
-        stock_latest_dates_by_term = context.get("stock_latest_dates_by_term", {})
+        stock_latest_dates_by_term = context.get("stock_latest_dates_by_term")
+        
+        if stock_latest_dates_by_term is None:
+            logger.error(f"❌ fetch: stock_latest_dates_by_term 未在 context 中找到！这会导致所有股票都使用全量更新")
+            logger.error(f"❌ fetch: context.keys() = {list(context.keys())}")
+            # 设置空字典作为兜底
+            stock_latest_dates_by_term = {}
+        elif not stock_latest_dates_by_term:
+            logger.warning(f"⚠️  fetch: stock_latest_dates_by_term 为空字典！这会导致所有股票都使用全量更新")
         
         if not stock_list:
             logger.warning("股票列表为空，无法获取 K 线数据")
@@ -255,13 +405,13 @@ class KlineHandler(BaseDataSourceHandler):
                         if month_diff < 1:
                             continue
                     
-                    # 从最新日期 + 1 天开始
+                    # 从最新日期 + 1 天开始（增量更新）
                     start_date = DateUtils.get_date_after_days(latest_date, 1)
                     # 如果开始日期已经大于等于结束日期，说明数据已经是最新的，跳过该周期
                     if start_date > end_date:
                         continue
                 else:
-                    # 新股票，使用默认开始日期
+                    # 新股票，使用默认开始日期（全量更新）
                     start_date = data_default_start_date
                 
                 start_dates[term] = start_date
@@ -392,8 +542,16 @@ class KlineHandler(BaseDataSourceHandler):
         # 构建 task_id 到 task 的映射
         task_map = {task.task_id: task for task in self._generated_tasks}
         
+        total_tasks = len(task_results)
+        processed_count = 0
+        log_interval = max(1, total_tasks // 20)  # 每 5% 记录一次
+        
         # 遍历传入的 task_results（只处理有结果的任务）
         for task_id, task_result in task_results.items():
+            processed_count += 1
+            if processed_count % log_interval == 0:
+                progress = (processed_count / total_tasks) * 100
+                logger.debug(f"📊 处理进度: {processed_count}/{total_tasks} ({progress:.1f}%)")
             if task_id not in task_map:
                 logger.debug(f"Task {task_id} 不在 _generated_tasks 中，跳过")
                 continue
@@ -509,7 +667,9 @@ class KlineHandler(BaseDataSourceHandler):
             logger.debug(f"[增量保存] 任务 {task_id} 已保存过，跳过")
             return
         
-        context = context or {}
+        # 注意：不能用 context = context or {}，否则外部传入的空 dict 会被替换
+        if context is None:
+            context = {}
         # 检查是否是 dry_run 模式
         dry_run = context.get('dry_run', False)
         if dry_run:
@@ -539,8 +699,24 @@ class KlineHandler(BaseDataSourceHandler):
                 
                 try:
                     # 直接调用 data_manager 的 service 方法保存数据
+                    # 注意：save 方法使用 replace，会自动去重（基于 unique_keys=['id', 'term', 'date']）
+                    # 所以即使 API 返回了全量数据，也只会插入新数据
                     count = self.data_manager.stock.kline.save(records)
-                    logger.info(f"✅ [增量保存] 股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
+                    
+                    # 判断是全量还是增量：从 task 的 api_jobs 中提取 start_date 信息
+                    is_full_update = False
+                    if task_id in self._generated_tasks:
+                        task = self._generated_tasks[task_id]
+                        from app.core.conf.conf import data_default_start_date
+                        for api_job in task.api_jobs:
+                            if api_job.api_name and api_job.api_name.endswith('_kline'):
+                                start_date = api_job.params.get('start_date')
+                                if start_date == data_default_start_date:
+                                    is_full_update = True
+                                    break
+                    
+                    update_type = "全量保存" if is_full_update else "增量保存"
+                    logger.info(f"✅ [{update_type}] 股票 {stock_id} K 线数据，共 {len(records)} 条记录（包含所有周期），实际保存 {count} 条")
                 except Exception as e:
                     logger.error(f"❌ [增量保存] 股票 {stock_id} K 线数据失败: {e}")
                     import traceback
@@ -603,7 +779,6 @@ class KlineHandler(BaseDataSourceHandler):
                 # 直接调用 data_manager 的 service 方法保存数据
                 count = self.data_manager.stock.kline.save(records)
                 total_saved += count
-                logger.debug(f"✅ 保存股票 {stock_id} K 线数据，共 {count} 条记录（包含所有周期）")
             except Exception as e:
                 logger.error(f"❌ 保存股票 {stock_id} K 线数据失败: {e}")
                 # 继续处理其他股票，不中断整个流程
@@ -623,7 +798,16 @@ class KlineHandler(BaseDataSourceHandler):
         
         注意：由于数据保存已经在 after_all_tasks_execute 中完成，这个方法主要用于返回标准化后的数据
         使用 _process_task_results 处理数据，然后展平所有记录返回
+        
+        性能说明：
+        - 需要处理所有任务的结果（可能有数千个任务）
+        - 每个任务需要合并 K 线和 daily_basic 数据
+        - 需要清理 NaN 值
+        - 这个过程可能比较慢，但没有进度提示（因为数据已经在 after_all_tasks_execute 中保存了）
         """
+        total_tasks = len(raw_data)
+        logger.info(f"🔄 开始标准化 K 线数据，共 {total_tasks} 个任务...")
+        
         # 处理 Task 结果，获取按股票分组的记录
         stock_data_map = self._process_task_results(raw_data)
         

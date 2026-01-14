@@ -124,7 +124,7 @@
 ### Context 参数
 
 - `latest_completed_trading_date`: 最新完成交易日（YYYYMMDD 格式）
-  - 如果未提供，会从 `DataManager.get_latest_completed_trading_date()` 获取
+  - 如果未提供，会从 `DataManager.service.calendar.get_latest_completed_trading_date()` 获取
 - `stock_list`: 股票列表（可选）
   - 如果未提供，handler 会从数据库查询所有需要更新的股票
 - `dry_run`: 干运行模式（可选，默认 False）

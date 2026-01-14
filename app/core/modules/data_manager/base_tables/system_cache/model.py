@@ -31,7 +31,8 @@ class SystemCacheModel(DbBaseModel):
             Dict 包含 'value'，如果不存在返回 None
         """
         try:
-            record = self.load_one("`key` = %s", (key,))
+            # DuckDB 使用双引号引用标识符，key 是保留字需要引用
+            record = self.load_one('"key" = ?', (key,))
             if record:
                 return {'value': record.get('value')}
             return None
@@ -68,7 +69,8 @@ class SystemCacheModel(DbBaseModel):
     def delete_by_key(self, key: str) -> int:
         """删除指定key的系统缓存"""
         try:
-            return self.delete("`key` = %s", (key,))
+            # DuckDB 使用双引号引用标识符，key 是保留字需要引用
+            return self.delete('"key" = ?', (key,))
         except Exception as e:
             logger.error(f"删除系统缓存失败: {e}")
             return 0

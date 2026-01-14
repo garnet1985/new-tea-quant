@@ -43,7 +43,7 @@ class MetaInfoModel(DbBaseModel):
             return None
         
         try:
-            record = self.load_one("id = %s", (meta_id,))
+            record = self.load_one("id = ?", (meta_id,))
             if record:
                 return {'value': record.get('info')}
             return None
@@ -70,19 +70,19 @@ class MetaInfoModel(DbBaseModel):
         
         try:
             # 检查记录是否存在
-            existing = self.load_one("id = %s", (meta_id,))
+            existing = self.load_one("id = ?", (meta_id,))
             if existing:
                 # 更新现有记录
-                return self.update({'info': value}, "id = %s", (meta_id,))
+                return self.update({'info': value}, "id = ?", (meta_id,))
             else:
                 # 插入新记录（需要指定 id）
                 # 注意：由于 id 是 auto_increment，我们需要手动插入指定 id
                 with self.db.get_sync_cursor() as cursor:
+                    # DuckDB 使用 INSERT ... ON CONFLICT 而不是 ON DUPLICATE KEY
                     cursor.execute(
-                        f"INSERT INTO {self.table_name} (id, info) VALUES (%s, %s) ON DUPLICATE KEY UPDATE info = %s",
+                        f"INSERT INTO {self.table_name} (id, info) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET info = ?",
                         (meta_id, value, value)
                     )
-                    cursor.connection.commit()
                     return 1
         except Exception as e:
             logger.error(f"保存元信息失败: {e}")
@@ -96,7 +96,7 @@ class MetaInfoModel(DbBaseModel):
             return 0
         
         try:
-            return self.delete("id = %s", (meta_id,))
+            return self.delete("id = ?", (meta_id,))
         except Exception as e:
             logger.error(f"删除元信息失败: {e}")
             return 0

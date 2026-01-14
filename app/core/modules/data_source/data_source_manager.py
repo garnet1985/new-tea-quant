@@ -55,7 +55,18 @@ class DataSourceManager:
         """加载 Handler 映射配置（先加载 defaults，再加载 custom 覆盖）"""
         self._mapping = {}
         
-        # 1. 加载 defaults/mapping.json
+        # 1. 加载 handlers/mapping.json（默认配置）
+        try:
+            handlers_path = Path(__file__).parent / "handlers" / "mapping.json"
+            if handlers_path.exists():
+                with open(handlers_path, 'r', encoding='utf-8') as f:
+                    defaults_mapping = json.load(f)
+                    self._mapping.update(defaults_mapping.get("data_sources", {}))
+                logger.debug(f"✅ 加载了 handlers/mapping.json")
+        except Exception as e:
+            logger.warning(f"⚠️ 加载 handlers/mapping.json 失败: {e}")
+        
+        # 2. 尝试加载 defaults/mapping.json（兼容旧路径）
         try:
             defaults_path = Path(__file__).parent / "defaults" / "mapping.json"
             if defaults_path.exists():
@@ -64,9 +75,29 @@ class DataSourceManager:
                     self._mapping.update(defaults_mapping.get("data_sources", {}))
                 logger.debug(f"✅ 加载了 defaults/mapping.json")
         except Exception as e:
-            logger.warning(f"⚠️ 加载 defaults/mapping.json 失败: {e}")
+            logger.debug(f"defaults/mapping.json 不存在或加载失败（这是正常的）: {e}")
         
-        # 2. 加载 custom/mapping.json（深度合并覆盖 defaults）
+        # 3. 加载 userspace/data_source/mapping.json（用户自定义配置，深度合并覆盖）
+        try:
+            from pathlib import Path as PathLib
+            project_root = PathLib(__file__).parent.parent.parent.parent.parent
+            custom_path = project_root / "app" / "userspace" / "data_source" / "mapping.json"
+            if custom_path.exists():
+                with open(custom_path, 'r', encoding='utf-8') as f:
+                    custom_mapping = json.load(f)
+                    # 使用工具方法深度合并 custom 配置到 defaults
+                    # params 需要深度合并，dependencies 需要完全覆盖
+                    self._mapping = merge_mapping_configs(
+                        self._mapping,
+                        custom_mapping.get("data_sources", {}),
+                        deep_merge_fields={"params"},
+                        override_fields={"dependencies"}
+                    )
+                logger.debug(f"✅ 加载了 userspace/data_source/mapping.json（已合并到 defaults）")
+        except Exception as e:
+            logger.debug(f"userspace/data_source/mapping.json 不存在或加载失败（这是正常的）: {e}")
+        
+        # 4. 尝试加载 custom/mapping.json（兼容旧路径）
         try:
             custom_path = Path(__file__).parent / "custom" / "mapping.json"
             if custom_path.exists():
@@ -253,7 +284,7 @@ class DataSourceManager:
     
     # 全局依赖获取器注册表（可扩展）
     _DEPENDENCY_FETCHERS = {
-        "latest_completed_trading_date": lambda dm: dm.get_latest_completed_trading_date(),
+        "latest_completed_trading_date": lambda dm: dm.service.calendar.get_latest_completed_trading_date(),
         "stock_list": lambda dm: dm.stock.list.load(filtered=True),
         # 未来可以添加：
         # "market_status": lambda dm: dm.get_market_status(),
@@ -396,3 +427,9 @@ class DataSourceManager:
                 continue
         
         logger.info("🎉 所有数据源更新完成")
+        
+        # 等待所有批量写入完成（DuckDB 并发写入需要）
+        if self.data_manager and self.data_manager.db:
+            logger.info("⏳ 等待所有数据写入完成...")
+            self.data_manager.db.wait_for_writes(timeout=60.0)
+            logger.info("✅ 所有数据写入完成")

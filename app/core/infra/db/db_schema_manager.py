@@ -26,13 +26,12 @@ class DbSchemaManager:
     - 数据查询和写入
     """
     
-    def __init__(self, tables_dir: str = None, charset: str = 'utf8mb4', is_verbose: bool = False):
+    def __init__(self, tables_dir: str = None, is_verbose: bool = False):
         """
         初始化 DbSchemaManager
         
         Args:
             tables_dir: schema 文件目录（默认为 app/data_manager/base_tables）
-            charset: 数据库字符集
             is_verbose: 是否输出详细日志
         """
         if tables_dir:
@@ -43,7 +42,6 @@ class DbSchemaManager:
             current_dir = os.path.dirname(__file__)  # app/core/infra/db
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))  # 项目根
             self.tables_dir = os.path.join(project_root, 'app', 'core', 'modules', 'data_manager', 'base_tables')
-        self.charset = charset
         self.is_verbose = is_verbose
         
         # 缓存已加载的 schema
@@ -145,7 +143,7 @@ class DbSchemaManager:
             pk_def = self._generate_primary_key_definition(primary_key)
             field_defs.append(pk_def)
         
-        # 生成完整 SQL（DuckDB 版本，去掉 MySQL 特有的 ENGINE 和 CHARSET）
+        # 生成完整 SQL
         fields_sql = ',\n    '.join(field_defs)
         create_sql = f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
@@ -187,7 +185,7 @@ class DbSchemaManager:
         else:
             type_def = field_type
         
-        # 构建字段定义（DuckDB 不需要反引号，但保留以兼容）
+        # 构建字段定义
         field_def = f"{field_name} {type_def}"
         
         # DuckDB 不支持 AUTO_INCREMENT，忽略该属性
@@ -244,9 +242,15 @@ class DbSchemaManager:
         is_unique = index.get('unique', False)
         
         unique_keyword = 'UNIQUE' if is_unique else ''
-        fields_str = ', '.join([f"`{f}`" for f in index_fields])
+        # DuckDB 使用双引号引用标识符，或者不使用引号（如果标识符合法）
+        # 为了安全，对可能包含特殊字符的标识符使用双引号
+        fields_str = ', '.join([f'"{f}"' if f.lower() in ['key', 'value', 'order', 'group'] else f for f in index_fields])
         
-        sql = f"CREATE {unique_keyword} INDEX `{index_name}` ON `{table_name}` ({fields_str})"
+        # 表名和索引名使用双引号（如果可能是保留字）
+        table_name_quoted = f'"{table_name}"' if table_name.lower() in ['key', 'value', 'order', 'group'] else table_name
+        index_name_quoted = f'"{index_name}"' if index_name.lower() in ['key', 'value', 'order', 'group'] else index_name
+        
+        sql = f"CREATE {unique_keyword} INDEX {index_name_quoted} ON {table_name_quoted} ({fields_str})"
         return sql
     
     # ==================== 表操作（需要数据库连接）====================
@@ -388,7 +392,7 @@ class DbSchemaManager:
         
         Args:
             table_name: 表名
-            database: 数据库名（DuckDB 不需要，保留参数兼容）
+            database: 数据库名（DuckDB 不需要，已忽略）
             db_connection: 数据库连接（上下文管理器）
             
         Returns:

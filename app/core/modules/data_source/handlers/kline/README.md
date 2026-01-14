@@ -135,7 +135,7 @@
 - `stock_list`: 股票列表（可选）
   - 如果未提供，handler 会从数据库查询（使用过滤规则，排除 ST、科创板等）
 - `latest_completed_trading_date`: 最新完成交易日（YYYYMMDD 格式）
-  - 如果未提供，会从 `DataManager.get_latest_completed_trading_date()` 获取
+  - 如果未提供，会从 `DataManager.service.calendar.get_latest_completed_trading_date()` 获取
 - `dry_run`: 干运行模式（可选，默认 False）
   - 如果为 True，只执行逻辑不写入数据库
 

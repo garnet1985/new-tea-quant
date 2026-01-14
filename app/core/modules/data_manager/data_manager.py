@@ -414,6 +414,30 @@ class DataManager:
         return self._data_service.calendar
     
     @property
+    def index(self):
+        """
+        指数数据服务（属性访问）
+        
+        Returns:
+            IndexService 实例
+        """
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service.index
+    
+    @property
+    def db_cache(self):
+        """
+        数据库缓存服务（属性访问）
+        
+        Returns:
+            DbCacheService 实例
+        """
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service.db_cache
+    
+    @property
     def service(self):
         """
         跨service协调器（属性访问）

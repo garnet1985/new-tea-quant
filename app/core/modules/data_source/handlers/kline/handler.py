@@ -171,7 +171,7 @@ class KlineHandler(BaseDataSourceHandler):
                         primary_keys=['id', 'term']  # 按 id 和 term 分组，获取每个组合的最新记录
                     )
                     
-                    # 如果返回空，尝试手动查询验证
+                    # 如果返回空，尝试手动查询验证；若验证有结果，则直接使用手动结果作为 all_latest_records
                     if len(all_latest_records) == 0:
                         logger.warning("⚠️  load_latest_records 返回空结果，尝试手动查询验证...")
                         manual_query = """
@@ -185,12 +185,13 @@ class KlineHandler(BaseDataSourceHandler):
                             ON t1.id = t2.id
                             AND t1.term = t2.term
                             AND t1.date = t2.max_date
-                            LIMIT 10
                         """
                         manual_result = kline_model.execute_raw_query(manual_query)
-                        logger.warning(f"⚠️  手动查询返回 {len(manual_result)} 条记录（前10条）")
+                        logger.warning(f"⚠️  手动查询返回 {len(manual_result)} 条记录（前10条示例打印一条）")
                         if manual_result:
                             logger.warning(f"⚠️  手动查询示例: {manual_result[0]}")
+                            # 说明表中确实有数据，这里直接采用手动查询结果，避免后续逻辑将其视为“空表”
+                            all_latest_records = manual_result
                 except Exception as e:
                     logger.error(f"❌ before_fetch: load_latest_records 调用失败: {e}")
                     import traceback

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Road Map
 
+next version：v0.1.1
+
 ## 1. 目录与分层重构（未来迭代）
 
 - **userspace 提升到根目录**
@@ -47,3 +49,58 @@
   - 为 `BaseStrategyWorker` 钩子编写“方法一览表 + 调用时机”文档。
   - 在 README / Quick Start 中加一条“从写一个策略到跑完整回测”的流水线示例。
 
+next version：v0.1.2
+
+## 1. 优化入口文件
+
+## 2. 增加worker的监控器，保证运行时不会内存爆炸或者CPU过载，更加智能的worker计算器
+
+## 3. Provider迁移进userspace，变成可插拔
+
+## 4. 整理全局枚举，分清楚scope
+
+## 5. 整理全局config，统一命名
+
+## 6. 支持start.py -i 默认import demo数据CSV
+
+
+
+next version：v0.1.3
+
+## 1. UT覆盖率达到80%
+
+## 2. 每个模块都有readme和architecture文档
+
+## 3. 优化debug体验
+
+
+
+next version：v0.2.1 （开源后）
+
+## 1. 支持market environment配置
+
+## 2. 支持配置价格基准（目前是按照close价格）
+
+## 3. 支持做空（非A股专用）
+
+
+
+next version：v0.2.2
+
+## 1. UI支持可视化
+
+
+
+next version：v0.3.1
+
+## 1. 加强机器学习模块
+
+## 2. 加强数据可视化
+
+## 3. 初始UI + BFF
+
+
+
+next version：v0.3.2
+
+## 1. 提供在线数据renew服务（会员业务）

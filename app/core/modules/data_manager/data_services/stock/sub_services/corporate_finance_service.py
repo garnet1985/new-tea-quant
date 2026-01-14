@@ -247,7 +247,7 @@ class CorporateFinanceService(BaseDataService):
         affected = model.replace([data], unique_keys)
         return affected >= 0
     
-    def save_batch(self, data_list: List[Dict[str, Any]]) -> bool:
+    def save_batch(self, data_list: List[Dict[str, Any]]) -> int:
         """
         批量保存财务数据
         
@@ -258,17 +258,18 @@ class CorporateFinanceService(BaseDataService):
             是否保存成功
         """
         if not data_list:
-            return True
+            return 0
         
         # 验证所有数据
         for data in data_list:
             if not self._validate_financial_data(data):
-                return False
+                return 0
         
         model = self._get_model()
         unique_keys = ['id', 'quarter']
         affected = model.replace(data_list, unique_keys)
-        return affected >= 0
+        # 返回受影响的记录数（与 tag_service.save_batch 的语义保持一致）
+        return affected
     
     def get_stocks_latest_update_quarter(self) -> Dict[str, str]:
         """

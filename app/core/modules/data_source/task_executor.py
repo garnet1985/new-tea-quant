@@ -356,11 +356,17 @@ class TaskExecutor:
             stats = worker.run_jobs()
             success_count = stats.get('completed_jobs', 0)
             failed_count = stats.get('failed_jobs', 0)
+            timed_out = stats.get('timed_out', False)
+            not_done_count = stats.get('not_done_count', 0)
             
-            if failed_count > 0:
-                logger.warning(f"⚠️ 部分 Tasks 执行失败: {failed_count}/{total_tasks}")
-            else:
+            # 只有在“无失败、无超时、成功数 == 总数”时才认为全部完成
+            if failed_count == 0 and not timed_out and success_count == total_tasks:
                 logger.info(f"✅ 所有 Tasks 执行完成: {success_count}/{total_tasks}")
+            else:
+                logger.warning(
+                    f"⚠️ Tasks 执行结束: 成功 {success_count}/{total_tasks}, "
+                    f"失败 {failed_count}, 未完成 {not_done_count}"
+                )
         except Exception as e:
             logger.error(f"❌ 多线程执行失败: {e}")
             import traceback

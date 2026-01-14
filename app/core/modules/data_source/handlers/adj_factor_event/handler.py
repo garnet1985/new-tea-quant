@@ -78,12 +78,13 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         except Exception:
             return False
     
-    def _is_csv_expired(self, adj_factor_event_model) -> bool:
+    def _is_csv_expired(self, adj_factor_event_model, base_date: str = None) -> bool:
         """
         检查CSV文件是否过期（超过一个季度）
         
         Args:
             adj_factor_event_model: AdjFactorEventModel 实例
+            base_date: 基准日期（通常是 latest_completed_trading_date，YYYYMMDD）
             
         Returns:
             bool: CSV过期返回 True
@@ -92,8 +93,8 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         if not csv_file:
             return True  # 不存在视为过期
         
-        # 获取当前季度CSV文件名
-        current_csv_name = adj_factor_event_model.get_current_quarter_csv_name()
+        # 获取当前季度CSV文件名（基于 base_date 计算“已完成的上个季度”）
+        current_csv_name = adj_factor_event_model.get_current_quarter_csv_name(base_date=base_date)
         csv_name = os.path.basename(csv_file)
         
         # 如果文件名不是当前季度的，视为过期
@@ -225,6 +226,9 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             latest_completed_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
         
         stock_list = context.get("stock_list", [])
+        
+        # 记录本轮执行对应的最新完成交易日，用于后续季度 CSV 命名
+        self._latest_completed_trading_date = latest_completed_trading_date
 
         # ========== 步骤0：根据 DB / CSV 状态做初始化决策 ==========
         
@@ -246,7 +250,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
                 logger.info("表为空且无有效CSV，将进行首次构建")
         else:
             # 表不为空：检查是否需要生成新的 CSV
-            if self._is_csv_expired(adj_factor_event_model) or not self._is_csv_exist_and_valid(adj_factor_event_model):
+            if self._is_csv_expired(adj_factor_event_model, base_date=latest_completed_trading_date) or not self._is_csv_exist_and_valid(adj_factor_event_model):
                 context["should_generate_csv"] = True
                 logger.info("CSV已过期或不存在，将在更新后生成新CSV")
 
@@ -350,6 +354,16 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         
         logger.info(f"✅ 生成了 {len(tasks)} 个复权因子事件获取任务（以股票为单位，每只股票 3 个全量 API 调用）")
         return tasks
+
+    async def before_all_tasks_execute(self, tasks: List[DataSourceTask], context: Dict[str, Any] = None):
+        """
+        所有 tasks 执行前的钩子：记录总任务数，用于后续统计与安全检查
+        """
+        # 记录本次期望执行的任务总数
+        self._total_tasks = len(tasks)
+        # 每次执行前重置完成计数与标记
+        self._completed_tasks = 0
+        self._tasks_incomplete = False
     
     async def after_single_task_execute(
         self,
@@ -475,37 +489,61 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             logger.warning("DataManager 未初始化")
             return
         
-        # 如果实现了 after_single_task_execute，数据已在每个 task 完成时保存
-        # 这里只做统计和最终处理
-        total_tasks = len(task_results)
-        logger.info(f"✅ 所有复权因子事件任务执行完成，共 {total_tasks} 个任务")
+        # 记录完成任务数，并与期望任务数对比
+        completed_tasks = len(task_results)
+        total_tasks = getattr(self, "_total_tasks", completed_tasks)
+        self._completed_tasks = completed_tasks
+        
+        if completed_tasks < total_tasks:
+            # 标记本次执行不完整，后续流程（如 CSV 导出）需要避免认为是“全量完成”
+            self._tasks_incomplete = True
+            logger.warning(
+                f"⚠️ 复权因子事件任务未全部完成: 成功 {completed_tasks}/{total_tasks} "
+                f"(可能存在失败或超时任务)"
+            )
+        else:
+            self._tasks_incomplete = False
+            logger.info(f"✅ 所有复权因子事件任务执行完成，共 {completed_tasks} 个任务")
         
         # CSV 导出逻辑在 after_normalize 中完成
     
-    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
+    async def after_normalize(self, normalized_data: Dict[str, Any]):
         """
         标准化后处理（步骤5-6）
         
         步骤5：处理新股票的第一天（已在 before_fetch 中处理）
-        步骤6：季度CSV导出
+        步骤6：季度CSV导出（仅在所有任务完成且写入落盘之后）
         """
-        context = context or {}
-        
         if not self.data_manager:
             return
         
         # 使用 service 访问（虽然目前没有对应的 service 方法，但可以通过 kline service 访问 model）
         adj_factor_event_model = self.data_manager.stock.kline._adj_factor_event
         
+        # 如果本次任务未全部成功完成，避免导出不完整的 CSV
+        if getattr(self, "_tasks_incomplete", False):
+            logger.warning(
+                "检测到本次复权因子事件任务未全部完成，跳过季度CSV导出以避免导出不完整数据"
+            )
+            return
+        
+        # 在导出 CSV 前，确保所有异步写入已经落盘
+        try:
+            adj_factor_event_model.wait_for_writes()
+        except Exception as e:
+            logger.warning(f"等待复权因子事件写入完成时出错，将继续尝试导出CSV: {e}")
+        
         # ========== 步骤6：季度CSV导出 ==========
         # 检查是否需要导出CSV（每季度一次）
-        # 这里简化处理：每次更新后都检查，如果当前季度还没有CSV就导出
-        current_csv_name = adj_factor_event_model.get_current_quarter_csv_name()
+        # 使用 latest_completed_trading_date 所在季度的“上一个完整季度”作为文件名中的季度
+        base_date = getattr(self, "_latest_completed_trading_date", None)
+        current_csv_name = adj_factor_event_model.get_current_quarter_csv_name(base_date=base_date)
         current_csv_path = os.path.join(adj_factor_event_model.csv_dir, current_csv_name)
         
         if not os.path.exists(current_csv_path):
-            logger.info(f"📋 步骤 6/6: 导出季度CSV...")
-            exported_count = adj_factor_event_model.export_to_csv()
+            logger.info("📋 步骤 6/6: 导出季度CSV...")
+            # 显式传入目标路径，避免在 Model 内部重新计算季度名称
+            exported_count = adj_factor_event_model.export_to_csv(file_path=current_csv_path)
             if exported_count > 0:
                 logger.info(f"✅ 导出季度CSV完成: {exported_count} 条记录 -> {current_csv_name}")
             else:

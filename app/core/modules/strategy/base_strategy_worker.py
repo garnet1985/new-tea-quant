@@ -91,7 +91,7 @@ class BaseStrategyWorker(ABC):
                 return stock_info
             
             # 如果服务不可用，直接从 model 加载
-            stock_model = self.data_mgr.get_model('stock_list')
+            stock_model = self.data_mgr.get_table('stock_list')
             if stock_model:
                 stock_info = stock_model.load_one("id = %s", (self.stock_id,))
                 if stock_info:

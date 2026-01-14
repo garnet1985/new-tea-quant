@@ -7,7 +7,26 @@
     "database": "stocks-py",
     "port": 3306,
     "charset": "utf8mb4",
-    "autocommit": true
+    "autocommit": true,
+    "_comment": "⚠️ 仅 MySQL 模式使用，迁移到 DuckDB 后可以忽略"
+  },
+  "duckdb": {
+    "db_path": "data/stocks.duckdb",
+    "threads": 4,
+    "memory_limit": "8GB",
+    "_comment": "DuckDB 配置：数据库文件路径、线程数、内存限制"
+  },
+  "batch_write": {
+    "enable": true,
+    "batch_size": 1000,
+    "flush_interval": 5.0,
+    "_comment": "批量写入配置：解决多线程并发写入问题。batch_size=批量写入阈值（达到此数量后立即写入），flush_interval=刷新间隔（秒，超过此时间自动刷新），enable=是否启用批量写入"
+  },
+  "batch_write": {
+    "batch_size": 1000,
+    "flush_interval": 5.0,
+    "enable": true,
+    "_comment": "批量写入配置：batch_size=批量写入阈值（达到此数量后立即写入），flush_interval=刷新间隔（秒，超过此时间自动刷新），enable=是否启用批量写入（解决多线程并发写入问题）"
   },
   "pool": {
     "pool_size_min": 5,

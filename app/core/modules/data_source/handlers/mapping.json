@@ -2,7 +2,7 @@
     "_comment": "框架默认配置，不应修改。用户可以通过 custom/mapping.json 覆盖",
     "data_sources": {
         "stock_list": {
-            "handler": "defaults.handlers.stock_list.TushareStockListHandler",
+            "handler": "handlers.stock_list.TushareStockListHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": false,
@@ -13,7 +13,7 @@
             }
         },
         "kline": {
-            "handler": "defaults.handlers.kline.KlineHandler",
+            "handler": "handlers.kline.KlineHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": true,
@@ -22,7 +22,7 @@
             "params": {}
         },
         "corporate_finance": {
-            "handler": "defaults.handlers.corporate_finance.CorporateFinanceHandler",
+            "handler": "handlers.corporate_finance.CorporateFinanceHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": true,
@@ -31,7 +31,7 @@
             "params": {}
         },
         "gdp": {
-            "handler": "defaults.handlers.rolling.RollingHandler",
+            "handler": "handlers.rolling.RollingHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": false,
@@ -57,7 +57,7 @@
             }
         },
         "price_indexes": {
-            "handler": "defaults.handlers.price_indexes.PriceIndexesHandler",
+            "handler": "handlers.price_indexes.PriceIndexesHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": false,
@@ -69,7 +69,7 @@
             }
         },
         "shibor": {
-            "handler": "defaults.handlers.rolling.RollingHandler",
+            "handler": "handlers.rolling.RollingHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": false,
@@ -92,7 +92,7 @@
             }
         },
         "lpr": {
-            "handler": "defaults.handlers.rolling.RollingHandler",
+            "handler": "handlers.rolling.RollingHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": false,
@@ -112,7 +112,7 @@
             }
         },
         "latest_trading_date": {
-            "handler": "defaults.handlers.latest_trading_date.LatestTradingDateHandler",
+            "handler": "handlers.latest_trading_date.LatestTradingDateHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": false,
@@ -123,7 +123,7 @@
             }
         },
         "adj_factor_event": {
-            "handler": "defaults.handlers.adj_factor_event.AdjFactorEventHandler",
+            "handler": "handlers.adj_factor_event.AdjFactorEventHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": true,
@@ -135,7 +135,7 @@
             }
         },
         "industry_capital_flow": {
-            "handler": "defaults.handlers.industry_capital_flow.IndustryCapitalFlowHandler",
+            "handler": "handlers.industry_capital_flow.IndustryCapitalFlowHandler",
             "is_enabled": false,
             "dependencies": {
                 "latest_completed_trading_date": false,
@@ -146,7 +146,7 @@
             }
         },
         "stock_index_indicator": {
-            "handler": "defaults.handlers.stock_index_indicator.StockIndexIndicatorHandler",
+            "handler": "handlers.stock_index_indicator.StockIndexIndicatorHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": true,
@@ -163,7 +163,7 @@
             }
         },
         "stock_index_indicator_weight": {
-            "handler": "defaults.handlers.stock_index_indicator_weight.StockIndexIndicatorWeightHandler",
+            "handler": "handlers.stock_index_indicator_weight.StockIndexIndicatorWeightHandler",
             "is_enabled": true,
             "dependencies": {
                 "latest_completed_trading_date": true,

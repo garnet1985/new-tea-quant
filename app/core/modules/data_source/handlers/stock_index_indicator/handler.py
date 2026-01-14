@@ -79,7 +79,7 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
             # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
             logger.warning("StockIndexIndicatorHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
             try:
-                latest_trading_date = self.data_manager.get_latest_completed_trading_date()
+                latest_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败: {e}")
                 latest_trading_date = DateUtils.get_current_date_str()
@@ -92,7 +92,6 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
                 "monthly": DateUtils.get_previous_month_end(latest_trading_date),  # 月线：上个完整月
             }
             context["end_dates"] = end_dates
-            logger.debug(f"各周期结束日期: daily={end_dates['daily']}, weekly={end_dates['weekly']}, monthly={end_dates['monthly']}")
         else:
             # 如果仍然没有，使用当前日期作为兜底
             latest_trading_date = DateUtils.get_current_date_str()
@@ -106,31 +105,13 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
         index_latest_dates_by_term = {}  # {index_id: {term: latest_date}}
         if self.data_manager:
             try:
-                index_model = self.data_manager.get_model('stock_index_indicator')
+                # 构建指数 ID 列表（用于过滤）
+                index_ids = [index_info['id'] for index_info in self.index_list]
                 
-                # 使用批量查询：一次性获取所有指数的所有周期的最新记录
-                all_latest_records = index_model.load_latest_records(
-                    date_field='date',
-                    primary_keys=['id', 'term']  # 按 id 和 term 分组
-                )
-                
-                # 构建指数 ID 集合（用于快速过滤）
-                index_id_set = set()
-                for index_info in self.index_list:
-                    index_id_set.add(index_info['id'])
-                
-                # 整理数据：只保留配置中的指数
-                for record in all_latest_records:
-                    index_id = record.get('id')
-                    term = record.get('term')
-                    latest_date = record.get('date')
-                    
-                    if index_id in index_id_set:
-                        if index_id not in index_latest_dates_by_term:
-                            index_latest_dates_by_term[index_id] = {}
-                        index_latest_dates_by_term[index_id][term] = latest_date
-                
-                logger.debug(f"查询到 {len(index_latest_dates_by_term)} 个指数的历史记录")
+                # 使用 service 批量查询：一次性获取所有指数的所有周期的最新记录
+                all_index_latest_dates = self.data_manager.index.load_latest_indicators_by_term(index_ids=index_ids)
+                # 只保留配置中的指数
+                index_latest_dates_by_term = all_index_latest_dates
             except Exception as e:
                 logger.warning(f"查询指数历史记录失败: {e}")
         
@@ -286,13 +267,8 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
             from app.core.infra.db.db_base_model import DBService
             data_list = DBService.clean_nan_in_list(data_list, default=0.0)
 
-            model = self.data_manager.get_model("stock_index_indicator")
-            if not model:
-                logger.error("未找到 stock_index_indicator Model，无法保存数据")
-                return
-
-            # 使用表 schema 的主键 (id, term, date) 去重
-            count = model.replace(data_list, unique_keys=["id", "term", "date"])
+            # 使用 service 保存数据
+            count = self.data_manager.index.save_indicator(data_list)
             logger.info(f"✅ 股指指标数据保存完成，共 {count} 条记录")
         except Exception as e:
             logger.error(f"❌ 保存股指指标数据失败: {e}")

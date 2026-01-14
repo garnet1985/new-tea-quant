@@ -38,7 +38,8 @@ class StockKlineModel(DbBaseModel):
     
     def save_klines(self, klines: List[Dict[str, Any]]) -> int:
         """批量保存K线（自动去重）"""
-        return self.replace(klines, unique_keys=['id', 'date'])
+        # stock_kline 表的主键是 ["id", "term", "date"]
+        return self.replace(klines, unique_keys=['id', 'term', 'date'])
 
     def load_first_kline_records(self, stock_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """

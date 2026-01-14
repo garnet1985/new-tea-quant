@@ -58,7 +58,7 @@ class JobHelper:
             try:
                 from app.core.modules.data_manager import DataManager
                 data_mgr = DataManager(is_verbose=False)
-                end_date = data_mgr.get_latest_completed_trading_date()
+                end_date = data_mgr.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败，使用空字符串: {e}")
                 end_date = ""

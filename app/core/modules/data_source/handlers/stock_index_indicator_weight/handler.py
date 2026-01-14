@@ -58,28 +58,14 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
         
         # 如果 context 中已有日期范围，直接使用
         if "start_date" in context and "end_date" in context:
-            logger.debug(f"使用 context 中的日期范围: {context['start_date']} 至 {context['end_date']}")
             return
         
         # 从 data_manager 查询数据库获取最新日期（按指数分组）
         index_latest_dates = {}  # {index_id: latest_date}
         if self.data_manager:
             try:
-                weight_model = self.data_manager.get_model('stock_index_indicator_weight')
-                if weight_model:
-                    # 获取所有指数的最新记录
-                    all_latest_records = weight_model.load_latest_records(
-                        date_field='date',
-                        primary_keys=['id']  # 按指数ID分组
-                    )
-                    
-                    for record in all_latest_records:
-                        index_id = record.get('id')
-                        latest_date = record.get('date')
-                        if index_id and latest_date:
-                            index_latest_dates[index_id] = latest_date
-                    
-                    logger.debug(f"查询到 {len(index_latest_dates)} 个指数的历史记录")
+                # 使用 service 批量查询：一次性获取所有指数的最新权重日期
+                index_latest_dates = self.data_manager.index.load_latest_weights()
             except Exception as e:
                 logger.warning(f"查询数据库失败: {e}")
         
@@ -92,7 +78,7 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
             # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
             logger.warning("StockIndexIndicatorWeightHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
             try:
-                latest_trading_date = self.data_manager.get_latest_completed_trading_date()
+                latest_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败: {e}")
                 latest_trading_date = DateUtils.get_current_date_str()
@@ -239,13 +225,8 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
             from app.core.infra.db.db_base_model import DBService
             data_list = DBService.clean_nan_in_list(data_list, default=0.0)
 
-            model = self.data_manager.get_model("stock_index_indicator_weight")
-            if not model:
-                logger.error("未找到 stock_index_indicator_weight Model，无法保存数据")
-                return
-
-            # 使用表 schema 的主键 (id, date, stock_id) 去重
-            count = model.replace(data_list, unique_keys=["id", "date", "stock_id"])
+            # 使用 service 保存数据
+            count = self.data_manager.index.save_weight(data_list)
             logger.info(f"✅ 股指成分股权重数据保存完成，共 {count} 条记录")
         except Exception as e:
             logger.error(f"❌ 保存股指成分股权重数据失败: {e}")

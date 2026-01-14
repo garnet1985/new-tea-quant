@@ -9,6 +9,7 @@ from loguru import logger
 import pandas as pd
 import os
 from datetime import datetime
+from pathlib import Path
 from app.core.infra.db import DbBaseModel
 from app.core.utils.date.date_utils import DateUtils
 
@@ -18,10 +19,20 @@ class AdjFactorEventModel(DbBaseModel):
     
     def __init__(self, db=None):
         super().__init__('adj_factor_event', db)
-        # CSV 文件目录：与表定义在同一目录
-        self.csv_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'app', 'data_manager', 'base_tables', 'adj_factor_event'
+        # CSV 文件目录：放在项目根下的 app/core/modules/data_manager/base_tables/adj_factor_event
+        # 为了避免硬编码层级，这里通过查找项目中的 app 目录来推断项目根
+        current_path = Path(__file__).resolve()  # .../app/core/modules/data_manager/base_tables/adj_factor_event/model.py
+        project_root: Path = None
+        for parent in current_path.parents:
+            if parent.name == "app":
+                # app 的上一级目录视为项目根
+                project_root = parent.parent
+                break
+        if project_root is None:
+            # 兜底：如果未找到 app 目录，退回到 5 级以上父目录作为项目根
+            project_root = current_path.parents[5]
+        self.csv_dir = str(
+            project_root / "app" / "core" / "modules" / "data_manager" / "base_tables" / "adj_factor_event"
         )
         os.makedirs(self.csv_dir, exist_ok=True)
     
@@ -65,19 +76,43 @@ class AdjFactorEventModel(DbBaseModel):
             logger.error(f"查询需要更新的股票失败: {e}")
             return []
     
-    def get_current_quarter_csv_name(self) -> str:
+    def get_current_quarter_csv_name(self, base_date: Optional[str] = None) -> str:
         """
-        获取当前季度的CSV文件名
+        获取当前表数据对应季度的 CSV 文件名
         
         格式：adj_factor_events_YYYYQn.csv
         例如：adj_factor_events_2024Q4.csv
         
+        命名规则：
+        - 优先根据传入的 base_date（通常是 latest_completed_trading_date）计算“上一个完整季度”
+        - 如果未提供 base_date，则根据当前日期计算“上一个完整季度”
+        
         Returns:
             str: CSV文件名
         """
-        now = datetime.now()
-        year = now.year
-        quarter = (now.month - 1) // 3 + 1
+        # 情况 1：提供了 base_date（YYYYMMDD 或 YYYY-MM-DD）
+        if base_date:
+            try:
+                date_str = str(base_date).replace("-", "")
+                target_date = datetime.strptime(date_str[:8], "%Y%m%d")
+            except Exception as e:
+                logger.warning(f"根据 base_date 解析季度失败，将退回使用当前日期: {e}")
+                target_date = datetime.now()
+        else:
+            # 情况 2：未提供 base_date，使用当前日期
+            target_date = datetime.now()
+        
+        # 先求出 target_date 所在季度
+        year = target_date.year
+        quarter = (target_date.month - 1) // 3 + 1
+        
+        # 我们要的是“已经完成的上一个季度”
+        if quarter > 1:
+            quarter -= 1
+        else:
+            quarter = 4
+            year -= 1
+        
         return f"adj_factor_events_{year}Q{quarter}.csv"
     
     def get_latest_csv_file(self) -> Optional[str]:
@@ -187,6 +222,20 @@ class AdjFactorEventModel(DbBaseModel):
             if not all_events:
                 logger.warning("表为空，无法导出CSV")
                 return 0
+            
+            # 为了节约存储空间，始终只保留一份 CSV：
+            # 删除目录下已有的季度 CSV 文件，再生成新的快照
+            try:
+                import glob
+                pattern = os.path.join(self.csv_dir, "adj_factor_events_*Q*.csv")
+                for existing in glob.glob(pattern):
+                    if os.path.abspath(existing) != os.path.abspath(file_path):
+                        try:
+                            os.remove(existing)
+                        except Exception as e:
+                            logger.warning(f"删除旧的季度CSV失败: {existing}, 错误: {e}")
+            except Exception as e:
+                logger.warning(f"清理旧的季度CSV时出错，将继续导出新文件: {e}")
             
             # 转换为DataFrame
             df = pd.DataFrame(all_events)

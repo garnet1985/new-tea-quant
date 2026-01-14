@@ -9,6 +9,7 @@ from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
 from pathlib import Path
 from loguru import logger
+from datetime import datetime, date
 
 from app.core.conf.db_conf import DUCKDB_CONF
 from .db_schema_manager import DbSchemaManager
@@ -151,6 +152,12 @@ class DatabaseManager:
             charset='utf8',  # DuckDB 不需要 charset，但保留参数
             is_verbose=is_verbose
         )
+        
+        # 批量写入队列（延迟初始化，在 initialize 后创建）
+        self._write_queue = None
+        
+        # 批量写入队列（延迟初始化，在 initialize 后创建）
+        self._write_queue: Optional[BatchWriteQueue] = None
     
     @classmethod
     def set_default(cls, instance: 'DatabaseManager'):
@@ -239,6 +246,9 @@ class DatabaseManager:
             
             self._initialized = True
             
+            # 初始化批量写入队列
+            self._init_write_queue()
+            
             if self.is_verbose:
                 logger.info(f"✅ DatabaseManager 初始化完成（DuckDB: {db_path}）")
                 logger.info(f"   线程数: {threads}, 内存限制: {memory_limit}")
@@ -246,6 +256,32 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ DatabaseManager 初始化失败: {e}")
             raise
+    
+    def _init_write_queue(self):
+        """初始化批量写入队列"""
+        try:
+            from .batch_write_queue import BatchWriteQueue
+            
+            # 从配置读取批量写入参数
+            batch_config = self.config.get('batch_write', {})
+            batch_size = batch_config.get('batch_size', 1000)
+            flush_interval = batch_config.get('flush_interval', 5.0)
+            enable = batch_config.get('enable', True)
+            
+            self._write_queue = BatchWriteQueue(
+                db_manager=self,
+                batch_size=batch_size,
+                flush_interval=flush_interval,
+                enable=enable
+            )
+            
+            if self.is_verbose and enable:
+                logger.info(f"✅ 批量写入队列已启用 (batch_size={batch_size}, flush_interval={flush_interval}s)")
+            elif not enable and self.is_verbose:
+                logger.info("ℹ️  批量写入队列已禁用（直接写入模式）")
+        except Exception as e:
+            logger.warning(f"⚠️ 初始化批量写入队列失败: {e}，将使用直接写入模式")
+            self._write_queue = None
     
     # ==================== 连接管理 ====================
     
@@ -455,12 +491,40 @@ class DatabaseManager:
     
     def queue_write(self, table_name: str, data_list: List[Dict], unique_keys: List[str], callback: Callable = None):
         """
-        队列写入（同步执行，DuckDB 不需要异步队列）
+        队列写入（使用批量写入队列，解决并发写入问题）
         
         Args:
             table_name: 表名
             data_list: 数据列表
             unique_keys: 唯一键
+            callback: 回调函数
+        """
+        if not data_list:
+            return
+        
+        # 如果批量写入队列可用且启用，使用队列
+        if self._write_queue and self._write_queue.enable:
+            self._write_queue.enqueue(table_name, data_list, unique_keys, callback)
+        else:
+            # 否则直接写入（单线程场景或队列未启用）
+            self._direct_write(table_name, data_list, unique_keys, callback)
+    
+    def _direct_write(
+        self,
+        table_name: str,
+        data_list: List[Dict],
+        unique_keys: List[str],
+        callback: Callable = None
+    ):
+        """
+        直接写入（不使用队列，单线程场景使用）
+        
+        注意：此方法不是线程安全的，多线程场景应使用 queue_write
+        
+        Args:
+            table_name: 表名
+            data_list: 数据列表
+            unique_keys: 唯一键列表（如果为空，使用纯 INSERT；否则使用 INSERT ... ON CONFLICT）
             callback: 回调函数
         """
         try:
@@ -469,33 +533,75 @@ class DatabaseManager:
             if not data_list:
                 return
             
-            # 使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB/PG 风格 Upsert）
-            columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
-            
-            if not columns:
-                return
-            
-            placeholders = ', '.join(['?' for _ in columns])
-            columns_sql = ', '.join(columns)
-            conflict_cols = ', '.join(unique_keys)
-            
-            if update_clause:
-                query = (
-                    f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
-                    f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
-                )
+            if not unique_keys:
+                # 纯 INSERT（不需要去重）
+                columns, placeholders = DBService.to_columns_and_values(data_list)
+                columns_sql = ', '.join(columns)
+                values = [tuple(data[col] for col in columns) for data in data_list]
             else:
-                # 没有需要更新的字段时，冲突直接忽略
-                query = (
-                    f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
-                    f"ON CONFLICT ({conflict_cols}) DO NOTHING"
-                )
+                # 使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB/PG 风格 Upsert）
+                columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
+                
+                if not columns:
+                    return
+                
+                columns_sql = ', '.join(columns)
+                conflict_cols = ', '.join(unique_keys)
             
             if not self.conn:
                 raise RuntimeError("DatabaseManager not initialized.")
             
-            for val in values:
-                self.conn.execute(query, val)
+            # 批量插入（分批处理，避免 SQL 语句过长）
+            INSERT_BATCH_SIZE = 5000
+            for i in range(0, len(values), INSERT_BATCH_SIZE):
+                batch_values = values[i:i+INSERT_BATCH_SIZE]
+                
+                # 构建批量插入 SQL
+                values_list = []
+                for val in batch_values:
+                    formatted_values = []
+                    for v in val:
+                        if v is None:
+                            formatted_values.append('NULL')
+                        elif isinstance(v, str):
+                            escaped = v.replace("'", "''")
+                            formatted_values.append(f"'{escaped}'")
+                        elif isinstance(v, (int, float)):
+                            import math
+                            if isinstance(v, float) and math.isnan(v):
+                                formatted_values.append('NULL')
+                            else:
+                                formatted_values.append(str(v))
+                        elif isinstance(v, bool):
+                            formatted_values.append('TRUE' if v else 'FALSE')
+                        elif isinstance(v, (datetime, date)):
+                            if isinstance(v, datetime):
+                                formatted_values.append(f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'")
+                            else:
+                                formatted_values.append(f"'{v.strftime('%Y-%m-%d')}'")
+                        else:
+                            escaped_val = str(v).replace("'", "''")
+                            formatted_values.append(f"'{escaped_val}'")
+                    values_list.append(f"({', '.join(formatted_values)})")
+                
+                # 执行批量插入
+                if not unique_keys:
+                    # 纯 INSERT
+                    batch_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)}"
+                else:
+                    # INSERT ... ON CONFLICT
+                    if update_clause:
+                        batch_query = (
+                            f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
+                            f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
+                        )
+                    else:
+                        batch_query = (
+                            f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
+                            f"ON CONFLICT ({conflict_cols}) DO NOTHING"
+                        )
+                
+                self.conn.execute(batch_query)
             
             if callback:
                 callback(table_name, len(data_list))
@@ -504,14 +610,51 @@ class DatabaseManager:
             logger.error(f"Failed to write to {table_name}: {e}")
             raise
     
+    def flush_writes(self, table_name: Optional[str] = None):
+        """
+        立即刷新指定表或所有表的待写入数据
+        
+        Args:
+            table_name: 表名，None 表示刷新所有表
+        """
+        if self._write_queue:
+            self._write_queue.flush(table_name)
+    
+    def get_write_stats(self) -> Dict[str, Any]:
+        """获取写入统计信息"""
+        if self._write_queue:
+            return self._write_queue.get_stats()
+        return {}
+    
     def wait_for_writes(self, timeout: float = 30.0):
         """
-        等待所有写入完成（DuckDB 同步执行，此方法立即返回）
+        等待所有写入完成
+        
+        Args:
+            timeout: 超时时间（秒）
         """
-        pass
+        if self._write_queue:
+            self._write_queue.wait_for_writes(timeout)
+    
+    def close(self):
+        """关闭数据库连接和写入队列"""
+        # 关闭写入队列（会刷新所有待写入数据）
+        if self._write_queue:
+            self._write_queue.shutdown()
+            self._write_queue = None
+        
+        # 关闭数据库连接
+        if self.conn:
+            try:
+                self.conn.close()
+            except:
+                pass
+            self.conn = None
+        
+        self._initialized = False
     
     def __del__(self):
-        """析构函数：确保连接关闭"""
+        """析构函数：确保连接和队列关闭"""
         try:
             self.close()
         except:

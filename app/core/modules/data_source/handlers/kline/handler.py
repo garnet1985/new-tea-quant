@@ -610,6 +610,10 @@ class KlineHandler(BaseDataSourceHandler):
         
         if total_saved > 0:
             logger.info(f"✅ K 线数据保存完成，共 {len(stock_data_map)} 只股票，{total_saved} 条记录（包含所有周期）")
+            
+            # 等待批量写入完成（确保数据已写入数据库）
+            if self.data_manager and self.data_manager.db:
+                self.data_manager.db.wait_for_writes(timeout=30.0)
         else:
             logger.warning(f"⚠️ K 线数据没有可保存的记录")
     

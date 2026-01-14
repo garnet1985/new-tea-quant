@@ -46,7 +46,6 @@ from loguru import logger
 import json
 import os
 
-from .db_config_manager import DB_CONFIG
 
 
 class DBService:
@@ -96,7 +95,7 @@ class DBService:
             )
             # columns = ['id', 'name', 'price']
             # values = [('001', 'test', 10.0)]
-            # update_clause = 'name = VALUES(name), price = VALUES(price)'
+            # update_clause = 'name = EXCLUDED.name, price = EXCLUDED.price'  # DuckDB 使用 EXCLUDED 而不是 VALUES
         """
         if not data_list:
             return [], [], ""
@@ -282,7 +281,7 @@ class DbBaseModel:
 
         # 使用 DbSchemaManager 生成 SQL
         from .db_schema_manager import DbSchemaManager
-        schema_manager = DbSchemaManager(charset=DB_CONFIG['base']['charset'])
+        schema_manager = DbSchemaManager()
         
         # 如果有自定义表名，修改 schema
         schema_to_use = self.schema.copy()
@@ -300,7 +299,6 @@ class DbBaseModel:
     def drop_table(self) -> None:
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(f"DROP TABLE IF EXISTS {self.table_name}")
-            cursor.connection.commit()
             if self.db.is_verbose:
                 logger.info(f"Table '{self.table_name}' is dropped")
 
@@ -309,7 +307,6 @@ class DbBaseModel:
         """清空表数据"""
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(f"DELETE FROM {self.table_name}")
-            cursor.connection.commit()
             return cursor.rowcount
 
     # ***********************************
@@ -448,9 +445,13 @@ class DbBaseModel:
         """
         
         try:
-            return self.db.execute_sync_query(query)
+            result = self.db.execute_sync_query(query)
+            return result
         except Exception as e:
             logger.error(f"加载最新记录失败 [{self.table_name}]: {e}")
+            logger.error(f"查询 SQL: {query}")
+            import traceback
+            logger.error(f"异常堆栈: {traceback.format_exc()}")
             return []
     
     def load_first_records(self, date_field: str = None, primary_keys: List[str] = None) -> List[Dict[str, Any]]:
@@ -571,7 +572,6 @@ class DbBaseModel:
                 
                 with self.db.get_sync_cursor() as cursor:
                     cursor.execute(query, params)
-                    cursor.connection.commit()
                     return cursor.rowcount
             except Exception as e:
                 logger.error(f"Failed to delete data from {self.table_name} (attempt {attempt + 1}/{max_retries}): {e}")
@@ -633,10 +633,40 @@ class DbBaseModel:
             # 构建值列表
             values = [tuple(data[col] for col in columns) for data in data_list]
             
-            with self.db.get_sync_cursor() as cursor:
-                cursor.executemany(query, values)
-                cursor.connection.commit()
-                return len(data_list)
+            # 使用批量 VALUES 语法（DuckDB 推荐方式）
+            INSERT_BATCH_SIZE = 5000
+            for i in range(0, len(values), INSERT_BATCH_SIZE):
+                batch_values = values[i:i+INSERT_BATCH_SIZE]
+                
+                # 构建批量 VALUES
+                values_list = []
+                for val in batch_values:
+                    formatted_values = []
+                    for v in val:
+                        if v is None:
+                            formatted_values.append('NULL')
+                        elif isinstance(v, str):
+                            escaped = v.replace("'", "''")
+                            formatted_values.append(f"'{escaped}'")
+                        elif isinstance(v, (int, float)):
+                            import math
+                            if isinstance(v, float) and math.isnan(v):
+                                formatted_values.append('NULL')
+                            else:
+                                formatted_values.append(str(v))
+                        elif isinstance(v, bool):
+                            formatted_values.append('TRUE' if v else 'FALSE')
+                        else:
+                            escaped_val = str(v).replace("'", "''")
+                            formatted_values.append(f"'{escaped_val}'")
+                    values_list.append(f"({', '.join(formatted_values)})")
+                
+                batch_query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES {', '.join(values_list)}"
+                
+                with self.db.get_sync_cursor() as cursor:
+                    cursor.execute(batch_query)
+            
+            return len(data_list)
         except Exception as e:
             logger.error(f"Failed to batch insert data into {self.table_name}: {e}")
             return 0
@@ -649,12 +679,15 @@ class DbBaseModel:
     def update(self, data: Dict[str, Any], condition: str, params: tuple = ()) -> int:
         """更新数据（别名方法）"""
         try:
-            set_clause = ', '.join([f"{k} = %s" for k in data.keys()])
+            # 使用 ? 占位符（execute_sync_query 会自动转换 %s -> ?）
+            set_clause = ', '.join([f"{k} = ?" for k in data.keys()])
             query = f"UPDATE {self.table_name} SET {set_clause} WHERE {condition}"
+            
+            # 转换 condition 中的 %s 为 ?
+            query = query.replace("%s", "?")
             
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(query, tuple(data.values()) + params)
-                cursor.connection.commit()
                 return cursor.rowcount
         except Exception as e:
             logger.error(f"Failed to update data in {self.table_name}: {e}")
@@ -669,7 +702,7 @@ class DbBaseModel:
         批量插入或更新数据（DuckDB 版本）
         
         实现策略：
-        - 统一使用 DatabaseManager.queue_write（内部使用 REPLACE INTO）
+        - 统一使用 DatabaseManager.queue_write（内部使用 INSERT ... ON CONFLICT DO UPDATE）
         - DuckDB 是进程内数据库，同步写入即可，无需复杂的线程安全/重试逻辑
         """
         if not data_list:
@@ -681,21 +714,63 @@ class DbBaseModel:
                 if getattr(self.db, 'is_verbose', False):
                     logger.info(f"Upsert completed for {table_name}: {count} records")
             
-            # 交给 DatabaseManager 统一处理（内部使用 REPLACE INTO）
+            # 交给 DatabaseManager 统一处理（内部使用 INSERT ... ON CONFLICT DO UPDATE）
             if hasattr(self.db, 'queue_write'):
                 self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)
                 return len(data_list)
             
-            # 兜底方案：直接构建 REPLACE INTO 语句
-            columns, values, _ = DBService.to_upsert_params(data_list, unique_keys)
-            placeholders = ', '.join(['%s'] * len(columns))
-            query = f"REPLACE INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders})"
+            # 兜底方案：使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB 不支持 REPLACE INTO）
+            columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
             
-            with self.db.get_sync_cursor() as cursor:
-                cursor.executemany(query, values)
-                # DuckDB 会自动提交，这里保留兼容调用
-                if hasattr(cursor, 'connection'):
-                    cursor.connection.commit()
+            if not columns:
+                return 0
+            
+            columns_sql = ', '.join(columns)
+            conflict_cols = ', '.join(unique_keys)
+            
+            # 构建批量 VALUES（类似 batch_write_queue 的方式）
+            INSERT_BATCH_SIZE = 5000
+            for i in range(0, len(values), INSERT_BATCH_SIZE):
+                batch_values = values[i:i+INSERT_BATCH_SIZE]
+                
+                # 构建批量插入 SQL
+                values_list = []
+                for val in batch_values:
+                    formatted_values = []
+                    for v in val:
+                        if v is None:
+                            formatted_values.append('NULL')
+                        elif isinstance(v, str):
+                            escaped = v.replace("'", "''")
+                            formatted_values.append(f"'{escaped}'")
+                        elif isinstance(v, (int, float)):
+                            import math
+                            if isinstance(v, float) and math.isnan(v):
+                                formatted_values.append('NULL')
+                            else:
+                                formatted_values.append(str(v))
+                        elif isinstance(v, bool):
+                            formatted_values.append('TRUE' if v else 'FALSE')
+                        else:
+                            escaped_val = str(v).replace("'", "''")
+                            formatted_values.append(f"'{escaped_val}'")
+                    values_list.append(f"({', '.join(formatted_values)})")
+                
+                # 构建 INSERT ... ON CONFLICT 语句
+                if update_clause:
+                    batch_query = (
+                        f"INSERT INTO {self.table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
+                        f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
+                    )
+                else:
+                    batch_query = (
+                        f"INSERT INTO {self.table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
+                        f"ON CONFLICT ({conflict_cols}) DO NOTHING"
+                    )
+                
+                with self.db.get_sync_cursor() as cursor:
+                    cursor.execute(batch_query)
+            
             return len(data_list)
         
         except Exception as e:
@@ -877,9 +952,11 @@ class DbBaseModel:
     def execute_raw_update(self, query: str, params: tuple = ()) -> int:
         """执行原始SQL更新语句"""
         try:
+            # 转换占位符 %s -> ?
+            query = query.replace("%s", "?")
+            
             with self.db.get_sync_cursor() as cursor:
                 cursor.execute(query, params)
-                cursor.connection.commit()
                 return cursor.rowcount
         except Exception as e:
             logger.error(f"Failed to execute raw update: {e}")

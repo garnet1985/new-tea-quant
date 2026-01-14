@@ -251,9 +251,11 @@ class BatchWriteQueue:
             
             if not unique_keys:
                 # 纯 INSERT（不需要去重）
-                columns, placeholders = DBService.to_columns_and_values(data_list)
+                columns, _ = DBService.to_columns_and_values(data_list)
                 columns_sql = ', '.join(columns)
                 values = [tuple(data[col] for col in columns) for data in data_list]
+                update_clause = None
+                conflict_cols = None
             else:
                 # 使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB/PG 风格 Upsert）
                 columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
@@ -263,17 +265,6 @@ class BatchWriteQueue:
                 
                 columns_sql = ', '.join(columns)
                 conflict_cols = ', '.join(unique_keys)
-                
-                if update_clause:
-                    query = (
-                        f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
-                        f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
-                    )
-                else:
-                    query = (
-                        f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
-                        f"ON CONFLICT ({conflict_cols}) DO NOTHING"
-                    )
             
             if not self.db_manager.conn:
                 raise RuntimeError("DatabaseManager not initialized.")
@@ -316,22 +307,35 @@ class BatchWriteQueue:
                 if not unique_keys:
                     # 纯 INSERT
                     batch_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)}"
+                    self.db_manager.conn.execute(batch_query)
                 else:
-                    # INSERT ... ON CONFLICT（已在上面构建 query）
-                    # 需要为每个批次构建完整的 SQL
-                    placeholders = ', '.join(['?' for _ in columns])
-                    if update_clause:
-                        batch_query = (
-                            f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                            f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
-                        )
-                    else:
-                        batch_query = (
-                            f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                            f"ON CONFLICT ({conflict_cols}) DO NOTHING"
-                        )
-                
-                self.db_manager.conn.execute(batch_query)
+                    # INSERT ... ON CONFLICT
+                    # 注意：DuckDB 要求冲突列必须匹配主键或唯一索引
+                    # 如果 unique_keys 不匹配，会抛出 BinderException
+                    try:
+                        if update_clause:
+                            batch_query = (
+                                f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
+                                f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
+                            )
+                        else:
+                            batch_query = (
+                                f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
+                                f"ON CONFLICT ({conflict_cols}) DO NOTHING"
+                            )
+                        self.db_manager.conn.execute(batch_query)
+                    except Exception as conflict_error:
+                        # 如果 ON CONFLICT 失败（unique_keys 不匹配主键/唯一索引），回退到纯 INSERT
+                        if "conflict target" in str(conflict_error).lower() or "unique" in str(conflict_error).lower():
+                            logger.warning(
+                                f"表 {table_name} 的 unique_keys {unique_keys} 不匹配主键/唯一索引，"
+                                f"回退到纯 INSERT（可能产生重复数据）: {conflict_error}"
+                            )
+                            batch_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)}"
+                            self.db_manager.conn.execute(batch_query)
+                        else:
+                            # 其他错误直接抛出
+                            raise
             
             if callback:
                 callback(table_name, len(data_list))

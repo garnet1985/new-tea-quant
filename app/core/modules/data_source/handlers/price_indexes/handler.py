@@ -74,7 +74,9 @@ class PriceIndexesHandler(BaseDataSourceHandler):
         latest_date_ym = None
         if self.data_manager:
             try:
-                price_indexes_model = self.data_manager.get_model('price_indexes')
+                # 使用 service 访问（虽然目前没有对应的 service 方法，但可以通过 macro service 访问 model）
+                # 注意：price_indexes 属于 macro 服务，但查询最新日期需要直接访问 model
+                price_indexes_model = self.data_manager.macro._price_indexes
                 if price_indexes_model:
                     latest_record = price_indexes_model.load_latest()
                     if latest_record:
@@ -451,13 +453,9 @@ class PriceIndexesHandler(BaseDataSourceHandler):
             from app.core.infra.db.db_base_model import DBService
             data_list = DBService.clean_nan_in_list(data_list, default=0.0)
             
-            # 保存数据
-            price_indexes_model = self.data_manager.get_model('price_indexes')
-            if price_indexes_model:
-                count = price_indexes_model.save_price_indexes(data_list)
-                logger.info(f"✅ 价格指数数据保存完成，共 {count} 条记录")
-            else:
-                logger.error("未找到 price_indexes Model，无法保存数据")
+            # 保存数据（通过 service 访问）
+            count = self.data_manager.macro.save_price_indexes_data(data_list)
+            logger.info(f"✅ 价格指数数据保存完成，共 {count} 条记录")
         except Exception as e:
             logger.error(f"❌ 保存价格指数数据失败: {e}")
             import traceback

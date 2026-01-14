@@ -16,18 +16,16 @@ from app.core.modules.strategy.models.trade import Trade
 @dataclass
 class BaseInvestment(ABC):
     """投资基类（统一接口）"""
-    # 核心标识
+    # 核心标识（无默认值的字段必须在前面）
     investment_id: str
     opportunity_id: str
     stock_id: str
-    stock_name: str = ""
-    
-    # 时间信息（统一命名）
     buy_date: str  # YYYYMMDD
-    sell_date: Optional[str] = None  # YYYYMMDD
-    
-    # 价格信息（统一命名）
     buy_price: float
+    
+    # 有默认值的字段在后面
+    stock_name: str = ""
+    sell_date: Optional[str] = None  # YYYYMMDD
     sell_price: Optional[float] = None
     
     # 收益信息（统一命名）
@@ -248,9 +246,9 @@ class PriceFactorInvestment(BaseInvestment):
 @dataclass
 class CapitalAllocationInvestment(BaseInvestment):
     """资金分配投资记录（实际股数，含费用）"""
-    # CA 特有字段
-    shares: int
-    avg_cost: float  # 平均成本（含交易成本）
+    # CA 特有字段（所有字段都需要默认值，因为继承的父类最后字段有默认值）
+    shares: int = 0
+    avg_cost: float = 0.0  # 平均成本（含交易成本）
     commission: float = 0.0
     stamp_duty: float = 0.0
     transfer_fee: float = 0.0

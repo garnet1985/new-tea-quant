@@ -483,4 +483,16 @@ class MacroService(BaseDataService):
             影响的行数
         """
         return self._lpr.save_lpr_data(lpr_data) if hasattr(self._lpr, 'save_lpr_data') else self._lpr.replace(lpr_data, unique_keys=['date'])
+    
+    def save_price_indexes_data(self, price_indexes_data: List[Dict[str, Any]]) -> int:
+        """
+        批量保存价格指数数据（自动去重）
+        
+        Args:
+            price_indexes_data: 价格指数数据列表
+            
+        Returns:
+            影响的行数
+        """
+        return self._price_indexes.save_price_indexes(price_indexes_data)
 

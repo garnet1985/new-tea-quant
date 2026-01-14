@@ -214,14 +214,15 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             logger.warning("DataManager 未初始化")
             return context
         
-        adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
+        # 使用 service 访问（虽然目前没有对应的 service 方法，但可以通过 kline service 访问 model）
+        adj_factor_event_model = self.data_manager.stock.kline._adj_factor_event
         
         # 从 context 获取最新完成交易日（优先从 context 读取，由 renew_data() 统一获取并注入）
         latest_completed_trading_date = context.get("latest_completed_trading_date") or context.get("latest_trading_date")
         if not latest_completed_trading_date:
             # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
             logger.warning("AdjFactorEventHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
-            latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
+            latest_completed_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
         
         stock_list = context.get("stock_list", [])
 
@@ -386,10 +387,11 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         stock_id = task_id.replace("adj_factor_event_", "")
         
         try:
-            adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
+            # 使用 service 访问（虽然目前没有对应的 service 方法，但可以通过 kline service 访问 model）
+            adj_factor_event_model = self.data_manager.stock.kline._adj_factor_event
             
             # 删除该股票的旧复权事件记录，实现"全量重算"
-            adj_factor_event_model.delete("id = %s", (stock_id,))
+            self.data_manager.stock.kline.delete_adj_factor_events(stock_id)
             
             # 获取三个全量 API 的结果
             adj_factor_df = task_result.get(f"{stock_id}_adj_factor_full")
@@ -444,8 +446,9 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             
             # 立即保存该股票的复权事件（全量替换：先删除再保存，每完成一只股票就立即保存）
             if events_to_save:
-                adj_factor_event_model.save_events(events_to_save)
-                logger.info(f"✅ [全量替换] {stock_id}: 保存了 {len(events_to_save)} 个复权事件")
+                # 使用 service 保存数据
+                count = self.data_manager.stock.kline.save_adj_factor_events(events_to_save)
+                logger.info(f"✅ [全量替换] {stock_id}: 保存了 {len(events_to_save)} 个复权事件（实际保存 {count} 条）")
             else:
                 logger.warning(f"{stock_id}: 没有可保存的复权事件")
                 
@@ -491,7 +494,8 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
         if not self.data_manager:
             return
         
-        adj_factor_event_model = self.data_manager.get_model('adj_factor_event')
+        # 使用 service 访问（虽然目前没有对应的 service 方法，但可以通过 kline service 访问 model）
+        adj_factor_event_model = self.data_manager.stock.kline._adj_factor_event
         
         # ========== 步骤6：季度CSV导出 ==========
         # 检查是否需要导出CSV（每季度一次）

@@ -66,7 +66,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
             if self.data_manager:
                 # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
                 logger.warning("CorporateFinanceHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
-                latest_completed_trading_date = self.data_manager.get_latest_completed_trading_date()
+                latest_completed_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
             else:
                 logger.warning("无法获取最新完成交易日，跳过企业财务数据更新")
                 return context
@@ -107,7 +107,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         max_effective_quarter = DateUtils.get_current_quarter(latest_completed_trading_date)
         # 以 max_effective_quarter 为窗口上界，默认滚动覆盖最近 ROLLING_QUARTERS 个季度
         # 从 DB 中获取所有股票最新的财报季度信息：{stock_id: last_updated_quarter}
-        raw_map = self.data_manager.get_stocks_latest_corporate_update_quarter()
+        raw_map = self.data_manager.service.stock.corporate_finance.get_stocks_latest_update_quarter()
         
         # 如果 DB 里完全没有企业财务数据，这是第一次跑：
         # 为了建立基准数据，对所有股票从默认起点开始全量拉取到当前有效季度。
@@ -141,14 +141,13 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         batch_offset = 0
 
         if not is_first_run and self.RENEW_ROLLING_BATCH and len(all_stocks) > 0:
-            from app.core.modules.data_manager.base_tables.system_cache.model import SystemCacheModel  # type: ignore
 
             batch_size = max(1, len(all_stocks) // self.RENEW_ROLLING_BATCH)
 
             try:
-                cache_model: SystemCacheModel = self.data_manager.get_model('system_cache')  # type: ignore
+                # 使用 service 访问缓存
                 cache_key = 'corporate_finance_batch_offset'
-                cache_row = cache_model.load_by_key(cache_key)
+                cache_row = self.data_manager.db_cache.get(cache_key)
                 if cache_row and cache_row.get('value') is not None:
                     try:
                         batch_offset = int(cache_row['value'])
@@ -220,10 +219,9 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         # 非首次跑时，将新的 batch_offset 写回 system_cache，作为下次轮转的起点
         if not is_first_run and self.RENEW_ROLLING_BATCH and target_list:
             try:
-                from app.core.modules.data_manager.base_tables.system_cache.model import SystemCacheModel  # type: ignore
-                cache_model: SystemCacheModel = self.data_manager.get_model('system_cache')  # type: ignore
+                # 使用 service 保存缓存
                 cache_key = 'corporate_finance_batch_offset'
-                cache_model.save_cache(
+                self.data_manager.db_cache.set(
                     key=cache_key,
                     value=str(new_offset)
                 )
@@ -318,8 +316,8 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
                 logger.info(f"ℹ️ {task_id} 没有有效企业财务数据，跳过保存")
                 return
 
-            corporate_finance_model = self.data_manager.get_model('corporate_finance')
-            saved_count = corporate_finance_model.save_finance_data(data_list)
+            # 使用 service 保存数据
+            saved_count = self.data_manager.stock.corporate_finance.save_batch(data_list)
             logger.info(f"✅ [单股票保存] {task_id}: 保存 {saved_count} 条企业财务记录")
         except Exception as e:
             logger.error(f"❌ 保存 {task_id} 企业财务数据失败: {e}")

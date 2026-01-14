@@ -36,10 +36,14 @@ class DataService:
         from .stock.stock_service import StockService
         from .macro.macro_service import MacroService
         from .calendar.calendar_service import CalendarService
+        from .index.index_service import IndexService
+        from .db_cache.db_cache_service import DbCacheService
         
         self.stock = StockService(data_manager)
         self.macro = MacroService(data_manager)
         self.calendar = CalendarService(data_manager)
+        self.index = IndexService(data_manager)
+        self.db_cache = DbCacheService(data_manager)
     
     def prepare_data(self, stock: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
         """

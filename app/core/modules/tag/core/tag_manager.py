@@ -480,6 +480,14 @@ class TagManager:
         if self.is_verbose:
             worker_pool.print_stats()
         
+        # 等待所有批量写入完成（DuckDB 并发写入需要）
+        # 注意：每个子进程都有自己的 DatabaseManager 实例，但写入队列是共享的
+        # 这里等待主进程的写入队列完成
+        if self.data_mgr and self.data_mgr.db:
+            logger.info("⏳ 等待所有 tag 数据写入完成...")
+            self.data_mgr.db.wait_for_writes(timeout=60.0)
+            logger.info("✅ 所有 tag 数据写入完成")
+        
         # 返回统计信息（可选，用于上层调用）
         return {
             'scenario_name': scenario_name,

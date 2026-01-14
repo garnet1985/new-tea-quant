@@ -49,7 +49,7 @@ class OpportunityEnumerator:
         Returns:
             所有 opportunities（字典列表）
         """
-        # 解析 max_workers
+        # 解析 max_workers（仍复用 ProcessWorker 的辅助逻辑）
         from app.core.infra.worker.multi_process.process_worker import ProcessWorker
         max_workers = ProcessWorker.resolve_max_workers(
             max_workers=max_workers,
@@ -77,6 +77,10 @@ class OpportunityEnumerator:
             strategy_name=strategy_name,
             use_sampling=enum_settings.use_sampling
         )
+        # 记录版本目录信息，便于后续保存 metadata 和清理旧版本
+        sub_dir = output_dir.parent            # test/ 或 pool/ 目录
+        version_dir_name = output_dir.name     # 版本目录名（自增ID）
+        use_sampling = enum_settings.use_sampling
 
         # 2. 构建作业（每只股票一个 job）
         # 重要：枚举器（Layer 0）始终做“全量枚举”，不再按照调用方传入的 start_date 截断历史。
@@ -107,25 +111,25 @@ class OpportunityEnumerator:
                 'opportunity_id_start': start_id,
             })
         
-        # 3. 多进程执行
-        from app.core.infra.worker.multi_process.process_worker import ProcessWorker, ExecutionMode
+        # 3. 多线程执行（FuturesWorker），避免 DuckDB 多进程文件锁限制
+        from app.core.infra.worker import FuturesWorker, ThreadExecutionMode
         
-        # 创建 ProcessWorker 实例
-        worker_pool = ProcessWorker(
-            max_workers=max_workers,
-            execution_mode=ExecutionMode.QUEUE,
+        # 创建 FuturesWorker 实例（单进程多线程）
+        worker = FuturesWorker(
+            max_workers=1,
+            execution_mode=ThreadExecutionMode.PARALLEL,
             job_executor=OpportunityEnumerator._execute_single_job,
             is_verbose=False
         )
         
-        # 构建 ProcessWorker 格式的 jobs
-        process_jobs = [{'id': job['stock_id'], 'payload': job} for job in jobs]
+        # 构建 FuturesWorker 格式的 jobs（data 字段传递 payload）
+        thread_jobs = [{'id': job['stock_id'], 'data': job} for job in jobs]
         
         # 执行作业
-        worker_pool.run_jobs(process_jobs)
+        worker.run_jobs(thread_jobs)
         
         # 获取结果
-        job_results = worker_pool.get_results()
+        job_results = worker.get_results()
         
         # 4. 聚合结果和性能指标
         from app.core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
@@ -205,7 +209,7 @@ class OpportunityEnumerator:
             start_date=start_date,
             end_date=end_date,
             output_dir=output_dir,
-            version_id=next_version_id,
+            version_id=version_id,
             version_dir_name=version_dir_name,
             opportunity_count=total_opportunities,
             settings_snapshot=validated_settings,
@@ -233,7 +237,7 @@ class OpportunityEnumerator:
         # 7. 返回结果（目前直接返回 summary，而不是全量 opportunities）
         return [{
             'strategy_name': strategy_name,
-            'version_id': next_version_id,
+            'version_id': version_id,
             'version_dir': version_dir_name,
             'opportunity_count': total_opportunities,
             'success_stocks': success_count,
@@ -242,7 +246,12 @@ class OpportunityEnumerator:
     
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Worker 包装函数（在子进程中调用，必须是模块级函数才能被 pickle）"""
+        """
+        Worker 包装函数
+        
+        - 在多进程模式下作为子进程入口
+        - 在多线程模式下作为线程执行函数
+        """
         from app.core.modules.strategy.components.opportunity_enumerator.enumerator_worker import OpportunityEnumeratorWorker
         worker = OpportunityEnumeratorWorker(payload)
         return worker.run()

@@ -516,7 +516,7 @@ class StrategyWorkerDataManager:
     def _load_tag_data(self, tag_name: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """加载 Tag 数据"""
         try:
-            tag_model = self.data_mgr.get_model('tag_value')
+            tag_model = self.data_mgr.get_table('tag_value')
             if not tag_model:
                 return []
             
@@ -534,7 +534,7 @@ class StrategyWorkerDataManager:
     def _load_finance_data(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """加载财务数据"""
         try:
-            finance_model = self.data_mgr.get_model('corporate_finance')
+            finance_model = self.data_mgr.get_table('corporate_finance')
             if not finance_model:
                 return []
             
@@ -552,7 +552,7 @@ class StrategyWorkerDataManager:
     def _load_macro_data(self, macro_type: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """加载宏观数据"""
         try:
-            macro_model = self.data_mgr.get_model(macro_type)
+            macro_model = self.data_mgr.get_table(macro_type)
             if not macro_model:
                 return []
             

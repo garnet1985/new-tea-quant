@@ -13,6 +13,8 @@ from pathlib import Path
 import logging
 import importlib
 
+from app.core.infra.project_context import PathManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,13 +27,13 @@ class StrategyDiscoveryHelper:
         发现所有用户策略
         
         Args:
-            strategies_root: 策略根目录（默认 app/userspace/strategies）
+            strategies_root: 策略根目录（默认使用 PathManager.userspace() / "strategies"）
         
         Returns:
             strategy_cache: {strategy_name: strategy_info}
         """
         if strategies_root is None:
-            strategies_root = Path("app/userspace/strategies")
+            strategies_root = PathManager.userspace() / "strategies"
         
         if not strategies_root.exists():
             logger.warning(f"策略目录不存在: {strategies_root}")

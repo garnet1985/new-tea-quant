@@ -19,6 +19,8 @@ from datetime import datetime
 import json
 import logging
 
+from app.core.infra.project_context import PathManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,11 +56,7 @@ class VersionManager:
         """
         sub_dir_name = "test" if use_sampling else "pool"
         root_dir = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / strategy_name
-            / "results"
+            PathManager.strategy_results(strategy_name)
             / "opportunity_enums"
         )
         sub_dir = root_dir / sub_dir_name
@@ -123,11 +121,7 @@ class VersionManager:
             (version_dir, base_dir): 版本目录路径和基础目录路径
         """
         base_root = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / strategy_name
-            / "results"
+            PathManager.strategy_results(strategy_name)
             / "opportunity_enums"
         )
         
@@ -194,11 +188,7 @@ class VersionManager:
             (version_dir, version_id): 版本目录路径和版本ID
         """
         root_dir = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / strategy_name
-            / "results"
+            PathManager.strategy_results(strategy_name)
             / "simulations"
             / "price_factor"
         )
@@ -254,11 +244,7 @@ class VersionManager:
             (version_dir, version_id): 版本目录路径和版本ID
         """
         root_dir = (
-            Path("app")
-            / "userspace"
-            / "strategies"
-            / strategy_name
-            / "results"
+            PathManager.strategy_results(strategy_name)
             / "simulations"
             / "price_factor"
         )
@@ -315,7 +301,7 @@ class VersionManager:
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        base_dir = Path(f"app/userspace/strategies/{strategy_name}/results/capital_allocation")
+        base_dir = PathManager.strategy_results(strategy_name) / "capital_allocation"
         base_dir.mkdir(parents=True, exist_ok=True)
         
         meta_file = base_dir / "meta.json"
@@ -370,7 +356,7 @@ class VersionManager:
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        base_dir = Path(f"app/userspace/strategies/{strategy_name}/results/capital_allocation")
+        base_dir = PathManager.strategy_results(strategy_name) / "capital_allocation"
         
         if not base_dir.exists():
             raise FileNotFoundError(

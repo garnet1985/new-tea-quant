@@ -5,7 +5,7 @@ import logging
 
 from app.core.modules.tag.core.base_tag_worker import BaseTagWorker
 from app.core.modules.tag.core.enums import FileName
-from app.core.utils.file.file_util import FileUtil
+from app.core.infra.project_context import FileManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +33,14 @@ class TagHelper:
             - (None, None) 如果失败（找不到文件或没有 Settings 变量）
         """
         # 1. 查找 settings.py 文件
-        settings_file_path = FileUtil.find_file_in_folder(
+        settings_path = FileManager.find_file(
             FileName.SETTINGS.value,
-            str(scenario_dir),
-            is_recursively=True,
+            scenario_dir if isinstance(scenario_dir, Path) else Path(scenario_dir),
+            recursive=True,
         )
         
-        if not settings_file_path:
+        if not settings_path:
             return None, None
-        
-        settings_path = Path(settings_file_path)
         
         # 2. 读取 settings 变量（不做验证）
         try:
@@ -80,16 +78,14 @@ class TagHelper:
             - (None, None) 如果失败（找不到文件或没有继承 BaseTagWorker 的类）
         """
         # 1. 查找 tag_worker.py 文件
-        tag_worker_file_path = FileUtil.find_file_in_folder(
+        worker_file_path = FileManager.find_file(
             FileName.TAG_WORKER.value,
-            str(scenario_folder),
-            is_recursively=True,
+            scenario_folder if isinstance(scenario_folder, Path) else Path(scenario_folder),
+            recursive=True,
         )
         
-        if not tag_worker_file_path:
+        if not worker_file_path:
             return None, None
-        
-        worker_file_path = Path(tag_worker_file_path)
         
         # 2. 读取 worker_class（不做验证，只检查是否继承 BaseTagWorker）
         try:

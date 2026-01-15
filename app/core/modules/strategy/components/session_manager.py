@@ -13,6 +13,8 @@ import json
 import logging
 from datetime import datetime
 
+from app.core.infra.project_context import PathManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,7 @@ class SessionManager:
             strategy_name: 策略名称
         """
         self.strategy_name = strategy_name
-        self.results_path = Path(f"app/userspace/strategies/{strategy_name}/results")
+        self.results_path = PathManager.strategy_results(strategy_name)
         self.meta_file = self.results_path / "meta.json"
     
     def create_session(self) -> str:

@@ -1,5 +1,5 @@
 """
-Path Management Module - 路径管理模块
+Project Management Module - 项目管理模块
 
 提供项目路径、文件操作和配置管理的统一接口。
 
@@ -10,7 +10,7 @@ Path Management Module - 路径管理模块
 - ProjectContextManager: Facade，组合三个 Manager 提供统一入口
 
 使用示例：
-    from app.core.infra.path import ProjectContextManager
+    from app.core.infra.project_context import ProjectContextManager
     
     ctx = ProjectContextManager()
     core_dir = ctx.path.core()

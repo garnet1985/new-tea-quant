@@ -3,12 +3,12 @@ DataSource Manager - 数据源管理器
 
 负责加载和管理 DataSource、Handler、Schema，执行数据获取
 """
-import json
 import importlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from loguru import logger
 from app.core.modules.data_manager import DataManager
+from app.core.infra.project_context import ConfigManager, PathManager
 from utils.util import merge_mapping_configs
 
 
@@ -52,68 +52,70 @@ class DataSourceManager:
             self._schemas = {}
     
     def _load_mapping(self):
-        """加载 Handler 映射配置（先加载 defaults，再加载 custom 覆盖）"""
-        self._mapping = {}
+        """
+        加载 Handler 映射配置（先加载 defaults，再加载 custom 覆盖）
         
-        # 1. 加载 handlers/mapping.json（默认配置）
-        try:
-            handlers_path = Path(__file__).parent / "handlers" / "mapping.json"
-            if handlers_path.exists():
-                with open(handlers_path, 'r', encoding='utf-8') as f:
-                    defaults_mapping = json.load(f)
-                    self._mapping.update(defaults_mapping.get("data_sources", {}))
-                logger.debug(f"✅ 加载了 handlers/mapping.json")
-        except Exception as e:
-            logger.warning(f"⚠️ 加载 handlers/mapping.json 失败: {e}")
+        使用 ConfigManager 统一配置加载和合并逻辑
+        """
+        # 1. 确定默认配置文件路径（优先使用 handlers/mapping.json）
+        handlers_path = Path(__file__).parent / "handlers" / "mapping.json"
+        defaults_path = Path(__file__).parent / "defaults" / "mapping.json"
         
-        # 2. 尝试加载 defaults/mapping.json（兼容旧路径）
-        try:
-            defaults_path = Path(__file__).parent / "defaults" / "mapping.json"
-            if defaults_path.exists():
-                with open(defaults_path, 'r', encoding='utf-8') as f:
-                    defaults_mapping = json.load(f)
-                    self._mapping.update(defaults_mapping.get("data_sources", {}))
-                logger.debug(f"✅ 加载了 defaults/mapping.json")
-        except Exception as e:
-            logger.debug(f"defaults/mapping.json 不存在或加载失败（这是正常的）: {e}")
+        # 选择主要的默认配置文件
+        default_path = handlers_path if handlers_path.exists() else defaults_path
         
-        # 3. 加载 userspace/data_source/mapping.json（用户自定义配置，深度合并覆盖）
-        try:
-            from pathlib import Path as PathLib
-            project_root = PathLib(__file__).parent.parent.parent.parent.parent
-            custom_path = project_root / "app" / "userspace" / "data_source" / "mapping.json"
-            if custom_path.exists():
-                with open(custom_path, 'r', encoding='utf-8') as f:
-                    custom_mapping = json.load(f)
-                    # 使用工具方法深度合并 custom 配置到 defaults
-                    # params 需要深度合并，dependencies 需要完全覆盖
-                    self._mapping = merge_mapping_configs(
-                        self._mapping,
-                        custom_mapping.get("data_sources", {}),
-                        deep_merge_fields={"params"},
-                        override_fields={"dependencies"}
-                    )
-                logger.debug(f"✅ 加载了 userspace/data_source/mapping.json（已合并到 defaults）")
-        except Exception as e:
-            logger.debug(f"userspace/data_source/mapping.json 不存在或加载失败（这是正常的）: {e}")
+        # 2. 确定用户配置文件路径（优先使用 userspace/data_source/mapping.json）
+        user_path = PathManager.userspace() / "data_source" / "mapping.json"
+        legacy_custom_path = Path(__file__).parent / "custom" / "mapping.json"
         
-        # 4. 尝试加载 custom/mapping.json（兼容旧路径）
-        try:
-            custom_path = Path(__file__).parent / "custom" / "mapping.json"
-            if custom_path.exists():
-                with open(custom_path, 'r', encoding='utf-8') as f:
-                    custom_mapping = json.load(f)
-                    # 使用工具方法深度合并 custom 配置到 defaults
-                    # params 需要深度合并，dependencies 需要完全覆盖
-                    self._mapping = merge_mapping_configs(
-                        self._mapping,
-                        custom_mapping.get("data_sources", {}),
-                        deep_merge_fields={"params"},
-                        override_fields={"dependencies"}
-                    )
-                logger.debug(f"✅ 加载了 custom/mapping.json（已合并到 defaults）")
-        except Exception as e:
-            logger.debug(f"custom/mapping.json 不存在或加载失败（这是正常的）: {e}")
+        # 3. 使用 ConfigManager 加载和合并配置
+        # 注意：ConfigManager.load_with_defaults 只支持一个默认配置和一个用户配置
+        # 对于多个默认配置的情况，我们需要先手动合并
+        merged_config = {}
+        
+        # 3.1 加载主要的默认配置
+        if default_path.exists():
+            default_config = ConfigManager.load_json(default_path)
+            merged_config = default_config.get("data_sources", {})
+            logger.debug(f"✅ 加载了默认配置: {default_path.name}")
+        
+        # 3.2 如果存在另一个默认配置，合并它（兼容旧路径）
+        if default_path == handlers_path and defaults_path.exists():
+            legacy_default_config = ConfigManager.load_json(defaults_path)
+            legacy_data_sources = legacy_default_config.get("data_sources", {})
+            # 使用浅层合并（旧配置覆盖新配置，保持向后兼容）
+            merged_config = {**merged_config, **legacy_data_sources}
+            logger.debug(f"✅ 合并了兼容默认配置: {defaults_path.name}")
+        
+        # 3.3 加载并合并用户配置（使用深度合并）
+        if user_path.exists():
+            user_config = ConfigManager.load_json(user_path)
+            user_data_sources = user_config.get("data_sources", {})
+            # 使用 merge_mapping_configs 进行深度合并
+            # params 需要深度合并，dependencies 需要完全覆盖
+            merged_config = merge_mapping_configs(
+                merged_config,
+                user_data_sources,
+                deep_merge_fields={"params"},
+                override_fields={"dependencies"}
+            )
+            logger.debug(f"✅ 加载并合并了用户配置: {user_path}")
+        
+        # 3.4 如果存在旧路径的用户配置，也合并它（兼容旧路径）
+        if legacy_custom_path.exists():
+            legacy_user_config = ConfigManager.load_json(legacy_custom_path)
+            legacy_user_data_sources = legacy_user_config.get("data_sources", {})
+            # 使用 merge_mapping_configs 进行深度合并
+            merged_config = merge_mapping_configs(
+                merged_config,
+                legacy_user_data_sources,
+                deep_merge_fields={"params"},
+                override_fields={"dependencies"}
+            )
+            logger.debug(f"✅ 合并了兼容用户配置: {legacy_custom_path.name}")
+        
+        # 4. 保存最终合并结果
+        self._mapping = merged_config
     
     def _load_handler(self, ds_name: str, handler_path: str):
         """

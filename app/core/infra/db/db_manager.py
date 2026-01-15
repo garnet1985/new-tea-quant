@@ -1,94 +1,51 @@
 """
-DatabaseManager - DuckDB 数据库管理器
-- 使用 DuckDB 单文件数据库
+DatabaseManager - 数据库管理器（支持多种数据库后端）
+
+- 使用适配器模式支持 PostgreSQL、MySQL、SQLite
 - 使用 DbSchemaManager 管理表结构
 - 提供简洁的 CRUD 接口
 """
-import duckdb
 from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
 from pathlib import Path
 from loguru import logger
 from datetime import datetime, date
 
-from app.core.conf.db_conf import DUCKDB_CONF
+from app.core.conf.db_conf import DB_CONF
 from app.core.infra.db.batch_write_queue import BatchWriteQueue
+from app.core.infra.db.adapters.factory import DatabaseAdapterFactory
+from app.core.infra.db.adapters.base_adapter import BaseDatabaseAdapter
 from .db_schema_manager import DbSchemaManager
 
 
-class DuckDBCursor:
+class DatabaseCursor:
     """
-    DuckDB 游标包装类
+    通用数据库游标包装类
+    
+    兼容不同数据库的游标接口，统一返回字典格式的结果。
     """
-    def __init__(self, conn: duckdb.DuckDBPyConnection):
-        self.conn = conn
-        self._result = None
-        self._description = None
+    def __init__(self, adapter: BaseDatabaseAdapter):
+        self.adapter = adapter
         self._cursor = None
+        self._result = None
     
     def execute(self, query: str, params: Any = None):
         """执行 SQL 查询"""
-        # DuckDB 使用 ? 作为占位符，统一转换 %s -> ?
-        query = query.replace("%s", "?")
-        
-        # DuckDB 的 execute 返回一个结果对象
-        if params:
-            self._cursor = self.conn.execute(query, params)
-        else:
-            self._cursor = self.conn.execute(query)
-        
-        # 获取列信息
-        try:
-            # DuckDB 的 description 是列名列表
-            if hasattr(self._cursor, 'description'):
-                self._description = [col[0] for col in self._cursor.description]
-            else:
-                # 尝试从结果推断
-                self._result = self._cursor.fetchall()
-                if self._result and isinstance(self._result[0], dict):
-                    self._description = list(self._result[0].keys())
-                elif self._result:
-                    # 如果是元组，需要从 cursor 获取列名
-                    # DuckDB 的 fetchall() 可能返回字典或元组
-                    pass
-        except:
-            self._description = []
-        
+        # 使用适配器的事务管理器获取游标
+        # 注意：这里需要适配器支持游标访问
+        # 对于 PostgreSQL，使用 transaction() 获取游标
+        # 对于 DuckDB，使用 get_connection() 获取连接
+        self._query = query
+        self._params = params
         return self
     
     def fetchall(self) -> List[Dict[str, Any]]:
         """获取所有结果，转换为字典列表"""
-        if self._cursor is None:
+        if not hasattr(self, '_query'):
             return []
         
-        try:
-            # DuckDB 的 fetchall() 可能返回字典列表或元组列表
-            result = self._cursor.fetchall()
-            
-            if not result:
-                return []
-            
-            # 如果已经是字典列表，直接返回
-            if isinstance(result[0], dict):
-                return list(result)
-            
-            # 如果是元组列表，需要转换为字典
-            if self._description:
-                return [dict(zip(self._description, row)) for row in result]
-            else:
-                # 尝试获取列名
-                try:
-                    if hasattr(self._cursor, 'description'):
-                        columns = [col[0] for col in self._cursor.description]
-                        return [dict(zip(columns, row)) for row in result]
-                except:
-                    pass
-                
-                # 最后使用数字索引
-                return [dict(enumerate(row)) for row in result]
-        except Exception as e:
-            logger.error(f"fetchall 失败: {e}")
-            return []
+        # 使用适配器的 execute_query 方法
+        return self.adapter.execute_query(self._query, self._params)
     
     def fetchone(self) -> Optional[Dict[str, Any]]:
         """获取一条结果"""
@@ -102,18 +59,17 @@ class DuckDBCursor:
             return len(self._result)
         return 0
     
-
     def close(self):
-        """关闭游标（DuckDB 不需要显式关闭）"""
+        """关闭游标"""
         pass
 
 
 class DatabaseManager:
     """
-    DuckDB 数据库管理器
+    数据库管理器（支持多种数据库后端）
     
     职责：
-    - DuckDB 连接管理
+    - 数据库连接管理（通过适配器）
     - 基础 CRUD 操作
     - 事务管理
     - 提供默认实例（支持多进程自动初始化）
@@ -121,7 +77,7 @@ class DatabaseManager:
     不再负责：
     - Schema 解析和建表（由 SchemaManager 负责）
     - 表模型缓存（归 DataManager）
-    - 连接池（DuckDB 单连接即可）
+    - 具体数据库实现（由适配器负责）
     """
     
     _default_instance = None  # 默认实例（支持多进程）
@@ -132,23 +88,58 @@ class DatabaseManager:
         初始化数据库管理器
         
         Args:
-            config: 数据库配置（默认使用 DUCKDB_CONF）
+            config: 数据库配置（默认使用 DB_CONF）
+                - 如果提供旧格式（只有 db_path），自动转换为新格式
+                - 新格式应包含 database_type 和对应的数据库配置
             is_verbose: 是否输出详细日志
-            read_only: 是否以只读模式打开（多进程读取场景使用）
+            read_only: 是否以只读模式打开（多进程读取场景使用，仅 SQLite 支持）
         """
-        self.config = config or DUCKDB_CONF
+        # 加载配置
+        if config is None:
+            config = DB_CONF
+        
+        # 如果是旧格式配置，转换为新格式
+        if 'database_type' not in config:
+            if 'db_path' in config:
+                # 旧格式：只有 db_path，转换为 SQLite
+                self.config = {
+                    'database_type': 'sqlite',
+                    'sqlite': config,
+                    'batch_write': config.get('batch_write', {
+                        'batch_size': 1000,
+                        'flush_interval': 5.0,
+                        'enable': True
+                    })
+                }
+            elif 'host' in config and 'database' in config:
+                # 旧格式：host + database，根据端口判断
+                port = config.get('port', 3306)
+                db_type = 'mysql' if port != 5432 else 'postgresql'
+                self.config = {
+                    'database_type': db_type,
+                    db_type: config,
+                    'batch_write': config.get('batch_write', {
+                        'batch_size': 1000,
+                        'flush_interval': 5.0,
+                        'enable': True
+                    })
+                }
+            else:
+                self.config = config
+        else:
+            self.config = config
+        
         self.is_verbose = is_verbose
         self.read_only = read_only
-        self.conn: Optional[duckdb.DuckDBPyConnection] = None
+        self.adapter: Optional[BaseDatabaseAdapter] = None
         self._initialized = False
         
-        # Schema 管理器
+        # Schema 管理器（传入数据库类型，用于生成对应的 SQL）
+        database_type = self.config.get('database_type', 'postgresql')
         self.schema_manager = DbSchemaManager(
-            is_verbose=is_verbose
+            is_verbose=is_verbose,
+            database_type=database_type
         )
-        
-        # 批量写入队列（延迟初始化，在 initialize 后创建）
-        self._write_queue = None
         
         # 批量写入队列（延迟初始化，在 initialize 后创建）
         self._write_queue: Optional[BatchWriteQueue] = None
@@ -216,53 +207,55 @@ class DatabaseManager:
         """
         if cls._default_instance is not None:
             # 关闭连接
-            if hasattr(cls._default_instance, 'conn') and cls._default_instance.conn:
-                cls._default_instance.conn.close()
+            if hasattr(cls._default_instance, 'adapter') and cls._default_instance.adapter:
+                cls._default_instance.adapter.close()
         cls._default_instance = None
-        logger.info("🔄 DatabaseManager 默认实例已重置")
+        # logger.info("🔄 DatabaseManager 默认实例已重置")
     
     def initialize(self):
         """
         初始化数据库管理器
         
         步骤：
-        1. 确保数据库文件目录存在
-        2. 连接 DuckDB（根据 read_only 参数决定是否只读）
-        3. 设置性能参数
+        1. 使用适配器工厂创建适配器
+        2. 连接数据库
+        3. 初始化批量写入队列（如果需要）
         
         注意：不再创建表，表的创建由 DataManager 负责
         """
         try:
-            # 1. 确保数据库文件目录存在
-            db_path = Path(self.config['db_path'])
-            db_path.parent.mkdir(parents=True, exist_ok=True)
+            # 1. 创建适配器
+            self.adapter = DatabaseAdapterFactory.create(
+                self.config,
+                is_verbose=self.is_verbose,
+                read_only=self.read_only
+            )
             
-            # 2. 连接 DuckDB（只读模式允许多进程并发读取）
-            if self.read_only:
-                self.conn = duckdb.connect(str(db_path), read_only=True)
-                if self.is_verbose:
-                    logger.info(f"📖 以只读模式连接 DuckDB: {db_path}")
-            else:
-                self.conn = duckdb.connect(str(db_path))
-            
-            # 3. 设置性能参数
-            threads = self.config.get('threads', 4)
-            memory_limit = self.config.get('memory_limit', '8GB')
-            
-            self.conn.execute(f"SET threads = {threads}")
-            self.conn.execute(f"SET memory_limit = '{memory_limit}'")
+            # 更新 Schema 管理器的数据库类型（如果初始化时还不知道）
+            database_type = self.config.get('database_type', 'postgresql')
+            self.schema_manager.database_type = database_type
             
             self._initialized = True
             
-            # 初始化批量写入队列（只读模式下跳过）
+            # 2. 初始化批量写入队列（只读模式下跳过）
             if not self.read_only:
                 self._init_write_queue()
             elif self.is_verbose:
                 logger.info("ℹ️  只读模式，跳过批量写入队列初始化")
             
+            # 3. 显示初始化信息
+            database_type = self.config.get('database_type', 'postgresql')
             if self.is_verbose:
-                logger.info(f"✅ DatabaseManager 初始化完成（DuckDB: {db_path}）")
-                logger.info(f"   线程数: {threads}, 内存限制: {memory_limit}")
+                if database_type == 'postgresql':
+                    pg_config = self.config.get('postgresql', {})
+                    logger.info(f"✅ DatabaseManager 初始化完成（PostgreSQL: {pg_config.get('database', 'unknown')}）")
+                elif database_type == 'mysql':
+                    mysql_config = self.config.get('mysql', {})
+                    logger.info(f"✅ DatabaseManager 初始化完成（MySQL: {mysql_config.get('database', 'unknown')}）")
+                elif database_type == 'sqlite':
+                    sqlite_config = self.config.get('sqlite', {})
+                    db_path = sqlite_config.get('db_path', 'unknown')
+                    logger.info(f"✅ DatabaseManager 初始化完成（SQLite: {db_path}）")
                 
         except Exception as e:
             logger.error(f"❌ DatabaseManager 初始化失败: {e}")
@@ -303,13 +296,23 @@ class DatabaseManager:
         
         使用方式:
             with db.get_connection() as conn:
-                # DuckDB 连接可以直接执行 SQL
+                # 连接对象可以直接执行 SQL（兼容 DuckDB 和 PostgreSQL）
                 conn.execute("SELECT ...")
         """
-        if not self.conn:
+        if not self.adapter:
             raise RuntimeError("数据库未初始化，请先调用 initialize()")
         
-        yield self.conn
+        conn = self.adapter.get_connection()
+        try:
+            yield conn
+        finally:
+            # PostgreSQL 需要归还连接，SQLite/MySQL 不需要
+            if hasattr(self.adapter, '_put_connection'):
+                # 如果是包装对象，获取原始连接
+                if hasattr(conn, 'pg_conn'):
+                    self.adapter._put_connection(conn.pg_conn)
+                else:
+                    self.adapter._put_connection(conn)
     
     @contextmanager
     def transaction(self):
@@ -322,17 +325,12 @@ class DatabaseManager:
                 cursor.execute("UPDATE ...")
                 # 自动提交或回滚
         """
-        if not self.conn:
+        if not self.adapter:
             raise RuntimeError("数据库未初始化，请先调用 initialize()")
         
-        # DuckDB 自动管理事务
-        cursor = DuckDBCursor(self.conn)
-        try:
+        # 使用适配器的事务管理器
+        with self.adapter.transaction() as cursor:
             yield cursor
-            # DuckDB 的 execute 会自动提交
-        except Exception as e:
-            # 如果出错，DuckDB 会自动回滚
-            raise
     
     # ==================== 表管理（委托给 SchemaManager）====================
     
@@ -364,18 +362,10 @@ class DatabaseManager:
         Returns:
             是否存在
         """
-        # DuckDB 使用 information_schema
-        query = """
-            SELECT COUNT(*) as count 
-            FROM information_schema.tables 
-            WHERE table_name = ?
-        """
-        try:
-            result = self.execute_sync_query(query, (table_name,))
-            return result[0]['count'] > 0 if result else False
-        except Exception as e:
-            logger.error(f"检查表是否存在失败: {e}")
-            return False
+        if not self.adapter:
+            raise RuntimeError("数据库未初始化，请先调用 initialize()")
+        
+        return self.adapter.is_table_exists(table_name)
     
     def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
@@ -405,9 +395,9 @@ class DatabaseManager:
     
     def close(self):
         """关闭数据库连接"""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+        if self.adapter:
+            self.adapter.close()
+            self.adapter = None
             self._initialized = False
             if self.is_verbose:
                 logger.info("✅ 数据库连接已关闭")
@@ -419,12 +409,34 @@ class DatabaseManager:
         Returns:
             统计信息字典
         """
-        return {
+        database_type = self.config.get('database_type', 'postgresql')
+        stats = {
             'initialized': self._initialized,
-            'db_path': str(self.config.get('db_path', '')),
-            'threads': self.config.get('threads', 4),
-            'memory_limit': self.config.get('memory_limit', '8GB'),
+            'database_type': database_type,
         }
+        
+        if database_type == 'postgresql':
+            pg_config = self.config.get('postgresql', {})
+            stats.update({
+                'host': pg_config.get('host', ''),
+                'port': pg_config.get('port', 5432),
+                'database': pg_config.get('database', ''),
+            })
+        elif database_type == 'mysql':
+            mysql_config = self.config.get('mysql', {})
+            stats.update({
+                'host': mysql_config.get('host', ''),
+                'port': mysql_config.get('port', 3306),
+                'database': mysql_config.get('database', ''),
+            })
+        elif database_type == 'sqlite':
+            sqlite_config = self.config.get('sqlite', {})
+            stats.update({
+                'db_path': str(sqlite_config.get('db_path', '')),
+                'timeout': sqlite_config.get('timeout', 5.0),
+            })
+        
+        return stats
     
     @contextmanager
     def get_sync_cursor(self):
@@ -436,10 +448,10 @@ class DatabaseManager:
                 cursor.execute("SELECT * FROM table")
                 results = cursor.fetchall()
         """
-        if not self._initialized or not self.conn:
+        if not self._initialized or not self.adapter:
             raise RuntimeError("DatabaseManager not initialized. Call initialize() first.")
         
-        cursor = DuckDBCursor(self.conn)
+        cursor = DatabaseCursor(self.adapter)
         try:
             yield cursor
         except Exception as e:
@@ -453,52 +465,17 @@ class DatabaseManager:
         执行同步查询语句
         
         Args:
-            query: SQL 查询语句（可以使用 %s 占位符，会自动转换为 ?）
+            query: SQL 查询语句（使用 %s 占位符，适配器会自动转换）
             params: 查询参数
             
         Returns:
             查询结果列表（字典格式）
         """
-        if not self.conn:
+        if not self.adapter:
             raise RuntimeError("DatabaseManager not initialized. Call initialize() first.")
         
-        # 统一转换占位符：%s -> ?
-        query = query.replace("%s", "?")
-        
-        try:
-            # DuckDB 的 execute 返回一个结果对象
-            if params:
-                cursor = self.conn.execute(query, params)
-            else:
-                cursor = self.conn.execute(query)
-            
-            # 获取结果
-            result = cursor.fetchall()
-            
-            # DuckDB 的 fetchall() 可能返回字典列表或元组列表
-            if not result:
-                return []
-            
-            # 如果已经是字典列表，直接返回
-            if isinstance(result[0], dict):
-                return list(result)
-            
-            # 如果是元组列表，转换为字典
-            # 获取列名
-            try:
-                # DuckDB 的 description 是列信息元组列表
-                if hasattr(cursor, 'description') and cursor.description:
-                    columns = [col[0] for col in cursor.description]
-                    return [dict(zip(columns, row)) for row in result]
-            except:
-                pass
-            
-            # 如果获取不到列名，使用数字索引
-            return [dict(enumerate(row)) for row in result]
-            
-        except Exception as e:
-            logger.error(f"执行查询失败: {e}\n查询: {query}\n参数: {params}")
-            raise
+        # 使用适配器的 execute_query 方法（会自动处理占位符转换）
+        return self.adapter.execute_query(query, params)
     
     def queue_write(self, table_name: str, data_list: List[Dict], unique_keys: List[str], callback: Callable = None):
         """
@@ -550,7 +527,7 @@ class DatabaseManager:
                 columns_sql = ', '.join(columns)
                 values = [tuple(data[col] for col in columns) for data in data_list]
             else:
-                # 使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB/PG 风格 Upsert）
+                # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL/SQLite 风格 Upsert）
                 columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
                 
                 if not columns:
@@ -559,60 +536,33 @@ class DatabaseManager:
                 columns_sql = ', '.join(columns)
                 conflict_cols = ', '.join(unique_keys)
             
-            if not self.conn:
+            if not self.adapter:
                 raise RuntimeError("DatabaseManager not initialized.")
             
-            # 批量插入（分批处理，避免 SQL 语句过长）
-            INSERT_BATCH_SIZE = 5000
-            for i in range(0, len(values), INSERT_BATCH_SIZE):
-                batch_values = values[i:i+INSERT_BATCH_SIZE]
-                
-                # 构建批量插入 SQL
-                values_list = []
-                for val in batch_values:
-                    formatted_values = []
-                    for v in val:
-                        if v is None:
-                            formatted_values.append('NULL')
-                        elif isinstance(v, str):
-                            escaped = v.replace("'", "''")
-                            formatted_values.append(f"'{escaped}'")
-                        elif isinstance(v, (int, float)):
-                            import math
-                            if isinstance(v, float) and math.isnan(v):
-                                formatted_values.append('NULL')
-                            else:
-                                formatted_values.append(str(v))
-                        elif isinstance(v, bool):
-                            formatted_values.append('TRUE' if v else 'FALSE')
-                        elif isinstance(v, (datetime, date)):
-                            if isinstance(v, datetime):
-                                formatted_values.append(f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'")
-                            else:
-                                formatted_values.append(f"'{v.strftime('%Y-%m-%d')}'")
-                        else:
-                            escaped_val = str(v).replace("'", "''")
-                            formatted_values.append(f"'{escaped_val}'")
-                    values_list.append(f"({', '.join(formatted_values)})")
-                
-                # 执行批量插入
-                if not unique_keys:
-                    # 纯 INSERT
-                    batch_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)}"
+            # 使用适配器的 execute_batch 方法进行批量插入
+            # 构建 INSERT SQL
+            placeholder = self.adapter.get_placeholder()
+            placeholders = ', '.join([placeholder] * len(columns))
+            
+            if not unique_keys:
+                # 纯 INSERT
+                insert_sql = f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders})"
+                # 使用 execute_batch
+                self.adapter.execute_batch(insert_sql, values)
+            else:
+                # INSERT ... ON CONFLICT
+                if update_clause:
+                    insert_sql = (
+                        f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
+                        f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
+                    )
                 else:
-                    # INSERT ... ON CONFLICT
-                    if update_clause:
-                        batch_query = (
-                            f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                            f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
-                        )
-                    else:
-                        batch_query = (
-                            f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                            f"ON CONFLICT ({conflict_cols}) DO NOTHING"
-                        )
-                
-                self.conn.execute(batch_query)
+                    insert_sql = (
+                        f"INSERT INTO {table_name} ({columns_sql}) VALUES ({placeholders}) "
+                        f"ON CONFLICT ({conflict_cols}) DO NOTHING"
+                    )
+                # 使用 execute_batch
+                self.adapter.execute_batch(insert_sql, values)
             
             if callback:
                 callback(table_name, len(data_list))
@@ -654,13 +604,13 @@ class DatabaseManager:
             self._write_queue.shutdown()
             self._write_queue = None
         
-        # 关闭数据库连接
-        if self.conn:
+        # 关闭数据库连接（通过适配器）
+        if self.adapter:
             try:
-                self.conn.close()
+                self.adapter.close()
             except:
                 pass
-            self.conn = None
+            self.adapter = None
         
         self._initialized = False
     

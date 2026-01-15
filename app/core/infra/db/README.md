@@ -8,6 +8,12 @@ app/core/infra/db/
 ├── db_schema_manager.py       # Schema 管理器
 ├── db_config_manager.py       # 数据库配置加载器
 ├── db_base_model.py           # DbBaseModel / DbModel（通用表操作工具）
+├── adapters/                  # 数据库适配器
+│   ├── base_adapter.py       # 适配器基类
+│   ├── postgresql_adapter.py # PostgreSQL 适配器
+│   ├── mysql_adapter.py      # MySQL 适配器
+│   ├── sqlite_adapter.py     # SQLite 适配器
+│   └── factory.py            # 适配器工厂
 ├── __init__.py                # 包导出
 └── README.md                  # 本文档
 ```
@@ -19,7 +25,7 @@ app/core/infra/db/
 ### 1. DatabaseManager（数据库管理器）
 
 **职责**：
-- 连接池管理（使用 DBUtils）
+- 多数据库支持（PostgreSQL、MySQL、SQLite）
 - 基础 CRUD 操作
 - 事务管理
 - 数据库初始化
@@ -51,6 +57,11 @@ kline_model = StockKlineModel()  # ✅ 自动使用默认 db
 - `DatabaseManager.get_default()` - 获取默认实例（自动初始化）
 - `DatabaseManager.reset_default()` - 重置默认实例（测试用）
 
+**支持的数据库**：
+- PostgreSQL（推荐，支持多进程并发读）
+- MySQL/MariaDB
+- SQLite（开发/测试环境）
+
 #### 基础 CRUD 示例
 
 ```python
@@ -61,17 +72,15 @@ db = DatabaseManager(is_verbose=True)
 db.initialize()
 
 # 查询
-result = db.fetch_one("SELECT * FROM stock_list WHERE id = %s", ['000001.SZ'])
-results = db.fetch_all("SELECT * FROM stock_kline WHERE id = %s", ['000001.SZ'])
+results = db.execute_sync_query("SELECT * FROM stock_list WHERE id = %s", ('000001.SZ',))
 
-# 插入
-db.insert('stock_list', {'id': '000001.SZ', 'name': '平安银行'})
+# 写入（使用队列，支持批量）
+db.queue_write('stock_kline', kline_data_list, unique_keys=['id', 'date'])
 
-# 批量插入
-db.bulk_insert('stock_kline', kline_data_list, ignore_duplicates=True)
-
-# 更新
-db.update('stock_list', {'name': '新名称'}, 'id = %s', ['000001.SZ'])
+# 事务
+with db.transaction() as cursor:
+    cursor.execute("INSERT INTO ...")
+    cursor.execute("UPDATE ...")
 
 # 删除
 db.delete('stock_kline', 'date < %s', ['20200101'])
@@ -296,21 +305,26 @@ print(f"最新数据日期: {latest_date}")
 
 **职责**：
 - 加载 schema.json 文件
-- 生成 CREATE TABLE SQL
+- 根据数据库类型生成对应的 CREATE TABLE SQL
 - 创建表和索引
 - 管理策略自定义表
 
+**特性**：
+- ✅ 自动适配不同数据库的 SQL 语法
+- ✅ 支持 PostgreSQL、MySQL、SQLite
+- ✅ 自动处理类型映射（AUTO_INCREMENT、BOOLEAN 等）
+
 **使用示例**：
 ```python
-from app.core.infra.db.db_schema_manager import SchemaManager
+from app.core.infra.db.db_schema_manager import DbSchemaManager
 
-# 初始化
-schema_mgr = SchemaManager(is_verbose=True)
+# 初始化（自动根据 DatabaseManager 的配置选择数据库类型）
+schema_mgr = db.schema_manager
 
 # 加载 schema
 schema = schema_mgr.load_schema_from_file('path/to/schema.json')
 
-# 生成 SQL
+# 生成 SQL（自动适配当前数据库类型）
 create_sql = schema_mgr.generate_create_table_sql(schema)
 
 # 创建表（需要数据库连接）
@@ -323,7 +337,7 @@ schema_mgr.register_table('my_strategy_table', schema)
 **API**：
 - `load_all_schemas()` - 加载所有 schema
 - `load_schema_from_file(file)` - 从文件加载 schema
-- `generate_create_table_sql(schema)` - 生成建表 SQL
+- `generate_create_table_sql(schema)` - 生成建表 SQL（自动适配数据库类型）
 - `create_table_with_indexes(schema, db_connection_func)` - 创建表和索引
 - `create_all_tables(get_connection_func)` - 创建所有表
 - `is_table_exists(table, database, db_connection)` - 检查表是否存在
@@ -411,36 +425,47 @@ columns, values, update_clause = DBService.to_upsert_params(
 
 配置文件位于：`config/database/db_config.json`（已 gitignore）
 
+**新格式（推荐）**：
 ```json
 {
-    "base": {
-        "name": "stocks-py",
+    "database_type": "postgresql",
+    "postgresql": {
         "host": "localhost",
-        "user": "root",
-        "password": "",
-        "database": "stocks-py",
-        "port": 3306,
-        "charset": "utf8mb4",
-        "autocommit": true
+        "port": 5432,
+        "database": "stocks_py",
+        "user": "postgres",
+        "password": "your_password",
+        "pool_size": 10
     },
-    "pool": {
-        "pool_size_min": 5,
-        "pool_size_max": 30
-    },
-    "timeout": {
-        "connection": 60,
-        "read": 60,
-        "write": 60
+    "batch_write": {
+        "enable": true,
+        "batch_size": 1000,
+        "flush_interval": 5.0
     }
 }
 ```
 
-**环境变量支持**：
-- `DB_HOST` - 数据库主机
-- `DB_USER` - 数据库用户
-- `DB_PASSWORD` - 数据库密码
-- `DB_NAME` - 数据库名称
-- `DB_PORT` - 数据库端口
+**支持的数据库类型**：
+- `postgresql`: PostgreSQL（推荐，支持多进程并发读）
+- `mysql`: MySQL/MariaDB
+- `sqlite`: SQLite（开发/测试环境）
+
+**旧格式（自动兼容）**：
+```json
+{
+    "db_path": "data/stocks.db"  # 自动识别为 SQLite
+}
+```
+或
+```json
+{
+    "host": "localhost",
+    "database": "stocks_py",
+    "user": "root",
+    "password": "password",
+    "port": 3306  # 3306=MySQL, 5432=PostgreSQL
+}
+```
 
 **示例文件**：`config/database/db_config.example.json`
 
@@ -448,12 +473,12 @@ columns, values, update_clause = DBService.to_upsert_params(
 
 ## 🚀 技术特性
 
-### 1. 连接池（DBUtils）
-- ✅ 自动扩容（5-30 个连接）
-- ✅ 自动健康检查（ping）
-- ✅ 线程安全
-- ✅ 连接复用
-- ✅ 阻塞等待（连接用完时）
+### 1. 多数据库支持
+- ✅ PostgreSQL（连接池，支持多进程并发读）
+- ✅ MySQL（连接池）
+- ✅ SQLite（单连接，支持只读模式）
+- ✅ 统一的适配器接口
+- ✅ 自动 SQL 方言适配
 
 ### 2. 默认实例机制（多进程安全）⭐
 - ✅ 主进程初始化，全局共享
@@ -675,12 +700,32 @@ class StockKlineModel(DbBaseModel):
 
 ## 📅 更新日志
 
+### 2025-01-15
+
+**✅ 多数据库支持**：
+- 实现数据库适配器抽象层（PostgreSQL、MySQL、SQLite）
+- 重构 DatabaseManager 使用适配器模式
+- Schema 管理器支持多数据库类型自动适配
+- 移除 DuckDB 支持（解决多进程并发读问题）
+
+**✅ 适配器架构**：
+- `BaseDatabaseAdapter` - 适配器基类
+- `PostgreSQLAdapter` - PostgreSQL 适配器（连接池）
+- `MySQLAdapter` - MySQL 适配器
+- `SQLiteAdapter` - SQLite 适配器（支持只读模式）
+- `DatabaseAdapterFactory` - 适配器工厂
+
+**✅ Schema 管理器增强**：
+- 根据数据库类型自动生成对应的 SQL
+- 支持 AUTO_INCREMENT 类型映射（SERIAL/AUTO_INCREMENT/AUTOINCREMENT）
+- 支持 COMMENT（PostgreSQL/MySQL）
+- 支持不同数据库的标识符引用（双引号/反引号）
+
 ### 2024-12-04
 
 **✅ 重大重构**：
-- 重构 DatabaseManager（使用 DBUtils 管理连接池）
+- 重构 DatabaseManager（使用适配器模式）
 - 新增 SchemaManager（独立 schema 管理）
-- 删除冗余文件（connection_pool.py, db_service.py, process_safe_db_manager.py）
 - 配置外部化到 `config/database/db_config.json`
 
 **✅ 默认实例机制**：
@@ -702,23 +747,28 @@ class StockKlineModel(DbBaseModel):
 
 ## 🎉 总结
 
-`utils/db` 模块提供了完整的数据库基础设施：
+`app/core/infra/db` 模块提供了完整的数据库基础设施：
 
-- 🔌 **DatabaseManager**：连接池、CRUD、事务、默认实例
+- 🔌 **DatabaseManager**：多数据库支持、CRUD、事务、默认实例
+- 🔧 **适配器系统**：PostgreSQL、MySQL、SQLite 适配器
 - 📦 **DbBaseModel**：单表操作、时序数据优化、自动获取 db
-- 🗂️ **SchemaManager**：Schema 加载、SQL 生成、建表
+- 🗂️ **SchemaManager**：Schema 加载、多数据库 SQL 生成、建表
 - 🛠️ **DBService**：SQL 构建工具
 
 **核心优势**：
-- ✅ 性能优先（DBUtils 连接池 + 直接 SQL）
+- ✅ 多数据库支持（PostgreSQL、MySQL、SQLite）
+- ✅ 性能优先（连接池 + 直接 SQL）
 - ✅ 多进程安全（默认实例 + 自动初始化）
 - ✅ 使用简单（90% 场景不需要传 db）
 - ✅ 灵活扩展（支持继承和覆盖）
 - ✅ 类型安全（参数化查询 + TypedDict）
+- ✅ 自动 SQL 适配（根据数据库类型生成对应的 SQL）
 
 开始使用：
 ```python
 # 1. 初始化（主进程）
+from app.core.infra.db import DatabaseManager
+
 db = DatabaseManager(is_verbose=True)
 db.initialize()
 DatabaseManager.set_default(db)

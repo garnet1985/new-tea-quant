@@ -6,7 +6,8 @@ flask-cors==4.0.0
 pymysql==1.1.0
 DBUtils==3.1.0
 sqlalchemy==2.0.23
-duckdb
+psycopg2-binary>=2.9.0  # PostgreSQL 支持
+# duckdb  # 可选：如果需要 DuckDB 支持，取消注释
 
 # Data Processing
 pandas>=2.3.3

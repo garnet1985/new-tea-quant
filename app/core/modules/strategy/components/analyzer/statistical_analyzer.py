@@ -140,7 +140,7 @@ class StatisticalAnalyzer(BaseAnalyzer):
 
         # 遍历所有 {stock_id}.json 文件
         for json_file in sim_version_dir.glob("*.json"):
-            if json_file.name in ["0_session_summary.json", "metadata.json"]:
+            if json_file.name in ["0_session_summary.json", "0_metadata.json"]:
                 continue
 
             try:

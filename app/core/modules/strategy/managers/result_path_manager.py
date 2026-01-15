@@ -45,12 +45,12 @@ class ResultPathManager:
 
     sim_version_dir: Path
 
-    # 文件命名约定（保持与现有实现完全一致）
+    # 文件命名约定（会话级文件统一使用 0_ 前缀，方便排序）
     SESSION_SUMMARY_FILE: str = "0_session_summary.json"
     TRADES_FILE: str = "trades.json"
     EQUITY_TIMESERIES_FILE: str = "portfolio_timeseries.json"
     STRATEGY_SUMMARY_FILE: str = "summary_strategy.json"
-    METADATA_FILE: str = "metadata.json"
+    METADATA_FILE: str = "0_metadata.json"
 
     def ensure_root(self) -> Path:
         """

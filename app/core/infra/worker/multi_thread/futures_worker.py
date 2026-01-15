@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-基于 concurrent.futures 的轻量级任务执行器
+MultiThreadWorker - 基于 concurrent.futures 的轻量级多线程任务执行器
 """
 
 import time
@@ -60,7 +60,7 @@ class JobResult:
         return f"JobResult(job_id={self.job_id}, status={self.status.value}, duration={self.duration:.2f}s)"
 
 
-class FuturesWorker:
+class MultiThreadWorker:
     """
     基于 concurrent.futures 的轻量级任务执行器
     
@@ -505,7 +505,7 @@ class FuturesWorker:
     def shutdown(self, timeout: float = 5.0):
         """关闭任务执行器"""
         if self.is_verbose:
-            logger.info("Shutting down FuturesWorker...")
+            logger.info("Shutting down MultiThreadWorker...")
         
         self.should_stop = True
         self.is_running = False
@@ -537,7 +537,7 @@ class FuturesWorker:
     def force_shutdown(self):
         """强制关闭任务执行器"""
         if self.is_verbose:
-            logger.warning("Force shutting down FuturesWorker...")
+            logger.warning("Force shutting down MultiThreadWorker...")
         
         self.should_stop = True
         self.is_running = False

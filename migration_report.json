@@ -1,0 +1,135 @@
+{
+  "timestamp": "2026-01-15T15:00:41.843034",
+  "duckdb_path": "data/stocks.duckdb",
+  "postgresql_database": "stocks_py",
+  "batch_sizes": {
+    "stock_kline": 1000000
+  },
+  "results": {
+    "results": [
+      {
+        "table": "adj_factor_event",
+        "rows": 69792,
+        "duckdb_count": 69792,
+        "postgresql_count": 69792,
+        "skipped": false
+      },
+      {
+        "table": "corporate_finance",
+        "rows": 244980,
+        "duckdb_count": 244980,
+        "postgresql_count": 244980,
+        "skipped": false
+      },
+      {
+        "table": "gdp",
+        "rows": 71,
+        "duckdb_count": 71,
+        "postgresql_count": 71,
+        "skipped": false
+      },
+      {
+        "table": "investment_operations",
+        "rows": 3,
+        "duckdb_count": 3,
+        "postgresql_count": 3,
+        "skipped": false
+      },
+      {
+        "table": "investment_trades",
+        "rows": 1,
+        "duckdb_count": 1,
+        "postgresql_count": 1,
+        "skipped": false
+      },
+      {
+        "table": "lpr",
+        "rows": 1520,
+        "duckdb_count": 1520,
+        "postgresql_count": 1520,
+        "skipped": false
+      },
+      {
+        "table": "meta_info",
+        "rows": 1,
+        "duckdb_count": 1,
+        "postgresql_count": 1,
+        "skipped": false
+      },
+      {
+        "table": "price_indexes",
+        "rows": 216,
+        "duckdb_count": 216,
+        "postgresql_count": 216,
+        "skipped": false
+      },
+      {
+        "table": "shibor",
+        "rows": 2068,
+        "duckdb_count": 2068,
+        "postgresql_count": 2068,
+        "skipped": false
+      },
+      {
+        "table": "stock_index_indicator",
+        "rows": 22759,
+        "duckdb_count": 22759,
+        "postgresql_count": 22759,
+        "skipped": false
+      },
+      {
+        "table": "stock_index_indicator_weight",
+        "rows": 39728,
+        "duckdb_count": 39728,
+        "postgresql_count": 39728,
+        "skipped": false
+      },
+      {
+        "table": "stock_list",
+        "rows": 5475,
+        "duckdb_count": 5475,
+        "postgresql_count": 5475,
+        "skipped": false
+      },
+      {
+        "table": "system_cache",
+        "rows": 4,
+        "duckdb_count": 4,
+        "postgresql_count": 4,
+        "skipped": false
+      },
+      {
+        "table": "tag_definition",
+        "rows": 2,
+        "duckdb_count": 2,
+        "postgresql_count": 2,
+        "skipped": false
+      },
+      {
+        "table": "tag_scenario",
+        "rows": 1,
+        "duckdb_count": 1,
+        "postgresql_count": 1,
+        "skipped": false
+      },
+      {
+        "table": "tag_value",
+        "rows": 90,
+        "duckdb_count": 90,
+        "postgresql_count": 90,
+        "skipped": false
+      },
+      {
+        "table": "stock_kline",
+        "rows": 17054262,
+        "duckdb_count": 17054262,
+        "postgresql_count": 17054262,
+        "skipped": false
+      }
+    ],
+    "total_rows": 17440973,
+    "successful_tables": 17,
+    "failed_tables": 0,
+    "skipped_tables": 0
+  }
+}

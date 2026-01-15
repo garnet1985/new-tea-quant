@@ -31,7 +31,7 @@ settings = {
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 from app.core.modules.strategy.models.strategy_settings import StrategySettings
 
@@ -63,6 +63,16 @@ class OpportunityEnumeratorSettings:
     use_sampling: bool = field(init=False)
     max_workers: "str | int" = field(init=False)
     min_required_records: int = field(init=False)
+
+    # 日志详细程度（控制 worker / scheduler 的自我报告）
+    is_verbose: bool = field(init=False)
+    
+    # Memory-aware batch scheduler 配置（支持 "auto"）
+    memory_budget_mb: Union[float, str] = field(init=False)
+    warmup_batch_size: Union[int, str] = field(init=False)
+    min_batch_size: Union[int, str] = field(init=False)
+    max_batch_size: Union[int, str] = field(init=False)
+    monitor_interval: int = field(init=False)
 
     def __post_init__(self) -> None:
         """
@@ -182,6 +192,25 @@ class OpportunityEnumeratorSettings:
         max_workers = enumerator.get("max_workers", "auto")
         self.max_workers = max_workers
 
+        # is_verbose：是否输出详细日志（控制 worker / scheduler 自我报告）
+        is_verbose = enumerator.get("is_verbose", False)
+        self.is_verbose = bool(is_verbose)
+        
+        # Memory-aware batch scheduler 配置（支持 "auto"）
+        memory_budget = enumerator.get("memory_budget_mb", "auto")
+        self.memory_budget_mb = memory_budget if memory_budget == "auto" else float(memory_budget)
+        
+        warmup = enumerator.get("warmup_batch_size", "auto")
+        self.warmup_batch_size = warmup if warmup == "auto" else int(warmup)
+        
+        min_size = enumerator.get("min_batch_size", "auto")
+        self.min_batch_size = min_size if min_size == "auto" else int(min_size)
+        
+        max_size = enumerator.get("max_batch_size", "auto")
+        self.max_batch_size = max_size if max_size == "auto" else int(max_size)
+        
+        self.monitor_interval = int(enumerator.get("monitor_interval", 5))
+
         # ----- simulator 部分 -----
         simulator = dict(settings.get("simulator") or {})
 
@@ -223,6 +252,12 @@ class OpportunityEnumeratorSettings:
         merged["enumerator"]["max_test_versions"] = self.max_test_versions
         merged["enumerator"]["max_sot_versions"] = self.max_sot_versions
         merged["enumerator"]["max_workers"] = self.max_workers
+        merged["enumerator"]["is_verbose"] = self.is_verbose
+        merged["enumerator"]["memory_budget_mb"] = self.memory_budget_mb
+        merged["enumerator"]["warmup_batch_size"] = self.warmup_batch_size
+        merged["enumerator"]["min_batch_size"] = self.min_batch_size
+        merged["enumerator"]["max_batch_size"] = self.max_batch_size
+        merged["enumerator"]["monitor_interval"] = self.monitor_interval
         # goal/min_required_records 已经写回 simulator/data 内部，这里不单独暴露
         return merged
 

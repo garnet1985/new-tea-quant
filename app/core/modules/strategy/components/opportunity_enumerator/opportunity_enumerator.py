@@ -63,6 +63,13 @@ class OpportunityEnumerator:
             f"workers={max_workers}"
         )
         
+        # 0. 初始化性能分析器（在开始时就创建，以准确统计总时间）
+        from app.core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
+            AggregateProfiler,
+            PerformanceMetrics
+        )
+        aggregate_profiler = AggregateProfiler()
+        
         # 1. 加载策略配置（通用 StrategySettings 模型）
         base_settings = OpportunityEnumerator._load_strategy_settings(strategy_name)
 
@@ -111,33 +118,216 @@ class OpportunityEnumerator:
                 'opportunity_id_start': start_id,
             })
         
-        # 3. 多线程执行（FuturesWorker），避免 DuckDB 多进程文件锁限制
-        from app.core.infra.worker import FuturesWorker, ThreadExecutionMode
+        # 3. 使用新的模块化架构进行批量调度
+        from app.core.infra.worker import (
+            # 新架构组件
+            ProcessExecutor,
+            MemoryAwareScheduler,
+            ProcessExecutionMode,
+        )
         
-        # 创建 FuturesWorker 实例（单进程多线程）
-        worker = FuturesWorker(
+        # ⚠️ 说明：
+        # 理论上，这里可以使用多进程（ProcessExecutor + ComputeOnlyOpportunityEnumeratorWorker）
+        # 但由于每个 job 的 payload 都包含完整的 K 线列表，跨进程序列化开销非常大，
+        # 在本机测试中，2000 支股票多进程版本反而比单进程慢很多（> 3 分钟）。
+        #
+        # 为了保证“先跑通、结果稳定”，这里暂时回退到单线程多线程执行器：
+        # - DB 仍然只在主进程批量查询（DuckDB 文件锁安全）
+        # - 子任务在同一进程内串行执行 compute-only worker，避免 pickle 大对象
+        #
+        # 后续如果要进一步提速，需要引入共享内存 / 批次级数据共享，避免序列化 klines。
+        from app.core.infra.worker import MultiThreadExecutor, ThreadExecutionMode
+        executor = MultiThreadExecutor(
             max_workers=1,
             execution_mode=ThreadExecutionMode.PARALLEL,
-            job_executor=OpportunityEnumerator._execute_single_job,
-            is_verbose=False
+            job_executor=OpportunityEnumerator._execute_single_job_compute_only,
+            is_verbose=False,
         )
         
-        # 构建 FuturesWorker 格式的 jobs（data 字段传递 payload）
-        thread_jobs = [{'id': job['stock_id'], 'data': job} for job in jobs]
-        
-        # 执行作业
-        worker.run_jobs(thread_jobs)
-        
-        # 获取结果
-        job_results = worker.get_results()
-        
-        # 4. 聚合结果和性能指标
-        from app.core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
-            AggregateProfiler,
-            PerformanceMetrics
+        # 创建调度器（支持 "auto" 自动计算）
+        scheduler = MemoryAwareScheduler(
+            jobs=jobs,
+            memory_budget_mb=enum_settings.memory_budget_mb,
+            warmup_batch_size=enum_settings.warmup_batch_size,
+            min_batch_size=enum_settings.min_batch_size,
+            max_batch_size=enum_settings.max_batch_size,
+            monitor_interval=enum_settings.monitor_interval,
+            log=logger,
         )
-        aggregate_profiler = AggregateProfiler()
         
+        # 如果需要，打印一次 worker / scheduler 决策摘要
+        if enum_settings.is_verbose:
+            logger.info(
+                "🧵 Worker 配置: executor=ProcessExecutor, max_workers=%d (原因: DuckDB 单进程文件锁限制，只在主进程读 DB，子进程纯计算)",
+                max_workers,
+            )
+            try:
+                memory_budget = getattr(getattr(scheduler, "monitor", None), "memory_budget_mb", None)
+            except Exception:
+                memory_budget = None
+            logger.info(
+                "🧠 Scheduler 配置: total_jobs=%d, memory_budget=%s, warmup_batch=%s, min_batch=%s, max_batch=%s",
+                len(jobs),
+                f"{memory_budget:.1f}MB" if isinstance(memory_budget, (int, float)) else str(memory_budget),
+                scheduler.warmup_batch_size,
+                scheduler.min_batch_size,
+                scheduler.max_batch_size,
+            )
+
+        # 批量执行（带批量数据预加载优化）
+        job_results = []
+        finished_jobs = 0
+        # 统计 batch 信息
+        batch_count = 0
+        total_batch_size = 0
+        min_batch_size = None
+        max_batch_size = 0
+        
+        # 初始化 DataManager（用于批量查询，仅主进程使用）
+        from app.core.modules.data_manager import DataManager
+        batch_data_mgr = DataManager(is_verbose=False)
+        
+        for batch in scheduler.iter_batches():
+            # ============================================================
+            # 批量数据预加载优化：一次性查询这一批所有股票的K线数据
+            # ============================================================
+            import time
+            batch_start_time = time.time()
+            
+            batch_stock_ids = [job['stock_id'] for job in batch]
+            batch_size = len(batch_stock_ids)
+            batch_count += 1
+            total_batch_size += batch_size
+            if min_batch_size is None or batch_size < min_batch_size:
+                min_batch_size = batch_size
+            if batch_size > max_batch_size:
+                max_batch_size = batch_size
+            
+            # 批量查询K线数据（一次查询所有股票）
+            batch_klines_map = {}
+            try:
+                from app.core.utils.date.date_utils import DateUtils
+                enum_start_date = DateUtils.DEFAULT_START_DATE
+                
+                # 从 settings 中提取 term 和 adjust
+                data_config = validated_settings.get('data', {})
+                base_price_source = data_config.get('base_price_source', 'stock_kline_daily')
+                adjust_type = data_config.get('adjust_type', 'qfq')
+                
+                # 提取周期（daily/weekly/monthly）
+                base_str = str(base_price_source).lower()
+                if 'daily' in base_str:
+                    term = 'daily'
+                elif 'weekly' in base_str:
+                    term = 'weekly'
+                elif 'monthly' in base_str:
+                    term = 'monthly'
+                else:
+                    term = 'daily'
+                
+                # 提取复权方式（qfq/hfq/none）
+                adjust_str = str(adjust_type).lower()
+                if adjust_str in ['qfq', 'hfq', 'none']:
+                    adjust = adjust_str
+                else:
+                    adjust = 'qfq'
+                
+                batch_klines_map = batch_data_mgr.stock.kline.load_batch(
+                    stock_ids=batch_stock_ids,
+                    term=term,
+                    start_date=enum_start_date,
+                    end_date=end_date,
+                    adjust=adjust,
+                )
+                
+                batch_query_time = time.time() - batch_start_time
+                total_kline_count = sum(len(klines) for klines in batch_klines_map.values())
+                stocks_with_data = sum(1 for klines in batch_klines_map.values() if klines)
+                
+                # 总是记录批量查询信息（即使 is_verbose=False，因为这对性能分析很重要）
+                logger.info(
+                    "📦 Batch 数据预加载: stocks=%d, 有数据=%d, klines=%d, 耗时=%.2fs, avg=%.1fms/stock",
+                    batch_size,
+                    stocks_with_data,
+                    total_kline_count,
+                    batch_query_time,
+                    batch_query_time / batch_size * 1000 if batch_size > 0 else 0.0,
+                )
+            except Exception as e:
+                logger.warning(f"批量查询K线数据失败，回退到单股票查询: {e}", exc_info=True)
+                batch_klines_map = {}
+            
+            # 构建 compute-only payload（不再访问 DB）
+            process_jobs = []
+            for job in batch:
+                stock_id = job['stock_id']
+                klines = batch_klines_map.get(stock_id, [])
+                payload = {
+                    'stock_id': stock_id,
+                    'strategy_name': job['strategy_name'],
+                    'settings': job['settings'],
+                    'klines': klines,
+                    'start_date': job['start_date'],
+                    'end_date': job['end_date'],
+                    'output_dir': job['output_dir'],
+                }
+                process_jobs.append({'id': stock_id, 'payload': payload})
+            
+            # 执行当前 batch（单进程、compute-only）
+            thread_jobs = [{'id': job['id'], 'data': job['payload']} for job in process_jobs]
+            batch_results = executor.run_jobs(thread_jobs)
+            
+            # 更新调度器状态
+            finished_jobs += len(batch)
+            scheduler.update_after_batch(
+                batch_size=len(batch),
+                batch_results=batch_results,
+                finished_jobs=finished_jobs,
+            )
+            
+            # 收集结果
+            job_results.extend(batch_results)
+            
+            # 定期输出监控信息（使用简化的 Progress API）
+            if scheduler.should_log_progress():
+                progress = scheduler.get_progress()
+                stats = scheduler.get_monitor_stats()
+                logger.info(
+                    "📊 枚举进度: %.1f%% (%d/%d), batch=%d, 内存=%.1f%%",
+                    progress["progress_percent"],
+                    progress["finished_jobs"],
+                    progress["total_jobs"],
+                    progress["current_batch_size"],
+                    stats["memory"]["usage_percent"],
+                )
+            
+            # 检查内存告警
+            warning = scheduler.get_memory_warning()
+            if warning:
+                logger.warning(f"⚠️  {warning}")
+            
+            # 清理资源，协助 GC
+            del batch, process_jobs, batch_results
+            import gc
+            gc.collect()
+        
+        # 关闭执行器
+        executor.shutdown()
+        
+        # 打印 batch 统计信息
+        if batch_count > 0:
+            avg_batch_size = total_batch_size / batch_count
+            logger.info(
+                "📦 Batch 统计: total_stocks=%d, total_batches=%d, "
+                "avg_batch_size=%.1f, min_batch_size=%s, max_batch_size=%d",
+                len(jobs),
+                batch_count,
+                avg_batch_size,
+                str(min_batch_size) if min_batch_size is not None else "N/A",
+                max_batch_size,
+            )
+        
+        # 4. 聚合结果和性能指标（AggregateProfiler 已在开始时创建）
         total_opportunities = 0
         success_count = 0
         failed_count = 0
@@ -194,9 +384,9 @@ class OpportunityEnumerator:
         if success_count > 0:
             aggregate_profiler.print_report()
             
-            # 同时保存性能报告到文件
+            # 同时保存性能报告到文件（会话级，使用 0_ 前缀方便排序）
             performance_summary = aggregate_profiler.get_summary()
-            performance_file = output_dir / "performance_report.json"
+            performance_file = output_dir / "0_performance_report.json"
             with performance_file.open("w", encoding="utf-8") as f:
                 json.dump(performance_summary, f, indent=2, ensure_ascii=False)
             logger.info(f"📊 性能报告已保存: {performance_file}")
@@ -255,6 +445,18 @@ class OpportunityEnumerator:
         from app.core.modules.strategy.components.opportunity_enumerator.enumerator_worker import OpportunityEnumeratorWorker
         worker = OpportunityEnumeratorWorker(payload)
         return worker.run()
+
+    @staticmethod
+    def _execute_single_job_compute_only(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        compute-only Worker 包装函数（多进程纯计算）
+        """
+        from app.core.modules.strategy.components.opportunity_enumerator.enumerator_worker import (
+            ComputeOnlyOpportunityEnumeratorWorker,
+        )
+
+        worker = ComputeOnlyOpportunityEnumeratorWorker(payload)
+        return worker.run()
     
     @staticmethod
     def _load_strategy_settings(strategy_name: str) -> StrategySettings:
@@ -304,7 +506,8 @@ class OpportunityEnumerator:
             'is_full_enumeration': is_full_enumeration  # 标记是否为全量枚举
         }
         
-        with open(output_dir / 'metadata.json', 'w', encoding='utf-8') as f:
+        # 会话级 metadata 也使用 0_ 前缀
+        with open(output_dir / '0_metadata.json', 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
         
         enum_mode = "全量枚举" if is_full_enumeration else "测试模式（采样）"

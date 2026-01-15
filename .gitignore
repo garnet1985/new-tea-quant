@@ -89,6 +89,8 @@ secrets.json
 # Auth tokens
 **/auth_token.txt
 **/token.txt
+.pgpass
+
 
 ########################
 # Temporary & Backup
@@ -100,3 +102,4 @@ backup/
 backup_before_migration/
 *.log
 logs/
+core/ui/

@@ -237,6 +237,177 @@ class KlineService(BaseDataService):
         
         return kline_data
     
+    def load_batch(
+        self,
+        stock_ids: List[str],
+        term: str = 'daily',
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        adjust: str = 'qfq',
+        filter_negative: bool = True,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        批量加载多个股票的K线数据（优化：一次查询所有股票）
+        
+        Args:
+            stock_ids: 股票代码列表
+            term: 周期（daily/weekly/monthly）
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
+            adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
+            filter_negative: 是否过滤负值（默认True）
+            
+        Returns:
+            Dict[stock_id, List[Dict]]: 每只股票的K线数据字典
+        """
+        if not stock_ids:
+            return {}
+        
+        # 统一日期格式
+        start_date = self._normalize_date(start_date)
+        end_date = self._normalize_date(end_date)
+        
+        # 批量查询原始K线数据（使用 IN 子句）
+        placeholders = ','.join(['%s'] * len(stock_ids))
+        conditions = [f"id IN ({placeholders})"]
+        params = list(stock_ids)
+        
+        if term:
+            conditions.append("term = %s")
+            params.append(term)
+        
+        if start_date:
+            conditions.append("date >= %s")
+            params.append(start_date)
+        
+        if end_date:
+            conditions.append("date <= %s")
+            params.append(end_date)
+        
+        where_clause = " AND ".join(conditions)
+        all_klines = self._stock_kline.load(where_clause, tuple(params), order_by="id ASC, date ASC")
+        
+        # 按股票ID分组
+        result: Dict[str, List[Dict[str, Any]]] = {stock_id: [] for stock_id in stock_ids}
+        
+        for kline in all_klines:
+            stock_id = kline.get('id')
+            if stock_id in result:
+                result[stock_id].append(kline)
+        
+        # 如果需要前复权，批量查询所有股票的复权事件，然后对每只股票的数据进行复权计算
+        if adjust == 'qfq':
+            # 批量查询所有股票的复权事件（一次查询）
+            batch_adj_events = self._load_batch_adj_events(stock_ids) if self._adj_factor_event else {}
+            
+            for stock_id in stock_ids:
+                if result[stock_id]:
+                    adj_events = batch_adj_events.get(stock_id, [])
+                    result[stock_id] = self._apply_qfq_to_klines(result[stock_id], stock_id, adj_events)
+        
+        return result
+    
+    def _load_batch_adj_events(self, stock_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        批量加载多个股票的复权因子事件
+        
+        Args:
+            stock_ids: 股票代码列表
+            
+        Returns:
+            Dict[stock_id, List[Dict]]: 每只股票的复权事件列表
+        """
+        if not stock_ids or not self._adj_factor_event:
+            return {}
+        
+        # 批量查询所有股票的复权事件（使用 IN 子句）
+        placeholders = ','.join(['%s'] * len(stock_ids))
+        where_clause = f"id IN ({placeholders})"
+        all_events = self._adj_factor_event.load(where_clause, tuple(stock_ids), order_by="id ASC, event_date ASC")
+        
+        # 按股票ID分组
+        result: Dict[str, List[Dict[str, Any]]] = {stock_id: [] for stock_id in stock_ids}
+        for event in all_events:
+            stock_id = event.get('id')
+            if stock_id in result:
+                result[stock_id].append(event)
+        
+        return result
+    
+    def _apply_qfq_to_klines(
+        self, 
+        klines: List[Dict[str, Any]], 
+        stock_id: str,
+        adj_events: List[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        对K线数据应用前复权计算（批量版本）
+        
+        Args:
+            klines: 原始K线数据列表
+            stock_id: 股票代码
+            
+        Returns:
+            前复权后的K线数据列表
+        """
+        if not klines:
+            return []
+        
+        # 如果没有提供复权事件，尝试加载（向后兼容）
+        if adj_events is None:
+            adj_events = self._adj_factor_event.load(
+                "id = %s",
+                (stock_id,),
+                order_by="event_date ASC"
+            ) if self._adj_factor_event else []
+        
+        # 如果没有复权事件，直接返回原始数据
+        if not adj_events:
+            return klines
+        
+        # 构建复权事件索引（按日期）
+        event_map = {e['event_date']: e for e in adj_events}
+        event_dates = sorted(event_map.keys())
+        
+        # 对每条K线应用复权
+        result = []
+        for kline in klines:
+            kline_date = kline.get('date')
+            if not kline_date:
+                result.append(kline)
+                continue
+            
+            # 找到小于等于该日期的最近一个复权事件
+            latest_event = None
+            for event_date in event_dates:
+                if event_date <= kline_date:
+                    latest_event = event_map[event_date]
+                else:
+                    break
+            
+            # 复制K线数据
+            qfq_kline = kline.copy()
+            
+            # 如果有复权事件，应用复权
+            if latest_event:
+                qfq_diff = latest_event.get('qfq_diff', 0.0)
+                # 应用前复权：价格 = 原始价格 - qfq_diff
+                for price_field in ['open', 'close', 'highest', 'lowest', 'pre_close']:
+                    if price_field in qfq_kline and qfq_kline[price_field] is not None:
+                        qfq_kline[f'qfq_{price_field}'] = qfq_kline[price_field] - qfq_diff
+                        # 同时保留原始字段
+                qfq_kline['adj_event_date'] = latest_event.get('event_date')
+                qfq_kline['adj_factor'] = latest_event.get('factor')
+            else:
+                # 没有复权事件，qfq价格等于原始价格
+                for price_field in ['open', 'close', 'highest', 'lowest', 'pre_close']:
+                    if price_field in qfq_kline:
+                        qfq_kline[f'qfq_{price_field}'] = qfq_kline[price_field]
+            
+            result.append(qfq_kline)
+        
+        return result
+    
     def load(
         self, 
         stock_id: str, 

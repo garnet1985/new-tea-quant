@@ -1,5 +1,5 @@
 """
-批量写入队列 - 解决 DuckDB 并发写入问题
+批量写入队列 - 解决数据库并发写入问题
 
 功能：
 - 收集多线程的写入请求
@@ -34,7 +34,7 @@ class BatchWriteQueue:
     """
     批量写入队列
     
-    解决 DuckDB 单连接写入的并发问题：
+    解决数据库并发写入问题：
     - 多线程的写入请求先进入队列
     - 达到阈值（batch_size）或超时（flush_interval）后批量写入
     - 单线程执行写入，避免锁冲突
@@ -257,7 +257,7 @@ class BatchWriteQueue:
                 update_clause = None
                 conflict_cols = None
             else:
-                # 使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB/PG 风格 Upsert）
+                # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL/SQLite 风格 Upsert）
                 columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
                 
                 if not columns:
@@ -310,7 +310,7 @@ class BatchWriteQueue:
                     self.db_manager.conn.execute(batch_query)
                 else:
                     # INSERT ... ON CONFLICT
-                    # 注意：DuckDB 要求冲突列必须匹配主键或唯一索引
+                    # 注意：PostgreSQL/SQLite 要求冲突列必须匹配主键或唯一索引
                     # 如果 unique_keys 不匹配，会抛出 BinderException
                     try:
                         if update_clause:

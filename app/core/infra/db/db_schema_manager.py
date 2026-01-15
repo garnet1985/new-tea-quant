@@ -26,13 +26,14 @@ class DbSchemaManager:
     - 数据查询和写入
     """
     
-    def __init__(self, tables_dir: str = None, is_verbose: bool = False):
+    def __init__(self, tables_dir: str = None, is_verbose: bool = False, database_type: str = None):
         """
         初始化 DbSchemaManager
         
         Args:
             tables_dir: schema 文件目录（默认为 app/data_manager/base_tables）
             is_verbose: 是否输出详细日志
+            database_type: 数据库类型（'postgresql', 'mysql', 'sqlite'），用于生成对应的 SQL
         """
         if tables_dir:
             self.tables_dir = tables_dir
@@ -43,6 +44,7 @@ class DbSchemaManager:
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))  # 项目根
             self.tables_dir = os.path.join(project_root, 'app', 'core', 'modules', 'data_manager', 'base_tables')
         self.is_verbose = is_verbose
+        self.database_type = database_type or 'postgresql'  # 默认 PostgreSQL
         
         # 缓存已加载的 schema
         self._schema_cache = {}
@@ -120,7 +122,7 @@ class DbSchemaManager:
     
     def generate_create_table_sql(self, schema: Dict) -> str:
         """
-        根据 schema 生成 CREATE TABLE SQL
+        根据 schema 生成 CREATE TABLE SQL（支持多种数据库）
         
         Args:
             schema: schema 字典
@@ -134,22 +136,44 @@ class DbSchemaManager:
         
         # 构建字段定义
         field_defs = []
+        comments = []  # 存储 COMMENT 语句（PostgreSQL/MySQL）
+        
         for field in fields:
             field_def = self._generate_field_definition(field)
             field_defs.append(field_def)
+            
+            # 处理 COMMENT（PostgreSQL/MySQL）
+            comment = field.get('comment')
+            if comment and self.database_type in ['postgresql', 'mysql']:
+                if self.database_type == 'postgresql':
+                    comments.append(f"COMMENT ON COLUMN {table_name}.{field['name']} IS '{comment}';")
+                elif self.database_type == 'mysql':
+                    # MySQL 的 COMMENT 在字段定义中，已经在 _generate_field_definition 中处理
+                    # 但 MySQL 不支持单独的 COMMENT ON COLUMN，所以这里不需要额外处理
+                    pass
         
-        # 添加主键
+        # 添加主键（如果字段定义中没有包含）
         if primary_key:
-            pk_def = self._generate_primary_key_definition(primary_key)
-            field_defs.append(pk_def)
+            # 检查是否已经有 AUTO_INCREMENT 主键（SQLite）
+            has_auto_inc_pk = False
+            if self.database_type == 'sqlite':
+                for field in fields:
+                    if field.get('autoIncrement') or field.get('isAutoIncrement'):
+                        if field['name'] in (primary_key if isinstance(primary_key, list) else [primary_key]):
+                            has_auto_inc_pk = True
+                            break
+            
+            if not has_auto_inc_pk:
+                pk_def = self._generate_primary_key_definition(primary_key)
+                field_defs.append(pk_def)
         
         # 生成完整 SQL
         fields_sql = ',\n    '.join(field_defs)
-        create_sql = f"""
-            CREATE TABLE IF NOT EXISTS {table_name} (
-                {fields_sql}
-            );
-            """
+        create_sql = f"CREATE TABLE IF NOT EXISTS {table_name} (\n    {fields_sql}\n);"
+        
+        # 添加 COMMENT 语句（PostgreSQL）
+        if comments:
+            create_sql += "\n" + "\n".join(comments)
         
         return create_sql.strip()
     
@@ -170,49 +194,152 @@ class DbSchemaManager:
         is_auto_increment = field.get('autoIncrement', False) or field.get('isAutoIncrement', False)
         default_value = field.get('default')
         
-        # 处理字段类型（DuckDB 版本）
-        # 类型映射：TINYINT(1) -> BOOLEAN, TEXT -> VARCHAR
-        if field_type == 'VARCHAR' and 'length' in field:
-            type_def = f"VARCHAR({field['length']})"
-        elif field_type == 'TEXT':
-            type_def = "VARCHAR"  # DuckDB 使用 VARCHAR 替代 TEXT
-        elif field_type == 'TINYINT' and 'length' in field and field.get('length') == 1:
-            type_def = "BOOLEAN"  # TINYINT(1) -> BOOLEAN
-        elif field_type == 'TINYINT':
-            type_def = "INTEGER"  # 其他 TINYINT -> INTEGER
-        elif field_type == 'DATETIME':
-            type_def = "TIMESTAMP"  # DATETIME -> TIMESTAMP
-        else:
-            type_def = field_type
+        # 处理字段类型（根据数据库类型）
+        type_def = self._map_field_type(field_type, field)
         
         # 构建字段定义
         field_def = f"{field_name} {type_def}"
         
-        # DuckDB 不支持 AUTO_INCREMENT，忽略该属性
+        # 处理 AUTO_INCREMENT（根据数据库类型）
+        if is_auto_increment:
+            auto_inc_def = self._get_auto_increment_definition()
+            if auto_inc_def:
+                field_def = f"{field_name} {auto_inc_def}"
+                # AUTO_INCREMENT 字段通常也是主键，不需要额外的 NOT NULL
+                is_required = False
+        
         # 处理 NOT NULL
         if is_required:
             field_def += " NOT NULL"
         
         # 处理默认值
         if default_value is not None:
-            # 一些函数类默认值直接写（CURRENT_TIMESTAMP 等）
-            if isinstance(default_value, str) and default_value.upper() in ['CURRENT_TIMESTAMP', 'CURRENT_DATE']:
-                field_def += f" DEFAULT {default_value}"
+            # 处理 MySQL 的 ON UPDATE CURRENT_TIMESTAMP 语法
+            # PostgreSQL/SQLite 不支持 ON UPDATE，只保留 CURRENT_TIMESTAMP
+            if isinstance(default_value, str):
+                default_upper = default_value.upper()
+                # 移除 ON UPDATE CURRENT_TIMESTAMP 部分
+                if 'ON UPDATE CURRENT_TIMESTAMP' in default_upper:
+                    # 提取 CURRENT_TIMESTAMP 部分
+                    if 'CURRENT_TIMESTAMP' in default_upper:
+                        default_value = 'CURRENT_TIMESTAMP'
+                    else:
+                        # 如果只有 ON UPDATE，移除它
+                        default_value = default_value.split(' ON UPDATE')[0].strip()
+                        if not default_value:
+                            default_value = None
+                
+                # 处理标准的时间戳默认值
+                if default_value and default_value.upper() in ['CURRENT_TIMESTAMP', 'CURRENT_DATE']:
+                    field_def += f" DEFAULT {default_value}"
+                elif default_value:
+                    # 根据原始字段类型决定是否加引号
+                    if field_type in ['VARCHAR', 'TEXT', 'CHAR', 'DATE', 'DATETIME', 'TIME', 'TIMESTAMP']:
+                        field_def += f" DEFAULT '{default_value}'"
+                    else:
+                        field_def += f" DEFAULT {default_value}"
             else:
-                # 根据原始字段类型决定是否加引号
-                # 注意这里用的是 field_type（去掉长度信息），而不是 type_def
+                # 非字符串默认值
                 if field_type in ['VARCHAR', 'TEXT', 'CHAR', 'DATE', 'DATETIME', 'TIME', 'TIMESTAMP']:
                     field_def += f" DEFAULT '{default_value}'"
                 else:
                     field_def += f" DEFAULT {default_value}"
         
-        # DuckDB 不支持 COMMENT，忽略
+        # 处理 COMMENT（根据数据库类型）
+        comment = field.get('comment')
+        if comment and self.database_type in ['postgresql', 'mysql']:
+            # COMMENT 在 CREATE TABLE 后单独添加（PostgreSQL/MySQL）
+            # 这里先返回字段定义，COMMENT 在 generate_create_table_sql 中处理
+            pass
         
         return field_def
     
+    def _map_field_type(self, field_type: str, field: Dict) -> str:
+        """
+        根据数据库类型映射字段类型
+        
+        Args:
+            field_type: 原始字段类型
+            field: 字段定义字典
+            
+        Returns:
+            映射后的字段类型 SQL
+        """
+        field_type = field_type.upper()
+        
+        # VARCHAR 类型
+        if field_type == 'VARCHAR' and 'length' in field:
+            return f"VARCHAR({field['length']})"
+        
+        # TEXT 类型
+        if field_type == 'TEXT':
+            if self.database_type == 'sqlite':
+                return "TEXT"  # SQLite 支持 TEXT
+            elif self.database_type == 'postgresql':
+                return "TEXT"  # PostgreSQL 支持 TEXT
+            elif self.database_type == 'mysql':
+                return "TEXT"  # MySQL 支持 TEXT
+            else:
+                return "VARCHAR"  # 其他情况使用 VARCHAR
+        
+        # TINYINT(1) -> BOOLEAN
+        if field_type == 'TINYINT' and 'length' in field and field.get('length') == 1:
+            if self.database_type == 'postgresql':
+                return "BOOLEAN"
+            elif self.database_type == 'mysql':
+                return "TINYINT(1)"  # MySQL 保留 TINYINT(1)
+            elif self.database_type == 'sqlite':
+                return "INTEGER"  # SQLite 使用 INTEGER 表示布尔值
+            else:
+                return "BOOLEAN"
+        
+        # 其他 TINYINT -> INTEGER
+        if field_type == 'TINYINT':
+            return "INTEGER"
+        
+        # DATETIME -> TIMESTAMP
+        if field_type == 'DATETIME':
+            if self.database_type == 'postgresql':
+                return "TIMESTAMP"
+            elif self.database_type == 'mysql':
+                return "DATETIME"  # MySQL 支持 DATETIME
+            elif self.database_type == 'sqlite':
+                return "TEXT"  # SQLite 使用 TEXT 存储日期时间
+            else:
+                return "TIMESTAMP"
+        
+        # DECIMAL/NUMERIC
+        if field_type in ['DECIMAL', 'NUMERIC']:
+            if 'length' in field:
+                length = field['length']
+                if isinstance(length, str):
+                    return f"DECIMAL({length})"
+                elif isinstance(length, (int, float)):
+                    return f"DECIMAL({length})"
+            return "DECIMAL"
+        
+        # 其他类型直接返回
+        return field_type
+    
+    def _get_auto_increment_definition(self) -> Optional[str]:
+        """
+        根据数据库类型获取 AUTO_INCREMENT 定义
+        
+        Returns:
+            AUTO_INCREMENT SQL 定义，如果数据库不支持则返回 None
+        """
+        if self.database_type == 'postgresql':
+            return "SERIAL"  # PostgreSQL 使用 SERIAL
+        elif self.database_type == 'mysql':
+            return "INT AUTO_INCREMENT"  # MySQL 使用 AUTO_INCREMENT
+        elif self.database_type == 'sqlite':
+            return "INTEGER PRIMARY KEY AUTOINCREMENT"  # SQLite 使用 AUTOINCREMENT
+        else:
+            return None
+    
     def _generate_primary_key_definition(self, primary_key) -> str:
         """
-        生成主键定义（DuckDB 版本）
+        生成主键定义（支持多种数据库）
         
         Args:
             primary_key: 主键字段（字符串或列表）
@@ -242,71 +369,101 @@ class DbSchemaManager:
         is_unique = index.get('unique', False)
         
         unique_keyword = 'UNIQUE' if is_unique else ''
-        # DuckDB 使用双引号引用标识符，或者不使用引号（如果标识符合法）
-        # 为了安全，对可能包含特殊字符的标识符使用双引号
-        fields_str = ', '.join([f'"{f}"' if f.lower() in ['key', 'value', 'order', 'group'] else f for f in index_fields])
         
-        # 表名和索引名使用双引号（如果可能是保留字）
-        table_name_quoted = f'"{table_name}"' if table_name.lower() in ['key', 'value', 'order', 'group'] else table_name
-        index_name_quoted = f'"{index_name}"' if index_name.lower() in ['key', 'value', 'order', 'group'] else index_name
+        # 根据数据库类型处理标识符引用
+        if self.database_type == 'postgresql':
+            # PostgreSQL 使用双引号
+            fields_str = ', '.join([f'"{f}"' if f.lower() in ['key', 'value', 'order', 'group'] else f for f in index_fields])
+            table_name_quoted = f'"{table_name}"' if table_name.lower() in ['key', 'value', 'order', 'group'] else table_name
+            index_name_quoted = f'"{index_name}"' if index_name.lower() in ['key', 'value', 'order', 'group'] else index_name
+        elif self.database_type == 'mysql':
+            # MySQL 使用反引号
+            fields_str = ', '.join([f'`{f}`' if f.lower() in ['key', 'value', 'order', 'group'] else f for f in index_fields])
+            table_name_quoted = f'`{table_name}`' if table_name.lower() in ['key', 'value', 'order', 'group'] else table_name
+            index_name_quoted = f'`{index_name}`' if index_name.lower() in ['key', 'value', 'order', 'group'] else index_name
+        else:
+            # SQLite 通常不需要引号，但为了安全也可以使用双引号
+            fields_str = ', '.join(index_fields)
+            table_name_quoted = table_name
+            index_name_quoted = index_name
         
-        sql = f"CREATE {unique_keyword} INDEX {index_name_quoted} ON {table_name_quoted} ({fields_str})"
+        sql = f"CREATE {unique_keyword} INDEX IF NOT EXISTS {index_name_quoted} ON {table_name_quoted} ({fields_str})"
         return sql
     
     # ==================== 表操作（需要数据库连接）====================
     
     def create_table(self, schema: Dict, db_connection):
         """
-        创建表（DuckDB 版本）
+        创建表（支持多种数据库）
         
         Args:
             schema: schema 字典
-            db_connection: 数据库连接（上下文管理器，DuckDB 连接）
+            db_connection: 数据库连接（上下文管理器）
+                - SQLite: 连接对象可以直接执行 SQL
+                - PostgreSQL/MySQL: 连接对象需要使用游标执行 SQL
         """
         table_name = schema['name']
         
         # 生成建表 SQL
         create_sql = self.generate_create_table_sql(schema)
         
-        # 执行建表（DuckDB 连接可以直接执行 SQL）
+        # 执行建表
         with db_connection as conn:
-            conn.execute(create_sql)
+            # 检查连接类型
+            # SQLite 连接可以直接执行 SQL
+            if hasattr(conn, 'execute') and not hasattr(conn, 'cursor'):
+                # SQLite 风格：直接执行
+                conn.execute(create_sql)
+            else:
+                # PostgreSQL/MySQL 风格：使用游标
+                # 如果连接有 cursor 方法，使用游标
+                if hasattr(conn, 'cursor'):
+                    with conn.cursor() as cursor:
+                        cursor.execute(create_sql)
+                    conn.commit()
+                else:
+                    # 尝试直接执行（可能是包装的连接对象）
+                    conn.execute(create_sql)
         
         if self.is_verbose:
             logger.debug(f"✅ 表 {table_name} 已创建/验证")
     
     def create_indexes(self, table_name: str, indexes: List[Dict], db_connection):
         """
-        创建索引（DuckDB 版本）
-        
-        注意：DuckDB 的索引机制与 MySQL 不同，暂时跳过索引创建
-        后续如果需要，可以基于 DuckDB 的 CREATE INDEX 语法实现
+        创建索引（支持多种数据库）
         
         Args:
             table_name: 表名
             indexes: 索引定义列表
             db_connection: 数据库连接（上下文管理器）
         """
-        # DuckDB 支持 CREATE INDEX，但语法和 MySQL 略有不同
-        # 暂时跳过索引创建，依赖主键和列式存储的性能优势
-        if self.is_verbose and indexes:
-            logger.debug(f"⚠️  跳过索引创建（DuckDB 暂不支持自动创建索引）: {table_name}")
+        if not indexes:
+            return
         
-        # 如果需要创建索引，可以这样实现：
-        # with db_connection as conn:
-        #     for index in indexes:
-        #         index_name = index['name']
-        #         index_fields = index['fields']
-        #         is_unique = index.get('unique', False)
-        #         unique_keyword = 'UNIQUE' if is_unique else ''
-        #         fields_str = ', '.join(index_fields)
-        #         sql = f"CREATE {unique_keyword} INDEX IF NOT EXISTS {index_name} ON {table_name} ({fields_str})"
-        #         try:
-        #             conn.execute(sql)
-        #             if self.is_verbose:
-        #                 logger.debug(f"✅ 创建索引: {table_name}.{index_name}")
-        #         except Exception as e:
-        #             logger.warning(f"⚠️  创建索引失败 {table_name}.{index_name}: {e}")
+        # 生成并执行索引创建 SQL
+        with db_connection as conn:
+            for index in indexes:
+                # 使用 generate_create_index_sql 生成 SQL（会根据数据库类型生成正确的 SQL）
+                sql = self.generate_create_index_sql(table_name, index)
+                
+                try:
+                    # 检查连接类型
+                    if hasattr(conn, 'execute') and not hasattr(conn, 'cursor'):
+                        # SQLite 风格：直接执行
+                        conn.execute(sql)
+                    else:
+                        # PostgreSQL/MySQL 风格：使用游标
+                        if hasattr(conn, 'cursor'):
+                            with conn.cursor() as cursor:
+                                cursor.execute(sql)
+                            conn.commit()
+                        else:
+                            conn.execute(sql)
+                    
+                    if self.is_verbose:
+                        logger.debug(f"✅ 创建索引: {table_name}.{index['name']}")
+                except Exception as e:
+                    logger.warning(f"⚠️  创建索引失败 {table_name}.{index['name']}: {e}")
     
     def create_table_with_indexes(self, schema: Dict, db_connection_func):
         """
@@ -388,30 +545,67 @@ class DbSchemaManager:
     
     def is_table_exists(self, table_name: str, database: str, db_connection) -> bool:
         """
-        检查表是否存在（DuckDB 版本）
+        检查表是否存在（支持多种数据库）
         
         Args:
             table_name: 表名
-            database: 数据库名（DuckDB 不需要，已忽略）
+            database: 数据库名（某些数据库不需要，已忽略）
             db_connection: 数据库连接（上下文管理器）
             
         Returns:
             是否存在
         """
-        sql = """
-        SELECT COUNT(*) as count 
-        FROM information_schema.tables 
-        WHERE table_name = ?
-        """
+        # 根据数据库类型生成不同的 SQL
+        if self.database_type == 'sqlite':
+            sql = """
+            SELECT COUNT(*) as count 
+            FROM sqlite_master 
+            WHERE type='table' AND name = ?
+            """
+            params = (table_name,)
+        elif self.database_type == 'postgresql':
+            sql = """
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = %s
+            """
+            params = (table_name,)
+        elif self.database_type == 'mysql':
+            sql = """
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_schema = DATABASE() AND table_name = %s
+            """
+            params = (table_name,)
+        else:
+            # 默认使用 PostgreSQL 语法
+            sql = """
+            SELECT COUNT(*) as count 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = %s
+            """
+            params = (table_name,)
         
         with db_connection as conn:
-            result = conn.execute(sql, (table_name,)).fetchone()
-            # DuckDB 返回的是元组，需要转换为字典或直接访问
+            # 检查连接类型
+            if hasattr(conn, 'execute') and not hasattr(conn, 'cursor'):
+                # SQLite 风格：直接执行
+                sql = sql.replace("%s", "?")
+                result = conn.execute(sql, params).fetchone()
+            else:
+                # PostgreSQL/MySQL 风格：使用游标
+                if hasattr(conn, 'cursor'):
+                    with conn.cursor() as cursor:
+                        cursor.execute(sql, params)
+                        result = cursor.fetchone()
+                else:
+                    result = conn.execute(sql, params).fetchone()
+            
+            # 处理结果
             if result:
                 if isinstance(result, dict):
                     return result.get('count', 0) > 0
-                else:
-                    # 元组格式，第一个元素是 count
+                elif isinstance(result, (list, tuple)):
                     return result[0] > 0
             return False
     

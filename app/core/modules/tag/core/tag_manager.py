@@ -12,7 +12,8 @@ from app.core.modules.tag.core.base_tag_worker import BaseTagWorker
 from app.core.modules.tag.core.components.helper.tag_helper import TagHelper
 from app.core.modules.tag.core.components.helper.job_helper import JobHelper
 from app.core.modules.data_manager import DataManager
-from app.core.modules.tag.core.config import DEFAULT_SCENARIOS_ROOT
+from app.core.modules.tag.core.config import get_scenarios_root
+from app.core.infra.project_context import PathManager
 from app.core.modules.tag.core.enums import FileName
 from app.core.modules.tag.core.models.scenario_model import ScenarioModel
 from app.core.infra.worker.multi_process.process_worker import ExecutionMode, ProcessWorker
@@ -89,7 +90,7 @@ class TagManager:
     # discover and cache scenario settings from folder
     def _discover_scenarios_from_folder(self):
         scenario_cache = {}
-        root_folder = Path(DEFAULT_SCENARIOS_ROOT)
+        root_folder = get_scenarios_root()
 
         for scenario_folder in root_folder.iterdir():
             if not scenario_folder.is_dir():

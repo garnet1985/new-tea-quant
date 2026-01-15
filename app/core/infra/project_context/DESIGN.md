@@ -1,8 +1,8 @@
-# Path Management Module - 设计文档
+# Project Management Module - 设计文档
 
 ## 📋 概述
 
-Path Management Module 提供项目路径、文件操作和配置管理的统一接口。
+Project Management Module 提供项目路径、文件操作和配置管理的统一接口。
 
 **核心功能**：
 1. **路径管理**：提供基于项目根目录的路径访问
@@ -14,7 +14,7 @@ Path Management Module 提供项目路径、文件操作和配置管理的统一
 ### 模块结构
 
 ```
-core/infra/path/
+core/infra/project_context/
 ├── __init__.py                    # 模块导出
 ├── DESIGN.md                      # 本文档
 ├── path_manager.py                # 路径管理器
@@ -131,7 +131,7 @@ settings = ctx.config.load_with_defaults(default_path, user_path)
 file = ctx.file.find_file("settings.py", ctx.path.userspace())
 
 # 方式 2：独立使用（灵活）
-from app.core.infra.path import PathManager, FileManager, ConfigManager
+from app.core.infra.project_context import PathManager, FileManager, ConfigManager
 core_dir = PathManager.core()
 ```
 
@@ -140,7 +140,7 @@ core_dir = PathManager.core()
 ### 场景 1：获取策略配置（自动合并默认配置）
 
 ```python
-from app.core.infra.path import ProjectContextManager
+from app.core.infra.project_context import ProjectContextManager
 
 ctx = ProjectContextManager()
 

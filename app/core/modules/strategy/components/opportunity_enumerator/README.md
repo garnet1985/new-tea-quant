@@ -88,7 +88,7 @@ Enumerator（完整枚举，所有路径）：
 app/userspace/strategies/{strategy_name}/results/opportunity_enums/
 ├── meta.json                       # 版本管理元信息（自增 ID）
 └── {version_dir}/                  # 每次运行一个版本目录
-    ├── metadata.json               # 本次运行的元信息（含 settings 快照）
+    ├── 0_metadata.json             # 本次运行的元信息（含 settings 快照，带 0_ 前缀便于排序）
     ├── 000001.SZ_opportunities.csv # 股票 000001.SZ 的机会列表
     ├── 000001.SZ_targets.csv      # 股票 000001.SZ 的 completed_targets
     ├── 000002.SZ_opportunities.csv # 股票 000002.SZ 的机会列表

@@ -1,0 +1,128 @@
+{
+  "timestamp": "2026-01-15T15:02:05.293184",
+  "all_match": true,
+  "matched_tables": 17,
+  "mismatched_tables": 0,
+  "missing_in_pg": 0,
+  "results": {
+    "adj_factor_event": {
+      "duckdb_count": 69792,
+      "postgresql_count": 69792,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "corporate_finance": {
+      "duckdb_count": 244980,
+      "postgresql_count": 244980,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "gdp": {
+      "duckdb_count": 71,
+      "postgresql_count": 71,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "investment_operations": {
+      "duckdb_count": 3,
+      "postgresql_count": 3,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "investment_trades": {
+      "duckdb_count": 1,
+      "postgresql_count": 1,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "lpr": {
+      "duckdb_count": 1520,
+      "postgresql_count": 1520,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "meta_info": {
+      "duckdb_count": 1,
+      "postgresql_count": 1,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "price_indexes": {
+      "duckdb_count": 216,
+      "postgresql_count": 216,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "shibor": {
+      "duckdb_count": 2068,
+      "postgresql_count": 2068,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "stock_index_indicator": {
+      "duckdb_count": 22759,
+      "postgresql_count": 22759,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "stock_index_indicator_weight": {
+      "duckdb_count": 39728,
+      "postgresql_count": 39728,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "stock_kline": {
+      "duckdb_count": 17054262,
+      "postgresql_count": 17054262,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "stock_list": {
+      "duckdb_count": 5475,
+      "postgresql_count": 5475,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "system_cache": {
+      "duckdb_count": 4,
+      "postgresql_count": 4,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "tag_definition": {
+      "duckdb_count": 2,
+      "postgresql_count": 2,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "tag_scenario": {
+      "duckdb_count": 1,
+      "postgresql_count": 1,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    },
+    "tag_value": {
+      "duckdb_count": 90,
+      "postgresql_count": 90,
+      "match": true,
+      "difference": 0,
+      "status": "match"
+    }
+  }
+}

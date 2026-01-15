@@ -6,7 +6,6 @@
 **用途**：配置文件存储位置（JSON 格式，用户可编辑）
 
 **内容**：
-- `app_config.json` - 应用配置说明文件（描述性）
 - `database/` - 数据库配置文件目录
   - `db_config.json` - 实际数据库配置（不提交到 Git）
   - `db_config.example.json` - 配置文件模板

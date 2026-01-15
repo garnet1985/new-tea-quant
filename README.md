@@ -22,45 +22,45 @@ Stocks-Py 是一个专注于A股市场的量化策略回测框架，提供完整
 
 ```
 stocks-py/
-├── app/                       # 核心应用模块
-│   ├── core/                 # 核心模块
-│   │   ├── modules/          # 业务模块
-│   │   │   ├── strategy/     # 策略框架
-│   │   │   │   ├── components/
-│   │   │   │   │   ├── opportunity_enumerator/  # 机会枚举器
-│   │   │   │   │   ├── price_factor_simulator/  # 价格因子模拟器
-│   │   │   │   │   └── capital_allocation_simulator/  # 资金分配模拟器
-│   │   │   │   ├── models/   # 策略模型（Opportunity, StrategySettings）
-│   │   │   │   └── helper/   # 辅助工具（采样、统计等）
-│   │   │   ├── data_manager/ # 数据管理器（Facade + Service 架构）
-│   │   │   │   ├── data_services/  # 数据服务层
-│   │   │   │   │   ├── stock/     # 股票服务（List, Kline, Tag, Finance）
-│   │   │   │   │   ├── macro/    # 宏观经济服务
-│   │   │   │   │   └── calendar/ # 交易日历服务
-│   │   │   │   └── base_tables/  # 基础表 Models（私有）
-│   │   │   ├── data_source/  # 数据源管理（Handler + Provider 架构）
-│   │   │   │   ├── handlers/ # 数据获取处理器
-│   │   │   │   └── providers/ # 第三方数据源（Tushare, AKShare等）
-│   │   │   ├── tag/          # 标签系统（Scenario + Tag 架构）
-│   │   │   │   └── core/     # 标签核心（TagManager, BaseTagWorker）
-│   │   │   └── indicator/   # 技术指标计算（基于 pandas-ta-classic）
-│   │   └── infra/            # 基础设施
-│   │       ├── db/           # 数据库管理（连接池、ORM、Schema）
-│   │       └── worker/       # 多进程/多线程工具
-│   ├── userspace/            # 用户策略空间
-│   │   └── strategies/       # 策略实现
-│   │       ├── example/     # 示例策略
-│   │       └── ...          # 其他策略
-│   └── analyzer_legacy/      # 传统分析框架（兼容，逐步迁移）
-│       └── strategy/        # 传统策略实现
+├── core/                      # 核心模块
+│   ├── modules/              # 业务模块
+│   │   ├── strategy/         # 策略框架
+│   │   │   ├── components/
+│   │   │   │   ├── opportunity_enumerator/  # 机会枚举器
+│   │   │   │   ├── price_factor_simulator/  # 价格因子模拟器
+│   │   │   │   └── capital_allocation_simulator/  # 资金分配模拟器
+│   │   │   ├── models/       # 策略模型（Opportunity, StrategySettings）
+│   │   │   └── helper/       # 辅助工具（采样、统计等）
+│   │   ├── data_manager/     # 数据管理器（Facade + Service 架构）
+│   │   │   ├── data_services/  # 数据服务层
+│   │   │   │   ├── stock/     # 股票服务（List, Kline, Tag, Finance）
+│   │   │   │   ├── macro/    # 宏观经济服务
+│   │   │   │   └── calendar/ # 交易日历服务
+│   │   │   └── base_tables/  # 基础表 Models（私有）
+│   │   ├── data_source/      # 数据源管理（Handler + Provider 架构）
+│   │   │   ├── handlers/     # 数据获取处理器
+│   │   │   └── providers/   # 第三方数据源（Tushare, AKShare等）
+│   │   ├── tag/              # 标签系统（Scenario + Tag 架构）
+│   │   │   └── core/         # 标签核心（TagManager, BaseTagWorker）
+│   │   └── indicator/        # 技术指标计算（基于 pandas-ta-classic）
+│   ├── infra/                # 基础设施
+│   │   ├── db/               # 数据库管理（连接池、ORM、Schema）
+│   │   ├── worker/            # 多进程/多线程工具
+│   │   └── project_context/  # 项目管理（路径、文件、配置管理）
+│   └── conf/                  # 配置加载模块
+├── userspace/                 # 用户策略空间
+│   ├── strategies/           # 策略实现
+│   │   ├── example/          # 示例策略
+│   │   └── ...              # 其他策略
+│   ├── tags/                 # 标签场景
+│   └── adapters/             # 适配器
 ├── utils/                     # 通用工具
-│   ├── db/                   # 数据库工具（已迁移到 core/infra/db）
-│   ├── worker/               # Worker 工具（已迁移到 core/infra/worker）
-│   ├── date/                 # 日期工具
-│   ├── progress/              # 进度追踪
-│   └── icon/                 # 图标服务
-├── config/                    # 配置文件
-│   └── database/            # 数据库配置
+│   ├── util.py              # 配置合并工具
+│   └── warning_suppressor.py # 警告抑制
+├── core/
+│   ├── utils/               # 通用工具
+│   └── config/              # 用户配置文件（JSON，可编辑）
+│       └── database/        # 数据库配置
 ├── tools/                     # 辅助工具
 ├── fed/                       # 前端界面 (React)
 ├── bff/                       # 后端API (Flask)
@@ -72,7 +72,10 @@ stocks-py/
 ### 1. 环境要求
 
 - Python 3.9+
-- MySQL 5.7+ / MariaDB
+- 数据库（三选一）：
+  - PostgreSQL 12+（推荐，支持多进程并发读）
+  - MySQL 5.7+ / MariaDB 10.3+
+  - SQLite 3.26+（开发/测试环境）
 - 8GB+ RAM (推荐)
 
 ### 2. 安装依赖
@@ -94,7 +97,143 @@ pip install -r requirements.txt
 
 ### 3. 配置数据库
 
-编辑 `config/app_config.json`:
+创建 `core/config/database/db_config.json`（或复制 `db_config.example.json`）:
+```json
+{
+    "database_type": "postgresql",
+    "postgresql": {
+        "host": "localhost",
+        "port": 5432,
+        "database": "stocks_py",
+        "user": "postgres",
+        "password": "your_password"
+    },
+    "batch_write": {
+        "enable": true,
+        "batch_size": 1000,
+        "flush_interval": 5.0
+    }
+}
+```
+
+**支持的数据库类型**：
+- `postgresql`: PostgreSQL（推荐，支持多进程并发读）
+- `mysql`: MySQL/MariaDB
+- `sqlite`: SQLite（开发/测试环境）
+
+**旧配置格式（自动兼容）**：
+```json
+{
+    "db_path": "data/stocks.db"  # 自动识别为 SQLite
+}
+```
+或
+```json
+{
+    "host": "localhost",
+    "database": "stocks_py",
+    "user": "root",
+    "password": "password",
+    "port": 3306  # 3306=MySQL, 5432=PostgreSQL
+}
+```
+
+**注意**：如果使用 PostgreSQL，需要先安装并启动 PostgreSQL 服务。
+
+### 4. 初始化数据库
+
+```bash
+# 使用 PostgreSQL（推荐）
+python3 -c "from core.infra.db import DatabaseManager; db = DatabaseManager(); db.initialize(); print('✅ 数据库初始化完成')"
+
+# 或使用 MySQL
+# 或使用 SQLite（自动创建文件）
+```
+
+### 5. 运行应用
+
+```bash
+python3 start.py
+```
+
+---
+
+## 数据库配置详解
+
+### PostgreSQL 配置（推荐）
+
+```json
+{
+    "database_type": "postgresql",
+    "postgresql": {
+        "host": "localhost",
+        "port": 5432,
+        "database": "stocks_py",
+        "user": "postgres",
+        "password": "your_password",
+        "pool_size": 10
+    }
+}
+```
+
+**优势**：
+- ✅ 支持多进程并发读（解决单文件数据库的并发限制）
+- ✅ 性能优秀，适合生产环境
+- ✅ 功能丰富（JSON、全文搜索等）
+
+### MySQL 配置
+
+```json
+{
+    "database_type": "mysql",
+    "mysql": {
+        "host": "localhost",
+        "port": 3306,
+        "database": "stocks_py",
+        "user": "root",
+        "password": "your_password",
+        "charset": "utf8mb4"
+    }
+}
+```
+
+### SQLite 配置（开发/测试）
+
+```json
+{
+    "database_type": "sqlite",
+    "sqlite": {
+        "db_path": "data/stocks.db",
+        "timeout": 5.0
+    }
+}
+```
+
+**注意**：SQLite 不支持多进程并发写，适合单进程开发环境。
+
+---
+
+## 旧版配置兼容
+
+如果你有旧的配置文件（`config/database/db_conf.json`），系统会自动识别并转换：
+
+- `db_path` → 自动识别为 SQLite
+- `host` + `database` → 根据端口自动识别（3306=MySQL, 5432=PostgreSQL）
+
+---
+
+## 数据库迁移
+
+如果从旧数据库迁移数据，请参考：
+- `tools/migrate_duckdb_to_postgresql.py` - 数据迁移脚本（支持从 DuckDB 迁移到 PostgreSQL）
+- `tools/verify_migration_data.py` - 数据验证脚本
+- `POSTGRESQL_MIGRATION_CHECKLIST.md` - 迁移清单和进度
+
+---
+
+## 快速开始（旧版配置）
+
+编辑 `core/config/system.json` 或 `userspace/config/system.json`:
 ```json
 {
     "database": {
@@ -112,7 +251,7 @@ pip install -r requirements.txt
 #### Tushare配置
 ```bash
 # 创建token文件
-echo "your_tushare_token" > app/core/modules/data_source/providers/tushare/auth/token.txt
+echo "your_tushare_token" > core/modules/data_source/providers/tushare/auth_token.txt
 ```
 
 ### 5. 运行策略回测
@@ -357,14 +496,14 @@ def should_take_profit(...) -> Tuple[bool, Dict]:
 
 1. **创建策略目录**
 ```bash
-mkdir app/userspace/strategies/MyStrategy
-cd app/userspace/strategies/MyStrategy
+mkdir -p userspace/strategies/MyStrategy
+cd userspace/strategies/MyStrategy
 ```
 
 2. **实现策略类**
 ```python
 # MyStrategy.py
-from app.core.modules.analyzer.components.base_strategy import BaseStrategy
+from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 
 class MyStrategy(BaseStrategy):
     def __init__(self):
@@ -443,7 +582,7 @@ present_extra_session_report(session_summary, settings)
 
 ## Core Modules 核心模块
 
-框架的核心功能由 `app/core/modules/` 下的模块提供，采用模块化设计，职责清晰。
+框架的核心功能由 `core/modules/` 下的模块提供，采用模块化设计，职责清晰。
 
 ### 1. DataManager - 数据管理器
 
@@ -476,7 +615,7 @@ DataManager (Facade)
 
 **使用示例**:
 ```python
-from app.core.modules.data_manager import DataManager
+from core.modules.data_manager import DataManager
 
 data_mgr = DataManager(is_verbose=False)
 
@@ -531,7 +670,7 @@ provider (第三方数据源)
 
 **使用示例**:
 ```python
-from app.core.modules.data_source import DataSourceManager
+from core.modules.data_source import DataSourceManager
 
 dsm = DataSourceManager()
 
@@ -587,7 +726,7 @@ tag_scenario (业务场景层)
 
 **使用示例**:
 ```python
-from app.core.modules.tag import TagManager
+from core.modules.tag import TagManager
 
 tag_mgr = TagManager()
 
@@ -617,7 +756,7 @@ tag_mgr.run_scenario('market_value')
 
 **使用示例**:
 ```python
-from app.core.modules.indicator import IndicatorService
+from core.modules.indicator import IndicatorService
 
 # 便捷 API（常用指标）
 ma20 = IndicatorService.ma(klines, length=20)
@@ -689,7 +828,7 @@ Results (回测结果: JSON文件)
 
 ## Infrastructure 基础设施
 
-框架的基础设施由 `app/core/infra/` 提供，包括数据库管理和 Worker 系统。
+框架的基础设施由 `core/infra/` 提供，包括数据库管理和 Worker 系统。
 
 ### 1. Database - 数据库管理
 
@@ -708,7 +847,7 @@ Results (回测结果: JSON文件)
 
 **使用示例**:
 ```python
-from app.core.infra.db.db_base_model import DbBaseModel
+from core.infra.db.db_base_model import DbBaseModel
 
 class MyModel(DbBaseModel):
     table_name = "my_table"
@@ -734,7 +873,7 @@ class MyModel(DbBaseModel):
 
 **使用示例**:
 ```python
-from app.core.infra.worker.multi_process import ProcessWorker
+from core.infra.worker.multi_process import ProcessWorker
 
 def job_executor(payload):
     # 处理单个任务
@@ -756,18 +895,18 @@ results = worker.get_results()
 
 ```bash
 # 枚举结果
-cd app/userspace/strategies/example/results/opportunity_enums/sot/
+cd userspace/strategies/example/results/opportunity_enums/pool/
 ls -lt | head  # 查看最新版本
 
 # 价格因子模拟结果
-cd app/userspace/strategies/example/results/simulations/price_factor/
-cat 1_20260112_161317/0_session_summary.json
+cd userspace/strategies/example/results/simulations/price_factor/
+cat 1/0_session_summary.json
 
 # 资金分配模拟结果
-cd app/userspace/strategies/example/results/capital_allocation/
-cat 1_20260112_161317/summary_strategy.json
-cat 1_20260112_161317/trades.json  # 交易记录
-cat 1_20260112_161317/portfolio_timeseries.json  # 权益曲线
+cd userspace/strategies/example/results/capital_allocation/
+cat 1/summary_strategy.json
+cat 1/trades.json  # 交易记录
+cat 1/portfolio_timeseries.json  # 权益曲线
 ```
 
 ### 结果指标
@@ -799,8 +938,8 @@ cat 1_20260112_161317/portfolio_timeseries.json  # 权益曲线
 ### 使用技术指标
 
 ```python
-from app.core.modules.indicator import IndicatorService
-from app.core.modules.data_manager import DataManager
+from core.modules.indicator import IndicatorService
+from core.modules.data_manager import DataManager
 
 data_mgr = DataManager()
 
@@ -817,8 +956,8 @@ if rsi[-1] < 30 and klines[-1]['close'] > ma20[-1]:
 ### 使用标签系统
 
 ```python
-from app.core.modules.tag import TagManager
-from app.core.modules.data_manager import DataManager
+from core.modules.tag import TagManager
+from core.modules.data_manager import DataManager
 
 # 执行标签计算
 tag_mgr = TagManager()
@@ -845,7 +984,7 @@ tags = data_mgr.service.stock.tag.get_tags(
 ### 创建自定义标签场景
 
 ```python
-from app.core.modules.tag import BaseTagWorker
+from core.modules.tag import BaseTagWorker
 
 class MyTagWorker(BaseTagWorker):
     def calculate_tag(self, entity_id, date):
@@ -998,14 +1137,15 @@ style: 代码格式调整
 ## 相关资源
 
 ### 文档
-- [DataManager 架构文档](app/core/modules/data_manager/ARCHITECTURE.md)
-- [DataSource 设计文档](app/core/modules/data_source/docs/DESIGN.md)
-- [Strategy 框架设计](app/core/modules/strategy/docs/DESIGN.md)
-- [Tag 系统设计](app/core/modules/tag/docs/DESIGN.md)
-- [数据库模块文档](app/core/infra/db/README.md)
+- [DataManager 架构文档](core/modules/data_manager/ARCHITECTURE.md)
+- [DataSource 设计文档](core/modules/data_source/docs/DESIGN.md)
+- [Strategy 框架设计](core/modules/strategy/docs/DESIGN.md)
+- [Tag 系统设计](core/modules/tag/docs/DESIGN.md)
+- [数据库模块文档](core/infra/db/README.md)
+- [Project Management Module 设计](core/infra/project_context/DESIGN.md)
 
 ### 示例策略
-- [Example 策略](app/userspace/strategies/example/) - 完整的策略示例，包含配置和文档
+- [Example 策略](userspace/strategies/example/) - 完整的策略示例，包含配置和文档
 
 ### 工具脚本
 - `tools/` - 辅助工具脚本

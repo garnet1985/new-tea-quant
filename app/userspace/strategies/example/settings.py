@@ -102,6 +102,20 @@ settings = {
 
         # 枚举器专用 worker 数量（"auto" 或具体数字）
         "max_workers": "auto",
+
+        # 是否输出详细 worker/scheduler 决策日志
+        "is_verbose": True,
+        
+        # Memory-aware batch scheduler 配置（全部支持 "auto" 自动计算）
+        # 内存预算（MB），"auto" 表示自动计算（系统可用内存的 70%）
+        "memory_budget_mb": "auto",
+        # 初始批次大小，"auto" 表示根据任务总数自动计算
+        "warmup_batch_size": "auto",
+        # 最小/最大批次大小，"auto" 表示根据任务总数自动计算
+        "min_batch_size": "auto",
+        "max_batch_size": "auto",
+        # 每多少个 batch 输出一次监控日志
+        "monitor_interval": 5,
     },
 
     # ========================================

@@ -22,7 +22,13 @@ logger = logging.getLogger(__name__)
 
 
 class OpportunityEnumeratorWorker:
-    """枚举器 Worker（子进程）"""
+    """枚举器 Worker（子进程，带 DataManager / DB 访问）
+
+    说明：
+    - 这个 Worker 是最完整的版本，支持从 DB 加载历史数据、required_entities 等。
+    - 在 DuckDB 单进程文件锁的前提下，我们仅在「单进程 / 单线程」模式下使用它。
+    - 对于纯计算多进程场景，请使用 ComputeOnlyOpportunityEnumeratorWorker。
+    """
     
     def __init__(self, job_payload: Dict[str, Any]):
         """
@@ -166,31 +172,92 @@ class OpportunityEnumeratorWorker:
             lookback_days = min(self.settings.min_required_records, 60)
             actual_start_date = self._get_date_before(self.start_date, lookback_days)
             
-            # 2. 加载全量历史数据
-            self.profiler.start_timer('load_data')
-            
-            # 包装数据加载以统计 IO
-            # 注意：load_historical_data 内部会执行数据库查询：
-            # 1. load_qfq: 1 次查询（使用 JOIN 优化，一次查询出 K 线和复权因子）
-            # 2. required_entities: 每个实体 1 次查询（如果有配置）
-            # 对于 example 策略（没有 required_entities），总共 1 次查询
+            # 2. 加载全量历史数据（支持批量预加载的 K 线）
+            #
+            # 说明：
+            # - 如果 payload 中包含 `_preloaded_klines`，说明主进程已经按 batch
+            #   一次性把这一批股票的 K 线查好了，这里直接复用，避免再次对 DB
+            #   做「一股一查」。
+            # - 否则，回退到原来的 per-stock `load_historical_data` 逻辑。
             import time as time_module
-            db_query_start = time_module.perf_counter()
-            self.data_manager.load_historical_data(
-                start_date=actual_start_date,
-                end_date=self.end_date
-            )
-            db_query_time = time_module.perf_counter() - db_query_start
-            
-            # 计算实际查询次数：1（K线 JOIN 查询）+ required_entities 数量
-            # 注意：load_qfq 已优化为单次 JOIN 查询，不再是 3 次
-            required_entities_count = len(self.settings.required_entities) if hasattr(self.settings, 'required_entities') else 0
-            estimated_queries = 1 + required_entities_count  # 1 次 K 线查询 + N 次实体查询
-            avg_query_time = db_query_time / estimated_queries if estimated_queries > 0 else 0
-            for _ in range(estimated_queries):
-                self.profiler.record_db_query(avg_query_time)
-            
-            self.profiler.metrics.time_load_data = self.profiler.end_timer('load_data')
+            self.profiler.start_timer('load_data')
+
+            if '_preloaded_klines' in self.job_payload:
+                # ===================== 预加载模式 =====================
+                preloaded_klines = self.job_payload['_preloaded_klines']
+
+                # 1) 注入 K 线数据
+                self.data_manager._current_data['klines'] = preloaded_klines
+
+                # 2) 计算技术指标（仅基于 K 线，一次性完成）
+                self.data_manager._apply_indicators()
+
+                # 3) 加载其他依赖数据（财务、Tag、宏观等，仍然按股票各查一次）
+                required_entities_count = (
+                    len(self.settings.required_entities)
+                    if hasattr(self.settings, 'required_entities') else 0
+                )
+
+                if required_entities_count > 0:
+                    entity_query_start = time_module.perf_counter()
+                    for entity_config in self.settings.required_entities:
+                        entity_type = (
+                            entity_config.get('type')
+                            if isinstance(entity_config, dict) else entity_config
+                        )
+                        data = self.data_manager._load_entity(
+                            entity_config,
+                            actual_start_date,
+                            self.end_date,
+                        )
+                        self.data_manager._current_data[entity_type] = data
+                    entity_query_time = time_module.perf_counter() - entity_query_start
+
+                    # 这些查询仍然是 per-stock 的，这里按「每个实体一次查询」记账
+                    avg_entity_query_time = (
+                        entity_query_time / required_entities_count
+                        if required_entities_count > 0 else 0
+                    )
+                    for _ in range(required_entities_count):
+                        self.profiler.record_db_query(avg_entity_query_time)
+
+                # 4) 初始化游标状态
+                self.data_manager._init_cursor_state()
+
+                self.profiler.metrics.time_load_data = self.profiler.end_timer('load_data')
+
+                logger.debug(
+                    "使用预加载K线数据: stock=%s, klines=%d",
+                    self.stock_id,
+                    len(preloaded_klines),
+                )
+
+            else:
+                # ===================== 传统 per-stock 查询模式 =====================
+                # 包装数据加载以统计 IO
+                # 注意：load_historical_data 内部会执行数据库查询：
+                # 1. load_qfq: 1 次查询（使用 JOIN 优化，一次查询出 K 线和复权因子）
+                # 2. required_entities: 每个实体 1 次查询（如果有配置）
+                db_query_start = time_module.perf_counter()
+                self.data_manager.load_historical_data(
+                    start_date=actual_start_date,
+                    end_date=self.end_date
+                )
+                db_query_time = time_module.perf_counter() - db_query_start
+
+                # 计算实际查询次数：1（K线 JOIN 查询）+ required_entities 数量
+                required_entities_count = (
+                    len(self.settings.required_entities)
+                    if hasattr(self.settings, 'required_entities') else 0
+                )
+                estimated_queries = 1 + required_entities_count  # 1 次 K 线查询 + N 次实体查询
+                avg_query_time = (
+                    db_query_time / estimated_queries if estimated_queries > 0 else 0
+                )
+                for _ in range(estimated_queries):
+                    self.profiler.record_db_query(avg_query_time)
+
+                self.profiler.metrics.time_load_data = self.profiler.end_timer('load_data')
             
             # 3. 获取 K 线数据
             all_klines = self.data_manager.get_klines()
@@ -309,6 +376,452 @@ class OpportunityEnumeratorWorker:
                 'opportunity_count': 0,
                 'error': str(e)
             }
+
+
+class ComputeOnlyOpportunityEnumeratorWorker:
+    """
+    纯计算版枚举 Worker（多进程安全）
+
+    特点：
+    - 不访问 DB，不依赖 DataManager/DatabaseManager
+    - 只依赖 payload 中预加载的内存数据（klines + settings + output_dir）
+    - 适合在「主进程已按 batch 从 DuckDB 拉好数据」的前提下进行多进程并行计算
+    """
+
+    def __init__(self, job_payload: Dict[str, Any]):
+        """
+        Args:
+            job_payload: {
+                'stock_id': str,
+                'strategy_name': str,
+                'settings': dict,           # StrategySettings dict
+                'klines': List[Dict[str, Any]],
+                'start_date': str,
+                'end_date': str,
+                'output_dir': str,
+            }
+        """
+        self.job_payload = job_payload
+
+        # 基本信息
+        self.stock_id = job_payload['stock_id']
+        self.strategy_name = job_payload['strategy_name']
+        self.start_date = job_payload['start_date']
+        self.end_date = job_payload['end_date']
+        self.klines: List[Dict[str, Any]] = job_payload.get('klines') or []
+
+        # 性能分析器
+        self.profiler = PerformanceProfiler(self.stock_id)
+
+        # 配置
+        from app.core.modules.strategy.models.strategy_settings import StrategySettings
+        self.settings = StrategySettings.from_dict(job_payload['settings'])
+
+        # 股票元信息（最小字段集）
+        self.stock_info = {
+            "id": self.stock_id,
+            "name": self.stock_id,
+            "industry": "",
+            "type": "",
+            "exchange_center": "",
+        }
+
+        # Worker 级数据存储（仅内存，不访问 DB）
+        self._current_data: Dict[str, Any] = {
+            "klines": self.klines,
+        }
+        # 游标状态：与 StrategyWorkerDataManager 的设计一致
+        self._cursor_state: Dict[str, Dict[str, Any]] = {}
+
+        # Opportunity ID 计数器
+        self.opportunity_counter = 0
+
+        # 策略实例（延迟创建，避免触发 BaseStrategyWorker 的 DataManager 初始化）
+        self.strategy_instance = None
+        self._strategy_class = None
+        self._strategy_module_path = f"app.userspace.strategies.{self.strategy_name}.strategy_worker"
+
+    # -------- 策略与指标相关辅助 --------
+
+    def _get_strategy_instance(self):
+        """
+        延迟创建策略实例（仅在需要时创建）
+        
+        注意：BaseStrategyWorker.__init__ 会初始化 DataManager，这在多进程环境下
+        会导致 DuckDB 文件锁冲突。
+        
+        解决方案：创建一个最小包装器，直接调用策略类的 scan_opportunity 方法，
+        而不通过 BaseStrategyWorker.__init__ 创建完整实例。
+        """
+        if self.strategy_instance is not None:
+            return self.strategy_instance
+        
+        import importlib
+        import inspect
+        from app.core.modules.strategy.base_strategy_worker import BaseStrategyWorker
+
+        try:
+            if self._strategy_class is None:
+                module = importlib.import_module(self._strategy_module_path)
+
+                # 尝试多种类名查找方式
+                strategy_class = None
+
+                # 1. 尝试查找 'StrategyWorker'
+                if hasattr(module, 'StrategyWorker'):
+                    strategy_class = getattr(module, 'StrategyWorker')
+                else:
+                    # 2. 尝试查找 '{StrategyName}StrategyWorker'
+                    strategy_name_capitalized = self.strategy_name.capitalize()
+                    class_name = f"{strategy_name_capitalized}StrategyWorker"
+                    if hasattr(module, class_name):
+                        strategy_class = getattr(module, class_name)
+
+                # 3. 如果还找不到，查找所有继承自 BaseStrategyWorker 的类
+                if strategy_class is None:
+                    for name, obj in inspect.getmembers(module):
+                        if (
+                            inspect.isclass(obj)
+                            and issubclass(obj, BaseStrategyWorker)
+                            and obj is not BaseStrategyWorker
+                        ):
+                            strategy_class = obj
+                            break
+
+                if strategy_class is None:
+                    raise ValueError(f"找不到策略类: {self._strategy_module_path}")
+                
+                self._strategy_class = strategy_class
+
+            # 创建最小包装器：不通过 BaseStrategyWorker.__init__，避免触发 DataManager 初始化
+            # 使用 object.__new__ 创建实例，然后手动设置必要属性
+            class ComputeOnlyStrategyWrapper:
+                """最小策略包装器，避免触发 BaseStrategyWorker 的 DataManager 初始化"""
+                def __init__(self, strategy_class, stock_info, stock_id, strategy_name, settings_dict):
+                    # 直接创建实例，跳过 BaseStrategyWorker.__init__
+                    # 这样不会触发 DataManager 初始化，避免 DuckDB 文件锁冲突
+                    self._strategy_instance = object.__new__(strategy_class)
+                    # 设置策略实例需要的最小属性（scan_opportunity 方法可能需要的）
+                    self._strategy_instance.stock_info = stock_info
+                    self._strategy_instance.stock_id = stock_id
+                    self._strategy_instance.strategy_name = strategy_name
+                    self._strategy_instance.job_payload = {
+                        'stock_id': stock_id,
+                        'strategy_name': strategy_name,
+                        'settings': settings_dict,
+                    }
+                    # 注意：不设置 data_mgr 和 data_manager，因为 compute-only 模式下不需要
+                    # 如果策略的 scan_opportunity 方法需要这些，说明策略设计有问题
+                
+                def scan_opportunity(self, data: Dict[str, Any], settings: Dict[str, Any]):
+                    """代理到真实策略实例的 scan_opportunity 方法"""
+                    return self._strategy_instance.scan_opportunity(data, settings)
+            
+            # 创建包装器实例
+            self.strategy_instance = ComputeOnlyStrategyWrapper(
+                strategy_class=self._strategy_class,
+                stock_info=self.stock_info,
+                stock_id=self.stock_id,
+                strategy_name=self.strategy_name,
+                settings_dict=self.settings.to_dict(),
+            )
+
+        except Exception as e:
+            logger.error(f"加载策略失败: {self.strategy_name}, error={e}")
+            raise
+        
+        return self.strategy_instance
+
+    def _apply_indicators(self) -> None:
+        """
+        根据 settings.data.indicators 使用 IndicatorService 计算指标，
+        并将结果直接写回到 K 线字典中。
+        """
+        from app.core.modules.indicator import IndicatorService
+
+        indicators_cfg = getattr(self.settings, "indicators", None)
+        klines = self._current_data.get("klines") or []
+
+        if not indicators_cfg or not klines:
+            return
+
+        for name, configs in indicators_cfg.items():
+            if not configs:
+                continue
+            if not isinstance(configs, list):
+                configs = [configs]
+
+            for cfg in configs:
+                try:
+                    if name.lower() == "ma":
+                        length = cfg.get("period") or cfg.get("length")
+                        if not length:
+                            continue
+                        values = IndicatorService.ma(klines, length=int(length))
+                        if not values:
+                            continue
+                        field = f"ma{length}"
+                        for rec, val in zip(klines, values):
+                            rec[field] = val
+
+                    elif name.lower() == "ema":
+                        length = cfg.get("period") or cfg.get("length")
+                        if not length:
+                            continue
+                        values = IndicatorService.ema(klines, length=int(length))
+                        if not values:
+                            continue
+                        field = f"ema{length}"
+                        for rec, val in zip(klines, values):
+                            rec[field] = val
+
+                    elif name.lower() == "rsi":
+                        length = cfg.get("period") or cfg.get("length")
+                        if not length:
+                            continue
+                        values = IndicatorService.rsi(klines, length=int(length))
+                        if not values:
+                            continue
+                        field = f"rsi{length}"
+                        for rec, val in zip(klines, values):
+                            rec[field] = val
+
+                    elif name.lower() == "macd":
+                        fast = cfg.get("fast", 12)
+                        slow = cfg.get("slow", 26)
+                        signal = cfg.get("signal", 9)
+                        result = IndicatorService.macd(
+                            klines, fast=int(fast), slow=int(slow), signal=int(signal)
+                        )
+                        if not result:
+                            continue
+                        for key, series in result.items():
+                            for rec, val in zip(klines, series):
+                                rec[key] = val
+                    else:
+                        result = IndicatorService.calculate(name, klines, **cfg)
+                        if not result:
+                            continue
+                        if isinstance(result, list):
+                            field = self._build_indicator_field_name(name, cfg)
+                            for rec, val in zip(klines, result):
+                                rec[field] = val
+                        elif isinstance(result, dict):
+                            for key, series in result.items():
+                                field = self._build_indicator_field_name(
+                                    f"{name}_{key}", cfg
+                                )
+                                for rec, val in zip(klines, series):
+                                    rec[field] = val
+                except Exception as e:
+                    logger.error(
+                        "计算指标失败: stock=%s, indicator=%s, params=%s, error=%s",
+                        self.stock_id,
+                        name,
+                        cfg,
+                        e,
+                    )
+
+    def _build_indicator_field_name(self, name: str, params: Dict[str, Any]) -> str:
+        name = name.lower()
+        period = params.get("period") or params.get("length")
+        if period is not None and isinstance(period, (int, float, str)):
+            return f"{name}{int(period)}"
+        parts = [name]
+        for k in sorted(params.keys()):
+            v = params[k]
+            if isinstance(v, (int, float, str)):
+                parts.append(f"{k}{v}")
+        return "_".join(parts)
+
+    # -------- 游标机制（仅内存版） --------
+
+    def _init_cursor_state(self):
+        self._cursor_state = {}
+        if "klines" in self._current_data:
+            self._cursor_state["klines"] = {"cursor": -1, "acc": []}
+
+    def _advance_cursor_until(
+        self,
+        data_list: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        date_of_today: str,
+        date_field: str = "date",
+    ):
+        cursor = state["cursor"]
+        acc = state["acc"]
+
+        i = cursor + 1
+        n = len(data_list)
+
+        while i < n:
+            record = data_list[i]
+            record_date = record.get(date_field)
+
+            if not record_date or record_date > date_of_today:
+                break
+
+            acc.append(record)
+            i += 1
+
+        state["cursor"] = i - 1
+
+    def get_data_until(self, date_of_today: str) -> Dict[str, Any]:
+        """
+        内存版游标：仅支持 klines
+        """
+        result: Dict[str, Any] = {}
+
+        klines_state = self._cursor_state.get("klines")
+        if klines_state:
+            self._advance_cursor_until(
+                data_list=self._current_data["klines"],
+                state=klines_state,
+                date_of_today=date_of_today,
+                date_field="date",
+            )
+            result["klines"] = klines_state["acc"]
+
+        return result
+
+    # -------- 主执行逻辑（纯计算，多进程安全） --------
+
+    def run(self) -> Dict[str, Any]:
+        """
+        入口：不触碰 DB，只使用 payload 中的内存数据
+        """
+        self.profiler.start_timer("total")
+        try:
+            # 1. 计算实际开始日期（只影响 lookback 逻辑）
+            lookback_days = min(self.settings.min_required_records, 60)
+            actual_start_date = self._get_date_before(self.start_date, lookback_days)
+
+            # 2. load_data：应用指标 + 初始化游标
+            import time as time_module
+
+            self.profiler.start_timer("load_data")
+            t0 = time_module.perf_counter()
+
+            self._apply_indicators()
+            self._init_cursor_state()
+
+            _ = time_module.perf_counter() - t0  # 当前先不单独记录指标计算时间
+            self.profiler.metrics.time_load_data = self.profiler.end_timer("load_data")
+
+            all_klines = self._current_data.get("klines") or []
+            if not all_klines:
+                logger.warning("没有K线数据: stock=%s", self.stock_id)
+                return {
+                    "success": True,
+                    "stock_id": self.stock_id,
+                    "opportunity_count": 0,
+                    "performance_metrics": self.profiler.finalize().to_dict(),
+                }
+
+            min_required_kline = self.settings.min_required_records
+            if len(all_klines) < min_required_kline:
+                logger.warning(
+                    "股票数据不足: stock=%s, total_klines=%d, min_required=%d",
+                    self.stock_id,
+                    len(all_klines),
+                    min_required_kline,
+                )
+                metrics = self.profiler.finalize()
+                return {
+                    "success": True,
+                    "stock_id": self.stock_id,
+                    "opportunity_count": 0,
+                    "performance_metrics": metrics.to_dict(),
+                }
+
+            # 3. 逐日枚举
+            tracker = {
+                "stock_id": self.stock_id,
+                "passed_dates": [],
+                "active_opportunities": [],
+                "all_opportunities": [],
+            }
+
+            self.profiler.start_timer("enumerate")
+            last_kline = None
+            for current_kline in all_klines:
+                virtual_date_of_today = current_kline["date"]
+                tracker["passed_dates"].append(virtual_date_of_today)
+
+                if len(tracker["passed_dates"]) < min_required_kline:
+                    continue
+
+                data_of_today = self.get_data_until(virtual_date_of_today)
+                self._enumerate_single_day(tracker, current_kline, data_of_today)
+                last_kline = current_kline
+            self.profiler.metrics.time_enumerate = self.profiler.end_timer("enumerate")
+
+            # 4. 收尾：强制平仓所有未结机会
+            if tracker["active_opportunities"] and last_kline:
+                self._close_all_open_opportunities(tracker, last_kline)
+
+            # 5. 序列化 + 写 CSV
+            self.profiler.start_timer("serialize")
+            opportunities_dict = [
+                opp.to_dict() for opp in tracker["all_opportunities"]
+            ]
+            self.profiler.metrics.time_serialize = self.profiler.end_timer("serialize")
+
+            opportunity_count = len(opportunities_dict)
+
+            output_dir = self.job_payload.get("output_dir")
+            if output_dir and opportunity_count > 0:
+                self.profiler.start_timer("save_csv")
+                self._save_stock_results(output_dir, opportunities_dict)
+                self.profiler.metrics.time_save_csv = self.profiler.end_timer(
+                    "save_csv"
+                )
+
+            self.profiler.metrics.kline_count = len(all_klines)
+            self.profiler.metrics.opportunity_count = opportunity_count
+            self.profiler.metrics.target_count = sum(
+                len(opp.get("completed_targets", []) or [])
+                for opp in opportunities_dict
+            )
+
+            self.profiler.metrics.time_total = self.profiler.end_timer("total")
+            metrics = self.profiler.finalize()
+
+            logger.info(
+                "⏱[MP] 枚举性能[stock=%s]: load=%.1fms, enum=%.1fms, serialize=%.1fms, "
+                "save=%.1fms, total=%.1fms, days=%d, opps=%d, file_writes=%d, memory_peak=%.1fMB",
+                self.stock_id,
+                metrics.time_load_data * 1000.0,
+                metrics.time_enumerate * 1000.0,
+                metrics.time_serialize * 1000.0,
+                metrics.time_save_csv * 1000.0,
+                metrics.time_total * 1000.0,
+                len(all_klines),
+                opportunity_count,
+                metrics.file_writes,
+                metrics.memory_peak,
+            )
+
+            return {
+                "success": True,
+                "stock_id": self.stock_id,
+                "opportunity_count": opportunity_count,
+                "performance_metrics": metrics.to_dict(),
+            }
+
+        except Exception as e:
+            logger.error(
+                "枚举失败(多进程计算): stock_id=%s, error=%s",
+                self.stock_id,
+                e,
+                exc_info=True,
+            )
+            return {
+                "success": False,
+                "stock_id": self.stock_id,
+                "opportunity_count": 0,
+                "error": str(e),
+            }
     
     def _enumerate_single_day(
         self,
@@ -402,8 +915,11 @@ class OpportunityEnumeratorWorker:
         Returns:
             Opportunity or None
         """
+        # 延迟创建策略实例（仅在第一次调用时）
+        if self.strategy_instance is None:
+            self._get_strategy_instance()
+        
         # 直接调用用户实现的扫描方法，传入数据字典和配置
-        # 避免临时设置 data_manager._current_data，防止 IO 操作
         settings_dict = self.settings.to_dict() if hasattr(self.settings, 'to_dict') else self.settings
         return self.strategy_instance.scan_opportunity(data, settings_dict)
     

@@ -72,7 +72,10 @@ stocks-py/
 ### 1. 环境要求
 
 - Python 3.9+
-- MySQL 5.7+ / MariaDB
+- 数据库（三选一）：
+  - PostgreSQL 12+（推荐，支持多进程并发读）
+  - MySQL 5.7+ / MariaDB 10.3+
+  - SQLite 3.26+（开发/测试环境）
 - 8GB+ RAM (推荐)
 
 ### 2. 安装依赖
@@ -93,6 +96,142 @@ pip install -r requirements.txt
 ```
 
 ### 3. 配置数据库
+
+创建 `config/database/db_config.json`（或复制 `db_config.example.json`）:
+```json
+{
+    "database_type": "postgresql",
+    "postgresql": {
+        "host": "localhost",
+        "port": 5432,
+        "database": "stocks_py",
+        "user": "postgres",
+        "password": "your_password"
+    },
+    "batch_write": {
+        "enable": true,
+        "batch_size": 1000,
+        "flush_interval": 5.0
+    }
+}
+```
+
+**支持的数据库类型**：
+- `postgresql`: PostgreSQL（推荐，支持多进程并发读）
+- `mysql`: MySQL/MariaDB
+- `sqlite`: SQLite（开发/测试环境）
+
+**旧配置格式（自动兼容）**：
+```json
+{
+    "db_path": "data/stocks.db"  # 自动识别为 SQLite
+}
+```
+或
+```json
+{
+    "host": "localhost",
+    "database": "stocks_py",
+    "user": "root",
+    "password": "password",
+    "port": 3306  # 3306=MySQL, 5432=PostgreSQL
+}
+```
+
+**注意**：如果使用 PostgreSQL，需要先安装并启动 PostgreSQL 服务。
+
+### 4. 初始化数据库
+
+```bash
+# 使用 PostgreSQL（推荐）
+python3 -c "from app.core.infra.db import DatabaseManager; db = DatabaseManager(); db.initialize(); print('✅ 数据库初始化完成')"
+
+# 或使用 MySQL
+# 或使用 SQLite（自动创建文件）
+```
+
+### 5. 运行应用
+
+```bash
+python3 start.py
+```
+
+---
+
+## 数据库配置详解
+
+### PostgreSQL 配置（推荐）
+
+```json
+{
+    "database_type": "postgresql",
+    "postgresql": {
+        "host": "localhost",
+        "port": 5432,
+        "database": "stocks_py",
+        "user": "postgres",
+        "password": "your_password",
+        "pool_size": 10
+    }
+}
+```
+
+**优势**：
+- ✅ 支持多进程并发读（解决单文件数据库的并发限制）
+- ✅ 性能优秀，适合生产环境
+- ✅ 功能丰富（JSON、全文搜索等）
+
+### MySQL 配置
+
+```json
+{
+    "database_type": "mysql",
+    "mysql": {
+        "host": "localhost",
+        "port": 3306,
+        "database": "stocks_py",
+        "user": "root",
+        "password": "your_password",
+        "charset": "utf8mb4"
+    }
+}
+```
+
+### SQLite 配置（开发/测试）
+
+```json
+{
+    "database_type": "sqlite",
+    "sqlite": {
+        "db_path": "data/stocks.db",
+        "timeout": 5.0
+    }
+}
+```
+
+**注意**：SQLite 不支持多进程并发写，适合单进程开发环境。
+
+---
+
+## 旧版配置兼容
+
+如果你有旧的配置文件（`config/database/db_conf.json`），系统会自动识别并转换：
+
+- `db_path` → 自动识别为 SQLite
+- `host` + `database` → 根据端口自动识别（3306=MySQL, 5432=PostgreSQL）
+
+---
+
+## 数据库迁移
+
+如果从旧数据库迁移数据，请参考：
+- `tools/migrate_duckdb_to_postgresql.py` - 数据迁移脚本（支持从 DuckDB 迁移到 PostgreSQL）
+- `tools/verify_migration_data.py` - 数据验证脚本
+- `POSTGRESQL_MIGRATION_CHECKLIST.md` - 迁移清单和进度
+
+---
+
+## 快速开始（旧版配置）
 
 编辑 `config/app_config.json`:
 ```json

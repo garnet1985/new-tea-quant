@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 
 from app.core.modules.strategy.models.opportunity import Opportunity
+from app.core.infra.project_context import PathManager
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,8 @@ class ScanCacheManager:
     
     def __post_init__(self):
         """初始化缓存目录"""
-        self.cache_base_dir = Path(
-            f"app/userspace/strategies/{self.strategy_name}/scan_cache"
+        self.cache_base_dir = (
+            PathManager.strategy(strategy_name=self.strategy_name) / "scan_cache"
         )
         self.cache_base_dir.mkdir(parents=True, exist_ok=True)
     

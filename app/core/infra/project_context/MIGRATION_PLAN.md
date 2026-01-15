@@ -1,6 +1,6 @@
-# Path Management Module - 迁移计划
+# Project Management Module - 迁移计划
 
-本文档包含从现有代码迁移到 Path Management Module 的详细计划和待办事项。
+本文档包含从现有代码迁移到 Project Management Module 的详细计划和待办事项。
 
 ## 📋 迁移目标
 
@@ -11,23 +11,27 @@
 
 ## ✅ 阶段 1：创建模块（不破坏现有代码）
 
-- [ ] 创建 `core/infra/path/` 目录结构
-- [ ] 实现 `PathManager`（项目根目录检测和路径方法）
-- [ ] 实现 `FileManager`（文件查找、读取等操作）
-- [ ] 实现 `ConfigManager`（配置加载和合并）
-- [ ] 实现 `ProjectContextManager`（Facade）
+- [x] 创建 `core/infra/path/` 目录结构
+- [x] 实现 `PathManager`（项目根目录检测和路径方法）
+- [x] 实现 `FileManager`（文件查找、读取等操作）
+- [x] 实现 `ConfigManager`（配置加载和合并）
+- [x] 实现 `ProjectContextManager`（Facade）
 - [ ] 编写单元测试
-- [ ] 更新 `__init__.py` 导出
+- [x] 更新 `__init__.py` 导出
+
+**状态**：✅ **基本完成**（单元测试待后续补充）
 
 ## ✅ 阶段 2：逐步替换硬编码路径
 
+**状态**：✅ **已完成**
+
 ### 2.1 替换策略相关路径
 
-- [ ] 查找所有 `app/userspace/strategies/...` 硬编码路径
-- [ ] 替换为 `PathManager.strategy(...)` 或 `PathManager.strategy_settings(...)`
-- [ ] 替换 `app/core/modules/strategy/...` → `PathManager.core() / "modules" / "strategy" / ...`
-- [ ] 测试策略发现功能
-- [ ] 测试策略配置加载
+- [x] 查找所有 `app/userspace/strategies/...` 硬编码路径
+- [x] 替换为 `PathManager.strategy(...)` 或 `PathManager.strategy_settings(...)`
+- [x] 替换 `app/core/modules/strategy/...` → `PathManager.core() / "modules" / "strategy" / ...`
+- [x] 测试策略发现功能
+- [x] 测试策略配置加载
 
 **涉及文件**：
 - `app/core/modules/strategy/helper/strategy_discovery_helper.py`
@@ -38,9 +42,9 @@
 
 ### 2.2 替换标签相关路径
 
-- [ ] 查找所有 `app/userspace/tags/...` 硬编码路径
-- [ ] 替换为 `PathManager.tag_scenario(...)`
-- [ ] 测试标签发现功能
+- [x] 查找所有 `app/userspace/tags/...` 硬编码路径
+- [x] 替换为 `PathManager.tag_scenario(...)` 或 `get_scenarios_root()`
+- [x] 测试标签发现功能
 
 **涉及文件**：
 - `app/core/modules/tag/core/config.py`
@@ -48,33 +52,46 @@
 
 ### 2.3 替换数据源相关路径
 
-- [ ] 查找所有数据源配置路径硬编码
-- [ ] 替换为 `PathManager` 方法
-- [ ] 测试数据源配置加载
+- [x] 查找所有数据源配置路径硬编码
+- [x] 替换为 `PathManager` 方法
+- [x] 测试数据源配置加载
 
 **涉及文件**：
 - `app/core/modules/data_source/data_source_manager.py`
 
 ### 2.4 替换 FileUtil 调用
 
-- [ ] 查找所有 `FileUtil` 的调用
-- [ ] 替换为 `FileManager` 对应方法
-- [ ] 测试文件查找功能
-- [ ] 测试文件读取功能
+- [x] 查找所有 `FileUtil` 的调用
+- [x] 替换为 `FileManager` 对应方法
+- [x] 测试文件查找功能
+- [x] 测试文件读取功能
 
 **涉及文件**：
-- 所有使用 `FileUtil` 的文件（需要全局搜索）
+- `app/core/modules/tag/core/components/helper/tag_helper.py` ✅
+- `app/core/modules/data_manager/data_manager.py` ✅
+
+**剩余文件**（仅导出，不影响功能）：
+- `app/core/utils/file/__init__.py` - 仅导出，待后续删除
 
 ## ✅ 阶段 3：统一配置加载
 
-- [ ] 查找所有手动加载和合并配置的代码
-- [ ] 替换为 `ConfigManager.load_with_defaults`
-- [ ] 测试配置合并逻辑
-- [ ] 验证深度合并和完全覆盖功能
+**状态**：✅ **基本完成**
+
+- [x] 查找所有手动加载和合并配置的代码
+- [x] 替换为 `ConfigManager.load_with_defaults` 或 `ConfigManager.load_json`
+- [x] 测试配置合并逻辑
+- [x] 验证深度合并和完全覆盖功能
 
 **涉及文件**：
-- `app/core/modules/data_source/data_source_manager.py`（`_load_mapping` 方法）
-- 其他手动加载配置的文件
+- `app/core/modules/data_source/data_source_manager.py`（`_load_mapping` 方法）✅
+  - 已使用 `ConfigManager.load_json` 加载配置
+  - 已使用 `merge_mapping_configs` 进行深度合并
+  - 保留了兼容旧路径的逻辑
+
+**其他文件说明**：
+- `app/core/conf/db_conf.py` - 数据库配置加载，包含复杂的格式转换逻辑，暂不替换
+- `app/core/infra/db/db_config_manager.py` - 数据库配置管理器，暂不替换
+- 其他 JSON 加载多为数据文件（非配置文件），不在替换范围内
 
 ## ✅ 阶段 4：目录结构迁移
 

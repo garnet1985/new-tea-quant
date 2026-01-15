@@ -259,7 +259,7 @@ class DataManager:
                 model = model_class()  # 创建实例
         """
         from app.core.infra.db import DbBaseModel
-        from app.core.utils.file.file_util import FileUtil
+        from app.core.infra.project_context import FileManager
         
         try:
             table_folder = Path(table_folder_path)
@@ -278,16 +278,14 @@ class DataManager:
                 return None
             
             # 2. 查找 model.py
-            model_file = FileUtil.find_file_in_folder(
+            model_file_path = FileManager.find_file(
                 "model.py",
-                str(table_folder),
-                is_recursively=False
+                table_folder,
+                recursive=False
             )
-            if not model_file:
+            if not model_file_path:
                 logger.error(f"❌ 表文件夹中未找到 model.py: {table_folder_path}")
                 return None
-            
-            model_file_path = Path(model_file)
             
             # 3. 从文件路径加载模块
             try:

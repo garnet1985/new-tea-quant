@@ -1,5 +1,5 @@
 ########################
-# Core Python artifacts
+# Python
 ########################
 
 __pycache__/
@@ -7,29 +7,18 @@ __pycache__/
 *$py.class
 
 ########################
-# Local environments
+# Virtual Environment
 ########################
 
-.env
 .venv
-env/
 venv/
+env/
 ENV/
 env.bak/
 venv.bak/
 
 ########################
-# Project-specific dirs
-########################
-
-backup/
-tmp/
-temp/
-tools/
-logs/
-
-########################
-# Database & large data
+# Database Files
 ########################
 
 *.db
@@ -38,17 +27,29 @@ logs/
 *.duckdb
 *.duckdb.wal
 
-# Database configuration (real config, keep example files)
-config/database/db_config.py
+########################
+# Database Configuration (sensitive)
+########################
+
 config/database/db_config.json
 config/database/db_conf.json
+config/database/pg_config.json
 
-# Data cache / downloads
+########################
+# Data & Cache
+########################
+
 data/cache/
 data/downloads/*.xlsx
 
 ########################
-# Node / frontend
+# Strategy Results
+########################
+
+userspace/strategies/**/results/
+
+########################
+# Node / Frontend
 ########################
 
 node_modules/
@@ -56,12 +57,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Local service/frontends
-bff/
-fed/
-
 ########################
-# IDE / OS noise
+# IDE / Editor
 ########################
 
 .vscode/
@@ -69,21 +66,37 @@ fed/
 *.swp
 *.swo
 *~
+.cursor/
+
+########################
+# OS Files
+########################
+
 .DS_Store
 .DS_Store?
 ._*
-.cursor
 
 ########################
-# Auth / secrets
+# Environment & Secrets
 ########################
 
-config.ini
-secrets.json
+.env
 .env.local
 .env.production
-app/**/auth_token.txt
-app/**/token.txt
+config.ini
+secrets.json
 
-# User strategy results (enumerator, simulator outputs)
-app/userspace/strategies/**/results/
+# Auth tokens
+**/auth_token.txt
+**/token.txt
+
+########################
+# Temporary & Backup
+########################
+
+tmp/
+temp/
+backup/
+backup_before_migration/
+*.log
+logs/

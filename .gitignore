@@ -103,3 +103,4 @@ backup_before_migration/
 *.log
 logs/
 core/ui/
+tools/

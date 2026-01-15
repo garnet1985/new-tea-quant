@@ -1,6 +1,8 @@
 """
 数据库配置加载器
 
+⚠️ DEPRECATED: 本模块已废弃，请使用 core.config.loaders.db_conf 替代
+
 从 config/database/db_config.json 加载配置
 """
 import os

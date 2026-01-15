@@ -29,16 +29,16 @@ from loguru import logger
 import asyncio
 
 # 在导入其他模块之前设置警告抑制
-from utils.warning_suppressor import setup_warning_suppression
+from core.utils.warning_suppressor import setup_warning_suppression
 setup_warning_suppression()
 
-from app.core.modules.data_manager import DataManager
-from app.core.modules.data_source.data_source_manager import DataSourceManager
-# from app.core.modules.analyzer_legacy.analyzer import Analyzer  # 暂时注释，测试枚举器
-from app.core.modules.tag import TagManager
-from app.core.utils.icon.icon_service import IconService
-from app.core.modules.strategy.components import PriceFactorSimulator
-from app.core.modules.strategy.components.simulator.capital_allocation import CapitalAllocationSimulator
+from core.modules.data_manager import DataManager
+from core.modules.data_source.data_source_manager import DataSourceManager
+# from core.modules.analyzer_legacy.analyzer import Analyzer  # 暂时注释，测试枚举器
+from core.modules.tag import TagManager
+from core.utils.icon.icon_service import IconService
+from core.modules.strategy.components import PriceFactorSimulator
+from core.modules.strategy.components.simulator.capital_allocation import CapitalAllocationSimulator
 
 
 # 添加项目根目录到Python路径
@@ -156,12 +156,12 @@ class App:
             strategy_name: 策略名称
             stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
         """
-        from app.core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
-        from app.core.modules.strategy.models.strategy_settings import StrategySettings
-        from app.core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
+        from core.modules.strategy.models.strategy_settings import StrategySettings
+        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
         
         # 1. 加载策略配置
-        from app.core.modules.strategy.strategy_manager import StrategyManager
+        from core.modules.strategy.strategy_manager import StrategyManager
         strategy_manager = StrategyManager()
         strategy_info = strategy_manager.strategy_cache.get(strategy_name)
         if not strategy_info:
@@ -171,7 +171,7 @@ class App:
         settings = StrategySettings.from_dict(strategy_info['settings'])
         
         # 2. 获取枚举器设置
-        from app.core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
+        from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
         enum_settings = OpportunityEnumeratorSettings.from_base(settings)
         use_sampling = enum_settings.use_sampling
         max_workers = enum_settings.max_workers
@@ -211,7 +211,7 @@ class App:
         
         # 如果 start_date 为空，使用默认开始日期
         if not start_date:
-            from app.core.utils.date.date_utils import DateUtils
+            from core.utils.date.date_utils import DateUtils
             start_date = DateUtils.DEFAULT_START_DATE
         
         end_date = settings.end_date or latest_date

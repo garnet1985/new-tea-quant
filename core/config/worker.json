@@ -1,0 +1,33 @@
+{
+  "module_task_config": {
+    "OpportunityEnumerator": {
+      "task_type": "MIXED",
+      "reserve_cores": 2,
+      "description": "机会枚举器 - 既有数据库查询（I/O），也有指标计算和止盈止损判断（CPU）"
+    },
+    "TagManager": {
+      "task_type": "IO_INTENSIVE",
+      "reserve_cores": 1,
+      "description": "标签管理器 - 主要是数据库查询和写入（I/O）"
+    },
+    "Simulator": {
+      "task_type": "MIXED",
+      "reserve_cores": 2,
+      "description": "策略模拟器 - 既有数据查询（I/O），也有止盈止损计算（CPU）"
+    },
+    "Scanner": {
+      "task_type": "IO_INTENSIVE",
+      "reserve_cores": 1,
+      "description": "策略扫描器 - 主要是数据查询（I/O）和简单判断"
+    },
+    "DataSourceHandler": {
+      "task_type": "IO_INTENSIVE",
+      "reserve_cores": 1,
+      "description": "数据源处理器 - 网络请求、数据库写入（I/O）"
+    }
+  },
+  "default_task_config": {
+    "task_type": "MIXED",
+    "reserve_cores": 2
+  }
+}

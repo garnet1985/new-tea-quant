@@ -233,7 +233,7 @@ python3 start.py
 
 ## 快速开始（旧版配置）
 
-编辑 `config/app_config.json`:
+编辑 `core/config/system.json` 或 `userspace/config/system.json`:
 ```json
 {
     "database": {

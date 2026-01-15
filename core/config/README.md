@@ -10,7 +10,6 @@ core/config/              # 统一配置目录
 │   └── README.md              # 数据库配置说明
 ├── system.json         # 系统配置（JSON）
 ├── worker.json         # Worker 配置（JSON）
-├── app_config.json     # 应用配置说明
 └── loaders/            # 配置加载器（Python）
     ├── db_conf.py      # 数据库配置加载器
     ├── system_conf.py   # 系统配置加载器

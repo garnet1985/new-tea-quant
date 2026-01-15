@@ -103,11 +103,63 @@ class OpportunityEnumeratorWorker:
             lookback_days = min(self.settings.min_required_records, 60)
             actual_start_date = self._get_date_before(self.start_date, lookback_days)
             
-            # 2. 加载全量历史数据
-            self.data_manager.load_historical_data(
-                start_date=actual_start_date,
-                end_date=self.end_date
-            )
+            # 2. 加载全量历史数据（优先使用预加载的数据）
+            import time as time_module
+            
+            # 初始化 profiler 计时
+            self.profiler.start_timer('load_data')
+            
+            if '_preloaded_klines' in self.job_payload:
+                # 使用预加载的K线数据（批量查询优化）
+                # 注意：K线数据已经在主进程批量查询完成，这里不再记录为 db_query
+                preloaded_klines = self.job_payload['_preloaded_klines']
+                self.data_manager._current_data['klines'] = preloaded_klines
+                
+                # 计算技术指标（基于预加载的K线）
+                self.data_manager._apply_indicators()
+                
+                # 加载其他依赖数据（财务、tag等，仍然按股票查询）
+                # 这些查询需要单独记录
+                required_entities_count = len(self.settings.required_entities) if hasattr(self.settings, 'required_entities') else 0
+                
+                if required_entities_count > 0:
+                    # 记录其他实体的查询时间
+                    entity_query_start = time_module.perf_counter()
+                    for entity_config in self.settings.required_entities:
+                        entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
+                        data = self.data_manager._load_entity(entity_config, actual_start_date, self.end_date)
+                        self.data_manager._current_data[entity_type] = data
+                    entity_query_time = time_module.perf_counter() - entity_query_start
+                    
+                    # 记录其他实体的查询（每个实体 1 次查询）
+                    avg_entity_query_time = entity_query_time / required_entities_count if required_entities_count > 0 else 0
+                    for _ in range(required_entities_count):
+                        self.profiler.record_db_query(avg_entity_query_time)
+                else:
+                    # 没有其他实体，不记录任何 db_query（K线已批量查询）
+                    pass
+                
+                # 初始化游标状态
+                self.data_manager._init_cursor_state()
+                
+                logger.debug(f"使用预加载数据: stock={self.stock_id}, klines={len(preloaded_klines)}")
+            else:
+                # 回退到原来的单股票查询方式
+                db_query_start = time_module.perf_counter()
+                self.data_manager.load_historical_data(
+                    start_date=actual_start_date,
+                    end_date=self.end_date
+                )
+                db_query_time = time_module.perf_counter() - db_query_start
+                
+                # 计算实际查询次数：1（K线 JOIN 查询）+ required_entities 数量
+                required_entities_count = len(self.settings.required_entities) if hasattr(self.settings, 'required_entities') else 0
+                estimated_queries = 1 + required_entities_count  # 1 次 K 线查询 + N 次实体查询
+                avg_query_time = db_query_time / estimated_queries if estimated_queries > 0 else 0
+                for _ in range(estimated_queries):
+                    self.profiler.record_db_query(avg_query_time)
+            
+            self.profiler.metrics.time_load_data = self.profiler.end_timer('load_data')
             
             # 3. 获取 K 线数据
             all_klines = self.data_manager.get_klines()

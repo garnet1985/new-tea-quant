@@ -15,6 +15,8 @@ from pathlib import Path
 import json
 import logging
 
+from app.core.infra.project_context import PathManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +33,7 @@ class OpportunityService:
         self.strategy_name = strategy_name
         
         # 结果文件夹路径
-        self.base_path = Path(f"app/userspace/strategies/{strategy_name}/results")
+        self.base_path = PathManager.strategy_results(strategy_name)
         self.scan_path = self.base_path / "scan"
         self.simulate_path = self.base_path / "simulate"
         

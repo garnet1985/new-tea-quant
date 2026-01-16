@@ -654,9 +654,7 @@ class KlineService(BaseDataService):
         Returns:
             YYYYMMDD 格式的日期字符串，如果输入为 None 则返回 None
         """
-        if not date_str:
-            return None
-        return date_str.replace('-', '') if '-' in str(date_str) else str(date_str)
+        return DateUtils.normalize_date(date_str)
     
     @staticmethod
     def _apply_qfq_prices(kline: Dict[str, Any], qfq_diff: float) -> None:

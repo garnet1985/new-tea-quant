@@ -24,14 +24,14 @@ class EastMoneyProvider(BaseProvider):
     注意：
     - 东方财富 API 主要用于获取前复权K线数据，用于计算复权因子
     - 直接使用 HTTP 请求，无需认证
-    - 限流：60次/分钟（根据 legacy 配置）
+    - 限流：60次/分钟
     """
     
     provider_name = "eastmoney"
     requires_auth = False
     auth_type = None
     
-    # 根据 legacy 配置：60次/分钟
+    # API 限流：60次/分钟
     api_limits = {
         "get_qfq_kline": 60,  # 前复权K线数据（用于计算复权因子）
     }

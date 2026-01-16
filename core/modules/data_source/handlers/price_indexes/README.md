@@ -184,7 +184,7 @@ Handler 会根据数据库最新日期和当前月份的时间间隔，决定更
 ## 使用示例
 
 ```python
-from app.core.modules.data_source.data_source_manager import DataSourceManager
+from core.modules.data_source.data_source_manager import DataSourceManager
 
 # 初始化
 ds_manager = DataSourceManager()

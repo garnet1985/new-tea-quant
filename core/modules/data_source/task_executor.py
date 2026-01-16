@@ -170,7 +170,7 @@ class TaskExecutor:
         
         流程：
         1. 根据 task 数量决定线程数（最多10个）
-        2. 使用 FuturesWorker 并行执行 tasks
+        2. 使用 MultiThreadWorker 并行执行 tasks
         3. 每个 task 内部执行其所有 ApiJobs（处理依赖关系）
         4. 显示进度信息
         5. 返回结果 {task_id: {job_id: result}}
@@ -233,7 +233,7 @@ class TaskExecutor:
             return {task.task_id: task_result}
         
         # 多个 tasks，使用多线程执行
-        from core.infra.worker.multi_thread.futures_worker import FuturesWorker, ExecutionMode
+        from core.infra.worker.multi_thread.futures_worker import MultiThreadWorker, ExecutionMode
         import threading
         
         # 初始化进度计数器
@@ -242,7 +242,7 @@ class TaskExecutor:
         total_tasks = len(tasks)
         
         # 创建多线程工作器
-        worker = FuturesWorker(
+        worker = MultiThreadWorker(
             max_workers=workers,
             execution_mode=ExecutionMode.PARALLEL,
             enable_monitoring=True,
@@ -256,7 +256,7 @@ class TaskExecutor:
         
         # 定义任务执行器（带进度显示和钩子调用）
         def task_executor(task: DataSourceTask) -> Dict[str, Any]:
-            """执行单个 Task（同步函数，用于 FuturesWorker）"""
+            """执行单个 Task（同步函数，用于 MultiThreadWorker）"""
             import asyncio
             
             # 辅助函数：在事件循环中执行异步函数

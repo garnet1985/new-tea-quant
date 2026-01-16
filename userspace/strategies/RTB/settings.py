@@ -1,5 +1,5 @@
 from core.global_enums.enums import KlineTerm, AdjustType
-from core.config.loaders.system_conf import data_default_start_date
+from core.infra.project_context import ConfigManager
 
 # ML增强版本设置 - 基于机器学习验证的重要参数
 settings = {
@@ -133,7 +133,7 @@ settings = {
 
     # 模拟配置
     "simulation": {
-        "start_date": data_default_start_date,
+        "start_date": ConfigManager.get_default_start_date(),
         "end_date": "",
         "sampling_amount": 100,  # ML分析使用500股票样本
         "record_summary": True,

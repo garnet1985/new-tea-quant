@@ -512,18 +512,11 @@ class TagDataService(BaseDataService):
         Returns:
             str: 下一个交易日（YYYYMMDD 格式）
         
-        注意：此方法应该委托给 CalendarService，当前为简单实现
+        注意：此方法应该委托给 CalendarService，当前为简单实现（自然日+1）
         """
         # TODO: 委托给 CalendarService.get_next_trading_date() 实现
-        # 当前使用简单逻辑：日期 + 1 天
-        try:
-            from datetime import datetime, timedelta
-            date_obj = datetime.strptime(date, '%Y%m%d')
-            next_date = date_obj + timedelta(days=1)
-            return next_date.strftime('%Y%m%d')
-        except Exception as e:
-            logger.warning(f"获取下一个交易日失败: {e}, 使用原日期: {date}")
-            return date
+        # 当前使用简单逻辑：自然日 + 1 天
+        return DateUtils.get_next_date(date)
     
     # ==================== 私有辅助方法 ====================
     
@@ -649,13 +642,11 @@ class TagDataService(BaseDataService):
         
         try:
             if isinstance(date_value, str):
-                # 如果是 YYYY-MM-DD 格式，转换为 YYYYMMDD
-                if '-' in date_value:
-                    return DateUtils.yyyy_mm_dd_to_yyyymmdd(date_value)
-                return date_value
+                # 使用 DateUtils.normalize_date 处理字符串
+                return DateUtils.normalize_date(date_value)
             else:
                 # 如果是 date/datetime 对象，转换为字符串
-                return date_value.strftime('%Y%m%d')
+                return DateUtils.format_to_yyyymmdd(date_value)
         except Exception as e:
             logger.warning(f"日期格式转换失败: {date_value}, error={e}")
             return None

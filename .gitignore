@@ -45,6 +45,7 @@ userspace/config/**/*.json
 
 data/cache/
 data/downloads/*.xlsx
+.pytest_cache/
 
 ########################
 # Strategy Results

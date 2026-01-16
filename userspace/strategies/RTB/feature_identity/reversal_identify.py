@@ -24,7 +24,7 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 
 from core.modules.analyzer.analyzer_service import AnalyzerService
-from core.config.loaders.system_conf import data_default_start_date
+from core.infra.project_context import ConfigManager
 
 
 def identify_major_reversals(stock_id: str = "000001.SZ", 
@@ -45,7 +45,7 @@ def identify_major_reversals(stock_id: str = "000001.SZ",
     
     # 设置默认日期
     if start_date is None:
-        start_date = data_default_start_date
+        start_date = ConfigManager.get_default_start_date()
     if end_date is None:
         end_date = "20241231"
     

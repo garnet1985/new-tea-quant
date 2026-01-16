@@ -393,7 +393,7 @@ class KlineHandler(BaseDataSourceHandler):
                             continue
                     elif term == "monthly":
                         # 月线：只有当时间间隔 >= 1 个月时才更新
-                        # 使用更准确的月份计算方法（参考 legacy 的 time_gap_by）
+                        # 使用更准确的月份计算方法
                         from datetime import datetime
                         latest_dt = DateUtils.parse_yyyymmdd(latest_date)
                         end_dt = DateUtils.parse_yyyymmdd(end_date)
@@ -786,10 +786,6 @@ class KlineHandler(BaseDataSourceHandler):
         
         if total_saved > 0:
             logger.info(f"✅ K 线数据保存完成，共 {len(stock_data_map)} 只股票，{total_saved} 条记录（包含所有周期）")
-            
-            # 等待批量写入完成（确保数据已写入数据库）
-            if self.data_manager and self.data_manager.db:
-                self.data_manager.db.wait_for_writes(timeout=30.0)
         else:
             logger.warning(f"⚠️ K 线数据没有可保存的记录")
     
@@ -937,12 +933,12 @@ class KlineHandler(BaseDataSourceHandler):
     
     def _map_kline_fields(self, df: pd.DataFrame, stock_id: str) -> pd.DataFrame:
         """
-        映射 K 线字段（根据 legacy config）
+        映射 K 线字段
         """
         if df.empty:
             return pd.DataFrame()
         
-        # 字段映射（根据 legacy config）
+        # 字段映射
         mapping = {
             'ts_code': 'id',
             'trade_date': 'date',
@@ -981,12 +977,12 @@ class KlineHandler(BaseDataSourceHandler):
     
     def _map_basic_fields(self, df: pd.DataFrame, stock_id: str) -> pd.DataFrame:
         """
-        映射 daily_basic 字段（根据 legacy config）
+        映射 daily_basic 字段
         """
         if df.empty:
             return pd.DataFrame()
         
-        # 字段映射（根据 legacy config）
+        # 字段映射
         mapping = {
             'ts_code': 'id',
             'trade_date': 'date',

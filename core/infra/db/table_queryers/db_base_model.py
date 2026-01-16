@@ -46,178 +46,17 @@ from loguru import logger
 import json
 import os
 
+from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.table_queryers.query_helpers import TimeSeriesHelper, DataFrameHelper, SchemaFormatter
+from core.infra.db.table_queryers.services.batch_operation import BatchOperation
 
 
-class DBService:
-    """数据库操作辅助工具类（纯静态方法）"""
-    
-    @staticmethod
-    def to_columns_and_values(data_list: List[Dict[str, Any]]) -> tuple:
-        """
-        将数据列表转换为插入语句的列名和占位符
-        
-        Args:
-            data_list: 数据字典列表
-            
-        Returns:
-            (columns, placeholders): 列名列表和占位符字符串
-            
-        Example:
-            columns, placeholders = DBService.to_columns_and_values([
-                {'id': '001', 'name': 'test'}
-            ])
-            # columns = ['id', 'name']
-            # placeholders = '%s, %s'
-        """
-        if not data_list:
-            return [], ""
-        
-        columns = list(data_list[0].keys())
-        placeholders = ', '.join(['%s'] * len(columns))
-        return columns, placeholders
-    
-    @staticmethod
-    def to_upsert_params(data_list: List[Dict[str, Any]], unique_keys: List[str]) -> tuple:
-        """
-        将数据列表转换为 upsert 语句的参数
-        
-        Args:
-            data_list: 数据字典列表
-            unique_keys: 唯一键列表（用于判断是否已存在）
-            
-        Returns:
-            (columns, values, update_clause): 列名、值列表、UPDATE 子句
-            
-        Example:
-            columns, values, update_clause = DBService.to_upsert_params(
-                [{'id': '001', 'name': 'test', 'price': 10.0}],
-                unique_keys=['id']
-            )
-            # columns = ['id', 'name', 'price']
-            # values = [('001', 'test', 10.0)]
-            # update_clause = 'name = EXCLUDED.name, price = EXCLUDED.price'  # DuckDB 使用 EXCLUDED 而不是 VALUES
-        """
-        if not data_list:
-            return [], [], ""
-        
-        # 使用原始列名（DuckDB 不需要反引号）
-        columns = list(data_list[0].keys())
-        
-        # 检查 unique_keys 是否都在数据列中存在
-        missing_keys = [k for k in unique_keys if k not in columns]
-        if missing_keys:
-            raise ValueError(f"主键字段在数据中缺失: {missing_keys}")
-        
-        # 构建 ON CONFLICT ... DO UPDATE 子句（排除 unique_keys 中的字段）
-        # 适用于 DuckDB / PostgreSQL 风格的 Upsert
-        update_fields = [k for k in columns if k not in unique_keys]
-        update_clause = ', '.join([f"{k} = EXCLUDED.{k}" for k in update_fields]) if update_fields else ''
-        
-        # 构建值列表
-        values = [tuple(data[col] for col in columns) for data in data_list]
-        
-        return columns, values, update_clause
-    
-    @staticmethod
-    def clean_nan_value(value: Any, default: Any = None) -> Any:
-        """
-        清理单个值中的 NaN，转换为 None 或默认值
-        
-        处理各种类型的 NaN：
-        - numpy.nan (float)
-        - pandas.NA
-        - pandas.NaT
-        - None
-        
-        Args:
-            value: 原始值（可能是 NaN）
-            default: 默认值（当值为 NaN 时返回，默认为 None）
-            
-        Returns:
-            清理后的值（NaN -> default，其他值保持原样）
-            
-        Example:
-            DBService.clean_nan_value(float('nan'))  # None
-            DBService.clean_nan_value(None)  # None
-            DBService.clean_nan_value(123.45)  # 123.45
-            DBService.clean_nan_value(float('nan'), default=0.0)  # 0.0
-        """
-        if value is None:
-            return default
-        
-        # 检查是否是 float 类型的 NaN
-        try:
-            if isinstance(value, float) and math.isnan(value):
-                return default
-        except (TypeError, ValueError):
-            pass
-        
-        # 检查是否是 pandas 的 NA 类型
-        try:
-            import pandas as pd
-            if pd.isna(value):
-                return default
-        except (ImportError, AttributeError, TypeError):
-            pass
-        
-        return value
-    
-    @staticmethod
-    def clean_nan_in_dict(data: Dict[str, Any], default: Any = None) -> Dict[str, Any]:
-        """
-        清理字典中所有值的 NaN
-        
-        Args:
-            data: 原始字典
-            default: 默认值（当值为 NaN 时替换为，默认为 None）
-            
-        Returns:
-            清理后的字典
-            
-        Example:
-            data = {'a': 1.0, 'b': float('nan'), 'c': None}
-            cleaned = DBService.clean_nan_in_dict(data, default=0.0)
-            # {'a': 1.0, 'b': 0.0, 'c': 0.0}
-        """
-        if not isinstance(data, dict):
-            return data
-        
-        cleaned = {}
-        for key, value in data.items():
-            cleaned[key] = DBService.clean_nan_value(value, default=default)
-        return cleaned
-    
-    @staticmethod
-    def clean_nan_in_list(data_list: List[Dict[str, Any]], default: Any = None) -> List[Dict[str, Any]]:
-        """
-        清理列表中所有字典的 NaN 值
-        
-        Args:
-            data_list: 字典列表
-            default: 默认值（当值为 NaN 时替换为，默认为 None）
-            
-        Returns:
-            清理后的字典列表
-            
-        Example:
-            data_list = [
-                {'id': '001', 'value': 1.0},
-                {'id': '002', 'value': float('nan')}
-            ]
-            cleaned = DBService.clean_nan_in_list(data_list, default=0.0)
-            # [{'id': '001', 'value': 1.0}, {'id': '002', 'value': 0.0}]
-        """
-        if not isinstance(data_list, list):
-            return data_list
-        
-        return [DBService.clean_nan_in_dict(item, default=default) for item in data_list]
-
-
-class DbBaseModel:
+class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
     """
     通用表操作模型基类
     
-    ⚠️  DEPRECATED: 本类计划废弃，请使用 DataManager 替代
+    所有基础表的 Model 类都继承自此类，提供单表的 CRUD 操作。
+    此类是 core/infra/db 模块的核心组件之一，由 DataManager 和 DataService 内部使用。
     """
     
     def __init__(self, table_name: str, db=None):
@@ -231,7 +70,7 @@ class DbBaseModel:
                 - 如果默认实例不存在，自动创建并初始化（多进程安全）
                 - 如果传入，使用指定实例（测试场景）
         """
-        from .db_manager import DatabaseManager
+        from ..db_manager import DatabaseManager
         
         # 自动获取或使用传入的 db
         self.db = db if db is not None else DatabaseManager.get_default()
@@ -251,23 +90,17 @@ class DbBaseModel:
         
         优先从 app/core/modules/data_manager/base_tables 加载，
         如果不存在则尝试从策略自定义表加载
-        """
-        # 尝试从 base_tables 加载
-        # 从 core/infra/db 向上找到项目根，再定位到 core/modules/data_manager/base_tables
-        current_dir = os.path.dirname(__file__)  # core/infra/db
-        project_root = os.path.dirname(os.path.dirname(current_dir))  # 项目根（从 core/infra/db 向上2层）
-        base_schema_path = os.path.join(
-            project_root,
-            'core', 'modules', 'data_manager', 'base_tables', 
-            self.table_name, 'schema.json'
-        )
         
-        if os.path.exists(base_schema_path):
-            try:
-                with open(base_schema_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Failed to load schema from {base_schema_path}: {e}")
+        使用 SchemaManager 统一加载逻辑
+        """
+        from ..managers.schema_manager import SchemaManager
+        
+        # 使用 SchemaManager 加载 schema
+        schema_manager = SchemaManager()
+        schema = schema_manager.get_table_schema(self.table_name)
+        
+        if schema:
+            return schema
         
         # 如果不存在，可能是策略自定义表（暂不处理）
         logger.warning(f"Schema not found for table {self.table_name}")
@@ -279,9 +112,9 @@ class DbBaseModel:
             logger.error(f"Failed create table: {self.table_name}, because schema is not found")
             return
 
-        # 使用 DbSchemaManager 生成 SQL
-        from .db_schema_manager import DbSchemaManager
-        schema_manager = DbSchemaManager()
+        # 使用 SchemaManager 生成 SQL
+        from core.infra.db.schema_management.schema_manager import SchemaManager
+        schema_manager = SchemaManager(database_type=self.db.config.get('database_type', 'postgresql'))
         
         # 如果有自定义表名，修改 schema
         schema_to_use = self.schema.copy()
@@ -308,6 +141,18 @@ class DbBaseModel:
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(f"DELETE FROM {self.table_name}")
             return cursor.rowcount
+
+    def describe(self, output: bool = True) -> str:
+        """
+        打印表结构和描述
+        
+        Args:
+            output: 是否直接打印到控制台（默认 True）
+            
+        Returns:
+            格式化的表结构描述字符串
+        """
+        return SchemaFormatter.format_table_description(self.schema, self.table_name, output)
 
     # ***********************************
     #        data count & exists operations
@@ -374,7 +219,11 @@ class DbBaseModel:
             'total_pages': (total + page_size - 1) // page_size
         }
     
-    def load_latest_date(self, date_field: str = None) -> Optional[str]:
+    # 时序数据查询方法已通过 TimeSeriesService 提供
+    # load_latest_date, load_latest_records, load_first_records
+    # _get_date_field_from_schema, _get_primary_keys_from_schema
+    
+    def _load_latest_date_legacy(self, date_field: str = None) -> Optional[str]:
         """
         加载表中最新的日期
         
@@ -554,7 +403,6 @@ class DbBaseModel:
         else:
             raise ValueError(f"表 {self.table_name} 的主键格式不正确: {primary_key}，应为字符串或列表")
 
-
     # ***********************************
     #        data delete operations
     # ***********************************
@@ -597,9 +445,61 @@ class DbBaseModel:
     #        data insert & update operations
     # ***********************************
 
-    def insert(self, data_list: List[Dict[str, Any]], unique_keys: List[str] = None) -> int:
+    def _get_insert_batch_size(self) -> int:
+        """从配置中获取 insert_batch_size"""
+        batch_config = self.db.config.get('batch_write', {})
+        advanced_config = batch_config.get('_advanced', {})
+        return advanced_config.get('insert_batch_size', 5000)
+    
+    def insert(self, data_list: List[Dict[str, Any]], unique_keys: List[str] = None, use_batch: bool = False) -> int:
         """
-        批量插入数据（使用批量写入队列，解决并发写入问题）
+        插入数据
+        
+        Args:
+            data_list: 数据列表
+            unique_keys: 唯一键列表（可选）。如果提供，将使用 INSERT ... ON CONFLICT DO NOTHING
+                        如果不提供，使用纯 INSERT（可能重复插入）
+            use_batch: 是否使用批量插入模式（默认 False）
+                      - False: 使用批量写入队列（异步，适合并发场景）
+                      - True: 使用显式批量插入（同步，适合单线程或需要立即返回的场景）
+        
+        Returns:
+            插入的记录数
+        """
+        if not data_list:
+            return 0
+        
+        if use_batch:
+            # 使用显式批量插入
+            return self.batch_insert(data_list, unique_keys)
+        else:
+            # 使用批量写入队列（默认）
+            try:
+                # 定义回调函数（可选，仅用于日志）
+                def write_callback(table_name, count):
+                    if getattr(self.db, 'is_verbose', False):
+                        logger.debug(f"Insert completed for {table_name}: {count} records")
+                
+                # 如果提供了 unique_keys，使用 queue_write（会使用 INSERT ... ON CONFLICT）
+                # 如果没有提供 unique_keys，也使用 queue_write，但需要特殊处理（纯 INSERT）
+                if hasattr(self.db, 'queue_write'):
+                    # 如果没有 unique_keys，使用空列表（queue_write 会处理为纯 INSERT）
+                    keys = unique_keys if unique_keys else []
+                    self.db.queue_write(self.table_name, data_list, keys, write_callback)
+                    return len(data_list)
+                
+                # 兜底方案：直接执行批量插入
+                return self.batch_insert(data_list, unique_keys)
+            except Exception as e:
+                logger.error(f"Failed to insert data into {self.table_name}: {e}")
+                return 0
+    
+    def batch_insert(self, data_list: List[Dict[str, Any]], unique_keys: List[str] = None) -> int:
+        """
+        显式批量插入数据（同步执行）
+        
+        使用批量 VALUES 语法，自动分批处理，避免 SQL 语句过长。
+        适合单线程场景或需要立即返回结果的场景。
         
         Args:
             data_list: 数据列表
@@ -613,60 +513,31 @@ class DbBaseModel:
             return 0
         
         try:
-            # 定义回调函数（可选，仅用于日志）
-            def write_callback(table_name, count):
-                if getattr(self.db, 'is_verbose', False):
-                    logger.debug(f"Insert completed for {table_name}: {count} records")
+            # 准备数据
+            if unique_keys:
+                columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
+            else:
+                columns, _ = DBHelper.to_columns_and_values(data_list)
+                values = [tuple(data[col] for col in columns) for data in data_list]
+                update_clause = None
             
-            # 如果提供了 unique_keys，使用 queue_write（会使用 INSERT ... ON CONFLICT）
-            # 如果没有提供 unique_keys，也使用 queue_write，但需要特殊处理（纯 INSERT）
-            if hasattr(self.db, 'queue_write'):
-                # 如果没有 unique_keys，使用空列表（queue_write 会处理为纯 INSERT）
-                keys = unique_keys if unique_keys else []
-                self.db.queue_write(self.table_name, data_list, keys, write_callback)
-                return len(data_list)
+            if not columns:
+                return 0
             
-            # 兜底方案：直接执行 INSERT（单线程场景或队列未启用）
-            columns, placeholders = DBService.to_columns_and_values(data_list)
-            query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES ({placeholders})"
+            # 获取批量大小配置
+            batch_size = self._get_insert_batch_size()
             
-            # 构建值列表
-            values = [tuple(data[col] for col in columns) for data in data_list]
-            
-            # 使用批量 VALUES 语法（DuckDB 推荐方式）
-            INSERT_BATCH_SIZE = 5000
-            for i in range(0, len(values), INSERT_BATCH_SIZE):
-                batch_values = values[i:i+INSERT_BATCH_SIZE]
-                
-                # 构建批量 VALUES
-                values_list = []
-                for val in batch_values:
-                    formatted_values = []
-                    for v in val:
-                        if v is None:
-                            formatted_values.append('NULL')
-                        elif isinstance(v, str):
-                            escaped = v.replace("'", "''")
-                            formatted_values.append(f"'{escaped}'")
-                        elif isinstance(v, (int, float)):
-                            import math
-                            if isinstance(v, float) and math.isnan(v):
-                                formatted_values.append('NULL')
-                            else:
-                                formatted_values.append(str(v))
-                        elif isinstance(v, bool):
-                            formatted_values.append('TRUE' if v else 'FALSE')
-                        else:
-                            escaped_val = str(v).replace("'", "''")
-                            formatted_values.append(f"'{escaped_val}'")
-                    values_list.append(f"({', '.join(formatted_values)})")
-                
-                batch_query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES {', '.join(values_list)}"
-                
-                with self.db.get_sync_cursor() as cursor:
-                    cursor.execute(batch_query)
-            
-            return len(data_list)
+            # 使用 BatchInsertHelper 执行批量插入
+            with self.db.get_sync_cursor() as cursor:
+                return BatchOperation.execute_batch_insert(
+                    executor=cursor,
+                    table_name=self.table_name,
+                    columns=columns,
+                    values=values,
+                    batch_size=batch_size,
+                    unique_keys=unique_keys if unique_keys else None,
+                    update_clause=update_clause
+                )
         except Exception as e:
             logger.error(f"Failed to batch insert data into {self.table_name}: {e}")
             return 0
@@ -697,82 +568,83 @@ class DbBaseModel:
     # ***********************************
     #        data upsert operations
     # ***********************************
-    def replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
+    def replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str], use_batch: bool = False) -> int:
         """
-        批量插入或更新数据（DuckDB 版本）
+        插入或更新数据（Upsert）
         
-        实现策略：
-        - 统一使用 DatabaseManager.queue_write（内部使用 INSERT ... ON CONFLICT DO UPDATE）
-        - DuckDB 是进程内数据库，同步写入即可，无需复杂的线程安全/重试逻辑
+        Args:
+            data_list: 数据列表
+            unique_keys: 唯一键列表（用于判断是否已存在）
+            use_batch: 是否使用批量插入模式（默认 False）
+                      - False: 使用批量写入队列（异步，适合并发场景）
+                      - True: 使用显式批量插入（同步，适合单线程或需要立即返回的场景）
+        
+        Returns:
+            插入或更新的记录数
+        """
+        if not data_list:
+            return 0
+        
+        if use_batch:
+            # 使用显式批量插入
+            return self.batch_replace(data_list, unique_keys)
+        else:
+            # 使用批量写入队列（默认）
+            try:
+                # 定义回调函数（可选，仅用于日志）
+                def write_callback(table_name, count):
+                    if getattr(self.db, 'is_verbose', False):
+                        logger.info(f"Upsert completed for {table_name}: {count} records")
+                
+                # 交给 DatabaseManager 统一处理（内部使用 INSERT ... ON CONFLICT DO UPDATE）
+                if hasattr(self.db, 'queue_write'):
+                    self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)
+                    return len(data_list)
+                
+                # 兜底方案：直接执行批量插入
+                return self.batch_replace(data_list, unique_keys)
+            except Exception as e:
+                logger.error(f"Failed to upsert data in {self.table_name}: {e}")
+                return 0
+    
+    def batch_replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
+        """
+        显式批量插入或更新数据（同步执行）
+        
+        使用 INSERT ... ON CONFLICT DO UPDATE 语法，自动分批处理，避免 SQL 语句过长。
+        适合单线程场景或需要立即返回结果的场景。
+        
+        Args:
+            data_list: 数据列表
+            unique_keys: 唯一键列表（用于判断是否已存在）
+        
+        Returns:
+            插入或更新的记录数
         """
         if not data_list:
             return 0
         
         try:
-            # 定义回调函数（可选，仅用于日志）
-            def write_callback(table_name, count):
-                if getattr(self.db, 'is_verbose', False):
-                    logger.info(f"Upsert completed for {table_name}: {count} records")
-            
-            # 交给 DatabaseManager 统一处理（内部使用 INSERT ... ON CONFLICT DO UPDATE）
-            if hasattr(self.db, 'queue_write'):
-                self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)
-                return len(data_list)
-            
-            # 兜底方案：使用 INSERT ... ON CONFLICT DO UPDATE（DuckDB 不支持 REPLACE INTO）
+            # 准备数据
             columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
             
             if not columns:
                 return 0
             
-            columns_sql = ', '.join(columns)
-            conflict_cols = ', '.join(unique_keys)
+            # 获取批量大小配置
+            batch_size = self._get_insert_batch_size()
             
-            # 构建批量 VALUES（类似 batch_write_queue 的方式）
-            INSERT_BATCH_SIZE = 5000
-            for i in range(0, len(values), INSERT_BATCH_SIZE):
-                batch_values = values[i:i+INSERT_BATCH_SIZE]
-                
-                # 构建批量插入 SQL
-                values_list = []
-                for val in batch_values:
-                    formatted_values = []
-                    for v in val:
-                        if v is None:
-                            formatted_values.append('NULL')
-                        elif isinstance(v, str):
-                            escaped = v.replace("'", "''")
-                            formatted_values.append(f"'{escaped}'")
-                        elif isinstance(v, (int, float)):
-                            import math
-                            if isinstance(v, float) and math.isnan(v):
-                                formatted_values.append('NULL')
-                            else:
-                                formatted_values.append(str(v))
-                        elif isinstance(v, bool):
-                            formatted_values.append('TRUE' if v else 'FALSE')
-                        else:
-                            escaped_val = str(v).replace("'", "''")
-                            formatted_values.append(f"'{escaped_val}'")
-                    values_list.append(f"({', '.join(formatted_values)})")
-                
-                # 构建 INSERT ... ON CONFLICT 语句
-                if update_clause:
-                    batch_query = (
-                        f"INSERT INTO {self.table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                        f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
-                    )
-                else:
-                    batch_query = (
-                        f"INSERT INTO {self.table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                        f"ON CONFLICT ({conflict_cols}) DO NOTHING"
-                    )
-                
-                with self.db.get_sync_cursor() as cursor:
-                    cursor.execute(batch_query)
-            
-            return len(data_list)
-        
+            # 使用 BatchInsertHelper 执行批量插入
+            with self.db.get_sync_cursor() as cursor:
+                return BatchOperation.execute_batch_insert(
+                    executor=cursor,
+                    table_name=self.table_name,
+                    columns=columns,
+                    values=values,
+                    batch_size=batch_size,
+                    unique_keys=unique_keys,
+                    update_clause=update_clause
+                )
         except Exception as e:
             logger.error(f"Failed to batch upsert data in {self.table_name}: {e}")
             return 0
@@ -786,157 +658,9 @@ class DbBaseModel:
     #        DataFrame Support Methods
     # ***********************************
     
-    def load_many_df(self, condition: str = "1=1", params: tuple = (), 
-                     limit: int = None, order_by: str = None, offset: int = None):
-        """
-        加载多条记录，返回DataFrame
-        
-        适用场景：
-        - 需要数据分析（merge、groupby、rolling等）
-        - 需要批量计算（向量化操作）
-        - 需要处理时间序列
-        - 需要数据清洗和转换
-        
-        Args:
-            condition: 查询条件
-            params: 查询参数
-            limit: 返回记录数限制
-            order_by: 排序字段
-            offset: 偏移量
-            
-        Returns:
-            pd.DataFrame: 查询结果（如果无数据返回空DataFrame）
-            
-        示例：
-            # 加载K线数据
-            df = table.load_many_df(
-                condition="id=%s AND term=%s",
-                params=('000001.SZ', 'daily'),
-                order_by='date'
-            )
-            
-            # 计算移动平均
-            df['ma5'] = df['close'].rolling(5).mean()
-            
-            # 分组聚合
-            stats = df.groupby('id')['close'].agg(['mean', 'std'])
-        """
-        try:
-            import pandas as pd
-        except ImportError:
-            logger.error("pandas未安装，无法使用load_many_df方法")
-            return None
-        
-        records = self.load_many(condition, params, limit, order_by, offset)
-        return pd.DataFrame(records) if records else pd.DataFrame()
-    
-    def load_all_df(self, condition: str = "1=1", params: tuple = (), order_by: str = None):
-        """
-        加载所有记录，返回DataFrame
-        
-        适用场景：需要对整表进行分析时使用
-        
-        Returns:
-            pd.DataFrame: 查询结果
-        """
-        try:
-            import pandas as pd
-        except ImportError:
-            logger.error("pandas未安装，无法使用load_all_df方法")
-            return None
-        
-        records = self.load_all(condition, params, order_by)
-        return pd.DataFrame(records) if records else pd.DataFrame()
-    
-    def insert_df(self, df) -> int:
-        """
-        插入DataFrame数据
-        
-        说明：
-        - 内部转换为list后调用insert方法
-        - 保留所有自定义逻辑（批量插入、错误处理等）
-        - 支持大数据量的批量插入
-        
-        Args:
-            df: pandas DataFrame，列名应与数据库字段名一致
-            
-        Returns:
-            int: 插入的记录数
-            
-        示例：
-            import pandas as pd
-            
-            df = pd.DataFrame({
-                'id': ['000001.SZ', '000002.SZ'],
-                'name': ['平安银行', '万科A'],
-                'date': ['20250930', '20250930']
-            })
-            
-            count = table.insert_df(df)
-        """
-        try:
-            import pandas as pd
-        except ImportError:
-            logger.error("pandas未安装，无法使用insert_df方法")
-            return 0
-        
-        if not isinstance(df, pd.DataFrame):
-            logger.error(f"insert_df expects pandas DataFrame, got {type(df)}")
-            return 0
-        
-        if df.empty:
-            logger.debug("DataFrame is empty, skipping insert")
-            return 0
-        
-        # 转换为dict列表后调用原insert方法
-        data_list = df.to_dict('records')
-        return self.insert(data_list)
-    
-    def replace_df(self, df, unique_keys: List[str]) -> int:
-        """
-        Upsert DataFrame数据（基于主键更新或插入）
-        
-        说明：
-        - 内部转换为list后调用replace方法
-        - 保留所有自定义逻辑（异步队列、线程安全、错误重试等）
-        - 支持大数据量的批量upsert
-        
-        Args:
-            df: pandas DataFrame，列名应与数据库字段名一致
-            unique_keys: 用于判断记录唯一性的字段列表（通常是主键）
-            
-        Returns:
-            int: 影响的记录数
-            
-        示例：
-            # 更新K线数据（如果存在则更新，不存在则插入）
-            df = pd.DataFrame({
-                'id': ['000001.SZ', '000001.SZ'],
-                'term': ['daily', 'daily'],
-                'date': ['20250929', '20250930'],
-                'close': [11.34, 11.40]
-            })
-            
-            count = table.replace_df(df, unique_keys=['id', 'term', 'date'])
-        """
-        try:
-            import pandas as pd
-        except ImportError:
-            logger.error("pandas未安装，无法使用replace_df方法")
-            return 0
-        
-        if not isinstance(df, pd.DataFrame):
-            logger.error(f"replace_df expects pandas DataFrame, got {type(df)}")
-            return 0
-        
-        if df.empty:
-            logger.debug("DataFrame is empty, skipping replace")
-            return 0
-        
-        # 转换为dict列表后调用原replace方法
-        data_list = df.to_dict('records')
-        return self.replace(data_list, unique_keys)
-    
+    # DataFrame 支持方法已通过 DataFrameService 提供
+    # load_many_df, load_all_df, insert_df, replace_df
+
     
     # ***********************************
     #        support raw query operations

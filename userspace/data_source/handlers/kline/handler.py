@@ -27,6 +27,7 @@ from collections import defaultdict
 from core.modules.data_source.data_source_handler import BaseDataSourceHandler
 from core.modules.data_source.api_job import DataSourceTask, ApiJob
 from core.utils.date.date_utils import DateUtils
+from core.modules.data_source.definition.handler_config import KlineHandlerConfig
 
 
 class KlineHandler(BaseDataSourceHandler):
@@ -48,6 +49,7 @@ class KlineHandler(BaseDataSourceHandler):
     description = "获取K线数据（包含 K 线和基本面指标），支持 daily/weekly/monthly 周期"
     dependencies = ["stock_list"]
     requires_date_range = True
+    config_class = KlineHandlerConfig  # 声明使用的 Config 类（用于自动发现）
     
     # 周期映射表
     TERM_MAPPING = {

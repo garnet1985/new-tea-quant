@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from loguru import logger
 
-from core.config.loaders.system_conf import data_default_start_date
+from core.infra.project_context import ConfigManager
 from core.modules.data_source.data_source_handler import BaseDataSourceHandler
 from core.modules.data_source.api_job import DataSourceTask, ApiJob
 from core.utils.date.date_utils import DateUtils
@@ -118,8 +118,8 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
         # （我们以自然日为上界，不再强制截到季度末尾）
         end_date = latest_completed_trading_date
         
-        # 系统的历史起点季度（由 data_default_start_date 决定）
-        base_quarter = DateUtils.date_to_quarter(data_default_start_date)
+        # 系统的历史起点季度（由默认开始日期决定）
+        base_quarter = DateUtils.date_to_quarter(ConfigManager.get_default_start_date())
         
         # 工具函数：将季度转为线性索引，便于计算季度差距
         def quarter_to_index(q_str: str) -> int:
@@ -177,13 +177,13 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
             
             # 第一次跑：对所有股票从系统默认起点全量拉取
             if is_first_run:
-                start_date = data_default_start_date
+                start_date = ConfigManager.get_default_start_date()
             else:
                 last_q = raw_map.get(stock_id)
                 
                 if not last_q:
                     # DB 中没有这只股票：视为新股，从默认起点开始全量拉取
-                    start_date = data_default_start_date
+                    start_date = ConfigManager.get_default_start_date()
                 else:
                     # 下一个应更新的季度
                     next_q = DateUtils.get_next_quarter(last_q)

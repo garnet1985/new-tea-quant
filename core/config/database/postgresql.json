@@ -1,0 +1,12 @@
+{
+  "host": "localhost",
+  "port": 5432,
+  "database": "stocks_py",
+  "user": "postgres",
+  "password": "your_password_here",
+  "_advanced": {
+    "pool_size": 10,
+    "max_connections": 100,
+    "connection_timeout": 60
+  }
+}

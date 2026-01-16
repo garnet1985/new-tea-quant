@@ -124,8 +124,8 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
                 start_date = DateUtils.get_date_after_days(latest_date, 1)
             else:
                 # 无历史记录，使用默认起始日期
-                from core.config.loaders.system_conf import data_default_start_date
-                start_date = data_default_start_date
+                from core.infra.project_context import ConfigManager
+                start_date = ConfigManager.get_default_start_date()
             
             # 如果开始日期大于结束日期，跳过
             if start_date > end_date:

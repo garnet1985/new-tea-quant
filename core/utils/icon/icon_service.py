@@ -90,3 +90,22 @@ class IconService:
 
         else:
             logger.error(f"Unknown icon name: {icon_name}")
+            return ''  # 返回空字符串而不是 None
+
+
+# 简化的图标获取函数
+def i(icon_name: str) -> str:
+    """
+    简化的图标获取函数
+    
+    Usage:
+        from core.utils import i
+        icon = i("green_dot")  # 返回 "🟢"
+    
+    Args:
+        icon_name: 图标名称
+        
+    Returns:
+        str: 图标 emoji 字符串
+    """
+    return IconService.get(icon_name)

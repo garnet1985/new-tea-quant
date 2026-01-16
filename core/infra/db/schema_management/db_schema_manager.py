@@ -8,7 +8,12 @@ DbSchemaManager - Schema 管理器，负责数据库表结构的管理
 import os
 import json
 from typing import Dict, List, Optional
+from pathlib import Path
 from loguru import logger
+
+from core.infra.project_context import PathManager, FileManager
+
+from .models.field import Field
 
 
 class DbSchemaManager:
@@ -39,10 +44,8 @@ class DbSchemaManager:
             self.tables_dir = tables_dir
         else:
             # 默认指向 core/modules/data_manager/base_tables
-            # 从 core/infra/db 向上找到项目根，再定位到 core/modules/data_manager/base_tables
-            current_dir = os.path.dirname(__file__)  # core/infra/db
-            project_root = os.path.dirname(os.path.dirname(current_dir))  # 项目根（从 core/infra/db 向上2层）
-            self.tables_dir = os.path.join(project_root, 'core', 'modules', 'data_manager', 'base_tables')
+            # 使用 PathManager 获取路径
+            self.tables_dir = str(PathManager.core() / 'modules' / 'data_manager' / 'base_tables')
         self.is_verbose = is_verbose
         self.database_type = database_type or 'postgresql'  # 默认 PostgreSQL
         
@@ -62,21 +65,23 @@ class DbSchemaManager:
         Returns:
             {table_name: schema_dict}
         """
-        if not os.path.exists(self.tables_dir):
+        tables_path = Path(self.tables_dir)
+        if not tables_path.exists():
             logger.warning(f"⚠️  Schema 目录不存在: {self.tables_dir}")
             return {}
         
         schemas = {}
-        for table_name in os.listdir(self.tables_dir):
-            table_dir = os.path.join(self.tables_dir, table_name)
-            schema_file = os.path.join(table_dir, 'schema.json')
+        for table_dir in tables_path.iterdir():
+            if not table_dir.is_dir():
+                continue
             
-            if os.path.isdir(table_dir) and os.path.exists(schema_file):
+            schema_file = table_dir / 'schema.json'
+            if schema_file.exists():
                 try:
-                    schema = self.load_schema_from_file(schema_file)
-                    schemas[table_name] = schema
+                    schema = self.load_schema_from_file(str(schema_file))
+                    schemas[table_dir.name] = schema
                 except Exception as e:
-                    logger.error(f"❌ 加载 schema 失败 {table_name}: {e}")
+                    logger.error(f"❌ 加载 schema 失败 {table_dir.name}: {e}")
         
         return schemas
     
@@ -85,13 +90,19 @@ class DbSchemaManager:
         从文件加载 schema
         
         Args:
-            schema_file: schema.json 文件路径
+            schema_file: schema.json 文件路径（可以是字符串或 Path）
             
         Returns:
             schema 字典
         """
-        with open(schema_file, 'r', encoding='utf-8') as f:
-            schema = json.load(f)
+        # 使用 FileManager 读取文件
+        schema_path = Path(schema_file)
+        content = FileManager.read_file(schema_path, encoding='utf-8')
+        
+        if content is None:
+            raise FileNotFoundError(f"Schema 文件不存在: {schema_file}")
+        
+        schema = json.loads(content)
         
         # 验证 schema
         self._validate_schema(schema)
@@ -113,10 +124,16 @@ class DbSchemaManager:
             if field not in schema:
                 raise ValueError(f"Schema 缺少必需字段: {field}")
         
-        # 验证字段定义
-        for field in schema['fields']:
-            if 'name' not in field or 'type' not in field:
-                raise ValueError(f"字段定义缺少 name 或 type: {field}")
+        # 验证字段定义（使用 Field 对象进行验证）
+        for field_dict in schema['fields']:
+            if 'name' not in field_dict or 'type' not in field_dict:
+                raise ValueError(f"字段定义缺少 name 或 type: {field_dict}")
+            
+            # 使用 Field.from_dict() 进行验证（会抛出异常如果定义无效）
+            try:
+                Field.from_dict(field_dict)
+            except ValueError as e:
+                raise ValueError(f"字段 '{field_dict.get('name', 'unknown')}' 定义无效: {e}")
     
     # ==================== SQL 生成 ====================
     
@@ -134,32 +151,41 @@ class DbSchemaManager:
         fields = schema['fields']
         primary_key = schema.get('primaryKey')
         
+        # 将字段字典转换为 Field 对象
+        field_objects = []
+        for field_dict in fields:
+            try:
+                field_obj = Field.from_dict(field_dict)
+                field_objects.append(field_obj)
+            except Exception as e:
+                raise ValueError(f"字段 '{field_dict.get('name', 'unknown')}' 定义无效: {e}")
+        
         # 构建字段定义
         field_defs = []
         comments = []  # 存储 COMMENT 语句（PostgreSQL/MySQL）
         
-        for field in fields:
-            field_def = self._generate_field_definition(field)
-            field_defs.append(field_def)
+        for field_obj in field_objects:
+            # 生成字段 SQL（包含字段名）
+            field_sql = f"{field_obj.name} {field_obj.to_sql(self.database_type)}"
+            field_sql += field_obj.get_not_null_sql()
+            field_sql += field_obj.get_default_sql(self.database_type)
+            field_defs.append(field_sql)
             
             # 处理 COMMENT（PostgreSQL/MySQL）
-            comment = field.get('comment')
-            if comment and self.database_type in ['postgresql', 'mysql']:
+            if field_obj.comment and self.database_type in ['postgresql', 'mysql']:
                 if self.database_type == 'postgresql':
-                    comments.append(f"COMMENT ON COLUMN {table_name}.{field['name']} IS '{comment}';")
-                elif self.database_type == 'mysql':
-                    # MySQL 的 COMMENT 在字段定义中，已经在 _generate_field_definition 中处理
-                    # 但 MySQL 不支持单独的 COMMENT ON COLUMN，所以这里不需要额外处理
-                    pass
+                    comments.append(f"COMMENT ON COLUMN {table_name}.{field_obj.name} IS '{field_obj.comment}';")
+                # MySQL 的 COMMENT 在字段定义中，但 MySQL 不支持单独的 COMMENT ON COLUMN
         
         # 添加主键（如果字段定义中没有包含）
         if primary_key:
             # 检查是否已经有 AUTO_INCREMENT 主键（SQLite）
             has_auto_inc_pk = False
             if self.database_type == 'sqlite':
-                for field in fields:
-                    if field.get('autoIncrement') or field.get('isAutoIncrement'):
-                        if field['name'] in (primary_key if isinstance(primary_key, list) else [primary_key]):
+                for field_obj in field_objects:
+                    if field_obj.auto_increment:
+                        pk_list = primary_key if isinstance(primary_key, list) else [primary_key]
+                        if field_obj.name in pk_list:
                             has_auto_inc_pk = True
                             break
             
@@ -176,166 +202,6 @@ class DbSchemaManager:
             create_sql += "\n" + "\n".join(comments)
         
         return create_sql.strip()
-    
-    def _generate_field_definition(self, field: Dict) -> str:
-        """
-        生成字段定义
-        
-        Args:
-            field: 字段定义字典
-            
-        Returns:
-            字段 SQL 定义
-        """
-        field_name = field['name']
-        field_type = field['type'].upper()
-        is_required = field.get('isRequired', False)
-        # 支持两种命名：autoIncrement 和 isAutoIncrement
-        is_auto_increment = field.get('autoIncrement', False) or field.get('isAutoIncrement', False)
-        default_value = field.get('default')
-        
-        # 处理字段类型（根据数据库类型）
-        type_def = self._map_field_type(field_type, field)
-        
-        # 构建字段定义
-        field_def = f"{field_name} {type_def}"
-        
-        # 处理 AUTO_INCREMENT（根据数据库类型）
-        if is_auto_increment:
-            auto_inc_def = self._get_auto_increment_definition()
-            if auto_inc_def:
-                field_def = f"{field_name} {auto_inc_def}"
-                # AUTO_INCREMENT 字段通常也是主键，不需要额外的 NOT NULL
-                is_required = False
-        
-        # 处理 NOT NULL
-        if is_required:
-            field_def += " NOT NULL"
-        
-        # 处理默认值
-        if default_value is not None:
-            # 处理 MySQL 的 ON UPDATE CURRENT_TIMESTAMP 语法
-            # PostgreSQL/SQLite 不支持 ON UPDATE，只保留 CURRENT_TIMESTAMP
-            if isinstance(default_value, str):
-                default_upper = default_value.upper()
-                # 移除 ON UPDATE CURRENT_TIMESTAMP 部分
-                if 'ON UPDATE CURRENT_TIMESTAMP' in default_upper:
-                    # 提取 CURRENT_TIMESTAMP 部分
-                    if 'CURRENT_TIMESTAMP' in default_upper:
-                        default_value = 'CURRENT_TIMESTAMP'
-                    else:
-                        # 如果只有 ON UPDATE，移除它
-                        default_value = default_value.split(' ON UPDATE')[0].strip()
-                        if not default_value:
-                            default_value = None
-                
-                # 处理标准的时间戳默认值
-                if default_value and default_value.upper() in ['CURRENT_TIMESTAMP', 'CURRENT_DATE']:
-                    field_def += f" DEFAULT {default_value}"
-                elif default_value:
-                    # 根据原始字段类型决定是否加引号
-                    if field_type in ['VARCHAR', 'TEXT', 'CHAR', 'DATE', 'DATETIME', 'TIME', 'TIMESTAMP']:
-                        field_def += f" DEFAULT '{default_value}'"
-                    else:
-                        field_def += f" DEFAULT {default_value}"
-            else:
-                # 非字符串默认值
-                if field_type in ['VARCHAR', 'TEXT', 'CHAR', 'DATE', 'DATETIME', 'TIME', 'TIMESTAMP']:
-                    field_def += f" DEFAULT '{default_value}'"
-                else:
-                    field_def += f" DEFAULT {default_value}"
-        
-        # 处理 COMMENT（根据数据库类型）
-        comment = field.get('comment')
-        if comment and self.database_type in ['postgresql', 'mysql']:
-            # COMMENT 在 CREATE TABLE 后单独添加（PostgreSQL/MySQL）
-            # 这里先返回字段定义，COMMENT 在 generate_create_table_sql 中处理
-            pass
-        
-        return field_def
-    
-    def _map_field_type(self, field_type: str, field: Dict) -> str:
-        """
-        根据数据库类型映射字段类型
-        
-        Args:
-            field_type: 原始字段类型
-            field: 字段定义字典
-            
-        Returns:
-            映射后的字段类型 SQL
-        """
-        field_type = field_type.upper()
-        
-        # VARCHAR 类型
-        if field_type == 'VARCHAR' and 'length' in field:
-            return f"VARCHAR({field['length']})"
-        
-        # TEXT 类型
-        if field_type == 'TEXT':
-            if self.database_type == 'sqlite':
-                return "TEXT"  # SQLite 支持 TEXT
-            elif self.database_type == 'postgresql':
-                return "TEXT"  # PostgreSQL 支持 TEXT
-            elif self.database_type == 'mysql':
-                return "TEXT"  # MySQL 支持 TEXT
-            else:
-                return "VARCHAR"  # 其他情况使用 VARCHAR
-        
-        # TINYINT(1) -> BOOLEAN
-        if field_type == 'TINYINT' and 'length' in field and field.get('length') == 1:
-            if self.database_type == 'postgresql':
-                return "BOOLEAN"
-            elif self.database_type == 'mysql':
-                return "TINYINT(1)"  # MySQL 保留 TINYINT(1)
-            elif self.database_type == 'sqlite':
-                return "INTEGER"  # SQLite 使用 INTEGER 表示布尔值
-            else:
-                return "BOOLEAN"
-        
-        # 其他 TINYINT -> INTEGER
-        if field_type == 'TINYINT':
-            return "INTEGER"
-        
-        # DATETIME -> TIMESTAMP
-        if field_type == 'DATETIME':
-            if self.database_type == 'postgresql':
-                return "TIMESTAMP"
-            elif self.database_type == 'mysql':
-                return "DATETIME"  # MySQL 支持 DATETIME
-            elif self.database_type == 'sqlite':
-                return "TEXT"  # SQLite 使用 TEXT 存储日期时间
-            else:
-                return "TIMESTAMP"
-        
-        # DECIMAL/NUMERIC
-        if field_type in ['DECIMAL', 'NUMERIC']:
-            if 'length' in field:
-                length = field['length']
-                if isinstance(length, str):
-                    return f"DECIMAL({length})"
-                elif isinstance(length, (int, float)):
-                    return f"DECIMAL({length})"
-            return "DECIMAL"
-        
-        # 其他类型直接返回
-        return field_type
-    
-    def _get_auto_increment_definition(self) -> Optional[str]:
-        """
-        根据数据库类型获取 AUTO_INCREMENT 定义
-        
-        Returns:
-            AUTO_INCREMENT SQL 定义，如果数据库不支持则返回 None
-        """
-        if self.database_type == 'postgresql':
-            return "SERIAL"  # PostgreSQL 使用 SERIAL
-        elif self.database_type == 'mysql':
-            return "INT AUTO_INCREMENT"  # MySQL 使用 AUTO_INCREMENT
-        elif self.database_type == 'sqlite':
-            return "INTEGER PRIMARY KEY AUTOINCREMENT"  # SQLite 使用 AUTOINCREMENT
-        else:
-            return None
     
     def _generate_primary_key_definition(self, primary_key) -> str:
         """
@@ -624,9 +490,9 @@ class DbSchemaManager:
             return self._schema_cache[table_name]
         
         # 从文件加载
-        schema_file = os.path.join(self.tables_dir, table_name, 'schema.json')
-        if os.path.exists(schema_file):
-            schema = self.load_schema_from_file(schema_file)
+        schema_file = Path(self.tables_dir) / table_name / 'schema.json'
+        if schema_file.exists():
+            schema = self.load_schema_from_file(str(schema_file))
             self._schema_cache[table_name] = schema
             return schema
         

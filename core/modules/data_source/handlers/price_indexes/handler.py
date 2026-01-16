@@ -450,8 +450,8 @@ class PriceIndexesHandler(BaseDataSourceHandler):
         
         try:
             # 清理 NaN 值
-            from core.infra.db.db_base_model import DBService
-            data_list = DBService.clean_nan_in_list(data_list, default=0.0)
+            from core.infra.db.helpers.db_helpers import DBHelper
+            data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
             
             # 保存数据（通过 service 访问）
             count = self.data_manager.macro.save_price_indexes_data(data_list)

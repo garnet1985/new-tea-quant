@@ -363,7 +363,7 @@ class KlineHandler(BaseDataSourceHandler):
             raise ValueError(f"{self.__class__.__name__} 需要 end_dates 参数（包含 daily/weekly/monthly 的结束日期）")
         
         tasks = []
-        from core.config.loaders.system_conf import data_default_start_date
+        from core.infra.project_context import ConfigManager
         
         for stock in stock_list:
             stock_id = stock.get("ts_code") or stock.get("id")
@@ -413,7 +413,7 @@ class KlineHandler(BaseDataSourceHandler):
                         continue
                 else:
                     # 新股票，使用默认开始日期（全量更新）
-                    start_date = data_default_start_date
+                    start_date = ConfigManager.get_default_start_date()
                 
                 start_dates[term] = start_date
                 skip_stock = False
@@ -708,11 +708,11 @@ class KlineHandler(BaseDataSourceHandler):
                     is_full_update = False
                     if task_id in self._generated_tasks:
                         task = self._generated_tasks[task_id]
-                        from core.config.loaders.system_conf import data_default_start_date
+                        from core.infra.project_context import ConfigManager
                         for api_job in task.api_jobs:
                             if api_job.api_name and api_job.api_name.endswith('_kline'):
                                 start_date = api_job.params.get('start_date')
-                                if start_date == data_default_start_date:
+                                if start_date == ConfigManager.get_default_start_date():
                                     is_full_update = True
                                     break
                     

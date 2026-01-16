@@ -11,7 +11,7 @@ from pathlib import Path
 from loguru import logger
 from datetime import datetime, date
 
-from core.config.loaders.db_conf import DB_CONF
+from core.infra.project_context import ConfigManager
 from core.infra.db.batch_write_queue import BatchWriteQueue
 from core.infra.db.adapters.factory import DatabaseAdapterFactory
 from core.infra.db.adapters.base_adapter import BaseDatabaseAdapter
@@ -96,7 +96,7 @@ class DatabaseManager:
         """
         # 加载配置
         if config is None:
-            config = DB_CONF
+            config = ConfigManager.get_database_config()
         
         # 如果是旧格式配置，转换为新格式
         if 'database_type' not in config:

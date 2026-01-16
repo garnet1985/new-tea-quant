@@ -222,8 +222,8 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
             return
 
         try:
-            from core.infra.db.db_base_model import DBService
-            data_list = DBService.clean_nan_in_list(data_list, default=0.0)
+            from core.infra.db.helpers.db_helpers import DBHelper
+            data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
 
             # 使用 service 保存数据
             count = self.data_manager.index.save_weight(data_list)

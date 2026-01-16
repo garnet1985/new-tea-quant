@@ -13,7 +13,7 @@ Provider 模块提供第三方数据源的封装和管理。
 **使用方式：**
 
 ```python
-from app.core.modules.data_source.providers import get_provider_pool
+from core.modules.data_source.providers import get_provider_pool
 
 # 获取池子
 pool = get_provider_pool()
@@ -83,9 +83,9 @@ providers/
 ### Handler 中使用 Provider
 
 ```python
-from app.core.modules.data_source.providers import get_provider_pool
+from core.modules.data_source.providers import get_provider_pool
 
-class MyHandler(BaseHandler):
+class MyHandler(BaseDataSourceHandler):
     async def fetch(self, context):
         # 从池中获取 Provider 实例（只需知道名称）
         pool = get_provider_pool()

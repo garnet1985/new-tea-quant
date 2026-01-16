@@ -394,7 +394,7 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
                     except (TypeError, ValueError):
                         return default
                 
-                # 字段映射（根据 legacy config）
+                # 字段映射
                 mapped = {
                     "id": item.get('ts_code', ''),
                     "quarter": quarter,

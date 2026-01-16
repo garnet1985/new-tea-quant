@@ -2,7 +2,7 @@
 股票列表 Handler
 
 使用 Tushare Provider 获取股票列表（包含所有交易所）
-参考 legacy 逻辑：使用当前日期时间作为 last_update（股票列表的更新时间）
+使用当前日期时间作为 last_update（股票列表的更新时间）
 """
 from datetime import datetime
 from typing import List, Dict, Any
@@ -20,7 +20,7 @@ class TushareStockListHandler(BaseDataSourceHandler):
     
     从 Tushare 获取股票列表（包含所有交易所的股票）。
     
-    参考 legacy 逻辑：
+    特性：
     - 使用当前日期时间作为 last_update 字段（股票列表的更新时间）
     - 使用 upsert 模式更新数据
     - 包含所有交易所的股票（不排除北交所）
@@ -94,9 +94,9 @@ class TushareStockListHandler(BaseDataSourceHandler):
         
         从 Tushare 返回的 DataFrame 中提取股票列表，进行字段映射和过滤
         
-        参考 legacy 逻辑：
+        特性：
         - 使用当前日期时间作为 last_update（股票列表的更新时间，格式：YYYY-MM-DD HH:MM:SS）
-        - 字段映射与 legacy 保持一致
+        - 字段映射与数据库 schema 保持一致
         """
         # 使用辅助方法获取简单 Task 的结果
         df = self.get_simple_result(task_results)
@@ -115,11 +115,11 @@ class TushareStockListHandler(BaseDataSourceHandler):
         # 转换为字典列表
         records = df.to_dict('records')
         
-        # 字段映射和数据处理（参考 legacy config.py）
+        # 字段映射和数据处理
         formatted = []
         
         for item in records:
-            # 字段映射（与 legacy 保持一致）
+            # 字段映射
             ts_code = item.get('ts_code', '')
             
             mapped = {

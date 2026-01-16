@@ -56,7 +56,6 @@ stocks-py/
 │   └── adapters/             # 适配器
 ├── utils/                     # 通用工具
 │   ├── util.py              # 配置合并工具
-│   └── warning_suppressor.py # 警告抑制
 ├── core/
 │   ├── utils/               # 通用工具
 │   └── config/              # 用户配置文件（JSON，可编辑）

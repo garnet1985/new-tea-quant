@@ -1,8 +1,26 @@
 """
 Utils Package - 通用工具模块
 
-注意：数据库和工作器相关工具已迁移到 app.core.infra
-日期、文件、图标、进度等工具已迁移到 app.core.utils
-此包仅保留通用工具函数（util.py, warning_suppressor.py）
+提供各种通用工具类和服务：
+- util: 配置合并工具
+- date: 日期工具类
+- icon: 图标服务
+- progress: 进度条和跟踪器
 """
-__all__ = [] 
+from .util import deep_merge_config, merge_mapping_configs
+from .date.date_utils import DateUtils
+from .icon.icon_service import IconService, i as icon_i
+
+__all__ = [
+    # 配置工具
+    'deep_merge_config',
+    'merge_mapping_configs',
+    # 日期工具
+    'DateUtils',
+    # 图标服务
+    'IconService',
+    'i',  # 简化的图标获取函数：i("green_dot")
+]
+
+# 导出简化的图标函数（别名）
+i = icon_i 

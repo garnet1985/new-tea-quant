@@ -36,7 +36,7 @@
 ### 基本用法
 
 ```python
-from app.core.infra.worker import ProcessWorker, ProcessExecutionMode
+from core.infra.worker import ProcessWorker, ProcessExecutionMode
 
 # 创建多进程执行器
 worker = ProcessWorker(

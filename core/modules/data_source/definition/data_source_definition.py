@@ -6,38 +6,10 @@ DataSource Definition 核心类
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Type
 from loguru import logger
+import importlib
 
 from .api_config import ApiConfig, ProviderConfig
-from .handler_config import (
-    BaseHandlerConfig,
-    RollingHandlerConfig,
-    KlineHandlerConfig,
-    SimpleApiHandlerConfig,
-    CorporateFinanceHandlerConfig,
-    LatestTradingDateHandlerConfig,
-    AdjFactorEventHandlerConfig,
-    PriceIndexesHandlerConfig,
-    StockIndexIndicatorHandlerConfig,
-    StockIndexIndicatorWeightHandlerConfig,
-    TushareStockListHandlerConfig,
-    IndustryCapitalFlowHandlerConfig,
-)
-
-
-# Handler 路径到 Config 类的映射
-_HANDLER_CONFIG_MAP: Dict[str, Type[BaseHandlerConfig]] = {
-    "handlers.rolling.RollingHandler": RollingHandlerConfig,
-    "handlers.simple_api.SimpleApiHandler": SimpleApiHandlerConfig,
-    "handlers.kline.KlineHandler": KlineHandlerConfig,
-    "handlers.corporate_finance.CorporateFinanceHandler": CorporateFinanceHandlerConfig,
-    "handlers.latest_trading_date.LatestTradingDateHandler": LatestTradingDateHandlerConfig,
-    "handlers.adj_factor_event.AdjFactorEventHandler": AdjFactorEventHandlerConfig,
-    "handlers.price_indexes.PriceIndexesHandler": PriceIndexesHandlerConfig,
-    "handlers.stock_index_indicator.StockIndexIndicatorHandler": StockIndexIndicatorHandlerConfig,
-    "handlers.stock_index_indicator_weight.StockIndexIndicatorWeightHandler": StockIndexIndicatorWeightHandlerConfig,
-    "handlers.stock_list.TushareStockListHandler": TushareStockListHandlerConfig,
-    "handlers.industry_capital_flow.IndustryCapitalFlowHandler": IndustryCapitalFlowHandlerConfig,
-}
+from .handler_config import BaseHandlerConfig
 
 
 @dataclass
@@ -215,30 +187,63 @@ class DataSourceDefinition:
         cls, data: Dict[str, Any], handler_path: str
     ) -> Optional[BaseHandlerConfig]:
         """
-        解析 HandlerConfig
+        解析 HandlerConfig（自动发现机制）
+        
+        自动发现策略（按优先级）：
+        1. 从 handler 类获取 config_class 类属性（推荐方式）
+        2. 从 handler 模块导入 Config 类（约定命名：HandlerClassName + "Config"）
+        3. 如果都找不到，返回 None（使用 BaseHandlerConfig 的默认行为）
         
         Args:
             data: 配置字典
-            handler_path: Handler 路径
+            handler_path: Handler 路径（如 "userspace.data_source.handlers.kline.KlineHandler"）
         
         Returns:
-            HandlerConfig 实例（如果找到对应的 Config 类）
+            HandlerConfig 实例（如果找到对应的 Config 类），否则返回 None
         """
-        # 获取对应的 Config 类
-        config_class = _HANDLER_CONFIG_MAP.get(handler_path)
-        if not config_class:
-            # 如果没有对应的 Config 类，返回 None
-            return None
-        
-        # 从 handler_config 中提取配置
-        handler_config_data = data.get("handler_config", {})
-        
-        # 创建 Config 实例
         try:
-            return config_class(**handler_config_data)
+            # 解析 handler_path 获取模块路径和类名
+            module_path, handler_class_name = handler_path.rsplit('.', 1)
+            handler_module = importlib.import_module(module_path)
+            handler_class = getattr(handler_module, handler_class_name, None)
+            
+            if not handler_class:
+                logger.warning(f"无法找到 Handler 类 {handler_path}")
+                return None
+            
+            config_class = None
+            
+            # 策略 1: 从 handler 类获取 config_class 类属性（推荐）
+            if hasattr(handler_class, 'config_class'):
+                config_class = handler_class.config_class
+                if config_class and issubclass(config_class, BaseHandlerConfig):
+                    # 找到 Config 类，使用它
+                    handler_config_data = data.get("handler_config", {})
+                    try:
+                        return config_class(**handler_config_data)
+                    except Exception as e:
+                        logger.warning(f"创建 HandlerConfig 失败 {handler_path}: {e}，使用默认配置")
+                        return config_class()
+            
+            # 策略 2: 从 handler 模块导入 Config 类（约定命名：HandlerClassName + "Config"）
+            # 例如：KlineHandler -> KlineHandlerConfig
+            config_class_name = handler_class_name + "Config"
+            config_class = getattr(handler_module, config_class_name, None)
+            if config_class and issubclass(config_class, BaseHandlerConfig):
+                handler_config_data = data.get("handler_config", {})
+                try:
+                    return config_class(**handler_config_data)
+                except Exception as e:
+                    logger.warning(f"创建 HandlerConfig 失败 {handler_path}: {e}，使用默认配置")
+                    return config_class()
+            
+            # 如果都找不到，返回 None（框架会使用 BaseHandlerConfig 的默认行为）
+            logger.debug(f"未找到 HandlerConfig 类 {handler_path}，使用默认配置")
+            return None
+            
         except Exception as e:
-            logger.warning(f"创建 HandlerConfig 失败: {e}，使用默认配置")
-            return config_class()
+            logger.warning(f"解析 HandlerConfig 失败 {handler_path}: {e}")
+            return None
     
     def to_dict(self) -> Dict[str, Any]:
         """

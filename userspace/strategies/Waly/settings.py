@@ -1,5 +1,5 @@
 from core.global_enums.enums import KlineTerm, AdjustType
-from core.config.loaders.system_conf import data_default_start_date
+from core.infra.project_context import ConfigManager
 
 settings = {
     # 策略启用状态

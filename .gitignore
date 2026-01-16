@@ -35,6 +35,10 @@ config/database/db_config.json
 config/database/db_conf.json
 config/database/pg_config.json
 
+# User configuration files (sensitive)
+userspace/config/**/*.json
+!userspace/config/**/*.example.json
+
 ########################
 # Data & Cache
 ########################

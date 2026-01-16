@@ -22,7 +22,7 @@ import os
 
 # Worker 配置
 from core.infra.worker.multi_process.task_type import TaskType
-from core.config.loaders.worker_conf import get_module_config
+from core.infra.project_context import ConfigManager
 
 
 # 设置日志
@@ -148,7 +148,7 @@ class ProcessWorker:
         # 1. 如果是 'auto'，自动计算
         if isinstance(max_workers, str) and max_workers.lower() == 'auto':
             # 从配置获取任务类型
-            config = get_module_config(module_name)
+            config = ConfigManager.get_module_config(module_name)
             task_type = config['task_type']
             reserve_cores = config['reserve_cores']
             

@@ -48,7 +48,7 @@ class JobHelper:
         Returns:
             Tuple[str, str]: (start_date, end_date)
         """
-        from core.config.loaders.system_conf import data_default_start_date
+        from core.infra.project_context import ConfigManager
         
         # 确定 end_date（两种模式都使用最新已完成交易日）
         if default_end_date:
@@ -69,7 +69,7 @@ class JobHelper:
             if default_start_date:
                 start_date = default_start_date
             else:
-                start_date = data_default_start_date
+                start_date = ConfigManager.get_default_start_date()
         else:
             # INCREMENTAL 模式：从 entity 的最后更新日期继续
             if entity_last_update_date:
@@ -93,7 +93,7 @@ class JobHelper:
                 if default_start_date:
                     start_date = default_start_date
                 else:
-                    start_date = data_default_start_date
+                    start_date = ConfigManager.get_default_start_date()
         
         return start_date, end_date
     

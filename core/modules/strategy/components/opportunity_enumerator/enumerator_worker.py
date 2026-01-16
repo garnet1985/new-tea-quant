@@ -1073,12 +1073,10 @@ class ComputeOnlyOpportunityEnumeratorWorker:
         Returns:
             更早的日期字符串（YYYYMMDD）
         """
-        from datetime import datetime, timedelta
+        from core.utils.date.date_utils import DateUtils
         
         try:
-            date = datetime.strptime(date_str, '%Y%m%d')
-            earlier_date = date - timedelta(days=days)
-            return earlier_date.strftime('%Y%m%d')
+            return DateUtils.get_date_before_days(date_str, days)
         except Exception as e:
             logger.warning(f"计算日期失败: {e}")
             return date_str

@@ -115,49 +115,17 @@ class ProviderInstancePool:
         """
         扫描并缓存所有 Provider 类（初始化时调用）
         
-        使用 pkgutil 扫描包结构，不依赖文件路径
+        扫描 userspace.data_source.providers 包，自动发现所有 Provider 实现。
+        使用 pkgutil 扫描包结构，不依赖文件路径。
         """
         try:
-            # 导入 providers 包
-            providers_package = importlib.import_module('core.modules.data_source.providers')
-            package_path = providers_package.__path__
-            
-            # 使用 pkgutil 遍历所有子包
-            for importer, modname, ispkg in pkgutil.iter_modules(package_path):
-                if not ispkg or modname.startswith('_'):
-                    continue
-                
-                # 尝试导入该子包的 provider 模块
-                try:
-                    module_path = f'core.modules.data_source.providers.{modname}.provider'
-                    provider_module = importlib.import_module(module_path)
-                    
-                    # 查找所有继承 BaseProvider 的类
-                    for attr_name in dir(provider_module):
-                        attr = getattr(provider_module, attr_name)
-                        if (isinstance(attr, type) and
-                            issubclass(attr, BaseProvider) and
-                            attr != BaseProvider and
-                            hasattr(attr, 'provider_name') and
-                            attr.provider_name):
-                            
-                            provider_name = attr.provider_name
-                            if provider_name not in self._provider_classes:
-                                self._provider_classes[provider_name] = attr
-                            else:
-                                # 如果 provider_name 重复，警告
-                                existing_class = self._provider_classes[provider_name]
-                                logger.warning(
-                                    f"⚠️  Duplicate provider_name '{provider_name}': "
-                                    f"{existing_class.__name__} and {attr.__name__}"
-                                )
-                                
-                except ImportError:
-                    # 该目录没有 provider.py，跳过
-                    continue
-                except Exception as e:
-                    logger.warning(f"Error scanning provider package '{modname}': {e}")
-                    continue
+            # 扫描 userspace.data_source.providers（优先级）
+            try:
+                userspace_providers_package = importlib.import_module('userspace.data_source.providers')
+                userspace_package_path = userspace_providers_package.__path__
+                self._scan_provider_package(userspace_package_path, 'userspace.data_source.providers')
+            except ImportError:
+                logger.debug("userspace.data_source.providers 包不存在，跳过")
             
             logger.info(
                 f"✅ Scanned and cached {len(self._provider_classes)} providers: "
@@ -166,6 +134,51 @@ class ProviderInstancePool:
             
         except Exception as e:
             logger.error(f"❌ Failed to scan providers: {e}")
+    
+    def _scan_provider_package(self, package_path, base_module_path: str):
+        """
+        扫描指定包路径下的所有 Provider 类
+        
+        Args:
+            package_path: 包路径（可以是列表）
+            base_module_path: 基础模块路径（如 "userspace.data_source.providers"）
+        """
+        # 使用 pkgutil 遍历所有子包
+        for importer, modname, ispkg in pkgutil.iter_modules(package_path):
+            if not ispkg or modname.startswith('_'):
+                continue
+            
+            # 尝试导入该子包的 provider 模块
+            try:
+                module_path = f'{base_module_path}.{modname}.provider'
+                provider_module = importlib.import_module(module_path)
+                
+                # 查找所有继承 BaseProvider 的类
+                for attr_name in dir(provider_module):
+                    attr = getattr(provider_module, attr_name)
+                    if (isinstance(attr, type) and
+                        issubclass(attr, BaseProvider) and
+                        attr != BaseProvider and
+                        hasattr(attr, 'provider_name') and
+                        attr.provider_name):
+                        
+                        provider_name = attr.provider_name
+                        if provider_name not in self._provider_classes:
+                            self._provider_classes[provider_name] = attr
+                        else:
+                            # 如果 provider_name 重复，警告
+                            existing_class = self._provider_classes[provider_name]
+                            logger.warning(
+                                f"⚠️  Duplicate provider_name '{provider_name}': "
+                                f"{existing_class.__name__} and {attr.__name__}"
+                            )
+                            
+            except ImportError:
+                # 该目录没有 provider.py，跳过
+                continue
+            except Exception as e:
+                logger.warning(f"Error scanning provider package '{modname}': {e}")
+                continue
     
     def _discover_provider(self, provider_name: str) -> Optional[Type[BaseProvider]]:
         """

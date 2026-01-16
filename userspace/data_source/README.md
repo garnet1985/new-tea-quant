@@ -5,31 +5,50 @@
 ## 自定义 Handler
 
 1. 在 `handlers/` 文件夹中创建你的 handler
-2. 继承 `BaseHandler` 类
-3. 实现 `fetch_and_normalize()` 方法
+2. 继承 `BaseDataSourceHandler` 类
+3. 实现 `fetch()` 和 `normalize()` 方法
 4. 在 `mapping.json` 中配置使用你的 handler
 
 ## 示例
 
 ```python
-# custom/handlers/my_handler.py
-from app.core.modules.data_source.base_handler import BaseHandler
+# userspace/data_source/handlers/my_handler.py
+from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+from core.modules.data_source.api_job import DataSourceTask, ApiJob
 
-class MyHandler(BaseHandler):
-    async def fetch_and_normalize(self, context):
-        # 你的实现
-        # 可以使用多个 provider
-        # 可以处理复杂的依赖关系
-        return data
+class MyHandler(BaseDataSourceHandler):
+    data_source = "my_custom_data"
+    description = "我的自定义数据源"
+    dependencies = []
+    
+    async def fetch(self, context):
+        # 生成 Tasks
+        task = self.create_simple_task(
+            provider_name="tushare",
+            method="get_my_data",
+            params={}
+        )
+        return [task]
+    
+    async def normalize(self, task_results):
+        # 标准化数据
+        df = self.get_simple_result(task_results)
+        # 处理数据...
+        return {"data": [...]}
 ```
 
 ```json
-// custom/mapping.json
+// userspace/data_source/mapping.json
 {
     "data_sources": {
-        "stock_list": {
-            "handler": "custom.handlers.my_handler.MyHandler",
-            "type": "refresh"
+        "my_custom_data": {
+            "handler": "userspace.data_source.handlers.my_handler.MyHandler",
+            "is_enabled": true,
+            "dependencies": {
+                "latest_completed_trading_date": false,
+                "stock_list": false
+            },
+            "params": {}
         }
     }
 }
@@ -48,8 +67,8 @@ class MyHandler(BaseHandler):
 如果默认 schema 不满足需求，可以在 `schemas.py` 中自定义：
 
 ```python
-# custom/schemas.py
-from app.core.modules.data_source.handlers.schemas import DataSourceSchema, Field
+# userspace/data_source/schemas.py
+from core.modules.data_source.schemas import DataSourceSchema, Field
 
 MY_CUSTOM_SCHEMA = DataSourceSchema(
     name="my_custom_data",
@@ -62,10 +81,6 @@ MY_CUSTOM_SCHEMA = DataSourceSchema(
 
 CUSTOM_SCHEMAS = {
     "my_custom_data": MY_CUSTOM_SCHEMA,
-}
-```
-
-HEMA,
 }
 ```
 

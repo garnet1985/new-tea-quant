@@ -1,16 +1,171 @@
 {
-    "_comment": "用户自定义配置，可以覆盖 defaults/mapping.json 的配置",
+    "_comment": "用户自定义配置。所有可配置的内容都在这里，包括 is_enabled、provider_config、handler_config 等",
     "data_sources": {
         "stock_list": {
-            "handler": "handlers.stock_list.TushareStockListHandler",
             "is_enabled": true,
-            "params": {}
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {
+                "api_fields": "ts_code,symbol,name,area,industry,market,exchange,list_date"
+            }
         },
         "kline": {
-            "handler": "handlers.kline.KlineHandler",
             "is_enabled": true,
-            "params": {}
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {}
+        },
+        "corporate_finance": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {}
+        },
+        "gdp": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": [
+                    {
+                        "provider_name": "tushare",
+                        "method": "get_gdp",
+                        "field_mapping": {
+                            "quarter": "quarter",
+                            "gdp": "gdp",
+                            "gdp_yoy": "gdp_yoy",
+                            "primary_industry": "pi",
+                            "primary_industry_yoy": "pi_yoy",
+                            "secondary_industry": "si",
+                            "secondary_industry_yoy": "si_yoy",
+                            "tertiary_industry": "ti",
+                            "tertiary_industry_yoy": "ti_yoy"
+                        },
+                        "params": {}
+                    }
+                ]
+            },
+            "handler_config": {
+                "date_format": "quarter",
+                "default_date_range": {"years": 5},
+                "rolling_periods": 4
+            }
+        },
+        "price_indexes": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {
+                "default_date_range": {"years": 3},
+                "rolling_months": 12
+            }
+        },
+        "shibor": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": [
+                    {
+                        "provider_name": "tushare",
+                        "method": "get_shibor",
+                        "field_mapping": {
+                            "date": "date",
+                            "one_night": "on",
+                            "one_week": "1w",
+                            "one_month": "1m",
+                            "three_month": "3m",
+                            "one_year": "1y"
+                        },
+                        "params": {}
+                    }
+                ]
+            },
+            "handler_config": {
+                "date_format": "date",
+                "default_date_range": {"years": 1},
+                "rolling_periods": 30
+            }
+        },
+        "lpr": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": [
+                    {
+                        "provider_name": "tushare",
+                        "method": "get_lpr",
+                        "field_mapping": {
+                            "date": "date",
+                            "lpr_1_y": "1y",
+                            "lpr_5_y": "5y"
+                        },
+                        "params": {}
+                    }
+                ]
+            },
+            "handler_config": {
+                "date_format": "date",
+                "default_date_range": {"years": 1},
+                "rolling_periods": 30
+            }
+        },
+        "latest_trading_date": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {
+                "backward_checking_days": 15
+            }
+        },
+        "adj_factor_event": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {
+                "update_threshold_days": 15,
+                "max_workers": 10
+            }
+        },
+        "industry_capital_flow": {
+            "is_enabled": false,
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {
+                "default_date_range": {"start_date": "20080101"}
+            }
+        },
+        "stock_index_indicator": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {
+                "index_list": [
+                    {"id": "000001.SH", "name": "上证指数"},
+                    {"id": "000300.SH", "name": "沪深300"},
+                    {"id": "000688.SH", "name": "科创50"},
+                    {"id": "399001.SZ", "name": "深证成指"},
+                    {"id": "399006.SZ", "name": "创业板指"}
+                ]
+            }
+        },
+        "stock_index_indicator_weight": {
+            "is_enabled": true,
+            "provider_config": {
+                "apis": []
+            },
+            "handler_config": {
+                "index_list": [
+                    {"id": "000001.SH", "name": "上证指数"},
+                    {"id": "000300.SH", "name": "沪深300"},
+                    {"id": "000688.SH", "name": "科创50"},
+                    {"id": "399001.SZ", "name": "深证成指"},
+                    {"id": "399006.SZ", "name": "创业板指"}
+                ]
+            }
         }
     }
 }
-

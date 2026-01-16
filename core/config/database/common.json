@@ -1,0 +1,8 @@
+{
+  "database_type": "postgresql",
+  "batch_write": {
+    "enable": true,
+    "batch_size": 1000,
+    "flush_interval": 5.0
+  }
+}

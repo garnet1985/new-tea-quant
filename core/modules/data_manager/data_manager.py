@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from core.global_enums.enums import EntityType
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
-from core.config.loaders.system_conf import data_default_start_date
+from core.infra.project_context import ConfigManager
 from core.utils.date.date_utils import DateUtils
 
 

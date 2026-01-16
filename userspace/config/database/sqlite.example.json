@@ -1,0 +1,4 @@
+{
+  "_comment": "用户 SQLite 配置示例 - 只需配置数据库路径",
+  "db_path": "data/my_stocks.db"
+}

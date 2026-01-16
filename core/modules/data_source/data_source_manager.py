@@ -9,7 +9,6 @@ from typing import Dict, Any, Optional, List
 from loguru import logger
 from core.modules.data_manager import DataManager
 from core.infra.project_context import ConfigManager, PathManager
-from core.utils.util import merge_mapping_configs
 from core.modules.data_source.definition import DataSourceDefinition
 
 
@@ -36,7 +35,7 @@ class DataSourceManager:
         self.is_verbose = is_verbose
         self._schemas: Dict[str, Any] = {}
         self._handlers: Dict[str, Any] = {}
-        self._mapping: Dict[str, Any] = {}  # 原始配置（向后兼容）
+        self._mapping: Dict[str, Any] = {}  # 合并后的配置（用于内部查询）
         self._definitions: Dict[str, DataSourceDefinition] = {}  # 标准化的定义对象
         
         # 加载配置
@@ -198,31 +197,25 @@ class DataSourceManager:
         
         Args:
             ds_name: 数据源名称
-            handler_path: Handler 类的完整路径（如 "handlers.stock_list.TushareStockListHandler"）
-                         现在应该从 userspace 加载，路径格式：userspace.data_source.handlers.xxx
+            handler_path: Handler 类的完整路径，格式：userspace.data_source.handlers.xxx.ClassName
         
         Returns:
-            Handler 类
+            Handler 类，如果加载失败返回 None
         """
         try:
-            # 处理两种路径格式：
-            # 1. 旧格式：handlers.stock_list.TushareStockListHandler -> userspace.data_source.handlers.stock_list.TushareStockListHandler
-            # 2. 新格式：userspace.data_source.handlers.stock_list.TushareStockListHandler（直接使用）
-            if handler_path.startswith("userspace."):
-                # 已经是新格式，直接使用
-                full_path = handler_path
-            elif handler_path.startswith("handlers."):
-                # 旧格式，转换为新格式
-                full_path = f"userspace.data_source.{handler_path}"
-            else:
-                # 其他格式，尝试直接导入
-                full_path = handler_path
+            # 确保路径格式正确（必须以 userspace.data_source.handlers 开头）
+            if not handler_path.startswith("userspace.data_source.handlers."):
+                logger.error(
+                    f"❌ Handler 路径格式错误 {ds_name}: {handler_path}\n"
+                    f"   正确格式应为: userspace.data_source.handlers.xxx.ClassName"
+                )
+                return None
             
-            module_path, class_name = full_path.rsplit('.', 1)
+            module_path, class_name = handler_path.rsplit('.', 1)
             module = importlib.import_module(module_path)
             handler_class = getattr(module, class_name)
             if self.is_verbose:
-                logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({full_path})")
+                logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({handler_path})")
             return handler_class
         except Exception as e:
             logger.error(f"❌ 加载 Handler 失败 {ds_name} ({handler_path}): {e}")
@@ -262,7 +255,6 @@ class DataSourceManager:
                 
                 handler_instance = handler_class(
                     schema, 
-                    params={},  # 不再使用 params，所有配置都在 definition 中
                     data_manager=self.data_manager,
                     definition=definition
                 )

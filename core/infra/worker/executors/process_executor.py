@@ -12,8 +12,8 @@ from typing import Any, Callable, Dict, List, Optional
 from .base import Executor, JobResult
 
 # 导入原有的 ProcessWorker（暂时保留，后续可以逐步迁移）
-# 注意：executors 与 multi_process 同级，当前模块包为 app.core.infra.worker.executors
-# 因此使用 ..multi_process 指向 app.core.infra.worker.multi_process
+# 注意：executors 与 multi_process 同级，当前模块包为 core.infra.worker.executors
+# 因此使用 ..multi_process 指向 core.infra.worker.multi_process
 from ..multi_process.process_worker import ProcessWorker as _ProcessWorker, ExecutionMode
 
 

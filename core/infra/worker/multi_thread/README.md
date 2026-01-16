@@ -7,9 +7,9 @@
 ## 文件说明
 
 ### 核心文件
-- **`futures_worker.py`** - FuturesWorker多线程执行器核心实现
+- **`futures_worker.py`** - MultiThreadWorker多线程执行器核心实现
 
-## FuturesWorker 特性
+## MultiThreadWorker 特性
 
 ### 🚀 执行模式
 - **串行执行** (`ExecutionMode.SERIAL`): 逐个执行任务，适合需要严格控制执行顺序的场景
@@ -34,10 +34,10 @@
 ### 基本用法
 
 ```python
-from app.core.infra.worker import FuturesWorker, ThreadExecutionMode
+from core.infra.worker import MultiThreadWorker, ThreadExecutionMode
 
 # 创建多线程执行器
-worker = FuturesWorker(
+worker = MultiThreadWorker(
     max_workers=10,
     execution_mode=ThreadExecutionMode.PARALLEL,
     job_executor=my_io_task,
@@ -53,7 +53,7 @@ worker.print_stats()
 
 #### 并行执行（推荐用于IO密集型）
 ```python
-worker = FuturesWorker(
+worker = MultiThreadWorker(
     execution_mode=ThreadExecutionMode.PARALLEL,  # 多线程并行
     job_executor=io_intensive_task
 )
@@ -61,7 +61,7 @@ worker = FuturesWorker(
 
 #### 串行执行（推荐用于需要顺序控制的场景）
 ```python
-worker = FuturesWorker(
+worker = MultiThreadWorker(
     execution_mode=ThreadExecutionMode.SERIAL,  # 串行执行
     job_executor=sequential_task
 )
@@ -97,7 +97,7 @@ def fetch_api_data(data):
     response = requests.get(url)
     return response.json()
 
-worker = FuturesWorker(
+worker = MultiThreadWorker(
     max_workers=20,
     execution_mode=ThreadExecutionMode.PARALLEL,
     job_executor=fetch_api_data
@@ -113,7 +113,7 @@ def update_database(data):
     # 执行数据库更新
     return update_record(record_id, new_data)
 
-worker = FuturesWorker(
+worker = MultiThreadWorker(
     max_workers=5,
     execution_mode=ThreadExecutionMode.PARALLEL,
     job_executor=update_database
@@ -153,7 +153,7 @@ worker = FuturesWorker(
 
 ## 与ProcessWorker的选择
 
-### 使用FuturesWorker的场景
+### 使用MultiThreadWorker的场景
 - IO密集型操作（API调用、数据库查询）
 - 任务执行时间较短（<100ms）
 - 需要频繁的线程切换

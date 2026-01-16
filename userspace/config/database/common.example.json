@@ -1,0 +1,4 @@
+{
+  "_comment": "用户数据库公用配置示例 - 只需配置需要修改的部分",
+  "database_type": "postgresql"
+}

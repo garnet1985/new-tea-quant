@@ -503,8 +503,8 @@ class RollingHandler(BaseDataSourceHandler):
         
         try:
             # 清理 NaN 值
-            from core.infra.db.db_base_model import DBService
-            data_list = DBService.clean_nan_in_list(data_list, default=0.0)
+            from core.infra.db.helpers.db_helpers import DBHelper
+            data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
             
             # 保存数据
             model = self.data_manager.get_table(self.table_name)

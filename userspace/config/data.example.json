@@ -1,0 +1,11 @@
+{
+  "_comment": "用户数据配置示例 - 只需配置需要修改的部分",
+  "stock_list_filter": {
+    "exclude_patterns": {
+      "start_with": {
+        "id": ["688", "8"],
+        "name": ["*ST", "ST"]
+      }
+    }
+  }
+}

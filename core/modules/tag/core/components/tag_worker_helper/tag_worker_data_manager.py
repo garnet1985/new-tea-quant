@@ -538,7 +538,8 @@ class TagWorkerDataManager:
     
     def _date_to_quarter(self, date_str: str) -> str:
         """将日期（YYYYMMDD）转换为季度（YYYYQ[1-4]）"""
-        if not date_str or len(date_str) != 8:
+        from core.utils.date.date_utils import DateUtils
+        try:
+            return DateUtils.date_to_quarter(date_str)
+        except (ValueError, AttributeError):
             return ''
-        year, month = int(date_str[:4]), int(date_str[4:6])
-        return f"{year}Q{(month - 1) // 3 + 1}"

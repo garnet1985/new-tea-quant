@@ -29,8 +29,14 @@ from loguru import logger
 import asyncio
 
 # 在导入其他模块之前设置警告抑制
-from core.utils.warning_suppressor import setup_warning_suppression
-setup_warning_suppression()
+# 警告抑制（直接使用 warnings 模块）
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
+warnings.filterwarnings('ignore', category=FutureWarning, message='.*fillna.*method.*')
+warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='pandas')
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='numpy')
 
 from core.modules.data_manager import DataManager
 from core.modules.data_source.data_source_manager import DataSourceManager

@@ -602,11 +602,10 @@ class StrategyWorkerDataManager:
         Returns:
             earlier_date: N 天前的日期（YYYYMMDD）
         """
+        from core.utils.date.date_utils import DateUtils
         try:
-            dt = datetime.strptime(date, '%Y%m%d')
             # 使用自然日 * 1.5 倍，确保有足够的交易日数据
-            dt_before = dt - timedelta(days=int(days * 1.5))
-            return dt_before.strftime('%Y%m%d')
+            return DateUtils.get_date_before_with_multiplier(date, days, multiplier=1.5)
         
         except Exception as e:
             logger.error(f"计算日期失败: date={date}, days={days}, error={e}")

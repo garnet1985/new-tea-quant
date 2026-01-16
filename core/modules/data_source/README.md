@@ -511,16 +511,30 @@ core/modules/data_source/
 ├── task_executor.py                # Task 执行器
 ├── schemas.py                       # Schema 定义
 │
-├── handlers/                       # Handler 实现
+├── definition/                     # DataSourceDefinition 模块
+│   ├── api_config.py               # ApiConfig, ProviderConfig
+│   ├── handler_config.py           # Handler Config 类
+│   └── data_source_definition.py   # DataSourceDefinition 核心类
+│
+├── handlers/                       # Handler 实现（框架默认）
 │   ├── kline/
 │   ├── corporate_finance/
 │   ├── stock_list/
-│   └── mapping.json                # 默认配置
+│   └── mapping.json                # 框架默认配置（仅 handler 路径和 dependencies）
 │
-└── providers/                      # Provider 封装
+└── providers/                      # Provider 封装（框架默认，作为后备）
     ├── tushare/
     ├── akshare/
     └── eastmoney/
+
+userspace/data_source/
+├── mapping.json                    # 用户配置（必需，包含所有可配置内容）
+├── providers/                      # 用户自定义 Provider（优先）
+│   └── tushare/                    # 默认内置（latest_trading_date 需要）
+│       ├── provider.py
+│       ├── config.py
+│       └── auth_token.txt          # 用户上传（gitignore）
+└── handlers/                       # 用户自定义 Handler（可选）
 ```
 
 ---
@@ -530,50 +544,71 @@ core/modules/data_source/
 ### mapping.json（核心配置）
 
 **位置：**
-- `handlers/mapping.json` - 框架默认配置（不应修改）
-- `userspace/data_source/mapping.json` - 用户自定义配置（覆盖默认）
+- `handlers/mapping.json` - 框架默认配置（仅包含 handler 路径和默认 dependencies，作为参考）
+- `userspace/data_source/mapping.json` - **用户自定义配置（必需，包含所有可配置内容）**
 
-**格式：**
+**配置结构：**
+
+所有用户可配置的内容都在 `userspace/data_source/mapping.json` 中，包括：
+- `is_enabled` - 是否启用该 data source
+- `provider_config` - Provider 配置（API 配置、字段映射等）
+- `handler_config` - Handler 特定配置
+
+框架默认配置（`handlers/mapping.json`）仅作为参考，包含：
+- `handler` - Handler 类的完整路径
+- `dependencies` - 默认依赖关系
+
+**新格式示例：**
 ```json
 {
   "data_sources": {
-    "kline": {
-      "handler": "handlers.kline.KlineHandler",
-      "is_enabled": true,
-      "dependencies": {
-        "latest_completed_trading_date": true,
-        "stock_list": true
-      },
-      "params": {}
-    },
     "gdp": {
-      "handler": "handlers.rolling.RollingHandler",
       "is_enabled": true,
-      "dependencies": {
-        "latest_completed_trading_date": false,
-        "stock_list": false
+      "provider_config": {
+        "apis": [
+          {
+            "provider_name": "tushare",
+            "method": "get_gdp",
+            "field_mapping": {
+              "quarter": "quarter",
+              "gdp": "gdp",
+              "gdp_yoy": "gdp_yoy"
+            },
+            "params": {},
+            "depends_on": []
+          }
+        ]
       },
-      "params": {
-        "provider_name": "tushare",
-        "method": "get_gdp",
+      "handler_config": {
         "date_format": "quarter",
+        "default_date_range": {"years": 5},
         "rolling_periods": 4
       }
+    },
+    "kline": {
+      "is_enabled": true,
+      "provider_config": {
+        "apis": []
+      },
+      "handler_config": {}
     }
   }
 }
 ```
 
 **字段说明：**
-- `handler` - Handler 类的完整路径（必需）
-- `is_enabled` - 是否启用（默认 true）
-- `dependencies` - 全局依赖声明（`latest_completed_trading_date`、`stock_list`）
-- `params` - Handler 自定义参数
+- `is_enabled` - 是否启用（必需，在 userspace 配置中）
+- `provider_config` - Provider 配置（必需）
+  - `apis` - API 配置列表（每个 API 包含 `provider_name`、`method`、`field_mapping`、`params`、`depends_on` 等）
+- `handler_config` - Handler 特定配置（可选，根据 Handler 类型不同而不同）
+- `handler` - Handler 路径（在框架默认配置中，用户可以在 userspace 中覆盖）
+- `dependencies` - 全局依赖声明（在框架默认配置中，用户可以在 userspace 中覆盖）
 
-**配置合并：**
-- `userspace/data_source/mapping.json` 会深度合并到 `handlers/mapping.json`
-- `params` 字段会深度合并
-- `dependencies` 字段会完全覆盖（如果 custom 中有声明）
+**配置加载策略：**
+1. 框架默认配置提供 `handler` 和默认 `dependencies`（作为参考）
+2. 用户配置提供所有可配置内容（`is_enabled`、`provider_config`、`handler_config`）
+3. 用户配置可以覆盖框架默认的 `handler` 和 `dependencies`
+4. 如果用户配置文件不存在，会抛出错误（用户必须创建配置文件）
 
 ---
 

@@ -42,19 +42,24 @@ class BaseDataSourceHandler(ABC):
         self, 
         schema, 
         params: Dict[str, Any] = None, 
-        data_manager=None
+        data_manager=None,
+        definition=None  # DataSourceDefinition 对象（必需）
     ):
         """
         初始化 Handler
         
         Args:
             schema: 数据源的 schema 定义
-            params: 从 mapping.json 传入的自定义参数
+            params: 保留参数（已废弃，所有配置都在 definition 中）
             data_manager: 数据管理器（用于数据库查询）
+            definition: DataSourceDefinition 对象（必需）
         """
+        if definition is None:
+            raise ValueError(f"{self.__class__.__name__} 必须提供 definition 参数")
+        
         self.schema = schema
-        self.params = params or {}
         self.data_manager = data_manager
+        self._definition = definition  # 标准化的配置对象
         self._providers = {}
         self._generated_tasks: List[DataSourceTask] = []  # 保存生成的 Tasks（用于 normalize 中查找）
         
@@ -502,8 +507,46 @@ class BaseDataSourceHandler(ABC):
         return task_results
     
     def get_param(self, key: str, default: Any = None) -> Any:
-        """获取配置参数"""
-        return self.params.get(key, default)
+        """
+        获取配置参数
+        
+        从 DataSourceDefinition 的 handler_config 读取配置
+        
+        Args:
+            key: 参数名
+            default: 默认值
+        
+        Returns:
+            参数值
+        """
+        if self._definition and self._definition.handler_config:
+            value = getattr(self._definition.handler_config, key, None)
+            if value is not None:
+                return value
+        
+        return default
+    
+    def get_provider_config(self):
+        """
+        获取 ProviderConfig（如果存在 DataSourceDefinition）
+        
+        Returns:
+            ProviderConfig 对象，如果不存在则返回 None
+        """
+        if self._definition:
+            return self._definition.provider_config
+        return None
+    
+    def get_handler_config(self):
+        """
+        获取 HandlerConfig（如果存在 DataSourceDefinition）
+        
+        Returns:
+            HandlerConfig 对象，如果不存在则返回 None
+        """
+        if self._definition:
+            return self._definition.handler_config
+        return None
     
     # ========== 元信息 ==========
     

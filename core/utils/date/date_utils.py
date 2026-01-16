@@ -422,7 +422,7 @@ class DateUtils:
     @staticmethod
     def get_previous_day(date_str: str) -> str:
         """
-        获取前一个交易日（前一天的日期）
+        获取前一天的日期（自然日）
         
         Args:
             date_str: 日期字符串，格式YYYYMMDD
@@ -431,6 +431,38 @@ class DateUtils:
             str: 前一天的日期，格式YYYYMMDD
         """
         return DateUtils.get_date_before_days(date_str, 1)
+    
+    @staticmethod
+    def get_next_date(date_str: str) -> str:
+        """
+        获取下一天的日期（自然日）
+        
+        Args:
+            date_str: 日期字符串，格式YYYYMMDD
+        
+        Returns:
+            str: 下一天的日期，格式YYYYMMDD
+        """
+        return DateUtils.get_date_after_days(date_str, 1)
+    
+    @staticmethod
+    def get_date_before_with_multiplier(date_str: str, days: int, multiplier: float = 1.0) -> str:
+        """
+        获取 N 天前的日期（支持倍数，用于交易日估算）
+        
+        例如：如果需要 30 个交易日的数据，可以使用 multiplier=1.5 来估算自然日
+        days=30, multiplier=1.5 → 实际计算 45 天前，确保有足够的交易日数据
+        
+        Args:
+            date_str: 基准日期（YYYYMMDD）
+            days: 天数
+            multiplier: 倍数（默认 1.0，即自然日）
+        
+        Returns:
+            str: N 天前的日期（YYYYMMDD）
+        """
+        actual_days = int(days * multiplier)
+        return DateUtils.get_date_before_days(date_str, actual_days)
     
     @staticmethod
     def get_previous_week_end(date_str: str) -> str:

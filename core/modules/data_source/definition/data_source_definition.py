@@ -6,10 +6,10 @@ DataSource Definition 核心类
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Type
 from loguru import logger
-import importlib
 
 from .api_config import ApiConfig, ProviderConfig
 from .handler_config import BaseHandlerConfig
+from core.infra.discovery import ClassDiscovery, DiscoveryConfig
 
 
 @dataclass
@@ -187,7 +187,7 @@ class DataSourceDefinition:
         cls, data: Dict[str, Any], handler_path: str
     ) -> Optional[BaseHandlerConfig]:
         """
-        解析 HandlerConfig（自动发现机制）
+        解析 HandlerConfig（使用 ClassDiscovery 自动发现）
         
         自动发现策略（按优先级）：
         1. 从 handler 类获取 config_class 类属性（推荐方式）
@@ -202,33 +202,21 @@ class DataSourceDefinition:
             HandlerConfig 实例（如果找到对应的 Config 类），否则返回 None
         """
         try:
-            # 解析 handler_path 获取模块路径和类名
-            module_path, handler_class_name = handler_path.rsplit('.', 1)
-            handler_module = importlib.import_module(module_path)
-            handler_class = getattr(handler_module, handler_class_name, None)
+            # 使用 ClassDiscovery 发现 config_class 属性
+            # 这会自动尝试两种策略：类属性 + 约定命名
+            # 创建一个简单的 discovery 实例（不需要完整的配置，因为我们只用于发现属性）
+            config = DiscoveryConfig(
+                base_class=BaseHandlerConfig,
+                module_name_pattern="",  # 不使用包扫描
+            )
+            discovery = ClassDiscovery(config)
             
-            if not handler_class:
-                logger.warning(f"无法找到 Handler 类 {handler_path}")
-                return None
+            config_class = discovery.discover_class_attribute(
+                class_path=handler_path,
+                attribute_name="config_class",
+                default=None
+            )
             
-            config_class = None
-            
-            # 策略 1: 从 handler 类获取 config_class 类属性（推荐）
-            if hasattr(handler_class, 'config_class'):
-                config_class = handler_class.config_class
-                if config_class and issubclass(config_class, BaseHandlerConfig):
-                    # 找到 Config 类，使用它
-                    handler_config_data = data.get("handler_config", {})
-                    try:
-                        return config_class(**handler_config_data)
-                    except Exception as e:
-                        logger.warning(f"创建 HandlerConfig 失败 {handler_path}: {e}，使用默认配置")
-                        return config_class()
-            
-            # 策略 2: 从 handler 模块导入 Config 类（约定命名：HandlerClassName + "Config"）
-            # 例如：KlineHandler -> KlineHandlerConfig
-            config_class_name = handler_class_name + "Config"
-            config_class = getattr(handler_module, config_class_name, None)
             if config_class and issubclass(config_class, BaseHandlerConfig):
                 handler_config_data = data.get("handler_config", {})
                 try:

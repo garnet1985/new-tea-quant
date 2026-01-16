@@ -1,4 +1,4 @@
-from core.global_enums.enums import KlineTerm
+from core.global_enums.enums import TermType
 
 settings = {
     # 策略启用状态
@@ -7,9 +7,9 @@ settings = {
     "description": "历史低点策略 - 寻找股票的历史低点，识别可能的买入机会",
     
     "klines": {
-        "terms": [KlineTerm.DAILY.value],
-        "signal_base_term": KlineTerm.DAILY.value,
-        "simulate_base_term": KlineTerm.DAILY.value,
+        "terms": [TermType.DAILY.value],
+        "signal_base_term": TermType.DAILY.value,
+        "simulate_base_term": TermType.DAILY.value,
         "min_required_base_records": 1000,
     },
 

@@ -41,7 +41,6 @@ class BaseDataSourceHandler(ABC):
     def __init__(
         self, 
         schema, 
-        params: Dict[str, Any] = None, 
         data_manager=None,
         definition=None  # DataSourceDefinition 对象（必需）
     ):
@@ -50,9 +49,11 @@ class BaseDataSourceHandler(ABC):
         
         Args:
             schema: 数据源的 schema 定义
-            params: 保留参数（已废弃，所有配置都在 definition 中）
             data_manager: 数据管理器（用于数据库查询）
-            definition: DataSourceDefinition 对象（必需）
+            definition: DataSourceDefinition 对象（必需，包含所有配置信息）
+        
+        Raises:
+            ValueError: 如果 definition 为 None
         """
         if definition is None:
             raise ValueError(f"{self.__class__.__name__} 必须提供 definition 参数")
@@ -393,7 +394,7 @@ class BaseDataSourceHandler(ABC):
         注意：Handler 可以直接调用，也可以让框架自动调用
         """
         from core.modules.data_source.task_executor import TaskExecutor
-        executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
+        executor = TaskExecutor()
         return await executor.execute(tasks)
     
     # ========== 辅助方法 ==========

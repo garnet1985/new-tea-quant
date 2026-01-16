@@ -26,15 +26,6 @@ class TermType(Enum):
     QUARTERLY = "quarterly"
     YEARLY = "yearly"
 
-# TODO: replace with TermType
-class KlineTerm(Enum):
-    """K线周期枚举"""
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    MONTHLY = "monthly"
-    QUARTERLY = "quarterly"
-    YEARLY = "yearly"
-
 class AdjustType(Enum):
     """复权类型枚举"""
     NONE = "none"  # 不复权

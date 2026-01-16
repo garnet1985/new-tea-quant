@@ -3,6 +3,10 @@
   "batch_write": {
     "enable": true,
     "batch_size": 1000,
-    "flush_interval": 5.0
+    "flush_interval": 5.0,
+    "_advanced": {
+      "insert_batch_size": 5000,
+      "_comment": "insert_batch_size: 单次 SQL 语句的批量插入大小（避免 SQL 语句过长），默认 5000"
+    }
   }
 }

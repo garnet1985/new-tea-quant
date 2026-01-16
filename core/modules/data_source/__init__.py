@@ -1,14 +1,12 @@
 from core.modules.data_source.data_source_manager import DataSourceManager
-from core.modules.data_source.base_handler import BaseHandler  # 旧版本，保留兼容
 from core.modules.data_source.base_provider import BaseProvider
 from core.modules.data_source.data_source_handler import BaseDataSourceHandler
 from core.modules.data_source.api_job import ApiJob, DataSourceTask
 
 __all__ = [
     'DataSourceManager',
-    'BaseHandler',  # 旧版本
     'BaseProvider',
-    'BaseDataSourceHandler',  # 新版本
+    'BaseDataSourceHandler',
     'ApiJob',
     'DataSourceTask',
 ]

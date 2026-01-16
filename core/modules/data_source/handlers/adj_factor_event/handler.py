@@ -527,11 +527,8 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             )
             return
         
-        # 在导出 CSV 前，确保所有异步写入已经落盘
-        try:
-            adj_factor_event_model.wait_for_writes()
-        except Exception as e:
-            logger.warning(f"等待复权因子事件写入完成时出错，将继续尝试导出CSV: {e}")
+        # 在导出 CSV 前，确保所有数据已写入数据库
+        # 注意：数据库写入是同步的，无需额外等待
         
         # ========== 步骤6：季度CSV导出 ==========
         # 检查是否需要导出CSV（每季度一次）
@@ -553,7 +550,7 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
     
     async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """
-        标准化数据（用于兼容框架，实际保存逻辑在 after_all_tasks_execute 中）
+        标准化数据（实际保存逻辑在 after_all_tasks_execute 中）
         """
         # 数据已在 after_all_tasks_execute 中保存，这里返回空数据
         return {"data": []}

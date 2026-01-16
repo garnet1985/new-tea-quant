@@ -159,7 +159,7 @@
 ## 使用示例
 
 ```python
-from app.core.modules.data_source.data_source_manager import DataSourceManager
+from core.modules.data_source.data_source_manager import DataSourceManager
 
 # 初始化
 ds_manager = DataSourceManager()

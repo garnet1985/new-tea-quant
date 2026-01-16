@@ -26,7 +26,7 @@ import pkgutil
 import inspect
 from pathlib import Path
 
-from core.infra.db.db_manager import DatabaseManager
+from core.infra.db import DatabaseManager
 
 if TYPE_CHECKING:
     from core.global_enums.enums import EntityType
@@ -310,14 +310,14 @@ class DataManager:
                     logger.error(f"❌ 模块中未找到继承自 DbBaseModel 的类: {model_file_path}")
                     return None
                 
-                # 5. 从 schema.json 读取表名
-                import json
-                with open(schema_file, 'r', encoding='utf-8') as f:
-                    schema = json.load(f)
-                    table_name = schema.get('name')
-                    if not table_name:
-                        logger.error(f"❌ schema.json 中未找到表名: {schema_file}")
-                        return None
+                # 5. 从 schema.json 读取表名（使用 SchemaManager 统一加载）
+                from core.infra.db.schema_management.schema_manager import SchemaManager
+                schema_manager = SchemaManager()
+                schema = schema_manager.load_schema_from_file(schema_file)
+                table_name = schema.get('name')
+                if not table_name:
+                    logger.error(f"❌ schema.json 中未找到表名: {schema_file}")
+                    return None
                 
                 # 6. 缓存 Model 类
                 if table_name in self._table_cache:

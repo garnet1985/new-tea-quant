@@ -3,13 +3,15 @@ DataSource Manager - 数据源管理器
 
 负责加载和管理 DataSource、Handler、Schema，执行数据获取
 """
-import importlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from loguru import logger
+
 from core.modules.data_manager import DataManager
 from core.infra.project_context import ConfigManager, PathManager
 from core.modules.data_source.definition import DataSourceDefinition
+from core.infra.discovery import ModuleDiscovery, ClassDiscovery, DiscoveryConfig
+from core.modules.data_source.data_source_handler import BaseDataSourceHandler
 
 
 class DataSourceManager:
@@ -48,45 +50,36 @@ class DataSourceManager:
         """
         从 userspace 加载 Schema 定义
         
-        每个 handler 目录下应该有 schema.py 文件，定义该 data source 的 schema
+        使用 ModuleDiscovery 自动发现所有 handler 目录下的 schema.py 文件中的 SCHEMA 对象。
         """
         self._schemas = {}
-        handlers_dir = PathManager.data_source_handlers()
         
-        if not handlers_dir.exists():
-            logger.warning(f"⚠️  Handlers 目录不存在: {handlers_dir}")
-            return
-        
-        # 遍历所有 handler 目录，加载 schema
-        for handler_dir in handlers_dir.iterdir():
-            if not handler_dir.is_dir() or handler_dir.name.startswith('_'):
-                continue
+        try:
+            # 使用 ModuleDiscovery 自动发现所有 Schema
+            discovery = ModuleDiscovery()
+            schemas = discovery.discover_objects(
+                base_module_path="userspace.data_source.handlers",
+                object_name="SCHEMA",
+                module_pattern="userspace.data_source.handlers.{name}.schema"
+            )
             
-            schema_file = handler_dir / "schema.py"
-            if not schema_file.exists():
-                logger.debug(f"⚠️  {handler_dir.name} 没有 schema.py 文件，跳过")
-                continue
-            
-            try:
-                # 动态导入 schema 模块
-                # 路径格式：userspace.data_source.handlers.{handler_name}.schema
-                module_path = f"userspace.data_source.handlers.{handler_dir.name}.schema"
-                schema_module = importlib.import_module(module_path)
-                
-                if hasattr(schema_module, 'SCHEMA'):
-                    schema = schema_module.SCHEMA
+            # 处理发现的 Schema
+            for handler_name, schema in schemas.items():
+                if hasattr(schema, 'name'):
                     schema_name = schema.name
                     self._schemas[schema_name] = schema
                     if self.is_verbose:
-                        logger.debug(f"✅ 加载 Schema: {schema_name} (from {handler_dir.name})")
+                        logger.debug(f"✅ 加载 Schema: {schema_name} (from {handler_name})")
                 else:
-                    logger.warning(f"⚠️  {module_path} 没有定义 SCHEMA")
-            except Exception as e:
-                logger.warning(f"⚠️ 加载 Schema 失败 {handler_dir.name}: {e}")
-                continue
-        
-        if self.is_verbose:
-            logger.info(f"✅ 共加载 {len(self._schemas)} 个 Schema")
+                    logger.warning(f"⚠️  {handler_name} 的 Schema 没有 name 属性")
+            
+            if self.is_verbose:
+                logger.info(f"✅ 共加载 {len(self._schemas)} 个 Schema")
+                
+        except Exception as e:
+            logger.error(f"❌ 加载 Schema 失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     def _load_mapping(self):
         """
@@ -195,6 +188,8 @@ class DataSourceManager:
         """
         动态加载 Handler 类（从 userspace 加载）
         
+        使用 ClassDiscovery 通过路径发现 Handler 类。
+        
         Args:
             ds_name: 数据源名称
             handler_path: Handler 类的完整路径，格式：userspace.data_source.handlers.xxx.ClassName
@@ -211,12 +206,22 @@ class DataSourceManager:
                 )
                 return None
             
-            module_path, class_name = handler_path.rsplit('.', 1)
-            module = importlib.import_module(module_path)
-            handler_class = getattr(module, class_name)
-            if self.is_verbose:
-                logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({handler_path})")
-            return handler_class
+            # 使用 ClassDiscovery 发现 Handler 类
+            config = DiscoveryConfig(
+                base_class=BaseDataSourceHandler,
+                module_name_pattern=""  # 不使用包扫描，直接通过路径发现
+            )
+            discovery = ClassDiscovery(config)
+            handler_class = discovery.discover_class_by_path(handler_path, base_class=BaseDataSourceHandler)
+            
+            if handler_class:
+                if self.is_verbose:
+                    logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({handler_path})")
+                return handler_class
+            else:
+                logger.error(f"❌ 未找到 Handler 类: {ds_name} ({handler_path})")
+                return None
+                
         except Exception as e:
             logger.error(f"❌ 加载 Handler 失败 {ds_name} ({handler_path}): {e}")
             import traceback

@@ -11,7 +11,7 @@ from core.infra.project_context import ConfigManager
 from core.modules.data_source.data_source_handler import BaseDataSourceHandler
 from core.modules.data_source.api_job import DataSourceTask, ApiJob
 from core.utils.date.date_utils import DateUtils
-from core.infra.db.db_base_model import DBService
+from core.infra.db.helpers.db_helpers import DBHelper
 
 
 class CorporateFinanceHandler(BaseDataSourceHandler):
@@ -359,8 +359,8 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
             # 转换为字典列表
             records = df.to_dict('records')
             
-            # 使用 DBService 清理所有记录中的 NaN 值
-            records = DBService.clean_nan_in_list(records, default=None)
+            # 使用 DBHelper 清理所有记录中的 NaN 值
+            records = DBHelper.clean_nan_in_list(records, default=None)
             
             # 字段映射和数据处理
             for item in records:
@@ -379,8 +379,8 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
                 # 辅助函数：安全地将值转换为 float，处理 NaN
                 def safe_float(value, default=0.0):
                     """安全转换为 float，处理 NaN 和 None"""
-                    # 使用 DBService 的通用方法清理 NaN
-                    cleaned = DBService.clean_nan_value(value, default=None)
+                    # 使用 DBHelper 的通用方法清理 NaN
+                    cleaned = DBHelper.clean_nan_value(value, default=None)
                     if cleaned is None:
                         return default
                     try:

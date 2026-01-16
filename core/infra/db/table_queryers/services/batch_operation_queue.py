@@ -42,24 +42,27 @@ class BatchWriteQueue:
     
     def __init__(
         self,
-        db_manager,
+        table_manager,
         batch_size: int = 1000,
         flush_interval: float = 5.0,
-        enable: bool = True
+        enable: bool = True,
+        insert_batch_size: int = 5000
     ):
         """
         初始化批量写入队列
         
         Args:
-            db_manager: DatabaseManager 实例
+            table_manager: TableManager 实例（提供 adapter 和写入方法）
             batch_size: 批量写入阈值（达到此数量后立即写入）
             flush_interval: 刷新间隔（秒，超过此时间自动刷新）
             enable: 是否启用批量写入（False 时直接写入，用于调试）
+            insert_batch_size: 单次 SQL 语句的批量插入大小（避免 SQL 语句过长）
         """
-        self.db_manager = db_manager
+        self.table_manager = table_manager
         self.batch_size = batch_size
         self.flush_interval = flush_interval
         self.enable = enable
+        self.insert_batch_size = insert_batch_size
         
         # 按表名分组的待写入数据
         self._queues: Dict[str, List[WriteRequest]] = defaultdict(list)
@@ -132,7 +135,7 @@ class BatchWriteQueue:
         """
         if not self.enable:
             # 如果未启用，直接写入（用于调试或单线程场景）
-            self._direct_write(table_name, data_list, unique_keys, callback)
+            self.table_manager._direct_write(table_name, data_list, unique_keys, callback)
             return
         
         if not data_list:
@@ -209,7 +212,7 @@ class BatchWriteQueue:
         if all_data and unique_keys:
             # 在锁外执行写入
             try:
-                self._direct_write(table_name, all_data, unique_keys, None)
+                self.table_manager._direct_write(table_name, all_data, unique_keys, None)
                 self._stats['total_writes'] += 1
                 
                 # 执行回调
@@ -247,95 +250,44 @@ class BatchWriteQueue:
             return
         
         try:
-            from .db_base_model import DBService
+            from core.infra.db.helpers.db_helpers import DBHelper
+            from core.infra.db.table_queryers.services.batch_operation import BatchOperation
             
             if not unique_keys:
                 # 纯 INSERT（不需要去重）
-                columns, _ = DBService.to_columns_and_values(data_list)
-                columns_sql = ', '.join(columns)
+                columns, _ = DBHelper.to_columns_and_values(data_list)
                 values = [tuple(data[col] for col in columns) for data in data_list]
                 update_clause = None
-                conflict_cols = None
             else:
                 # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL/SQLite 风格 Upsert）
-                columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
+                columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
                 
                 if not columns:
                     return
-                
-                columns_sql = ', '.join(columns)
-                conflict_cols = ', '.join(unique_keys)
             
-            if not self.db_manager.conn:
-                raise RuntimeError("DatabaseManager not initialized.")
+            if not self.table_manager or not self.table_manager.adapter:
+                raise RuntimeError("TableManager not initialized.")
             
-            # 批量插入（分批处理，避免 SQL 语句过长）
-            INSERT_BATCH_SIZE = 5000
-            for i in range(0, len(values), INSERT_BATCH_SIZE):
-                batch_values = values[i:i+INSERT_BATCH_SIZE]
-                
-                # 构建批量插入 SQL
-                values_list = []
-                for val in batch_values:
-                    formatted_values = []
-                    for v in val:
-                        if v is None:
-                            formatted_values.append('NULL')
-                        elif isinstance(v, str):
-                            escaped = v.replace("'", "''")
-                            formatted_values.append(f"'{escaped}'")
-                        elif isinstance(v, (int, float)):
-                            import math
-                            if isinstance(v, float) and math.isnan(v):
-                                formatted_values.append('NULL')
-                            else:
-                                formatted_values.append(str(v))
-                        elif isinstance(v, bool):
-                            formatted_values.append('TRUE' if v else 'FALSE')
-                        elif isinstance(v, (datetime, date)):
-                            # 日期时间类型：确保格式化为字符串并加引号
-                            if isinstance(v, datetime):
-                                formatted_values.append(f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'")
-                            else:
-                                formatted_values.append(f"'{v.strftime('%Y-%m-%d')}'")
-                        else:
-                            escaped_val = str(v).replace("'", "''")
-                            formatted_values.append(f"'{escaped_val}'")
-                    values_list.append(f"({', '.join(formatted_values)})")
-                
-                # 执行批量插入
-                if not unique_keys:
-                    # 纯 INSERT
-                    batch_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)}"
-                    self.db_manager.conn.execute(batch_query)
-                else:
-                    # INSERT ... ON CONFLICT
-                    # 注意：PostgreSQL/SQLite 要求冲突列必须匹配主键或唯一索引
-                    # 如果 unique_keys 不匹配，会抛出 BinderException
-                    try:
-                        if update_clause:
-                            batch_query = (
-                                f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                                f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
-                            )
-                        else:
-                            batch_query = (
-                                f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)} "
-                                f"ON CONFLICT ({conflict_cols}) DO NOTHING"
-                            )
-                        self.db_manager.conn.execute(batch_query)
-                    except Exception as conflict_error:
-                        # 如果 ON CONFLICT 失败（unique_keys 不匹配主键/唯一索引），回退到纯 INSERT
-                        if "conflict target" in str(conflict_error).lower() or "unique" in str(conflict_error).lower():
-                            logger.warning(
-                                f"表 {table_name} 的 unique_keys {unique_keys} 不匹配主键/唯一索引，"
-                                f"回退到纯 INSERT（可能产生重复数据）: {conflict_error}"
-                            )
-                            batch_query = f"INSERT INTO {table_name} ({columns_sql}) VALUES {', '.join(values_list)}"
-                            self.db_manager.conn.execute(batch_query)
-                        else:
-                            # 其他错误直接抛出
-                            raise
+            # 使用 BatchInsertHelper 执行批量插入
+            # 通过 adapter 获取连接并执行 SQL
+            conn = self.table_manager.adapter.get_connection()
+            try:
+                BatchOperation.execute_batch_insert(
+                    executor=conn,
+                    table_name=table_name,
+                    columns=columns,
+                    values=values,
+                    batch_size=self.insert_batch_size,
+                    unique_keys=unique_keys if unique_keys else None,
+                    update_clause=update_clause
+                )
+            finally:
+                # 归还连接（如果需要）
+                if hasattr(self.table_manager.adapter, '_put_connection'):
+                    if hasattr(conn, 'pg_conn'):
+                        self.table_manager.adapter._put_connection(conn.pg_conn)
+                    else:
+                        self.table_manager.adapter._put_connection(conn)
             
             if callback:
                 callback(table_name, len(data_list))

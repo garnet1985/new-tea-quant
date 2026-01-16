@@ -134,7 +134,7 @@ cust_my_analysis       # 用户自定义分析表
 基础表由 `DatabaseManager` 在初始化时自动创建：
 
 ```python
-from app.core.infra.db.db_manager import DatabaseManager
+from core.infra.db import DatabaseManager
 
 # 初始化时会自动创建所有基础表
 db = DatabaseManager()

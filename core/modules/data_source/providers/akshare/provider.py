@@ -29,7 +29,7 @@ class AKShareProvider(BaseProvider):
     requires_auth = False
     auth_type = None
     
-    # 根据 legacy 配置：80次/分钟（buffer 10，实际70次/分钟）
+    # API 限流：80次/分钟（buffer 10，实际70次/分钟）
     api_limits = {
         "get_qfq_kline": 80,  # 前复权K线数据（用于计算复权因子）
     }

@@ -53,41 +53,27 @@ class DataSourceManager:
     
     def _load_mapping(self):
         """
-        加载 Handler 映射配置（先加载 defaults，再加载 custom 覆盖）
+        加载 Handler 映射配置
         
-        使用 ConfigManager 统一配置加载和合并逻辑
+        加载顺序：
+        1. 默认配置：handlers/mapping.json
+        2. 用户配置：userspace/data_source/mapping.json（深度合并）
         """
-        # 1. 确定默认配置文件路径（优先使用 handlers/mapping.json）
+        # 1. 加载默认配置
         handlers_path = Path(__file__).parent / "handlers" / "mapping.json"
-        defaults_path = Path(__file__).parent / "defaults" / "mapping.json"
-        
-        # 选择主要的默认配置文件
-        default_path = handlers_path if handlers_path.exists() else defaults_path
-        
-        # 2. 确定用户配置文件路径（优先使用 userspace/data_source/mapping.json）
-        user_path = PathManager.userspace() / "data_source" / "mapping.json"
-        legacy_custom_path = Path(__file__).parent / "custom" / "mapping.json"
-        
-        # 3. 使用 ConfigManager 加载和合并配置
-        # 注意：ConfigManager.load_with_defaults 只支持一个默认配置和一个用户配置
-        # 对于多个默认配置的情况，我们需要先手动合并
         merged_config = {}
         
-        # 3.1 加载主要的默认配置
-        if default_path.exists():
-            default_config = ConfigManager.load_json(default_path)
+        if handlers_path.exists():
+            default_config = ConfigManager.load_json(handlers_path)
             merged_config = default_config.get("data_sources", {})
-            logger.debug(f"✅ 加载了默认配置: {default_path.name}")
+            if self.is_verbose:
+                logger.debug(f"✅ 加载了默认配置: {handlers_path.name}")
+        else:
+            logger.warning(f"⚠️ 默认配置文件不存在: {handlers_path}")
         
-        # 3.2 如果存在另一个默认配置，合并它（兼容旧路径）
-        if default_path == handlers_path and defaults_path.exists():
-            legacy_default_config = ConfigManager.load_json(defaults_path)
-            legacy_data_sources = legacy_default_config.get("data_sources", {})
-            # 使用浅层合并（旧配置覆盖新配置，保持向后兼容）
-            merged_config = {**merged_config, **legacy_data_sources}
-            logger.debug(f"✅ 合并了兼容默认配置: {defaults_path.name}")
+        # 2. 加载并合并用户配置（使用深度合并）
+        user_path = PathManager.userspace() / "data_source" / "mapping.json"
         
-        # 3.3 加载并合并用户配置（使用深度合并）
         if user_path.exists():
             user_config = ConfigManager.load_json(user_path)
             user_data_sources = user_config.get("data_sources", {})
@@ -99,22 +85,10 @@ class DataSourceManager:
                 deep_merge_fields={"params"},
                 override_fields={"dependencies"}
             )
-            logger.debug(f"✅ 加载并合并了用户配置: {user_path}")
+            if self.is_verbose:
+                logger.debug(f"✅ 加载并合并了用户配置: {user_path}")
         
-        # 3.4 如果存在旧路径的用户配置，也合并它（兼容旧路径）
-        if legacy_custom_path.exists():
-            legacy_user_config = ConfigManager.load_json(legacy_custom_path)
-            legacy_user_data_sources = legacy_user_config.get("data_sources", {})
-            # 使用 merge_mapping_configs 进行深度合并
-            merged_config = merge_mapping_configs(
-                merged_config,
-                legacy_user_data_sources,
-                deep_merge_fields={"params"},
-                override_fields={"dependencies"}
-            )
-            logger.debug(f"✅ 合并了兼容用户配置: {legacy_custom_path.name}")
-        
-        # 4. 保存最终合并结果
+        # 3. 保存最终合并结果
         self._mapping = merged_config
     
     def _load_handler(self, ds_name: str, handler_path: str):
@@ -123,7 +97,7 @@ class DataSourceManager:
         
         Args:
             ds_name: 数据源名称
-            handler_path: Handler 类的完整路径（如 "defaults.handlers.stock_list_handler.TushareStockListHandler"）
+            handler_path: Handler 类的完整路径（如 "handlers.stock_list.TushareStockListHandler"）
         
         Returns:
             Handler 类
@@ -429,9 +403,3 @@ class DataSourceManager:
                 continue
         
         logger.info("🎉 所有数据源更新完成")
-        
-        # 等待所有批量写入完成（DuckDB 并发写入需要）
-        if self.data_manager and self.data_manager.db:
-            logger.info("⏳ 等待所有数据写入完成...")
-            self.data_manager.db.wait_for_writes(timeout=60.0)
-            logger.info("✅ 所有数据写入完成")

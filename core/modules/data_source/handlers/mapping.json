@@ -1,5 +1,5 @@
 {
-    "_comment": "框架默认配置，不应修改。用户可以通过 custom/mapping.json 覆盖",
+    "_comment": "框架默认配置，不应修改。用户可以通过 userspace/data_source/mapping.json 覆盖",
     "data_sources": {
         "stock_list": {
             "handler": "handlers.stock_list.TushareStockListHandler",

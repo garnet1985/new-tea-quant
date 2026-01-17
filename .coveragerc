@@ -7,6 +7,8 @@ omit =
     */userspace/*
     */test_*.py
     */__init__.py
+    */example.py
+    */*_example.py
 
 [report]
 exclude_lines =

@@ -672,7 +672,7 @@ class PriceFactorSimulatorWorker:
         在子进程中保存单个股票的 JSON 文件。
         
         目录结构：
-            app/userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.json
+            userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.json
         """
         # 使用 ResultPathManager 统一管理结果目录与文件名
         from core.modules.strategy.managers.result_path_manager import ResultPathManager

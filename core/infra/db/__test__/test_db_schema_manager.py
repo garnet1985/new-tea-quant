@@ -36,10 +36,11 @@ class TestSchemaManager:
         # 创建临时 schema 文件
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             schema_data = {
-                'fields': {
-                    'id': {'type': 'string', 'primary_key': True},
-                    'name': {'type': 'string'}
-                }
+                'name': 'test_table',
+                'fields': [
+                    {'name': 'id', 'type': 'VARCHAR', 'length': 50, 'primary_key': True},
+                    {'name': 'name', 'type': 'VARCHAR', 'length': 100}
+                ]
             }
             json.dump(schema_data, f)
             schema_file = f.name
@@ -48,7 +49,9 @@ class TestSchemaManager:
             manager = SchemaManager(is_verbose=False)
             schema = manager.load_schema_from_file(schema_file)
             assert 'fields' in schema
-            assert 'id' in schema['fields']
+            assert isinstance(schema['fields'], list)
+            field_names = [f['name'] for f in schema['fields']]
+            assert 'id' in field_names
         finally:
             os.unlink(schema_file)
     
@@ -86,11 +89,11 @@ class TestSchemaManager:
         """测试获取表字段"""
         manager = SchemaManager(is_verbose=False)
         schema = {
-            'fields': {
-                'id': {'type': 'string'},
-                'name': {'type': 'string'},
-                'price': {'type': 'float'}
-            }
+            'fields': [
+                {'name': 'id', 'type': 'string'},
+                {'name': 'name', 'type': 'string'},
+                {'name': 'price', 'type': 'float'}
+            ]
         }
         manager.register_table('test_table', schema)
         fields = manager.get_table_fields('test_table')

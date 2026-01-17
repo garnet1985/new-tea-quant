@@ -1,4 +1,4 @@
-from core.global_enums.enums import KlineTerm, AdjustType
+from core.global_enums.enums import TermType, AdjustType
 from core.infra.project_context import ConfigManager
 
 settings = {
@@ -12,11 +12,11 @@ settings = {
     # 数据要求配置
     "klines": {
         # 数据周期 - 例子中指代模拟需要加在日，周，月线数据，模拟器会根据这个配置自动加载数据
-        "terms": [KlineTerm.DAILY.value],
+        "terms": [TermType.DAILY.value],
         # 信号检测周期 - 例子中指代基于日线检测信号
-        "signal_base_term": KlineTerm.DAILY.value,
+        "signal_base_term": TermType.DAILY.value,
         # 模拟执行周期 - 例子中指代模拟器基于日线来进行一日日的模拟（交易日）
-        "simulate_base_term": KlineTerm.DAILY.value,
+        "simulate_base_term": TermType.DAILY.value,
         # 最小要求的基础周期记录数
         "min_required_base_records": 100,
         # 复权方式

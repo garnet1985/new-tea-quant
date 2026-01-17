@@ -5,7 +5,7 @@ DBHelpers - 数据库操作辅助工具
 """
 import math
 from typing import Dict, List, Any, Optional
-from core.infra.db.table_queryers.adapters.base_adapter import BaseDatabaseAdapter
+from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
 
 
 class DBHelper:

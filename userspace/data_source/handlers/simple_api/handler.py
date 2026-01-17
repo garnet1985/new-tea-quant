@@ -49,9 +49,9 @@ class SimpleApiHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = True  # 默认需要日期范围
     
-    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
+    def __init__(self, schema, data_manager=None, definition=None):
         # 注意：data_source 会在 DataSourceManager 中设置，这里先调用 super
-        super().__init__(schema, params or {}, data_manager)
+        super().__init__(schema, data_manager, definition)
         
         # 从配置中读取参数
         self.provider_name = self.get_param("provider_name", "tushare")

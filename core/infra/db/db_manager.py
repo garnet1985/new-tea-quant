@@ -200,7 +200,8 @@ class DatabaseManager:
     @contextmanager
     def get_connection(self):
         """获取数据库连接（委托给 ConnectionManager）"""
-        return self.connection_manager.get_connection()
+        with self.connection_manager.get_connection() as conn:
+            yield conn
     
     @contextmanager
     def transaction(self):

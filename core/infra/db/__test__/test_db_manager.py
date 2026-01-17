@@ -43,7 +43,7 @@ class TestDatabaseManager:
     def test_get_default_auto_init(self):
         """测试自动初始化默认实例"""
         DatabaseManager.reset_default()
-        with patch('core.infra.db.table_queryers.adapters.factory.DatabaseAdapterFactory.create') as mock_factory:
+        with patch('core.infra.db.table_queriers.adapters.factory.DatabaseAdapterFactory.create') as mock_factory:
             mock_adapter = Mock()
             mock_factory.return_value = mock_adapter
             
@@ -70,7 +70,7 @@ class TestDatabaseManager:
         }
         db = DatabaseManager(config=config, is_verbose=False)
         
-        with patch('core.infra.db.table_queryers.adapters.factory.DatabaseAdapterFactory.create') as mock_factory:
+        with patch('core.infra.db.table_queriers.adapters.factory.DatabaseAdapterFactory.create') as mock_factory:
             mock_adapter = Mock()
             mock_factory.return_value = mock_adapter
             

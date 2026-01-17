@@ -331,7 +331,20 @@ class BaseDataSourceHandler(ABC):
             # 框架执行 Tasks
             if executor is None:
                 from core.modules.data_source.task_executor import TaskExecutor
-                executor = TaskExecutor()  # TODO: 需要传入 providers 和 rate_limiter
+                from core.modules.data_source.providers.provider_instance_pool import get_provider_pool
+                
+                # 从 ProviderInstancePool 获取所有 providers
+                provider_pool = get_provider_pool()
+                providers = {}
+                # 收集所有需要的 provider（从 tasks 中提取）
+                for task in tasks:
+                    for api_job in task.api_jobs:
+                        if api_job.provider_name not in providers:
+                            provider = provider_pool.get_provider(api_job.provider_name)
+                            if provider:
+                                providers[api_job.provider_name] = provider
+                
+                executor = TaskExecutor(providers=providers)
                 # 设置 handler 和 context（用于单个 task 执行前后的钩子）
                 executor.set_handler(self, context)
             
@@ -360,10 +373,58 @@ class BaseDataSourceHandler(ABC):
     # ========== 数据验证 ==========
     
     def validate(self, data: Dict) -> bool:
-        """验证数据是否符合 schema"""
-        if self.schema:
-            return self.schema.validate(data)
-        return True
+        """
+        验证数据是否符合 schema
+        
+        Args:
+            data: 标准化后的数据，通常是 {"data": [...]} 格式
+            
+        Returns:
+            bool: 是否符合规范
+        """
+        if not self.schema:
+            return True
+        
+        # 如果数据是 {"data": [...]} 格式，验证列表中的每个记录
+        if isinstance(data, dict) and "data" in data:
+            data_list = data.get("data", [])
+            if not isinstance(data_list, list):
+                logger.error(f"数据验证失败: data 字段不是列表类型")
+                return False
+            
+            # 验证列表中的每个记录
+            for idx, record in enumerate(data_list):
+                if not isinstance(record, dict):
+                    logger.error(f"数据验证失败: 记录 {idx} 不是字典类型")
+                    return False
+                if not self.schema.validate(record):
+                    # 找出缺失或无效的字段
+                    missing_fields = []
+                    for field_name, field_def in self.schema.schema.items():
+                        if field_def.required and field_name not in record:
+                            missing_fields.append(field_name)
+                        elif field_name in record and record[field_name] is not None:
+                            value = record[field_name]
+                            expected_type = field_def.type
+                            if not isinstance(value, expected_type):
+                                try:
+                                    if expected_type == int and isinstance(value, (float, str)):
+                                        int(value)
+                                    elif expected_type == float and isinstance(value, (int, str)):
+                                        float(value)
+                                    elif expected_type == str:
+                                        str(value)
+                                    else:
+                                        missing_fields.append(f"{field_name}(类型错误: {type(value).__name__} != {expected_type.__name__})")
+                                except (ValueError, TypeError):
+                                    missing_fields.append(f"{field_name}(类型错误: {type(value).__name__} != {expected_type.__name__})")
+                    if missing_fields:
+                        logger.error(f"数据验证失败: 记录 {idx} 缺少或无效的字段: {', '.join(missing_fields)}")
+                    return False
+            return True
+        
+        # 如果数据不是 {"data": [...]} 格式，直接验证整个字典
+        return self.schema.validate(data)
     
     # ========== Provider 管理 ==========
     
@@ -377,25 +438,6 @@ class BaseDataSourceHandler(ABC):
     
     # ========== 框架提供的工具方法 ==========
     
-    async def execute_tasks(
-        self, 
-        tasks: List[DataSourceTask],
-        max_workers: Optional[int] = None,
-        use_rate_limit: bool = True
-    ) -> Dict[str, Dict[str, Any]]:
-        """
-        执行一组 Tasks（框架提供）
-        
-        - 自动处理依赖关系（拓扑排序）
-        - 自动应用限流
-        - 自动决定线程数
-        - 返回 {task_id: {job_id: result}} 字典
-        
-        注意：Handler 可以直接调用，也可以让框架自动调用
-        """
-        from core.modules.data_source.task_executor import TaskExecutor
-        executor = TaskExecutor()
-        return await executor.execute(tasks)
     
     # ========== 辅助方法 ==========
     
@@ -495,36 +537,39 @@ class BaseDataSourceHandler(ABC):
                     return api_job
         return None
     
-    def group_results_by_task(self, task_results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-        """
-        按 Task 分组结果（辅助方法）
-        
-        Args:
-            task_results: {task_id: {job_id: result}}
-        
-        Returns:
-            {task_id: {job_id: result}}（已经是按 Task 分组的，这里主要是为了保持接口一致性）
-        """
-        return task_results
     
     def get_param(self, key: str, default: Any = None) -> Any:
         """
         获取配置参数
         
-        从 DataSourceDefinition 的 handler_config 读取配置
+        读取顺序（优先级从高到低）：
+        1. 用户配置（mapping.json 中的 handler_config）
+        2. config_class 中定义的默认值（如果 handler 定义了 config_class）
+        3. get_param 的 default 参数
         
         Args:
             key: 参数名
-            default: 默认值
+            default: 最终默认值（如果用户没配置且 config_class 也没有默认值）
         
         Returns:
             参数值
         """
         if self._definition and self._definition.handler_config:
-            value = getattr(self._definition.handler_config, key, None)
-            if value is not None:
+            # handler_config 是对象（Handler 定义了 config_class）
+            # 检查用户是否配置了该参数（使用 hasattr 和 getattr）
+            if hasattr(self._definition.handler_config, key):
+                # 用户配置了该参数（即使值是 None，也使用用户配置的值）
+                # 注意：dataclass 会为所有字段创建属性，所以需要检查是否在用户配置中
+                # 这里我们直接获取属性值，如果用户没配置，dataclass 会使用默认值
+                value = getattr(self._definition.handler_config, key)
+                # 使用 sentinel 来区分"用户显式设置为 None"和"使用默认值"
+                # 但由于 dataclass 的限制，我们无法区分，所以：
+                # - 如果值是 None，可能是用户设置的 None，也可能是默认值 None
+                # - 如果值不是 None，肯定是用户配置的或默认值
                 return value
         
+        # handler_config 是 None（Handler 没有定义 config_class）
+        # 或者属性不存在，返回 default
         return default
     
     def get_provider_config(self):

@@ -36,13 +36,13 @@ class PriceIndexesHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = True  # 需要日期范围参数
     
-    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
-        super().__init__(schema, params or {}, data_manager)
+    def __init__(self, schema, data_manager=None, definition=None):
+        super().__init__(schema, data_manager, definition)
         # 默认日期范围：最近 3 年（用于首次运行或数据库为空时）
-        self.default_date_range = params.get('default_date_range', {"years": 3})
+        self.default_date_range = self.get_param('default_date_range', {"years": 3})
         # 滚动窗口：每次运行都刷新最近 N 个月的数据（确保数据一致性）
         # 说明：宏观经济数据可能会被修正，滚动刷新可以确保最近 N 个月的数据是最新的
-        self.ROLLING_MONTHS = params.get('rolling_months', 12)  # 默认滚动刷新最近 12 个月
+        self.ROLLING_MONTHS = self.get_param('rolling_months', 12)  # 默认滚动刷新最近 12 个月
     
     async def before_fetch(self, context: Dict[str, Any] = None):
         """

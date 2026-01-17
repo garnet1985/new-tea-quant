@@ -35,7 +35,7 @@ class OpportunityService:
         
         # 结果文件夹路径
         self.base_path = PathManager.strategy_results(strategy_name)
-        self.scan_path = self.base_path / "scan"
+        self.scan_path = PathManager.strategy_scan_results(strategy_name)
         self.simulate_path = self.base_path / "simulate"
         
         # 确保文件夹存在

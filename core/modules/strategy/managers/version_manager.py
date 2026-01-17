@@ -40,7 +40,7 @@ class VersionManager:
         创建机会枚举器版本目录
         
         目录结构：
-            app/userspace/strategies/{strategy}/results/opportunity_enums/
+            userspace/strategies/{strategy}/results/opportunity_enums/
                 {test|output}/
                     meta.json  # 版本管理元信息
                     {version_id}/  # 版本目录（纯自增 ID）
@@ -55,11 +55,7 @@ class VersionManager:
             (version_dir, version_id): 版本目录路径和版本ID
         """
         sub_dir_name = "test" if use_sampling else "output"
-        root_dir = (
-            PathManager.strategy_results(strategy_name)
-            / "opportunity_enums"
-        )
-        sub_dir = root_dir / sub_dir_name
+        sub_dir = PathManager.strategy_opportunity_enums(strategy_name, use_sampling)
         sub_dir.mkdir(parents=True, exist_ok=True)
         
         # 读取或创建 meta.json
@@ -120,11 +116,6 @@ class VersionManager:
         Returns:
             (version_dir, base_dir): 版本目录路径和基础目录路径
         """
-        base_root = (
-            PathManager.strategy_results(strategy_name)
-            / "opportunity_enums"
-        )
-        
         # 解析目录类型和版本号
         if "/" in version_spec:
             # 格式：test/latest 或 output/latest 或 test/1 或 output/1
@@ -136,7 +127,8 @@ class VersionManager:
             sub_dir_name = "output"
             version_str = version_spec
         
-        root = base_root / sub_dir_name
+        root = PathManager.strategy_opportunity_enums(strategy_name, use_sampling=(sub_dir_name == "test"))
+        base_root = root.parent  # opportunity_enums 目录
         if not root.exists():
             raise FileNotFoundError(
                 f"[VersionManager] 枚举目录不存在: {root} (version_spec={version_spec})"
@@ -177,7 +169,7 @@ class VersionManager:
         创建价格因子模拟器版本目录
         
         目录结构：
-            app/userspace/strategies/{strategy}/results/simulations/price_factor/
+            userspace/strategies/{strategy}/results/simulations/price_factor/
                 meta.json  # 版本管理元信息
                 {version_id}/  # 模拟器版本目录
         
@@ -187,11 +179,7 @@ class VersionManager:
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        root_dir = (
-            PathManager.strategy_results(strategy_name)
-            / "simulations"
-            / "price_factor"
-        )
+        root_dir = PathManager.strategy_simulations_price_factor(strategy_name)
         root_dir.mkdir(parents=True, exist_ok=True)
         
         # 读取或创建 meta.json
@@ -243,11 +231,7 @@ class VersionManager:
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        root_dir = (
-            PathManager.strategy_results(strategy_name)
-            / "simulations"
-            / "price_factor"
-        )
+        root_dir = PathManager.strategy_simulations_price_factor(strategy_name)
         
         if not root_dir.exists():
             raise FileNotFoundError(
@@ -291,7 +275,7 @@ class VersionManager:
         创建资金分配模拟器版本目录
         
         目录结构：
-            app/userspace/strategies/{strategy}/results/capital_allocation/
+            userspace/strategies/{strategy}/results/capital_allocation/
                 meta.json  # 版本管理元信息
                 {version_id}/  # 模拟器版本目录
         
@@ -301,7 +285,7 @@ class VersionManager:
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        base_dir = PathManager.strategy_results(strategy_name) / "capital_allocation"
+        base_dir = PathManager.strategy_capital_allocation(strategy_name)
         base_dir.mkdir(parents=True, exist_ok=True)
         
         meta_file = base_dir / "meta.json"
@@ -356,7 +340,7 @@ class VersionManager:
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        base_dir = PathManager.strategy_results(strategy_name) / "capital_allocation"
+        base_dir = PathManager.strategy_capital_allocation(strategy_name)
         
         if not base_dir.exists():
             raise FileNotFoundError(

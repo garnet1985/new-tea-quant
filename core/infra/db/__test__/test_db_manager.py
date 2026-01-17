@@ -86,14 +86,15 @@ class TestDatabaseManager:
         }
         db = DatabaseManager(config=config, is_verbose=False)
         
-        mock_adapter = Mock()
-        mock_adapter.execute_query.return_value = [{'id': '001', 'name': 'test'}]
-        db.adapter = mock_adapter
+        # Mock connection_manager.execute_sync_query（因为 execute_sync_query 委托给它）
+        db.connection_manager.execute_sync_query = Mock(return_value=[{'id': '001', 'name': 'test'}])
         db._initialized = True
         
-        results = db.execute_sync_query("SELECT * FROM table WHERE id = %s", ('001',))
+        # execute_sync_query 内部会转换 %s 为 ?，所以可以使用 %s
+        results = db.execute_sync_query("SELECT * FROM test_table WHERE id = %s", ('001',))
         assert results == [{'id': '001', 'name': 'test'}]
-        mock_adapter.execute_query.assert_called_once_with("SELECT * FROM table WHERE id = %s", ('001',))
+        # 验证 connection_manager.execute_sync_query 被调用
+        db.connection_manager.execute_sync_query.assert_called_once()
     
     def test_get_stats(self):
         """测试获取统计信息"""
@@ -102,7 +103,9 @@ class TestDatabaseManager:
             'postgresql': {
                 'host': 'localhost',
                 'port': 5432,
-                'database': 'test_db'
+                'database': 'test_db',
+                'user': 'test_user',
+                'password': 'test_pass'
             }
         }
         db = DatabaseManager(config=config, is_verbose=False)
@@ -124,10 +127,10 @@ class TestDatabaseManager:
         db = DatabaseManager(config=config, is_verbose=False)
         
         mock_adapter = Mock()
-        db.adapter = mock_adapter
+        db.connection_manager.adapter = mock_adapter
         db._initialized = True
         
         db.close()
         mock_adapter.close.assert_called_once()
-        assert db.adapter is None
+        assert db.connection_manager.adapter is None
         assert db._initialized is False

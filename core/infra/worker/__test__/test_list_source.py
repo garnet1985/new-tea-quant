@@ -22,7 +22,8 @@ class TestListJobSource:
             {'id': '3', 'data': {'value': 3}},
         ]
         source = ListJobSource(jobs)
-        assert source.total_jobs == 3
+        # ListJobSource 使用 _jobs 私有属性
+        assert len(source._jobs) == 3
     
     def test_get_batch(self):
         """测试获取批次"""

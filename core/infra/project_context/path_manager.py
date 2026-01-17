@@ -150,6 +150,43 @@ class PathManager:
         """策略结果目录：userspace/strategies/{strategy_name}/results"""
         return PathManager.strategy(strategy_name) / "results"
     
+    @staticmethod
+    def strategy_opportunity_enums(strategy_name: str, use_sampling: bool = False) -> Path:
+        """
+        枚举器结果目录
+        
+        Args:
+            strategy_name: 策略名称
+            use_sampling: 是否使用采样模式
+                - True: test/ 子目录（采样枚举）
+                - False: output/ 子目录（完整输出）
+        
+        Returns:
+            userspace/strategies/{strategy_name}/results/opportunity_enums/{test|output}
+        """
+        sub_dir = "test" if use_sampling else "output"
+        return PathManager.strategy_results(strategy_name) / "opportunity_enums" / sub_dir
+    
+    @staticmethod
+    def strategy_simulations_price_factor(strategy_name: str) -> Path:
+        """价格因子模拟器结果目录：userspace/strategies/{strategy_name}/results/simulations/price_factor"""
+        return PathManager.strategy_results(strategy_name) / "simulations" / "price_factor"
+    
+    @staticmethod
+    def strategy_capital_allocation(strategy_name: str) -> Path:
+        """资金分配模拟器结果目录：userspace/strategies/{strategy_name}/results/capital_allocation"""
+        return PathManager.strategy_results(strategy_name) / "capital_allocation"
+    
+    @staticmethod
+    def strategy_scan_cache(strategy_name: str) -> Path:
+        """扫描缓存目录：userspace/strategies/{strategy_name}/scan_cache"""
+        return PathManager.strategy(strategy_name) / "scan_cache"
+    
+    @staticmethod
+    def strategy_scan_results(strategy_name: str) -> Path:
+        """扫描结果目录：userspace/strategies/{strategy_name}/results/scan"""
+        return PathManager.strategy_results(strategy_name) / "scan"
+    
     # ========== Tag 相关路径 ==========
     
     @staticmethod

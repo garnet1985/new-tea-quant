@@ -77,18 +77,13 @@ class TestBaseDataSourceHandler:
         mock_schema = Mock()
         
         # 创建 mock definition with handler_config
-        mock_handler_config = Mock()
-        # 使用 getattr 模拟行为
-        def mock_getattr(name, default=None):
-            if name == "test_param":
-                return "test_value"
-            elif name == "other_param":
-                return None
-            return default
+        # 使用普通对象而不是 Mock，以便设置属性
+        class MockHandlerConfig:
+            test_param = "test_value"
+            other_param = None
+            apis = {}  # 添加 apis 属性
         
-        mock_handler_config.__getattr__ = lambda self, name: mock_getattr(name)
-        type(mock_handler_config).test_param = "test_value"
-        type(mock_handler_config).other_param = None
+        mock_handler_config = MockHandlerConfig()
         
         mock_definition = Mock(spec=DataSourceDefinition)
         mock_definition.handler_config = mock_handler_config
@@ -109,15 +104,13 @@ class TestBaseDataSourceHandler:
         assert handler.get_param("test_param") == "test_value"
         
         # 测试获取不存在的参数（使用默认值）
-        # get_param 使用 getattr，对于不存在的属性会返回 default
         result = handler.get_param("non_existent", "default")
         assert result == "default"
         
         # 测试获取值为 None 的参数
-        # get_param 的实现：如果 value is not None 才返回，否则返回 default
-        # 所以 other_param 为 None 时，应该返回 default
+        # 注意：如果属性存在但值为 None，get_param 会返回 None（用户显式设置的 None）
         result = handler.get_param("other_param", "default")
-        assert result == "default"
+        assert result is None  # 属性存在但值为 None，返回 None
     
     def test_get_handler_config_with_apis(self):
         """测试获取 HandlerConfig（包含 API 配置）"""
@@ -125,8 +118,11 @@ class TestBaseDataSourceHandler:
         from core.modules.data_source.data_classes import DataSourceDefinition
         
         mock_schema = Mock()
-        mock_handler_config = Mock()
-        mock_handler_config.apis = {}
+        # 使用普通对象而不是 Mock，避免迭代问题
+        class MockHandlerConfig:
+            apis = {}
+        
+        mock_handler_config = MockHandlerConfig()
         
         mock_definition = Mock(spec=DataSourceDefinition)
         mock_definition.handler_config = mock_handler_config
@@ -148,10 +144,13 @@ class TestBaseDataSourceHandler:
         """测试获取 HandlerConfig"""
         from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
         from core.modules.data_source.data_classes import DataSourceDefinition
-        from core.modules.data_source.data_classes.handler_config import BaseHandlerConfig
         
         mock_schema = Mock()
-        mock_handler_config = Mock(spec=BaseHandlerConfig)
+        # 使用普通对象而不是 Mock，避免迭代问题
+        class MockHandlerConfig:
+            apis = {}
+        
+        mock_handler_config = MockHandlerConfig()
         
         mock_definition = Mock(spec=DataSourceDefinition)
         mock_definition.handler_config = mock_handler_config

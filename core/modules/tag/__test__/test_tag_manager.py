@@ -61,6 +61,8 @@ class TestTagManager:
              patch.object(TagManager, '_clear_cache') as mock_clear_cache:
             
             manager = TagManager(is_verbose=False)
+            # 重置 mock 调用计数（因为 __init__ 中已经调用了一次）
+            mock_discover.reset_mock()
             manager.scenario_cache = {"test": "cache"}
             manager.entity_list_cache = {"test": "cache"}
             

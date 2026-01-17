@@ -30,9 +30,7 @@ class ScanCacheManager:
     
     def __post_init__(self):
         """初始化缓存目录"""
-        self.cache_base_dir = (
-            PathManager.strategy(strategy_name=self.strategy_name) / "scan_cache"
-        )
+        self.cache_base_dir = PathManager.strategy_scan_cache(self.strategy_name)
         self.cache_base_dir.mkdir(parents=True, exist_ok=True)
     
     def save_opportunities(

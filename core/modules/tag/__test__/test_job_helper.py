@@ -77,8 +77,8 @@ class TestJobHelper:
         from core.modules.tag.core.components.helper.job_helper import JobHelper
         from core.modules.tag.core.enums import TagUpdateMode
         
-        with patch('core.modules.tag.core.components.helper.job_helper.ConfigManager.get_default_start_date') as mock_get_start, \
-             patch('core.modules.tag.core.components.helper.job_helper.DataManager') as mock_data_mgr:
+        with patch('core.infra.project_context.ConfigManager.get_default_start_date') as mock_get_start, \
+             patch('core.modules.data_manager.DataManager') as mock_data_mgr:
             
             mock_get_start.return_value = "20200101"
             
@@ -104,16 +104,18 @@ class TestJobHelper:
         from core.modules.tag.core.components.helper.job_helper import JobHelper
         from core.modules.tag.core.enums import TagUpdateMode
         
-        with patch('core.modules.tag.core.components.helper.job_helper.DataManager') as mock_data_mgr:
+        with patch('core.modules.data_manager.DataManager') as mock_data_mgr:
             mock_tag_service = MagicMock()
             mock_tag_service.get_next_trading_date.return_value = "20200102"
             mock_calendar = MagicMock()
             mock_calendar.get_latest_completed_trading_date.return_value = "20201231"
             mock_service = MagicMock()
             mock_service.calendar = mock_calendar
-            mock_service.tags = mock_tag_service
+            mock_stock = MagicMock()
+            mock_stock.tags = mock_tag_service
             mock_instance = MagicMock()
             mock_instance.service = mock_service
+            mock_instance.stock = mock_stock  # 添加 stock 属性
             mock_data_mgr.return_value = mock_instance
             
             start_date, end_date = JobHelper.calculate_start_and_end_date(
@@ -130,8 +132,8 @@ class TestJobHelper:
         from core.modules.tag.core.components.helper.job_helper import JobHelper
         from core.modules.tag.core.enums import TagUpdateMode
         
-        with patch('core.modules.tag.core.components.helper.job_helper.ConfigManager.get_default_start_date') as mock_get_start, \
-             patch('core.modules.tag.core.components.helper.job_helper.DataManager') as mock_data_mgr:
+        with patch('core.infra.project_context.ConfigManager.get_default_start_date') as mock_get_start, \
+             patch('core.modules.data_manager.DataManager') as mock_data_mgr:
             
             mock_get_start.return_value = "20200101"
             

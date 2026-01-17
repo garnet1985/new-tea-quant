@@ -11,6 +11,7 @@ from loguru import logger
 from .handler_config import BaseHandlerConfig
 from core.infra.discovery import ClassDiscovery, DiscoveryConfig
 from core.infra.project_context import PathManager, ConfigManager
+from core.global_enums.enums import UpdateMode
 
 
 @dataclass
@@ -423,13 +424,13 @@ class DataSourceDefinition:
                     from core.modules.data_source.data_classes.handler_config import (
                         IncrementalConfig, RollingConfig, RefreshConfig
                     )
-                    default_renew_mode = "rolling"  # BaseHandlerConfig 的默认值
+                    default_renew_mode = UpdateMode.ROLLING.value  # BaseHandlerConfig 的默认值
                     if config_class == IncrementalConfig:
-                        default_renew_mode = "incremental"
+                        default_renew_mode = UpdateMode.INCREMENTAL.value
                     elif config_class == RollingConfig:
-                        default_renew_mode = "rolling"
+                        default_renew_mode = UpdateMode.ROLLING.value
                     elif config_class == RefreshConfig:
-                        default_renew_mode = "refresh"
+                        default_renew_mode = UpdateMode.REFRESH.value
                     fallback_instance = config_class(renew_mode=default_renew_mode)
                     # 将 apis 配置添加到 handler_config 中
                     if apis_config:
@@ -490,21 +491,26 @@ class DataSourceDefinition:
                 f"Handler {handler_path} 的 handler_config 中缺少必需的 'renew_mode' 字段"
             )
         
+        # 支持枚举和字符串两种格式（兼容性）
+        if isinstance(renew_mode, UpdateMode):
+            renew_mode = renew_mode.value
+        
         # 根据 renew_mode 选择对应的 Config 类
-        if renew_mode == "incremental":
+        if renew_mode == UpdateMode.INCREMENTAL.value:
             return IncrementalConfig
-        elif renew_mode == "rolling":
+        elif renew_mode == UpdateMode.ROLLING.value:
             return RollingConfig
-        elif renew_mode == "refresh":
+        elif renew_mode == UpdateMode.REFRESH.value:
             return RefreshConfig
         else:
+            valid_modes = [UpdateMode.INCREMENTAL.value, UpdateMode.ROLLING.value, UpdateMode.REFRESH.value]
             logger.error(
                 f"Handler {handler_path} 的 renew_mode 值无效: {renew_mode}。"
-                f"必须是 'incremental' | 'rolling' | 'refresh'"
+                f"必须是 {' | '.join(valid_modes)}"
             )
             raise ValueError(
                 f"Handler {handler_path} 的 renew_mode 值无效: {renew_mode}。"
-                f"必须是 'incremental' | 'rolling' | 'refresh'"
+                f"必须是 {' | '.join(valid_modes)}"
             )
     
     def to_dict(self) -> Dict[str, Any]:

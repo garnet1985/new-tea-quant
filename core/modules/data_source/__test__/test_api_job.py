@@ -19,7 +19,7 @@ class TestApiJob:
     
     def test_init(self):
         """测试 ApiJob 初始化"""
-        from core.modules.data_source.api_job import ApiJob
+        from core.modules.data_source.data_classes import ApiJob
         
         job = ApiJob(
             provider_name="tushare",
@@ -36,7 +36,7 @@ class TestApiJob:
     
     def test_post_init_api_name(self):
         """测试 api_name 自动设置"""
-        from core.modules.data_source.api_job import ApiJob
+        from core.modules.data_source.data_classes import ApiJob
         
         # 不指定 api_name，应该使用 method
         job1 = ApiJob(
@@ -57,7 +57,7 @@ class TestApiJob:
     
     def test_depends_on(self):
         """测试依赖关系"""
-        from core.modules.data_source.api_job import ApiJob
+        from core.modules.data_source.data_classes import ApiJob
         
         job = ApiJob(
             provider_name="tushare",
@@ -74,7 +74,7 @@ class TestDataSourceTask:
     
     def test_init(self):
         """测试 DataSourceTask 初始化"""
-        from core.modules.data_source.api_job import ApiJob, DataSourceTask
+        from core.modules.data_source.data_classes import ApiJob, DataSourceTask
         
         job1 = ApiJob(provider_name="tushare", method="get_stock_list", params={})
         job2 = ApiJob(provider_name="akshare", method="get_kline", params={})
@@ -91,7 +91,7 @@ class TestDataSourceTask:
     
     def test_post_init_job_id(self):
         """测试 job_id 自动生成"""
-        from core.modules.data_source.api_job import ApiJob, DataSourceTask
+        from core.modules.data_source.data_classes import ApiJob, DataSourceTask
         
         # 不指定 job_id，应该自动生成
         job1 = ApiJob(provider_name="tushare", method="get_stock_list", params={})

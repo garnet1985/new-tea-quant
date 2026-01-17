@@ -15,7 +15,7 @@ from loguru import logger
 import os
 
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.api_job import DataSourceTask, ApiJob
+from core.modules.data_source.data_classes import DataSourceTask
 from userspace.data_source.handlers.adj_factor_event.helper import AdjFactorEventHandlerHelper as helper
 from core.utils.date.date_utils import DateUtils
 
@@ -304,50 +304,44 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
             
             # 为每只股票生成一个 task，包含 3 个全量 API 调用
             # 1. Tushare adj_factor API（全量复权因子）
-            adj_factor_job = ApiJob(
-                provider_name="tushare",
-                method="get_adj_factor",
+            adj_factor_job = self.get_api_job_with_params(
+                name="adj_factor",
                 params={
                     "ts_code": stock_id,
                     "start_date": default_start_date,
                     "end_date": end_date_ymd,
                 },
-                job_id=f"{stock_id}_adj_factor_full",
-                api_name="get_adj_factor"
+                job_id=f"{stock_id}_adj_factor_full"
             )
             
             # 2. Tushare daily_kline API（全量原始收盘价）
-            daily_kline_job = ApiJob(
-                provider_name="tushare",
-                method="get_daily_kline",
+            daily_kline_job = self.get_api_job_with_params(
+                name="daily_kline",
                 params={
                     "ts_code": stock_id,
                     "start_date": default_start_date,
                     "end_date": end_date_ymd,
                 },
-                job_id=f"{stock_id}_daily_kline_full",
-                api_name="get_daily_kline"
+                job_id=f"{stock_id}_daily_kline_full"
             )
             
             # 3. EastMoney API（全量前复权价格）
             # 注意：EastMoney API 支持 start_date 参数（起始日期，YYYYMMDD 格式）
             # 当提供 start_date 时，API 内部会使用 beg 参数，且不会使用 lmt 参数
             eastmoney_secid = helper.convert_to_eastmoney_secid(stock_id)
-            eastmoney_job = ApiJob(
-                provider_name="eastmoney",
-                method="get_qfq_kline",
+            qfq_kline_job = self.get_api_job_with_params(
+                name="qfq_kline",
                 params={
                     "secid": eastmoney_secid,
                     "start_date": default_start_date,  # 起始日期（Provider 内部会转换为 beg 参数）
                     "end_date": end_date_ymd,           # 结束日期
                 },
-                job_id=f"{stock_id}_eastmoney_full",
-                api_name="get_qfq_kline"
+                job_id=f"{stock_id}_eastmoney_full"
             )
             
             task = DataSourceTask(
                 task_id=f"adj_factor_event_{stock_id}",
-                api_jobs=[adj_factor_job, daily_kline_job, eastmoney_job],
+                api_jobs=[adj_factor_job, daily_kline_job, qfq_kline_job],
                 description=f"获取 {stock_id} 的全量复权因子事件数据",
             )
             tasks.append(task)

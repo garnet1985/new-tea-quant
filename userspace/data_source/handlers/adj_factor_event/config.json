@@ -1,12 +1,26 @@
 {
     "_comment": "Adj Factor Event Handler 配置",
     "renew_mode": "incremental",
-    "date_format": "day",
+    "date_format": "date",
     "default_date_range": {
         "years": 5
     },
     "table_name": "adj_factor_event",
     "date_field": "event_date",
     "update_threshold_days": 15,
-    "max_workers": 10
+    "max_workers": 10,
+    "apis": {
+        "adj_factor": {
+            "provider_name": "tushare",
+            "method": "get_adj_factor"
+        },
+        "daily_kline": {
+            "provider_name": "tushare",
+            "method": "get_daily_kline"
+        },
+        "qfq_kline": {
+            "provider_name": "eastmoney",
+            "method": "get_qfq_kline"
+        }
+    }
 }

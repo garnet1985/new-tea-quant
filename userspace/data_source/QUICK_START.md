@@ -12,7 +12,7 @@
 # custom/handlers/my_stock_list.py
 from typing import Dict, Any, List
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from app.core.modules.data_source.api_job import ApiJob, DataSourceTask
+from core.modules.data_source.data_classes import ApiJob, DataSourceTask
 from app.core.modules.data_source.providers import get_provider_pool
 
 

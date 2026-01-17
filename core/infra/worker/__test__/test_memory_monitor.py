@@ -58,8 +58,8 @@ class TestMemoryMonitor:
         stats = monitor.get_stats()
         
         assert 'current_rss_mb' in stats
-        assert 'baseline_rss_mb' in stats
-        assert 'delta_rss_mb' in stats
+        assert 'used_mb' in stats
+        assert 'available_mb' in stats
         assert 'memory_budget_mb' in stats
         assert stats['memory_budget_mb'] == 1024.0
     

@@ -103,6 +103,7 @@ class TestTagHelper:
         from core.modules.tag.core.components.helper.tag_helper import TagHelper
         from core.modules.tag.core.base_tag_worker import BaseTagWorker
         from pathlib import Path
+        import types
         
         # 创建一个测试 worker 类
         class TestWorker(BaseTagWorker):
@@ -123,12 +124,10 @@ class TestTagHelper:
             mock_spec.loader = mock_loader
             mock_spec_from_file.return_value = mock_spec
             
-            # Mock module
-            mock_module = MagicMock()
-            mock_module.__dict__ = {
-                'TestWorker': TestWorker,
-                'BaseTagWorker': BaseTagWorker
-            }
+            # Mock module - 使用 types.ModuleType 创建真实模块对象
+            mock_module = types.ModuleType('tag_worker')
+            mock_module.TestWorker = TestWorker
+            mock_module.BaseTagWorker = BaseTagWorker
             mock_module_from_spec.return_value = mock_module
             
             scenario_folder = Path("/test/scenario")
@@ -155,6 +154,7 @@ class TestTagHelper:
         """测试 load_worker_class（没有 worker 类）"""
         from core.modules.tag.core.components.helper.tag_helper import TagHelper
         from pathlib import Path
+        import types
         
         mock_worker_path = Path("/test/scenario/tag_worker.py")
         
@@ -170,11 +170,9 @@ class TestTagHelper:
             mock_spec.loader = mock_loader
             mock_spec_from_file.return_value = mock_spec
             
-            # Mock module（没有 worker 类）
-            mock_module = MagicMock()
-            mock_module.__dict__ = {
-                'SomeOtherClass': object
-            }
+            # Mock module（没有 worker 类）- 使用 types.ModuleType 创建真实模块对象
+            mock_module = types.ModuleType('tag_worker')
+            mock_module.SomeOtherClass = object
             mock_module_from_spec.return_value = mock_module
             
             scenario_folder = Path("/test/scenario")

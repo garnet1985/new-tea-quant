@@ -111,14 +111,12 @@ class DatabaseManager:
                 
                 # 自动创建并初始化（多进程场景）
                 if is_child_process:
-                    logger.info("🔄 检测到子进程环境，自动创建只读 DatabaseManager 实例（避免写锁冲突）")
                     instance = cls(is_verbose=False, read_only=True)
                 else:
                     logger.info("🔄 检测到 DatabaseManager 未初始化，自动创建实例")
                     instance = cls(is_verbose=False)
                 instance.initialize()
                 cls._default_instance = instance
-                logger.info("✅ DatabaseManager 自动初始化完成")
             else:
                 raise RuntimeError(
                     "No default DatabaseManager instance. "

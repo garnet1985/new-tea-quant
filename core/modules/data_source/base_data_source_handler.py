@@ -437,7 +437,6 @@ class BaseDataSourceHandler:
             renew_mode = self.get_param("renew_mode")
             if renew_mode and renew_mode in ["incremental", "rolling", "refresh"]:
                 if "start_date" not in context or "end_date" not in context:
-                    logger.debug(f"🔄 {self.data_source} Handler 配置了 {renew_mode} mode，自动计算日期范围")
                     await self._auto_before_fetch_by_renew_mode(context)
                     # 检查日期范围是否成功设置
                     if "start_date" in context and "end_date" in context:

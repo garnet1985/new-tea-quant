@@ -201,7 +201,7 @@ def analyze_filtering_reasons(filtered_reversals):
     print("="*60)
     
     # 使用RTB策略检查被过滤的反转点
-    from core.infra.db.db_manager import DatabaseManager
+    from core.infra.db import DatabaseManager
     db_manager = DatabaseManager()
     rtb_strategy = ReverseTrendBet(db_manager)
     data_mgr = DataManager(is_verbose=False)

@@ -9,9 +9,9 @@ TableManager - 表操作 API
 from typing import List, Dict, Any, Optional, Callable
 from loguru import logger
 
-from core.infra.db.table_queryers.services.batch_operation_queue import BatchWriteQueue
+from core.infra.db.table_queriers.services.batch_operation_queue import BatchWriteQueue
 from core.infra.db.helpers.db_helpers import DBHelper
-from core.infra.db.table_queryers.adapters.base_adapter import BaseDatabaseAdapter
+from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
 
 
 class TableManager:

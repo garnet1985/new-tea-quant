@@ -78,32 +78,23 @@ class RefreshRenewService(BaseRenewService):
             Tuple[str, str]: (start_date, end_date)
         """
         context = context or {}
-        current_year = int(current_date[:4])
-        current_month = int(current_date[4:6])
+        
+        # 获取当前周期值
+        current_value = DateUtils.get_current_period(current_date, date_format)
         
         # 获取结束日期（优先使用 latest_completed_trading_date）
-        if date_format == "quarter":
-            if current_month <= 3:
-                current_quarter = 1
-            elif current_month <= 6:
-                current_quarter = 2
-            elif current_month <= 9:
-                current_quarter = 3
-            else:
-                current_quarter = 4
-            end_date = f"{current_year}Q{current_quarter}"
-        elif date_format == "month":
-            end_date = f"{current_year}{current_month:02d}"
-        else:  # date_format == "day"
-            # 优先使用 latest_completed_trading_date
+        if date_format == "day":
             latest_completed_trading_date = context.get("latest_completed_trading_date")
             if latest_completed_trading_date:
                 end_date = latest_completed_trading_date
             else:
                 end_date = current_date
+        else:
+            end_date = DateUtils.format_period(current_value, date_format)
         
-        # 计算开始日期
+        # 计算开始日期（业务逻辑：根据 default_date_range 配置）
         if date_format == "quarter":
+            current_year, current_quarter = current_value
             if "years" in default_date_range:
                 years = default_date_range["years"]
                 start_year = current_year - years
@@ -121,6 +112,7 @@ class RefreshRenewService(BaseRenewService):
                 start_quarter = 1
             start_date = f"{start_year}Q{start_quarter}"
         elif date_format == "month":
+            current_year, current_month = current_value
             if "years" in default_date_range:
                 years = default_date_range["years"]
                 start_year = current_year - years

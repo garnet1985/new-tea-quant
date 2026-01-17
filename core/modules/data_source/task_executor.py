@@ -8,7 +8,7 @@ from loguru import logger
 import time
 import threading
 
-from core.modules.data_source.api_job import ApiJob, DataSourceTask
+from core.modules.data_source.data_classes import ApiJob, DataSourceTask
 
 
 class RateLimiter:

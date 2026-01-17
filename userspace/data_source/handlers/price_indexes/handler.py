@@ -13,7 +13,7 @@ from loguru import logger
 import pandas as pd
 
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.api_job import DataSourceTask, ApiJob
+from core.modules.data_source.data_classes import DataSourceTask
 from core.utils.date.date_utils import DateUtils
 
 
@@ -68,53 +68,45 @@ class PriceIndexesHandler(BaseDataSourceHandler):
         
         logger.info(f"✅ 为价格指数数据生成任务: {start_date} 至 {end_date}")
         
-        # 创建 4 个 ApiJob
+        # 创建 4 个 ApiJob（从缓存的 API Job 实例创建，只修改 params）
         # 1. CPI API
-        cpi_job = ApiJob(
-            provider_name="tushare",
-            method="get_cpi",
+        cpi_job = self.get_api_job_with_params(
+            name="cpi_data",
             params={
                 "start_date": start_date,
                 "end_date": end_date,
             },
-            job_id="cpi_data",
-            api_name="get_cpi"
+            job_id="cpi_data"
         )
         
         # 2. PPI API
-        ppi_job = ApiJob(
-            provider_name="tushare",
-            method="get_ppi",
+        ppi_job = self.get_api_job_with_params(
+            name="ppi_data",
             params={
                 "start_date": start_date,
                 "end_date": end_date,
             },
-            job_id="ppi_data",
-            api_name="get_ppi"
+            job_id="ppi_data"
         )
         
         # 3. PMI API
-        pmi_job = ApiJob(
-            provider_name="tushare",
-            method="get_pmi",
+        pmi_job = self.get_api_job_with_params(
+            name="pmi_data",
             params={
                 "start_date": start_date,
                 "end_date": end_date,
             },
-            job_id="pmi_data",
-            api_name="get_pmi"
+            job_id="pmi_data"
         )
         
         # 4. Money Supply API
-        money_supply_job = ApiJob(
-            provider_name="tushare",
-            method="get_money_supply",
+        money_supply_job = self.get_api_job_with_params(
+            name="money_supply_data",
             params={
                 "start_date": start_date,
                 "end_date": end_date,
             },
-            job_id="money_supply_data",
-            api_name="get_money_supply"
+            job_id="money_supply_data"
         )
         
         # 创建一个 Task（包含 4 个 ApiJob）
@@ -123,8 +115,6 @@ class PriceIndexesHandler(BaseDataSourceHandler):
             api_jobs=[cpi_job, ppi_job, pmi_job, money_supply_job],
             description=f"获取价格指数数据（CPI/PPI/PMI/货币供应量）: {start_date} 至 {end_date}",
         )
-        
-        logger.info(f"✅ 生成了 1 个价格指数数据获取任务（包含 4 个 API 调用）")
         
         return [task]
     

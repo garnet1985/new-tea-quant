@@ -21,7 +21,7 @@ class LprHandler(BaseDataSourceHandler):
     - provider_name: "tushare"
     - method: "get_lpr"
     - date_format: "date"
-    - rolling_periods: 30
+    - rolling_unit: "day", rolling_length: 30
     - field_mapping: {...}
     """
     
@@ -39,33 +39,9 @@ class LprHandler(BaseDataSourceHandler):
         """
         标准化后处理：保存数据到数据库
         """
-        context = context or {}
-        
-        # 检查是否是 dry_run 模式
-        dry_run = context.get('dry_run', False)
-        if dry_run:
-            logger.info("🧪 干运行模式：跳过 LPR 数据保存")
-            return
-        
-        if not self.data_manager:
-            logger.warning("DataManager 未初始化，无法保存 LPR 数据")
-            return
-        
-        # 验证数据格式
-        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
-        if not data_list:
-            logger.debug("LPR 数据为空，无需保存")
-            return
-        
-        try:
-            # 清理 NaN 值
-            from core.infra.db.helpers.db_helpers import DBHelper
-            data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
-            
-            # 使用 service 保存数据
-            count = self.data_manager.macro.save_lpr_data(data_list)
-            logger.info(f"✅ LPR 数据保存完成，共 {count} 条记录")
-        except Exception as e:
-            logger.error(f"❌ 保存 LPR 数据失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+        self._save_data_with_clean_nan(
+            normalized_data=normalized_data,
+            context=context,
+            save_method=self.data_manager.macro.save_lpr_data,
+            data_source_name="LPR"
+        )

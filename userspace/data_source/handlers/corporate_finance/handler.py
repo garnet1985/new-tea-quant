@@ -9,7 +9,7 @@ from loguru import logger
 
 from core.infra.project_context import ConfigManager
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.api_job import DataSourceTask, ApiJob
+from core.modules.data_source.data_classes import DataSourceTask
 from core.utils.date.date_utils import DateUtils
 from core.infra.db.helpers.db_helpers import DBHelper
 
@@ -256,17 +256,15 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
                 logger.warning(f"股票 {stock_id} 缺少必要参数（start_date 或 end_date）")
                 continue
 
-            # 创建 ApiJob
-            api_job = ApiJob(
-                provider_name="tushare",
-                method="get_finance_data",
+            # 从缓存的 API Job 创建实例，只修改 params
+            api_job = self.get_api_job_with_params(
+                name="finance_data",
                 params={
                     "ts_code": stock_id,
                     "start_date": start_date,
                     "end_date": end_date,
                 },
-                job_id=f"{stock_id}_finance",
-                api_name="get_finance_data"
+                job_id=f"{stock_id}_finance"
             )
             
             # 创建 Task

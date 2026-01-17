@@ -47,8 +47,8 @@ import json
 import os
 
 from core.infra.db.helpers.db_helpers import DBHelper
-from core.infra.db.table_queryers.query_helpers import TimeSeriesHelper, DataFrameHelper, SchemaFormatter
-from core.infra.db.table_queryers.services.batch_operation import BatchOperation
+from core.infra.db.table_queriers.query_helpers import TimeSeriesHelper, DataFrameHelper, SchemaFormatter
+from core.infra.db.table_queriers.services.batch_operation import BatchOperation
 
 
 class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
@@ -70,7 +70,7 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
                 - 如果默认实例不存在，自动创建并初始化（多进程安全）
                 - 如果传入，使用指定实例（测试场景）
         """
-        from ..db_manager import DatabaseManager
+        from core.infra.db import DatabaseManager
         
         # 自动获取或使用传入的 db
         self.db = db if db is not None else DatabaseManager.get_default()
@@ -93,7 +93,7 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
         
         使用 SchemaManager 统一加载逻辑
         """
-        from ..managers.schema_manager import SchemaManager
+        from core.infra.db.schema_management.schema_manager import SchemaManager
         
         # 使用 SchemaManager 加载 schema
         schema_manager = SchemaManager()
@@ -219,30 +219,6 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
             'total_pages': (total + page_size - 1) // page_size
         }
     
-    # 时序数据查询方法已通过 TimeSeriesService 提供
-    # load_latest_date, load_latest_records, load_first_records
-    # _get_date_field_from_schema, _get_primary_keys_from_schema
-    
-    def _load_latest_date_legacy(self, date_field: str = None) -> Optional[str]:
-        """
-        加载表中最新的日期
-        
-        Args:
-            date_field: 日期字段名（如果为None，从schema中自动获取）
-            
-        Returns:
-            Optional[str]: 最新日期，如果表为空返回None
-            
-        Raises:
-            ValueError: 如果日期字段未找到
-        """
-        if date_field is None:
-            # 从schema中查找日期字段（可能抛出异常）
-            date_field = self._get_date_field_from_schema()
-        
-        # 查询最新日期
-        latest_record = self.load_one("1=1", order_by=f"{date_field} DESC")
-        return latest_record.get(date_field) if latest_record else None
     
     def load_latest_records(self, date_field: str = None, primary_keys: List[str] = None) -> List[Dict[str, Any]]:
         """
@@ -626,7 +602,7 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
         
         try:
             # 准备数据
-            columns, values, update_clause = DBService.to_upsert_params(data_list, unique_keys)
+            columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
             
             if not columns:
                 return 0
@@ -654,12 +630,6 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
         return self.replace([data], unique_keys)
     
     
-    # ***********************************
-    #        DataFrame Support Methods
-    # ***********************************
-    
-    # DataFrame 支持方法已通过 DataFrameService 提供
-    # load_many_df, load_all_df, insert_df, replace_df
 
     
     # ***********************************

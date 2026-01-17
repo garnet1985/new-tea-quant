@@ -1,0 +1,8 @@
+{
+    "_comment": "LPR Handler 默认配置",
+    "date_format": "date",
+    "default_date_range": {
+        "years": 1
+    },
+    "rolling_periods": 30
+}

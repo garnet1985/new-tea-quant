@@ -50,11 +50,11 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
         }
     }
     
-    def __init__(self, schema, params: dict = None, data_manager=None):
+    def __init__(self, schema, data_manager=None, definition=None):
         """初始化股指指标 Handler"""
-        super().__init__(schema, params, data_manager)
+        super().__init__(schema, data_manager, definition)
         # 默认指数列表
-        self.index_list = params.get('index_list', [
+        self.index_list = self.get_param('index_list', [
             {'id': '000001.SH', 'name': '上证指数'},
             {'id': '000300.SH', 'name': '沪深300'},
             {'id': '000688.SH', 'name': '科创50'},

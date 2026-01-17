@@ -34,10 +34,10 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = True  # 需要日期范围参数
     
-    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
-        super().__init__(schema, params or {}, data_manager)
+    def __init__(self, schema, data_manager=None, definition=None):
+        super().__init__(schema, data_manager, definition)
         # 默认指数列表
-        self.index_list = params.get('index_list', [
+        self.index_list = self.get_param('index_list', [
             {'id': '000001.SH', 'name': '上证指数'},
             {'id': '000300.SH', 'name': '沪深300'},
             {'id': '000688.SH', 'name': '科创50'},

@@ -37,11 +37,11 @@ class AdjFactorEventHandler(BaseDataSourceHandler):
     description = "获取复权因子事件数据（只存储除权日）"
     dependencies = []  # 依赖：无
 
-    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
-        super().__init__(schema, params or {}, data_manager)
-        # 从 params 读取配置
-        self.update_threshold_days = params.get('update_threshold_days', 15)  # 默认15天
-        self.max_workers = params.get('max_workers', 10)  # 最大线程数
+    def __init__(self, schema, data_manager=None, definition=None):
+        super().__init__(schema, data_manager, definition)
+        # 从配置读取参数
+        self.update_threshold_days = self.get_param('update_threshold_days', 15)  # 默认15天
+        self.max_workers = self.get_param('max_workers', 10)  # 最大线程数
     
     def _is_table_empty(self, adj_factor_event_model) -> bool:
         """

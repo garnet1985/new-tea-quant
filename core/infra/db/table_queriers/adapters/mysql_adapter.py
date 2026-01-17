@@ -94,7 +94,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         执行查询语句
         
         Args:
-            query: SQL 查询语句（使用 %s 占位符）
+            query: SQL 查询语句（使用 %s 占位符，或 ? 会自动转换）
             params: 查询参数
             
         Returns:
@@ -104,6 +104,9 @@ class MySQLAdapter(BaseDatabaseAdapter):
             raise RuntimeError("MySQL 适配器未初始化，请先调用 connect()")
         
         try:
+            # 标准化查询语句（转换占位符）
+            query = self.normalize_query(query)
+            
             with self.conn.cursor() as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
@@ -118,7 +121,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         执行写入语句
         
         Args:
-            query: SQL 写入语句
+            query: SQL 写入语句（使用 %s 占位符，或 ? 会自动转换）
             params: 查询参数
             
         Returns:
@@ -128,6 +131,9 @@ class MySQLAdapter(BaseDatabaseAdapter):
             raise RuntimeError("MySQL 适配器未初始化，请先调用 connect()")
         
         try:
+            # 标准化查询语句（转换占位符）
+            query = self.normalize_query(query)
+            
             with self.conn.cursor() as cursor:
                 cursor.execute(query, params)
                 self.conn.commit()
@@ -143,7 +149,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         批量执行写入语句
         
         Args:
-            query: SQL 写入语句
+            query: SQL 写入语句（使用 %s 占位符，或 ? 会自动转换）
             params_list: 参数列表
             
         Returns:
@@ -153,6 +159,9 @@ class MySQLAdapter(BaseDatabaseAdapter):
             raise RuntimeError("MySQL 适配器未初始化，请先调用 connect()")
         
         try:
+            # 标准化查询语句（转换占位符）
+            query = self.normalize_query(query)
+            
             with self.conn.cursor() as cursor:
                 cursor.executemany(query, params_list)
                 self.conn.commit()

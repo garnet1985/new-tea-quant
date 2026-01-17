@@ -4,7 +4,7 @@ BatchWriteQueue 单元测试
 import pytest
 import time
 from unittest.mock import Mock, patch
-from core.infra.db.table_queryers.services.batch_operation_queue import BatchWriteQueue, WriteRequest
+from core.infra.db.table_queriers.services.batch_operation_queue import BatchWriteQueue, WriteRequest
 
 
 class TestWriteRequest:

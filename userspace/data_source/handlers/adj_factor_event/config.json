@@ -1,0 +1,5 @@
+{
+    "_comment": "Adj Factor Event Handler 默认配置",
+    "update_threshold_days": 15,
+    "max_workers": 10
+}

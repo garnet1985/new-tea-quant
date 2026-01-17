@@ -16,7 +16,7 @@ from loguru import logger
 import pandas as pd
 
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.api_job import DataSourceTask, ApiJob
+from core.modules.data_source.data_classes import DataSourceTask
 from core.utils.date.date_utils import DateUtils
 
 
@@ -156,18 +156,26 @@ class StockIndexIndicatorHandler(BaseDataSourceHandler):
                 if start_date > end_date:
                     continue
                 
-                # 创建 ApiJob
-                kline_method = term_config["kline_method"]
-                api_job = ApiJob(
-                    provider_name="tushare",
-                    method=kline_method,
+                # 创建 ApiJob（根据 term 选择对应的 API）
+                # term 到 API name 的映射
+                term_to_api_name = {
+                    "daily": "daily_kline",
+                    "weekly": "weekly_kline",
+                    "monthly": "monthly_kline"
+                }
+                api_name = term_to_api_name.get(term)
+                if not api_name:
+                    logger.warning(f"⚠️ 未知的周期类型: {term}，跳过")
+                    continue
+                
+                api_job = self.get_api_job_with_params(
+                    name=api_name,
                     params={
                         "ts_code": index_id,
                         "start_date": start_date,
                         "end_date": end_date,
                     },
-                    job_id=f"{index_id}_{term}",
-                    api_name=kline_method
+                    job_id=f"{index_id}_{term}"
                 )
                 api_jobs.append(api_job)
             

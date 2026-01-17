@@ -9,7 +9,7 @@ from loguru import logger
 
 from core.modules.data_manager import DataManager
 from core.infra.project_context import ConfigManager, PathManager
-from core.modules.data_source.definition import DataSourceDefinition
+from core.modules.data_source.data_classes import DataSourceDefinition
 from core.infra.discovery import ModuleDiscovery, ClassDiscovery, DiscoveryConfig
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
 
@@ -161,16 +161,19 @@ class DataSourceManager:
         
         Args:
             ds_name: 数据源名称
-            handler_path: Handler 类的完整路径，格式：userspace.data_source.handlers.xxx.ClassName
+            handler_path: Handler 类的路径（支持简化格式，如 "kline.KlineHandler" 或完整路径）
         
         Returns:
             Handler 类，如果加载失败返回 None
         """
         try:
+            # 标准化 handler 路径（支持简化格式）
+            normalized_path = DataSourceDefinition._normalize_handler_path(handler_path)
+            
             # 确保路径格式正确（必须以 userspace.data_source.handlers 开头）
-            if not handler_path.startswith("userspace.data_source.handlers."):
+            if not normalized_path.startswith("userspace.data_source.handlers."):
                 logger.error(
-                    f"❌ Handler 路径格式错误 {ds_name}: {handler_path}\n"
+                    f"❌ Handler 路径格式错误 {ds_name}: {handler_path} (标准化后: {normalized_path})\n"
                     f"   正确格式应为: userspace.data_source.handlers.xxx.ClassName"
                 )
                 return None
@@ -181,14 +184,14 @@ class DataSourceManager:
                 module_name_pattern=""  # 不使用包扫描，直接通过路径发现
             )
             discovery = ClassDiscovery(config)
-            handler_class = discovery.discover_class_by_path(handler_path, base_class=BaseDataSourceHandler)
+            handler_class = discovery.discover_class_by_path(normalized_path, base_class=BaseDataSourceHandler)
             
             if handler_class:
                 if self.is_verbose:
-                    logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({handler_path})")
+                    logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({normalized_path})")
                 return handler_class
             else:
-                logger.error(f"❌ 未找到 Handler 类: {ds_name} ({handler_path})")
+                logger.error(f"❌ 未找到 Handler 类: {ds_name} ({normalized_path})")
                 return None
                 
         except Exception as e:
@@ -361,27 +364,45 @@ class DataSourceManager:
         """
         解析所有启用的 handler 需要的全局依赖
         
+        优先从 mapping.json 中读取 dependencies（字典格式，如 {"latest_completed_trading_date": true}），
+        如果没有，则从 handler 类属性中读取（列表格式，如 ["stock_list"]）。
+        
         Returns:
             Set[str]: 需要获取的全局依赖名称集合
         """
         required_deps = set()
         
+        # 从 mapping.json 中读取 dependencies
         for ds_name, ds_config in self._mapping.items():
             if not ds_config.get("is_enabled", True):
                 continue
             
-            # 获取 handler 声明的依赖需求
+            # 获取 handler 声明的依赖需求（字典格式，如 {"latest_completed_trading_date": true, "stock_list": false}）
             dependencies = ds_config.get("dependencies", {})
             
             # 收集所有需要的依赖
-            for dep_name, required in dependencies.items():
-                if required:
-                    required_deps.add(dep_name)
+            if isinstance(dependencies, dict):
+                for dep_name, required in dependencies.items():
+                    if required:
+                        required_deps.add(dep_name)
+            elif isinstance(dependencies, list):
+                # 如果 dependencies 是列表格式，直接添加
+                for dep_name in dependencies:
+                    if dep_name in self._DEPENDENCY_FETCHERS:
+                        required_deps.add(dep_name)
         
-        if required_deps:
-            logger.debug(f"📋 解析到需要获取的全局依赖: {', '.join(sorted(required_deps))}")
-        else:
-            logger.debug("📋 没有 handler 需要全局依赖")
+        # 方法2: 从 handler 类属性中读取 dependencies（作为后备）
+        for ds_name, handler in self._handlers.items():
+            # 获取 handler 类属性中的 dependencies（是列表，如 ["stock_list", "latest_completed_trading_date"]）
+            # 优先从实例读取（如果子类覆盖了），否则从类读取
+            handler_deps = getattr(handler, 'dependencies', None) or getattr(handler.__class__, 'dependencies', [])
+            
+            if handler_deps and isinstance(handler_deps, list):
+                for dep_name in handler_deps:
+                    if dep_name in self._DEPENDENCY_FETCHERS:
+                        required_deps.add(dep_name)
+                    else:
+                        logger.warning(f"⚠️ Handler {ds_name} 声明了未知的依赖: {dep_name}")
         
         return required_deps
     
@@ -397,7 +418,23 @@ class DataSourceManager:
         """
         shared_context = {}
         
+        # 总是自动获取 latest_completed_trading_date，因为很多 handler 都需要它
+        # 即使没有 handler 声明依赖，也应该提供（避免警告）
+        if "latest_completed_trading_date" in self._DEPENDENCY_FETCHERS:
+            try:
+                fetcher = self._DEPENDENCY_FETCHERS["latest_completed_trading_date"]
+                value = fetcher(self.data_manager)
+                shared_context["latest_completed_trading_date"] = value
+                logger.debug(f"✅ 获取全局依赖: latest_completed_trading_date")
+            except Exception as e:
+                logger.warning(f"⚠️ 获取 latest_completed_trading_date 失败: {e}，handler 将回退获取")
+        
+        # 获取其他声明的依赖
         for dep_name in dep_names:
+            # 跳过 latest_completed_trading_date，因为已经在上面处理了
+            if dep_name == "latest_completed_trading_date":
+                continue
+                
             if dep_name in self._DEPENDENCY_FETCHERS:
                 try:
                     fetcher = self._DEPENDENCY_FETCHERS[dep_name]
@@ -482,6 +519,7 @@ class DataSourceManager:
                 # before_fetch 会在 execute 中调用（作为生命周期钩子）
                 # 此时 handler_context 已经包含了所有全局依赖，handler 的 before_fetch
                 # 可以从 context 中读取这些依赖，并添加自己的特定 context
+                # 使用 self.fetch 方法（保持与之前实现一致）
                 result = await self.fetch(handler_name, context=handler_context)
                 
                 logger.info(f"✅ 数据源 {handler_name} 处理完成")

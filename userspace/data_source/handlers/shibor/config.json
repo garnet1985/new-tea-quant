@@ -1,7 +1,7 @@
 {
     "_comment": "Shibor Handler 配置",
     "renew_mode": "rolling",
-    "date_format": "day",
+    "date_format": "date",
     "rolling_unit": "day",
     "rolling_length": 30,
     "default_date_range": {
@@ -9,21 +9,19 @@
     },
     "table_name": "shibor",
     "date_field": "date",
-    "provider_config": {
-        "apis": [
-            {
-                "provider_name": "tushare",
-                "method": "get_shibor",
-                "field_mapping": {
-                    "date": "date",
-                    "one_night": "on",
-                    "one_week": "1w",
-                    "one_month": "1m",
-                    "three_month": "3m",
-                    "one_year": "1y"
-                },
-                "params": {}
-            }
-        ]
+    "apis": {
+        "shibor_data": {
+            "provider_name": "tushare",
+            "method": "get_shibor",
+            "field_mapping": {
+                "date": "date",
+                "one_night": "on",
+                "one_week": "1w",
+                "one_month": "1m",
+                "three_month": "3m",
+                "one_year": "1y"
+            },
+            "params": {}
+        }
     }
 }

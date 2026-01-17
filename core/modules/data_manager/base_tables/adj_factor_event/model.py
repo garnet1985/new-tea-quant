@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from core.infra.db import DbBaseModel
 from core.utils.date.date_utils import DateUtils
+from core.infra.project_context.path_manager import PathManager
 
 
 class AdjFactorEventModel(DbBaseModel):
@@ -19,20 +20,11 @@ class AdjFactorEventModel(DbBaseModel):
     
     def __init__(self, db=None):
         super().__init__('adj_factor_event', db)
-        # CSV 文件目录：放在项目根下的 app/core/modules/data_manager/base_tables/adj_factor_event
-        # 为了避免硬编码层级，这里通过查找项目中的 app 目录来推断项目根
-        current_path = Path(__file__).resolve()  # .../app/core/modules/data_manager/base_tables/adj_factor_event/model.py
-        project_root: Path = None
-        for parent in current_path.parents:
-            if parent.name == "app":
-                # app 的上一级目录视为项目根
-                project_root = parent.parent
-                break
-        if project_root is None:
-            # 兜底：如果未找到 app 目录，退回到 5 级以上父目录作为项目根
-            project_root = current_path.parents[5]
+        # CSV 文件目录：放在 core/modules/data_manager/base_tables/adj_factor_event 目录下
+        # 使用 PathManager 获取项目根目录，然后构建正确的路径
+        project_root = PathManager.get_root()
         self.csv_dir = str(
-            project_root / "app" / "core" / "modules" / "data_manager" / "base_tables" / "adj_factor_event"
+            project_root / "core" / "modules" / "data_manager" / "base_tables" / "adj_factor_event"
         )
         os.makedirs(self.csv_dir, exist_ok=True)
     

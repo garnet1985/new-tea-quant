@@ -20,7 +20,7 @@ class TestBaseDataSourceHandler:
     
     def test_init_requires_definition(self):
         """测试初始化必须提供 definition"""
-        from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+        from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
         from core.modules.data_source.definition import DataSourceDefinition
         
         # 创建测试 Handler 类（实现抽象方法）
@@ -46,7 +46,7 @@ class TestBaseDataSourceHandler:
     
     def test_validate_class_attributes(self):
         """测试类属性验证"""
-        from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+        from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
         from core.modules.data_source.definition import DataSourceDefinition
         
         # 创建测试 Handler 类（没有定义 data_source）
@@ -71,7 +71,7 @@ class TestBaseDataSourceHandler:
     
     def test_get_param(self):
         """测试获取配置参数"""
-        from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+        from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
         from core.modules.data_source.definition import DataSourceDefinition
         
         # 创建 mock schema
@@ -123,7 +123,7 @@ class TestBaseDataSourceHandler:
     
     def test_get_provider_config(self):
         """测试获取 ProviderConfig"""
-        from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+        from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
         from core.modules.data_source.definition import DataSourceDefinition, ProviderConfig
         
         mock_schema = Mock()
@@ -148,7 +148,7 @@ class TestBaseDataSourceHandler:
     
     def test_get_handler_config(self):
         """测试获取 HandlerConfig"""
-        from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+        from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
         from core.modules.data_source.definition import DataSourceDefinition
         from core.modules.data_source.definition.handler_config import BaseHandlerConfig
         
@@ -174,7 +174,7 @@ class TestBaseDataSourceHandler:
     
     def test_create_simple_task(self):
         """测试创建简单 Task"""
-        from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+        from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
         from core.modules.data_source.definition import DataSourceDefinition
         
         mock_schema = Mock()

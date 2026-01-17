@@ -47,8 +47,6 @@ class JobBuilderHelper:
                 ...
             ]
         """
-        from core.modules.strategy.enums import ExecutionMode
-        
         jobs = []
         
         for stock_id in stock_list:
@@ -101,8 +99,6 @@ class JobBuilderHelper:
                 ...
             ]
         """
-        from core.modules.strategy.enums import ExecutionMode
-        
         jobs = []
         
         for stock_id in stock_list:

@@ -2,7 +2,7 @@
 """
 Capital Allocation Simulator 主类
 
-在真实资金约束下，对枚举器 SOT 结果进行全市场回放的资金分配型模拟器。
+在真实资金约束下，对枚举器输出结果进行全市场回放的资金分配型模拟器。
 """
 
 from pathlib import Path
@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional
 from collections import defaultdict
 import json
 import logging
+import time
 from datetime import datetime
 
 from .capital_allocation_simulator_config import CapitalAllocationSimulatorConfig
@@ -35,7 +36,7 @@ class CapitalAllocationSimulator:
 
     主要职责：
     - 解析策略 settings，构建 CapitalAllocationSimulatorConfig
-    - 解析并选择 SOT 版本目录
+    - 解析并选择枚举器输出版本目录
     - 构建全局事件流
     - 执行单进程主循环（处理 trigger 和 target 事件）
     - 保存交易记录、权益曲线和汇总结果
@@ -77,13 +78,21 @@ class CapitalAllocationSimulator:
         base_settings = StrategySettings.from_dict(raw_settings)
         config = CapitalAllocationSimulatorConfig.from_settings(base_settings)
 
-        # 2. 解析 SOT 版本目录
-        sot_version_dir, _ = VersionManager.resolve_sot_version(
-            strategy_name, config.sot_version
+        # 记录开始时间
+        start_time = time.time()
+        
+        # 2. 解析枚举器输出版本目录
+        output_version = getattr(config, 'output_version', 'latest')
+        output_version_dir, _ = VersionManager.resolve_output_version(
+            strategy_name, output_version
+        )
+        
+        logger.info(
+            f"🚀 [CapitalAllocationSimulator] 开始模拟: strategy={strategy_name}"
         )
         logger.info(
-            f"[CapitalAllocationSimulator] 使用 SOT 版本: strategy={strategy_name}, "
-            f"sot_version={sot_version_dir.name}"
+            f"[CapitalAllocationSimulator] 使用枚举器输出版本: strategy={strategy_name}, "
+            f"output_version={output_version_dir.name}"
         )
 
         # 3. 创建模拟器版本目录
@@ -100,14 +109,14 @@ class CapitalAllocationSimulator:
         # 5. 创建 DataLoader 并构建事件流
         data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
         events = data_loader.build_event_stream(
-            sot_version_dir,
+            output_version_dir,
             start_date=config.start_date or "",
             end_date=config.end_date or "",
         )
 
         if not events:
             logger.warning(
-                f"[CapitalAllocationSimulator] 未找到任何事件: {sot_version_dir}"
+                f"[CapitalAllocationSimulator] 未找到任何事件: {output_version_dir}"
             )
             return {}
 
@@ -180,8 +189,14 @@ class CapitalAllocationSimulator:
         # 用于计算 Kelly 模式的胜率（存储已完成机会的 ROI）
         # key: opportunity_id, value: opportunity dict
         completed_opportunities_map: Dict[str, Dict[str, Any]] = {}
+        
+        # 进度跟踪
+        total_events = len(events)
+        processed_events = 0
+        last_progress_time = time.time()
 
         for event in events:
+            processed_events += 1
             event_date = event.date
             event_type = event.event_type
 
@@ -215,6 +230,37 @@ class CapitalAllocationSimulator:
                     self._update_completed_opportunities(
                         event, completed_opportunities_map, account
                     )
+            
+            # 定期输出进度（每处理 10% 的事件或每 5 秒）
+            current_time = time.time()
+            if (processed_events % max(1, total_events // 10) == 0) or (current_time - last_progress_time >= 5.0):
+                progress_pct = (processed_events / total_events * 100) if total_events > 0 else 0
+                elapsed_time = current_time - start_time
+                
+                # 计算预计剩余时间
+                if processed_events > 0 and progress_pct > 0:
+                    avg_time_per_event = elapsed_time / processed_events
+                    remaining_events = total_events - processed_events
+                    estimated_remaining = avg_time_per_event * remaining_events
+                    eta_str = f", ETA: {estimated_remaining:.1f}s"
+                else:
+                    eta_str = ""
+                
+                # 格式化已用时间
+                if elapsed_time < 60:
+                    elapsed_str = f"{elapsed_time:.1f}s"
+                elif elapsed_time < 3600:
+                    elapsed_str = f"{elapsed_time/60:.1f}min"
+                else:
+                    hours = int(elapsed_time // 3600)
+                    minutes = int((elapsed_time % 3600) // 60)
+                    elapsed_str = f"{hours}h{minutes}min"
+                
+                logger.info(
+                    f"📊 [CapitalAllocationSimulator] 进度: {progress_pct:.1f}% "
+                    f"({processed_events}/{total_events}), 已用={elapsed_str}{eta_str}"
+                )
+                last_progress_time = current_time
 
         # 记录最后一天的权益
         if current_date is not None and config.save_equity_curve:
@@ -239,7 +285,7 @@ class CapitalAllocationSimulator:
         self._save_results(
             sim_version_dir,
             sim_version_id,
-            sot_version_dir.name,
+            output_version_dir.name,
             trades,
             equity_curve,
             summary,
@@ -247,11 +293,23 @@ class CapitalAllocationSimulator:
             base_settings.to_dict(),
         )
 
+        # 计算总时长
+        total_elapsed = time.time() - start_time
+        if total_elapsed < 60:
+            total_time_str = f"{total_elapsed:.1f}秒"
+        elif total_elapsed < 3600:
+            total_time_str = f"{total_elapsed/60:.1f}分钟"
+        else:
+            hours = int(total_elapsed // 3600)
+            minutes = int((total_elapsed % 3600) // 60)
+            total_time_str = f"{hours}小时{minutes}分钟"
+        
         logger.info(
-            f"[CapitalAllocationSimulator] 模拟完成: "
+            f"✅ [CapitalAllocationSimulator] 模拟完成: "
             f"初始资金={config.initial_capital:.2f}, "
             f"最终权益={summary.get('final_equity', 0):.2f}, "
-            f"总收益={summary.get('total_return', 0):.2%}"
+            f"总收益={summary.get('total_return', 0):.2%}, "
+            f"总耗时={total_time_str}"
         )
 
         # 运行 Analyzer（如果启用）
@@ -607,7 +665,7 @@ class CapitalAllocationSimulator:
         self,
         sim_version_dir: Path,
         sim_version_id: int,
-        sot_version: str,
+        output_version: str,
         trades: List[Dict[str, Any]],
         equity_curve: List[Dict[str, Any]],
         summary: Dict[str, Any],
@@ -637,7 +695,7 @@ class CapitalAllocationSimulator:
         # 保存 metadata
         metadata = {
             "sim_version": f"{sim_version_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "sot_version": sot_version,
+            "output_version": output_version,
             "config": config.__dict__,
             "settings_snapshot": settings_snapshot,
             "created_at": datetime.now().isoformat(),

@@ -23,7 +23,7 @@ class PriceFactorSettings(BaseSettings):
     价格因子模拟器设置
     
     配置字段：
-    - sot_version: SOT 版本依赖（默认 "latest"）
+    - output_version: 枚举器输出版本依赖（默认 "latest"）
     - use_sampling: 是否使用采样配置（默认 True）
     - start_date: 模拟开始日期（可选，默认从默认开始日期）
     - end_date: 模拟结束日期（可选，默认到最新交易日）
@@ -31,7 +31,7 @@ class PriceFactorSettings(BaseSettings):
     """
     
     # 价格因子模拟器特定字段（延迟提取）
-    _sot_version: Optional[str] = None
+    _output_version: Optional[str] = None
     _use_sampling: Optional[bool] = None
     _start_date: Optional[str] = None
     _end_date: Optional[str] = None
@@ -47,7 +47,7 @@ class PriceFactorSettings(BaseSettings):
         验证内容：
         - 无 Critical 错误（所有字段都有默认值或可选）
         - 添加默认值
-        - 检查 sot_version（Warning）
+        - 检查 output_version（Warning）
         - 检查 start_date / end_date（Warning）
         
         Returns:
@@ -58,13 +58,13 @@ class PriceFactorSettings(BaseSettings):
         # 提取字段并添加默认值
         self._extract_price_factor_fields()
         
-        # 检查 sot_version（Warning）
-        if self._sot_version and self._sot_version != "latest":
+        # 检查 output_version（Warning）
+        if self._output_version and self._output_version != "latest":
             # 这里只标记 Warning，实际版本检查在运行时进行
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
-                field_path="simulator.sot_version",
-                message=f"指定的 SOT 版本 '{self._sot_version}' 将在运行时检查，如果不存在将使用 'latest'",
+                field_path="simulator.output_version",
+                message=f"指定的输出版本 '{self._output_version}' 将在运行时检查，如果不存在将使用 'latest'",
                 suggested_fix="如果版本不存在，系统将自动使用 'latest'，如果 'latest' 也不存在，建议先运行枚举器"
             ))
         
@@ -104,8 +104,8 @@ class PriceFactorSettings(BaseSettings):
         """提取价格因子模拟器特定字段并添加默认值"""
         simulator_config = self.raw_settings.get("simulator", {})
         
-        # sot_version（默认 "latest"）
-        self._sot_version = simulator_config.get("sot_version", "latest") or "latest"
+        # output_version（默认 "latest"）
+        self._output_version = simulator_config.get("output_version", "latest") or "latest"
         
         # use_sampling（默认 True）
         use_sampling = simulator_config.get("use_sampling")
@@ -128,12 +128,6 @@ class PriceFactorSettings(BaseSettings):
             except (TypeError, ValueError):
                 self._max_workers = "auto"
     
-    @property
-    def sot_version(self) -> str:
-        """SOT 版本依赖"""
-        if self._sot_version is None:
-            self._extract_price_factor_fields()
-        return self._sot_version
     
     @property
     def use_sampling(self) -> bool:

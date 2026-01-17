@@ -28,8 +28,7 @@ class TableManager:
         self,
         adapter: BaseDatabaseAdapter,
         config: Dict,
-        is_verbose: bool = False,
-        read_only: bool = False
+        is_verbose: bool = False
     ):
         """
         初始化表管理器
@@ -38,12 +37,10 @@ class TableManager:
             adapter: 数据库适配器
             config: 数据库配置
             is_verbose: 是否输出详细日志
-            read_only: 是否以只读模式打开
         """
         self.adapter = adapter
         self.config = config
         self.is_verbose = is_verbose
-        self.read_only = read_only
         
         # 批量写入队列（延迟初始化）
         self._write_queue: Optional[BatchWriteQueue] = None
@@ -52,11 +49,10 @@ class TableManager:
         """
         初始化批量写入队列
         
-        只在非只读模式下初始化
+        注意：如果队列已存在，不会重复初始化（避免重复启动线程）
         """
-        if self.read_only:
-            if self.is_verbose:
-                logger.info("ℹ️  只读模式，跳过批量写入队列初始化")
+        # 如果队列已存在且正在运行，不重复初始化
+        if self._write_queue is not None and self._write_queue._is_running:
             return
         
         try:
@@ -126,6 +122,10 @@ class TableManager:
         """
         if not data_list:
             return
+        
+        # 延迟初始化：只在第一次需要写入时才初始化批量写入队列
+        if self._write_queue is None:
+            self.initialize_write_queue()
         
         # 如果批量写入队列可用且启用，使用队列
         if self._write_queue and self._write_queue.enable:

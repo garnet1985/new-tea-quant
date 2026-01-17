@@ -14,6 +14,7 @@ from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 from ... import BaseDataService
+from core.utils import DateUtils
 
 # 价格字段配置（用于复权计算）
 _PRICE_FIELDS = ['open', 'close', 'highest', 'lowest', 'pre_close']
@@ -37,7 +38,7 @@ class KlineService(BaseDataService):
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
-        self.db = DatabaseManager.get_default()
+        self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== K线基础方法 ====================
 

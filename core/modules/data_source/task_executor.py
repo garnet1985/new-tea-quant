@@ -408,7 +408,7 @@ class TaskExecutor:
                 provider = self.providers.get(api_job.provider_name)
                 if not provider:
                     try:
-                        from core.modules.data_source.providers.provider_instance_pool import get_provider_pool
+                        from core.modules.data_source.provider_instance_pool import get_provider_pool
                         pool = get_provider_pool()
                         provider = pool.get_provider(api_job.provider_name)
                     except Exception:
@@ -627,7 +627,7 @@ class TaskExecutor:
         provider = self.providers.get(api_job.provider_name)
         if not provider:
             try:
-                from core.modules.data_source.providers.provider_instance_pool import get_provider_pool
+                from core.modules.data_source.provider_instance_pool import get_provider_pool
                 pool = get_provider_pool()
                 provider = pool.get_provider(api_job.provider_name)
             except Exception as e:

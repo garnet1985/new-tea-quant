@@ -13,7 +13,7 @@
 
 ```python
 # userspace/data_source/handlers/my_handler.py
-from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
 from core.modules.data_source.api_job import DataSourceTask, ApiJob
 
 class MyHandler(BaseDataSourceHandler):

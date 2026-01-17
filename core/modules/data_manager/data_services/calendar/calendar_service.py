@@ -19,7 +19,7 @@ import threading
 import json
 
 from core.utils.date.date_utils import DateUtils
-from core.modules.data_source.providers.provider_instance_pool import get_provider_pool
+from core.modules.data_source.provider_instance_pool import get_provider_pool
 from .. import BaseDataService
 
 

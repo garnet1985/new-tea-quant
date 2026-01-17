@@ -21,7 +21,7 @@ class DatabaseAdapterFactory:
     """
     
     @staticmethod
-    def create(config: Dict[str, Any], is_verbose: bool = False, read_only: bool = False) -> BaseDatabaseAdapter:
+    def create(config: Dict[str, Any], is_verbose: bool = False) -> BaseDatabaseAdapter:
         """
         创建数据库适配器
         
@@ -30,7 +30,6 @@ class DatabaseAdapterFactory:
                 必须包含 'database_type' 字段（'postgresql', 'mysql', 'sqlite'）
                 以及对应的数据库配置
             is_verbose: 是否输出详细日志
-            read_only: 是否以只读模式打开（仅 SQLite 支持）
             
         Returns:
             数据库适配器实例
@@ -93,7 +92,7 @@ class DatabaseAdapterFactory:
             if not sqlite_config:
                 raise ValueError("SQLite 配置缺失，请提供 'sqlite' 配置项")
             
-            adapter = SQLiteAdapter(sqlite_config, is_verbose=is_verbose, read_only=read_only)
+            adapter = SQLiteAdapter(sqlite_config, is_verbose=is_verbose)
             adapter.connect()
             return adapter
             

@@ -192,12 +192,7 @@ class BaseSettings(ABC):
     
     def get_goal_config(self) -> Dict[str, Any]:
         """获取投资目标配置（止盈止损）"""
-        # 优先从顶层 goal 读取，如果没有则从 simulator.goal 读取
-        goal = self.raw_settings.get("goal")
-        if goal:
-            return goal
-        simulator = self.raw_settings.get("simulator", {})
-        return simulator.get("goal", {})
+        return self.raw_settings.get("goal", {})
     
     def get_fees_config(self) -> Dict[str, Any]:
         """获取交易成本配置"""

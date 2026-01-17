@@ -16,6 +16,7 @@ import json
 import logging
 
 from core.infra.project_context import PathManager
+from core.modules.strategy.enums import OpportunityStatus
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class OpportunityService:
         
         # 结果文件夹路径
         self.base_path = PathManager.strategy_results(strategy_name)
-        self.scan_path = self.base_path / "scan"
+        self.scan_path = PathManager.strategy_scan_results(strategy_name)
         self.simulate_path = self.base_path / "simulate"
         
         # 确保文件夹存在
@@ -260,7 +261,7 @@ class OpportunityService:
         if not opportunities:
             return {}
         
-        closed_opps = [o for o in opportunities if o.get('status') == 'closed']
+        closed_opps = [o for o in opportunities if o.get('status') == OpportunityStatus.CLOSED.value]
         
         summary = {
             'total_opportunities': len(opportunities),

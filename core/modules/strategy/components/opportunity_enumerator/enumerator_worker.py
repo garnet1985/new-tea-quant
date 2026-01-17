@@ -13,6 +13,7 @@ from typing import Dict, Any, List
 import logging
 import time
 
+from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
     PerformanceProfiler,
     PerformanceMetrics
@@ -20,14 +21,16 @@ from core.modules.strategy.components.opportunity_enumerator.performance_profile
 
 logger = logging.getLogger(__name__)
 
+# 常量
+MAX_LOOKBACK_DAYS = 60  # 最大历史窗口天数（用于数据加载）
+
 
 class OpportunityEnumeratorWorker:
     """枚举器 Worker（子进程，带 DataManager / DB 访问）
 
     说明：
     - 这个 Worker 是最完整的版本，支持从 DB 加载历史数据、required_entities 等。
-    - 在 DuckDB 单进程文件锁的前提下，我们仅在「单进程 / 单线程」模式下使用它。
-    - 对于纯计算多进程场景，请使用 ComputeOnlyOpportunityEnumeratorWorker。
+    - 在子进程中按需加载数据，通过 max_workers 限制并发数，避免内存爆炸。
     """
     
     def __init__(self, job_payload: Dict[str, Any]):
@@ -82,8 +85,7 @@ class OpportunityEnumeratorWorker:
         加载股票信息（枚举器版本）
         
         说明：
-        - 为了避免在多进程环境下对 stock_list 频繁 DB 访问导致
-          MySQL 'Command Out of Sync' 错误，这里不再访问数据库，
+        - 为了避免在多进程环境下对 stock_list 频繁 DB 访问，这里不再访问数据库，
           只返回最小必要字段。
         - 如果将来需要更丰富的元信息，可以在主进程预加载后通过 job_payload 传入。
         """
@@ -132,7 +134,7 @@ class OpportunityEnumeratorWorker:
             # 创建一个临时实例来获取 scan_opportunity 方法
             dummy_payload = {
                 'stock_id': self.stock_id,
-                'execution_mode': 'scan',
+                'execution_mode': ExecutionMode.SCAN.value,
                 'strategy_name': self.strategy_name,
                 'settings': self.settings.to_dict()
             }
@@ -167,9 +169,9 @@ class OpportunityEnumeratorWorker:
         self.profiler.start_timer('total')
         try:
             # 1. 计算真正的开始日期（需要预留 lookback 窗口）
-            # 使用 min_required_records 作为 lookback，但限制最大为 60 天。
+            # 使用 min_required_records 作为 lookback，但限制最大为 MAX_LOOKBACK_DAYS 天。
             # 注意：这里仅用于“预热窗口”，不再用于截断历史。
-            lookback_days = min(self.settings.min_required_records, 60)
+            lookback_days = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
             actual_start_date = self._get_date_before(self.start_date, lookback_days)
             
             # 2. 加载全量历史数据（支持批量预加载的 K 线）
@@ -376,452 +378,27 @@ class OpportunityEnumeratorWorker:
                 'opportunity_count': 0,
                 'error': str(e)
             }
-
-
-class ComputeOnlyOpportunityEnumeratorWorker:
-    """
-    纯计算版枚举 Worker（多进程安全）
-
-    特点：
-    - 不访问 DB，不依赖 DataManager/DatabaseManager
-    - 只依赖 payload 中预加载的内存数据（klines + settings + output_dir）
-    - 适合在「主进程已按 batch 从 DuckDB 拉好数据」的前提下进行多进程并行计算
-    """
-
-    def __init__(self, job_payload: Dict[str, Any]):
+    
+    def _get_date_before(self, date_str: str, days: int) -> str:
         """
+        获取指定日期之前的日期
+        
         Args:
-            job_payload: {
-                'stock_id': str,
-                'strategy_name': str,
-                'settings': dict,           # StrategySettings dict
-                'klines': List[Dict[str, Any]],
-                'start_date': str,
-                'end_date': str,
-                'output_dir': str,
-            }
-        """
-        self.job_payload = job_payload
-
-        # 基本信息
-        self.stock_id = job_payload['stock_id']
-        self.strategy_name = job_payload['strategy_name']
-        self.start_date = job_payload['start_date']
-        self.end_date = job_payload['end_date']
-        self.klines: List[Dict[str, Any]] = job_payload.get('klines') or []
-
-        # 性能分析器
-        self.profiler = PerformanceProfiler(self.stock_id)
-
-        # 配置
-        from core.modules.strategy.models.strategy_settings import StrategySettings
-        self.settings = StrategySettings.from_dict(job_payload['settings'])
-
-        # 股票元信息（最小字段集）
-        self.stock_info = {
-            "id": self.stock_id,
-            "name": self.stock_id,
-            "industry": "",
-            "type": "",
-            "exchange_center": "",
-        }
-
-        # Worker 级数据存储（仅内存，不访问 DB）
-        self._current_data: Dict[str, Any] = {
-            "klines": self.klines,
-        }
-        # 游标状态：与 StrategyWorkerDataManager 的设计一致
-        self._cursor_state: Dict[str, Dict[str, Any]] = {}
-
-        # Opportunity ID 计数器
-        self.opportunity_counter = 0
-
-        # 策略实例（延迟创建，避免触发 BaseStrategyWorker 的 DataManager 初始化）
-        self.strategy_instance = None
-        self._strategy_class = None
-        self._strategy_module_path = f"userspace.strategies.{self.strategy_name}.strategy_worker"
-
-    # -------- 策略与指标相关辅助 --------
-
-    def _get_strategy_instance(self):
-        """
-        延迟创建策略实例（仅在需要时创建）
+            date_str: 日期字符串（YYYYMMDD）
+            days: 天数
         
-        注意：BaseStrategyWorker.__init__ 会初始化 DataManager，这在多进程环境下
-        会导致 DuckDB 文件锁冲突。
-        
-        解决方案：创建一个最小包装器，直接调用策略类的 scan_opportunity 方法，
-        而不通过 BaseStrategyWorker.__init__ 创建完整实例。
+        Returns:
+            更早的日期字符串（YYYYMMDD）
         """
-        if self.strategy_instance is not None:
-            return self.strategy_instance
+        from datetime import datetime, timedelta
         
-        import importlib
-        import inspect
-        from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
-
         try:
-            if self._strategy_class is None:
-                module = importlib.import_module(self._strategy_module_path)
-
-                # 尝试多种类名查找方式
-                strategy_class = None
-
-                # 1. 尝试查找 'StrategyWorker'
-                if hasattr(module, 'StrategyWorker'):
-                    strategy_class = getattr(module, 'StrategyWorker')
-                else:
-                    # 2. 尝试查找 '{StrategyName}StrategyWorker'
-                    strategy_name_capitalized = self.strategy_name.capitalize()
-                    class_name = f"{strategy_name_capitalized}StrategyWorker"
-                    if hasattr(module, class_name):
-                        strategy_class = getattr(module, class_name)
-
-                # 3. 如果还找不到，查找所有继承自 BaseStrategyWorker 的类
-                if strategy_class is None:
-                    for name, obj in inspect.getmembers(module):
-                        if (
-                            inspect.isclass(obj)
-                            and issubclass(obj, BaseStrategyWorker)
-                            and obj is not BaseStrategyWorker
-                        ):
-                            strategy_class = obj
-                            break
-
-                if strategy_class is None:
-                    raise ValueError(f"找不到策略类: {self._strategy_module_path}")
-                
-                self._strategy_class = strategy_class
-
-            # 创建最小包装器：不通过 BaseStrategyWorker.__init__，避免触发 DataManager 初始化
-            # 使用 object.__new__ 创建实例，然后手动设置必要属性
-            class ComputeOnlyStrategyWrapper:
-                """最小策略包装器，避免触发 BaseStrategyWorker 的 DataManager 初始化"""
-                def __init__(self, strategy_class, stock_info, stock_id, strategy_name, settings_dict):
-                    # 直接创建实例，跳过 BaseStrategyWorker.__init__
-                    # 这样不会触发 DataManager 初始化，避免 DuckDB 文件锁冲突
-                    self._strategy_instance = object.__new__(strategy_class)
-                    # 设置策略实例需要的最小属性（scan_opportunity 方法可能需要的）
-                    self._strategy_instance.stock_info = stock_info
-                    self._strategy_instance.stock_id = stock_id
-                    self._strategy_instance.strategy_name = strategy_name
-                    self._strategy_instance.job_payload = {
-                        'stock_id': stock_id,
-                        'strategy_name': strategy_name,
-                        'settings': settings_dict,
-                    }
-                    # 注意：不设置 data_mgr 和 data_manager，因为 compute-only 模式下不需要
-                    # 如果策略的 scan_opportunity 方法需要这些，说明策略设计有问题
-                
-                def scan_opportunity(self, data: Dict[str, Any], settings: Dict[str, Any]):
-                    """代理到真实策略实例的 scan_opportunity 方法"""
-                    return self._strategy_instance.scan_opportunity(data, settings)
-            
-            # 创建包装器实例
-            self.strategy_instance = ComputeOnlyStrategyWrapper(
-                strategy_class=self._strategy_class,
-                stock_info=self.stock_info,
-                stock_id=self.stock_id,
-                strategy_name=self.strategy_name,
-                settings_dict=self.settings.to_dict(),
-            )
-
+            date = datetime.strptime(date_str, '%Y%m%d')
+            earlier_date = date - timedelta(days=days)
+            return earlier_date.strftime('%Y%m%d')
         except Exception as e:
-            logger.error(f"加载策略失败: {self.strategy_name}, error={e}")
-            raise
-        
-        return self.strategy_instance
-
-    def _apply_indicators(self) -> None:
-        """
-        根据 settings.data.indicators 使用 IndicatorService 计算指标，
-        并将结果直接写回到 K 线字典中。
-        """
-        from core.modules.indicator import IndicatorService
-
-        indicators_cfg = getattr(self.settings, "indicators", None)
-        klines = self._current_data.get("klines") or []
-
-        if not indicators_cfg or not klines:
-            return
-
-        for name, configs in indicators_cfg.items():
-            if not configs:
-                continue
-            if not isinstance(configs, list):
-                configs = [configs]
-
-            for cfg in configs:
-                try:
-                    if name.lower() == "ma":
-                        length = cfg.get("period") or cfg.get("length")
-                        if not length:
-                            continue
-                        values = IndicatorService.ma(klines, length=int(length))
-                        if not values:
-                            continue
-                        field = f"ma{length}"
-                        for rec, val in zip(klines, values):
-                            rec[field] = val
-
-                    elif name.lower() == "ema":
-                        length = cfg.get("period") or cfg.get("length")
-                        if not length:
-                            continue
-                        values = IndicatorService.ema(klines, length=int(length))
-                        if not values:
-                            continue
-                        field = f"ema{length}"
-                        for rec, val in zip(klines, values):
-                            rec[field] = val
-
-                    elif name.lower() == "rsi":
-                        length = cfg.get("period") or cfg.get("length")
-                        if not length:
-                            continue
-                        values = IndicatorService.rsi(klines, length=int(length))
-                        if not values:
-                            continue
-                        field = f"rsi{length}"
-                        for rec, val in zip(klines, values):
-                            rec[field] = val
-
-                    elif name.lower() == "macd":
-                        fast = cfg.get("fast", 12)
-                        slow = cfg.get("slow", 26)
-                        signal = cfg.get("signal", 9)
-                        result = IndicatorService.macd(
-                            klines, fast=int(fast), slow=int(slow), signal=int(signal)
-                        )
-                        if not result:
-                            continue
-                        for key, series in result.items():
-                            for rec, val in zip(klines, series):
-                                rec[key] = val
-                    else:
-                        result = IndicatorService.calculate(name, klines, **cfg)
-                        if not result:
-                            continue
-                        if isinstance(result, list):
-                            field = self._build_indicator_field_name(name, cfg)
-                            for rec, val in zip(klines, result):
-                                rec[field] = val
-                        elif isinstance(result, dict):
-                            for key, series in result.items():
-                                field = self._build_indicator_field_name(
-                                    f"{name}_{key}", cfg
-                                )
-                                for rec, val in zip(klines, series):
-                                    rec[field] = val
-                except Exception as e:
-                    logger.error(
-                        "计算指标失败: stock=%s, indicator=%s, params=%s, error=%s",
-                        self.stock_id,
-                        name,
-                        cfg,
-                        e,
-                    )
-
-    def _build_indicator_field_name(self, name: str, params: Dict[str, Any]) -> str:
-        name = name.lower()
-        period = params.get("period") or params.get("length")
-        if period is not None and isinstance(period, (int, float, str)):
-            return f"{name}{int(period)}"
-        parts = [name]
-        for k in sorted(params.keys()):
-            v = params[k]
-            if isinstance(v, (int, float, str)):
-                parts.append(f"{k}{v}")
-        return "_".join(parts)
-
-    # -------- 游标机制（仅内存版） --------
-
-    def _init_cursor_state(self):
-        self._cursor_state = {}
-        if "klines" in self._current_data:
-            self._cursor_state["klines"] = {"cursor": -1, "acc": []}
-
-    def _advance_cursor_until(
-        self,
-        data_list: List[Dict[str, Any]],
-        state: Dict[str, Any],
-        date_of_today: str,
-        date_field: str = "date",
-    ):
-        cursor = state["cursor"]
-        acc = state["acc"]
-
-        i = cursor + 1
-        n = len(data_list)
-
-        while i < n:
-            record = data_list[i]
-            record_date = record.get(date_field)
-
-            if not record_date or record_date > date_of_today:
-                break
-
-            acc.append(record)
-            i += 1
-
-        state["cursor"] = i - 1
-
-    def get_data_until(self, date_of_today: str) -> Dict[str, Any]:
-        """
-        内存版游标：仅支持 klines
-        """
-        result: Dict[str, Any] = {}
-
-        klines_state = self._cursor_state.get("klines")
-        if klines_state:
-            self._advance_cursor_until(
-                data_list=self._current_data["klines"],
-                state=klines_state,
-                date_of_today=date_of_today,
-                date_field="date",
-            )
-            result["klines"] = klines_state["acc"]
-
-        return result
-
-    # -------- 主执行逻辑（纯计算，多进程安全） --------
-
-    def run(self) -> Dict[str, Any]:
-        """
-        入口：不触碰 DB，只使用 payload 中的内存数据
-        """
-        self.profiler.start_timer("total")
-        try:
-            # 1. 计算实际开始日期（只影响 lookback 逻辑）
-            lookback_days = min(self.settings.min_required_records, 60)
-            actual_start_date = self._get_date_before(self.start_date, lookback_days)
-
-            # 2. load_data：应用指标 + 初始化游标
-            import time as time_module
-
-            self.profiler.start_timer("load_data")
-            t0 = time_module.perf_counter()
-
-            self._apply_indicators()
-            self._init_cursor_state()
-
-            _ = time_module.perf_counter() - t0  # 当前先不单独记录指标计算时间
-            self.profiler.metrics.time_load_data = self.profiler.end_timer("load_data")
-
-            all_klines = self._current_data.get("klines") or []
-            if not all_klines:
-                logger.warning("没有K线数据: stock=%s", self.stock_id)
-                return {
-                    "success": True,
-                    "stock_id": self.stock_id,
-                    "opportunity_count": 0,
-                    "performance_metrics": self.profiler.finalize().to_dict(),
-                }
-
-            min_required_kline = self.settings.min_required_records
-            if len(all_klines) < min_required_kline:
-                logger.warning(
-                    "股票数据不足: stock=%s, total_klines=%d, min_required=%d",
-                    self.stock_id,
-                    len(all_klines),
-                    min_required_kline,
-                )
-                metrics = self.profiler.finalize()
-                return {
-                    "success": True,
-                    "stock_id": self.stock_id,
-                    "opportunity_count": 0,
-                    "performance_metrics": metrics.to_dict(),
-                }
-
-            # 3. 逐日枚举
-            tracker = {
-                "stock_id": self.stock_id,
-                "passed_dates": [],
-                "active_opportunities": [],
-                "all_opportunities": [],
-            }
-
-            self.profiler.start_timer("enumerate")
-            last_kline = None
-            for current_kline in all_klines:
-                virtual_date_of_today = current_kline["date"]
-                tracker["passed_dates"].append(virtual_date_of_today)
-
-                if len(tracker["passed_dates"]) < min_required_kline:
-                    continue
-
-                data_of_today = self.get_data_until(virtual_date_of_today)
-                self._enumerate_single_day(tracker, current_kline, data_of_today)
-                last_kline = current_kline
-            self.profiler.metrics.time_enumerate = self.profiler.end_timer("enumerate")
-
-            # 4. 收尾：强制平仓所有未结机会
-            if tracker["active_opportunities"] and last_kline:
-                self._close_all_open_opportunities(tracker, last_kline)
-
-            # 5. 序列化 + 写 CSV
-            self.profiler.start_timer("serialize")
-            opportunities_dict = [
-                opp.to_dict() for opp in tracker["all_opportunities"]
-            ]
-            self.profiler.metrics.time_serialize = self.profiler.end_timer("serialize")
-
-            opportunity_count = len(opportunities_dict)
-
-            output_dir = self.job_payload.get("output_dir")
-            if output_dir and opportunity_count > 0:
-                self.profiler.start_timer("save_csv")
-                self._save_stock_results(output_dir, opportunities_dict)
-                self.profiler.metrics.time_save_csv = self.profiler.end_timer(
-                    "save_csv"
-                )
-
-            self.profiler.metrics.kline_count = len(all_klines)
-            self.profiler.metrics.opportunity_count = opportunity_count
-            self.profiler.metrics.target_count = sum(
-                len(opp.get("completed_targets", []) or [])
-                for opp in opportunities_dict
-            )
-
-            self.profiler.metrics.time_total = self.profiler.end_timer("total")
-            metrics = self.profiler.finalize()
-
-            logger.info(
-                "⏱[MP] 枚举性能[stock=%s]: load=%.1fms, enum=%.1fms, serialize=%.1fms, "
-                "save=%.1fms, total=%.1fms, days=%d, opps=%d, file_writes=%d, memory_peak=%.1fMB",
-                self.stock_id,
-                metrics.time_load_data * 1000.0,
-                metrics.time_enumerate * 1000.0,
-                metrics.time_serialize * 1000.0,
-                metrics.time_save_csv * 1000.0,
-                metrics.time_total * 1000.0,
-                len(all_klines),
-                opportunity_count,
-                metrics.file_writes,
-                metrics.memory_peak,
-            )
-
-            return {
-                "success": True,
-                "stock_id": self.stock_id,
-                "opportunity_count": opportunity_count,
-                "performance_metrics": metrics.to_dict(),
-            }
-
-        except Exception as e:
-            logger.error(
-                "枚举失败(多进程计算): stock_id=%s, error=%s",
-                self.stock_id,
-                e,
-                exc_info=True,
-            )
-            return {
-                "success": False,
-                "stock_id": self.stock_id,
-                "opportunity_count": 0,
-                "error": str(e),
-            }
+            logger.warning(f"计算日期失败: {e}")
+            return date_str
     
     def _enumerate_single_day(
         self,
@@ -880,7 +457,7 @@ class ComputeOnlyOpportunityEnumeratorWorker:
             opportunity.strategy_name = self.strategy_name
             opportunity.trigger_date = current_kline['date']
             opportunity.trigger_price = current_kline['close']
-            opportunity.status = 'active'
+            opportunity.status = OpportunityStatus.ACTIVE.value
             opportunity.completed_targets = []
             
             # 生成简单整数 ID（1, 2, 3, ...）
@@ -890,7 +467,7 @@ class ComputeOnlyOpportunityEnumeratorWorker:
             # 框架自动填充其他字段（传入已设置的 opportunity_id）
             opportunity.enrich_from_framework(
                 strategy_name=self.strategy_name,
-                strategy_version='1.0',  # TODO: 从 settings 获取
+                strategy_version='1.0',  # 默认版本，后续可从 settings 获取
                 opportunity_id=opportunity.opportunity_id  # 已经设置，传入避免重复生成
             )
             
@@ -992,91 +569,84 @@ class ComputeOnlyOpportunityEnumeratorWorker:
             "price_return",        # 价格收益率（在 targets CSV 中已有 roi 字段，重复）
             "tracking",            # 持有期间追踪数据（当前实现中总是为空）
             "triggered_stop_loss_idx",    # 已触发的止损阶段索引（内部追踪状态，CSV 不需要）
-            "triggered_take_profit_idx",  # 已触发的止盈阶段索引（内部追踪状态，CSV 不需要）
         }
 
+        # 处理每个机会
         for opp in opportunities:
-            # 主表数据（排除不需要的字段）
-            row = {k: v for k, v in opp.items() if k not in excluded_fields}
+            # 转换为字典（如果已经是字典则直接使用）
+            if hasattr(opp, 'to_dict'):
+                opp_dict = opp.to_dict()
+            elif isinstance(opp, dict):
+                opp_dict = opp
+            else:
+                # 如果是 Opportunity 对象，手动转换
+                opp_dict = {
+                    'opportunity_id': getattr(opp, 'opportunity_id', ''),
+                    'trigger_date': getattr(opp, 'trigger_date', ''),
+                    'trigger_price': getattr(opp, 'trigger_price', 0.0),
+                    'status': getattr(opp, 'status', ''),
+                    'sell_reason': getattr(opp, 'sell_reason', ''),
+                    'sell_date': getattr(opp, 'sell_date', ''),
+                    'sell_price': getattr(opp, 'sell_price', 0.0),
+                    'completed_targets': getattr(opp, 'completed_targets', []),
+                }
 
-            # 兼容旧字段名：sell_* -> exit_*
-            if "sell_date" in row and "exit_date" not in row:
-                row["exit_date"] = row.pop("sell_date")
-            if "sell_price" in row and "exit_price" not in row:
-                row["exit_price"] = row.pop("sell_price")
-            if "sell_reason" in row and "exit_reason" not in row:
-                row["exit_reason"] = row.pop("sell_reason")
+            # 提取 completed_targets（单独输出到 targets CSV）
+            completed_targets = opp_dict.get('completed_targets', [])
+            if completed_targets:
+                for target in completed_targets:
+                    target_row = {
+                        'opportunity_id': opp_dict.get('opportunity_id', ''),
+                        'target_type': target.get('type', ''),
+                        'target_value': target.get('value', ''),
+                        'target_date': target.get('date', ''),
+                        'target_price': target.get('price', ''),
+                        'reason': target.get('reason', ''),
+                        'roi': target.get('roi', ''),
+                    }
+                    target_rows.append(target_row)
 
-            # price_return 和 roi 都已排除（在 targets CSV 中已有 roi 字段）
+            # 过滤不需要的字段
+            opp_row = {k: v for k, v in opp_dict.items() if k not in excluded_fields}
+            
+            # 处理特殊字段：将复杂对象转换为 JSON 字符串
+            for key, value in opp_row.items():
+                if isinstance(value, (dict, list)):
+                    opp_row[key] = json.dumps(value, ensure_ascii=False)
+                elif value is None:
+                    opp_row[key] = ''
 
-            # extra_fields 如果是 dict，则序列化为 JSON 字符串
-            if "extra_fields" in row and isinstance(row["extra_fields"], dict):
-                try:
-                    row["extra_fields"] = json.dumps(row["extra_fields"], ensure_ascii=False)
-                except Exception:
-                    row["extra_fields"] = str(row["extra_fields"])
+            opp_rows.append(opp_row)
 
-            opp_rows.append(row)
-
-            # 子表数据（添加 opportunity_id 用于关联）
-            opp_id = opp.get("opportunity_id")
-            for target in opp.get("completed_targets", []) or []:
-                t_row = dict(target)  # 直接使用 target 的字段
-                # 添加 opportunity_id 用于关联
-                if opp_id:
-                    t_row["opportunity_id"] = opp_id
-                if "extra_fields" in t_row and isinstance(t_row["extra_fields"], dict):
-                    try:
-                        t_row["extra_fields"] = json.dumps(t_row["extra_fields"], ensure_ascii=False)
-                    except Exception:
-                        t_row["extra_fields"] = str(t_row["extra_fields"])
-                target_rows.append(t_row)
-
-        # 写 opportunities CSV
+        # 写入 opportunities CSV
         if opp_rows:
             opp_file = output_path / f"{self.stock_id}_opportunities.csv"
-            fieldnames = sorted({k for row in opp_rows for k in row.keys()})
-            t_write_start = time_module.perf_counter()
-            with opp_file.open("w", encoding="utf-8", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in opp_rows:
-                    writer.writerow(row)
-            write_size = opp_file.stat().st_size
-            total_write_size += write_size
-            write_time = time_module.perf_counter() - t_write_start
-            self.profiler.record_file_write(write_size, write_time)
+            if opp_file.exists():
+                opp_file.unlink()  # 删除旧文件
+            
+            with open(opp_file, 'w', newline='', encoding='utf-8') as f:
+                if opp_rows:
+                    writer = csv.DictWriter(f, fieldnames=opp_rows[0].keys())
+                    writer.writeheader()
+                    writer.writerows(opp_rows)
+                    total_write_size += opp_file.stat().st_size
 
-        # 写 targets CSV
+        # 写入 targets CSV
         if target_rows:
             target_file = output_path / f"{self.stock_id}_targets.csv"
-            fieldnames = sorted({k for row in target_rows for k in row.keys()})
-            t_write_start = time_module.perf_counter()
-            with target_file.open("w", encoding="utf-8", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                for row in target_rows:
-                    writer.writerow(row)
-            write_size = target_file.stat().st_size
-            total_write_size += write_size
-            write_time = time_module.perf_counter() - t_write_start
-            self.profiler.record_file_write(write_size, write_time)
-    
-    def _get_date_before(self, date_str: str, days: int) -> str:
-        """
-        获取指定日期之前的日期
-        
-        Args:
-            date_str: 日期字符串（YYYYMMDD）
-            days: 天数
-        
-        Returns:
-            更早的日期字符串（YYYYMMDD）
-        """
-        from core.utils.date.date_utils import DateUtils
-        
-        try:
-            return DateUtils.get_date_before_days(date_str, days)
-        except Exception as e:
-            logger.warning(f"计算日期失败: {e}")
-            return date_str
+            if target_file.exists():
+                target_file.unlink()  # 删除旧文件
+            
+            with open(target_file, 'w', newline='', encoding='utf-8') as f:
+                if target_rows:
+                    writer = csv.DictWriter(f, fieldnames=target_rows[0].keys())
+                    writer.writeheader()
+                    writer.writerows(target_rows)
+                    total_write_size += target_file.stat().st_size
+
+        logger.debug(
+            f"已保存股票结果: stock={self.stock_id}, "
+            f"opportunities={len(opp_rows)}, "
+            f"targets={len(target_rows)}, "
+            f"size={total_write_size / 1024:.2f}KB"
+        )

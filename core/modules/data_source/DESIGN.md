@@ -649,7 +649,7 @@ renew_data()
    - 需要明确：哪些配置类应该在 `core` 中，哪些应该在 `userspace` 中
 
 3. **学习成本问题**：
-   - 如果采用多个基类（如 `RollingHandlerConfig`、`SimpleApiHandlerConfig`），用户需要知道：
+   - 如果采用多个基类（如 `RollingHandlerConfig`、`SimpleApiHandlerConfig`），用户需要知道（已废弃，现在使用单一基类）：
      - 有哪些基类可用
      - 自己的 Handler 应该继承哪个基类
      - 系统如何自动选择基类
@@ -680,7 +680,7 @@ renew_data()
 #### 方案 B：多个基类（自动选择）
 
 **设计**：
-- 多个基类：`BaseHandlerConfig`、`RollingHandlerConfig`、`SimpleApiHandlerConfig`
+- 多个基类：`BaseHandlerConfig`、`RollingHandlerConfig`、`SimpleApiHandlerConfig`（已废弃，现在使用单一基类）
 - 系统根据 Handler 类名自动判断类型，选择对应的 Config 类
 - 如果配置冲突（如同时包含 rolling 和 incremental 选项），报错拒绝执行
 
@@ -727,8 +727,10 @@ renew_data()
 
 1. **所有选项都在 BaseHandlerConfig 中**：
    - 基础选项：所有 Handler 都可以使用
-   - rolling 相关选项：适用于 RollingHandler（如 `rolling_periods`、`rolling_months`、`date_format`）
-   - simple_api 相关选项：适用于 SimpleApiHandler（如 `method`、`provider_name`）
+   - rolling 相关选项：适用于需要滚动刷新的业务 Handler（如 `GdpHandler`、`ShiborHandler`、`LprHandler`）
+     - `rolling_periods`: 滚动刷新周期数（根据 date_format 自动识别单位）
+     - `rolling_months`: 滚动刷新月数（如 PriceIndexesHandler）
+     - `date_format`: 日期格式（quarter | month | date | none）
    - 用户可以根据需要选择使用相关选项
 
 2. **Config 类是可选的**：

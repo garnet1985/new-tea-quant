@@ -10,7 +10,7 @@ from loguru import logger
 import pandas as pd
 
 from typing import List, Dict, Any
-from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
 from core.utils.date.date_utils import DateUtils
 
 

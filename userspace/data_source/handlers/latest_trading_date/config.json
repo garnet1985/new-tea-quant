@@ -1,4 +1,7 @@
 {
-    "_comment": "Latest Trading Date Handler 默认配置",
+    "_comment": "Latest Trading Date Handler 配置",
+    "renew_mode": "refresh",
+    "date_format": "none",
+    "default_date_range": {},
     "backward_checking_days": 15
 }

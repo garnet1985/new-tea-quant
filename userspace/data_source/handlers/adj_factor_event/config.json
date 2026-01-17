@@ -1,5 +1,12 @@
 {
-    "_comment": "Adj Factor Event Handler 默认配置",
+    "_comment": "Adj Factor Event Handler 配置",
+    "renew_mode": "incremental",
+    "date_format": "day",
+    "default_date_range": {
+        "years": 5
+    },
+    "table_name": "adj_factor_event",
+    "date_field": "event_date",
     "update_threshold_days": 15,
     "max_workers": 10
 }

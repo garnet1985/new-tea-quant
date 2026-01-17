@@ -38,6 +38,21 @@ class UpdateMode(Enum):
     REFRESH = "refresh"               
     ROLLING = "rolling"           
 
+class TimeUnit(Enum):
+    """
+    时间单位枚举
+    
+    用于数据源 handler 配置，表示日期格式或滚动单位。
+    
+    注意：
+    - 统一使用 "day" 而不是 "date"
+    - 配置中的 "date" 需要改为 "day"
+    """
+    QUARTER = "quarter"  # 季度（YYYYQ[1-4]）
+    MONTH = "month"      # 月（YYYYMM）
+    DAY = "day"          # 天（YYYYMMDD）
+    NONE = "none"        # 不需要日期
+
 class SystemConstants:
     """系统级常量（不会频繁变更的）"""
     

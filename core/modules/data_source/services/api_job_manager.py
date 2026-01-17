@@ -72,7 +72,6 @@ class APIJobManager:
             
             self._api_jobs[name] = api_job
         
-        logger.info(f"✅ 初始化了 {len(self._api_jobs)} 个 API Jobs: {list(self._api_jobs.keys())}")
     
     def get_api_job(self, name: str) -> Optional[ApiJob]:
         """

@@ -1,0 +1,7 @@
+{
+    "_comment": "Stock List Handler 配置",
+    "renew_mode": "refresh",
+    "date_format": "none",
+    "default_date_range": {},
+    "api_fields": "ts_code,symbol,name,area,industry,market,exchange,list_date"
+}

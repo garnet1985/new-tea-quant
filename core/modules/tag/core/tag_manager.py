@@ -87,13 +87,18 @@ class TagManager:
     # Scenario 发现与加载
     # -------------------------------------------------------------------------
 
-    # discover and cache scenario settings from folder
     def _discover_scenarios_from_folder(self):
+        """发现并缓存所有 scenario settings"""
         scenario_cache = {}
         root_folder = get_scenarios_root()
+        
+        if not root_folder.exists():
+            logger.warning(f"Tag scenarios 根目录不存在: {root_folder}")
+            self.scenario_cache = {}
+            return
 
         for scenario_folder in root_folder.iterdir():
-            if not scenario_folder.is_dir():
+            if not scenario_folder.is_dir() or scenario_folder.name.startswith('_'):
                 continue
 
             cache_item = self._build_scenario_cache(scenario_folder)
@@ -101,7 +106,8 @@ class TagManager:
                 continue      
 
             scenario_cache[cache_item["name"]] = cache_item
-            logger.info(f"发现可用场景: {cache_item['name']}, 文件夹: {scenario_folder.name}")
+            if self.is_verbose:
+                logger.info(f"发现可用场景: {cache_item['name']}, 文件夹: {scenario_folder.name}")
         
         self.scenario_cache = scenario_cache
 
@@ -133,22 +139,8 @@ class TagManager:
         # 获取 worker_class 的模块路径和类名（用于子进程重新导入，避免 pickle 问题）
         worker_class_name = worker_class.__name__
         # 构建完整的模块路径（相对于项目根目录）
-        # 例如：app/userspace/tags/momentum/tag_worker.py -> userspace.tags.momentum.tag_worker
-        cwd = Path.cwd()
-        abs_path = worker_class_path.resolve()
-        try:
-            relative_path = abs_path.relative_to(cwd)
-            worker_module_full_path = str(relative_path.with_suffix('')).replace('/', '.').replace('\\', '.')
-        except ValueError:
-            # 如果无法计算相对路径，使用字符串操作
-            abs_path_str = str(abs_path)
-            cwd_str = str(cwd)
-            if abs_path_str.startswith(cwd_str):
-                rel_str = abs_path_str[len(cwd_str)+1:]
-                worker_module_full_path = rel_str.replace('.py', '').replace('/', '.').replace('\\', '.')
-            else:
-                # 最后的后备方案：使用文件名
-                worker_module_full_path = worker_class_path.stem
+        # 例如：userspace/tags/momentum/tag_worker.py -> userspace.tags.momentum.tag_worker
+        worker_module_full_path = self._calculate_module_path(worker_class_path)
 
         return {
             "name": scenario_name,
@@ -162,10 +154,30 @@ class TagManager:
         }
 
     def _load_scenario_from_cache_by_name(self, name: str):
-        if name in self.scenario_cache:
-            return self.scenario_cache[name]
-        else:
-            return None
+        """从缓存中加载 scenario"""
+        return self.scenario_cache.get(name)
+    
+    def _calculate_module_path(self, file_path: Path) -> str:
+        """
+        计算文件路径对应的模块路径
+        
+        Args:
+            file_path: 文件路径（如 userspace/tags/momentum/tag_worker.py）
+            
+        Returns:
+            模块路径（如 userspace.tags.momentum.tag_worker）
+        """
+        try:
+            # 相对于项目根目录计算
+            root = PathManager.get_root()
+            relative_path = file_path.resolve().relative_to(root.resolve())
+            # 转换为模块路径：去掉.py后缀，替换路径分隔符为点
+            module_path = str(relative_path.with_suffix('')).replace('/', '.').replace('\\', '.')
+            return module_path
+        except (ValueError, AttributeError):
+            # 如果无法计算相对路径，使用文件名作为后备
+            logger.warning(f"无法计算模块路径: {file_path}，使用文件名作为后备")
+            return file_path.stem
 
     def _get_entity_list(self, scenario_model: ScenarioModel) -> List[str]:
         """
@@ -192,11 +204,20 @@ class TagManager:
             logger.warning(f"不支持的实体类型: {target_entity_str}")
             return []
         
-        # 使用 DataManager 的 load_entity_list 方法
-        entity_list = self.data_mgr.load_entity_list(
-            entity_type=entity_type,
-            filtered=True  # 默认使用过滤规则
-        )
+        # 根据实体类型调用对应的服务
+        entity_list = []
+        if entity_type in [EntityType.STOCK_KLINE_DAILY, EntityType.STOCK_KLINE_WEEKLY, EntityType.STOCK_KLINE_MONTHLY]:
+            # 股票类型：使用 stock.list.load()
+            stock_list = self.data_mgr.stock.list.load(filtered=True)
+            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
+        elif entity_type == EntityType.CORPORATE_FINANCE:
+            # 企业财务：也是股票类型
+            stock_list = self.data_mgr.stock.list.load(filtered=True)
+            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
+        else:
+            # 其他类型：暂时不支持，返回空列表
+            logger.warning(f"暂不支持获取实体类型 {target_entity_str} 的列表")
+            return []
         
         # 缓存结果
         self.entity_list_cache[target_entity_str] = entity_list
@@ -260,10 +281,9 @@ class TagManager:
             logger.info(f"无法获取实体列表，跳过执行")
             return
         
-        # 测试阶段：只使用前2个股票进行可行性测试
-        if len(entity_list) > 2:
-            logger.info(f"🧪 测试模式：从 {len(entity_list)} 个实体中只选择前 2 个进行测试")
-            entity_list = entity_list[:2]
+        # 测试模式：只使用前2个实体进行测试（如果启用）
+        # 注意：这个测试逻辑应该通过配置控制，而不是硬编码
+        # TODO: 通过 settings 或 context 控制测试模式
 
         # 获取 worker_class（从 cache 中获取，如果不在 cache 中则尝试从 settings 加载）
         scenario_name = scenario_model.get_name()
@@ -445,18 +465,17 @@ class TagManager:
             max_workers=worker_amount,
             execution_mode=ExecutionMode.QUEUE,  # 队列模式，持续填充
             job_executor=TagManager._execute_single_job,  # 静态方法
-            is_verbose=False  # 关闭 ProcessWorker 的详细日志，由 TagManager 统一控制
+            is_verbose=True  # 启用进度展示
         )
 
         # 执行 jobs 并实时反馈进度
         total_jobs = len(jobs)
         start_time = time.time()
 
-        logger.info(f"开始执行 {total_jobs} 个 jobs...")
+        logger.info(f"🚀 开始执行 {total_jobs} 个 jobs (scenario: {scenario_name}, workers: {worker_amount})...")
         
         # 执行 jobs（ProcessWorker 内部会处理多进程和进度）
-        # 注意：进度反馈在 ProcessWorker 内部已经实现（每10个job输出一次）
-        # 如果需要更详细的进度，可以在 ProcessWorker 中添加回调机制
+        # ProcessWorker 会实时显示进度：完成数/总数、百分比、成功/失败数、预计剩余时间
         stats = worker_pool.run_jobs(jobs)
         
         # 在等待期间，定期输出进度（如果 ProcessWorker 支持）

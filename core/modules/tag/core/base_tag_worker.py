@@ -312,13 +312,13 @@ class BaseTagWorker(ABC):
                 - 如果返回None，不创建tag
                 - 如果返回字典，格式：
                     {
-                        "value": str | dict | list,  # Tag值（必填），支持字符串（向后兼容）或 JSON 格式（dict/list）
+                        "value": str | dict | list,  # Tag值（必填），支持字符串或 JSON 格式（dict/list）
                         "start_date": str,  # 可选，起始日期（YYYYMMDD）
                         "end_date": str,  # 可选，结束日期（YYYYMMDD）
                     }
                 
                 注意：
-                - value 可以是字符串（向后兼容）或 JSON 格式（dict/list）
+                - value 可以是字符串或 JSON 格式（dict/list）
                 - 推荐使用 JSON 格式存储结构化数据，例如：
                   {"momentum": 0.1234, "year_month": "202501"}
                 - 系统会自动将 dict/list 转换为 JSON 字符串存储到数据库

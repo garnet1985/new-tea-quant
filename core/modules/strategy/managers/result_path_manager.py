@@ -30,7 +30,7 @@ class ResultPathManager:
 
     约定目录结构（由 VersionManager 创建顶层版本目录）：
 
-    app/userspace/strategies/{strategy_name}/results/
+    userspace/strategies/{strategy_name}/results/
     ├── simulations/
     │   └── price_factor/{sim_version}/
     │       ├── 0_session_summary.json

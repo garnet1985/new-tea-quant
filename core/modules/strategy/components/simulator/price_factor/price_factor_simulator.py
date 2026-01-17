@@ -2,8 +2,8 @@
 """
 PriceFactorSimulator
 
-基于枚举器 SOT 结果的价格因子模拟器：
-- 输入：opportunity_enumerator 的 SOT 版本（opportunities/targets CSV）
+基于枚举器输出结果的价格因子模拟器：
+- 输入：opportunity_enumerator 的输出版本（opportunities/targets CSV）
 - 粒度：单股；每只股票独立模拟（适合多进程）
 - 核心：在机会触发时以 1 股入场，按机会结果回放，统计价格因子/信号质量
 
@@ -18,6 +18,7 @@ from typing import Dict, Any, List, Optional
 from collections import defaultdict
 import logging
 import json
+import time
 from datetime import datetime
 
 from .helpers import DateTimeEncoder
@@ -45,18 +46,18 @@ class PriceFactorSimulatorConfig:
     当前类只是一个集中承载体，方便在主进程与 Worker 之间传递。
     """
 
-    # SOT 版本号；"latest" 表示使用最新的 SOT 版本目录
+    # output_version：枚举器输出版本号；"latest" 表示使用最新的输出版本目录
     # 支持格式：
-    #   - "latest": 使用最新的 SOT 版本
-    #   - "1_20260112_161317": 使用指定版本号
+    #   - "latest": 使用最新的输出版本
+    #   - "1": 使用指定版本号
     #   - "test/latest": 使用最新的测试版本（test/ 目录）
-    #   - "sot/latest": 使用最新的 SOT 版本（sot/ 目录，默认）
-    sot_version: str = "latest"
+    #   - "output/latest": 使用最新的输出版本（output/ 目录，默认）
+    output_version: str = "latest"
 
     # 是否使用采样配置（默认 True，使用 sampling 配置过滤股票）
     use_sampling: bool = True
 
-    # 时间窗口（可选），为空表示使用 SOT 全量时间
+    # 时间窗口（可选），为空表示使用输出版本全量时间
     start_date: str = ""
     end_date: str = ""
 
@@ -76,8 +77,8 @@ class PriceFactorSimulator:
 
     主要职责：
     - 解析策略 settings，构建 PriceFactorSimulatorConfig
-    - 解析并选择 SOT 版本目录（support: 具体版本号 / latest）
-    - 扫描 SOT 目录下的 opportunities/targets CSV
+    - 解析并选择枚举器输出版本目录（support: 具体版本号 / latest）
+    - 扫描输出版本目录下的 opportunities/targets CSV
     - 构建每只股票的模拟作业（job_payload）
     - 使用 ProcessWorker 分发到 PriceFactorSimulatorWorker 多进程执行
     - 汇总所有股票的模拟结果，输出整体 summary
@@ -123,13 +124,14 @@ class PriceFactorSimulator:
         base_settings = StrategySettings.from_dict(raw_settings)
         simulator_config = self._build_config_from_settings(base_settings)
 
-        # 2. 解析 SOT 版本目录（依赖的枚举版本）
-        sot_version_dir, sot_root = VersionManager.resolve_sot_version(
-            strategy_name, simulator_config.sot_version
+        # 2. 解析枚举器输出版本目录（依赖的枚举版本）
+        output_version = getattr(simulator_config, 'output_version', 'latest')
+        output_version_dir, output_root = VersionManager.resolve_output_version(
+            strategy_name, output_version
         )
         logger.info(
-            f"[PriceFactorSimulator] 使用 SOT 版本: strategy={strategy_name}, "
-            f"sot_version={sot_version_dir.name}"
+            f"[PriceFactorSimulator] 使用枚举器输出版本: strategy={strategy_name}, "
+            f"output_version={output_version_dir.name}"
         )
 
         # 3. 创建模拟器版本目录（使用统一的版本管理）
@@ -143,11 +145,11 @@ class PriceFactorSimulator:
         # 4. 创建 DataLoader 实例
         data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
 
-        # 5. 扫描 SOT 目录下的机会/目标文件，按股票分组
-        stock_files = self._scan_sot_files(sot_version_dir)
+        # 5. 扫描输出版本目录下的机会/目标文件，按股票分组
+        stock_files = self._scan_output_files(output_version_dir)
         if not stock_files:
             logger.warning(
-                f"[PriceFactorSimulator] 在 SOT 目录中未找到任何机会文件: {sot_version_dir}"
+                f"[PriceFactorSimulator] 在输出版本目录中未找到任何机会文件: {output_version_dir}"
             )
             return {}
 
@@ -235,21 +237,35 @@ class PriceFactorSimulator:
         # 构建 ProcessWorker 格式的 jobs
         process_jobs = [{"id": job["stock_id"], "payload": job} for job in jobs]
 
+        # 记录开始时间
+        start_time = time.time()
+        
         logger.info(
-            f"[PriceFactorSimulator] 开始模拟: strategy={strategy_name}, "
+            f"🚀 [PriceFactorSimulator] 开始模拟: strategy={strategy_name}, "
             f"stocks={len(process_jobs)}, workers={resolved_workers}"
         )
 
         # 执行作业（Worker 会在子进程中独立保存每个股票的 JSON）
         worker_pool.run_jobs(process_jobs)
 
+        # 计算总时长
+        total_elapsed = time.time() - start_time
+        if total_elapsed < 60:
+            total_time_str = f"{total_elapsed:.1f}秒"
+        elif total_elapsed < 3600:
+            total_time_str = f"{total_elapsed/60:.1f}分钟"
+        else:
+            hours = int(total_elapsed // 3600)
+            minutes = int((total_elapsed % 3600) // 60)
+            total_time_str = f"{hours}小时{minutes}分钟"
+        
         # 打印进度统计
         stats = worker_pool.stats
         logger.info(
-            f"[PriceFactorSimulator] 执行完成: "
+            f"✅ [PriceFactorSimulator] 执行完成: "
             f"成功={stats.get('completed_jobs', 0)}, "
             f"失败={stats.get('failed_jobs', 0)}, "
-            f"耗时={stats.get('total_duration', 0):.2f}秒"
+            f"总耗时={total_time_str}"
         )
 
         # 获取结果（用于生成 session summary）
@@ -275,10 +291,10 @@ class PriceFactorSimulator:
         
         session_summary = ResultAggregator.aggregate_results(stock_summaries)
         
-        # 在 session_summary 中添加 SOT 版本依赖信息
-        session_summary["sot_version"] = {
-            "version_dir": sot_version_dir.name,
-            "sot_root": str(sot_version_dir.parent.name),
+        # 在 session_summary 中添加枚举器输出版本依赖信息
+        session_summary["output_version"] = {
+            "version_dir": output_version_dir.name,
+            "output_root": str(output_version_dir.parent.name),
         }
         session_summary["sim_version"] = {
             "version_id": sim_version_id,
@@ -291,7 +307,7 @@ class PriceFactorSimulator:
                 strategy_name=strategy_name,
                 sim_version_dir=sim_version_dir,
                 sim_version_id=sim_version_id,
-                sot_version_dir=sot_version_dir,
+                output_version_dir=output_version_dir,
                 session_summary=session_summary,
                 settings_snapshot=base_settings.to_dict(),
             )
@@ -320,7 +336,7 @@ class PriceFactorSimulator:
         return session_summary
 
     # ------------------------------------------------------------------ #
-    # 配置与 SOT 解析
+    # 配置与输出版本解析
     # ------------------------------------------------------------------ #
     def _build_config_from_settings(self, settings) -> PriceFactorSimulatorConfig:
         """
@@ -329,15 +345,15 @@ class PriceFactorSimulator:
         配置优先级：
         - max_workers: simulator.max_workers > enumerator.max_workers > performance.max_workers > "auto"
         - use_sampling: simulator.use_sampling（默认 True）
-        - sot_version: simulator.sot_version（默认 "latest"）
+        - output_version: simulator.output_version（默认 "latest"）
         """
         settings_dict = settings.to_dict()
         simulator_cfg = settings_dict.get("simulator", {}) or {}
         enumerator_cfg = settings_dict.get("enumerator", {}) or {}
         performance_cfg = settings_dict.get("performance", {}) or {}
 
-        # SOT 版本号（枚举版本依赖）
-        sot_version = simulator_cfg.get("sot_version", "latest")
+        # output_version（枚举器输出版本依赖）
+        output_version = simulator_cfg.get("output_version", "latest")
 
         # 是否使用采样（默认 True）
         use_sampling = simulator_cfg.get("use_sampling", True)
@@ -359,7 +375,7 @@ class PriceFactorSimulator:
         max_workers = simulator_cfg.get("max_workers", "auto")
 
         return PriceFactorSimulatorConfig(
-            sot_version=sot_version,
+            output_version=output_version,
             use_sampling=use_sampling,
             start_date=start_date,
             end_date=end_date,
@@ -371,9 +387,9 @@ class PriceFactorSimulator:
         )
 
 
-    def _scan_sot_files(self, version_dir: Path) -> Dict[str, Dict[str, Path]]:
+    def _scan_output_files(self, version_dir: Path) -> Dict[str, Dict[str, Path]]:
         """
-        扫描指定 SOT 版本目录下的 opportunities/targets 文件，按股票进行分组。
+        扫描指定输出版本目录下的 opportunities/targets 文件，按股票进行分组。
 
         约定文件名格式：
             {stock_id}_opportunities.csv
@@ -408,7 +424,7 @@ class PriceFactorSimulator:
         strategy_name: str,
         sim_version_dir: Path,
         sim_version_id: int,
-        sot_version_dir: Path,
+        output_version_dir: Path,
         session_summary: Dict[str, Any],
         settings_snapshot: Dict[str, Any],
     ) -> None:
@@ -425,16 +441,16 @@ class PriceFactorSimulator:
         with session_path.open("w", encoding="utf-8") as f:
             json.dump(session_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
-        # 写入 metadata.json（包含依赖的 SOT 版本信息）
+        # 写入 metadata.json（包含依赖的枚举器输出版本信息）
         now = datetime.now()
         metadata = {
             "strategy_name": strategy_name,
             "sim_version_id": sim_version_id,
             "sim_version_dir": sim_version_dir.name,
             "created_at": now.isoformat(),
-            "sot_version": {
-                "version_dir": sot_version_dir.name,
-                "sot_root": str(sot_version_dir.parent),
+            "output_version": {
+                "version_dir": output_version_dir.name,
+                "output_root": str(output_version_dir.parent.name),
             },
             "session_summary": session_summary,
             "settings_snapshot": settings_snapshot,
@@ -546,12 +562,12 @@ class PriceFactorSimulatorWorker:
         from core.modules.strategy.managers.data_loader import DataLoader
         data_loader = DataLoader(strategy_name=self.strategy_name, cache_enabled=False)
         
-        # 从路径中提取 SOT 版本目录和股票 ID
-        sot_version_dir = self.opportunities_path.parent
+        # 从路径中提取输出版本目录和股票 ID
+        output_version_dir = self.opportunities_path.parent
         stock_id = self.stock_id
         
         opportunities, targets_map = data_loader.load_opportunities_and_targets(
-            sot_version_dir,
+            output_version_dir,
             stock_id=stock_id,
             start_date=start_date,
             end_date=end_date,
@@ -656,7 +672,7 @@ class PriceFactorSimulatorWorker:
         在子进程中保存单个股票的 JSON 文件。
         
         目录结构：
-            app/userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.json
+            userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.json
         """
         # 使用 ResultPathManager 统一管理结果目录与文件名
         from core.modules.strategy.managers.result_path_manager import ResultPathManager

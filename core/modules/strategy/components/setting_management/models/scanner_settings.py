@@ -104,15 +104,14 @@ class ScannerSettings(BaseSettings):
         # adapter_names（支持多个，默认 ["console"]）
         adapter_config = scanner_config.get("adapters", [])
         if isinstance(adapter_config, str):
-            # 兼容旧配置：单个字符串
+            # 单个字符串配置
             self._adapter_names = [adapter_config] if adapter_config else ["console"]
         elif isinstance(adapter_config, list):
-            # 新配置：列表
+            # 列表配置
             self._adapter_names = adapter_config if adapter_config else ["console"]
         else:
-            # 兼容旧配置：adapter_name
-            adapter_name = scanner_config.get("adapter_name", "console")
-            self._adapter_names = [adapter_name] if adapter_name else ["console"]
+            # 默认使用 console
+            self._adapter_names = ["console"]
         
         # use_strict_previous_trading_day（默认 True）
         self._use_strict_previous_trading_day = scanner_config.get(

@@ -3,7 +3,7 @@ DatabaseAdapterFactory 单元测试
 """
 import pytest
 from unittest.mock import Mock, patch
-from core.infra.db.adapters.factory import DatabaseAdapterFactory
+from core.infra.db.table_queriers.adapters.factory import DatabaseAdapterFactory
 
 
 class TestDatabaseAdapterFactory:
@@ -22,7 +22,7 @@ class TestDatabaseAdapterFactory:
             }
         }
         
-        with patch('core.infra.db.adapters.factory.PostgreSQLAdapter') as mock_adapter_class:
+        with patch('core.infra.db.table_queriers.adapters.factory.PostgreSQLAdapter') as mock_adapter_class:
             mock_adapter = Mock()
             mock_adapter_class.return_value = mock_adapter
             
@@ -43,7 +43,7 @@ class TestDatabaseAdapterFactory:
             }
         }
         
-        with patch('core.infra.db.adapters.factory.MySQLAdapter') as mock_adapter_class:
+        with patch('core.infra.db.table_queriers.adapters.factory.MySQLAdapter') as mock_adapter_class:
             mock_adapter = Mock()
             mock_adapter_class.return_value = mock_adapter
             
@@ -60,7 +60,7 @@ class TestDatabaseAdapterFactory:
             }
         }
         
-        with patch('core.infra.db.adapters.factory.SQLiteAdapter') as mock_adapter_class:
+        with patch('core.infra.db.table_queriers.adapters.factory.SQLiteAdapter') as mock_adapter_class:
             mock_adapter = Mock()
             mock_adapter_class.return_value = mock_adapter
             

@@ -6,6 +6,7 @@ Base Renew Service
 from typing import Dict, Any, Tuple, Optional
 from loguru import logger
 
+from core.global_enums.enums import TimeUnit
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
 
@@ -74,7 +75,11 @@ class BaseRenewService:
         Returns:
             转换后的日期字符串
         """
-        if date_format == "quarter":
+        # 支持枚举和字符串两种格式（兼容性）
+        if isinstance(date_format, TimeUnit):
+            date_format = date_format.value
+        
+        if date_format == TimeUnit.QUARTER.value:
             year = int(date_str[:4])
             month = int(date_str[4:6])
             if month <= 3:
@@ -86,9 +91,9 @@ class BaseRenewService:
             else:
                 quarter = 4
             return f"{year}Q{quarter}"
-        elif date_format == "month":
+        elif date_format == TimeUnit.MONTH.value:
             return date_str[:6]  # YYYYMM
-        else:  # date_format == "day"
+        else:  # date_format == TimeUnit.DAY.value
             return date_str  # YYYYMMDD
     
     def query_latest_date(

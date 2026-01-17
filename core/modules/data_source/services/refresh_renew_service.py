@@ -6,6 +6,7 @@ Refresh Renew Service
 from typing import Dict, Any, Tuple
 from loguru import logger
 
+from core.global_enums.enums import TimeUnit
 from core.utils.date.date_utils import DateUtils
 from .base_renew_service import BaseRenewService
 
@@ -83,7 +84,11 @@ class RefreshRenewService(BaseRenewService):
         current_value = DateUtils.get_current_period(current_date, date_format)
         
         # 获取结束日期（优先使用 latest_completed_trading_date）
-        if date_format == "day":
+        # 支持枚举和字符串两种格式（兼容性）
+        if isinstance(date_format, TimeUnit):
+            date_format = date_format.value
+        
+        if date_format == TimeUnit.DAY.value:
             latest_completed_trading_date = context.get("latest_completed_trading_date")
             if latest_completed_trading_date:
                 end_date = latest_completed_trading_date
@@ -93,7 +98,7 @@ class RefreshRenewService(BaseRenewService):
             end_date = DateUtils.format_period(current_value, date_format)
         
         # 计算开始日期（业务逻辑：根据 default_date_range 配置）
-        if date_format == "quarter":
+        if date_format == TimeUnit.QUARTER.value:
             current_year, current_quarter = current_value
             if "years" in default_date_range:
                 years = default_date_range["years"]
@@ -111,7 +116,7 @@ class RefreshRenewService(BaseRenewService):
                 start_year = current_year - 5
                 start_quarter = 1
             start_date = f"{start_year}Q{start_quarter}"
-        elif date_format == "month":
+        elif date_format == TimeUnit.MONTH.value:
             current_year, current_month = current_value
             if "years" in default_date_range:
                 years = default_date_range["years"]
@@ -129,7 +134,7 @@ class RefreshRenewService(BaseRenewService):
                 start_year = current_year - 3
                 start_month = 1
             start_date = f"{start_year}{start_month:02d}"
-        else:  # date_format == "day"
+        else:  # date_format == TimeUnit.DAY.value
             if "years" in default_date_range:
                 years = default_date_range["years"]
                 start_date = DateUtils.get_date_before_days(end_date, years * 365)

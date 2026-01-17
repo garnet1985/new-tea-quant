@@ -5,7 +5,7 @@ Version Manager - 统一版本管理器
 职责：
 - 统一管理所有组件的版本目录创建和解析
 - 支持枚举器、价格因子模拟器、资金分配模拟器的版本管理
-- 提供统一的机会池（opportunity pool）版本解析接口
+- 提供统一的枚举器输出版本解析接口
 
 设计原则：
 - 使用静态方法（无状态，高效）
@@ -41,7 +41,7 @@ class VersionManager:
         
         目录结构：
             app/userspace/strategies/{strategy}/results/opportunity_enums/
-                {test|pool}/
+                {test|output}/
                     meta.json  # 版本管理元信息
                     {version_id}/  # 版本目录（纯自增 ID）
         
@@ -49,12 +49,12 @@ class VersionManager:
             strategy_name: 策略名称
             use_sampling: 是否使用采样模式
                 - True: 使用 test/ 子目录（采样枚举）
-                - False: 使用 pool/ 子目录（完整机会池）
+                - False: 使用 output/ 子目录（完整输出）
         
         Returns:
             (version_dir, version_id): 版本目录路径和版本ID
         """
-        sub_dir_name = "test" if use_sampling else "pool"
+        sub_dir_name = "test" if use_sampling else "output"
         root_dir = (
             PathManager.strategy_results(strategy_name)
             / "opportunity_enums"
@@ -106,12 +106,12 @@ class VersionManager:
         解析枚举器版本目录
         
         支持的格式：
-        - "latest": 使用最新的机会池版本（pool/ 目录）
+        - "latest": 使用最新的输出版本（output/ 目录）
         - "test/latest": 使用最新的测试版本（test/ 目录）
-        - "pool/latest": 使用最新的机会池版本（pool/ 目录）
-        - "1": 使用指定版本号（默认在 pool/ 目录查找）
+        - "output/latest": 使用最新的输出版本（output/ 目录）
+        - "1": 使用指定版本号（默认在 output/ 目录查找）
         - "test/1": 使用指定测试版本号（test/ 目录）
-        - "pool/1": 使用指定机会池版本号（pool/ 目录）
+        - "output/1": 使用指定输出版本号（output/ 目录）
         
         Args:
             strategy_name: 策略名称
@@ -127,13 +127,13 @@ class VersionManager:
         
         # 解析目录类型和版本号
         if "/" in version_spec:
-            # 格式：test/latest 或 pool/latest 或 test/1 或 pool/1
+            # 格式：test/latest 或 output/latest 或 test/1 或 output/1
             parts = version_spec.split("/", 1)
-            sub_dir_name = parts[0]  # test 或 pool
+            sub_dir_name = parts[0]  # test 或 output
             version_str = parts[1]  # latest 或具体版本号
         else:
-            # 格式：latest 或 1（默认使用 pool 目录）
-            sub_dir_name = "pool"
+            # 格式：latest 或 1（默认使用 output 目录）
+            sub_dir_name = "output"
             version_str = version_spec
         
         root = base_root / sub_dir_name
@@ -392,29 +392,29 @@ class VersionManager:
         return version_dir, version_id
     
     # =========================================================================
-    # 通用机会池版本解析
+    # 通用输出版本解析
     # =========================================================================
     
     @staticmethod
-    def resolve_sot_version(
+    def resolve_output_version(
         strategy_name: str,
-        sot_version: str
+        output_version: str
     ) -> Tuple[Path, Path]:
         """
-        解析机会池（枚举器）版本目录（通用方法）
+        解析枚举器输出版本目录（通用方法）
         
         这是 resolve_enumerator_version 的包装方法，提供统一的接口。
         返回格式：`(version_dir, sub_dir)`
-        其中 `sub_dir` 是 `test/` 或 `pool/` 子目录。
+        其中 `sub_dir` 是 `test/` 或 `output/` 子目录。
         
         Args:
             strategy_name: 策略名称
-            sot_version: 机会池版本标识符（兼容旧名称）
+            output_version: 输出版本标识符
         
         Returns:
-            (version_dir, sub_dir): 版本目录路径和子目录路径（test/ 或 sot/）
+            (version_dir, sub_dir): 版本目录路径和子目录路径（test/ 或 output/）
         """
-        version_dir, base_dir = VersionManager.resolve_enumerator_version(strategy_name, sot_version)
-        # 返回子目录（test/ 或 pool/）
+        version_dir, base_dir = VersionManager.resolve_enumerator_version(strategy_name, output_version)
+        # 返回子目录（test/ 或 output/）
         sub_dir = version_dir.parent
         return version_dir, sub_dir

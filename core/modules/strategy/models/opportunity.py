@@ -13,6 +13,8 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from loguru import logger
 
+from core.modules.strategy.enums import OpportunityStatus
+
 
 @dataclass
 class Opportunity:
@@ -33,8 +35,8 @@ class Opportunity:
     """
     
     # ===== 用户提供的核心字段 =====
-    stock: Dict[str, Any]            # 股票信息（legacy 兼容）
-    record_of_today: Dict[str, Any]   # 当天的K线记录（legacy 兼容）
+    stock: Dict[str, Any]            # 股票信息
+    record_of_today: Dict[str, Any]   # 当天的K线记录
     extra_fields: Optional[Dict[str, Any]] = None  # 策略特定的额外信息
     
     # ===== 框架自动填充的字段（用户不需要关心）=====
@@ -88,7 +90,7 @@ class Opportunity:
         # ]
     
     # ===== 状态管理 =====
-    status: str = 'active'                   # 状态（active/open/win/loss）
+    status: str = 'active'                   # 状态（使用 OpportunityStatus 枚举值）
                                             # - active: 正在追踪中（枚举过程中）
                                             # - open: 枚举结束时仍有未完成的 target
                                             # - win: 所有 target 完成且 ROI > 0
@@ -155,11 +157,11 @@ class Opportunity:
     
     def is_valid(self) -> bool:
         """验证机会是否有效"""
-        return self.status == 'active'
+        return self.status == OpportunityStatus.ACTIVE.value
     
     def is_closed(self) -> bool:
         """是否已回测完成"""
-        return self.status == 'closed'
+        return self.status == OpportunityStatus.CLOSED.value
     
     def calculate_annual_return(self) -> float:
         """
@@ -353,7 +355,7 @@ class Opportunity:
             sell_date: 卖出日期
             sell_price: 卖出价格
             sell_reason: 卖出原因
-            roi: 收益率（单个 target 的 ROI，用于兼容）
+            roi: 收益率（单个 target 的 ROI）
             sell_ratio: 卖出比例（默认 1.0，即全部卖出）
         """
         self.sell_date = sell_date
@@ -378,7 +380,7 @@ class Opportunity:
             'weighted_profit': weighted_profit
         })
         
-        # 计算加权 ROI（参考 legacy 方法）
+        # 计算加权 ROI
         # ROI = sum(weighted_profit) / trigger_price
         total_weighted_profit = sum(
             target.get('weighted_profit', 0) 
@@ -396,10 +398,10 @@ class Opportunity:
         # 设置状态：win / loss / open
         if is_fully_completed:
             # 全部完成，根据 ROI 判断 win 或 loss
-            self.status = 'win' if self.roi > 0 else 'loss'
+            self.status = OpportunityStatus.WIN.value if self.roi > 0 else OpportunityStatus.LOSS.value
         else:
             # 未全部完成，保持 open 状态（会在枚举结束时统一处理）
-            self.status = 'open'
+            self.status = OpportunityStatus.OPEN.value
     
     def _calculate_holding_days(self, start_date: str, end_date: str) -> int:
         """

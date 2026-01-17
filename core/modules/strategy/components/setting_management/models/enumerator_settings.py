@@ -26,14 +26,14 @@ class EnumeratorSettings(BaseSettings):
     配置字段：
     - use_sampling: 是否使用采样配置（默认 False）
     - max_test_versions: 最多保留的测试版本数（默认 10）
-    - max_sot_versions: 最多保留的 SOT 版本数（默认 3）
+    - max_output_versions: 最多保留的输出版本数（默认 3）
     - max_workers: 最大进程数（默认 "auto"）
     """
     
     # 枚举器特定字段（延迟提取）
     _use_sampling: Optional[bool] = None
     _max_test_versions: Optional[int] = None
-    _max_sot_versions: Optional[int] = None
+    _max_output_versions: Optional[int] = None
     _max_workers: Optional[Literal["auto"] | int] = None
     
     # 验证状态
@@ -70,7 +70,7 @@ class EnumeratorSettings(BaseSettings):
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
                 field_path="enumerator.use_sampling",
-                message="use_sampling 未配置，默认使用 False（全量枚举，结果保存在 sot/ 目录）",
+                message="use_sampling 未配置，默认使用 False（全量枚举，结果保存在 output/ 目录）",
                 suggested_fix='在 settings.py 的 enumerator 中添加 "use_sampling": True 以启用采样枚举'
             ))
         
@@ -100,12 +100,12 @@ class EnumeratorSettings(BaseSettings):
         except (TypeError, ValueError):
             self._max_test_versions = 10
         
-        # max_sot_versions（默认 3）
-        max_sot = enumerator_config.get("max_sot_versions", 3)
+        # max_output_versions（默认 3）
+        max_output = enumerator_config.get("max_output_versions", 3)
         try:
-            self._max_sot_versions = max(int(max_sot), 1)
+            self._max_output_versions = max(int(max_output), 1)
         except (TypeError, ValueError):
-            self._max_sot_versions = 3
+            self._max_output_versions = 3
         
         # max_workers（默认 "auto"）
         max_workers = enumerator_config.get("max_workers", "auto")
@@ -132,11 +132,11 @@ class EnumeratorSettings(BaseSettings):
         return self._max_test_versions
     
     @property
-    def max_sot_versions(self) -> int:
-        """最多保留的 SOT 版本数"""
-        if self._max_sot_versions is None:
+    def max_output_versions(self) -> int:
+        """最多保留的输出版本数"""
+        if self._max_output_versions is None:
             self._extract_enumerator_fields()
-        return self._max_sot_versions
+        return self._max_output_versions
     
     @property
     def max_workers(self) -> Literal["auto"] | int:

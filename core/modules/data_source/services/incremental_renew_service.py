@@ -48,7 +48,7 @@ class IncrementalRenewService(BaseRenewService):
         
         # 获取当前日期/季度/月份
         current_date = DateUtils.get_current_date_str()
-        current_value = self._get_current_value_for_format(current_date, date_format)
+        current_value = DateUtils.get_current_period(current_date, date_format)
         
         # 从数据库查询最新日期
         latest_value = self.query_latest_date(table_name, date_field, date_format)
@@ -60,74 +60,9 @@ class IncrementalRenewService(BaseRenewService):
             logger.info(f"数据库为空，使用默认日期范围: {start_date} 至 {end_date}")
         else:
             # 数据库不为空：从最新日期到当前
-            start_value = self._add_one_period_for_format(latest_value, date_format)
-            start_date = self._format_value_for_format(start_value, date_format)
-            end_date = self._format_value_for_format(current_value, date_format)
+            start_value = DateUtils.add_one_period(latest_value, date_format)
+            start_date = DateUtils.format_period(start_value, date_format)
+            end_date = DateUtils.format_period(current_value, date_format)
             logger.info(f"增量更新: {start_date} 至 {end_date}（数据库最新: {latest_value}）")
         
         return start_date, end_date
-    
-    def _get_current_value_for_format(self, current_date: str, date_format: str):
-        """根据 date_format 获取当前值"""
-        if date_format == "quarter":
-            current_year = int(current_date[:4])
-            current_month = int(current_date[4:6])
-            if current_month <= 3:
-                return (current_year, 1)
-            elif current_month <= 6:
-                return (current_year, 2)
-            elif current_month <= 9:
-                return (current_year, 3)
-            else:
-                return (current_year, 4)
-        elif date_format == "month":
-            return (int(current_date[:4]), int(current_date[4:6]))
-        else:  # date_format == "day"
-            return current_date
-    
-    def _parse_value_for_format(self, value: str, date_format: str):
-        """解析日期值"""
-        if date_format == "quarter":
-            year = int(value[:4])
-            quarter = int(value[5])
-            return (year, quarter)
-        elif date_format == "month":
-            return (int(value[:4]), int(value[4:6]))
-        else:  # date_format == "day"
-            return value
-    
-    def _format_value_for_format(self, value, date_format: str) -> str:
-        """格式化日期值"""
-        if date_format == "quarter":
-            year, quarter = value
-            return f"{year}Q{quarter}"
-        elif date_format == "month":
-            year, month = value
-            return f"{year}{month:02d}"
-        else:  # date_format == "day"
-            return value
-    
-    def _add_one_period_for_format(self, latest_value: str, date_format: str):
-        """添加一个周期（用于历史追赶）"""
-        from datetime import timedelta
-        
-        latest = self._parse_value_for_format(latest_value, date_format)
-        
-        if date_format == "quarter":
-            year, quarter = latest
-            quarter += 1
-            if quarter > 4:
-                quarter = 1
-                year += 1
-            return (year, quarter)
-        elif date_format == "month":
-            year, month = latest
-            month += 1
-            if month > 12:
-                month = 1
-                year += 1
-            return (year, month)
-        else:  # date_format == "day"
-            date = DateUtils.parse_yyyymmdd(latest)
-            new_date = date + timedelta(days=1)
-            return DateUtils.format_to_yyyymmdd(new_date)

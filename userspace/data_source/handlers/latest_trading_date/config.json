@@ -3,5 +3,13 @@
     "renew_mode": "refresh",
     "date_format": "none",
     "default_date_range": {},
-    "backward_checking_days": 15
+    "backward_checking_days": 15,
+    "apis": {
+        "trade_cal_data": {
+            "provider_name": "tushare",
+            "method": "get_trade_cal",
+            "field_mapping": {},
+            "params": {}
+        }
+    }
 }

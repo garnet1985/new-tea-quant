@@ -21,7 +21,7 @@ class TestBaseDataSourceHandler:
     def test_init_requires_definition(self):
         """测试初始化必须提供 definition"""
         from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-        from core.modules.data_source.definition import DataSourceDefinition
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         # 创建测试 Handler 类（实现抽象方法）
         class TestHandler(BaseDataSourceHandler):
@@ -47,7 +47,7 @@ class TestBaseDataSourceHandler:
     def test_validate_class_attributes(self):
         """测试类属性验证"""
         from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-        from core.modules.data_source.definition import DataSourceDefinition
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         # 创建测试 Handler 类（没有定义 data_source）
         class TestHandler(BaseDataSourceHandler):
@@ -60,7 +60,6 @@ class TestBaseDataSourceHandler:
         mock_schema = Mock()
         mock_definition = Mock(spec=DataSourceDefinition)
         mock_definition.handler_config = None
-        mock_definition.provider_config = None
         
         # 测试没有定义 data_source 应该抛出异常
         try:
@@ -72,7 +71,7 @@ class TestBaseDataSourceHandler:
     def test_get_param(self):
         """测试获取配置参数"""
         from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-        from core.modules.data_source.definition import DataSourceDefinition
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         # 创建 mock schema
         mock_schema = Mock()
@@ -93,7 +92,6 @@ class TestBaseDataSourceHandler:
         
         mock_definition = Mock(spec=DataSourceDefinition)
         mock_definition.handler_config = mock_handler_config
-        mock_definition.provider_config = None
         
         # 创建测试 Handler
         class TestHandler(BaseDataSourceHandler):
@@ -121,17 +119,17 @@ class TestBaseDataSourceHandler:
         result = handler.get_param("other_param", "default")
         assert result == "default"
     
-    def test_get_provider_config(self):
-        """测试获取 ProviderConfig"""
+    def test_get_handler_config_with_apis(self):
+        """测试获取 HandlerConfig（包含 API 配置）"""
         from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-        from core.modules.data_source.definition import DataSourceDefinition, ProviderConfig
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         mock_schema = Mock()
-        mock_provider_config = Mock(spec=ProviderConfig)
+        mock_handler_config = Mock()
+        mock_handler_config.apis = {}
         
         mock_definition = Mock(spec=DataSourceDefinition)
-        mock_definition.handler_config = None
-        mock_definition.provider_config = mock_provider_config
+        mock_definition.handler_config = mock_handler_config
         
         class TestHandler(BaseDataSourceHandler):
             data_source = "test"
@@ -144,20 +142,19 @@ class TestBaseDataSourceHandler:
         
         handler = TestHandler(mock_schema, data_manager=None, definition=mock_definition)
         
-        assert handler.get_provider_config() == mock_provider_config
+        assert handler.get_handler_config() == mock_handler_config
     
     def test_get_handler_config(self):
         """测试获取 HandlerConfig"""
         from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-        from core.modules.data_source.definition import DataSourceDefinition
-        from core.modules.data_source.definition.handler_config import BaseHandlerConfig
+        from core.modules.data_source.data_classes import DataSourceDefinition
+        from core.modules.data_source.data_classes.handler_config import BaseHandlerConfig
         
         mock_schema = Mock()
         mock_handler_config = Mock(spec=BaseHandlerConfig)
         
         mock_definition = Mock(spec=DataSourceDefinition)
         mock_definition.handler_config = mock_handler_config
-        mock_definition.provider_config = None
         
         class TestHandler(BaseDataSourceHandler):
             data_source = "test"
@@ -175,12 +172,11 @@ class TestBaseDataSourceHandler:
     def test_create_simple_task(self):
         """测试创建简单 Task"""
         from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-        from core.modules.data_source.definition import DataSourceDefinition
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         mock_schema = Mock()
         mock_definition = Mock(spec=DataSourceDefinition)
         mock_definition.handler_config = None
-        mock_definition.provider_config = None
         
         class TestHandler(BaseDataSourceHandler):
             data_source = "test"
@@ -212,7 +208,7 @@ if __name__ == "__main__":
             ("test_init_requires_definition", test.test_init_requires_definition),
             ("test_validate_class_attributes", test.test_validate_class_attributes),
             ("test_get_param", test.test_get_param),
-            ("test_get_provider_config", test.test_get_provider_config),
+            ("test_get_handler_config", test.test_get_handler_config),
             ("test_get_handler_config", test.test_get_handler_config),
             ("test_create_simple_task", test.test_create_simple_task),
         ]

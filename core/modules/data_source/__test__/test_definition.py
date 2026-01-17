@@ -19,7 +19,7 @@ class TestDataSourceDefinition:
     
     def test_from_dict_basic(self):
         """测试从字典创建 DataSourceDefinition"""
-        from core.modules.data_source.definition import DataSourceDefinition
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         data = {
             "handler": "userspace.data_source.handlers.kline.KlineHandler",
@@ -27,9 +27,6 @@ class TestDataSourceDefinition:
             "dependencies": {
                 "latest_completed_trading_date": True,
                 "stock_list": True
-            },
-            "provider_config": {
-                "apis": []
             },
             "handler_config": {}
         }
@@ -45,15 +42,15 @@ class TestDataSourceDefinition:
         }
         assert definition.schema_name == "kline"
     
-    def test_from_dict_with_provider_config(self):
-        """测试从字典创建带 ProviderConfig 的 DataSourceDefinition"""
-        from core.modules.data_source.definition import DataSourceDefinition
+    def test_from_dict_with_apis(self):
+        """测试从字典创建带 API 配置的 DataSourceDefinition"""
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         data = {
             "handler": "userspace.data_source.handlers.gdp.GDPHandler",
-            "provider_config": {
-                "apis": [
-                    {
+            "handler_config": {
+                "apis": {
+                    "gdp_data": {
                         "provider_name": "tushare",
                         "method": "get_gdp",
                         "field_mapping": {
@@ -62,31 +59,28 @@ class TestDataSourceDefinition:
                         },
                         "params": {}
                     }
-                ]
-            },
-            "handler_config": {}
+                }
+            }
         }
         
         definition = DataSourceDefinition.from_dict(data, name="gdp")
         
-        assert len(definition.provider_config.apis) == 1
-        assert definition.provider_config.apis[0].provider_name == "tushare"
-        assert definition.provider_config.apis[0].method == "get_gdp"
-        assert definition.provider_config.apis[0].field_mapping == {
+        assert definition.handler_config is not None
+        assert "gdp_data" in definition.handler_config.apis
+        assert definition.handler_config.apis["gdp_data"]["provider_name"] == "tushare"
+        assert definition.handler_config.apis["gdp_data"]["method"] == "get_gdp"
+        assert definition.handler_config.apis["gdp_data"]["field_mapping"] == {
             "quarter": "quarter",
             "gdp": "gdp"
         }
     
     def test_validate(self):
         """测试验证方法"""
-        from core.modules.data_source.definition import DataSourceDefinition
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         # 测试有效的 definition
         data = {
             "handler": "userspace.data_source.handlers.kline.KlineHandler",
-            "provider_config": {
-                "apis": []
-            },
             "handler_config": {}
         }
         
@@ -94,11 +88,7 @@ class TestDataSourceDefinition:
         assert definition.validate() is True
         
         # 测试缺少 handler 的 definition
-        invalid_data = {
-            "provider_config": {
-                "apis": []
-            }
-        }
+        invalid_data = {}
         
         try:
             definition = DataSourceDefinition.from_dict(invalid_data, name="invalid")
@@ -109,16 +99,13 @@ class TestDataSourceDefinition:
     
     def test_to_dict(self):
         """测试序列化为字典"""
-        from core.modules.data_source.definition import DataSourceDefinition
+        from core.modules.data_source.data_classes import DataSourceDefinition
         
         data = {
             "handler": "userspace.data_source.handlers.kline.KlineHandler",
             "description": "K线数据",
             "dependencies": {
                 "latest_completed_trading_date": True
-            },
-            "provider_config": {
-                "apis": []
             },
             "handler_config": {}
         }
@@ -129,7 +116,7 @@ class TestDataSourceDefinition:
         assert result["handler"] == "userspace.data_source.handlers.kline.KlineHandler"
         assert result["description"] == "K线数据"
         assert "dependencies" in result
-        assert "provider_config" in result
+        assert "handler_config" in result
 
 
 if __name__ == "__main__":
@@ -142,7 +129,7 @@ if __name__ == "__main__":
         
         tests = [
             ("test_from_dict_basic", test.test_from_dict_basic),
-            ("test_from_dict_with_provider_config", test.test_from_dict_with_provider_config),
+            ("test_from_dict_with_apis", test.test_from_dict_with_apis),
             ("test_validate", test.test_validate),
             ("test_to_dict", test.test_to_dict),
         ]

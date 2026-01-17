@@ -516,13 +516,12 @@ core/modules/data_source/
 │   ├── handler_config.py           # Handler Config 类
 │   └── data_source_definition.py   # DataSourceDefinition 核心类
 │
-├── handlers/                       # Handler 实现（框架默认）
+├── handlers/                       # Handler 实现（用户自定义）
 │   ├── kline/
 │   ├── corporate_finance/
-│   ├── stock_list/
-│   └── mapping.json                # 框架默认配置（仅 handler 路径和 dependencies）
+│   └── stock_list/
 │
-└── providers/                      # Provider 封装（框架默认，作为后备）
+└── providers/                      # Provider 封装（用户自定义）
     ├── tushare/
     ├── akshare/
     └── eastmoney/
@@ -541,29 +540,40 @@ userspace/data_source/
 
 ## 📄 配置文件
 
+### 配置文件分离设计
+
+Handler 配置采用**分离设计**，降低学习成本：
+
+1. **Handler 默认配置** → `handlers/{handler_name}/config.json`（JSON 文件）
+2. **mapping.json 配置** → 只用于覆盖默认配置（可选）
+
+**配置读取顺序：**
+1. 从 JSON 文件读取默认配置（`handlers/{handler_name}/config.json`）
+2. 检查 Handler 类是否定义了 `config_class` 属性
+3. 如果定义了 `config_class`，创建 Config 实例（JSON 配置作为默认值）
+4. `mapping.json` 中的 `handler_config` 覆盖 JSON 配置和 Config 类默认值
+
+---
+
 ### mapping.json（核心配置）
 
 **位置：**
-- `handlers/mapping.json` - 框架默认配置（仅包含 handler 路径和默认 dependencies，作为参考）
-- `userspace/data_source/mapping.json` - **用户自定义配置（必需，包含所有可配置内容）**
+- `userspace/data_source/mapping.json` - **核心配置文件（必需）**
+
+**职责：**
+- 定义 data source 到 handler 的映射关系
+- 配置 Provider 的 API 调用信息
+- **可选**：覆盖 Handler 的默认配置（通过 `handler_config`）
 
 **配置结构：**
 
-所有用户可配置的内容都在 `userspace/data_source/mapping.json` 中，包括：
-- `is_enabled` - 是否启用该 data source
-- `provider_config` - Provider 配置（API 配置、字段映射等）
-- `handler_config` - Handler 特定配置
-
-框架默认配置（`handlers/mapping.json`）仅作为参考，包含：
-- `handler` - Handler 类的完整路径
-- `dependencies` - 默认依赖关系
-
-**新格式示例：**
 ```json
 {
   "data_sources": {
     "gdp": {
+      "handler": "userspace.data_source.handlers.rolling.RollingHandler",
       "is_enabled": true,
+      "dependencies": {},
       "provider_config": {
         "apis": [
           {
@@ -580,35 +590,62 @@ userspace/data_source/
         ]
       },
       "handler_config": {
-        "date_format": "quarter",
-        "default_date_range": {"years": 5},
-        "rolling_periods": 4
+        "rolling_periods": 8
       }
-    },
-    "kline": {
-      "is_enabled": true,
-      "provider_config": {
-        "apis": []
-      },
-      "handler_config": {}
     }
   }
 }
 ```
 
 **字段说明：**
-- `is_enabled` - 是否启用（必需，在 userspace 配置中）
+- `handler` - Handler 类的完整路径（必需，如 `"userspace.data_source.handlers.kline.KlineHandler"`）
+- `is_enabled` - 是否启用（可选，默认为 `true`）
+- `dependencies` - 依赖关系声明（可选，如 `{"stock_list": true, "latest_completed_trading_date": false}`）
 - `provider_config` - Provider 配置（必需）
   - `apis` - API 配置列表（每个 API 包含 `provider_name`、`method`、`field_mapping`、`params`、`depends_on` 等）
-- `handler_config` - Handler 特定配置（可选，根据 Handler 类型不同而不同）
-- `handler` - Handler 路径（在框架默认配置中，用户可以在 userspace 中覆盖）
-- `dependencies` - 全局依赖声明（在框架默认配置中，用户可以在 userspace 中覆盖）
+- `handler_config` - Handler 特定配置（可选，用于覆盖 JSON 配置文件中的默认值）
+
+**注意：**
+- `handler_config` 是可选的，如果 Handler 有 JSON 配置文件，JSON 配置会作为默认值
+- `mapping.json` 中的 `handler_config` 会覆盖 JSON 配置和 Config 类的默认值
+
+---
+
+### Handler 配置文件（config.json）
+
+**位置：**
+- `userspace/data_source/handlers/{handler_name}/config.json` - **Handler 默认配置（可选）**
+
+**职责：**
+- 定义 Handler 的默认配置（"出厂设置"）
+- 提供类型安全的配置管理（通过 Config 数据类）
+
+**配置示例：**
+
+```json
+{
+  "_comment": "GDP Handler 默认配置",
+  "date_format": "quarter",
+  "default_date_range": {
+    "years": 5
+  },
+  "rolling_periods": 4
+}
+```
+
+**配置读取逻辑：**
+1. 系统会自动从 `handlers/{handler_name}/config.json` 读取配置
+2. 如果文件不存在，使用 Config 类的默认值
+3. `mapping.json` 中的 `handler_config` 会覆盖 JSON 配置
+
+**字段说明：**
+- 所有字段都继承自 `BaseHandlerConfig`
+- 可以包含业务特定的字段（如果 Handler 定义了自定义 Config 类）
+- 字段类型和默认值由 Config 数据类定义
 
 **配置加载策略：**
-1. 框架默认配置提供 `handler` 和默认 `dependencies`（作为参考）
-2. 用户配置提供所有可配置内容（`is_enabled`、`provider_config`、`handler_config`）
-3. 用户配置可以覆盖框架默认的 `handler` 和 `dependencies`
-4. 如果用户配置文件不存在，会抛出错误（用户必须创建配置文件）
+- JSON 配置文件是可选的，如果不存在，使用 Config 类的默认值
+- 如果 Handler 没有定义 `config_class`，系统会跳过 Config 类创建，直接使用 `mapping.json` 中的配置
 
 ---
 

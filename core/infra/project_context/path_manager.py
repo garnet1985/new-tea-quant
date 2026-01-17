@@ -173,11 +173,6 @@ class PathManager:
         return PathManager.data_source() / "handlers"
     
     @staticmethod
-    def data_source_handlers_mapping() -> Path:
-        """Data Source Handlers 框架默认配置：userspace/data_source/handlers/mapping.json"""
-        return PathManager.data_source_handlers() / "mapping.json"
-    
-    @staticmethod
     def data_source_handler(handler_name: str) -> Path:
         """Data Source Handler 目录：userspace/data_source/handlers/{handler_name}"""
         return PathManager.data_source_handlers() / handler_name

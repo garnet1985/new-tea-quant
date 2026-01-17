@@ -3,7 +3,7 @@ DbBaseModel 单元测试
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from core.infra.db.table_queryers.db_base_model import DbBaseModel
+from core.infra.db.table_queriers.db_base_model import DbBaseModel
 from core.infra.db.helpers.db_helpers import DBHelper
 
 
@@ -52,7 +52,7 @@ class TestDbBaseModel:
     
     def test_init_without_db(self):
         """测试使用默认 db 初始化"""
-        with patch('core.infra.db.table_queryers.db_base_model.DatabaseManager.get_default') as mock_get_default:
+        with patch('core.infra.db.table_queriers.db_base_model.DatabaseManager.get_default') as mock_get_default:
             mock_db = Mock()
             mock_get_default.return_value = mock_db
             
@@ -63,7 +63,7 @@ class TestDbBaseModel:
     def test_load_schema(self):
         """测试加载 schema"""
         mock_db = Mock()
-        with patch('core.infra.db.table_queryers.db_base_model.Path') as mock_path:
+        with patch('core.infra.db.table_queriers.db_base_model.Path') as mock_path:
             mock_schema_file = Mock()
             mock_schema_file.exists.return_value = True
             mock_schema_file.read_text.return_value = '{"fields": {"id": {"type": "string"}}}'

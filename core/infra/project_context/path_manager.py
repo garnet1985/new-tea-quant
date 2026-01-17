@@ -150,10 +150,27 @@ class PathManager:
         """策略结果目录：userspace/strategies/{strategy_name}/results"""
         return PathManager.strategy(strategy_name) / "results"
     
+    # ========== Tag 相关路径 ==========
+    
+    @staticmethod
+    def tags() -> Path:
+        """Tag 根目录：userspace/tags"""
+        return PathManager.userspace() / "tags"
+    
     @staticmethod
     def tag_scenario(scenario_name: str) -> Path:
         """标签场景目录：userspace/tags/{scenario_name}"""
-        return PathManager.userspace() / "tags" / scenario_name
+        return PathManager.tags() / scenario_name
+    
+    @staticmethod
+    def tag_scenario_settings(scenario_name: str) -> Path:
+        """标签场景配置文件：userspace/tags/{scenario_name}/settings.py"""
+        return PathManager.tag_scenario(scenario_name) / "settings.py"
+    
+    @staticmethod
+    def tag_scenario_worker(scenario_name: str) -> Path:
+        """标签场景 Worker 文件：userspace/tags/{scenario_name}/tag_worker.py"""
+        return PathManager.tag_scenario(scenario_name) / "tag_worker.py"
     
     # ========== Data Source 相关路径 ==========
     

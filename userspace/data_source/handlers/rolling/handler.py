@@ -57,14 +57,25 @@ class RollingHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = True  # 默认需要日期范围
     
-    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
+    def __init__(self, schema, data_manager=None, definition=None):
         # 注意：data_source 会在 DataSourceManager 中设置，这里先调用 super
-        super().__init__(schema, params or {}, data_manager)
+        super().__init__(schema, data_manager, definition)
         
         # 从配置中读取参数
-        self.provider_name = self.get_param("provider_name", "tushare")
-        self.method = self.get_param("method")
-        self.field_mapping = self.get_param("field_mapping", {})
+        # 优先从 handler_config 读取，如果没有则从 provider_config.apis[0] 读取
+        provider_config = self.get_provider_config()
+        if provider_config and provider_config.apis and len(provider_config.apis) > 0:
+            # 从第一个 API 配置中读取
+            first_api = provider_config.apis[0]
+            self.provider_name = self.get_param("provider_name") or first_api.provider_name
+            self.method = self.get_param("method") or first_api.method
+            self.field_mapping = self.get_param("field_mapping") or first_api.field_mapping or {}
+        else:
+            # 从 handler_config 读取
+            self.provider_name = self.get_param("provider_name", "tushare")
+            self.method = self.get_param("method")
+            self.field_mapping = self.get_param("field_mapping", {})
+        
         self.date_format = self.get_param("date_format", "date")  # quarter | month | date | none
         self.default_date_range = self.get_param("default_date_range", {"years": 5})
         self.rolling_periods = self.get_param("rolling_periods", None)  # 滚动刷新周期数
@@ -78,7 +89,7 @@ class RollingHandler(BaseDataSourceHandler):
         
         # 验证配置
         if not self.method:
-            raise ValueError(f"RollingHandler 必须配置 method 参数")
+            raise ValueError(f"RollingHandler 必须配置 method 参数（在 handler_config 或 provider_config.apis[0] 中）")
         
         # 设置默认滚动周期（如果未配置）
         if self.rolling_periods is None:

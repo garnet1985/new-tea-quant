@@ -1,0 +1,8 @@
+{
+    "_comment": "GDP Handler 默认配置",
+    "date_format": "quarter",
+    "default_date_range": {
+        "years": 5
+    },
+    "rolling_periods": 4
+}

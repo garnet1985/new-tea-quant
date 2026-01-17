@@ -251,7 +251,7 @@ class BatchWriteQueue:
         
         try:
             from core.infra.db.helpers.db_helpers import DBHelper
-            from core.infra.db.table_queryers.services.batch_operation import BatchOperation
+            from core.infra.db.table_queriers.services.batch_operation import BatchOperation
             
             if not unique_keys:
                 # 纯 INSERT（不需要去重）

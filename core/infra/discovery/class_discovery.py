@@ -238,6 +238,10 @@ class ClassDiscovery:
             
             return cls
             
+        except ImportError as e:
+            # 模块不存在是正常情况（可能是 handler 未实现或已禁用），使用 DEBUG 级别
+            logger.debug(f"模块不存在，跳过: {class_path} ({e})")
+            return None
         except Exception as e:
             logger.warning(f"通过路径发现类失败 {class_path}: {e}")
             return None

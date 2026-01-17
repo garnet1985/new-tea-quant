@@ -127,11 +127,12 @@ class BaseDatabaseAdapter(ABC):
         """
         标准化查询语句（转换占位符）
         
-        默认实现：如果适配器使用 '?'，将 '%s' 转换为 '?'
-        如果适配器使用 '%s'，保持不变
+        支持双向转换：
+        - SQLite: '%s' -> '?' 或 '?' 保持不变
+        - PostgreSQL/MySQL: '?' -> '%s' 或 '%s' 保持不变
         
         Args:
-            query: 原始查询语句（可能包含 '%s' 占位符）
+            query: 原始查询语句（可能包含 '%s' 或 '?' 占位符）
             
         Returns:
             标准化后的查询语句
@@ -141,8 +142,8 @@ class BaseDatabaseAdapter(ABC):
             # SQLite 使用 ?，需要转换 %s -> ?
             return query.replace("%s", "?")
         else:
-            # PostgreSQL/MySQL 使用 %s，保持不变
-            return query
+            # PostgreSQL/MySQL 使用 %s，需要转换 ? -> %s
+            return query.replace("?", "%s")
     
     def is_initialized(self) -> bool:
         """

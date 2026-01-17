@@ -25,61 +25,73 @@
 import sys
 import os
 import argparse
-from loguru import logger
 import asyncio
-
-# 在导入其他模块之前设置警告抑制
-# 警告抑制（直接使用 warnings 模块）
 import warnings
-warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
-warnings.filterwarnings('ignore', category=FutureWarning, message='.*fillna.*method.*')
-warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
-warnings.filterwarnings('ignore', category=DeprecationWarning, module='pandas')
-warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
-warnings.filterwarnings('ignore', category=DeprecationWarning, module='numpy')
+from loguru import logger
 
+# ============================================================================
+# 路径设置（必须在导入其他模块之前）
+# ============================================================================
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# ============================================================================
+# 警告抑制（必须在导入第三方库之前）
+# ============================================================================
+def setup_warnings():
+    """配置警告抑制"""
+    warnings.filterwarnings('ignore', category=FutureWarning, module='tushare')
+    warnings.filterwarnings('ignore', category=FutureWarning, message='.*fillna.*method.*')
+    warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
+    warnings.filterwarnings('ignore', category=DeprecationWarning, module='pandas')
+    warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+    warnings.filterwarnings('ignore', category=DeprecationWarning, module='numpy')
+
+setup_warnings()
+
+# ============================================================================
+# 导入应用模块
+# ============================================================================
 from core.modules.data_manager import DataManager
 from core.modules.data_source.data_source_manager import DataSourceManager
-# from core.modules.analyzer_legacy.analyzer import Analyzer  # 暂时注释，测试枚举器
 from core.modules.tag import TagManager
-from core.utils.icon.icon_service import IconService
 from core.modules.strategy.components import PriceFactorSimulator
 from core.modules.strategy.components.simulator.capital_allocation import CapitalAllocationSimulator
 
 
-# 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
+# ============================================================================
+# 应用主类
+# ============================================================================
 class App:
+    """股票分析应用主类"""
+    
     def __init__(self, is_verbose: bool = False):
+        """
+        初始化应用
+        
+        Args:
+            is_verbose: 是否启用详细日志
+        """
         self.is_verbose = is_verbose
         
-        # 1. 首先初始化 DataManager（统一的数据访问入口）
-        # DataManager 内部会创建和管理 DatabaseManager，并自动初始化
+        # 初始化核心组件
         self.data_manager = DataManager(is_verbose=self.is_verbose)
-        
-        # 2. 获取 DatabaseManager 实例（用于向后兼容，某些遗留代码可能仍需要直接访问 db）
-        self.db = self.data_manager.db
-        
-        # 3. 创建数据源和策略管理器
-        # 所有模块都接收 is_verbose 参数以控制日志详细程度
+        self.db = self.data_manager.db  # 向后兼容
         self.data_source = DataSourceManager(is_verbose=self.is_verbose)
-        # self.analyzer = Analyzer(is_verbose=self.is_verbose)  # 暂时注释
         
-        # 4. 初始化策略（这会注册表到数据库）
-        # self.analyzer.initialize()  # 暂时注释
-        
-        # 5. 初始化 TagManager（延迟初始化，只在需要时创建）
+        # 延迟初始化的组件
         self.tag_manager = None
-
-    async def get_latest_completed_trading_date(self):
+    
+    # ========================================================================
+    # 数据更新相关
+    # ========================================================================
+    
+    async def get_latest_completed_trading_date(self) -> str:
         """
         获取最新交易日
         
         Returns:
             str: 最新交易日（YYYYMMDD 格式）
         """
-        # 使用 data_manager 的 TradingDateCache（更高效）
         return self.data_manager.service.calendar.get_latest_completed_trading_date()
     
     async def renew_data(
@@ -105,54 +117,40 @@ class App:
             dry_run=dry_run,
         )
     
+    # ========================================================================
+    # 策略相关（暂时禁用）
+    # ========================================================================
+    
     def simulate(self):
         """运行模拟回测"""
-        # self.analyzer.simulate()  # 暂时注释
         logger.warning("⚠️ simulate 功能暂时禁用，正在测试枚举器")
-
+    
     def scan(self):
         """扫描投资机会"""
-        # self.analyzer.scan()  # 暂时注释
         logger.warning("⚠️ scan 功能暂时禁用，正在测试枚举器")
-
+    
     def analysis(self, session_id: str = None):
         """分析所有策略的模拟结果"""
-        # self.analyzer.analysis(session_id)  # 暂时注释
         logger.warning("⚠️ analysis 功能暂时禁用，正在测试枚举器")
     
+    # ========================================================================
+    # 标签相关
+    # ========================================================================
+    
     def tag(self, scenario_name: str = None):
-        """执行标签计算"""
+        """
+        执行标签计算
+        
+        Args:
+            scenario_name: 场景名称（可选，不提供则执行所有场景）
+        """
         if self.tag_manager is None:
             self.tag_manager = TagManager(is_verbose=self.is_verbose)
         self.tag_manager.execute(scenario_name=scenario_name)
-
-    def price_factor_simulate(self, strategy_name: str = 'example'):
-        """
-        基于 SOT 结果的价格因子回放模拟（PriceFactorSimulator）
-        
-        - 输入：opportunity_enumerator 的 SOT 版本（由 userspace settings 决定）
-        - 行为：对每只股票按机会时间轴做 1 股级机会回放，统计因子/信号质量
-        """
-        logger.info(f"🎯 运行 PriceFactorSimulator, strategy={strategy_name}")
-        simulator = PriceFactorSimulator(is_verbose=self.is_verbose)
-        summary = simulator.run(strategy_name=strategy_name)
-        if not summary:
-            logger.warning("PriceFactorSimulator 未返回任何结果")
-            return
-
-    def capital_allocation_simulate(self, strategy_name: str = 'example'):
-        """
-        基于 SOT 结果的资金分配模拟（CapitalAllocationSimulator）
-        
-        - 输入：opportunity_enumerator 的 SOT 版本（由 userspace settings 决定）
-        - 行为：在真实资金约束下，对枚举器 SOT 结果进行全市场回放，维护全局账户和持仓
-        """
-        logger.info(f"💰 运行 CapitalAllocationSimulator, strategy={strategy_name}")
-        simulator = CapitalAllocationSimulator(is_verbose=self.is_verbose)
-        summary = simulator.run(strategy_name=strategy_name)
-        if not summary:
-            logger.warning("CapitalAllocationSimulator 未返回任何结果")
-            return
+    
+    # ========================================================================
+    # 枚举器相关
+    # ========================================================================
     
     def enumerate(self, strategy_name: str = 'example', stock_count: int = None):
         """
@@ -165,9 +163,11 @@ class App:
         from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
         from core.modules.strategy.models.strategy_settings import StrategySettings
         from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.strategy_manager import StrategyManager
+        from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
+        from core.utils.date.date_utils import DateUtils
         
         # 1. 加载策略配置
-        from core.modules.strategy.strategy_manager import StrategyManager
         strategy_manager = StrategyManager()
         strategy_info = strategy_manager.strategy_cache.get(strategy_name)
         if not strategy_info:
@@ -175,75 +175,90 @@ class App:
             return []
         
         settings = StrategySettings.from_dict(strategy_info['settings'])
-        
-        # 2. 获取枚举器设置
-        from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
         enum_settings = OpportunityEnumeratorSettings.from_base(settings)
-        use_sampling = enum_settings.use_sampling
-        max_workers = enum_settings.max_workers
         
-        # 3. 获取股票列表（根据 use_sampling 决定使用采样还是全量）
-        all_stocks = self.data_manager.service.stock.list.load(filtered=True)  # 加载所有活跃股票（已过滤）
+        # 2. 获取股票列表
+        all_stocks = self.data_manager.service.stock.list.load(filtered=True)
+        stock_list = self._get_stock_list(
+            all_stocks=all_stocks,
+            settings=settings,
+            enum_settings=enum_settings,
+            stock_count=stock_count
+        )
         
-        if use_sampling:
-            # 采样模式：使用 sampling 配置进行采样
-            # 如果提供了 stock_count 参数，优先使用（用于测试）
+        # 3. 设置时间范围
+        latest_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
+        start_date = settings.start_date or DateUtils.DEFAULT_START_DATE
+        end_date = settings.end_date or latest_date
+        
+        logger.info(f"📅 时间范围: {start_date} ~ {end_date}")
+        logger.info(f"📊 实际股票数量: {len(stock_list)}")
+        
+        # 4. 执行枚举
+        summary_results = OpportunityEnumerator.enumerate(
+            strategy_name=strategy_name,
+            start_date=start_date,
+            end_date=end_date,
+            stock_list=stock_list,
+            max_workers=enum_settings.max_workers
+        )
+        
+        # 5. 显示结果
+        self._display_enumerate_results(summary_results)
+        
+        return summary_results
+    
+    def _get_stock_list(self, all_stocks, settings, enum_settings, stock_count):
+        """
+        获取股票列表（采样或全量）
+        
+        Args:
+            all_stocks: 所有股票列表
+            settings: 策略设置
+            enum_settings: 枚举器设置
+            stock_count: 测试股票数量（可选）
+        
+        Returns:
+            list: 股票代码列表
+        """
+        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        
+        if enum_settings.use_sampling:
             if stock_count is not None:
                 sampling_amount = stock_count
                 sampling_config = {'strategy': 'continuous', 'continuous': {'start_idx': 0}}
-                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={stock_count} (采样模式)")
+                logger.info(f"🔍 开始枚举机会: strategy={settings.name}, stocks={stock_count} (采样模式)")
             else:
-                # 从 settings 读取采样配置
                 sampling_amount = settings.sampling_amount
                 sampling_config = settings.sampling_config
-                logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, sampling_amount={sampling_amount}, sampling_strategy={sampling_config.get('strategy')} (采样模式)")
+                logger.info(
+                    f"🔍 开始枚举机会: strategy={settings.name}, "
+                    f"sampling_amount={sampling_amount}, "
+                    f"sampling_strategy={sampling_config.get('strategy')} (采样模式)"
+                )
             
-            # 使用 StockSamplingHelper 获取股票列表
             stock_list = StockSamplingHelper.get_stock_list(
                 all_stocks=all_stocks,
                 sampling_amount=sampling_amount,
                 sampling_config=sampling_config
             )
         else:
-            # 全量模式：使用全量股票列表
             stock_list = [s['id'] for s in all_stocks]
-            logger.info(f"🔍 开始枚举机会: strategy={strategy_name}, stocks={len(stock_list)} (全量枚举模式)")
+            logger.info(f"🔍 开始枚举机会: strategy={settings.name}, stocks={len(stock_list)} (全量枚举模式)")
         
-        logger.info(f"📊 实际股票数量: {len(stock_list)}")
-        
-        # 4. 设置时间范围（从 settings 读取，如果没有则使用默认值）
-        latest_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
-        start_date = settings.start_date or ''
-        
-        # 如果 start_date 为空，使用默认开始日期
-        if not start_date:
-            from core.utils.date.date_utils import DateUtils
-            start_date = DateUtils.DEFAULT_START_DATE
-        
-        end_date = settings.end_date or latest_date
-        
-        logger.info(f"📅 时间范围: {start_date} ~ {end_date}")
-        
-        # 5. 枚举所有机会（返回 summary，而不是全量机会列表）
-        summary_results = OpportunityEnumerator.enumerate(
-            strategy_name=strategy_name,
-            start_date=start_date,
-            end_date=end_date,
-            stock_list=stock_list,
-            max_workers=max_workers  # 从枚举器设置读取
-        )
-        
-        # 按当前设计，enumerator 返回的是 summary 列表，每个元素是一次 run 的概要信息
+        return stock_list
+    
+    def _display_enumerate_results(self, summary_results):
+        """显示枚举结果"""
         if summary_results:
             total_opps = summary_results[0].get('opportunity_count', 0)
         else:
             total_opps = 0
-
+        
         logger.info(f"✅ 枚举完成！找到 {total_opps} 个机会")
-
-        # 显示概要信息（版本目录等），不再尝试打印具体机会字段
+        
         if summary_results:
-            logger.info(f"\n枚举结果概要:")
+            logger.info("\n枚举结果概要:")
             for res in summary_results:
                 logger.info(
                     f"  strategy={res.get('strategy_name')}, "
@@ -252,15 +267,48 @@ class App:
                     f"success_stocks={res.get('success_stocks', 0)}, "
                     f"failed_stocks={res.get('failed_stocks', 0)}"
                 )
+    
+    # ========================================================================
+    # 模拟器相关
+    # ========================================================================
+    
+    def price_factor_simulate(self, strategy_name: str = 'example'):
+        """
+        基于 SOT 结果的价格因子回放模拟（PriceFactorSimulator）
         
-        return summary_results
-
+        Args:
+            strategy_name: 策略名称
+        """
+        logger.info(f"🎯 运行 PriceFactorSimulator, strategy={strategy_name}")
+        simulator = PriceFactorSimulator(is_verbose=self.is_verbose)
+        summary = simulator.run(strategy_name=strategy_name)
+        if not summary:
+            logger.warning("PriceFactorSimulator 未返回任何结果")
+    
+    def capital_allocation_simulate(self, strategy_name: str = 'example'):
+        """
+        基于 SOT 结果的资金分配模拟（CapitalAllocationSimulator）
+        
+        Args:
+            strategy_name: 策略名称
+        """
+        logger.info(f"💰 运行 CapitalAllocationSimulator, strategy={strategy_name}")
+        simulator = CapitalAllocationSimulator(is_verbose=self.is_verbose)
+        summary = simulator.run(strategy_name=strategy_name)
+        if not summary:
+            logger.warning("CapitalAllocationSimulator 未返回任何结果")
+    
+    # ========================================================================
+    # 工具方法
+    # ========================================================================
+    
     def export_adj_factor_csv(self, base_date: str = None):
         """
-        手动导出复权因子事件季度 CSV。
+        手动导出复权因子事件季度 CSV
         
-        - base_date: 基准日期（YYYYMMDD 或 YYYY-MM-DD），用于推断“上一个完整季度”
-                     如果不提供，则使用当前日期所在季度的上一个季度。
+        Args:
+            base_date: 基准日期（YYYYMMDD 或 YYYY-MM-DD），用于推断"上一个完整季度"
+                      如果不提供，则使用当前日期所在季度的上一个季度
         """
         adj_model = self.data_manager.stock.kline._adj_factor_event
         file_name = adj_model.get_current_quarter_csv_name(base_date=base_date)
@@ -270,12 +318,70 @@ class App:
         logger.info(f"✅ 手动导出复权因子事件 CSV 完成: {exported} 条记录 -> {file_path}")
 
 
-def parse_args():
-    """解析命令行参数"""
+# ============================================================================
+# 命令行参数解析
+# ============================================================================
+def create_argument_parser() -> argparse.ArgumentParser:
+    """创建命令行参数解析器"""
     parser = argparse.ArgumentParser(
         description='📊 股票分析应用 - 数据更新、扫描、模拟、分析',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
+        epilog=_get_help_epilog()
+    )
+    
+    # 位置参数（主命令）
+    parser.add_argument(
+        'command',
+        nargs='?',
+        help='要执行的命令（scan/simulate/renew/analysis/tag/enumerate/price_factor/capital_allocation/export_adj_factor_csv）'
+    )
+    
+    # 快捷 flag
+    _add_shortcut_flags(parser)
+    
+    # 额外参数
+    _add_extra_arguments(parser)
+    
+    return parser
+
+
+def _add_shortcut_flags(parser):
+    """添加快捷 flag"""
+    parser.add_argument('-c', '--scan-flag', dest='scan_flag', action='store_true',
+                       help='扫描机会（scan）')
+    parser.add_argument('-s', '--simulate-flag', dest='simulate_flag', action='store_true',
+                       help='模拟回测（simulate）')
+    parser.add_argument('-r', '--renew-flag', dest='renew_flag', action='store_true',
+                       help='更新数据（renew）')
+    parser.add_argument('-a', '--analysis-flag', dest='analysis_flag', action='store_true',
+                       help='分析结果（analysis）')
+    parser.add_argument('-t', '--tag-flag', dest='tag_flag', action='store_true',
+                       help='执行标签计算（tag）')
+    parser.add_argument('-e', '--enumerate-flag', dest='enumerate_flag', action='store_true',
+                       help='枚举投资机会（enumerate）')
+    parser.add_argument('-p', '--price-factor-flag', dest='price_factor_flag', action='store_true',
+                       help='运行价格因子回放模拟（price_factor）')
+
+
+def _add_extra_arguments(parser):
+    """添加额外参数"""
+    parser.add_argument('--strategy', type=str,
+                       help='指定策略名称（用于 scan/simulate/enumerate）')
+    parser.add_argument('--session', type=str,
+                       help='指定session ID（用于 analysis）')
+    parser.add_argument('--scenario', type=str,
+                       help='指定场景名称（用于 tag）')
+    parser.add_argument('--stocks', type=int, default=None,
+                       help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
+    parser.add_argument('--base-date', type=str,
+                       help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                       help='详细输出模式')
+
+
+def _get_help_epilog() -> str:
+    """获取帮助信息的 epilog"""
+    return '''
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 命令说明:
   scan                 扫描投资机会（根据策略筛选当前符合条件的股票）
@@ -315,15 +421,6 @@ def parse_args():
     %(prog)s -r                   快速更新
     %(prog)s -t                   快速标签
 
-  组合命令（按顺序执行）:
-    %(prog)s renew scan           更新数据 → 扫描
-    %(prog)s renew simulate       更新数据 → 模拟
-    %(prog)s renew scan simulate  更新数据 → 扫描 → 模拟（全流程）
-    
-    %(prog)s -r -c                快捷: 更新 → 扫描
-    %(prog)s -r -s                快捷: 更新 → 模拟
-    %(prog)s -r -c -s             快捷: 全流程
-
   额外参数:
     %(prog)s simulate --strategy RTB        只运行指定策略
     %(prog)s analysis --session xxx         分析指定session
@@ -332,92 +429,61 @@ def parse_args():
     %(prog)s -s -v                          详细输出模式
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        '''
-    )
-    
-    # 位置参数（主命令）
-    # 注意：choices 不能和 nargs='*' 一起用在空列表的情况，所以我们在后面验证
-    parser.add_argument(
-        'command',
-        nargs='?',
-        help='要执行的命令（scan/simulate/renew/analysis/tag/enumerate/price_factor/capital_allocation/export_adj_factor_csv），省略则默认 simulate'
-    )
-    
-    # 快捷flag（避免大小写混淆）
-    parser.add_argument('-c', '--scan-flag', dest='scan_flag', action='store_true', 
-                        help='扫描机会（scan）')
-    parser.add_argument('-s', '--simulate-flag', dest='simulate_flag', action='store_true', 
-                        help='模拟回测（simulate）')
-    parser.add_argument('-r', '--renew-flag', dest='renew_flag', action='store_true', 
-                        help='更新数据（renew）')
-    parser.add_argument('-a', '--analysis-flag', dest='analysis_flag', action='store_true', 
-                        help='分析结果（analysis）')
-    parser.add_argument('-t', '--tag-flag', dest='tag_flag', action='store_true', 
-                        help='执行标签计算（tag）')
-    parser.add_argument('-e', '--enumerate-flag', dest='enumerate_flag', action='store_true', 
-                        help='枚举投资机会（enumerate）')
-    parser.add_argument('-p', '--price-factor-flag', dest='price_factor_flag', action='store_true',
-                        help='运行价格因子回放模拟（price_factor）')
-    
-    # 额外参数
-    parser.add_argument('--strategy', type=str, help='指定策略名称（用于 scan/simulate/enumerate）')
-    parser.add_argument('--session', type=str, help='指定session ID（用于 analysis）')
-    parser.add_argument('--scenario', type=str, help='指定场景名称（用于 tag）')
-    parser.add_argument('--stocks', type=int, default=None, help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
-    parser.add_argument('--base-date', type=str, help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
-    parser.add_argument('-v', '--verbose', action='store_true', help='详细输出模式')
-    
-    return parser.parse_args()
+    '''
 
 
 def resolve_command(args) -> str:
     """
-    解析本次运行要执行的“单个命令”。
+    解析本次运行要执行的命令
     
-    规则：
-    - 位置参数 `command` 优先（scan/simulate/renew/analysis）
-    - 否则根据快捷 flag (-c/-s/-r/-a) 决定
-    - 如果同时给了多个互斥命令，报错退出
-    - 如果都没给，默认 simulate
+    Args:
+        args: 解析后的命令行参数
+    
+    Returns:
+        str: 要执行的命令名称
+    
+    Raises:
+        SystemExit: 如果命令冲突或无效
     """
-    valid_commands = {'scan', 'simulate', 'renew', 'analysis', 'tag', 'enumerate', 'price_factor', 'capital_allocation'}
+    valid_commands = {
+        'scan', 'simulate', 'renew', 'analysis', 'tag',
+        'enumerate', 'price_factor', 'capital_allocation', 'export_adj_factor_csv'
+    }
     
+    # 从位置参数获取命令
     cmd_from_positional = None
     if args.command:
         if args.command not in valid_commands:
             logger.error(f"❌ 无效的命令: {args.command}")
-            logger.info(f"有效命令: {', '.join(valid_commands)}")
+            logger.info(f"有效命令: {', '.join(sorted(valid_commands))}")
             sys.exit(1)
         cmd_from_positional = args.command
     
-    flags = []
-    if args.renew_flag:
-        flags.append('renew')
-    if args.scan_flag:
-        flags.append('scan')
-    if args.simulate_flag:
-        flags.append('simulate')
-    if args.analysis_flag:
-        flags.append('analysis')
-    if args.tag_flag:
-        flags.append('tag')
-    if args.enumerate_flag:
-        flags.append('enumerate')
-    if getattr(args, 'price_factor_flag', False):
-        flags.append('price_factor')
+    # 从快捷 flag 获取命令
+    flag_to_command = {
+        'renew_flag': 'renew',
+        'scan_flag': 'scan',
+        'simulate_flag': 'simulate',
+        'analysis_flag': 'analysis',
+        'tag_flag': 'tag',
+        'enumerate_flag': 'enumerate',
+        'price_factor_flag': 'price_factor',
+    }
     
-    # 如果位置参数和 flag 同时指定，并且不一致，则报错
+    flags = [flag_to_command[k] for k, v in flag_to_command.items() if getattr(args, k, False)]
+    
+    # 验证命令一致性
     if cmd_from_positional and flags and cmd_from_positional not in flags:
         logger.error("❌ 命令冲突：位置参数和快捷 flag 指定了不同的命令")
         logger.info("请只使用一种方式指定命令，例如：`start.py renew` 或 `start.py -r`")
         sys.exit(1)
     
-    # 如果通过 flag 指定了多个不同命令，也报错
     if not cmd_from_positional and len(set(flags)) > 1:
         logger.error("❌ 命令冲突：同时指定了多个快捷命令 (-c/-s/-r/-a)")
         logger.info("每次运行只能执行一个命令，请保留一个 flag 即可")
         sys.exit(1)
     
+    # 返回命令（优先位置参数，其次 flag，最后默认值）
     if cmd_from_positional:
         return cmd_from_positional
     if flags:
@@ -427,53 +493,123 @@ def resolve_command(args) -> str:
     return 'simulate'
 
 
-def main():
-    # 解析参数
-    args = parse_args()
+# ============================================================================
+# 命令执行器
+# ============================================================================
+class CommandExecutor:
+    """命令执行器"""
     
-    # 解析本次要执行的单个命令
+    def __init__(self, app: App):
+        """
+        初始化命令执行器
+        
+        Args:
+            app: 应用实例
+        """
+        self.app = app
+        self.command_handlers = self._build_command_handlers()
+    
+    def _build_command_handlers(self) -> dict:
+        """构建命令处理器映射"""
+        return {
+            'renew': self._handle_renew,
+            'scan': self._handle_scan,
+            'simulate': self._handle_simulate,
+            'analysis': self._handle_analysis,
+            'tag': self._handle_tag,
+            'enumerate': self._handle_enumerate,
+            'price_factor': self._handle_price_factor,
+            'capital_allocation': self._handle_capital_allocation,
+            'export_adj_factor_csv': self._handle_export_adj_factor_csv,
+        }
+    
+    def execute(self, command: str, args):
+        """
+        执行命令
+        
+        Args:
+            command: 命令名称
+            args: 命令行参数
+        """
+        handler = self.command_handlers.get(command)
+        if not handler:
+            logger.error(f"❌ 未知命令: {command}")
+            sys.exit(1)
+        
+        handler(args)
+    
+    def _handle_renew(self, args):
+        """处理 renew 命令"""
+        logger.info("🔄 更新数据...")
+        asyncio.run(self.app.renew_data())
+    
+    def _handle_scan(self, args):
+        """处理 scan 命令"""
+        logger.info("🔍 扫描投资机会...")
+        self.app.scan()
+    
+    def _handle_simulate(self, args):
+        """处理 simulate 命令"""
+        logger.info("🎮 运行模拟回测...")
+        self.app.simulate()
+    
+    def _handle_analysis(self, args):
+        """处理 analysis 命令"""
+        logger.info("📊 分析模拟结果...")
+        self.app.analysis(session_id=args.session)
+    
+    def _handle_tag(self, args):
+        """处理 tag 命令"""
+        logger.info("🏷️  执行标签计算...")
+        self.app.tag(scenario_name=args.scenario)
+    
+    def _handle_enumerate(self, args):
+        """处理 enumerate 命令"""
+        logger.info("🔢 枚举投资机会...")
+        strategy = args.strategy or 'example'
+        self.app.enumerate(strategy_name=strategy, stock_count=args.stocks)
+    
+    def _handle_price_factor(self, args):
+        """处理 price_factor 命令"""
+        logger.info("🎯 运行价格因子回放模拟 (PriceFactorSimulator)...")
+        strategy = args.strategy or 'example'
+        self.app.price_factor_simulate(strategy_name=strategy)
+    
+    def _handle_capital_allocation(self, args):
+        """处理 capital_allocation 命令"""
+        logger.info("💰 运行资金分配模拟 (CapitalAllocationSimulator)...")
+        strategy = args.strategy or 'example'
+        self.app.capital_allocation_simulate(strategy_name=strategy)
+    
+    def _handle_export_adj_factor_csv(self, args):
+        """处理 export_adj_factor_csv 命令"""
+        logger.info("📤 手动导出复权因子事件季度 CSV...")
+        self.app.export_adj_factor_csv(base_date=args.base_date)
+
+
+# ============================================================================
+# 主函数
+# ============================================================================
+def main():
+    """主函数"""
+    # 解析参数
+    parser = create_argument_parser()
+    args = parser.parse_args()
+    
+    # 解析命令
     command = resolve_command(args)
     
     # 创建应用实例
     app = App(is_verbose=args.verbose)
     
-    # 根据命令执行对应动作
+    # 执行命令
     try:
         logger.info("=" * 60)
         logger.info(f"▶️  执行命令: {command}")
         logger.info("=" * 60)
         
-        if command == 'renew':
-            # latest_completed_trading_date 会在 renew_data() 内部统一获取，这里不再提前获取
-            # 避免缓存过期数据，确保每次 renew 都使用最新的交易日
-            asyncio.run(app.renew_data())
-        elif command == 'scan':
-            logger.info("🔍 扫描投资机会...")
-            app.scan()
-        elif command == 'simulate':
-            logger.info("🎮 运行模拟回测...")
-            app.simulate()
-        elif command == 'analysis':
-            logger.info("📊 分析模拟结果...")
-            app.analysis(session_id=args.session)
-        elif command == 'tag':
-            logger.info("🏷️  执行标签计算...")
-            app.tag(scenario_name=args.scenario)
-        elif command == 'enumerate':
-            logger.info("🔢 枚举投资机会...")
-            strategy = args.strategy or 'example'
-            app.enumerate(strategy_name=strategy, stock_count=args.stocks)
-        elif command == 'price_factor':
-            logger.info("🎯 运行价格因子回放模拟 (PriceFactorSimulator)...")
-            strategy = args.strategy or 'example'
-            app.price_factor_simulate(strategy_name=strategy)
-        elif command == 'capital_allocation':
-            logger.info("💰 运行资金分配模拟 (CapitalAllocationSimulator)...")
-            strategy = args.strategy or 'example'
-            app.capital_allocation_simulate(strategy_name=strategy)
-        elif command == 'export_adj_factor_csv':
-            logger.info("📤 手动导出复权因子事件季度 CSV...")
-            app.export_adj_factor_csv(base_date=args.base_date)
+        executor = CommandExecutor(app)
+        executor.execute(command, args)
         
         logger.info("")
         logger.info("=" * 60)

@@ -148,7 +148,7 @@ class OpportunityEnumerator:
         executor = ProcessExecutor(
             max_workers=max_workers,  # 使用计算出的 worker 数量
             execution_mode=ProcessExecutionMode.QUEUE,  # 队列模式：持续填充进程池
-            job_executor=OpportunityEnumerator._execute_single_job_compute_only,
+            job_executor=OpportunityEnumerator._execute_single_job,
             is_verbose=False,
         )
         
@@ -467,18 +467,6 @@ class OpportunityEnumerator:
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Worker 包装函数
-        
-        - 在多进程模式下作为子进程入口
-        - 在多线程模式下作为线程执行函数
-        """
-        from core.modules.strategy.components.opportunity_enumerator.enumerator_worker import OpportunityEnumeratorWorker
-        worker = OpportunityEnumeratorWorker(payload)
-        return worker.run()
-
-    @staticmethod
-    def _execute_single_job_compute_only(payload: Dict[str, Any]) -> Dict[str, Any]:
-        """
         Worker 包装函数（多进程执行）
         
         子进程使用 OpportunityEnumeratorWorker 按需查询数据。
@@ -572,10 +560,9 @@ class OpportunityEnumerator:
             # 1. 扫描所有版本目录
             version_dirs = []
             for item in root_dir.iterdir():
-                if item.is_dir() and item.name != "__pycache__" and item.name != "meta.json":
-                    # 版本目录格式：{version_id}_{timestamp}
-                    if "_" in item.name:
-                        version_dirs.append(item)
+                # 版本目录格式：{version_id}（纯数字目录名）
+                if item.is_dir() and item.name != "__pycache__" and item.name[0].isdigit():
+                    version_dirs.append(item)
             
             if not version_dirs:
                 return
@@ -583,18 +570,18 @@ class OpportunityEnumerator:
             # 2. 读取每个版本的 metadata.json，提取版本信息
             versions = []
             for version_dir in version_dirs:
-                metadata_path = version_dir / "metadata.json"
+                metadata_path = version_dir / "0_metadata.json"
                 if not metadata_path.exists():
-                    # 如果没有 metadata.json，尝试从目录名解析版本 ID
+                    # 如果没有 metadata.json，尝试从目录名解析版本 ID（目录名就是版本ID）
                     try:
-                        version_id = int(version_dir.name.split("_")[0])
+                        version_id = int(version_dir.name)
                         versions.append({
                             "version_id": version_id,
                             "created_at": "",
                             "version_dir": version_dir,
                             "version_dir_name": version_dir.name
                         })
-                    except (ValueError, IndexError):
+                    except ValueError:
                         continue
                     continue
                 

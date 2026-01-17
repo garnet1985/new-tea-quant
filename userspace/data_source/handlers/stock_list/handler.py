@@ -63,7 +63,6 @@ class TushareStockListHandler(BaseDataSourceHandler):
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self._last_update = current_datetime
         context["last_update"] = current_datetime
-        logger.debug(f"设置 last_update: {current_datetime}")
     
     async def fetch(self, context: Dict[str, Any] = None) -> List:
         """
@@ -74,8 +73,6 @@ class TushareStockListHandler(BaseDataSourceHandler):
         2. 在 normalize 中处理字段映射
         """
         context = context or {}
-        
-        logger.debug("开始获取股票列表")
         
         # 使用辅助方法创建简单的单 API 调用 Task
         task = self.create_simple_task(

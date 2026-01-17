@@ -349,7 +349,8 @@ class ProcessWorker:
             # 提交初始任务到进程池
             future_to_job = {}
             submitted_count = 0
-            total_jobs = len(self.job_queue)
+            # 使用 stats 中的 total_jobs（可能来自外部传入的总任务数）
+            total_jobs = self.stats.get('total_jobs', len(self.job_queue))
             progress_update_interval = max(1, total_jobs // 50)  # 每2%更新一次，最多50次
             
             # 初始填充进程池
@@ -559,8 +560,11 @@ class ProcessWorker:
             if self.job_executor is None:
                 raise ValueError("Job executor not set")
             
-            # 执行任务
-            result_data = self.job_executor(job['payload'])
+            # 执行任务（兼容 'payload' 和 'data' 两种键名）
+            payload = job.get('payload') if 'payload' in job else job.get('data')
+            if payload is None:
+                raise ValueError(f"Job {job.get('id', 'unknown')} missing 'payload' or 'data' key")
+            result_data = self.job_executor(payload)
             
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
@@ -600,18 +604,88 @@ class ProcessWorker:
             
             return error_result
     
-    def run_jobs(self, jobs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def run_jobs(self, jobs: Optional[List[Dict[str, Any]]] = None, total_jobs: Optional[int] = None) -> Dict[str, Any]:
         """
         执行所有任务
         
         Args:
             jobs: 可选的任务列表，如果不提供则使用已添加的任务
+            total_jobs: 总任务数（用于进度跟踪）。如果提供，将使用此值而不是当前批次的大小
+                      这对于分批执行时保持准确的进度跟踪很重要
             
         Returns:
             执行统计信息
         """
+        # 初始化 is_batch_execution 变量
+        is_batch_execution = False
+        
         if jobs:
-            self.job_queue = jobs
+            # 如果提供了 total_jobs，使用它；否则使用当前批次的大小
+            # 注意：如果 total_jobs 已设置且不为 None，保持它不变（用于分批执行）
+            if total_jobs is not None:
+                if not hasattr(self, '_total_jobs') or self._total_jobs is None:
+                    self._total_jobs = total_jobs
+            else:
+                # 如果没有提供 total_jobs，且之前也没有设置，则使用当前批次大小
+                if not hasattr(self, '_total_jobs') or self._total_jobs is None:
+                    self._total_jobs = len(jobs)
+            
+            # 检查是否是分批执行（已有统计信息且 total_jobs 大于当前批次大小）
+            is_batch_execution = (
+                hasattr(self, 'stats') and 
+                self.stats and 
+                self.stats.get('total_jobs', 0) > 0 and
+                hasattr(self, '_total_jobs') and 
+                self._total_jobs is not None and
+                self._total_jobs > len(jobs)
+            )
+            
+            if is_batch_execution:
+                # 分批执行：累积统计信息，不重置
+                # 保存之前的完成数，用于累积
+                previous_completed = self.stats.get('completed_jobs', 0)
+                previous_failed = self.stats.get('failed_jobs', 0)
+                previous_start_time = self.stats.get('start_time')
+                
+                # 更新任务队列
+                self.job_queue = jobs
+                
+                # 累积统计信息（不重置已完成的任务数）
+                self.stats = {
+                    'total_jobs': self._total_jobs,  # 使用总任务数
+                    'completed_jobs': previous_completed,  # 保留之前的完成数
+                    'failed_jobs': previous_failed,  # 保留之前的失败数
+                    'cancelled_jobs': self.stats.get('cancelled_jobs', 0),
+                    'timed_out': False,
+                    'not_done_count': 0,
+                    'start_time': previous_start_time or datetime.now(),  # 保留开始时间
+                    'end_time': None,
+                    'total_duration': 0,
+                    'avg_duration': 0,
+                    'throughput': 0
+                }
+                # 不清空 results，累积所有批次的结果
+                if not hasattr(self, 'results') or self.results is None:
+                    self.results = []
+                # 重置当前批次结果（每次批次开始时清空）
+                self._current_batch_results = None
+            else:
+                # 首次执行或单次执行：重置状态
+                self.job_queue = jobs
+                self.stats = {
+                    'total_jobs': 0,
+                    'completed_jobs': 0,
+                    'failed_jobs': 0,
+                    'cancelled_jobs': 0,
+                    'timed_out': False,
+                    'not_done_count': 0,
+                    'start_time': None,
+                    'end_time': None,
+                    'total_duration': 0,
+                    'avg_duration': 0,
+                    'throughput': 0
+                }
+                self.results = []
         
         if not self.job_queue:
             if self.is_verbose:
@@ -623,8 +697,16 @@ class ProcessWorker:
         
         self.is_running = True
         self.should_stop = False
-        self.stats['start_time'] = datetime.now()
-        self.stats['total_jobs'] = len(self.job_queue)
+        
+        # 设置开始时间（如果还没有设置）
+        if not self.stats.get('start_time'):
+            self.stats['start_time'] = datetime.now()
+        
+        # 使用保存的总任务数（如果已设置），否则使用当前批次大小
+        if hasattr(self, '_total_jobs') and self._total_jobs is not None:
+            self.stats['total_jobs'] = self._total_jobs
+        else:
+            self.stats['total_jobs'] = len(self.job_queue)
         
         if self.is_verbose:
             mode_desc = f"BATCH (size={self.batch_size})" if self.execution_mode == ExecutionMode.BATCH else "QUEUE"
@@ -633,9 +715,20 @@ class ProcessWorker:
         try:
             # 根据执行模式选择执行方法
             if self.execution_mode == ExecutionMode.BATCH:
-                self.results = self._execute_batch_mode()
+                batch_results = self._execute_batch_mode()
             else:
-                self.results = self._execute_queue_mode()
+                batch_results = self._execute_queue_mode()
+            
+            # 累积结果（分批执行时）
+            if is_batch_execution:
+                if not hasattr(self, 'results') or self.results is None:
+                    self.results = []
+                self.results.extend(batch_results)
+                # 保存当前批次的结果，用于 get_results() 返回
+                self._current_batch_results = batch_results
+            else:
+                self.results = batch_results
+                self._current_batch_results = batch_results
         
         except Exception as e:
             logger.error(f"Error during job execution: {e}")
@@ -651,8 +744,16 @@ class ProcessWorker:
         return self.stats
     
     def get_results(self) -> List[JobResult]:
-        """获取所有任务结果"""
-        return self.results
+        """
+        获取任务结果
+        
+        注意：在分批执行模式下，返回当前批次的结果（避免重复累加）
+        在单次执行模式下，返回所有结果
+        """
+        # 如果存在当前批次结果（分批执行），返回当前批次；否则返回累积结果
+        if hasattr(self, '_current_batch_results') and self._current_batch_results is not None:
+            return self._current_batch_results
+        return self.results if hasattr(self, 'results') and self.results is not None else []
     
     def get_successful_results(self) -> List[JobResult]:
         """获取成功的任务结果"""

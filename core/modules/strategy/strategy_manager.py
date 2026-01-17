@@ -202,9 +202,9 @@ class StrategyManager:
         logger.info(f"📝 Session ID: {session_id}")
         
         # 4. 确定回测日期范围
-        simulation_config = settings.simulation
-        start_date = simulation_config.get('start_date', '20200101')
-        end_date = simulation_config.get('end_date', datetime.now().strftime('%Y%m%d'))
+        simulator_config = settings.simulator
+        start_date = simulator_config.get('start_date', '20200101')
+        end_date = simulator_config.get('end_date', datetime.now().strftime('%Y%m%d'))
         
         logger.info(f"📅 回测日期范围: {start_date} ~ {end_date}")
         

@@ -41,7 +41,7 @@ class CapitalAllocationSettings(BaseSettings):
     资金分配模拟器设置
     
     配置字段：
-    - sot_version: SOT 版本依赖（默认 "latest"）
+    - output_version: 枚举器输出版本依赖（默认 "latest"）
     - use_sampling: 是否使用采样配置（默认 True）
     - initial_capital: 初始资金（默认 1_000_000，最小值 1000）
     - allocation: 资金分配配置
@@ -49,7 +49,7 @@ class CapitalAllocationSettings(BaseSettings):
     """
     
     # 资金分配模拟器特定字段（延迟提取）
-    _sot_version: Optional[str] = None
+    _output_version: Optional[str] = None
     _use_sampling: Optional[bool] = None
     _initial_capital: Optional[float] = None
     _allocation: Optional[AllocationConfig] = None
@@ -67,7 +67,7 @@ class CapitalAllocationSettings(BaseSettings):
         - allocation.mode 必须是有效枚举值（Critical）
         - allocation.max_portfolio_size 必须 > 0（Critical）
         - 添加默认值
-        - 检查 sot_version（Warning）
+        - 检查 output_version（Warning）
         - 检查 fees 配置（Warning）
         
         Returns:
@@ -109,12 +109,12 @@ class CapitalAllocationSettings(BaseSettings):
             ))
             result.is_valid = False
         
-        # 检查 sot_version（Warning）
-        if self._sot_version and self._sot_version != "latest":
+        # 检查 output_version（Warning）
+        if self._output_version and self._output_version != "latest":
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
-                field_path="capital_simulator.sot_version",
-                message=f"指定的 SOT 版本 '{self._sot_version}' 将在运行时检查，如果不存在将使用 'latest'",
+                field_path="capital_simulator.output_version",
+                message=f"指定的输出版本 '{self._output_version}' 将在运行时检查，如果不存在将使用 'latest'",
                 suggested_fix="如果版本不存在，系统将自动使用 'latest'，如果 'latest' 也不存在，建议先运行枚举器"
             ))
         
@@ -160,8 +160,8 @@ class CapitalAllocationSettings(BaseSettings):
         """提取资金分配模拟器特定字段并添加默认值"""
         capital_config = self.raw_settings.get("capital_simulator", {})
         
-        # sot_version（默认 "latest"）
-        self._sot_version = capital_config.get("sot_version", "latest") or "latest"
+        # output_version（默认 "latest"）
+        self._output_version = capital_config.get("output_version", "latest") or "latest"
         
         # use_sampling（默认 True）
         use_sampling = capital_config.get("use_sampling")
@@ -195,12 +195,6 @@ class CapitalAllocationSettings(BaseSettings):
             save_equity_curve=bool(output_config.get("save_equity_curve", True)),
         )
     
-    @property
-    def sot_version(self) -> str:
-        """SOT 版本依赖"""
-        if self._sot_version is None:
-            self._extract_capital_allocation_fields()
-        return self._sot_version
     
     @property
     def use_sampling(self) -> bool:

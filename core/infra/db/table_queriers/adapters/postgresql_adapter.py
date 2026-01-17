@@ -94,8 +94,13 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
     
     def _get_connection(self):
         """从连接池获取连接"""
-        if not self._connection_pool:
-            raise RuntimeError("PostgreSQL 适配器未初始化，请先调用 connect()")
+        if not self._connection_pool or not self._initialized:
+            # 尝试自动连接（如果配置存在）
+            if self.config:
+                logger.warning("PostgreSQL 适配器连接池未初始化，尝试自动连接...")
+                self.connect()
+            else:
+                raise RuntimeError("PostgreSQL 适配器未初始化，请先调用 connect()")
         return self._connection_pool.getconn()
     
     def _put_connection(self, conn):
@@ -114,6 +119,14 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         Returns:
             查询结果列表（字典格式）
         """
+        # 检查适配器是否已初始化
+        if not self._initialized or not self._connection_pool:
+            if self.config:
+                logger.warning("PostgreSQL 适配器未初始化，尝试自动连接...")
+                self.connect()
+            else:
+                raise RuntimeError("PostgreSQL 适配器未初始化，请先调用 connect()")
+        
         conn = None
         try:
             # 标准化查询语句（转换占位符）
@@ -143,6 +156,14 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         Returns:
             影响的行数
         """
+        # 检查适配器是否已初始化
+        if not self._initialized or not self._connection_pool:
+            if self.config:
+                logger.warning("PostgreSQL 适配器未初始化，尝试自动连接...")
+                self.connect()
+            else:
+                raise RuntimeError("PostgreSQL 适配器未初始化，请先调用 connect()")
+        
         conn = None
         try:
             # 标准化查询语句（转换占位符）
@@ -173,6 +194,14 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         Returns:
             总影响的行数
         """
+        # 检查适配器是否已初始化
+        if not self._initialized or not self._connection_pool:
+            # 尝试自动连接（如果配置存在）
+            if self.config:
+                self.connect()
+            else:
+                raise RuntimeError("PostgreSQL 适配器未初始化，请先调用 connect()")
+        
         conn = None
         try:
             # 标准化查询语句（转换占位符）
@@ -260,6 +289,15 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         return PostgreSQLConnectionWrapper(conn, self)
     
     def is_table_exists(self, table_name: str) -> bool:
+        """检查表是否存在"""
+        # 检查适配器是否已初始化
+        if not self._initialized or not self._connection_pool:
+            if self.config:
+                logger.warning("PostgreSQL 适配器未初始化，尝试自动连接...")
+                self.connect()
+            else:
+                raise RuntimeError("PostgreSQL 适配器未初始化，请先调用 connect()")
+        
         """
         检查表是否存在
         

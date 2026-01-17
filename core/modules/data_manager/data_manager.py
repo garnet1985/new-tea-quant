@@ -387,15 +387,27 @@ class DataManager:
         Args:
             table_name: 表名，例如 'stock_kline'、'stock_list' 等（Base Tables）
                        或用户自定义的表名（需先通过 register_table 注册）
+                       也支持实体类型别名（如 'stock_kline_daily' 会映射到 'stock_kline'）
             
         Returns:
             对应的 Model 实例（已自动绑定默认 db），如果未找到则返回 None
         """
+        # 表名映射（实体类型 -> 实际表名）
+        # 注意：stock_kline 表使用 term 字段区分周期，所以所有周期类型都映射到同一个表
+        table_name_mapping = {
+            'stock_kline_daily': 'stock_kline',
+            'stock_kline_weekly': 'stock_kline',
+            'stock_kline_monthly': 'stock_kline',
+        }
+        
+        # 如果存在映射，使用映射后的表名
+        actual_table_name = table_name_mapping.get(table_name, table_name)
+        
         # 从缓存中获取 Model 类
-        model_class = self._table_cache.get(table_name)
+        model_class = self._table_cache.get(actual_table_name)
         
         if not model_class:
-            logger.warning(f"⚠️  表 '{table_name}' 没有对应的 Model 类（可能未注册）")
+            logger.warning(f"⚠️  表 '{table_name}' (映射为 '{actual_table_name}') 没有对应的 Model 类（可能未注册）")
             return None
         
         # 返回 Model 实例（自动获取默认 db）

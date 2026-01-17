@@ -168,46 +168,19 @@ class DataManager:
             
             # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
             if self.db is None:
-                # 检测是否是子进程（多进程场景），如果是则使用只读模式（避免写锁冲突）
-                import multiprocessing
-                is_child_process = multiprocessing.current_process().name != 'MainProcess'
-                read_only = is_child_process
-                
                 if self.is_verbose:
-                    if read_only:
-                        logger.info("🔧 初始化 DatabaseManager（只读模式，子进程环境）...")
-                    else:
-                        logger.info("🔧 初始化 DatabaseManager...")
+                    logger.info("🔧 初始化 DatabaseManager...")
                 
-                try:
-                    self.db = DatabaseManager(is_verbose=self.is_verbose, read_only=read_only)
-                    self.db.initialize()
-                    # 设置为默认实例，便于 DbBaseModel 等自动获取 db
-                    DatabaseManager.set_default(self.db)
-                except Exception as db_error:
-                    # 在子进程环境下，如果 DuckDB 文件锁冲突，跳过 DB 初始化
-                    # 这允许 compute-only worker 在不访问 DB 的情况下运行
-                    error_msg = str(db_error)
-                    if is_child_process and ("Could not set lock" in error_msg or "Conflicting lock" in error_msg):
-                        logger.warning(
-                            f"⚠️  子进程 DB 初始化失败（文件锁冲突），跳过 DB 连接: {error_msg}\n"
-                            f"   这通常发生在 compute-only worker 场景，worker 将使用预加载的内存数据。"
-                        )
-                        # 创建一个虚拟的 DatabaseManager，但不初始化连接
-                        # 这样 DataManager 的其他部分仍然可以工作（虽然不能访问 DB）
-                        self.db = None
-                        # 标记为已初始化，避免重复尝试
-                        self._initialized = True
-                        return
-                    else:
-                        raise
+                self.db = DatabaseManager(is_verbose=self.is_verbose)
+                self.db.initialize()
+                # 设置为默认实例，便于 DbBaseModel 等自动获取 db
+                DatabaseManager.set_default(self.db)
             else:
                 if self.is_verbose:
                     logger.info("🔧 使用已提供的 DatabaseManager 实例...")
 
             # 2. 创建所有 Base Tables（业务逻辑）
-            # 注意：只读模式下跳过表创建（子进程只需要读取，不需要创建表）
-            if not self.db.read_only:
+            if self.db:
                 if self.is_verbose:
                     logger.info("🔧 创建 Base Tables...")
                 self.db.schema_manager.create_all_tables(self.db.get_connection)

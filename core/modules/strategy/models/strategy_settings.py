@@ -42,7 +42,7 @@ class StrategySettings:
         "simulator": {
             "start_date": "",
             "end_date": "",
-            "sot_version": "latest",
+            "output_version": "latest",
             "use_sampling": True,
             "max_workers": "auto"
         },
@@ -79,9 +79,8 @@ class StrategySettings:
         # Simulator 配置（新格式：使用 "simulator" 字段）
         self.simulator = settings_dict.get('simulator', {})
         
-        # 投资目标配置（提升为顶层配置，跨模块使用）
-        # 优先从顶层 goal 读取，如果没有则从 simulator.goal 读取（向后兼容）
-        self.goal = settings_dict.get('goal') or self.simulator.get('goal', {})
+        # 投资目标配置（顶层配置，跨模块使用）
+        self.goal = settings_dict.get('goal', {})
         
         # 性能配置
         self.performance = settings_dict.get('performance', {})

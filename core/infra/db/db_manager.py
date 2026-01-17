@@ -34,7 +34,7 @@ class DatabaseManager:
     _default_instance = None  # 默认实例（支持多进程）
     _auto_init_enabled = True  # 是否启用自动初始化
     
-    def __init__(self, config: Dict = None, is_verbose: bool = False, read_only: bool = False):
+    def __init__(self, config: Dict = None, is_verbose: bool = False):
         """
         初始化数据库管理器
         
@@ -43,7 +43,6 @@ class DatabaseManager:
                 - 如果为 None，从 ConfigManager 加载配置
                 - 配置必须包含 database_type 和对应的数据库配置
             is_verbose: 是否输出详细日志
-            read_only: 是否以只读模式打开（多进程读取场景使用，仅 SQLite 支持）
         """
         # 加载配置
         if config is None:
@@ -53,7 +52,6 @@ class DatabaseManager:
         self.config = DBHelper.parse_database_config(config)
         
         self.is_verbose = is_verbose
-        self.read_only = read_only
         self._initialized = False
         
         # 初始化三个管理器
@@ -62,8 +60,7 @@ class DatabaseManager:
         # 1. ConnectionManager - 连接和事务管理
         self.connection_manager = ConnectionManager(
             config=self.config,
-            is_verbose=is_verbose,
-            read_only=read_only
+            is_verbose=is_verbose
         )
         
         # 2. SchemaManager - Schema 管理和表初始化
@@ -95,7 +92,6 @@ class DatabaseManager:
         多进程安全：
         - 如果实例不存在（多进程场景下 context 丢失）
         - 会自动创建并初始化新实例
-        - 如果检测到是子进程，自动使用只读模式（避免写锁冲突）
         
         Args:
             auto_init: 是否自动初始化（默认 True）
@@ -105,18 +101,18 @@ class DatabaseManager:
         """
         if cls._default_instance is None:
             if auto_init and cls._auto_init_enabled:
-                # 检测是否是子进程（多进程场景）
-                import multiprocessing
-                is_child_process = multiprocessing.current_process().name != 'MainProcess'
+                # 使用锁确保多进程/多线程安全
+                import threading
+                if not hasattr(cls, '_init_lock'):
+                    cls._init_lock = threading.Lock()
                 
-                # 自动创建并初始化（多进程场景）
-                if is_child_process:
-                    instance = cls(is_verbose=False, read_only=True)
-                else:
-                    logger.info("🔄 检测到 DatabaseManager 未初始化，自动创建实例")
-                    instance = cls(is_verbose=False)
-                instance.initialize()
-                cls._default_instance = instance
+                with cls._init_lock:
+                    # 双重检查，避免重复初始化
+                    if cls._default_instance is None:
+                        logger.info("🔄 检测到 DatabaseManager 未初始化，自动创建实例")
+                        instance = cls(is_verbose=False)
+                        instance.initialize()
+                        cls._default_instance = instance
             else:
                 raise RuntimeError(
                     "No default DatabaseManager instance. "
@@ -161,12 +157,12 @@ class DatabaseManager:
             self.table_manager = TableManager(
                 adapter=self.connection_manager.adapter,
                 config=self.config,
-                is_verbose=self.is_verbose,
-                read_only=self.read_only
+                is_verbose=self.is_verbose
             )
             
-            # 3. 初始化批量写入队列（如果需要）
-            self.table_manager.initialize_write_queue()
+            # 3. 批量写入队列延迟初始化（只在需要写入时才初始化）
+            # 注意：枚举器等只读场景不需要初始化写入队列，可以节省资源
+            # 写入队列会在第一次调用 queue_write() 时自动初始化
             
             self._initialized = True
             

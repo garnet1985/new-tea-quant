@@ -3,7 +3,7 @@
 Data Loader - 统一数据加载器
 
 职责：
-- 统一从 SOT 版本目录加载 opportunities 和 targets
+- 统一从枚举器输出版本目录加载 opportunities 和 targets
 - 支持按股票 ID 过滤
 - 提供缓存机制（单策略缓存）
 - 统一数据格式
@@ -11,7 +11,7 @@ Data Loader - 统一数据加载器
 设计原则：
 - 使用实例方法（需要缓存状态）
 - 单策略缓存：每个 DataLoader 实例只缓存一个策略的数据
-- 缓存 key: f"{sot_version_dir.name}_{stock_id or 'all'}"
+- 缓存 key: f"{output_version_dir.name}_{stock_id or 'all'}"
 """
 
 from pathlib import Path
@@ -51,7 +51,7 @@ class DataLoader:
     
     def load_opportunities(
         self,
-        sot_version_dir: Path,
+        output_version_dir: Path,
         stock_id: Optional[str] = None,
         start_date: str = "",
         end_date: str = "",
@@ -60,7 +60,7 @@ class DataLoader:
         加载机会数据
         
         Args:
-            sot_version_dir: SOT 版本目录
+            output_version_dir: 枚举器输出版本目录
             stock_id: 股票 ID（可选，如果指定则只加载该股票的数据）
             start_date: 开始日期过滤（YYYYMMDD，可选）
             end_date: 结束日期过滤（YYYYMMDD，可选）
@@ -70,7 +70,7 @@ class DataLoader:
         """
         if stock_id:
             # 加载单个股票的机会
-            opportunities_path = sot_version_dir / f"{stock_id}_opportunities.csv"
+            opportunities_path = output_version_dir / f"{stock_id}_opportunities.csv"
             if not opportunities_path.exists():
                 logger.warning(
                     f"[DataLoader] opportunities 文件不存在: {opportunities_path}"
@@ -84,7 +84,7 @@ class DataLoader:
         else:
             # 加载所有股票的机会
             opportunities: List[Dict[str, Any]] = []
-            for entry in sot_version_dir.iterdir():
+            for entry in output_version_dir.iterdir():
                 if not entry.is_file():
                     continue
                 
@@ -98,7 +98,7 @@ class DataLoader:
     
     def load_targets(
         self,
-        sot_version_dir: Path,
+        output_version_dir: Path,
         stock_id: Optional[str] = None,
         opportunity_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
@@ -106,7 +106,7 @@ class DataLoader:
         加载目标数据
         
         Args:
-            sot_version_dir: SOT 版本目录
+            output_version_dir: 枚举器输出版本目录
             stock_id: 股票 ID（可选，如果指定则只加载该股票的数据）
             opportunity_id: 机会 ID（可选，如果指定则只加载该机会的目标）
         
@@ -115,7 +115,7 @@ class DataLoader:
         """
         if stock_id:
             # 加载单个股票的目标
-            targets_path = sot_version_dir / f"{stock_id}_targets.csv"
+            targets_path = output_version_dir / f"{stock_id}_targets.csv"
             if not targets_path.exists():
                 return []
             
@@ -124,7 +124,7 @@ class DataLoader:
         else:
             # 加载所有股票的目标
             targets: List[Dict[str, Any]] = []
-            for entry in sot_version_dir.iterdir():
+            for entry in output_version_dir.iterdir():
                 if not entry.is_file():
                     continue
                 
@@ -136,7 +136,7 @@ class DataLoader:
     
     def load_opportunities_and_targets(
         self,
-        sot_version_dir: Path,
+        output_version_dir: Path,
         stock_id: Optional[str] = None,
         start_date: str = "",
         end_date: str = "",
@@ -145,12 +145,12 @@ class DataLoader:
         加载机会和目标数据（带缓存）
         
         缓存策略：
-        - 缓存 key: f"{sot_version_dir.name}_{stock_id or 'all'}"
+        - 缓存 key: f"{output_version_dir.name}_{stock_id or 'all'}"
         - 只缓存当前策略的数据
         - 切换策略时需要创建新的 DataLoader 实例
         
         Args:
-            sot_version_dir: SOT 版本目录
+            output_version_dir: 枚举器输出版本目录
             stock_id: 股票 ID（可选）
             start_date: 开始日期过滤（YYYYMMDD，可选）
             end_date: 结束日期过滤（YYYYMMDD，可选）
@@ -161,7 +161,7 @@ class DataLoader:
                 - targets_map: 按 opportunity_id 分组的 targets 字典
         """
         # 构建缓存 key
-        cache_key = f"{sot_version_dir.name}_{stock_id or 'all'}_{start_date}_{end_date}"
+        cache_key = f"{output_version_dir.name}_{stock_id or 'all'}_{start_date}_{end_date}"
         
         # 检查缓存
         if self.cache_enabled and cache_key in self._cache:
@@ -174,8 +174,8 @@ class DataLoader:
         # 加载数据
         if stock_id:
             # 加载单个股票的数据
-            opportunities_path = sot_version_dir / f"{stock_id}_opportunities.csv"
-            targets_path = sot_version_dir / f"{stock_id}_targets.csv"
+            opportunities_path = output_version_dir / f"{stock_id}_opportunities.csv"
+            targets_path = output_version_dir / f"{stock_id}_targets.csv"
             
             opportunities, targets_map = self._load_from_files(
                 opportunities_path, targets_path, start_date, end_date
@@ -185,13 +185,13 @@ class DataLoader:
             opportunities: List[Dict[str, Any]] = []
             targets_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
             
-            for entry in sot_version_dir.iterdir():
+            for entry in output_version_dir.iterdir():
                 if not entry.is_file():
                     continue
                 
                 if entry.name.endswith("_opportunities.csv"):
                     stock_id_from_file = entry.name[: -len("_opportunities.csv")]
-                    targets_path = sot_version_dir / f"{stock_id_from_file}_targets.csv"
+                    targets_path = output_version_dir / f"{stock_id_from_file}_targets.csv"
                     
                     stock_opps, stock_targets_map = self._load_from_files(
                         entry, targets_path, start_date, end_date
@@ -213,15 +213,15 @@ class DataLoader:
     
     def build_event_stream(
         self,
-        sot_version_dir: Path,
+        output_version_dir: Path,
         start_date: str = "",
         end_date: str = "",
     ) -> List[Event]:
         """
-        从 SOT 目录构建全局事件流
+        从输出版本目录构建全局事件流
         
         Args:
-            sot_version_dir: SOT 版本目录
+            output_version_dir: 枚举器输出版本目录
             start_date: 开始日期过滤（YYYYMMDD，可选）
             end_date: 结束日期过滤（YYYYMMDD，可选）
         
@@ -231,18 +231,18 @@ class DataLoader:
         events: List[Event] = []
         
         # 扫描所有 opportunities 和 targets 文件
-        for entry in sot_version_dir.iterdir():
+        for entry in output_version_dir.iterdir():
             if not entry.is_file():
                 continue
             
             name = entry.name
             if name.endswith("_opportunities.csv"):
                 stock_id = name[: -len("_opportunities.csv")]
-                targets_path = sot_version_dir / f"{stock_id}_targets.csv"
+                targets_path = output_version_dir / f"{stock_id}_targets.csv"
                 
                 # 加载机会和目标
                 opportunities, targets_map = self.load_opportunities_and_targets(
-                    sot_version_dir,
+                    output_version_dir,
                     stock_id=stock_id,
                     start_date=start_date,
                     end_date=end_date,

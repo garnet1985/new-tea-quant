@@ -11,6 +11,7 @@ from loguru import logger
 
 from core.modules.data_source.data_classes import ApiJob, DataSourceTask
 from core.utils.date.date_utils import DateUtils
+from core.global_enums.enums import UpdateMode, TimeUnit
 
 
 class BaseDataSourceHandler:
@@ -435,7 +436,8 @@ class BaseDataSourceHandler:
             
             # 如果配置了 renew_mode 且 context 中没有日期范围，自动处理日期范围
             renew_mode = self.get_param("renew_mode")
-            if renew_mode and renew_mode in ["incremental", "rolling", "refresh"]:
+            valid_modes = [UpdateMode.INCREMENTAL.value, UpdateMode.ROLLING.value, UpdateMode.REFRESH.value]
+            if renew_mode and renew_mode in valid_modes:
                 if "start_date" not in context or "end_date" not in context:
                     await self._auto_before_fetch_by_renew_mode(context)
                     # 检查日期范围是否成功设置
@@ -749,11 +751,11 @@ class BaseDataSourceHandler:
     
     def _get_default_date_field_for_format(self, date_format: str) -> str:
         """根据 date_format 获取默认日期字段名（业务逻辑）"""
-        if date_format == "quarter":
+        if date_format == TimeUnit.QUARTER.value:
             return "quarter"
-        elif date_format == "month":
+        elif date_format == TimeUnit.MONTH.value:
             return "date"  # price_indexes 使用 date 字段存储月份
-        else:  # date_format == "day" or "date"
+        else:  # date_format == TimeUnit.DAY.value or "date" (兼容旧格式)
             return "date"
     
     
@@ -813,13 +815,14 @@ class BaseDataSourceHandler:
             context = {}
         
         renew_mode = self.get_param("renew_mode")
+        valid_modes = [UpdateMode.INCREMENTAL.value, UpdateMode.ROLLING.value, UpdateMode.REFRESH.value]
         
-        if not renew_mode or renew_mode not in ["incremental", "rolling", "refresh"]:
+        if not renew_mode or renew_mode not in valid_modes:
             logger.warning(f"未知的 renew_mode: {renew_mode}，跳过自动处理")
             return
         
         # 获取配置
-        date_format = self.get_param("date_format", "day")
+        date_format = self.get_param("date_format", TimeUnit.DAY.value)
         table_name = self.get_param("table_name")
         date_field = self.get_param("date_field")
         rolling_unit = self.get_param("rolling_unit")
@@ -827,7 +830,7 @@ class BaseDataSourceHandler:
         default_date_range = self.get_param("default_date_range", {})
         
         # 如果未配置 date_field，根据 date_format 自动识别
-        if date_field is None and date_format != "none":
+        if date_field is None and date_format != TimeUnit.NONE.value:
             date_field = self._get_default_date_field_for_format(date_format)
         
         # 使用 RenewModeService 统一处理

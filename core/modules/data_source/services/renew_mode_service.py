@@ -6,6 +6,7 @@ Renew Mode Service
 from typing import Dict, Any, Tuple, Optional
 from loguru import logger
 
+from core.global_enums.enums import UpdateMode, TimeUnit
 from .incremental_renew_service import IncrementalRenewService
 from .rolling_renew_service import RollingRenewService
 from .refresh_renew_service import RefreshRenewService
@@ -62,7 +63,15 @@ class RenewModeService:
         """
         context = context or {}
         
-        if renew_mode == "incremental":
+        # 支持枚举和字符串两种格式（兼容性）
+        if isinstance(renew_mode, UpdateMode):
+            renew_mode = renew_mode.value
+        if isinstance(date_format, TimeUnit):
+            date_format = date_format.value
+        if isinstance(rolling_unit, TimeUnit):
+            rolling_unit = rolling_unit.value
+        
+        if renew_mode == UpdateMode.INCREMENTAL.value:
             if not table_name or not date_field:
                 raise ValueError(
                     f"Incremental mode 需要 table_name 和 date_field 参数"
@@ -75,7 +84,7 @@ class RenewModeService:
                 context=context
             )
         
-        elif renew_mode == "rolling":
+        elif renew_mode == UpdateMode.ROLLING.value:
             if not table_name or not date_field:
                 raise ValueError(
                     f"Rolling mode 需要 table_name 和 date_field 参数"
@@ -94,7 +103,7 @@ class RenewModeService:
                 context=context
             )
         
-        elif renew_mode == "refresh":
+        elif renew_mode == UpdateMode.REFRESH.value:
             service = RefreshRenewService(data_manager=self.data_manager)
             return service.calculate_date_range(
                 date_format=date_format,
@@ -103,6 +112,7 @@ class RenewModeService:
             )
         
         else:
+            valid_modes = [UpdateMode.INCREMENTAL.value, UpdateMode.ROLLING.value, UpdateMode.REFRESH.value]
             raise ValueError(
-                f"未知的 renew_mode: {renew_mode}，支持的模式: incremental, rolling, refresh"
+                f"未知的 renew_mode: {renew_mode}，支持的模式: {', '.join(valid_modes)}"
             )

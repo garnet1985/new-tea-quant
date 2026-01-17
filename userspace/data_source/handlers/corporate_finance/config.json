@@ -1,0 +1,12 @@
+{
+    "_comment": "Corporate Finance Handler 配置",
+    "renew_mode": "incremental",
+    "date_format": "quarter",
+    "default_date_range": {
+        "years": 5
+    },
+    "table_name": "corporate_finance",
+    "date_field": "quarter",
+    "rolling_quarters": 3,
+    "renew_rolling_batch": 8
+}

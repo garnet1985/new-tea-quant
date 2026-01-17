@@ -11,8 +11,8 @@ from typing import Optional, Dict, Any
 from contextlib import contextmanager
 from loguru import logger
 
-from core.infra.db.table_queryers.adapters.factory import DatabaseAdapterFactory
-from core.infra.db.table_queryers.adapters.base_adapter import BaseDatabaseAdapter
+from core.infra.db.table_queriers.adapters.factory import DatabaseAdapterFactory
+from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
 from core.infra.db.helpers.db_helpers import DatabaseCursor
 
 

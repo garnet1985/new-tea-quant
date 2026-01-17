@@ -93,7 +93,6 @@ pytest core/infra/db/__test__/test_db_manager.py::TestDatabaseManager::test_init
 
 ### DatabaseAdapterFactory 测试
 - ✅ `create()` - 创建适配器（PostgreSQL/MySQL/SQLite）
-- ✅ `create_from_legacy_config()` - 从旧配置创建适配器
 
 ## 🔧 测试框架
 

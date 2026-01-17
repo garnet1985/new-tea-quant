@@ -287,6 +287,102 @@ KLINE = DataSourceSchema(
 
 ---
 
+#### SimpleConfigHandler - 纯配置驱动的 Handler
+
+**SimpleConfigHandler 是一个通用的 Handler，可以通过配置完成简单的数据获取任务，无需编写代码。**
+
+**适用场景：**
+- ✅ 简单的 API 调用（单次调用，无复杂逻辑）
+- ✅ 需要字段映射
+- ✅ 可选：滚动刷新
+- ✅ 可选：自动保存到数据库
+
+**使用方式：**
+
+在 `mapping.json` 中配置，无需编写任何代码：
+
+```json
+{
+  "data_sources": {
+    "my_simple_data": {
+      "handler": "core.modules.data_source.simple_config_handler.SimpleConfigHandler",
+      "is_enabled": true,
+      "provider_config": {
+        "apis": [
+          {
+            "provider_name": "tushare",
+            "method": "get_stock_list",
+            "field_mapping": {
+              "code": "ts_code",
+              "name": "name"
+            }
+          }
+        ]
+      },
+      "handler_config": {
+        "table_name": "stock_list",
+        "requires_date_range": false
+      }
+    }
+  }
+}
+```
+
+**如果需要滚动刷新：**
+
+```json
+{
+  "data_sources": {
+    "gdp": {
+      "handler": "core.modules.data_source.simple_config_handler.SimpleConfigHandler",
+      "is_enabled": true,
+      "provider_config": {
+        "apis": [
+          {
+            "provider_name": "tushare",
+            "method": "get_gdp",
+            "field_mapping": {
+              "quarter": "quarter",
+              "gdp": "gdp"
+            }
+          }
+        ]
+      },
+      "handler_config": {
+        "date_format": "quarter",
+        "rolling_periods": 4,
+        "default_date_range": {"years": 5},
+        "table_name": "gdp",
+        "date_field": "quarter",
+        "requires_date_range": true
+      }
+    }
+  }
+}
+```
+
+**配置说明：**
+- `provider_name`: Provider 名称（如 "tushare"）
+- `method`: API 方法名
+- `field_mapping`: 字段映射（API 字段 → Schema 字段）
+- `table_name`: 数据库表名（如果配置，会自动保存数据）
+- `date_field`: 日期字段名（用于滚动刷新和数据保存）
+- `date_format`: 日期格式（"quarter" | "month" | "date" | "none"）
+- `rolling_periods`: 滚动刷新周期数（如果配置，会自动启用滚动刷新）
+- `default_date_range`: 默认日期范围（如 `{"years": 5}`）
+- `requires_date_range`: 是否需要日期范围参数
+
+**优势：**
+- ✅ **零代码**：完全通过配置完成，无需编写 Handler 代码
+- ✅ **快速上手**：适合简单的数据源，快速配置即可使用
+- ✅ **自动功能**：自动支持滚动刷新、字段映射、数据保存
+
+**限制：**
+- ❌ 只支持单 API 调用（不支持多 API 协作）
+- ❌ 不支持复杂的业务逻辑（如需复杂逻辑，请使用自定义 Handler）
+
+---
+
 #### 什么是 ApiJob（API 调用任务）？
 
 **ApiJob 就是"一次 API 调用"的封装**，它包含：
@@ -505,7 +601,8 @@ core/modules/data_source/
 ├── DESIGN.md                       # 设计文档
 ├── __init__.py
 ├── data_source_manager.py          # 主入口
-├── data_source_handler.py          # Handler 基类
+├── base_data_source_handler.py     # Handler 基类
+├── simple_config_handler.py         # 纯配置驱动的 Handler（零代码）
 ├── base_provider.py                # Provider 基类
 ├── api_job.py                      # ApiJob 和 DataSourceTask 定义
 ├── task_executor.py                # Task 执行器
@@ -571,7 +668,7 @@ Handler 配置采用**分离设计**，降低学习成本：
 {
   "data_sources": {
     "gdp": {
-      "handler": "userspace.data_source.handlers.rolling.RollingHandler",
+      "handler": "userspace.data_source.handlers.gdp.GdpHandler",
       "is_enabled": true,
       "dependencies": {},
       "provider_config": {

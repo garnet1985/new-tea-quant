@@ -54,7 +54,7 @@ class TagWorkerDataManager:
         
         if not self.is_base_kline:
             self.base_data_source = self._extract_data_source_from_entity_type(target_entity_type)
-            self.base_term = 'daily'  # 兼容性
+            self.base_term = 'daily'  # 默认使用日线数据
         else:
             self.base_data_source = None
         

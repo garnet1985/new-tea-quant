@@ -8,5 +8,31 @@
         "years": 3
     },
     "table_name": "price_indexes",
-    "date_field": "date"
+    "date_field": "date",
+    "apis": {
+        "cpi_data": {
+            "provider_name": "tushare",
+            "method": "get_cpi",
+            "field_mapping": {},
+            "params": {}
+        },
+        "ppi_data": {
+            "provider_name": "tushare",
+            "method": "get_ppi",
+            "field_mapping": {},
+            "params": {}
+        },
+        "pmi_data": {
+            "provider_name": "tushare",
+            "method": "get_pmi",
+            "field_mapping": {},
+            "params": {}
+        },
+        "money_supply_data": {
+            "provider_name": "tushare",
+            "method": "get_money_supply",
+            "field_mapping": {},
+            "params": {}
+        }
+    }
 }

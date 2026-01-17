@@ -13,5 +13,19 @@
         {"id": "000688.SH", "name": "科创50"},
         {"id": "399001.SZ", "name": "深证成指"},
         {"id": "399006.SZ", "name": "创业板指"}
-    ]
+    ],
+    "apis": {
+        "daily_kline": {
+            "provider_name": "tushare",
+            "method": "get_daily_kline"
+        },
+        "weekly_kline": {
+            "provider_name": "tushare",
+            "method": "get_weekly_kline"
+        },
+        "monthly_kline": {
+            "provider_name": "tushare",
+            "method": "get_monthly_kline"
+        }
+    }
 }

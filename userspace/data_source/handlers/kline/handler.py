@@ -25,7 +25,7 @@ import pandas as pd
 from collections import defaultdict
 
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.api_job import DataSourceTask, ApiJob
+from core.modules.data_source.data_classes import DataSourceTask
 from core.utils.date.date_utils import DateUtils
 from .config import KlineHandlerConfig
 
@@ -431,44 +431,38 @@ class KlineHandler(BaseDataSourceHandler):
             
             # ApiJob 1: daily K-line
             if "daily" in start_dates:
-                api_jobs.append(ApiJob(
-                    provider_name="tushare",
-                    method="get_daily_kline",
+                api_jobs.append(self.get_api_job_with_params(
+                    name="daily_kline",
                     params={
                         "ts_code": stock_id,
                         "start_date": start_dates["daily"],
                         "end_date": end_dates["daily"],
                     },
-                    api_name="get_daily_kline",
-                    job_id=f"{task_id}_get_daily_kline",  # 明确指定 job_id，使用 api_name 确保唯一性
+                    job_id=f"{task_id}_get_daily_kline",
                 ))
             
             # ApiJob 2: weekly K-line
             if "weekly" in start_dates:
-                api_jobs.append(ApiJob(
-                    provider_name="tushare",
-                    method="get_weekly_kline",
+                api_jobs.append(self.get_api_job_with_params(
+                    name="weekly_kline",
                     params={
                         "ts_code": stock_id,
                         "start_date": start_dates["weekly"],
                         "end_date": end_dates["weekly"],
                     },
-                    api_name="get_weekly_kline",
-                    job_id=f"{task_id}_get_weekly_kline",  # 明确指定 job_id，使用 api_name 确保唯一性
+                    job_id=f"{task_id}_get_weekly_kline",
                 ))
             
             # ApiJob 3: monthly K-line
             if "monthly" in start_dates:
-                api_jobs.append(ApiJob(
-                    provider_name="tushare",
-                    method="get_monthly_kline",
+                api_jobs.append(self.get_api_job_with_params(
+                    name="monthly_kline",
                     params={
                         "ts_code": stock_id,
                         "start_date": start_dates["monthly"],
                         "end_date": end_dates["monthly"],
                     },
-                    api_name="get_monthly_kline",
-                    job_id=f"{task_id}_get_monthly_kline",  # 明确指定 job_id，使用 api_name 确保唯一性
+                    job_id=f"{task_id}_get_monthly_kline",
                 ))
             
             # ApiJob 4: daily_basic（只调用一次）
@@ -490,16 +484,14 @@ class KlineHandler(BaseDataSourceHandler):
                     basic_start_date = min_start_date
                     basic_end_date = max_end_date
                 
-                api_jobs.append(ApiJob(
-                    provider_name="tushare",
-                    method="get_daily_basic",
+                api_jobs.append(self.get_api_job_with_params(
+                    name="daily_basic",
                     params={
                         "ts_code": stock_id,
                         "start_date": basic_start_date,
                         "end_date": basic_end_date,
                     },
-                    api_name="get_daily_basic",
-                    job_id=f"{task_id}_get_daily_basic",  # 明确指定 job_id，使用 api_name 确保唯一性
+                    job_id=f"{task_id}_get_daily_basic",
                 ))
             
             if not api_jobs:

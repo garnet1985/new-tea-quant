@@ -35,7 +35,8 @@ SimpleConfigHandler - 纯配置驱动的 Handler
       "provider_name": "tushare",
       "method": "get_gdp",
       "date_format": "quarter",
-      "rolling_periods": 4,
+      "rolling_unit": "quarter",
+      "rolling_length": 4,
       "default_date_range": {"years": 5},
       "table_name": "gdp",
       "date_field": "quarter",
@@ -48,7 +49,7 @@ from typing import List, Dict, Any
 from loguru import logger
 
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.api_job import DataSourceTask
+from core.modules.data_source.data_classes import DataSourceTask
 
 
 class SimpleConfigHandler(BaseDataSourceHandler):
@@ -82,35 +83,50 @@ class SimpleConfigHandler(BaseDataSourceHandler):
             self.data_source = definition.data_source
             self.description = f"SimpleConfigHandler for {self.data_source}"
         
-        # 使用辅助方法初始化配置
-        self.provider_name, self.method, self.field_mapping = self._setup_simple_api_config()
+        # 从配置的 API 中获取第一个 API 作为默认（用于简单场景）
+        handler_config = self.get_handler_config()
+        if handler_config and handler_config.apis:
+            # 使用第一个 API 作为默认
+            first_api_name = list(handler_config.apis.keys())[0]
+            first_api_job = self.get_api_job(first_api_name)
+            if first_api_job:
+                self.provider_name = first_api_job.provider_name
+                self.method = first_api_job.method
+                # 从配置中获取 field_mapping（如果有）
+                first_api_config = handler_config.apis[first_api_name]
+                self.field_mapping = first_api_config.get("field_mapping", {}) or {}
+            else:
+                raise ValueError(f"无法获取 API '{first_api_name}' 的配置")
+        else:
+            raise ValueError(f"{self.data_source} Handler 必须配置至少一个 API（在 handler_config.apis 中）")
         
-        # 检查是否需要滚动刷新（如果配置了相关参数）
-        rolling_periods = self.get_param("rolling_periods")
-        rolling_months = self.get_param("rolling_months")
-        date_format = self.get_param("date_format", "date")
-        
-        if rolling_periods is not None or rolling_months is not None:
+        # 检查是否需要滚动刷新（根据 renew_mode 判断）
+        renew_mode = self.get_param("renew_mode")
+        if renew_mode == "rolling":
             # 启用滚动刷新
-            self.date_format, self.rolling_periods, self.default_date_range, self.table_name, self.date_field = self._setup_rolling_config(
-                default_date_format=date_format,
-                default_rolling_periods=rolling_periods,
-                default_date_range=self.get_param("default_date_range", {"years": 5})
-            )
+            self.date_format = self.get_param("date_format", "date")
+            self.default_date_range = self.get_param("default_date_range", {"years": 5})
+            self.table_name = self.get_param("table_name", None)
+            self.date_field = self.get_param("date_field", None)
             self.requires_date_range = self.get_param("requires_date_range", True)
             self._enable_rolling = True
+            
+            # 如果未配置 table_name，使用 data_source 名称
+            if self.table_name is None:
+                self.table_name = self.data_source
+            
+            # 如果未配置 date_field，根据 date_format 自动识别
+            if self.date_field is None:
+                self.date_field = self._get_default_date_field_for_format(self.date_format)
         else:
             # 不使用滚动刷新
             self.requires_date_range = self.get_param("requires_date_range", False)
             self.table_name = self.get_param("table_name", None)
             self.date_field = self.get_param("date_field", None)
             self._enable_rolling = False
-        
-        # 如果未配置 date_field，使用默认值
-        if self.date_field is None:
-            if self._enable_rolling:
-                self.date_field = self._get_default_date_field_for_format(self.date_format)
-            else:
+            
+            # 如果未配置 date_field，使用默认值
+            if self.date_field is None:
                 self.date_field = "date"
     
     async def before_fetch(self, context: Dict[str, Any] = None):
@@ -127,20 +143,15 @@ class SimpleConfigHandler(BaseDataSourceHandler):
             from core.modules.data_source.services import RollingRenewService
             
             # 获取滚动刷新配置
-            rolling_unit = self.get_param("rolling_unit", "day")
+            rolling_unit = self.get_param("rolling_unit")
             rolling_length = self.get_param("rolling_length")
             
-            # 向后兼容：如果没有配置新的参数，使用旧的 rolling_periods/rolling_months
-            if rolling_length is None:
-                if self.rolling_periods:
-                    # 根据 date_format 推断 rolling_unit
-                    if self.date_format == "quarter":
-                        rolling_unit = "quarter"
-                    elif self.date_format == "month":
-                        rolling_unit = "month"
-                    else:
-                        rolling_unit = "day"
-                    rolling_length = self.rolling_periods
+            if rolling_unit is None or rolling_length is None:
+                logger.warning(
+                    f"Rolling mode 需要 rolling_unit 和 rolling_length，跳过自动处理 "
+                    f"(handler: {self.data_source}, rolling_unit: {rolling_unit}, rolling_length: {rolling_length})"
+                )
+                return context
             
             # 使用 service 计算日期范围
             service = RollingRenewService(data_manager=self.data_manager)
@@ -180,13 +191,22 @@ class SimpleConfigHandler(BaseDataSourceHandler):
         context_params = context.get("extra_params", {})
         api_params.update(context_params)
         
-        # 创建简单的单 API 调用 Task
-        task = self.create_simple_task(
-            provider_name=self.provider_name,
-            method=self.method,
-            params=api_params
-        )
-        return [task]
+        # 从缓存的 API Job 创建 Task
+        handler_config = self.get_handler_config()
+        if handler_config and handler_config.apis:
+            first_api_name = list(handler_config.apis.keys())[0]
+            api_job = self.get_api_job_with_params(
+                name=first_api_name,
+                params=api_params
+            )
+            task = DataSourceTask(
+                task_id=f"{self.data_source}_task",
+                api_jobs=[api_job],
+                description=f"获取 {self.data_source} 数据"
+            )
+            return [task]
+        else:
+            raise ValueError(f"{self.data_source} Handler 必须配置至少一个 API")
     
     async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """标准化数据 - 使用字段映射"""

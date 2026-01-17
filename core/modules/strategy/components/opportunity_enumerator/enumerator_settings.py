@@ -177,16 +177,16 @@ class OpportunityEnumeratorSettings:
             max_test_versions_int = 10  # 至少保留 1 个版本
         self.max_test_versions = max_test_versions_int
         
-        # max_sot_versions：最多保留的全量枚举（SOT）版本数，默认 3
+        # max_output_versions：最多保留的全量枚举（output）版本数，默认 3
         # 超过此数量的全量版本会被自动清理（删除最早的版本）
-        max_sot_versions = enumerator.get("max_sot_versions", 3)
+        max_output_versions = enumerator.get("max_output_versions", 3)
         try:
-            max_sot_versions_int = int(max_sot_versions)
+            max_output_versions_int = int(max_output_versions)
         except (TypeError, ValueError):
-            max_sot_versions_int = 3
-        if max_sot_versions_int < 1:
-            max_sot_versions_int = 3  # 至少保留 1 个版本
-        self.max_sot_versions = max_sot_versions_int
+            max_output_versions_int = 3
+        if max_output_versions_int < 1:
+            max_output_versions_int = 3  # 至少保留 1 个版本
+        self.max_output_versions = max_output_versions_int
 
         # max_workers：枚举器专用 worker 数量
         max_workers = enumerator.get("max_workers", "auto")
@@ -214,8 +214,8 @@ class OpportunityEnumeratorSettings:
         # ----- simulator 部分 -----
         simulator = dict(settings.get("simulator") or {})
 
-        # goal 配置：优先从顶层 goal 读取，如果没有则从 simulator.goal 读取（向后兼容）
-        goal = settings.get("goal") or simulator.get("goal")
+        # goal 配置：从顶层 goal 读取
+        goal = settings.get("goal", {})
         if goal is None or not goal:
             # ⚠️ 致命错误：枚举器必须配置 goal（止盈止损），否则所有机会都无法完成，会被标记为 expired
             # 如果没有 goal，机会会一直持有直到回测结束，导致 completed_targets 为空
@@ -250,7 +250,7 @@ class OpportunityEnumeratorSettings:
             merged["enumerator"] = {}
         merged["enumerator"]["use_sampling"] = self.use_sampling
         merged["enumerator"]["max_test_versions"] = self.max_test_versions
-        merged["enumerator"]["max_sot_versions"] = self.max_sot_versions
+        merged["enumerator"]["max_output_versions"] = self.max_output_versions
         merged["enumerator"]["max_workers"] = self.max_workers
         merged["enumerator"]["is_verbose"] = self.is_verbose
         merged["enumerator"]["memory_budget_mb"] = self.memory_budget_mb

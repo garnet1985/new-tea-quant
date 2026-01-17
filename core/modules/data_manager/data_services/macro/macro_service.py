@@ -57,7 +57,7 @@ class MacroService(BaseDataService):
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
-        self.db = DatabaseManager.get_default()
+        self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== GDP 数据 ====================
     

@@ -73,7 +73,11 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
         from core.infra.db import DatabaseManager
         
         # 自动获取或使用传入的 db
-        self.db = db if db is not None else DatabaseManager.get_default()
+        if db is not None:
+            self.db = db
+        else:
+            # 自动获取默认实例（如果不存在会自动创建并初始化）
+            self.db = DatabaseManager.get_default(auto_init=True)
         self.table_name = table_name
         self.schema = self.load_schema()
         self.verbose = False

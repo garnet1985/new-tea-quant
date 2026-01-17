@@ -27,18 +27,16 @@ class ConnectionManager:
     - 游标管理
     """
     
-    def __init__(self, config: Dict, is_verbose: bool = False, read_only: bool = False):
+    def __init__(self, config: Dict, is_verbose: bool = False):
         """
         初始化连接管理器
         
         Args:
             config: 数据库配置
             is_verbose: 是否输出详细日志
-            read_only: 是否以只读模式打开
         """
         self.config = config
         self.is_verbose = is_verbose
-        self.read_only = read_only
         self.adapter: Optional[BaseDatabaseAdapter] = None
         self._initialized = False
     
@@ -49,13 +47,18 @@ class ConnectionManager:
         步骤：
         1. 使用适配器工厂创建适配器
         2. 连接数据库
+        
+        注意：此方法是幂等的，多次调用只会执行一次
         """
+        # 幂等检查：如果已经初始化，直接返回
+        if self._initialized and self.adapter:
+            return
+        
         try:
             # 创建适配器
             self.adapter = DatabaseAdapterFactory.create(
                 self.config,
-                is_verbose=self.is_verbose,
-                read_only=self.read_only
+                is_verbose=self.is_verbose
             )
             
             self._initialized = True
@@ -88,6 +91,10 @@ class ConnectionManager:
                 # 连接对象可以直接执行 SQL
                 conn.execute("SELECT ...")
         """
+        if not self._initialized:
+            # 尝试自动初始化
+            self.initialize()
+        
         if not self.adapter:
             raise RuntimeError("数据库未初始化，请先调用 initialize()")
         
@@ -113,6 +120,10 @@ class ConnectionManager:
                 cursor.execute("INSERT ...")
                 # 自动提交，出错自动回滚
         """
+        if not self._initialized:
+            # 尝试自动初始化
+            self.initialize()
+        
         if not self.adapter:
             raise RuntimeError("数据库未初始化，请先调用 initialize()")
         
@@ -130,7 +141,11 @@ class ConnectionManager:
                 cursor.execute("SELECT * FROM table")
                 results = cursor.fetchall()
         """
-        if not self._initialized or not self.adapter:
+        if not self._initialized:
+            # 尝试自动初始化
+            self.initialize()
+        
+        if not self.adapter:
             raise RuntimeError("ConnectionManager not initialized. Call initialize() first.")
         
         cursor = DatabaseCursor(self.adapter)
@@ -153,6 +168,10 @@ class ConnectionManager:
         Returns:
             查询结果列表（字典格式）
         """
+        if not self._initialized:
+            # 尝试自动初始化
+            self.initialize()
+        
         if not self.adapter:
             raise RuntimeError("ConnectionManager not initialized. Call initialize() first.")
         

@@ -165,18 +165,13 @@ class StrategyDiscoveryHelper:
             logger.error("settings.data 必须是字典")
             return False
         
-        # 兼容两种命名方式：
-        # - 旧版：base / adjust
-        # - 新版：base_price_source / adjust_type
-        has_base = ('base' in data) or ('base_price_source' in data)
-        has_adjust = ('adjust' in data) or ('adjust_type' in data)
-        
-        if not has_base:
-            logger.error("settings.data.base 不能为空（或缺少 base_price_source）")
+        # 必须包含 base_price_source 和 adjust_type
+        if 'base_price_source' not in data:
+            logger.error("settings.data.base_price_source 不能为空")
             return False
         
-        if not has_adjust:
-            logger.error("settings.data.adjust 不能为空（或缺少 adjust_type）")
+        if 'adjust_type' not in data:
+            logger.error("settings.data.adjust_type 不能为空")
             return False
         
         return True

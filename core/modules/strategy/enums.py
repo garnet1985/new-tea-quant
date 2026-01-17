@@ -14,10 +14,13 @@ class ExecutionMode(Enum):
 
 class OpportunityStatus(Enum):
     """机会状态"""
-    ACTIVE = 'active'      # 活跃（待回测）
+    ACTIVE = 'active'      # 活跃（待回测，正在追踪中）
     TESTING = 'testing'    # 测试中
     CLOSED = 'closed'      # 已关闭（回测完成）
     EXPIRED = 'expired'    # 已失效
+    OPEN = 'open'          # 枚举结束时仍有未完成的 target
+    WIN = 'win'            # 所有 target 完成且 ROI > 0
+    LOSS = 'loss'          # 所有 target 完成且 ROI <= 0
 
 
 class SellReason(Enum):

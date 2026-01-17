@@ -786,7 +786,7 @@ class BaseHandlerConfig:
 
 ```python
 # userspace/data_source/handlers/kline/config.py
-from core.modules.data_source.definition.handler_config import BaseHandlerConfig
+from core.modules.data_source.data_classes.handler_config import BaseHandlerConfig
 from dataclasses import dataclass
 from typing import Optional
 

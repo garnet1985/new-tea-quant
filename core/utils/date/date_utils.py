@@ -531,3 +531,263 @@ class DateUtils:
         last_day = calendar.monthrange(last_month_year, last_month)[1]
         
         return f"{last_month_year}{last_month:02d}{last_day:02d}"
+    
+    # ========== 周期格式处理（quarter/month/day）==========
+    
+    @staticmethod
+    def get_current_period(current_date: str, date_format: str):
+        """
+        根据 date_format 获取当前周期值
+        
+        将 YYYYMMDD 格式的日期转换为对应的周期格式。
+        
+        Args:
+            current_date: 日期字符串（YYYYMMDD）
+            date_format: 日期格式（"quarter" | "month" | "day"）
+        
+        Returns:
+            - quarter: (year, quarter) 元组，如 (2024, 1)
+            - month: (year, month) 元组，如 (2024, 1)
+            - day: 日期字符串（YYYYMMDD）
+        
+        Example:
+            >>> DateUtils.get_current_period("20240315", "quarter")
+            (2024, 1)
+            >>> DateUtils.get_current_period("20240315", "month")
+            (2024, 3)
+            >>> DateUtils.get_current_period("20240315", "day")
+            "20240315"
+        """
+        if date_format == "quarter":
+            current_year = int(current_date[:4])
+            current_month = int(current_date[4:6])
+            if current_month <= 3:
+                return (current_year, 1)
+            elif current_month <= 6:
+                return (current_year, 2)
+            elif current_month <= 9:
+                return (current_year, 3)
+            else:
+                return (current_year, 4)
+        elif date_format == "month":
+            return (int(current_date[:4]), int(current_date[4:6]))
+        else:  # date_format == "day" or "date"
+            return current_date
+    
+    @staticmethod
+    def parse_period(value: str, date_format: str):
+        """
+        解析周期格式字符串
+        
+        Args:
+            value: 周期字符串
+                - quarter: "2024Q1" 格式
+                - month: "202403" 格式
+                - day: "20240315" 格式
+            date_format: 日期格式（"quarter" | "month" | "day"）
+        
+        Returns:
+            - quarter: (year, quarter) 元组
+            - month: (year, month) 元组
+            - day: 日期字符串（YYYYMMDD）
+        
+        Example:
+            >>> DateUtils.parse_period("2024Q1", "quarter")
+            (2024, 1)
+            >>> DateUtils.parse_period("202403", "month")
+            (2024, 3)
+            >>> DateUtils.parse_period("20240315", "day")
+            "20240315"
+        """
+        if date_format == "quarter":
+            year = int(value[:4])
+            quarter = int(value[5])
+            return (year, quarter)
+        elif date_format == "month":
+            return (int(value[:4]), int(value[4:6]))
+        else:  # date_format == "day" or "date"
+            return value
+    
+    @staticmethod
+    def format_period(value, date_format: str) -> str:
+        """
+        格式化周期值为字符串
+        
+        Args:
+            value: 周期值
+                - quarter: (year, quarter) 元组
+                - month: (year, month) 元组
+                - day: 日期字符串（YYYYMMDD）
+            date_format: 日期格式（"quarter" | "month" | "day"）
+        
+        Returns:
+            格式化后的字符串
+                - quarter: "2024Q1"
+                - month: "202403"
+                - day: "20240315"
+        
+        Example:
+            >>> DateUtils.format_period((2024, 1), "quarter")
+            "2024Q1"
+            >>> DateUtils.format_period((2024, 3), "month")
+            "202403"
+            >>> DateUtils.format_period("20240315", "day")
+            "20240315"
+        """
+        if date_format == "quarter":
+            year, quarter = value
+            return f"{year}Q{quarter}"
+        elif date_format == "month":
+            year, month = value
+            return f"{year}{month:02d}"
+        else:  # date_format == "day" or "date"
+            return value
+    
+    @staticmethod
+    def calculate_period_diff(latest_value: str, current_value, date_format: str) -> int:
+        """
+        计算两个日期之间的周期差
+        
+        Args:
+            latest_value: 最新周期字符串
+            current_value: 当前周期值（元组或字符串）
+            date_format: 日期格式（"quarter" | "month" | "day"）
+        
+        Returns:
+            周期差（整数）
+                - quarter: 季度差
+                - month: 月份差
+                - day: 天数差
+        
+        Example:
+            >>> DateUtils.calculate_period_diff("2023Q4", (2024, 2), "quarter")
+            2
+            >>> DateUtils.calculate_period_diff("202401", (2024, 3), "month")
+            2
+        """
+        latest = DateUtils.parse_period(latest_value, date_format)
+        current = current_value
+        
+        if date_format == "quarter":
+            latest_year, latest_quarter = latest
+            current_year, current_quarter = current
+            return (current_year - latest_year) * 4 + (current_quarter - latest_quarter)
+        elif date_format == "month":
+            latest_year, latest_month = latest
+            current_year, current_month = current
+            return (current_year - latest_year) * 12 + (current_month - latest_month)
+        else:  # date_format == "day" or "date"
+            latest_date = DateUtils.parse_yyyymmdd(latest)
+            current_date = DateUtils.parse_yyyymmdd(current)
+            return (current_date - latest_date).days
+    
+    @staticmethod
+    def subtract_periods(value, periods: int, date_format: str):
+        """
+        减去 N 个周期
+        
+        Args:
+            value: 周期值（元组或字符串）
+            periods: 要减去的周期数
+            date_format: 日期格式（"quarter" | "month" | "day"）
+        
+        Returns:
+            减去周期后的值（元组或字符串）
+        
+        Example:
+            >>> DateUtils.subtract_periods((2024, 2), 2, "quarter")
+            (2023, 4)
+            >>> DateUtils.subtract_periods((2024, 3), 5, "month")
+            (2023, 10)
+            >>> DateUtils.subtract_periods("20240315", 30, "day")
+            "20240214"
+        """
+        from datetime import timedelta
+        
+        if date_format == "quarter":
+            year, quarter = value
+            quarter -= periods - 1
+            while quarter < 1:
+                quarter += 4
+                year -= 1
+            return (year, quarter)
+        elif date_format == "month":
+            year, month = value
+            month -= periods - 1
+            while month < 1:
+                month += 12
+                year -= 1
+            return (year, month)
+        else:  # date_format == "day" or "date"
+            date = DateUtils.parse_yyyymmdd(value)
+            new_date = date - timedelta(days=periods - 1)
+            return DateUtils.format_to_yyyymmdd(new_date)
+    
+    @staticmethod
+    def add_one_period(latest_value: str, date_format: str):
+        """
+        添加一个周期（用于历史追赶）
+        
+        Args:
+            latest_value: 最新周期字符串
+            date_format: 日期格式（"quarter" | "month" | "day"）
+        
+        Returns:
+            添加一个周期后的值（元组或字符串）
+        
+        Example:
+            >>> DateUtils.add_one_period("2023Q4", "quarter")
+            (2024, 1)
+            >>> DateUtils.add_one_period("202312", "month")
+            (2024, 1)
+            >>> DateUtils.add_one_period("20231231", "day")
+            "20240101"
+        """
+        from datetime import timedelta
+        
+        latest = DateUtils.parse_period(latest_value, date_format)
+        
+        if date_format == "quarter":
+            year, quarter = latest
+            quarter += 1
+            if quarter > 4:
+                quarter = 1
+                year += 1
+            return (year, quarter)
+        elif date_format == "month":
+            year, month = latest
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+            return (year, month)
+        else:  # date_format == "day" or "date"
+            date = DateUtils.parse_yyyymmdd(latest)
+            new_date = date + timedelta(days=1)
+            return DateUtils.format_to_yyyymmdd(new_date)
+    
+    @staticmethod
+    def get_period_unit(date_format: str) -> str:
+        """
+        获取周期单位名称
+        
+        Args:
+            date_format: 日期格式（"quarter" | "month" | "day"）
+        
+        Returns:
+            周期单位名称（"季度" | "个月" | "天"）
+        
+        Example:
+            >>> DateUtils.get_period_unit("quarter")
+            "季度"
+            >>> DateUtils.get_period_unit("month")
+            "个月"
+            >>> DateUtils.get_period_unit("day")
+            "天"
+        """
+        if date_format == "quarter":
+            return "季度"
+        elif date_format == "month":
+            return "个月"
+        else:  # date_format == "day" or "date"
+            return "天"

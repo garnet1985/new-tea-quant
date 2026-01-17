@@ -12,7 +12,7 @@ from typing import List, Dict, Any
 from loguru import logger
 
 from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.api_job import DataSourceTask, ApiJob
+from core.modules.data_source.data_classes import DataSourceTask
 from core.utils.date.date_utils import DateUtils
 
 
@@ -132,16 +132,14 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
                 continue
             
             # 创建 ApiJob
-            weight_job = ApiJob(
-                provider_name="tushare",
-                method="get_index_weight",
+            weight_job = self.get_api_job_with_params(
+                name="index_weight",
                 params={
                     "index_code": index_id,
                     "start_date": start_date,
                     "end_date": end_date,
                 },
-                job_id=f"{index_id}_weight",
-                api_name="get_index_weight"
+                job_id=f"{index_id}_weight"
             )
             
             # 创建 Task

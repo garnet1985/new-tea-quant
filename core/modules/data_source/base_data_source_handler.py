@@ -6,12 +6,10 @@ DataSource Handler 基类
 - 框架职责：解析 Job Schema → 决定执行策略 → 执行 → 返回结果
 """
 # 不再使用 ABC，因为基类提供默认实现
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import timedelta
+from typing import Dict, Any, List, Optional
 from loguru import logger
-import inspect
 
-from core.modules.data_source.api_job import ApiJob, DataSourceTask
+from core.modules.data_source.data_classes import ApiJob, DataSourceTask
 from core.utils.date.date_utils import DateUtils
 
 
@@ -73,29 +71,20 @@ class BaseDataSourceHandler:
         # 将所有非标准配置项提取到 extra_config 中，方便用户直接访问
         self.extra_config = self._load_extra_config()
         
-        # ========== 自动初始化配置（依赖注入）==========
-        # 如果配置了简单 API，自动初始化
-        try:
-            self.provider_name, self.method, self.field_mapping = self._setup_simple_api_config()
-            self._has_simple_api_config = True
-        except (ValueError, AttributeError):
-            self._has_simple_api_config = False
+        # ========== 初始化 Services ==========
+        from core.modules.data_source.services import APIJobManager, DataValidator, RenewModeService
         
-        # 如果配置了滚动刷新，自动初始化
-        rolling_periods = self.get_param("rolling_periods")
-        rolling_months = self.get_param("rolling_months")
-        if rolling_periods is not None or rolling_months is not None:
-            date_format = self.get_param("date_format", "date")
-            default_rolling_periods = rolling_periods or rolling_months
-            default_date_range = self.get_param("default_date_range", {"years": 5})
-            self.date_format, self.rolling_periods, self.default_date_range, self.table_name, self.date_field = self._setup_rolling_config(
-                default_date_format=date_format,
-                default_rolling_periods=default_rolling_periods,
-                default_date_range=default_date_range
-            )
-            self._has_rolling_config = True
-        else:
-            self._has_rolling_config = False
+        # 初始化 API Job Manager
+        self._api_job_manager = APIJobManager()
+        handler_config = self.get_handler_config()
+        if handler_config:
+            self._api_job_manager.init_api_jobs(handler_config)
+        
+        # 初始化 Data Validator
+        self._data_validator = DataValidator()
+        
+        # 初始化 Renew Mode Service
+        self._renew_mode_service = RenewModeService(data_manager=data_manager)
     
     def _validate_class_attributes(self):
         """验证子类是否定义了必需的类属性"""
@@ -128,9 +117,8 @@ class BaseDataSourceHandler:
             # Renew Mode 相关
             "renew_mode", "date_format", "rolling_unit", "rolling_length",
             "default_date_range", "table_name", "date_field",
-            "rolling_periods", "rolling_months",  # 旧版兼容（已废弃）
-            # API 相关
-            "provider_name", "method", "requires_date_range",
+            # API 相关（现在在 apis 字典中）
+            "apis", "requires_date_range",
             # 测试相关
             "dry_run", "test_mode",
             # 自定义逻辑（可选，但属于标准配置）
@@ -172,8 +160,7 @@ class BaseDataSourceHandler:
         """
         生成 Tasks（默认实现）
         
-        默认实现：如果配置了简单 API（provider_name, method），自动创建 Task。
-        复杂场景可以覆盖此方法。
+        子类必须覆盖此方法来实现自定义的 Task 生成逻辑。
         
         Args:
             context: 执行上下文
@@ -181,44 +168,15 @@ class BaseDataSourceHandler:
         Returns:
             List[DataSourceTask]: 一组编排好的 Tasks
         """
-        # 如果配置了简单 API，自动创建 Task
-        if self._has_simple_api_config:
-            api_params = {}
-            
-            # 如果需要日期范围，从 context 获取（框架已自动计算）
-            if self.requires_date_range:
-                start_date = context.get("start_date")
-                end_date = context.get("end_date")
-                
-                if start_date and end_date:
-                    api_params["start_date"] = start_date
-                    api_params["end_date"] = end_date
-            
-            # 合并其他参数
-            extra_params = self.get_param("extra_params", {})
-            api_params.update(extra_params)
-            context_params = context.get("extra_params", {})
-            api_params.update(context_params)
-            
-            # 创建简单的单 API 调用 Task
-            task = self.create_simple_task(
-                provider_name=self.provider_name,
-                method=self.method,
-                params=api_params
-            )
-            return [task]
-        
-        # 如果没有配置简单 API，子类必须覆盖此方法
         raise NotImplementedError(
-            f"{self.__class__.__name__} 必须覆盖 fetch 方法，或配置 provider_name 和 method"
+            f"{self.__class__.__name__} 必须覆盖 fetch 方法"
         )
     
     async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict:
         """
         将原始数据标准化为框架 schema 格式（默认实现）
         
-        默认实现：如果配置了字段映射，自动应用字段映射。
-        复杂场景可以覆盖此方法。
+        子类必须覆盖此方法来实现自定义的数据标准化逻辑。
         
         Args:
             task_results: 框架执行 Tasks 后返回的结果字典 {task_id: {job_id: result}}
@@ -226,26 +184,8 @@ class BaseDataSourceHandler:
         Returns:
             标准化后的数据字典，格式符合 self.schema
         """
-        # 如果配置了简单 API，自动处理
-        if self._has_simple_api_config:
-            # 使用默认逻辑：单 API 场景
-            df = self.get_simple_result(task_results)
-            
-            if df is None or df.empty:
-                logger.warning(f"{self.data_source} 数据查询返回空数据")
-                return {"data": []}
-            
-            # 转换为字典列表并应用字段映射（使用辅助方法）
-            records = df.to_dict('records')
-            formatted = self._apply_field_mapping(records, self.field_mapping)
-            
-            logger.info(f"✅ {self.data_source} 数据处理完成，共 {len(formatted)} 条记录")
-            
-            return {"data": formatted}
-        
-        # 如果没有配置简单 API，子类必须覆盖此方法
         raise NotImplementedError(
-            f"{self.__class__.__name__} 必须覆盖 normalize 方法，或配置 provider_name 和 method"
+            f"{self.__class__.__name__} 必须覆盖 normalize 方法"
         )
     
     # ========== 可选的钩子方法 ==========
@@ -387,6 +327,58 @@ class BaseDataSourceHandler:
         """
         pass
     
+    def _save_data_with_clean_nan(
+        self,
+        normalized_data: Dict[str, Any],
+        context: Dict[str, Any],
+        save_method: callable,
+        data_source_name: str = None
+    ) -> None:
+        """
+        保存数据到数据库的辅助方法（带 NaN 清理）
+        
+        这是一个通用的保存方法，适用于需要清理 NaN 值的数据源。
+        使用场景：lpr, shibor, gdp 等宏观经济数据。
+        
+        Args:
+            normalized_data: 标准化后的数据（包含 'data' 键）
+            context: 执行上下文
+            save_method: 保存方法（如 self.data_manager.macro.save_lpr_data）
+            data_source_name: 数据源名称（用于日志，如果为 None 使用 self.data_source）
+        """
+        context = context or {}
+        data_source_name = data_source_name or self.data_source
+        
+        # 检查是否是 dry_run 模式
+        dry_run = context.get('dry_run', False)
+        if dry_run:
+            logger.info(f"🧪 干运行模式：跳过 {data_source_name} 数据保存")
+            return
+        
+        if not self.data_manager:
+            logger.warning(f"DataManager 未初始化，无法保存 {data_source_name} 数据")
+            return
+        
+        # 验证数据格式
+        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
+        if not data_list:
+            logger.debug(f"{data_source_name} 数据为空，无需保存")
+            return
+        
+        try:
+            # 清理 NaN 值
+            from core.infra.db.helpers.db_helpers import DBHelper
+            data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
+            
+            # 使用传入的保存方法保存数据
+            count = save_method(data_list)
+            logger.info(f"✅ {data_source_name} 数据保存完成，共 {count} 条记录")
+        except Exception as e:
+            logger.error(f"❌ 保存 {data_source_name} 数据失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
+    
     # ========== 错误处理 ==========
     async def on_error(self, error: Exception, context: Dict[str, Any]):
         """错误处理钩子"""
@@ -445,10 +437,25 @@ class BaseDataSourceHandler:
             renew_mode = self.get_param("renew_mode")
             if renew_mode and renew_mode in ["incremental", "rolling", "refresh"]:
                 if "start_date" not in context or "end_date" not in context:
+                    logger.debug(f"🔄 {self.data_source} Handler 配置了 {renew_mode} mode，自动计算日期范围")
                     await self._auto_before_fetch_by_renew_mode(context)
+                    # 检查日期范围是否成功设置
+                    if "start_date" in context and "end_date" in context:
+                        logger.debug(f"  ✅ 日期范围已设置: {context['start_date']} 至 {context['end_date']}")
+                    else:
+                        logger.warning(f"  ⚠️ 日期范围未设置，可能导致 fetch 失败")
             
             tasks = await self.fetch(context)
             self._generated_tasks = tasks  # 保存引用，供 normalize 使用
+            
+            # 检查 tasks 是否为空
+            if not tasks:
+                logger.warning(f"⚠️ {self.data_source} Handler 的 fetch 方法返回了空的 tasks 列表，跳过执行")
+                return {"data": []}
+            
+            # 记录生成的 tasks 信息
+            total_jobs = sum(len(task.api_jobs) for task in tasks)
+            logger.info(f"📋 {self.data_source} Handler 生成了 {len(tasks)} 个 Tasks，共 {total_jobs} 个 API Jobs")
             
             await self.after_fetch(tasks, context)
             
@@ -466,11 +473,20 @@ class BaseDataSourceHandler:
                 providers = {}
                 # 收集所有需要的 provider（从 tasks 中提取）
                 for task in tasks:
+                    if not task.api_jobs:
+                        logger.warning(f"⚠️ Task {task.task_id} 没有 api_jobs，跳过")
+                        continue
                     for api_job in task.api_jobs:
                         if api_job.provider_name not in providers:
                             provider = provider_pool.get_provider(api_job.provider_name)
                             if provider:
                                 providers[api_job.provider_name] = provider
+                            else:
+                                logger.warning(f"⚠️ Provider {api_job.provider_name} 未找到，可能无法执行 API 请求")
+                
+                if not providers:
+                    logger.error(f"❌ {self.data_source} Handler 没有可用的 providers，无法执行 API 请求")
+                    return {"data": []}
                 
                 executor = TaskExecutor(providers=providers)
                 # 设置 handler 和 context（用于单个 task 执行前后的钩子）
@@ -511,49 +527,7 @@ class BaseDataSourceHandler:
         Returns:
             bool: 是否符合规范
         """
-        if not self.schema:
-            return True
-        
-        # 如果数据是 {"data": [...]} 格式，验证列表中的每个记录
-        if isinstance(data, dict) and "data" in data:
-            data_list = data.get("data", [])
-            if not isinstance(data_list, list):
-                logger.error(f"数据验证失败: data 字段不是列表类型")
-                return False
-            
-            # 验证列表中的每个记录
-            for idx, record in enumerate(data_list):
-                if not isinstance(record, dict):
-                    logger.error(f"数据验证失败: 记录 {idx} 不是字典类型")
-                    return False
-                if not self.schema.validate(record):
-                    # 找出缺失或无效的字段
-                    missing_fields = []
-                    for field_name, field_def in self.schema.schema.items():
-                        if field_def.required and field_name not in record:
-                            missing_fields.append(field_name)
-                        elif field_name in record and record[field_name] is not None:
-                            value = record[field_name]
-                            expected_type = field_def.type
-                            if not isinstance(value, expected_type):
-                                try:
-                                    if expected_type == int and isinstance(value, (float, str)):
-                                        int(value)
-                                    elif expected_type == float and isinstance(value, (int, str)):
-                                        float(value)
-                                    elif expected_type == str:
-                                        str(value)
-                                    else:
-                                        missing_fields.append(f"{field_name}(类型错误: {type(value).__name__} != {expected_type.__name__})")
-                                except (ValueError, TypeError):
-                                    missing_fields.append(f"{field_name}(类型错误: {type(value).__name__} != {expected_type.__name__})")
-                    if missing_fields:
-                        logger.error(f"数据验证失败: 记录 {idx} 缺少或无效的字段: {', '.join(missing_fields)}")
-                    return False
-            return True
-        
-        # 如果数据不是 {"data": [...]} 格式，直接验证整个字典
-        return self.schema.validate(data)
+        return self._data_validator.validate(data, self.schema)
     
     # ========== Provider 管理 ==========
     
@@ -701,17 +675,6 @@ class BaseDataSourceHandler:
         # 或者属性不存在，返回 default
         return default
     
-    def get_provider_config(self):
-        """
-        获取 ProviderConfig（如果存在 DataSourceDefinition）
-        
-        Returns:
-            ProviderConfig 对象，如果不存在则返回 None
-        """
-        if self._definition:
-            return self._definition.provider_config
-        return None
-    
     def get_handler_config(self):
         """
         获取 HandlerConfig（如果存在 DataSourceDefinition）
@@ -723,351 +686,77 @@ class BaseDataSourceHandler:
             return self._definition.handler_config
         return None
     
-    # ========== 滚动刷新辅助方法（简化业务 Handler）==========
-    
-    def _setup_simple_api_config(self) -> Tuple[str, str, Dict[str, Any]]:
+    def get_api_job(self, name: str) -> Optional[ApiJob]:
         """
-        初始化简单 API 配置（辅助方法）
+        根据 name 获取缓存的 ApiJob 实例
         
-        从 provider_config 或 handler_config 中读取 provider_name, method, field_mapping。
+        Args:
+            name: API 名称（配置中的 key）
         
         Returns:
-            Tuple[str, str, Dict]: (provider_name, method, field_mapping)
+            ApiJob 实例，如果不存在则返回 None
+        """
+        return self._api_job_manager.get_api_job(name)
+    
+    def get_api_job_with_params(
+        self,
+        name: str,
+        params: Dict[str, Any],
+        job_id: Optional[str] = None,
+        **kwargs
+    ) -> ApiJob:
+        """
+        获取 ApiJob 实例并设置新的 params（便捷方法）
+        
+        从缓存的 ApiJob 实例创建新实例，只修改 params 和其他指定字段。
+        这是推荐的用法，避免在 fetch 中直接创建 ApiJob。
+        
+        Args:
+            name: API 名称（配置中的 key）
+            params: API 调用参数（动态生成，会与配置中的默认 params 合并）
+            job_id: Job ID（可选）
+            **kwargs: 其他要修改的字段（depends_on, priority, timeout 等）
+        
+        Returns:
+            ApiJob 对象（新实例）
         
         Raises:
-            ValueError: 如果 method 未配置
-        """
-        provider_config = self.get_provider_config()
-        if provider_config and provider_config.apis and len(provider_config.apis) > 0:
-            first_api = provider_config.apis[0]
-            provider_name = self.get_param("provider_name") or first_api.provider_name
-            method = self.get_param("method") or first_api.method
-            field_mapping = self.get_param("field_mapping") or first_api.field_mapping or {}
-        else:
-            provider_name = self.get_param("provider_name", "tushare")
-            method = self.get_param("method")
-            field_mapping = self.get_param("field_mapping", {})
+            ValueError: 如果 API 不存在
         
-        if not method:
-            raise ValueError(f"{self.__class__.__name__} 必须配置 method 参数（在 handler_config 或 provider_config.apis[0] 中）")
-        
-        return provider_name, method, field_mapping
-    
-    def _setup_rolling_config(
-        self,
-        default_date_format: str = "date",
-        default_rolling_periods: Optional[int] = None,
-        default_date_range: Optional[Dict[str, int]] = None
-    ) -> Tuple[str, int, Dict[str, int], str, str]:
-        """
-        初始化滚动刷新配置（辅助方法）
-        
-        Args:
-            default_date_format: 默认日期格式（quarter | month | date | none）
-            default_rolling_periods: 默认滚动周期数（如果为 None，根据 date_format 自动设置）
-            default_date_range: 默认日期范围（如果为 None，使用 {"years": 5}）
-        
-        Returns:
-            Tuple: (date_format, rolling_periods, default_date_range, table_name, date_field)
-        """
-        date_format = self.get_param("date_format", default_date_format)
-        default_date_range = self.get_param("default_date_range", default_date_range or {"years": 5})
-        rolling_periods = self.get_param("rolling_periods", default_rolling_periods)
-        table_name = self.get_param("table_name", None)
-        date_field = self.get_param("date_field", None)
-        
-        # 如果未配置 rolling_periods，根据 date_format 设置默认值
-        if rolling_periods is None:
-            if date_format == "quarter":
-                rolling_periods = 4
-            elif date_format == "month":
-                rolling_periods = 12
-            elif date_format in ["day", "date"]:  # 支持 "day" 和 "date"（向后兼容）
-                rolling_periods = 30
-            else:
-                rolling_periods = 0
-        
-        # 如果未配置 table_name，使用 data_source 名称
-        if table_name is None:
-            table_name = self.data_source
-        
-        return date_format, rolling_periods, default_date_range, table_name, date_field
-    
-    def _calculate_rolling_date_range(
-        self,
-        context: Dict[str, Any],
-        date_format: str,
-        rolling_periods: int,
-        default_date_range: Dict[str, int],
-        table_name: str,
-        date_field: Optional[str] = None
-    ) -> Tuple[str, str]:
-        """
-        计算滚动刷新日期范围（辅助方法）
-        
-        实现滚动刷新策略：
-        1. 如果数据库为空：使用默认日期范围
-        2. 如果数据库不为空：
-           - 计算最新日期距离当前的时间间隔
-           - 如果间隔 <= rolling_periods：滚动刷新最近 rolling_periods 个时间单位
-           - 如果间隔 > rolling_periods：从最新日期开始追赶（历史追赶）
-        
-        Args:
-            context: 执行上下文
-            date_format: 日期格式（quarter | month | date | none）
-            rolling_periods: 滚动刷新周期数
-            default_date_range: 默认日期范围
-            table_name: 数据库表名
-            date_field: 数据库日期字段名（如果为 None，根据 date_format 自动识别）
-        
-        Returns:
-            Tuple[str, str]: (start_date, end_date)
-        """
-        # 如果 context 中已有日期范围，直接使用
-        if "start_date" in context and "end_date" in context:
-            logger.debug(f"使用 context 中的日期范围: {context['start_date']} 至 {context['end_date']}")
-            return context["start_date"], context["end_date"]
-        
-        # 获取当前日期/季度/月份
-        current_date = DateUtils.get_current_date_str()
-        current_value = self._get_current_value_for_format(current_date, date_format)
-        
-        # 从 data_manager 查询数据库获取最新日期
-        latest_value = None
-        if self.data_manager and rolling_periods > 0:
-            try:
-                model = self.data_manager.get_table(table_name)
-                if model:
-                    latest_record = model.load_latest()
-                    if latest_record:
-                        if date_field is None:
-                            date_field = self._get_default_date_field_for_format(date_format)
-                        latest_value = latest_record.get(date_field, '')
-            except Exception as e:
-                logger.warning(f"查询数据库失败: {e}")
-        
-        # 计算需要更新的日期范围
-        if not latest_value:
-            # 数据库为空：使用默认日期范围
-            start_date, end_date = self._calculate_default_date_range_for_format(
-                current_date, date_format, default_date_range
+        Example:
+            # 在 fetch 方法中使用
+            api_job = self.get_api_job_with_params(
+                name="finance_data",
+                params={
+                    "ts_code": stock_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                },
+                job_id=f"{stock_id}_finance"
             )
-            logger.info(f"数据库为空，使用默认日期范围: {start_date} 至 {end_date}")
-        else:
-            # 数据库不为空：计算时间间隔
-            period_diff = self._calculate_period_diff_for_format(
-                latest_value, current_value, date_format
-            )
-            
-            if period_diff <= rolling_periods:
-                # 间隔 <= rolling_periods：滚动刷新最近 rolling_periods 个时间单位
-                start_value = self._subtract_periods_for_format(
-                    current_value, rolling_periods, date_format
-                )
-                start_date = self._format_value_for_format(start_value, date_format)
-                end_date = self._format_value_for_format(current_value, date_format)
-                period_unit = self._get_period_unit_for_format(date_format)
-                logger.info(f"滚动刷新最近 {rolling_periods} 个{period_unit}: {start_date} 至 {end_date}（数据库最新: {latest_value}）")
-            else:
-                # 间隔 > rolling_periods：从最新日期开始追赶
-                start_value = self._add_one_period_for_format(latest_value, date_format)
-                start_date = self._format_value_for_format(start_value, date_format)
-                end_date = self._format_value_for_format(current_value, date_format)
-                period_unit = self._get_period_unit_for_format(date_format)
-                logger.info(f"历史追赶: {start_date} 至 {end_date}（数据库最新: {latest_value}，落后 {period_diff} 个{period_unit}）")
-        
-        return start_date, end_date
+        """
+        return self._api_job_manager.get_api_job_with_params(
+            name=name,
+            params=params,
+            job_id=job_id,
+            **kwargs
+        )
     
-    def _get_current_value_for_format(self, current_date: str, date_format: str):
-        """根据 date_format 获取当前值"""
-        if date_format == "quarter":
-            current_year = int(current_date[:4])
-            current_month = int(current_date[4:6])
-            if current_month <= 3:
-                return (current_year, 1)
-            elif current_month <= 6:
-                return (current_year, 2)
-            elif current_month <= 9:
-                return (current_year, 3)
-            else:
-                return (current_year, 4)
-        elif date_format == "month":
-            return (int(current_date[:4]), int(current_date[4:6]))
-        else:  # date_format == "day" or "date" (向后兼容)
-            return current_date
+    
+    
+    # ========== 滚动刷新辅助方法（简化业务 Handler）==========
+    
+    
     
     def _get_default_date_field_for_format(self, date_format: str) -> str:
-        """根据 date_format 获取默认日期字段名"""
+        """根据 date_format 获取默认日期字段名（业务逻辑）"""
         if date_format == "quarter":
             return "quarter"
         elif date_format == "month":
             return "date"  # price_indexes 使用 date 字段存储月份
-        else:  # date_format == "day" or "date" (向后兼容)
+        else:  # date_format == "day" or "date"
             return "date"
     
-    def _parse_value_for_format(self, value: str, date_format: str):
-        """解析日期值"""
-        if date_format == "quarter":
-            year = int(value[:4])
-            quarter = int(value[5])
-            return (year, quarter)
-        elif date_format == "month":
-            return (int(value[:4]), int(value[4:6]))
-        else:  # date_format == "day" or "date" (向后兼容)
-            return value
-    
-    def _format_value_for_format(self, value, date_format: str) -> str:
-        """格式化日期值"""
-        if date_format == "quarter":
-            year, quarter = value
-            return f"{year}Q{quarter}"
-        elif date_format == "month":
-            year, month = value
-            return f"{year}{month:02d}"
-        else:  # date_format == "day" or "date" (向后兼容)
-            return value
-    
-    def _calculate_period_diff_for_format(self, latest_value: str, current_value, date_format: str) -> int:
-        """计算两个日期之间的周期差"""
-        latest = self._parse_value_for_format(latest_value, date_format)
-        current = current_value
-        
-        if date_format == "quarter":
-            latest_year, latest_quarter = latest
-            current_year, current_quarter = current
-            return (current_year - latest_year) * 4 + (current_quarter - latest_quarter)
-        elif date_format == "month":
-            latest_year, latest_month = latest
-            current_year, current_month = current
-            return (current_year - latest_year) * 12 + (current_month - latest_month)
-        else:  # date_format == "day" or "date" (向后兼容)
-            latest_date = DateUtils.parse_yyyymmdd(latest)
-            current_date = DateUtils.parse_yyyymmdd(current)
-            return (current_date - latest_date).days
-    
-    def _subtract_periods_for_format(self, value, periods: int, date_format: str):
-        """减去 N 个周期"""
-        if date_format == "quarter":
-            year, quarter = value
-            quarter -= periods - 1
-            while quarter < 1:
-                quarter += 4
-                year -= 1
-            return (year, quarter)
-        elif date_format == "month":
-            year, month = value
-            month -= periods - 1
-            while month < 1:
-                month += 12
-                year -= 1
-            return (year, month)
-        else:  # date_format == "day" or "date" (向后兼容)
-            date = DateUtils.parse_yyyymmdd(value)
-            new_date = date - timedelta(days=periods - 1)
-            return DateUtils.format_to_yyyymmdd(new_date)
-    
-    def _add_one_period_for_format(self, latest_value: str, date_format: str):
-        """添加一个周期（用于历史追赶）"""
-        latest = self._parse_value_for_format(latest_value, date_format)
-        
-        if date_format == "quarter":
-            year, quarter = latest
-            quarter += 1
-            if quarter > 4:
-                quarter = 1
-                year += 1
-            return (year, quarter)
-        elif date_format == "month":
-            year, month = latest
-            month += 1
-            if month > 12:
-                month = 1
-                year += 1
-            return (year, month)
-        else:  # date_format == "day" or "date" (向后兼容)
-            date = DateUtils.parse_yyyymmdd(latest)
-            new_date = date + timedelta(days=1)
-            return DateUtils.format_to_yyyymmdd(new_date)
-    
-    def _get_period_unit_for_format(self, date_format: str) -> str:
-        """获取周期单位名称"""
-        if date_format == "quarter":
-            return "季度"
-        elif date_format == "month":
-            return "个月"
-        else:  # date_format == "day" or "date" (向后兼容)
-            return "天"
-    
-    def _calculate_default_date_range_for_format(
-        self,
-        current_date: str,
-        date_format: str,
-        default_date_range: Dict[str, int]
-    ) -> Tuple[str, str]:
-        """根据配置计算默认日期范围"""
-        current_year = int(current_date[:4])
-        current_month = int(current_date[4:6])
-        
-        if date_format == "quarter":
-            if current_month <= 3:
-                current_quarter = 1
-            elif current_month <= 6:
-                current_quarter = 2
-            elif current_month <= 9:
-                current_quarter = 3
-            else:
-                current_quarter = 4
-            
-            if "years" in default_date_range:
-                years = default_date_range["years"]
-                start_year = current_year - years
-                start_quarter = 1
-            elif "quarters" in default_date_range:
-                quarters = default_date_range["quarters"]
-                start_year = current_year
-                start_quarter = current_quarter - quarters + 1
-                while start_quarter < 1:
-                    start_quarter += 4
-                    start_year -= 1
-            else:
-                start_year = current_year - 5
-                start_quarter = 1
-            
-            end_date = f"{current_year}Q{current_quarter}"
-            start_date = f"{start_year}Q{start_quarter}"
-            
-        elif date_format == "month":
-            if "years" in default_date_range:
-                years = default_date_range["years"]
-                start_year = current_year - years
-                start_month = 1
-            elif "months" in default_date_range:
-                months = default_date_range["months"]
-                start_year = current_year
-                start_month = current_month - months + 1
-                while start_month < 1:
-                    start_month += 12
-                    start_year -= 1
-            else:
-                start_year = current_year - 3
-                start_month = 1
-            
-            end_date = f"{current_year}{current_month:02d}"
-            start_date = f"{start_year}{start_month:02d}"
-            
-        else:  # date_format == "day" or "date" (向后兼容) or "none"
-            if "years" in default_date_range:
-                years = default_date_range["years"]
-                start_date = DateUtils.get_date_before_days(current_date, years * 365)
-            elif "days" in default_date_range:
-                days = default_date_range["days"]
-                start_date = DateUtils.get_date_before_days(current_date, days)
-            else:
-                start_date = DateUtils.get_date_before_days(current_date, 5 * 365)
-            
-            end_date = current_date
-        
-        return start_date, end_date
     
     def _apply_field_mapping(
         self,
@@ -1115,171 +804,51 @@ class BaseDataSourceHandler:
     
     # ========== 自动处理辅助方法（简化 Handler 实现）==========
     
-    def _should_auto_handle_renew_mode(self) -> bool:
-        """
-        判断是否应该自动处理 renew_mode
-        
-        条件：
-        1. 配置了 renew_mode（incremental | rolling | refresh）
-        2. Handler 没有覆盖 before_fetch 方法（使用基类的默认实现）
-        """
-        # 检查是否配置了 renew_mode
-        renew_mode = self.get_param("renew_mode")
-        if not renew_mode or renew_mode not in ["incremental", "rolling", "refresh"]:
-            return False
-        
-        # 检查 Handler 是否覆盖了 before_fetch
-        # 通过检查方法定义的位置来判断是否被覆盖
-        handler_before_fetch = getattr(self.__class__, 'before_fetch', None)
-        if handler_before_fetch:
-            # 获取方法定义的文件路径
-            try:
-                method_file = inspect.getfile(handler_before_fetch)
-                base_file = inspect.getfile(BaseDataSourceHandler.before_fetch)
-                # 如果方法定义在不同的文件中，说明被覆盖了
-                if method_file != base_file:
-                    return False
-            except (OSError, TypeError):
-                # 如果无法获取文件信息，使用更保守的策略
-                # 检查方法是否在基类中定义
-                if handler_before_fetch.__qualname__ != 'BaseDataSourceHandler.before_fetch':
-                    return False
-        
-        return True
-    
     async def _auto_before_fetch_by_renew_mode(self, context: Dict[str, Any]):
         """
         根据 renew_mode 自动处理日期范围（before_fetch）
         
-        使用独立的 service 类处理不同 mode 的逻辑，核心代码分离，便于 debug。
+        使用 RenewModeService 统一处理所有 renew_mode 的逻辑。
         """
         if context is None:
             context = {}
         
         renew_mode = self.get_param("renew_mode")
         
-        if renew_mode == "incremental":
-            await self._auto_before_fetch_incremental(context)
-        elif renew_mode == "rolling":
-            await self._auto_before_fetch_rolling(context)
-        elif renew_mode == "refresh":
-            await self._auto_before_fetch_refresh(context)
-        else:
-            # 未知的 renew_mode，不自动处理
+        if not renew_mode or renew_mode not in ["incremental", "rolling", "refresh"]:
             logger.warning(f"未知的 renew_mode: {renew_mode}，跳过自动处理")
-    
-    async def _auto_before_fetch_incremental(self, context: Dict[str, Any]):
-        """
-        自动处理增量更新（incremental mode）
-        
-        使用 IncrementalRenewService 处理逻辑。
-        """
-        from core.modules.data_source.services import IncrementalRenewService
+            return
         
         # 获取配置
         date_format = self.get_param("date_format", "day")
         table_name = self.get_param("table_name")
         date_field = self.get_param("date_field")
-        
-        if not table_name or not date_field:
-            logger.warning("Incremental mode 需要 table_name 和 date_field，跳过自动处理")
-            return
-        
-        # 使用 service 计算日期范围
-        service = IncrementalRenewService(data_manager=self.data_manager)
-        start_date, end_date = service.calculate_date_range(
-            date_format=date_format,
-            table_name=table_name,
-            date_field=date_field,
-            context=context
-        )
-        
-        context["start_date"] = start_date
-        context["end_date"] = end_date
-    
-    async def _auto_before_fetch_refresh(self, context: Dict[str, Any]):
-        """
-        自动处理全量刷新（refresh mode）
-        
-        使用 RefreshRenewService 处理逻辑。
-        """
-        from core.modules.data_source.services import RefreshRenewService
-        
-        # 获取配置
-        date_format = self.get_param("date_format", "day")
-        default_date_range = self.get_param("default_date_range", {})
-        
-        # 使用 service 计算日期范围
-        service = RefreshRenewService(data_manager=self.data_manager)
-        start_date, end_date = service.calculate_date_range(
-            date_format=date_format,
-            default_date_range=default_date_range,
-            context=context
-        )
-        
-        context["start_date"] = start_date
-        context["end_date"] = end_date
-    
-    async def _auto_before_fetch_rolling(self, context: Dict[str, Any]):
-        """
-        自动处理滚动刷新（rolling mode）
-        
-        使用 RollingRenewService 处理逻辑。
-        """
-        from core.modules.data_source.services import RollingRenewService
-        
-        # 获取滚动刷新配置（优先使用新的 rolling_unit/rolling_length）
         rolling_unit = self.get_param("rolling_unit")
         rolling_length = self.get_param("rolling_length")
-        
-        # 向后兼容：如果没有配置新的参数，使用旧的 rolling_periods/rolling_months
-        if rolling_unit is None or rolling_length is None:
-            rolling_periods = self.get_param("rolling_periods")
-            rolling_months = self.get_param("rolling_months")
-            
-            if rolling_months is not None:
-                rolling_unit = "month"
-                rolling_length = rolling_months
-            elif rolling_periods is not None:
-                # 根据 date_format 推断 rolling_unit
-                date_format = self.get_param("date_format", "day")
-                if date_format == "quarter":
-                    rolling_unit = "quarter"
-                elif date_format == "month":
-                    rolling_unit = "month"
-                else:
-                    rolling_unit = "day"
-                rolling_length = rolling_periods
-            else:
-                logger.warning("Rolling mode 需要 rolling_unit/rolling_length 或 rolling_periods/rolling_months，跳过自动处理")
-                return
-        
-        # 获取其他配置
-        date_format = self.get_param("date_format", "day")
-        table_name = self.get_param("table_name")
-        date_field = self.get_param("date_field")
-        
-        if not table_name or not date_field:
-            logger.warning("Rolling mode 需要 table_name 和 date_field，跳过自动处理")
-            return
+        default_date_range = self.get_param("default_date_range", {})
         
         # 如果未配置 date_field，根据 date_format 自动识别
-        if date_field is None:
+        if date_field is None and date_format != "none":
             date_field = self._get_default_date_field_for_format(date_format)
         
-        # 使用 service 计算日期范围
-        service = RollingRenewService(data_manager=self.data_manager)
-        start_date, end_date = service.calculate_date_range(
-            date_format=date_format,
-            rolling_unit=rolling_unit,
-            rolling_length=rolling_length,
-            table_name=table_name,
-            date_field=date_field,
-            context=context
-        )
-        
-        context["start_date"] = start_date
-        context["end_date"] = end_date
+        # 使用 RenewModeService 统一处理
+        try:
+            start_date, end_date = self._renew_mode_service.calculate_date_range(
+                renew_mode=renew_mode,
+                date_format=date_format,
+                context=context,
+                table_name=table_name,
+                date_field=date_field,
+                rolling_unit=rolling_unit,
+                rolling_length=rolling_length,
+                default_date_range=default_date_range
+            )
+            
+            context["start_date"] = start_date
+            context["end_date"] = end_date
+        except ValueError as e:
+            logger.warning(f"自动处理 renew_mode 失败: {e}")
+            return
     
     # ========== 元信息 ==========
     

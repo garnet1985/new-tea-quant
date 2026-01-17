@@ -101,7 +101,7 @@ class TestDBHelper:
             # 缺少 db_path
         }
         
-        with pytest.raises(ValueError, match="SQLite 配置中缺少 'db_path' 字段"):
+        with pytest.raises(ValueError, match="配置中缺少 'sqlite' 数据库配置"):
             DBHelper.parse_database_config(config)
     
     def test_parse_database_config_complete_batch_write(self):

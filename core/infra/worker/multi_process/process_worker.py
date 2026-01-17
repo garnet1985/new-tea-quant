@@ -119,6 +119,21 @@ class ProcessWorker:
             return max(1, cpu_count - reserve_cores)
     
     @staticmethod
+    def _validate_workers(max_workers: int) -> int:
+        """
+        验证并限制 worker 数量
+        
+        Args:
+            max_workers: 请求的 worker 数量
+            
+        Returns:
+            验证后的 worker 数量（不超过 CPU 核心数的 2 倍）
+        """
+        cpu_count = mp.cpu_count() or 1
+        max_allowed = cpu_count * 2
+        return min(max(1, max_workers), max_allowed)
+    
+    @staticmethod
     def resolve_max_workers(
         max_workers: Union[str, int],
         module_name: str
@@ -174,6 +189,21 @@ class ProcessWorker:
                 logger.info(f"✅ Worker 数量（手动）: {validated}")
             
             return validated
+    
+    @staticmethod
+    def _validate_workers(max_workers: int) -> int:
+        """
+        验证并限制 worker 数量
+        
+        Args:
+            max_workers: 请求的 worker 数量
+            
+        Returns:
+            验证后的 worker 数量（不超过 CPU 核心数的 2 倍）
+        """
+        cpu_count = mp.cpu_count() or 1
+        max_allowed = cpu_count * 2
+        return min(max(1, max_workers), max_allowed)
     
     # =========================================================================
     # 实例方法

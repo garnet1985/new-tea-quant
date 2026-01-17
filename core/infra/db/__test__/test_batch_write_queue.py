@@ -39,23 +39,23 @@ class TestBatchWriteQueue:
     
     def test_init(self):
         """测试初始化批量写入队列"""
-        mock_db = Mock()
+        mock_table_manager = Mock()
         queue = BatchWriteQueue(
-            db_manager=mock_db,
+            table_manager=mock_table_manager,
             batch_size=100,
             flush_interval=5.0,
             enable=True
         )
-        assert queue.db_manager == mock_db
+        assert queue.table_manager == mock_table_manager
         assert queue.batch_size == 100
         assert queue.flush_interval == 5.0
         assert queue.enable is True
     
     def test_enqueue(self):
         """测试入队"""
-        mock_db = Mock()
+        mock_table_manager = Mock()
         queue = BatchWriteQueue(
-            db_manager=mock_db,
+            table_manager=mock_table_manager,
             batch_size=10,
             enable=True
         )
@@ -64,9 +64,10 @@ class TestBatchWriteQueue:
     
     def test_flush(self):
         """测试刷新队列"""
-        mock_db = Mock()
+        mock_table_manager = Mock()
+        mock_table_manager._direct_write = Mock()
         queue = BatchWriteQueue(
-            db_manager=mock_db,
+            table_manager=mock_table_manager,
             batch_size=10,
             enable=True
         )
@@ -77,9 +78,10 @@ class TestBatchWriteQueue:
     
     def test_flush_all(self):
         """测试刷新所有队列"""
-        mock_db = Mock()
+        mock_table_manager = Mock()
+        mock_table_manager._direct_write = Mock()
         queue = BatchWriteQueue(
-            db_manager=mock_db,
+            table_manager=mock_table_manager,
             batch_size=10,
             enable=True
         )
@@ -90,22 +92,25 @@ class TestBatchWriteQueue:
     
     def test_get_stats(self):
         """测试获取统计信息"""
-        mock_db = Mock()
+        mock_table_manager = Mock()
         queue = BatchWriteQueue(
-            db_manager=mock_db,
+            table_manager=mock_table_manager,
             batch_size=10,
             enable=True
         )
         queue.enqueue('test_table', [{'id': '001'}], ['id'])
         stats = queue.get_stats()
-        assert 'test_table' in stats
-        assert stats['test_table']['pending'] == 1
+        assert 'pending_requests' in stats
+        assert 'pending_rows' in stats
+        assert stats['pending_requests'] == 1
+        assert stats['pending_rows'] == 1
     
     def test_shutdown(self):
         """测试关闭队列"""
-        mock_db = Mock()
+        mock_table_manager = Mock()
+        mock_table_manager._direct_write = Mock()
         queue = BatchWriteQueue(
-            db_manager=mock_db,
+            table_manager=mock_table_manager,
             batch_size=10,
             enable=True
         )

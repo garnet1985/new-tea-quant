@@ -650,17 +650,3 @@ class OpportunityEnumeratorWorker:
             f"targets={len(target_rows)}, "
             f"size={total_write_size / 1024:.2f}KB"
         )
-
-
-# 已废弃：ComputeOnlyOpportunityEnumeratorWorker 类已删除
-# 原因：这是 DuckDB 时代的产物，设计目的是避免文件锁问题
-# 现在统一使用 OpportunityEnumeratorWorker，子进程按需加载数据
-# 
-# 以下代码已删除（原 ComputeOnlyOpportunityEnumeratorWorker 类，约 715 行）
-# - 不访问 DB，只依赖 payload 中预加载的内存数据
-# - 适合在「主进程已按 batch 拉好数据」的前提下进行多进程并行计算
-# 
-# 删除原因：
-# 1. 这是为了应对 DuckDB 文件锁问题而设计的特殊方案
-# 2. 现在统一使用 OpportunityEnumeratorWorker，子进程按需加载数据
-# 3. 通过 max_workers 限制并发数，避免内存爆炸

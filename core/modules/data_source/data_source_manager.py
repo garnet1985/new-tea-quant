@@ -11,7 +11,7 @@ from core.modules.data_manager import DataManager
 from core.infra.project_context import ConfigManager, PathManager
 from core.modules.data_source.definition import DataSourceDefinition
 from core.infra.discovery import ModuleDiscovery, ClassDiscovery, DiscoveryConfig
-from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
 
 
 class DataSourceManager:
@@ -102,11 +102,11 @@ class DataSourceManager:
         if not data_sources:
             logger.warning(f"⚠️ 配置文件为空: {mapping_path}")
         
-        # 验证必需字段
+        # 验证必需字段：handler 必须显式声明
         for ds_name, ds_config in data_sources.items():
             if "handler" not in ds_config:
                 logger.error(f"❌ {ds_name} 缺少必需字段 'handler'")
-                raise ValueError(f"Data source '{ds_name}' 缺少必需字段 'handler'")
+                raise ValueError(f"Data source '{ds_name}' 缺少必需字段 'handler'，必须显式声明")
         
         if self.is_verbose:
             logger.debug(f"✅ 加载了配置: {mapping_path}（共 {len(data_sources)} 个 data sources）")

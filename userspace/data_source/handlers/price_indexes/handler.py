@@ -12,7 +12,7 @@ from typing import List, Dict, Any
 from loguru import logger
 import pandas as pd
 
-from core.modules.data_source.data_source_handler import BaseDataSourceHandler
+from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
 from core.modules.data_source.api_job import DataSourceTask, ApiJob
 from core.utils.date.date_utils import DateUtils
 
@@ -36,128 +36,8 @@ class PriceIndexesHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = True  # 需要日期范围参数
     
-    def __init__(self, schema, data_manager=None, definition=None):
-        super().__init__(schema, data_manager, definition)
-        # 默认日期范围：最近 3 年（用于首次运行或数据库为空时）
-        self.default_date_range = self.get_param('default_date_range', {"years": 3})
-        # 滚动窗口：每次运行都刷新最近 N 个月的数据（确保数据一致性）
-        # 说明：宏观经济数据可能会被修正，滚动刷新可以确保最近 N 个月的数据是最新的
-        self.ROLLING_MONTHS = self.get_param('rolling_months', 12)  # 默认滚动刷新最近 12 个月
-    
-    async def before_fetch(self, context: Dict[str, Any] = None):
-        """
-        数据准备阶段
-        
-        计算需要更新的日期范围（月度数据）
-        
-        策略：
-        1. 如果数据库为空：使用默认日期范围（最近 3 年）
-        2. 如果数据库不为空：
-           - 计算最新日期距离当前月份的时间间隔
-           - 如果间隔 <= ROLLING_MONTHS：滚动刷新最近 ROLLING_MONTHS 个月
-           - 如果间隔 > ROLLING_MONTHS：从最新日期开始追赶（历史追赶）
-        """
-        if context is None:
-            context = {}
-        
-        # 如果 context 中已有日期范围，直接使用
-        if "start_date" in context and "end_date" in context:
-            return context
-        
-        # 获取当前月份
-        current_date = DateUtils.get_current_date_str()
-        current_year = int(current_date[:4])
-        current_month = int(current_date[4:6])
-        current_month_ym = f"{current_year}{current_month:02d}"
-        
-        # 从 data_manager 查询数据库获取最新日期
-        latest_date_ym = None
-        if self.data_manager:
-            try:
-                # 使用 service 访问（虽然目前没有对应的 service 方法，但可以通过 macro service 访问 model）
-                # 注意：price_indexes 属于 macro 服务，但查询最新日期需要直接访问 model
-                price_indexes_model = self.data_manager.macro._price_indexes
-                if price_indexes_model:
-                    latest_record = price_indexes_model.load_latest()
-                    if latest_record:
-                        latest_date_ym = latest_record.get('date', '')
-            except Exception as e:
-                logger.warning(f"查询数据库失败: {e}")
-        
-        # 计算需要更新的日期范围
-        if not latest_date_ym:
-            # 数据库为空：使用默认日期范围
-            start_date, end_date = self._calculate_default_date_range()
-            context["start_date"] = start_date
-            context["end_date"] = end_date
-            logger.info(f"数据库为空，使用默认日期范围: {start_date} 至 {end_date}")
-        else:
-            # 数据库不为空：计算时间间隔
-            latest_year = int(latest_date_ym[:4])
-            latest_month = int(latest_date_ym[4:6])
-            
-            # 计算月份差
-            month_diff = (current_year - latest_year) * 12 + (current_month - latest_month)
-            
-            if month_diff <= self.ROLLING_MONTHS:
-                # 间隔 <= ROLLING_MONTHS：滚动刷新最近 ROLLING_MONTHS 个月
-                start_year = current_year
-                start_month = current_month - self.ROLLING_MONTHS + 1
-                while start_month < 1:
-                    start_month += 12
-                    start_year -= 1
-                start_date = f"{start_year}{start_month:02d}"
-                end_date = current_month_ym
-                context["start_date"] = start_date
-                context["end_date"] = end_date
-                logger.info(f"滚动刷新最近 {self.ROLLING_MONTHS} 个月: {start_date} 至 {end_date}（数据库最新: {latest_date_ym}）")
-            else:
-                # 间隔 > ROLLING_MONTHS：从最新日期开始追赶
-                # 计算下一个月作为开始日期
-                start_year = latest_year
-                start_month = latest_month + 1
-                if start_month > 12:
-                    start_month = 1
-                    start_year += 1
-                start_date = f"{start_year}{start_month:02d}"
-                end_date = current_month_ym
-                context["start_date"] = start_date
-                context["end_date"] = end_date
-                logger.info(f"历史追赶: {start_date} 至 {end_date}（数据库最新: {latest_date_ym}，落后 {month_diff} 个月）")
-        
-        # 确保返回 context（虽然字典是可变对象，但为了代码清晰和一致性）
-        return context
-    
-    def _calculate_default_date_range(self) -> tuple[str, str]:
-        """
-        根据配置计算默认日期范围（月度格式：YYYYMM）
-        
-        Returns:
-            tuple: (start_date, end_date) 格式为 YYYYMM
-        """
-        current_date = DateUtils.get_current_date_str()
-        current_year = int(current_date[:4])
-        current_month = int(current_date[4:6])
-        
-        if "years" in self.default_date_range:
-            years = self.default_date_range["years"]
-            start_year = current_year - years
-            start_month = 1
-        elif "months" in self.default_date_range:
-            months = self.default_date_range["months"]
-            start_year = current_year
-            start_month = current_month - months + 1
-            while start_month < 1:
-                start_month += 12
-                start_year -= 1
-        else:
-            start_year = current_year - 3
-            start_month = 1
-        
-        end_date = f"{current_year}{current_month:02d}"
-        start_date = f"{start_year}{start_month:02d}"
-        
-        return start_date, end_date
+    # 注意：不再需要自定义 before_fetch
+    # 基类会根据 renew_mode="rolling" 自动处理日期范围计算
     
     async def fetch(self, context: Dict[str, Any] = None) -> List[DataSourceTask]:
         """

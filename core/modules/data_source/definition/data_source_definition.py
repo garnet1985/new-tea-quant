@@ -100,7 +100,7 @@ class DataSourceDefinition:
         
         配置格式：
         {
-            "handler": "handlers.rolling.RollingHandler",
+            "handler": "userspace.data_source.handlers.gdp.GdpHandler",
             "description": "...",
             "dependencies": {...},
             "provider_config": {
@@ -135,10 +135,13 @@ class DataSourceDefinition:
         if not ds_name:
             raise ValueError("DataSourceDefinition.name 不能为空")
         
-        # 获取 handler_path
+        # 获取 handler_path（支持简化格式）
         handler_path = data.get("handler", "")
         if not handler_path:
             raise ValueError("DataSourceDefinition.handler_path 不能为空")
+        
+        # 如果 handler_path 是简化格式，自动补全为完整路径
+        handler_path = cls._normalize_handler_path(handler_path)
         
         # 获取 description
         description = data.get("description", "")
@@ -147,7 +150,7 @@ class DataSourceDefinition:
         dependencies = data.get("dependencies", {})
         
         # 解析 ProviderConfig
-        provider_config = cls._parse_provider_config(data)
+        provider_config = cls._parse_provider_config(data, handler_path)
         
         # 解析 HandlerConfig
         handler_config = cls._parse_handler_config(data, handler_path)
@@ -169,23 +172,125 @@ class DataSourceDefinition:
         return definition
     
     @classmethod
-    def _parse_provider_config(cls, data: Dict[str, Any]) -> ProviderConfig:
+    def _parse_provider_config(cls, data: Dict[str, Any], handler_path: str = None) -> ProviderConfig:
         """
         解析 ProviderConfig
         
+        配置读取顺序：
+        1. 从 handler 目录的 config.json 读取 provider_config（默认配置）
+        2. 从 mapping.json 读取 provider_config（覆盖）
+        
         Args:
-            data: 配置字典
+            data: 配置字典（包含 mapping.json 中的 provider_config）
+            handler_path: Handler 路径（用于加载 handler 目录的 config.json）
         
         Returns:
             ProviderConfig 实例
         """
-        provider_data = data.get("provider_config", {})
-        apis = []
+        # Step 1: 从 handler 目录的 config.json 读取 provider_config（如果存在）
+        json_provider_config = {}
+        if handler_path:
+            handler_name = cls._extract_handler_name(handler_path)
+            if handler_name:
+                json_config = cls._load_handler_config_json(handler_name)
+                json_provider_config = json_config.get("provider_config", {})
         
+        # Step 2: 从 mapping.json 读取 provider_config
+        mapping_provider_config = data.get("provider_config", {})
+        
+        # Step 3: 合并配置（JSON 配置 → mapping.json 配置）
+        # JSON 配置作为默认值，mapping.json 中的 provider_config 覆盖
+        provider_data = {**json_provider_config, **mapping_provider_config}
+        
+        apis = []
         for api_data in provider_data.get("apis", []):
             apis.append(ApiConfig(**api_data))
         
         return ProviderConfig(apis=apis)
+    
+    @classmethod
+    def _normalize_handler_path(cls, handler_path: str) -> str:
+        """
+        标准化 handler 路径
+        
+        支持简化格式：
+        - "kline.KlineHandler" -> "userspace.data_source.handlers.kline.KlineHandler"
+        - "kline" -> "userspace.data_source.handlers.kline.KlineHandler"（自动推断类名）
+        - "userspace.data_source.handlers.kline.KlineHandler" -> 保持不变
+        
+        Args:
+            handler_path: handler 路径（可能是简化格式）
+        
+        Returns:
+            完整的 handler 路径
+        """
+        # 如果已经是完整路径，直接返回
+        if handler_path.startswith("userspace.data_source.handlers."):
+            return handler_path
+        
+        # 处理简化格式
+        parts = handler_path.split(".")
+        
+        if len(parts) == 1:
+            # 只有 handler 名称（如 "kline"），需要推断类名
+            handler_name = parts[0]
+            # 尝试从 handler.py 文件中查找类名
+            class_name = cls._infer_handler_class_name(handler_name)
+            if class_name:
+                return f"userspace.data_source.handlers.{handler_name}.{class_name}"
+            else:
+                # 如果无法推断，使用默认命名规则：{HandlerName}Handler
+                # 将 handler_name 转换为 PascalCase
+                class_name = handler_name[0].upper() + handler_name[1:] + "Handler"
+                return f"userspace.data_source.handlers.{handler_name}.{class_name}"
+        elif len(parts) == 2:
+            # handler 名称和类名（如 "kline.KlineHandler"）
+            handler_name, class_name = parts
+            return f"userspace.data_source.handlers.{handler_name}.{class_name}"
+        else:
+            # 其他格式，假设已经是完整路径或格式错误
+            logger.warning(f"Handler 路径格式可能不正确: {handler_path}，保持原样")
+            return handler_path
+    
+    @classmethod
+    def _infer_handler_class_name(cls, handler_name: str) -> Optional[str]:
+        """
+        从 handler.py 文件推断 handler 类名
+        
+        Args:
+            handler_name: handler 名称（如 "kline"）
+        
+        Returns:
+            handler 类名，如果无法推断返回 None
+        """
+        try:
+            handler_dir = PathManager.data_source_handler(handler_name)
+            handler_file = handler_dir / "handler.py"
+            
+            if not handler_file.exists():
+                return None
+            
+            # 解析 AST 查找继承自 BaseDataSourceHandler 的类
+            import ast
+            with open(handler_file, 'r', encoding='utf-8') as f:
+                tree = ast.parse(f.read(), filename=str(handler_file))
+            
+            # 查找继承自 BaseDataSourceHandler 的类
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    # 检查是否继承自 BaseDataSourceHandler
+                    for base in node.bases:
+                        if isinstance(base, ast.Name):
+                            if base.id == "BaseDataSourceHandler":
+                                return node.name
+                        elif isinstance(base, ast.Attribute):
+                            if base.attr == "BaseDataSourceHandler":
+                                return node.name
+            
+            return None
+        except Exception as e:
+            logger.debug(f"推断 handler 类名失败 {handler_name}: {e}")
+            return None
     
     @classmethod
     def _extract_handler_name(cls, handler_path: str) -> Optional[str]:
@@ -194,7 +299,7 @@ class DataSourceDefinition:
         
         例如：
         - "userspace.data_source.handlers.kline.KlineHandler" -> "kline"
-        - "userspace.data_source.handlers.rolling.RollingHandler" -> "rolling"
+        - "userspace.data_source.handlers.gdp.GdpHandler" -> "gdp"
         
         Args:
             handler_path: Handler 类的完整路径
@@ -248,9 +353,11 @@ class DataSourceDefinition:
         
         配置读取顺序：
         1. 从 JSON 文件读取默认配置（handlers/{handler_name}/config.json）
-        2. 检查 handler 类是否定义了 config_class 属性
-        3. 如果定义了 config_class，创建 Config 实例（JSON 配置作为默认值）
-        4. mapping.json 中的 handler_config 覆盖 JSON 配置和 Config 类默认值
+        2. 从 mapping.json 读取 handler_config
+        3. 检查 handler 类是否定义了 config_class 属性
+        4. 如果定义了 config_class，使用该 Config 类
+        5. 如果没有定义 config_class，根据 renew_mode 自动选择对应的 Config 类
+        6. mapping.json 中的 handler_config 覆盖 JSON 配置和 Config 类默认值
         
         Args:
             data: 配置字典（包含 mapping.json 中的 handler_config）
@@ -266,7 +373,14 @@ class DataSourceDefinition:
             if handler_name:
                 json_config = cls._load_handler_config_json(handler_name)
             
-            # Step 2: 检查 handler 类是否定义了 config_class 属性
+            # Step 2: 从 mapping.json 读取 handler_config
+            mapping_config = data.get("handler_config", {})
+            
+            # Step 3: 合并配置（JSON 配置 → mapping.json 配置）
+            # JSON 配置作为默认值，mapping.json 中的 handler_config 覆盖
+            merged_config = {**json_config, **mapping_config}
+            
+            # Step 4: 检查 handler 类是否定义了 config_class 属性
             config = DiscoveryConfig(
                 base_class=BaseHandlerConfig,
                 module_name_pattern="",  # 不使用包扫描
@@ -283,31 +397,27 @@ class DataSourceDefinition:
                 return None
             
             # 检查是否有 config_class 属性
-            if not hasattr(handler_class, 'config_class'):
-                # Handler 没有定义 config_class，直接返回 None（不查找，不记录日志）
-                return None
+            config_class = None
+            if hasattr(handler_class, 'config_class'):
+                config_class = getattr(handler_class, 'config_class')
+                if config_class is None:
+                    # config_class 被显式设置为 None，需要自动选择
+                    config_class = None
+                elif not issubclass(config_class, BaseHandlerConfig):
+                    logger.warning(
+                        f"Handler {handler_path} 的 config_class 不是 BaseHandlerConfig 的子类，"
+                        f"跳过创建 HandlerConfig"
+                    )
+                    return None
             
-            config_class = getattr(handler_class, 'config_class')
+            # Step 5: 如果没有定义 config_class，根据 renew_mode 自动选择
             if config_class is None:
-                # config_class 被显式设置为 None，返回 None
-                return None
+                config_class = cls._select_config_class_by_renew_mode(merged_config, handler_path)
+                if config_class is None:
+                    # 无法自动选择，返回 None
+                    return None
             
-            # Handler 定义了 config_class，验证并创建实例
-            if not issubclass(config_class, BaseHandlerConfig):
-                logger.warning(
-                    f"Handler {handler_path} 的 config_class 不是 BaseHandlerConfig 的子类，"
-                    f"跳过创建 HandlerConfig"
-                )
-                return None
-            
-            # Step 3: 合并配置（JSON 配置 → mapping.json 配置）
-            # JSON 配置作为默认值，mapping.json 中的 handler_config 覆盖
-            mapping_config = data.get("handler_config", {})
-            
-            # 合并：JSON 配置（默认值）+ mapping.json 配置（覆盖）
-            merged_config = {**json_config, **mapping_config}
-            
-            # Step 4: 创建 HandlerConfig 实例
+            # Step 6: 创建 HandlerConfig 实例
             try:
                 return config_class(**merged_config)
             except Exception as e:
@@ -324,6 +434,53 @@ class DataSourceDefinition:
         except Exception as e:
             logger.warning(f"解析 HandlerConfig 失败 {handler_path}: {e}")
             return None
+    
+    @classmethod
+    def _select_config_class_by_renew_mode(
+        cls, config: Dict[str, Any], handler_path: str
+    ) -> Optional[type]:
+        """
+        根据 renew_mode 自动选择对应的 Config 类
+        
+        Args:
+            config: 配置字典（包含 renew_mode）
+            handler_path: Handler 路径（用于错误提示）
+        
+        Returns:
+            Config 类（IncrementalConfig, RollingConfig, RefreshConfig），如果无法选择则返回 None
+        """
+        from core.modules.data_source.definition.handler_config import (
+            IncrementalConfig, RollingConfig, RefreshConfig
+        )
+        
+        renew_mode = config.get("renew_mode")
+        
+        # renew_mode 必须显式声明，不声明就报错拒绝执行
+        if not renew_mode:
+            logger.error(
+                f"Handler {handler_path} 的 handler_config 中缺少必需的 'renew_mode' 字段。"
+                f"请显式声明 renew_mode: 'incremental' | 'rolling' | 'refresh'"
+            )
+            raise ValueError(
+                f"Handler {handler_path} 的 handler_config 中缺少必需的 'renew_mode' 字段"
+            )
+        
+        # 根据 renew_mode 选择对应的 Config 类
+        if renew_mode == "incremental":
+            return IncrementalConfig
+        elif renew_mode == "rolling":
+            return RollingConfig
+        elif renew_mode == "refresh":
+            return RefreshConfig
+        else:
+            logger.error(
+                f"Handler {handler_path} 的 renew_mode 值无效: {renew_mode}。"
+                f"必须是 'incremental' | 'rolling' | 'refresh'"
+            )
+            raise ValueError(
+                f"Handler {handler_path} 的 renew_mode 值无效: {renew_mode}。"
+                f"必须是 'incremental' | 'rolling' | 'refresh'"
+            )
     
     def to_dict(self) -> Dict[str, Any]:
         """

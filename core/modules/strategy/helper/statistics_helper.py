@@ -10,6 +10,8 @@ Statistics Helper - 统计助手
 from typing import List, Dict, Any
 import logging
 
+from core.modules.strategy.enums import OpportunityStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +38,7 @@ class StatisticsHelper:
         if not opportunities:
             return {}
         
-        closed_opps = [o for o in opportunities if o.get('status') == 'closed']
+        closed_opps = [o for o in opportunities if o.get('status') == OpportunityStatus.CLOSED.value]
         
         summary = {
             'total_opportunities': len(opportunities),
@@ -99,7 +101,7 @@ class StatisticsHelper:
         """生成模拟汇总"""
         from datetime import datetime
         
-        closed_opps = [o for o in opportunities if o.get('status') == 'closed']
+        closed_opps = [o for o in opportunities if o.get('status') == OpportunityStatus.CLOSED.value]
         
         summary = {
             'session_id': session_id,

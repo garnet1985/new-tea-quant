@@ -50,7 +50,7 @@ class StrategySettings(BaseSettings):
         return self.raw_settings.get("enumerator", {})
     
     def get_price_factor_config(self) -> Dict[str, Any]:
-        """获取价格因子模拟器配置（兼容旧名称 simulator）"""
+        """获取价格因子模拟器配置"""
         return self.raw_settings.get("simulator", {})
     
     def get_capital_allocation_config(self) -> Dict[str, Any]:

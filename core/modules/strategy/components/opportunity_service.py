@@ -16,6 +16,7 @@ import json
 import logging
 
 from core.infra.project_context import PathManager
+from core.modules.strategy.enums import OpportunityStatus
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +261,7 @@ class OpportunityService:
         if not opportunities:
             return {}
         
-        closed_opps = [o for o in opportunities if o.get('status') == 'closed']
+        closed_opps = [o for o in opportunities if o.get('status') == OpportunityStatus.CLOSED.value]
         
         summary = {
             'total_opportunities': len(opportunities),

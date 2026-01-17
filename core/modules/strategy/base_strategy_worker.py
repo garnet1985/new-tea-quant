@@ -15,7 +15,14 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 import logging
 
+from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
+from core.modules.strategy.models.strategy_settings import StrategySettings
+from core.modules.strategy.models.opportunity import Opportunity
+
 logger = logging.getLogger(__name__)
+
+# 常量
+MAX_LOOKBACK_DAYS = 60  # 最大历史窗口天数（用于数据加载）
 
 
 class BaseStrategyWorker(ABC):
@@ -43,9 +50,6 @@ class BaseStrategyWorker(ABC):
         self.strategy_name = job_payload['strategy_name']
         
         # 解析配置
-        from core.modules.strategy.models.strategy_settings import StrategySettings
-        from core.modules.strategy.enums import ExecutionMode
-        
         self.settings = StrategySettings.from_dict(job_payload['settings'])
         
         # 初始化数据管理器
@@ -64,7 +68,6 @@ class BaseStrategyWorker(ABC):
         
         # Simulate 模式特有
         if self.execution_mode == ExecutionMode.SIMULATE.value:
-            from core.modules.strategy.models.opportunity import Opportunity
             self.opportunity = Opportunity.from_dict(job_payload['opportunity'])
             self.end_date = job_payload['end_date']
         else:
@@ -134,8 +137,6 @@ class BaseStrategyWorker(ABC):
                 'error': '...' (if failed)
             }
         """
-        from core.modules.strategy.enums import ExecutionMode
-        
         try:
             if self.execution_mode == ExecutionMode.SCAN.value:
                 return self._execute_scan()
@@ -176,8 +177,8 @@ class BaseStrategyWorker(ABC):
             }
         """
         # 1. 加载最新数据
-        # 使用 min_required_records 作为 lookback，但限制最大为 60 天
-        lookback = min(self.settings.min_required_records, 60)
+        # 使用 min_required_records 作为 lookback，但限制最大为 MAX_LOOKBACK_DAYS 天
+        lookback = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
         self.data_manager.load_latest_data(lookback=lookback)
         
         # 2. 构建数据字典（从 data_manager._current_data 中提取）
@@ -213,7 +214,7 @@ class BaseStrategyWorker(ABC):
     
     def _execute_simulate(self) -> Dict[str, Any]:
         """
-        执行模拟模式（逐日回测，参考 legacy）
+        执行模拟模式（逐日回测）
         
         流程（避免上帝模式）：
         1. 加载全量历史数据（从更早的日期开始，确保有足够 lookback）
@@ -231,8 +232,8 @@ class BaseStrategyWorker(ABC):
             }
         """
         # 1. 计算真正的开始日期（需要预留 lookback 窗口）
-        # 使用 min_required_records 作为 lookback，但限制最大为 60 天
-        lookback_days = min(self.settings.min_required_records, 60)
+        # 使用 min_required_records 作为 lookback，但限制最大为 MAX_LOOKBACK_DAYS 天
+        lookback_days = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
         
         # 从更早的日期开始加载，确保第一天就有足够的历史数据
         actual_start_date = self._get_date_before(
@@ -257,7 +258,7 @@ class BaseStrategyWorker(ABC):
                 'settled': []
             }
         
-        # 4. 初始化追踪器（参考 legacy）
+        # 4. 初始化追踪器
         tracker = {
             'stock_id': self.stock_id,
             'passed_dates': [],      # 已经过的日期
@@ -308,7 +309,7 @@ class BaseStrategyWorker(ABC):
         data_of_today: Dict[str, Any]
     ):
         """
-        执行单日模拟（参考 legacy）
+        执行单日模拟
         
         流程：
         1. 如果有持仓，检查止盈止损
@@ -347,7 +348,7 @@ class BaseStrategyWorker(ABC):
                 # 设置买入信息
                 opportunity.trigger_date = current_kline['date']
                 opportunity.trigger_price = current_kline['close']
-                opportunity.status = 'active'
+                opportunity.status = OpportunityStatus.ACTIVE.value
                 
                 # 开始追踪这个投资
                 tracker['investing'] = opportunity

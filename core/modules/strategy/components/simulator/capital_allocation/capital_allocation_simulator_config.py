@@ -17,13 +17,13 @@ class CapitalAllocationSimulatorConfig:
     这些配置从 userspace 策略的 settings 中派生。
     """
 
-    # SOT 版本号；"latest" 表示使用最新的 SOT 版本目录
+    # output_version：枚举器输出版本号；"latest" 表示使用最新的输出版本目录
     # 支持格式：
-    #   - "latest": 使用最新的 SOT 版本
-    #   - "1_20260112_161317": 使用指定版本号
+    #   - "latest": 使用最新的输出版本
+    #   - "1": 使用指定版本号
     #   - "test/latest": 使用最新的测试版本（test/ 目录）
-    #   - "sot/latest": 使用最新的 SOT 版本（sot/ 目录，默认）
-    sot_version: str = "latest"
+    #   - "output/latest": 使用最新的输出版本（output/ 目录，默认）
+    output_version: str = "latest"  # 枚举器输出版本
 
     # 是否使用采样配置（默认 True，使用 sampling 配置过滤股票）
     use_sampling: bool = True
@@ -72,8 +72,8 @@ class CapitalAllocationSimulatorConfig:
         simulator_cfg = settings_dict.get("simulator", {}) or {}
         top_level_fees = settings_dict.get("fees", {}) or {}
 
-        # SOT 版本号（枚举版本依赖）
-        sot_version = capital_sim_cfg.get("sot_version", "latest")
+        # output_version（枚举器输出版本依赖）
+        output_version = capital_sim_cfg.get("output_version", "latest")
 
         # 是否使用采样（默认 True）
         use_sampling = capital_sim_cfg.get("use_sampling", True)
@@ -109,7 +109,7 @@ class CapitalAllocationSimulatorConfig:
             save_equity_curve = True
 
         return cls(
-            sot_version=sot_version,
+            output_version=output_version,
             use_sampling=use_sampling,
             initial_capital=initial_capital,
             allocation_mode=allocation_mode,

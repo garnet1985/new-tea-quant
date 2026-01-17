@@ -154,3 +154,35 @@ class PathManager:
     def tag_scenario(scenario_name: str) -> Path:
         """标签场景目录：userspace/tags/{scenario_name}"""
         return PathManager.userspace() / "tags" / scenario_name
+    
+    # ========== Data Source 相关路径 ==========
+    
+    @staticmethod
+    def data_source() -> Path:
+        """Data Source 根目录：userspace/data_source"""
+        return PathManager.userspace() / "data_source"
+    
+    @staticmethod
+    def data_source_mapping() -> Path:
+        """Data Source 用户配置文件：userspace/data_source/mapping.json"""
+        return PathManager.data_source() / "mapping.json"
+    
+    @staticmethod
+    def data_source_handlers() -> Path:
+        """Data Source Handlers 目录：userspace/data_source/handlers"""
+        return PathManager.data_source() / "handlers"
+    
+    @staticmethod
+    def data_source_handler(handler_name: str) -> Path:
+        """Data Source Handler 目录：userspace/data_source/handlers/{handler_name}"""
+        return PathManager.data_source_handlers() / handler_name
+    
+    @staticmethod
+    def data_source_providers() -> Path:
+        """Data Source Providers 目录：userspace/data_source/providers"""
+        return PathManager.data_source() / "providers"
+    
+    @staticmethod
+    def data_source_provider(provider_name: str) -> Path:
+        """Data Source Provider 目录：userspace/data_source/providers/{provider_name}"""
+        return PathManager.data_source_providers() / provider_name

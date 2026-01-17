@@ -5,12 +5,8 @@ Tag 系统枚举定义
 """
 from enum import Enum
 
-
-class KlineTerm(Enum):
-    """K线周期枚举"""
-    DAILY = "daily"      # 日线
-    WEEKLY = "weekly"    # 周线
-    MONTHLY = "monthly"  # 月线
+# 注意：K线周期枚举已迁移到 core.global_enums.enums.TermType
+# 如需使用周期类型，请从 core.global_enums.enums 导入 TermType
 
 class FileName(Enum):
     """文件名枚举"""

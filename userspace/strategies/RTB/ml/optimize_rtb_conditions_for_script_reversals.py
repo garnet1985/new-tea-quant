@@ -19,7 +19,7 @@ from core.modules.analyzer.strategy.RTB.feature_identity.reversal_data_generator
 from core.modules.analyzer.strategy.RTB.RTB import ReverseTrendBet
 from core.modules.analyzer.strategy.RTB.settings import settings
 from core.modules.data_manager.data_manager import DataManager
-from core.infra.db.db_manager import DatabaseManager
+from core.infra.db import DatabaseManager
 
 def load_script_reversals():
     """加载脚本找到的反转点"""

@@ -1,4 +1,4 @@
-from core.global_enums.enums import KlineTerm, AdjustType
+from core.global_enums.enums import TermType, AdjustType
 from core.infra.project_context import ConfigManager
 
 # ML增强版本设置 - 基于机器学习验证的重要参数
@@ -148,9 +148,9 @@ settings = {
 
     # 数据要求配置 - ML增强版本
     "klines": {
-        "terms": [KlineTerm.DAILY.value, KlineTerm.WEEKLY.value],
-        "signal_base_term": KlineTerm.WEEKLY.value,  # 基于周线检测信号
-        "simulate_base_term": KlineTerm.DAILY.value,  # 基于日线执行
+        "terms": [TermType.DAILY.value, TermType.WEEKLY.value],
+        "signal_base_term": TermType.WEEKLY.value,  # 基于周线检测信号
+        "simulate_base_term": TermType.DAILY.value,  # 基于日线执行
         "min_required_base_records": 100,
         "adjust": AdjustType.QFQ.value,
         "indicators": {

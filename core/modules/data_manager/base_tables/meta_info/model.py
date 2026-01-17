@@ -78,7 +78,7 @@ class MetaInfoModel(DbBaseModel):
                 # 插入新记录（需要指定 id）
                 # 注意：由于 id 是 auto_increment，我们需要手动插入指定 id
                 with self.db.get_sync_cursor() as cursor:
-                    # DuckDB 使用 INSERT ... ON CONFLICT 而不是 ON DUPLICATE KEY
+                    # 使用 INSERT ... ON CONFLICT 语法
                     cursor.execute(
                         f"INSERT INTO {self.table_name} (id, info) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET info = ?",
                         (meta_id, value, value)

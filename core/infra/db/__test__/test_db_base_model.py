@@ -52,7 +52,7 @@ class TestDbBaseModel:
     
     def test_init_without_db(self):
         """测试使用默认 db 初始化"""
-        with patch('core.infra.db.table_queriers.db_base_model.DatabaseManager.get_default') as mock_get_default:
+        with patch('core.infra.db.db_manager.DatabaseManager.get_default') as mock_get_default:
             mock_db = Mock()
             mock_get_default.return_value = mock_db
             
@@ -63,11 +63,10 @@ class TestDbBaseModel:
     def test_load_schema(self):
         """测试加载 schema"""
         mock_db = Mock()
-        with patch('core.infra.db.table_queriers.db_base_model.Path') as mock_path:
-            mock_schema_file = Mock()
-            mock_schema_file.exists.return_value = True
-            mock_schema_file.read_text.return_value = '{"fields": {"id": {"type": "string"}}}'
-            mock_path.return_value = mock_schema_file
+        with patch('core.infra.db.schema_management.schema_manager.SchemaManager') as mock_schema_manager:
+            mock_manager_instance = Mock()
+            mock_manager_instance.get_table_schema.return_value = {'fields': {'id': {'type': 'string'}}}
+            mock_schema_manager.return_value = mock_manager_instance
             
             model = DbBaseModel('test_table', db=mock_db)
             # schema 应该被加载
@@ -108,18 +107,18 @@ class TestDbBaseModel:
         
         assert result is None
     
-    def test_save(self):
-        """测试保存单条数据"""
+    def test_insert_one(self):
+        """测试插入单条数据"""
         mock_db = Mock()
         mock_db.queue_write = Mock()
         
         model = DbBaseModel('test_table', db=mock_db)
-        model.save({'id': '001', 'name': 'test'})
+        model.insert_one({'id': '001', 'name': 'test'})
         
         mock_db.queue_write.assert_called_once()
     
-    def test_save_many(self):
-        """测试批量保存"""
+    def test_insert(self):
+        """测试批量插入"""
         mock_db = Mock()
         mock_db.queue_write = Mock()
         
@@ -128,6 +127,6 @@ class TestDbBaseModel:
             {'id': '001', 'name': 'test1'},
             {'id': '002', 'name': 'test2'}
         ]
-        model.save_many(data_list)
+        model.insert(data_list)
         
         mock_db.queue_write.assert_called_once()

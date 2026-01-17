@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, Literal
 from datetime import datetime
 
 from core.modules.strategy.models.trade import Trade
+from core.modules.strategy.enums import OpportunityStatus
 
 
 @dataclass
@@ -124,10 +125,10 @@ class PriceFactorInvestment(BaseInvestment):
         
         # 确定状态
         status_str = (opportunity.get("status") or "").lower()
-        if status_str in ("win", "loss", "open"):
+        if status_str in (OpportunityStatus.WIN.value, OpportunityStatus.LOSS.value, OpportunityStatus.OPEN.value):
             status = status_str
         else:
-            status = "win" if profit > 0 else ("loss" if profit < 0 else "open")
+            status = OpportunityStatus.WIN.value if profit > 0 else (OpportunityStatus.LOSS.value if profit < 0 else OpportunityStatus.OPEN.value)
         
         # 生成 investment_id
         investment_id = f"pf_{opp_id}"
@@ -153,7 +154,7 @@ class PriceFactorInvestment(BaseInvestment):
     
     @classmethod
     def from_source(cls, source: Any) -> "PriceFactorInvestment":
-        """从源数据创建（兼容接口）"""
+        """从源数据创建"""
         if isinstance(source, dict):
             opportunity = source.get("opportunity", source)
             targets = source.get("targets", [])
@@ -313,11 +314,11 @@ class CapitalAllocationInvestment(BaseInvestment):
         
         # 确定状态
         if not sell_trades:
-            status = "open"
+            status = OpportunityStatus.OPEN.value
         elif all(t.shares == 0 for t in sell_trades):  # 全部卖出
-            status = "win" if profit > 0 else ("loss" if profit < 0 else "closed")
+            status = OpportunityStatus.WIN.value if profit > 0 else (OpportunityStatus.LOSS.value if profit < 0 else OpportunityStatus.CLOSED.value)
         else:
-            status = "open"  # 部分卖出
+            status = OpportunityStatus.OPEN.value  # 部分卖出
         
         # 生成 investment_id
         investment_id = f"ca_{buy_trade.opportunity_id}_{buy_trade.date}"
@@ -356,7 +357,7 @@ class CapitalAllocationInvestment(BaseInvestment):
     
     @classmethod
     def from_source(cls, source: Any) -> "CapitalAllocationInvestment":
-        """从源数据创建（兼容接口）"""
+        """从源数据创建"""
         if isinstance(source, dict):
             buy_trade_data = source.get("buy_trade")
             sell_trades_data = source.get("sell_trades", [])

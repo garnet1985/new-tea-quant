@@ -98,7 +98,8 @@ class BatchWriteQueue:
             daemon=True
         )
         self._write_thread.start()
-        logger.debug("批量写入队列线程已启动")
+        # 降低日志级别：每个进程都会启动一个线程，这是正常行为，不需要 DEBUG 日志
+        # logger.debug("批量写入队列线程已启动")
     
     def _write_worker(self):
         """写入工作线程（单线程执行所有写入）"""

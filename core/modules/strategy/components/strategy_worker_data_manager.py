@@ -188,7 +188,7 @@ class StrategyWorkerDataManager:
         """
         使用游标获取指定日期（含）之前的所有数据
         
-        核心思想（参考 legacy）:
+        核心思想:
         - 维护每类数据的游标位置（cursor）和累积数据（acc）
         - 每次调用只 append 新增的数据，不重新切片
         - 大幅提高效率，避免重复复制

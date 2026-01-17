@@ -1,0 +1,29 @@
+{
+    "_comment": "Kline Handler 配置",
+    "renew_mode": "incremental",
+    "date_format": "day",
+    "default_date_range": {
+        "years": 5
+    },
+    "table_name": "stock_kline_daily",
+    "date_field": "date",
+    "debug_limit_stocks": null,
+    "apis": {
+        "daily_kline": {
+            "provider_name": "tushare",
+            "method": "get_daily_kline"
+        },
+        "weekly_kline": {
+            "provider_name": "tushare",
+            "method": "get_weekly_kline"
+        },
+        "monthly_kline": {
+            "provider_name": "tushare",
+            "method": "get_monthly_kline"
+        },
+        "daily_basic": {
+            "provider_name": "tushare",
+            "method": "get_daily_basic"
+        }
+    }
+}

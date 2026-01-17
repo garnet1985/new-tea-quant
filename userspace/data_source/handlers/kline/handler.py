@@ -27,7 +27,7 @@ from collections import defaultdict
 from core.modules.data_source.data_source_handler import BaseDataSourceHandler
 from core.modules.data_source.api_job import DataSourceTask, ApiJob
 from core.utils.date.date_utils import DateUtils
-from core.modules.data_source.definition.handler_config import KlineHandlerConfig
+from .config import KlineHandlerConfig
 
 
 class KlineHandler(BaseDataSourceHandler):
@@ -67,14 +67,14 @@ class KlineHandler(BaseDataSourceHandler):
         }
     }
     
-    def __init__(self, schema, params: dict = None, data_manager=None):
+    def __init__(self, schema, data_manager=None, definition=None):
         """初始化 K 线 Handler"""
-        super().__init__(schema, params, data_manager)
+        super().__init__(schema, data_manager, definition)
         # 用于增量保存的已保存任务集合（避免重复保存）
         # 每次 execute 开始时重置，确保每次运行都是新的状态
         self._saved_tasks = set()
         # 调试模式：限制处理的股票数量（用于快速调试）
-        self._debug_limit_stocks = params.get('debug_limit_stocks', None) if params else None
+        self._debug_limit_stocks = self.get_param('debug_limit_stocks', None)
     
     async def before_fetch(self, context: Dict[str, Any] = None):
         """

@@ -13,7 +13,7 @@ core/infra/db/
 │
 ├── schema_management/             # Schema 管理
 │   ├── schema_manager.py          # SchemaManager
-│   ├── db_schema_manager.py       # DbSchemaManager（保留，向后兼容）
+│   ├── db_schema_manager.py       # DbSchemaManager
 │   └── field/                     # Field 类型定义
 │       ├── __init__.py
 │       ├── base.py                # Field
@@ -112,7 +112,7 @@ kline_model = StockKlineModel()  # 自动使用默认 db
 **基本使用**：
 
 ```python
-from core.infra.db.table_queryers import DbBaseModel
+from core.infra.db import DbBaseModel
 
 # 方式 1: 直接使用
 model = DbBaseModel('stock_kline', db)

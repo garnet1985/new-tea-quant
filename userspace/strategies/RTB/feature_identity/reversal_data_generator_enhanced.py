@@ -20,7 +20,7 @@ os.chdir(str(project_root))
 from core.modules.data_manager.data_manager import DataManager
 from core.modules.analyzer.strategy.RTB import settings
 from core.modules.analyzer.strategy.RTB.feature_identity.reversal_identify import identify_major_reversals
-from core.infra.db.db_manager import DatabaseManager
+from core.infra.db import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

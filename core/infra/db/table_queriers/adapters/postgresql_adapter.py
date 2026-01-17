@@ -108,7 +108,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         执行查询语句
         
         Args:
-            query: SQL 查询语句（使用 %s 占位符）
+            query: SQL 查询语句（使用 %s 占位符，或 ? 会自动转换）
             params: 查询参数
             
         Returns:
@@ -116,6 +116,9 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """
         conn = None
         try:
+            # 标准化查询语句（转换占位符）
+            query = self.normalize_query(query)
+            
             conn = self._get_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, params)
@@ -134,7 +137,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         执行写入语句
         
         Args:
-            query: SQL 写入语句
+            query: SQL 写入语句（使用 %s 占位符，或 ? 会自动转换）
             params: 查询参数
             
         Returns:
@@ -142,6 +145,9 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """
         conn = None
         try:
+            # 标准化查询语句（转换占位符）
+            query = self.normalize_query(query)
+            
             conn = self._get_connection()
             with conn.cursor() as cursor:
                 cursor.execute(query, params)
@@ -161,7 +167,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         批量执行写入语句
         
         Args:
-            query: SQL 写入语句
+            query: SQL 写入语句（使用 %s 占位符，或 ? 会自动转换）
             params_list: 参数列表
             
         Returns:
@@ -169,6 +175,9 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """
         conn = None
         try:
+            # 标准化查询语句（转换占位符）
+            query = self.normalize_query(query)
+            
             conn = self._get_connection()
             with conn.cursor() as cursor:
                 execute_batch(cursor, query, params_list)

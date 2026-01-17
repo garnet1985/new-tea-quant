@@ -1,0 +1,7 @@
+{
+    "_comment": "Price Indexes Handler 默认配置",
+    "default_date_range": {
+        "years": 3
+    },
+    "rolling_months": 12
+}

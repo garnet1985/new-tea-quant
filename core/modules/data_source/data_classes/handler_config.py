@@ -88,8 +88,10 @@ class BaseHandlerConfig:
     # }
     
     # ========== Renew Mode 相关选项（公用）==========
-    renew_mode: str = "rolling"  # 更新模式：refresh | incremental | rolling（必须显式声明）
-    date_format: str = "date"  # 日期格式：quarter | month | date | none
+    # 注意：为了兼容配置文件（JSON），这里使用 str 类型，但值应该使用枚举值
+    # 使用 UpdateMode.ROLLING.value 或 TimeUnit.DAY.value 来获取字符串值
+    renew_mode: str = UpdateMode.ROLLING.value  # 更新模式：refresh | incremental | rolling（必须显式声明）
+    date_format: str = TimeUnit.DAY.value  # 日期格式：quarter | month | day | none
     default_date_range: Dict[str, int] = field(default_factory=dict)  # 默认日期范围（如 {"years": 5}）
     
     # ========== 测试相关选项 ==========
@@ -119,8 +121,8 @@ class IncrementalConfig(BaseHandlerConfig):
     
     def __post_init__(self):
         """验证配置"""
-        if self.renew_mode != "incremental":
-            raise ValueError(f"IncrementalConfig 的 renew_mode 必须是 'incremental'，当前值: {self.renew_mode}")
+        if self.renew_mode != UpdateMode.INCREMENTAL.value:
+            raise ValueError(f"IncrementalConfig 的 renew_mode 必须是 '{UpdateMode.INCREMENTAL.value}'，当前值: {self.renew_mode}")
         if not self.table_name:
             raise ValueError("IncrementalConfig 必须提供 table_name")
         if not self.date_field:
@@ -142,17 +144,18 @@ class RollingConfig(BaseHandlerConfig):
     - table_name: 数据库表名（用于查询最新日期）
     - date_field: 数据库日期字段名（用于查询最新日期）
     """
-    rolling_unit: str = "day"  # 滚动单位：quarter | month | day
+    rolling_unit: str = TimeUnit.DAY.value  # 滚动单位：quarter | month | day
     rolling_length: int = 30  # 每个滚动单位的长度（如 4 个季度、30 天）
     table_name: Optional[str] = None  # 数据库表名（用于查询最新日期）
     date_field: Optional[str] = None  # 数据库日期字段名（用于查询最新日期）
     
     def __post_init__(self):
         """验证配置"""
-        if self.renew_mode != "rolling":
-            raise ValueError(f"RollingConfig 的 renew_mode 必须是 'rolling'，当前值: {self.renew_mode}")
-        if self.rolling_unit not in ["quarter", "month", "day"]:
-            raise ValueError(f"RollingConfig 的 rolling_unit 必须是 'quarter' | 'month' | 'day'，当前值: {self.rolling_unit}")
+        if self.renew_mode != UpdateMode.ROLLING.value:
+            raise ValueError(f"RollingConfig 的 renew_mode 必须是 '{UpdateMode.ROLLING.value}'，当前值: {self.renew_mode}")
+        valid_units = [TimeUnit.QUARTER.value, TimeUnit.MONTH.value, TimeUnit.DAY.value]
+        if self.rolling_unit not in valid_units:
+            raise ValueError(f"RollingConfig 的 rolling_unit 必须是 '{TimeUnit.QUARTER.value}' | '{TimeUnit.MONTH.value}' | '{TimeUnit.DAY.value}'，当前值: {self.rolling_unit}")
         if self.rolling_length <= 0:
             raise ValueError(f"RollingConfig 的 rolling_length 必须是正整数，当前值: {self.rolling_length}")
         if not self.table_name:
@@ -161,11 +164,11 @@ class RollingConfig(BaseHandlerConfig):
             raise ValueError("RollingConfig 必须提供 date_field")
         
         # 验证 rolling_unit 和 date_format 的一致性（建议，但不强制）
-        if self.date_format == "quarter" and self.rolling_unit != "quarter":
+        if self.date_format == TimeUnit.QUARTER.value and self.rolling_unit != TimeUnit.QUARTER.value:
             # 只是警告，不报错
             import warnings
             warnings.warn(
-                f"RollingConfig: date_format='quarter' 但 rolling_unit='{self.rolling_unit}'，"
+                f"RollingConfig: date_format='{TimeUnit.QUARTER.value}' 但 rolling_unit='{self.rolling_unit}'，"
                 f"建议保持一致"
             )
 
@@ -184,9 +187,9 @@ class RefreshConfig(BaseHandlerConfig):
     """
     def __post_init__(self):
         """验证配置"""
-        if self.renew_mode != "refresh":
-            raise ValueError(f"RefreshConfig 的 renew_mode 必须是 'refresh'，当前值: {self.renew_mode}")
-        if not self.default_date_range and self.date_format != "none":
+        if self.renew_mode != UpdateMode.REFRESH.value:
+            raise ValueError(f"RefreshConfig 的 renew_mode 必须是 '{UpdateMode.REFRESH.value}'，当前值: {self.renew_mode}")
+        if not self.default_date_range and self.date_format != TimeUnit.NONE.value:
             # 警告，但不强制（有些 handler 可能不需要日期范围）
             # 如果 date_format 是 "none"，则不需要日期范围，不警告
             import warnings

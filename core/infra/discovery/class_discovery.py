@@ -136,10 +136,6 @@ class ClassDiscovery:
             if use_cache:
                 self._cache[cache_key] = result
             
-            logger.debug(
-                f"✅ 发现 {len(result.classes)} 个类: {list(result.classes.keys())}"
-            )
-            
         except ImportError:
             logger.debug(f"包不存在，跳过: {base_module_path}")
         except Exception as e:

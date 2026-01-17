@@ -78,32 +78,7 @@ Data Source 的产出结果可能是 **N 个来源于不同 Provider 的 N 个 A
 └─────────────────────────────────────────────────┘
 ```
 
-### 完整数据流
-
-```
-[Input] 执行上下文（context）
-  ↓
-[Handler] 生成 Tasks（DataSourceTask）
-  ├─ Task 1: 包含多个 ApiJobs
-  ├─ Task 2: 包含多个 ApiJobs
-  └─ ...
-  ↓
-[TaskExecutor] 执行 Tasks
-  ├─ 拓扑排序（根据 depends_on）
-  ├─ 限流控制
-  ├─ 并发执行
-  └─ 返回原始数据：{task_id: {job_id: result}}
-  ↓
-[Handler] 标准化数据（normalize）
-  ├─ 字段映射（API 字段 → Schema 字段）
-  ├─ 数据清洗
-  └─ 类型转换
-  ↓
-[Output] Schema 格式数据
-  └─ {"data": [记录1, 记录2, ...]}
-  ↓
-[DataManager] 保存到数据库
-```
+> 💡 **提示**：详细的运行时 Workflow 和完整数据流请参考 [ARCHITECTURE.md](./ARCHITECTURE.md) 文档。
 
 ### 示例：K 线数据源
 
@@ -788,47 +763,47 @@ result = await manager.fetch(
 
 ---
 
-## 📊 数据流程
-
-### renew_data 执行流程
-
-```
-renew_data()
-  ↓
-[Step 1] 依赖解析
-  - 读取 mapping.json，找出所有 is_enabled=true 的 handler
-  - 收集每个 handler 声明的依赖需求（dependencies）
-  - 去重，得到需要获取的全局依赖列表
-  ↓
-[Step 2] 依赖注入
-  - 根据依赖列表，获取所有需要的全局依赖
-  - 构建 shared_context（包含 latest_completed_trading_date, stock_list 等）
-  - 添加执行参数（test_mode, dry_run 等）
-  ↓
-[Step 3] Handler 执行
-  - 遍历所有启用的 handler
-  - 为每个 handler 复制 shared_context，创建独立的 handler_context
-  - 调用 handler.execute(handler_context)
-    ↓
-    before_fetch(context)  # 构建上下文
-    fetch(context) → List[DataSourceTask]  # 生成 Tasks
-    after_fetch(tasks, context)  # Tasks 生成后
-    ↓
-    框架执行 Tasks（TaskExecutor）
-    ↓
-    before_normalize(raw_data)  # 标准化前
-    normalize(raw_data) → Dict  # 标准化数据
-    after_normalize(normalized_data)  # 标准化后（保存数据）
-```
+> 💡 **提示**：详细的运行时 Workflow 和 renew_data 执行流程请参考 [ARCHITECTURE.md](./ARCHITECTURE.md) 文档。
 
 ---
 
 ## 📚 相关文档
 
-- [DESIGN.md](./DESIGN.md) - 完整设计文档，包含所有 entity 的职责和对应关系
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - 架构文档，包含运行时 Workflow、Entity 职责、重要决策记录等
+- [用户自定义区域 README](../userspace/data_source/README.md) - 用户自定义 Handler 和 Provider 的指南
 
 ---
 
-**版本：** 2.0  
+## 💡 使用建议
+
+### 何时使用 SimpleConfigHandler？
+
+如果你需要：
+- ✅ 简单的单 API 调用
+- ✅ 字段映射
+- ✅ 滚动刷新或全量刷新
+
+那么使用 `SimpleConfigHandler` 即可，无需编写代码。
+
+### 何时需要自定义 Handler？
+
+如果你需要：
+- ✅ 多个 API 协作
+- ✅ 复杂的业务逻辑
+- ✅ 自定义的数据处理流程
+- ✅ 特殊的数据合并逻辑
+
+那么需要创建自定义 Handler，继承 `BaseDataSourceHandler`。
+
+### 最佳实践
+
+1. **配置优先**：尽量使用配置而非代码来实现功能
+2. **职责清晰**：Provider 只负责 API 封装，Handler 负责业务逻辑
+3. **测试友好**：Handler 的 `fetch()` 和 `normalize()` 方法应该易于测试
+4. **错误处理**：在 Handler 中实现适当的错误处理和日志记录
+
+---
+
+**版本：** 3.0  
 **维护者：** @garnet  
-**最后更新：** 2025-12-19
+**最后更新：** 2026-01-XX

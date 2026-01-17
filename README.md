@@ -846,7 +846,7 @@ Results (回测结果: JSON文件)
 
 **使用示例**:
 ```python
-from core.infra.db.db_base_model import DbBaseModel
+from core.infra.db import DbBaseModel
 
 class MyModel(DbBaseModel):
     table_name = "my_table"

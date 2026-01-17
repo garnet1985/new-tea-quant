@@ -146,6 +146,14 @@ class SchemaManager:
         fields = schema['fields']
         primary_key = schema.get('primaryKey')
         
+        # 验证 fields 是列表类型
+        if not isinstance(fields, list):
+            raise ValueError(
+                f"Schema '{table_name}' 的 'fields' 必须是列表类型，"
+                f"但得到 {type(fields).__name__}: {fields}. "
+                f"这可能是参数传递错误导致的。"
+            )
+        
         # 将字段字典转换为 Field 对象
         field_objects = []
         for field_dict in fields:
@@ -169,7 +177,9 @@ class SchemaManager:
             # 处理 COMMENT（PostgreSQL/MySQL）
             if field_obj.comment and self.database_type in ['postgresql', 'mysql']:
                 if self.database_type == 'postgresql':
-                    comments.append(f"COMMENT ON COLUMN {table_name}.{field_obj.name} IS '{field_obj.comment}';")
+                    # 转义单引号：PostgreSQL 中单引号需要转义为两个单引号
+                    escaped_comment = field_obj.comment.replace("'", "''")
+                    comments.append(f"COMMENT ON COLUMN {table_name}.{field_obj.name} IS '{escaped_comment}';")
         
         # 添加主键（如果字段定义中没有包含）
         if primary_key:
@@ -260,7 +270,22 @@ class SchemaManager:
             schema: schema 字典
             get_connection_func: 获取数据库连接的函数（上下文管理器）
         """
-        table_name = schema['name']
+        # 验证参数类型
+        if not isinstance(schema, dict):
+            raise TypeError(
+                f"create_table 的 schema 参数必须是字典类型，"
+                f"但得到 {type(schema).__name__}: {schema}. "
+                f"这可能是参数传递错误导致的。"
+            )
+        if not callable(get_connection_func):
+            raise TypeError(
+                f"create_table 的 get_connection_func 参数必须是可调用对象，"
+                f"但得到 {type(get_connection_func).__name__}: {get_connection_func}."
+            )
+        
+        table_name = schema.get('name')
+        if not table_name:
+            raise ValueError(f"Schema 缺少 'name' 字段: {schema}")
         
         # 生成 CREATE TABLE SQL
         create_sql = self.generate_create_table_sql(schema)

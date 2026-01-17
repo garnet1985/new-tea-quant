@@ -1,0 +1,30 @@
+{
+    "_comment": "GDP Handler 配置",
+    "renew_mode": "rolling",
+    "date_format": "quarter",
+    "rolling_unit": "quarter",
+    "rolling_length": 4,
+    "default_date_range": {
+        "years": 5
+    },
+    "table_name": "gdp",
+    "date_field": "quarter",
+    "apis": {
+        "gdp_data": {
+            "provider_name": "tushare",
+            "method": "get_gdp",
+            "field_mapping": {
+                "quarter": "quarter",
+                "gdp": "gdp",
+                "gdp_yoy": "gdp_yoy",
+                "primary_industry": "pi",
+                "primary_industry_yoy": "pi_yoy",
+                "secondary_industry": "si",
+                "secondary_industry_yoy": "si_yoy",
+                "tertiary_industry": "ti",
+                "tertiary_industry_yoy": "ti_yoy"
+            },
+            "params": {}
+        }
+    }
+}

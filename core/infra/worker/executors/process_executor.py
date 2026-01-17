@@ -47,18 +47,20 @@ class ProcessExecutor(Executor):
             is_verbose=is_verbose,
         )
     
-    def run_jobs(self, jobs: List[Dict[str, Any]]) -> List[JobResult]:
+    def run_jobs(self, jobs: List[Dict[str, Any]], total_jobs: Optional[int] = None) -> List[JobResult]:
         """
         执行一批任务
         
         Args:
             jobs: 任务列表，每个任务格式为 {'id': str, 'data': Any}
+            total_jobs: 总任务数（用于进度跟踪）。如果提供，将使用此值而不是当前批次的大小
+                      这对于分批执行时保持准确的进度跟踪很重要
         
         Returns:
             执行结果列表
         """
         # 使用原有的 ProcessWorker 执行
-        self._worker.run_jobs(jobs)
+        self._worker.run_jobs(jobs, total_jobs=total_jobs)
         return self._worker.get_results()
     
     def shutdown(self, timeout: float = 5.0) -> None:

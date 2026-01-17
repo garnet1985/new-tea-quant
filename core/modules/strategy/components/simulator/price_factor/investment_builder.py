@@ -167,15 +167,16 @@ class InvestmentBuilder:
     @staticmethod
     def _determine_result(opportunity_row: Dict[str, Any], pnl: float) -> str:
         """确定 investment 的 result（win/loss/open）"""
+        from core.modules.strategy.enums import OpportunityStatus
         status = (opportunity_row.get("status") or "").lower()
-        if status in ("win", "loss", "open"):
+        if status in (OpportunityStatus.WIN.value, OpportunityStatus.LOSS.value, OpportunityStatus.OPEN.value):
             return status
         else:
             if pnl > 0:
-                return "win"
+                return OpportunityStatus.WIN.value
             elif pnl < 0:
-                return "loss"
+                return OpportunityStatus.LOSS.value
             else:
-                return "open"
+                return OpportunityStatus.OPEN.value
 
 

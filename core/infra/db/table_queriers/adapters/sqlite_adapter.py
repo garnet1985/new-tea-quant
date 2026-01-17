@@ -22,7 +22,7 @@ class SQLiteAdapter(BaseDatabaseAdapter):
     - 支持只读模式（多进程并发读）
     """
     
-    def __init__(self, config: Dict[str, Any], is_verbose: bool = False, read_only: bool = False):
+    def __init__(self, config: Dict[str, Any], is_verbose: bool = False):
         """
         初始化 SQLite 适配器
         
@@ -31,11 +31,9 @@ class SQLiteAdapter(BaseDatabaseAdapter):
                 - db_path: 数据库文件路径
                 - timeout: 超时时间（默认 5.0 秒）
             is_verbose: 是否输出详细日志
-            read_only: 是否以只读模式打开
         """
         self.config = config
         self.is_verbose = is_verbose
-        self.read_only = read_only
         self.conn: Optional[sqlite3.Connection] = None
         self._initialized = False
     
@@ -56,18 +54,10 @@ class SQLiteAdapter(BaseDatabaseAdapter):
             db_path = Path(self.config['db_path'])
             
             # 确保数据库文件目录存在
-            if not self.read_only:
-                db_path.parent.mkdir(parents=True, exist_ok=True)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
             
             # 连接 SQLite
-            if self.read_only:
-                # 只读模式：URI 方式打开
-                uri = f"file:{db_path}?mode=ro"
-                self.conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
-                if self.is_verbose:
-                    logger.info(f"📖 以只读模式连接 SQLite: {db_path}")
-            else:
-                self.conn = sqlite3.connect(str(db_path), check_same_thread=False)
+            self.conn = sqlite3.connect(str(db_path), check_same_thread=False)
             
             # 设置行工厂，返回字典格式
             self.conn.row_factory = sqlite3.Row
@@ -148,9 +138,6 @@ class SQLiteAdapter(BaseDatabaseAdapter):
         if not self.conn:
             raise RuntimeError("SQLite 适配器未初始化，请先调用 connect()")
         
-        if self.read_only:
-            raise RuntimeError("SQLite 连接为只读模式，无法执行写入操作")
-        
         try:
             # 统一转换占位符：%s -> ?
             query = query.replace("%s", "?")
@@ -186,9 +173,6 @@ class SQLiteAdapter(BaseDatabaseAdapter):
         """
         if not self.conn:
             raise RuntimeError("SQLite 适配器未初始化，请先调用 connect()")
-        
-        if self.read_only:
-            raise RuntimeError("SQLite 连接为只读模式，无法执行写入操作")
         
         try:
             # 统一转换占位符：%s -> ?

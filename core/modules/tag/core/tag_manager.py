@@ -500,7 +500,7 @@ class TagManager:
         if self.is_verbose:
             worker_pool.print_stats()
         
-        # 等待所有批量写入完成（DuckDB 并发写入需要）
+        # 等待所有批量写入完成
         # 注意：每个子进程都有自己的 DatabaseManager 实例，但写入队列是共享的
         # 这里等待主进程的写入队列完成
         if self.data_mgr and self.data_mgr.db:

@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import logging
+import time
 
 from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import (
     OpportunityEnumeratorSettings,
@@ -56,8 +57,11 @@ class OpportunityEnumerator:
             module_name='OpportunityEnumerator'
         )
         
+        # 记录开始时间
+        start_time = time.time()
+        
         logger.info(
-            f"开始枚举: strategy={strategy_name}, "
+            f"🚀 开始枚举: strategy={strategy_name}, "
             f"period={start_date}~{end_date}, "
             f"stocks={len(stock_list)}, "
             f"workers={max_workers}"
@@ -85,7 +89,7 @@ class OpportunityEnumerator:
             use_sampling=enum_settings.use_sampling
         )
         # 记录版本目录信息，便于后续保存 metadata 和清理旧版本
-        sub_dir = output_dir.parent            # test/ 或 pool/ 目录
+        sub_dir = output_dir.parent            # test/ 或 output/ 目录
         version_dir_name = output_dir.name     # 版本目录名（自增ID）
         use_sampling = enum_settings.use_sampling
 
@@ -127,19 +131,23 @@ class OpportunityEnumerator:
         )
         
         # ⚠️ 说明：
-        # 理论上，这里可以使用多进程（ProcessExecutor + ComputeOnlyOpportunityEnumeratorWorker）
+        # 使用多进程执行器（ProcessExecutor + OpportunityEnumeratorWorker）
         # 但由于每个 job 的 payload 都包含完整的 K 线列表，跨进程序列化开销非常大，
         # 在本机测试中，2000 支股票多进程版本反而比单进程慢很多（> 3 分钟）。
         #
         # 为了保证“先跑通、结果稳定”，这里暂时回退到单线程多线程执行器：
-        # - DB 仍然只在主进程批量查询（DuckDB 文件锁安全）
-        # - 子任务在同一进程内串行执行 compute-only worker，避免 pickle 大对象
+        # - 子进程按需查询数据，通过 max_workers 限制并发数
+        # - 子进程按需查询数据，通过 max_workers 限制并发数
         #
         # 后续如果要进一步提速，需要引入共享内存 / 批次级数据共享，避免序列化 klines。
-        from core.infra.worker import MultiThreadExecutor, ThreadExecutionMode
-        executor = MultiThreadExecutor(
-            max_workers=1,
-            execution_mode=ThreadExecutionMode.PARALLEL,
+        # 使用多进程执行器（ProcessExecutor + OpportunityEnumeratorWorker）
+        # - 子进程使用 OpportunityEnumeratorWorker 按需查询数据
+        # - 通过 max_workers 限制并发数，避免同时太多进程访问 DB，防止内存爆炸
+        # - 对于 CPU 密集型任务，多进程可以真正利用多核 CPU
+        # - 多进程通常比多线程（受 GIL 限制）更有效
+        executor = ProcessExecutor(
+            max_workers=max_workers,  # 使用计算出的 worker 数量
+            execution_mode=ProcessExecutionMode.QUEUE,  # 队列模式：持续填充进程池
             job_executor=OpportunityEnumerator._execute_single_job_compute_only,
             is_verbose=False,
         )
@@ -158,7 +166,7 @@ class OpportunityEnumerator:
         # 如果需要，打印一次 worker / scheduler 决策摘要
         if enum_settings.is_verbose:
             logger.info(
-                "🧵 Worker 配置: executor=ProcessExecutor, max_workers=%d (原因: DuckDB 单进程文件锁限制，只在主进程读 DB，子进程纯计算)",
+                "🔀 Worker 配置: executor=ProcessExecutor, max_workers=%d (原因: 多进程可以真正利用多核 CPU，适合 CPU 密集型任务)",
                 max_workers,
             )
             try:
@@ -174,26 +182,24 @@ class OpportunityEnumerator:
                 scheduler.max_batch_size,
             )
 
-        # 批量执行（带批量数据预加载优化）
+        # 批量执行（内存优化：按 batch 提交，子进程加载数据）
+        # 注意：主进程严格禁止加载大型数据（K线数据等），只准备参数
+        # 子进程使用 OpportunityEnumeratorWorker 按需查询数据
+        # ProcessWorker 的 QUEUE 模式会持续填充进程池，保证多进程并行执行
+        # 通过 max_workers 限制，保证同时只有有限数量的子进程在加载数据，避免内存爆炸
+        
+        # 按 batch 提交任务（主进程只准备参数，不加载数据）
+        # 确定总任务数（用于进度跟踪）
+        total_jobs = len(jobs)
+        
         job_results = []
         finished_jobs = 0
-        # 统计 batch 信息
         batch_count = 0
         total_batch_size = 0
         min_batch_size = None
         max_batch_size = 0
         
-        # 初始化 DataManager（用于批量查询，仅主进程使用）
-        from core.modules.data_manager import DataManager
-        batch_data_mgr = DataManager(is_verbose=False)
-        
         for batch in scheduler.iter_batches():
-            # ============================================================
-            # 批量数据预加载优化：一次性查询这一批所有股票的K线数据
-            # ============================================================
-            import time
-            batch_start_time = time.time()
-            
             batch_stock_ids = [job['stock_id'] for job in batch]
             batch_size = len(batch_stock_ids)
             batch_count += 1
@@ -203,79 +209,29 @@ class OpportunityEnumerator:
             if batch_size > max_batch_size:
                 max_batch_size = batch_size
             
-            # 批量查询K线数据（一次查询所有股票）
-            batch_klines_map = {}
-            try:
-                from core.utils.date.date_utils import DateUtils
-                enum_start_date = DateUtils.DEFAULT_START_DATE
-                
-                # 从 settings 中提取 term 和 adjust
-                data_config = validated_settings.get('data', {})
-                base_price_source = data_config.get('base_price_source', 'stock_kline_daily')
-                adjust_type = data_config.get('adjust_type', 'qfq')
-                
-                # 提取周期（daily/weekly/monthly）
-                base_str = str(base_price_source).lower()
-                if 'daily' in base_str:
-                    term = 'daily'
-                elif 'weekly' in base_str:
-                    term = 'weekly'
-                elif 'monthly' in base_str:
-                    term = 'monthly'
-                else:
-                    term = 'daily'
-                
-                # 提取复权方式（qfq/hfq/none）
-                adjust_str = str(adjust_type).lower()
-                if adjust_str in ['qfq', 'hfq', 'none']:
-                    adjust = adjust_str
-                else:
-                    adjust = 'qfq'
-                
-                batch_klines_map = batch_data_mgr.stock.kline.load_batch(
-                    stock_ids=batch_stock_ids,
-                    term=term,
-                    start_date=enum_start_date,
-                    end_date=end_date,
-                    adjust=adjust,
-                )
-                
-                batch_query_time = time.time() - batch_start_time
-                total_kline_count = sum(len(klines) for klines in batch_klines_map.values())
-                stocks_with_data = sum(1 for klines in batch_klines_map.values() if klines)
-                
-                # 总是记录批量查询信息（即使 is_verbose=False，因为这对性能分析很重要）
-                logger.info(
-                    "📦 Batch 数据预加载: stocks=%d, 有数据=%d, klines=%d, 耗时=%.2fs, avg=%.1fms/stock",
-                    batch_size,
-                    stocks_with_data,
-                    total_kline_count,
-                    batch_query_time,
-                    batch_query_time / batch_size * 1000 if batch_size > 0 else 0.0,
-                )
-            except Exception as e:
-                logger.warning(f"批量查询K线数据失败，回退到单股票查询: {e}", exc_info=True)
-                batch_klines_map = {}
-            
-            # 构建 compute-only payload（不再访问 DB）
+            # 构建 payload（只包含参数，不包含数据）
+            # 子进程会使用 OpportunityEnumeratorWorker 按需查询数据
             process_jobs = []
             for job in batch:
-                stock_id = job['stock_id']
-                klines = batch_klines_map.get(stock_id, [])
                 payload = {
-                    'stock_id': stock_id,
+                    'stock_id': job['stock_id'],
                     'strategy_name': job['strategy_name'],
                     'settings': job['settings'],
-                    'klines': klines,
                     'start_date': job['start_date'],
                     'end_date': job['end_date'],
                     'output_dir': job['output_dir'],
                 }
-                process_jobs.append({'id': stock_id, 'payload': payload})
+                process_jobs.append({'id': job['stock_id'], 'payload': payload})
             
-            # 执行当前 batch（单进程、compute-only）
-            thread_jobs = [{'id': job['id'], 'data': job['payload']} for job in process_jobs]
-            batch_results = executor.run_jobs(thread_jobs)
+            # 提交当前 batch 的任务（ProcessWorker 的 QUEUE 模式会持续填充进程池）
+            # 传入总任务数，确保进度跟踪准确
+            batch_jobs_for_executor = [{'id': job['id'], 'data': job['payload']} for job in process_jobs]
+            batch_results = executor.run_jobs(batch_jobs_for_executor, total_jobs=total_jobs)
+            
+            # 释放当前 batch 的引用（帮助 GC）
+            del process_jobs, batch_jobs_for_executor
+            import gc
+            gc.collect()
             
             # 更新调度器状态
             finished_jobs += len(batch)
@@ -288,28 +244,91 @@ class OpportunityEnumerator:
             # 收集结果
             job_results.extend(batch_results)
             
-            # 定期输出监控信息（使用简化的 Progress API）
-            if scheduler.should_log_progress():
+            # 定期输出监控信息
+            should_log = (
+                scheduler.should_log_progress() or 
+                batch_count == 1  # 第一个 batch 完成后立即输出
+            )
+            if should_log:
                 progress = scheduler.get_progress()
                 stats = scheduler.get_monitor_stats()
+                
+                # 计算已用时间和预计剩余时间
+                elapsed_time = time.time() - start_time
+                if progress["finished_jobs"] > 0 and progress["progress_percent"] > 0:
+                    avg_time_per_job = elapsed_time / progress["finished_jobs"]
+                    remaining_jobs = progress["total_jobs"] - progress["finished_jobs"]
+                    estimated_remaining = avg_time_per_job * remaining_jobs
+                    eta_str = f", ETA: {estimated_remaining:.1f}s"
+                else:
+                    eta_str = ""
+                
+                # 格式化已用时间
+                if elapsed_time < 60:
+                    elapsed_str = f"{elapsed_time:.1f}s"
+                elif elapsed_time < 3600:
+                    elapsed_str = f"{elapsed_time/60:.1f}min"
+                else:
+                    hours = int(elapsed_time // 3600)
+                    minutes = int((elapsed_time % 3600) // 60)
+                    elapsed_str = f"{hours}h{minutes}min"
+                
                 logger.info(
-                    "📊 枚举进度: %.1f%% (%d/%d), batch=%d, 内存=%.1f%%",
+                    "📊 枚举进度: %.1f%% (%d/%d), batch=%d, 内存=%.1f%%, 已用=%s%s",
                     progress["progress_percent"],
                     progress["finished_jobs"],
                     progress["total_jobs"],
-                    progress["current_batch_size"],
+                    batch_count,
                     stats["memory"]["usage_percent"],
+                    elapsed_str,
+                    eta_str,
                 )
             
             # 检查内存告警
             warning = scheduler.get_memory_warning()
             if warning:
                 logger.warning(f"⚠️  {warning}")
-            
-            # 清理资源，协助 GC
-            del batch, process_jobs, batch_results
-            import gc
-            gc.collect()
+        
+        all_results = job_results
+        
+        # 第三步：更新调度器状态（所有任务已完成）
+        job_results = all_results
+        finished_jobs = len(all_results)
+        
+        # 更新调度器最终状态
+        scheduler.update_after_batch(
+            batch_size=len(all_results),
+            batch_results=all_results,
+            finished_jobs=finished_jobs,
+        )
+        
+        # 输出最终进度
+        progress = scheduler.get_progress()
+        stats = scheduler.get_monitor_stats()
+        elapsed_time = time.time() - start_time
+        
+        if elapsed_time < 60:
+            elapsed_str = f"{elapsed_time:.1f}s"
+        elif elapsed_time < 3600:
+            elapsed_str = f"{elapsed_time/60:.1f}min"
+        else:
+            hours = int(elapsed_time // 3600)
+            minutes = int((elapsed_time % 3600) // 60)
+            elapsed_str = f"{hours}h{minutes}min"
+        
+        logger.info(
+            "📊 枚举完成: %.1f%% (%d/%d), 内存=%.1f%%, 总耗时=%s",
+            progress["progress_percent"],
+            progress["finished_jobs"],
+            progress["total_jobs"],
+            stats["memory"]["usage_percent"],
+            elapsed_str,
+        )
+        
+        # 检查内存告警
+        warning = scheduler.get_memory_warning()
+        if warning:
+            logger.warning(f"⚠️  {warning}")
         
         # 关闭执行器
         executor.shutdown()
@@ -375,9 +394,20 @@ class OpportunityEnumerator:
                     f"error={job_result.error}"
                 )
         
+        # 计算总时长
+        total_elapsed = time.time() - start_time
+        if total_elapsed < 60:
+            total_time_str = f"{total_elapsed:.1f}秒"
+        elif total_elapsed < 3600:
+            total_time_str = f"{total_elapsed/60:.1f}分钟"
+        else:
+            hours = int(total_elapsed // 3600)
+            minutes = int((total_elapsed % 3600) // 60)
+            total_time_str = f"{hours}小时{minutes}分钟"
+        
         logger.info(
             f"✅ 枚举完成: 成功={success_count}, 失败={failed_count}, "
-            f"机会数={total_opportunities}"
+            f"机会数={total_opportunities}, 总耗时={total_time_str}"
         )
         
         # 打印性能报告
@@ -416,12 +446,12 @@ class OpportunityEnumerator:
                 mode="test"
             )
         else:
-            # 全量模式：清理 sot/ 目录
+            # 全量模式：清理 output/ 目录
             OpportunityEnumerator._cleanup_old_versions(
                 root_dir=sub_dir,
-                max_keep_versions=enum_settings.max_sot_versions,
+                max_keep_versions=enum_settings.max_output_versions,
                 strategy_name=strategy_name,
-                mode="sot"
+                mode="output"
             )
         
         # 7. 返回结果（目前直接返回 summary，而不是全量 opportunities）
@@ -449,13 +479,17 @@ class OpportunityEnumerator:
     @staticmethod
     def _execute_single_job_compute_only(payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        compute-only Worker 包装函数（多进程纯计算）
+        Worker 包装函数（多进程执行）
+        
+        子进程使用 OpportunityEnumeratorWorker 按需查询数据。
+        通过 max_workers 限制并发数，保证同时只有有限数量的子进程在加载数据，避免内存爆炸。
         """
         from core.modules.strategy.components.opportunity_enumerator.enumerator_worker import (
-            ComputeOnlyOpportunityEnumeratorWorker,
+            OpportunityEnumeratorWorker,
         )
 
-        worker = ComputeOnlyOpportunityEnumeratorWorker(payload)
+        # 子进程自行加载数据（通过 max_workers 限制，避免同时太多进程访问 DB）
+        worker = OpportunityEnumeratorWorker(payload)
         return worker.run()
     
     @staticmethod
@@ -526,10 +560,10 @@ class OpportunityEnumerator:
         按照版本 ID 排序，保留最新的 max_keep_versions 个版本，删除最早的版本。
         
         Args:
-            root_dir: 版本目录的根目录（test/ 或 sot/）
+            root_dir: 版本目录的根目录（test/ 或 output/）
             max_keep_versions: 最多保留的版本数
             strategy_name: 策略名称（用于日志）
-            mode: 模式名称（"test" 或 "sot"），用于日志
+            mode: 模式名称（"test" 或 "output"），用于日志
         """
         if max_keep_versions < 1:
             return  # 至少保留 1 个版本

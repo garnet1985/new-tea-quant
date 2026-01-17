@@ -208,7 +208,7 @@ class ScenarioModel:
         if isinstance(target_entity_config, dict):
             self._target_entity = target_entity_config.get("type")
         else:
-            # 向后兼容：如果 target_entity 是字符串
+            # 如果 target_entity 是字符串（旧格式），直接使用
             self._target_entity = target_entity_config
         
         # 设置可选字段（有默认值）

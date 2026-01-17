@@ -349,6 +349,8 @@ class ProcessWorker:
             # 提交初始任务到进程池
             future_to_job = {}
             submitted_count = 0
+            total_jobs = len(self.job_queue)
+            progress_update_interval = max(1, total_jobs // 50)  # 每2%更新一次，最多50次
             
             # 初始填充进程池
             while submitted_count < self.max_workers and submitted_count < len(self.job_queue):
@@ -358,6 +360,7 @@ class ProcessWorker:
                 submitted_count += 1
             
             # 持续处理完成的任务并提交新任务
+            last_progress_time = time.time()
             while future_to_job and not self.should_stop:
                 # 等待任意一个任务完成
                 from concurrent.futures import wait, FIRST_COMPLETED
@@ -398,9 +401,28 @@ class ProcessWorker:
                         future = executor.submit(self._execute_single_job, job)
                         future_to_job[future] = job
                         submitted_count += 1
+                    
+                    # 实时进度展示
+                    completed_count = self.stats['completed_jobs'] + self.stats['failed_jobs']
+                    if completed_count > 0 and (completed_count % progress_update_interval == 0 or time.time() - last_progress_time >= 2.0):
+                        elapsed = time.time() - (self.stats['start_time'].timestamp() if self.stats['start_time'] else time.time())
+                        progress_pct = (completed_count / total_jobs * 100) if total_jobs > 0 else 0
                         
-                        if self.is_verbose and submitted_count % 10 == 0:
-                            logger.info(f"Progress: {submitted_count}/{len(self.job_queue)} jobs submitted")
+                        # 计算预计剩余时间
+                        if completed_count > 0 and elapsed > 0:
+                            avg_time_per_job = elapsed / completed_count
+                            remaining_jobs = total_jobs - completed_count
+                            estimated_remaining = avg_time_per_job * remaining_jobs
+                            eta_str = f", ETA: {estimated_remaining:.1f}s" if estimated_remaining > 0 else ""
+                        else:
+                            eta_str = ""
+                        
+                        logger.info(
+                            f"📊 进度: {completed_count}/{total_jobs} ({progress_pct:.1f}%) | "
+                            f"成功: {self.stats['completed_jobs']}, 失败: {self.stats['failed_jobs']}"
+                            f"{eta_str}"
+                        )
+                        last_progress_time = time.time()
             
             # 等待剩余任务完成
             if not self.should_stop:
@@ -414,6 +436,28 @@ class ProcessWorker:
                             self.stats['completed_jobs'] += 1
                         elif result.status == JobStatus.FAILED:
                             self.stats['failed_jobs'] += 1
+                        
+                        # 继续显示进度（等待剩余任务时）
+                        completed_count = self.stats['completed_jobs'] + self.stats['failed_jobs']
+                        if completed_count > 0 and (completed_count % progress_update_interval == 0 or time.time() - last_progress_time >= 2.0):
+                            elapsed = time.time() - (self.stats['start_time'].timestamp() if self.stats['start_time'] else time.time())
+                            progress_pct = (completed_count / total_jobs * 100) if total_jobs > 0 else 0
+                            
+                            # 计算预计剩余时间
+                            if completed_count > 0 and elapsed > 0:
+                                avg_time_per_job = elapsed / completed_count
+                                remaining_jobs = total_jobs - completed_count
+                                estimated_remaining = avg_time_per_job * remaining_jobs
+                                eta_str = f", ETA: {estimated_remaining:.1f}s" if estimated_remaining > 0 else ""
+                            else:
+                                eta_str = ""
+                            
+                            logger.info(
+                                f"📊 进度: {completed_count}/{total_jobs} ({progress_pct:.1f}%) | "
+                                f"成功: {self.stats['completed_jobs']}, 失败: {self.stats['failed_jobs']}"
+                                f"{eta_str}"
+                            )
+                            last_progress_time = time.time()
                             
                     except Exception as e:
                         error_result = JobResult(
@@ -434,6 +478,15 @@ class ProcessWorker:
         finally:
             if executor is not None:
                 executor.shutdown(cancel_futures=True)
+            
+            # 显示最终进度
+            completed_count = self.stats['completed_jobs'] + self.stats['failed_jobs']
+            if completed_count > 0 and self.is_verbose:
+                progress_pct = (completed_count / total_jobs * 100) if total_jobs > 0 else 0
+                logger.info(
+                    f"✅ 完成: {completed_count}/{total_jobs} ({progress_pct:.1f}%) | "
+                    f"成功: {self.stats['completed_jobs']}, 失败: {self.stats['failed_jobs']}"
+                )
         
         return all_results
     

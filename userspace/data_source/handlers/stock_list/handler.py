@@ -142,14 +142,28 @@ class TushareStockListHandler(BaseDataSourceHandler):
             "data": formatted
         }
     
-    async def after_normalize(self, normalized_data: Dict[str, Any]):
+    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
         """
         标准化后的钩子：保存数据到数据库
         
         在数据标准化完成后，自动保存到数据库。
         """
-        data_list = self._validate_data_for_save(normalized_data)
+        context = context or {}
+        
+        # 检查是否是 dry_run 模式
+        dry_run = context.get('dry_run', False)
+        if dry_run:
+            logger.info("🧪 干运行模式：跳过股票列表数据保存")
+            return
+        
+        if not self.data_manager:
+            logger.warning("DataManager 未初始化，无法保存股票列表数据")
+            return
+        
+        # 验证数据格式
+        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
         if not data_list:
+            logger.debug("股票列表数据为空，无需保存")
             return
         
         try:
@@ -157,4 +171,6 @@ class TushareStockListHandler(BaseDataSourceHandler):
             logger.info(f"✅ 保存 {self.data_source} 数据完成，共 {count} 条记录")
         except Exception as e:
             logger.error(f"❌ 保存 {self.data_source} 数据失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise

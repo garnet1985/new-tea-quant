@@ -29,7 +29,7 @@ Handler 配置定义
 
 示例：
     # userspace/data_source/handlers/kline/config.py
-    from core.modules.data_source.definition.handler_config import IncrementalConfig
+    from core.modules.data_source.data_classes.handler_config import IncrementalConfig
     from dataclasses import dataclass
     from typing import Optional
     
@@ -71,9 +71,21 @@ class BaseHandlerConfig:
     - 如果用户定义了 Config 类，mapping.json 中的 handler_config 会覆盖 Config 类的默认值
     """
     # ========== 基础选项 ==========
-    provider_name: str = "tushare"  # Provider 名称（将被移到 ApiConfig）
-    method: str = ""  # API 方法名（将被移到 ApiConfig）
     requires_date_range: bool = True  # 是否需要日期范围
+    
+    # ========== API 配置（字典格式：name -> 配置）==========
+    apis: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    # 格式：{"api_name": {"provider_name": "tushare", "method": "get_data", "field_mapping": {...}, ...}}
+    # 示例：
+    # {
+    #     "finance_data": {
+    #         "provider_name": "tushare",
+    #         "method": "get_finance_data",
+    #         "api_name": "get_finance_data",
+    #         "field_mapping": {"id": "ts_code", "date": "quarter"},
+    #         "params": {}
+    #     }
+    # }
     
     # ========== Renew Mode 相关选项（公用）==========
     renew_mode: str = "rolling"  # 更新模式：refresh | incremental | rolling（必须显式声明）
@@ -174,8 +186,9 @@ class RefreshConfig(BaseHandlerConfig):
         """验证配置"""
         if self.renew_mode != "refresh":
             raise ValueError(f"RefreshConfig 的 renew_mode 必须是 'refresh'，当前值: {self.renew_mode}")
-        if not self.default_date_range:
+        if not self.default_date_range and self.date_format != "none":
             # 警告，但不强制（有些 handler 可能不需要日期范围）
+            # 如果 date_format 是 "none"，则不需要日期范围，不警告
             import warnings
             warnings.warn(
                 "RefreshConfig: default_date_range 为空，全量刷新可能无法确定日期范围"

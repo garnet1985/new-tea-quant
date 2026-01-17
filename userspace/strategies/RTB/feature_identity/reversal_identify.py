@@ -51,7 +51,7 @@ def identify_major_reversals(stock_id: str = "000001.SZ",
     
     try:
         # 初始化数据加载器
-        from core.infra.db.db_manager import DatabaseManager
+        from core.infra.db import DatabaseManager
         from core.modules.data_manager import DataManager
         
         data_mgr = DataManager()

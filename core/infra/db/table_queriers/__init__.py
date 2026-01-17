@@ -1,5 +1,5 @@
 """
-Table Queryers - 表查询器模块
+Table Queriers - 表查询器模块
 
 提供表操作的基类、查询辅助工具和服务。
 """

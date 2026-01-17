@@ -35,8 +35,8 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
     # 可选类属性
     requires_date_range = True  # 需要日期范围参数
     
-    def __init__(self, schema, params: Dict[str, Any] = None, data_manager=None):
-        super().__init__(schema, params or {}, data_manager)
+    def __init__(self, schema, data_manager=None, definition=None):
+        super().__init__(schema, data_manager, definition)
 
         # 滚动窗口：默认每次至少覆盖最近 N 个季度
         # 说明：

@@ -497,7 +497,7 @@ class ProcessWorker:
             # - "Packet sequence number wrong"
             # 等连接状态错误。
             try:
-                from core.infra.db.db_manager import DatabaseManager
+                from core.infra.db import DatabaseManager
                 DatabaseManager.reset_default()
             except Exception:
                 # 重置失败不应影响任务执行本身，最多失去连接池复用

@@ -5,11 +5,13 @@ DataSource Definition 核心类
 """
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Type
+from pathlib import Path
 from loguru import logger
 
 from .api_config import ApiConfig, ProviderConfig
 from .handler_config import BaseHandlerConfig
 from core.infra.discovery import ClassDiscovery, DiscoveryConfig
+from core.infra.project_context import PathManager, ConfigManager
 
 
 @dataclass
@@ -37,7 +39,8 @@ class DataSourceDefinition:
         """
         return self.name
     
-    handler_config: Optional[BaseHandlerConfig] = None  # Handler 特定配置
+    handler_config: Optional[BaseHandlerConfig] = None  # Handler 特定配置（Config 对象或 None）
+    _handler_config_dict: Dict[str, Any] = field(default_factory=dict)  # Handler 配置原始字典（从 mapping.json）
     
     provider_config: ProviderConfig = field(default_factory=ProviderConfig)  # Provider 配置
     
@@ -65,8 +68,10 @@ class DataSourceDefinition:
             return False
         
         # 验证 ProviderConfig
+        # 注意：某些自定义 Handler（如 PriceIndexesHandler）在代码中动态生成 API 调用，
+        # 不需要在配置中定义 API，这是正常的
         if not self.provider_config.apis:
-            logger.warning(f"DataSourceDefinition {self.name} 没有配置任何 API")
+            logger.debug(f"DataSourceDefinition {self.name} 没有配置任何 API（可能是自定义 Handler，在代码中动态生成 API）")
         
         # 验证每个 ApiConfig
         for api in self.provider_config.apis:
@@ -183,51 +188,138 @@ class DataSourceDefinition:
         return ProviderConfig(apis=apis)
     
     @classmethod
+    def _extract_handler_name(cls, handler_path: str) -> Optional[str]:
+        """
+        从 handler_path 提取 handler_name
+        
+        例如：
+        - "userspace.data_source.handlers.kline.KlineHandler" -> "kline"
+        - "userspace.data_source.handlers.rolling.RollingHandler" -> "rolling"
+        
+        Args:
+            handler_path: Handler 类的完整路径
+        
+        Returns:
+            handler_name，如果无法提取则返回 None
+        """
+        try:
+            # 解析路径：userspace.data_source.handlers.{handler_name}.{ClassName}
+            parts = handler_path.split(".")
+            if len(parts) >= 4 and parts[0] == "userspace" and parts[1] == "data_source" and parts[2] == "handlers":
+                return parts[3]  # handler_name
+            return None
+        except Exception:
+            return None
+    
+    @classmethod
+    def _load_handler_config_json(cls, handler_name: str) -> Dict[str, Any]:
+        """
+        从 JSON 文件加载 Handler 的默认配置
+        
+        配置文件位置：userspace/data_source/handlers/{handler_name}/config.json
+        
+        Args:
+            handler_name: Handler 名称（如 "kline"）
+        
+        Returns:
+            配置字典，如果文件不存在或加载失败返回空字典
+        """
+        try:
+            handler_dir = PathManager.data_source_handler(handler_name)
+            config_json_path = handler_dir / "config.json"
+            
+            if not config_json_path.exists():
+                return {}
+            
+            config_data = ConfigManager.load_json(config_json_path)
+            if config_data:
+                logger.debug(f"✅ 从 JSON 文件加载 Handler 配置: {handler_name}")
+            return config_data
+        except Exception as e:
+            logger.debug(f"读取 Handler JSON 配置失败 {handler_name}: {e}")
+            return {}
+    
+    @classmethod
     def _parse_handler_config(
         cls, data: Dict[str, Any], handler_path: str
     ) -> Optional[BaseHandlerConfig]:
         """
-        解析 HandlerConfig（使用 ClassDiscovery 自动发现）
+        解析 HandlerConfig
         
-        自动发现策略（按优先级）：
-        1. 从 handler 类获取 config_class 类属性（推荐方式）
-        2. 从 handler 模块导入 Config 类（约定命名：HandlerClassName + "Config"）
-        3. 如果都找不到，返回 None（使用 BaseHandlerConfig 的默认行为）
+        配置读取顺序：
+        1. 从 JSON 文件读取默认配置（handlers/{handler_name}/config.json）
+        2. 检查 handler 类是否定义了 config_class 属性
+        3. 如果定义了 config_class，创建 Config 实例（JSON 配置作为默认值）
+        4. mapping.json 中的 handler_config 覆盖 JSON 配置和 Config 类默认值
         
         Args:
-            data: 配置字典
+            data: 配置字典（包含 mapping.json 中的 handler_config）
             handler_path: Handler 路径（如 "userspace.data_source.handlers.kline.KlineHandler"）
         
         Returns:
             HandlerConfig 实例（如果找到对应的 Config 类），否则返回 None
         """
         try:
-            # 使用 ClassDiscovery 发现 config_class 属性
-            # 这会自动尝试两种策略：类属性 + 约定命名
-            # 创建一个简单的 discovery 实例（不需要完整的配置，因为我们只用于发现属性）
+            # Step 1: 从 JSON 文件读取默认配置
+            handler_name = cls._extract_handler_name(handler_path)
+            json_config = {}
+            if handler_name:
+                json_config = cls._load_handler_config_json(handler_name)
+            
+            # Step 2: 检查 handler 类是否定义了 config_class 属性
             config = DiscoveryConfig(
                 base_class=BaseHandlerConfig,
                 module_name_pattern="",  # 不使用包扫描
             )
             discovery = ClassDiscovery(config)
             
-            config_class = discovery.discover_class_attribute(
+            handler_class = discovery.discover_class_by_path(
                 class_path=handler_path,
-                attribute_name="config_class",
-                default=None
+                base_class=None  # 不验证基类，因为我们要找的是 Handler 类
             )
             
-            if config_class and issubclass(config_class, BaseHandlerConfig):
-                handler_config_data = data.get("handler_config", {})
-                try:
-                    return config_class(**handler_config_data)
-                except Exception as e:
-                    logger.warning(f"创建 HandlerConfig 失败 {handler_path}: {e}，使用默认配置")
-                    return config_class()
+            if not handler_class:
+                # Handler 类本身不存在，直接返回 None
+                return None
             
-            # 如果都找不到，返回 None（框架会使用 BaseHandlerConfig 的默认行为）
-            logger.debug(f"未找到 HandlerConfig 类 {handler_path}，使用默认配置")
-            return None
+            # 检查是否有 config_class 属性
+            if not hasattr(handler_class, 'config_class'):
+                # Handler 没有定义 config_class，直接返回 None（不查找，不记录日志）
+                return None
+            
+            config_class = getattr(handler_class, 'config_class')
+            if config_class is None:
+                # config_class 被显式设置为 None，返回 None
+                return None
+            
+            # Handler 定义了 config_class，验证并创建实例
+            if not issubclass(config_class, BaseHandlerConfig):
+                logger.warning(
+                    f"Handler {handler_path} 的 config_class 不是 BaseHandlerConfig 的子类，"
+                    f"跳过创建 HandlerConfig"
+                )
+                return None
+            
+            # Step 3: 合并配置（JSON 配置 → mapping.json 配置）
+            # JSON 配置作为默认值，mapping.json 中的 handler_config 覆盖
+            mapping_config = data.get("handler_config", {})
+            
+            # 合并：JSON 配置（默认值）+ mapping.json 配置（覆盖）
+            merged_config = {**json_config, **mapping_config}
+            
+            # Step 4: 创建 HandlerConfig 实例
+            try:
+                return config_class(**merged_config)
+            except Exception as e:
+                logger.warning(
+                    f"创建 HandlerConfig 失败 {handler_path}: {e}，尝试使用默认配置"
+                )
+                # 如果合并后的配置创建失败，尝试只用 JSON 配置
+                try:
+                    return config_class(**json_config) if json_config else config_class()
+                except Exception:
+                    # 如果还是失败，使用 Config 类的默认值
+                    return config_class()
             
         except Exception as e:
             logger.warning(f"解析 HandlerConfig 失败 {handler_path}: {e}")

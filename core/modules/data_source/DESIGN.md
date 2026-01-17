@@ -627,6 +627,256 @@ renew_data()
 
 ---
 
+## HandlerConfig 设计决策
+
+**日期：** 2026-01-17  
+**状态：** 已实施
+
+---
+
+### 背景和痛点
+
+在重构 Handler 配置系统时，我们面临以下问题：
+
+1. **配置职责混乱**：
+   - `mapping.json` 中同时包含 data source 到 handler 的映射配置和 handler 的业务配置
+   - Handler 的默认配置和针对特定 data source 的配置混在一起
+   - 难以区分哪些是 Handler 的"出厂设置"，哪些是针对特定 data source 的"个性化设置"
+
+2. **HandlerConfig 类设计困惑**：
+   - 最初在 `core` 模块中定义了多个业务特定的 `HandlerConfig` 类（如 `KlineHandlerConfig`）
+   - 但根据"所有 handlers 都是用户自定义"的原则，这些配置类不应该在框架中定义
+   - 需要明确：哪些配置类应该在 `core` 中，哪些应该在 `userspace` 中
+
+3. **学习成本问题**：
+   - 如果采用多个基类（如 `RollingHandlerConfig`、`SimpleApiHandlerConfig`），用户需要知道：
+     - 有哪些基类可用
+     - 自己的 Handler 应该继承哪个基类
+     - 系统如何自动选择基类
+     - 配置冲突如何检测和处理
+   - 如果采用一个基类（`BaseHandlerConfig`），虽然学习成本低，但所有 Handler 会看到所有选项
+
+---
+
+### 讨论的方案
+
+#### 方案 A：一个基类（BaseHandlerConfig）
+
+**设计**：
+- 只有一个 `BaseHandlerConfig` 基类
+- 包含所有选项（基础选项 + rolling 选项 + simple_api 选项）
+- 用户只需要继承 `BaseHandlerConfig`，定义业务相关字段
+
+**优点**：
+- ✅ 学习成本最低：用户只需要知道 `BaseHandlerConfig`
+- ✅ 简单直接：不需要理解复杂的自动选择逻辑
+- ✅ 灵活性：所有选项都在一个基类中，用户可以选择使用
+
+**缺点**：
+- ❌ 所有 Handler 看到所有选项（但可以通过文档说明）
+- ❌ IDE 自动补全显示所有选项（用户可以选择忽略）
+- ❌ 类型不够精确（但可以通过命名约定和文档弥补）
+
+#### 方案 B：多个基类（自动选择）
+
+**设计**：
+- 多个基类：`BaseHandlerConfig`、`RollingHandlerConfig`、`SimpleApiHandlerConfig`
+- 系统根据 Handler 类名自动判断类型，选择对应的 Config 类
+- 如果配置冲突（如同时包含 rolling 和 incremental 选项），报错拒绝执行
+
+**优点**：
+- ✅ 类型更精确：每个 Handler 只看到相关选项
+- ✅ IDE 自动补全更准确
+
+**缺点**：
+- ❌ 学习成本中等：用户需要知道有多个基类（虽然系统自动选择）
+- ❌ 如果配置冲突，需要理解为什么报错
+- ❌ 如果用户想定义自己的 Config 类，需要知道该继承哪个
+
+#### 方案 C：显式声明类型
+
+**设计**：
+- 在 `mapping.json` 中显式声明 `handler_type`（如 `"rolling"`、`"simple_api"`）
+- 系统根据 `handler_type` 选择对应的 Config 类
+
+**优点**：
+- ✅ 明确清晰：用户显式声明类型
+
+**缺点**：
+- ❌ 学习成本较高：用户需要知道 `handler_type` 字段、有哪些类型可选
+- ❌ 增加配置复杂度
+
+---
+
+### 最终决策
+
+**采用方案 A：一个基类（BaseHandlerConfig）**
+
+**理由**：
+1. **学习成本最低**：用户只需要知道 `BaseHandlerConfig`
+2. **简单直接**：不需要理解复杂的自动选择逻辑、配置冲突检测
+3. **灵活性**：所有选项都在一个基类中，用户可以根据需要选择使用
+4. **缺点可以接受**：
+   - 所有 Handler 看到所有选项 → 可以通过文档说明哪些选项适用于哪些 Handler
+   - IDE 自动补全显示所有选项 → 用户可以选择忽略不相关的
+   - 类型不够精确 → 可以通过命名约定和文档弥补
+
+---
+
+### 设计原则
+
+1. **所有选项都在 BaseHandlerConfig 中**：
+   - 基础选项：所有 Handler 都可以使用
+   - rolling 相关选项：适用于 RollingHandler（如 `rolling_periods`、`rolling_months`、`date_format`）
+   - simple_api 相关选项：适用于 SimpleApiHandler（如 `method`、`provider_name`）
+   - 用户可以根据需要选择使用相关选项
+
+2. **Config 类是可选的**：
+   - 如果用户定义了 Config 类：使用 Config 类的默认值，`mapping.json` 覆盖，提供类型安全
+   - 如果用户没有定义 Config 类：直接使用 `mapping.json` 中的字典，通过 `get_param` 读取
+
+3. **两种配置的职责分离**：
+   - **Handler 独有的配置**（Handler 内部定义）：
+     - 定义 Handler 的默认行为
+     - 位置：Handler 的 Config 类中（可选）
+     - 作用：Handler 的"出厂设置"
+   - **mapping.json 中的配置**（连接 data source 和 handler）：
+     - 选择使用哪个 handler
+     - 覆盖或补充 Handler 的默认配置
+     - 位置：`mapping.json`
+     - 作用：针对特定 data source 的"个性化设置"
+
+4. **配置读取顺序**：
+   - Handler 的 Config 类默认值（如果定义了 Config 类）
+   - `mapping.json` 中的 `handler_config`（覆盖默认值）
+   - `get_param` 的 `default` 参数（最终后备）
+
+---
+
+### 实现细节
+
+#### BaseHandlerConfig 结构
+
+```python
+@dataclass
+class BaseHandlerConfig:
+    """
+    Handler 配置基类
+    
+    包含所有 Handler 配置选项（基础 + rolling + simple_api）。
+    学习成本最低：用户只需要继承此类，定义自己业务相关的字段即可。
+    """
+    # ========== Rolling/SimpleApi 通用选项 ==========
+    provider_name: str = "tushare"
+    method: str = ""
+    date_format: str = "date"
+    default_date_range: Dict[str, int] = field(default_factory=dict)
+    rolling_periods: Optional[int] = None
+    rolling_months: Optional[int] = None
+    table_name: Optional[str] = None
+    date_field: Optional[str] = None
+    requires_date_range: bool = True
+    custom_before_fetch: Optional[Callable] = None
+    custom_normalize: Optional[Callable] = None
+```
+
+#### 用户定义 Config 类示例
+
+```python
+# userspace/data_source/handlers/kline/config.py
+from core.modules.data_source.definition.handler_config import BaseHandlerConfig
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class KlineHandlerConfig(BaseHandlerConfig):
+    # 只需要定义业务相关的字段
+    debug_limit_stocks: Optional[int] = None
+    # 其他选项（如 rolling_periods）也在 BaseHandlerConfig 中，可以根据需要使用
+```
+
+#### 配置发现机制
+
+1. **Handler 定义 `config_class` 属性**：
+   ```python
+   class KlineHandler(BaseDataSourceHandler):
+       config_class = KlineHandlerConfig
+   ```
+
+2. **系统自动发现**：
+   - `DataSourceDefinition._parse_handler_config()` 首先检查 Handler 类是否定义了 `config_class` 属性
+   - 如果定义了，使用该 Config 类
+   - 如果没有定义，返回 `None`，直接使用 `mapping.json` 中的字典
+
+3. **配置合并**：
+   - 如果定义了 Config 类，使用 Config 类的默认值
+   - `mapping.json` 中的 `handler_config` 覆盖默认值
+   - 通过 `get_param()` 读取，支持 fallback 机制
+
+---
+
+### 配置分离实现（已完成）
+
+**实现日期：** 2026-01-17
+
+**设计目标：**
+- 将 Handler 的默认配置从 `mapping.json` 中分离出来
+- `mapping.json` 只负责 data source 到 handler 的映射和覆盖配置
+- Handler 的默认配置存储在 JSON 文件中，通过 Config 数据类提供类型安全
+
+**实现方案：**
+
+1. **JSON 配置文件位置**：
+   - `userspace/data_source/handlers/{handler_name}/config.json`
+   - 存储 Handler 的默认配置（"出厂设置"）
+
+2. **配置读取顺序**：
+   ```
+   JSON 配置文件（默认值）
+     ↓
+   Config 数据类（类型安全）
+     ↓
+   mapping.json 中的 handler_config（覆盖）
+     ↓
+   get_param 的 default 参数（最终后备）
+   ```
+
+3. **实现细节**：
+   - `_extract_handler_name()`: 从 handler_path 提取 handler_name
+   - `_load_handler_config_json()`: 从 JSON 文件加载配置
+   - `_parse_handler_config()`: 实现完整的配置读取和合并逻辑
+
+4. **配置合并逻辑**：
+   ```python
+   # Step 1: 从 JSON 文件读取默认配置
+   json_config = cls._load_handler_config_json(handler_name)
+   
+   # Step 2: 检查 Handler 类是否定义了 config_class
+   config_class = handler_class.config_class
+   
+   # Step 3: 合并配置（JSON 配置 → mapping.json 配置）
+   merged_config = {**json_config, **mapping_config}
+   
+   # Step 4: 创建 Config 实例
+   return config_class(**merged_config)
+   ```
+
+**优势：**
+- ✅ 配置分离：Handler 默认配置和 mapping 配置职责清晰
+- ✅ 类型安全：通过 Config 数据类提供类型检查和 IDE 支持
+- ✅ 灵活性：用户可以选择使用 JSON 配置或直接使用 mapping.json
+- ✅ 向后兼容：如果 JSON 文件不存在，使用 Config 类的默认值
+
+---
+
+### 后续工作
+
+1. **文档完善**：
+   - 在 `BaseHandlerConfig` 的文档中说明哪些选项适用于哪些 Handler
+   - 提供使用示例和最佳实践
+
+---
+
 ## 📚 相关文档
 
 - [README.md](./README.md) - 主要文档，介绍 data source 概念和用法
@@ -635,4 +885,4 @@ renew_data()
 
 **版本：** 2.0  
 **维护者：** @garnet  
-**最后更新：** 2025-12-19
+**最后更新：** 2026-01-17

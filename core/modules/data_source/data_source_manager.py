@@ -83,75 +83,36 @@ class DataSourceManager:
     
     def _load_mapping(self):
         """
-        加载 Handler 映射配置（从 userspace 加载）
+        加载 Handler 映射配置
         
-        加载顺序：
-        1. 框架默认配置：userspace/data_source/handlers/mapping.json（仅包含 handler 路径和默认 dependencies，作为参考）
-        2. 用户配置：userspace/data_source/mapping.json（包含所有可配置内容，会覆盖默认配置）
-        
-        合并策略：
-        - handler: 用户配置可以覆盖框架默认（允许用户切换 handler）
-        - dependencies: 用户配置完全覆盖框架默认
-        - provider_config, handler_config, is_enabled: 完全由用户配置决定
+        只加载 userspace/data_source/mapping.json，所有配置都在这里。
+        注意：所有的 handlers 和 providers 都是用户自定义的，没有系统默认配置。
         """
-        # 1. 加载框架默认配置（仅作为参考，从 userspace 加载）
-        handlers_path = PathManager.data_source_handlers_mapping()
-        default_config = {}
+        # 加载用户配置（必需）
+        mapping_path = PathManager.data_source_mapping()
         
-        if handlers_path.exists():
-            default_data = ConfigManager.load_json(handlers_path)
-            default_config = default_data.get("data_sources", {})
-            if self.is_verbose:
-                logger.debug(f"✅ 加载了框架默认配置: {handlers_path.name}")
-        else:
-            logger.warning(f"⚠️ 框架默认配置文件不存在: {handlers_path}")
-        
-        # 2. 加载用户配置（必需）
-        user_path = PathManager.data_source_mapping()
-        
-        if not user_path.exists():
-            logger.error(f"❌ 用户配置文件不存在: {user_path}")
+        if not mapping_path.exists():
+            logger.error(f"❌ 配置文件不存在: {mapping_path}")
             logger.error("   请创建 userspace/data_source/mapping.json 并配置所有 data sources")
-            raise FileNotFoundError(f"用户配置文件不存在: {user_path}")
+            raise FileNotFoundError(f"配置文件不存在: {mapping_path}")
         
-        user_config = ConfigManager.load_json(user_path)
-        user_data_sources = user_config.get("data_sources", {})
+        config_data = ConfigManager.load_json(mapping_path)
+        data_sources = config_data.get("data_sources", {})
         
-        if not user_data_sources:
-            logger.warning(f"⚠️ 用户配置文件为空: {user_path}")
+        if not data_sources:
+            logger.warning(f"⚠️ 配置文件为空: {mapping_path}")
         
-        # 3. 合并配置：用户配置优先，框架默认作为后备
-        merged_config = {}
-        
-        # 收集所有 data source 名称（来自框架默认和用户配置）
-        all_ds_names = set(default_config.keys()) | set(user_data_sources.keys())
-        
-        for ds_name in all_ds_names:
-            default_ds = default_config.get(ds_name, {})
-            user_ds = user_data_sources.get(ds_name, {})
-            
-            # 合并策略：
-            # - handler: 用户配置优先，如果没有则使用框架默认
-            # - dependencies: 用户配置优先，如果没有则使用框架默认
-            # - 其他字段（is_enabled, provider_config, handler_config）: 完全由用户配置决定
-            merged_ds = {
-                "handler": user_ds.get("handler") or default_ds.get("handler"),
-                "dependencies": user_ds.get("dependencies") or default_ds.get("dependencies", {}),
-                "is_enabled": user_ds.get("is_enabled", True),  # 默认启用
-                "provider_config": user_ds.get("provider_config", {}),
-                "handler_config": user_ds.get("handler_config", {}),
-            }
-            
-            # 移除 None 值
-            merged_ds = {k: v for k, v in merged_ds.items() if v is not None}
-            
-            merged_config[ds_name] = merged_ds
+        # 验证必需字段
+        for ds_name, ds_config in data_sources.items():
+            if "handler" not in ds_config:
+                logger.error(f"❌ {ds_name} 缺少必需字段 'handler'")
+                raise ValueError(f"Data source '{ds_name}' 缺少必需字段 'handler'")
         
         if self.is_verbose:
-            logger.debug(f"✅ 加载并合并了用户配置: {user_path}（共 {len(merged_config)} 个 data sources）")
+            logger.debug(f"✅ 加载了配置: {mapping_path}（共 {len(data_sources)} 个 data sources）")
         
-        # 4. 保存最终合并结果
-        self._mapping = merged_config
+        # 保存配置
+        self._mapping = data_sources
     
     def _load_definitions(self):
         """
@@ -159,8 +120,16 @@ class DataSourceManager:
         
         这是必需的步骤，所有配置必须符合新的格式。
         如果配置格式不正确，会记录错误但不会中断加载过程。
+        
+        注意：已禁用的 handler 仍然会加载定义（用于配置验证），但不会加载 handler 实例。
         """
         for ds_name, ds_config in self._mapping.items():
+            # 跳过已禁用的 handler（避免尝试加载不存在的 handler 类）
+            if not ds_config.get("is_enabled", True):
+                if self.is_verbose:
+                    logger.debug(f"⏭️ {ds_name} 已禁用，跳过定义加载")
+                continue
+            
             try:
                 definition = DataSourceDefinition.from_dict(ds_config, name=ds_name)
                 self._definitions[ds_name] = definition
@@ -232,22 +201,25 @@ class DataSourceManager:
         """加载所有启用的 Handler 实例"""
         for ds_name, ds_config in self._mapping.items():
             if not ds_config.get("is_enabled", True):
+                if self.is_verbose:
+                    logger.debug(f"⏭️ {ds_name} 已禁用，跳过")
                 continue
             
             handler_path = ds_config.get("handler")
             if not handler_path:
-                logger.warning(f"⚠️ {ds_name} 没有配置 handler")
+                logger.warning(f"⚠️ {ds_name} 没有配置 handler，跳过")
                 continue
             
             # 获取 Schema
             schema = self._schemas.get(ds_name)
             if not schema:
-                logger.warning(f"⚠️ {ds_name} 没有找到对应的 Schema")
+                logger.warning(f"⚠️ {ds_name} 没有找到对应的 Schema，跳过")
                 continue
             
             # 加载 Handler 类
             handler_class = self._load_handler(ds_name, handler_path)
             if not handler_class:
+                logger.warning(f"⚠️ {ds_name} Handler 类加载失败，跳过")
                 continue
             
             # 创建 Handler 实例
@@ -264,12 +236,8 @@ class DataSourceManager:
                     definition=definition
                 )
                 
-                # 如果是 RollingHandler，需要设置 data_source 名称
-                if hasattr(handler_instance, 'set_data_source_name'):
-                    handler_instance.set_data_source_name(ds_name)
-                else:
-                    # 其他 handler 的 data_source 应该是类属性，确保一致
-                    handler_instance.data_source = ds_name
+                # 确保 data_source 名称一致（使用类属性）
+                handler_instance.data_source = ds_name
                 
                 self._handlers[ds_name] = handler_instance
                 if self.is_verbose:

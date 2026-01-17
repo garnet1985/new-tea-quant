@@ -11,8 +11,10 @@ Scanner - 扫描器主类
 from dataclasses import dataclass
 from typing import List, Dict, Any
 import logging
+import time
 from pathlib import Path
 
+from core.modules.strategy.enums import ExecutionMode
 from core.modules.strategy.components.scanner.scan_date_resolver import ScanDateResolver
 from core.modules.strategy.components.scanner.scan_cache_manager import ScanCacheManager
 from core.modules.strategy.components.scanner.adapter_dispatcher import AdapterDispatcher
@@ -56,7 +58,10 @@ class Scanner:
                 'summary': {...}
             }
         """
-        logger.info(f"[Scanner] 开始扫描: strategy={self.strategy_name}")
+        # 记录开始时间
+        start_time = time.time()
+        
+        logger.info(f"🚀 [Scanner] 开始扫描: strategy={self.strategy_name}")
         
         # 1. 解析日期和股票列表
         scan_date, stock_ids = self.date_resolver.resolve_scan_date(
@@ -93,7 +98,7 @@ class Scanner:
             context=context
         )
         
-        # 7. 返回结果
+        # 7. 返回结果（总时长已在上面记录）
         result = {
             'date': scan_date,
             'total_opportunities': len(opportunities),
@@ -129,7 +134,6 @@ class Scanner:
             ProcessWorker,
             ExecutionMode as ProcessExecutionMode,
         )
-        from core.modules.strategy.enums import ExecutionMode
         
         # 获取 worker 信息（用于子进程加载）
         worker_module_path = f"userspace.strategies.{self.strategy_name}.strategy_worker"
@@ -165,11 +169,28 @@ class Scanner:
         # 构建 ProcessWorker 格式的 jobs
         process_jobs = [{'id': job['stock_id'], 'payload': job} for job in jobs]
         
-        # 执行作业
+        # 执行作业（ProcessWorker 内部会显示进度）
         worker_pool.run_jobs(process_jobs)
         
-        # 获取结果
+        # 获取结果和统计信息
         job_results = worker_pool.get_results()
+        stats = worker_pool.stats
+        
+        # 计算总时长
+        total_elapsed = time.time() - start_time
+        if total_elapsed < 60:
+            total_time_str = f"{total_elapsed:.1f}秒"
+        elif total_elapsed < 3600:
+            total_time_str = f"{total_elapsed/60:.1f}分钟"
+        else:
+            hours = int(total_elapsed // 3600)
+            minutes = int((total_elapsed % 3600) // 60)
+            total_time_str = f"{hours}小时{minutes}分钟"
+        
+        logger.info(
+            f"✅ [Scanner] 扫描完成: 成功={stats.get('completed_jobs', 0)}, "
+            f"失败={stats.get('failed_jobs', 0)}, 总耗时={total_time_str}"
+        )
         
         # 收集所有机会
         opportunities = []

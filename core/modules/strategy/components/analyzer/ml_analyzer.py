@@ -102,9 +102,9 @@ class MLAnalyzer(BaseAnalyzer):
         """
         从枚举器结果加载机会数据。
 
-        需要从模拟器依赖的 SOT 版本目录读取 opportunities CSV。
+        需要从模拟器依赖的枚举器输出版本目录读取 opportunities CSV。
         """
-        # 从 metadata.json 中获取 SOT 版本信息
+        # 从 metadata.json 中获取枚举器输出版本信息
         metadata_path = self.context.sim_version_dir / "metadata.json"
         if not metadata_path.exists():
             logger.warning("[MLAnalyzer] 未找到 metadata.json: %s", metadata_path)
@@ -114,28 +114,28 @@ class MLAnalyzer(BaseAnalyzer):
             with metadata_path.open("r", encoding="utf-8") as f:
                 metadata = json.load(f)
 
-            sot_version_info = metadata.get("sot_version", {})
-            if not sot_version_info:
-                logger.warning("[MLAnalyzer] metadata 中缺少 sot_version 信息")
+            output_version_info = metadata.get("output_version", {})
+            if not output_version_info:
+                logger.warning("[MLAnalyzer] metadata 中缺少 output_version 信息")
                 return None
 
-            # 解析 SOT 版本目录路径
-            sot_root = Path(sot_version_info.get("sot_root", ""))
-            version_dir = sot_version_info.get("version_dir", "")
-            if not sot_root or not version_dir:
-                logger.warning("[MLAnalyzer] SOT 版本信息不完整")
+            # 解析输出版本目录路径
+            output_root = Path(output_version_info.get("output_root", ""))
+            version_dir = output_version_info.get("version_dir", "")
+            if not output_root or not version_dir:
+                logger.warning("[MLAnalyzer] 输出版本信息不完整")
                 return None
 
-            sot_version_dir = sot_root / version_dir
-            if not sot_version_dir.exists():
+            output_version_dir = output_root / version_dir
+            if not output_version_dir.exists():
                 logger.warning(
-                    "[MLAnalyzer] SOT 版本目录不存在: %s", sot_version_dir
+                    "[MLAnalyzer] 输出版本目录不存在: %s", output_version_dir
                 )
                 return None
 
             # 加载所有 opportunities CSV
             records: List[Dict[str, Any]] = []
-            for csv_file in sot_version_dir.glob("*_opportunities.csv"):
+            for csv_file in output_version_dir.glob("*_opportunities.csv"):
                 try:
                     df_part = pd.read_csv(csv_file)
                     records.extend(df_part.to_dict("records"))

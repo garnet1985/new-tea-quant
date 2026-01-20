@@ -20,7 +20,7 @@
 
 ### 解决的问题
 
-为整个框架提供一套底层基础数据支持模块，包括连接数据库，表管理，数据IO，多数据库支持等等。
+为整个框架提供一套高层数据库相关的数据读写库。
 
 1. **声明式数据库结构**：通过编写一个schema.json文件轻松完成建表，可以随时查看定义，技术门槛较低
 2. **自动创建和管理表**：完整的表结构声明可以在app启动时自动检查并创建表，无需底层操作
@@ -183,10 +183,9 @@ data_mgr.register_table('path/to/table/directory')
 
 - ✅ **负责**：
   - **进程级单例管理**：确保整个进程中只有一个 DataManager 实例
-  - **数据库初始化**：初始化 DatabaseManager，创建数据库连接池
-  - **连接池管理**：管理数据库连接的创建、复用和释放
+  - **DatabaseManager 初始化**：创建并初始化 DatabaseManager 实例（委托给 db 模块）
   - **Schema 自动发现**：扫描 `base_tables/` 目录，自动发现所有 Schema 定义
-  - **统一建表**：根据 Schema 定义，统一创建和管理所有基础表
+  - **统一建表**：调用 DatabaseManager 的 SchemaManager 创建所有基础表（委托给 db 模块）
   - **Model 自动发现**：扫描并注册所有继承自 `DbBaseModel` 的 Model 类
   - **Service 创建和管理**：创建 DataService 及其所有子服务实例
   - **统一访问入口**：提供统一的属性访问入口（`data_mgr.stock`, `data_mgr.macro`, `data_mgr.calendar`）
@@ -251,7 +250,7 @@ data_mgr.register_table('path/to/table/directory')
 
 1. **Manager（Facade）层**
    - 进程级单例管理
-   - 数据库初始化和连接池管理
+   - DatabaseManager 初始化（委托给 db 模块）
    - Schema 和 Model 自动发现
    - 服务入口暴露（`data_mgr.stock`, `data_mgr.macro`, `data_mgr.calendar`）
 
@@ -279,23 +278,25 @@ data_mgr.register_table('path/to/table/directory')
    │      - 如果已存在，返回现有实例
    │      - 如果不存在，创建新实例
    │
-   ├─▶ 3. Manager 层：初始化 DatabaseManager
-   │      - 创建连接池
-   │      - 初始化数据库连接
+   ├─▶ 3. Manager 层：初始化 DatabaseManager（委托给 db 模块）
+   │      - 创建 DatabaseManager 实例
+   │      - 调用 db.initialize()（db 模块负责创建连接池、初始化数据库连接）
    │
-   ├─▶ 4. Schema + Model 层：Schema 初始化
+   ├─▶ 4. Schema + Model 层：Schema 初始化（委托给 db 模块）
    │      │
-   │      ├─▶ SchemaManager 扫描 base_tables/ 目录
-   │      │      - 查找所有包含 schema.json 的目录
-   │      │
-   │      ├─▶ 对每个 schema.json：
-   │      │      - 读取 JSON 文件
-   │      │      - 解析字段、主键、索引定义
-   │      │      - 根据数据库类型（PostgreSQL/MySQL/SQLite）生成 SQL
-   │      │      - 执行 CREATE TABLE 语句
-   │      │      - 创建索引（如果有定义）
-   │      │
-   │      └─▶ 表创建完成
+   │      ├─▶ DataManager 调用 db.schema_manager.create_all_tables()
+   │      │      │
+   │      │      ├─▶ SchemaManager（db 模块）扫描 base_tables/ 目录
+   │      │      │      - 查找所有包含 schema.json 的目录
+   │      │      │
+   │      │      ├─▶ 对每个 schema.json：
+   │      │      │      - 读取 JSON 文件
+   │      │      │      - 解析字段、主键、索引定义
+   │      │      │      - 根据数据库类型（PostgreSQL/MySQL/SQLite）生成 SQL
+   │      │      │      - 执行 CREATE TABLE 语句
+   │      │      │      - 创建索引（如果有定义）
+   │      │      │
+   │      │      └─▶ 表创建完成
    │
    ├─▶ 5. Schema + Model 层：Model 自动发现
    │      - 扫描 base_tables/ 目录

@@ -9,21 +9,26 @@
 
 ---
 
-## 决策 1：四层架构设计
+## 决策 1：四层架构设计 & 枚举层作为 SOT 缓存层
 
-**问题**：如何组织 Scanner、Simulator、OpportunityEnumerator 的关系？
+**问题**：如何组织 Scanner、Simulator、OpportunityEnumerator 的关系？为什么要单独拆出一个底层枚举器？
 
-**决策**：采用四层架构，清晰分离不同层次的职责。
-
-**理由**：
-- **Layer 0（OpportunityEnumerator）**：完整枚举所有可能机会，供上层复用
+**决策**：采用四层架构，并将 **Layer 0（OpportunityEnumerator）** 明确定位为整个策略系统的「底层事实表（SOT）+ 回测缓存层」：
+- **Layer 0（OpportunityEnumerator）**：完整枚举所有可能机会，一次计算、多次复用，为上层所有模拟与分析提供统一 SOT
 - **Layer 1（Scanner）**：实时机会扫描，用于实盘提示
 - **Layer 2（PriceFactorSimulator）**：价格因子模拟，验证信号质量
 - **Layer 3（CapitalAllocationSimulator）**：资金分配模拟，真实资金约束
 
+**理由**：
+- **一次计算，多次复用**：昂贵的「全市场 on-bar 枚举」只在枚举层做一次；上层所有模拟（价格/资金）、分析工具和机器学习任务都直接复用同一份 SOT 结果
+- **可追溯，便于调试**：每一个机会在 SOT 中都有完整记录，可以随时回溯到具体股票、具体日期的机会路径
+- **天然对分析 & 机器学习友好**：SOT 本质上是结构化样本表，非常适合作为分析/建模的数据源
+- **相当于回测缓存层**：把传统「on bar 回测」拆成「先枚举机会，再叠加模拟」，显著缩短策略迭代周期
+
 **影响**：
 - 清晰的职责分离，便于理解和维护
-- 上层可以复用下层的输出（如 Simulators 使用 Enumerator 的 SOT 结果）
+- 上层可以系统性复用下层输出（如 Simulators 使用 Enumerator 的 SOT 结果），避免重复计算
+- 用户在文档和使用体验中会频繁感知到「一次枚举，多次复用」这一核心亮点
 
 ---
 

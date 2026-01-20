@@ -131,7 +131,7 @@ userspace/config/                # 用户覆盖配置（可选）
 - ✅ 作为 Git 忽略的、本地或部署环境专属配置
 
 **不负责**：
-- ❌ 不定义字段 schema（字段结构由 core/config 决定）
+- ❌ 不定义字段 schema（字段结构由 `core/default_config` 决定）
 - ❌ 不保证配置完整性（缺失的字段由默认配置补全）
 
 ---

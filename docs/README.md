@@ -59,12 +59,12 @@
 
 ### 我要开发策略
 1. 阅读 [策略开发指南](../user-guide/strategy-development.md)
-2. 查看 [Strategy 框架架构](architecture/strategy-framework.md)
+2. 查看 [Strategy 框架架构](architecture/strategy_architecture.md)
 3. 参考示例策略代码
 
 ### 我要开发数据源
 1. 阅读 [数据源使用指南](../user-guide/data-source-usage.md)
-2. 查看 [DataSource 架构](architecture/data-source.md)
+2. 查看 [DataSource 架构](architecture/data_source_architecture.md)
 3. 参考现有 Handler 实现
 
 ### 我要理解系统架构

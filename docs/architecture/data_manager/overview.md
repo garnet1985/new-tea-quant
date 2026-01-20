@@ -1,20 +1,20 @@
 # DataManager 模块概览
 
-## 📋 模块简介
+> **提示**：本文档提供快速上手指南。如需了解详细的设计理念、架构设计和决策记录，请参考 [architecture.md](./architecture.md) 和 [decisions.md](./decisions.md)。
 
-### 1. 模块的作用
+## 📋 模块简介
 
 `DataManager` 是系统的统一数据访问层，负责管理所有数据的读取、写入和协调。它提供了统一的 API 接口，屏蔽了底层数据库的复杂性，让上层业务代码可以专注于业务逻辑。
 
-### 2. 模块的设计理念
+**核心特性**：
+- 声明式数据库结构（Schema 驱动）
+- 自动建表和管理
+- 多数据库支持（PostgreSQL/MySQL/SQLite）
+- 三层架构：Manager（Facade）→ Service（Coordinator）→ Model（私有）
 
-- **Facade 模式**：`DataManager` 作为薄门面层，仅负责单例管理、数据库初始化和服务入口暴露
-- **职责分离**：每个服务专注于特定领域，严格遵循单一职责原则
-- **明确性优先**：通过嵌套属性访问明确指定服务路径，避免隐式路由
-- **封装性保证**：底层 Model 类完全私有化，外部代码只能通过 DataService 层访问数据
-- **性能优化**：优先使用 SQL JOIN 查询减少数据库访问次数
+> 详细的设计理念和架构说明请参考 [architecture.md](./architecture.md)
 
-### 3. 模块的组件
+## 📦 模块的组件
 
 ```
 DataManager (Facade)
@@ -148,7 +148,7 @@ latest_date = data_mgr.calendar.get_latest_completed_trading_date()
 - **[architecture.md](./architecture.md)**：架构文档，包含详细的技术设计、核心组件、运行时 Workflow
 - **[decisions.md](./decisions.md)**：重要决策记录，包含架构设计决策和理由
 
-> **提示**：建议先阅读 [overview.md](./overview.md) 了解模块概览，然后阅读 [architecture.md](./architecture.md) 了解详细设计，最后阅读 [decisions.md](./decisions.md) 了解设计决策。
+> **阅读建议**：先阅读本文档快速上手，然后阅读 [architecture.md](./architecture.md) 了解详细设计，最后阅读 [decisions.md](./decisions.md) 了解设计决策。
 
 ---
 

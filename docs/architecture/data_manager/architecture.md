@@ -9,11 +9,10 @@
 
 1. [设计目标](#设计目标)
 2. [设计理念](#设计理念)
-3. [可扩展性](#可扩展性)
+3. [核心组件详解](#核心组件详解)
 4. [架构图](#架构图)
-5. [核心组件详解](#核心组件详解)
-6. [运行时 Workflow](#运行时-workflow)
-7. [未来扩展方向](#未来扩展方向)
+5. [运行时 Workflow](#运行时-workflow)
+6. [未来扩展方向](#未来扩展方向)
 
 ---
 
@@ -21,7 +20,7 @@
 
 ### 解决的问题
 
-为整个框架提供一套底层基础数据层支持，包括连接数据库，表管理，数据IO，多数据库支持等等。
+为整个框架提供一套底层基础数据支持模块，包括连接数据库，表管理，数据IO，多数据库支持等等。
 
 1. **声明式数据库结构**：通过编写一个schema.json文件轻松完成建表，可以随时查看定义，技术门槛较低
 2. **自动创建和管理表**：完整的表结构声明可以在app启动时自动检查并创建表，无需底层操作
@@ -51,7 +50,7 @@
 
 ---
 
-## 模块详述
+## 核心组件详解
 
 ### 1. 底层：Schema + Model 声明
 
@@ -248,35 +247,24 @@ data_mgr.register_table('path/to/table/directory')
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Schema 初始化流程图
+### 三层架构说明
 
-```
-1. DataManager.initialize() 被调用
-   │
-   ├─▶ 2. 调用 DatabaseManager.schema_manager.create_all_tables()
-   │      │
-   │      ├─▶ 3. SchemaManager 扫描 base_tables/ 目录
-   │      │      - 查找所有包含 schema.json 的目录
-   │      │
-   │      ├─▶ 4. 对每个 schema.json：
-   │      │      - 读取 JSON 文件
-   │      │      - 解析字段、主键、索引定义
-   │      │      - 根据数据库类型（PostgreSQL/MySQL/SQLite）生成 SQL
-   │      │      - 执行 CREATE TABLE 语句
-   │      │      - 创建索引（如果有定义）
-   │      │
-   │      └─▶ 5. 表创建完成
-   │
-   └─▶ 6. 自动发现 Model 类
-          - 扫描 base_tables/ 目录
-          - 查找所有继承自 DbBaseModel 的类
-          - 注册到 DataManager 的内部表映射中
-```
+1. **Manager（Facade）层**
+   - 进程级单例管理
+   - 数据库初始化和连接池管理
+   - Schema 和 Model 自动发现
+   - 服务入口暴露（`data_mgr.stock`, `data_mgr.macro`, `data_mgr.calendar`）
 
-**缺失 Schema 的处理**：
-- 如果表目录存在但没有 `schema.json`，该表不会被自动创建
-- 需要手动创建表或添加 `schema.json` 文件
-- 如果 Model 类存在但 Schema 不存在，Model 仍然可以工作（但无法自动创建表）
+2. **Service（Coordinator）层**
+   - 管理所有子服务实例
+   - 统一服务访问入口
+   - 领域服务：`StockService`、`MacroService`、`CalendarService`
+   - 子服务：`ListService`、`KlineService`、`TagDataService`、`CorporateFinanceService`
+
+3. **Model 层（私有）**
+   - 单表 CRUD 操作
+   - 表特定的业务查询方法
+   - 完全封装，外部通过 Service 层访问
 
 ---
 
@@ -303,8 +291,9 @@ data_mgr.register_table('path/to/table/directory')
    │      ├─▶ 对每个 schema.json：
    │      │      - 读取 JSON 文件
    │      │      - 解析字段、主键、索引定义
-   │      │      - 根据数据库类型生成 SQL
+   │      │      - 根据数据库类型（PostgreSQL/MySQL/SQLite）生成 SQL
    │      │      - 执行 CREATE TABLE 语句
+   │      │      - 创建索引（如果有定义）
    │      │
    │      └─▶ 表创建完成
    │
@@ -321,6 +310,11 @@ data_mgr.register_table('path/to/table/directory')
    │
    └─▶ 7. 初始化完成，可以使用
 ```
+
+**说明**：
+- 如果表目录存在但没有 `schema.json`，该表不会被自动创建
+- 需要手动创建表或添加 `schema.json` 文件
+- 如果 Model 类存在但 Schema 不存在，Model 仍然可以工作（但无法自动创建表）
 
 ### 数据访问流程（三层协作）
 

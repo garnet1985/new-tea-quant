@@ -74,7 +74,7 @@
 
 ### 影响
 
-- 确立优先级：`ENV > userspace/config > core/config`
+- 确立优先级：`ENV > userspace/config > core/default_config`
 - 所有数据库敏感字段都支持环境变量覆盖
 - 文档明确推荐在生产环境使用环境变量配置密码等信息
 

@@ -200,7 +200,7 @@ class ConfigManager:
         加载核心配置（自动合并 userspace 配置）
         
         加载流程：
-        1. 加载 core/config/{config_name}.json（默认配置）
+        1. 加载 core/default_config/{config_name}.json（默认配置）
         2. 加载 userspace/config/{config_name}.json（用户配置，如果存在）
         3. 深度合并：用户配置覆盖默认配置
         
@@ -215,10 +215,10 @@ class ConfigManager:
         from .path_manager import PathManager
         
         # 1. 默认配置路径
-        default_path = PathManager.core() / "config" / f"{config_name}.json"
+        default_path = PathManager.default_config() / f"{config_name}.json"
         
         # 2. 用户配置路径
-        user_path = PathManager.userspace() / "config" / f"{config_name}.json"
+        user_path = PathManager.user_config() / f"{config_name}.json"
         
         # 3. 使用现有的 load_with_defaults 方法
         return ConfigManager.load_with_defaults(
@@ -235,8 +235,8 @@ class ConfigManager:
         加载数据库配置（自动合并 userspace 配置）
         
         加载流程：
-        1. 加载 core/config/database/common.json（公用配置，包含 database_type）
-        2. 加载 core/config/database/{database_type}.json（数据库专用配置）
+        1. 加载 core/default_config/database/common.json（公用配置，包含 database_type）
+        2. 加载 core/default_config/database/{database_type}.json（数据库专用配置）
         3. 合并：database_type 配置覆盖 common 配置
         4. 加载 userspace/config/database/common.json（用户公用配置，如果存在）
         5. 加载 userspace/config/database/{database_type}.json（用户数据库配置，如果存在）
@@ -258,7 +258,7 @@ class ConfigManager:
         from .path_manager import PathManager
         
         # 1. 加载公用配置（默认）- 包含 database_type
-        common_default_path = PathManager.core() / "config" / "database" / "common.json"
+        common_default_path = PathManager.default_config() / "database" / "common.json"
         common_default = ConfigManager.load_json(common_default_path) or {}
         
         # 2. 确定数据库类型（优先级：参数 > 用户 common > 默认 common > 默认值）
@@ -273,7 +273,7 @@ class ConfigManager:
             ).lower()
         
         # 3. 加载数据库专用配置（默认）
-        db_default_path = PathManager.core() / "config" / "database" / f"{database_type}.json"
+        db_default_path = PathManager.default_config() / "database" / f"{database_type}.json"
         db_default = ConfigManager.load_json(db_default_path) or {}
         
         # 4. 合并默认配置

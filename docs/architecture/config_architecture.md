@@ -5,7 +5,7 @@
 ### 核心原则
 
 1. **配置与逻辑分离**
-   - `core/config/` 只包含配置文件（JSON），不包含任何逻辑代码
+- `core/default_config/` 只包含配置文件（JSON），不包含任何逻辑代码
    - 所有配置加载逻辑集中在 `ConfigManager` 中
 
 2. **简单易用优先**
@@ -41,7 +41,7 @@
 ### 配置文件结构
 
 ```
-core/config/                    # 配置文件目录（只包含 JSON）
+core/default_config/            # 配置文件目录（只包含 JSON）
 ├── data.json                   # 数据配置（默认开始日期、小数位数、股票过滤等）
 ├── market.json                 # 市场配置（未来扩展：T+0/T+1、做空支持等）
 ├── system.json                 # 系统配置
@@ -66,7 +66,7 @@ userspace/config/               # 用户配置（可选，覆盖系统默认）
 
 ### 配置加载流程
 
-1. **加载默认配置**：从 `core/config/` 加载系统默认配置
+1. **加载默认配置**：从 `core/default_config/` 加载系统默认配置
 2. **加载用户配置**：从 `userspace/config/` 加载用户配置（如果存在）
 3. **深度合并**：用户配置深度合并到默认配置
 4. **环境变量覆盖**：环境变量覆盖配置值（最高优先级）
@@ -98,7 +98,7 @@ userspace/config/               # 用户配置（可选，覆盖系统默认）
 
 ### 3. 配置与逻辑分离
 
-**设计**：`core/config/` 只包含配置文件，所有加载逻辑在 `ConfigManager` 中
+**设计**：`core/default_config/` 只包含配置文件，所有加载逻辑在 `ConfigManager` 中
 
 **原因**：
 - 清晰的职责划分，配置文件易于理解和修改

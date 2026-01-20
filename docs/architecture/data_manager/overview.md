@@ -12,6 +12,11 @@
 - 多数据库支持（PostgreSQL/MySQL/SQLite）
 - 三层架构：Manager（Facade）→ Service（Coordinator）→ Model（私有）
 
+**与 db 模块的关系**：
+- `db` 模块是基础设施层，提供底层数据库访问能力
+- `data_manager` 模块是应用层，使用 `db` 模块提供业务数据访问服务
+- `DataManager` 持有和管理 `DatabaseManager`（`db` 模块的核心类）
+
 > 详细的设计理念和架构说明请参考 [architecture.md](./architecture.md)
 
 ## 📦 模块的组件

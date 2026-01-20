@@ -96,7 +96,7 @@ pip install -r requirements.txt
 
 ### 3. 配置数据库
 
-创建 `core/config/database/db_config.json`（或复制 `db_config.example.json`）:
+创建 `core/default_config/database/db_config.json`（或复制 `db_config.example.json`）:
 ```json
 {
     "database_type": "postgresql",
@@ -232,7 +232,7 @@ python3 start.py
 
 ## 快速开始（旧版配置）
 
-编辑 `core/config/system.json` 或 `userspace/config/system.json`:
+编辑 `core/default_config/system.json` 或 `userspace/config/system.json`:
 ```json
 {
     "database": {

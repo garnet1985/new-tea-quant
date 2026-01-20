@@ -32,6 +32,20 @@ stocks-py/
 └── docs/                      # 文档中心
 ```
 
+## 文档分层结构
+
+当前架构文档按两类模块组织：
+
+- **Infra（基础设施层）**：`db`、`worker`、`project_context`、`config`、`discovery`
+- **Core Modules（核心业务模块）**：`strategy`、`data_manager`、`data_source`、`indicator`、`tag`、`adapter`
+
+后续各模块的 `overview.md` / `architecture.md` / `decisions.md` 会分别归档在：
+
+- `docs/architecture/infra/<module>/...`
+- `docs/architecture/core_modules/<module>/...`
+
+---
+
 ## 核心模块
 
 ### 1. Strategy（策略框架）

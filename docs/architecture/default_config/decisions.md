@@ -31,7 +31,7 @@
 
 ### 选择理由
 
-1. **职责清晰**：`core/config/` 只放 JSON，所有逻辑集中在 `ConfigManager`
+1. **职责清晰**：`core/default_config/` 只放 JSON，所有逻辑集中在 `ConfigManager`
 2. **可演进性**：未来要加校验 / 热更新，只需在 `ConfigManager` 一处改动
 3. **便于排错**：所有配置问题都可以从 `ConfigManager` 和 JSON 文件两处着手
 
@@ -142,7 +142,7 @@
 ### 影响
 
 - `userspace/config/database/postgresql.json` 只需写 `user` 和 `password`
-- 其余参数从 `core/config/database/postgresql.json` 自动继承
+- 其余参数从 `core/default_config/database/postgresql.json` 自动继承
 - 文档中提供 `.example.json` 作为完整模板，对高级用户友好
 
 ---
@@ -202,7 +202,7 @@
 
 ### 影响
 
-- `core/config/` 和 `userspace/config/` 统一采用 JSON
+- `core/default_config/` 和 `userspace/config/` 统一采用 JSON
 - 如需注释，可通过 `_comment` 字段提供说明
 
 ---
@@ -211,7 +211,7 @@
 
 - **[overview.md](./overview.md)**：配置系统概览与用法
 - **[architecture.md](./architecture.md)**：配置系统整体架构设计
-- **`core/config/DESIGN.md`**：原始设计记录
+- **`core/default_config/DESIGN.md`**：原始设计记录
 - **`userspace/config/README.md`**：用户配置说明
 
 ---

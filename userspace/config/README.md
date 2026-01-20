@@ -29,7 +29,7 @@ userspace/config/               # 用户配置目录（可选）
 
 1. **环境变量**（最高优先级）
 2. **userspace/config/**（用户配置）
-3. **core/config/**（系统默认配置）
+3. **core/default_config/**（系统默认配置）
 
 ## 🚀 快速开始
 
@@ -200,6 +200,6 @@ export DB_POSTGRESQL_DATABASE=stocks_prod
 
 ## 🔗 相关文档
 
-- [核心配置说明](../../core/config/README.md) - 系统默认配置说明
-- [配置设计文档](../../core/config/DESIGN.md) - 配置系统设计理念
-- [数据库配置详细说明](../../core/config/database/README.md) - 数据库配置详细说明
+- [核心默认配置说明](../../core/default_config/README.md) - 系统默认配置说明
+- [配置设计文档](../../core/default_config/DESIGN.md) - 配置系统设计理念
+- [数据库配置详细说明](../../core/default_config/database/README.md) - 数据库配置详细说明

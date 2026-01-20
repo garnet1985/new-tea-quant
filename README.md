@@ -1136,12 +1136,28 @@ style: 代码格式调整
 ## 相关资源
 
 ### 文档
-- [DataManager 架构文档](core/modules/data_manager/ARCHITECTURE.md)
-- [DataSource 设计文档](core/modules/data_source/docs/DESIGN.md)
-- [Strategy 框架设计](core/modules/strategy/docs/DESIGN.md)
-- [Tag 系统设计](core/modules/tag/docs/DESIGN.md)
+
+**📚 [文档中心](docs/README.md)** - 完整的文档导航和索引
+
+**快速开始**：
+- [安装指南](docs/getting-started/installation.md)
+- [配置指南](docs/getting-started/configuration.md)
+- [虚拟环境使用](docs/getting-started/venv-usage.md)
+
+**用户指南**：
+- [用户指南首页](user-guide/README.md) - 用户指南导航
+- [策略开发指南](user-guide/strategy-development.md)
+- [数据源使用指南](user-guide/data-source-usage.md)
+- [标签系统指南](user-guide/tag-system.md)
+
+**架构文档**：
+- [系统架构概览](docs/architecture/overview.md) - 整体架构和设计理念
+- [DataManager 架构](docs/architecture/data_manager_architecture.md)
+- [Strategy 框架架构](docs/architecture/strategy_architecture.md)
+- [DataSource 架构](docs/architecture/data_source_architecture.md)
+- [Tag 系统架构](docs/architecture/tag_architecture.md)
 - [数据库模块文档](core/infra/db/README.md)
-- [Project Management Module 设计](core/infra/project_context/DESIGN.md)
+- [Project Context 设计](core/infra/project_context/DESIGN.md)
 
 ### 示例策略
 - [Example 策略](userspace/strategies/example/) - 完整的策略示例，包含配置和文档

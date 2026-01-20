@@ -11,8 +11,7 @@
 - [设计目标](#设计目标)
 - [整体架构](#整体架构)
 - [核心组件与职责](#核心组件与职责)
-- [配置加载 Workflow](#配置加载-workflow)
-- [配置访问模式](#配置访问模式)
+- [配置加载机制（概念层）](#配置加载机制概念层)
 - [未来扩展方向](#未来扩展方向)
 
 ---
@@ -44,8 +43,8 @@
 基于业务目标，配置系统在技术上有以下设计目标：
 
 1. **配置与逻辑彻底分离**
-   - `core/config/` 只放 JSON 文件，不放任何 Python 代码
-   - 所有加载、合并、校验逻辑集中在 `ConfigManager`
+   - `core/default_config/` 只放 JSON 文件，不放任何 Python 代码
+   - 所有加载、合并、校验逻辑由 Infra 层的配置管理组件统一处理（实现位于 `infra/project_context`，不在本模块内）
 2. **深度合并（partial override）**
    - 用户只写需要覆盖的那一小块，其余自动继承默认配置
 3. **多层来源统一建模**
@@ -62,7 +61,7 @@
 ### 目录与分层
 
 ```text
-core/config/                     # 默认配置（只包含 JSON）
+core/default_config/             # 默认配置（只包含 JSON）
 ├── data.json                    # 数据配置
 ├── market.json                  # 市场配置（预留）
 ├── system.json                  # 系统配置
@@ -86,19 +85,19 @@ userspace/config/                # 用户覆盖配置（可选）
     └── sqlite.json
 ```
 
-### 高层关系图
+### 高层关系图（概念）
 
 ```text
         环境变量 (ENV)
               ▲
               │ 覆盖敏感字段
               │
- userspace/config/*.json          core/config/*.json
+ userspace/config/*.json          core/default_config/*.json
         ▲                                  ▲
         │ 深度合并                         │
         └───────────────┬─────────────────┘
                         ▼
-              ConfigManager (core.infra.project_context)
+        配置管理组件（位于 Infra / Project Context）
                         │
                         ▼
         各业务模块（db / worker / strategy / data_source / ...）
@@ -108,9 +107,10 @@ userspace/config/                # 用户覆盖配置（可选）
 
 ## 核心组件与职责
 
-> Config 模块自身没有 Python 代码，以下职责描述会同时涵盖 `core/config/*` 与 `ConfigManager` 对它们的使用方式。
+> Config 模块自身没有 Python 代码，本节只从「配置文件」视角描述职责；  
+> 具体加载与合并逻辑由 Infra 层的配置管理组件实现（见 `infra/project_context` 文档）。
 
-### `core/config/`（默认配置）
+### `core/default_config/`（默认配置）
 
 **负责**：
 - ✅ 提供所有模块的「完整默认配置」
@@ -136,56 +136,36 @@ userspace/config/                # 用户覆盖配置（可选）
 
 ---
 
-### `ConfigManager`（位于 `core/infra/project_context`）
+## 配置加载机制（概念层）
 
-虽然不在 Config 模块目录内，但它是整个配置系统的「大脑」。
-
-**负责**：
-
-- ✅ 定位配置目录（结合 `ProjectContext` 发现项目根目录）
-- ✅ 读取 `core/config/` 与 `userspace/config/` 中的 JSON 文件
-- ✅ 按模块维度加载并**深度合并**：
-  - `load_core_config("data")` + `load_userspace_config("data")` → `merged_data_config`
-- ✅ 应用环境变量覆盖规则（如数据库用户名、密码等）
-- ✅ 暴露语义化访问接口：
-  - `get_default_start_date()`
-  - `get_database_type()`
-  - `get_module_config("Simulator")`
-
-**不负责**：
-
-- ❌ 不负责业务含义（例如「这个 start_date 合不合理」）
-- ❌ 不负责真正建立数据库连接、线程池等（只提供参数）
-
----
-
-## 配置加载 Workflow
+> 本节只描述「配置文件从哪来、如何被组合」的整体机制，不涉及具体类名和 API；  
+> 加载实现细节由 `infra/project_context` 下的配置管理组件负责。
 
 以数据库配置为例，整体流程如下：
 
 ```text
 1. 读取默认配置
-   - core/config/database/common.json
-   - core/config/database/postgresql.json / mysql.json / sqlite.json
+   - core/default_config/database/common.json
+   - core/default_config/database/postgresql.json / mysql.json / sqlite.json
 
 2. 读取用户配置（如果存在）
    - userspace/config/database/common.json
    - userspace/config/database/postgresql.json 等
 
 3. 深度合并
-   - dict_deep_merge(core_default, userspace_override)
+   - 按字段进行深度合并：用户只需写需要覆盖的字段，其余继承默认配置
 
 4. 应用环境变量覆盖
-   - DB_POSTGRESQL_USER / DB_POSTGRESQL_PASSWORD / ...
+   - 例如 DB_POSTGRESQL_USER / DB_POSTGRESQL_PASSWORD 等敏感信息
 
 5. 返回最终配置
-   - 供 DatabaseManager / ConnectionManager 使用
+   - 供数据库管理组件 / 连接管理器等使用
 ```
 
 ### 深度合并（示意）
 
 ```json
-// core/config/data.json
+// core/default_config/data.json
 {
   "default_start_date": "20080101",
   "decimal_places": 2,
@@ -230,29 +210,8 @@ userspace/config/                # 用户覆盖配置（可选）
 
 > 可以看到：用户只覆盖了 `id` 部分，其余字段保持不变。
 
----
-
-## 配置访问模式
-
-### 1. 按域获取完整配置
-
-- `get_data_config()`
-- `get_database_config()`
-- `get_market_config()`
-- `get_system_config()`
-- `get_worker_config()`
-
-适合需要遍历 / 动态读取多个字段的场景。
-
-### 2. 语义化便捷接口
-
-- `get_default_start_date()`
-- `get_decimal_places()`
-- `get_stock_list_filter()`
-- `get_database_type()`
-- `get_module_config("Simulator")`
-
-适合业务代码中**只关心一个值**的场景，避免散落到处的硬编码 key。
+关于「在代码中如何访问这些配置值」（例如提供按域获取完整配置、或语义化便捷方法），  
+请参考 `infra/project_context` 中关于配置管理组件的架构文档。
 
 ---
 
@@ -283,8 +242,8 @@ userspace/config/                # 用户覆盖配置（可选）
 
 ## 相关文档
 
-- `core/config/README.md`：核心配置说明
-- `core/config/DESIGN.md`：配置系统设计文档（本架构文档的源材料之一）
+- `core/default_config/README.md`：核心默认配置说明
+- `core/default_config/DESIGN.md`：配置系统设计文档（本架构文档的源材料之一）
 - `userspace/config/README.md`：用户配置目录说明
 - [overview.md](./overview.md)：配置系统快速概览
 - [decisions.md](./decisions.md)：关键设计决策记录

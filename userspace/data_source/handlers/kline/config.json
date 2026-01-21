@@ -10,19 +10,23 @@
     "apis": {
         "daily_kline": {
             "provider_name": "tushare",
-            "method": "get_daily_kline"
+            "method": "get_daily_kline",
+            "max_per_minute": 700
         },
         "weekly_kline": {
             "provider_name": "tushare",
-            "method": "get_weekly_kline"
+            "method": "get_weekly_kline",
+            "max_per_minute": 700
         },
         "monthly_kline": {
             "provider_name": "tushare",
-            "method": "get_monthly_kline"
+            "method": "get_monthly_kline",
+            "max_per_minute": 700
         },
         "daily_basic": {
             "provider_name": "tushare",
-            "method": "get_daily_basic"
+            "method": "get_daily_basic",
+            "max_per_minute": 700
         }
     }
 }

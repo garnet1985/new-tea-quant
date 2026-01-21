@@ -13,6 +13,7 @@
         "gdp_data": {
             "provider_name": "tushare",
             "method": "get_gdp",
+            "max_per_minute": 200,
             "field_mapping": {
                 "quarter": "quarter",
                 "gdp": "gdp",

@@ -1,533 +1,76 @@
-"""
-DataSource Manager - 数据源管理器
-
-负责加载和管理 DataSource、Handler、Schema，执行数据获取
-"""
-from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from loguru import logger
 
-from core.modules.data_manager import DataManager
-from core.infra.project_context import ConfigManager, PathManager
-from core.modules.data_source.data_classes import DataSourceDefinition
-from core.infra.discovery import ModuleDiscovery, ClassDiscovery, DiscoveryConfig
-from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
+from core.infra.discovery import ModuleDiscovery
 
 
 class DataSourceManager:
     """
-    数据源管理器
-    
-    职责：
-    - 加载 Schema 定义
-    - 加载 Handler 映射配置
-    - 动态加载 Handler 类
-    - 执行 Handler 获取数据
+    DataSource Manager class
     """
-    
-    def __init__(self, is_verbose: bool = False):
-        """
-        初始化数据源管理器
-        
-        Args:
-            is_verbose: 是否输出详细日志
-        """
-        # 统一使用 DataManager 单例作为数据访问入口
-        self.data_manager = DataManager(is_verbose=False)
-        self.is_verbose = is_verbose
-        self._schemas: Dict[str, Any] = {}
-        self._handlers: Dict[str, Any] = {}
-        self._mapping: Dict[str, Any] = {}  # 合并后的配置（用于内部查询）
-        self._definitions: Dict[str, DataSourceDefinition] = {}  # 标准化的定义对象
-        
-        # 加载配置
-        self._load_schemas()
-        self._load_mapping()
-        self._load_definitions()  # 将配置转换为 DataSourceDefinition
-        self._load_handlers()
-    
-    def _load_schemas(self):
-        """
-        从 userspace 加载 Schema 定义
-        
-        使用 ModuleDiscovery 自动发现所有 handler 目录下的 schema.py 文件中的 SCHEMA 对象。
-        """
-        self._schemas = {}
-        
-        try:
-            # 使用 ModuleDiscovery 自动发现所有 Schema
-            discovery = ModuleDiscovery()
-            schemas = discovery.discover_objects(
-                base_module_path="userspace.data_source.handlers",
-                object_name="SCHEMA",
-                module_pattern="userspace.data_source.handlers.{name}.schema"
-            )
-            
-            # 处理发现的 Schema
-            for handler_name, schema in schemas.items():
-                if hasattr(schema, 'name'):
-                    schema_name = schema.name
-                    self._schemas[schema_name] = schema
-                    if self.is_verbose:
-                        logger.debug(f"✅ 加载 Schema: {schema_name} (from {handler_name})")
-                else:
-                    logger.warning(f"⚠️  {handler_name} 的 Schema 没有 name 属性")
-            
-            if self.is_verbose:
-                logger.info(f"✅ 共加载 {len(self._schemas)} 个 Schema")
+    def __init__(self):
+        self.data_sources = []
+        self.mappings = self._discover_mappings()
+        self.handlers = self._resolve_all_handlers(self.mappings)
+
+    def execute(self):
+        self._refresh_handlers()
+        for handler in self.handlers:
+            handler.execute()
+
+    def _refresh_handlers(self):
+        self.mappings = self._discover_mappings()
+        self.handlers = self._discover_handlers()
+
+
+    def _discover_mappings(self):
+        mapping_path = PathManager.get_mapping_root()
+        self.mappings = ConfigManager.load_json(mapping_path)
+
+
+    def _discover_handlers(self) -> Dict[str, Any]:
+        for data_source_map in self.mappings.items():
+            if data_source_map.get("is_enabled"):
+                data_source_name = data_source_map.get("name")
                 
-        except Exception as e:
-            logger.error(f"❌ 加载 Schema 失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-    
-    def _load_mapping(self):
-        """
-        加载 Handler 映射配置
-        
-        只加载 userspace/data_source/mapping.json，所有配置都在这里。
-        注意：所有的 handlers 和 providers 都是用户自定义的，没有系统默认配置。
-        """
-        # 加载用户配置（必需）
-        mapping_path = PathManager.data_source_mapping()
-        
-        if not mapping_path.exists():
-            logger.error(f"❌ 配置文件不存在: {mapping_path}")
-            logger.error("   请创建 userspace/data_source/mapping.json 并配置所有 data sources")
-            raise FileNotFoundError(f"配置文件不存在: {mapping_path}")
-        
-        config_data = ConfigManager.load_json(mapping_path)
-        data_sources = config_data.get("data_sources", {})
-        
-        if not data_sources:
-            logger.warning(f"⚠️ 配置文件为空: {mapping_path}")
-        
-        # 验证必需字段：handler 必须显式声明
-        for ds_name, ds_config in data_sources.items():
-            if "handler" not in ds_config:
-                logger.error(f"❌ {ds_name} 缺少必需字段 'handler'")
-                raise ValueError(f"Data source '{ds_name}' 缺少必需字段 'handler'，必须显式声明")
-        
-        if self.is_verbose:
-            logger.debug(f"✅ 加载了配置: {mapping_path}（共 {len(data_sources)} 个 data sources）")
-        
-        # 保存配置
-        self._mapping = data_sources
-    
-    def _load_definitions(self):
-        """
-        将配置转换为 DataSourceDefinition 对象
-        
-        这是必需的步骤，所有配置必须符合新的格式。
-        如果配置格式不正确，会记录错误但不会中断加载过程。
-        
-        注意：已禁用的 handler 仍然会加载定义（用于配置验证），但不会加载 handler 实例。
-        """
-        for ds_name, ds_config in self._mapping.items():
-            # 跳过已禁用的 handler（避免尝试加载不存在的 handler 类）
-            if not ds_config.get("is_enabled", True):
-                if self.is_verbose:
-                    logger.debug(f"⏭️ {ds_name} 已禁用，跳过定义加载")
-                continue
-            
-            try:
-                definition = DataSourceDefinition.from_dict(ds_config, name=ds_name)
-                self._definitions[ds_name] = definition
-                if self.is_verbose:
-                    logger.debug(f"✅ 加载 DataSourceDefinition: {ds_name}")
-            except Exception as e:
-                logger.error(f"❌ 加载 DataSourceDefinition 失败 {ds_name}: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
-                # 注意：配置格式错误会导致该 Handler 无法加载
-    
-    def get_definition(self, ds_name: str) -> Optional[DataSourceDefinition]:
-        """
-        获取 DataSourceDefinition 对象
-        
-        Args:
-            ds_name: 数据源名称
-        
-        Returns:
-            DataSourceDefinition 对象，如果不存在则返回 None
-        """
-        return self._definitions.get(ds_name)
-    
-    def _load_handler(self, ds_name: str, handler_path: str):
-        """
-        动态加载 Handler 类（从 userspace 加载）
-        
-        使用 ClassDiscovery 通过路径发现 Handler 类。
-        
-        Args:
-            ds_name: 数据源名称
-            handler_path: Handler 类的路径（支持简化格式，如 "kline.KlineHandler" 或完整路径）
-        
-        Returns:
-            Handler 类，如果加载失败返回 None
-        """
-        try:
-            # 标准化 handler 路径（支持简化格式）
-            normalized_path = DataSourceDefinition._normalize_handler_path(handler_path)
-            
-            # 确保路径格式正确（必须以 userspace.data_source.handlers 开头）
-            if not normalized_path.startswith("userspace.data_source.handlers."):
-                logger.error(
-                    f"❌ Handler 路径格式错误 {ds_name}: {handler_path} (标准化后: {normalized_path})\n"
-                    f"   正确格式应为: userspace.data_source.handlers.xxx.ClassName"
-                )
-                return None
-            
-            # 使用 ClassDiscovery 发现 Handler 类
-            config = DiscoveryConfig(
-                base_class=BaseDataSourceHandler,
-                module_name_pattern=""  # 不使用包扫描，直接通过路径发现
-            )
-            discovery = ClassDiscovery(config)
-            handler_class = discovery.discover_class_by_path(normalized_path, base_class=BaseDataSourceHandler)
-            
-            if handler_class:
-                if self.is_verbose:
-                    logger.debug(f"✅ 成功加载 Handler 类: {ds_name} ({normalized_path})")
-                return handler_class
-            else:
-                logger.error(f"❌ 未找到 Handler 类: {ds_name} ({normalized_path})")
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ 加载 Handler 失败 {ds_name} ({handler_path}): {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            return None
-    
-    def _load_handlers(self):
-        """加载所有启用的 Handler 实例"""
-        for ds_name, ds_config in self._mapping.items():
-            if not ds_config.get("is_enabled", True):
-                if self.is_verbose:
-                    logger.debug(f"⏭️ {ds_name} 已禁用，跳过")
-                continue
-            
-            handler_path = ds_config.get("handler")
-            if not handler_path:
-                logger.warning(f"⚠️ {ds_name} 没有配置 handler，跳过")
-                continue
-            
-            # 获取 Schema
-            schema = self._schemas.get(ds_name)
-            if not schema:
-                logger.warning(f"⚠️ {ds_name} 没有找到对应的 Schema，跳过")
-                continue
-            
-            # 加载 Handler 类
-            handler_class = self._load_handler(ds_name, handler_path)
-            if not handler_class:
-                logger.warning(f"⚠️ {ds_name} Handler 类加载失败，跳过")
-                continue
-            
-            # 创建 Handler 实例
-            try:
-                # 获取 DataSourceDefinition（必须存在）
-                definition = self._definitions.get(ds_name)
-                if not definition:
-                    logger.error(f"❌ {ds_name} 没有找到 DataSourceDefinition，跳过（配置格式可能不正确）")
+                schema = self._discover_schema(data_source_name)
+                if not schema:
+                    logger.error(f"Schema for data source {data_source_name} not found, skip")
                     continue
-                
-                handler_instance = handler_class(
-                    schema, 
-                    data_manager=self.data_manager,
-                    definition=definition
-                )
-                
-                # 确保 data_source 名称一致（使用类属性）
-                handler_instance.data_source = ds_name
-                
-                self._handlers[ds_name] = handler_instance
-                if self.is_verbose:
-                    logger.debug(f"✅ 成功加载 Handler: {ds_name}")
-            except Exception as e:
-                logger.error(f"❌ 创建 Handler 实例失败 {ds_name}: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
-    
-    async def fetch(
-        self, 
-        ds_name: str, 
-        context: Dict[str, Any] = None
-    ) -> Dict[str, Any]:
-        """
-        获取数据源数据（测试用 API）
-
-        执行指定数据源的 Handler，获取并标准化数据。
-        
-        注意：
-        - 数据保存由 Handler 在生命周期钩子中自行决定（如 after_normalize）
-        - 此方法会检查 mapping.json 中的 is_enabled 配置，只有启用的 handler 才能执行
-        
-        Args:
-            ds_name: 数据源名称
-            context: 执行上下文（可选）
-        
-        Returns:
-            标准化后的数据
-        
-        Raises:
-            ValueError: 如果 handler 不存在或已被禁用
-        """
-        # 检查 handler 是否存在
-        if ds_name not in self._mapping:
-            raise ValueError(f"数据源 {ds_name} 未找到（mapping.json 中不存在）")
-        
-        # 检查 handler 是否被禁用
-        handler_config = self._mapping[ds_name]
-        if not handler_config.get("is_enabled", True):
-            raise ValueError(f"数据源 {ds_name} 已被禁用（mapping.json 中 is_enabled: false）")
-        
-        # 检查 handler 是否已加载
-        if ds_name not in self._handlers:
-            raise ValueError(f"数据源 {ds_name} 的 Handler 未加载（可能配置错误或加载失败）")
-        
-        handler = self._handlers[ds_name]
-        context = context or {}
-        
-        logger.info(f"🔄 开始获取数据源: {ds_name}")
-        
-        # 执行 Handler 的完整生命周期
-        result = await handler.execute(context)
-        
-        logger.info(f"✅ 数据源 {ds_name} 获取完成")
-        
-        return result
-    
-    
-    def list_data_sources(self) -> List[str]:
-        """列出所有可用的数据源"""
-        return list(self._handlers.keys())
-    
-    def get_handler_status(self) -> Dict[str, Any]:
-        """
-        获取所有数据源的加载状态（用于调试）
-        
-        Returns:
-            Dict: {
-                "mapping_count": int,  # mapping.json 中的数据源数量
-                "enabled_count": int,    # 启用的数据源数量
-                "schema_count": int,    # 有 schema 的数据源数量
-                "loaded_handlers": List[str],  # 成功加载的 handler 列表
-                "failed_handlers": Dict[str, str],  # 加载失败的 handler 及原因
-            }
-        """
-        enabled_count = sum(1 for ds_config in self._mapping.values() 
-                           if ds_config.get("is_enabled", True))
-        schema_count = sum(1 for ds_name in self._mapping.keys() 
-                          if ds_name in self._schemas)
-        
-        loaded_handlers = list(self._handlers.keys())
-        failed_handlers = {}
-        
-        # 检查哪些数据源应该被加载但没有
-        for ds_name, ds_config in self._mapping.items():
-            if not ds_config.get("is_enabled", True):
-                continue
-            if ds_name not in self._handlers:
-                reasons = []
-                if not ds_config.get("handler"):
-                    reasons.append("没有配置 handler")
-                if ds_name not in self._schemas:
-                    reasons.append("没有找到对应的 Schema")
-                failed_handlers[ds_name] = "; ".join(reasons) if reasons else "未知原因"
-        
-        return {
-            "mapping_count": len(self._mapping),
-            "enabled_count": enabled_count,
-            "schema_count": schema_count,
-            "loaded_handlers": loaded_handlers,
-            "failed_handlers": failed_handlers,
-        }
-    
-    def get_schema(self, ds_name: str):
-        """获取数据源的 Schema"""
-        return self._schemas.get(ds_name)
-    
-    # ========== 依赖解析和注入 ==========
-    
-    # 全局依赖获取器注册表（可扩展）
-    _DEPENDENCY_FETCHERS = {
-        "latest_completed_trading_date": lambda dm: dm.service.calendar.get_latest_completed_trading_date(),
-        "stock_list": lambda dm: dm.stock.list.load(filtered=True),
-        # 未来可以添加：
-        # "market_status": lambda dm: dm.get_market_status(),
-        # "trading_calendar": lambda dm: dm.get_trading_calendar(),
-    }
-    
-    def _resolve_global_dependencies(self) -> set:
-        """
-        解析所有启用的 handler 需要的全局依赖
-        
-        优先从 mapping.json 中读取 dependencies（字典格式，如 {"latest_completed_trading_date": true}），
-        如果没有，则从 handler 类属性中读取（列表格式，如 ["stock_list"]）。
-        
-        Returns:
-            Set[str]: 需要获取的全局依赖名称集合
-        """
-        required_deps = set()
-        
-        # 从 mapping.json 中读取 dependencies
-        for ds_name, ds_config in self._mapping.items():
-            if not ds_config.get("is_enabled", True):
-                continue
-            
-            # 获取 handler 声明的依赖需求（字典格式，如 {"latest_completed_trading_date": true, "stock_list": false}）
-            dependencies = ds_config.get("dependencies", {})
-            
-            # 收集所有需要的依赖
-            if isinstance(dependencies, dict):
-                for dep_name, required in dependencies.items():
-                    if required:
-                        required_deps.add(dep_name)
-            elif isinstance(dependencies, list):
-                # 如果 dependencies 是列表格式，直接添加
-                for dep_name in dependencies:
-                    if dep_name in self._DEPENDENCY_FETCHERS:
-                        required_deps.add(dep_name)
-        
-        # 方法2: 从 handler 类属性中读取 dependencies（作为后备）
-        for ds_name, handler in self._handlers.items():
-            # 获取 handler 类属性中的 dependencies（是列表，如 ["stock_list", "latest_completed_trading_date"]）
-            # 优先从实例读取（如果子类覆盖了），否则从类读取
-            handler_deps = getattr(handler, 'dependencies', None) or getattr(handler.__class__, 'dependencies', [])
-            
-            if handler_deps and isinstance(handler_deps, list):
-                for dep_name in handler_deps:
-                    if dep_name in self._DEPENDENCY_FETCHERS:
-                        required_deps.add(dep_name)
-                    else:
-                        logger.warning(f"⚠️ Handler {ds_name} 声明了未知的依赖: {dep_name}")
-        
-        return required_deps
-    
-    def _fetch_global_dependencies(self, dep_names: set) -> Dict[str, Any]:
-        """
-        获取所有需要的全局依赖，构建 shared_context
-        
-        Args:
-            dep_names: 需要获取的依赖名称集合
-            
-        Returns:
-            Dict[str, Any]: shared_context，包含所有全局依赖
-        """
-        shared_context = {}
-        
-        # 总是自动获取 latest_completed_trading_date，因为很多 handler 都需要它
-        # 即使没有 handler 声明依赖，也应该提供（避免警告）
-        if "latest_completed_trading_date" in self._DEPENDENCY_FETCHERS:
-            try:
-                fetcher = self._DEPENDENCY_FETCHERS["latest_completed_trading_date"]
-                value = fetcher(self.data_manager)
-                shared_context["latest_completed_trading_date"] = value
-                logger.debug(f"✅ 获取全局依赖: latest_completed_trading_date")
-            except Exception as e:
-                logger.warning(f"⚠️ 获取 latest_completed_trading_date 失败: {e}，handler 将回退获取")
-        
-        # 获取其他声明的依赖
-        for dep_name in dep_names:
-            # 跳过 latest_completed_trading_date，因为已经在上面处理了
-            if dep_name == "latest_completed_trading_date":
-                continue
-                
-            if dep_name in self._DEPENDENCY_FETCHERS:
-                try:
-                    fetcher = self._DEPENDENCY_FETCHERS[dep_name]
-                    value = fetcher(self.data_manager)
-                    shared_context[dep_name] = value
-                    logger.debug(f"✅ 获取全局依赖: {dep_name}")
-                except Exception as e:
-                    logger.error(f"❌ 获取全局依赖失败 {dep_name}: {e}")
-                    # 如果关键依赖获取失败，可以选择中断或继续
-                    # 这里选择继续，让 handler 自己处理缺失的依赖
+                config = self._discover_config(data_source_name)
+                if not config:
+                    logger.error(f"Config for data source {data_source_name} not found, skip")
+                    continue
+                handler = self._discover_handler(data_source_name)
+                if not handler:
+                    logger.error(f"Handler for data source {data_source_name} not found, skip")
+                    continue
+                self.handlers.append(handler)
             else:
-                logger.warning(f"⚠️ 未知的全局依赖: {dep_name}")
-        
-        return shared_context
+                logger.info(f"Data source {data_source_name} is disabled, skip")
+
+
+    def _discover_schema(self, data_source_name: str) -> Any:
+        # 1. find schema file
+        # 2. new Schema DataClass
+        # 3. call is valid method of Schema DataClass
+        # 4. return Schema DataClass
+        pass
     
-    def _get_enabled_handlers(self) -> Dict[str, Dict[str, Any]]:
-        """
-        获取所有启用的 handler 配置
-        
-        Returns:
-            Dict[str, Dict[str, Any]]: {handler_name: handler_config}
-        """
-        enabled_handlers = {}
-        for ds_name, ds_config in self._mapping.items():
-            if ds_config.get("is_enabled", True):
-                enabled_handlers[ds_name] = ds_config
-        return enabled_handlers
 
-    async def renew_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: Optional[list] = None,
-        test_mode: bool = False,
-        dry_run: bool = False
-    ):
-        """
-        一站式更新：行情数据 + 标签数据。
 
-        Args:
-            latest_completed_trading_date: 最新交易日（可选，如果不提供则自动获取）
-            stock_list: 股票列表（可选，如果不提供则从数据库读取）
-            test_mode: 测试模式，如果为 True，只处理前 10-20 个股票
-            dry_run: 干运行模式，如果为 True，只更新行情流程，不写入任何标签
-        """
-        # Step 1: 依赖解析 - 解析所有启用的 handler 需要的全局依赖
-        enabled_handlers = self._get_enabled_handlers()
-        required_deps = self._resolve_global_dependencies()
-        
-        # Step 2: 依赖注入 - 获取所有需要的全局依赖，构建 shared_context
-        shared_context = self._fetch_global_dependencies(required_deps)
-        
-        # 如果外部传入了 latest_completed_trading_date 或 stock_list，覆盖 shared_context
-        if latest_completed_trading_date:
-            shared_context["latest_completed_trading_date"] = latest_completed_trading_date
-        if stock_list:
-            shared_context["stock_list"] = stock_list
-        
-        # 添加执行参数
-        shared_context.update({
-            "test_mode": test_mode,
-            "dry_run": dry_run,
-        })
-        
-        logger.info(f"🚀 开始执行数据更新，共 {len(enabled_handlers)} 个启用的 handler")
-        
-        # Step 3: 遍历所有启用的 handler，执行 build context + fetch
-        for handler_name, handler_config in enabled_handlers.items():
-            if handler_name not in self._handlers:
-                logger.warning(f"⚠️ Handler {handler_name} 未加载，跳过")
-                continue
-            
-            handler = self._handlers[handler_name]
-            
-            try:
-                logger.info(f"📊 处理数据源: {handler_name}")
-                
-                # 复制 shared_context，创建独立的 handler_context（避免污染）
-                # handler_context 会在 execute 中传递给 handler.before_fetch
-                handler_context = shared_context.copy()
-                
-                # Step 3: Handler Execution Layer
-                # before_fetch 会在 execute 中调用（作为生命周期钩子）
-                # 此时 handler_context 已经包含了所有全局依赖，handler 的 before_fetch
-                # 可以从 context 中读取这些依赖，并添加自己的特定 context
-                # 使用 self.fetch 方法（保持与之前实现一致）
-                result = await self.fetch(handler_name, context=handler_context)
-                
-                logger.info(f"✅ 数据源 {handler_name} 处理完成")
-                
-            except Exception as e:
-                logger.error(f"❌ 处理数据源 {handler_name} 失败: {e}")
-                import traceback
-                traceback.print_exc()
-                continue
-        
-        logger.info("🎉 所有数据源更新完成")
+    def _discover_config(self, data_source_name: str) -> Any:
+        # 1. find config file
+        # 2. new Config DataClass
+        # 3. call is valid method of Config DataClass
+        # 4. return Config DataClass
+        pass
+
+
+    def _discover_handler(self, data_source_name: str) -> Any:
+        # 1. find handler from mapping info
+        # 2. feed schema and config to handler
+        # 3. return handler instance
+        pass
+
+ 

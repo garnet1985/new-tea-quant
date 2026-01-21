@@ -331,3 +331,4 @@ class PriceIndexesHandler(BaseDataSourceHandler):
             import traceback
             logger.error(traceback.format_exc())
 
+

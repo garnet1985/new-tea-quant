@@ -159,35 +159,105 @@ class BaseDataSourceHandler:
     
     async def fetch(self, context: Dict[str, Any]) -> List[DataSourceTask]:
         """
-        生成 Tasks（默认实现）
+        生成 Tasks（默认实现，适用于简单数据源）
         
-        子类必须覆盖此方法来实现自定义的 Task 生成逻辑。
+        默认行为：
+        - 如果 handler_config.apis 中只配置了一个 API：
+          - 使用配置的 provider_name / method / params
+          - 结合 context 中的 start_date / end_date（由 renew_mode 自动计算）
+          - 生成一个包含单个 ApiJob 的 DataSourceTask
         
-        Args:
-            context: 执行上下文
-        
-        Returns:
-            List[DataSourceTask]: 一组编排好的 Tasks
+        更复杂的场景（如多 API、按股票拆分等）应在子类中覆盖此方法。
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} 必须覆盖 fetch 方法"
+        handler_config = self.get_handler_config()
+        apis = getattr(handler_config, "apis", None) if handler_config else None
+        
+        if not apis:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} 必须覆盖 fetch 方法或在 handler_config.apis 中配置至少一个 API"
+            )
+        
+        if not isinstance(apis, dict) or len(apis) != 1:
+            # 默认实现只支持单 API 场景，多 API 由子类自行编排
+            raise NotImplementedError(
+                f"{self.__class__.__name__} 默认 fetch 仅支持单 API 场景，请在子类中自定义 fetch"
+            )
+        
+        api_name = list(apis.keys())[0]
+        context = context or {}
+        
+        # 构建 API 参数
+        api_params: Dict[str, Any] = {}
+        
+        # 是否需要日期范围：优先使用 handler_config.requires_date_range，其次使用类属性
+        requires_date_range = getattr(handler_config, "requires_date_range", getattr(self, "requires_date_range", False))
+        if requires_date_range:
+            start_date = context.get("start_date")
+            end_date = context.get("end_date")
+            if start_date is not None:
+                api_params["start_date"] = start_date
+            if end_date is not None:
+                api_params["end_date"] = end_date
+        
+        # 允许通过配置和 context 注入额外参数
+        extra_params = self.get_param("extra_params", {}) or {}
+        api_params.update(extra_params)
+        context_params = context.get("extra_params") or {}
+        api_params.update(context_params)
+        
+        # 从缓存的 ApiJob 创建实例，只修改 params
+        api_job = self.get_api_job_with_params(
+            name=api_name,
+            params=api_params,
         )
+        
+        task = DataSourceTask(
+            task_id=f"{self.data_source}_task",
+            api_jobs=[api_job],
+            description=f"获取 {self.data_source} 数据",
+        )
+        
+        return [task]
     
     async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict:
         """
-        将原始数据标准化为框架 schema 格式（默认实现）
+        将原始数据标准化为框架 schema 格式（默认实现，适用于简单数据源）
         
-        子类必须覆盖此方法来实现自定义的数据标准化逻辑。
+        默认行为：
+        - 假定只有一个 Task + 一个 ApiJob（由默认 fetch 创建）
+        - 使用字段映射（handler_config.apis[*].field_mapping）将 DataFrame 转为记录列表
         
-        Args:
-            task_results: 框架执行 Tasks 后返回的结果字典 {task_id: {job_id: result}}
-        
-        Returns:
-            标准化后的数据字典，格式符合 self.schema
+        更复杂的场景（多 API 合并等）应在子类中覆盖此方法。
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} 必须覆盖 normalize 方法"
-        )
+        handler_config = self.get_handler_config()
+        apis = getattr(handler_config, "apis", None) if handler_config else None
+        
+        if not apis:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} 必须覆盖 normalize 方法或在 handler_config.apis 中配置至少一个 API"
+            )
+        
+        if not isinstance(apis, dict) or len(apis) != 1:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} 默认 normalize 仅支持单 API 场景，请在子类中自定义 normalize"
+            )
+        
+        api_name = list(apis.keys())[0]
+        api_cfg = apis.get(api_name) or {}
+        field_mapping = api_cfg.get("field_mapping", {}) or {}
+        
+        # 获取简单 Task 结果（默认使用 {data_source}_task / 第一个 job）
+        df = self.get_simple_result(task_results)
+        
+        if df is None or getattr(df, "empty", False):
+            logger.info(f"{self.data_source} 数据查询返回空数据")
+            return {"data": []}
+        
+        records = df.to_dict("records")
+        formatted = self._apply_field_mapping(records, field_mapping)
+        
+        logger.info(f"✅ {self.data_source} 数据处理完成，共 {len(formatted)} 条记录")
+        return {"data": formatted}
     
     # ========== 可选的钩子方法 ==========
     
@@ -327,7 +397,31 @@ class BaseDataSourceHandler:
         如果需要保存数据，应该在 DataSourceManager 或其他外部组件中处理。
         """
         pass
-    
+
+    def _validate_data_for_save(self, normalized_data: Dict[str, Any]):
+        """
+        通用的数据验证辅助方法：
+        - 确保 normalized_data 是字典
+        - 提取并验证其中的 'data' 字段为 list
+        - 空数据时返回空列表，调用方据此判断是否需要落库
+
+        目前被部分 Handler（如宏观指标、企业财务等）复用。
+        """
+        if not isinstance(normalized_data, dict):
+            logger.warning(f"{self.data_source} normalized_data 不是字典，无法保存")
+            return []
+
+        data_list = normalized_data.get("data")
+        if not data_list:
+            # 空数据属于正常情况，不算错误
+            return []
+
+        if not isinstance(data_list, list):
+            logger.warning(f"{self.data_source} normalized_data['data'] 不是 list，实际类型: {type(data_list)}")
+            return []
+
+        return data_list
+
     def _save_data_with_clean_nan(
         self,
         normalized_data: Dict[str, Any],

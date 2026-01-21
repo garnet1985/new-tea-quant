@@ -200,12 +200,14 @@ class DatabaseManager:
     @contextmanager
     def transaction(self):
         """事务上下文管理器（委托给 ConnectionManager）"""
-        return self.connection_manager.transaction()
+        with self.connection_manager.transaction() as cursor:
+            yield cursor
     
     @contextmanager
     def get_sync_cursor(self):
         """获取数据库游标（委托给 ConnectionManager）"""
-        return self.connection_manager.get_sync_cursor()
+        with self.connection_manager.get_sync_cursor() as cursor:
+            yield cursor
     
     def execute_sync_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
         """执行同步查询（委托给 ConnectionManager）"""

@@ -12,7 +12,8 @@
     "apis": {
         "finance_data": {
             "provider_name": "tushare",
-            "method": "get_finance_data"
+            "method": "get_finance_data",
+            "max_per_minute": 500
         }
     }
 }

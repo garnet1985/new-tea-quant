@@ -1,45 +1,89 @@
+from typing import Any, Dict
+from loguru import logger
+from core.global_enums.enums import UpdateMode
+
+
 class DataSourceConfig:
     """
     DataSource Config class
+    
+    支持从 dict 创建，并提供配置验证功能。
     """
-    mode: str
-    date_format: str
-    table_name: str
-    date_field: str
-    default_date_range: str
-    apis: Dict[str, Any]
-    params: Dict[str, Any]
-    field_mapping: Dict[str, Any]
-    requires_date_range: bool
-
-
-    def _discover_config(self):
+    
+    def __init__(self, config_dict: Dict[str, Any], data_source_name: str = None):
         """
-        Discover the config
+        从字典创建 DataSourceConfig
+        
+        Args:
+            config_dict: 配置字典
+            data_source_name: 数据源名称（用于错误提示）
         """
-        config_path = PathManager.data_source_config(self.data_source_name)
-        if not config_path.exists():
-            raise FileNotFoundError(f"Config file not found: {config_path}")
-        return ConfigManager.load_json(config_path)
-
-    def _is_config_valid(self, raw_config: Dict[str, Any]):
+        self._config_dict = config_dict or {}
+        self._data_source_name = data_source_name or "unknown"
+        
+        # 验证配置
+        self.validate()
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """获取配置值（兼容 dict 接口）"""
+        return self._config_dict.get(key, default)
+    
+    def __getitem__(self, key: str) -> Any:
+        """支持 dict 风格的访问"""
+        return self._config_dict[key]
+    
+    def __contains__(self, key: str) -> bool:
+        """支持 'key in config' 语法"""
+        return key in self._config_dict
+    
+    def validate(self) -> None:
         """
-        Check if the config is valid
+        验证 config 配置是否完整（根据 renew_mode 验证必填字段）。
+        
+        规则：
+        - incremental 模式：必须配置 table_name 和 date_field
+        - rolling 模式：必须配置 table_name、date_field、rolling_unit、rolling_length
+        
+        Raises:
+            ValueError: 如果配置不完整
         """
-        pass
-        return True
-
-    def _parse_config(self, raw_config: Dict[str, Any]):
-        """
-        Parse the config
-        """
-        self.mode = valid_config.get("renew_mode")        
-        self.date_format = valid_config.get("date_format")
-        self.table_name = valid_config.get("table_name")
-        self.date_field = valid_config.get("date_field")
-        self.default_date_range = valid_config.get("default_date_range")
-        self.apis = valid_config.get("apis")
-        self.params = valid_config.get("params")
-        self.field_mapping = valid_config.get("field_mapping")
-        self.requires_date_range = valid_config.get("requires_date_range")
-        pass
+        if not self._config_dict:
+            return  # 空 config 不验证
+        
+        renew_mode = (self._config_dict.get("renew_mode") or "").lower()
+        
+        # Incremental 模式验证
+        if renew_mode == UpdateMode.INCREMENTAL.value:
+            table_name = self._config_dict.get("table_name")
+            date_field = self._config_dict.get("date_field")
+            if not table_name or not date_field:
+                raise ValueError(
+                    f"Data source '{self._data_source_name}' 使用 incremental renew_mode，"
+                    f"必须显式配置 table_name 和 date_field，"
+                    f"当前配置: table_name={table_name}, date_field={date_field}"
+                )
+        
+        # Rolling 模式验证
+        elif renew_mode == UpdateMode.ROLLING.value:
+            table_name = self._config_dict.get("table_name")
+            date_field = self._config_dict.get("date_field")
+            rolling_unit = self._config_dict.get("rolling_unit")
+            rolling_length = self._config_dict.get("rolling_length")
+            
+            if not table_name or not date_field:
+                raise ValueError(
+                    f"Data source '{self._data_source_name}' 使用 rolling renew_mode，"
+                    f"必须显式配置 table_name 和 date_field，"
+                    f"当前配置: table_name={table_name}, date_field={date_field}"
+                )
+            
+            if not rolling_unit or not rolling_length:
+                raise ValueError(
+                    f"Data source '{self._data_source_name}' 使用 rolling renew_mode，"
+                    f"必须显式配置 rolling_unit 和 rolling_length，"
+                    f"当前配置: rolling_unit={rolling_unit}, rolling_length={rolling_length}"
+                )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典（用于兼容性）"""
+        return self._config_dict.copy()

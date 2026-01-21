@@ -140,13 +140,8 @@ class RenewService:
         date_format = (config.get("date_format") or "day").lower()
         table_name = config.get("table_name")
         date_field = config.get("date_field")
-        
-        if not table_name or not date_field:
-            logger.warning(
-                f"增量模式需要 table_name 和 date_field，当前配置: "
-                f"table_name={table_name}, date_field={date_field}，使用默认日期范围"
-            )
-            return self.compute_default_date_range(context)
+
+        # 配置验证已在 DataSourceManager._discover_config 阶段完成，这里直接使用
         
         renew_mode_service = self._get_renew_mode_service()
         try:
@@ -174,20 +169,8 @@ class RenewService:
         rolling_length = config.get("rolling_length")
         table_name = config.get("table_name")
         date_field = config.get("date_field")
-        
-        if not table_name or not date_field:
-            logger.warning(
-                f"滚动模式需要 table_name 和 date_field，当前配置: "
-                f"table_name={table_name}, date_field={date_field}，使用默认日期范围"
-            )
-            return self.compute_default_date_range(context)
-        
-        if not rolling_unit or not rolling_length:
-            logger.warning(
-                f"滚动模式需要 rolling_unit 和 rolling_length，当前配置: "
-                f"rolling_unit={rolling_unit}, rolling_length={rolling_length}，使用默认日期范围"
-            )
-            return self.compute_default_date_range(context)
+
+        # 配置验证已在 DataSourceManager._discover_config 阶段完成，这里直接使用
         
         renew_mode_service = self._get_renew_mode_service()
         try:
@@ -254,6 +237,10 @@ class RenewService:
         # 如果是字典，直接返回
         if isinstance(config, dict):
             return config
+        
+        # 如果是 DataSourceConfig 实例，使用 to_dict 方法
+        if hasattr(config, "to_dict"):
+            return config.to_dict()
         
         # 如果是对象，尝试转换为字典
         if hasattr(config, "__dict__"):

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, Any
+from loguru import logger
 
 from core.modules.data_source.data_class.field import DataSourceField
 
@@ -22,7 +23,7 @@ class DataSourceSchema:
     description: str = ""
     fields: Dict[str, DataSourceField] = field(default_factory=dict)
 
-    def validate(self, data: Dict[str, Any]) -> bool:
+    def validate_data(self, data: Dict[str, Any]) -> bool:
         """
         验证单条数据是否符合 Schema 定义。
 
@@ -32,6 +33,12 @@ class DataSourceSchema:
           - int: 接受 float/str，可转换则视为通过
           - float: 接受 int/str，可转换则视为通过
           - str: 始终可以通过 str(...) 转换
+        
+        Args:
+            data: 待验证的数据字典
+        
+        Returns:
+            bool: 数据是否符合 Schema 定义
         """
         for field_name, field_def in self.fields.items():
             # 必需字段缺失
@@ -57,3 +64,32 @@ class DataSourceSchema:
                         return False
 
         return True
+
+    def validate(self) -> None:
+        """
+        验证 Schema 本身的完整性（在发现后调用）。
+        
+        严重问题会抛出 ValueError 并停止执行：
+        - name 不能为空
+        - fields 不能为空（至少需要一个字段定义）
+        
+        Raises:
+            ValueError: 如果 Schema 定义不完整
+        """
+        # 严重问题：name 为空
+        if not self.name or not self.name.strip():
+            raise ValueError(
+                f"DataSourceSchema.name 不能为空（当前值: {repr(self.name)}）"
+            )
+        
+        # 严重问题：fields 为空
+        if not self.fields:
+            raise ValueError(
+                f"DataSourceSchema '{self.name}' 的 fields 不能为空，至少需要定义一个字段"
+            )
+        
+        # 警告：description 为空（非严重问题，只记录警告）
+        if not self.description or not self.description.strip():
+            logger.warning(
+                f"DataSourceSchema '{self.name}' 的 description 为空，建议添加描述信息"
+            )

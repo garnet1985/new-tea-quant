@@ -8,6 +8,7 @@ from core.modules.data_source.data_class.schema import DataSourceSchema
 from core.modules.data_source.service.manager_helper import DataSourceManagerHelper
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from core.modules.data_source.base_class.base_handler import BaseHandler
+from core.modules.data_source.data_class.config import DataSourceConfig
 
 class DataSourceManager:
     """
@@ -101,6 +102,9 @@ class DataSourceManager:
             logger.warning(f"未找到数据源 '{data_source_name}' 对应的 Schema")
             return None
 
+        # 显式验证 Schema 完整性（严重问题会抛出异常并停止执行）
+        schema.validate()
+
         return schema
 
 
@@ -121,11 +125,19 @@ class DataSourceManager:
         handler_dir = PathManager.data_source_handler(data_source_name)
         config_path = handler_dir / "config.json"
 
-        config = DataSourceManagerHelper.load_config(config_path)
+        config_dict = DataSourceManagerHelper.load_config(config_path)
 
-        if not config:
+        if not config_dict:
             logger.info(f"Data source {data_source_name} 未找到 config.json，跳过")
             return None
+
+        # 创建 DataSourceConfig 实例（内部会自动验证配置）
+        config = DataSourceConfig(config_dict, data_source_name=data_source_name)
+
+        # 显式验证 Config 完整性（虽然 __init__ 中已调用，但这里显式调用以确保：
+        # 1. 代码可读性：明确告知这里会验证配置
+        # 2. 严重问题会抛出 ValueError 并停止执行（已在 validate() 中实现）
+        config.validate()
 
         self._configs_cache[data_source_name] = config
         return config
@@ -135,7 +147,7 @@ class DataSourceManager:
         self,
         data_source_name: str,
         schema: DataSourceSchema,
-        config: Dict[str, Any],
+        config: Any,  # DataSourceConfig 实例或 Dict[str, Any]
     ) -> Any:
         """
         基于 mapping 信息、Schema 和 Config 实例化具体的 Handler。

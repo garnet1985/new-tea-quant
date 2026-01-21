@@ -539,22 +539,45 @@ class TaskExecutor:
     
     def _collect_api_limits(self, api_jobs: List[ApiJob]) -> Dict[str, int]:
         """
-        收集所有 ApiJobs 的限流信息
-        
-        从 Provider 的 api_limits 中获取
+        收集所有 ApiJobs 的限流信息。
+
+        优先级：
+        1. ApiJob.rate_limit（来自 handler config 的 max_per_minute，用户显式配置）；
+        2. Provider.get_api_limit(api_name)（Provider 声明的官方硬限流，作为兜底）；
+        3. 默认限流：60 次/分钟（保守默认值）。
         """
-        api_limits = {}
-        
+        api_limits: Dict[str, int] = {}
+        default_limit = 60
+
         for api_job in api_jobs:
-            provider = self.providers.get(api_job.provider_name)
-            if provider and hasattr(provider, 'get_api_limit'):
-                limit = provider.get_api_limit(api_job.api_name)
-                if limit:
-                    api_limits[api_job.job_id] = limit
-            else:
-                # 默认限流：60 次/分钟
-                api_limits[api_job.job_id] = 60
-        
+            job_id = api_job.job_id or api_job.api_name or api_job.method
+            limit: int = 0
+
+            # 1. 优先使用 ApiJob 自身的 rate_limit（来自 config 的 max_per_minute）
+            if getattr(api_job, "rate_limit", None):
+                try:
+                    limit = int(api_job.rate_limit)
+                except (TypeError, ValueError):
+                    limit = 0
+
+            # 2. 其次尝试从 Provider 元数据中获取硬限流（保持与旧实现兼容）
+            if not limit:
+                provider = self.providers.get(api_job.provider_name)
+                if provider and hasattr(provider, "get_api_limit"):
+                    api_name = api_job.api_name or api_job.method
+                    provider_limit = provider.get_api_limit(api_name)
+                    if provider_limit:
+                        try:
+                            limit = int(provider_limit)
+                        except (TypeError, ValueError):
+                            limit = 0
+
+            # 3. 最后使用默认值
+            if not limit:
+                limit = default_limit
+
+            api_limits[job_id] = limit
+
         return api_limits
     
     def _decide_workers(self, api_jobs: List[ApiJob], api_limits: Dict[str, int] = None) -> int:

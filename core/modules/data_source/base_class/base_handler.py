@@ -7,7 +7,10 @@ from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_batch import ApiJobBatch
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.data_class.schema import DataSourceSchema
-from core.modules.data_source.data_classes import DataSourceTask
+from core.modules.data_source.service.renew_service import RenewService
+from core.global_enums.enums import UpdateMode
+from core.modules.data_manager.data_manager import DataManager
+
 
 
 class BaseHandler:
@@ -20,6 +23,7 @@ class BaseHandler:
             "schema": schema,
             "config": config,
             "providers": providers,
+            "data_manager": DataManager.get_instance(),
         }
         self.apis: List[ApiJob] = self._config_to_api_jobs()
         self.fetched_data: Dict[str, Any] = {}
@@ -70,8 +74,57 @@ class BaseHandler:
     # ================================
 
     def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]):
-        # 可重写，有默认行为：默认直接返回 apis
-        return apis
+        """
+        抓取前阶段：默认行为是在不显式指定日期范围时，尝试根据 renew_mode 自动补全日期范围。
+
+        步骤大纲（主线逻辑）：
+        1. 先检查 context 中是否已有 start_date / end_date（显式指定时原样使用，不做推断）；
+        2. 如果没有日期范围，先判断目标表是否为空：
+           - 表为空：走「首次全量/初始化」路径，按配置给出一个默认日期范围（相当于 refresh 初次跑）；
+        3. 如果表不为空，根据 config.renew_mode 决定增量/滚动策略：
+           - incremental：从数据库中已完成的最新日期之后，增量补到当前最新周期；
+           - rolling：围绕最近完成日期构造一个滚动窗口（rolling_unit + rolling_length）；
+           - 其他情况（含 refresh 或未配置）：统一回退到默认日期范围策略；
+        4. 将得到的 (start_date, end_date) 注入到每个 ApiJob 的 params 中（统一的日期语义）；
+        5. 返回（可能带有 start_date / end_date 的）Apis 列表，供后续 fetch 使用。
+
+        具体的「查表 + 计算日期范围」细节下沉到 RenewService：
+        - RenewService 内部再委托给 legacy 的 RenewModeService / 各种 *RenewService 做精确计算；
+        - 本方法只保留步骤大纲，方便阅读主线逻辑，复杂实现不写在这里。
+
+        复杂场景（需要特殊 renew 策略）可以在子类中覆盖本方法。
+        """
+
+        # 准备：构造 RenewService（内部持有 data_manager，用于查表）
+        renew_service = RenewService(data_manager=context.get("data_manager"))
+
+        # 步骤 1：如果显式指定了日期范围，直接注入并返回
+        if renew_service.is_date_range_specified(context):
+            start = context.get("start_date")
+            end = context.get("end_date")
+            return renew_service.add_date_range(apis, start, end)
+
+        # 步骤 2：判断目标表是否为空（首次全量/初始化场景）
+        is_empty = renew_service.is_table_empty(context)
+        renew_mode = renew_service.get_renew_mode(context)
+
+        if is_empty:
+            # 表为空：走首次全量/初始化路径
+            start, end = renew_service.compute_default_date_range(context)
+            return renew_service.add_date_range(apis, start, end)
+
+        if renew_mode == UpdateMode.INCREMENTAL.value:
+            start, end = renew_service.compute_incremental_date_range(context)
+            return renew_service.add_date_range(apis, start, end)
+
+        if renew_mode == UpdateMode.ROLLING.value and renew_service.has_rolling_time_range(context):
+            # 滚动模式：围绕最近完成日期构造滚动窗口（rolling_unit + rolling_length，内部查表）
+            start, end = renew_service.compute_rolling_date_range(context)
+            return renew_service.add_date_range(apis, start, end)
+
+        # 步骤 4：兜底策略（视作刷新模式，使用默认日期范围）
+        start, end = renew_service.compute_default_date_range(context)
+        return renew_service.add_date_range(apis, start, end)
 
     def on_fetch(self, context: Dict[str, Any], apis: List[ApiJob]):
         """

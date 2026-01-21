@@ -8,6 +8,7 @@
         "trade_cal_data": {
             "provider_name": "tushare",
             "method": "get_trade_cal",
+            "max_per_minute": 200,
             "field_mapping": {},
             "params": {}
         }

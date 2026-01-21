@@ -12,15 +12,18 @@
     "apis": {
         "adj_factor": {
             "provider_name": "tushare",
-            "method": "get_adj_factor"
+            "method": "get_adj_factor",
+            "max_per_minute": 800
         },
         "daily_kline": {
             "provider_name": "tushare",
-            "method": "get_daily_kline"
+            "method": "get_daily_kline",
+            "max_per_minute": 700
         },
         "qfq_kline": {
             "provider_name": "eastmoney",
-            "method": "get_qfq_kline"
+            "method": "get_qfq_kline",
+            "max_per_minute": 60
         }
     }
 }

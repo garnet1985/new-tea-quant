@@ -2,9 +2,16 @@ class DataSourceConfig:
     """
     DataSource Config class
     """
-    def __init__(self, data_source_name: str):
-        self.data_source_name = data_source_name
-        pass
+    mode: str
+    date_format: str
+    table_name: str
+    date_field: str
+    default_date_range: str
+    apis: Dict[str, Any]
+    params: Dict[str, Any]
+    field_mapping: Dict[str, Any]
+    requires_date_range: bool
+
 
     def _discover_config(self):
         """

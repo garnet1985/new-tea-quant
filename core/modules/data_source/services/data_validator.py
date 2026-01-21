@@ -46,7 +46,7 @@ class DataValidator:
             return True
         
         # 如果数据不是 {"data": [...]} 格式，直接验证整个字典
-        return schema.validate(data)
+        return schema.validate_data(data)
     
     @staticmethod
     def validate_record(record: Dict[str, Any], schema) -> bool:
@@ -64,7 +64,7 @@ class DataValidator:
             logger.error(f"数据验证失败: 记录不是字典类型")
             return False
         
-        if not schema.validate(record):
+        if not schema.validate_data(record):
             # 收集所有错误信息
             errors = DataValidator.collect_errors(record, schema)
             if errors:

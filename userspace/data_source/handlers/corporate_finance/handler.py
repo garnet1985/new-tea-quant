@@ -323,13 +323,14 @@ class CorporateFinanceHandler(BaseDataSourceHandler):
             logger.error(traceback.format_exc())
 
     
-    async def after_normalize(self, normalized_data: Dict[str, Any]):
+    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
         """
         标准化后处理（全局）：这里只做日志，不再统一写库。
 
         企业财务数据的落库已经在 after_single_task_execute 中
         按股票粒度完成，避免重复保存。
         """
+        context = context or {}
         data_list = normalized_data.get("data") or []
         logger.info(f"✅ 企业财务数据标准化完成（按股票已分别保存），总记录数: {len(data_list)}")
     

@@ -11,7 +11,7 @@ import akshare as ak
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from core.modules.data_source.base_provider import BaseProvider
+from core.modules.data_source.base_class.base_provider import BaseProvider
 
 
 class AKShareProvider(BaseProvider):

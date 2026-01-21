@@ -101,6 +101,215 @@ class DataSourceHandlerHelper:
 
         return jobs
 
+    # ========== 日期范围 & renew_mode ==========
+
+    @staticmethod
+    def ensure_date_range(context: Dict[str, Any]) -> None:
+        """
+        根据 config 中的 renew_mode / default_date_range，在 context 中补全 start_date / end_date。
+
+        设计目标：
+        - 如果调用方已经在 context 中显式给出了 start_date / end_date，则不做修改；
+        - 否则根据 renew_mode + default_date_range 给出一个“合理的默认范围”（不访问数据库）；
+        - 复杂的增量 / 滚动逻辑交给上层或专用服务覆盖。
+
+        当前简化策略：
+        - 支持的 date_format：day / date / month / quarter / none（不区分大小写，默认 day）；
+        - default_date_range: {"years": N}，表示从 N 年前到今天；
+        - 不涉及数据库，仅基于当前日期计算。
+        """
+        if context is None:
+            return
+
+        # 已经有日期范围则不干预
+        if "start_date" in context and "end_date" in context:
+            return
+
+        config: Dict[str, Any] = context.get("config") or {}
+        renew_mode = (config.get("renew_mode") or "").lower()
+        date_format = (config.get("date_format") or "day").lower()
+        default_range = config.get("default_date_range") or {}
+        years = int(default_range.get("years") or 1)
+
+        from datetime import datetime, timedelta
+
+        today = datetime.today()
+        if date_format in ("day", "date"):
+            end = today
+            start = today - timedelta(days=365 * years)
+            fmt = "%Y-%m-%d"
+        elif date_format == "month":
+            # 简化：按 30 天一月估算
+            end = today
+            start = today - timedelta(days=30 * 12 * years)
+            fmt = "%Y-%m"
+        elif date_format == "quarter":
+            # 简化：按 3 个月一季度估算，用 YYYYQn 表示
+            year = today.year
+            quarter = (today.month - 1) // 3 + 1
+            end_str = f"{year}Q{quarter}"
+            start_year = year - years
+            start_str = f"{start_year}Q1"
+            context["start_date"] = start_str
+            context["end_date"] = end_str
+            logger.info(
+                f"📅 自动设置季度范围: {start_str} → {end_str} "
+                f"(renew_mode={renew_mode or 'unknown'})"
+            )
+            return
+        else:
+            # 不识别的 format 或 none，不设置日期
+            logger.info(f"日期格式 {date_format} 不支持自动范围计算，跳过 ensure_date_range")
+            return
+
+        start_str = start.strftime(fmt)
+        end_str = end.strftime(fmt)
+        context["start_date"] = start_str
+        context["end_date"] = end_str
+        logger.info(
+            f"📅 自动设置日期范围: {start_str} → {end_str} "
+            f"(renew_mode={renew_mode or 'unknown'}, years={years})"
+        )
+
+    @staticmethod
+    def is_date_range_specified(context: Dict[str, Any]) -> bool:
+        """
+        判断 context 中是否已经显式指定了 start_date / end_date。
+        """
+        if not context:
+            return False
+        return "start_date" in context and "end_date" in context
+
+    @staticmethod
+    def _get_renew_mode(context: Dict[str, Any]) -> str:
+        """
+        从 context.config 中读取 renew_mode（小写字符串）。
+        """
+        config: Dict[str, Any] = context.get("config") or {}
+        mode = (config.get("renew_mode") or "").lower()
+        return mode
+
+    @staticmethod
+    def is_refresh_mode(context: Dict[str, Any]) -> bool:
+        """
+        是否为全量刷新模式。
+
+        约定：
+        - renew_mode == "refresh"；或未设置时也可视为刷新模式的退化情况。
+        """
+        mode = DataSourceHandlerHelper._get_renew_mode(context)
+        return mode == "refresh" or mode == ""
+
+    @staticmethod
+    def is_incremental_mode(context: Dict[str, Any]) -> bool:
+        """是否为增量模式。"""
+        mode = DataSourceHandlerHelper._get_renew_mode(context)
+        return mode == "incremental"
+
+    @staticmethod
+    def is_rolling_mode(context: Dict[str, Any]) -> bool:
+        """是否为滚动模式。"""
+        mode = DataSourceHandlerHelper._get_renew_mode(context)
+        return mode == "rolling"
+
+    @staticmethod
+    def has_rolling_time_range(context: Dict[str, Any]) -> bool:
+        """
+        是否配置了滚动时间窗口（rolling_unit + rolling_length）。
+        """
+        config: Dict[str, Any] = context.get("config") or {}
+        return bool(config.get("rolling_unit") and config.get("rolling_length"))
+
+    @staticmethod
+    def is_table_empty(context: Dict[str, Any]) -> bool:
+        """
+        判断目标表是否为空。
+
+        默认实现：
+        - 仅检查 context.get("is_table_empty") 标记；
+        - 真实场景下应由上层在 context 中注入该信息，或在此处接入 DataManager 查询。
+        """
+        return bool(context.get("is_table_empty"))
+
+    @staticmethod
+    def add_date_range(
+        apis: List[ApiJob],
+        start_date: Any,
+        end_date: Any,
+    ) -> List[ApiJob]:
+        """
+        将统一的 start_date / end_date 注入到每个 ApiJob 的 params 中。
+
+        约定：
+        - 各 API 对 start_date / end_date 的具体含义由各自的 provider/handler 决定；
+        - 此处只做通用注入，子类可以覆盖或在 on_before_fetch 中进一步细化。
+        """
+        for job in apis or []:
+            params = job.params or {}
+            if start_date is not None:
+                params.setdefault("start_date", start_date)
+            if end_date is not None:
+                params.setdefault("end_date", end_date)
+            job.params = params
+        return apis
+
+    @staticmethod
+    def compute_default_date_range(context: Dict[str, Any]) -> Any:
+        """
+        计算一个基于 default_date_range 的默认日期范围（不依赖数据库）。
+
+        返回：
+        - (start_date, end_date)，字符串形式，格式取决于 date_format。
+        """
+        config: Dict[str, Any] = context.get("config") or {}
+        date_format = (config.get("date_format") or "day").lower()
+        default_range = config.get("default_date_range") or {}
+        years = int(default_range.get("years") or 1)
+
+        from datetime import datetime, timedelta
+
+        today = datetime.today()
+        if date_format in ("day", "date"):
+            end = today
+            start = today - timedelta(days=365 * years)
+            fmt = "%Y-%m-%d"
+            return start.strftime(fmt), end.strftime(fmt)
+        elif date_format == "month":
+            end = today
+            start = today - timedelta(days=30 * 12 * years)
+            return start.strftime("%Y-%m"), end.strftime("%Y-%m")
+        elif date_format == "quarter":
+            year = today.year
+            quarter = (today.month - 1) // 3 + 1
+            end_str = f"{year}Q{quarter}"
+            start_year = year - years
+            start_str = f"{start_year}Q1"
+            return start_str, end_str
+        else:
+            return None, None
+
+    @staticmethod
+    def compute_incremental_date_range(context: Dict[str, Any]) -> Any:
+        """
+        计算增量模式下的日期范围（占位实现）。
+
+        当前简化策略：
+        - 暂时与 compute_default_date_range 相同；
+        - 未来可接入 DataManager，基于最近完成日期和最新交易日精确计算。
+        """
+        return DataSourceHandlerHelper.compute_default_date_range(context)
+
+    @staticmethod
+    def compute_rolling_date_range(context: Dict[str, Any]) -> Any:
+        """
+        计算滚动模式下的日期范围（占位实现）。
+
+        当前简化策略：
+        - 暂时与 compute_default_date_range 相同；
+        - 未来可基于 rolling_unit / rolling_length + 最近完成日期精确计算窗口。
+        """
+        return DataSourceHandlerHelper.compute_default_date_range(context)
+
     # ========== 标准化（默认实现） ==========
 
     @staticmethod

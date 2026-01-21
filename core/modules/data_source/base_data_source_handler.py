@@ -1,9 +1,16 @@
 """
-DataSource Handler 基类
+LEGACY MODULE - v1 DataSource handler pipeline.
 
-简化设计，职责分离：
-- Handler 职责：生成 Jobs（带 Schema）→ 框架执行
-- 框架职责：解析 Job Schema → 决定执行策略 → 执行 → 返回结果
+This file defines the original `BaseDataSourceHandler` used by early data_source
+handlers together with `DataSourceTask`, `TaskExecutor` and the `services/*`
+renew-mode pipeline.
+
+It is retained for backward compatibility with existing handlers under
+`userspace/data_source/handlers/*`. New data-source handlers should extend
+`core.modules.data_source.base_class.base_handler.BaseHandler` and use the
+new data_class/* and service/* helpers instead of this legacy stack.
+
+See `core/modules/data_source/ARCHIVE.md` or architecture docs for details.
 """
 # 不再使用 ABC，因为基类提供默认实现
 from typing import Dict, Any, List, Optional

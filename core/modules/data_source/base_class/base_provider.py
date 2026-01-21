@@ -1,18 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Any
+import os
+
 from loguru import logger
 
-
-class ProviderError(Exception):
-    """Provider 统一错误类"""
-    
-    def __init__(self, provider: str, api: str, original_error: Exception):
-        self.provider = provider
-        self.api = api
-        self.original_error = original_error
-        super().__init__(f"[{provider}.{api}] {original_error}")
-
-
+from core.infra.project_context import PathManager
+from core.modules.data_source.data_class.error import ProviderError
 class BaseProvider(ABC):
     """
     第三方数据源提供者基类
@@ -46,10 +39,15 @@ class BaseProvider(ABC):
         初始化 Provider
         
         Args:
-            config: 配置信息（如 token, api_key 等）
+            config: 配置信息（如 token, api_key 等）。如果为 None，则按约定自动加载。
         """
-        self.config = config or {}
         self._validate_class_attributes()
+
+        # 如果未显式传入配置，则尝试按约定自动加载（例如 token）
+        if config is None:
+            config = self._load_default_config()
+
+        self.config = config or {}
         self._validate_config()
         self._initialize()
     
@@ -65,6 +63,75 @@ class BaseProvider(ABC):
                 raise ValueError(f"{self.provider_name} 需要 token")
             if self.auth_type == "api_key" and not self.config.get("api_key"):
                 raise ValueError(f"{self.provider_name} 需要 api_key")
+
+    def _load_default_config(self) -> Dict[str, Any]:
+        """
+        加载 Provider 默认配置（主要是认证信息）。
+
+        约定（先实现最常用的 token 模式）：
+        - 如果 requires_auth=False，返回空配置；
+        - 如果 requires_auth=True 且 auth_type == "token"：
+          1. 对于 provider_name == "tushare"：
+             - 优先从 userspace/data_source/providers/tushare/auth_token.txt 读取 token；
+             - 否则从环境变量 TUSHARE_TOKEN 读取；
+             - 如果仍然没有，抛出带有清晰指引的错误；
+          2. 其他 provider：
+             - 优先从 {PROVIDER_NAME}_TOKEN 环境变量读取（大写）；
+             - 如果没有且 requires_auth=True，则抛出错误提示。
+        """
+        config: Dict[str, Any] = {}
+
+        if not self.requires_auth:
+            return config
+
+        # 目前仅支持 token 模式的自动加载
+        if self.auth_type == "token":
+            provider = self.provider_name or ""
+
+            # 特殊处理 tushare：保持与之前 config.py 相同的行为
+            if provider == "tushare":
+                auth_token_path = PathManager.data_source_provider("tushare") / "auth_token.txt"
+                if auth_token_path.exists():
+                    try:
+                        token = auth_token_path.read_text(encoding="utf-8").strip()
+                        if token:
+                            config["token"] = token
+                        else:
+                            logger.warning("auth_token.txt exists but is empty")
+                    except Exception as e:
+                        logger.warning(f"Failed to load auth_token.txt for tushare: {e}")
+
+                if "token" not in config:
+                    token = os.getenv("TUSHARE_TOKEN")
+                    if token:
+                        config["token"] = token
+
+                if "token" not in config:
+                    provider_path = PathManager.data_source_provider("tushare")
+                    raise ValueError(
+                        "Tushare token not found. Please:\n"
+                        f"  1. Create {provider_path}/auth_token.txt with your token (one line)\n"
+                        "  2. Or set environment variable: TUSHARE_TOKEN=your_token"
+                    )
+
+                return config
+
+            # 其他 provider 的通用规则：从 {PROVIDER_NAME}_TOKEN 环境变量读取
+            env_name = f"{provider.upper()}_TOKEN" if provider else None
+            if env_name:
+                token = os.getenv(env_name)
+                if token:
+                    config["token"] = token
+
+            if "token" not in config:
+                raise ValueError(
+                    f"{self.provider_name} 需要 token，"
+                    f"请设置环境变量 {env_name}=your_token，"
+                    f"或在自定义 Provider 子类中覆盖 _load_default_config() 提供其他加载方式"
+                )
+
+        # 其他 auth_type 的情况，暂时返回空配置，交由调用方显式传入
+        return config
     
     @abstractmethod
     def _initialize(self):

@@ -13,6 +13,7 @@
         "shibor_data": {
             "provider_name": "tushare",
             "method": "get_shibor",
+            "max_per_minute": 10,
             "field_mapping": {
                 "date": "date",
                 "one_night": "on",

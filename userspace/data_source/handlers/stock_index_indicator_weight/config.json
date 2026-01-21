@@ -17,7 +17,8 @@
     "apis": {
         "index_weight": {
             "provider_name": "tushare",
-            "method": "get_index_weight"
+            "method": "get_index_weight",
+            "max_per_minute": 200
         }
     }
 }

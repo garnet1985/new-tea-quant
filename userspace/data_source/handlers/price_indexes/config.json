@@ -13,24 +13,28 @@
         "cpi_data": {
             "provider_name": "tushare",
             "method": "get_cpi",
+            "max_per_minute": 10,
             "field_mapping": {},
             "params": {}
         },
         "ppi_data": {
             "provider_name": "tushare",
             "method": "get_ppi",
+            "max_per_minute": 10,
             "field_mapping": {},
             "params": {}
         },
         "pmi_data": {
             "provider_name": "tushare",
             "method": "get_pmi",
+            "max_per_minute": 10,
             "field_mapping": {},
             "params": {}
         },
         "money_supply_data": {
             "provider_name": "tushare",
             "method": "get_money_supply",
+            "max_per_minute": 10,
             "field_mapping": {},
             "params": {}
         }

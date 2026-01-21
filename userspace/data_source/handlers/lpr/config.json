@@ -13,6 +13,7 @@
         "lpr_data": {
             "provider_name": "tushare",
             "method": "get_lpr",
+            "max_per_minute": 10,
             "field_mapping": {
                 "date": "date",
                 "lpr_1_y": "1y",

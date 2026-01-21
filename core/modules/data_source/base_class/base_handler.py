@@ -61,7 +61,12 @@ class BaseHandler:
         - 这里只负责描述“要调用哪些 API”，不关心如何执行和限流；
         - 具体转换规则由 DataSourceHandlerHelper.build_api_jobs 负责。
         """
-        api_conf = self.context.get("config").get("apis")
+        config = self.context.get("config")
+        # 支持 DataSourceConfig 实例或 dict（兼容性）
+        if hasattr(config, "get_apis"):
+            api_conf = config.get_apis()
+        else:
+            api_conf = config.get("apis") if config else {}
         return DataSourceHandlerHelper.build_api_jobs(api_conf)
 
     def _reset(self):
@@ -220,8 +225,12 @@ class BaseHandler:
         from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 
         # 步骤 1：从 context 中解析 apis 配置和 schema（输入准备）
-        config: Dict[str, Any] = context.get("config") or {}
-        apis_conf: Dict[str, Any] = config.get("apis") or {}
+        config = context.get("config")
+        # 支持 DataSourceConfig 实例或 dict（兼容性）
+        if hasattr(config, "get_apis"):
+            apis_conf = config.get_apis()
+        else:
+            apis_conf = config.get("apis") if config else {}
         schema = context.get("schema")
 
         if not fetched_data or not isinstance(fetched_data, dict):

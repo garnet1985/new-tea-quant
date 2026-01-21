@@ -50,12 +50,12 @@ class DataSourceConfig:
         if not self._config_dict:
             return  # 空 config 不验证
         
-        renew_mode = (self._config_dict.get("renew_mode") or "").lower()
+        renew_mode = self.get_renew_mode()
         
         # Incremental 模式验证
         if renew_mode == UpdateMode.INCREMENTAL.value:
-            table_name = self._config_dict.get("table_name")
-            date_field = self._config_dict.get("date_field")
+            table_name = self.get_table_name()
+            date_field = self.get_date_field()
             if not table_name or not date_field:
                 raise ValueError(
                     f"Data source '{self._data_source_name}' 使用 incremental renew_mode，"
@@ -65,10 +65,10 @@ class DataSourceConfig:
         
         # Rolling 模式验证
         elif renew_mode == UpdateMode.ROLLING.value:
-            table_name = self._config_dict.get("table_name")
-            date_field = self._config_dict.get("date_field")
-            rolling_unit = self._config_dict.get("rolling_unit")
-            rolling_length = self._config_dict.get("rolling_length")
+            table_name = self.get_table_name()
+            date_field = self.get_date_field()
+            rolling_unit = self.get_rolling_unit()
+            rolling_length = self.get_rolling_length()
             
             if not table_name or not date_field:
                 raise ValueError(
@@ -83,6 +83,40 @@ class DataSourceConfig:
                     f"必须显式配置 rolling_unit 和 rolling_length，"
                     f"当前配置: rolling_unit={rolling_unit}, rolling_length={rolling_length}"
                 )
+    
+    # ========== 配置访问方法 ==========
+    
+    def get_renew_mode(self) -> str:
+        """获取 renew_mode（小写字符串）"""
+        return (self.get("renew_mode") or "").lower()
+    
+    def get_date_format(self) -> str:
+        """获取 date_format（默认 "day"）"""
+        return (self.get("date_format") or "day").lower()
+    
+    def get_table_name(self) -> str:
+        """获取 table_name"""
+        return self.get("table_name")
+    
+    def get_date_field(self) -> str:
+        """获取 date_field"""
+        return self.get("date_field")
+    
+    def get_default_date_range(self) -> Dict[str, Any]:
+        """获取 default_date_range（默认空字典）"""
+        return self.get("default_date_range") or {}
+    
+    def get_rolling_unit(self) -> str:
+        """获取 rolling_unit"""
+        return self.get("rolling_unit")
+    
+    def get_rolling_length(self) -> int:
+        """获取 rolling_length"""
+        return self.get("rolling_length")
+    
+    def get_apis(self) -> Dict[str, Any]:
+        """获取 apis 配置（默认空字典）"""
+        return self.get("apis") or {}
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典（用于兼容性）"""

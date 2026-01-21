@@ -56,14 +56,13 @@ class RenewService:
     
     def get_renew_mode(self, context: Dict[str, Any]) -> str:
         """从 context.config 中读取 renew_mode（小写字符串）"""
-        config = self._get_config_dict(context)
-        mode = (config.get("renew_mode") or "").lower()
-        return mode
+        config = self._get_config(context)
+        return config.get_renew_mode()
     
     def has_rolling_time_range(self, context: Dict[str, Any]) -> bool:
         """是否配置了滚动时间窗口（rolling_unit + rolling_length）"""
-        config = self._get_config_dict(context)
-        return bool(config.get("rolling_unit") and config.get("rolling_length"))
+        config = self._get_config(context)
+        return bool(config.get_rolling_unit() and config.get_rolling_length())
     
     def is_table_empty(self, context: Dict[str, Any]) -> bool:
         """
@@ -82,8 +81,8 @@ class RenewService:
         if not self.data_manager:
             return False
         
-        config = self._get_config_dict(context)
-        table_name = config.get("table_name")
+        config = self._get_config(context)
+        table_name = config.get_table_name()
         
         if not table_name:
             # 没有表名，无法查询，假设表不为空
@@ -111,9 +110,9 @@ class RenewService:
         
         使用 config.default_date_range 配置，如果没有则使用系统默认值。
         """
-        config = self._get_config_dict(context)
-        date_format = (config.get("date_format") or "day").lower()
-        default_range = config.get("default_date_range") or {}
+        config = self._get_config(context)
+        date_format = config.get_date_format()
+        default_range = config.get_default_date_range()
         
         # 调用 legacy RefreshRenewService 计算默认日期范围
         renew_mode_service = self._get_renew_mode_service()
@@ -136,10 +135,10 @@ class RenewService:
         
         调用 legacy IncrementalRenewService 计算精确的增量日期范围。
         """
-        config = self._get_config_dict(context)
-        date_format = (config.get("date_format") or "day").lower()
-        table_name = config.get("table_name")
-        date_field = config.get("date_field")
+        config = self._get_config(context)
+        date_format = config.get_date_format()
+        table_name = config.get_table_name()
+        date_field = config.get_date_field()
 
         # 配置验证已在 DataSourceManager._discover_config 阶段完成，这里直接使用
         
@@ -163,12 +162,12 @@ class RenewService:
         
         调用 legacy RollingRenewService 计算精确的滚动日期范围。
         """
-        config = self._get_config_dict(context)
-        date_format = (config.get("date_format") or "day").lower()
-        rolling_unit = config.get("rolling_unit")
-        rolling_length = config.get("rolling_length")
-        table_name = config.get("table_name")
-        date_field = config.get("date_field")
+        config = self._get_config(context)
+        date_format = config.get_date_format()
+        rolling_unit = config.get_rolling_unit()
+        rolling_length = config.get_rolling_length()
+        table_name = config.get_table_name()
+        date_field = config.get_date_field()
 
         # 配置验证已在 DataSourceManager._discover_config 阶段完成，这里直接使用
         
@@ -188,14 +187,19 @@ class RenewService:
             logger.warning(f"使用 RenewModeService 计算滚动日期范围失败: {e}，使用默认日期范围")
             return self.compute_default_date_range(context)
     
-    def _compute_simple_default_date_range(self, config: Dict[str, Any]) -> Tuple[str, str]:
+    def _compute_simple_default_date_range(self, config) -> Tuple[str, str]:
         """
         简化的默认日期范围计算（降级方案，不依赖 RenewModeService）。
         
         仅用于 RenewModeService 调用失败时的降级方案。
         """
-        date_format = (config.get("date_format") or "day").lower()
-        default_range = config.get("default_date_range") or {}
+        # 支持 DataSourceConfig 实例或 dict
+        if hasattr(config, "get_date_format"):
+            date_format = config.get_date_format()
+            default_range = config.get_default_date_range()
+        else:
+            date_format = (config.get("date_format") or "day").lower()
+            default_range = config.get("default_date_range") or {}
         years = int(default_range.get("years") or 1)
         
         from datetime import datetime, timedelta
@@ -223,45 +227,48 @@ class RenewService:
     
     # ========== 辅助方法 ==========
     
-    def _get_config_dict(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_config(self, context: Dict[str, Any]):
         """
-        从 context 中获取 config，支持对象和字典两种格式。
+        从 context 中获取 config，返回 DataSourceConfig 实例或兼容对象。
         
-        如果 config 是对象（如 DataSourceConfig），转换为字典；
-        如果已经是字典，直接返回。
+        优先返回 DataSourceConfig 实例，如果是 dict 则包装为 DataSourceConfig。
         """
+        from core.modules.data_source.data_class.config import DataSourceConfig
+        
         config = context.get("config")
         if config is None:
-            return {}
+            # 返回一个空的 DataSourceConfig 实例
+            return DataSourceConfig({}, data_source_name=context.get("data_source_name"))
         
-        # 如果是字典，直接返回
-        if isinstance(config, dict):
+        # 如果已经是 DataSourceConfig 实例，直接返回
+        if isinstance(config, DataSourceConfig):
             return config
         
-        # 如果是 DataSourceConfig 实例，使用 to_dict 方法
+        # 如果是字典，包装为 DataSourceConfig 实例
+        if isinstance(config, dict):
+            data_source_name = context.get("data_source_name")
+            return DataSourceConfig(config, data_source_name=data_source_name)
+        
+        # 其他情况：尝试转换为字典再包装
         if hasattr(config, "to_dict"):
-            return config.to_dict()
+            data_source_name = context.get("data_source_name")
+            return DataSourceConfig(config.to_dict(), data_source_name=data_source_name)
         
-        # 如果是对象，尝试转换为字典
-        if hasattr(config, "__dict__"):
-            return config.__dict__
-        
-        # 如果是 dataclass，使用 asdict
+        # 降级：尝试通过 __dict__ 或 asdict
         try:
             from dataclasses import asdict
             if hasattr(config, "__dataclass_fields__"):
-                return asdict(config)
+                data_source_name = context.get("data_source_name")
+                return DataSourceConfig(asdict(config), data_source_name=data_source_name)
         except Exception:
             pass
         
-        # 降级：尝试通过 getattr 访问常见字段
-        result = {}
-        for attr in ["renew_mode", "date_format", "table_name", "date_field", 
-                     "default_date_range", "rolling_unit", "rolling_length"]:
-            if hasattr(config, attr):
-                result[attr] = getattr(config, attr, None)
+        if hasattr(config, "__dict__"):
+            data_source_name = context.get("data_source_name")
+            return DataSourceConfig(config.__dict__, data_source_name=data_source_name)
         
-        return result
+        # 最后降级：返回空配置
+        return DataSourceConfig({}, data_source_name=context.get("data_source_name"))
     
     def add_date_range(
         self,

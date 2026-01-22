@@ -15,7 +15,13 @@ class DataSourceManager:
     """
     DataSource Manager class
     """
-    def __init__(self):
+    def __init__(self, is_verbose: bool = False):
+        """
+        初始化 DataSource Manager
+        
+        Args:
+            is_verbose: 是否显示详细日志（保留参数以兼容现有代码）
+        """
         self.data_sources = []
         self.mappings = self._discover_mappings()
         self.handlers = self._discover_handlers()
@@ -183,7 +189,7 @@ class DataSourceManager:
         if not DataSourceManagerHelper.is_valid_handler(handler_cls):
             return None
 
-        handler_instance = DataSourceManagerHelper.create_handler(handler_cls, data_source_name, schema, config)
+        handler_instance = DataSourceManagerHelper.create_handler(handler_cls, data_source_name, schema, config, self.providers)
 
         if handler_instance:
             self._handlers_cache[data_source_name] = handler_instance

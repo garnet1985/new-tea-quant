@@ -4,6 +4,7 @@ from typing import Any, Dict
 from loguru import logger
 from core.infra.project_context import ConfigManager
 from core.modules.data_source.base_class.base_handler import BaseHandler
+from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.schema import DataSourceSchema
 
 class DataSourceManagerHelper:
@@ -140,23 +141,42 @@ class DataSourceManagerHelper:
         return True
 
     @staticmethod
-    def create_handler(handler_cls: Any, data_source_name: str, schema: DataSourceSchema, config: Dict[str, Any]) -> Any:
+    def create_handler(handler_cls: Any, data_source_name: str, schema: DataSourceSchema, config: Dict[str, Any], providers: Dict[str, BaseProvider] = None) -> Any:
         """
         Create the handler
+        
+        Args:
+            handler_cls: Handler 类
+            data_source_name: 数据源名称
+            schema: Schema 实例
+            config: Config 实例或字典
+            providers: Provider 字典（可选，新架构需要）
         """
         try:
+            # 尝试新架构的签名（4个参数）
             handler_instance = handler_cls(
                 data_source_name=data_source_name,
                 schema=schema,
                 config=config,
+                providers=providers or {},
             )
         except TypeError as e:
-            # 兼容现有 Handler 还未迁移到新 BaseHandler 的情况，先给出明确提示
-            logger.error(
-                f"构造 Handler {handler_cls} 失败，签名可能与 "
-                f"(data_source_name, schema, config) 不匹配: {e}"
-            )
-            return None
+            # 如果失败，可能是旧架构的 Handler，尝试旧签名
+            try:
+                # 旧架构：只传 schema, data_manager, definition
+                from core.modules.data_manager.data_manager import DataManager
+                handler_instance = handler_cls(
+                    schema=schema,
+                    data_manager=DataManager.get_instance(),
+                    definition=None,
+                )
+            except TypeError as e2:
+                # 兼容现有 Handler 还未迁移到新 BaseHandler 的情况，先给出明确提示
+                logger.error(
+                    f"构造 Handler {handler_cls} 失败，签名可能与 "
+                    f"(data_source_name, schema, config, providers) 或 (schema, data_manager, definition) 不匹配: {e}, {e2}"
+                )
+                return None
         return handler_instance
 
     # Provider 相关的 helper 已迁移到 provider_helper.py 中

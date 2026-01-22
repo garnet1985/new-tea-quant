@@ -1,10 +1,11 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Set
 from loguru import logger
 
 from core.infra.project_context import PathManager
 from core.infra.discovery import ModuleDiscovery
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.schema import DataSourceSchema
+from core.modules.data_source.execution_scheduler import DataSourceExecutionScheduler
 from core.modules.data_source.service.manager_helper import DataSourceManagerHelper
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from core.modules.data_source.base_class.base_handler import BaseHandler
@@ -23,16 +24,18 @@ class DataSourceManager:
         self._schemas_cache: Dict[str, DataSourceSchema] = {}
         self._configs_cache: Dict[str, Any] = {}
         self._handlers_cache: Dict[str, BaseHandler] = {}
+        self._global_dependencies_set: Set[str] = set()  # 全局依赖名称集合（在 _discover_handlers 中收集）
+        self._execution_scheduler = DataSourceExecutionScheduler(self)
+
 
     def execute(self):
         self._flush_cache()
         self._refresh_handlers()
-        for handler in self.handlers:
-            handler.execute()
+        self._execution_scheduler.run(self.handlers, self._global_dependencies_set)
 
     def _refresh_handlers(self):
         self.mappings = self._discover_mappings()
-        self.handlers = self._discover_handlers()
+        self.handlers = self._discover_handlers()  # 在 _discover_handlers 中已收集依赖
 
     def _flush_cache(self):
         self._schemas_cache.clear()
@@ -53,6 +56,8 @@ class DataSourceManager:
 
     def _discover_handlers(self) -> List[BaseHandler]:
         handlers: List[BaseHandler] = []
+        required_deps = set()  # 在遍历时顺便收集依赖
+        
         for data_source_name, data_source_config in self.mappings.items():
             if not data_source_config.get("is_enabled", True):
                 logger.info(f"Data source {data_source_name} is disabled, skip")
@@ -75,7 +80,17 @@ class DataSourceManager:
 
             handlers.append(handler)
 
+            # 顺便收集 mapping.json 中的依赖需求（只支持字典格式）
+            dependencies = data_source_config.get("dependencies", {})
+            for dep_name, required in dependencies.items():
+                if required:
+                    required_deps.add(dep_name)
+
+        # 将收集到的依赖存储到实例变量
+        self._global_dependencies_set = required_deps
+        
         return handlers
+
 
     def _discover_schema(self, data_source_name: str) -> Any:
         """

@@ -87,7 +87,7 @@ class DataValidator:
         """
         errors = []
         
-        for field_name, field_def in schema.schema.items():
+        for field_name, field_def in schema.fields.items():
             if field_def.required and field_name not in record:
                 errors.append(f"{field_name}(缺失)")
             elif field_name in record and record[field_name] is not None:

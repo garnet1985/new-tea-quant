@@ -2,12 +2,12 @@ from typing import Any, Dict, List, Tuple, Optional, Union
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
-from core.modules.data_source.service.api_job_scheduler import ApiJobScheduler
+from core.modules.data_source.service.api_job_executor import ApiJobExecutor
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_batch import ApiJobBatch
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.data_class.schema import DataSourceSchema
-from core.modules.data_source.service.renew_service import RenewService
+from core.modules.data_source.renew_manager import RenewManager
 from core.global_enums.enums import UpdateMode
 from core.modules.data_manager.data_manager import DataManager
 
@@ -179,8 +179,8 @@ class BaseHandler:
         5. 将计算得到的 (start_date, end_date) 注入到每个 ApiJob 的 params 中；
         6. 返回已注入日期范围的 ApiJob 列表。
 
-        具体的「查表 + 计算日期范围」细节下沉到 RenewService：
-        - RenewService 内部再委托给 legacy 的 RenewModeService / 各种 *RenewService 做精确计算；
+        具体的「查表 + 计算日期范围」细节下沉到 RenewManager：
+        - RenewManager 作为编排层，内部委托给各种 *RenewService 做精确计算；
         - 本方法只保留步骤大纲，方便阅读主线逻辑，复杂实现不写在这里。
 
         复杂场景（需要特殊 renew 策略）可以在子类中覆盖 on_calculate_date_range 钩子。
@@ -189,11 +189,11 @@ class BaseHandler:
             List[ApiJob]: 已注入日期范围的 ApiJob 列表
         """
 
-        # 准备：构造 RenewService（内部持有 data_manager，用于查表）
-        renew_service = RenewService(data_manager=context.get("data_manager"))
+        # 准备：构造 RenewManager（内部持有 data_manager，用于查表）
+        renew_manager = RenewManager(data_manager=context.get("data_manager"))
 
         # 步骤 1：如果显式指定了日期范围，直接注入并返回
-        if renew_service.is_date_range_specified(context):
+        if renew_manager.is_date_range_specified(context):
             start = context.get("start_date")
             end = context.get("end_date")
             return DataSourceHandlerHelper.add_date_range(apis, start, end)
@@ -216,16 +216,16 @@ class BaseHandler:
                 return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
         # 步骤 2：判断目标表是否为空（首次全量/初始化场景）
-        is_empty = renew_service.is_table_empty(context)
-        renew_mode = renew_service.get_renew_mode(context)
+        is_empty = renew_manager.is_table_empty(context)
+        renew_mode = renew_manager.get_renew_mode(context)
 
         if is_empty:
             # 表为空：走首次全量/初始化路径
-            start, end = renew_service.compute_default_date_range(context)
+            start, end = renew_manager.compute_default_date_range(context)
             return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
         if renew_mode == UpdateMode.INCREMENTAL.value:
-            date_range_result = renew_service.compute_incremental_date_range(context)
+            date_range_result = renew_manager.compute_incremental_date_range(context)
             if isinstance(date_range_result, dict):
                 # per stock 模式
                 return DataSourceHandlerHelper.add_date_range(
@@ -239,9 +239,9 @@ class BaseHandler:
                 start, end = date_range_result
                 return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
-        if renew_mode == UpdateMode.ROLLING.value and renew_service.has_rolling_time_range(context):
+        if renew_mode == UpdateMode.ROLLING.value and renew_manager.has_rolling_time_range(context):
             # 滚动模式：围绕最近完成日期构造滚动窗口（rolling_unit + rolling_length，内部查表）
-            date_range_result = renew_service.compute_rolling_date_range(context)
+            date_range_result = renew_manager.compute_rolling_date_range(context)
             if isinstance(date_range_result, dict):
                 # per stock 模式
                 return DataSourceHandlerHelper.add_date_range(
@@ -256,7 +256,7 @@ class BaseHandler:
                 return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
         # 步骤 4：兜底策略（视作刷新模式，使用默认日期范围）
-        start, end = renew_service.compute_default_date_range(context)
+        start, end = renew_manager.compute_default_date_range(context)
         return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
     def _build_api_job_batch_per_stock(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
@@ -305,11 +305,11 @@ class BaseHandler:
             return {}
 
         providers = context.get("providers") or {}
-        scheduler = ApiJobScheduler(providers=providers)
+        executor = ApiJobExecutor(providers=providers)
 
         async def _run():
-            # ApiJobScheduler.run_batches 返回 {batch_id: {job_id: result}}
-            return await scheduler.run_batches([job_batch])
+            # ApiJobExecutor.run_batches 返回 {batch_id: {job_id: result}}
+            return await executor.run_batches([job_batch])
 
         # 在同步上下文中执行异步调度
         import asyncio
@@ -495,7 +495,7 @@ class BaseHandler:
         """
         计算日期范围的钩子：允许子类实现自定义的日期范围计算逻辑。
 
-        如果返回 None，将使用默认的 RenewService 逻辑（根据 renew_mode 自动计算）。
+        如果返回 None，将使用默认的 RenewManager 逻辑（根据 renew_mode 自动计算）。
         如果返回日期范围（单个或 per stock），将直接使用该结果，跳过默认逻辑。
 
         适用场景：
@@ -508,7 +508,7 @@ class BaseHandler:
             apis: ApiJob 列表（尚未注入日期范围）
 
         Returns:
-            - None: 使用默认的 RenewService 逻辑
+            - None: 使用默认的 RenewManager 逻辑
             - Tuple[str, str]: 统一的日期范围 (start_date, end_date)
             - Dict[str, Tuple[str, str]]: per stock 的日期范围 {stock_id: (start_date, end_date)}
         """

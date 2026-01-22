@@ -15,8 +15,7 @@ class DataSourceSchema:
     - description: 描述信息
     - fields: 字段定义字典 {field_name: DataSourceField}
 
-    提供最小的 validate 能力，供 handler/测试使用。
-    更高层的 DataValidator 仍然可以在此之上做额外校验。
+    提供基本的 validate 能力，供 handler/测试使用。
     """
 
     name: str

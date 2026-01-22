@@ -19,7 +19,7 @@ import threading
 import json
 
 from core.utils.date.date_utils import DateUtils
-from core.modules.data_source.provider_instance_pool import get_provider_pool
+from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from .. import BaseDataService
 
 
@@ -287,8 +287,7 @@ class CalendarService(BaseDataService):
             最新已完成交易日（YYYYMMDD），如果失败返回 None
         """
         try:
-            pool = get_provider_pool()
-            provider = pool.get_provider("eastmoney")
+            provider = DataSourceProviderHelper.get_provider("eastmoney")
             if not provider:
                 raise ValueError("EastMoney Provider 未找到")
             
@@ -319,8 +318,7 @@ class CalendarService(BaseDataService):
             最新已完成交易日（YYYYMMDD），如果失败返回 None
         """
         try:
-            pool = get_provider_pool()
-            provider = pool.get_provider("sina")
+            provider = DataSourceProviderHelper.get_provider("sina")
             if not provider:
                 raise ValueError("Sina Provider 未找到")
             

@@ -8,10 +8,10 @@ from loguru import logger
 
 from core.global_enums.enums import TimeUnit
 from core.utils.date.date_utils import DateUtils
-from .base_renew_service import BaseRenewService
+from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
 
 
-class RefreshRenewService(BaseRenewService):
+class RefreshRenewService:
     """
     全量刷新 Service
     
@@ -19,6 +19,15 @@ class RefreshRenewService(BaseRenewService):
     1. 使用 default_date_range 计算日期范围
     2. 如果 default_date_range 为空，使用默认日期范围（从系统默认时间到最近完成的交易日）
     """
+    
+    def __init__(self, data_manager=None):
+        """
+        初始化 Service
+        
+        Args:
+            data_manager: DataManager 实例（用于查询数据库）
+        """
+        self.data_manager = data_manager
     
     def calculate_date_range(
         self,
@@ -46,7 +55,7 @@ class RefreshRenewService(BaseRenewService):
         
         # 如果 default_date_range 为空，使用默认日期范围（从系统默认时间到最近完成的交易日）
         if not default_date_range:
-            start_date, end_date = self.get_default_date_range(date_format, context)
+            start_date, end_date = RenewCommonHelper.get_default_date_range(self.data_manager, date_format, context)
             logger.info(f"全量刷新: {start_date} 至 {end_date}（无 default_date_range，使用系统默认）")
             return start_date, end_date
         
@@ -88,14 +97,7 @@ class RefreshRenewService(BaseRenewService):
         if isinstance(date_format, TimeUnit):
             date_format = date_format.value
         
-        if date_format == TimeUnit.DAY.value:
-            latest_completed_trading_date = context.get("latest_completed_trading_date")
-            if latest_completed_trading_date:
-                end_date = latest_completed_trading_date
-            else:
-                end_date = current_date
-        else:
-            end_date = DateUtils.format_period(current_value, date_format)
+        end_date = RenewCommonHelper.get_end_date(date_format, context)
         
         # 计算开始日期（业务逻辑：根据 default_date_range 配置）
         if date_format == TimeUnit.QUARTER.value:

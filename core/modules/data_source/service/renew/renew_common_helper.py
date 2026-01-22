@@ -1,7 +1,7 @@
 """
-Base Renew Service
+Renew Common Helper
 
-所有 renew service 的基类，提供公共逻辑。
+提供所有 renew service 共用的工具方法（静态方法）。
 """
 from typing import Dict, Any, Tuple, Optional
 from loguru import logger
@@ -11,30 +11,22 @@ from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
 
 
-class BaseRenewService:
+class RenewCommonHelper:
     """
-    Renew Service 基类
+    Renew 公共辅助类
     
-    提供公共逻辑：
-    - 数据库为空时，从系统默认时间开始到最近完成的交易日
+    提供所有 renew service 共用的静态方法。
     """
     
-    def __init__(self, data_manager=None):
-        """
-        初始化 Service
-        
-        Args:
-            data_manager: DataManager 实例（用于查询数据库）
-        """
-        self.data_manager = data_manager
-    
-    def get_default_date_range(self, date_format: str, context: Dict[str, Any] = None) -> Tuple[str, str]:
+    @staticmethod
+    def get_default_date_range(data_manager, date_format: str, context: Dict[str, Any] = None) -> Tuple[str, str]:
         """
         获取默认日期范围（数据库为空时使用）
         
         公共逻辑：从系统默认时间开始到最近完成的交易日
         
         Args:
+            data_manager: DataManager 实例（用于查询数据库）
             date_format: 日期格式（quarter | month | day）
             context: 执行上下文（可能包含 latest_completed_trading_date）
         
@@ -48,9 +40,9 @@ class BaseRenewService:
         
         # 获取最近完成的交易日（优先从 context 读取）
         latest_completed_trading_date = context.get("latest_completed_trading_date")
-        if not latest_completed_trading_date and self.data_manager:
+        if not latest_completed_trading_date and data_manager:
             try:
-                latest_completed_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
+                latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败: {e}，使用当前日期")
                 latest_completed_trading_date = DateUtils.get_current_date_str()
@@ -59,12 +51,13 @@ class BaseRenewService:
             latest_completed_trading_date = DateUtils.get_current_date_str()
         
         # 根据 date_format 转换日期格式
-        start_date = self._convert_date_to_format(default_start_date, date_format)
-        end_date = self._convert_date_to_format(latest_completed_trading_date, date_format)
+        start_date = RenewCommonHelper.convert_date_to_format(default_start_date, date_format)
+        end_date = RenewCommonHelper.convert_date_to_format(latest_completed_trading_date, date_format)
         
         return start_date, end_date
     
-    def _convert_date_to_format(self, date_str: str, date_format: str) -> str:
+    @staticmethod
+    def convert_date_to_format(date_str: str, date_format: str) -> str:
         """
         将日期字符串转换为指定格式
         
@@ -96,8 +89,53 @@ class BaseRenewService:
         else:  # date_format == TimeUnit.DAY.value
             return date_str  # YYYYMMDD
     
+    @staticmethod
+    def get_end_date(date_format: str, context: Dict[str, Any]) -> str:
+        """
+        获取结束日期（所有股票统一使用 latest_completed_trading_date）。
+
+        Args:
+            date_format: 日期格式（quarter | month | day）
+            context: 执行上下文
+
+        Returns:
+            str: 结束日期
+        """
+        latest_completed_trading_date = context.get("latest_completed_trading_date")
+        if latest_completed_trading_date:
+            if date_format == "day":
+                return latest_completed_trading_date
+            else:
+                return DateUtils.format_period(
+                    DateUtils.get_current_period(latest_completed_trading_date, date_format),
+                    date_format
+                )
+        else:
+            current_date = DateUtils.get_current_date_str()
+            current_value = DateUtils.get_current_period(current_date, date_format)
+            return DateUtils.format_period(current_value, date_format)
+    
+    @staticmethod
+    def get_needs_stock_grouping(context: Dict[str, Any]) -> Optional[bool]:
+        """
+        从 context 中获取配置，判断是否需要按股票分组。
+
+        Args:
+            context: 执行上下文
+
+        Returns:
+            Optional[bool]: 是否需要分组，None 表示未配置
+        """
+        if not context:
+            return None
+        config = context.get("config")
+        if config and hasattr(config, "get_needs_stock_grouping"):
+            return config.get_needs_stock_grouping()
+        return None
+    
+    @staticmethod
     def query_latest_date(
-        self, 
+        data_manager,
         table_name: str, 
         date_field: str, 
         date_format: str,
@@ -116,6 +154,7 @@ class BaseRenewService:
            - 需要分组（如 stock_kline）：返回 {stock_id: latest_date} 字典
         
         Args:
+            data_manager: DataManager 实例
             table_name: 数据库表名
             date_field: 日期字段名（表里声明的日期字段）
             date_format: 日期格式（用于验证）
@@ -125,12 +164,12 @@ class BaseRenewService:
             - 如果需要分组：Dict[str, str] {stock_id: latest_date}，如果表为空返回 None
             - 如果不需要分组：返回 None（调用方需要单独处理）
         """
-        if not self.data_manager:
+        if not data_manager:
             return None
         
         try:
             # 步骤 1：通过 DataManager 获取 model（内部方法，仅供 service 使用）
-            model = self.data_manager.get_table(table_name)
+            model = data_manager.get_table(table_name)
             if not model:
                 return None
             
@@ -185,3 +224,95 @@ class BaseRenewService:
             logger.warning(f"查询数据库失败 {table_name}.{date_field}: {e}")
         
         return None
+    
+    @staticmethod
+    def calculate_date_range_for_non_grouped(
+        data_manager,
+        table_name: str,
+        date_field: str,
+        date_format: str,
+        end_date: str,
+        context: Dict[str, Any],
+        calculate_start_date_fn
+    ) -> Tuple[str, str]:
+        """
+        处理不需要分组的情况：查询整个表的最新日期，计算日期范围。
+
+        Args:
+            data_manager: DataManager 实例
+            table_name: 数据库表名
+            date_field: 日期字段名
+            date_format: 日期格式
+            end_date: 结束日期
+            context: 执行上下文
+            calculate_start_date_fn: 计算起始日期的函数 (latest_value, end_date, date_format) -> start_date
+
+        Returns:
+            Tuple[str, str]: (start_date, end_date)
+        """
+        if not data_manager:
+            start_date, _ = RenewCommonHelper.get_default_date_range(data_manager, date_format, context)
+            return start_date, end_date
+
+        try:
+            model = data_manager.get_table(table_name)
+            if model:
+                latest_record = model.load_one("1=1", order_by=f"{date_field} DESC")
+                if latest_record:
+                    latest_value = latest_record.get(date_field)
+                    if latest_value:
+                        start_date = calculate_start_date_fn(latest_value, end_date, date_format)
+                        return start_date, end_date
+        except Exception as e:
+            logger.warning(f"查询非分组表最新日期失败: {e}")
+
+        # 降级：使用默认日期范围
+        start_date, _ = RenewCommonHelper.get_default_date_range(data_manager, date_format, context)
+        return start_date, end_date
+    
+    @staticmethod
+    def calculate_date_range_for_grouped(
+        latest_dates_dict: Dict[str, str],
+        end_date: str,
+        date_format: str,
+        context: Dict[str, Any],
+        data_manager,
+        calculate_start_date_fn
+    ) -> Dict[str, Tuple[str, str]]:
+        """
+        处理需要分组的情况：为每个股票计算日期范围。
+
+        Args:
+            latest_dates_dict: {stock_id: latest_date} 字典
+            end_date: 结束日期
+            date_format: 日期格式
+            context: 执行上下文
+            data_manager: DataManager 实例
+            calculate_start_date_fn: 计算起始日期的函数 (latest_date, end_date, date_format) -> start_date
+
+        Returns:
+            Dict[str, Tuple[str, str]]: {stock_id: (start_date, end_date)}
+        """
+        stock_list = context.get("stock_list", [])
+        if not stock_list:
+            logger.warning("需要按股票分组但 stock_list 为空，返回空字典")
+            return {}
+
+        # 获取默认起始日期（用于新股票）
+        default_start_date, _ = RenewCommonHelper.get_default_date_range(data_manager, date_format, context)
+
+        # 为每个股票计算日期范围
+        result = {}
+        for stock_id in stock_list:
+            stock_id_str = str(stock_id)
+            latest_date = latest_dates_dict.get(stock_id_str)
+
+            if latest_date:
+                start_date = calculate_start_date_fn(latest_date, end_date, date_format)
+            else:
+                # 没找到（新股票）：使用系统默认起始时间
+                start_date = default_start_date
+
+            result[stock_id_str] = (start_date, end_date)
+
+        return result

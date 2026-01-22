@@ -10,8 +10,8 @@ class ApiJobBatch:
     ApiJobBatch: 一批需要一起执行的 ApiJobs
 
     设计意图：
-    - 表达“这一批 ApiJobs 组成了一次完整的数据抓取计划”；
-    - 用于在 Handler 侧描述执行计划，而不是直接暴露旧的 DataSourceTask 概念；
+    - 表达"这一批 ApiJobs 组成了一次完整的数据抓取计划"；
+    - 用于在 Handler 侧描述执行计划；
     - 具体如何执行（拓扑排序、限流、并发策略）仍由执行器负责。
     """
 
@@ -30,4 +30,3 @@ class ApiJobBatch:
         """
         name = data_source_name or "data_source"
         return f"{name}_batch"
-

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 
@@ -180,56 +180,6 @@ class DataSourceHandlerHelper:
             return False
         return "start_date" in context and "end_date" in context
 
-    @staticmethod
-    def _get_renew_mode(context: Dict[str, Any]) -> str:
-        """
-        从 context.config 中读取 renew_mode（小写字符串）。
-        """
-        config: Dict[str, Any] = context.get("config") or {}
-        mode = (config.get("renew_mode") or "").lower()
-        return mode
-
-    @staticmethod
-    def is_refresh_mode(context: Dict[str, Any]) -> bool:
-        """
-        是否为全量刷新模式。
-
-        约定：
-        - renew_mode == "refresh"；或未设置时也可视为刷新模式的退化情况。
-        """
-        mode = DataSourceHandlerHelper._get_renew_mode(context)
-        return mode == "refresh" or mode == ""
-
-    @staticmethod
-    def is_incremental_mode(context: Dict[str, Any]) -> bool:
-        """是否为增量模式。"""
-        mode = DataSourceHandlerHelper._get_renew_mode(context)
-        return mode == "incremental"
-
-    @staticmethod
-    def is_rolling_mode(context: Dict[str, Any]) -> bool:
-        """是否为滚动模式。"""
-        mode = DataSourceHandlerHelper._get_renew_mode(context)
-        return mode == "rolling"
-
-    @staticmethod
-    def has_rolling_time_range(context: Dict[str, Any]) -> bool:
-        """
-        是否配置了滚动时间窗口（rolling_unit + rolling_length）。
-        """
-        config: Dict[str, Any] = context.get("config") or {}
-        return bool(config.get("rolling_unit") and config.get("rolling_length"))
-
-    @staticmethod
-    def is_table_empty(context: Dict[str, Any]) -> bool:
-        """
-        判断目标表是否为空。
-
-        默认实现：
-        - 仅检查 context.get("is_table_empty") 标记；
-        - 真实场景下应由上层在 context 中注入该信息，或在此处接入 DataManager 查询。
-        """
-        return bool(context.get("is_table_empty"))
 
     @staticmethod
     def add_date_range(
@@ -586,7 +536,10 @@ class DataSourceHandlerHelper:
         """
         验证标准化后的数据是否符合 schema。
 
-        使用 DataValidator 进行统一校验，校验失败时抛出 ValueError。
+        验证逻辑：
+        - 如果数据是 {"data": [...]} 格式，验证列表中的每个记录
+        - 如果数据不是 {"data": [...]} 格式，直接验证整个字典
+        - 校验失败时抛出 ValueError
 
         Args:
             normalized_data: 标准化后的数据，通常是 {"data": [...]} 格式
@@ -596,13 +549,102 @@ class DataSourceHandlerHelper:
         Raises:
             ValueError: 如果数据验证失败
         """
-        from core.modules.data_source.services.data_validator import DataValidator
-
         if not schema:
             # 如果没有 schema，跳过验证
             return
 
-        # 使用 DataValidator 进行统一校验
-        if not DataValidator.validate(normalized_data, schema):
-            raise ValueError(f"数据验证失败: {data_source_name} 的标准化数据不符合 schema 定义")
+        # 如果数据是 {"data": [...]} 格式，验证列表中的每个记录
+        if isinstance(normalized_data, dict) and "data" in normalized_data:
+            data_list = normalized_data.get("data", [])
+            if not isinstance(data_list, list):
+                raise ValueError(
+                    f"数据验证失败: {data_source_name} 的 data 字段不是列表类型"
+                )
+            
+            # 验证列表中的每个记录
+            errors = []
+            for idx, record in enumerate(data_list):
+                if not isinstance(record, dict):
+                    errors.append(f"记录 {idx} 不是字典类型")
+                    continue
+                
+                if not schema.validate_data(record):
+                    # 收集错误信息
+                    record_errors = DataSourceHandlerHelper._collect_validation_errors(record, schema)
+                    if record_errors:
+                        errors.append(f"记录 {idx}: {', '.join(record_errors)}")
+            
+            if errors:
+                raise ValueError(
+                    f"数据验证失败: {data_source_name} 的标准化数据不符合 schema 定义。"
+                    f"错误详情: {'; '.join(errors)}"
+                )
+            return
+        
+        # 如果数据不是 {"data": [...]} 格式，直接验证整个字典
+        if not schema.validate_data(normalized_data):
+            errors = DataSourceHandlerHelper._collect_validation_errors(normalized_data, schema)
+            error_msg = ', '.join(errors) if errors else "数据不符合 schema 定义"
+            raise ValueError(
+                f"数据验证失败: {data_source_name} 的标准化数据不符合 schema 定义。"
+                f"错误详情: {error_msg}"
+            )
+
+    @staticmethod
+    def _collect_validation_errors(record: Dict[str, Any], schema: Any) -> List[str]:
+        """
+        收集数据验证错误信息。
+
+        Args:
+            record: 单条记录（字典）
+            schema: Schema 对象
+
+        Returns:
+            List[str]: 错误信息列表
+        """
+        errors = []
+        
+        for field_name, field_def in schema.fields.items():
+            if field_def.required and field_name not in record:
+                errors.append(f"{field_name}(缺失)")
+            elif field_name in record and record[field_name] is not None:
+                value = record[field_name]
+                expected_type = field_def.type
+                if not DataSourceHandlerHelper._check_type(value, expected_type):
+                    errors.append(
+                        f"{field_name}(类型错误: {type(value).__name__} != {expected_type.__name__})"
+                    )
+        
+        return errors
+
+    @staticmethod
+    def _check_type(value: Any, expected_type: type) -> bool:
+        """
+        检查类型（支持类型转换）。
+
+        Args:
+            value: 值
+            expected_type: 期望的类型
+
+        Returns:
+            bool: 是否符合类型（或可以转换）
+        """
+        if isinstance(value, expected_type):
+            return True
+        
+        # 尝试类型转换
+        try:
+            if expected_type == int and isinstance(value, (float, str)):
+                int(value)
+                return True
+            elif expected_type == float and isinstance(value, (int, str)):
+                float(value)
+                return True
+            elif expected_type == str:
+                str(value)
+                return True
+        except (ValueError, TypeError):
+            return False
+        
+        return False
 

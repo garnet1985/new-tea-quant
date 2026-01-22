@@ -236,21 +236,72 @@ class DataSourceHandlerHelper:
         apis: List[ApiJob],
         start_date: Any,
         end_date: Any,
+        per_stock_date_ranges: Optional[Dict[str, Tuple[str, str]]] = None,
     ) -> List[ApiJob]:
         """
-        将统一的 start_date / end_date 注入到每个 ApiJob 的 params 中。
+        将 start_date / end_date 注入到每个 ApiJob 的 params 中。
 
         约定：
         - 各 API 对 start_date / end_date 的具体含义由各自的 provider/handler 决定；
         - 此处只做通用注入，子类可以覆盖或在 on_before_fetch 中进一步细化。
+        
+        Args:
+            apis: ApiJob 列表
+            start_date: 统一的起始日期（当 per_stock_date_ranges 为 None 时使用）
+            end_date: 统一的结束日期（当 per_stock_date_ranges 为 None 时使用）
+            per_stock_date_ranges: per stock 的日期范围字典 {stock_id: (start_date, end_date)}
+        
+        Returns:
+            List[ApiJob]: 已注入日期范围的 ApiJob 列表
         """
-        for job in apis or []:
-            params = job.params or {}
-            if start_date is not None:
-                params.setdefault("start_date", start_date)
-            if end_date is not None:
-                params.setdefault("end_date", end_date)
-            job.params = params
+        if per_stock_date_ranges:
+            # per stock 模式：从 ApiJob 的 params 中提取 stock_id，使用对应的日期范围
+            for job in apis or []:
+                params = job.params or {}
+                
+                # 尝试从 params 中提取 stock_id（支持多种字段名）
+                stock_id = (
+                    params.get("ts_code") or 
+                    params.get("code") or 
+                    params.get("stock_id") or
+                    params.get("id")
+                )
+                
+                if stock_id:
+                    stock_id_str = str(stock_id)
+                    date_range = per_stock_date_ranges.get(stock_id_str)
+                    if date_range:
+                        job_start_date, job_end_date = date_range
+                        if job_start_date is not None:
+                            params.setdefault("start_date", job_start_date)
+                        if job_end_date is not None:
+                            params.setdefault("end_date", job_end_date)
+                    else:
+                        # 如果找不到对应的日期范围，使用统一的日期范围（降级）
+                        logger.warning(f"股票 {stock_id_str} 在 per_stock_date_ranges 中未找到，使用统一日期范围")
+                        if start_date is not None:
+                            params.setdefault("start_date", start_date)
+                        if end_date is not None:
+                            params.setdefault("end_date", end_date)
+                else:
+                    # 如果无法提取 stock_id，使用统一的日期范围（降级）
+                    logger.warning(f"ApiJob {job.job_id} 无法提取 stock_id，使用统一日期范围")
+                    if start_date is not None:
+                        params.setdefault("start_date", start_date)
+                    if end_date is not None:
+                        params.setdefault("end_date", end_date)
+                
+                job.params = params
+        else:
+            # 统一模式：所有 ApiJob 使用相同的日期范围
+            for job in apis or []:
+                params = job.params or {}
+                if start_date is not None:
+                    params.setdefault("start_date", start_date)
+                if end_date is not None:
+                    params.setdefault("end_date", end_date)
+                job.params = params
+        
         return apis
 
     @staticmethod

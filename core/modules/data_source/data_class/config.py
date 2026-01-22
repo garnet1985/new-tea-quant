@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from loguru import logger
 from core.global_enums.enums import UpdateMode
 
@@ -113,6 +113,16 @@ class DataSourceConfig:
     def get_rolling_length(self) -> int:
         """获取 rolling_length"""
         return self.get("rolling_length")
+    
+    def get_needs_stock_grouping(self) -> Optional[bool]:
+        """
+        获取是否需要按股票分组查询最新日期。
+        
+        Returns:
+            bool: True 表示需要按股票分组（如 stock_kline），False 表示不需要（如 GDP, LPR）
+            None: 如果未配置，返回 None（将自动判断）
+        """
+        return self.get("needs_stock_grouping")
     
     def get_apis(self) -> Dict[str, Any]:
         """获取 apis 配置（默认空字典）"""

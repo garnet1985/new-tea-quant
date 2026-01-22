@@ -528,3 +528,30 @@ class DataSourceHandlerHelper:
         # 步骤 4：包装成标准 payload
         return DataSourceHandlerHelper.build_normalized_payload(normalized_records)
 
+    # ========== 数据验证 ==========
+
+    @staticmethod
+    def validate_normalized_data(normalized_data: Dict[str, Any], schema: Any, data_source_name: str = "unknown") -> None:
+        """
+        验证标准化后的数据是否符合 schema。
+
+        使用 DataValidator 进行统一校验，校验失败时抛出 ValueError。
+
+        Args:
+            normalized_data: 标准化后的数据，通常是 {"data": [...]} 格式
+            schema: Schema 对象（用于验证）
+            data_source_name: 数据源名称（用于错误信息）
+
+        Raises:
+            ValueError: 如果数据验证失败
+        """
+        from core.modules.data_source.services.data_validator import DataValidator
+
+        if not schema:
+            # 如果没有 schema，跳过验证
+            return
+
+        # 使用 DataValidator 进行统一校验
+        if not DataValidator.validate(normalized_data, schema):
+            raise ValueError(f"数据验证失败: {data_source_name} 的标准化数据不符合 schema 定义")
+

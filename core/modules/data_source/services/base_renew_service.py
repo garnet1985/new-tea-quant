@@ -100,28 +100,87 @@ class BaseRenewService:
         self, 
         table_name: str, 
         date_field: str, 
-        date_format: str
-    ) -> Optional[str]:
+        date_format: str,
+        needs_stock_grouping: Optional[bool] = None
+    ) -> Optional[Dict[str, str]]:
         """
         查询数据库最新日期（公共方法）
         
+        逻辑：
+        1. 通过 DataManager.get_table() 获取表的 model
+        2. 根据配置或表的主键结构判断是否需要按股票分组：
+           - 如果配置中显式声明了 needs_stock_grouping，使用配置值
+           - 否则，根据主键结构自动判断（主键中除了日期字段还有其他字段 = 需要分组）
+        3. 根据是否需要分组，查询最新日期：
+           - 不需要分组（如 GDP, LPR）：返回 None（表示整个表的最新日期，在调用方处理）
+           - 需要分组（如 stock_kline）：返回 {stock_id: latest_date} 字典
+        
         Args:
             table_name: 数据库表名
-            date_field: 日期字段名
+            date_field: 日期字段名（表里声明的日期字段）
             date_format: 日期格式（用于验证）
+            needs_stock_grouping: 是否需要按股票分组（None 表示自动判断）
         
         Returns:
-            最新日期字符串，如果表为空返回 None
+            - 如果需要分组：Dict[str, str] {stock_id: latest_date}，如果表为空返回 None
+            - 如果不需要分组：返回 None（调用方需要单独处理）
         """
         if not self.data_manager:
             return None
         
         try:
+            # 步骤 1：通过 DataManager 获取 model（内部方法，仅供 service 使用）
             model = self.data_manager.get_table(table_name)
-            if model:
-                latest_record = model.load_latest()
-                if latest_record:
-                    return latest_record.get(date_field, '')
+            if not model:
+                return None
+            
+            # 步骤 2：判断是否需要分组（优先级：配置 > 自动判断）
+            if needs_stock_grouping is None:
+                # 如果未配置，根据主键结构自动判断
+                try:
+                    primary_keys = model._get_primary_keys_from_schema()
+                    # 过滤掉日期字段，得到分组键
+                    group_keys = [k for k in primary_keys if k != date_field]
+                    needs_grouping = len(group_keys) > 0
+                except Exception:
+                    # 如果无法获取主键，默认需要分组（保守策略）
+                    needs_grouping = True
+            else:
+                needs_grouping = needs_stock_grouping
+            
+            # 步骤 3：根据是否需要分组，查询最新日期
+            if not needs_grouping:
+                # 不需要分组：返回 None，调用方需要单独处理（查询整个表的最新日期）
+                return None
+            
+            # 需要分组：查询每个股票的最新日期
+            try:
+                latest_records = model.load_latest_records(date_field=date_field)
+                if not latest_records:
+                    return None
+                
+                # 构建 {stock_id: latest_date} 字典
+                # 假设主键中除了日期字段的第一个字段是 stock_id（通常是 'id'）
+                try:
+                    primary_keys = model._get_primary_keys_from_schema()
+                    group_keys = [k for k in primary_keys if k != date_field]
+                    stock_id_field = group_keys[0] if group_keys else 'id'  # 默认使用 'id'
+                except Exception:
+                    stock_id_field = 'id'  # 降级使用 'id'
+                
+                result = {}
+                for record in latest_records:
+                    stock_id = record.get(stock_id_field)
+                    latest_date = record.get(date_field)
+                    if stock_id and latest_date:
+                        result[stock_id] = latest_date
+                
+                return result if result else None
+            except (AttributeError, Exception) as e:
+                # 如果 load_latest_records 不存在或失败，降级到简单查询
+                logger.debug(f"使用 load_latest_records 失败: {e}，降级到简单查询")
+                # 对于需要分组的情况，降级查询无法获取 per stock 信息，返回 None
+                return None
         except Exception as e:
             logger.warning(f"查询数据库失败 {table_name}.{date_field}: {e}")
         

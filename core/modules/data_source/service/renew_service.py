@@ -9,7 +9,7 @@ Renew Service
 - 委托给 legacy 的 RenewModeService 执行实际的日期范围计算
 - 返回已注入日期范围的 ApiJob 列表
 """
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Union
 from loguru import logger
 
 from core.modules.data_source.data_class.api_job import ApiJob
@@ -129,11 +129,15 @@ class RenewService:
             # 降级到简化计算
             return self._compute_simple_default_date_range(config)
     
-    def compute_incremental_date_range(self, context: Dict[str, Any]) -> Tuple[str, str]:
+    def compute_incremental_date_range(self, context: Dict[str, Any]) -> Union[Tuple[str, str], Dict[str, Tuple[str, str]]]:
         """
         计算增量模式下的日期范围（需要查表）。
         
         调用 legacy IncrementalRenewService 计算精确的增量日期范围。
+        
+        Returns:
+            - 如果需要按股票分组：Dict[str, Tuple[str, str]] {stock_id: (start_date, end_date)}
+            - 如果不需要分组：Tuple[str, str] (start_date, end_date)
         """
         config = self._get_config(context)
         date_format = config.get_date_format()
@@ -144,23 +148,27 @@ class RenewService:
         
         renew_mode_service = self._get_renew_mode_service()
         try:
-            start, end = renew_mode_service.calculate_date_range(
+            result = renew_mode_service.calculate_date_range(
                 renew_mode=UpdateMode.INCREMENTAL.value,
                 date_format=date_format,
                 context=context,
                 table_name=table_name,
                 date_field=date_field
             )
-            return start, end
+            return result
         except Exception as e:
             logger.warning(f"使用 RenewModeService 计算增量日期范围失败: {e}，使用默认日期范围")
             return self.compute_default_date_range(context)
     
-    def compute_rolling_date_range(self, context: Dict[str, Any]) -> Tuple[str, str]:
+    def compute_rolling_date_range(self, context: Dict[str, Any]) -> Union[Tuple[str, str], Dict[str, Tuple[str, str]]]:
         """
         计算滚动模式下的日期范围（需要查表）。
         
         调用 legacy RollingRenewService 计算精确的滚动日期范围。
+        
+        Returns:
+            - 如果需要按股票分组：Dict[str, Tuple[str, str]] {stock_id: (start_date, end_date)}
+            - 如果不需要分组：Tuple[str, str] (start_date, end_date)
         """
         config = self._get_config(context)
         date_format = config.get_date_format()
@@ -173,7 +181,7 @@ class RenewService:
         
         renew_mode_service = self._get_renew_mode_service()
         try:
-            start, end = renew_mode_service.calculate_date_range(
+            result = renew_mode_service.calculate_date_range(
                 renew_mode=UpdateMode.ROLLING.value,
                 date_format=date_format,
                 context=context,
@@ -182,7 +190,7 @@ class RenewService:
                 rolling_unit=rolling_unit,
                 rolling_length=rolling_length
             )
-            return start, end
+            return result
         except Exception as e:
             logger.warning(f"使用 RenewModeService 计算滚动日期范围失败: {e}，使用默认日期范围")
             return self.compute_default_date_range(context)
@@ -275,10 +283,17 @@ class RenewService:
         apis: List[ApiJob],
         start_date: Any,
         end_date: Any,
+        per_stock_date_ranges: Optional[Dict[str, Tuple[str, str]]] = None,
     ) -> List[ApiJob]:
         """
-        将统一的 start_date / end_date 注入到每个 ApiJob 的 params 中。
+        将 start_date / end_date 注入到每个 ApiJob 的 params 中。
+        
+        委托给 DataSourceHandlerHelper.add_date_range 实现。
         """
+        from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
+        return DataSourceHandlerHelper.add_date_range(
+            apis, start_date, end_date, per_stock_date_ranges
+        )
         for job in apis or []:
             params = job.params or {}
             if start_date is not None:

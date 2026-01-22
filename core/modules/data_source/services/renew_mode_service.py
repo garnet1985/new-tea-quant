@@ -3,7 +3,7 @@ Renew Mode Service
 
 统一入口，根据 renew_mode 路由到对应的 Service。
 """
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, Union
 from loguru import logger
 
 from core.global_enums.enums import UpdateMode, TimeUnit
@@ -41,7 +41,7 @@ class RenewModeService:
         rolling_length: Optional[int] = None,
         # Refresh 模式参数
         default_date_range: Optional[Dict[str, int]] = None
-    ) -> Tuple[str, str]:
+    ) -> Union[Tuple[str, str], Dict[str, Tuple[str, str]]]:
         """
         根据 renew_mode 计算日期范围（统一入口）
         
@@ -56,7 +56,8 @@ class RenewModeService:
             default_date_range: 默认日期范围（refresh 模式需要）
         
         Returns:
-            Tuple[str, str]: (start_date, end_date)
+            - 如果需要按股票分组：Dict[str, Tuple[str, str]] {stock_id: (start_date, end_date)}
+            - 如果不需要分组：Tuple[str, str] (start_date, end_date)
         
         Raises:
             ValueError: 如果 renew_mode 无效或缺少必需参数

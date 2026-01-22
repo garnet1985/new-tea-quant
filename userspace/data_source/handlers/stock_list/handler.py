@@ -9,12 +9,12 @@ from typing import List, Dict, Any
 from loguru import logger
 import pandas as pd
 
-from typing import List, Dict, Any
-from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.utils.date.date_utils import DateUtils
+from core.modules.data_source.base_class.base_handler import BaseHandler
+from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 
 
-class TushareStockListHandler(BaseDataSourceHandler):
+class TushareStockListHandler(BaseHandler):
     """
     股票列表 Handler
     
@@ -25,69 +25,32 @@ class TushareStockListHandler(BaseDataSourceHandler):
     - 使用 upsert 模式更新数据
     - 包含所有交易所的股票（不排除北交所）
     
-    配置参数：
-    - api_fields (str): API 字段列表，默认包含所有必要字段
+    配置（在 config.json 中）：
+    - renew_mode: "refresh"
+    - date_format: "none"
+    - apis: {...} (包含 provider_name, method, params 等)
     """
     
-    # 类属性（必须定义）
-    data_source = "stock_list"
-    description = "获取股票列表"
-    dependencies = []  # 无依赖
-    
-    # 可选类属性
-    requires_date_range = False  # 不需要日期范围参数
-    
-    def __init__(self, schema, data_manager=None, definition=None):
-        super().__init__(schema, data_manager, definition)
-        
-        # 从配置中获取 API 字段列表（默认使用所有必要字段）
-        self.api_fields = self.get_param(
-            "api_fields",
-            "ts_code,symbol,name,area,industry,market,exchange,list_date"
-        )
-        
-        # 存储 last_update（在 before_fetch 中设置）
-        self._last_update = None
-    
-    async def before_fetch(self, context: Dict[str, Any] = None):
+    def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
-        数据准备阶段
+        抓取前阶段钩子：设置 last_update 到 context
         
-        准备当前日期时间，用于设置 last_update 字段（股票列表的更新时间）
+        Args:
+            context: 执行上下文
+            apis: ApiJob 列表（已注入日期范围）
+            
+        Returns:
+            List[ApiJob]: 处理后的 ApiJob 列表
         """
-        context = context or {}
-        
         # last_update 是更新股票列表的时间，应该使用当前日期时间
         # 格式：YYYY-MM-DD HH:MM:SS（数据库 datetime 格式）
-        from datetime import datetime
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self._last_update = current_datetime
         context["last_update"] = current_datetime
+        return apis
     
-    async def fetch(self, context: Dict[str, Any] = None) -> List:
+    def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        生成获取股票列表的 Task
-        
-        逻辑：
-        1. 调用 Tushare stock_basic API 获取所有股票
-        2. 在 normalize 中处理字段映射
-        """
-        context = context or {}
-        
-        # 使用辅助方法创建简单的单 API 调用 Task
-        task = self.create_simple_task(
-            provider_name="tushare",
-            method="get_stock_list",
-            params={
-                "fields": self.api_fields,
-            }
-        )
-        
-        return [task]
-    
-    async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        标准化数据
+        标准化数据：覆盖基类方法，添加 last_update 字段
         
         从 Tushare 返回的 DataFrame 中提取股票列表，进行字段映射和过滤
         
@@ -95,28 +58,35 @@ class TushareStockListHandler(BaseDataSourceHandler):
         - 使用当前日期时间作为 last_update（股票列表的更新时间，格式：YYYY-MM-DD HH:MM:SS）
         - 字段映射与数据库 schema 保持一致
         """
-        # 使用辅助方法获取简单 Task 的结果
-        df = self.get_simple_result(task_results)
+        # 先使用基类的默认标准化逻辑
+        config = context.get("config")
+        if hasattr(config, "get_apis"):
+            apis_conf = config.get_apis()
+        else:
+            apis_conf = config.get("apis") if config else {}
+        schema = context.get("schema")
         
-        if df is None or df.empty:
-            logger.warning("股票列表查询返回空数据")
+        if not fetched_data or not isinstance(fetched_data, dict):
             return {"data": []}
         
-        # 获取 last_update（从实例变量获取，如果未设置则使用当前时间）
-        if not self._last_update:
-            from datetime import datetime
-            self._last_update = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # 使用 Helper 提取并映射记录
+        mapped_records: List[Dict[str, Any]] = DataSourceHandlerHelper.extract_mapped_records(
+            apis_conf=apis_conf,
+            fetched_data=fetched_data,
+        )
         
-        last_update = self._last_update
+        if not mapped_records:
+            return {"data": []}
         
-        # 转换为字典列表
-        records = df.to_dict('records')
+        # 获取 last_update（从 context 获取，如果未设置则使用当前时间）
+        last_update = context.get("last_update")
+        if not last_update:
+            last_update = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         # 字段映射和数据处理
         formatted = []
-        
-        for item in records:
-            # 字段映射
+        for item in mapped_records:
+            # 字段映射（从 Tushare 字段映射到 schema 字段）
             ts_code = item.get('ts_code', '')
             
             mapped = {
@@ -133,41 +103,48 @@ class TushareStockListHandler(BaseDataSourceHandler):
             if mapped.get('id') and mapped.get('name'):
                 formatted.append(mapped)
         
-        logger.info(f"✅ 股票列表处理完成，共 {len(formatted)} 只股票（last_update: {last_update}）")
+        # 应用 schema 约束
+        normalized_records = DataSourceHandlerHelper.apply_schema(formatted, schema)
         
-        return {
-            "data": formatted
-        }
+        logger.info(f"✅ 股票列表处理完成，共 {len(normalized_records)} 只股票（last_update: {last_update}）")
+        
+        return DataSourceHandlerHelper.build_normalized_payload(normalized_records)
     
-    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
+    def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         标准化后的钩子：保存数据到数据库
         
-        在数据标准化完成后，自动保存到数据库。
+        Args:
+            context: 执行上下文
+            normalized_data: 标准化后的数据
+            
+        Returns:
+            Dict[str, Any]: 返回标准化后的数据
         """
-        context = context or {}
+        data_manager = context.get("data_manager")
+        if not data_manager:
+            logger.warning("DataManager 未初始化，无法保存股票列表数据")
+            return normalized_data
         
         # 检查是否是 dry_run 模式
         dry_run = context.get('dry_run', False)
         if dry_run:
             logger.info("🧪 干运行模式：跳过股票列表数据保存")
-            return
-        
-        if not self.data_manager:
-            logger.warning("DataManager 未初始化，无法保存股票列表数据")
-            return
+            return normalized_data
         
         # 验证数据格式
         data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
         if not data_list:
             logger.debug("股票列表数据为空，无需保存")
-            return
+            return normalized_data
         
         try:
-            count = self.data_manager.stock.list.save(data_list)
-            logger.info(f"✅ 保存 {self.data_source} 数据完成，共 {count} 条记录")
+            count = data_manager.stock.list.save(data_list)
+            logger.info(f"✅ 保存股票列表数据完成，共 {count} 条记录")
         except Exception as e:
-            logger.error(f"❌ 保存 {self.data_source} 数据失败: {e}")
+            logger.error(f"❌ 保存股票列表数据失败: {e}")
             import traceback
             logger.error(traceback.format_exc())
             raise
+        
+        return normalized_data

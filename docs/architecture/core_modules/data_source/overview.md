@@ -91,7 +91,9 @@ core/modules/data_source/
 ├── simple_config_handler.py        # 纯配置驱动的 Handler（零代码）
 ├── base_provider.py                # Provider 基类
 ├── task_executor.py                # Task 执行器
-├── schemas.py                      # Schema 定义
+├── data_class/                     # 数据类定义
+│   ├── schema.py                   # Schema 定义
+│   ├── field.py                    # Field 定义
 │
 ├── data_classes/                   # 数据类
 │   ├── api_job.py                  # ApiJob 和 DataSourceTask

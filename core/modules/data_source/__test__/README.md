@@ -8,7 +8,7 @@
 
 - `test_data_source_manager.py` - DataSourceManager 测试
 - `test_data_source_handler.py` - BaseDataSourceHandler 测试
-- `test_api_job.py` - ApiJob 和 DataSourceTask 测试
+- `test_api_job.py` - ApiJob 测试
 - `test_definition.py` - DataSourceDefinition 测试
 
 ## 🚀 运行测试
@@ -49,12 +49,12 @@ python core/modules/data_source/__test__/test_data_source_manager.py
 - ✅ 获取 ProviderConfig 和 HandlerConfig
 - ✅ 创建简单 Task
 
-### ApiJob 和 DataSourceTask
+### ApiJob
 - ✅ ApiJob 初始化
 - ✅ api_name 自动设置
 - ✅ 依赖关系
-- ✅ DataSourceTask 初始化
-- ✅ job_id 自动生成
+
+注意：DataSourceTask 已被 ApiJobBatch 取代，相关测试已移除。
 
 ### DataSourceDefinition
 - ✅ 从字典创建

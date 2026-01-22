@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
@@ -25,33 +25,107 @@ class BaseHandler:
             "providers": providers,
             "data_manager": DataManager.get_instance(),
         }
-        self.apis: List[ApiJob] = self._config_to_api_jobs()
-        self.fetched_data: Dict[str, Any] = {}
-        self.normalized_data: Dict[str, Any] = {}
+        # self.apis: List[ApiJob] = []
+        # self.fetched_data: Dict[str, Any] = {}
+        # self.normalized_data: Dict[str, Any] = {}
 
-    def execute(self) -> Dict[str, Any]:
+    def execute(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handler 的同步执行入口（默认实现）。
 
         流程大纲：
-        1. 重置内部状态；
-        2. on_before_fetch：允许子类基于 context 调整 ApiJobs（例如补参数、拆分等）；
-        3. on_fetch：默认使用调度器/执行器执行 ApiJobs（包含拓扑排序、限流、并发调度），返回原始数据；
-        4. on_after_fetch：提供在标准化前对原始数据做预处理的扩展点；
-        5. on_normalize：将原始数据按 schema 标准化；
-        6. on_after_normalize：后处理钩子；
-        7. 返回标准化后的数据。
+        1. _preprocess：预处理阶段（构建 ApiJobs、计算日期范围、调用 on_before_fetch 钩子）；
+        2. _executing：执行阶段（构建批次、执行 API 请求、调用 on_after_fetch 钩子）；
+        3. _postprocess：后处理阶段（标准化数据、调用 on_after_normalize 钩子、数据验证）；
+        4. 返回标准化后的数据。
         """
-        self._reset()
+        apis_jobs = self._preprocess(global_dependencies)
 
-        apis = self.on_before_fetch(self.context, self.apis)
-        self.fetched_data = self.on_fetch(self.context, apis)
-        self.fetched_data = self.on_after_fetch(self.context, self.fetched_data, apis)
-        self.normalized_data = self.on_normalize(self.context, self.fetched_data)
-        self.normalized_data = self.on_after_normalize(self.context, self.normalized_data)
+        fetched_data = self._executing(apis_jobs)
 
-        return self.normalized_data
+        normalized_data = self._postprocess(fetched_data)
 
+        # apis = self.on_before_fetch(self.context, self.apis)
+        # self.fetched_data = self.on_fetch(self.context, apis)
+        # self.fetched_data = self.on_after_fetch(self.context, self.fetched_data, apis)
+        # self.normalized_data = self.on_normalize(self.context, self.fetched_data)
+        # self.normalized_data = self.on_after_normalize(self.context, self.normalized_data)
+
+        # # 执行尾部数据验证：验证标准化后的数据是否符合 schema
+        # schema = self.context.get("schema")
+        # data_source_name = self.context.get("data_source_name", "unknown")
+        # DataSourceHandlerHelper.validate_normalized_data(self.normalized_data, schema, data_source_name)
+
+        return normalized_data
+
+    def _preprocess(self, global_dependencies: Dict[str, Any]) -> List[ApiJob]:
+        """
+        预处理阶段：在执行 API 请求前的所有准备工作。
+
+        步骤：
+        1. 从 config 构建 ApiJob 列表（_config_to_api_jobs）；
+        2. 计算日期范围并注入到 ApiJobs 中（_calculate_date_range）；
+        3. 调用 on_before_fetch 钩子，允许子类调整 ApiJobs。
+
+        Returns:
+            List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
+        """
+        self.context = self._inject_required_global_dependencies(global_dependencies)
+        apis_jobs = self._config_to_api_jobs()
+        apis_jobs = self._add_date_range_to_api_jobs(self.context, apis_jobs)
+        apis_jobs = self.on_before_fetch(self.context, apis_jobs)
+        return apis_jobs
+        
+
+    def _executing(self, apis_jobs: List[ApiJob]) -> Dict[str, Any]:
+        """
+        执行阶段：按依赖关系执行 API 请求，并汇总结果。
+
+        当前实现：单个批次（对应一只股票的所有API请求）。
+        批次内的多个 API job 按依赖关系拓扑排序，同一阶段内的 job 并发执行。
+
+        步骤：
+        1. 构建 job 批次（_build_job_batch）；
+        2. 调用 on_after_build_job_batch 钩子；
+        3. 执行批次，并在执行过程中调用钩子：
+           - 单个 api job 执行后：on_after_execute_single_api_job
+           - 批次执行后：on_after_execute_job_batch
+        4. 调用 on_after_fetch 钩子（全部执行完汇总后）；
+        5. 错误处理：如果执行过程中出现异常，调用 on_error 钩子。
+
+        Returns:
+            Dict[str, Any]: 汇总后的抓取结果 {job_id: result}
+        """
+        try:
+            # 步骤 1：构建 job 批次（当前实现：单个批次，包含所有 apis）
+            job_batch = self._build_api_job_batch_per_stock(self.context, apis_jobs)
+
+            # 步骤 2：调用批次构建后的钩子
+            job_batch = self.on_after_build_job_batch_for_single_stock(self.context, job_batch)
+
+            # 步骤 3：执行批次并调用钩子
+            batch_results = self._execute_job_batch_for_single_stock(self.context, job_batch, apis_jobs)
+            # 调用批次执行后的钩子
+            self.on_after_execute_job_batch_for_single_stock(self.context, job_batch, batch_results)
+
+            # 步骤 4 & 5：汇总结果并调用 on_after_fetch 钩子
+            fetched_data = self.on_after_fetch(self.context, batch_results, apis_jobs)
+
+            return fetched_data
+        except Exception as e:
+            # 步骤 6：错误处理
+            self.on_error(e, self.context, apis_jobs)
+            raise
+
+    def _postprocess(self, fetched_data: Dict[str, Any]) -> Dict[str, Any]:
+
+        normalized_data = self._normalize_data(self.context, fetched_data)
+
+        normalized_data = self.on_after_normalize(self.context, normalized_data)
+
+        normalized_data = self._validate_normalized_data(normalized_data)
+
+        return normalized_data
 
     def _config_to_api_jobs(self) -> List[ApiJob]:
         """
@@ -69,18 +143,29 @@ class BaseHandler:
             api_conf = config.get("apis") if config else {}
         return DataSourceHandlerHelper.build_api_jobs(api_conf)
 
-    def _reset(self):
-        self.fetched_data = None
-        self.normalized_data = None
-
-
-    # ================================
-    # Hooks
-    # ================================
-
-    def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]):
+    def _inject_required_global_dependencies(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
         """
-        抓取前阶段：默认行为是在不显式指定日期范围时，尝试根据 renew_mode 自动补全日期范围。
+        注入全局依赖到 context。
+        
+        注意：scheduler 已经知道该 handler 需要哪些依赖，传入的 global_dependencies 
+        只包含该 handler 需要的依赖，直接注入即可。
+        
+        Args:
+            global_dependencies: 该 handler 需要的全局依赖字典（scheduler 已过滤）
+            
+        Returns:
+            Dict[str, Any]: 更新后的 context（已注入依赖）
+        """
+        updated_context = self.context.copy()
+        # 将依赖注入到 context 中（不覆盖已有键）
+        for dep_name, dep_value in global_dependencies.items():
+            if dep_name not in updated_context:
+                updated_context[dep_name] = dep_value
+        return updated_context
+    
+    def _add_date_range_to_api_jobs(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
+        """
+        计算日期范围并注入到 ApiJobs 中：根据 renew_mode 自动补全日期范围。
 
         步骤大纲（主线逻辑）：
         1. 先检查 context 中是否已有 start_date / end_date（显式指定时原样使用，不做推断）；
@@ -90,14 +175,17 @@ class BaseHandler:
            - incremental：从数据库中已完成的最新日期之后，增量补到当前最新周期；
            - rolling：围绕最近完成日期构造一个滚动窗口（rolling_unit + rolling_length）；
            - 其他情况（含 refresh 或未配置）：统一回退到默认日期范围策略；
-        4. 将得到的 (start_date, end_date) 注入到每个 ApiJob 的 params 中（统一的日期语义）；
-        5. 返回（可能带有 start_date / end_date 的）Apis 列表，供后续 fetch 使用。
+        4. 将计算得到的 (start_date, end_date) 注入到每个 ApiJob 的 params 中；
+        5. 返回已注入日期范围的 ApiJob 列表。
 
         具体的「查表 + 计算日期范围」细节下沉到 RenewService：
         - RenewService 内部再委托给 legacy 的 RenewModeService / 各种 *RenewService 做精确计算；
         - 本方法只保留步骤大纲，方便阅读主线逻辑，复杂实现不写在这里。
 
         复杂场景（需要特殊 renew 策略）可以在子类中覆盖本方法。
+
+        Returns:
+            List[ApiJob]: 已注入日期范围的 ApiJob 列表
         """
 
         # 准备：构造 RenewService（内部持有 data_manager，用于查表）
@@ -131,38 +219,57 @@ class BaseHandler:
         start, end = renew_service.compute_default_date_range(context)
         return renew_service.add_date_range(apis, start, end)
 
-    def on_fetch(self, context: Dict[str, Any], apis: List[ApiJob]):
+    def _build_api_job_batch_per_stock(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
         """
-        执行阶段：默认实现使用 TaskExecutor 执行一组 ApiJobs。
+        构建 job 批次：将 apis 打包成一个 batch。这个批次是per stock的。
 
-        步骤大纲（与原有执行逻辑保持一致）：
-        1. 将当前 Handler 的所有 ApiJobs 打包成一个 ApiJobBatch（更语义化的执行计划批次）；
-        2. 基于 context 中注入的 providers 构造 ApiJobExecutor（内部复用 TaskExecutor）；
-        3. 委托 ApiJobExecutor：
-           - 对 ApiJobs 做拓扑排序（基于 depends_on 分阶段执行）；
-           - 收集每个 ApiJob 的限流信息，按“木桶效应”取最小值决定整体节奏；
-           - 在每个阶段内按限流和并发策略执行所有 ApiJobs；
-        4. 返回执行结果 {job_id: result} 字典。
+        当前实现：将所有 apis 打包成一个 batch（对应一只股票的所有API请求）。
+        未来如果需要支持多只股票并行，可以覆盖此方法，按股票拆分多个 batch。
+
+        Args:
+            context: 上下文信息
+            apis: ApiJob 列表
+
+        Returns:
+            ApiJobBatch: 单个批次
         """
         if not apis:
-            return {}
+            raise ValueError("apis 列表不能为空")
 
-        data_source_name = context.get("data_source_name")
+        data_source_name = context.get("data_source_name", "data_source")
         batch_id = ApiJobBatch.to_id(data_source_name)
 
-        # 1. 构造语义化的 ApiJobBatch（对外暴露的执行计划概念）
         batch = ApiJobBatch(
             batch_id=batch_id,
             api_jobs=apis,
             description=f"{data_source_name} execution plan",
         )
 
+        return batch
+
+    def _execute_job_batch_for_single_stock(
+        self, context: Dict[str, Any], job_batch: ApiJobBatch, all_apis: List[ApiJob]
+    ) -> Dict[str, Any]:
+        """
+        执行单个 job batch，并在执行过程中调用单个 job 的钩子。
+
+        Args:
+            context: 上下文信息
+            job_batch: 要执行的批次
+            all_apis: 所有 ApiJob 列表（用于钩子调用）
+
+        Returns:
+            Dict[str, Any]: 批次执行结果 {job_id: result}
+        """
+        if not job_batch.api_jobs:
+            return {}
+
         providers = context.get("providers") or {}
         scheduler = ApiJobScheduler(providers=providers)
 
         async def _run():
             # ApiJobScheduler.run_batches 返回 {batch_id: {job_id: result}}
-            return await scheduler.run_batches([batch])
+            return await scheduler.run_batches([job_batch])
 
         # 在同步上下文中执行异步调度
         import asyncio
@@ -192,22 +299,21 @@ class BaseHandler:
             # 当前线程没有事件循环，直接用 asyncio.run
             exec_result = asyncio.run(_run())
 
-        return exec_result.get(batch_id, {})
+        # 提取批次结果
+        batch_results = exec_result.get(job_batch.batch_id, {})
 
-    def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):
-        """
-        抓取完成后的预处理钩子（标准化之前）。
+        # 调用单个 job 执行后的钩子（包括成功和失败的情况）
+        for api_job in job_batch.api_jobs:
+            # 无论成功还是失败，都调用钩子（失败时 job_result 可能是 None）
+            job_result = batch_results.get(api_job.job_id)
+            self.on_after_execute_single_api_job(
+                self.context, api_job, {api_job.job_id: job_result}
+            )
 
-        常见用途：
-        - 记录抓取统计信息；
-        - 对多路数据结果做合并/清洗；
-        - 为标准化阶段补充必要的上下文信息。
+        return batch_results
 
-        默认行为：直接返回 fetched_data。
-        """
-        return fetched_data
 
-    def on_normalize(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
+    def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
         """
         标准化阶段：默认实现按“步骤大纲”调用 Helper，将原始数据转换为标准结构。
 
@@ -256,6 +362,162 @@ class BaseHandler:
         # 步骤 7：将最终记录包装为 {"data": [...]} 返回
         return DataSourceHandlerHelper.build_normalized_payload(normalized_records)
 
+
+    def _validate_normalized_data(self, normalized_data: Dict[str, Any]):
+        """
+        验证标准化数据：验证标准化后的数据是否符合 schema。
+        """
+        pass
+
+
+
+    # def on_fetch(self, context: Dict[str, Any], apis: List[ApiJob]):
+    #     """
+    #     执行阶段：默认实现使用 TaskExecutor 执行一组 ApiJobs。
+
+    #     步骤大纲（与原有执行逻辑保持一致）：
+    #     1. 将当前 Handler 的所有 ApiJobs 打包成一个 ApiJobBatch（更语义化的执行计划批次）；
+    #     2. 基于 context 中注入的 providers 构造 ApiJobExecutor（内部复用 TaskExecutor）；
+    #     3. 委托 ApiJobExecutor：
+    #        - 对 ApiJobs 做拓扑排序（基于 depends_on 分阶段执行）；
+    #        - 收集每个 ApiJob 的限流信息，按“木桶效应”取最小值决定整体节奏；
+    #        - 在每个阶段内按限流和并发策略执行所有 ApiJobs；
+    #     4. 返回执行结果 {job_id: result} 字典。
+    #     """
+        # if not apis:
+        #     return {}
+
+        # data_source_name = context.get("data_source_name")
+        # batch_id = ApiJobBatch.to_id(data_source_name)
+
+        # # 1. 构造语义化的 ApiJobBatch（对外暴露的执行计划概念）
+        # batch = ApiJobBatch(
+        #     batch_id=batch_id,
+        #     api_jobs=apis,
+        #     description=f"{data_source_name} execution plan",
+        # )
+
+        # providers = context.get("providers") or {}
+        # scheduler = ApiJobScheduler(providers=providers)
+
+        # async def _run():
+        #     # ApiJobScheduler.run_batches 返回 {batch_id: {job_id: result}}
+        #     return await scheduler.run_batches([batch])
+
+        # # 在同步上下文中执行异步调度
+        # import asyncio
+
+        # try:
+        #     loop = asyncio.get_event_loop()
+        #     if loop.is_running():
+        #         # 事件循环已在运行（例如在 notebook/某些框架中），创建新的循环执行
+        #         import threading
+        #         result_container: Dict[str, Any] = {}
+
+        #         def _worker():
+        #             new_loop = asyncio.new_event_loop()
+        #             asyncio.set_event_loop(new_loop)
+        #             try:
+        #                 result_container["value"] = new_loop.run_until_complete(_run())
+        #             finally:
+        #                 new_loop.close()
+
+        #         t = threading.Thread(target=_worker)
+        #         t.start()
+        #         t.join()
+        #         exec_result = result_container.get("value", {})
+        #     else:
+        #         exec_result = loop.run_until_complete(_run())
+        # except RuntimeError:
+        #     # 当前线程没有事件循环，直接用 asyncio.run
+        #     exec_result = asyncio.run(_run())
+
+        # return exec_result.get(batch_id, {})
+
+    # ================================
+    # Hooks
+    # ================================
+
+    def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
+        """
+        抓取前阶段钩子：允许子类基于 context 调整 ApiJobs。
+
+        在日期范围已注入到 ApiJobs 之后调用，子类可以：
+        - 基于日期范围或其他条件调整 ApiJob 参数
+        - 添加或移除 ApiJob
+        - 修改 ApiJob 的依赖关系
+
+        Args:
+            context: 上下文信息
+            apis: ApiJob 列表（已注入日期范围）
+
+        Returns:
+            List[ApiJob]: 处理后的 ApiJob 列表
+        """
+        return apis
+
+    def on_after_build_job_batch_for_single_stock(self, context: Dict[str, Any], job_batch: ApiJobBatch) -> None:
+        """
+        批次构建后的钩子。
+
+        在 job batch 构建完成后调用，子类可以：
+        - 检查批次配置
+        - 调整批次内的 ApiJobs
+        - 记录批次信息
+
+        Args:
+            context: 上下文信息
+            job_batch: 构建好的批次
+        """
+        pass
+
+    def on_after_execute_single_api_job(self, context: Dict[str, Any], api_job: ApiJob, fetched_data: Dict[str, Any]):
+        """
+        执行单个 api job 后的钩子。
+        """
+        pass
+
+    def on_after_execute_job_batch_for_single_stock(self, context: Dict[str, Any],job_batch: ApiJobBatch, fetched_data: Dict[str, Any]):
+        """
+        执行 job batch 后的钩子。
+        """
+        pass
+
+    def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):
+        """
+        抓取完成后的预处理钩子（标准化之前）。
+
+        常见用途：
+        - 记录抓取统计信息；
+        - 对多路数据结果做合并/清洗；
+        - 为标准化阶段补充必要的上下文信息。
+
+        默认行为：直接返回 fetched_data。
+        """
+        return fetched_data
+
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]):
         # 可重写，有默认行为：默认直接返回 normalized_data
         return normalized_data
+
+    def on_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
+        """
+        执行错误时的钩子。
+
+        当执行阶段（_executing）出现异常时调用此钩子。
+        子类可以覆盖此方法来实现自定义错误处理逻辑，例如：
+        - 记录错误日志
+        - 清理资源
+        - 重试机制
+        - 错误通知
+
+        注意：此钩子不会阻止异常传播，异常仍会向上抛出。
+
+        Args:
+            error: 发生的异常
+            context: 上下文信息
+            apis: 执行时的 ApiJob 列表
+        """
+        from loguru import logger
+        data_source_name = context.get("data_source_name", "unknown")
+        logger.error(f"❌ 数据源 {data_source_name} 执行失败: {error}")

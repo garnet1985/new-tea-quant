@@ -62,6 +62,65 @@
   - 使用 `DataValidator.validate(self.normalized_data, schema)`（或直接遍历 `schema.validate_data(record)`）进行统一校验；
   - 校验失败时抛出 `ValueError`，与旧版语义保持一致。
 
+### 4. 细化钩子粒度，避免“一刀切”大钩子（Hook Granularity Control）
+
+**问题分析**
+
+- 当前 `on_fetch(context, apis)` 过于粗粒度，包含多个步骤：
+  1. 构造 `ApiJobBatch`
+  2. 创建 `ApiJobScheduler`
+  3. 处理异步执行（事件循环兼容）
+  4. 提取结果
+- 如果用户只想修改其中一小步（例如 batch 构建逻辑、调度参数），却需要重写整个 `on_fetch`：
+  - 难以复用默认行为（需要理解整个流程）
+  - 容易破坏后续数据流（返回格式不匹配）
+  - 维护成本高（默认实现更新时，用户代码可能失效）
+
+**设计原则**
+
+- **主流程固定**：`execute()` 的步骤顺序不变，保证流程稳定性
+- **细粒度钩子**：每个钩子只负责一个步骤，scope 小、复杂度低
+- **默认实现 + 可覆盖**：每个钩子都有默认实现，用户可以选择性覆盖
+- **统一命名**：所有钩子使用 `on_xxx` 命名约定
+
+**计划**
+
+- 将 `on_fetch` 拆解成多个细粒度钩子，每个钩子只负责一个步骤：
+  ```python
+  def on_fetch(self, context, apis):
+      # 步骤 1：构造 batch（可覆盖）
+      batch = self.on_build_batch(context, apis)
+      
+      # 步骤 2：batch 执行前增强钩子（可选）
+      batch = self.on_before_batch_execute(context, batch)
+      
+      # 步骤 3：执行 batch（可覆盖）
+      exec_result = self.on_execute_batch(context, batch)
+      
+      # 步骤 4：batch 执行后增强钩子（可选）
+      exec_result = self.on_after_batch_execute(context, exec_result, batch)
+      
+      # 步骤 5：提取结果（可覆盖）
+      return self.on_extract_fetch_results(context, exec_result, batch)
+  ```
+
+- 钩子定义（所有钩子使用 `on_xxx` 命名）：
+  - `on_build_batch(context, apis) -> ApiJobBatch`：构造 ApiJobBatch（有默认实现，可覆盖）
+  - `on_before_batch_execute(context, batch) -> ApiJobBatch`：batch 执行前的增强钩子（默认返回 batch，可覆盖用于修改 batch）
+  - `on_execute_batch(context, batch) -> Dict[str, Any]`：执行 batch，调用 Scheduler（有默认实现，可覆盖）
+  - `on_after_batch_execute(context, exec_result, batch) -> Dict[str, Any]`：batch 执行后的增强钩子（默认返回 exec_result，可覆盖用于修改结果）
+  - `on_extract_fetch_results(context, exec_result, batch) -> Dict[str, Any]`：从执行结果中提取 fetch 阶段的数据（有默认实现，可覆盖）
+
+- 优势：
+  - ✅ 粒度小：每个钩子只做一件事，易于理解和维护
+  - ✅ 易复用：用户只需覆盖需要的步骤，其他自动使用默认实现
+  - ✅ 更安全：不会因为重写导致整个流程失效
+  - ✅ 更灵活：可以在默认基础上增强，而不是完全替换
+
+- 同样原则适用于其他大钩子：
+  - `on_normalize` 也可以拆解为多个小钩子（字段映射、schema 应用、数据包装等）
+  - 保持每个钩子的 scope 和复杂度在可控范围内
+
 ---
 
 ## 二、Config / Schema data class 职责
@@ -207,15 +266,19 @@
 
 ## 六、实现优先级建议（明日工作顺序）
 
-1. **BaseHandler：补齐执行阶段细分钩子 + `on_error` + 执行尾部数据验证**  
-   - 这是整个 pipeline 的主干，对可观察性和安全性影响最大。
+1. **BaseHandler：细化钩子粒度 + 补齐执行阶段细分钩子 + `on_error` + 执行尾部数据验证**  
+   - **优先处理钩子粒度问题**：将 `on_fetch` 等大钩子拆解为细粒度钩子，确保每个钩子 scope 小、复杂度低
+   - 补齐执行阶段细分钩子（batch 级别）
+   - 添加 `on_error` 统一错误处理
+   - 执行尾部数据验证
+   - 这是整个 pipeline 的主干，对可观察性、安全性和可维护性影响最大
 
 2. **Config / Schema：稳定 DataSourceConfig / DataSourceSchema 的职责与 API**  
-   - 确保所有 config/schema 相关访问统一通过 data class 完成，发现阶段完成 validate，执行阶段只消费。
+   - 确保所有 config/schema 相关访问统一通过 data class 完成，发现阶段完成 validate，执行阶段只消费
 
 3. **ApiJob / Executor：根据需要扩展 helper 工具，而不是回退到 Handler 层**  
-   - 保持 BaseHandler 简洁，突出“步骤大纲 + 钩子”，复杂逻辑继续沉到 service/helper。
+   - 保持 BaseHandler 简洁，突出“步骤大纲 + 细粒度钩子”，复杂逻辑继续沉到 service/helper
 
 4. **全局依赖注入 & 测试参数 & 数据清洗 util**  
-   - 视项目节奏在后续迭代中补充。
+   - 视项目节奏在后续迭代中补充
 

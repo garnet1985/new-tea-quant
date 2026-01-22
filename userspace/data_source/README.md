@@ -68,14 +68,15 @@ class MyHandler(BaseDataSourceHandler):
 
 ```python
 # userspace/data_source/schemas.py
-from core.modules.data_source.schemas import DataSourceSchema, Field
+from core.modules.data_source.data_class.field import DataSourceField
+from core.modules.data_source.data_class.schema import DataSourceSchema
 
 MY_CUSTOM_SCHEMA = DataSourceSchema(
     name="my_custom_data",
     description="我的自定义数据",
-    schema={
-        "field1": Field(str, required=True),
-        "field2": Field(float, required=False),
+    fields={
+        "field1": DataSourceField(str, required=True),
+        "field2": DataSourceField(float, required=False),
     }
 )
 

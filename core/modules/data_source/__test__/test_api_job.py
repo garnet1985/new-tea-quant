@@ -1,5 +1,7 @@
 """
-ApiJob 和 DataSourceTask 单元测试
+ApiJob 单元测试
+
+注意：DataSourceTask 已被 ApiJobBatch 取代，相关测试已移除。
 """
 import sys
 from pathlib import Path
@@ -19,7 +21,7 @@ class TestApiJob:
     
     def test_init(self):
         """测试 ApiJob 初始化"""
-        from core.modules.data_source.data_classes import ApiJob
+        from core.modules.data_source.data_class import ApiJob
         
         job = ApiJob(
             provider_name="tushare",
@@ -36,7 +38,7 @@ class TestApiJob:
     
     def test_post_init_api_name(self):
         """测试 api_name 自动设置"""
-        from core.modules.data_source.data_classes import ApiJob
+        from core.modules.data_source.data_class import ApiJob
         
         # 不指定 api_name，应该使用 method
         job1 = ApiJob(
@@ -57,7 +59,7 @@ class TestApiJob:
     
     def test_depends_on(self):
         """测试依赖关系"""
-        from core.modules.data_source.data_classes import ApiJob
+        from core.modules.data_source.data_class import ApiJob
         
         job = ApiJob(
             provider_name="tushare",
@@ -69,41 +71,6 @@ class TestApiJob:
         assert job.depends_on == ["job1", "job2"]
 
 
-class TestDataSourceTask:
-    """DataSourceTask 测试类"""
-    
-    def test_init(self):
-        """测试 DataSourceTask 初始化"""
-        from core.modules.data_source.data_classes import ApiJob, DataSourceTask
-        
-        job1 = ApiJob(provider_name="tushare", method="get_stock_list", params={})
-        job2 = ApiJob(provider_name="akshare", method="get_kline", params={})
-        
-        task = DataSourceTask(
-            task_id="test_task",
-            api_jobs=[job1, job2]
-        )
-        
-        assert task.task_id == "test_task"
-        assert len(task.api_jobs) == 2
-        assert task.api_jobs[0].job_id == "test_task_job_0"
-        assert task.api_jobs[1].job_id == "test_task_job_1"
-    
-    def test_post_init_job_id(self):
-        """测试 job_id 自动生成"""
-        from core.modules.data_source.data_classes import ApiJob, DataSourceTask
-        
-        # 不指定 job_id，应该自动生成
-        job1 = ApiJob(provider_name="tushare", method="get_stock_list", params={})
-        job2 = ApiJob(provider_name="tushare", method="get_kline", params={}, job_id="custom_job_id")
-        
-        task = DataSourceTask(
-            task_id="test_task",
-            api_jobs=[job1, job2]
-        )
-        
-        assert task.api_jobs[0].job_id == "test_task_job_0"
-        assert task.api_jobs[1].job_id == "custom_job_id"  # 已指定，不覆盖
 
 
 if __name__ == "__main__":
@@ -124,17 +91,3 @@ if __name__ == "__main__":
             print("✅ test_post_init_api_name 通过")
         except Exception as e:
             print(f"❌ test_post_init_api_name 失败: {e}")
-        
-        print("\n运行 DataSourceTask 测试...")
-        test_task = TestDataSourceTask()
-        try:
-            test_task.test_init()
-            print("✅ test_init 通过")
-        except Exception as e:
-            print(f"❌ test_init 失败: {e}")
-        
-        try:
-            test_task.test_post_init_job_id()
-            print("✅ test_post_init_job_id 通过")
-        except Exception as e:
-            print(f"❌ test_post_init_job_id 失败: {e}")

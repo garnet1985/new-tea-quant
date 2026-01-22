@@ -4,7 +4,7 @@ from typing import Any, Dict
 from loguru import logger
 from core.infra.project_context import ConfigManager
 from core.modules.data_source.base_class.base_handler import BaseHandler
-from core.modules.data_source.schemas import DataSourceSchema
+from core.modules.data_source.data_class.schema import DataSourceSchema
 
 class DataSourceManagerHelper:
     """

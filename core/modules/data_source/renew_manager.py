@@ -1,50 +1,45 @@
 """
-Renew Service
+Renew Manager
 
 负责根据 renew_mode 和表状态决定日期范围，并将日期范围注入到 ApiJob 的 params 中。
 
 设计目标：
+- 作为 renew 工作的统一编排层
 - 集中管理所有 renew 相关的判断逻辑和业务逻辑
 - 支持查表操作（判断表是否为空、查询最新日期等）
-- 委托给 legacy 的 RenewModeService 执行实际的日期范围计算
+- 根据 renew_mode 路由到对应的具体 Service 计算日期范围
 - 返回已注入日期范围的 ApiJob 列表
 """
 from typing import Any, Dict, List, Tuple, Optional, Union
 from loguru import logger
 
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.global_enums.enums import UpdateMode
+from core.global_enums.enums import UpdateMode, TimeUnit
+from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
 
 
-class RenewService:
+class RenewManager:
     """
-    Renew Service - 统一管理日期范围决策逻辑
+    Renew Manager - 统一编排层，管理日期范围决策逻辑
     
-    职责：
+    职责（编排层）：
     1. 判断是否已显式指定日期范围
     2. 判断表是否为空（需要 data_manager）
     3. 根据 renew_mode 决定日期范围策略
-    4. 调用 legacy RenewModeService 计算精确日期范围
+    4. 路由到对应的具体 Service（IncrementalRenewService, RollingRenewService, RefreshRenewService）计算精确日期范围
     5. 将日期范围注入到 ApiJob 的 params 中
+    
+    注意：使用 RenewCommonHelper 提供公共方法，底层实现由不同 mode 的 service 提供
     """
     
     def __init__(self, data_manager=None):
         """
-        初始化 Renew Service
+        初始化 Renew Manager
         
         Args:
             data_manager: DataManager 实例（用于查询数据库，判断表是否为空等）
         """
         self.data_manager = data_manager
-        # 延迟导入 legacy RenewModeService，避免循环依赖
-        self._renew_mode_service = None
-    
-    def _get_renew_mode_service(self):
-        """延迟初始化 RenewModeService"""
-        if self._renew_mode_service is None:
-            from core.modules.data_source.services.renew_mode_service import RenewModeService
-            self._renew_mode_service = RenewModeService(data_manager=self.data_manager)
-        return self._renew_mode_service
     
     # ========== 判断方法 ==========
     
@@ -114,26 +109,26 @@ class RenewService:
         date_format = config.get_date_format()
         default_range = config.get_default_date_range()
         
-        # 调用 legacy RefreshRenewService 计算默认日期范围
-        renew_mode_service = self._get_renew_mode_service()
+        # 直接调用 RefreshRenewService 计算默认日期范围
         try:
-            start, end = renew_mode_service.calculate_date_range(
-                renew_mode=UpdateMode.REFRESH.value,
+            from core.modules.data_source.service.renew.refresh_renew_service import RefreshRenewService
+            service = RefreshRenewService(data_manager=self.data_manager)
+            start, end = service.calculate_date_range(
                 date_format=date_format,
-                context=context,
-                default_date_range=default_range
+                default_date_range=default_range,
+                context=context
             )
             return start, end
         except Exception as e:
-            logger.warning(f"使用 RenewModeService 计算默认日期范围失败: {e}，使用简化计算")
-            # 降级到简化计算
-            return self._compute_simple_default_date_range(config)
+            logger.warning(f"使用 RefreshRenewService 计算默认日期范围失败: {e}，使用系统默认日期范围")
+            # 降级到系统默认日期范围（使用 helper 方法）
+            return RenewCommonHelper.get_default_date_range(self.data_manager, date_format, context)
     
     def compute_incremental_date_range(self, context: Dict[str, Any]) -> Union[Tuple[str, str], Dict[str, Tuple[str, str]]]:
         """
         计算增量模式下的日期范围（需要查表）。
         
-        调用 legacy IncrementalRenewService 计算精确的增量日期范围。
+        调用 IncrementalRenewService 计算精确的增量日期范围。
         
         Returns:
             - 如果需要按股票分组：Dict[str, Tuple[str, str]] {stock_id: (start_date, end_date)}
@@ -146,25 +141,25 @@ class RenewService:
 
         # 配置验证已在 DataSourceManager._discover_config 阶段完成，这里直接使用
         
-        renew_mode_service = self._get_renew_mode_service()
         try:
-            result = renew_mode_service.calculate_date_range(
-                renew_mode=UpdateMode.INCREMENTAL.value,
+            from core.modules.data_source.service.renew.incremental_renew_service import IncrementalRenewService
+            service = IncrementalRenewService(data_manager=self.data_manager)
+            result = service.calculate_date_range(
                 date_format=date_format,
-                context=context,
                 table_name=table_name,
-                date_field=date_field
+                date_field=date_field,
+                context=context
             )
             return result
         except Exception as e:
-            logger.warning(f"使用 RenewModeService 计算增量日期范围失败: {e}，使用默认日期范围")
+            logger.warning(f"使用 IncrementalRenewService 计算增量日期范围失败: {e}，使用默认日期范围")
             return self.compute_default_date_range(context)
     
     def compute_rolling_date_range(self, context: Dict[str, Any]) -> Union[Tuple[str, str], Dict[str, Tuple[str, str]]]:
         """
         计算滚动模式下的日期范围（需要查表）。
         
-        调用 legacy RollingRenewService 计算精确的滚动日期范围。
+        调用 RollingRenewService 计算精确的滚动日期范围。
         
         Returns:
             - 如果需要按股票分组：Dict[str, Tuple[str, str]] {stock_id: (start_date, end_date)}
@@ -179,59 +174,21 @@ class RenewService:
 
         # 配置验证已在 DataSourceManager._discover_config 阶段完成，这里直接使用
         
-        renew_mode_service = self._get_renew_mode_service()
         try:
-            result = renew_mode_service.calculate_date_range(
-                renew_mode=UpdateMode.ROLLING.value,
+            from core.modules.data_source.service.renew.rolling_renew_service import RollingRenewService
+            service = RollingRenewService(data_manager=self.data_manager)
+            result = service.calculate_date_range(
                 date_format=date_format,
-                context=context,
+                rolling_unit=rolling_unit,
+                rolling_length=rolling_length,
                 table_name=table_name,
                 date_field=date_field,
-                rolling_unit=rolling_unit,
-                rolling_length=rolling_length
+                context=context
             )
             return result
         except Exception as e:
-            logger.warning(f"使用 RenewModeService 计算滚动日期范围失败: {e}，使用默认日期范围")
+            logger.warning(f"使用 RollingRenewService 计算滚动日期范围失败: {e}，使用默认日期范围")
             return self.compute_default_date_range(context)
-    
-    def _compute_simple_default_date_range(self, config) -> Tuple[str, str]:
-        """
-        简化的默认日期范围计算（降级方案，不依赖 RenewModeService）。
-        
-        仅用于 RenewModeService 调用失败时的降级方案。
-        """
-        # 支持 DataSourceConfig 实例或 dict
-        if hasattr(config, "get_date_format"):
-            date_format = config.get_date_format()
-            default_range = config.get_default_date_range()
-        else:
-            date_format = (config.get("date_format") or "day").lower()
-            default_range = config.get("default_date_range") or {}
-        years = int(default_range.get("years") or 1)
-        
-        from datetime import datetime, timedelta
-        
-        today = datetime.today()
-        if date_format in ("day", "date"):
-            end = today
-            start = today - timedelta(days=365 * years)
-            fmt = "%Y-%m-%d"
-            return start.strftime(fmt), end.strftime(fmt)
-        elif date_format == "month":
-            end = today
-            start = today - timedelta(days=30 * 12 * years)
-            return start.strftime("%Y-%m"), end.strftime("%Y-%m")
-        elif date_format == "quarter":
-            year = today.year
-            quarter = (today.month - 1) // 3 + 1
-            end_str = f"{year}Q{quarter}"
-            start_year = year - years
-            start_str = f"{start_year}Q1"
-            return start_str, end_str
-        else:
-            # 未知格式，返回当前日期
-            return today.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")
     
     # ========== 辅助方法 ==========
     
@@ -294,11 +251,3 @@ class RenewService:
         return DataSourceHandlerHelper.add_date_range(
             apis, start_date, end_date, per_stock_date_ranges
         )
-        for job in apis or []:
-            params = job.params or {}
-            if start_date is not None:
-                params.setdefault("start_date", start_date)
-            if end_date is not None:
-                params.setdefault("end_date", end_date)
-            job.params = params
-        return apis

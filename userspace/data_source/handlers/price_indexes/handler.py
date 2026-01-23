@@ -125,44 +125,9 @@ class PriceIndexesHandler(BaseHandler):
     
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        标准化后处理：保存数据到数据库
+        标准化后处理：数据清洗（NaN 清理），不负责保存。
         
-        Args:
-            context: 执行上下文
-            normalized_data: 标准化后的数据
-            
-        Returns:
-            Dict[str, Any]: 返回标准化后的数据
+        注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
         """
-        data_manager = context.get("data_manager")
-        if not data_manager:
-            logger.warning("DataManager 未初始化，无法保存价格指数数据")
-            return normalized_data
-        
-        # 检查是否是 dry_run 模式
-        dry_run = context.get('dry_run', False)
-        if dry_run:
-            logger.info("🧪 干运行模式：跳过价格指数数据保存")
-            return normalized_data
-        
-        # 验证数据格式
-        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
-        if not data_list:
-            logger.debug("价格指数数据为空，无需保存")
-            return normalized_data
-        
-        try:
-            # 清理 NaN 值
-            from core.infra.db.helpers.db_helpers import DBHelper
-            data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
-            
-            # 保存数据
-            count = data_manager.macro.save_price_indexes_data(data_list)
-            logger.info(f"✅ 价格指数数据保存完成，共 {count} 条记录")
-        except Exception as e:
-            logger.error(f"❌ 保存价格指数数据失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            raise
-        
-        return normalized_data
+        # 可选：清洗 NaN 值
+        return self.clean_nan_in_normalized_data(normalized_data, default=0.0)

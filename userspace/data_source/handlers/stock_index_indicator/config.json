@@ -31,7 +31,8 @@
                 "volume": "vol",
                 "amount": "amount"
             },
-            "params": {}
+            "params": {},
+            "group_by": "ts_code"
         },
         "weekly_kline": {
             "provider_name": "tushare",
@@ -49,7 +50,8 @@
                 "volume": "vol",
                 "amount": "amount"
             },
-            "params": {}
+            "params": {},
+            "group_by": "ts_code"
         },
         "monthly_kline": {
             "provider_name": "tushare",
@@ -67,7 +69,8 @@
                 "volume": "vol",
                 "amount": "amount"
             },
-            "params": {}
+            "params": {},
+            "group_by": "ts_code"
         }
     }
 }

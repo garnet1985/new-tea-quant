@@ -7,6 +7,9 @@
     },
     "table_name": "stock_index_indicator_weight",
     "date_field": "date",
+    "renew_if_over_days": {
+        "value": 30
+    },
     "index_list": [
         {"id": "000001.SH", "name": "上证指数"},
         {"id": "000300.SH", "name": "沪深300"},

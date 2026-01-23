@@ -37,10 +37,8 @@ class AdjFactorEventHandler(BaseHandler):
         
         # 从配置读取参数
         if hasattr(config, "get"):
-            self.update_threshold_days = config.get("update_threshold_days", 15)
             self.max_workers = config.get("max_workers", 10)
         else:
-            self.update_threshold_days = getattr(config, "update_threshold_days", 15) if hasattr(config, "update_threshold_days") else 15
             self.max_workers = getattr(config, "max_workers", 10) if hasattr(config, "max_workers") else 10
         
         # 用于跟踪任务完成状态
@@ -106,26 +104,10 @@ class AdjFactorEventHandler(BaseHandler):
                 context["should_generate_csv"] = True
                 logger.info("CSV已过期或不存在，将在更新后生成新CSV")
         
-        # ========== 步骤1：获取需要更新的股票列表 ==========
-        # 获取每只股票的最后更新日期
-        last_updated_dates = self._get_last_updated_dates(adj_factor_event_model)
+        # ========== 步骤1：为所有股票创建 ApiJobs ==========
+        # 注意：框架会在 on_before_fetch 之后根据 renew_if_over_days 配置自动过滤不需要更新的股票
+        # 这里我们为所有股票创建 ApiJobs，框架会自动处理阈值过滤
         
-        # 筛选出需要更新的股票列表（新股票 + 超过阈值的股票）
-        target_list = self._get_refresh_target_list(
-            stock_list, 
-            last_updated_dates, 
-            latest_completed_trading_date
-        )
-        
-        context["target_stock_list"] = target_list
-        self._total_stocks = len(target_list)
-        
-        logger.info(f"✅ 筛选出 {len(target_list)} 只股票需要更新复权因子事件")
-        
-        if not target_list:
-            return apis
-        
-        # ========== 步骤2：为每个股票创建 3 个 ApiJob ==========
         # 构建 API name 到 base_api 的映射
         api_map = {api.api_name: api for api in apis}
         
@@ -133,8 +115,11 @@ class AdjFactorEventHandler(BaseHandler):
         default_start_date = ConfigManager.get_default_start_date()
         end_date_ymd = latest_completed_trading_date
         
-        for stock_info in target_list:
-            stock_id = stock_info['stock_id']
+        # 为所有股票创建 ApiJobs（框架会自动过滤）
+        for stock in stock_list:
+            stock_id = stock.get('id') or stock.get('ts_code')
+            if not stock_id:
+                continue
             
             # 1. Tushare adj_factor API（全量复权因子）
             adj_factor_api = api_map.get("adj_factor")
@@ -194,7 +179,7 @@ class AdjFactorEventHandler(BaseHandler):
                     job_id=f"{stock_id}_eastmoney_full",
                 ))
         
-        logger.info(f"✅ 为 {len(target_list)} 只股票生成了复权因子事件获取任务，共 {len(expanded_apis)} 个 ApiJob")
+        logger.info(f"✅ 为 {len(stock_list)} 只股票生成了复权因子事件获取任务，共 {len(expanded_apis)} 个 ApiJob（框架会自动过滤不需要更新的股票）")
         return expanded_apis
     
     def on_after_execute_job_batch_for_single_stock(
@@ -251,6 +236,14 @@ class AdjFactorEventHandler(BaseHandler):
                 logger.error(f"❌ 保存股票 {stock_id} 复权因子事件失败: {e}")
                 import traceback
                 logger.error(traceback.format_exc())
+        
+        # 更新总股票数（用于 CSV 导出判断，基于实际执行的股票数）
+        if not hasattr(self, '_total_stocks') or self._total_stocks == 0:
+            self._total_stocks = len(stock_jobs_map)
+        
+        # 更新总股票数（用于 CSV 导出判断）
+        if not hasattr(self, '_total_stocks') or self._total_stocks == 0:
+            self._total_stocks = len(stock_jobs_map)
     
     def _save_stock_adj_factor_events(
         self,
@@ -387,36 +380,6 @@ class AdjFactorEventHandler(BaseHandler):
             import traceback
             logger.error(traceback.format_exc())
             return {}
-    
-    def _get_refresh_target_list(
-        self, 
-        stock_list: List[Dict[str, Any]], 
-        last_updated_dates: Dict[str, str], 
-        latest_completed_trading_date: str
-    ) -> List[Dict[str, Any]]:
-        """获取需要更新的股票列表"""
-        if not stock_list:
-            return []
-        
-        target_list = []
-        latest_date = DateUtils.parse_yyyymmdd(latest_completed_trading_date)
-        
-        for stock in stock_list:
-            stock_id = stock.get('id') or stock.get('ts_code')
-            if not stock_id:
-                continue
-            
-            # 检查是否是新股票（从未更新过）
-            if stock_id not in last_updated_dates:
-                target_list.append({'stock_id': stock_id})
-                continue
-            
-            # 已有记录的股票：检查是否超过更新阈值
-            last_update_date = DateUtils.parse_yyyymmdd(last_updated_dates[stock_id]) if last_updated_dates[stock_id] else None
-            if last_update_date and (latest_date - last_update_date).days >= self.update_threshold_days:
-                target_list.append({'stock_id': stock_id})
-        
-        return target_list
     
     def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:
         """

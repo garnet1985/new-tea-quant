@@ -1,5 +1,6 @@
 {
     "_comment": "LPR Handler 配置",
+    "name": "lpr",
     "renew_mode": "rolling",
     "date_format": "date",
     "rolling_unit": "day",

@@ -8,7 +8,13 @@
             "provider_name": "tushare",
             "method": "get_stock_list",
             "max_per_minute": 800,
-            "field_mapping": {},
+            "field_mapping": {
+                "id": "ts_code",
+                "name": "name",
+                "industry": "industry",
+                "type": "market",
+                "exchange_center": "exchange"
+            },
             "params": {
                 "fields": "ts_code,symbol,name,area,industry,market,exchange,list_date"
             }

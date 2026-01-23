@@ -387,13 +387,29 @@ class BaseHandler:
         DataSourceHandlerHelper.validate_field_coverage(apis_conf, schema)
 
         # 步骤 3 & 4：从所有 API 返回中提取并映射出标准字段记录
+        # 检查是否配置了 merge_by_key（用于按 key 合并多个 API 的结果）
+        merge_by_key = None
+        if hasattr(config, "get"):
+            merge_by_key = config.get("merge_by_key")
+        elif isinstance(config, dict):
+            merge_by_key = config.get("merge_by_key")
+        
         mapped_records: List[Dict[str, Any]] = DataSourceHandlerHelper.extract_mapped_records(
             apis_conf=apis_conf,
             fetched_data=fetched_data,
+            merge_by_key=merge_by_key,
         )
 
         if not mapped_records:
             # 所有 API 都没有产生有效记录
+            return {"data": []}
+
+        # 步骤 4.5：调用 on_after_mapping 钩子，允许子类在字段映射后、schema 应用前进行自定义处理
+        # 例如：处理schema里定义过的但无法直接通过API得到的字段
+        mapped_records = self.on_after_mapping(context, mapped_records)
+
+        if not mapped_records:
+            # 钩子过滤后没有有效记录
             return {"data": []}
 
         # 步骤 5 & 6：使用 schema 约束字段集和类型（只保留 schema 定义的字段，并做类型转换/默认值填充）
@@ -574,6 +590,25 @@ class BaseHandler:
         默认行为：直接返回 fetched_data。
         """
         return fetched_data
+
+    def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        字段映射后的钩子：允许子类在字段映射后、schema 应用前进行自定义处理。
+
+        常见用途：
+        - 从 context 添加字段（如 last_update、当前时间等）
+        - 过滤记录（如只保留有效的记录）
+        - 数据转换（如字段重命名、格式转换等）
+        - 添加计算字段
+
+        Args:
+            context: 执行上下文
+            mapped_records: 已应用 field_mapping 的记录列表
+
+        Returns:
+            List[Dict[str, Any]]: 处理后的记录列表（如果返回空列表，后续步骤会返回空数据）
+        """
+        return mapped_records
 
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]):
         # 可重写，有默认行为：默认直接返回 normalized_data

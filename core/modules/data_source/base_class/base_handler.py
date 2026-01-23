@@ -407,6 +407,20 @@ class BaseHandler:
             # 所有 API 都没有产生有效记录
             return {"data": []}
 
+        # 步骤 4.4：自动日期标准化（如果配置了 date_format）
+        # 根据 config.date_format 自动标准化 date 字段
+        config = context.get("config", {})
+        date_format = (config.get("date_format") or "day").lower()
+        if date_format != "none":
+            # 将 date_format 映射到 target_format
+            # "day" -> "day", "month" -> "month", "quarter" -> "quarter"
+            target_format = date_format if date_format in ("day", "month", "quarter") else "day"
+            mapped_records = DataSourceHandlerHelper.normalize_date_field(
+                mapped_records,
+                field="date",
+                target_format=target_format
+            )
+
         # 步骤 4.5：调用 on_after_mapping 钩子，允许子类在字段映射后、schema 应用前进行自定义处理
         # 例如：处理schema里定义过的但无法直接通过API得到的字段
         mapped_records = self.on_after_mapping(context, mapped_records)
@@ -575,12 +589,27 @@ class BaseHandler:
 
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]):
         """
-        标准化后的钩子：默认行为是直接返回数据。
+        标准化后的钩子：默认行为是自动清洗 NaN 值，然后返回数据。
 
-        子类通常在此阶段执行“落库”等副作用，但从设计角度推荐将 data source
-        视为纯数据管道，尽量减少在此处写库逻辑。
+        子类可以覆盖此方法来自定义清洗逻辑，或跳过清洗（直接返回 normalized_data）。
+
+        默认清洗策略：
+        - 如果 config.date_format 为 "day" 或 "month"，默认值使用 0.0（数值数据）
+        - 否则使用 None（可能包含非数值字段）
+
+        注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
         """
-        return normalized_data
+        config = context.get("config", {})
+        date_format = (config.get("date_format") or "day").lower()
+        
+        # 根据 date_format 决定默认值
+        if date_format in ("day", "month"):
+            default = 0.0
+        else:
+            default = None
+        
+        # 自动清洗 NaN
+        return self.clean_nan_in_normalized_data(normalized_data, default=default)
 
     # ================================
     # 通用辅助方法（暴露给子类使用）

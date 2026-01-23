@@ -127,8 +127,6 @@
   - 如果未提供，会从 `DataManager.service.calendar.get_latest_completed_trading_date()` 获取
 - `stock_list`: 股票列表（可选）
   - 如果未提供，handler 会从数据库查询所有需要更新的股票
-- `dry_run`: 干运行模式（可选，默认 False）
-  - 如果为 True，只执行逻辑不写入数据库
 
 ## 数据质量保证
 
@@ -173,8 +171,7 @@ context = {
 
 result = await ds_manager.renew_corporate_finance_data(
     latest_completed_trading_date="20251223",
-    stock_list=stock_list,  # 可选
-    dry_run=False
+    stock_list=stock_list  # 可选
 )
 ```
 

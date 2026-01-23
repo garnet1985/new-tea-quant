@@ -124,6 +124,26 @@ class DataSourceConfig:
         """
         return self.get("needs_stock_grouping")
     
+    def get_renew_if_over_days(self) -> Optional[Dict[str, Any]]:
+        """
+        获取 renew_if_over_days 配置
+        
+        Returns:
+            Dict[str, Any]: renew_if_over_days 配置字典，如果未配置返回 None
+            格式：{
+                "value": int,      # 间隔天数（自然日）
+                "counting_field": str  # 可选，默认使用 date_field
+            }
+        """
+        threshold = self.get("renew_if_over_days")
+        if not threshold:
+            return None
+        
+        if not isinstance(threshold, dict):
+            return None
+        
+        return threshold
+    
     def get_apis(self) -> Dict[str, Any]:
         """获取 apis 配置（默认空字典）"""
         return self.get("apis") or {}

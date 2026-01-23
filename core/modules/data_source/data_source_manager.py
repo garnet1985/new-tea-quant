@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Set
+from typing import Dict, Any, List, Set, Tuple
 from loguru import logger
 
 from core.infra.project_context import PathManager
@@ -22,31 +22,25 @@ class DataSourceManager:
         Args:
             is_verbose: 是否显示详细日志（保留参数以兼容现有代码）
         """
-        self.data_sources = []
-        self.mappings = self._discover_mappings()
-        self.handlers = self._discover_handlers()
-        self.providers = self._discover_providers()
 
-        self._schemas_cache: Dict[str, DataSourceSchema] = {}
-        self._configs_cache: Dict[str, Any] = {}
-        self._handlers_cache: Dict[str, BaseHandler] = {}
-        self._global_dependencies_set: Set[str] = set()  # 全局依赖名称集合（在 _discover_handlers 中收集）
-        self._execution_scheduler = DataSourceExecutionScheduler(self)
+        self._all_valid_schemas_cache: Dict[str, DataSourceSchema] = {}
+        self._all_valid_configs_cache: Dict[str, DataSourceConfig] = {}
+        self._all_valid_handlers_cache: Dict[str, BaseHandler] = {}
+
+        self._execution_scheduler = DataSourceExecutionScheduler()
 
 
     def execute(self):
         self._flush_cache()
-        self._refresh_handlers()
-        self._execution_scheduler.run(self.handlers, self._global_dependencies_set)
-
-    def _refresh_handlers(self):
-        self.mappings = self._discover_mappings()
-        self.handlers = self._discover_handlers()  # 在 _discover_handlers 中已收集依赖
+        mappings = self._discover_mappings()
+        providers = self._discover_providers()
+        handler_instances = self._discover_handlers(mappings, providers)
+        self._execution_scheduler.run(handler_instances, mappings)
 
     def _flush_cache(self):
-        self._schemas_cache.clear()
-        self._configs_cache.clear()
-        self._handlers_cache.clear()
+        self._all_valid_schemas_cache.clear()
+        self._all_valid_configs_cache.clear()
+        self._all_valid_handlers_cache.clear()
 
     def _discover_mappings(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -60,11 +54,11 @@ class DataSourceManager:
         return DataSourceManagerHelper.discover_mappings(mapping_path)
 
 
-    def _discover_handlers(self) -> List[BaseHandler]:
-        handlers: List[BaseHandler] = []
-        required_deps = set()  # 在遍历时顺便收集依赖
+    def _discover_handlers(self, mappings: Dict[str, Dict[str, Any]], providers: Dict[str, BaseProvider]) -> Dict[str, Dict[str, Any]]:
         
-        for data_source_name, data_source_config in self.mappings.items():
+        handler_instances = []
+
+        for data_source_name, data_source_config in mappings.items():
             if not data_source_config.get("is_enabled", True):
                 logger.info(f"Data source {data_source_name} is disabled, skip")
                 continue
@@ -79,23 +73,19 @@ class DataSourceManager:
                 logger.error(f"Data source config {data_source_name} 没有找到，跳过")
                 continue
 
-            handler = self._discover_handler(data_source_name, schema, config)
-            if not handler:
+            handler_cls = self._discover_handler(data_source_name, mappings)
+            if not handler_cls:
                 logger.error(f"Data source handler {data_source_name} 没有找到，跳过")
                 continue
 
-            handlers.append(handler)
+            handler_instance = DataSourceManagerHelper.create_handler_instance(handler_cls, data_source_name, schema, config, providers)
+            if not handler_instance:
+                logger.error(f"Data source handler instance {data_source_name} 创建失败，跳过")
+                continue
 
-            # 顺便收集 mapping.json 中的依赖需求（只支持字典格式）
-            dependencies = data_source_config.get("dependencies", {})
-            for dep_name, required in dependencies.items():
-                if required:
-                    required_deps.add(dep_name)
+            handler_instances.append(handler_instance)
 
-        # 将收集到的依赖存储到实例变量
-        self._global_dependencies_set = required_deps
-        
-        return handlers
+        return handler_instances
 
 
     def _discover_schema(self, data_source_name: str) -> Any:
@@ -107,28 +97,30 @@ class DataSourceManager:
         - 其中定义了名为 SCHEMA 的对象（通常是 DataSourceSchema 实例）
         - 该 SCHEMA 的 name 属性等于 data_source_name
         """
-        if data_source_name in self._schemas_cache:
-            return self._schemas_cache[data_source_name]
+        if data_source_name in self._all_valid_schemas_cache:
+            return self._all_valid_schemas_cache[data_source_name]
 
         discovery = ModuleDiscovery()
-        self._schemas_cache = discovery.discover_objects(
+        all_schemas = discovery.discover_objects(
             base_module_path="userspace.data_source.handlers",
             object_name="SCHEMA",
             module_pattern="{base_module}.{name}.schema",
         )
 
-        schema = DataSourceManagerHelper.get_schema_by_name(self._schemas_cache, data_source_name)
+        schema = DataSourceManagerHelper.get_schema_by_name(all_schemas, data_source_name)
 
         if not schema:
             logger.warning(f"未找到数据源 '{data_source_name}' 对应的 Schema")
             return None
 
         # 显式验证 Schema 完整性（严重问题会抛出异常并停止执行）
-        schema.validate()
+        # schema.validate()
 
+        if not schema.is_valid():
+            return None
+
+        self._all_valid_schemas_cache[data_source_name] = schema
         return schema
-
-
 
     def _discover_config(self, data_source_name: str) -> Any:
         """
@@ -140,8 +132,8 @@ class DataSourceManager:
         - Config 目前先以原始 dict 形式返回，后续可以在此基础上封装为 dataclass。
         """
         # 简单缓存，避免同一进程内重复读取磁盘
-        if data_source_name in self._configs_cache:
-            return self._configs_cache[data_source_name]
+        if data_source_name in self._all_valid_configs_cache:
+            return self._all_valid_configs_cache[data_source_name]
 
         handler_dir = PathManager.data_source_handler(data_source_name)
         config_path = handler_dir / "config.json"
@@ -158,17 +150,18 @@ class DataSourceManager:
         # 显式验证 Config 完整性（虽然 __init__ 中已调用，但这里显式调用以确保：
         # 1. 代码可读性：明确告知这里会验证配置
         # 2. 严重问题会抛出 ValueError 并停止执行（已在 validate() 中实现）
-        config.validate()
 
-        self._configs_cache[data_source_name] = config
+        if not config.is_valid():
+            return None
+
+        self._all_valid_configs_cache[data_source_name] = config
         return config
 
 
     def _discover_handler(
         self,
         data_source_name: str,
-        schema: DataSourceSchema,
-        config: Any,  # DataSourceConfig 实例或 Dict[str, Any]
+        mappings: Dict[str, Dict[str, Any]],
     ) -> Any:
         """
         基于 mapping 信息、Schema 和 Config 实例化具体的 Handler。
@@ -181,21 +174,16 @@ class DataSourceManager:
         5. 返回 Handler 实例，并写入缓存
         """
         # 简单缓存：同一 data_source_name 只创建一次实例
-        if data_source_name in self._handlers_cache:
-            return self._handlers_cache[data_source_name]
+        if data_source_name in self._all_valid_handlers_cache:
+            return self._all_valid_handlers_cache[data_source_name]
 
-        handler_cls = DataSourceManagerHelper.resolve_handler_by_name(self.mappings, data_source_name)
+        handler_cls = DataSourceManagerHelper.find_handler_class_from_mappings(mappings, data_source_name)
 
         if not DataSourceManagerHelper.is_valid_handler(handler_cls):
             return None
 
-        handler_instance = DataSourceManagerHelper.create_handler(handler_cls, data_source_name, schema, config, self.providers)
-
-        if handler_instance:
-            self._handlers_cache[data_source_name] = handler_instance
-            return handler_instance
-
-        return None
+        self._all_valid_handlers_cache[data_source_name] = handler_cls
+        return handler_cls
 
     def _discover_providers(self) -> Dict[str, BaseProvider]:
         """

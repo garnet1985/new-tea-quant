@@ -745,22 +745,41 @@ class DataSourceHandlerHelper:
     def normalize_date_field(
         records: List[Dict[str, Any]],
         field: str = "date",
+        target_format: str = "day",
     ) -> List[Dict[str, Any]]:
         """
-        使用 DateUtils 将日期字段统一转换为系统标准格式 YYYYMMDD。
+        使用 DateUtils 将日期字段统一转换为指定格式。
+
+        Args:
+            records: 记录列表
+            field: 日期字段名（默认为 "date"）
+            target_format: 目标格式，可选值：
+                - "day": YYYYMMDD（默认）
+                - "month": YYYYMM
+                - "quarter": YYYYQ[1-4]
+                - "none": 跳过标准化
 
         - 支持常见输入形式：YYYYMMDD, YYYY-MM-DD, datetime/date 等；
         - 不可解析的日期会被跳过（保留原值），由上层决定是否过滤。
         """
-        if not records or not field:
+        if not records or not field or target_format == "none":
             return records
 
         try:
-            from core.utils.date.date_utils import DateUtils
+            from core.utils.date.date_utils import DateUtils, DateFormat
         except ImportError:
             logger = DataSourceHandlerHelper._get_logger()
             logger.warning("无法导入 DateUtils，normalize_date_field 将跳过处理")
             return records
+
+        # 将字符串格式转换为枚举
+        format_map = {
+            "day": DateFormat.DAY,
+            "month": DateFormat.MONTH,
+            "quarter": DateFormat.QUARTER,
+            "none": DateFormat.NONE,
+        }
+        output_format = format_map.get(target_format.lower(), DateFormat.DAY)
 
         for r in records:
             if not isinstance(r, dict) or field not in r:
@@ -768,8 +787,9 @@ class DataSourceHandlerHelper:
             value = r.get(field)
             if value is None:
                 continue
+            
             try:
-                normalized = DateUtils.to_yyyymmdd(value)
+                normalized = DateUtils.normalize_to_format(value, output_format)
                 if normalized:
                     r[field] = normalized
             except Exception:

@@ -28,13 +28,10 @@ class StockIndexIndicatorHandler(BaseHandler):
     
     def __init__(self, data_source_name: str, schema, config, providers: Dict[str, BaseProvider]):
         super().__init__(data_source_name, schema, config, providers)
-        # 从 config 获取指数列表
-        if hasattr(config, "get"):
-            self.index_list = config.get("index_list", [])
-        elif hasattr(config, "index_list"):
-            self.index_list = config.index_list
-        else:
-            self.index_list = []
+        # 指数列表来源：统一从 ConfigManager 的 benchmark_stock_index_list 读取，
+        # 用户可在 userspace/config/data.json 覆盖默认值。
+        from core.infra.project_context.config_manager import ConfigManager
+        self.index_list = ConfigManager.load_benchmark_stock_index_list()
     
     def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
@@ -93,54 +90,49 @@ class StockIndexIndicatorHandler(BaseHandler):
     
     def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]) -> Dict[str, Any]:
         """
-        抓取完成后的预处理钩子：合并所有 records，添加 id 和 term 字段
-        
-        Args:
-            context: 执行上下文
-            fetched_data: {job_id: result} 格式的数据
-            apis: ApiJob 列表
-            
-        Returns:
-            Dict[str, Any]: {api_name: records_list} 格式的数据（records 中已包含 id 和 term 字段，但未应用 field_mapping）
+        抓取完成后的预处理钩子：基于基类的统一分组结果，追加 id 和 term 字段。
+
+        - 基类会根据 config.apis[api_name].group_by = "ts_code"，先将 {job_id: result}
+          转换为 {api_name: {index_id: raw_result}} 的统一格式；
+        - 本方法只关心业务字段补充：在原始 records 上追加 schema 所需的 id（指数代码）和
+          term（daily/weekly/monthly）字段，然后仍然按统一格式返回。
         """
-        config = context.get("config")
-        if hasattr(config, "get_apis"):
-            apis_conf = config.get_apis()
-        else:
-            apis_conf = config.get("apis") if config else {}
-        
-        # 合并所有 records，添加 id 和 term 字段（不应用 field_mapping，让基类处理）
-        all_records = []
-        
-        for job_id, result in fetched_data.items():
-            # 解析 job_id 获取 index_id 和 term
-            parts = job_id.rsplit('_', 1)
-            if len(parts) != 2:
-                logger.warning(f"⚠️ job_id 格式异常: {job_id}，跳过")
+        # 先让基类按 group_by=ts_code 分好组
+        grouped = super().on_after_fetch(context, fetched_data, apis)
+
+        term_map: Dict[str, str] = {
+            "daily_kline": "daily",
+            "weekly_kline": "weekly",
+            "monthly_kline": "monthly",
+        }
+
+        unified: Dict[str, Dict[str, Any]] = {}
+
+        for api_name, per_index_data in (grouped or {}).items():
+            if not isinstance(per_index_data, dict):
                 continue
-            
-            index_id = parts[0]
-            term = parts[1]
-            
-            # 转换为 records（原始 records，未应用 field_mapping）
-            records = DataSourceHandlerHelper.result_to_records(result)
-            if not records:
+
+            term = term_map.get(api_name)
+            if not term:
+                # 未知周期的 API，直接透传
+                unified[api_name] = per_index_data
                 continue
-            
-            # 为每条记录添加 id 和 term 字段（在 field_mapping 之前添加，这样 field_mapping 不会覆盖它们）
-            for record in records:
-                record['id'] = index_id
-                record['term'] = term
-                all_records.append(record)
-        
-        # 按 API name 分组（基类期望的格式）
-        # 由于所有 records 已经添加了 id 和 term，可以按任意 API name 分组
-        # 这里使用第一个 API name（基类会应用对应的 field_mapping）
-        if all_records and apis_conf:
-            first_api_name = list(apis_conf.keys())[0]
-            return {first_api_name: all_records}
-        
-        return {}
+
+            bucket: Dict[str, Any] = {}
+
+            for index_id, raw in per_index_data.items():
+                records = DataSourceHandlerHelper.result_to_records(raw)
+                if not records:
+                    continue
+
+                records = DataSourceHandlerHelper.add_constant_fields(records, id=index_id, term=term)
+
+                # 每个 index_id 仍然对应一份 raw_result（这里选择 list[dict]）
+                bucket[str(index_id)] = records
+
+            unified[api_name] = bucket
+
+        return unified
     
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -155,66 +147,19 @@ class StockIndexIndicatorHandler(BaseHandler):
         """
         if not mapped_records:
             return mapped_records
-        
-        formatted = []
-        for record in mapped_records:
-            # 标准化日期格式（date 字段）
-            date_value = record.get('date')
-            if date_value:
-                # 统一日期格式为 YYYYMMDD
-                date_str = str(date_value)
-                date_ymd = date_str.replace('-', '') if '-' in date_str else date_str
-                record['date'] = date_ymd
-            else:
-                # 如果缺少 date 字段，跳过该记录
-                logger.warning("记录缺少 date 字段，跳过该记录")
-                continue
-            
-            formatted.append(record)
-        
-        return formatted
+
+        # 使用通用日期归一工具，将 date 字段统一为 YYYYMMDD
+        mapped_records = DataSourceHandlerHelper.normalize_date_field(mapped_records, field="date")
+
+        # 过滤没有 date 字段的记录
+        return self.filter_records_by_required_fields(mapped_records, required_fields=["date"])
 
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        标准化后处理：保存股指指标数据到数据库
+        标准化后处理：数据清洗（NaN 清理），不负责保存。
         
-        Args:
-            context: 执行上下文
-            normalized_data: 标准化后的数据
-            
-        Returns:
-            Dict[str, Any]: 返回标准化后的数据
+        注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
         """
-        data_manager = context.get("data_manager")
-        if not data_manager:
-            logger.warning("DataManager 未初始化，无法保存股指指标数据")
-            return normalized_data
-        
-        # 检查是否是 dry_run 模式
-        dry_run = context.get('dry_run', False)
-        if dry_run:
-            logger.info("🧪 干运行模式：跳过股指指标数据保存")
-            return normalized_data
-        
-        # 验证数据格式
-        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
-        if not data_list:
-            logger.debug("股指指标数据为空，无需保存")
-            return normalized_data
-        
-        try:
-            # 清理 NaN 值
-            from core.infra.db.helpers.db_helpers import DBHelper
-            data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
-            
-            # 使用 service 保存数据
-            count = data_manager.index.save_indicator(data_list)
-            logger.info(f"✅ 股指指标数据保存完成，共 {count} 条记录")
-        except Exception as e:
-            logger.error(f"❌ 保存股指指标数据失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            raise
-        
-        return normalized_data
+        # 可选：清洗 NaN 值
+        return self.clean_nan_in_normalized_data(normalized_data, default=0.0)
 

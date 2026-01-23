@@ -27,9 +27,9 @@ class LprHandler(BaseHandler):
     
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        标准化后处理：数据清洗（NaN 清理），不负责保存。
+        标准化后处理：数据清洗（NaN 清理）已在基类中自动处理，这里直接返回。
         
         注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
         """
-        # 可选：清洗 NaN 值
-        return self.clean_nan_in_normalized_data(normalized_data, default=None)
+        # 基类已自动清洗 NaN（date_format="day" 会使用 default=0.0），直接返回
+        return normalized_data

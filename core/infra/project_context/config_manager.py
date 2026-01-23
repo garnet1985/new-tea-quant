@@ -236,9 +236,16 @@ class ConfigManager:
     @staticmethod
     def load_data_config() -> Dict[str, Any]:
         """
-        加载 data.json（默认 + userspace 覆盖）。
+        加载数据配置（合并后的完整配置）
+        
+        Returns:
+            数据配置字典，包含 default_start_date, decimal_places, stock_list_filter 等
         """
-        return ConfigManager.load_core_config("data")
+        return ConfigManager.load_core_config(
+            'data',
+            deep_merge_fields={'stock_list_filter'},
+            override_fields=set()
+        )
 
     @staticmethod
     def load_benchmark_stock_index_list() -> List[Dict[str, Any]]:
@@ -455,9 +462,9 @@ class ConfigManager:
     # ==================== 配置加载接口 ====================
     
     @staticmethod
-    def get_data_config() -> Dict[str, Any]:
+    def load_data_config() -> Dict[str, Any]:
         """
-        获取数据配置（合并后的完整配置）
+        加载数据配置（合并后的完整配置）
         
         Returns:
             数据配置字典，包含 default_start_date, decimal_places, stock_list_filter 等
@@ -468,23 +475,11 @@ class ConfigManager:
             override_fields=set()
         )
     
-    @staticmethod
-    def get_database_config(database_type: str = None) -> Dict[str, Any]:
-        """
-        获取数据库配置（合并后的完整配置）
-        
-        Args:
-            database_type: 数据库类型（可选）
-        
-        Returns:
-            数据库配置字典
-        """
-        return ConfigManager.load_database_config(database_type)
     
     @staticmethod
-    def get_market_config() -> Dict[str, Any]:
+    def load_market_config() -> Dict[str, Any]:
         """
-        获取市场配置（合并后的完整配置）
+        加载市场配置（合并后的完整配置）
         
         Returns:
             市场配置字典
@@ -496,9 +491,9 @@ class ConfigManager:
         )
     
     @staticmethod
-    def get_worker_config() -> Dict[str, Any]:
+    def load_worker_config() -> Dict[str, Any]:
         """
-        获取 Worker 配置（合并后的完整配置）
+        加载 Worker 配置（合并后的完整配置）
         
         Returns:
             Worker 配置字典
@@ -510,9 +505,9 @@ class ConfigManager:
         )
     
     @staticmethod
-    def get_system_config() -> Dict[str, Any]:
+    def load_system_config() -> Dict[str, Any]:
         """
-        获取系统配置（合并后的完整配置）
+        加载系统配置（合并后的完整配置）
         
         Returns:
             系统配置字典
@@ -522,6 +517,33 @@ class ConfigManager:
             deep_merge_fields=set(),
             override_fields=set()
         )
+    
+    # ==================== 向后兼容别名（已废弃，请使用 load_xxx_config）====================
+    
+    @staticmethod
+    def get_data_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_data_config()"""
+        return ConfigManager.load_data_config()
+    
+    @staticmethod
+    def get_database_config(database_type: str = None) -> Dict[str, Any]:
+        """已废弃：请使用 load_database_config()"""
+        return ConfigManager.load_database_config(database_type)
+    
+    @staticmethod
+    def get_market_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_market_config()"""
+        return ConfigManager.load_market_config()
+    
+    @staticmethod
+    def get_worker_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_worker_config()"""
+        return ConfigManager.load_worker_config()
+    
+    @staticmethod
+    def get_system_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_system_config()"""
+        return ConfigManager.load_system_config()
     
     # ==================== 便捷访问接口（频繁使用的配置）====================
     
@@ -533,8 +555,8 @@ class ConfigManager:
         Returns:
             默认开始日期字符串（格式：YYYYMMDD）
         """
-        data_config = ConfigManager.get_data_config()
-        return data_config.get('default_start_date', '20080101')
+        data_config = ConfigManager.load_data_config()
+        return data_config.get('default_start_date')
     
     @staticmethod
     def get_decimal_places() -> int:
@@ -544,7 +566,7 @@ class ConfigManager:
         Returns:
             小数位数（默认 2）
         """
-        data_config = ConfigManager.get_data_config()
+        data_config = ConfigManager.load_data_config()
         return data_config.get('decimal_places', 2)
     
     @staticmethod
@@ -555,7 +577,7 @@ class ConfigManager:
         Returns:
             股票过滤配置字典，包含 enable 和 exclude_patterns
         """
-        data_config = ConfigManager.get_data_config()
+        data_config = ConfigManager.load_data_config()
         return data_config.get('stock_list_filter', {
             'enable': True,
             'exclude_patterns': {
@@ -572,7 +594,7 @@ class ConfigManager:
         Returns:
             数据库类型（'postgresql', 'mysql', 'sqlite'）
         """
-        db_config = ConfigManager.get_database_config()
+        db_config = ConfigManager.load_database_config()
         return db_config.get('database_type', 'postgresql')
     
     @staticmethod
@@ -586,7 +608,7 @@ class ConfigManager:
         Returns:
             配置字典 {'task_type': TaskType, 'reserve_cores': int}
         """
-        worker_config = ConfigManager.get_worker_config()
+        worker_config = ConfigManager.load_worker_config()
         
         module_task_config = worker_config.get('module_task_config', {})
         default_task_config = worker_config.get('default_task_config', {

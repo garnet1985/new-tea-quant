@@ -462,6 +462,7 @@ class DataSourceHandlerHelper:
     def extract_mapped_records(
         apis_conf: Dict[str, Any],
         fetched_data: Dict[str, Any],
+        merge_by_key: str = None,
     ) -> List[Dict[str, Any]]:
         """
         从所有 API 的原始返回中，提取并映射出“已按 field_mapping 转换为标准字段”的记录列表。
@@ -473,22 +474,60 @@ class DataSourceHandlerHelper:
           - 应用该 API 的 field_mapping；
           - 将映射后的记录累加到 mapped_records 中。
         """
-        mapped_records: List[Dict[str, Any]] = []
+        if merge_by_key:
+            # 按 key 合并模式：使用字典按 key 合并记录
+            merged_by_key: Dict[str, Dict[str, Any]] = {}
 
-        for api_name, api_cfg in (apis_conf or {}).items():
-            result = fetched_data.get(api_name)
-            if result is None:
-                continue
+            for api_name, api_cfg in (apis_conf or {}).items():
+                result = fetched_data.get(api_name)
+                if result is None:
+                    continue
 
-            records = DataSourceHandlerHelper.result_to_records(result)
-            if not records:
-                continue
+                records = DataSourceHandlerHelper.result_to_records(result)
+                if not records:
+                    continue
 
-            field_mapping = api_cfg.get("field_mapping") or {}
-            mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
-            mapped_records.extend(mapped)
+                field_mapping = api_cfg.get("field_mapping") or {}
+                mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
 
-        return mapped_records
+                # 按 merge_by_key 合并
+                for record in mapped:
+                    key_value = record.get(merge_by_key)
+                    if key_value is None:
+                        # 如果记录没有 merge_by_key 字段，跳过该记录
+                        logger.warning(
+                            f"API {api_name} 的记录缺少 merge_by_key 字段 '{merge_by_key}'，跳过该记录"
+                        )
+                        continue
+
+                    key_str = str(key_value)
+                    if key_str not in merged_by_key:
+                        # 创建新记录
+                        merged_by_key[key_str] = {merge_by_key: key_value}
+                    
+                    # 合并字段（后处理的 API 会覆盖先处理的 API 的同名字段）
+                    merged_by_key[key_str].update(record)
+
+            # 转换为列表
+            return list(merged_by_key.values())
+        else:
+            # 平铺模式：简单累加所有记录
+            mapped_records: List[Dict[str, Any]] = []
+
+            for api_name, api_cfg in (apis_conf or {}).items():
+                result = fetched_data.get(api_name)
+                if result is None:
+                    continue
+
+                records = DataSourceHandlerHelper.result_to_records(result)
+                if not records:
+                    continue
+
+                field_mapping = api_cfg.get("field_mapping") or {}
+                mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
+                mapped_records.extend(mapped)
+
+            return mapped_records
 
     @staticmethod
     def normalize_fetched_data(context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:

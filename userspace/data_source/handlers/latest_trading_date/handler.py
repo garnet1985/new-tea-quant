@@ -9,7 +9,6 @@ from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 
 
 class LatestTradingDateHandler(BaseHandler):
@@ -59,66 +58,51 @@ class LatestTradingDateHandler(BaseHandler):
         
         return apis
     
-    def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:
+    def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        标准化数据：覆盖基类方法，提取最新交易日
+        字段映射后的钩子：筛选交易日并提取最新日期
         
-        从 Tushare 返回的 DataFrame 中提取最新交易日
-        
-        返回格式：{"data": [{"date": "YYYYMMDD"}]}
+        Args:
+            context: 执行上下文
+            mapped_records: 已应用 field_mapping 的记录列表
+            
+        Returns:
+            List[Dict[str, Any]]: 只包含最新交易日的单条记录列表
         """
-        if not fetched_data or not isinstance(fetched_data, dict):
+        if not mapped_records:
             # 如果查询失败，使用昨天作为默认值
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
             logger.warning(f"交易日历查询失败，使用昨天作为默认值: {yesterday}")
-            return {"data": [{"date": yesterday}]}
-        
-        # 获取第一个 API 的结果（通常只有一个 API）
-        api_results = list(fetched_data.values())
-        if not api_results:
-            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-            logger.warning("交易日历查询返回空数据，使用昨天作为默认值")
-            return {"data": [{"date": yesterday}]}
-        
-        # 获取第一个 job 的结果
-        first_result = api_results[0]
-        if not first_result:
-            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-            logger.warning("交易日历查询返回空结果，使用昨天作为默认值")
-            return {"data": [{"date": yesterday}]}
-        
-        # 转换为 DataFrame（如果还不是）
-        import pandas as pd
-        if not isinstance(first_result, pd.DataFrame):
-            df = pd.DataFrame(first_result) if isinstance(first_result, list) else pd.DataFrame([first_result])
-        else:
-            df = first_result
-        
-        if df.empty:
-            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-            logger.warning("交易日历数据为空，使用昨天作为默认值")
-            return {"data": [{"date": yesterday}]}
-        
-        # 检查字段名
-        if 'is_open' not in df.columns:
-            logger.warning("交易日历数据缺少 is_open 字段，使用昨天作为默认值")
-            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-            return {"data": [{"date": yesterday}]}
+            return [{"date": yesterday}]
         
         # 筛选交易日（is_open == 1）
-        trading_days = df[df['is_open'] == 1]
+        trading_days = []
+        for record in mapped_records:
+            # 检查是否有 is_open 字段，如果有且为1，则保留
+            if record.get('is_open') == 1:
+                trading_days.append(record)
         
-        if trading_days.empty:
-            logger.warning("未找到交易日，使用昨天作为默认值")
+        if not trading_days:
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
-            return {"data": [{"date": yesterday}]}
+            logger.warning("未找到交易日，使用昨天作为默认值")
+            return [{"date": yesterday}]
         
-        # 获取最大日期（最新交易日）
-        latest_date = trading_days['cal_date'].max()
+        # 找到最大日期（最新交易日）
+        latest_date = None
+        for record in trading_days:
+            # 尝试从 cal_date 或 date 字段获取日期
+            date_value = record.get('cal_date') or record.get('date')
+            if date_value:
+                date_str = str(date_value).replace('-', '')
+                if not latest_date or date_str > latest_date:
+                    latest_date = date_str
+        
+        if not latest_date:
+            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
+            logger.warning("无法提取交易日，使用昨天作为默认值")
+            return [{"date": yesterday}]
         
         logger.info(f"✅ 获取最新交易日: {latest_date}")
         
-        # 返回符合 schema 验证的格式：{"data": [{"date": "YYYYMMDD"}]}
-        return {
-            "data": [{"date": str(latest_date)}]
-        }
+        # 返回单条记录
+        return [{"date": latest_date}]

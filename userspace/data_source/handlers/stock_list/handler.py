@@ -7,7 +7,6 @@
 from datetime import datetime
 from typing import List, Dict, Any
 from loguru import logger
-import pandas as pd
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.api_job import ApiJob
@@ -48,67 +47,44 @@ class TushareStockListHandler(BaseHandler):
         context["last_update"] = current_datetime
         return apis
     
-    def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:
+    def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        标准化数据：覆盖基类方法，添加 last_update 字段
+        字段映射后的钩子：添加 last_update 字段并过滤无效记录
         
-        从 Tushare 返回的 DataFrame 中提取股票列表，进行字段映射和过滤
-        
-        特性：
-        - 使用当前日期时间作为 last_update（股票列表的更新时间，格式：YYYY-MM-DD HH:MM:SS）
-        - 字段映射与数据库 schema 保持一致
+        Args:
+            context: 执行上下文
+            mapped_records: 已应用 field_mapping 的记录列表
+            
+        Returns:
+            List[Dict[str, Any]]: 处理后的记录列表
         """
-        # 先使用基类的默认标准化逻辑
-        config = context.get("config")
-        if hasattr(config, "get_apis"):
-            apis_conf = config.get_apis()
-        else:
-            apis_conf = config.get("apis") if config else {}
-        schema = context.get("schema")
-        
-        if not fetched_data or not isinstance(fetched_data, dict):
-            return {"data": []}
-        
-        # 使用 Helper 提取并映射记录
-        mapped_records: List[Dict[str, Any]] = DataSourceHandlerHelper.extract_mapped_records(
-            apis_conf=apis_conf,
-            fetched_data=fetched_data,
-        )
-        
-        if not mapped_records:
-            return {"data": []}
-        
         # 获取 last_update（从 context 获取，如果未设置则使用当前时间）
         last_update = context.get("last_update")
         if not last_update:
             last_update = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # 字段映射和数据处理
+        # 添加字段并过滤
         formatted = []
         for item in mapped_records:
-            # 字段映射（从 Tushare 字段映射到 schema 字段）
-            ts_code = item.get('ts_code', '')
+            # 添加 last_update 和 is_active 字段
+            item["last_update"] = last_update
+            item["is_active"] = 1  # 从 API 获取的都是活跃股票
             
-            mapped = {
-                "id": ts_code,
-                "name": item.get('name', ''),
-                "industry": item.get('industry') or '未知行业',
-                "type": item.get('market') or '未知类型',
-                "exchange_center": item.get('exchange') or '未知交易所',
-                "is_active": 1,  # 从 API 获取的都是活跃股票
-                "last_update": last_update,  # 使用当前日期时间（更新股票列表的时间）
-            }
+            # 处理默认值
+            if not item.get("industry"):
+                item["industry"] = "未知行业"
+            if not item.get("type"):
+                item["type"] = "未知类型"
+            if not item.get("exchange_center"):
+                item["exchange_center"] = "未知交易所"
             
             # 只保留有效的记录（必须有 id 和 name）
-            if mapped.get('id') and mapped.get('name'):
-                formatted.append(mapped)
+            if item.get('id') and item.get('name'):
+                formatted.append(item)
         
-        # 应用 schema 约束
-        normalized_records = DataSourceHandlerHelper.apply_schema(formatted, schema)
+        logger.info(f"✅ 股票列表处理完成，共 {len(formatted)} 只股票（last_update: {last_update}）")
         
-        logger.info(f"✅ 股票列表处理完成，共 {len(normalized_records)} 只股票（last_update: {last_update}）")
-        
-        return DataSourceHandlerHelper.build_normalized_payload(normalized_records)
+        return formatted
     
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """

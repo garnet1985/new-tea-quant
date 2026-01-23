@@ -145,8 +145,6 @@ Handler 会根据数据库最新日期和当前月份的时间间隔，决定更
   - 如果未提供，Handler 会自动计算
 - `end_date`: 结束月份（YYYYMM 格式，可选）
   - 如果未提供，Handler 会自动计算
-- `dry_run`: 干运行模式（可选，默认 False）
-  - 如果为 True，只执行逻辑不写入数据库
 
 ## 数据质量保证
 
@@ -191,9 +189,7 @@ ds_manager = DataSourceManager()
 await ds_manager.initialize()
 
 # 更新价格指数数据
-result = await ds_manager.renew_price_indexes_data(
-    dry_run=False
-)
+result = await ds_manager.renew_price_indexes_data()
 ```
 
 ## 注意事项

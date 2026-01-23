@@ -39,14 +39,14 @@ class DatabaseManager:
         初始化数据库管理器
         
         Args:
-            config: 数据库配置（默认使用 ConfigManager.get_database_config()）
+            config: 数据库配置（默认使用 ConfigManager.load_database_config()）
                 - 如果为 None，从 ConfigManager 加载配置
                 - 配置必须包含 database_type 和对应的数据库配置
             is_verbose: 是否输出详细日志
         """
         # 加载配置
         if config is None:
-            config = ConfigManager.get_database_config()
+            config = ConfigManager.load_database_config()
         
         # 解析和验证配置
         self.config = DBHelper.parse_database_config(config)

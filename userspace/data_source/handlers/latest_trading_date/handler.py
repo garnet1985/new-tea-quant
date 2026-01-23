@@ -9,6 +9,7 @@ from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 
 
 class LatestTradingDateHandler(BaseHandler):
@@ -76,11 +77,7 @@ class LatestTradingDateHandler(BaseHandler):
             return [{"date": yesterday}]
         
         # 筛选交易日（is_open == 1）
-        trading_days = []
-        for record in mapped_records:
-            # 检查是否有 is_open 字段，如果有且为1，则保留
-            if record.get('is_open') == 1:
-                trading_days.append(record)
+        trading_days = [r for r in mapped_records if r.get('is_open') == 1]
         
         if not trading_days:
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')
@@ -93,9 +90,17 @@ class LatestTradingDateHandler(BaseHandler):
             # 尝试从 cal_date 或 date 字段获取日期
             date_value = record.get('cal_date') or record.get('date')
             if date_value:
-                date_str = str(date_value).replace('-', '')
-                if not latest_date or date_str > latest_date:
-                    latest_date = date_str
+                # 使用 DateUtils 统一日期格式
+                from core.utils.date.date_utils import DateUtils
+                try:
+                    date_str = DateUtils.to_yyyymmdd(date_value)
+                    if date_str and (not latest_date or date_str > latest_date):
+                        latest_date = date_str
+                except Exception:
+                    # 如果 DateUtils 无法解析，fallback 到原来的逻辑
+                    date_str = str(date_value).replace('-', '')
+                    if not latest_date or date_str > latest_date:
+                        latest_date = date_str
         
         if not latest_date:
             yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y%m%d')

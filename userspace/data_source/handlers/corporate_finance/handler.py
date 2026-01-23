@@ -13,7 +13,6 @@ from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.infra.project_context import ConfigManager
 from core.utils.date.date_utils import DateUtils
-from core.infra.db.helpers.db_helpers import DBHelper
 
 
 class CorporateFinanceHandler(BaseHandler):
@@ -315,12 +314,10 @@ class CorporateFinanceHandler(BaseHandler):
         单个 ApiJob 执行完成后的钩子：就地保存该股票的企业财务数据
         
         避免在所有股票都跑完之后一次性落库，改为"一个股票一保存"
-        """
-        # 干运行模式：只跑流程，不写库
-        if context.get("dry_run"):
-            logger.info(f"🧪 干运行模式：跳过 {api_job.job_id} 的企业财务数据保存")
-            return
         
+        注意：此处的保存逻辑是按实体（股票）逐个保存，属于执行期保存模式。
+        如果未来需要将 save 逻辑完全抽离到上层，可以移除此处的保存调用。
+        """
         data_manager = context.get("data_manager")
         if not data_manager:
             logger.warning("DataManager 未初始化，无法保存企业财务数据")
@@ -375,8 +372,8 @@ class CorporateFinanceHandler(BaseHandler):
         if not records:
             return {"data": []}
         
-        # 使用 DBHelper 清理所有记录中的 NaN 值
-        records = DBHelper.clean_nan_in_list(records, default=None)
+        # 使用统一 helper 清理所有记录中的 NaN 值
+        records = self.clean_nan_in_records(records, default=None)
         
         # 从 job_id 提取 stock_id
         job_id = api_job.job_id
@@ -399,11 +396,11 @@ class CorporateFinanceHandler(BaseHandler):
             # 辅助函数：安全地将值转换为 float，处理 NaN
             def safe_float(value, default=0.0):
                 """安全转换为 float，处理 NaN 和 None"""
-                cleaned = DBHelper.clean_nan_value(value, default=None)
-                if cleaned is None:
+                # 使用 BaseHandler 的 clean_nan_in_records 已经清理过，这里只需要类型转换
+                if value is None:
                     return default
                 try:
-                    result = float(cleaned)
+                    result = float(value)
                     import math
                     if math.isnan(result):
                         return default

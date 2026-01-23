@@ -343,6 +343,101 @@ class MyHandler(BaseHandler):
 
 ---
 
+## 决策 7：Renew Interval 设计范围
+
+**日期**：2026-01-23  
+**状态**：已设计
+
+### 痛点
+
+不同数据源有不同的数据更新需求，如果每个 Handler 都自己实现更新逻辑，会导致：
+- 代码重复：相同的间隔检查逻辑在多个 Handler 中重复
+- 维护困难：修改更新逻辑需要修改多个 Handler
+- 学习成本高：用户需要理解各种复杂的更新策略
+
+### 可选方案
+
+**方案 A：框架实现所有更新策略**
+- 优点：用户使用方便，不需要自己实现
+- 缺点：框架复杂度高，难以覆盖所有场景，学习成本高
+
+**方案 B：框架实现核心需求，复杂场景通过钩子暴露** ✅
+- 优点：框架简洁，保持可扩展性，学习成本低
+- 缺点：复杂场景需要用户自己实现（但这是合理的）
+
+### 为什么选择当前方案
+
+选择方案 B 的理由：
+
+1. **框架只实现最通用、最常见的需求**：
+   - **间隔更新**：超过N个时间单位没更新的，触发更新（per entity）
+   - **固定时间更新**：超过了某个/某几个固定日期的，补全固定时间点的数据（per entity）
+   - 这两个需求覆盖了80%以上的使用场景
+
+2. **复杂场景通过钩子暴露**：
+   - **随机/带游标抽样**：太灵活，抽样可能需要额外记录，通过 `on_before_fetch` 钩子实现
+   - **特殊条件刷新**：条件未知，可能状况太多，通过 `on_before_fetch` 钩子实现
+   - 保持框架的简洁性和可扩展性
+
+3. **避免框架过度设计**：
+   - 不试图覆盖所有可能的场景
+   - 降低学习成本和维护成本
+   - 通过钩子提供足够的灵活性
+
+### 设计原则
+
+1. **框架实现（配置化）**：
+   - ✅ **间隔更新**：`renew_interval` 配置
+   - ✅ **固定时间更新**：`renew_schedule` 配置
+   - 配置清晰，易于使用
+
+2. **用户实现（钩子函数）**：
+   - ⚠️ **随机/带游标抽样**：通过 `on_before_fetch` 钩子实现
+   - ⚠️ **特殊条件刷新**：通过 `on_before_fetch` 钩子实现
+   - 提供参考示例（如 `corporate_finance` 的批次轮转逻辑）
+
+### 实现示例
+
+**框架实现（配置化）**：
+```json
+{
+  "renew_interval": {
+    "enabled": true,
+    "unit": "day",
+    "value": 30,
+    "field": "date"
+  },
+  "renew_schedule": {
+    "enabled": true,
+    "type": "monthly",
+    "months": [1, 4, 7, 10],
+    "day": 1,
+    "force_all": true
+  }
+}
+```
+
+**用户实现（钩子函数）**：
+```python
+def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
+    # 用户自己实现批次轮转逻辑
+    all_stocks = context.get("stock_list", [])
+    batch_size = len(all_stocks) // self.renew_rolling_batch
+    batch_offset = self._get_batch_offset()  # 从缓存读取
+    effective_stocks = self._select_batch(all_stocks, batch_offset, batch_size)
+    # ... 创建 ApiJobs
+```
+
+### 影响
+
+- ✅ **框架简洁**：只实现核心需求，保持简洁性
+- ✅ **可扩展性强**：通过钩子提供足够的灵活性
+- ✅ **学习成本低**：用户只需要理解两种核心配置
+- ✅ **维护成本低**：框架代码量少，易于维护
+- ⚠️ **复杂场景需要用户实现**：但这是合理的，因为复杂场景的业务逻辑差异很大
+
+---
+
 ## 相关文档
 
 - **[overview.md](./overview.md)**：模块概览

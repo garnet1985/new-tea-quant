@@ -1,49 +1,59 @@
 {
-    "_comment": "用户自定义配置。所有 handler 相关的配置（handler_config 和 provider_config）都已移到各自的 handler 目录下的 config.json。mapping.json 现在只包含全局配置（is_enabled 和 handler 路径）。注意：handler 路径支持简化格式，如 'kline.KlineHandler' 或 'kline'（自动推断类名）。",
+    "_comment": "用户自定义配置。所有 handler 相关的配置（handler_config 和 provider_config）都已移到各自的 handler 目录下的 config.json。mapping.json 现在只包含全局配置（is_enabled、handler 路径和 depends_on）。注意：handler 路径支持简化格式，如 'kline.KlineHandler' 或 'kline'（自动推断类名）。",
+    "_comment_depends_on": "depends_on: 数据源依赖（需要先执行的数据源），格式为数组，如 [\"stock_list\", \"latest_trading_date\"]。依赖的数据源会先执行并更新数据库，然后当前 handler 才能使用最新的数据。",
     "data_sources": {
         "stock_list": {
             "handler": "stock_list.TushareStockListHandler",
-            "is_enabled": true
-        },
-        "kline": {
-            "handler": "kline.KlineHandler",
-            "is_enabled": true
-        },
-        "corporate_finance": {
-            "handler": "corporate_finance.CorporateFinanceHandler",
-            "is_enabled": true
-        },
-        "gdp": {
-            "handler": "gdp.GdpHandler",
-            "is_enabled": true
-        },
-        "price_indexes": {
-            "handler": "price_indexes.PriceIndexesHandler",
-            "is_enabled": true
-        },
-        "shibor": {
-            "handler": "shibor.ShiborHandler",
-            "is_enabled": true
-        },
-        "lpr": {
-            "handler": "lpr.LprHandler",
             "is_enabled": true
         },
         "latest_trading_date": {
             "handler": "latest_trading_date.LatestTradingDateHandler",
             "is_enabled": true
         },
+        "kline": {
+            "handler": "kline.KlineHandler",
+            "is_enabled": true,
+            "depends_on": ["stock_list", "latest_trading_date"]
+        },
+        "corporate_finance": {
+            "handler": "corporate_finance.CorporateFinanceHandler",
+            "is_enabled": true,
+            "depends_on": ["stock_list", "latest_trading_date"]
+        },
         "adj_factor_event": {
             "handler": "adj_factor_event.AdjFactorEventHandler",
-            "is_enabled": true
+            "is_enabled": true,
+            "depends_on": ["stock_list", "latest_trading_date"]
         },
         "stock_index_indicator": {
             "handler": "stock_index_indicator.StockIndexIndicatorHandler",
-            "is_enabled": true
+            "is_enabled": true,
+            "depends_on": ["latest_trading_date"]
         },
         "stock_index_indicator_weight": {
             "handler": "stock_index_indicator_weight.StockIndexIndicatorWeightHandler",
-            "is_enabled": true
+            "is_enabled": true,
+            "depends_on": ["latest_trading_date"]
+        },
+        "gdp": {
+            "handler": "gdp.GdpHandler",
+            "is_enabled": true,
+            "depends_on": ["latest_trading_date"]
+        },
+        "price_indexes": {
+            "handler": "price_indexes.PriceIndexesHandler",
+            "is_enabled": true,
+            "depends_on": ["latest_trading_date"]
+        },
+        "shibor": {
+            "handler": "shibor.ShiborHandler",
+            "is_enabled": true,
+            "depends_on": ["latest_trading_date"]
+        },
+        "lpr": {
+            "handler": "lpr.LprHandler",
+            "is_enabled": true,
+            "depends_on": ["latest_trading_date"]
         }
     }
 }

@@ -18,7 +18,12 @@
         "index_weight": {
             "provider_name": "tushare",
             "method": "get_index_weight",
-            "max_per_minute": 200
+            "max_per_minute": 200,
+            "field_mapping": {
+                "date": "trade_date",
+                "stock_id": "con_code",
+                "weight": "weight"
+            }
         }
     }
 }

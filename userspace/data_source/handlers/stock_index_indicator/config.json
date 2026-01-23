@@ -17,18 +17,57 @@
     "apis": {
         "daily_kline": {
             "provider_name": "tushare",
-            "method": "get_daily_kline",
-            "max_per_minute": 500
+            "method": "get_index_daily",
+            "max_per_minute": 500,
+            "field_mapping": {
+                "date": "trade_date",
+                "open": "open",
+                "close": "close",
+                "highest": "high",
+                "lowest": "low",
+                "pre_close": "pre_close",
+                "price_change_delta": "change",
+                "price_change_rate_delta": "pct_chg",
+                "volume": "vol",
+                "amount": "amount"
+            },
+            "params": {}
         },
         "weekly_kline": {
             "provider_name": "tushare",
-            "method": "get_weekly_kline",
-            "max_per_minute": 500
+            "method": "get_index_weekly",
+            "max_per_minute": 500,
+            "field_mapping": {
+                "date": "trade_date",
+                "open": "open",
+                "close": "close",
+                "highest": "high",
+                "lowest": "low",
+                "pre_close": "pre_close",
+                "price_change_delta": "change",
+                "price_change_rate_delta": "pct_chg",
+                "volume": "vol",
+                "amount": "amount"
+            },
+            "params": {}
         },
         "monthly_kline": {
             "provider_name": "tushare",
-            "method": "get_monthly_kline",
-            "max_per_minute": 500
+            "method": "get_index_monthly",
+            "max_per_minute": 500,
+            "field_mapping": {
+                "date": "trade_date",
+                "open": "open",
+                "close": "close",
+                "highest": "high",
+                "lowest": "low",
+                "pre_close": "pre_close",
+                "price_change_delta": "change",
+                "price_change_rate_delta": "pct_chg",
+                "volume": "vol",
+                "amount": "amount"
+            },
+            "params": {}
         }
     }
 }

@@ -21,7 +21,7 @@ class DBHelper:
         2. 补足缺失的默认配置
         
         Args:
-            config: 配置字典（来自 ConfigManager.get_database_config()）
+            config: 配置字典（来自 ConfigManager.load_database_config()）
             
         Returns:
             解析和验证后的配置字典

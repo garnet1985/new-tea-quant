@@ -284,7 +284,7 @@ with db.transaction() as cursor:
 
 ## 🔧 配置
 
-数据库配置通过 `ConfigManager.get_database_config()` 加载，支持：
+数据库配置通过 `ConfigManager.load_database_config()` 加载，支持：
 - 默认配置：`core/default_config/database/{database_type}.json`
 - 用户配置：`userspace/config/database/{database_type}.json`
 - 环境变量覆盖（最高优先级）

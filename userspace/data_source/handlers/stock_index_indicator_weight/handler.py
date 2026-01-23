@@ -99,11 +99,7 @@ class StockIndexIndicatorWeightHandler(BaseHandler):
             latest_date = index_latest_dates.get(index_id)
             
             if latest_date:
-                # 有历史记录，检查是否需要更新（至少1个月才更新）
-                time_gap_days = DateUtils.get_duration_in_days(latest_date, end_date)
-                if time_gap_days < 30:  # 至少30天才更新
-                    continue
-                
+                # 有历史记录，从最新日期+1开始（增量更新）
                 start_date = DateUtils.get_date_after_days(latest_date, 1)
             else:
                 # 无历史记录，使用默认起始日期

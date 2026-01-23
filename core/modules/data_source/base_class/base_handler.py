@@ -25,9 +25,6 @@ class BaseHandler:
             "providers": providers,
             "data_manager": DataManager.get_instance(),
         }
-        # self.apis: List[ApiJob] = []
-        # self.fetched_data: Dict[str, Any] = {}
-        # self.normalized_data: Dict[str, Any] = {}
 
     def execute(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -45,35 +42,41 @@ class BaseHandler:
 
         normalized_data = self._postprocess(fetched_data)
 
-        # apis = self.on_before_fetch(self.context, self.apis)
-        # self.fetched_data = self.on_fetch(self.context, apis)
-        # self.fetched_data = self.on_after_fetch(self.context, self.fetched_data, apis)
-        # self.normalized_data = self.on_normalize(self.context, self.fetched_data)
-        # self.normalized_data = self.on_after_normalize(self.context, self.normalized_data)
-
-        # # 执行尾部数据验证：验证标准化后的数据是否符合 schema
-        # schema = self.context.get("schema")
-        # data_source_name = self.context.get("data_source_name", "unknown")
-        # DataSourceHandlerHelper.validate_normalized_data(self.normalized_data, schema, data_source_name)
-
         return normalized_data
 
     def _preprocess(self, global_dependencies: Dict[str, Any]) -> List[ApiJob]:
         """
         预处理阶段：在执行 API 请求前的所有准备工作。
-
+        
         步骤：
-        1. 从 config 构建 ApiJob 列表（_config_to_api_jobs）；
-        2. 计算日期范围并注入到 ApiJobs 中（_calculate_date_range）；
-        3. 调用 on_before_fetch 钩子，允许子类调整 ApiJobs。
-
+        1. 注入全局依赖到 context（_inject_required_global_dependencies）；
+        2. 调用 on_prepare_context 钩子，允许子类基于依赖派生/注入额外的上下文数据；
+        3. 从 config 构建 ApiJob 列表（_config_to_api_jobs）；
+        4. 计算日期范围并注入到 ApiJobs 中（_add_date_range_to_api_jobs）；
+        5. 调用 on_before_fetch 钩子，允许子类调整 ApiJobs。
+        
         Returns:
             List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
         """
+        # 1. 注入全局依赖
         self.context = self._inject_required_global_dependencies(global_dependencies)
+
+        # 2. 允许子类基于依赖派生/注入额外的上下文数据
+        #    默认实现直接返回 context，不做任何修改。
+        prepared_context = self.on_prepare_context(self.context)
+        # 防御性处理：避免子类返回 None 破坏 context
+        if isinstance(prepared_context, dict):
+            self.context = prepared_context
+
+        # 3. 从 config 构建 ApiJob 列表
         apis_jobs = self._config_to_api_jobs()
+
+        # 4. 计算日期范围并注入到 ApiJobs 中
         apis_jobs = self._add_date_range_to_api_jobs(self.context, apis_jobs)
+
+        # 5. 允许子类在抓取前进一步调整 ApiJobs
         apis_jobs = self.on_before_fetch(self.context, apis_jobs)
+
         return apis_jobs
         
 
@@ -98,15 +101,15 @@ class BaseHandler:
         """
         try:
             # 步骤 1：构建 job 批次（当前实现：单个批次，包含所有 apis）
-            job_batch = self._build_api_job_batch_per_stock(self.context, apis_jobs)
+            job_batch = self._build_api_job_batch_per_entity(self.context, apis_jobs)
 
             # 步骤 2：调用批次构建后的钩子
-            job_batch = self.on_after_build_job_batch_for_single_stock(self.context, job_batch)
+            job_batch = self.on_after_build_job_batch_for_single_entity(self.context, job_batch)
 
             # 步骤 3：执行批次并调用钩子
-            batch_results = self._execute_job_batch_for_single_stock(self.context, job_batch, apis_jobs)
+            batch_results = self._execute_job_batch_for_single_entity(self.context, job_batch, apis_jobs)
             # 调用批次执行后的钩子
-            self.on_after_execute_job_batch_for_single_stock(self.context, job_batch, batch_results)
+            self.on_after_execute_job_batch_for_single_entity(self.context, job_batch, batch_results)
 
             # 步骤 4 & 5：汇总结果并调用 on_after_fetch 钩子
             fetched_data = self.on_after_fetch(self.context, batch_results, apis_jobs)
@@ -259,7 +262,7 @@ class BaseHandler:
         start, end = renew_manager.compute_default_date_range(context)
         return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
-    def _build_api_job_batch_per_stock(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
+    def _build_api_job_batch_per_entity(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
         """
         构建 job 批次：将 apis 打包成一个 batch。这个批次是per stock的。
 
@@ -287,7 +290,7 @@ class BaseHandler:
 
         return batch
 
-    def _execute_job_batch_for_single_stock(
+    def _execute_job_batch_for_single_entity(
         self, context: Dict[str, Any], job_batch: ApiJobBatch, all_apis: List[ApiJob]
     ) -> Dict[str, Any]:
         """
@@ -435,73 +438,30 @@ class BaseHandler:
         return normalized_data
 
 
-
-    # def on_fetch(self, context: Dict[str, Any], apis: List[ApiJob]):
-    #     """
-    #     执行阶段：默认实现使用 TaskExecutor 执行一组 ApiJobs。
-
-    #     步骤大纲（与原有执行逻辑保持一致）：
-    #     1. 将当前 Handler 的所有 ApiJobs 打包成一个 ApiJobBatch（更语义化的执行计划批次）；
-    #     2. 基于 context 中注入的 providers 构造 ApiJobExecutor（内部复用 TaskExecutor）；
-    #     3. 委托 ApiJobExecutor：
-    #        - 对 ApiJobs 做拓扑排序（基于 depends_on 分阶段执行）；
-    #        - 收集每个 ApiJob 的限流信息，按“木桶效应”取最小值决定整体节奏；
-    #        - 在每个阶段内按限流和并发策略执行所有 ApiJobs；
-    #     4. 返回执行结果 {job_id: result} 字典。
-    #     """
-        # if not apis:
-        #     return {}
-
-        # data_source_name = context.get("data_source_name")
-        # batch_id = ApiJobBatch.to_id(data_source_name)
-
-        # # 1. 构造语义化的 ApiJobBatch（对外暴露的执行计划概念）
-        # batch = ApiJobBatch(
-        #     batch_id=batch_id,
-        #     api_jobs=apis,
-        #     description=f"{data_source_name} execution plan",
-        # )
-
-        # providers = context.get("providers") or {}
-        # scheduler = ApiJobScheduler(providers=providers)
-
-        # async def _run():
-        #     # ApiJobScheduler.run_batches 返回 {batch_id: {job_id: result}}
-        #     return await scheduler.run_batches([batch])
-
-        # # 在同步上下文中执行异步调度
-        # import asyncio
-
-        # try:
-        #     loop = asyncio.get_event_loop()
-        #     if loop.is_running():
-        #         # 事件循环已在运行（例如在 notebook/某些框架中），创建新的循环执行
-        #         import threading
-        #         result_container: Dict[str, Any] = {}
-
-        #         def _worker():
-        #             new_loop = asyncio.new_event_loop()
-        #             asyncio.set_event_loop(new_loop)
-        #             try:
-        #                 result_container["value"] = new_loop.run_until_complete(_run())
-        #             finally:
-        #                 new_loop.close()
-
-        #         t = threading.Thread(target=_worker)
-        #         t.start()
-        #         t.join()
-        #         exec_result = result_container.get("value", {})
-        #     else:
-        #         exec_result = loop.run_until_complete(_run())
-        # except RuntimeError:
-        #     # 当前线程没有事件循环，直接用 asyncio.run
-        #     exec_result = asyncio.run(_run())
-
-        # return exec_result.get(batch_id, {})
-
     # ================================
     # Hooks
     # ================================
+
+    def on_prepare_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        预处理阶段的上下文准备钩子：在注入全局依赖之后、构建 ApiJobs 之前调用。
+
+        设计意图：
+        - 作为“集中注入/派生上下文数据”的入口，避免在各个钩子中零散修改 context；
+        - 典型用途包括：
+          - 基于全局依赖派生字段（如 last_update、index_map 等）；
+          - 预先查询并缓存后续步骤会频繁使用的数据；
+          - 注入与本次执行强相关的业务状态。
+
+        默认行为：直接返回传入的 context，不做任何修改。
+
+        Args:
+            context: 当前执行上下文（已注入全局依赖）
+
+        Returns:
+            Dict[str, Any]: 处理后的上下文字典
+        """
+        return context
 
     def on_calculate_date_range(
         self, 
@@ -548,7 +508,7 @@ class BaseHandler:
         """
         return apis
 
-    def on_after_build_job_batch_for_single_stock(self, context: Dict[str, Any], job_batch: ApiJobBatch) -> ApiJobBatch:
+    def on_after_build_job_batch_for_single_entity(self, context: Dict[str, Any], job_batch: ApiJobBatch) -> ApiJobBatch:
         """
         批次构建后的钩子。
 
@@ -572,24 +532,27 @@ class BaseHandler:
         """
         pass
 
-    def on_after_execute_job_batch_for_single_stock(self, context: Dict[str, Any],job_batch: ApiJobBatch, fetched_data: Dict[str, Any]):
+    def on_after_execute_job_batch_for_single_entity(self, context: Dict[str, Any],job_batch: ApiJobBatch, fetched_data: Dict[str, Any]):
         """
         执行 job batch 后的钩子。
         """
-        pass
+        return fetched_data
 
     def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):
         """
         抓取完成后的预处理钩子（标准化之前）。
 
-        常见用途：
-        - 记录抓取统计信息；
-        - 对多路数据结果做合并/清洗；
-        - 为标准化阶段补充必要的上下文信息。
+        默认行为：在编排层先判断是否存在 `group_by` 配置：
+        - 如果至少有一个 API 配置了 `group_by`，则调用
+          `DataSourceHandlerHelper.build_grouped_fetched_data`，按实体分组；
+        - 如果所有 API 都未配置 `group_by`，则调用
+          `DataSourceHandlerHelper.build_unified_fetched_data`，按 api_name 聚合到 `_unified`。
 
-        默认行为：直接返回 fetched_data。
+        这样可以让「有实体分组」与「纯全局数据」两条路径在编排层语义更清晰。
         """
-        return fetched_data
+        if DataSourceHandlerHelper.has_group_by_config(context, apis):
+            return DataSourceHandlerHelper.build_grouped_fetched_data(context, fetched_data, apis)
+        return DataSourceHandlerHelper.build_unified_fetched_data(context, fetched_data, apis)
 
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -611,8 +574,94 @@ class BaseHandler:
         return mapped_records
 
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]):
-        # 可重写，有默认行为：默认直接返回 normalized_data
+        """
+        标准化后的钩子：默认行为是直接返回数据。
+
+        子类通常在此阶段执行“落库”等副作用，但从设计角度推荐将 data source
+        视为纯数据管道，尽量减少在此处写库逻辑。
+        """
         return normalized_data
+
+    # ================================
+    # 通用辅助方法（暴露给子类使用）
+    # ================================
+
+    def clean_nan_in_records(self, records: List[Dict[str, Any]], default: Any = None) -> List[Dict[str, Any]]:
+        """
+        清理一批记录中的 NaN/None 等异常数值，返回清洗后的记录列表。
+
+        内部委托 DataSourceHandlerHelper 和 DBHelper 实现，子类无需关心具体细节。
+        """
+        return DataSourceHandlerHelper.clean_nan_in_records(records, default=default)
+
+    def clean_nan_in_normalized_data(self, normalized_data: Dict[str, Any], default: Any = None) -> Dict[str, Any]:
+        """
+        针对标准化结果的便捷 NaN 清洗：
+        - 如果 normalized_data 是 {"data": [...]}，则对 data 列表做清洗；
+        - 否则尝试直接将 normalized_data 视为单条记录列表的一部分。
+        """
+        if not normalized_data:
+            return normalized_data
+
+        if isinstance(normalized_data, dict) and "data" in normalized_data:
+            data_list = normalized_data.get("data") or []
+            if isinstance(data_list, list):
+                normalized_data["data"] = self.clean_nan_in_records(data_list, default=default)
+            return normalized_data
+
+        # fallback：如果不是 {"data": [...]} 结构，则保持原样返回
+        return normalized_data
+
+    def filter_records_by_required_fields(
+        self, records: List[Dict[str, Any]], required_fields: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        过滤记录：只保留包含所有必需字段的记录。
+
+        Args:
+            records: 记录列表
+            required_fields: 必需字段列表
+
+        Returns:
+            List[Dict[str, Any]]: 过滤后的记录列表
+        """
+        if not records or not required_fields:
+            return records
+        return [r for r in records if all(r.get(f) for f in required_fields)]
+
+    def ensure_float_field(
+        self, records: List[Dict[str, Any]], field: str, default: float = 0.0
+    ) -> List[Dict[str, Any]]:
+        """
+        确保某个字段是 float 类型，转换失败时使用默认值。
+
+        Args:
+            records: 记录列表
+            field: 字段名
+            default: 转换失败时的默认值
+
+        Returns:
+            List[Dict[str, Any]]: 处理后的记录列表（原地修改）
+        """
+        if not records or not field:
+            return records
+
+        from loguru import logger
+
+        for r in records:
+            if not isinstance(r, dict):
+                continue
+            value = r.get(field)
+            if value is None:
+                r[field] = default
+            else:
+                try:
+                    r[field] = float(value)
+                except (ValueError, TypeError):
+                    logger.warning(f"字段 {field} 无法转换为 float: {value}，使用默认值 {default}")
+                    r[field] = default
+
+        return records
 
     def on_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
         """

@@ -207,12 +207,10 @@ class AdjFactorEventHandler(BaseHandler):
         执行 job batch 后的钩子：按股票分组保存数据
         
         由于基类将所有 apis 打包成一个 batch，我们需要在这里按股票分组处理数据
-        """
-        # 干运行模式：只跑流程，不写库
-        if context.get("dry_run"):
-            logger.info("🧪 干运行模式：跳过复权因子事件数据保存")
-            return
         
+        注意：此处的保存逻辑是按实体（股票）逐个保存，属于执行期保存模式。
+        如果未来需要将 save 逻辑完全抽离到上层，可以移除此处的保存调用。
+        """
         data_manager = context.get("data_manager")
         if not data_manager:
             logger.warning("DataManager 未初始化，无法保存复权因子事件数据")

@@ -88,39 +88,9 @@ class TushareStockListHandler(BaseHandler):
     
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        标准化后的钩子：保存数据到数据库
+        标准化后处理：数据清洗（可选），不负责保存。
         
-        Args:
-            context: 执行上下文
-            normalized_data: 标准化后的数据
-            
-        Returns:
-            Dict[str, Any]: 返回标准化后的数据
+        注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
         """
-        data_manager = context.get("data_manager")
-        if not data_manager:
-            logger.warning("DataManager 未初始化，无法保存股票列表数据")
-            return normalized_data
-        
-        # 检查是否是 dry_run 模式
-        dry_run = context.get('dry_run', False)
-        if dry_run:
-            logger.info("🧪 干运行模式：跳过股票列表数据保存")
-            return normalized_data
-        
-        # 验证数据格式
-        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
-        if not data_list:
-            logger.debug("股票列表数据为空，无需保存")
-            return normalized_data
-        
-        try:
-            count = data_manager.stock.list.save(data_list)
-            logger.info(f"✅ 保存股票列表数据完成，共 {count} 条记录")
-        except Exception as e:
-            logger.error(f"❌ 保存股票列表数据失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            raise
-        
+        # 返回清洗后的数据（如果需要清洗 NaN，可以调用 self.clean_nan_in_normalized_data）
         return normalized_data

@@ -1,6 +1,33 @@
 {
   "default_start_date": "20080101",
   "decimal_places": 2,
+  "benchmark_stock_index_list": [
+    {
+      "id": "000001.SH",
+      "name": "上证指数",
+      "description": "上证综合指数，反映上海证券交易所全部上市股票整体表现"
+    },
+    {
+      "id": "000300.SH",
+      "name": "沪深300",
+      "description": "沪深300指数，反映沪深两市大盘蓝筹股整体表现"
+    },
+    {
+      "id": "000688.SH",
+      "name": "科创50",
+      "description": "上证科创板50成份指数，反映科创板代表性股票表现"
+    },
+    {
+      "id": "399001.SZ",
+      "name": "深证成指",
+      "description": "深证成份指数，反映深圳证券交易所主板及中小板表现"
+    },
+    {
+      "id": "399006.SZ",
+      "name": "创业板指",
+      "description": "创业板指数，反映创业板股票整体表现"
+    }
+  ],
   "stock_list_filter": {
     "enable": true,
     "exclude_patterns": {

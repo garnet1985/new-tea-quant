@@ -467,46 +467,71 @@ class DataSourceHandlerHelper:
         """
         从所有 API 的原始返回中，提取并映射出“已按 field_mapping 转换为标准字段”的记录列表。
 
+        统一规范的 fetched_data 组织形式（BREAKING，所有 handler 需遵守）：
+
+        ```python
+        fetched_data = {
+            api_name: {
+                "_unified": raw_result,     # 全局数据（无实体维度时使用）
+                entity_id1: raw_result_1,   # 按实体分组的数据（如 stock_id、index_id 等）
+                entity_id2: raw_result_2,
+                ...
+            },
+            ...
+        }
+        ```
+
+        在统一格式下：
+        - 不关心 entity_id 的具体含义（如股票/指数），这里只负责“遍历所有 raw_result 并做映射”；
+        - 如果需要将 entity_id 带入记录（如 id 字段），建议在 handler 的 on_after_fetch/on_after_mapping 中处理。
+
         行为：
-        - 遍历每个 API：
-          - 取出 fetched_data[api_name] 作为原始结果；
-          - 转换为 records 列表；
-          - 应用该 API 的 field_mapping；
-          - 将映射后的记录累加到 mapped_records 中。
+        - 遍历每个 API（apis_conf）：
+          - 取出 fetched_data[api_name] 作为该 API 的“数据容器”（必须为 dict）；
+          - 按 entity 维度遍历每个 raw_result（包括 \"_unified\"）；
+          - 对每个 raw_result：
+            - 转换为 records 列表；
+            - 应用该 API 的 field_mapping；
+            - 合并/累加到最终记录列表中。
         """
         if merge_by_key:
             # 按 key 合并模式：使用字典按 key 合并记录
             merged_by_key: Dict[str, Dict[str, Any]] = {}
 
             for api_name, api_cfg in (apis_conf or {}).items():
-                result = fetched_data.get(api_name)
-                if result is None:
+                api_data = fetched_data.get(api_name) or {}
+                if not isinstance(api_data, dict):
+                    logger.warning(
+                        f"fetched_data[{api_name}] 不是 dict，期望统一格式 "
+                        f"{{api_name: {{entity_id: raw_result}}}}，已跳过"
+                    )
                     continue
 
-                records = DataSourceHandlerHelper.result_to_records(result)
-                if not records:
-                    continue
-
-                field_mapping = api_cfg.get("field_mapping") or {}
-                mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
-
-                # 按 merge_by_key 合并
-                for record in mapped:
-                    key_value = record.get(merge_by_key)
-                    if key_value is None:
-                        # 如果记录没有 merge_by_key 字段，跳过该记录
-                        logger.warning(
-                            f"API {api_name} 的记录缺少 merge_by_key 字段 '{merge_by_key}'，跳过该记录"
-                        )
+                for raw in api_data.values():
+                    records = DataSourceHandlerHelper.result_to_records(raw)
+                    if not records:
                         continue
 
-                    key_str = str(key_value)
-                    if key_str not in merged_by_key:
-                        # 创建新记录
-                        merged_by_key[key_str] = {merge_by_key: key_value}
-                    
-                    # 合并字段（后处理的 API 会覆盖先处理的 API 的同名字段）
-                    merged_by_key[key_str].update(record)
+                    field_mapping = api_cfg.get("field_mapping") or {}
+                    mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
+
+                    # 按 merge_by_key 合并
+                    for record in mapped:
+                        key_value = record.get(merge_by_key)
+                        if key_value is None:
+                            # 如果记录没有 merge_by_key 字段，跳过该记录
+                            logger.warning(
+                                f"API {api_name} 的记录缺少 merge_by_key 字段 '{merge_by_key}'，跳过该记录"
+                            )
+                            continue
+
+                        key_str = str(key_value)
+                        if key_str not in merged_by_key:
+                            # 创建新记录
+                            merged_by_key[key_str] = {merge_by_key: key_value}
+                        
+                        # 合并字段（后处理的 API 会覆盖先处理的 API 的同名字段）
+                        merged_by_key[key_str].update(record)
 
             # 转换为列表
             return list(merged_by_key.values())
@@ -515,19 +540,266 @@ class DataSourceHandlerHelper:
             mapped_records: List[Dict[str, Any]] = []
 
             for api_name, api_cfg in (apis_conf or {}).items():
-                result = fetched_data.get(api_name)
-                if result is None:
-                    continue
-
-                records = DataSourceHandlerHelper.result_to_records(result)
-                if not records:
+                api_data = fetched_data.get(api_name) or {}
+                if not isinstance(api_data, dict):
+                    logger.warning(
+                        f"fetched_data[{api_name}] 不是 dict，期望统一格式 "
+                        f"{{api_name: {{entity_id: raw_result}}}}，已跳过"
+                    )
                     continue
 
                 field_mapping = api_cfg.get("field_mapping") or {}
-                mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
-                mapped_records.extend(mapped)
+
+                for raw in api_data.values():
+                    records = DataSourceHandlerHelper.result_to_records(raw)
+                    if not records:
+                        continue
+
+                    mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
+                    mapped_records.extend(mapped)
 
             return mapped_records
+
+    # ================================
+    # Fetched Data 分组与重组
+    # ================================
+
+    @staticmethod
+    def build_grouped_fetched_data(
+        context: Dict[str, Any],
+        fetched_data: Dict[str, Any],
+        apis: List[ApiJob],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        根据配置中的 group_by 规则，将执行层返回的 {job_id: result} 统一整理为标准的
+        fetched_data 结构，供 normalize 阶段使用。
+
+        统一规范（BREAKING）：
+
+        fetched_data = {
+            api_name: {
+                "_unified": raw_result,     # 全局数据（无实体维度或未配置 group_by 时）
+                entity_id1: raw_result_1,   # 按实体分组的数据（如 stock_id、index_id 等）
+                entity_id2: raw_result_2,
+                ...
+            }
+        }
+
+        规则：
+        - 如果某个 api 在 config.apis[api_name] 中配置了 group_by 字段：
+          - 例如: {"group_by": "ts_code"}，则按 ApiJob.params["ts_code"] 进行分组；
+          - 得到 grouped[api_name][<entity_id>] = raw_result。
+        - 如果未配置 group_by 或对应的参数不存在：
+          - 默认将该 API 的所有结果合并为一个全局数据块，放入 "_unified"；
+          - 如果同一 api_name 多次写入 "_unified"，后写入的结果会覆盖之前的结果，并打印 warning。
+
+        注意：
+        - 该方法仅负责“按 API + entity 分组”，不负责字段映射和 schema 处理；
+        - 子类如需更复杂的重组逻辑（例如跨 API 合并），可以在 on_after_fetch 中自行调用
+          本方法作为基础，或完全自定义实现。
+        """
+        from loguru import logger
+
+        config = context.get("config")
+        if hasattr(config, "get_apis"):
+            apis_conf = config.get_apis()
+        else:
+            apis_conf = (config or {}).get("apis", {}) if isinstance(config, dict) else {}
+
+        grouped: Dict[str, Dict[str, Any]] = {}
+
+        for api_job in apis or []:
+            api_name = getattr(api_job, "api_name", None)
+            job_id = getattr(api_job, "job_id", None) or api_name
+            if not api_name or not job_id:
+                continue
+
+            raw_result = fetched_data.get(job_id)
+            if raw_result is None:
+                continue
+
+            api_conf = apis_conf.get(api_name, {})
+            group_by = None
+            if isinstance(api_conf, dict):
+                group_by = api_conf.get("group_by")
+            elif hasattr(api_conf, "get"):
+                group_by = api_conf.get("group_by", None)
+
+            bucket = grouped.setdefault(api_name, {})
+
+            if group_by:
+                # 按声明的参数名从 params 中提取实体 ID
+                entity_id = getattr(api_job, "params", {}).get(group_by)
+                if entity_id is None:
+                    logger.warning(
+                        f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                        f"配置了 group_by='{group_by}'，但 ApiJob.params 中未找到对应键，"
+                        "将该结果回退到 '_unified' 分组。"
+                    )
+                    if "_unified" in bucket:
+                        logger.warning(
+                            f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                            "存在多个未能识别实体 ID 的结果，写入同一 '_unified' 分组，后写将覆盖前写。"
+                        )
+                    bucket["_unified"] = raw_result
+                else:
+                    bucket[str(entity_id)] = raw_result
+            else:
+                # 未配置 group_by：默认按全局 unified 处理
+                if "_unified" in bucket:
+                    logger.warning(
+                        f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                        "在未配置 group_by 的情况下产生了多个结果，将按顺序覆盖 '_unified'。"
+                    )
+                bucket["_unified"] = raw_result
+
+        return grouped
+
+    @staticmethod
+    def build_unified_fetched_data(
+        context: Dict[str, Any],
+        fetched_data: Dict[str, Any],
+        apis: List[ApiJob],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        不考虑 group_by，简单按 api_name 聚合结果到 "_unified"。
+
+        适用于：
+        - 所有 API 都是全局数据（无实体维度）；
+        - 或者暂时不希望在 BaseHandler 层做实体分组，只要一个统一的数据块。
+        """
+        from loguru import logger
+
+        unified: Dict[str, Dict[str, Any]] = {}
+
+        for api_job in apis or []:
+            api_name = getattr(api_job, "api_name", None)
+            job_id = getattr(api_job, "job_id", None) or api_name
+            if not api_name or not job_id:
+                continue
+
+            raw_result = fetched_data.get(job_id)
+            if raw_result is None:
+                continue
+
+            bucket = unified.setdefault(api_name, {})
+            if "_unified" in bucket:
+                logger.warning(
+                    f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                    "未使用 group_by 但产生了多个结果，将按顺序覆盖 '_unified'。"
+                )
+            bucket["_unified"] = raw_result
+
+        return unified
+
+    # ================================
+    # 配置辅助工具
+    # ================================
+
+    @staticmethod
+    def has_group_by_config(context: Dict[str, Any], apis: List[ApiJob]) -> bool:
+        """
+        检查本次执行涉及的 API 中，是否至少有一个配置了 group_by。
+        """
+        config = context.get("config")
+        if hasattr(config, "get_apis"):
+            apis_conf = config.get_apis()
+        else:
+            apis_conf = (config or {}).get("apis", {}) if isinstance(config, dict) else {}
+
+        for api_job in apis or []:
+            api_name = getattr(api_job, "api_name", None)
+            if not api_name:
+                continue
+            api_conf = apis_conf.get(api_name, {})
+            group_by = None
+            if isinstance(api_conf, dict):
+                group_by = api_conf.get("group_by")
+            elif hasattr(api_conf, "get"):
+                group_by = api_conf.get("group_by", None)
+            if group_by:
+                return True
+
+        return False
+
+    # ================================
+    # 通用字段/日期/NaN 处理工具
+    # ================================
+
+    @staticmethod
+    def add_constant_fields(
+        records: List[Dict[str, Any]],
+        **fields: Any,
+    ) -> List[Dict[str, Any]]:
+        """
+        在一批记录上追加固定字段（原地修改并返回）。
+        """
+        if not records or not fields:
+            return records
+        for r in records:
+            if isinstance(r, dict):
+                r.update(fields)
+        return records
+
+    @staticmethod
+    def normalize_date_field(
+        records: List[Dict[str, Any]],
+        field: str = "date",
+    ) -> List[Dict[str, Any]]:
+        """
+        使用 DateUtils 将日期字段统一转换为系统标准格式 YYYYMMDD。
+
+        - 支持常见输入形式：YYYYMMDD, YYYY-MM-DD, datetime/date 等；
+        - 不可解析的日期会被跳过（保留原值），由上层决定是否过滤。
+        """
+        if not records or not field:
+            return records
+
+        try:
+            from core.utils.date.date_utils import DateUtils
+        except ImportError:
+            logger = DataSourceHandlerHelper._get_logger()
+            logger.warning("无法导入 DateUtils，normalize_date_field 将跳过处理")
+            return records
+
+        for r in records:
+            if not isinstance(r, dict) or field not in r:
+                continue
+            value = r.get(field)
+            if value is None:
+                continue
+            try:
+                normalized = DateUtils.to_yyyymmdd(value)
+                if normalized:
+                    r[field] = normalized
+            except Exception:
+                # 保留原值，交给上层决定是否过滤
+                continue
+
+        return records
+
+    @staticmethod
+    def clean_nan_in_records(
+        records: List[Dict[str, Any]],
+        default: Any = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        使用 DBHelper 将一批记录中的 NaN/None 等异常数值清洗为默认值。
+        """
+        if not records:
+            return records
+        try:
+            from core.infra.db.helpers.db_helpers import DBHelper
+        except ImportError:
+            logger = DataSourceHandlerHelper._get_logger()
+            logger.warning("无法导入 DBHelper，clean_nan_in_records 将跳过处理")
+            return records
+        return DBHelper.clean_nan_in_list(records, default=default)
+
+    @staticmethod
+    def _get_logger():
+        from loguru import logger  # 局部导入，避免强依赖
+        return logger
 
     @staticmethod
     def normalize_fetched_data(context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:

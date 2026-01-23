@@ -323,12 +323,10 @@ class KlineHandler(BaseHandler):
         执行 job batch 后的钩子：按股票分组保存数据
         
         由于基类将所有 apis 打包成一个 batch，我们需要在这里按股票分组处理数据
-        """
-        # 干运行模式：只跑流程，不写库
-        if context.get("dry_run"):
-            logger.info("🧪 干运行模式：跳过 K 线数据保存")
-            return
         
+        注意：此处的保存逻辑是按实体（股票）逐个保存，属于执行期保存模式。
+        如果未来需要将 save 逻辑完全抽离到上层，可以移除此处的保存调用。
+        """
         data_manager = context.get("data_manager")
         if not data_manager:
             logger.warning("DataManager 未初始化，无法保存 K 线数据")
@@ -450,23 +448,8 @@ class KlineHandler(BaseHandler):
             if merged_df is not None and not merged_df.empty:
                 # 转换为字典列表
                 records = merged_df.to_dict('records')
-                # 清理 NaN 值
-                import math
-                for record in records:
-                    for key, value in list(record.items()):
-                        if value is None:
-                            continue
-                        elif isinstance(value, float):
-                            if math.isnan(value) or pd.isna(value):
-                                record[key] = None
-                        elif pd.isna(value):
-                            record[key] = None
-                        elif hasattr(value, '__class__') and str(value.__class__) == "<class 'numpy.float64'>":
-                            try:
-                                if math.isnan(float(value)):
-                                    record[key] = None
-                            except (ValueError, TypeError):
-                                pass
+                # 使用统一 helper 清理 NaN 值
+                records = self.clean_nan_in_records(records, default=None)
                 stock_data_map[stock_id].extend(records)
         
         return stock_data_map

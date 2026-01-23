@@ -23,7 +23,9 @@
                 "date": "trade_date",
                 "stock_id": "con_code",
                 "weight": "weight"
-            }
+            },
+            "params": {},
+            "group_by": "index_code"
         }
     }
 }

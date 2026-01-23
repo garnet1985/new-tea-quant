@@ -13,7 +13,8 @@
         "finance_data": {
             "provider_name": "tushare",
             "method": "get_finance_data",
-            "max_per_minute": 500
+            "max_per_minute": 500,
+            "group_by": "ts_code"
         }
     }
 }

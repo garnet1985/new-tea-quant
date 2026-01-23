@@ -228,6 +228,33 @@ class ConfigManager:
             override_fields=override_fields,
             file_type="json"
         )
+
+    # =========================
+    # 业务级便捷访问方法
+    # =========================
+
+    @staticmethod
+    def load_data_config() -> Dict[str, Any]:
+        """
+        加载 data.json（默认 + userspace 覆盖）。
+        """
+        return ConfigManager.load_core_config("data")
+
+    @staticmethod
+    def load_benchmark_stock_index_list() -> List[Dict[str, Any]]:
+        """
+        获取全局基准股票指数列表（benchmark_stock_index_list）。
+
+        - 默认值来自 core/default_config/data.json；
+        - 用户可以在 userspace/config/data.json 中覆盖或扩展该列表，
+          合并逻辑由 ConfigManager.load_core_config 负责。
+        """
+        config = ConfigManager.load_data_config()
+        index_list = config.get("benchmark_stock_index_list") or []
+        if not isinstance(index_list, list):
+            logger.warning("benchmark_stock_index_list 不是列表类型，已返回空列表")
+            return []
+        return index_list
     
     @staticmethod
     def load_database_config(database_type: str = None) -> Dict[str, Any]:

@@ -979,3 +979,182 @@ class DataSourceHandlerHelper:
         
         return False
 
+    @staticmethod
+    def check_renew_if_over_days(
+        context: Dict[str, Any],
+        threshold_config: Dict[str, Any],
+        stock_list: Optional[List[Dict[str, Any]]] = None
+    ) -> Optional[List[str]]:
+        """
+        检查 renew_if_over_days，返回需要更新的 entity 列表（candidates）。
+        
+        流程：
+        1. 判断是全局数据还是 per entity
+        2. 从数据库一次性查询所有需要对比的数据（per entity 就是每个 entity 一条，不是就是 1 条）
+        3. 对比：没有时间记录或超过 threshold 的进入 candidates
+        4. 返回 candidates list
+        
+        Args:
+            context: 执行上下文（包含 config, data_manager 等）
+            threshold_config: renew_if_over_days 配置字典
+            stock_list: 股票列表（可选，如果提供则只检查这些股票）
+        
+        Returns:
+            - None: 不过滤（全局数据且需要更新，或表为空）
+            - []: 过滤掉所有 ApiJobs（全局数据且不需要更新）
+            - List[str]: 需要更新的 entity ID 列表（candidates，per entity 模式）
+        """
+        from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+        from core.utils.date.date_utils import DateUtils
+        from loguru import logger
+        
+        if not threshold_config:
+            return None
+        
+        data_manager = context.get("data_manager")
+        if not data_manager:
+            logger.warning("DataManager 未初始化，无法检查 renew_if_over_days")
+            return None
+        
+        config = context.get("config")
+        if not config:
+            logger.warning("Config 未初始化，无法检查 renew_if_over_days")
+            return None
+        
+        # 获取配置
+        table_name = config.get_table_name()
+        if not table_name:
+            logger.warning("table_name 未配置，无法检查 renew_if_over_days")
+            return None
+        
+        threshold_days = threshold_config.get("value")
+        if not threshold_days:
+            logger.warning("renew_if_over_days.value 未配置")
+            return None
+        
+        # counting_field 默认使用 config 的 date_field，除非专门声明
+        counting_field = threshold_config.get("counting_field") or config.get_date_field()
+        if not counting_field:
+            logger.warning("counting_field 未配置且 date_field 也未配置，无法检查 renew_if_over_days")
+            return None
+        
+        # 获取结束日期（当前日期）
+        latest_completed_trading_date = context.get("latest_completed_trading_date")
+        if not latest_completed_trading_date:
+            try:
+                latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
+            except Exception as e:
+                logger.warning(f"获取最新完成交易日失败: {e}")
+                latest_completed_trading_date = DateUtils.get_current_date_str()
+        
+        # ========== 步骤1：判断是全局数据还是 per entity ==========
+        needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
+        
+        # ========== 步骤2：从数据库一次性查询所有需要对比的数据 ==========
+        if not needs_stock_grouping:
+            # 全局数据：查询 1 条最新记录
+            try:
+                model = data_manager.get_table(table_name)
+                if not model:
+                    return None
+                
+                latest_record = model.load_one("1=1", order_by=f"{counting_field} DESC")
+                if not latest_record:
+                    # 表为空，返回 None（不过滤）
+                    return None
+                
+                latest_date = latest_record.get(counting_field)
+                if not latest_date:
+                    # 没有时间记录，返回 None（不过滤，需要更新）
+                    return None
+                
+                # 标准化日期格式
+                latest_date_str = DataSourceHandlerHelper._normalize_date_value(latest_date)
+                if not latest_date_str:
+                    return None
+                
+                # ========== 步骤3：对比 - 计算天数差 ==========
+                days_diff = DateUtils.get_duration_in_days(latest_date_str, latest_completed_trading_date)
+                
+                if days_diff >= threshold_days:
+                    # 超过 threshold，返回 None（不过滤，需要更新）
+                    return None
+                else:
+                    # 没过 threshold，返回空列表（过滤掉所有 ApiJobs）
+                    return []
+                    
+            except Exception as e:
+                logger.warning(f"查询全局数据最新日期失败: {e}")
+                return None
+        
+        # Per entity：一次性查询所有 entity 的最新记录
+        date_format = config.get_date_format()
+        latest_dates_dict = RenewCommonHelper.query_latest_date(
+            data_manager, table_name, counting_field, date_format, needs_stock_grouping
+        )
+        
+        if not latest_dates_dict:
+            # 表为空，返回 None（不过滤）
+            return None
+        
+        # ========== 步骤3：对比 - 遍历所有 entity，找出 candidates ==========
+        candidates = []
+        
+        for entity_id, latest_date in latest_dates_dict.items():
+            if not latest_date:
+                # 没有时间记录，进入 candidates
+                candidates.append(entity_id)
+                continue
+            
+            # 标准化日期格式
+            latest_date_str = DataSourceHandlerHelper._normalize_date_value(latest_date)
+            if not latest_date_str:
+                # 日期格式错误，保守策略：进入 candidates
+                candidates.append(entity_id)
+                continue
+            
+            # 计算天数差
+            try:
+                days_diff = DateUtils.get_duration_in_days(latest_date_str, latest_completed_trading_date)
+                
+                if days_diff >= threshold_days:
+                    # 超过 threshold，进入 candidates
+                    candidates.append(entity_id)
+            except Exception as e:
+                logger.warning(f"计算 entity {entity_id} 的天数差失败: {e}")
+                # 计算失败，保守策略：进入 candidates
+                candidates.append(entity_id)
+        
+        # 如果提供了 stock_list，只返回在 stock_list 中的 entity
+        if stock_list:
+            stock_ids = {stock.get("id") or stock.get("ts_code") for stock in stock_list if stock.get("id") or stock.get("ts_code")}
+            candidates = [eid for eid in candidates if eid in stock_ids]
+        
+        return candidates if candidates else None
+    
+    @staticmethod
+    def _normalize_date_value(date_value: Any) -> Optional[str]:
+        """
+        标准化日期值（处理 datetime 对象或其他格式）
+        
+        Args:
+            date_value: 日期值（可能是 datetime、str 或其他格式）
+        
+        Returns:
+            str: YYYYMMDD 格式的日期字符串，如果无法解析返回 None
+        """
+        from datetime import datetime as dt
+        from core.utils.date.date_utils import DateUtils
+        from loguru import logger
+        
+        try:
+            if isinstance(date_value, dt):
+                return date_value.strftime('%Y%m%d')
+            elif isinstance(date_value, str):
+                return DateUtils.normalize_date(date_value) or date_value
+            else:
+                return str(date_value).replace('-', '').replace(' ', '').replace(':', '')[:8]
+        except Exception as e:
+            logger.debug(f"标准化日期格式失败: {date_value}, error: {e}")
+            return None
+

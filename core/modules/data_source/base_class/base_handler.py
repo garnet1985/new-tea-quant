@@ -26,7 +26,7 @@ class BaseHandler:
             "data_manager": DataManager.get_instance(),
         }
 
-    def execute(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, dependencies: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Handler 的同步执行入口（默认实现）。
 
@@ -36,7 +36,7 @@ class BaseHandler:
         3. _postprocess：后处理阶段（标准化数据、调用 on_after_normalize 钩子、数据验证）；
         4. 返回标准化后的数据。
         """
-        apis_jobs = self._preprocess(global_dependencies)
+        apis_jobs = self._preprocess(dependencies)
 
         fetched_data = self._executing(apis_jobs)
 
@@ -44,7 +44,13 @@ class BaseHandler:
 
         return normalized_data
 
-    def _preprocess(self, global_dependencies: Dict[str, Any]) -> List[ApiJob]:
+    def get_dependency_names(self) -> List[str]:
+        """获取依赖的数据源名称列表"""
+        # todo: to provide current data source's dependency names
+        return []
+
+    # 请注意dependencies是只读的，修改可能会导致全局错误，请不要修改dependencies的值
+    def _preprocess(self, dependencies: Optional[Dict[str, Any]] = None) -> List[ApiJob]:
         """
         预处理阶段：在执行 API 请求前的所有准备工作。
         
@@ -53,20 +59,15 @@ class BaseHandler:
         2. 调用 on_prepare_context 钩子，允许子类基于依赖派生/注入额外的上下文数据；
         3. 从 config 构建 ApiJob 列表（_config_to_api_jobs）；
         4. 计算日期范围并注入到 ApiJobs 中（_add_date_range_to_api_jobs）；
-        5. 调用 on_before_fetch 钩子，允许子类调整 ApiJobs。
+        5. 调用 on_before_fetch 钩子，允许子类调整 ApiJobs；
+        6. 检查 renew_if_over_days，过滤不需要更新的 entity（_filter_by_renew_if_over_days）。
         
         Returns:
             List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
         """
         # 1. 注入全局依赖
-        self.context = self._inject_required_global_dependencies(global_dependencies)
-
-        # 2. 允许子类基于依赖派生/注入额外的上下文数据
-        #    默认实现直接返回 context，不做任何修改。
-        prepared_context = self.on_prepare_context(self.context)
-        # 防御性处理：避免子类返回 None 破坏 context
-        if isinstance(prepared_context, dict):
-            self.context = prepared_context
+        if dependencies is not None:
+            self.context["dependencies"] = dependencies
 
         # 3. 从 config 构建 ApiJob 列表
         apis_jobs = self._config_to_api_jobs()
@@ -76,6 +77,9 @@ class BaseHandler:
 
         # 5. 允许子类在抓取前进一步调整 ApiJobs
         apis_jobs = self.on_before_fetch(self.context, apis_jobs)
+
+        # 6. 检查 renew_if_over_days，过滤不需要更新的 entity
+        apis_jobs = self._filter_by_renew_if_over_days(self.context, apis_jobs)
 
         return apis_jobs
         
@@ -139,11 +143,8 @@ class BaseHandler:
         - 具体转换规则由 DataSourceHandlerHelper.build_api_jobs 负责。
         """
         config = self.context.get("config")
-        # 支持 DataSourceConfig 实例或 dict（兼容性）
-        if hasattr(config, "get_apis"):
-            api_conf = config.get_apis()
-        else:
-            api_conf = config.get("apis") if config else {}
+        # 使用 DataSourceConfig 的方法
+        api_conf = config.get_apis()
         return DataSourceHandlerHelper.build_api_jobs(api_conf)
 
     def _inject_required_global_dependencies(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
@@ -262,6 +263,77 @@ class BaseHandler:
         start, end = renew_manager.compute_default_date_range(context)
         return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
+    def _filter_by_renew_if_over_days(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
+        """
+        根据 renew_if_over_days 配置过滤 ApiJobs。
+        
+        逻辑：
+        1. 调用 check_renew_if_over_days 获取需要更新的 entity 列表
+        2. 根据返回值过滤 ApiJobs：
+           - None: 不过滤（全局数据且需要更新，或表为空）
+           - []: 过滤掉所有 ApiJobs（全局数据且不需要更新）
+           - List[str]: 只保留这些 entity 的 ApiJobs（per entity 模式）
+        
+        Args:
+            context: 执行上下文
+            apis: ApiJob 列表（已注入日期范围）
+        
+        Returns:
+            List[ApiJob]: 过滤后的 ApiJob 列表
+        """
+        from loguru import logger
+        
+        config = self.context.get("config")
+        if not config:
+            return apis
+        
+        # 获取 renew_if_over_days 配置
+        threshold_config = config.get_renew_if_over_days()
+        if not threshold_config:
+            return apis
+        
+        # 检查 renew_if_over_days
+        stock_list = self.context.get("stock_list")
+        need_update_entities = DataSourceHandlerHelper.check_renew_if_over_days(
+            self.context, threshold_config, stock_list
+        )
+        
+        # 根据返回值过滤 ApiJobs
+        if need_update_entities is None:
+            # 不过滤（全局数据且需要更新，或表为空）
+            return apis
+        
+        if not need_update_entities:
+            # 过滤掉所有 ApiJobs（全局数据且不需要更新）
+            logger.info(f"renew_if_over_days 检查：没有需要更新的 entity，跳过所有 ApiJobs")
+            return []
+        
+        # 只保留需要更新的 entity 的 ApiJobs（per entity 模式）
+        need_update_set = set(need_update_entities)
+        filtered_apis = []
+        
+        for job in apis:
+            params = job.params or {}
+            
+            # 尝试从 params 中提取 entity_id（支持多种字段名）
+            entity_id = (
+                params.get("ts_code") or 
+                params.get("code") or 
+                params.get("stock_id") or
+                params.get("id") or
+                params.get("index_code")  # 用于指数
+            )
+            
+            if entity_id and str(entity_id) in need_update_set:
+                filtered_apis.append(job)
+            elif not entity_id:
+                # 如果无法提取 entity_id，保守策略：保留该 ApiJob
+                logger.debug(f"ApiJob {job.job_id} 无法提取 entity_id，保留该 ApiJob")
+                filtered_apis.append(job)
+        
+        logger.info(f"renew_if_over_days 检查：从 {len(apis)} 个 ApiJobs 过滤到 {len(filtered_apis)} 个")
+        return filtered_apis
+
     def _build_api_job_batch_per_entity(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
         """
         构建 job 批次：将 apis 打包成一个 batch。这个批次是per stock的。
@@ -375,11 +447,8 @@ class BaseHandler:
 
         # 步骤 1：从 context 中解析 apis 配置和 schema（输入准备）
         config = context.get("config")
-        # 支持 DataSourceConfig 实例或 dict（兼容性）
-        if hasattr(config, "get_apis"):
-            apis_conf = config.get_apis()
-        else:
-            apis_conf = config.get("apis") if config else {}
+        # 使用 DataSourceConfig 的方法
+        apis_conf = config.get_apis()
         schema = context.get("schema")
 
         if not fetched_data or not isinstance(fetched_data, dict):
@@ -391,11 +460,7 @@ class BaseHandler:
 
         # 步骤 3 & 4：从所有 API 返回中提取并映射出标准字段记录
         # 检查是否配置了 merge_by_key（用于按 key 合并多个 API 的结果）
-        merge_by_key = None
-        if hasattr(config, "get"):
-            merge_by_key = config.get("merge_by_key")
-        elif isinstance(config, dict):
-            merge_by_key = config.get("merge_by_key")
+        merge_by_key = config.get("merge_by_key")
         
         mapped_records: List[Dict[str, Any]] = DataSourceHandlerHelper.extract_mapped_records(
             apis_conf=apis_conf,
@@ -409,8 +474,8 @@ class BaseHandler:
 
         # 步骤 4.4：自动日期标准化（如果配置了 date_format）
         # 根据 config.date_format 自动标准化 date 字段
-        config = context.get("config", {})
-        date_format = (config.get("date_format") or "day").lower()
+        config = context.get("config")
+        date_format = config.get_date_format()
         if date_format != "none":
             # 将 date_format 映射到 target_format
             # "day" -> "day", "month" -> "month", "quarter" -> "quarter"
@@ -599,8 +664,8 @@ class BaseHandler:
 
         注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
         """
-        config = context.get("config", {})
-        date_format = (config.get("date_format") or "day").lower()
+        config = context.get("config")
+        date_format = config.get_date_format()
         
         # 根据 date_format 决定默认值
         if date_format in ("day", "month"):

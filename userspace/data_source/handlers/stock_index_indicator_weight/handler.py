@@ -5,108 +5,94 @@
 
 业务逻辑：
 1. 调用 Tushare index_weight API
-2. 为每个指数生成一个 Task
+2. 为每个指数生成一个 ApiJob
 3. 指数成分股不常变化，至少1个月才更新
 """
 from typing import List, Dict, Any
 from loguru import logger
 
-from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.data_classes import DataSourceTask
+from core.modules.data_source.base_class.base_handler import BaseHandler
+from core.modules.data_source.base_class.base_provider import BaseProvider
+from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.utils.date.date_utils import DateUtils
 
 
-class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
+class StockIndexIndicatorWeightHandler(BaseHandler):
     """
     股指成分股权重 Handler
     
     特点：
-    - 为每个指数生成一个job
+    - 为每个指数生成一个 ApiJob
     - 单API，简单mapping
     - 指数成分股不常变化，至少1个月才更新
+    
+    配置（在 config.json 中）：
+    - renew_mode: "incremental"
+    - date_format: "day"
+    - index_list: [...] (指数列表)
+    - apis: {...} (包含 index_weight API 配置)
     """
     
-    # 类属性（必须定义）
-    data_source = "stock_index_indicator_weight"
-    description = "获取股指成分股权重数据"
-    dependencies = []  # 不依赖其他数据源
+    def __init__(self, data_source_name: str, schema, config, providers: Dict[str, BaseProvider]):
+        super().__init__(data_source_name, schema, config, providers)
+        # 从 config 获取指数列表
+        if hasattr(config, "get"):
+            self.index_list = config.get("index_list", [])
+        elif hasattr(config, "index_list"):
+            self.index_list = config.index_list
+        else:
+            self.index_list = []
     
-    # 可选类属性
-    requires_date_range = True  # 需要日期范围参数
-    
-    def __init__(self, schema, data_manager=None, definition=None):
-        super().__init__(schema, data_manager, definition)
-        # 默认指数列表
-        self.index_list = self.get_param('index_list', [
-            {'id': '000001.SH', 'name': '上证指数'},
-            {'id': '000300.SH', 'name': '沪深300'},
-            {'id': '000688.SH', 'name': '科创50'},
-            {'id': '399001.SZ', 'name': '深证成指'},
-            {'id': '399006.SZ', 'name': '创业板指'},
-        ])
-    
-    async def before_fetch(self, context: Dict[str, Any] = None):
+    def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
-        数据准备阶段
+        抓取前阶段钩子：为每个指数创建 ApiJob
         
-        计算需要更新的日期范围（月度数据）
+        Args:
+            context: 执行上下文
+            apis: 原始 ApiJob 列表（从 config 构建）
+            
+        Returns:
+            List[ApiJob]: 处理后的 ApiJob 列表（每个指数一个 ApiJob）
         """
-        # 注意：不能用 context = context or {}，否则外部传入的空 dict 会被替换，
-        # 导致在 fetch 阶段拿不到这里写入的 index_latest_dates / end_date
-        if context is None:
-            context = {}
+        # 从 context 获取日期范围
+        end_date = context.get("end_date")
+        if not end_date:
+            # 获取最新交易日
+            latest_trading_date = context.get("latest_completed_trading_date")
+            if not latest_trading_date:
+                data_manager = context.get("data_manager")
+                if data_manager:
+                    try:
+                        latest_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
+                    except Exception as e:
+                        logger.warning(f"获取最新交易日失败: {e}")
+                        latest_trading_date = DateUtils.get_current_date_str()
+                else:
+                    latest_trading_date = DateUtils.get_current_date_str()
+            
+            # 实际结束日期是前一个交易日
+            end_date = DateUtils.get_date_before_days(latest_trading_date, 1)
+            context["end_date"] = end_date
         
-        # 如果 context 中已有日期范围，直接使用
-        if "start_date" in context and "end_date" in context:
-            return
-        
-        # 从 data_manager 查询数据库获取最新日期（按指数分组）
+        # 从数据库查询每个指数的最新日期
         index_latest_dates = {}  # {index_id: latest_date}
-        if self.data_manager:
+        data_manager = context.get("data_manager")
+        if data_manager:
             try:
-                # 使用 service 批量查询：一次性获取所有指数的最新权重日期
-                index_latest_dates = self.data_manager.index.load_latest_weights()
+                index_latest_dates = data_manager.index.load_latest_weights()
             except Exception as e:
                 logger.warning(f"查询数据库失败: {e}")
         
         context["index_latest_dates"] = index_latest_dates
         
-        # 获取最新交易日（用于计算结束日期）
-        # 优先从 context 读取（由 renew_data() 统一获取并注入），避免多次获取导致数据不一致
-        latest_trading_date = context.get("latest_completed_trading_date")
-        if not latest_trading_date and self.data_manager:
-            # 兜底：如果 context 中没有，才自己获取（不应该发生，但保留兜底逻辑）
-            logger.warning("StockIndexIndicatorWeightHandler.before_fetch: context 中未找到 latest_completed_trading_date，回退获取")
-            try:
-                latest_trading_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
-            except Exception as e:
-                logger.warning(f"获取最新交易日失败: {e}")
-                latest_trading_date = DateUtils.get_current_date_str()
+        # 为每个指数创建 ApiJob
+        expanded_apis = []
+        base_api = apis[0] if apis else None  # 假设只有一个 base API
         
-        if latest_trading_date:
-            # 实际结束日期是前一个交易日
-            context["end_date"] = DateUtils.get_date_before_days(latest_trading_date, 1)
-        else:
-            # 如果仍然没有，使用当前日期作为兜底
-            context["end_date"] = DateUtils.get_current_date_str()
-    
-    async def fetch(self, context: Dict[str, Any] = None) -> List[DataSourceTask]:
-        """
-        生成获取股指成分股权重数据的 Tasks
-        
-        逻辑：
-        1. 为每个指数创建一个 Task
-        2. 每个 Task 包含 1 个 ApiJob（index_weight）
-        """
-        context = context or {}
-        
-        end_date = context.get("end_date")
-        index_latest_dates = context.get("index_latest_dates", {})
-        
-        if not end_date:
-            raise ValueError("StockIndexIndicatorWeightHandler 需要 end_date 参数")
-        
-        tasks = []
+        if not base_api:
+            logger.warning("未找到 base API，无法创建指数 ApiJobs")
+            return apis
         
         for index_info in self.index_list:
             index_id = index_info['id']
@@ -131,103 +117,146 @@ class StockIndexIndicatorWeightHandler(BaseDataSourceHandler):
             if start_date > end_date:
                 continue
             
-            # 创建 ApiJob
-            weight_job = self.get_api_job_with_params(
-                name="index_weight",
+            # 复制 base_api 并修改参数
+            new_api = ApiJob(
+                api_name=base_api.api_name,
+                provider_name=base_api.provider_name,
+                method=base_api.method,
                 params={
+                    **base_api.params,
                     "index_code": index_id,
                     "start_date": start_date,
                     "end_date": end_date,
                 },
-                job_id=f"{index_id}_weight"
+                api_params=base_api.api_params,
+                depends_on=base_api.depends_on,
+                rate_limit=base_api.rate_limit,
+                job_id=f"{index_id}_weight",
             )
-            
-            # 创建 Task
-            task = DataSourceTask(
-                task_id=f"index_weight_{index_id}",
-                api_jobs=[weight_job],
-                description=f"获取 {index_name} ({index_id}) 的成分股权重数据",
-            )
-            tasks.append(task)
+            expanded_apis.append(new_api)
         
-        logger.info(f"✅ 生成了 {len(tasks)} 个指数成分股权重数据获取任务")
+        logger.info(f"✅ 为 {len(expanded_apis)} 个指数生成了成分股权重数据获取任务")
         
-        return tasks
+        return expanded_apis
     
-    async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]) -> Dict[str, Any]:
         """
-        标准化数据
+        抓取后阶段钩子：从 job_id 提取 index_id，添加到记录中
         
-        从 Tushare index_weight API 的结果中处理数据
+        Args:
+            context: 执行上下文
+            fetched_data: 抓取的数据，格式为 {job_id: result}
+            apis: 执行的 ApiJob 列表
+            
+        Returns:
+            Dict[str, Any]: 转换后的数据，格式为 {api_name: records_list}
         """
+        config = context.get("config")
+        apis_conf = config.get_apis() if hasattr(config, "get_apis") else config.get("apis") if config else {}
+        
+        all_records = []
+        for job_id, result in fetched_data.items():
+            if not job_id.endswith("_weight"):
+                logger.warning(f"⚠️ job_id 格式异常: {job_id}，跳过")
+                continue
+            
+            index_id = job_id.replace("_weight", "")
+            
+            # 转换为记录列表
+            records = DataSourceHandlerHelper.result_to_records(result)
+            if not records:
+                continue
+            
+            # 为每条记录添加 index_id
+            for record in records:
+                record['id'] = index_id
+                all_records.append(record)
+        
+        if all_records and apis_conf:
+            # 所有记录使用相同的 field_mapping，所以可以合并到一个 API name 下
+            first_api_name = list(apis_conf.keys())[0]
+            return {first_api_name: all_records}
+        return {}
+    
+    def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        字段映射后的钩子：标准化日期格式（YYYY-MM-DD -> YYYYMMDD）
+        
+        Args:
+            context: 执行上下文
+            mapped_records: 已应用 field_mapping 的记录列表
+            
+        Returns:
+            List[Dict[str, Any]]: 处理后的记录列表
+        """
+        if not mapped_records:
+            return mapped_records
+        
         formatted = []
-        
-        # task_results 的结构：{task_id: {job_id: result}}
-        for task_id, task_result in task_results.items():
-            if not task_id.startswith("index_weight_"):
-                continue
-            
-            index_id = task_id.replace("index_weight_", "")
-            
-            # 获取 API 的结果
-            weight_df = task_result.get(f"{index_id}_weight")
-            
-            if weight_df is None or weight_df.empty:
-                continue
-            
-            # 处理数据
-            for _, row in weight_df.iterrows():
-                trade_date = str(row.get('trade_date', ''))
-                if not trade_date:
-                    continue
-                
+        for record in mapped_records:
+            date_value = record.get('date')
+            if date_value:
+                date_str = str(date_value)
                 # 统一日期格式为 YYYYMMDD
-                date_ymd = trade_date.replace('-', '') if '-' in trade_date else trade_date
-                
-                record = {
-                    'id': index_id,
-                    'date': date_ymd,
-                    'stock_id': str(row.get('con_code', '')),
-                    'weight': float(row.get('weight', 0)),
-                }
-                
-                formatted.append(record)
+                date_ymd = date_str.replace('-', '') if '-' in date_str else date_str
+                record['date'] = date_ymd
+            else:
+                logger.warning("记录缺少 date 字段，跳过该记录")
+                continue
+            
+            # 确保 weight 是 float 类型
+            weight = record.get('weight')
+            if weight is not None:
+                try:
+                    record['weight'] = float(weight)
+                except (ValueError, TypeError):
+                    logger.warning(f"weight 字段无法转换为 float: {weight}，使用默认值 0.0")
+                    record['weight'] = 0.0
+            
+            formatted.append(record)
         
         logger.info(f"✅ 股指成分股权重数据处理完成，共 {len(formatted)} 条记录")
-        
-        return {
-            "data": formatted
-        }
-
-    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
+        return formatted
+    
+    def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         标准化后处理：保存股指成分股权重数据到数据库
+        
+        Args:
+            context: 执行上下文
+            normalized_data: 标准化后的数据
+            
+        Returns:
+            Dict[str, Any]: 返回标准化后的数据
         """
-        context = context or {}
-
-        dry_run = context.get("dry_run", False)
+        data_manager = context.get("data_manager")
+        if not data_manager:
+            logger.warning("DataManager 未初始化，无法保存股指成分股权重数据")
+            return normalized_data
+        
+        # 检查是否是 dry_run 模式
+        dry_run = context.get('dry_run', False)
         if dry_run:
             logger.info("🧪 干运行模式：跳过股指成分股权重数据保存")
-            return
-
-        if not self.data_manager:
-            logger.warning("DataManager 未初始化，无法保存股指成分股权重数据")
-            return
-
+            return normalized_data
+        
+        # 验证数据格式
         data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
         if not data_list:
             logger.debug("股指成分股权重数据为空，无需保存")
-            return
-
+            return normalized_data
+        
         try:
             from core.infra.db.helpers.db_helpers import DBHelper
             data_list = DBHelper.clean_nan_in_list(data_list, default=0.0)
-
+            
             # 使用 service 保存数据
-            count = self.data_manager.index.save_weight(data_list)
+            count = data_manager.index.save_weight(data_list)
             logger.info(f"✅ 股指成分股权重数据保存完成，共 {count} 条记录")
         except Exception as e:
             logger.error(f"❌ 保存股指成分股权重数据失败: {e}")
             import traceback
             logger.error(traceback.format_exc())
-
+            raise
+        
+        return normalized_data

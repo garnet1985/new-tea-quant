@@ -91,9 +91,9 @@ class LatestTradingDateHandler(BaseHandler):
             date_value = record.get('cal_date') or record.get('date')
             if date_value:
                 # 使用 DateUtils 统一日期格式
-                from core.utils.date.date_utils import DateUtils
+                from core.utils.date.date_utils import DateUtils, DateFormat
                 try:
-                    date_str = DateUtils.to_yyyymmdd(date_value)
+                    date_str = DateUtils.normalize_to_format(date_value, DateFormat.DAY)
                     if date_str and (not latest_date or date_str > latest_date):
                         latest_date = date_str
                 except Exception:

@@ -1,7 +1,7 @@
 # Data Source 重要决策记录
 
 **版本：** 3.0  
-**最后更新**: 2026-01-17
+**最后更新**: 2026-01-23
 
 ---
 
@@ -249,6 +249,97 @@
 - 限流逻辑统一管理，易于维护
 - 线程安全，支持多线程环境
 - 防止窗口边界突刺，保证限流准确性
+
+---
+
+## 决策 6：Data Source 不负责数据存储
+
+**日期**：2026-01-23  
+**状态**：已实施
+
+### 痛点
+
+在早期设计中，部分 Handler 在数据标准化后直接保存数据，导致：
+- **职责边界模糊**：Data Source 模块既负责数据获取，又负责数据存储，职责不清
+- **复杂度增加**：如果 Data Source 管理 save，需要处理 Data Source Schema 和 DB Schema 的映射关系，增加系统复杂度
+- **用户体验下降**：用户需要理解两套 Schema（Data Source Schema 和 DB Schema）的映射关系，学习成本高
+- **灵活性受限**：统一的 save 机制难以满足不同业务场景的存储需求（如不同的存储时机、格式转换等）
+
+### 可选方案
+
+**方案 A：Data Source 默认提供 save 功能**
+- 优点：用户使用方便，不需要自己实现 save
+- 缺点：职责边界不清，需要处理 Schema 映射，复杂度高，灵活性差
+
+**方案 B：Data Source 不负责存储，用户自行决定 save 时机和格式** ✅
+- 优点：职责清晰，保持 Data Source 的纯粹性，灵活性高
+- 缺点：用户需要在钩子中自行实现 save（但可以使用 data_manager）
+
+### 为什么选择当前方案
+
+选择方案 B 的理由：
+
+1. **保持职责边界清晰**：
+   - Data Source 的职责：数据获取和统一格式转换
+   - Data Manager 的职责：数据入库和存储管理
+   - 清晰的职责边界有助于系统的可维护性和可扩展性
+
+2. **避免复杂度增加**：
+   - Data Source Schema 和 DB Schema 可能不一致，需要映射
+   - 如果 Data Source 管理 save，需要内置 Schema 映射逻辑
+   - 这会导致 Data Source 模块复杂度显著增加，无论是实现复杂度还是用户体验都会变差
+
+3. **提供灵活性**：
+   - 用户可以在钩子函数（如 `on_after_normalize`）中自行决定 save 的时机
+   - 用户可以根据业务需求选择不同的存储格式和策略
+   - 用户可以使用 `data_manager` 提供的统一接口进行存储，保持一致性
+
+4. **符合设计原则**：
+   - 遵循单一职责原则：Data Source 专注于数据获取和格式转换
+   - 遵循关注点分离：数据获取和存储分离，各司其职
+
+### 设计原则
+
+1. **Data Source 不默认带有 save 功能**：
+   - `BaseHandler` 不提供默认的 save 方法
+   - Handler 的生命周期钩子（如 `on_after_normalize`）只负责数据转换和处理，不负责存储
+
+2. **用户可以在钩子中自行决定 save**：
+   - 用户可以在 `on_after_normalize`、`on_after_execute_single_api_job` 等钩子中使用 `data_manager` 进行存储
+   - 用户可以根据业务需求选择存储时机（如每个 API Job 完成后、所有数据标准化后等）
+   - 用户可以根据业务需求进行格式转换后再存储
+
+3. **使用 data_manager 进行存储**：
+   - 虽然 Data Source 不负责 save，但用户可以在钩子中使用 `data_manager` 提供的统一接口
+   - `data_manager` 负责处理 DB Schema 和存储逻辑
+   - 这样既保持了职责边界，又提供了统一的存储接口
+
+### 实现示例
+
+```python
+class MyHandler(BaseHandler):
+    def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
+        # Data Source 的职责：数据转换和处理
+        processed_data = self.process_data(normalized_data)
+        
+        # 用户自行决定存储时机和格式（使用 data_manager）
+        data_manager = context.get("data_manager")
+        if data_manager:
+            # 可以根据业务需求进行格式转换
+            db_records = self.convert_to_db_format(processed_data)
+            # 使用 data_manager 进行存储
+            data_manager.my_model.save_records(db_records)
+        
+        return processed_data
+```
+
+### 影响
+
+- ✅ **职责边界清晰**：Data Source 专注于数据获取和格式转换，Data Manager 专注于数据存储
+- ✅ **复杂度降低**：不需要处理 Data Source Schema 和 DB Schema 的映射关系
+- ✅ **灵活性提高**：用户可以根据业务需求灵活决定存储时机和格式
+- ✅ **用户体验改善**：用户只需要理解 Data Source Schema，不需要理解两套 Schema 的映射关系
+- ⚠️ **需要用户自行实现 save**：用户需要在钩子中使用 `data_manager` 进行存储（但这是合理的，因为存储是业务逻辑的一部分）
 
 ---
 

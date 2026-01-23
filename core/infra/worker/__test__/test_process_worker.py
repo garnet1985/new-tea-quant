@@ -56,7 +56,7 @@ class TestProcessWorker:
         """测试自动计算 worker 数量"""
         if pytest is None:
             return
-        with patch('core.infra.worker.multi_process.process_worker.ConfigManager.get_worker_config') as mock_config:
+        with patch('core.infra.worker.multi_process.process_worker.ConfigManager.load_worker_config') as mock_config:
             mock_config.return_value = {
                 'modules': {
                     'TestModule': {

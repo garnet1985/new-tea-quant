@@ -170,20 +170,18 @@ class StockIndexIndicatorWeightHandler(BaseHandler):
     
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        字段映射后的钩子：标准化日期格式（YYYY-MM-DD -> YYYYMMDD）
+        字段映射后的钩子：过滤无效记录并确保类型正确
         
         Args:
             context: 执行上下文
             mapped_records: 已应用 field_mapping 的记录列表
+            注意：日期标准化已在基类中自动处理（根据 config.date_format）
             
         Returns:
             List[Dict[str, Any]]: 处理后的记录列表
         """
         if not mapped_records:
             return mapped_records
-
-        # 使用通用日期归一工具，将 date 字段统一为 YYYYMMDD
-        mapped_records = DataSourceHandlerHelper.normalize_date_field(mapped_records, field="date")
 
         # 过滤没有 date 字段的记录
         mapped_records = self.filter_records_by_required_fields(mapped_records, required_fields=["date"])
@@ -196,9 +194,9 @@ class StockIndexIndicatorWeightHandler(BaseHandler):
     
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        标准化后处理：数据清洗（NaN 清理），不负责保存。
+        标准化后处理：数据清洗（NaN 清理）已在基类中自动处理，这里直接返回。
         
         注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
         """
-        # 可选：清洗 NaN 值
-        return self.clean_nan_in_normalized_data(normalized_data, default=0.0)
+        # 基类已自动清洗 NaN，直接返回
+        return normalized_data

@@ -4,6 +4,23 @@
 """
 from datetime import datetime, timedelta
 from typing import List, Optional
+from enum import Enum
+
+
+class DateFormat(Enum):
+    """
+    日期格式枚举 - 定义系统内使用的所有标准日期格式
+    
+    用于日期标准化输出格式，支持以下格式：
+    - DAY: YYYYMMDD 格式（如 "20240101"）
+    - MONTH: YYYYMM 格式（如 "202401"）
+    - QUARTER: YYYYQ[1-4] 格式（如 "2024Q1"）
+    - NONE: 不进行标准化
+    """
+    DAY = "day"  # YYYYMMDD 格式，如 "20240101"
+    MONTH = "month"  # YYYYMM 格式，如 "202401"
+    QUARTER = "quarter"  # YYYYQ[1-4] 格式，如 "2024Q1"
+    NONE = "none"  # 不进行标准化
 
 
 class DateUtils:
@@ -269,6 +286,81 @@ class DateUtils:
             pass
         
         return None
+    
+    @staticmethod
+    def normalize_to_format(date_value: any, output_format: DateFormat) -> Optional[str]:
+        """
+        将任何时间形式标准化为系统内使用的标准时间格式。
+        
+        支持的输入格式：
+        - YYYYMMDD (如 "20240101")
+        - YYYY-MM-DD (如 "2024-01-01")
+        - YYYYMM (如 "202401")
+        - YYYY-MM (如 "2024-01")
+        - YYYYQ[1-4] (如 "2024Q1")
+        - datetime/date 对象
+        - 其他常见日期格式
+        
+        Args:
+            date_value: 日期值（字符串、datetime对象等）
+            output_format: 输出格式枚举（DateFormat.DAY, DateFormat.MONTH, DateFormat.QUARTER）
+            
+        Returns:
+            str: 标准化后的日期字符串，格式取决于 output_format：
+                - DateFormat.DAY: YYYYMMDD (如 "20240101")
+                - DateFormat.MONTH: YYYYMM (如 "202401")
+                - DateFormat.QUARTER: YYYYQ[1-4] (如 "2024Q1")
+           如果无法解析或 output_format 为 DateFormat.NONE，返回 None
+        """
+        if output_format == DateFormat.NONE:
+            return None
+        
+        if date_value is None:
+            return None
+        
+        # 如果是 datetime/date 对象，先转换为字符串
+        if isinstance(date_value, (datetime,)):
+            date_value = date_value.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
+        elif hasattr(date_value, 'date'):  # date 对象
+            date_value = date_value.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
+        
+        date_str = str(date_value).strip()
+        if not date_str:
+            return None
+        
+        # 先标准化为 YYYYMMDD 格式（中间格式）
+        yyyymmdd = DateUtils.normalize_date(date_str)
+        if not yyyymmdd:
+            # 如果 normalize_date 失败，尝试其他解析方式
+            # 尝试解析为月份格式 YYYYMM
+            month_clean = ''.join(c for c in date_str if c.isdigit())
+            if len(month_clean) == 6:
+                # 可能是 YYYYMM 格式，补充日期为当月第一天
+                try:
+                    yyyymmdd = f"{month_clean}01"
+                    # 验证日期是否有效
+                    datetime.strptime(yyyymmdd, DateUtils.DATE_FORMAT_YYYYMMDD)
+                except ValueError:
+                    return None
+            elif len(month_clean) == 8:
+                # 可能是 YYYYMMDD 格式，但 normalize_date 没识别到
+                try:
+                    datetime.strptime(month_clean, DateUtils.DATE_FORMAT_YYYYMMDD)
+                    yyyymmdd = month_clean
+                except ValueError:
+                    return None
+            else:
+                return None
+        
+        # 根据输出格式转换
+        if output_format == DateFormat.DAY:
+            return yyyymmdd
+        elif output_format == DateFormat.MONTH:
+            return yyyymmdd[:6]  # YYYYMM
+        elif output_format == DateFormat.QUARTER:
+            return DateUtils.date_to_quarter(yyyymmdd)
+        else:
+            return None
     
     @staticmethod
     def date_to_quarter(date_str: str) -> str:

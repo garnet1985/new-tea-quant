@@ -1,6 +1,6 @@
 import importlib
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 from loguru import logger
 from core.infra.project_context import ConfigManager
 from core.modules.data_source.base_class.base_handler import BaseHandler
@@ -67,7 +67,7 @@ class DataSourceManagerHelper:
 
 
     @staticmethod
-    def find_handler_class_from_mappings(mappings: Dict[str, Any], name: str) -> Any:
+    def find_handler_class_from_mappings(mapping: Dict[str, Any], name: str) -> Any:
         """
         根据 data_source 名称解析出 Handler 类。
 
@@ -76,7 +76,6 @@ class DataSourceManagerHelper:
           - 完整路径: "userspace.data_source.handlers.kline.KlineHandler"
           - 或简写:   "kline.KlineHandler"
         """
-        mapping = mappings.get(name, {})
         handler_path_raw = mapping.get("handler")
         if not handler_path_raw:
             logger.error(f"Data source {name} 在 mapping 中未配置 handler 路径")
@@ -142,7 +141,13 @@ class DataSourceManagerHelper:
         return True
 
     @staticmethod
-    def create_handler_instance(handler_cls: Any, data_source_name: str, schema: DataSourceSchema, config: DataSourceConfig, providers: Dict[str, BaseProvider]) -> Any:
+    def create_handler_instance(
+        handler_cls: Any, 
+        data_source_name: str, 
+        schema: DataSourceSchema, 
+        config: DataSourceConfig, 
+        providers: Dict[str, BaseProvider],
+        depend_on_data_source_names: List[str] = []) -> Any:
         """
         Create the handler
         
@@ -159,6 +164,7 @@ class DataSourceManagerHelper:
                 schema=schema,
                 config=config,
                 providers=providers,
+                depend_on_data_source_names=depend_on_data_source_names
             )
             return handler_instance
         except TypeError as e:

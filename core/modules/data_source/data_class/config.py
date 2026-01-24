@@ -19,20 +19,13 @@ class DataSourceConfig:
             data_source_name: 数据源名称（用于错误提示）
         """
         self._config_dict = config_dict or {}
-        self._data_source_name = data_source_name or "unknown"
+        self._data_source_name = data_source_name
+
         
     
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置值（兼容 dict 接口）"""
         return self._config_dict.get(key, default)
-    
-    def __getitem__(self, key: str) -> Any:
-        """支持 dict 风格的访问"""
-        return self._config_dict[key]
-    
-    def __contains__(self, key: str) -> bool:
-        """支持 'key in config' 语法"""
-        return key in self._config_dict
     
     def is_valid(self) -> bool:
         """
@@ -45,46 +38,101 @@ class DataSourceConfig:
         Raises:
             ValueError: 如果配置不完整
         """
+
+        if not self._is_valid_basic_info():
+            return False
+
+        if not self._is_valid_renew_mode():
+            return False
+
+        if not self._is_valid_group_by():
+            return False
+
+        if not self._is_valid_apis():
+            return False
+
+        return True
+
+    def _is_valid_basic_info(self) -> bool:
+
         if not self._config_dict:
             logger.warning(f"'{self._data_source_name}' 的 config.json 为空，将跳过执行")
             return False
+
         
-        renew_mode = self.get_renew_mode()
-        
+        if not self._data_source_name:
+            logger.warning(f"'{self._data_source_name}' 的 config.json 中必须配置 data_source_name")
+            return False
+
+    def _is_valid_renew_mode(self) -> bool:
+        renew_config = self.get("renew")
+
+        if not renew_config:
+            logger.warning(f"'{self._data_source_name}' 的 config.json 中必须配置 renew")
+            return False
+
+        renew_type = renew_config.get("type")
+        if not renew_type:
+            logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 type")
+            return False
+
         # Incremental 模式验证
-        if renew_mode == UpdateMode.INCREMENTAL:
-            table_name = self.get_table_name()
-            date_field = self.get_date_field()
-            if not table_name or not date_field:
-                logger.warning(
-                    f"Data source '{self._data_source_name}' 使用 incremental renew_mode，"
-                    f"必须显式配置 table_name 和 date_field，"
-                    f"当前配置: table_name={table_name}, date_field={date_field}"
-                )
+        if renew_type == UpdateMode.INCREMENTAL.value or renew_type == UpdateMode.ROLLING.value:
+
+            last_update_info = renew_config.get("last_update_info")
+            if not last_update_info:
+                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 last_update_info 来找到以前renew到的时间点")
+                return False
+
+            table_name = last_update_info.get("table_name")
+
+            if not table_name:
+                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 table_name")
+                return False
+
+            date_field = last_update_info.get("date_field")
+            if not date_field:
+                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 date_field")
+                return False
+
+            date_format = last_update_info.get("date_format")
+            if not date_format:
+                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 date_format")
+                return False
+
+            group_field = last_update_info.get("group_field")
+            if self.is_per_entity() and not group_field:
+                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 group_field")
                 return False
         
         # Rolling 模式验证
-        elif renew_mode == UpdateMode.ROLLING:
-            table_name = self.get_table_name()
-            date_field = self.get_date_field()
-            rolling_unit = self.get_rolling_unit()
-            rolling_length = self.get_rolling_length()
-            
-            if not table_name or not date_field:
-                logger.warning(
-                    f"Data source '{self._data_source_name}' 使用 rolling renew_mode，"
-                    f"必须显式配置 table_name 和 date_field，"
-                    f"当前配置: table_name={table_name}, date_field={date_field}"
-                )
-                return False
-            
-            if not rolling_unit or not rolling_length:
-                logger.warning(
-                    f"Data source '{self._data_source_name}' 使用 rolling renew_mode，"
-                    f"必须显式配置 rolling_unit 和 rolling_length，"
-                    f"当前配置: rolling_unit={rolling_unit}, rolling_length={rolling_length}"
-                )
-                return False
+        if renew_type == UpdateMode.ROLLING.value:
+            # TODO: add validation for date range related info
+            pass
+            # last_update_info = renew_config.get("date_range")
+            # if not last_update_info:
+            #     logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 date_range 来找到以前renew到的时间点")
+            #     return False
+
+        return True
+
+    def _is_valid_group_by(self) -> bool:
+        group_by = self.get_group_by()
+        
+        if group_by is None:
+            return True
+
+        if not isinstance(group_by, dict):
+            logger.warning(f"'{self._data_source_name}' 的 config.json 中 result_group_by 必须配置为字典")
+            return False
+
+        if not group_by.get("list"):
+            logger.warning(f"'{self._data_source_name}' 的 config.json 中 result_group_by 必须配置 list")
+            return False
+
+        if not group_by.get("by_key"):
+            logger.warning(f"'{self._data_source_name}' 的 config.json 中 result_group_by 必须配置 by_key")
+            return False
 
         return True
     
@@ -93,7 +141,7 @@ class DataSourceConfig:
     def get_renew_mode(self) -> UpdateMode:
         """获取 renew_mode（小写字符串）"""
         try:
-            return UpdateMode.from_string(self.get("renew_mode"))
+            return UpdateMode.from_string(self.get("renew").get("type"))
         except ValueError:
             logger.warning(f"'{self._data_source_name}' 的 config.json 中配置的 renew_mode 无效，将跳过执行")
             return None
@@ -159,3 +207,19 @@ class DataSourceConfig:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典（用于兼容性）"""
         return self._config_dict.copy()
+
+    def is_per_entity(self) -> bool:
+        """获取是否是按实体分组"""
+        return self.get("result_group_by") is not None
+
+    def get_group_by(self) -> Dict[str, Any]:
+        """获取结果分组字段"""
+        return self.get("result_group_by")
+
+    def get_group_by_entity_list_name(self) -> str:
+        """获取实体列表名称"""
+        return self.get_group_by().get("list")
+
+    def get_group_by_key(self) -> str:
+        """获取实体列表分组字段"""
+        return self.get_group_by().get("by_key")

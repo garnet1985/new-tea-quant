@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Tuple, Optional, Union
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
+from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.modules.data_source.service.api_job_executor import ApiJobExecutor
 from core.modules.data_source.data_class.api_job import ApiJob
@@ -33,6 +34,20 @@ class BaseHandler:
             "depend_on_data_source_names": depend_on_data_source_names
         }
 
+    # ================================
+    # Getters
+    # ================================
+
+    def get_name(self):
+        return self.context.get("data_source_name")
+
+    def get_dependency_data_source_names(self) -> List[str]:
+        """获取依赖的数据源名称列表"""
+        return self.context.get("depend_on_data_source_names", [])
+
+    # ================================
+    # Main entrance: execute
+    # ================================
     def execute(self, dependencies_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Handler 的同步执行入口（默认实现）。
@@ -43,21 +58,18 @@ class BaseHandler:
         3. _postprocess：后处理阶段（标准化数据、调用 on_after_normalize 钩子、数据验证）；
         4. 返回标准化后的数据。
         """
-        apis_jobs = self._preprocess(dependencies_data)
+        jobs = self._preprocess(dependencies_data)
 
-        fetched_data = self._executing(apis_jobs)
+        fetched_data = self._executing(jobs)
 
         normalized_data = self._postprocess(fetched_data)
 
         return normalized_data
+    
 
-    def get_name(self):
-        return self.context.get("data_source_name")
-
-    def get_dependency_data_source_names(self) -> List[str]:
-        """获取依赖的数据源名称列表"""
-        return self.context.get("depend_on_data_source_names", [])
-
+    # ================================
+    # Preprocess stage
+    # ================================
     # 请注意dependencies是只读的，修改可能会导致全局错误，请不要修改dependencies的值
     def _preprocess(self, dependencies_data: Optional[Dict[str, Any]] = None) -> List[ApiJob]:
         """
@@ -75,211 +87,215 @@ class BaseHandler:
             List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
         """
 
-        # todo: add right time for context injection
-        
-
         # 1. 注入全局依赖
         self._inject_dependencies(dependencies_data)
 
         self.on_prepare_context(self.context)
 
         # 3. 从 config 构建 ApiJob 列表
-        apis_jobs = DataSourceHandlerHelper.build_api_jobs(self.context.get("config").get_apis())
+
+        raw_apis_info = self.context.get("config").get_apis()
+
+        tuple_ordered_apis_map = self._resolve_internal_dependencies(raw_apis_info)
+
+        date_range_map = self._calculate_date_range()
+
+        if self.context.get("config").is_per_entity():
+            jobs = self._build_job_bundles(tuple_ordered_apis_map, date_range_map)
+        else:
+            job = self._build_job_bundle(tuple_ordered_apis_map, date_range_map)
+            jobs = [job]
+
+        jobs = self.on_before_fetch(self.context, jobs)
+
+        return jobs
+
+        # api_jobs = self._filter_executable_api_jobs(api_jobs)
 
         # 4. 计算日期范围并注入到 ApiJobs 中
-        apis_jobs = self._add_date_range_to_api_jobs(self.context, apis_jobs)
+
+        # api_jobs = DataSourceHandlerHelper.build_api_jobs(self.context.get("config").get_apis())
+
+        # apis_jobs = self._add_date_range_to_api_jobs(self.context, apis_jobs)
 
         # 5. 允许子类在抓取前进一步调整 ApiJobs
-        apis_jobs = self.on_before_fetch(self.context, apis_jobs)
+        # apis_jobs = self.on_before_fetch(self.context, apis_jobs)
 
         # 6. 检查 renew_if_over_days，过滤不需要更新的 entity
-        apis_jobs = self._filter_by_renew_if_over_days(self.context, apis_jobs)
+        # apis_jobs = self._filter_by_renew_if_over_days(self.context, apis_jobs)
 
-        return apis_jobs
+    def _get_entity_list(self) -> List[Any]:
+        entity_list = []
+        
+        group_by_entity_list_name = self.context.get("config").get_group_by_entity_list_name()
+        
+        # TODO: TO BE IMPROVED: need think a better way to resolve entity list here
+        if group_by_entity_list_name == "stock_list":
+            entity_list = self.context.get("dependencies").get("stock_list")
+        else: 
+            raise ValueError(f"不支持的 group_by_entity_list_name: {group_by_entity_list_name}，如果需要支持其他实体列表，请使用钩子函数")
 
+        return entity_list
+
+    def _calculate_date_range(self) -> Dict[str, Tuple[str, str]]:
+        date_range_map = {}
+
+        data_manager = self.context.get("data_manager")
+
+        date_range_required_info = self.context.get("config").get_date_range_required_info()
+
+        is_per_entity = self.context.get("config").is_per_entity()
+
+        if is_per_entity:
+            date_range_map = {}
+            # TODO: TO BE IMPLEMENTED: calculate date range for per entity
+        else:
+            # TODO: TO BE IMPLEMENTED: calculate date range for per entity
+            date_range_map = {"last_update": (None, None)}
+        return date_range_map
+
+    def _build_job_bundles(self, tuple_ordered_apis_map: Dict[str, List[Tuple[str, Any]]], date_range_map: Dict[str, Tuple[str, str]]) -> List[ApiJob]:
+        
+        entity_list = self._get_entity_list()
+
+        jobs = []
+
+        for entity_info in entity_list:
+            entity_id = entity_info.get("id")
+            date_range = self.get_entity_last_update(entity_id, date_range_map)
+            job_collection = self._build_job_collection(entity_info, tuple_ordered_apis_map, date_range)
+            if job_collection is not None:
+                jobs.append(job_collection)
+        
+        return jobs
+
+        
+    def _build_job_bundle(self, entity_info: Any, tuple_ordered_apis_map: Dict[str, List[Tuple[str, Any]]], date_range: Tuple[str, str]) -> ApiJob:
+
+        last_update = date_range.get("last_update")
+        latest_completed_trading_date = self.context.get("dependencies").get("latest_completed_trading_date")
+
+        if last_update is None:
+            # new record, need to fetch all data
+            start_time = data_default_start_date
+            end_date = latest_completed_trading_date
+        
+        elif self.context.config.has_over_time_threshold():
+            over_time_threshold = self.context.get("config").get_over_time_threshold()
+            if HandlerHelper.is_over_renew_threshold(last_update, over_time_threshold):
+                start_time = last_update
+                end_date = latest_completed_trading_date
+            else:
+                return None
+        else:
+            start_time = last_update
+            end_date = latest_completed_trading_date
+        
+        job_collection = ApiJobBundle(tuple_ordered_apis_map, )
+        return job_collection
+        
+
+   
 
     def _inject_dependencies(self, dependencies_data):
         if dependencies_data is not None:
             self.context["dependencies"] = dependencies_data
 
-    def _executing(self, apis_jobs: List[ApiJob]) -> Dict[str, Any]:
-        """
-        执行阶段：按依赖关系执行 API 请求，并汇总结果。
+    # def _add_date_range_to_api_jobs(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
+    #     """
+    #     计算日期范围并注入到 ApiJobs 中：根据 renew_mode 自动补全日期范围。
 
-        当前实现：单个批次（对应一只股票的所有API请求）。
-        批次内的多个 API job 按依赖关系拓扑排序，同一阶段内的 job 并发执行。
+    #     步骤大纲（主线逻辑）：
+    #     1. 先检查 context 中是否已有 start_date / end_date（显式指定时原样使用，不做推断）；
+    #     2. 调用 on_calculate_date_range 钩子，如果返回了日期范围，直接使用；
+    #     3. 如果没有日期范围，先判断目标表是否为空：
+    #        - 表为空：走「首次全量/初始化」路径，按配置给出一个默认日期范围（相当于 refresh 初次跑）；
+    #     4. 如果表不为空，根据 config.renew_mode 决定增量/滚动策略：
+    #        - incremental：从数据库中已完成的最新日期之后，增量补到当前最新周期；
+    #        - rolling：围绕最近完成日期构造一个滚动窗口（rolling_unit + rolling_length）；
+    #        - 其他情况（含 refresh 或未配置）：统一回退到默认日期范围策略；
+    #     5. 将计算得到的 (start_date, end_date) 注入到每个 ApiJob 的 params 中；
+    #     6. 返回已注入日期范围的 ApiJob 列表。
 
-        步骤：
-        1. 构建 job 批次（_build_job_batch）；
-        2. 调用 on_after_build_job_batch 钩子；
-        3. 执行批次，并在执行过程中调用钩子：
-           - 单个 api job 执行后：on_after_execute_single_api_job
-           - 批次执行后：on_after_execute_job_batch
-        4. 调用 on_after_fetch 钩子（全部执行完汇总后）；
-        5. 错误处理：如果执行过程中出现异常，调用 on_error 钩子。
+    #     具体的「查表 + 计算日期范围」细节下沉到 RenewManager：
+    #     - RenewManager 作为编排层，内部委托给各种 *RenewService 做精确计算；
+    #     - 本方法只保留步骤大纲，方便阅读主线逻辑，复杂实现不写在这里。
 
-        Returns:
-            Dict[str, Any]: 汇总后的抓取结果 {job_id: result}
-        """
-        try:
-            # 步骤 1：构建 job 批次（当前实现：单个批次，包含所有 apis）
-            job_batch = self._build_api_job_batch_per_entity(self.context, apis_jobs)
+    #     复杂场景（需要特殊 renew 策略）可以在子类中覆盖 on_calculate_date_range 钩子。
 
-            # 步骤 2：调用批次构建后的钩子
-            job_batch = self.on_after_build_job_batch_for_single_entity(self.context, job_batch)
+    #     Returns:
+    #         List[ApiJob]: 已注入日期范围的 ApiJob 列表
+    #     """
 
-            # 步骤 3：执行批次并调用钩子
-            batch_results = self._execute_job_batch_for_single_entity(self.context, job_batch, apis_jobs)
-            # 调用批次执行后的钩子
-            self.on_after_execute_job_batch_for_single_entity(self.context, job_batch, batch_results)
+    #     # 准备：构造 RenewManager（内部持有 data_manager，用于查表）
+    #     renew_manager = RenewManager(data_manager=context.get("data_manager"))
 
-            # 步骤 4 & 5：汇总结果并调用 on_after_fetch 钩子
-            fetched_data = self.on_after_fetch(self.context, batch_results, apis_jobs)
+    #     # 步骤 1：如果显式指定了日期范围，直接注入并返回
+    #     if renew_manager.is_date_range_specified(context):
+    #         start = context.get("start_date")
+    #         end = context.get("end_date")
+    #         return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
-            return fetched_data
-        except Exception as e:
-            # 步骤 6：错误处理
-            self.on_error(e, self.context, apis_jobs)
-            raise
+    #     # 步骤 2：调用日期范围计算钩子（允许子类实现自定义逻辑）
+    #     custom_date_range = self.on_calculate_date_range(context, apis)
+    #     if custom_date_range is not None:
+    #         # 钩子返回了日期范围，直接使用
+    #         if isinstance(custom_date_range, dict):
+    #             # per stock 模式
+    #             return DataSourceHandlerHelper.add_date_range(
+    #                 apis,
+    #                 start_date=None,
+    #                 end_date=None,
+    #                 per_stock_date_ranges=custom_date_range
+    #             )
+    #         else:
+    #             # 统一模式
+    #             start, end = custom_date_range
+    #             return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
-    def _postprocess(self, fetched_data: Dict[str, Any]) -> Dict[str, Any]:
+    #     # 步骤 2：判断目标表是否为空（首次全量/初始化场景）
+    #     is_empty = renew_manager.is_table_empty(context)
+    #     renew_mode = renew_manager.get_renew_mode(context)
 
-        normalized_data = self._normalize_data(self.context, fetched_data)
+    #     if is_empty:
+    #         # 表为空：走首次全量/初始化路径
+    #         start, end = renew_manager.compute_default_date_range(context)
+    #         return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
-        normalized_data = self.on_after_normalize(self.context, normalized_data)
+    #     if renew_mode == UpdateMode.INCREMENTAL.value:
+    #         date_range_result = renew_manager.compute_incremental_date_range(context)
+    #         if isinstance(date_range_result, dict):
+    #             # per stock 模式
+    #             return DataSourceHandlerHelper.add_date_range(
+    #                 apis, 
+    #                 start_date=None, 
+    #                 end_date=None, 
+    #                 per_stock_date_ranges=date_range_result
+    #             )
+    #         else:
+    #             # 统一模式
+    #             start, end = date_range_result
+    #             return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
-        normalized_data = self._validate_normalized_data(normalized_data)
+    #     if renew_mode == UpdateMode.ROLLING.value and renew_manager.has_rolling_time_range(context):
+    #         # 滚动模式：围绕最近完成日期构造滚动窗口（rolling_unit + rolling_length，内部查表）
+    #         date_range_result = renew_manager.compute_rolling_date_range(context)
+    #         if isinstance(date_range_result, dict):
+    #             # per stock 模式
+    #             return DataSourceHandlerHelper.add_date_range(
+    #                 apis, 
+    #                 start_date=None, 
+    #                 end_date=None, 
+    #                 per_stock_date_ranges=date_range_result
+    #             )
+    #         else:
+    #             # 统一模式
+    #             start, end = date_range_result
+    #             return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
-        return normalized_data
-
-    def _config_to_api_jobs(self) -> List[ApiJob]:
-        """
-        第一步：将 config 中声明的 apis 转换为 ApiJob 列表。
-
-        职责：
-        - 这里只负责描述“要调用哪些 API”，不关心如何执行和限流；
-        - 具体转换规则由 DataSourceHandlerHelper.build_api_jobs 负责。
-        """
-        config = self.context.get("config")
-        # 使用 DataSourceConfig 的方法
-        api_conf = config.get_apis()
-        return DataSourceHandlerHelper.build_api_jobs(api_conf)
-
-    def _inject_required_global_dependencies(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        注入全局依赖到 context。
-        
-        注意：scheduler 已经知道该 handler 需要哪些依赖，传入的 global_dependencies 
-        只包含该 handler 需要的依赖，直接注入即可。
-        
-        Args:
-            global_dependencies: 该 handler 需要的全局依赖字典（scheduler 已过滤）
-            
-        Returns:
-            Dict[str, Any]: 更新后的 context（已注入依赖）
-        """
-        updated_context = self.context.copy()
-        # 将依赖注入到 context 中（不覆盖已有键）
-        for dep_name, dep_value in global_dependencies.items():
-            if dep_name not in updated_context:
-                updated_context[dep_name] = dep_value
-        return updated_context
-    
-    def _add_date_range_to_api_jobs(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
-        """
-        计算日期范围并注入到 ApiJobs 中：根据 renew_mode 自动补全日期范围。
-
-        步骤大纲（主线逻辑）：
-        1. 先检查 context 中是否已有 start_date / end_date（显式指定时原样使用，不做推断）；
-        2. 调用 on_calculate_date_range 钩子，如果返回了日期范围，直接使用；
-        3. 如果没有日期范围，先判断目标表是否为空：
-           - 表为空：走「首次全量/初始化」路径，按配置给出一个默认日期范围（相当于 refresh 初次跑）；
-        4. 如果表不为空，根据 config.renew_mode 决定增量/滚动策略：
-           - incremental：从数据库中已完成的最新日期之后，增量补到当前最新周期；
-           - rolling：围绕最近完成日期构造一个滚动窗口（rolling_unit + rolling_length）；
-           - 其他情况（含 refresh 或未配置）：统一回退到默认日期范围策略；
-        5. 将计算得到的 (start_date, end_date) 注入到每个 ApiJob 的 params 中；
-        6. 返回已注入日期范围的 ApiJob 列表。
-
-        具体的「查表 + 计算日期范围」细节下沉到 RenewManager：
-        - RenewManager 作为编排层，内部委托给各种 *RenewService 做精确计算；
-        - 本方法只保留步骤大纲，方便阅读主线逻辑，复杂实现不写在这里。
-
-        复杂场景（需要特殊 renew 策略）可以在子类中覆盖 on_calculate_date_range 钩子。
-
-        Returns:
-            List[ApiJob]: 已注入日期范围的 ApiJob 列表
-        """
-
-        # 准备：构造 RenewManager（内部持有 data_manager，用于查表）
-        renew_manager = RenewManager(data_manager=context.get("data_manager"))
-
-        # 步骤 1：如果显式指定了日期范围，直接注入并返回
-        if renew_manager.is_date_range_specified(context):
-            start = context.get("start_date")
-            end = context.get("end_date")
-            return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-        # 步骤 2：调用日期范围计算钩子（允许子类实现自定义逻辑）
-        custom_date_range = self.on_calculate_date_range(context, apis)
-        if custom_date_range is not None:
-            # 钩子返回了日期范围，直接使用
-            if isinstance(custom_date_range, dict):
-                # per stock 模式
-                return DataSourceHandlerHelper.add_date_range(
-                    apis,
-                    start_date=None,
-                    end_date=None,
-                    per_stock_date_ranges=custom_date_range
-                )
-            else:
-                # 统一模式
-                start, end = custom_date_range
-                return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-        # 步骤 2：判断目标表是否为空（首次全量/初始化场景）
-        is_empty = renew_manager.is_table_empty(context)
-        renew_mode = renew_manager.get_renew_mode(context)
-
-        if is_empty:
-            # 表为空：走首次全量/初始化路径
-            start, end = renew_manager.compute_default_date_range(context)
-            return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-        if renew_mode == UpdateMode.INCREMENTAL.value:
-            date_range_result = renew_manager.compute_incremental_date_range(context)
-            if isinstance(date_range_result, dict):
-                # per stock 模式
-                return DataSourceHandlerHelper.add_date_range(
-                    apis, 
-                    start_date=None, 
-                    end_date=None, 
-                    per_stock_date_ranges=date_range_result
-                )
-            else:
-                # 统一模式
-                start, end = date_range_result
-                return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-        if renew_mode == UpdateMode.ROLLING.value and renew_manager.has_rolling_time_range(context):
-            # 滚动模式：围绕最近完成日期构造滚动窗口（rolling_unit + rolling_length，内部查表）
-            date_range_result = renew_manager.compute_rolling_date_range(context)
-            if isinstance(date_range_result, dict):
-                # per stock 模式
-                return DataSourceHandlerHelper.add_date_range(
-                    apis, 
-                    start_date=None, 
-                    end_date=None, 
-                    per_stock_date_ranges=date_range_result
-                )
-            else:
-                # 统一模式
-                start, end = date_range_result
-                return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-        # 步骤 4：兜底策略（视作刷新模式，使用默认日期范围）
-        start, end = renew_manager.compute_default_date_range(context)
-        return DataSourceHandlerHelper.add_date_range(apis, start, end)
+    #     # 步骤 4：兜底策略（视作刷新模式，使用默认日期范围）
+    #     start, end = renew_manager.compute_default_date_range(context)
+    #     return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
     def _filter_by_renew_if_over_days(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
@@ -352,98 +368,196 @@ class BaseHandler:
         logger.info(f"renew_if_over_days 检查：从 {len(apis)} 个 ApiJobs 过滤到 {len(filtered_apis)} 个")
         return filtered_apis
 
-    def _build_api_job_batch_per_entity(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
+
+
+    # ================================
+    # Executing stage
+    # ================================
+    def _executing(self, apis_job_bundles: List[ApiJob]) -> Dict[str, Any]:
         """
-        构建 job 批次：将 apis 打包成一个 batch。这个批次是per stock的。
+        执行阶段：按依赖关系执行 API 请求，并汇总结果。
 
-        当前实现：将所有 apis 打包成一个 batch（对应一只股票的所有API请求）。
-        未来如果需要支持多只股票并行，可以覆盖此方法，按股票拆分多个 batch。
+        当前实现：单个批次（对应一只股票的所有API请求）。
+        批次内的多个 API job 按依赖关系拓扑排序，同一阶段内的 job 并发执行。
 
-        Args:
-            context: 上下文信息
-            apis: ApiJob 列表
+        步骤：
+        1. 构建 job 批次（_build_job_batch）；
+        2. 调用 on_after_build_job_batch 钩子；
+        3. 执行批次，并在执行过程中调用钩子：
+           - 单个 api job 执行后：on_after_execute_single_api_job
+           - 批次执行后：on_after_execute_job_batch
+        4. 调用 on_after_fetch 钩子（全部执行完汇总后）；
+        5. 错误处理：如果执行过程中出现异常，调用 on_error 钩子。
 
         Returns:
-            ApiJobBatch: 单个批次
+            Dict[str, Any]: 汇总后的抓取结果 {job_id: result}
         """
-        if not apis:
-            raise ValueError("apis 列表不能为空")
-
-        data_source_name = context.get("data_source_name", "data_source")
-        batch_id = ApiJobBatch.to_id(data_source_name)
-
-        batch = ApiJobBatch(
-            batch_id=batch_id,
-            api_jobs=apis,
-            description=f"{data_source_name} execution plan",
-        )
-
-        return batch
-
-    def _execute_job_batch_for_single_entity(
-        self, context: Dict[str, Any], job_batch: ApiJobBatch, all_apis: List[ApiJob]
-    ) -> Dict[str, Any]:
-        """
-        执行单个 job batch，并在执行过程中调用单个 job 的钩子。
-
-        Args:
-            context: 上下文信息
-            job_batch: 要执行的批次
-            all_apis: 所有 ApiJob 列表（用于钩子调用）
-
-        Returns:
-            Dict[str, Any]: 批次执行结果 {job_id: result}
-        """
-        if not job_batch.api_jobs:
-            return {}
-
-        providers = context.get("providers") or {}
-        executor = ApiJobExecutor(providers=providers)
-
-        async def _run():
-            # ApiJobExecutor.run_batches 返回 {batch_id: {job_id: result}}
-            return await executor.run_batches([job_batch])
-
-        # 在同步上下文中执行异步调度
-        import asyncio
-
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # 事件循环已在运行（例如在 notebook/某些框架中），创建新的循环执行
-                import threading
-                result_container: Dict[str, Any] = {}
 
-                def _worker():
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    try:
-                        result_container["value"] = new_loop.run_until_complete(_run())
-                    finally:
-                        new_loop.close()
+            fetched_data = self._multi_thread_execute(apis_job_bundles)
 
-                t = threading.Thread(target=_worker)
-                t.start()
-                t.join()
-                exec_result = result_container.get("value", {})
-            else:
-                exec_result = loop.run_until_complete(_run())
-        except RuntimeError:
-            # 当前线程没有事件循环，直接用 asyncio.run
-            exec_result = asyncio.run(_run())
+            fetched_data = self.on_before_normalize(self.context, fetched_data)
 
-        # 提取批次结果
-        batch_results = exec_result.get(job_batch.batch_id, {})
 
-        # 调用单个 job 执行后的钩子（包括成功和失败的情况）
-        for api_job in job_batch.api_jobs:
-            # 无论成功还是失败，都调用钩子（失败时 job_result 可能是 None）
-            job_result = batch_results.get(api_job.job_id)
-            self.on_after_execute_single_api_job(
-                self.context, api_job, {api_job.job_id: job_result}
-            )
+            # # 步骤 1：构建 job 批次（当前实现：单个批次，包含所有 apis）
+            # job_batch = self._build_api_job_batch_per_entity(self.context, apis_jobs)
 
-        return batch_results
+            # # 步骤 2：调用批次构建后的钩子
+            # job_batch = self.on_after_build_job_batch_for_single_entity(self.context, job_batch)
+
+            # # 步骤 3：执行批次并调用钩子
+            # batch_results = self._execute_job_batch_for_single_entity(self.context, job_batch, apis_jobs)
+            # # 调用批次执行后的钩子
+            # self.on_after_execute_job_batch_for_single_entity(self.context, job_batch, batch_results)
+
+            # # 步骤 4 & 5：汇总结果并调用 on_after_fetch 钩子
+            # fetched_data = self.on_after_fetch(self.context, batch_results, apis_jobs)
+
+            return fetched_data
+        except Exception as e:
+            # 步骤 6：错误处理
+            self.on_bundle_execution_error(e, self.context, apis_job_bundles)
+            raise
+
+    # ================================
+    # Postprocess stage
+    # ================================
+    def _postprocess(self, fetched_data: Dict[str, Any]) -> Dict[str, Any]:
+
+        normalized_data = self._normalize_data(self.context, fetched_data)
+
+        normalized_data = self.on_after_normalize(self.context, normalized_data)
+
+        normalized_data = self._validate_normalized_data(normalized_data)
+
+        return normalized_data
+
+    # def _config_to_api_jobs(self) -> List[ApiJob]:
+    #     """
+    #     第一步：将 config 中声明的 apis 转换为 ApiJob 列表。
+
+    #     职责：
+    #     - 这里只负责描述“要调用哪些 API”，不关心如何执行和限流；
+    #     - 具体转换规则由 DataSourceHandlerHelper.build_api_jobs 负责。
+    #     """
+    #     config = self.context.get("config")
+    #     # 使用 DataSourceConfig 的方法
+    #     api_conf = config.get_apis()
+    #     return DataSourceHandlerHelper.build_api_jobs(api_conf)
+
+    # def _inject_required_global_dependencies(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     注入全局依赖到 context。
+        
+    #     注意：scheduler 已经知道该 handler 需要哪些依赖，传入的 global_dependencies 
+    #     只包含该 handler 需要的依赖，直接注入即可。
+        
+    #     Args:
+    #         global_dependencies: 该 handler 需要的全局依赖字典（scheduler 已过滤）
+            
+    #     Returns:
+    #         Dict[str, Any]: 更新后的 context（已注入依赖）
+    #     """
+    #     updated_context = self.context.copy()
+    #     # 将依赖注入到 context 中（不覆盖已有键）
+    #     for dep_name, dep_value in global_dependencies.items():
+    #         if dep_name not in updated_context:
+    #             updated_context[dep_name] = dep_value
+    #     return updated_context
+    
+    
+    # def _build_api_job_batch_per_entity(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
+    #     """
+    #     构建 job 批次：将 apis 打包成一个 batch。这个批次是per stock的。
+
+    #     当前实现：将所有 apis 打包成一个 batch（对应一只股票的所有API请求）。
+    #     未来如果需要支持多只股票并行，可以覆盖此方法，按股票拆分多个 batch。
+
+    #     Args:
+    #         context: 上下文信息
+    #         apis: ApiJob 列表
+
+    #     Returns:
+    #         ApiJobBatch: 单个批次
+    #     """
+    #     if not apis:
+    #         raise ValueError("apis 列表不能为空")
+
+    #     data_source_name = context.get("data_source_name", "data_source")
+    #     batch_id = ApiJobBatch.to_id(data_source_name)
+
+    #     batch = ApiJobBatch(
+    #         batch_id=batch_id,
+    #         api_jobs=apis,
+    #         description=f"{data_source_name} execution plan",
+    #     )
+
+    #     return batch
+
+    # def _execute_job_batch_for_single_entity(
+    #     self, context: Dict[str, Any], job_batch: ApiJobBatch, all_apis: List[ApiJob]
+    # ) -> Dict[str, Any]:
+    #     """
+    #     执行单个 job batch，并在执行过程中调用单个 job 的钩子。
+
+    #     Args:
+    #         context: 上下文信息
+    #         job_batch: 要执行的批次
+    #         all_apis: 所有 ApiJob 列表（用于钩子调用）
+
+    #     Returns:
+    #         Dict[str, Any]: 批次执行结果 {job_id: result}
+    #     """
+    #     if not job_batch.api_jobs:
+    #         return {}
+
+    #     providers = context.get("providers") or {}
+    #     executor = ApiJobExecutor(providers=providers)
+
+    #     async def _run():
+    #         # ApiJobExecutor.run_batches 返回 {batch_id: {job_id: result}}
+    #         return await executor.run_batches([job_batch])
+
+    #     # 在同步上下文中执行异步调度
+    #     import asyncio
+
+    #     try:
+    #         loop = asyncio.get_event_loop()
+    #         if loop.is_running():
+    #             # 事件循环已在运行（例如在 notebook/某些框架中），创建新的循环执行
+    #             import threading
+    #             result_container: Dict[str, Any] = {}
+
+    #             def _worker():
+    #                 new_loop = asyncio.new_event_loop()
+    #                 asyncio.set_event_loop(new_loop)
+    #                 try:
+    #                     result_container["value"] = new_loop.run_until_complete(_run())
+    #                 finally:
+    #                     new_loop.close()
+
+    #             t = threading.Thread(target=_worker)
+    #             t.start()
+    #             t.join()
+    #             exec_result = result_container.get("value", {})
+    #         else:
+    #             exec_result = loop.run_until_complete(_run())
+    #     except RuntimeError:
+    #         # 当前线程没有事件循环，直接用 asyncio.run
+    #         exec_result = asyncio.run(_run())
+
+    #     # 提取批次结果
+    #     batch_results = exec_result.get(job_batch.batch_id, {})
+
+    #     # 调用单个 job 执行后的钩子（包括成功和失败的情况）
+    #     for api_job in job_batch.api_jobs:
+    #         # 无论成功还是失败，都调用钩子（失败时 job_result 可能是 None）
+    #         job_result = batch_results.get(api_job.job_id)
+    #         self.on_after_execute_single_api_job(
+    #             self.context, api_job, {api_job.job_id: job_result}
+    #         )
+
+    #     return batch_results
 
 
     def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
@@ -605,7 +719,7 @@ class BaseHandler:
         """
         return apis
 
-    def on_after_build_job_batch_for_single_entity(self, context: Dict[str, Any], job_batch: ApiJobBatch) -> ApiJobBatch:
+    def on_after_single_api_job_complete(self, context: Dict[str, Any], job: ApiJobBatch, fetched_data: Dict[str, Any]) -> ApiJobBatch:
         """
         批次构建后的钩子。
 
@@ -621,19 +735,48 @@ class BaseHandler:
         Returns:
             ApiJobBatch: 处理后的批次（默认返回原批次）
         """
-        return job_batch
+        return fetched_data
 
-    def on_after_execute_single_api_job(self, context: Dict[str, Any], api_job: ApiJob, fetched_data: Dict[str, Any]):
-        """
-        执行单个 api job 后的钩子。
-        """
+    def on_single_job_failed():
         pass
 
-    def on_after_execute_job_batch_for_single_entity(self, context: Dict[str, Any],job_batch: ApiJobBatch, fetched_data: Dict[str, Any]):
+    def on_after_single_api_job_bundle_complete(self, context: Dict[str, Any], job_bundle: ApiJobBundle, fetched_data: Dict[str, Any]):
         """
-        执行 job batch 后的钩子。
+        执行单个 api job bundle 后的钩子。
         """
         return fetched_data
+
+    def on_job_bundle_failed():
+        pass
+
+    def on_one_thread_execution_complete(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
+        """
+        单线程执行完成后的钩子。
+        """
+        return fetched_data
+    
+    def on_thread_execution_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
+        """
+        执行错误时的钩子。
+
+        当执行阶段（_executing）出现异常时调用此钩子。
+        子类可以覆盖此方法来实现自定义错误处理逻辑，例如：
+        - 记录错误日志
+        - 清理资源
+        - 重试机制
+        - 错误通知
+
+        注意：此钩子不会阻止异常传播，异常仍会向上抛出。
+
+        Args:
+            error: 发生的异常
+            context: 上下文信息
+            apis: 执行时的 ApiJob 列表
+        """
+        from loguru import logger
+        data_source_name = context.get("data_source_name", "unknown")
+        logger.error(f"❌ 数据源 {data_source_name} 执行失败: {error}")
+
 
     def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):
         """
@@ -698,7 +841,8 @@ class BaseHandler:
     # 通用辅助方法（暴露给子类使用）
     # ================================
 
-    def clean_nan_in_records(self, records: List[Dict[str, Any]], default: Any = None) -> List[Dict[str, Any]]:
+    @staticmethod
+    def clean_nan_in_records(records: List[Dict[str, Any]], default: Any = None) -> List[Dict[str, Any]]:
         """
         清理一批记录中的 NaN/None 等异常数值，返回清洗后的记录列表。
 
@@ -706,7 +850,8 @@ class BaseHandler:
         """
         return DataSourceHandlerHelper.clean_nan_in_records(records, default=default)
 
-    def clean_nan_in_normalized_data(self, normalized_data: Dict[str, Any], default: Any = None) -> Dict[str, Any]:
+    @staticmethod   
+    def clean_nan_in_normalized_data(normalized_data: Dict[str, Any], default: Any = None) -> Dict[str, Any]:
         """
         针对标准化结果的便捷 NaN 清洗：
         - 如果 normalized_data 是 {"data": [...]}，则对 data 列表做清洗；
@@ -718,14 +863,15 @@ class BaseHandler:
         if isinstance(normalized_data, dict) and "data" in normalized_data:
             data_list = normalized_data.get("data") or []
             if isinstance(data_list, list):
-                normalized_data["data"] = self.clean_nan_in_records(data_list, default=default)
+                normalized_data["data"] = BaseHandler.clean_nan_in_records(data_list, default=default)
             return normalized_data
 
         # fallback：如果不是 {"data": [...]} 结构，则保持原样返回
         return normalized_data
 
+    @staticmethod
     def filter_records_by_required_fields(
-        self, records: List[Dict[str, Any]], required_fields: List[str]
+        records: List[Dict[str, Any]], required_fields: List[str]
     ) -> List[Dict[str, Any]]:
         """
         过滤记录：只保留包含所有必需字段的记录。
@@ -741,8 +887,9 @@ class BaseHandler:
             return records
         return [r for r in records if all(r.get(f) for f in required_fields)]
 
+    @staticmethod       
     def ensure_float_field(
-        self, records: List[Dict[str, Any]], field: str, default: float = 0.0
+        records: List[Dict[str, Any]], field: str, default: float = 0.0
     ) -> List[Dict[str, Any]]:
         """
         确保某个字段是 float 类型，转换失败时使用默认值。
@@ -774,25 +921,3 @@ class BaseHandler:
                     r[field] = default
 
         return records
-
-    def on_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
-        """
-        执行错误时的钩子。
-
-        当执行阶段（_executing）出现异常时调用此钩子。
-        子类可以覆盖此方法来实现自定义错误处理逻辑，例如：
-        - 记录错误日志
-        - 清理资源
-        - 重试机制
-        - 错误通知
-
-        注意：此钩子不会阻止异常传播，异常仍会向上抛出。
-
-        Args:
-            error: 发生的异常
-            context: 上下文信息
-            apis: 执行时的 ApiJob 列表
-        """
-        from loguru import logger
-        data_source_name = context.get("data_source_name", "unknown")
-        logger.error(f"❌ 数据源 {data_source_name} 执行失败: {error}")

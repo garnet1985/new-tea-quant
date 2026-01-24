@@ -5,7 +5,7 @@ from core.modules.data_source.data_class.api_job import ApiJob
 
 
 @dataclass
-class ApiJobBatch:
+class ApiJobBundle:
     """
     ApiJobBatch: 一批需要一起执行的 ApiJobs
 
@@ -15,9 +15,11 @@ class ApiJobBatch:
     - 具体如何执行（拓扑排序、限流、并发策略）仍由执行器负责。
     """
 
-    batch_id: str                # 批次 ID（通常建议使用 data_source_name_batch 等语义化命名）
-    api_jobs: List[ApiJob]       # 本批次需要执行的 ApiJobs
-    description: Optional[str] = None  # 批次描述（可选）
+    bundle_id: str                # 批次 ID（通常建议使用 data_source_name_batch 等语义化命名）
+    apis: List[ApiJob]       # 本批次需要执行的 ApiJobs
+    tuple_order_map: Optional[str] = None  # 批次描述（可选）
+    start_date: None
+    end_date: None
 
     @staticmethod
     def to_id(data_source_name: str) -> str:
@@ -30,3 +32,10 @@ class ApiJobBatch:
         """
         name = data_source_name or "data_source"
         return f"{name}_batch"
+
+    def sort_by_map():
+        pass
+
+
+    def execute():
+        pass

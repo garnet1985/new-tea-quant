@@ -1,19 +1,21 @@
 {
     "_comment": "Stock Index Indicator Handler 配置",
-    "renew_mode": "incremental",
-    "date_format": "day",
-    "default_date_range": {
-        "years": 5
+    "renew": {
+        "type": "incremental",
+        "last_update_info": {
+            "date_field": "date",
+            "date_format": "day",
+            "table_name": "stock_index_indicator",
+            "group_field": "id"
+        },
+        "over_time_threshold": {
+            "value": 30
+        }
     },
-    "table_name": "stock_index_indicator",
-    "date_field": "date",
-    "index_list": [
-        {"id": "000001.SH", "name": "上证指数"},
-        {"id": "000300.SH", "name": "沪深300"},
-        {"id": "000688.SH", "name": "科创50"},
-        {"id": "399001.SZ", "name": "深证成指"},
-        {"id": "399006.SZ", "name": "创业板指"}
-    ],
+    "result_group_by": {
+        "list": "stock_list",
+        "by_key": "id"
+    },
     "apis": {
         "daily_kline": {
             "provider_name": "tushare",
@@ -31,8 +33,7 @@
                 "volume": "vol",
                 "amount": "amount"
             },
-            "params": {},
-            "group_by": "ts_code"
+            "params": {}
         },
         "weekly_kline": {
             "provider_name": "tushare",
@@ -50,8 +51,7 @@
                 "volume": "vol",
                 "amount": "amount"
             },
-            "params": {},
-            "group_by": "ts_code"
+            "params": {}
         },
         "monthly_kline": {
             "provider_name": "tushare",
@@ -69,8 +69,7 @@
                 "volume": "vol",
                 "amount": "amount"
             },
-            "params": {},
-            "group_by": "ts_code"
+            "params": {}
         }
     }
 }

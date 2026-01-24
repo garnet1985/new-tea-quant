@@ -181,14 +181,14 @@ class DataSourceExecutionScheduler:
         3. 捕获异常并记录失败的 handler
         4. 最后重试失败的 handler
         """
-        for handler_instance in sorted_handler_instances:
+        for idx, handler_instance in enumerate(sorted_handler_instances):
             try:
                 data_source_name = handler_instance.get_name()
                 dependencies_data = self._get_dependencies_data(data_source_name)
                 normalized_data = handler_instance.execute(dependencies_data)
                 if self.mappings.is_dependency_for_downstream(data_source_name):
                     self._cache_result(data_source_name, normalized_data)
-                self._check_if_dependency_still_required(sorted_handler_instances)
+                self._clean_up_dependency_cache_if_no_longer_required(sorted_handler_instances, idx)
             except Exception as e:
                 self._handle_execution_error(handler_instance, e)
 
@@ -255,14 +255,52 @@ class DataSourceExecutionScheduler:
         # if retry_failed:
         #     logger.warning(f"⚠️ 仍有 {len(retry_failed)} 个数据源重试失败")
 
-    def _check_if_dependency_still_required(self, remaining_tasks: List[BaseHandler]) -> bool:
-        """检查依赖是否仍然需要"""
-        # todo: to be implemented to reduce memory usage as soon as possible
-        # will be called after each data source task is completed
-        # 1. check rest of unfinished data sources if they require any dependency in the list
-        # 2. check the retry work if they require any dependency in the list
-        # 3. if no dependency required, clear the dependency cache of that one data source
-        pass
+    def _clean_up_dependency_cache_if_no_longer_required(self, sorted_handler_instances: List[BaseHandler], idx: int):
+        """
+        检查依赖是否仍然需要，清理不再需要的依赖缓存。
+        
+        在每次 data source 任务完成后调用，用于减少内存使用。
+        
+        步骤：
+        1. 检查剩余的未完成任务是否还需要某个依赖
+        2. 检查重试任务是否还需要某个依赖
+        3. 如果某个依赖不再被需要，清理该依赖的缓存
+        
+        Args:
+            remaining_tasks: 剩余的未执行的 Handler 列表
+        """
+ 
+        remaining_tasks = sorted_handler_instances[idx + 1:]
+
+        # 收集所有仍需要的依赖名称
+        required_dependencies: Set[str] = set()
+        
+        # 1. 检查剩余未完成任务需要的依赖
+        for handler in remaining_tasks:
+            handler_name = handler.get_name()
+            if not handler_name:
+                continue
+            
+            depends_on = handler.get_dependency_data_source_names()
+            required_dependencies.update(depends_on)
+        
+        # 2. 检查重试任务需要的依赖
+        for _, handler_instance, _ in self._failed_data_sources:
+            handler_name = handler_instance.get_name()
+            if not handler_name:
+                continue
+            
+            depends_on = handler_instance.get_dependency_data_source_names()
+            required_dependencies.update(depends_on)
+        
+        # 3. 清理不再需要的依赖缓存
+        cached_dependencies = set(self._dependency_cache.keys())
+        dependencies_to_remove = cached_dependencies - required_dependencies
+        
+        for dep_name in dependencies_to_remove:
+            del self._dependency_cache[dep_name]
+            if self.is_verbose:
+                logger.debug(f"🗑️  清理不再需要的依赖缓存: {dep_name}")
 
     # ================================
     # postprocess stage

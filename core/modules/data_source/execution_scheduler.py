@@ -13,6 +13,7 @@ from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_manager.data_manager import DataManager
+from core.modules.data_source.data_class.handler_mapping import HandlerMapping
 
 
 class DataSourceExecutionScheduler:
@@ -38,10 +39,9 @@ class DataSourceExecutionScheduler:
         self._executed_data_sources: Dict[str, Any] = {}  # 缓存已执行的数据源数据
         self._mappings: Dict[str, Dict[str, Any]] = {}  # mapping.json 的内容
         
-        self._dependency_names: Set[str] = set()  # 被其他数据源依赖的数据源集合
         self._dependency_cache: Dict[str, Any] = {}  # 依赖数据缓存
 
-    def run(self, handler_instances: List[BaseHandler], mappings: Dict[str, Dict[str, Any]] = None):
+    def run(self, handler_instances: List[BaseHandler], mappings: HandlerMapping = None):
         """
         执行所有数据源
         
@@ -49,7 +49,7 @@ class DataSourceExecutionScheduler:
             handler_instances: Handler 实例列表
             mappings: mapping.json 的内容（用于获取 depends_on 信息），如果为 None 则自动加载
         """
-        self._mappings = mappings
+        self.mappings = mappings
         sorted_handler_instances = self._preprocess(handler_instances)
         self._execute(sorted_handler_instances)
         self._postprocess()
@@ -69,8 +69,7 @@ class DataSourceExecutionScheduler:
             return []
         
         # 从 mapping.json 中获取该 handler 的数据源依赖声明
-        data_source_config = self._mappings.get(data_source_name, {})
-        depends_on = data_source_config.get("depends_on", [])
+        depends_on = self.mappings.get_depend_on_data_source_names(data_source_name)
         
         if isinstance(depends_on, list):
             return depends_on
@@ -189,7 +188,7 @@ class DataSourceExecutionScheduler:
         - 同时记录哪些 data source 被其他 data source 依赖（用于决定是否缓存结果）
         """
         # 清空依赖集合（每次执行前重置）
-        self._dependency_names.clear()
+        # self._dependency_names.clear()
         
         # 拓扑排序 handlers，确定执行顺序
         try:
@@ -216,11 +215,10 @@ class DataSourceExecutionScheduler:
         """
         for handler_instance in sorted_handler_instances:
             try:
-                data_source_name = handler_instance.context.get("data_source_name")
-                dependency_names = handler_instance.get_dependency_names()
-                dependencies = self._gather_dependencies(dependency_names)
-                normalized_data = handler_instance.execute(dependencies)
-                if self._is_dependency(data_source_name):
+                data_source_name = handler_instance.get_name()
+                dependencies_data = self._get_dependencies_data(data_source_name)
+                normalized_data = handler_instance.execute(dependencies_data)
+                if self._is_dependency_for_others(data_source_name):
                     self._cache_result(data_source_name, normalized_data)
                 self._check_if_dependency_still_required(sorted_handler_instances)
             except Exception as e:
@@ -228,7 +226,7 @@ class DataSourceExecutionScheduler:
 
         self._retry_failed_data_sources()
     
-    def _gather_dependencies(self, dependency_names: List[str]) -> Dict[str, Any]:
+    def _get_dependencies_data(self, data_source_names: str) -> Dict[str, Any]:
         """
         收集依赖数据
         
@@ -241,14 +239,15 @@ class DataSourceExecutionScheduler:
             Dict[str, Any]: 依赖数据字典（深拷贝）
         """
         dep = {}
-        for dep_name in dependency_names:
+        for dep_name in data_source_names:
             if dep_name in self._dependency_cache:
                 dep[dep_name] = self._dependency_cache[dep_name]
         return dep
 
-    def _is_dependency(self, data_source_name: str) -> bool:
-        """检查是否是依赖数据源"""
-        return data_source_name in self._dependency_names
+    def _is_dependency_for_others(self, data_source_name: str) -> bool:
+        """检查是别的data source的依赖"""
+        # todo: to be implemented
+        pass
 
     def _cache_result(self, data_source_name: str, normalized_data: Dict[str, Any]):
         """
@@ -256,7 +255,7 @@ class DataSourceExecutionScheduler:
         
         注意：只缓存那些被其他 data source 依赖的结果，避免内存爆炸
         """
-        self._dependency_cache[data_source_name] = normalized_data
+        self._dependency_cache[data_source_name] = normalized_data["data"]
     
 
     def _handle_execution_error(self, handler_instance: BaseHandler, error: Exception):

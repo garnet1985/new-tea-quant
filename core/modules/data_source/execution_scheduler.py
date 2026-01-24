@@ -186,7 +186,7 @@ class DataSourceExecutionScheduler:
                 data_source_name = handler_instance.get_name()
                 dependencies_data = self._get_dependencies_data(data_source_name)
                 normalized_data = handler_instance.execute(dependencies_data)
-                if self._is_dependency_for_others(data_source_name):
+                if self._is_dependency_for_down_stream(data_source_name):
                     self._cache_result(data_source_name, normalized_data)
                 self._check_if_dependency_still_required(sorted_handler_instances)
             except Exception as e:
@@ -214,7 +214,7 @@ class DataSourceExecutionScheduler:
                 raise ValueError(f"{data_source_name} 依赖的数据源 {dep_name} 不存在, 或被禁止执行")
         return dep
 
-    def _is_dependency_for_others(self, data_source_name: str) -> bool:
+    def _is_dependency_for_down_stream(self, data_source_name: str) -> bool:
         """检查是别的data source的依赖"""
         # todo: to be implemented
         pass
@@ -236,25 +236,26 @@ class DataSourceExecutionScheduler:
 
     def _retry_failed_data_sources(self):
         """重试失败的数据源"""
-        if not self._failed_data_sources:
-            return
+        pass
+        # if not self._failed_data_sources:
+        #     return
         
-        logger.info(f"🔄 开始重试 {len(self._failed_data_sources)} 个失败的数据源")
-        retry_failed = []
+        # logger.info(f"🔄 开始重试 {len(self._failed_data_sources)} 个失败的数据源")
+        # retry_failed = []
         
-        for data_source_name, handler_instance, error in self._failed_data_sources:
-            try:
-                self._inject_dependencies(handler_instance)
-                normalized_data = handler_instance.execute({})
-                self._cache_result(handler_instance, normalized_data)
-                logger.info(f"✅ 数据源 {data_source_name} 重试成功")
-            except Exception as e:
-                logger.error(f"❌ 数据源 {data_source_name} 重试仍然失败: {e}")
-                retry_failed.append((data_source_name, handler_instance, e))
+        # for data_source_name, handler_instance, error in self._failed_data_sources:
+        #     try:
+        #         self._inject_dependencies(handler_instance)
+        #         normalized_data = handler_instance.execute()
+        #         self._cache_result(handler_instance, normalized_data)
+        #         logger.info(f"✅ 数据源 {data_source_name} 重试成功")
+        #     except Exception as e:
+        #         logger.error(f"❌ 数据源 {data_source_name} 重试仍然失败: {e}")
+        #         retry_failed.append((data_source_name, handler_instance, e))
         
-        self._failed_data_sources = retry_failed
-        if retry_failed:
-            logger.warning(f"⚠️ 仍有 {len(retry_failed)} 个数据源重试失败")
+        # self._failed_data_sources = retry_failed
+        # if retry_failed:
+        #     logger.warning(f"⚠️ 仍有 {len(retry_failed)} 个数据源重试失败")
 
     def _check_if_dependency_still_required(self, remaining_tasks: List[BaseHandler]) -> bool:
         """检查依赖是否仍然需要"""

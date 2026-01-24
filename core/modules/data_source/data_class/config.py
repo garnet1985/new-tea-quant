@@ -21,8 +21,6 @@ class DataSourceConfig:
         self._config_dict = config_dict or {}
         self._data_source_name = data_source_name or "unknown"
         
-        # 验证配置
-        self.validate()
     
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置值（兼容 dict 接口）"""
@@ -36,7 +34,7 @@ class DataSourceConfig:
         """支持 'key in config' 语法"""
         return key in self._config_dict
     
-    def validate(self) -> None:
+    def is_valid(self) -> bool:
         """
         验证 config 配置是否完整（根据 renew_mode 验证必填字段）。
         
@@ -48,47 +46,57 @@ class DataSourceConfig:
             ValueError: 如果配置不完整
         """
         if not self._config_dict:
-            return  # 空 config 不验证
+            logger.warning(f"'{self._data_source_name}' 的 config.json 为空，将跳过执行")
+            return False
         
         renew_mode = self.get_renew_mode()
         
         # Incremental 模式验证
-        if renew_mode == UpdateMode.INCREMENTAL.value:
+        if renew_mode == UpdateMode.INCREMENTAL:
             table_name = self.get_table_name()
             date_field = self.get_date_field()
             if not table_name or not date_field:
-                raise ValueError(
+                logger.warning(
                     f"Data source '{self._data_source_name}' 使用 incremental renew_mode，"
                     f"必须显式配置 table_name 和 date_field，"
                     f"当前配置: table_name={table_name}, date_field={date_field}"
                 )
+                return False
         
         # Rolling 模式验证
-        elif renew_mode == UpdateMode.ROLLING.value:
+        elif renew_mode == UpdateMode.ROLLING:
             table_name = self.get_table_name()
             date_field = self.get_date_field()
             rolling_unit = self.get_rolling_unit()
             rolling_length = self.get_rolling_length()
             
             if not table_name or not date_field:
-                raise ValueError(
+                logger.warning(
                     f"Data source '{self._data_source_name}' 使用 rolling renew_mode，"
                     f"必须显式配置 table_name 和 date_field，"
                     f"当前配置: table_name={table_name}, date_field={date_field}"
                 )
+                return False
             
             if not rolling_unit or not rolling_length:
-                raise ValueError(
+                logger.warning(
                     f"Data source '{self._data_source_name}' 使用 rolling renew_mode，"
                     f"必须显式配置 rolling_unit 和 rolling_length，"
                     f"当前配置: rolling_unit={rolling_unit}, rolling_length={rolling_length}"
                 )
+                return False
+
+        return True
     
     # ========== 配置访问方法 ==========
     
-    def get_renew_mode(self) -> str:
+    def get_renew_mode(self) -> UpdateMode:
         """获取 renew_mode（小写字符串）"""
-        return (self.get("renew_mode") or "").lower()
+        try:
+            return UpdateMode.from_string(self.get("renew_mode"))
+        except ValueError:
+            logger.warning(f"'{self._data_source_name}' 的 config.json 中配置的 renew_mode 无效，将跳过执行")
+            return None
     
     def get_date_format(self) -> str:
         """获取 date_format（默认 "day"）"""

@@ -17,16 +17,23 @@ class BaseHandler:
     """
     Base Handler class
     """
-    def __init__(self, data_source_name: str, schema: DataSourceSchema, config: DataSourceConfig, providers: Dict[str, BaseProvider]):
+    def __init__(self, 
+        data_source_name: str,
+        schema: DataSourceSchema,
+        config: DataSourceConfig,
+        providers: Dict[str, BaseProvider],
+        depend_on_data_source_names: List[str] = []):
+
         self.context = {
             "data_source_name": data_source_name,
             "schema": schema,
             "config": config,
             "providers": providers,
             "data_manager": DataManager.get_instance(),
+            "depend_on_data_source_names": depend_on_data_source_names
         }
 
-    def execute(self, dependencies: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, dependencies_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Handler 的同步执行入口（默认实现）。
 
@@ -36,7 +43,7 @@ class BaseHandler:
         3. _postprocess：后处理阶段（标准化数据、调用 on_after_normalize 钩子、数据验证）；
         4. 返回标准化后的数据。
         """
-        apis_jobs = self._preprocess(dependencies)
+        apis_jobs = self._preprocess(dependencies_data)
 
         fetched_data = self._executing(apis_jobs)
 
@@ -44,13 +51,15 @@ class BaseHandler:
 
         return normalized_data
 
-    def get_dependency_names(self) -> List[str]:
+    def get_name(self):
+        return self.context.get("data_source_name")
+
+    def get_dependency_data_source_names(self) -> List[str]:
         """获取依赖的数据源名称列表"""
-        # todo: to provide current data source's dependency names
-        return []
+        return self.context.get("depend_on_data_source_names", [])
 
     # 请注意dependencies是只读的，修改可能会导致全局错误，请不要修改dependencies的值
-    def _preprocess(self, dependencies: Optional[Dict[str, Any]] = None) -> List[ApiJob]:
+    def _preprocess(self, dependencies_data: Optional[Dict[str, Any]] = None) -> List[ApiJob]:
         """
         预处理阶段：在执行 API 请求前的所有准备工作。
         
@@ -65,12 +74,17 @@ class BaseHandler:
         Returns:
             List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
         """
+
+        # todo: add right time for context injection
+        
+
         # 1. 注入全局依赖
-        if dependencies is not None:
-            self.context["dependencies"] = dependencies
+        self._inject_dependencies(dependencies_data)
+
+        self.on_prepare_context(self.context)
 
         # 3. 从 config 构建 ApiJob 列表
-        apis_jobs = self._config_to_api_jobs()
+        apis_jobs = DataSourceHandlerHelper.build_api_jobs(self.context.get("config").get_apis())
 
         # 4. 计算日期范围并注入到 ApiJobs 中
         apis_jobs = self._add_date_range_to_api_jobs(self.context, apis_jobs)
@@ -82,7 +96,11 @@ class BaseHandler:
         apis_jobs = self._filter_by_renew_if_over_days(self.context, apis_jobs)
 
         return apis_jobs
-        
+
+
+    def _inject_dependencies(self, dependencies_data):
+        if dependencies_data is not None:
+            self.context["dependencies"] = dependencies_data
 
     def _executing(self, apis_jobs: List[ApiJob]) -> Dict[str, Any]:
         """

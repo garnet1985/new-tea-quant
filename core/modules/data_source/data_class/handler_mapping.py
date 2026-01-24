@@ -38,3 +38,29 @@ class HandlerMapping:
     def get_depend_on_data_source_names(self, data_source_name: str) -> List[str]:
         info = self.get_handler_info(data_source_name)
         return info.get("depends_on", [])
+
+    def is_dependency_for_downstream(self, data_source_name: str) -> bool:
+        """
+        检查某个 data source 是否被其他 data source 依赖。
+        
+        用于决定是否需要缓存该 data source 的执行结果，避免内存爆炸。
+        只缓存那些被其他 data source 依赖的结果。
+        
+        Args:
+            data_source_name: 要检查的 data source 名称
+            
+        Returns:
+            bool: 如果该 data source 被其他 data source 依赖，返回 True；否则返回 False
+        """
+        # 遍历所有启用的 data sources，检查它们的 depends_on 是否包含目标 data source
+        for enabled_name, enabled_info in self.enabled_cache.items():
+            # 跳过自己
+            if enabled_name == data_source_name:
+                continue
+            
+            # 获取该 data source 的依赖列表
+            depends_on = enabled_info.get("depends_on", [])
+            if data_source_name in depends_on:
+                return True
+        
+        return False

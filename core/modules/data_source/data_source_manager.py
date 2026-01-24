@@ -4,6 +4,7 @@ from loguru import logger
 from core.infra.project_context import PathManager
 from core.infra.discovery import ModuleDiscovery
 from core.modules.data_source.base_class.base_provider import BaseProvider
+from core.modules.data_source.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.data_class.schema import DataSourceSchema
 from core.modules.data_source.execution_scheduler import DataSourceExecutionScheduler
 from core.modules.data_source.service.manager_helper import DataSourceManagerHelper
@@ -25,7 +26,7 @@ class DataSourceManager:
 
         self._all_valid_schemas_cache: Dict[str, DataSourceSchema] = {}
         self._all_valid_configs_cache: Dict[str, DataSourceConfig] = {}
-        self._all_valid_handlers_cache: Dict[str, BaseHandler] = {}
+        self._all_valid_handlers_cache: Dict[str, Any] = {}
 
         self._execution_scheduler = DataSourceExecutionScheduler()
 
@@ -42,7 +43,7 @@ class DataSourceManager:
         self._all_valid_configs_cache.clear()
         self._all_valid_handlers_cache.clear()
 
-    def _discover_mappings(self) -> Dict[str, Dict[str, Any]]:
+    def _discover_mappings(self) -> HandlerMapping:
         """
         发现并加载数据源的 mapping 配置。
 
@@ -51,18 +52,15 @@ class DataSourceManager:
         - 返回值为 data_sources 字典或 None
         """
         mapping_path = PathManager.data_source_mapping()
-        return DataSourceManagerHelper.discover_mappings(mapping_path)
+        mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
+        return HandlerMapping(data_sources=mapping.get("data_sources", {}))
 
 
     def _discover_handlers(self, mappings: Dict[str, Dict[str, Any]], providers: Dict[str, BaseProvider]) -> Dict[str, Dict[str, Any]]:
         
         handler_instances = []
 
-        for data_source_name, data_source_config in mappings.items():
-            if not data_source_config.get("is_enabled", True):
-                logger.info(f"Data source {data_source_name} is disabled, skip")
-                continue
-
+        for data_source_name in mappings.get_enabled().keys():
             schema = self._discover_schema(data_source_name)
             if not schema:
                 logger.error(f"Data source schema {data_source_name} 没有找到，跳过")
@@ -78,7 +76,14 @@ class DataSourceManager:
                 logger.error(f"Data source handler {data_source_name} 没有找到，跳过")
                 continue
 
-            handler_instance = DataSourceManagerHelper.create_handler_instance(handler_cls, data_source_name, schema, config, providers)
+            handler_instance = DataSourceManagerHelper.create_handler_instance(
+                handler_cls, 
+                data_source_name, 
+                schema, 
+                config, 
+                providers, 
+                mappings.get_depend_on_data_source_names(data_source_name))
+
             if not handler_instance:
                 logger.error(f"Data source handler instance {data_source_name} 创建失败，跳过")
                 continue
@@ -161,7 +166,7 @@ class DataSourceManager:
     def _discover_handler(
         self,
         data_source_name: str,
-        mappings: Dict[str, Dict[str, Any]],
+        mappings: HandlerMapping,
     ) -> Any:
         """
         基于 mapping 信息、Schema 和 Config 实例化具体的 Handler。
@@ -177,7 +182,8 @@ class DataSourceManager:
         if data_source_name in self._all_valid_handlers_cache:
             return self._all_valid_handlers_cache[data_source_name]
 
-        handler_cls = DataSourceManagerHelper.find_handler_class_from_mappings(mappings, data_source_name)
+        handler_info = mappings.get_handler_info(data_source_name)
+        handler_cls = DataSourceManagerHelper.find_handler_class_from_mappings(handler_info, data_source_name)
 
         if not DataSourceManagerHelper.is_valid_handler(handler_cls):
             return None

@@ -56,7 +56,7 @@ class DataSourceManager:
         return HandlerMapping(data_sources=mapping.get("data_sources", {}))
 
 
-    def _discover_handlers(self, mappings: Dict[str, Dict[str, Any]], providers: Dict[str, BaseProvider]) -> Dict[str, Dict[str, Any]]:
+    def _discover_handlers(self, mappings: HandlerMapping, providers: Dict[str, BaseProvider]) -> List[BaseHandler]:
         
         handler_instances = []
 

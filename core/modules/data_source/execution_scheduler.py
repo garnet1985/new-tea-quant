@@ -186,7 +186,7 @@ class DataSourceExecutionScheduler:
                 data_source_name = handler_instance.get_name()
                 dependencies_data = self._get_dependencies_data(data_source_name)
                 normalized_data = handler_instance.execute(dependencies_data)
-                if self._is_dependency_for_down_stream(data_source_name):
+                if self.mappings.is_dependency_for_downstream(data_source_name):
                     self._cache_result(data_source_name, normalized_data)
                 self._check_if_dependency_still_required(sorted_handler_instances)
             except Exception as e:
@@ -213,11 +213,6 @@ class DataSourceExecutionScheduler:
             else:
                 raise ValueError(f"{data_source_name} 依赖的数据源 {dep_name} 不存在, 或被禁止执行")
         return dep
-
-    def _is_dependency_for_down_stream(self, data_source_name: str) -> bool:
-        """检查是别的data source的依赖"""
-        # todo: to be implemented
-        pass
 
     def _cache_result(self, data_source_name: str, normalized_data: Dict[str, Any]):
         """

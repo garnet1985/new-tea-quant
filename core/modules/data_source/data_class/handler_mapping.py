@@ -8,6 +8,7 @@ class HandlerMapping:
 
     def __init__(self, data_sources: Dict[str, Dict[str, Any]]):
         self.data_sources = data_sources
+        self.enabled_cache = {}
         self._validate_and_cache_enabled()
 
     def _validate_and_cache_enabled(self):
@@ -20,6 +21,7 @@ class HandlerMapping:
 
             if not data_source_info.get("is_enabled", True):
                 logger.info(f"mapping.json 中 {data_source_name} 配置了 is_enabled 为 false，跳过.")
+                continue
 
             self.enabled_cache[data_source_name] = data_source_info
 

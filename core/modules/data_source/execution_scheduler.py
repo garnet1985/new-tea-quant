@@ -8,11 +8,10 @@
 # 在执行时注入依赖数据源的数据到 handler context
 # 最后 retry 失败的数据源
 
-from typing import Dict, Any, List, Set, Optional
+from typing import Dict, Any, List, Set, Optional, Tuple
 from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
-from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
 
 
@@ -34,76 +33,49 @@ class DataSourceExecutionScheduler:
             is_verbose: 是否显示详细日志
         """
         self.is_verbose = is_verbose
-        self._failed_data_sources = []  # [(handler_name, error), ...]
-        self._data_manager = DataManager.get_instance()
-        self._executed_data_sources: Dict[str, Any] = {}  # 缓存已执行的数据源数据
-        self._mappings: Dict[str, Dict[str, Any]] = {}  # mapping.json 的内容
-        
-        self._dependency_cache: Dict[str, Any] = {}  # 依赖数据缓存
 
-    def run(self, handler_instances: List[BaseHandler], mappings: HandlerMapping = None):
+        self.mappings: HandlerMapping = None  # mapping.json 的内容
+
+        self._failed_data_sources: List[Tuple[str, BaseHandler, Exception]] = []
+        
+        self._dependency_cache: Dict[str, Any] = {}
+
+    def run(self, handler_instances: List[BaseHandler], mappings: HandlerMapping):
         """
         执行所有数据源
         
         Args:
             handler_instances: Handler 实例列表
-            mappings: mapping.json 的内容（用于获取 depends_on 信息），如果为 None 则自动加载
+            mappings: HandlerMapping 实例
         """
         self.mappings = mappings
+
         sorted_handler_instances = self._preprocess(handler_instances)
         self._execute(sorted_handler_instances)
         self._postprocess()
 
-    def _get_handler_data_source_dependencies(self, handler: BaseHandler) -> List[str]:
+
+    # ================================
+    # preprocess stage
+    # ================================
+
+    def _preprocess(self, handler_instances: List[BaseHandler]):
         """
-        获取指定 handler 依赖的数据源列表。
+        预处理阶段：拓扑排序 handlers，确定执行顺序。
         
-        Args:
-            handler: Handler 实例
-            
-        Returns:
-            List[str]: 该 handler 依赖的数据源名称列表
+        注意：
+        - 不在这里加载依赖数据，因为依赖的 handler 可能还没执行
+        - 依赖数据的注入在 _execute 阶段进行，直接从 execute() 的返回值缓存中获取
+        - 同时记录哪些 data source 被其他 data source 依赖（用于决定是否缓存结果）
         """
-        data_source_name = handler.context.get("data_source_name")
-        if not data_source_name:
-            return []
-        
-        # 从 mapping.json 中获取该 handler 的数据源依赖声明
-        depends_on = self.mappings.get_depend_on_data_source_names(data_source_name)
-        
-        if isinstance(depends_on, list):
-            return depends_on
-        return []
-    
-    def _load_dependency_data(self, data_source_name: str) -> Any:
-        """
-        从数据库加载依赖数据源的数据（备用方法，用于特殊情况）。
-        
-        注意：正常情况下，依赖数据应该从 execute() 的返回值缓存中获取。
-        此方法仅用于特殊情况（如重试时可能需要从数据库加载）。
-        
-        统一策略：尝试从数据库表加载数据
-        - 如果表存在，加载所有数据
-        - 如果表不存在或加载失败，返回 None
-        
-        Args:
-            data_source_name: 数据源名称
-            
-        Returns:
-            Any: 依赖数据源的数据，如果无法加载则返回 None
-        """
+        # 拓扑排序 handlers，确定执行顺序
         try:
-            # 统一处理：尝试从表读取数据
-            table = self._data_manager.get_table(data_source_name)
-            if table:
-                return table.load("1=1")
-            
-            logger.warning(f"⚠️ 无法找到数据源 '{data_source_name}' 对应的表，依赖数据将不可用")
-            return None
-        except Exception as e:
-            logger.warning(f"⚠️ 加载依赖数据源 '{data_source_name}' 的数据失败: {e}")
-            return None
-    
+            topological_sorted_handler_instances = self._topological_sort_handlers(handler_instances)
+            return topological_sorted_handler_instances
+        except ValueError as e:
+            logger.error(f"❌ 数据源依赖关系错误: {e}")
+            raise
+
     def _topological_sort_handlers(self, handlers: List[BaseHandler]) -> List[BaseHandler]:
         """
         对 handlers 进行拓扑排序，确保依赖的数据源先执行。
@@ -122,7 +94,7 @@ class DataSourceExecutionScheduler:
         # 构建 handler 名称到 handler 的映射
         handler_map = {}
         for handler in handlers:
-            data_source_name = handler.context.get("data_source_name")
+            data_source_name = handler.get_name()
             if data_source_name:
                 handler_map[data_source_name] = handler
         
@@ -132,17 +104,17 @@ class DataSourceExecutionScheduler:
         
         # 初始化 in_degree
         for handler in handlers:
-            data_source_name = handler.context.get("data_source_name")
+            data_source_name = handler.get_name()
             if data_source_name:
                 in_degree[data_source_name] = 0
         
         # 构建图和计算入度
         for handler in handlers:
-            data_source_name = handler.context.get("data_source_name")
+            data_source_name = handler.get_name()
             if not data_source_name:
                 continue
             
-            depends_on = self._get_handler_data_source_dependencies(handler)
+            depends_on = handler.get_dependency_data_source_names()
             for dep_name in depends_on:
                 if dep_name not in handler_map:
                     raise ValueError(
@@ -151,7 +123,6 @@ class DataSourceExecutionScheduler:
                 graph[dep_name].append(data_source_name)
                 in_degree[data_source_name] = in_degree.get(data_source_name, 0) + 1
                 # 记录被依赖的数据源（需要缓存结果）
-                self._dependency_names.add(dep_name)
         
         # 拓扑排序
         sorted_handlers = []
@@ -174,29 +145,26 @@ class DataSourceExecutionScheduler:
         
         return sorted_handlers
 
-    # ================================
-    # preprocess stage
-    # ================================
-
-    def _preprocess(self, handler_instances: List[BaseHandler]):
+    def _get_handler_data_source_dependencies(self, handler: BaseHandler) -> List[str]:
         """
-        预处理阶段：拓扑排序 handlers，确定执行顺序。
+        获取指定 handler 依赖的数据源列表。
         
-        注意：
-        - 不在这里加载依赖数据，因为依赖的 handler 可能还没执行
-        - 依赖数据的注入在 _execute 阶段进行，直接从 execute() 的返回值缓存中获取
-        - 同时记录哪些 data source 被其他 data source 依赖（用于决定是否缓存结果）
+        Args:
+            handler: Handler 实例
+            
+        Returns:
+            List[str]: 该 handler 依赖的数据源名称列表
         """
-        # 清空依赖集合（每次执行前重置）
-        # self._dependency_names.clear()
+        data_source_name = handler.context.get("data_source_name")
+        if not data_source_name:
+            return []
         
-        # 拓扑排序 handlers，确定执行顺序
-        try:
-            topological_sorted_handler_instances = self._topological_sort_handlers(handler_instances)
-            return topological_sorted_handler_instances
-        except ValueError as e:
-            logger.error(f"❌ 数据源依赖关系错误: {e}")
-            raise
+        # 从 mapping.json 中获取该 handler 的数据源依赖声明
+        depends_on = self.mappings.get_depend_on_data_source_names(data_source_name)
+        
+        if isinstance(depends_on, list):
+            return depends_on
+        return []
 
 
     # ================================
@@ -226,7 +194,7 @@ class DataSourceExecutionScheduler:
 
         self._retry_failed_data_sources()
     
-    def _get_dependencies_data(self, data_source_names: str) -> Dict[str, Any]:
+    def _get_dependencies_data(self, data_source_name: str) -> Dict[str, Any]:
         """
         收集依赖数据
         
@@ -239,9 +207,11 @@ class DataSourceExecutionScheduler:
             Dict[str, Any]: 依赖数据字典（深拷贝）
         """
         dep = {}
-        for dep_name in data_source_names:
+        for dep_name in self.mappings.get_depend_on_data_source_names(data_source_name):
             if dep_name in self._dependency_cache:
                 dep[dep_name] = self._dependency_cache[dep_name]
+            else:
+                raise ValueError(f"{data_source_name} 依赖的数据源 {dep_name} 不存在, 或被禁止执行")
         return dep
 
     def _is_dependency_for_others(self, data_source_name: str) -> bool:
@@ -309,4 +279,3 @@ class DataSourceExecutionScheduler:
         """
         self._dependency_cache.clear()
         self._failed_data_sources.clear()
-        self._dependency_names.clear()

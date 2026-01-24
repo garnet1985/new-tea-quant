@@ -34,7 +34,7 @@ class DataSourceExecutionScheduler:
         """
         self.is_verbose = is_verbose
 
-        self.mappings: HandlerMapping = None  # mapping.json 的内容
+        self.mappings: Optional[HandlerMapping] = None  # mapping.json 的内容
 
         self._failed_data_sources: List[Tuple[str, BaseHandler, Exception]] = []
         
@@ -140,31 +140,31 @@ class DataSourceExecutionScheduler:
         
         # 检查是否存在循环依赖
         if len(sorted_handlers) != len(handlers):
-            remaining = set(handler_map.keys()) - {h.context.get("data_source_name") for h in sorted_handlers}
+            remaining = set(handler_map.keys()) - {h.get_name() for h in sorted_handlers}
             raise ValueError(f"检测到循环依赖或未解析的依赖，剩余数据源: {remaining}")
         
         return sorted_handlers
 
-    def _get_handler_data_source_dependencies(self, handler: BaseHandler) -> List[str]:
-        """
-        获取指定 handler 依赖的数据源列表。
+    # def _get_handler_data_source_dependencies(self, handler: BaseHandler) -> List[str]:
+    #     """
+    #     获取指定 handler 依赖的数据源列表。
         
-        Args:
-            handler: Handler 实例
+    #     Args:
+    #         handler: Handler 实例
             
-        Returns:
-            List[str]: 该 handler 依赖的数据源名称列表
-        """
-        data_source_name = handler.context.get("data_source_name")
-        if not data_source_name:
-            return []
+    #     Returns:
+    #         List[str]: 该 handler 依赖的数据源名称列表
+    #     """
+    #     data_source_name = handler.context.get("data_source_name")
+    #     if not data_source_name:
+    #         return []
         
-        # 从 mapping.json 中获取该 handler 的数据源依赖声明
-        depends_on = self.mappings.get_depend_on_data_source_names(data_source_name)
+    #     # 从 mapping.json 中获取该 handler 的数据源依赖声明
+    #     depends_on = self.mappings.get_depend_on_data_source_names(data_source_name)
         
-        if isinstance(depends_on, list):
-            return depends_on
-        return []
+    #     if isinstance(depends_on, list):
+    #         return depends_on
+    #     return []
 
 
     # ================================
@@ -220,7 +220,10 @@ class DataSourceExecutionScheduler:
         
         注意：只缓存那些被其他 data source 依赖的结果，避免内存爆炸
         """
-        self._dependency_cache[data_source_name] = normalized_data["data"]
+        if normalized_data and hasattr(normalized_data, "data"):
+            self._dependency_cache[data_source_name] = normalized_data["data"]
+        else: 
+            logger.warning(f"{data_source_name} 没有返回结果，缓存不成功")
     
 
     def _handle_execution_error(self, handler_instance: BaseHandler, error: Exception):

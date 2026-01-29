@@ -4,7 +4,7 @@
         "type": "incremental",
         "last_update_info": {
             "date_field": "date",
-            "date_format": "day",
+            "date_format": "daily",
             "table_name": "stock_index_indicator",
             "group_field": "id"
         },
@@ -12,8 +12,8 @@
             "value": 30
         },
         "result_group_by": {
-            "list": "stock_list",
-            "by_key": "id"
+            "list": "stock_index_list",
+            "by_key": "index_code"
         }
     },
 

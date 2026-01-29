@@ -1144,7 +1144,7 @@ class DataSourceHandlerHelper:
         """
         from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
         from core.utils.date.date_utils import DateUtils
-        from core.global_enums.enums import UpdateMode, TimeUnit
+        from core.global_enums.enums import TermType, UpdateMode
         from loguru import logger
 
         if not context:
@@ -1198,30 +1198,30 @@ class DataSourceHandlerHelper:
                 except Exception:
                     return default_start_date
 
-            # 支持 TimeUnit / str 两种形式
-            _rolling_unit = rolling_unit.value if isinstance(rolling_unit, TimeUnit) else rolling_unit
+            # 支持 TermType / str 两种形式
+            _rolling_unit = rolling_unit.value if isinstance(rolling_unit, TermType) else rolling_unit
             _date_format = date_format
 
             # 将 rolling_length 转换为与 date_format 对齐的“周期数”
             def _convert_rolling_length_to_periods() -> int:
-                if _rolling_unit == TimeUnit.QUARTER.value:
-                    if _date_format == TimeUnit.QUARTER.value:
+                if _rolling_unit == TermType.QUARTERLY.value:
+                    if _date_format == TermType.QUARTERLY.value:
                         return rolling_length
-                    elif _date_format == TimeUnit.MONTH.value:
+                    elif _date_format == TermType.MONTHLY.value:
                         return rolling_length * 3
-                    else:  # day
+                    else:  # daily
                         return rolling_length * 90
-                elif _rolling_unit == TimeUnit.MONTH.value:
-                    if _date_format == TimeUnit.QUARTER.value:
+                elif _rolling_unit == TermType.MONTHLY.value:
+                    if _date_format == TermType.QUARTERLY.value:
                         return (rolling_length + 2) // 3
-                    elif _date_format == TimeUnit.MONTH.value:
+                    elif _date_format == TermType.MONTHLY.value:
                         return rolling_length
-                    else:  # day
+                    else:  # daily
                         return rolling_length * 30
-                else:  # DAY
-                    if _date_format == TimeUnit.QUARTER.value:
+                else:  # DAILY
+                    if _date_format == TermType.QUARTERLY.value:
                         return (rolling_length + 90) // 90
-                    elif _date_format == TimeUnit.MONTH.value:
+                    elif _date_format == TermType.MONTHLY.value:
                         return (rolling_length + 30) // 30
                     else:
                         return rolling_length
@@ -1400,32 +1400,32 @@ class DataSourceHandlerHelper:
                     return compute_start_for_mode(last_update=None if not last_update else last_update)
 
                 # 计算 rolling_periods（尽量复用 RollingRenewService 的语义）
-                # 支持 TimeUnit / str 两种形式
-                from core.global_enums.enums import TimeUnit
+                # 支持 TermType / str 两种形式
+                from core.global_enums.enums import TermType
 
-                _rolling_unit = rolling_unit.value if isinstance(rolling_unit, TimeUnit) else rolling_unit
+                _rolling_unit = rolling_unit.value if isinstance(rolling_unit, TermType) else rolling_unit
                 _date_format = date_format
 
                 # 将 rolling_unit 转为与 date_format 对齐的周期数
                 def _convert_rolling_length_to_periods() -> int:
-                    if _rolling_unit == TimeUnit.QUARTER.value:
-                        if _date_format == TimeUnit.QUARTER.value:
+                    if _rolling_unit == TermType.QUARTERLY.value:
+                        if _date_format == TermType.QUARTERLY.value:
                             return rolling_length
-                        elif _date_format == TimeUnit.MONTH.value:
+                        elif _date_format == TermType.MONTHLY.value:
                             return rolling_length * 3
-                        else:  # day
+                        else:  # daily
                             return rolling_length * 90
-                    elif _rolling_unit == TimeUnit.MONTH.value:
-                        if _date_format == TimeUnit.QUARTER.value:
+                    elif _rolling_unit == TermType.MONTHLY.value:
+                        if _date_format == TermType.QUARTERLY.value:
                             return (rolling_length + 2) // 3
-                        elif _date_format == TimeUnit.MONTH.value:
+                        elif _date_format == TermType.MONTHLY.value:
                             return rolling_length
-                        else:  # day
+                        else:  # daily
                             return rolling_length * 30
-                    else:  # DAY
-                        if _date_format == TimeUnit.QUARTER.value:
+                    else:  # DAILY
+                        if _date_format == TermType.QUARTERLY.value:
                             return (rolling_length + 90) // 90
-                        elif _date_format == TimeUnit.MONTH.value:
+                        elif _date_format == TermType.MONTHLY.value:
                             return (rolling_length + 30) // 30
                         else:
                             return rolling_length

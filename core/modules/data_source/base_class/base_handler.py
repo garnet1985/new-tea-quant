@@ -1,17 +1,16 @@
 from typing import Any, Dict, List, Tuple, Optional, Union
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
-from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.modules.data_source.service.api_job_executor import ApiJobExecutor
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.modules.data_source.data_class.api_job_batch import ApiJobBatch
+from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.data_class.schema import DataSourceSchema
 from core.modules.data_source.renew_manager import RenewManager
 from core.global_enums.enums import UpdateMode
 from core.modules.data_manager.data_manager import DataManager
-
+from core.infra.project_context.config_manager import ConfigManager
 
 
 class BaseHandler:
@@ -92,37 +91,29 @@ class BaseHandler:
 
         self.on_prepare_context(self.context)
 
-        # 3. 从 config 构建 ApiJob 列表
+        # 3. 从 config 构建 ApiJob 配置
+        config: DataSourceConfig = self.context.get("config")
+        apis_conf = config.get_apis()
 
-        raw_apis_info = self.context.get("config").get_apis()
+        # 4. Phase 1：一次性获取所有实体的 last_update 映射
+        last_update_map = self._get_last_update_map()
 
-        tuple_ordered_apis_map = self._resolve_internal_dependencies(raw_apis_info)
+        # 5. Phase 2：基于 last_update 映射计算各实体的 (start_date, end_date)
+        entity_date_ranges = self._calculate_entity_date_ranges(last_update_map)
 
-        date_range_map = self._calculate_date_range()
-
-        if self.context.get("config").is_per_entity():
-            jobs = self._build_job_bundles(tuple_ordered_apis_map, date_range_map)
+        # 6. Phase 3：基于 entity_date_ranges 构建实际的 ApiJobBundle 列表
+        if config.is_per_entity():
+            jobs = self._build_jobs(apis_conf, entity_date_ranges)
         else:
-            job = self._build_job_bundle(tuple_ordered_apis_map, date_range_map)
-            jobs = [job]
+            global_range = entity_date_ranges.get("_global")
+            jobs = []
+            if global_range:
+                job = self._build_job(None, apis_conf, global_range)
+                jobs = [job]
 
         jobs = self.on_before_fetch(self.context, jobs)
 
         return jobs
-
-        # api_jobs = self._filter_executable_api_jobs(api_jobs)
-
-        # 4. 计算日期范围并注入到 ApiJobs 中
-
-        # api_jobs = DataSourceHandlerHelper.build_api_jobs(self.context.get("config").get_apis())
-
-        # apis_jobs = self._add_date_range_to_api_jobs(self.context, apis_jobs)
-
-        # 5. 允许子类在抓取前进一步调整 ApiJobs
-        # apis_jobs = self.on_before_fetch(self.context, apis_jobs)
-
-        # 6. 检查 renew_if_over_days，过滤不需要更新的 entity
-        # apis_jobs = self._filter_by_renew_if_over_days(self.context, apis_jobs)
 
     def _get_entity_list(self) -> List[Any]:
         entity_list = []
@@ -137,165 +128,128 @@ class BaseHandler:
 
         return entity_list
 
-    def _calculate_date_range(self) -> Dict[str, Tuple[str, str]]:
-        date_range_map = {}
+    def _get_last_update_map(self) -> Dict[str, Optional[str]]:
+        """
+        Phase 1：获取所有实体的“原始” last_update 映射（不考虑 renew_mode）。
+        具体 DB 查询与标准化逻辑委托给 DataSourceHandlerHelper.compute_last_update_map。
+        """
+        return DataSourceHandlerHelper.compute_last_update_map(self.context)
 
-        data_manager = self.context.get("data_manager")
+    def _calculate_entity_date_ranges(
+        self, last_update_map: Dict[str, Optional[str]]
+    ) -> Dict[str, Tuple[str, str]]:
+        """
+        Phase 2：基于 last_update 映射 + renew_mode + renew_if_over_days，
+        计算本次需要抓取的实体及其 (start_date, end_date)。
 
-        date_range_required_info = self.context.get("config").get_date_range_required_info()
+        实际计算逻辑委托给 DataSourceHandlerHelper.compute_entity_date_ranges，
+        这里保留骨架，方便子类在必要时覆写。
+        """
+        return DataSourceHandlerHelper.compute_entity_date_ranges(self.context, last_update_map)
 
-        is_per_entity = self.context.get("config").is_per_entity()
+    def _build_jobs(
+        self,
+        apis_conf: Dict[str, Any],
+        entity_date_ranges: Dict[str, Tuple[str, str]],
+    ) -> List[ApiJobBundle]:
 
-        if is_per_entity:
-            date_range_map = {}
-            # TODO: TO BE IMPLEMENTED: calculate date range for per entity
-        else:
-            # TODO: TO BE IMPLEMENTED: calculate date range for per entity
-            date_range_map = {"last_update": (None, None)}
-        return date_range_map
-
-    def _build_job_bundles(self, tuple_ordered_apis_map: Dict[str, List[Tuple[str, Any]]], date_range_map: Dict[str, Tuple[str, str]]) -> List[ApiJob]:
-        
         entity_list = self._get_entity_list()
+        config: DataSourceConfig = self.context.get("config")
+        entity_key_field = config.get_group_by_key()
 
-        jobs = []
+        jobs: List[ApiJobBundle] = []
 
         for entity_info in entity_list:
-            entity_id = entity_info.get("id")
-            date_range = self.get_entity_last_update(entity_id, date_range_map)
-            job_collection = self._build_job_collection(entity_info, tuple_ordered_apis_map, date_range)
+            # 实体 ID 的来源遵循 config.result_group_by.by_key 这一单一约定
+            if isinstance(entity_info, dict):
+                entity_id = entity_info.get(entity_key_field)
+            else:
+                # 如果依赖里直接给的是字符串/数字（如 ts_code），则直接当作实体 ID
+                entity_id = entity_info
+
+            if not entity_id:
+                continue
+
+            entity_key = str(entity_id)
+            date_range = entity_date_ranges.get(entity_key)
+            if not date_range:
+                # 该实体本次无需 renew（可能因为未过 renew_if_over_days 阈值）
+                continue
+
+            job_collection = self._build_job(entity_info, apis_conf, date_range)
             if job_collection is not None:
                 jobs.append(job_collection)
         
         return jobs
 
         
-    def _build_job_bundle(self, entity_info: Any, tuple_ordered_apis_map: Dict[str, List[Tuple[str, Any]]], date_range: Tuple[str, str]) -> ApiJob:
+    def _build_job(
+        self,
+        entity_info: Any,
+        apis_conf: Dict[str, Any],
+        date_range: Tuple[str, str],
+    ) -> ApiJobBundle:
+        """
+        Phase 3：基于 (start_date, end_date) 构建单个实体（或全局）的 ApiJobBundle。
 
-        last_update = date_range.get("last_update")
-        latest_completed_trading_date = self.context.get("dependencies").get("latest_completed_trading_date")
+        - 使用 apis_conf 构造 ApiJob 列表；
+        - 将日期范围注入到每个 ApiJob.params 中；
+        - 为 per-entity 场景生成带实体后缀的 bundle_id，便于日志与排查。
+        """
+        from copy import deepcopy
 
-        if last_update is None:
-            # new record, need to fetch all data
-            start_time = data_default_start_date
-            end_date = latest_completed_trading_date
-        
-        elif self.context.config.has_over_time_threshold():
-            over_time_threshold = self.context.get("config").get_over_time_threshold()
-            if HandlerHelper.is_over_renew_threshold(last_update, over_time_threshold):
-                start_time = last_update
-                end_date = latest_completed_trading_date
+        start_date, end_date = date_range
+
+        # 基于 config.apis 构造 ApiJob 列表（每个实体一份拷贝，避免共享 params）
+        base_jobs = DataSourceHandlerHelper.build_api_jobs(apis_conf)
+        apis: List[ApiJob] = []
+        for job in base_jobs:
+            cloned = ApiJob(
+                api_name=job.api_name,
+                provider_name=job.provider_name,
+                method=job.method,
+                params=deepcopy(job.params),
+                api_params=deepcopy(job.api_params),
+                depends_on=list(job.depends_on or []),
+                rate_limit=job.rate_limit,
+                job_id=job.job_id,
+            )
+            apis.append(cloned)
+
+        # 注入统一的日期范围（per-entity 已由 entity_date_ranges 决定）
+        apis = DataSourceHandlerHelper.add_date_range(apis, start_date, end_date)
+
+        # 构造 bundle_id：{data_source_name}_batch 或 {data_source_name}_batch_{entity_id}
+        base_bundle_id = ApiJobBundle.to_id(self.get_name())
+
+        # per-entity 场景：使用同一套实体 ID 约定（config.result_group_by.by_key）
+        entity_suffix = None
+        config: DataSourceConfig = self.context.get("config")
+        entity_key_field = config.get_group_by_key()
+        if entity_info:
+            if isinstance(entity_info, dict):
+                entity_suffix = entity_info.get(entity_key_field)
             else:
-                return None
+                entity_suffix = entity_info
+
+        if entity_suffix is not None:
+            bundle_id = f"{base_bundle_id}_{entity_suffix}"
         else:
-            start_time = last_update
-            end_date = latest_completed_trading_date
-        
-        job_collection = ApiJobBundle(tuple_ordered_apis_map, )
+            bundle_id = base_bundle_id
+
+        job_collection = ApiJobBundle(
+            bundle_id=bundle_id,
+            apis=apis,
+            tuple_order_map=None,
+            start_date=start_date,
+            end_date=end_date,
+        )
         return job_collection
         
-
-   
 
     def _inject_dependencies(self, dependencies_data):
         if dependencies_data is not None:
             self.context["dependencies"] = dependencies_data
-
-    # def _add_date_range_to_api_jobs(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
-    #     """
-    #     计算日期范围并注入到 ApiJobs 中：根据 renew_mode 自动补全日期范围。
-
-    #     步骤大纲（主线逻辑）：
-    #     1. 先检查 context 中是否已有 start_date / end_date（显式指定时原样使用，不做推断）；
-    #     2. 调用 on_calculate_date_range 钩子，如果返回了日期范围，直接使用；
-    #     3. 如果没有日期范围，先判断目标表是否为空：
-    #        - 表为空：走「首次全量/初始化」路径，按配置给出一个默认日期范围（相当于 refresh 初次跑）；
-    #     4. 如果表不为空，根据 config.renew_mode 决定增量/滚动策略：
-    #        - incremental：从数据库中已完成的最新日期之后，增量补到当前最新周期；
-    #        - rolling：围绕最近完成日期构造一个滚动窗口（rolling_unit + rolling_length）；
-    #        - 其他情况（含 refresh 或未配置）：统一回退到默认日期范围策略；
-    #     5. 将计算得到的 (start_date, end_date) 注入到每个 ApiJob 的 params 中；
-    #     6. 返回已注入日期范围的 ApiJob 列表。
-
-    #     具体的「查表 + 计算日期范围」细节下沉到 RenewManager：
-    #     - RenewManager 作为编排层，内部委托给各种 *RenewService 做精确计算；
-    #     - 本方法只保留步骤大纲，方便阅读主线逻辑，复杂实现不写在这里。
-
-    #     复杂场景（需要特殊 renew 策略）可以在子类中覆盖 on_calculate_date_range 钩子。
-
-    #     Returns:
-    #         List[ApiJob]: 已注入日期范围的 ApiJob 列表
-    #     """
-
-    #     # 准备：构造 RenewManager（内部持有 data_manager，用于查表）
-    #     renew_manager = RenewManager(data_manager=context.get("data_manager"))
-
-    #     # 步骤 1：如果显式指定了日期范围，直接注入并返回
-    #     if renew_manager.is_date_range_specified(context):
-    #         start = context.get("start_date")
-    #         end = context.get("end_date")
-    #         return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-    #     # 步骤 2：调用日期范围计算钩子（允许子类实现自定义逻辑）
-    #     custom_date_range = self.on_calculate_date_range(context, apis)
-    #     if custom_date_range is not None:
-    #         # 钩子返回了日期范围，直接使用
-    #         if isinstance(custom_date_range, dict):
-    #             # per stock 模式
-    #             return DataSourceHandlerHelper.add_date_range(
-    #                 apis,
-    #                 start_date=None,
-    #                 end_date=None,
-    #                 per_stock_date_ranges=custom_date_range
-    #             )
-    #         else:
-    #             # 统一模式
-    #             start, end = custom_date_range
-    #             return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-    #     # 步骤 2：判断目标表是否为空（首次全量/初始化场景）
-    #     is_empty = renew_manager.is_table_empty(context)
-    #     renew_mode = renew_manager.get_renew_mode(context)
-
-    #     if is_empty:
-    #         # 表为空：走首次全量/初始化路径
-    #         start, end = renew_manager.compute_default_date_range(context)
-    #         return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-    #     if renew_mode == UpdateMode.INCREMENTAL.value:
-    #         date_range_result = renew_manager.compute_incremental_date_range(context)
-    #         if isinstance(date_range_result, dict):
-    #             # per stock 模式
-    #             return DataSourceHandlerHelper.add_date_range(
-    #                 apis, 
-    #                 start_date=None, 
-    #                 end_date=None, 
-    #                 per_stock_date_ranges=date_range_result
-    #             )
-    #         else:
-    #             # 统一模式
-    #             start, end = date_range_result
-    #             return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-    #     if renew_mode == UpdateMode.ROLLING.value and renew_manager.has_rolling_time_range(context):
-    #         # 滚动模式：围绕最近完成日期构造滚动窗口（rolling_unit + rolling_length，内部查表）
-    #         date_range_result = renew_manager.compute_rolling_date_range(context)
-    #         if isinstance(date_range_result, dict):
-    #             # per stock 模式
-    #             return DataSourceHandlerHelper.add_date_range(
-    #                 apis, 
-    #                 start_date=None, 
-    #                 end_date=None, 
-    #                 per_stock_date_ranges=date_range_result
-    #             )
-    #         else:
-    #             # 统一模式
-    #             start, end = date_range_result
-    #             return DataSourceHandlerHelper.add_date_range(apis, start, end)
-
-    #     # 步骤 4：兜底策略（视作刷新模式，使用默认日期范围）
-    #     start, end = renew_manager.compute_default_date_range(context)
-    #     return DataSourceHandlerHelper.add_date_range(apis, start, end)
 
     def _filter_by_renew_if_over_days(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
@@ -398,26 +352,134 @@ class BaseHandler:
 
             fetched_data = self.on_before_normalize(self.context, fetched_data)
 
-
-            # # 步骤 1：构建 job 批次（当前实现：单个批次，包含所有 apis）
-            # job_batch = self._build_api_job_batch_per_entity(self.context, apis_jobs)
-
-            # # 步骤 2：调用批次构建后的钩子
-            # job_batch = self.on_after_build_job_batch_for_single_entity(self.context, job_batch)
-
-            # # 步骤 3：执行批次并调用钩子
-            # batch_results = self._execute_job_batch_for_single_entity(self.context, job_batch, apis_jobs)
-            # # 调用批次执行后的钩子
-            # self.on_after_execute_job_batch_for_single_entity(self.context, job_batch, batch_results)
-
-            # # 步骤 4 & 5：汇总结果并调用 on_after_fetch 钩子
-            # fetched_data = self.on_after_fetch(self.context, batch_results, apis_jobs)
-
             return fetched_data
         except Exception as e:
             # 步骤 6：错误处理
             self.on_bundle_execution_error(e, self.context, apis_job_bundles)
             raise
+
+    def _multi_thread_execute(self, jobs: List[Union["ApiJobBundle", ApiJob]]) -> Dict[str, Any]:
+        """
+        对 job bundles 进行多线程执行。
+
+        - 若 jobs 为空，返回 {}。
+        - 若仅有一个 bundle，在当前线程内用 ApiJobExecutor 执行后返回。
+        - 若有多个 bundle，使用 MultiThreadWorker（多线程）并行执行每个 bundle，
+          再合并各 bundle 的 {job_id: result}，并调用 on_after_single_api_job_bundle_complete 钩子。
+
+        jobs 中每项可为 ApiJobBundle（含 .bundle_id、.apis）或单个 ApiJob（会当作仅含一个 job 的 bundle 处理）。
+        """
+        from loguru import logger
+        import asyncio
+
+        # 归一化：统一成 (bundle_id, apis, item) 列表，便于后续按 bundle_id 回调钩子
+        bundles: List[Tuple[str, List[ApiJob], Any]] = []
+        data_source_name = self.context.get("data_source_name", "data_source")
+
+        for i, item in enumerate(jobs or []):
+            if hasattr(item, "apis") and hasattr(item, "bundle_id"):
+                # ApiJobBundle
+                bid = getattr(item, "bundle_id", None) or f"{data_source_name}_bundle_{i}"
+                apis = getattr(item, "apis", []) or []
+                bundles.append((bid, apis, item))
+            elif isinstance(item, ApiJob):
+                # 单个 ApiJob 视为一个 bundle
+                bid = getattr(item, "job_id", None) or f"{data_source_name}_job_{i}"
+                bundles.append((bid, [item], item))
+            else:
+                logger.warning(f"未知 job 类型，已跳过: {type(item)}")
+                continue
+
+        if not bundles:
+            return {}
+
+        providers = self.context.get("providers") or {}
+        executor = ApiJobExecutor(providers=providers)
+
+        async def run_one_bundle(api_jobs: List[ApiJob]) -> Dict[str, Any]:
+            if not api_jobs:
+                return {}
+            return await executor.execute(api_jobs)
+
+        def _run_async_in_sync(coro):
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    new_loop = asyncio.new_event_loop()
+                    try:
+                        asyncio.set_event_loop(new_loop)
+                        return new_loop.run_until_complete(coro)
+                    finally:
+                        new_loop.close()
+                else:
+                    return loop.run_until_complete(coro)
+            except RuntimeError:
+                return asyncio.run(coro)
+
+        # 仅一个 bundle：直接执行
+        if len(bundles) == 1:
+            bundle_id, apis, item = bundles[0]
+            result = _run_async_in_sync(run_one_bundle(apis))
+            if hasattr(item, "apis") and hasattr(item, "bundle_id"):
+                self.on_after_single_api_job_bundle_complete(self.context, item, result)
+            return result
+
+        # 多个 bundle：使用多线程框架
+        from core.infra.worker.multi_thread.futures_worker import (
+            MultiThreadWorker,
+            ExecutionMode,
+            JobStatus,
+        )
+
+        def _decide_workers(bundle_count: int) -> int:
+            if bundle_count <= 1:
+                return 1
+            if bundle_count <= 5:
+                return 2
+            if bundle_count <= 10:
+                return 3
+            if bundle_count <= 20:
+                return 5
+            if bundle_count <= 50:
+                return 8
+            return 10
+
+        max_workers = _decide_workers(len(bundles))
+
+        def _bundle_executor(api_jobs: List[ApiJob]) -> Dict[str, Any]:
+            """单个 bundle 的执行器（同步接口，供 MultiThreadWorker 调用）。job_data 即 apis 列表。"""
+            return _run_async_in_sync(run_one_bundle(api_jobs))
+
+        worker = MultiThreadWorker(
+            max_workers=max_workers,
+            execution_mode=ExecutionMode.PARALLEL,
+            job_executor=_bundle_executor,
+            enable_monitoring=True,
+            timeout=3600,
+            is_verbose=False,
+        )
+
+        bundle_id_to_item: Dict[str, Any] = {}
+        for bundle_id, apis, item in bundles:
+            worker.add_job(bundle_id, apis)
+            bundle_id_to_item[bundle_id] = item
+
+        worker.run_jobs()
+        results_list = worker.get_results()
+
+        # 合并为 {job_id: result}，并对每个 bundle 触发 on_after_single_api_job_bundle_complete
+        merged: Dict[str, Any] = {}
+        for r in results_list:
+            if r.status == JobStatus.COMPLETED and isinstance(r.result, dict):
+                merged.update(r.result)
+                if r.job_id in bundle_id_to_item:
+                    self.on_after_single_api_job_bundle_complete(
+                        self.context, bundle_id_to_item[r.job_id], r.result
+                    )
+            elif r.status == JobStatus.FAILED and r.error:
+                logger.warning(f"Bundle {r.job_id} 失败: {r.error}")
+
+        return merged
 
     # ================================
     # Postprocess stage
@@ -431,134 +493,6 @@ class BaseHandler:
         normalized_data = self._validate_normalized_data(normalized_data)
 
         return normalized_data
-
-    # def _config_to_api_jobs(self) -> List[ApiJob]:
-    #     """
-    #     第一步：将 config 中声明的 apis 转换为 ApiJob 列表。
-
-    #     职责：
-    #     - 这里只负责描述“要调用哪些 API”，不关心如何执行和限流；
-    #     - 具体转换规则由 DataSourceHandlerHelper.build_api_jobs 负责。
-    #     """
-    #     config = self.context.get("config")
-    #     # 使用 DataSourceConfig 的方法
-    #     api_conf = config.get_apis()
-    #     return DataSourceHandlerHelper.build_api_jobs(api_conf)
-
-    # def _inject_required_global_dependencies(self, global_dependencies: Dict[str, Any]) -> Dict[str, Any]:
-    #     """
-    #     注入全局依赖到 context。
-        
-    #     注意：scheduler 已经知道该 handler 需要哪些依赖，传入的 global_dependencies 
-    #     只包含该 handler 需要的依赖，直接注入即可。
-        
-    #     Args:
-    #         global_dependencies: 该 handler 需要的全局依赖字典（scheduler 已过滤）
-            
-    #     Returns:
-    #         Dict[str, Any]: 更新后的 context（已注入依赖）
-    #     """
-    #     updated_context = self.context.copy()
-    #     # 将依赖注入到 context 中（不覆盖已有键）
-    #     for dep_name, dep_value in global_dependencies.items():
-    #         if dep_name not in updated_context:
-    #             updated_context[dep_name] = dep_value
-    #     return updated_context
-    
-    
-    # def _build_api_job_batch_per_entity(self, context: Dict[str, Any], apis: List[ApiJob]) -> ApiJobBatch:
-    #     """
-    #     构建 job 批次：将 apis 打包成一个 batch。这个批次是per stock的。
-
-    #     当前实现：将所有 apis 打包成一个 batch（对应一只股票的所有API请求）。
-    #     未来如果需要支持多只股票并行，可以覆盖此方法，按股票拆分多个 batch。
-
-    #     Args:
-    #         context: 上下文信息
-    #         apis: ApiJob 列表
-
-    #     Returns:
-    #         ApiJobBatch: 单个批次
-    #     """
-    #     if not apis:
-    #         raise ValueError("apis 列表不能为空")
-
-    #     data_source_name = context.get("data_source_name", "data_source")
-    #     batch_id = ApiJobBatch.to_id(data_source_name)
-
-    #     batch = ApiJobBatch(
-    #         batch_id=batch_id,
-    #         api_jobs=apis,
-    #         description=f"{data_source_name} execution plan",
-    #     )
-
-    #     return batch
-
-    # def _execute_job_batch_for_single_entity(
-    #     self, context: Dict[str, Any], job_batch: ApiJobBatch, all_apis: List[ApiJob]
-    # ) -> Dict[str, Any]:
-    #     """
-    #     执行单个 job batch，并在执行过程中调用单个 job 的钩子。
-
-    #     Args:
-    #         context: 上下文信息
-    #         job_batch: 要执行的批次
-    #         all_apis: 所有 ApiJob 列表（用于钩子调用）
-
-    #     Returns:
-    #         Dict[str, Any]: 批次执行结果 {job_id: result}
-    #     """
-    #     if not job_batch.api_jobs:
-    #         return {}
-
-    #     providers = context.get("providers") or {}
-    #     executor = ApiJobExecutor(providers=providers)
-
-    #     async def _run():
-    #         # ApiJobExecutor.run_batches 返回 {batch_id: {job_id: result}}
-    #         return await executor.run_batches([job_batch])
-
-    #     # 在同步上下文中执行异步调度
-    #     import asyncio
-
-    #     try:
-    #         loop = asyncio.get_event_loop()
-    #         if loop.is_running():
-    #             # 事件循环已在运行（例如在 notebook/某些框架中），创建新的循环执行
-    #             import threading
-    #             result_container: Dict[str, Any] = {}
-
-    #             def _worker():
-    #                 new_loop = asyncio.new_event_loop()
-    #                 asyncio.set_event_loop(new_loop)
-    #                 try:
-    #                     result_container["value"] = new_loop.run_until_complete(_run())
-    #                 finally:
-    #                     new_loop.close()
-
-    #             t = threading.Thread(target=_worker)
-    #             t.start()
-    #             t.join()
-    #             exec_result = result_container.get("value", {})
-    #         else:
-    #             exec_result = loop.run_until_complete(_run())
-    #     except RuntimeError:
-    #         # 当前线程没有事件循环，直接用 asyncio.run
-    #         exec_result = asyncio.run(_run())
-
-    #     # 提取批次结果
-    #     batch_results = exec_result.get(job_batch.batch_id, {})
-
-    #     # 调用单个 job 执行后的钩子（包括成功和失败的情况）
-    #     for api_job in job_batch.api_jobs:
-    #         # 无论成功还是失败，都调用钩子（失败时 job_result 可能是 None）
-    #         job_result = batch_results.get(api_job.job_id)
-    #         self.on_after_execute_single_api_job(
-    #             self.context, api_job, {api_job.job_id: job_result}
-    #         )
-
-    #     return batch_results
-
 
     def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
         """
@@ -719,7 +653,7 @@ class BaseHandler:
         """
         return apis
 
-    def on_after_single_api_job_complete(self, context: Dict[str, Any], job: ApiJobBatch, fetched_data: Dict[str, Any]) -> ApiJobBatch:
+    def on_after_single_api_job_complete(self, context: Dict[str, Any], job: ApiJobBundle, fetched_data: Dict[str, Any]) -> ApiJobBundle:
         """
         批次构建后的钩子。
 

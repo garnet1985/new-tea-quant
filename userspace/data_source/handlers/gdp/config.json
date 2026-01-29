@@ -4,11 +4,11 @@
         "type": "rolling",
         "last_update_info": {
             "date_field": "quarter",
-            "date_format": "quarter",
+            "date_format": "quarterly",
             "table_name": "gdp"
         },
         "rolling": {
-            "unit": "quarter",
+            "unit": "quarterly",
             "length": 4
         }
     },

@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Tuple, Optional, Union
 from loguru import logger
 
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.global_enums.enums import UpdateMode, TimeUnit
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
 
 

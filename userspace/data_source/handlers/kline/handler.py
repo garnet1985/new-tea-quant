@@ -26,7 +26,7 @@ from collections import defaultdict
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.modules.data_source.data_class.api_job_batch import ApiJobBatch
+from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
@@ -316,7 +316,7 @@ class KlineHandler(BaseHandler):
     def on_after_execute_job_batch_for_single_stock(
         self, 
         context: Dict[str, Any],
-        job_batch: ApiJobBatch, 
+        job_bundle: ApiJobBundle, 
         fetched_data: Dict[str, Any]
     ):
         """

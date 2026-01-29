@@ -15,11 +15,11 @@ class ApiJobBundle:
     - 具体如何执行（拓扑排序、限流、并发策略）仍由执行器负责。
     """
 
-    bundle_id: str                # 批次 ID（通常建议使用 data_source_name_batch 等语义化命名）
-    apis: List[ApiJob]       # 本批次需要执行的 ApiJobs
+    bundle_id: str  # 批次 ID（通常建议使用 data_source_name_batch 等语义化命名）
+    apis: List[ApiJob]  # 本批次需要执行的 ApiJobs
     tuple_order_map: Optional[str] = None  # 批次描述（可选）
-    start_date: None
-    end_date: None
+    start_date: Optional[str] = None  # 本批次统一的开始日期（可选）
+    end_date: Optional[str] = None  # 本批次统一的结束日期（可选）
 
     @staticmethod
     def to_id(data_source_name: str) -> str:

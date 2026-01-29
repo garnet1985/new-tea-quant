@@ -34,9 +34,10 @@ class AdjustType(Enum):
 
 class UpdateMode(Enum):
     """数据更新模式枚举"""
-    INCREMENTAL = "incremental"  
-    REFRESH = "refresh"               
-    ROLLING = "rolling"           
+    INCREMENTAL = "incremental"
+    REFRESH = "refresh"
+    ROLLING = "rolling"
+
 
 class SystemConstants:
     """系统级常量（不会频繁变更的）"""

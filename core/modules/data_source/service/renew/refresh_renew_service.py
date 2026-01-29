@@ -6,7 +6,7 @@ Refresh Renew Service
 from typing import Dict, Any, Tuple
 from loguru import logger
 
-from core.global_enums.enums import TimeUnit
+from core.global_enums.enums import TermType
 from core.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
 
@@ -94,13 +94,13 @@ class RefreshRenewService:
         
         # 获取结束日期（优先使用 latest_completed_trading_date）
         # 支持枚举和字符串两种格式（兼容性）
-        if isinstance(date_format, TimeUnit):
+        if isinstance(date_format, TermType):
             date_format = date_format.value
         
         end_date = RenewCommonHelper.get_end_date(date_format, context)
         
         # 计算开始日期（业务逻辑：根据 default_date_range 配置）
-        if date_format == TimeUnit.QUARTER.value:
+        if date_format == TermType.QUARTERLY.value:
             current_year, current_quarter = current_value
             if "years" in default_date_range:
                 years = default_date_range["years"]
@@ -118,7 +118,7 @@ class RefreshRenewService:
                 start_year = current_year - 5
                 start_quarter = 1
             start_date = f"{start_year}Q{start_quarter}"
-        elif date_format == TimeUnit.MONTH.value:
+        elif date_format == TermType.MONTHLY.value:
             current_year, current_month = current_value
             if "years" in default_date_range:
                 years = default_date_range["years"]
@@ -136,7 +136,7 @@ class RefreshRenewService:
                 start_year = current_year - 3
                 start_month = 1
             start_date = f"{start_year}{start_month:02d}"
-        else:  # date_format == TimeUnit.DAY.value
+        else:  # date_format == TermType.DAILY.value
             if "years" in default_date_range:
                 years = default_date_range["years"]
                 start_date = DateUtils.get_date_before_days(end_date, years * 365)

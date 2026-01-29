@@ -6,7 +6,7 @@ Renew Common Helper
 from typing import Dict, Any, Tuple, Optional
 from loguru import logger
 
-from core.global_enums.enums import TimeUnit
+from core.global_enums.enums import TermType
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
 
@@ -69,10 +69,10 @@ class RenewCommonHelper:
             转换后的日期字符串
         """
         # 支持枚举和字符串两种格式（兼容性）
-        if isinstance(date_format, TimeUnit):
+        if isinstance(date_format, TermType):
             date_format = date_format.value
         
-        if date_format == TimeUnit.QUARTER.value:
+        if date_format == TermType.QUARTERLY.value:
             year = int(date_str[:4])
             month = int(date_str[4:6])
             if month <= 3:
@@ -84,9 +84,9 @@ class RenewCommonHelper:
             else:
                 quarter = 4
             return f"{year}Q{quarter}"
-        elif date_format == TimeUnit.MONTH.value:
+        elif date_format == TermType.MONTHLY.value:
             return date_str[:6]  # YYYYMM
-        else:  # date_format == TimeUnit.DAY.value
+        else:  # date_format == TermType.DAILY.value
             return date_str  # YYYYMMDD
     
     @staticmethod

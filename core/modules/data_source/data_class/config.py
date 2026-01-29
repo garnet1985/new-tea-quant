@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 from loguru import logger
-from core.global_enums.enums import UpdateMode
+from core.global_enums.enums import TermType, UpdateMode
 
 
 class DataSourceConfig:
@@ -146,17 +146,33 @@ class DataSourceConfig:
             logger.warning(f"'{self._data_source_name}' 的 config.json 中配置的 renew_mode 无效，将跳过执行")
             return None
     
+    def _normalize_term(self, value: str) -> str:
+        """将 config 中的 day/month/quarter/date 规范为 TermType 值（daily/monthly/quarterly）。"""
+        if not value:
+            return TermType.DAILY.value
+        v = str(value).lower()
+        if v in ("day", "date"):
+            return TermType.DAILY.value
+        if v == "month":
+            return TermType.MONTHLY.value
+        if v == "quarter":
+            return TermType.QUARTERLY.value
+        if v in (TermType.DAILY.value, TermType.MONTHLY.value, TermType.QUARTERLY.value, TermType.WEEKLY.value, TermType.YEARLY.value):
+            return v
+        return v
+
     def get_date_format(self) -> str:
         """
-        获取 date_format（默认 "day"）
+        获取 date_format（默认与 TermType.DAILY 对齐）。
 
         优先从 renew.last_update_info.date_format 读取，
         未配置时回退到顶层 date_format，再回退到 "day"。
+        返回值与 TermType 一致（daily/monthly/quarterly 等）。
         """
         renew = self.get("renew") or {}
         last_info = renew.get("last_update_info") or {}
         fmt = last_info.get("date_format") or self.get("date_format") or "day"
-        return str(fmt).lower()
+        return self._normalize_term(fmt)
     
     def get_table_name(self) -> str:
         """
@@ -180,15 +196,16 @@ class DataSourceConfig:
         last_info = renew.get("last_update_info") or {}
         return last_info.get("date_field") or self.get("date_field")
     
-    def get_rolling_unit(self) -> str:
+    def get_rolling_unit(self) -> Optional[str]:
         """
-        获取 rolling_unit
+        获取 rolling_unit（与 TermType 对齐：daily/monthly/quarterly 等）。
 
-        仅从 renew.rolling.unit 读取（新配置约定）。
+        仅从 renew.rolling.unit 读取（新配置约定），并规范为 TermType 值。
         """
         renew = self.get("renew") or {}
         rolling = renew.get("rolling") or {}
-        return rolling.get("unit")
+        unit = rolling.get("unit")
+        return self._normalize_term(unit) if unit else None
     
     def get_rolling_length(self) -> int:
         """

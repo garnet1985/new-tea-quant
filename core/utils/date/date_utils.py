@@ -625,6 +625,20 @@ class DateUtils:
         return f"{last_month_year}{last_month:02d}{last_day:02d}"
     
     # ========== 周期格式处理（quarter/month/day）==========
+
+    @staticmethod
+    def _normalize_date_format(date_format: str) -> str:
+        """将 TermType 值（daily/monthly/quarterly）规范为内部格式（day/month/quarter）。"""
+        if not date_format:
+            return "day"
+        v = (date_format or "").lower()
+        if v in ("daily", "day", "date"):
+            return "day"
+        if v in ("monthly", "month"):
+            return "month"
+        if v in ("quarterly", "quarter"):
+            return "quarter"
+        return v
     
     @staticmethod
     def get_current_period(current_date: str, date_format: str):
@@ -650,6 +664,7 @@ class DateUtils:
             >>> DateUtils.get_current_period("20240315", "day")
             "20240315"
         """
+        date_format = DateUtils._normalize_date_format(date_format)
         if date_format == "quarter":
             current_year = int(current_date[:4])
             current_month = int(current_date[4:6])
@@ -691,6 +706,7 @@ class DateUtils:
             >>> DateUtils.parse_period("20240315", "day")
             "20240315"
         """
+        date_format = DateUtils._normalize_date_format(date_format)
         if date_format == "quarter":
             year = int(value[:4])
             quarter = int(value[5])
@@ -726,6 +742,7 @@ class DateUtils:
             >>> DateUtils.format_period("20240315", "day")
             "20240315"
         """
+        date_format = DateUtils._normalize_date_format(date_format)
         if date_format == "quarter":
             year, quarter = value
             return f"{year}Q{quarter}"
@@ -757,6 +774,7 @@ class DateUtils:
             >>> DateUtils.calculate_period_diff("202401", (2024, 3), "month")
             2
         """
+        date_format = DateUtils._normalize_date_format(date_format)
         latest = DateUtils.parse_period(latest_value, date_format)
         current = current_value
         
@@ -795,7 +813,8 @@ class DateUtils:
             "20240214"
         """
         from datetime import timedelta
-        
+
+        date_format = DateUtils._normalize_date_format(date_format)
         if date_format == "quarter":
             year, quarter = value
             quarter -= periods - 1
@@ -836,7 +855,8 @@ class DateUtils:
             "20240101"
         """
         from datetime import timedelta
-        
+
+        date_format = DateUtils._normalize_date_format(date_format)
         latest = DateUtils.parse_period(latest_value, date_format)
         
         if date_format == "quarter":
@@ -877,6 +897,7 @@ class DateUtils:
             >>> DateUtils.get_period_unit("day")
             "天"
         """
+        date_format = DateUtils._normalize_date_format(date_format)
         if date_format == "quarter":
             return "季度"
         elif date_format == "month":

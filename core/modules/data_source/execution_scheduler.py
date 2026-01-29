@@ -49,7 +49,6 @@ class DataSourceExecutionScheduler:
             mappings: HandlerMapping 实例
         """
         self.mappings = mappings
-
         sorted_handler_instances = self._preprocess(handler_instances)
         self._execute(sorted_handler_instances)
         self._postprocess()

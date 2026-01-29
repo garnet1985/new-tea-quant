@@ -1,12 +1,15 @@
 {
     "_comment": "Kline Handler 配置",
-    "renew_mode": "incremental",
-    "date_format": "day",
-    "default_date_range": {
-        "years": 5
+
+    "renew": {
+        "type": "incremental",
+        "last_update_info": {
+            "date_field": "date",
+            "date_format": "day",
+            "table_name": "stock_kline"
+        }
     },
-    "table_name": "stock_kline_daily",
-    "date_field": "date",
+
     "apis": {
         "daily_kline": {
             "provider_name": "tushare",

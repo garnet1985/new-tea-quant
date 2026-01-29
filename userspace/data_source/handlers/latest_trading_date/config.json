@@ -1,9 +1,13 @@
 {
     "_comment": "Latest Trading Date Handler 配置",
-    "renew_mode": "refresh",
-    "date_format": "none",
-    "default_date_range": {},
-    "backward_checking_days": 15,
+
+    "renew": {
+        "type": "refresh",
+        "extra": {
+            "backward_checking_days": 15
+        }
+    },
+
     "apis": {
         "trade_cal_data": {
             "provider_name": "tushare",

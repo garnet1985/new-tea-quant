@@ -526,7 +526,9 @@ class BaseHandler:
 
         # 步骤 3 & 4：从所有 API 返回中提取并映射出标准字段记录
         # 检查是否配置了 merge_by_key（用于按 key 合并多个 API 的结果）
-        merge_by_key = config.get("merge_by_key")
+        merge_by_key = None
+        if hasattr(config, "get_merge_by_key"):
+            merge_by_key = config.get_merge_by_key()
         
         mapped_records: List[Dict[str, Any]] = DataSourceHandlerHelper.extract_mapped_records(
             apis_conf=apis_conf,

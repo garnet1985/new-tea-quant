@@ -1,14 +1,18 @@
 {
     "_comment": "GDP Handler 配置",
-    "renew_mode": "rolling",
-    "date_format": "quarter",
-    "rolling_unit": "quarter",
-    "rolling_length": 4,
-    "default_date_range": {
-        "years": 5
+    "renew": {
+        "type": "rolling",
+        "last_update_info": {
+            "date_field": "quarter",
+            "date_format": "quarter",
+            "table_name": "gdp"
+        },
+        "rolling": {
+            "unit": "quarter",
+            "length": 4
+        }
     },
-    "table_name": "gdp",
-    "date_field": "quarter",
+
     "apis": {
         "gdp_data": {
             "provider_name": "tushare",

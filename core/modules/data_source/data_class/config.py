@@ -147,28 +147,58 @@ class DataSourceConfig:
             return None
     
     def get_date_format(self) -> str:
-        """获取 date_format（默认 "day"）"""
-        return (self.get("date_format") or "day").lower()
+        """
+        获取 date_format（默认 "day"）
+
+        优先从 renew.last_update_info.date_format 读取，
+        未配置时回退到顶层 date_format，再回退到 "day"。
+        """
+        renew = self.get("renew") or {}
+        last_info = renew.get("last_update_info") or {}
+        fmt = last_info.get("date_format") or self.get("date_format") or "day"
+        return str(fmt).lower()
     
     def get_table_name(self) -> str:
-        """获取 table_name"""
-        return self.get("table_name")
+        """
+        获取 table_name
+
+        优先从 renew.last_update_info.table_name 读取，
+        未配置时回退到顶层 table_name。
+        """
+        renew = self.get("renew") or {}
+        last_info = renew.get("last_update_info") or {}
+        return last_info.get("table_name") or self.get("table_name")
     
     def get_date_field(self) -> str:
-        """获取 date_field"""
-        return self.get("date_field")
-    
-    def get_default_date_range(self) -> Dict[str, Any]:
-        """获取 default_date_range（默认空字典）"""
-        return self.get("default_date_range") or {}
+        """
+        获取 date_field
+
+        优先从 renew.last_update_info.date_field 读取，
+        未配置时回退到顶层 date_field。
+        """
+        renew = self.get("renew") or {}
+        last_info = renew.get("last_update_info") or {}
+        return last_info.get("date_field") or self.get("date_field")
     
     def get_rolling_unit(self) -> str:
-        """获取 rolling_unit"""
-        return self.get("rolling_unit")
+        """
+        获取 rolling_unit
+
+        仅从 renew.rolling.unit 读取（新配置约定）。
+        """
+        renew = self.get("renew") or {}
+        rolling = renew.get("rolling") or {}
+        return rolling.get("unit")
     
     def get_rolling_length(self) -> int:
-        """获取 rolling_length"""
-        return self.get("rolling_length")
+        """
+        获取 rolling_length
+
+        仅从 renew.rolling.length 读取（新配置约定）。
+        """
+        renew = self.get("renew") or {}
+        rolling = renew.get("rolling") or {}
+        return rolling.get("length")
     
     def get_needs_stock_grouping(self) -> Optional[bool]:
         """
@@ -203,6 +233,26 @@ class DataSourceConfig:
             return None
         return threshold
 
+    def get_renew_extra(self) -> Dict[str, Any]:
+        """
+        获取 renew 段下的扩展配置（如 latest_trading_date 的 backward_checking_days 等）。
+
+        约定：
+        "renew": {
+          "type": "...",
+          "last_update_info": {...},
+          "rolling": {...},
+          "extra": {
+            ... 任意自定义字段 ...
+          }
+        }
+        """
+        renew = self.get("renew") or {}
+        extra = renew.get("extra") or {}
+        if not isinstance(extra, dict):
+            return {}
+        return extra
+
     def has_over_time_threshold(self) -> bool:
         """是否配置了「超过阈值才续跑」（renew_if_over_time_threshold / renew_if_over_days）。"""
         return self.get_renew_if_over_days() is not None
@@ -214,6 +264,58 @@ class DataSourceConfig:
             return None
         val = cfg.get("value")
         return int(val) if val is not None else None
+
+    def get_renew_extra(self) -> Dict[str, Any]:
+        """
+        获取 renew 段下的扩展配置（如 backward_checking_days 等）。
+
+        约定：
+        "renew": {
+          "type": "...",
+          "last_update_info": {...},
+          "rolling": {...},
+          "extra": {
+            ... 任意自定义字段 ...
+          }
+        }
+        """
+        renew = self.get("renew") or {}
+        extra = renew.get("extra") or {}
+        if not isinstance(extra, dict):
+            return {}
+        return extra
+
+    def get_data_merging(self) -> Dict[str, Any]:
+        """
+        获取 renew 段下的数据合并配置（例如 merge_by_key 等）。
+
+        约定：
+        "renew": {
+          "type": "...",
+          ...,
+          "data_merging": {
+            "merge_by_key": "date"
+          }
+        }
+        """
+        renew = self.get("renew") or {}
+        data_merging = renew.get("data_merging") or {}
+        if not isinstance(data_merging, dict):
+            return {}
+        return data_merging
+
+    def get_merge_by_key(self) -> Optional[str]:
+        """
+        获取用于跨 API 合并结果的 key（merge_by_key）。
+
+        优先从 renew.data_merging.merge_by_key 读取，
+        为兼容老配置，可回退到顶层 merge_by_key。
+        """
+        data_merging = self.get_data_merging()
+        merge_key = data_merging.get("merge_by_key")
+        if merge_key:
+            return merge_key
+        return self.get("merge_by_key")
     
     def get_apis(self) -> Dict[str, Any]:
         """获取 apis 配置（默认空字典）"""
@@ -225,10 +327,32 @@ class DataSourceConfig:
 
     def is_per_entity(self) -> bool:
         """获取是否是按实体分组"""
-        return self.get("result_group_by") is not None
+        return self.get_group_by() is not None
 
     def get_group_by(self) -> Dict[str, Any]:
-        """获取结果分组字段"""
+        """
+        获取结果分组字段（per-entity 配置）。
+
+        优先从 renew.result_group_by 读取，未配置时回退到顶层 result_group_by：
+        {
+          "result_group_by": {
+            "list": "stock_list",
+            "by_key": "id"
+          }
+        }
+        或
+        "renew": {
+          ...,
+          "result_group_by": {
+            "list": "stock_list",
+            "by_key": "id"
+          }
+        }
+        """
+        renew = self.get("renew") or {}
+        group_by = renew.get("result_group_by")
+        if isinstance(group_by, dict):
+            return group_by
         return self.get("result_group_by")
 
     def get_group_by_entity_list_name(self) -> str:

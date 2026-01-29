@@ -182,23 +182,38 @@ class DataSourceConfig:
     
     def get_renew_if_over_days(self) -> Optional[Dict[str, Any]]:
         """
-        获取 renew_if_over_days 配置
-        
+        获取「超过阈值才续跑」配置。
+
+        约定：配置写在 renew 段下：
+
+        "renew": {
+          ...
+          "renew_if_over_days": {
+            "value": 30,
+            "counting_field": "..."  # 可选，默认使用 date_field
+          }
+        }
+
         Returns:
-            Dict[str, Any]: renew_if_over_days 配置字典，如果未配置返回 None
-            格式：{
-                "value": int,      # 间隔天数（自然日）
-                "counting_field": str  # 可选，默认使用 date_field
-            }
+            Dict[str, Any]: 配置字典，未配置时返回 None
         """
-        threshold = self.get("renew_if_over_days")
-        if not threshold:
+        renew = self.get("renew") or {}
+        threshold = renew.get("renew_if_over_days")
+        if not threshold or not isinstance(threshold, dict):
             return None
-        
-        if not isinstance(threshold, dict):
-            return None
-        
         return threshold
+
+    def has_over_time_threshold(self) -> bool:
+        """是否配置了「超过阈值才续跑」（renew_if_over_time_threshold / renew_if_over_days）。"""
+        return self.get_renew_if_over_days() is not None
+
+    def get_over_time_threshold(self) -> Optional[int]:
+        """获取阈值数值（天数），未配置时返回 None。"""
+        cfg = self.get_renew_if_over_days()
+        if not cfg:
+            return None
+        val = cfg.get("value")
+        return int(val) if val is not None else None
     
     def get_apis(self) -> Dict[str, Any]:
         """获取 apis 配置（默认空字典）"""
@@ -223,3 +238,7 @@ class DataSourceConfig:
     def get_group_by_key(self) -> str:
         """获取实体列表分组字段"""
         return self.get_group_by().get("by_key")
+
+    def get_date_range_required_info(self) -> Dict[str, Any]:
+        """获取日期范围计算所需信息"""
+        pass

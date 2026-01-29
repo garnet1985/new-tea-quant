@@ -1,15 +1,20 @@
 {
     "_comment": "Price Indexes Handler 配置",
-    "renew_mode": "rolling",
-    "date_format": "month",
-    "rolling_unit": "month",
-    "rolling_length": 12,
-    "default_date_range": {
-        "years": 3
+    "renew": {
+        "type": "rolling",
+        "last_update_info": {
+            "date_field": "date",
+            "date_format": "month",
+            "table_name": "price_indexes"
+        },
+        "rolling": {
+            "unit": "month",
+            "length": 12
+        },
+        "data_merging": {
+            "merge_by_key": "date"
+        }
     },
-    "table_name": "price_indexes",
-    "date_field": "date",
-    "merge_by_key": "date",
     "apis": {
         "cpi_data": {
             "provider_name": "tushare",

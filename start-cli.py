@@ -94,13 +94,7 @@ class App:
         """
         return self.data_manager.service.calendar.get_latest_completed_trading_date()
     
-    async def renew_data(
-        self,
-        latest_completed_trading_date: str = None,
-        stock_list: list = None,
-        test_mode: bool = False,
-        dry_run: bool = False,
-    ):
+    async def renew_data(self):
         """
         一站式更新行情 + 标签数据（由 DataSourceManager 统一调度）
         
@@ -110,12 +104,7 @@ class App:
             test_mode: 测试模式，只处理少量股票
             dry_run: 干运行模式，只检查流程，不写入标签
         """
-        await self.data_source.renew_data(
-            latest_completed_trading_date=latest_completed_trading_date,
-            stock_list=stock_list,
-            test_mode=test_mode,
-            dry_run=dry_run,
-        )
+        self.data_source.execute()
     
     # ========================================================================
     # 策略相关（暂时禁用）

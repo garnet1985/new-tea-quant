@@ -1,14 +1,18 @@
 {
     "_comment": "Shibor Handler 配置",
-    "renew_mode": "rolling",
-    "date_format": "date",
-    "rolling_unit": "day",
-    "rolling_length": 30,
-    "default_date_range": {
-        "years": 1
+    "renew": {
+        "type": "rolling",
+        "last_update_info": {
+            "date_field": "date",
+            "date_format": "date",
+            "table_name": "shibor"
+        },
+        "rolling": {
+            "unit": "day",
+            "length": 30
+        }
     },
-    "table_name": "shibor",
-    "date_field": "date",
+
     "apis": {
         "shibor_data": {
             "provider_name": "tushare",

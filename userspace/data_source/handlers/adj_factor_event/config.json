@@ -5,12 +5,16 @@
         "type": "incremental",
         "last_update_info": {
             "date_field": "event_date",
-            "date_format": "date",
+            "date_format": "daily",
             "table_name": "adj_factor_event"
         },
         "renew_if_over_days": {
             "value": 15,
             "counting_field": "last_update"
+        },
+        "result_group_by": {
+            "list": "stock_list",
+            "by_key": "id"
         }
     },
 

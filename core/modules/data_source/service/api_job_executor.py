@@ -12,7 +12,7 @@ from typing import Dict, Any, List
 from loguru import logger
 
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.modules.data_source.data_class.api_job_batch import ApiJobBatch
+from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.service.rate_limiter import collect_api_limits, get_rate_limiter
 
 
@@ -21,11 +21,11 @@ class ApiJobExecutor:
     ApiJob 执行器（支持单批次和多批次）。
 
     单批次：
-    输入：List[ApiJob] 或 ApiJobBatch
+    输入：List[ApiJob] 或 ApiJobBundle
     输出：{job_id: result}
 
     多批次：
-    输入：List[ApiJobBatch]
+    输入：List[ApiJobBundle]
     输出：{batch_id: {job_id: result}}
     """
 
@@ -33,7 +33,7 @@ class ApiJobExecutor:
         self.providers = providers or {}
         self.wait_buffer_seconds = wait_buffer_seconds
 
-    async def run_batches(self, batches: List[ApiJobBatch]) -> Dict[str, Dict[str, Any]]:
+    async def run_batches(self, batches: List[ApiJobBundle]) -> Dict[str, Dict[str, Any]]:
         """
         调度执行多个 ApiJobBatch（原 ApiJobScheduler 的功能）。
         
@@ -90,7 +90,7 @@ class ApiJobExecutor:
         results_by_batch: Dict[str, Dict[str, Any]] = {}
         results_lock = threading.Lock()
 
-        def _batch_executor(batch: ApiJobBatch) -> Dict[str, Any]:
+        def _batch_executor(batch: ApiJobBundle) -> Dict[str, Any]:
             """
             单个批次的执行器（同步接口，供 MultiThreadWorker 使用）。
             """

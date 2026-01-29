@@ -1,15 +1,20 @@
 {
     "_comment": "LPR Handler 配置",
     "name": "lpr",
-    "renew_mode": "rolling",
-    "date_format": "date",
-    "rolling_unit": "day",
-    "rolling_length": 30,
-    "default_date_range": {
-        "years": 1
+
+    "renew": {
+        "type": "rolling",
+        "rolling": {
+            "length": 30,
+            "unit": "day"
+        },
+        "last_update_info": {
+            "date_field": "date",
+            "date_format": "date",
+            "table_name": "lpr"
+        }
     },
-    "table_name": "lpr",
-    "date_field": "date",
+
     "apis": {
         "lpr_data": {
             "provider_name": "tushare",

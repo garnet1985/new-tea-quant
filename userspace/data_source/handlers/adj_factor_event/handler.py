@@ -15,7 +15,7 @@ import os
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.modules.data_source.data_class.api_job_batch import ApiJobBatch
+from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from userspace.data_source.handlers.adj_factor_event.helper import AdjFactorEventHandlerHelper as helper
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
@@ -34,12 +34,6 @@ class AdjFactorEventHandler(BaseHandler):
     
     def __init__(self, data_source_name: str, schema, config, providers: Dict[str, BaseProvider]):
         super().__init__(data_source_name, schema, config, providers)
-        
-        # 从配置读取参数
-        if hasattr(config, "get"):
-            self.max_workers = config.get("max_workers", 10)
-        else:
-            self.max_workers = getattr(config, "max_workers", 10) if hasattr(config, "max_workers") else 10
         
         # 用于跟踪任务完成状态
         self._total_stocks = 0
@@ -185,7 +179,7 @@ class AdjFactorEventHandler(BaseHandler):
     def on_after_execute_job_batch_for_single_stock(
         self, 
         context: Dict[str, Any],
-        job_batch: ApiJobBatch, 
+        job_bundle: ApiJobBundle, 
         fetched_data: Dict[str, Any]
     ):
         """
@@ -205,7 +199,7 @@ class AdjFactorEventHandler(BaseHandler):
         stock_jobs_map = {}  # {stock_id: {job_id: result}}
         
         # 构建 job_id 到 stock_id 的映射
-        for api_job in job_batch.api_jobs:
+        for api_job in job_bundle.apis:
             job_id = api_job.job_id
             if not job_id:
                 continue

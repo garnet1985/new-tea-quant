@@ -1,8 +1,10 @@
 {
     "_comment": "Stock List Handler 配置",
-    "renew_mode": "refresh",
-    "date_format": "none",
-    "default_date_range": {},
+
+    "renew": {
+        "type": "refresh"
+    },
+
     "apis": {
         "stock_list_data": {
             "provider_name": "tushare",

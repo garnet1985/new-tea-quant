@@ -10,12 +10,13 @@
         },
         "renew_if_over_days": {
             "value": 30
+        },
+        "result_group_by": {
+            "list": "stock_list",
+            "by_key": "id"
         }
     },
-    "result_group_by": {
-        "list": "stock_list",
-        "by_key": "id"
-    },
+
     "apis": {
         "daily_kline": {
             "provider_name": "tushare",

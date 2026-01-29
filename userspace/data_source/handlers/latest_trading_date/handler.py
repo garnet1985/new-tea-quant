@@ -37,11 +37,14 @@ class LatestTradingDateHandler(BaseHandler):
             List[ApiJob]: 处理后的 ApiJob 列表（已注入日期范围）
         """
         config = context.get("config")
-        # 从配置中获取向后检查天数（默认15天）
-        if hasattr(config, "get"):
-            backward_checking_days = config.get("backward_checking_days", 15)
-        else:
-            backward_checking_days = getattr(config, "backward_checking_days", 15) if hasattr(config, "backward_checking_days") else 15
+        # 从 renew.extra 中获取向后检查天数（默认15天）
+        backward_checking_days = 15
+        if config is not None and hasattr(config, "get_renew_extra"):
+            extra = config.get_renew_extra() or {}
+            try:
+                backward_checking_days = int(extra.get("backward_checking_days", backward_checking_days))
+            except (TypeError, ValueError):
+                backward_checking_days = 15
         
         # 计算查询日期范围
         today = datetime.now()

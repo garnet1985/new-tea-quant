@@ -10,7 +10,6 @@ from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 
 
 class TushareStockListHandler(BaseHandler):

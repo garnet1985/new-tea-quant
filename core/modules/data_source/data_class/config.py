@@ -40,29 +40,50 @@ class DataSourceConfig:
         """
 
         if not self._is_valid_basic_info():
+            logger.warning(f"{self._data_source_name} 基本信息不完整，跳过")
             return False
 
         if not self._is_valid_renew_mode():
+            logger.warning(f"{self._data_source_name} 续跑模式不完整，跳过")
             return False
 
         if not self._is_valid_group_by():
+            logger.warning(f"{self._data_source_name} 结果分组不完整，跳过")
             return False
 
         if not self._is_valid_apis():
+            logger.warning(f"{self._data_source_name} API 配置不完整，跳过")
             return False
 
         return True
 
-    def _is_valid_basic_info(self) -> bool:
+    def _is_valid_apis(self) -> bool:
+        apis = self._config_dict.get("apis")
+        if not apis:
+            logger.warning(f"{self._data_source_name} API 配置为空，跳过")
+            return False
 
+        for api_name, api_config in apis.items():
+            if not api_config.get("provider_name"):
+                logger.warning(f"{self._data_source_name} 中apis字段中 {api_name} 必须配置 provider_name")
+                return False
+            if not api_config.get("method"):
+                logger.warning(f"{self._data_source_name} 中apis字段中 {api_name} 必须配置 method")
+                return False
+            if not api_config.get("max_per_minute"):
+                logger.warning(f"{self._data_source_name} 中apis字段中 {api_name} 必须配置 max_per_minute")
+                return False
+        return True
+
+    def _is_valid_basic_info(self) -> bool:
         if not self._config_dict:
             logger.warning(f"'{self._data_source_name}' 的 config.json 为空，将跳过执行")
             return False
 
-        
         if not self._data_source_name:
             logger.warning(f"'{self._data_source_name}' 的 config.json 中必须配置 data_source_name")
             return False
+        return True
 
     def _is_valid_renew_mode(self) -> bool:
         renew_config = self.get("renew")

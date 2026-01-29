@@ -53,7 +53,7 @@ class DataSourceManager:
         """
         mapping_path = PathManager.data_source_mapping()
         mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
-        return HandlerMapping(data_sources=mapping.get("data_sources", {}))
+        return HandlerMapping(data_sources=mapping)
 
 
     def _discover_handlers(self, mappings: HandlerMapping, providers: Dict[str, BaseProvider]) -> List[BaseHandler]:
@@ -61,6 +61,7 @@ class DataSourceManager:
         handler_instances = []
 
         for data_source_name in mappings.get_enabled().keys():
+
             schema = self._discover_schema(data_source_name)
             if not schema:
                 logger.error(f"Data source schema {data_source_name} 没有找到，跳过")
@@ -117,9 +118,6 @@ class DataSourceManager:
         if not schema:
             logger.warning(f"未找到数据源 '{data_source_name}' 对应的 Schema")
             return None
-
-        # 显式验证 Schema 完整性（严重问题会抛出异常并停止执行）
-        # schema.validate()
 
         if not schema.is_valid():
             return None

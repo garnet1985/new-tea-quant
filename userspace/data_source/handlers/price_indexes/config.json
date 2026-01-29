@@ -4,11 +4,11 @@
         "type": "rolling",
         "last_update_info": {
             "date_field": "date",
-            "date_format": "month",
+            "date_format": "monthly",
             "table_name": "price_indexes"
         },
         "rolling": {
-            "unit": "month",
+            "unit": "monthly",
             "length": 12
         },
         "data_merging": {

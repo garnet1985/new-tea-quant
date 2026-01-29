@@ -12,47 +12,47 @@
         },
         "kline": {
             "handler": "kline.KlineHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["stock_list", "latest_trading_date"]
         },
         "corporate_finance": {
             "handler": "corporate_finance.CorporateFinanceHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["stock_list", "latest_trading_date"]
         },
         "adj_factor_event": {
             "handler": "adj_factor_event.AdjFactorEventHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["stock_list", "latest_trading_date"]
         },
         "stock_index_indicator": {
             "handler": "stock_index_indicator.StockIndexIndicatorHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
         "stock_index_indicator_weight": {
             "handler": "stock_index_indicator_weight.StockIndexIndicatorWeightHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
         "gdp": {
             "handler": "gdp.GdpHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
         "price_indexes": {
             "handler": "price_indexes.PriceIndexesHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
         "shibor": {
             "handler": "shibor.ShiborHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
         "lpr": {
             "handler": "lpr.LprHandler",
-            "is_enabled": true,
+            "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         }
     }

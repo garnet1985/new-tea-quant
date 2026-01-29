@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../../../../Applications/XAMPP/xamppfiles/htdocs/projects/new-tea/web/themes/custom/new_tea"
 		}
 	],
 	"settings": {

@@ -8,7 +8,7 @@
             "table_name": "stock_index_indicator",
             "group_field": "id"
         },
-        "over_time_threshold": {
+        "renew_if_over_days": {
             "value": 30
         }
     },

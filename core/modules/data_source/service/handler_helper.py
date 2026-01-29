@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 
+from core.global_enums.enums import UpdateMode
+from core.infra.project_context import ConfigManager
 from core.modules.data_source.data_class.api_job import ApiJob
 
 
@@ -978,6 +980,530 @@ class DataSourceHandlerHelper:
             return False
         
         return False
+
+    # ================================
+    # Renew 辅助：一次性获取所有实体的 last_update 映射
+    # ================================
+
+    @staticmethod
+    def get_last_update_map(
+        context: Dict[str, Any],
+        renew_mode: UpdateMode,
+    ) -> Dict[str, Optional[str]]:
+        """
+        获取所有实体的“本次抓取起点”映射。
+
+        语义：
+        - REFRESH:   不查 DB，所有实体统一从全局 default_start_date 开始；
+        - 其他模式:  一次性从 DB 查询原始 latest_date，再根据 renew_mode 计算起点。
+        """
+        # per-entity 的实体列表（例如 dependencies["entity_list"]）
+        deps = context.get("dependencies") or {}
+        entity_list = deps.get("entity_list")
+
+        if renew_mode == UpdateMode.REFRESH:
+            if not entity_list:
+                return {}
+            default_start = ConfigManager.get_default_start_date()
+            return {str(entity_id): default_start for entity_id in entity_list}
+
+        # 非 refresh：统一查一次 DB，拿到原始 last_update，再按模式转换为“起点”
+        raw_last_update_map = DataSourceHandlerHelper.compute_last_update_map(context)
+        result: Dict[str, Optional[str]] = {}
+
+        if entity_list:
+            for entity_id in entity_list:
+                key = str(entity_id)
+                raw_last = raw_last_update_map.get(key)
+                start_date = DataSourceHandlerHelper.calc_last_update_based_on_renew_mode(
+                    context, entity_id=key, last_update=raw_last
+                )
+                result[key] = start_date
+        else:
+            # 没有显式 entity_list，就直接对 DB 返回的 key 做转换
+            for key, raw_last in raw_last_update_map.items():
+                start_date = DataSourceHandlerHelper.calc_last_update_based_on_renew_mode(
+                    context, entity_id=str(key), last_update=raw_last
+                )
+                result[str(key)] = start_date
+
+        return result
+
+    @staticmethod
+    def get_last_update(
+        context: Dict[str, Any],
+        renew_mode: UpdateMode,
+    ) -> Optional[str]:
+        """
+        获取“单实体/全局”的本次抓取起点日期。
+
+        - REFRESH:   直接使用全局 default_start_date；
+        - 其他模式:  从 DB 查询当前数据源的最新日期，再根据 renew_mode 计算本次起点。
+        """
+        if renew_mode == UpdateMode.REFRESH:
+            return ConfigManager.get_default_start_date()
+
+        # 使用 compute_last_update_map 的全局分支（"_global"）获取原始 last_update
+        raw_map = DataSourceHandlerHelper.compute_last_update_map(context)
+        raw_last = raw_map.get("_global")
+        return DataSourceHandlerHelper.calc_last_update_based_on_renew_mode(
+            context, entity_id=None, last_update=raw_last
+        )
+
+    @staticmethod
+    def compute_last_update_map(context: Dict[str, Any]) -> Dict[str, Optional[str]]:
+        """
+        计算所有实体的“原始”最近更新时间（latest_date）映射（不考虑 renew_mode）。
+
+        - per-entity 场景：一次性查询整张表，返回 {entity_id: latest_date_str}；
+        - 非 per-entity 场景：查询整表最新一条记录，返回 {"_global": latest_date_str}；
+        - 如果表为空或查询失败，对应值为 None 或空 dict。
+        """
+        from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+        from loguru import logger
+
+        data_manager = context.get("data_manager")
+        config = context.get("config")
+
+        if not data_manager or not config:
+            return {}
+
+        table_name = config.get_table_name()
+        date_field = config.get_date_field()
+        date_format = config.get_date_format()
+
+        if not table_name or not date_field:
+            logger.warning("table_name 或 date_field 未配置，无法计算 last_update 映射")
+            return {}
+
+        last_update_map: Dict[str, Optional[str]] = {}
+
+        # 是否需要按实体分组（如 per stock）
+        needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
+
+        if not needs_stock_grouping:
+            # 全局数据：查询整表最新一条记录
+            try:
+                model = data_manager.get_table(table_name)
+                if not model:
+                    last_update_map["_global"] = None
+                    return last_update_map
+
+                latest_record = model.load_one("1=1", order_by=f"{date_field} DESC")
+                if not latest_record:
+                    last_update_map["_global"] = None
+                    return last_update_map
+
+                raw_value = latest_record.get(date_field)
+                last_update_map["_global"] = (
+                    DataSourceHandlerHelper._normalize_date_value(raw_value) if raw_value else None
+                )
+                return last_update_map
+            except Exception as e:
+                logger.warning(f"查询全局 last_update 失败: {e}")
+                # 查询失败时，保守返回空映射（后续逻辑会当作“无 last_update”处理）
+                return {}
+
+        # per-entity：一次性查询所有实体的最新日期
+        latest_dates_dict = RenewCommonHelper.query_latest_date(
+            data_manager=data_manager,
+            table_name=table_name,
+            date_field=date_field,
+            date_format=date_format,
+            needs_stock_grouping=needs_stock_grouping,
+        )
+
+        if not latest_dates_dict:
+            # 表为空或查询失败：所有实体视为没有 last_update
+            return {}
+
+        # latest_dates_dict: {entity_id: latest_date_raw}
+        for entity_id, raw_value in latest_dates_dict.items():
+            if not raw_value:
+                last_update_map[str(entity_id)] = None
+            else:
+                last_update_map[str(entity_id)] = DataSourceHandlerHelper._normalize_date_value(
+                    raw_value
+                )
+
+        return last_update_map
+
+    @staticmethod
+    def calc_last_update_based_on_renew_mode(
+        context: Dict[str, Any],
+        entity_id: Optional[str] = None,
+        last_update: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        根据 renew_mode 对“原始” last_update 做一次性转换，得到本次抓取的起点日期（start_date）。
+
+        说明：
+        - 该方法只负责“last_update → start_date”的纯函数逻辑，不参与是否触发本次更新的判断；
+        - 是否需要触发由上层通过 renew_if_over_days 或其他规则统一决定；
+        - 返回值为标准化后的字符串日期，格式由 config.date_format 决定。
+        """
+        from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+        from core.utils.date.date_utils import DateUtils
+        from core.global_enums.enums import UpdateMode, TimeUnit
+        from loguru import logger
+
+        if not context:
+            return None
+
+        config = context.get("config")
+        data_manager = context.get("data_manager")
+
+        if not config:
+            logger.warning("Config 未初始化，无法根据 renew_mode 计算起点日期")
+            return None
+
+        renew_mode = config.get_renew_mode()
+        date_format = config.get_date_format()
+
+        # 统一的默认起点（用于新实体或 last_update 缺失 / 非法时兜底）
+        try:
+            default_start_date, _ = RenewCommonHelper.get_default_date_range(
+                data_manager, date_format, context
+            )
+        except Exception:
+            # 极端情况下回退到全局配置
+            default_start_date = ConfigManager.get_default_start_date()
+
+        # REFRESH：全量刷新，直接从默认起点开始
+        if renew_mode == UpdateMode.REFRESH:
+            return default_start_date
+
+        # INCREMENTAL：从 last_update 的后一个周期开始
+        if renew_mode == UpdateMode.INCREMENTAL:
+            if not last_update:
+                return default_start_date
+            try:
+                start_value = DateUtils.add_one_period(last_update, date_format)
+                return DateUtils.format_period(start_value, date_format)
+            except Exception:
+                return default_start_date
+
+        # ROLLING：滚动窗口
+        if renew_mode == UpdateMode.ROLLING:
+            rolling_unit = config.get_rolling_unit()
+            rolling_length = config.get_rolling_length()
+
+            if not rolling_unit or not rolling_length:
+                # 未配置滚动窗口，退化为增量模式（保持与 IncrementalRenewService 一致）
+                if not last_update:
+                    return default_start_date
+                try:
+                    start_value = DateUtils.add_one_period(last_update, date_format)
+                    return DateUtils.format_period(start_value, date_format)
+                except Exception:
+                    return default_start_date
+
+            # 支持 TimeUnit / str 两种形式
+            _rolling_unit = rolling_unit.value if isinstance(rolling_unit, TimeUnit) else rolling_unit
+            _date_format = date_format
+
+            # 将 rolling_length 转换为与 date_format 对齐的“周期数”
+            def _convert_rolling_length_to_periods() -> int:
+                if _rolling_unit == TimeUnit.QUARTER.value:
+                    if _date_format == TimeUnit.QUARTER.value:
+                        return rolling_length
+                    elif _date_format == TimeUnit.MONTH.value:
+                        return rolling_length * 3
+                    else:  # day
+                        return rolling_length * 90
+                elif _rolling_unit == TimeUnit.MONTH.value:
+                    if _date_format == TimeUnit.QUARTER.value:
+                        return (rolling_length + 2) // 3
+                    elif _date_format == TimeUnit.MONTH.value:
+                        return rolling_length
+                    else:  # day
+                        return rolling_length * 30
+                else:  # DAY
+                    if _date_format == TimeUnit.QUARTER.value:
+                        return (rolling_length + 90) // 90
+                    elif _date_format == TimeUnit.MONTH.value:
+                        return (rolling_length + 30) // 30
+                    else:
+                        return rolling_length
+
+            rolling_periods = _convert_rolling_length_to_periods()
+
+            # 计算当前 end_value（统一为“最近完成交易日”对应周期）
+            latest_completed_trading_date = context.get("latest_completed_trading_date")
+            try:
+                if not latest_completed_trading_date and data_manager and getattr(
+                    data_manager, "service", None
+                ):
+                    latest_completed_trading_date = (
+                        data_manager.service.calendar.get_latest_completed_trading_date()
+                    )
+            except Exception:
+                latest_completed_trading_date = None
+
+            if latest_completed_trading_date:
+                end_value = DateUtils.get_current_period(
+                    latest_completed_trading_date, date_format
+                )
+            else:
+                current_date = DateUtils.get_current_date_str()
+                end_value = DateUtils.get_current_period(current_date, date_format)
+
+            rolling_start_value = DateUtils.subtract_periods(
+                end_value, rolling_periods, date_format
+            )
+            rolling_start_date = DateUtils.format_period(rolling_start_value, date_format)
+
+            if not last_update:
+                # 表为空或新实体：退化为默认起点
+                return default_start_date
+
+            try:
+                period_diff = DateUtils.calculate_period_diff(
+                    last_update, end_value, date_format
+                )
+            except Exception:
+                return default_start_date
+
+            if period_diff <= rolling_periods:
+                # 在 rolling 窗口内：直接从 rolling_start 开始
+                return rolling_start_date
+
+            # 落后太多：从 last_update 的后一个周期开始追
+            try:
+                start_value = DateUtils.add_one_period(last_update, date_format)
+                return DateUtils.format_period(start_value, date_format)
+            except Exception:
+                return default_start_date
+
+        # 未知 / 未配置模式：退化为简单增量
+        if not last_update:
+            return default_start_date
+        try:
+            start_value = DateUtils.add_one_period(last_update, date_format)
+            return DateUtils.format_period(start_value, date_format)
+        except Exception:
+            return default_start_date
+
+    # ================================
+    # Renew 辅助：基于 last_update + renew_mode 计算起止日期
+    # ================================
+
+    @staticmethod
+    def compute_entity_date_ranges(
+        context: Dict[str, Any],
+        last_update_map: Dict[str, Optional[str]],
+    ) -> Dict[str, Tuple[str, str]]:
+        """
+        基于 last_update 映射和 renew_mode 计算各实体本次应抓取的 (start_date, end_date)。
+
+        步骤：
+        1. 根据 renew_mode 决定基础策略（refresh / incremental / rolling）；
+        2. 计算 end_date（通常是 latest_completed_trading_date 对应的周期）；
+        3. 计算默认起点 default_start_date（用于新实体或表为空）；
+        4. 可选：根据 renew_if_over_days 决定哪些实体需要 trigger；
+        5. 对于需要 trigger 的实体，按模式生成 start_date：
+           - refresh: 一律从 default_start_date 起；
+           - incremental: 从 last_update 的后一个周期起（新实体从 default_start_date 起）；
+           - rolling: 先算 rolling 窗口起点，再与 last_update 对比决定从 rolling_start 或 last_update+1 起。
+        """
+        from loguru import logger
+        from core.global_enums.enums import UpdateMode
+        from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+        from core.utils.date.date_utils import DateUtils
+
+        config = context.get("config")
+        data_manager = context.get("data_manager")
+
+        if not config:
+            logger.warning("Config 未初始化，无法计算实体日期范围")
+            return {}
+
+        # 1. 解析更新模式
+        renew_mode = config.get_renew_mode()
+        date_format = config.get_date_format()
+
+        # 2. 计算统一的 end_date（按 date_format 标准化）
+        end_date = RenewCommonHelper.get_end_date(date_format, context)
+
+        # 3. 计算默认起点（用于新实体或表为空）
+        default_start_date, _ = RenewCommonHelper.get_default_date_range(
+            data_manager, date_format, context
+        )
+
+        # 4. 可选：读取 renew_if_over_days 配置，用于 trigger gating
+        threshold_cfg = config.get_renew_if_over_days()
+        latest_completed_trading_date = context.get("latest_completed_trading_date")
+        if not latest_completed_trading_date:
+            try:
+                if data_manager and getattr(data_manager, "service", None):
+                    latest_completed_trading_date = (
+                        data_manager.service.calendar.get_latest_completed_trading_date()
+                    )
+                else:
+                    latest_completed_trading_date = DateUtils.get_current_date_str()
+            except Exception:
+                latest_completed_trading_date = DateUtils.get_current_date_str()
+
+        def should_trigger(last_update: Optional[str]) -> bool:
+            """根据 renew_if_over_days 判断是否需要触发本次更新。"""
+            if not threshold_cfg:
+                return True
+
+            threshold_days = threshold_cfg.get("value")
+            if not threshold_days:
+                # 未配置 value，当作始终需要更新
+                return True
+
+            if not last_update:
+                # 没有 last_update（新实体或表为空）→ 需要更新
+                return True
+
+            try:
+                days_diff = DateUtils.get_duration_in_days(
+                    last_update, latest_completed_trading_date
+                )
+            except Exception:
+                # 日期解析失败，保守策略：更新
+                return True
+
+            # 与 check_renew_if_over_days 保持一致：
+            # days_diff >= threshold → 需要更新；否则跳过
+            return days_diff >= threshold_days
+
+        # 5. 根据需要分组与否，分别计算
+        needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
+        result: Dict[str, Tuple[str, str]] = {}
+
+        # 公共：根据模式计算起点
+        def compute_start_for_mode(last_update: Optional[str]) -> str:
+            # refresh: 总是从默认起点开始刷全量
+            if renew_mode == UpdateMode.REFRESH:
+                return default_start_date
+
+            # incremental: from last_update+1，否则从默认起点
+            if renew_mode == UpdateMode.INCREMENTAL:
+                if not last_update:
+                    return default_start_date
+                try:
+                    start_value = DateUtils.add_one_period(last_update, date_format)
+                    return DateUtils.format_period(start_value, date_format)
+                except Exception:
+                    # 回退到默认起点
+                    return default_start_date
+
+            # rolling 模式
+            if renew_mode == UpdateMode.ROLLING:
+                rolling_unit = config.get_rolling_unit()
+                rolling_length = config.get_rolling_length()
+                if not rolling_unit or not rolling_length:
+                    # 未配置滚动窗口时，退化为增量模式
+                    return compute_start_for_mode(last_update=None if not last_update else last_update)
+
+                # 计算 rolling_periods（尽量复用 RollingRenewService 的语义）
+                # 支持 TimeUnit / str 两种形式
+                from core.global_enums.enums import TimeUnit
+
+                _rolling_unit = rolling_unit.value if isinstance(rolling_unit, TimeUnit) else rolling_unit
+                _date_format = date_format
+
+                # 将 rolling_unit 转为与 date_format 对齐的周期数
+                def _convert_rolling_length_to_periods() -> int:
+                    if _rolling_unit == TimeUnit.QUARTER.value:
+                        if _date_format == TimeUnit.QUARTER.value:
+                            return rolling_length
+                        elif _date_format == TimeUnit.MONTH.value:
+                            return rolling_length * 3
+                        else:  # day
+                            return rolling_length * 90
+                    elif _rolling_unit == TimeUnit.MONTH.value:
+                        if _date_format == TimeUnit.QUARTER.value:
+                            return (rolling_length + 2) // 3
+                        elif _date_format == TimeUnit.MONTH.value:
+                            return rolling_length
+                        else:  # day
+                            return rolling_length * 30
+                    else:  # DAY
+                        if _date_format == TimeUnit.QUARTER.value:
+                            return (rolling_length + 90) // 90
+                        elif _date_format == TimeUnit.MONTH.value:
+                            return (rolling_length + 30) // 30
+                        else:
+                            return rolling_length
+
+                rolling_periods = _convert_rolling_length_to_periods()
+
+                # 计算 end_value / rolling_start
+                if latest_completed_trading_date:
+                    end_value = DateUtils.get_current_period(
+                        latest_completed_trading_date, date_format
+                    )
+                else:
+                    current_date = DateUtils.get_current_date_str()
+                    end_value = DateUtils.get_current_period(current_date, date_format)
+
+                rolling_start_value = DateUtils.subtract_periods(
+                    end_value, rolling_periods, date_format
+                )
+                rolling_start_date = DateUtils.format_period(
+                    rolling_start_value, date_format
+                )
+
+                if not last_update:
+                    # 没有 last_update：退化为从默认起点
+                    return default_start_date
+
+                try:
+                    period_diff = DateUtils.calculate_period_diff(
+                        last_update, end_value, date_format
+                    )
+                except Exception:
+                    # 日期解析失败，保守策略：从默认起点
+                    return default_start_date
+
+                if period_diff <= rolling_periods:
+                    # 在 rolling 窗口内：从 rolling_start 起
+                    return rolling_start_date
+
+                # 落后太多：从 last_update 的后一个周期开始追
+                try:
+                    start_value = DateUtils.add_one_period(last_update, date_format)
+                    return DateUtils.format_period(start_value, date_format)
+                except Exception:
+                    return default_start_date
+
+            # 未知或未配置的模式：退化为增量模式逻辑
+            if not last_update:
+                return default_start_date
+            try:
+                start_value = DateUtils.add_one_period(last_update, date_format)
+                return DateUtils.format_period(start_value, date_format)
+            except Exception:
+                return default_start_date
+
+        # 非 per-entity：只算一条 "_global"
+        if not needs_stock_grouping:
+            last_update = last_update_map.get("_global")
+            if not should_trigger(last_update):
+                return {}
+            start_date = compute_start_for_mode(last_update)
+            result["_global"] = (start_date, end_date)
+            return result
+
+        # per-entity：按 stock_list 遍历实体
+        stock_list = context.get("stock_list", [])
+        if not stock_list:
+            logger.warning("needs_stock_grouping=True 但 context['stock_list'] 为空，返回空日期范围")
+            return {}
+
+        for stock_id in stock_list:
+            entity_id = str(stock_id)
+            last_update = last_update_map.get(entity_id)
+            if not should_trigger(last_update):
+                continue
+            start_date = compute_start_for_mode(last_update)
+            result[entity_id] = (start_date, end_date)
+
+        return result
 
     @staticmethod
     def check_renew_if_over_days(

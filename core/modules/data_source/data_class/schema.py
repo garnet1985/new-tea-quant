@@ -28,8 +28,16 @@ class DataSourceSchema:
         验证单条数据是否符合 Schema 定义，如果符合则返回 True，否则返回 False。
 
         """
+        if not self.name:
+            logger.warning(f"'{self.name}' 的 schema.json 中没有配置 name，将跳过执行")
+            return False    
+
         if not self.fields:
             logger.warning(f"'{self.name}' 的 schema.json 中没有配置 fields，将跳过执行")
             return False
-    
+        
+        if not isinstance(self.fields, dict):
+            logger.warning(f"'{self.name}' 的 schema.json 中 fields 配置错误，应是字典格式")
+            return False
+        
         return True

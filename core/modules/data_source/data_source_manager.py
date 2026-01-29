@@ -62,12 +62,15 @@ class DataSourceManager:
 
         for data_source_name in mappings.get_enabled().keys():
 
+
             schema = self._discover_schema(data_source_name)
             if not schema:
                 logger.error(f"Data source schema {data_source_name} 没有找到，跳过")
                 continue
 
             config = self._discover_config(data_source_name)
+            logger.info(f"发现数据源: {config}")
+
             if config is None:
                 logger.error(f"Data source config {data_source_name} 没有找到，跳过")
                 continue
@@ -155,6 +158,7 @@ class DataSourceManager:
         # 2. 严重问题会抛出 ValueError 并停止执行（已在 validate() 中实现）
 
         if not config.is_valid():
+            logger.warning(f"Data source {data_source_name} 的 config.json 配置不完整，跳过")
             return None
 
         self._all_valid_configs_cache[data_source_name] = config

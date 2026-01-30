@@ -56,17 +56,13 @@ class MacroService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        from core.tables import (
-            SYS_CPI, SYS_PPI, SYS_PMI, SYS_MONEY_SUPPLY,
-            SYS_GDP, SYS_SHIBOR, SYS_LPR,
-        )
-        self._gdp = data_manager.get_table(SYS_GDP)
-        self._cpi = data_manager.get_table(SYS_CPI)
-        self._ppi = data_manager.get_table(SYS_PPI)
-        self._pmi = data_manager.get_table(SYS_PMI)
-        self._money_supply = data_manager.get_table(SYS_MONEY_SUPPLY)
-        self._shibor = data_manager.get_table(SYS_SHIBOR)
-        self._lpr = data_manager.get_table(SYS_LPR)
+        self._gdp = data_manager.get_table("sys_gdp")
+        self._cpi = data_manager.get_table("sys_cpi")
+        self._ppi = data_manager.get_table("sys_ppi")
+        self._pmi = data_manager.get_table("sys_pmi")
+        self._money_supply = data_manager.get_table("sys_money_supply")
+        self._shibor = data_manager.get_table("sys_shibor")
+        self._lpr = data_manager.get_table("sys_lpr")
         
         from core.infra.db import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)

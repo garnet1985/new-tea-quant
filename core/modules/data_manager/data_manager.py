@@ -9,8 +9,8 @@
 - 协调各个 DataService
 
 表名定义：
-- 表名与别名由 core.tables 全局定义（definer）；DataManager 仅为 driver，
-  表名即实际表名（sys_* 或 cust_*），应使用 core.tables 的 SYS_* 常量。
+-   表名由 DataManager 配合 PathManager 发现（core/tables、userspace/tables），
+  core 表须 sys_ 前缀，userspace 表无前缀限制；get_table(table_name) 使用实际表名字符串。
 
 架构：
 - DataManager: 数据访问层入口，管理 DB 和 DataServices
@@ -47,7 +47,7 @@ class DataManager:
     职责：
     - 唯一持有和管理 DatabaseManager
     - 初始化数据库、连接池、表结构（Base Tables + 策略表）
-    - 提供统一的数据访问 API（get_table 等；表名由 core.tables 定义，此处仅解析与返回 Model）
+    - 提供统一的数据访问 API（get_table 等；表名即发现并注册后的实际表名）
     - 协调各 DataService（stock, macro, calendar, ui_transit）
     - 预留 Repository / 策略表 Model 的注册与访问能力（新架构方向）
 
@@ -215,20 +215,18 @@ class DataManager:
     # Table 发现与注册
     # ------------------------------------------------------------------
     
-    def register_table(self, table_folder_path: str, require_cust_prefix: bool = False) -> Optional[Type[Any]]:
+    def register_table(self, table_folder_path: str, from_core: bool = False) -> Optional[Type[Any]]:
         """
-        注册表（从文件夹路径加载）
+        注册表（从文件夹路径加载，配合 PathManager 发现的目录）。
         
-        表文件夹结构（二选一）：
-        - schema.py + model.py（core/tables 风格，表名取自 schema["name"]）
-        - schema.json + model.py（旧风格）
+        表文件夹结构：schema.py + model.py 或 schema.json + model.py，表名取自 schema["name"]。
         
         Args:
-            table_folder_path: 表文件夹路径（如 core/tables/data_stock_list 或 userspace/tables/xxx）
-            require_cust_prefix: 若为 True，则要求 schema["name"] 以 cust_ 开头（userspace 表）
+            table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/tables/xxx）
+            from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过
         
         Returns:
-            Model 类（继承自 DbBaseModel），若注册失败返回 None
+            Model 类（继承自 DbBaseModel），若校验不通过或加载失败返回 None
         """
         from core.infra.db import DbBaseModel
         from core.infra.project_context import FileManager
@@ -260,8 +258,9 @@ class DataManager:
             if not table_name:
                 logger.error(f"❌ schema 中未找到 name: {table_folder_path}")
                 return None
-            if require_cust_prefix and not table_name.startswith("cust_"):
-                logger.error(f"❌ userspace 表名须以 cust_ 开头: {table_name}")
+            if from_core and not table_name.startswith("sys_"):
+                if self.is_verbose:
+                    logger.debug(f"⏭️  跳过 core 表（非 sys_ 前缀）: {table_name} ({table_folder_path})")
                 return None
             
             # 2. 查找并加载 model.py
@@ -305,27 +304,29 @@ class DataManager:
     
     def _discover_tables(self):
         """
-        自动发现并缓存表：先 core/tables（sys_ 前缀），再 userspace/tables（cust_ 前缀）。
+        配合 PathManager 发现 core/tables 与 userspace/tables 下的表并缓存。
+        - core/tables：仅注册 schema["name"] 以 sys_ 开头的表，否则跳过。
+        - userspace/tables：表名无前缀限制，全部注册。
         仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
         from core.infra.project_context import PathManager
         
         try:
-            # 1. core/tables（sys_ 前缀）
+            # 1. core/tables（仅接受 sys_ 前缀）
             core_tables_dir = PathManager.core() / "tables"
             if core_tables_dir.exists():
-                for table_folder in core_tables_dir.iterdir():
+                for table_folder in sorted(core_tables_dir.iterdir()):
                     if not table_folder.is_dir() or table_folder.name.startswith("_"):
                         continue
-                    self.register_table(str(table_folder), require_cust_prefix=False)
+                    self.register_table(str(table_folder), from_core=True)
             
-            # 2. userspace/tables（cust_ 前缀）
+            # 2. userspace/tables（表名无限制）
             userspace_tables_dir = PathManager.userspace() / "tables"
             if userspace_tables_dir.exists():
-                for table_folder in userspace_tables_dir.iterdir():
+                for table_folder in sorted(userspace_tables_dir.iterdir()):
                     if not table_folder.is_dir() or table_folder.name.startswith("_"):
                         continue
-                    self.register_table(str(table_folder), require_cust_prefix=True)
+                    self.register_table(str(table_folder), from_core=False)
             
             if self.is_verbose:
                 logger.info(f"✅ 自动发现并缓存了 {len(self._table_cache)} 个表")
@@ -341,10 +342,10 @@ class DataManager:
         """
         获取指定表对应的 Model 实例（内部方法，仅供 DataService 使用）。
         
-        表名即 sys_* 或 cust_*，由 core.tables 定义。
+        表名由 DataManager 发现并注册（core 表 sys_ 前缀，userspace 表无限制）。
         
         Args:
-            table_name: 表名（sys_* 或 cust_*），如 SYS_STOCK_LIST、SYS_STOCK_KLINE_DAILY。
+            table_name: 实际表名，如 "sys_stock_list"。
             
         Returns:
             对应的 Model 实例（已自动绑定默认 db），如果未找到则返回 None

@@ -28,9 +28,8 @@ class IndexService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model - 私有属性，不对外暴露
-        from core.tables import SYS_STOCK_INDEX_INDICATOR, SYS_STOCK_INDEX_INDICATOR_WEIGHT
-        self._stock_index_indicator = data_manager.get_table(SYS_STOCK_INDEX_INDICATOR)
-        self._stock_index_indicator_weight = data_manager.get_table(SYS_STOCK_INDEX_INDICATOR_WEIGHT)
+        self._stock_index_indicator = data_manager.get_table("sys_stock_index_indicator")
+        self._stock_index_indicator_weight = data_manager.get_table("sys_stock_index_indicator_weight")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager

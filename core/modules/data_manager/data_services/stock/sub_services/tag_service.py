@@ -29,11 +29,10 @@ class TagDataService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 获取相关 Model（表名来自 core.tables，DataManager 为 driver）
-        from core.tables import SYS_TAG_SCENARIO, SYS_TAG_DEFINITION, SYS_TAG_VALUE
-        self._tag_scenario_model = data_manager.get_table(SYS_TAG_SCENARIO)
-        self._tag_definition_model = data_manager.get_table(SYS_TAG_DEFINITION)
-        self._tag_value_model = data_manager.get_table(SYS_TAG_VALUE)
+        # 获取相关 Model（表名由 DataManager 发现并注册）
+        self._tag_scenario_model = data_manager.get_table("sys_tag_scenario")
+        self._tag_definition_model = data_manager.get_table("sys_tag_definition")
+        self._tag_value_model = data_manager.get_table("sys_tag_value")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager

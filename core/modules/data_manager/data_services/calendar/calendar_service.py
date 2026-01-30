@@ -49,6 +49,7 @@ class CalendarService(BaseDataService):
         super().__init__(data_manager)
     
     def get_latest_completed_trading_date(self) -> str:
+        # TODO: need to be refactored, now data is handled by data_source
         """
         获取最新已完成交易日（不是今天，即使今天已经收盘）
         
@@ -119,7 +120,8 @@ class CalendarService(BaseDataService):
             Tuple[交易日（YYYYMMDD）, 更新时间（YYYYMMDD）]，如果缓存不存在或过期返回 None
         """
         try:
-            cache_model = self.data_manager.get_table('system_cache')
+            from core.tables import SYS_CACHE
+            cache_model = self.data_manager.get_table(SYS_CACHE)
             cache_data = cache_model.load_by_key('latest_completed_trading_date')
             
             if not cache_data or not cache_data.get('value'):
@@ -166,7 +168,8 @@ class CalendarService(BaseDataService):
             provider: 数据来源（如 'eastmoney', 'sina', 'guess'）
         """
         try:
-            cache_model = self.data_manager.get_table('system_cache')
+            from core.tables import SYS_CACHE
+            cache_model = self.data_manager.get_table(SYS_CACHE)
             cache_value = json.dumps({
                 "date": date,
                 "updated_at": updated_at,

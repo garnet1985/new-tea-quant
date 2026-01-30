@@ -9,6 +9,7 @@ from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 
 
@@ -25,19 +26,19 @@ class LatestTradingDateHandler(BaseHandler):
     - apis: {...} (包含 provider_name, method, params 等)
     """
     
-    def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
+    def on_before_fetch(self, context: Dict[str, Any], jobs: List) -> List:
         """
-        抓取前阶段钩子：动态设置查询日期范围
+        抓取前阶段钩子：动态设置查询日期范围。
+        支持接收 List[ApiJobBundle]（框架当前约定）或 List[ApiJob]。
         
         Args:
             context: 执行上下文
-            apis: ApiJob 列表
+            jobs: ApiJobBundle 列表或 ApiJob 列表
             
         Returns:
-            List[ApiJob]: 处理后的 ApiJob 列表（已注入日期范围）
+            原样返回 jobs（已对内部 ApiJob 注入日期范围）
         """
         config = context.get("config")
-        # 从 renew.extra 中获取向后检查天数（默认15天）
         backward_checking_days = 15
         if config is not None and hasattr(config, "get_renew_extra"):
             extra = config.get_renew_extra() or {}
@@ -46,21 +47,26 @@ class LatestTradingDateHandler(BaseHandler):
             except (TypeError, ValueError):
                 backward_checking_days = 15
         
-        # 计算查询日期范围
         today = datetime.now()
         yesterday = today - timedelta(days=1)
         end_date = yesterday.strftime('%Y%m%d')
         start_date = (yesterday - timedelta(days=backward_checking_days)).strftime('%Y%m%d')
         
-        # 为每个 ApiJob 注入日期范围参数
-        for api_job in apis:
+        def inject_params(api_job: ApiJob) -> None:
             if api_job.params is None:
                 api_job.params = {}
             api_job.params["start_date"] = start_date
             api_job.params["end_date"] = end_date
-            api_job.params["exchange"] = ""  # 空字符串表示所有交易所
+            api_job.params["exchange"] = ""
         
-        return apis
+        for item in jobs or []:
+            if isinstance(item, ApiJobBundle) and hasattr(item, "apis"):
+                for api_job in (item.apis or []):
+                    inject_params(api_job)
+            elif isinstance(item, ApiJob):
+                inject_params(item)
+        
+        return jobs
     
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

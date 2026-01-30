@@ -27,7 +27,8 @@ class DbCacheService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model - 私有属性，不对外暴露
-        self._system_cache = data_manager.get_table('system_cache')
+        from core.tables import SYS_CACHE
+        self._system_cache = data_manager.get_table(SYS_CACHE)
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager

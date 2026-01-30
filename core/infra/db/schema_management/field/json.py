@@ -14,7 +14,8 @@ class JsonField(Field):
         is_jsonb: bool = False,
         is_required: bool = False,
         default: Any = None,
-        comment: str = None
+        comment: str = None,
+        nullable: bool = True,
     ):
         self.is_jsonb = is_jsonb
         # JSON 支持 PostgreSQL 和 MySQL
@@ -23,7 +24,7 @@ class JsonField(Field):
             self.supported_databases = ['postgresql']
         else:
             self.supported_databases = ['postgresql', 'mysql']
-        super().__init__(name, is_required, default, comment)
+        super().__init__(name, is_required, default, comment, nullable=nullable)
     
     def _to_sql_impl(self, database_type: str) -> str:
         if database_type == 'postgresql':

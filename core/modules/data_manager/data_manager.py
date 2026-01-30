@@ -219,7 +219,7 @@ class DataManager:
         """
         注册表（从文件夹路径加载，配合 PathManager 发现的目录）。
         
-        表文件夹结构：schema.py + model.py 或 schema.json + model.py，表名取自 schema["name"]。
+        表文件夹结构：schema.py + model.py，表名取自 schema["name"]。
         
         Args:
             table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/tables/xxx）
@@ -241,17 +241,14 @@ class DataManager:
                 logger.error(f"❌ 表文件夹不存在: {table_folder_path}")
                 return None
             
-            # 1. 加载 schema（优先 schema.py，其次 schema.json）
-            schema_manager = SchemaManager()
+            # 1. 加载 schema（仅 schema.py）
             schema_py = table_folder / "schema.py"
-            schema_json = table_folder / "schema.json"
-            schema = None
-            if schema_py.exists():
-                schema = schema_manager.load_schema_from_python(str(schema_py))
-            elif schema_json.exists():
-                schema = schema_manager.load_schema_from_file(str(schema_json))
+            if not schema_py.exists():
+                logger.error(f"❌ 表文件夹中未找到 schema.py: {table_folder_path}")
+                return None
+            schema_manager = SchemaManager()
+            schema = schema_manager.load_schema_from_python(str(schema_py))
             if not schema:
-                logger.error(f"❌ 表文件夹中未找到 schema.py 或 schema.json: {table_folder_path}")
                 return None
             
             table_name = schema.get("name")
@@ -304,30 +301,31 @@ class DataManager:
     
     def _discover_tables(self):
         """
-        配合 PathManager 发现 core/tables 与 userspace/tables 下的表并缓存。
+        配合 PathManager 递归发现 core/tables 与 userspace/tables 下的表并缓存。
+        不依赖目录层级：递归查找所有 schema.py，以其所在目录为表目录并注册。
         - core/tables：仅注册 schema["name"] 以 sys_ 开头的表，否则跳过。
         - userspace/tables：表名无前缀限制，全部注册。
         仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
         from core.infra.project_context import PathManager
-        
+
+        def _dirs_with_schema(root: Path) -> set:
+            """递归收集包含 schema.py 的目录。"""
+            return {p.parent for p in root.rglob("schema.py") if p.is_file()}
+
         try:
             # 1. core/tables（仅接受 sys_ 前缀）
             core_tables_dir = PathManager.core() / "tables"
             if core_tables_dir.exists():
-                for table_folder in sorted(core_tables_dir.iterdir()):
-                    if not table_folder.is_dir() or table_folder.name.startswith("_"):
-                        continue
+                for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
                     self.register_table(str(table_folder), from_core=True)
-            
+
             # 2. userspace/tables（表名无限制）
             userspace_tables_dir = PathManager.userspace() / "tables"
             if userspace_tables_dir.exists():
-                for table_folder in sorted(userspace_tables_dir.iterdir()):
-                    if not table_folder.is_dir() or table_folder.name.startswith("_"):
-                        continue
+                for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
                     self.register_table(str(table_folder), from_core=False)
-            
+
             if self.is_verbose:
                 logger.info(f"✅ 自动发现并缓存了 {len(self._table_cache)} 个表")
         except Exception as e:

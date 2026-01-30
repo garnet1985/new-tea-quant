@@ -1073,7 +1073,10 @@ class DataSourceHandlerHelper:
         date_format = config.get_date_format()
 
         if not table_name or not date_field:
-            logger.warning("table_name 或 date_field 未配置，无法计算 last_update 映射")
+            # refresh 模式不需要 last_update，静默返回空映射；其他模式才告警
+            from core.global_enums.enums import UpdateMode
+            if config.get_renew_mode() != UpdateMode.REFRESH:
+                logger.warning("table_name 或 date_field 未配置，无法计算 last_update 映射")
             return {}
 
         last_update_map: Dict[str, Optional[str]] = {}

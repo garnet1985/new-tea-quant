@@ -38,6 +38,17 @@ class UpdateMode(Enum):
     REFRESH = "refresh"
     ROLLING = "rolling"
 
+    @classmethod
+    def from_string(cls, value: str) -> "UpdateMode":
+        """从配置字符串解析为枚举。value 为 None 或无效时抛出 ValueError。"""
+        if value is None:
+            raise ValueError("renew type 未配置")
+        v = str(value).strip().lower()
+        for mode in cls:
+            if mode.value == v:
+                return mode
+        raise ValueError(f"无效的 renew 模式: {value!r}，应为 incremental | refresh | rolling")
+
 
 class SystemConstants:
     """系统级常量（不会频繁变更的）"""

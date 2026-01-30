@@ -7,7 +7,7 @@
 
 涉及的表：
 - gdp: GDP数据（季度）
-- price_indexes: 价格指数（CPI、PPI、PMI、货币供应量，月度）
+- sys_cpi / sys_ppi / sys_pmi / sys_money_supply: 价格指数（原 price_indexes 拆分）
 - shibor: Shibor利率（日度）
 - lpr: LPR利率（日度）
 """
@@ -17,27 +17,34 @@ from loguru import logger
 from .. import BaseDataService
 
 
+# 价格指数各表字段（用于路由与合并）
+CPI_FIELDS = ['cpi', 'cpi_yoy', 'cpi_mom']
+PPI_FIELDS = ['ppi', 'ppi_yoy', 'ppi_mom']
+PMI_FIELDS = ['pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale']
+MONEY_SUPPLY_FIELDS = ['m0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 'm2', 'm2_yoy', 'm2_mom']
+
+
 class MacroService(BaseDataService):
     """宏观经济数据服务"""
     
     # 指标分类映射
     INDICATOR_CATEGORIES = {
         'price_indexes': {  # 价格指数（月度）
-            'cpi': ['cpi', 'cpi_yoy', 'cpi_mom'],  # 消费者价格指数
-            'ppi': ['ppi', 'ppi_yoy', 'ppi_mom'],  # 生产者价格指数
-            'pmi': ['pmi', 'pmi_l_scale', 'pmi_m_scale', 'pmi_s_scale'],  # 采购经理人指数
-            'money_supply': ['m0', 'm0_yoy', 'm0_mom', 'm1', 'm1_yoy', 'm1_mom', 'm2', 'm2_yoy', 'm2_mom']  # 货币供应量
+            'cpi': CPI_FIELDS,
+            'ppi': PPI_FIELDS,
+            'pmi': PMI_FIELDS,
+            'money_supply': MONEY_SUPPLY_FIELDS,
         },
         'gdp': [  # GDP数据（季度）
-            'gdp', 'gdp_yoy', 
-            'primary_industry', 'primary_industry_yoy',  # 第一产业
-            'secondary_industry', 'secondary_industry_yoy',  # 第二产业
-            'tertiary_industry', 'tertiary_industry_yoy'  # 第三产业
+            'gdp', 'gdp_yoy',
+            'primary_industry', 'primary_industry_yoy',
+            'secondary_industry', 'secondary_industry_yoy',
+            'tertiary_industry', 'tertiary_industry_yoy',
         ],
-        'interest_rates': {  # 利率数据（日度）
-            'shibor': ['one_night', 'one_week', 'one_month', 'three_month', 'one_year'],  # Shibor利率
-            'lpr': ['lpr_1_y', 'lpr_5_y']  # LPR利率
-        }
+        'interest_rates': {
+            'shibor': ['one_night', 'one_week', 'one_month', 'three_month', 'one_year'],
+            'lpr': ['lpr_1_y', 'lpr_5_y'],
+        },
     }
     
     def __init__(self, data_manager: Any):
@@ -49,13 +56,18 @@ class MacroService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 获取相关 Model（通过 DataManager，自动绑定默认 db）- 私有属性，不对外暴露
-        self._gdp = data_manager.get_table('gdp')
-        self._price_indexes = data_manager.get_table('price_indexes')
-        self._shibor = data_manager.get_table('shibor')
-        self._lpr = data_manager.get_table('lpr')
+        from core.tables import (
+            SYS_CPI, SYS_PPI, SYS_PMI, SYS_MONEY_SUPPLY,
+            SYS_GDP, SYS_SHIBOR, SYS_LPR,
+        )
+        self._gdp = data_manager.get_table(SYS_GDP)
+        self._cpi = data_manager.get_table(SYS_CPI)
+        self._ppi = data_manager.get_table(SYS_PPI)
+        self._pmi = data_manager.get_table(SYS_PMI)
+        self._money_supply = data_manager.get_table(SYS_MONEY_SUPPLY)
+        self._shibor = data_manager.get_table(SYS_SHIBOR)
+        self._lpr = data_manager.get_table(SYS_LPR)
         
-        # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
     
@@ -123,42 +135,63 @@ class MacroService(BaseDataService):
         fields: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
-        加载价格指数数据（通用方法）
-        
-        Args:
-            start_date: 开始月份（YYYYMM格式，如202001）
-            end_date: 结束月份（YYYYMM格式，如202412）
-            fields: 需要返回的字段列表（如果为None，返回所有字段）
-            
-        Returns:
-            价格指数数据列表（只包含指定的字段，如果fields为None则包含所有字段）
+        加载价格指数数据（从 sys_cpi / sys_ppi / sys_pmi / sys_money_supply 按需查询或合并）
         """
         condition = "1=1"
         params = []
-        
         if start_date:
             condition += " AND date >= %s"
             params.append(start_date)
         if end_date:
             condition += " AND date <= %s"
             params.append(end_date)
-        
-        # 加载数据
-        data = self._price_indexes.load(
-            condition,
-            tuple(params) if params else (),
-            order_by="date ASC"
-        )
-        
-        # 如果指定了字段，只返回这些字段（始终包含date字段）
-        if fields:
-            result_fields = ['date'] + fields
-            return [
-                {k: v for k, v in item.items() if k in result_fields}
-                for item in data
-            ]
-        
-        return data
+        params = tuple(params) if params else ()
+
+        def load_one_model(model, order_by: str = "date ASC"):
+            return model.load(condition, params, order_by=order_by) if model else []
+
+        if fields is None:
+            # 合并四张表（按 date 对齐）
+            by_date: Dict[str, Dict[str, Any]] = {}
+            for row in load_one_model(self._cpi):
+                by_date[row["date"]] = {"date": row["date"], **{k: row[k] for k in row if k != "date"}}
+            for row in load_one_model(self._ppi):
+                d = by_date.setdefault(row["date"], {"date": row["date"]})
+                d.update({k: row[k] for k in row if k != "date"})
+            for row in load_one_model(self._pmi):
+                d = by_date.setdefault(row["date"], {"date": row["date"]})
+                d.update({k: row[k] for k in row if k != "date"})
+            for row in load_one_model(self._money_supply):
+                d = by_date.setdefault(row["date"], {"date": row["date"]})
+                d.update({k: row[k] for k in row if k != "date"})
+            dates = sorted(by_date.keys())
+            return [by_date[d] for d in dates]
+        if all(f in CPI_FIELDS for f in fields):
+            data = load_one_model(self._cpi)
+        elif all(f in PPI_FIELDS for f in fields):
+            data = load_one_model(self._ppi)
+        elif all(f in PMI_FIELDS for f in fields):
+            data = load_one_model(self._pmi)
+        elif all(f in MONEY_SUPPLY_FIELDS for f in fields):
+            data = load_one_model(self._money_supply)
+        else:
+            # 混合字段：合并四张表再裁剪
+            by_date = {}
+            for row in load_one_model(self._cpi):
+                by_date[row["date"]] = {"date": row["date"], **{k: row[k] for k in row if k != "date"}}
+            for row in load_one_model(self._ppi):
+                d = by_date.setdefault(row["date"], {"date": row["date"]})
+                d.update({k: row[k] for k in row if k != "date"})
+            for row in load_one_model(self._pmi):
+                d = by_date.setdefault(row["date"], {"date": row["date"]})
+                d.update({k: row[k] for k in row if k != "date"})
+            for row in load_one_model(self._money_supply):
+                d = by_date.setdefault(row["date"], {"date": row["date"]})
+                d.update({k: row[k] for k in row if k != "date"})
+            dates = sorted(by_date.keys())
+            data = [by_date[d] for d in dates]
+        result_fields = ["date"] + list(fields)
+        return [{k: v for k, v in item.items() if k in result_fields} for item in data]
     
     def load_cpi(
         self, 
@@ -432,13 +465,19 @@ class MacroService(BaseDataService):
         month_num = int(date[4:6])
         quarter = f"{year}Q{(month_num - 1) // 3 + 1}"
         
-        # 加载价格指数数据（一次性加载，包含所有指标）
-        price_indexes_data = self._price_indexes.load_one("date = %s", (month,))
+        # 加载价格指数数据（从四张表按 date 合并）
+        price_indexes_data = None
+        for model in (self._cpi, self._ppi, self._pmi, self._money_supply):
+            row = model.load_one("date = %s", (month,)) if model else None
+            if row:
+                if price_indexes_data is None:
+                    price_indexes_data = {"date": month}
+                price_indexes_data.update({k: row[k] for k in row if k != "date"})
         
         snapshot = {
             'date': date,
             'gdp': self.load_gdp_by_quarter(quarter),
-            'price_indexes': price_indexes_data,  # 包含 cpi, ppi, pmi, m0, m1, m2 等所有字段
+            'price_indexes': price_indexes_data,  # 合并自 sys_cpi/ppi/pmi/money_supply
             'shibor': self.load_shibor_by_date(date, fallback=True),
             'lpr': self.load_lpr_by_date(date, fallback=True),
             'risk_free_rate': self.load_risk_free_rate(date, prefer_shibor=True),
@@ -486,13 +525,32 @@ class MacroService(BaseDataService):
     
     def save_price_indexes_data(self, price_indexes_data: List[Dict[str, Any]]) -> int:
         """
-        批量保存价格指数数据（自动去重）
-        
-        Args:
-            price_indexes_data: 价格指数数据列表
-            
-        Returns:
-            影响的行数
+        批量保存价格指数数据（按字段拆分写入 sys_cpi / sys_ppi / sys_pmi / sys_money_supply，自动去重）
         """
-        return self._price_indexes.save_price_indexes(price_indexes_data)
+        cpi_rows = []
+        ppi_rows = []
+        pmi_rows = []
+        money_rows = []
+        for row in price_indexes_data:
+            date_val = row.get("date")
+            if not date_val:
+                continue
+            if any(k in row for k in CPI_FIELDS):
+                cpi_rows.append({k: row[k] for k in ["date"] + CPI_FIELDS if k in row})
+            if any(k in row for k in PPI_FIELDS):
+                ppi_rows.append({k: row[k] for k in ["date"] + PPI_FIELDS if k in row})
+            if any(k in row for k in PMI_FIELDS):
+                pmi_rows.append({k: row[k] for k in ["date"] + PMI_FIELDS if k in row})
+            if any(k in row for k in MONEY_SUPPLY_FIELDS):
+                money_rows.append({k: row[k] for k in ["date"] + MONEY_SUPPLY_FIELDS if k in row})
+        total = 0
+        if cpi_rows and self._cpi:
+            total += self._cpi.replace(cpi_rows, unique_keys=["date"])
+        if ppi_rows and self._ppi:
+            total += self._ppi.replace(ppi_rows, unique_keys=["date"])
+        if pmi_rows and self._pmi:
+            total += self._pmi.replace(pmi_rows, unique_keys=["date"])
+        if money_rows and self._money_supply:
+            total += self._money_supply.replace(money_rows, unique_keys=["date"])
+        return total
 

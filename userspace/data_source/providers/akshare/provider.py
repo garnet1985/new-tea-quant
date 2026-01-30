@@ -38,7 +38,6 @@ class AKShareProvider(BaseProvider):
     
     def _initialize(self):
         """初始化 AKShare（无需认证）"""
-        logger.debug("AKShare provider initialized (no auth required)")
     
     # ========== API 方法（纯封装）==========
     

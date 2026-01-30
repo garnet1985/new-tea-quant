@@ -2,11 +2,12 @@
 SchemaManager - Schema 管理和表初始化
 
 职责：
-- 从文件系统加载 schema.json
+- 从 core/tables 加载 schema（优先 schema.py，其次 schema.json）
 - 根据 schema 生成 CREATE TABLE SQL
 - 创建表和索引
 - 管理策略自定义表的注册
 """
+import importlib.util
 import json
 from typing import Dict, List, Optional, Callable
 from pathlib import Path
@@ -21,7 +22,7 @@ class SchemaManager:
     Schema 管理器
     
     职责：
-    - 从文件系统加载 schema.json
+    - 从 core/tables（或指定目录）加载 schema（schema.py 或 schema.json）
     - 根据 schema 生成 CREATE TABLE SQL
     - 创建表和索引
     - 管理策略自定义表的注册
@@ -32,20 +33,19 @@ class SchemaManager:
         初始化 SchemaManager
         
         Args:
-            tables_dir: schema 文件目录（默认为 core/modules/data_manager/base_tables）
+            tables_dir: schema 目录（默认为 core/tables）
             is_verbose: 是否输出详细日志
             database_type: 数据库类型（'postgresql', 'mysql', 'sqlite'），用于生成对应的 SQL
         """
         if tables_dir:
             self.tables_dir = tables_dir
         else:
-            # 默认指向 core/modules/data_manager/base_tables
-            # 使用 PathManager 获取路径
-            self.tables_dir = str(PathManager.core() / 'modules' / 'data_manager' / 'base_tables')
+            # 默认指向 core/tables（sys_ 前缀表定义在此）
+            self.tables_dir = str(PathManager.core() / 'tables')
         self.is_verbose = is_verbose
         self.database_type = database_type or 'postgresql'  # 默认 PostgreSQL
         
-        # 缓存已加载的 schema
+        # 缓存已加载的 schema（key 为 schema["name"]，即表名）
         self._schema_cache = {}
         
         # 注册的自定义表（策略表）
@@ -53,12 +53,43 @@ class SchemaManager:
     
     # ==================== Schema 加载 ====================
     
+    def load_schema_from_python(self, schema_file: str) -> Dict:
+        """
+        从 Python 文件（schema.py）加载 schema。
+        文件内需定义变量 schema（dict）。
+        
+        Args:
+            schema_file: schema.py 文件路径
+            
+        Returns:
+            schema 字典
+        """
+        schema_path = Path(schema_file).resolve()
+        if not schema_path.exists():
+            raise FileNotFoundError(f"Schema 文件不存在: {schema_file}")
+        
+        spec = importlib.util.spec_from_file_location("_schema_module", schema_path)
+        if spec is None or spec.loader is None:
+            raise ValueError(f"无法加载模块: {schema_file}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        
+        if not hasattr(mod, "schema"):
+            raise ValueError(f"Schema 文件缺少变量 'schema': {schema_file}")
+        schema = getattr(mod, "schema")
+        if not isinstance(schema, dict):
+            raise ValueError(f"schema 必须为 dict: {schema_file}")
+        
+        self._validate_schema(schema)
+        return schema
+    
     def load_all_schemas(self) -> Dict[str, Dict]:
         """
-        加载所有 schema
+        加载所有 schema（优先 schema.py，其次 schema.json）。
+        使用 schema["name"] 作为 key；并写入 _schema_cache。
         
         Returns:
-            {table_name: schema_dict}
+            {table_name: schema_dict}，table_name 即 schema["name"]
         """
         tables_path = Path(self.tables_dir)
         if not tables_path.exists():
@@ -67,16 +98,27 @@ class SchemaManager:
         
         schemas = {}
         for table_dir in tables_path.iterdir():
-            if not table_dir.is_dir():
+            if not table_dir.is_dir() or table_dir.name.startswith("_"):
                 continue
             
-            schema_file = table_dir / 'schema.json'
-            if schema_file.exists():
+            schema = None
+            schema_py = table_dir / "schema.py"
+            schema_json = table_dir / "schema.json"
+            if schema_py.exists():
                 try:
-                    schema = self.load_schema_from_file(str(schema_file))
-                    schemas[table_dir.name] = schema
+                    schema = self.load_schema_from_python(str(schema_py))
                 except Exception as e:
-                    logger.error(f"❌ 加载 schema 失败 {table_dir.name}: {e}")
+                    logger.error(f"❌ 加载 schema 失败 {table_dir.name} (schema.py): {e}")
+            elif schema_json.exists():
+                try:
+                    schema = self.load_schema_from_file(str(schema_json))
+                except Exception as e:
+                    logger.error(f"❌ 加载 schema 失败 {table_dir.name} (schema.json): {e}")
+            
+            if schema:
+                table_name = schema["name"]
+                schemas[table_name] = schema
+                self._schema_cache[table_name] = schema
         
         return schemas
     
@@ -394,7 +436,8 @@ class SchemaManager:
     
     def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
-        获取表的 schema
+        获取表的 schema。
+        表名即 schema["name"]（如 sys_stock_list），与目录名可能不同。
         
         Args:
             table_name: 表名
@@ -406,16 +449,21 @@ class SchemaManager:
         if table_name in self._schema_cache:
             return self._schema_cache[table_name]
         
-        # 从文件加载
-        schema_file = Path(self.tables_dir) / table_name / 'schema.json'
+        # 从注册表查找
+        if table_name in self.registered_tables:
+            return self.registered_tables[table_name]
+        
+        # 通过 load_all_schemas 拉取并缓存（按 schema["name"] 索引）
+        self.load_all_schemas()
+        if table_name in self._schema_cache:
+            return self._schema_cache[table_name]
+        
+        # 兼容：按目录名查找 schema.json（旧 base_tables 风格）
+        schema_file = Path(self.tables_dir) / table_name / "schema.json"
         if schema_file.exists():
             schema = self.load_schema_from_file(str(schema_file))
             self._schema_cache[table_name] = schema
             return schema
-        
-        # 从注册表查找
-        if table_name in self.registered_tables:
-            return self.registered_tables[table_name]
         
         return None
     

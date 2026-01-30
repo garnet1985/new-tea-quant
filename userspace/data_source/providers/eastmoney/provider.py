@@ -47,7 +47,6 @@ class EastMoneyProvider(BaseProvider):
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Referer': 'https://quote.eastmoney.com/',
         }
-        logger.debug("EastMoney provider initialized (no auth required)")
     
     # ========== API 方法（纯封装）==========
     

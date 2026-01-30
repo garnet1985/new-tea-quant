@@ -9,7 +9,7 @@
         "stock_list_data": {
             "provider_name": "tushare",
             "method": "get_stock_list",
-            "max_per_minute": 800,
+            "max_per_minute": 10,
             "field_mapping": {
                 "id": "ts_code",
                 "name": "name",

@@ -250,7 +250,8 @@ class KlineHandler(BaseHandler):
             return stock_latest_dates_by_term
         
         try:
-            kline_model = data_manager.get_table('stock_kline')
+            from core.tables import SYS_STOCK_KLINE_DAILY
+            kline_model = data_manager.get_table(SYS_STOCK_KLINE_DAILY)
             
             # 使用批量查询：一次性获取所有股票的所有周期的最新记录
             try:

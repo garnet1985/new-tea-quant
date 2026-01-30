@@ -69,7 +69,6 @@ class DataSourceManager:
                 continue
 
             config = self._discover_config(data_source_name)
-            logger.info(f"发现数据源: {config}")
 
             if config is None:
                 logger.error(f"Data source config {data_source_name} 没有找到，跳过")

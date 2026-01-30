@@ -116,17 +116,17 @@ class BaseHandler:
         return jobs
 
     def _get_entity_list(self) -> List[Any]:
-        entity_list = []
-        
-        group_by_entity_list_name = self.context.get("config").get_group_by_entity_list_name()
-        
+        config = self.context.get("config")
+        group_by_entity_list_name = (config.get_group_by_entity_list_name() if config else None) or ""
+
         # TODO: TO BE IMPROVED: need think a better way to resolve entity list here
         if group_by_entity_list_name == "stock_list":
-            entity_list = self.context.get("dependencies").get("stock_list")
-        else: 
+            deps = self.context.get("dependencies") or {}
+            entity_list = deps.get("stock_list")
+            return (entity_list or []) if entity_list is not None else []
+        if group_by_entity_list_name:
             raise ValueError(f"不支持的 group_by_entity_list_name: {group_by_entity_list_name}，如果需要支持其他实体列表，请使用钩子函数")
-
-        return entity_list
+        return []
 
     def _get_last_update_map(self) -> Dict[str, Optional[str]]:
         """
@@ -248,8 +248,8 @@ class BaseHandler:
         
 
     def _inject_dependencies(self, dependencies_data):
-        if dependencies_data is not None:
-            self.context["dependencies"] = dependencies_data
+        """注入依赖数据；无依赖时设为空字典，避免后续 .get 报错。"""
+        self.context["dependencies"] = dependencies_data if dependencies_data is not None else {}
 
     def _filter_by_renew_if_over_days(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
@@ -402,19 +402,29 @@ class BaseHandler:
             return await executor.execute(api_jobs)
 
         def _run_async_in_sync(coro):
+            """在同步上下文中运行 async coro。若当前线程已有运行中的 loop 则在单独线程中起新 loop 执行，避免同线程内再跑一个 loop。"""
+            import concurrent.futures
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    new_loop = asyncio.new_event_loop()
-                    try:
-                        asyncio.set_event_loop(new_loop)
-                        return new_loop.run_until_complete(coro)
-                    finally:
-                        new_loop.close()
-                else:
-                    return loop.run_until_complete(coro)
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        def _in_thread():
+                            new_loop = asyncio.new_event_loop()
+                            try:
+                                asyncio.set_event_loop(new_loop)
+                                return new_loop.run_until_complete(coro)
+                            finally:
+                                new_loop.close()
+                        future = pool.submit(_in_thread)
+                        return future.result()
+                return loop.run_until_complete(coro)
             except RuntimeError:
-                return asyncio.run(coro)
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    return loop.run_until_complete(coro)
+                finally:
+                    loop.close()
 
         # 仅一个 bundle：直接执行
         if len(bundles) == 1:
@@ -772,6 +782,23 @@ class BaseHandler:
         
         # 自动清洗 NaN
         return self.clean_nan_in_normalized_data(normalized_data, default=default)
+
+    def on_bundle_execution_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
+        """
+        执行错误时的钩子。
+
+        当执行阶段（_executing）出现异常时调用此钩子。
+        子类可以覆盖此方法来实现自定义错误处理逻辑，例如：
+        - 记录错误日志
+        - 清理资源
+        - 重试机制
+        - 错误通知
+
+        Args:
+            error: 发生的异常
+            context: 上下文信息
+            apis: 执行时的 ApiJob 列表
+        """
 
     # ================================
     # 通用辅助方法（暴露给子类使用）

@@ -2,7 +2,7 @@
 SchemaManager - Schema 管理和表初始化
 
 职责：
-- 从 core/tables 加载 schema（优先 schema.py，其次 schema.json）
+- 从 core/tables 递归加载 schema.py
 - 根据 schema 生成 CREATE TABLE SQL
 - 创建表和索引
 - 管理策略自定义表的注册
@@ -22,7 +22,7 @@ class SchemaManager:
     Schema 管理器
     
     职责：
-    - 从 core/tables（或指定目录）加载 schema（schema.py 或 schema.json）
+    - 从 core/tables（或指定目录）递归加载 schema.py
     - 根据 schema 生成 CREATE TABLE SQL
     - 创建表和索引
     - 管理策略自定义表的注册
@@ -85,8 +85,7 @@ class SchemaManager:
     
     def load_all_schemas(self) -> Dict[str, Dict]:
         """
-        加载所有 schema（优先 schema.py，其次 schema.json）。
-        使用 schema["name"] 作为 key；并写入 _schema_cache。
+        递归加载 tables_dir 下所有 schema.py，使用 schema["name"] 作为 key 并写入 _schema_cache。
         
         Returns:
             {table_name: schema_dict}，table_name 即 schema["name"]
@@ -97,28 +96,17 @@ class SchemaManager:
             return {}
         
         schemas = {}
-        for table_dir in tables_path.iterdir():
-            if not table_dir.is_dir() or table_dir.name.startswith("_"):
+        for schema_py in sorted(tables_path.rglob("schema.py")):
+            if not schema_py.is_file():
                 continue
-            
-            schema = None
-            schema_py = table_dir / "schema.py"
-            schema_json = table_dir / "schema.json"
-            if schema_py.exists():
-                try:
-                    schema = self.load_schema_from_python(str(schema_py))
-                except Exception as e:
-                    logger.error(f"❌ 加载 schema 失败 {table_dir.name} (schema.py): {e}")
-            elif schema_json.exists():
-                try:
-                    schema = self.load_schema_from_file(str(schema_json))
-                except Exception as e:
-                    logger.error(f"❌ 加载 schema 失败 {table_dir.name} (schema.json): {e}")
-            
-            if schema:
-                table_name = schema["name"]
-                schemas[table_name] = schema
-                self._schema_cache[table_name] = schema
+            try:
+                schema = self.load_schema_from_python(str(schema_py))
+                if schema:
+                    table_name = schema["name"]
+                    schemas[table_name] = schema
+                    self._schema_cache[table_name] = schema
+            except Exception as e:
+                logger.error(f"❌ 加载 schema 失败 {schema_py}: {e}")
         
         return schemas
     
@@ -455,17 +443,7 @@ class SchemaManager:
         
         # 通过 load_all_schemas 拉取并缓存（按 schema["name"] 索引）
         self.load_all_schemas()
-        if table_name in self._schema_cache:
-            return self._schema_cache[table_name]
-        
-        # 兼容：按目录名查找 schema.json（旧 base_tables 风格）
-        schema_file = Path(self.tables_dir) / table_name / "schema.json"
-        if schema_file.exists():
-            schema = self.load_schema_from_file(str(schema_file))
-            self._schema_cache[table_name] = schema
-            return schema
-        
-        return None
+        return self._schema_cache.get(table_name)
     
     def get_table_fields(self, table_name: str) -> List[str]:
         """

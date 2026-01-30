@@ -32,9 +32,10 @@ class KlineService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 获取相关 Model - 私有属性，不对外暴露
-        self._stock_kline = data_manager.get_table('stock_kline')
-        self._adj_factor_event = data_manager.get_table('adj_factor_event')
+        # 获取相关 Model（表名来自 core.tables，DataManager 为 driver）
+        from core.tables import SYS_STOCK_KLINE_DAILY, SYS_ADJ_FACTOR_EVENT
+        self._stock_kline = data_manager.get_table(SYS_STOCK_KLINE_DAILY)
+        self._adj_factor_event = data_manager.get_table(SYS_ADJ_FACTOR_EVENT)
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager

@@ -27,23 +27,26 @@ class Field(ABC):
         is_required: bool = False,
         default: Any = None,
         comment: str = None,
-        auto_increment: bool = False
+        auto_increment: bool = False,
+        nullable: bool = True,
     ):
         """
         初始化字段
         
         Args:
             name: 字段名
-            is_required: 是否必填
+            is_required: 是否必填（数据源必须提供该属性，缺失则拒绝）
             default: 默认值
             comment: 字段注释
             auto_increment: 是否自增（仅整数类型支持）
+            nullable: 列是否允许 NULL；False 时建表 NOT NULL，仅主键/时序列等设为 False
         """
         self.name = name
         self.is_required = is_required
         self.default = default
         self.comment = comment
         self.auto_increment = auto_increment
+        self.nullable = nullable
         
         # 验证字段定义
         self.validate()
@@ -152,8 +155,8 @@ class Field(ABC):
         return f" DEFAULT {default_value}"
     
     def get_not_null_sql(self) -> str:
-        """生成 NOT NULL SQL"""
-        if self.is_required and not self.auto_increment:
+        """生成 NOT NULL SQL（由 nullable 决定，与 isRequired 分离）"""
+        if not self.nullable and not self.auto_increment:
             return " NOT NULL"
         return ""
     
@@ -163,6 +166,7 @@ class Field(ABC):
             'name': self.name,
             'type': self.get_type_name(),
             'isRequired': self.is_required,
+            'nullable': self.nullable,
         }
         
         if self.default is not None:

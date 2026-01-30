@@ -101,21 +101,31 @@ class ApiJobExecutor:
 
             result: Dict[str, Any] = {}
 
-            # 在线程中运行异步执行（适配 MultiThreadWorker 的同步接口）
+            # 在线程中运行异步执行：若当前线程已有运行中的 loop 则在单独线程中起新 loop，否则 run_until_complete
             try:
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
-                        new_loop = asyncio.new_event_loop()
-                        try:
-                            asyncio.set_event_loop(new_loop)
-                            result = new_loop.run_until_complete(_run_single_batch())
-                        finally:
-                            new_loop.close()
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                            def _in_thread():
+                                new_loop = asyncio.new_event_loop()
+                                try:
+                                    asyncio.set_event_loop(new_loop)
+                                    return new_loop.run_until_complete(_run_single_batch())
+                                finally:
+                                    new_loop.close()
+                            fut = pool.submit(_in_thread)
+                            result = fut.result()
                     else:
                         result = loop.run_until_complete(_run_single_batch())
                 except RuntimeError:
-                    result = asyncio.run(_run_single_batch())
+                    loop = asyncio.new_event_loop()
+                    try:
+                        asyncio.set_event_loop(loop)
+                        result = loop.run_until_complete(_run_single_batch())
+                    finally:
+                        loop.close()
             finally:
                 # 写入结果
                 with results_lock:

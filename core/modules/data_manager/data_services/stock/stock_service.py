@@ -52,8 +52,9 @@ class StockService(BaseDataService):
         self.tags = TagDataService(data_manager)
         self.corporate_finance = CorporateFinanceService(data_manager)
         
-        # 获取相关 Model（股票基础数据）- 私有属性，不对外暴露
-        self._stock_list = data_manager.get_table('stock_list')
+        # 获取相关 Model（表名来自 core.tables，DataManager 为 driver）
+        from core.tables import SYS_STOCK_LIST
+        self._stock_list = data_manager.get_table(SYS_STOCK_LIST)
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager

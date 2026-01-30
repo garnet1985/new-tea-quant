@@ -46,7 +46,6 @@ class SinaProvider(BaseProvider):
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         }
-        logger.debug("Sina provider initialized (no auth required)")
     
     # ========== API 方法（纯封装）==========
     

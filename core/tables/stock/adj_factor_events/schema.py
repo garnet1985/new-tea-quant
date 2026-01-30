@@ -5,7 +5,7 @@ data_adj_factor_event 表结构定义（Python，变量名 schema）
 主键、时序列 id/event_date nullable=false；其余 nullable=true。
 """
 schema = {
-    "name": "sys_adj_factor_event",
+    "name": "sys_adj_factor_events",
     "primaryKey": ["id", "event_date"],
     "fields": [
         {

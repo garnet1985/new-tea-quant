@@ -503,8 +503,7 @@ class StrategyWorkerDataManager:
             
             elif 'gdp' in entity_type.lower():
                 # 加载宏观数据
-                from core.tables import SYS_GDP
-                return self._load_macro_data(SYS_GDP, start_date, end_date)
+                return self._load_macro_data("sys_gdp", start_date, end_date)
             
             else:
                 logger.warning(f"未知的实体类型: {entity_type}")
@@ -517,8 +516,7 @@ class StrategyWorkerDataManager:
     def _load_tag_data(self, tag_name: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """加载 Tag 数据"""
         try:
-            from core.tables import SYS_TAG_VALUE
-            tag_model = self.data_mgr.get_table(SYS_TAG_VALUE)
+            tag_model = self.data_mgr.get_table("sys_tag_value")
             if not tag_model:
                 return []
             
@@ -536,8 +534,7 @@ class StrategyWorkerDataManager:
     def _load_finance_data(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """加载财务数据"""
         try:
-            from core.tables import SYS_CORPORATE_FINANCE
-            finance_model = self.data_mgr.get_table(SYS_CORPORATE_FINANCE)
+            finance_model = self.data_mgr.get_table("sys_corporate_finance")
             if not finance_model:
                 return []
             

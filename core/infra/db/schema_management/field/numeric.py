@@ -97,10 +97,11 @@ class DecimalField(Field):
         length: Optional[str] = None,
         is_required: bool = False,
         default: Any = None,
-        comment: str = None
+        comment: str = None,
+        nullable: bool = True,
     ):
         self.length = length  # 可以是 "10,2" 或 "10"
-        super().__init__(name, is_required, default, comment)
+        super().__init__(name, is_required, default, comment, nullable=nullable)
     
     def _to_sql_impl(self, database_type: str) -> str:
         if self.length:

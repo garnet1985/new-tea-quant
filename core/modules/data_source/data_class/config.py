@@ -159,10 +159,11 @@ class DataSourceConfig:
     
     # ========== 配置访问方法 ==========
     
-    def get_renew_mode(self) -> UpdateMode:
-        """获取 renew_mode（小写字符串）"""
+    def get_renew_mode(self) -> Optional[UpdateMode]:
+        """获取 renew_mode（小写字符串）。未配置或无效时返回 None。"""
         try:
-            return UpdateMode.from_string(self.get("renew").get("type"))
+            raw = (self.get("renew") or {}).get("type")
+            return UpdateMode.from_string(raw) if raw is not None else None
         except ValueError:
             logger.warning(f"'{self._data_source_name}' 的 config.json 中配置的 renew_mode 无效，将跳过执行")
             return None
@@ -393,13 +394,15 @@ class DataSourceConfig:
             return group_by
         return self.get("result_group_by")
 
-    def get_group_by_entity_list_name(self) -> str:
-        """获取实体列表名称"""
-        return self.get_group_by().get("list")
+    def get_group_by_entity_list_name(self) -> Optional[str]:
+        """获取实体列表名称；未配置 result_group_by 时返回 None。"""
+        group_by = self.get_group_by()
+        return group_by.get("list") if isinstance(group_by, dict) else None
 
-    def get_group_by_key(self) -> str:
-        """获取实体列表分组字段"""
-        return self.get_group_by().get("by_key")
+    def get_group_by_key(self) -> Optional[str]:
+        """获取实体列表分组字段；未配置 result_group_by 时返回 None。"""
+        group_by = self.get_group_by()
+        return group_by.get("by_key") if isinstance(group_by, dict) else None
 
     def get_date_range_required_info(self) -> Dict[str, Any]:
         """获取日期范围计算所需信息"""

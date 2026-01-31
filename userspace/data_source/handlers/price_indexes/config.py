@@ -1,19 +1,22 @@
-{
-    "_comment": "Price Indexes Handler 配置",
+"""
+Price Indexes Handler 配置。绑定表 sys_cpi；PPI/PMI/Money Supply 由 handler 在 hooks 中写入对应表。
+"""
+CONFIG = {
+    "table": "sys_cpi",
     "renew": {
         "type": "rolling",
         "last_update_info": {
             "date_field": "date",
             "date_format": "monthly",
-            "table_name": "price_indexes"
+            "table_name": "sys_cpi",
         },
         "rolling": {
             "unit": "monthly",
-            "length": 12
+            "length": 12,
         },
         "data_merging": {
-            "merge_by_key": "date"
-        }
+            "merge_by_key": "date",
+        },
     },
     "apis": {
         "cpi_data": {
@@ -24,9 +27,9 @@
                 "date": "month",
                 "cpi": "nt_val",
                 "cpi_yoy": "nt_yoy",
-                "cpi_mom": "nt_mom"
+                "cpi_mom": "nt_mom",
             },
-            "params": {}
+            "params": {},
         },
         "ppi_data": {
             "provider_name": "tushare",
@@ -36,9 +39,9 @@
                 "date": "month",
                 "ppi": "ppi_accu",
                 "ppi_yoy": "ppi_yoy",
-                "ppi_mom": "ppi_mom"
+                "ppi_mom": "ppi_mom",
             },
-            "params": {}
+            "params": {},
         },
         "pmi_data": {
             "provider_name": "tushare",
@@ -49,9 +52,9 @@
                 "pmi": "PMI010000",
                 "pmi_l_scale": "PMI010100",
                 "pmi_m_scale": "PMI010200",
-                "pmi_s_scale": "PMI010300"
+                "pmi_s_scale": "PMI010300",
             },
-            "params": {}
+            "params": {},
         },
         "money_supply_data": {
             "provider_name": "tushare",
@@ -67,9 +70,9 @@
                 "m1_mom": "m1_mom",
                 "m2": "m2",
                 "m2_yoy": "m2_yoy",
-                "m2_mom": "m2_mom"
+                "m2_mom": "m2_mom",
             },
-            "params": {}
-        }
-    }
+            "params": {},
+        },
+    },
 }

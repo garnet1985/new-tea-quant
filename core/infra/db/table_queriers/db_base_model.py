@@ -91,12 +91,9 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
     
     def load_schema(self) -> dict:
         """
-        加载表的 schema
-        
-        优先从 app/core/modules/data_manager/base_tables 加载，
-        如果不存在则尝试从策略自定义表加载
-        
-        使用 SchemaManager 统一加载逻辑
+        加载表的 schema。由基类统一实现：通过 SchemaManager 按 self.table_name
+        从 core/tables 下各表目录的 schema.py 加载（按 schema["name"] 索引）；
+        子类无需覆盖，只需在 __init__ 中传入正确的 table_name 即可。
         """
         from core.infra.db.schema_management.schema_manager import SchemaManager
         

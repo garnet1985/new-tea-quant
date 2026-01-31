@@ -15,9 +15,6 @@ class DataAdjFactorEventModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        return _schema
-
     def load_by_stock(self, stock_id: str) -> List[Dict[str, Any]]:
         return self.load("id = %s", (stock_id,), order_by="event_date ASC")
 

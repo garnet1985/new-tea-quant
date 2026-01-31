@@ -77,11 +77,15 @@ class DataSourceConfig:
 
     def _is_valid_basic_info(self) -> bool:
         if not self._config_dict:
-            logger.warning(f"'{self._data_source_name}' 的 config.json 为空，将跳过执行")
+            logger.warning(f"'{self._data_source_name}' 的 config 为空，将跳过执行")
             return False
 
         if not self._data_source_name:
-            logger.warning(f"'{self._data_source_name}' 的 config.json 中必须配置 data_source_name")
+            logger.warning(f"'{self._data_source_name}' 的 config 中必须配置 data_source_name")
+            return False
+
+        if not self.get("table"):
+            logger.warning(f"'{self._data_source_name}' 的 config 必须配置顶层 table（绑定表名）")
             return False
         return True
 
@@ -89,12 +93,12 @@ class DataSourceConfig:
         renew_config = self.get("renew")
 
         if not renew_config:
-            logger.warning(f"'{self._data_source_name}' 的 config.json 中必须配置 renew")
+            logger.warning(f"'{self._data_source_name}' 的 config 中必须配置 renew")
             return False
 
         renew_type = renew_config.get("type")
         if not renew_type:
-            logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 type")
+            logger.warning(f"'{self._data_source_name}' 的 config 中 renew 必须配置 type")
             return False
 
         # Incremental 模式验证
@@ -102,28 +106,27 @@ class DataSourceConfig:
 
             last_update_info = renew_config.get("last_update_info")
             if not last_update_info:
-                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 last_update_info 来找到以前renew到的时间点")
+                logger.warning(f"'{self._data_source_name}' 的 config 中 renew 必须配置 last_update_info 来找到以前renew到的时间点")
                 return False
 
-            table_name = last_update_info.get("table_name")
-
+            table_name = self.get_table_name()
             if not table_name:
-                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 table_name")
+                logger.warning(f"'{self._data_source_name}' 的 config 必须配置 table（顶层）或 renew.last_update_info.table_name")
                 return False
 
-            date_field = last_update_info.get("date_field")
+            date_field = self.get_date_field()
             if not date_field:
-                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 date_field")
+                logger.warning(f"'{self._data_source_name}' 的 config 中 renew 必须配置 date_field（顶层或 last_update_info）")
                 return False
 
-            date_format = last_update_info.get("date_format")
+            date_format = self.get_date_format()
             if not date_format:
-                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 date_format")
+                logger.warning(f"'{self._data_source_name}' 的 config 中 renew 必须配置 date_format（顶层或 last_update_info）")
                 return False
 
             group_field = last_update_info.get("group_field")
             if self.is_per_entity() and not group_field:
-                logger.warning(f"'{self._data_source_name}' 的 config.json 中 renew 必须配置 group_field")
+                logger.warning(f"'{self._data_source_name}' 的 config 中 renew 必须配置 group_field")
                 return False
         
         # Rolling 模式验证
@@ -144,15 +147,15 @@ class DataSourceConfig:
             return True
 
         if not isinstance(group_by, dict):
-            logger.warning(f"'{self._data_source_name}' 的 config.json 中 result_group_by 必须配置为字典")
+            logger.warning(f"'{self._data_source_name}' 的 config 中 result_group_by 必须配置为字典")
             return False
 
         if not group_by.get("list"):
-            logger.warning(f"'{self._data_source_name}' 的 config.json 中 result_group_by 必须配置 list")
+            logger.warning(f"'{self._data_source_name}' 的 config 中 result_group_by 必须配置 list")
             return False
 
         if not group_by.get("by_key"):
-            logger.warning(f"'{self._data_source_name}' 的 config.json 中 result_group_by 必须配置 by_key")
+            logger.warning(f"'{self._data_source_name}' 的 config 中 result_group_by 必须配置 by_key")
             return False
 
         return True
@@ -165,7 +168,7 @@ class DataSourceConfig:
             raw = (self.get("renew") or {}).get("type")
             return UpdateMode.from_string(raw) if raw is not None else None
         except ValueError:
-            logger.warning(f"'{self._data_source_name}' 的 config.json 中配置的 renew_mode 无效，将跳过执行")
+            logger.warning(f"'{self._data_source_name}' 的 config 中配置的 renew_mode 无效，将跳过执行")
             return None
     
     def _normalize_term(self, value: str) -> str:
@@ -198,14 +201,14 @@ class DataSourceConfig:
     
     def get_table_name(self) -> str:
         """
-        获取 table_name
-
-        优先从 renew.last_update_info.table_name 读取，
-        未配置时回退到顶层 table_name。
+        获取绑定表名。优先顶层 table，其次 renew.last_update_info.table_name。
         """
+        top = self.get("table")
+        if top:
+            return top
         renew = self.get("renew") or {}
         last_info = renew.get("last_update_info") or {}
-        return last_info.get("table_name") or self.get("table_name")
+        return last_info.get("table_name") or self.get("table_name") or ""
     
     def get_date_field(self) -> str:
         """

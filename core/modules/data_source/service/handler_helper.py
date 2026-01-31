@@ -385,39 +385,48 @@ class DataSourceHandlerHelper:
         )
         return []
 
+    # 表 schema 的 type 字符串 -> Python 类型（用于 apply_schema 与校验）
+    _SCHEMA_TYPE_MAP = {
+        "varchar": str, "text": str, "int": int, "float": float,
+        "tinyint": int, "datetime": str, "date": str,
+    }
+
     @staticmethod
     def apply_schema(records: List[Dict[str, Any]], schema: Any) -> List[Dict[str, Any]]:
         """
-        根据 DataSourceSchema 将记录列表规范化到标准字段集。
+        根据表 schema（dict，来自 DB）将记录列表规范化到标准字段集。
 
-        行为：
-        - 只保留 schema.fields 中定义的字段；
-        - 如果缺失字段，使用 DataSourceField.default；
-        - 尝试将值转换为 DataSourceField.type。
+        schema 为 core/tables 的 schema dict：name, primaryKey, fields（list of {name, type, isRequired, ...}）。
+        - 只保留 schema["fields"] 中定义的字段；
+        - 缺失字段填 None；
+        - 按 schema 的 type 做类型转换。
         """
-        if schema is None or not getattr(schema, "fields", None):
-            # 没有可用 schema，直接返回原始记录
+        if not schema or not isinstance(schema, dict):
+            return records
+        fields_list = schema.get("fields") or []
+        if not fields_list:
             return records
 
+        type_map = DataSourceHandlerHelper._SCHEMA_TYPE_MAP
         normalized: List[Dict[str, Any]] = []
-        fields_def: Dict[str, Any] = schema.fields  # name -> DataSourceField
 
         for item in records:
             row: Dict[str, Any] = {}
-            for field_name, field_def in fields_def.items():
-                value = item.get(field_name, getattr(field_def, "default", None))
-                field_type = getattr(field_def, "type", None)
-
-                if field_type and value is not None:
+            for field_def in fields_list:
+                name = field_def.get("name")
+                if not name:
+                    continue
+                value = item.get(name)
+                type_str = (field_def.get("type") or "").lower()
+                py_type = type_map.get(type_str, str)
+                if value is not None and py_type:
                     try:
-                        value = field_type(value)
+                        value = py_type(value)
                     except (TypeError, ValueError):
                         logger.warning(
-                            f"字段 {field_name} 类型转换失败: "
-                            f"值={value} 目标类型={field_type}"
+                            f"字段 {name} 类型转换失败: 值={value} 目标类型={py_type}"
                         )
-                row[field_name] = value
-
+                row[name] = value
             normalized.append(row)
 
         return normalized
@@ -427,16 +436,14 @@ class DataSourceHandlerHelper:
     @staticmethod
     def validate_field_coverage(apis_conf: Dict[str, Any], schema: Any) -> None:
         """
-        校验：schema 中的字段是否都能在各 API 的 field_mapping 中找到对应来源。
+        校验：表 schema 中的字段是否都能在各 API 的 field_mapping 中找到对应来源。
 
-        当前行为：
-        - 仅做“提醒式”校验，不抛异常；
-        - 打印哪些 schema 字段在所有 field_mapping 中都没有出现。
+        schema 为表 schema dict（fields 为 list）。仅做提醒式校验，不抛异常。
         """
-        if schema is None or not getattr(schema, "fields", None):
+        if not schema or not isinstance(schema, dict):
             return
-
-        schema_fields = set(schema.fields.keys())
+        fields_list = schema.get("fields") or []
+        schema_fields = {f.get("name") for f in fields_list if f.get("name")}
         mapped_targets: set[str] = set()
 
         for api_name, api_cfg in (apis_conf or {}).items():
@@ -876,15 +883,17 @@ class DataSourceHandlerHelper:
 
         Args:
             normalized_data: 标准化后的数据，通常是 {"data": [...]} 格式
-            schema: Schema 对象（用于验证）
+            schema: 表 schema dict（用于验证，来自 DB）
             data_source_name: 数据源名称（用于错误信息）
 
         Raises:
             ValueError: 如果数据验证失败
         """
-        if not schema:
-            # 如果没有 schema，跳过验证
+        if not schema or not isinstance(schema, dict):
             return
+
+        def _valid(record: dict) -> bool:
+            return DataSourceHandlerHelper._validate_record_against_schema(record, schema)
 
         # 如果数据是 {"data": [...]} 格式，验证列表中的每个记录
         if isinstance(normalized_data, dict) and "data" in normalized_data:
@@ -893,61 +902,72 @@ class DataSourceHandlerHelper:
                 raise ValueError(
                     f"数据验证失败: {data_source_name} 的 data 字段不是列表类型"
                 )
-            
-            # 验证列表中的每个记录
             errors = []
             for idx, record in enumerate(data_list):
                 if not isinstance(record, dict):
                     errors.append(f"记录 {idx} 不是字典类型")
                     continue
-                
-                if not schema.validate_data(record):
-                    # 收集错误信息
+                if not _valid(record):
                     record_errors = DataSourceHandlerHelper._collect_validation_errors(record, schema)
                     if record_errors:
                         errors.append(f"记录 {idx}: {', '.join(record_errors)}")
-            
             if errors:
                 raise ValueError(
-                    f"数据验证失败: {data_source_name} 的标准化数据不符合 schema 定义。"
+                    f"数据验证失败: {data_source_name} 的标准化数据不符合表 schema。"
                     f"错误详情: {'; '.join(errors)}"
                 )
             return
-        
-        # 如果数据不是 {"data": [...]} 格式，直接验证整个字典
-        if not schema.validate_data(normalized_data):
+
+        if not _valid(normalized_data):
             errors = DataSourceHandlerHelper._collect_validation_errors(normalized_data, schema)
-            error_msg = ', '.join(errors) if errors else "数据不符合 schema 定义"
+            error_msg = ", ".join(errors) if errors else "数据不符合表 schema"
             raise ValueError(
-                f"数据验证失败: {data_source_name} 的标准化数据不符合 schema 定义。"
+                f"数据验证失败: {data_source_name} 的标准化数据不符合表 schema。"
                 f"错误详情: {error_msg}"
             )
 
     @staticmethod
+    def _validate_record_against_schema(record: Dict[str, Any], schema: Dict[str, Any]) -> bool:
+        """表 schema（dict）校验单条记录：必填存在、类型可接受。"""
+        if not schema or not isinstance(schema, dict):
+            return True
+        fields_list = schema.get("fields") or []
+        type_map = DataSourceHandlerHelper._SCHEMA_TYPE_MAP
+        for field_def in fields_list:
+            name = field_def.get("name")
+            if not name:
+                continue
+            if field_def.get("isRequired") and name not in record:
+                return False
+            if name in record and record[name] is not None:
+                py_type = type_map.get((field_def.get("type") or "").lower(), str)
+                if not DataSourceHandlerHelper._check_type(record[name], py_type):
+                    return False
+        return True
+
+    @staticmethod
     def _collect_validation_errors(record: Dict[str, Any], schema: Any) -> List[str]:
         """
-        收集数据验证错误信息。
-
-        Args:
-            record: 单条记录（字典）
-            schema: Schema 对象
-
-        Returns:
-            List[str]: 错误信息列表
+        收集数据验证错误信息。schema 为表 schema dict（fields 为 list）。
         """
         errors = []
-        
-        for field_name, field_def in schema.fields.items():
-            if field_def.required and field_name not in record:
-                errors.append(f"{field_name}(缺失)")
-            elif field_name in record and record[field_name] is not None:
-                value = record[field_name]
-                expected_type = field_def.type
-                if not DataSourceHandlerHelper._check_type(value, expected_type):
+        if not schema or not isinstance(schema, dict):
+            return errors
+        fields_list = schema.get("fields") or []
+        type_map = DataSourceHandlerHelper._SCHEMA_TYPE_MAP
+        for field_def in fields_list:
+            name = field_def.get("name")
+            if not name:
+                continue
+            if field_def.get("isRequired") and name not in record:
+                errors.append(f"{name}(缺失)")
+            elif name in record and record[name] is not None:
+                value = record[name]
+                py_type = type_map.get((field_def.get("type") or "").lower(), str)
+                if not DataSourceHandlerHelper._check_type(value, py_type):
                     errors.append(
-                        f"{field_name}(类型错误: {type(value).__name__} != {expected_type.__name__})"
+                        f"{name}(类型错误: {type(value).__name__} != {py_type.__name__})"
                     )
-        
         return errors
 
     @staticmethod

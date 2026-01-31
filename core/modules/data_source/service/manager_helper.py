@@ -101,15 +101,21 @@ class DataSourceManagerHelper:
             logger.error(f"Handler 路径格式不正确: {full_handler_path}")
             return None
 
+        # 从 {name}.handler 模块加载类，无需各 handler 目录下的 __init__.py
+        if module_path.startswith("userspace.data_source.handlers."):
+            handler_module_path = module_path + ".handler"
+        else:
+            handler_module_path = module_path
+
         try:
-            module = importlib.import_module(module_path)
+            module = importlib.import_module(handler_module_path)
         except ImportError as e:
-            logger.error(f"导入 Handler 模块失败 {module_path}: {e}")
+            logger.error(f"导入 Handler 模块失败 {handler_module_path}: {e}")
             return None
 
         handler_cls = getattr(module, class_name, None)
         if handler_cls is None:
-            logger.error(f"在模块 {module_path} 中未找到 Handler 类 {class_name}")
+            logger.error(f"在模块 {handler_module_path} 中未找到 Handler 类 {class_name}")
             return None
         return handler_cls
 

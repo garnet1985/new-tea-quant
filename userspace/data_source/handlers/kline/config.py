@@ -31,10 +31,5 @@ CONFIG = {
             "method": "get_monthly_kline",
             "max_per_minute": 700,
         },
-        "daily_basic": {
-            "provider_name": "tushare",
-            "method": "get_daily_basic",
-            "max_per_minute": 700,
-        },
     },
 }

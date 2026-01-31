@@ -1,13 +1,14 @@
-{
-    "_comment": "Latest Trading Date Handler 配置",
-
+"""
+Latest Trading Date Handler 配置。绑定表 sys_cache。
+"""
+CONFIG = {
+    "table": "sys_cache",
     "renew": {
         "type": "refresh",
         "extra": {
-            "backward_checking_days": 15
-        }
+            "backward_checking_days": 15,
+        },
     },
-
     "apis": {
         "trade_cal_data": {
             "provider_name": "tushare",
@@ -15,9 +16,9 @@
             "max_per_minute": 200,
             "field_mapping": {
                 "cal_date": "cal_date",
-                "is_open": "is_open"
+                "is_open": "is_open",
             },
-            "params": {}
-        }
-    }
+            "params": {},
+        },
+    },
 }

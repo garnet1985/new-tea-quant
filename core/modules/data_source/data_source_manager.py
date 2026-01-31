@@ -1,11 +1,10 @@
-from typing import Dict, Any, List, Set, Tuple
+from typing import Dict, Any, List, Tuple
 from loguru import logger
 
 from core.infra.project_context import PathManager
-from core.infra.discovery import ModuleDiscovery
+from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
-from core.modules.data_source.data_class.schema import DataSourceSchema
 from core.modules.data_source.execution_scheduler import DataSourceExecutionScheduler
 from core.modules.data_source.service.manager_helper import DataSourceManagerHelper
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
@@ -23,8 +22,6 @@ class DataSourceManager:
         Args:
             is_verbose: 是否显示详细日志（保留参数以兼容现有代码）
         """
-
-        self._all_valid_schemas_cache: Dict[str, DataSourceSchema] = {}
         self._all_valid_configs_cache: Dict[str, DataSourceConfig] = {}
         self._all_valid_handlers_cache: Dict[str, Any] = {}
 
@@ -39,7 +36,6 @@ class DataSourceManager:
         self._execution_scheduler.run(handler_instances, mappings)
 
     def _flush_cache(self):
-        self._all_valid_schemas_cache.clear()
         self._all_valid_configs_cache.clear()
         self._all_valid_handlers_cache.clear()
 
@@ -57,21 +53,17 @@ class DataSourceManager:
 
 
     def _discover_handlers(self, mappings: HandlerMapping, providers: Dict[str, BaseProvider]) -> List[BaseHandler]:
-        
         handler_instances = []
 
         for data_source_name in mappings.get_enabled().keys():
-
-
-            schema = self._discover_schema(data_source_name)
-            if not schema:
-                logger.error(f"Data source schema {data_source_name} 没有找到，跳过")
-                continue
-
             config = self._discover_config(data_source_name)
-
             if config is None:
                 logger.error(f"Data source config {data_source_name} 没有找到，跳过")
+                continue
+
+            schema = self._get_schema_for_handler(config)
+            if not schema:
+                logger.error(f"Data source {data_source_name} 无法从绑定表加载 schema，跳过")
                 continue
 
             handler_cls = self._discover_handler(data_source_name, mappings)
@@ -80,13 +72,13 @@ class DataSourceManager:
                 continue
 
             handler_instance = DataSourceManagerHelper.create_handler_instance(
-                handler_cls, 
-                data_source_name, 
-                schema, 
-                config, 
-                providers, 
-                mappings.get_depend_on_data_source_names(data_source_name))
-
+                handler_cls,
+                data_source_name,
+                schema,
+                config,
+                providers,
+                mappings.get_depend_on_data_source_names(data_source_name),
+            )
             if not handler_instance:
                 logger.error(f"Data source handler instance {data_source_name} 创建失败，跳过")
                 continue
@@ -95,69 +87,42 @@ class DataSourceManager:
 
         return handler_instances
 
-
-    def _discover_schema(self, data_source_name: str) -> Any:
+    def _get_schema_for_handler(self, config: DataSourceConfig) -> Dict[str, Any]:
         """
-        为指定的数据源发现并返回 Schema 定义对象。
-
-        约定：
-        - 每个 handler 目录下有一个 schema.py
-        - 其中定义了名为 SCHEMA 的对象（通常是 DataSourceSchema 实例）
-        - 该 SCHEMA 的 name 属性等于 data_source_name
+        根据 config 的顶层 table 从 DataManager 加载表 schema（dict）。
         """
-        if data_source_name in self._all_valid_schemas_cache:
-            return self._all_valid_schemas_cache[data_source_name]
-
-        discovery = ModuleDiscovery()
-        all_schemas = discovery.discover_objects(
-            base_module_path="userspace.data_source.handlers",
-            object_name="SCHEMA",
-            module_pattern="{base_module}.{name}.schema",
-        )
-
-        schema = DataSourceManagerHelper.get_schema_by_name(all_schemas, data_source_name)
-
-        if not schema:
-            logger.warning(f"未找到数据源 '{data_source_name}' 对应的 Schema")
+        table_name = config.get_table_name()
+        if not table_name:
             return None
-
-        if not schema.is_valid():
+        try:
+            data_manager = DataManager.get_instance()
+            model = data_manager.get_table(table_name)
+            if not model:
+                logger.warning(f"表 '{table_name}' 未注册，无法加载 schema")
+                return None
+            return model.load_schema()
+        except Exception as e:
+            logger.warning(f"加载表 schema 失败 table={table_name}: {e}")
             return None
-
-        self._all_valid_schemas_cache[data_source_name] = schema
-        return schema
 
     def _discover_config(self, data_source_name: str) -> Any:
         """
-        发现并加载指定数据源的 Config 配置。
-
-        当前约定：
-        - 每个 handler 目录下有一个 config.json：
-          userspace/data_source/handlers/{data_source_name}/config.json
-        - Config 目前先以原始 dict 形式返回，后续可以在此基础上封装为 dataclass。
+        发现并加载指定数据源的 Config。仅支持 config.py，其中必须定义 CONFIG 字典。
         """
-        # 简单缓存，避免同一进程内重复读取磁盘
         if data_source_name in self._all_valid_configs_cache:
             return self._all_valid_configs_cache[data_source_name]
 
         handler_dir = PathManager.data_source_handler(data_source_name)
-        config_path = handler_dir / "config.json"
+        config_path = handler_dir / "config.py"
 
-        config_dict = DataSourceManagerHelper.load_config(config_path)
-
+        config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
         if not config_dict:
-            logger.info(f"Data source {data_source_name} 未找到 config.json，跳过")
+            logger.info(f"Data source {data_source_name} 未找到或无法加载 config.py，跳过")
             return None
 
-        # 创建 DataSourceConfig 实例（内部会自动验证配置）
         config = DataSourceConfig(config_dict, data_source_name=data_source_name)
-
-        # 显式验证 Config 完整性（虽然 __init__ 中已调用，但这里显式调用以确保：
-        # 1. 代码可读性：明确告知这里会验证配置
-        # 2. 严重问题会抛出 ValueError 并停止执行（已在 validate() 中实现）
-
         if not config.is_valid():
-            logger.warning(f"Data source {data_source_name} 的 config.json 配置不完整，跳过")
+            logger.warning(f"Data source {data_source_name} 的 config 不完整，跳过")
             return None
 
         self._all_valid_configs_cache[data_source_name] = config

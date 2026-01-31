@@ -6,7 +6,6 @@ from core.modules.data_source.service.api_job_executor import ApiJobExecutor
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_source.data_class.schema import DataSourceSchema
 from core.modules.data_source.renew_manager import RenewManager
 from core.global_enums.enums import UpdateMode
 from core.modules.data_manager.data_manager import DataManager
@@ -17,13 +16,15 @@ class BaseHandler:
     """
     Base Handler class
     """
-    def __init__(self, 
+    def __init__(self,
         data_source_name: str,
-        schema: DataSourceSchema,
+        schema: Any,
         config: DataSourceConfig,
         providers: Dict[str, BaseProvider],
-        depend_on_data_source_names: List[str] = []):
-
+        depend_on_data_source_names: List[str] = None,
+    ):
+        if depend_on_data_source_names is None:
+            depend_on_data_source_names = []
         self.context = {
             "data_source_name": data_source_name,
             "schema": schema,

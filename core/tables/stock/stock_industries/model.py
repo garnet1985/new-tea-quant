@@ -15,10 +15,6 @@ class DataIndustriesModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        """从本表 schema.py 加载"""
-        return _schema
-
     def load_by_id(self, industry_id: int) -> Optional[Dict[str, Any]]:
         """按 id 查询"""
         return self.load_one("id = %s", (industry_id,))

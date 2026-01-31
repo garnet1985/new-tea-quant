@@ -1,22 +1,24 @@
-{
-    "_comment": "Stock Index Indicator Handler 配置",
+"""
+Stock Index Indicator Handler 配置。绑定表 sys_index_klines。
+"""
+CONFIG = {
+    "table": "sys_index_klines",
     "renew": {
         "type": "incremental",
         "last_update_info": {
             "date_field": "date",
             "date_format": "daily",
-            "table_name": "stock_index_indicator",
-            "group_field": "id"
+            "table_name": "sys_index_klines",
+            "group_field": "id",
         },
         "renew_if_over_days": {
-            "value": 30
+            "value": 30,
         },
         "result_group_by": {
             "list": "stock_index_list",
-            "by_key": "index_code"
-        }
+            "by_key": "index_code",
+        },
     },
-
     "apis": {
         "daily_kline": {
             "provider_name": "tushare",
@@ -32,9 +34,9 @@
                 "price_change_delta": "change",
                 "price_change_rate_delta": "pct_chg",
                 "volume": "vol",
-                "amount": "amount"
+                "amount": "amount",
             },
-            "params": {}
+            "params": {},
         },
         "weekly_kline": {
             "provider_name": "tushare",
@@ -50,9 +52,9 @@
                 "price_change_delta": "change",
                 "price_change_rate_delta": "pct_chg",
                 "volume": "vol",
-                "amount": "amount"
+                "amount": "amount",
             },
-            "params": {}
+            "params": {},
         },
         "monthly_kline": {
             "provider_name": "tushare",
@@ -68,9 +70,9 @@
                 "price_change_delta": "change",
                 "price_change_rate_delta": "pct_chg",
                 "volume": "vol",
-                "amount": "amount"
+                "amount": "amount",
             },
-            "params": {}
-        }
-    }
+            "params": {},
+        },
+    },
 }

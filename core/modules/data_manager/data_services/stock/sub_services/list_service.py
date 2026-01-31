@@ -4,12 +4,12 @@
 职责：
 - 提供股票列表相关的查询和操作
 - 支持全量股票列表、过滤股票列表等功能
-- 支持按行业、板块等条件筛选股票（基于 sys_stock_list 的 industry_id/board_id）
+- 支持按行业、板块等条件筛选股票（通过 sys_stock_industry_map / sys_stock_board_map）
 
 涉及的表：
-- sys_stock_list: 股票列表
-- sys_stock_industries: 行业定义
-- sys_stock_boards: 板块定义
+- sys_stock_list: 股票列表（仅 id、name、is_active、last_update）
+- sys_industries / sys_boards: 行业、板块定义
+- sys_stock_industry_map / sys_stock_board_map: 股票-行业、股票-板块映射
 """
 from typing import List, Dict, Any, Optional, Union
 from loguru import logger
@@ -30,8 +30,10 @@ class ListService(BaseDataService):
         super().__init__(data_manager)
 
         self._stock_list = data_manager.get_table("sys_stock_list")
-        self._industries = data_manager.get_table("sys_stock_industries")
-        self._boards = data_manager.get_table("sys_stock_boards")
+        self._industries = data_manager.get_table("sys_industries")
+        self._boards = data_manager.get_table("sys_boards")
+        self._industry_map = data_manager.get_table("sys_stock_industry_map")
+        self._board_map = data_manager.get_table("sys_stock_board_map")
     
     # ==================== 股票列表查询 ====================
     
@@ -115,10 +117,10 @@ class ListService(BaseDataService):
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按板块加载股票列表（使用 board_id；支持板块名称或 id）
+        按板块加载股票列表（通过 sys_stock_board_map；支持板块名称或 id）
 
         Args:
-            board: 板块名称（如「创业板」「科创板」）或 sys_stock_boards.id
+            board: 板块名称（如「创业板」「科创板」）或 sys_boards.id
             filtered: 是否使用过滤规则（默认 True）
             order_by: 排序字段（默认 'id'）
 
@@ -126,10 +128,15 @@ class ListService(BaseDataService):
             指定板块的股票列表；若 board 为名称且未找到则返回 []
         """
         board_id = self._resolve_board_id(board)
-        if board_id is None:
+        if board_id is None or not self._board_map:
             return []
-        conditions = ["board_id = %s"]
-        params: List[Any] = [board_id]
+        map_rows = self._board_map.load("board_id = %s", (board_id,))
+        stock_ids = [r["stock_id"] for r in map_rows if r.get("stock_id")]
+        if not stock_ids:
+            return []
+        placeholders = ",".join(["%s"] * len(stock_ids))
+        conditions = [f"id IN ({placeholders})"]
+        params: List[Any] = list(stock_ids)
         if filtered:
             conditions.extend([
                 "id NOT LIKE %s",
@@ -137,7 +144,8 @@ class ListService(BaseDataService):
             ])
             params.extend(["688%", "*ST%", "ST%", "退%"])
         where_clause = " AND ".join(conditions)
-        return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
+        stocks = self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
+        return self._sort_stocks(stocks, order_by)
 
     def load_by_industry(
         self,
@@ -146,10 +154,10 @@ class ListService(BaseDataService):
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按行业加载股票列表（使用 industry_id；支持行业名称或 id）
+        按行业加载股票列表（通过 sys_stock_industry_map；支持行业名称或 id）
 
         Args:
-            industry: 行业名称或 sys_stock_industries.id
+            industry: 行业名称或 sys_industries.id
             filtered: 是否使用过滤规则（默认 True）
             order_by: 排序字段（默认 'id'）
 
@@ -157,10 +165,15 @@ class ListService(BaseDataService):
             指定行业的股票列表；若 industry 为名称且未找到则返回 []
         """
         industry_id = self._resolve_industry_id(industry)
-        if industry_id is None:
+        if industry_id is None or not self._industry_map:
             return []
-        conditions = ["industry_id = %s"]
-        params: List[Any] = [industry_id]
+        map_rows = self._industry_map.load("industry_id = %s", (industry_id,))
+        stock_ids = [r["stock_id"] for r in map_rows if r.get("stock_id")]
+        if not stock_ids:
+            return []
+        placeholders = ",".join(["%s"] * len(stock_ids))
+        conditions = [f"id IN ({placeholders})"]
+        params: List[Any] = list(stock_ids)
         if filtered:
             conditions.extend([
                 "id NOT LIKE %s",
@@ -168,7 +181,8 @@ class ListService(BaseDataService):
             ])
             params.extend(["688%", "*ST%", "ST%", "退%"])
         where_clause = " AND ".join(conditions)
-        return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
+        stocks = self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
+        return self._sort_stocks(stocks, order_by)
     
     def save(self, stocks: List[Dict[str, Any]]) -> int:
         """
@@ -185,14 +199,14 @@ class ListService(BaseDataService):
     # ==================== 私有方法 ====================
 
     def _resolve_industry_id(self, industry: Union[str, int]) -> Optional[int]:
-        """行业名称或 id -> sys_stock_industries.id；未找到返回 None。"""
+        """行业名称或 id -> sys_industries.id；未找到返回 None。"""
         if isinstance(industry, int):
             return industry
         row = self._industries.load_one("value = %s", (industry,)) if self._industries else None
         return int(row["id"]) if row and row.get("id") is not None else None
 
     def _resolve_board_id(self, board: Union[str, int]) -> Optional[int]:
-        """板块名称或 id -> sys_stock_boards.id；未找到返回 None。"""
+        """板块名称或 id -> sys_boards.id；未找到返回 None。"""
         if isinstance(board, int):
             return board
         row = self._boards.load_one("value = %s", (board,)) if self._boards else None

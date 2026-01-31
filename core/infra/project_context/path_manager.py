@@ -205,8 +205,8 @@ class PathManager:
     
     @staticmethod
     def data_source_mapping() -> Path:
-        """Data Source 用户配置文件：userspace/data_source/mapping.json"""
-        return PathManager.data_source() / "mapping.json"
+        """Data Source 用户配置文件：userspace/data_source/mapping.py"""
+        return PathManager.data_source() / "mapping.py"
     
     @staticmethod
     def data_source_handlers() -> Path:

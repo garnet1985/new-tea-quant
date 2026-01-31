@@ -7,7 +7,7 @@
 1. 在 `handlers/` 文件夹中创建你的 handler
 2. 继承 `BaseDataSourceHandler` 类
 3. 实现 `fetch()` 和 `normalize()` 方法
-4. 在 `mapping.json` 中配置使用你的 handler
+4. 在 `mapping.py` 的 `DATA_SOURCES` 中配置使用你的 handler
 
 ## 示例
 
@@ -38,7 +38,7 @@ class MyHandler(BaseDataSourceHandler):
 ```
 
 ```json
-// userspace/data_source/mapping.json
+# userspace/data_source/mapping.py 中的 DATA_SOURCES
 {
     "data_sources": {
         "my_custom_data": {

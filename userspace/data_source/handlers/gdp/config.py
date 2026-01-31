@@ -8,7 +8,6 @@ CONFIG = {
         "last_update_info": {
             "date_field": "quarter",
             "date_format": "quarterly",
-            "table_name": "sys_gdp",
         },
         "rolling": {
             "unit": "quarterly",

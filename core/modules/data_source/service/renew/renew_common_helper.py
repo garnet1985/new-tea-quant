@@ -136,33 +136,32 @@ class RenewCommonHelper:
     @staticmethod
     def query_latest_date(
         data_manager,
-        table_name: str, 
-        date_field: str, 
+        table_name: str,
+        date_field: str,
         date_format: str,
-        needs_stock_grouping: Optional[bool] = None
+        needs_stock_grouping: Optional[bool] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, str]]:
         """
         查询数据库最新日期（公共方法）
-        
+
         逻辑：
         1. 通过 DataManager.get_table() 获取表的 model
-        2. 根据配置或表的主键结构判断是否需要按股票分组：
-           - 如果配置中显式声明了 needs_stock_grouping，使用配置值
-           - 否则，根据主键结构自动判断（主键中除了日期字段还有其他字段 = 需要分组）
-        3. 根据是否需要分组，查询最新日期：
-           - 不需要分组（如 GDP, LPR）：返回 None（表示整个表的最新日期，在调用方处理）
-           - 需要分组（如 stock_kline）：返回 {stock_id: latest_date} 字典
-        
+        2. 根据配置或表的主键结构判断是否需要按实体分组
+        3. 需要分组时，实体标识字段优先用 context 中 config.result_group_by.by_key，
+           未提供时从表主键推断（除日期外的第一个主键）
+
         Args:
             data_manager: DataManager 实例
             table_name: 数据库表名
-            date_field: 日期字段名（表里声明的日期字段）
-            date_format: 日期格式（用于验证）
-            needs_stock_grouping: 是否需要按股票分组（None 表示自动判断）
-        
+            date_field: 日期字段名
+            date_format: 日期格式
+            needs_stock_grouping: 是否需要按实体分组（None 表示自动判断）
+            context: 执行上下文；若提供且 per-entity，用 config.get_group_by_key() 作为实体标识字段
+
         Returns:
-            - 如果需要分组：Dict[str, str] {stock_id: latest_date}，如果表为空返回 None
-            - 如果不需要分组：返回 None（调用方需要单独处理）
+            - 需要分组：Dict[str, str] {entity_id: latest_date}，表为空返回 None
+            - 不需要分组：None（调用方单独处理）
         """
         if not data_manager:
             return None
@@ -192,28 +191,31 @@ class RenewCommonHelper:
                 # 不需要分组：返回 None，调用方需要单独处理（查询整个表的最新日期）
                 return None
             
-            # 需要分组：查询每个股票的最新日期
+            # 需要分组：查询每个实体的最新日期；实体标识字段优先用 config.result_group_by.by_key
             try:
                 latest_records = model.load_latest_records(date_field=date_field)
                 if not latest_records:
                     return None
-                
-                # 构建 {stock_id: latest_date} 字典
-                # 假设主键中除了日期字段的第一个字段是 stock_id（通常是 'id'）
-                try:
-                    primary_keys = model._get_primary_keys_from_schema()
-                    group_keys = [k for k in primary_keys if k != date_field]
-                    stock_id_field = group_keys[0] if group_keys else 'id'  # 默认使用 'id'
-                except Exception:
-                    stock_id_field = 'id'  # 降级使用 'id'
-                
+
+                entity_key_field = None
+                if context:
+                    config = context.get("config")
+                    if config and hasattr(config, "get_group_by_key"):
+                        entity_key_field = config.get_group_by_key()
+                if not entity_key_field:
+                    try:
+                        primary_keys = model._get_primary_keys_from_schema()
+                        group_keys = [k for k in primary_keys if k != date_field]
+                        entity_key_field = group_keys[0] if group_keys else "id"
+                    except Exception:
+                        entity_key_field = "id"
+
                 result = {}
                 for record in latest_records:
-                    stock_id = record.get(stock_id_field)
+                    entity_id = record.get(entity_key_field)
                     latest_date = record.get(date_field)
-                    if stock_id and latest_date:
-                        result[stock_id] = latest_date
-                
+                    if entity_id is not None and latest_date:
+                        result[entity_id] = latest_date
                 return result if result else None
             except (AttributeError, Exception) as e:
                 # 如果 load_latest_records 不存在或失败，降级到简单查询

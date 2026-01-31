@@ -7,9 +7,8 @@
 ## 🧪 测试文件
 
 - `test_data_source_manager.py` - DataSourceManager 测试
-- `test_data_source_handler.py` - BaseDataSourceHandler 测试
+- `test_data_source_handler.py` - BaseHandler 测试
 - `test_api_job.py` - ApiJob 测试
-- `test_definition.py` - DataSourceDefinition 测试
 
 ## 🚀 运行测试
 
@@ -36,30 +35,17 @@ python core/modules/data_source/__test__/test_data_source_manager.py
 ## 📝 测试覆盖
 
 ### DataSourceManager
-- ✅ 初始化
-- ✅ Handler 路径验证
-- ✅ 获取 DataSourceDefinition
-- ✅ 列出数据源
-- ✅ 获取 Handler 状态
+- ✅ 初始化（_all_valid_configs_cache、_all_valid_handlers_cache、_execution_scheduler）
+- ✅ _flush_cache
 
-### BaseDataSourceHandler
-- ✅ 初始化验证（必须提供 definition）
-- ✅ 类属性验证（必须定义 data_source）
-- ✅ 获取配置参数
-- ✅ 获取 ProviderConfig 和 HandlerConfig
-- ✅ 创建简单 Task
+### BaseHandler
+- ✅ 初始化与 get_key（data_source_key, schema dict, config, providers）
+- ✅ get_dependency_data_source_names
 
 ### ApiJob
 - ✅ ApiJob 初始化
 - ✅ api_name 自动设置
 - ✅ 依赖关系
-
-注意：DataSourceTask 已被 ApiJobBatch 取代，相关测试已移除。
-
-### DataSourceDefinition
-- ✅ 从字典创建
-- ✅ 验证方法
-- ✅ 序列化为字典
 
 ## 🔧 添加新测试
 

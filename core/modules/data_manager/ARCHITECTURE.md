@@ -58,8 +58,7 @@ DataManager (Facade)
 
 2. **Coordinator 层（DataService）**
    - 管理所有子服务实例
-   - 提供跨服务协调方法（如 `prepare_data`）
-   - 统一服务访问入口
+   - 统一服务访问入口（data_mgr.stock / macro / calendar 等）
 
 3. **Service 层（领域服务）**
    - 领域特定的数据访问逻辑
@@ -153,8 +152,7 @@ latest_date = data_mgr.calendar.get_latest_completed_trading_date()
 ### 2. DataService（Coordinator）
 
 **职责**：
-- 管理所有子服务实例（`stock`, `macro`, `calendar`）
-- 提供跨服务协调方法（如 `prepare_data`）
+- 管理所有子服务实例（`stock`, `macro`, `calendar` 等）
 - 统一服务访问入口
 
 **设计理念**：
@@ -166,9 +164,7 @@ latest_date = data_mgr.calendar.get_latest_completed_trading_date()
 ```python
 # 通过 DataManager 访问
 data_service = data_mgr.service
-
-# 跨服务数据准备
-data = data_service.prepare_data(stock, settings)
+# 按需通过 data_mgr.stock / data_mgr.macro 等组装数据；业务模块（Tag、Strategy）使用各自的数据管理器
 ```
 
 ### 3. StockService
@@ -198,7 +194,7 @@ stock_with_price = data_mgr.stock.load_with_latest_price('000001.SZ')
 # 股票列表（通过 list 服务）
 stock_list = data_mgr.stock.list.load(filtered=True)
 all_stocks = data_mgr.stock.list.load_all()
-filtered_by_type = data_mgr.stock.list.load_by_type('main', filtered=True)
+filtered_by_board = data_mgr.stock.list.load_by_board('主板', filtered=True)
 
 # K线数据（通过 kline 服务）
 klines = data_mgr.stock.kline.load('000001.SZ', term='daily')
@@ -381,34 +377,14 @@ macro_snapshot = data_mgr.macro.load_macro_snapshot('20241201')
 latest_date = data_mgr.calendar.get_latest_completed_trading_date()
 ```
 
-### 配置驱动数据准备
+### 按需组装数据
+
+数据按需通过各 Service 加载，业务模块（Tag、Strategy）使用各自的数据管理器（TagWorkerDataManager、StrategyWorkerDataManager）组装 klines、macro、corporate_finance 等，例如：
 
 ```python
-# 通过 prepare_data 方法，根据配置自动加载所需数据
-settings = {
-    'klines': {
-        'terms': ['daily', 'weekly'],
-        'start_date': '20240101',
-        'end_date': '20241231',
-        'adjust': 'qfq'
-    },
-    'macro': {
-        'GDP': True,
-        'Shibor': True,
-        'LPR': True,
-        'start_date': '20240101',
-        'end_date': '20241231'
-    },
-    'corporate_finance': {
-        'categories': ['profitability', 'growth'],
-        'start_date': '20240101',
-        'end_date': '20241231'
-    }
-}
-
-stock = {'id': '000001.SZ'}
-data = data_mgr.service.prepare_data(stock, settings)
-# data 包含：klines, macro, corporate_finance
+klines = data_mgr.stock.kline.load_multiple(stock_id, {'terms': ['daily'], 'start_date': '20240101', 'end_date': '20241231'})
+macro = data_mgr.macro.load_gdp('2024Q1', '2024Q4')
+finance = data_mgr.stock.corporate_finance.load_by_categories(stock_id, ['profitability'], '20240101', '20241231')
 ```
 
 ## 🔧 表模型管理
@@ -491,7 +467,7 @@ klines = data_mgr.stock.kline.load('000001.SZ')
 ### 性能优化
 
 - **SQL JOIN**：`KlineService.load_qfq()` 使用 JOIN 一次查询获取所有数据
-- **SQL WHERE**：`ListService.load_by_type()` 和 `load_by_industry()` 在数据库层面过滤
+- **SQL WHERE**：`ListService.load_by_board()` 和 `load_by_industry()` 在数据库层面过滤（基于 industry_id/board_id）
 - **批量操作**：支持批量保存和更新，减少数据库访问次数
 
 ### 错误处理

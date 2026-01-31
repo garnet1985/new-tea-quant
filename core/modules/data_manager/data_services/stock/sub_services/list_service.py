@@ -4,12 +4,14 @@
 职责：
 - 提供股票列表相关的查询和操作
 - 支持全量股票列表、过滤股票列表等功能
-- 支持按类型、行业等条件筛选股票
+- 支持按行业、板块等条件筛选股票（基于 sys_stock_list 的 industry_id/board_id）
 
 涉及的表：
-- stock_list: 股票列表
+- sys_stock_list: 股票列表
+- sys_stock_industries: 行业定义
+- sys_stock_boards: 板块定义
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 from ... import BaseDataService
@@ -17,18 +19,19 @@ from ... import BaseDataService
 
 class ListService(BaseDataService):
     """股票列表服务"""
-    
+
     def __init__(self, data_manager: Any):
         """
         初始化股票列表服务
-        
+
         Args:
             data_manager: DataManager 实例
         """
         super().__init__(data_manager)
-        
-        # 获取相关 Model（表名由 DataManager 发现并注册）
+
         self._stock_list = data_manager.get_table("sys_stock_list")
+        self._industries = data_manager.get_table("sys_stock_industries")
+        self._boards = data_manager.get_table("sys_stock_boards")
     
     # ==================== 股票列表查询 ====================
     
@@ -105,82 +108,66 @@ class ListService(BaseDataService):
         # 排序
         return self._sort_stocks(filtered_stocks, order_by)
     
-    def load_by_type(
+    def load_by_board(
         self,
-        stock_type: str,
+        board: Union[str, int],
         filtered: bool = True,
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按类型加载股票列表（使用 SQL WHERE 优化）
-        
+        按板块加载股票列表（使用 board_id；支持板块名称或 id）
+
         Args:
-            stock_type: 股票类型（如 'main', 'gem', 'star' 等，具体类型取决于数据库字段）
-            filtered: 是否使用过滤规则（默认True）
+            board: 板块名称（如「创业板」「科创板」）或 sys_stock_boards.id
+            filtered: 是否使用过滤规则（默认 True）
             order_by: 排序字段（默认 'id'）
-            
+
         Returns:
-            List[Dict]: 指定类型的股票列表
+            指定板块的股票列表；若 board 为名称且未找到则返回 []
         """
-        # 构建 SQL WHERE 条件
-        conditions = ["type = %s"]
-        params = [stock_type]
-        
-        # 如果 filtered=True，添加默认过滤条件
+        board_id = self._resolve_board_id(board)
+        if board_id is None:
+            return []
+        conditions = ["board_id = %s"]
+        params: List[Any] = [board_id]
         if filtered:
-            # 排除科创板（id 以 688 开头）
-            conditions.append("id NOT LIKE %s")
-            params.append("688%")
-            # 排除 ST 股票（name 以 *ST、ST、退 开头）
-            conditions.append("name NOT LIKE %s")
-            params.append("*ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("退%")
-        
+            conditions.extend([
+                "id NOT LIKE %s",
+                "name NOT LIKE %s", "name NOT LIKE %s", "name NOT LIKE %s",
+            ])
+            params.extend(["688%", "*ST%", "ST%", "退%"])
         where_clause = " AND ".join(conditions)
-        
-        # 使用 SQL 查询而不是先加载所有再过滤
         return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
-    
+
     def load_by_industry(
         self,
-        industry: str,
+        industry: Union[str, int],
         filtered: bool = True,
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按行业加载股票列表（使用 SQL WHERE 优化）
-        
+        按行业加载股票列表（使用 industry_id；支持行业名称或 id）
+
         Args:
-            industry: 行业名称
-            filtered: 是否使用过滤规则（默认True）
+            industry: 行业名称或 sys_stock_industries.id
+            filtered: 是否使用过滤规则（默认 True）
             order_by: 排序字段（默认 'id'）
-            
+
         Returns:
-            List[Dict]: 指定行业的股票列表
+            指定行业的股票列表；若 industry 为名称且未找到则返回 []
         """
-        # 构建 SQL WHERE 条件
-        conditions = ["industry = %s"]
-        params = [industry]
-        
-        # 如果 filtered=True，添加默认过滤条件
+        industry_id = self._resolve_industry_id(industry)
+        if industry_id is None:
+            return []
+        conditions = ["industry_id = %s"]
+        params: List[Any] = [industry_id]
         if filtered:
-            # 排除科创板（id 以 688 开头）
-            conditions.append("id NOT LIKE %s")
-            params.append("688%")
-            # 排除 ST 股票（name 以 *ST、ST、退 开头）
-            conditions.append("name NOT LIKE %s")
-            params.append("*ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("退%")
-        
+            conditions.extend([
+                "id NOT LIKE %s",
+                "name NOT LIKE %s", "name NOT LIKE %s", "name NOT LIKE %s",
+            ])
+            params.extend(["688%", "*ST%", "ST%", "退%"])
         where_clause = " AND ".join(conditions)
-        
-        # 使用 SQL 查询而不是先加载所有再过滤
         return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
     
     def save(self, stocks: List[Dict[str, Any]]) -> int:
@@ -196,7 +183,21 @@ class ListService(BaseDataService):
         return self._stock_list.save_stocks(stocks)
     
     # ==================== 私有方法 ====================
-    
+
+    def _resolve_industry_id(self, industry: Union[str, int]) -> Optional[int]:
+        """行业名称或 id -> sys_stock_industries.id；未找到返回 None。"""
+        if isinstance(industry, int):
+            return industry
+        row = self._industries.load_one("value = %s", (industry,)) if self._industries else None
+        return int(row["id"]) if row and row.get("id") is not None else None
+
+    def _resolve_board_id(self, board: Union[str, int]) -> Optional[int]:
+        """板块名称或 id -> sys_stock_boards.id；未找到返回 None。"""
+        if isinstance(board, int):
+            return board
+        row = self._boards.load_one("value = %s", (board,)) if self._boards else None
+        return int(row["id"]) if row and row.get("id") is not None else None
+
     def _merge_exclude_patterns(
         self,
         default_exclude: Dict[str, Dict[str, List[str]]],

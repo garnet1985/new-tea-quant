@@ -61,8 +61,9 @@ class DataManager:
 
         # 自动使用单例（推荐）
         data_mgr = DataManager(is_verbose=True)
-        data = data_mgr.service.prepare_data(stock, settings)
-        
+        data_mgr.initialize()
+        klines = data_mgr.stock.kline.load('000001.SZ', term='daily', adjust='qfq')
+
         # 强制创建新实例（不推荐，除非有特殊需求）
         data_mgr = DataManager(is_verbose=True, force_new=True)
     """
@@ -423,10 +424,8 @@ class DataManager:
     @property
     def service(self):
         """
-        跨service协调器（属性访问）
-        
-        用于跨service方法，如 prepare_data
-        
+        跨 service 协调器（属性访问），提供 data_mgr.stock / macro / calendar 等统一入口。
+
         Returns:
             DataService 实例
         """

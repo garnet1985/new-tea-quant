@@ -3,6 +3,9 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
+from core.modules.data_source.reserved_dependencies import RESERVED_DEPENDENCY_KEYS
+
+
 @dataclass
 class HandlerMapping:
 
@@ -13,6 +16,11 @@ class HandlerMapping:
 
     def _validate_and_cache_enabled(self):
         for data_source_key, data_source_info in self.data_sources.items():
+            if data_source_key in RESERVED_DEPENDENCY_KEYS:
+                raise ValueError(
+                    f"mapping 中 data source key 不能使用保留字: {data_source_key}。"
+                    f"保留关键字仅用于 depends_on，不可作为数据源名: {sorted(RESERVED_DEPENDENCY_KEYS)}"
+                )
             if not isinstance(data_source_info, dict):
                 raise ValueError(f"mapping 中 {data_source_key} 格式错误，应是字典格式.")
 

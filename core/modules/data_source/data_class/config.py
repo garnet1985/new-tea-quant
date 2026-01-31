@@ -14,6 +14,7 @@ class DataSourceConfig:
     - 是否 per-entity 由是否配置 result_group_by 决定；incremental/rolling 下未配 result_group_by 则按全局处理。
     - get_date_format() 的 fallback 会读顶层 "date_format" 键，与该方法名相同，仅文档说明。
     - renew_if_over_days、rolling 等子段暂无严格 schema 校验，依赖约定。
+    - 可选顶层 "is_dry_run": bool；为 True 时该数据源不执行 DB 写入（用户 save 钩子与系统写入均跳过），便于调试。框架会将其注入 context["is_dry_run"]。
     """
     
     def __init__(self, config_dict: Dict[str, Any], data_source_key: str = None):

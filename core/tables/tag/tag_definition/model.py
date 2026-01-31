@@ -14,9 +14,6 @@ class SysTagDefinitionModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        return _schema
-
     def load_by_scenario(self, scenario_id: int) -> List[Dict[str, Any]]:
         return self.load("scenario_id = %s", (scenario_id,))
 

@@ -1,3 +1,4 @@
+import importlib.util
 import importlib
 from pathlib import Path
 from typing import Any, Dict, List
@@ -6,7 +7,6 @@ from core.infra.project_context import ConfigManager
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_source.data_class.schema import DataSourceSchema
 
 class DataSourceManagerHelper:
     """
@@ -44,20 +44,31 @@ class DataSourceManagerHelper:
         return data_sources
 
     @staticmethod
-    def get_schema_by_name(objects: Dict[str, Any], name: str) -> Any:
-        """ 
-        Get the schema by name
+    def load_config_from_py(config_path: Path) -> Dict[str, Any]:
         """
-        for handler_name, schema in objects.items():
-            schema_name = getattr(schema, "name", None)
-            if schema_name == name:
-                return schema
-        return None
+        从 handler 目录的 config.py 加载配置。
+
+        约定：config.py 中必须定义 CONFIG 字典，框架原样使用，不解析 extra 等。
+        """
+        if not config_path.exists() or not config_path.suffix == ".py":
+            return None
+        try:
+            spec = importlib.util.spec_from_file_location("handler_config", config_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            config = getattr(mod, "CONFIG", None)
+            if not isinstance(config, dict):
+                logger.warning(f"config.py 中 CONFIG 必须是 dict，当前: {type(config)}，路径: {config_path}")
+                return None
+            return {k: v for k, v in config.items() if not (isinstance(k, str) and k.startswith("_"))}
+        except Exception as e:
+            logger.warning(f"加载 config.py 失败 {config_path}: {e}")
+            return None
 
     @staticmethod
     def load_config(config_path: Path) -> Dict[str, Any]:
         """
-        Load the config
+        Load the config from JSON (deprecated). Prefer load_config_from_py.
         """
         config: Dict[str, Any] = None
         if config_path.exists():
@@ -142,22 +153,20 @@ class DataSourceManagerHelper:
 
     @staticmethod
     def create_handler_instance(
-        handler_cls: Any, 
-        data_source_name: str, 
-        schema: DataSourceSchema, 
-        config: DataSourceConfig, 
+        handler_cls: Any,
+        data_source_name: str,
+        schema: Dict[str, Any],
+        config: DataSourceConfig,
         providers: Dict[str, BaseProvider],
-        depend_on_data_source_names: List[str] = []) -> Any:
+        depend_on_data_source_names: List[str] = None,
+    ) -> Any:
         """
-        Create the handler
-        
-        Args:
-            handler_cls: Handler 类
-            data_source_name: 数据源名称
-            schema: Schema 实例
-            config: Config 实例或字典
-            providers: Provider 字典
+        Create the handler.
+
+        schema: 表 schema 字典（来自 DataManager.get_table(name).load_schema()），非 DataSourceSchema。
         """
+        if depend_on_data_source_names is None:
+            depend_on_data_source_names = []
         try:
             handler_instance = handler_cls(
                 data_source_name=data_source_name,

@@ -1,18 +1,20 @@
-{
-    "_comment": "Shibor Handler 配置",
+"""
+Shibor Handler 配置。绑定表 sys_shibor。
+"""
+CONFIG = {
+    "table": "sys_shibor",
     "renew": {
         "type": "rolling",
         "last_update_info": {
             "date_field": "date",
             "date_format": "daily",
-            "table_name": "shibor"
+            "table_name": "sys_shibor",
         },
         "rolling": {
             "unit": "daily",
-            "length": 30
-        }
+            "length": 30,
+        },
     },
-
     "apis": {
         "shibor_data": {
             "provider_name": "tushare",
@@ -24,9 +26,9 @@
                 "one_week": "1w",
                 "one_month": "1m",
                 "three_month": "3m",
-                "one_year": "1y"
+                "one_year": "1y",
             },
-            "params": {}
-        }
-    }
+            "params": {},
+        },
+    },
 }

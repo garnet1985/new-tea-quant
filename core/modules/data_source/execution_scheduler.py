@@ -34,7 +34,7 @@ class DataSourceExecutionScheduler:
         """
         self.is_verbose = is_verbose
 
-        self.mappings: Optional[HandlerMapping] = None  # mapping.json 的内容
+        self.mappings: Optional[HandlerMapping] = None  # mapping.py 的 DATA_SOURCES
 
         self._failed_data_sources: List[Tuple[str, BaseHandler, Exception]] = []
         
@@ -93,9 +93,9 @@ class DataSourceExecutionScheduler:
         # 构建 handler 名称到 handler 的映射
         handler_map = {}
         for handler in handlers:
-            data_source_name = handler.get_name()
-            if data_source_name:
-                handler_map[data_source_name] = handler
+            data_source_key = handler.get_key()
+            if data_source_key:
+                handler_map[data_source_key] = handler
         
         # 构建依赖图：dep -> [dependent1, dependent2, ...]
         graph = defaultdict(list)
@@ -103,24 +103,24 @@ class DataSourceExecutionScheduler:
         
         # 初始化 in_degree
         for handler in handlers:
-            data_source_name = handler.get_name()
-            if data_source_name:
-                in_degree[data_source_name] = 0
+            data_source_key = handler.get_key()
+            if data_source_key:
+                in_degree[data_source_key] = 0
         
         # 构建图和计算入度
         for handler in handlers:
-            data_source_name = handler.get_name()
-            if not data_source_name:
+            data_source_key = handler.get_key()
+            if not data_source_key:
                 continue
             
             depends_on = handler.get_dependency_data_source_names()
             for dep_name in depends_on:
                 if dep_name not in handler_map:
                     raise ValueError(
-                        f"数据源 '{data_source_name}' 依赖的数据源 '{dep_name}' 不存在或未启用"
+                        f"数据源 '{data_source_key}' 依赖的数据源 '{dep_name}' 不存在或未启用"
                     )
-                graph[dep_name].append(data_source_name)
-                in_degree[data_source_name] += 1
+                graph[dep_name].append(data_source_key)
+                in_degree[data_source_key] += 1
         
         # 拓扑排序
         sorted_handlers = []
@@ -137,10 +137,10 @@ class DataSourceExecutionScheduler:
                     queue.append(dependent_name)
         
         # 检查是否存在循环依赖
-        # 注意：如果所有 handler 的 get_name() 都返回非 None 值（已验证），
+        # 注意：若所有 handler 的 get_key() 均返回非 None（已验证），
         # 那么 len(sorted_handlers) != len(handlers) 表示存在循环依赖
         if len(sorted_handlers) != len(handlers):
-            remaining = set(handler_map.keys()) - {h.get_name() for h in sorted_handlers}
+            remaining = set(handler_map.keys()) - {h.get_key() for h in sorted_handlers}
             raise ValueError(f"检测到循环依赖或未解析的依赖，剩余数据源: {remaining}")
         
         return sorted_handlers
@@ -161,11 +161,11 @@ class DataSourceExecutionScheduler:
         """
         for idx, handler_instance in enumerate(sorted_handler_instances):
             try:
-                data_source_name = handler_instance.get_name()
-                dependencies_data = self._get_dependencies_data(data_source_name)
+                data_source_key = handler_instance.get_key()
+                dependencies_data = self._get_dependencies_data(data_source_key)
                 normalized_data = handler_instance.execute(dependencies_data)
-                if self.mappings.is_dependency_for_downstream(data_source_name):
-                    self._cache_result(data_source_name, normalized_data)
+                if self.mappings.is_dependency_for_downstream(data_source_key):
+                    self._cache_result(data_source_key, normalized_data)
                 # 只在成功执行后才清理不再需要的依赖缓存
                 self._clean_up_dependency_cache_if_no_longer_required(sorted_handler_instances, idx)
             except Exception as e:
@@ -173,7 +173,7 @@ class DataSourceExecutionScheduler:
 
         self._retry_failed_data_sources()
     
-    def _get_dependencies_data(self, data_source_name: str) -> Dict[str, Any]:
+    def _get_dependencies_data(self, data_source_key: str) -> Dict[str, Any]:
         """
         收集依赖数据
         
@@ -181,47 +181,47 @@ class DataSourceExecutionScheduler:
         这意味着修改返回字典的键值对不会影响缓存，但修改嵌套对象仍会影响缓存。
         
         Args:
-            data_source_name: 数据源名称
+            data_source_key: 数据源配置键（mapping 中的 key）
             
         Returns:
             Dict[str, Any]: 依赖数据字典（浅拷贝）
         """
         dep = {}
-        for dep_name in self.mappings.get_depend_on_data_source_names(data_source_name):
+        for dep_name in self.mappings.get_depend_on_data_source_names(data_source_key):
             if dep_name in self._dependency_cache:
                 dep[dep_name] = self._dependency_cache[dep_name]
             else:
                 raise ValueError(
-                    f"数据源 '{data_source_name}' 依赖的数据源 '{dep_name}' 不在缓存中。"
+                    f"数据源 '{data_source_key}' 依赖的数据源 '{dep_name}' 不在缓存中。"
                     f"可能原因：1) 依赖的数据源执行失败；2) 依赖的数据源未被缓存（不被其他数据源依赖）"
                 )
         return dep
 
-    def _cache_result(self, data_source_name: str, normalized_data: Dict[str, Any]):
+    def _cache_result(self, data_source_key: str, normalized_data: Dict[str, Any]):
         """
         缓存 handler 执行结果
         
         注意：只缓存那些被其他 data source 依赖的结果，避免内存爆炸
         """
         if normalized_data and "data" in normalized_data:
-            self._dependency_cache[data_source_name] = normalized_data["data"]
+            self._dependency_cache[data_source_key] = normalized_data["data"]
         elif normalized_data is None:
-            logger.warning(f"{data_source_name} 返回结果为 None，缓存不成功")
+            logger.warning(f"{data_source_key} 返回结果为 None，缓存不成功")
         elif "data" not in normalized_data:
-            logger.warning(f"{data_source_name} 返回结果中缺少 'data' 键，缓存不成功")
+            logger.warning(f"{data_source_key} 返回结果中缺少 'data' 键，缓存不成功")
         else:
-            logger.warning(f"{data_source_name} 返回结果为空，缓存不成功")
+            logger.warning(f"{data_source_key} 返回结果为空，缓存不成功")
     
 
     def _handle_execution_error(self, handler_instance: BaseHandler, error: Exception):
         """
         处理执行错误
         
-        注意：handler_instance.get_name() 不会返回 None（已验证），因此不需要检查
+        注意：handler_instance.get_key() 不会返回 None（已验证），因此不需要检查
         """
-        data_source_name = handler_instance.get_name()
-        logger.error(f"❌ 数据源 {data_source_name} 执行失败: {error}")
-        self._failed_data_sources.append((data_source_name, handler_instance, error))
+        data_source_key = handler_instance.get_key()
+        logger.error(f"❌ 数据源 {data_source_key} 执行失败: {error}")
+        self._failed_data_sources.append((data_source_key, handler_instance, error))
 
     def _retry_failed_data_sources(self):
         """
@@ -239,28 +239,28 @@ class DataSourceExecutionScheduler:
         logger.info(f"🔄 开始重试 {len(self._failed_data_sources)} 个失败的数据源")
         retry_failed = []
         
-        for data_source_name, handler_instance, _ in self._failed_data_sources:
+        for data_source_key, handler_instance, _ in self._failed_data_sources:
             try:
                 # 获取依赖数据（如果依赖也失败了，这里可能会抛出异常）
-                dependencies_data = self._get_dependencies_data(data_source_name)
+                dependencies_data = self._get_dependencies_data(data_source_key)
                 
                 # 执行 handler
                 normalized_data = handler_instance.execute(dependencies_data)
                 
                 # 如果需要缓存，则缓存结果
                 # 注意：self.mappings 在 run() 方法中已赋值，不会是 None
-                if self.mappings.is_dependency_for_downstream(data_source_name):
-                    self._cache_result(data_source_name, normalized_data)
+                if self.mappings.is_dependency_for_downstream(data_source_key):
+                    self._cache_result(data_source_key, normalized_data)
                 
-                logger.info(f"✅ 数据源 {data_source_name} 重试成功")
+                logger.info(f"✅ 数据源 {data_source_key} 重试成功")
             except ValueError as e:
                 # 依赖数据缺失的情况
-                logger.warning(f"⚠️  数据源 {data_source_name} 重试失败：依赖数据缺失 - {e}")
-                retry_failed.append((data_source_name, handler_instance, e))
+                logger.warning(f"⚠️  数据源 {data_source_key} 重试失败：依赖数据缺失 - {e}")
+                retry_failed.append((data_source_key, handler_instance, e))
             except Exception as e:
                 # 其他执行错误
-                logger.error(f"❌ 数据源 {data_source_name} 重试仍然失败: {e}")
-                retry_failed.append((data_source_name, handler_instance, e))
+                logger.error(f"❌ 数据源 {data_source_key} 重试仍然失败: {e}")
+                retry_failed.append((data_source_key, handler_instance, e))
         
         # 更新失败列表
         self._failed_data_sources = retry_failed

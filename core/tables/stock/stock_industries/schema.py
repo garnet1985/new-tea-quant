@@ -1,32 +1,38 @@
 """
-data_stock_industries 表结构定义（Python，变量名 schema）
+stock_industries 表结构定义（Python，变量名 schema）
 
-股票–行业映射表：stock_id、industry_id。在 stock list renew 时与 data_industries 一并填充。
-主键 stock_id、industry_id nullable=false。
+行业维度表：id、value（行业名）、is_alive。在 stock list renew 时从 Tushare 返回的 industry 聚合填充。
+主键 id nullable=false；其余 nullable=true。
 """
 schema = {
     "name": "sys_stock_industries",
-    "primaryKey": ["stock_id", "industry_id"],
+    "primaryKey": "id",
     "fields": [
         {
-            "name": "stock_id",
-            "type": "varchar",
-            "length": 16,
-            "isRequired": True,
-            "nullable": False,
-            "description": "股票代码",
-        },
-        {
-            "name": "industry_id",
+            "name": "id",
             "type": "int",
             "isRequired": True,
             "nullable": False,
-            "description": "行业 id，关联 data_industries.id",
+            "description": "主键自增",
+        },
+        {
+            "name": "value",
+            "type": "varchar",
+            "length": 64,
+            "isRequired": True,
+            "nullable": True,
+            "description": "行业名称",
+        },
+        {
+            "name": "is_alive",
+            "type": "tinyint",
+            "isRequired": True,
+            "nullable": True,
+            "description": "是否有效 1/0",
         },
     ],
     "indexes": [
-        {"name": "idx_stock_industry", "fields": ["stock_id", "industry_id"], "unique": True},
-        {"name": "idx_stock_id", "fields": ["stock_id"]},
-        {"name": "idx_industry_id", "fields": ["industry_id"]},
+        {"name": "idx_value", "fields": ["value"], "unique": True},
+        {"name": "idx_is_alive", "fields": ["is_alive"]},
     ],
 }

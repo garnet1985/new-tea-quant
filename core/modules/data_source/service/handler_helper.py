@@ -641,13 +641,13 @@ class DataSourceHandlerHelper:
                 entity_id = getattr(api_job, "params", {}).get(group_by)
                 if entity_id is None:
                     logger.warning(
-                        f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                        f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
                         f"配置了 group_by='{group_by}'，但 ApiJob.params 中未找到对应键，"
                         "将该结果回退到 '_unified' 分组。"
                     )
                     if "_unified" in bucket:
                         logger.warning(
-                            f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                            f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
                             "存在多个未能识别实体 ID 的结果，写入同一 '_unified' 分组，后写将覆盖前写。"
                         )
                     bucket["_unified"] = raw_result
@@ -657,7 +657,7 @@ class DataSourceHandlerHelper:
                 # 未配置 group_by：默认按全局 unified 处理
                 if "_unified" in bucket:
                     logger.warning(
-                        f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                        f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
                         "在未配置 group_by 的情况下产生了多个结果，将按顺序覆盖 '_unified'。"
                     )
                 bucket["_unified"] = raw_result
@@ -694,7 +694,7 @@ class DataSourceHandlerHelper:
             bucket = unified.setdefault(api_name, {})
             if "_unified" in bucket:
                 logger.warning(
-                    f"[DataSource:{context.get('data_source_name', 'unknown')}][API:{api_name}] "
+                    f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
                     "未使用 group_by 但产生了多个结果，将按顺序覆盖 '_unified'。"
                 )
             bucket["_unified"] = raw_result
@@ -872,7 +872,7 @@ class DataSourceHandlerHelper:
     # ========== 数据验证 ==========
 
     @staticmethod
-    def validate_normalized_data(normalized_data: Dict[str, Any], schema: Any, data_source_name: str = "unknown") -> None:
+    def validate_normalized_data(normalized_data: Dict[str, Any], schema: Any, data_source_key: str = "unknown") -> None:
         """
         验证标准化后的数据是否符合 schema。
 
@@ -884,7 +884,7 @@ class DataSourceHandlerHelper:
         Args:
             normalized_data: 标准化后的数据，通常是 {"data": [...]} 格式
             schema: 表 schema dict（用于验证，来自 DB）
-            data_source_name: 数据源名称（用于错误信息）
+            data_source_key: 数据源配置键（用于错误信息）
 
         Raises:
             ValueError: 如果数据验证失败
@@ -900,7 +900,7 @@ class DataSourceHandlerHelper:
             data_list = normalized_data.get("data", [])
             if not isinstance(data_list, list):
                 raise ValueError(
-                    f"数据验证失败: {data_source_name} 的 data 字段不是列表类型"
+                    f"数据验证失败: {data_source_key} 的 data 字段不是列表类型"
                 )
             errors = []
             for idx, record in enumerate(data_list):
@@ -913,7 +913,7 @@ class DataSourceHandlerHelper:
                         errors.append(f"记录 {idx}: {', '.join(record_errors)}")
             if errors:
                 raise ValueError(
-                    f"数据验证失败: {data_source_name} 的标准化数据不符合表 schema。"
+                    f"数据验证失败: {data_source_key} 的标准化数据不符合表 schema。"
                     f"错误详情: {'; '.join(errors)}"
                 )
             return
@@ -922,7 +922,7 @@ class DataSourceHandlerHelper:
             errors = DataSourceHandlerHelper._collect_validation_errors(normalized_data, schema)
             error_msg = ", ".join(errors) if errors else "数据不符合表 schema"
             raise ValueError(
-                f"数据验证失败: {data_source_name} 的标准化数据不符合表 schema。"
+                f"数据验证失败: {data_source_key} 的标准化数据不符合表 schema。"
                 f"错误详情: {error_msg}"
             )
 
@@ -1127,13 +1127,14 @@ class DataSourceHandlerHelper:
                 # 查询失败时，保守返回空映射（后续逻辑会当作“无 last_update”处理）
                 return {}
 
-        # per-entity：一次性查询所有实体的最新日期
+        # per-entity：一次性查询所有实体的最新日期（实体标识字段用 config.result_group_by.by_key）
         latest_dates_dict = RenewCommonHelper.query_latest_date(
             data_manager=data_manager,
             table_name=table_name,
             date_field=date_field,
             date_format=date_format,
             needs_stock_grouping=needs_stock_grouping,
+            context=context,
         )
 
         if not latest_dates_dict:
@@ -1636,10 +1637,10 @@ class DataSourceHandlerHelper:
                 logger.warning(f"查询全局数据最新日期失败: {e}")
                 return None
         
-        # Per entity：一次性查询所有 entity 的最新记录
+        # Per entity：一次性查询所有 entity 的最新记录（实体标识字段用 config.result_group_by.by_key）
         date_format = config.get_date_format()
         latest_dates_dict = RenewCommonHelper.query_latest_date(
-            data_manager, table_name, counting_field, date_format, needs_stock_grouping
+            data_manager, table_name, counting_field, date_format, needs_stock_grouping, context=context
         )
         
         if not latest_dates_dict:

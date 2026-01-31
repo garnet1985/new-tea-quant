@@ -37,8 +37,8 @@ class CorporateFinanceHandler(BaseHandler):
     - apis: {...} (包含 finance_data API 配置)
     """
     
-    def __init__(self, data_source_name: str, schema, config, providers: Dict[str, BaseProvider]):
-        super().__init__(data_source_name, schema, config, providers)
+    def __init__(self, data_source_key: str, schema, config, providers: Dict[str, BaseProvider]):
+        super().__init__(data_source_key, schema, config, providers)
         
         # 从 config 获取参数
         if hasattr(config, "get"):

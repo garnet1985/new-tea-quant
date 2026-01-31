@@ -12,7 +12,6 @@ CONFIG = {
         "last_update_info": {
             "date_field": "quarter",
             "date_format": "quarterly",
-            "table_name": "sys_corporate_finance",
         },
         "result_group_by": {
             "list": "stock_list",

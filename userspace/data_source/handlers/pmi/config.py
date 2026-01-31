@@ -8,7 +8,6 @@ CONFIG = {
         "last_update_info": {
             "date_field": "date",
             "date_format": "monthly",
-            "table_name": "sys_pmi",
         },
         "rolling": {
             "unit": "monthly",

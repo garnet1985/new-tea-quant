@@ -8,14 +8,13 @@ CONFIG = {
         "last_update_info": {
             "date_field": "date",
             "date_format": "daily",
-            "table_name": "sys_index_weight",
         },
         "renew_if_over_days": {
             "value": 30,
         },
         "result_group_by": {
-            "list": "stock_index_list",
-            "by_key": "index_code",
+            "list": "index_list",
+            "by_key": "id",
         },
     },
     "apis": {

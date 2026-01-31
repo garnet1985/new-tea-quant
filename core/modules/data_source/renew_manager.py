@@ -202,7 +202,7 @@ class RenewManager:
         config = context.get("config")
         if config is None:
             # 返回一个空的 DataSourceConfig 实例
-            return DataSourceConfig({}, data_source_name=context.get("data_source_name"))
+            return DataSourceConfig({}, data_source_key=context.get("data_source_key"))
         
         # 如果已经是 DataSourceConfig 实例，直接返回
         if isinstance(config, DataSourceConfig):
@@ -210,29 +210,29 @@ class RenewManager:
         
         # 如果是字典，包装为 DataSourceConfig 实例
         if isinstance(config, dict):
-            data_source_name = context.get("data_source_name")
-            return DataSourceConfig(config, data_source_name=data_source_name)
+            data_source_key = context.get("data_source_key")
+            return DataSourceConfig(config, data_source_key=data_source_key)
         
         # 其他情况：尝试转换为字典再包装
         if hasattr(config, "to_dict"):
-            data_source_name = context.get("data_source_name")
-            return DataSourceConfig(config.to_dict(), data_source_name=data_source_name)
+            data_source_key = context.get("data_source_key")
+            return DataSourceConfig(config.to_dict(), data_source_key=data_source_key)
         
         # 降级：尝试通过 __dict__ 或 asdict
         try:
             from dataclasses import asdict
             if hasattr(config, "__dataclass_fields__"):
-                data_source_name = context.get("data_source_name")
-                return DataSourceConfig(asdict(config), data_source_name=data_source_name)
+                data_source_key = context.get("data_source_key")
+                return DataSourceConfig(asdict(config), data_source_key=data_source_key)
         except Exception:
             pass
         
         if hasattr(config, "__dict__"):
-            data_source_name = context.get("data_source_name")
-            return DataSourceConfig(config.__dict__, data_source_name=data_source_name)
+            data_source_key = context.get("data_source_key")
+            return DataSourceConfig(config.__dict__, data_source_key=data_source_key)
         
         # 最后降级：返回空配置
-        return DataSourceConfig({}, data_source_name=context.get("data_source_name"))
+        return DataSourceConfig({}, data_source_key=context.get("data_source_key"))
     
     def add_date_range(
         self,

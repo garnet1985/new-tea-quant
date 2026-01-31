@@ -6,7 +6,7 @@ data_cpi 表 Model
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
-from core.tables.data_cpi.schema import schema as _schema
+from core.tables.macro.cpi.schema import schema as _schema
 
 
 class DataCpiModel(DbBaseModel):

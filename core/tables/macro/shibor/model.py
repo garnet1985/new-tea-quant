@@ -5,7 +5,7 @@ data_shibor 表 Model
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
-from core.tables.data_shibor.schema import schema as _schema
+from core.tables.macro.shibor.schema import schema as _schema
 
 
 class DataShiborModel(DbBaseModel):

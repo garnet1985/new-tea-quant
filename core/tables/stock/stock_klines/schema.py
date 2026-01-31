@@ -5,8 +5,8 @@ data_stock_kline_daily 表结构定义（Python，变量名 schema）
 主键、时序列 id/date nullable=false；其余 nullable=true。
 """
 schema = {
-    "name": "sys_stock_kline_daily",
-    "primaryKey": ["id", "date"],
+    "name": "sys_stock_klines",
+    "primaryKey": ["id", "term", "date"],
     "fields": [
         {
             "name": "id",
@@ -23,6 +23,14 @@ schema = {
             "isRequired": True,
             "nullable": False,
             "description": "交易日期",
+        },
+        {
+            "name": "term",
+            "type": "varchar",
+            "length": 16,
+            "isRequired": True,
+            "nullable": True,
+            "description": "K线周期",
         },
         {
             "name": "open",
@@ -89,7 +97,8 @@ schema = {
         },
     ],
     "indexes": [
-        {"name": "idx_id_date", "fields": ["id", "date"], "unique": True},
+        {"name": "idx_id_term_date", "fields": ["id", "term", "date"], "unique": True},
+        {"name": "idx_id_term", "fields": ["id", "term"]},
         {"name": "idx_date", "fields": ["date"]},
     ],
 }

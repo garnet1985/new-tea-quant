@@ -8,7 +8,6 @@ CONFIG = {
         "last_update_info": {
             "date_field": "date",
             "date_format": "daily",
-            "table_name": "sys_shibor",
         },
         "rolling": {
             "unit": "daily",

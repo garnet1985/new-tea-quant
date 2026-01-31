@@ -17,7 +17,7 @@ class BaseHandler:
     Base Handler class
     """
     def __init__(self,
-        data_source_name: str,
+        data_source_key: str,
         schema: Any,
         config: DataSourceConfig,
         providers: Dict[str, BaseProvider],
@@ -26,7 +26,7 @@ class BaseHandler:
         if depend_on_data_source_names is None:
             depend_on_data_source_names = []
         self.context = {
-            "data_source_name": data_source_name,
+            "data_source_key": data_source_key,
             "schema": schema,
             "config": config,
             "providers": providers,
@@ -38,8 +38,9 @@ class BaseHandler:
     # Getters
     # ================================
 
-    def get_name(self):
-        return self.context.get("data_source_name")
+    def get_key(self) -> Optional[str]:
+        """数据源配置键（mapping 中的 key，用于串联 config、dependencies 等），与 DB 表名无关。"""
+        return self.context.get("data_source_key")
 
     def get_dependency_data_source_names(self) -> List[str]:
         """获取依赖的数据源名称列表"""
@@ -117,16 +118,23 @@ class BaseHandler:
         return jobs
 
     def _get_entity_list(self) -> List[Any]:
+        """
+        获取 per-entity 的实体列表。仅当 result_group_by.list == "stock_list" 时从
+        dependencies 解析；其他 list 名（如 "stock_index_list"）需由子类在 on_before_fetch
+        等钩子中自行注入实体列表，本方法返回 []。
+        """
         config = self.context.get("config")
         group_by_entity_list_name = (config.get_group_by_entity_list_name() if config else None) or ""
 
-        # TODO: TO BE IMPROVED: need think a better way to resolve entity list here
         if group_by_entity_list_name == "stock_list":
             deps = self.context.get("dependencies") or {}
             entity_list = deps.get("stock_list")
             return (entity_list or []) if entity_list is not None else []
         if group_by_entity_list_name:
-            raise ValueError(f"不支持的 group_by_entity_list_name: {group_by_entity_list_name}，如果需要支持其他实体列表，请使用钩子函数")
+            raise ValueError(
+                f"不支持的 result_group_by.list: {group_by_entity_list_name}。"
+                "仅 'stock_list' 由基类从 dependencies 解析；其他实体列表请在 handler 的 on_before_fetch 中自行注入。"
+            )
         return []
 
     def _get_last_update_map(self) -> Dict[str, Optional[str]]:
@@ -220,8 +228,8 @@ class BaseHandler:
         # 注入统一的日期范围（per-entity 已由 entity_date_ranges 决定）
         apis = DataSourceHandlerHelper.add_date_range(apis, start_date, end_date)
 
-        # 构造 bundle_id：{data_source_name}_batch 或 {data_source_name}_batch_{entity_id}
-        base_bundle_id = ApiJobBundle.to_id(self.get_name())
+        # 构造 bundle_id：{data_source_key}_batch 或 {data_source_key}_batch_{entity_id}
+        base_bundle_id = ApiJobBundle.to_id(self.get_key())
 
         # per-entity 场景：使用同一套实体 ID 约定（config.result_group_by.by_key）
         entity_suffix = None
@@ -375,17 +383,17 @@ class BaseHandler:
 
         # 归一化：统一成 (bundle_id, apis, item) 列表，便于后续按 bundle_id 回调钩子
         bundles: List[Tuple[str, List[ApiJob], Any]] = []
-        data_source_name = self.context.get("data_source_name", "data_source")
+        data_source_key = self.context.get("data_source_key", "data_source")
 
         for i, item in enumerate(jobs or []):
             if hasattr(item, "apis") and hasattr(item, "bundle_id"):
                 # ApiJobBundle
-                bid = getattr(item, "bundle_id", None) or f"{data_source_name}_bundle_{i}"
+                bid = getattr(item, "bundle_id", None) or f"{data_source_key}_bundle_{i}"
                 apis = getattr(item, "apis", []) or []
                 bundles.append((bid, apis, item))
             elif isinstance(item, ApiJob):
                 # 单个 ApiJob 视为一个 bundle
-                bid = getattr(item, "job_id", None) or f"{data_source_name}_job_{i}"
+                bid = getattr(item, "job_id", None) or f"{data_source_key}_job_{i}"
                 bundles.append((bid, [item], item))
             else:
                 logger.warning(f"未知 job 类型，已跳过: {type(item)}")
@@ -591,8 +599,8 @@ class BaseHandler:
             Dict[str, Any]: 验证后的数据（如果验证失败会抛出异常）
         """
         schema = self.context.get("schema")
-        data_source_name = self.context.get("data_source_name", "unknown")
-        DataSourceHandlerHelper.validate_normalized_data(normalized_data, schema, data_source_name)
+        data_source_key = self.context.get("data_source_key", "unknown")
+        DataSourceHandlerHelper.validate_normalized_data(normalized_data, schema, data_source_key)
         return normalized_data
 
 
@@ -721,8 +729,8 @@ class BaseHandler:
             apis: 执行时的 ApiJob 列表
         """
         from loguru import logger
-        data_source_name = context.get("data_source_name", "unknown")
-        logger.error(f"❌ 数据源 {data_source_name} 执行失败: {error}")
+        data_source_key = context.get("data_source_key", "unknown")
+        logger.error(f"❌ 数据源 {data_source_key} 执行失败: {error}")
 
 
     def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):

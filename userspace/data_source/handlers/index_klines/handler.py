@@ -20,13 +20,13 @@ class IndexKlinesHandler(BaseHandler):
 
     def __init__(
         self,
-        data_source_name: str,
+        data_source_key: str,
         schema,
         config,
         providers: Dict[str, BaseProvider],
         depend_on_data_source_names: List[str] = None,
     ):
-        super().__init__(data_source_name, schema, config, providers, depend_on_data_source_names or [])
+        super().__init__(data_source_key, schema, config, providers, depend_on_data_source_names or [])
         from core.infra.project_context.config_manager import ConfigManager
         self.index_list = ConfigManager.load_benchmark_stock_index_list()
 

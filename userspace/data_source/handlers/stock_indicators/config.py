@@ -8,8 +8,6 @@ CONFIG = {
         "last_update_info": {
             "date_field": "date",
             "date_format": "daily",
-            "table_name": "sys_stock_indicators",
-            "group_field": "id",
         },
         "result_group_by": {
             "list": "stock_list",

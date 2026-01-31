@@ -16,7 +16,6 @@ CONFIG = {
                 "name": "name",
                 "industry_id": "industry",
                 "market_id": "market",
-                "exchange_center": "exchange",
             },
             "params": {
                 "fields": "ts_code,symbol,name,area,industry,market,exchange,list_date",

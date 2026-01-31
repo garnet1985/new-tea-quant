@@ -8,7 +8,6 @@ CONFIG = {
         "last_update_info": {
             "date_field": "event_date",
             "date_format": "daily",
-            "table_name": "sys_adj_factor_events",
         },
         "renew_if_over_days": {
             "value": 15,

@@ -32,8 +32,8 @@ class AdjFactorEventHandler(BaseHandler):
     - 季度CSV导出：定期备份数据
     """
     
-    def __init__(self, data_source_name: str, schema, config, providers: Dict[str, BaseProvider]):
-        super().__init__(data_source_name, schema, config, providers)
+    def __init__(self, data_source_key: str, schema, config, providers: Dict[str, BaseProvider]):
+        super().__init__(data_source_key, schema, config, providers)
         
         # 用于跟踪任务完成状态
         self._total_stocks = 0

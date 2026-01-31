@@ -78,7 +78,7 @@ class MyStockListHandler(BaseDataSourceHandler):
 
 ## 步骤 2：配置 Handler
 
-在 `custom/mapping.json` 中添加配置：
+在 `mapping.py` 的 `DATA_SOURCES` 中添加配置：
 
 ```json
 {
@@ -113,7 +113,7 @@ await manager.renew_data()
 
 ### 场景 1：需要依赖数据（如股票列表）
 
-在 `mapping.json` 中声明依赖：
+在 `mapping.py` 的 `DATA_SOURCES` 中声明依赖：
 
 ```json
 {

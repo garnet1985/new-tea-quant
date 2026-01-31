@@ -16,21 +16,50 @@ class DataSourceManagerHelper:
         pass
 
     @staticmethod
+    def load_mapping_from_py(mapping_path: Path) -> Dict[str, Any]:
+        """
+        从 mapping.py 加载 DATA_SOURCES。
+
+        约定：mapping.py 中必须定义 DATA_SOURCES 字典，结构与原 mapping.json 的 data_sources 一致。
+        """
+        if not mapping_path.exists() or mapping_path.suffix != ".py":
+            return None
+        try:
+            spec = importlib.util.spec_from_file_location("data_source_mapping", mapping_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            data_sources = getattr(mod, "DATA_SOURCES", None)
+            if not isinstance(data_sources, dict):
+                logger.warning(
+                    f"mapping.py 中 DATA_SOURCES 必须是 dict，当前: {type(data_sources)}，路径: {mapping_path}"
+                )
+                return None
+            return data_sources
+        except Exception as e:
+            logger.warning(f"加载 mapping.py 失败 {mapping_path}: {e}")
+            return None
+
+    @staticmethod
     def discover_mappings(mapping_path: Path):
         """
-        Discover the mappings
+        发现并加载 mapping 配置。优先从 mapping.py 加载 DATA_SOURCES；
+        若路径为 .json 则从 JSON 加载（兼容旧配置）。
         """
         if not mapping_path.exists():
             logger.error(f"❌ 数据源配置文件不存在: {mapping_path}")
-            raise FileNotFoundError(f"data source mapping.json not found: {mapping_path}")
+            raise FileNotFoundError(f"data source mapping not found: {mapping_path}")
 
-        raw = ConfigManager.load_json(mapping_path)
-        data_sources = raw.get("data_sources", {})
-
-        if not isinstance(data_sources, dict):
-            raise ValueError(
-                f"data_sources 字段必须是对象(dict)，当前类型: {type(data_sources)}，文件: {mapping_path}"
-            )
+        if mapping_path.suffix == ".py":
+            data_sources = DataSourceManagerHelper.load_mapping_from_py(mapping_path)
+            if not data_sources:
+                raise ValueError(f"mapping.py 未定义或无效的 DATA_SOURCES，路径: {mapping_path}")
+        else:
+            raw = ConfigManager.load_json(mapping_path)
+            data_sources = raw.get("data_sources", {})
+            if not isinstance(data_sources, dict):
+                raise ValueError(
+                    f"data_sources 字段必须是对象(dict)，当前类型: {type(data_sources)}，文件: {mapping_path}"
+                )
 
         # 轻度校验：每个 data source 至少要有 handler 字段
         for name, cfg in data_sources.items():
@@ -160,7 +189,7 @@ class DataSourceManagerHelper:
     @staticmethod
     def create_handler_instance(
         handler_cls: Any,
-        data_source_name: str,
+        data_source_key: str,
         schema: Dict[str, Any],
         config: DataSourceConfig,
         providers: Dict[str, BaseProvider],
@@ -175,7 +204,7 @@ class DataSourceManagerHelper:
             depend_on_data_source_names = []
         try:
             handler_instance = handler_cls(
-                data_source_name=data_source_name,
+                data_source_key=data_source_key,
                 schema=schema,
                 config=config,
                 providers=providers,

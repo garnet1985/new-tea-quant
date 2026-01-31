@@ -22,13 +22,13 @@ class StockIndicatorsHandler(BaseHandler):
 
     def __init__(
         self,
-        data_source_name: str,
+        data_source_key: str,
         schema,
         config,
         providers: Dict[str, BaseProvider],
         depend_on_data_source_names: List[str] = None,
     ):
-        super().__init__(data_source_name, schema, config, providers, depend_on_data_source_names or [])
+        super().__init__(data_source_key, schema, config, providers, depend_on_data_source_names or [])
 
     def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """为每只股票创建一个 get_daily_basic ApiJob。"""

@@ -29,13 +29,13 @@ class KlineHandler(BaseHandler):
 
     def __init__(
         self,
-        data_source_name: str,
+        data_source_key: str,
         schema,
         config,
         providers: Dict[str, BaseProvider],
         depend_on_data_source_names: List[str] = None,
     ):
-        super().__init__(data_source_name, schema, config, providers, depend_on_data_source_names or [])
+        super().__init__(data_source_key, schema, config, providers, depend_on_data_source_names or [])
         # 用于增量保存的已保存股票集合（避免重复保存）
         self._saved_stocks = set()
         # 调试模式：限制处理的股票数量

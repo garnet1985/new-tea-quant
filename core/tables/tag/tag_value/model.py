@@ -14,9 +14,6 @@ class SysTagValueModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        return _schema
-
     def save_records(self, records: List[Dict[str, Any]]) -> int:
         return self.replace(
             records,

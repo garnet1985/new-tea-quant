@@ -15,10 +15,6 @@ class DataMoneySupplyModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        """从本表 schema.py 加载"""
-        return _schema
-
     def load_by_month(self, month: str) -> Optional[Dict[str, Any]]:
         """查询指定月份"""
         return self.load_one("date = %s", (month,))

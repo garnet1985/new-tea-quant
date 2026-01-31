@@ -1,20 +1,20 @@
-{
-    "_comment": "LPR Handler 配置",
-    "name": "lpr",
-
+"""
+LPR Handler 配置。绑定表 sys_lpr。
+"""
+CONFIG = {
+    "table": "sys_lpr",
     "renew": {
         "type": "rolling",
         "rolling": {
             "length": 30,
-            "unit": "day"
+            "unit": "daily",
         },
         "last_update_info": {
             "date_field": "date",
             "date_format": "daily",
-            "table_name": "lpr"
-        }
+            "table_name": "sys_lpr",
+        },
     },
-
     "apis": {
         "lpr_data": {
             "provider_name": "tushare",
@@ -23,9 +23,9 @@
             "field_mapping": {
                 "date": "date",
                 "lpr_1_y": "1y",
-                "lpr_5_y": "5y"
+                "lpr_5_y": "5y",
             },
-            "params": {}
-        }
-    }
+            "params": {},
+        },
+    },
 }

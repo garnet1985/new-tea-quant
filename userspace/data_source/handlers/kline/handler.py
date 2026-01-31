@@ -1,22 +1,11 @@
 """
 K线数据 Handler
 
-从 Tushare 获取股票 K 线数据（日线/周线/月线）
-以股票为单位处理，每个股票创建 4 个 API Job：
-1. get_daily_kline - 日线价格和成交量数据
-2. get_weekly_kline - 周线价格和成交量数据
-3. get_monthly_kline - 月线价格和成交量数据
-4. get_daily_basic - 基本面指标（PE、PB、换手率、市值等）
+从 Tushare 获取股票 K 线数据（日线/周线/月线），写入 sys_stock_klines。
+每日基本面指标（daily_basic）已拆分为 stock_indicators handler，写入 sys_stock_indicators。
 
-说明：
-- daily/weekly/monthly API 只返回价格和成交量数据（open, high, low, close, volume, amount）
-- daily_basic API 返回基本面指标（PE、PB、换手率、市值等）
-- 需要合并 K 线数据和 daily_basic 数据才能得到完整的 K 线数据
-- 优势：daily_basic 只调用一次，减少 API 调用次数（从 6N 降到 4N）
-
-保存策略：
-- 在 on_after_execute_job_batch_for_single_stock 钩子中，按股票分组保存数据
-- 每个股票的所有周期数据获取完成后，立即保存该股票的数据
+以股票为单位处理，每个股票创建 3 个 API Job：daily_kline、weekly_kline、monthly_kline。
+在 on_after_execute_job_batch_for_single_stock 中按股票分组保存。
 """
 from typing import List, Dict, Any
 from loguru import logger
@@ -34,21 +23,19 @@ from core.infra.project_context import ConfigManager
 
 class KlineHandler(BaseHandler):
     """
-    K线数据 Handler
-    
-    以股票为单位处理，每个股票创建 4 个 API Job：
-    1. get_daily_kline - 日线价格和成交量数据
-    2. get_weekly_kline - 周线价格和成交量数据
-    3. get_monthly_kline - 月线价格和成交量数据
-    4. get_daily_basic - 基本面指标（PE、PB、换手率、市值等）
-    
-    优势：
-    - daily_basic 只调用一次，减少 API 调用次数（从 6N 降到 4N）
-    - 逻辑更清晰（一个股票的所有数据一起处理）
+    K线数据 Handler，绑定表 sys_stock_klines。
+    每个股票 3 个 ApiJob：daily_kline、weekly_kline、monthly_kline。
     """
-    
-    def __init__(self, data_source_name: str, schema, config, providers: Dict[str, BaseProvider]):
-        super().__init__(data_source_name, schema, config, providers)
+
+    def __init__(
+        self,
+        data_source_name: str,
+        schema,
+        config,
+        providers: Dict[str, BaseProvider],
+        depend_on_data_source_names: List[str] = None,
+    ):
+        super().__init__(data_source_name, schema, config, providers, depend_on_data_source_names or [])
         # 用于增量保存的已保存股票集合（避免重复保存）
         self._saved_stocks = set()
         # 调试模式：限制处理的股票数量
@@ -59,14 +46,7 @@ class KlineHandler(BaseHandler):
     
     def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
-        抓取前阶段钩子：为每个股票创建 4 个 ApiJob
-        
-        Args:
-            context: 执行上下文
-            apis: 原始 ApiJob 列表（从 config 构建，包含 daily_kline, weekly_kline, monthly_kline, daily_basic）
-            
-        Returns:
-            List[ApiJob]: 处理后的 ApiJob 列表（每个股票 4 个 ApiJob）
+        抓取前阶段钩子：为每个股票创建 3 个 ApiJob（daily/weekly/monthly kline）。
         """
         # 重置已保存股票集合
         self._saved_stocks = set()
@@ -195,40 +175,7 @@ class KlineHandler(BaseHandler):
                     job_id=f"kline_{stock_id}_{term}",
                 )
                 expanded_apis.append(new_api)
-            
-            # 创建 daily_basic ApiJob（只调用一次）
-            if start_dates:
-                # 找到最小的 start_date 和最大的 end_date
-                min_start_date = min(start_dates.values())
-                max_end_date = max(end_dates.get(term, "") for term in start_dates.keys())
-                
-                # 如果 daily 需要更新，优先使用 daily 的日期范围
-                if "daily" in start_dates:
-                    basic_start_date = start_dates["daily"]
-                    basic_end_date = end_dates["daily"]
-                else:
-                    basic_start_date = min_start_date
-                    basic_end_date = max_end_date
-                
-                base_api = api_map.get("daily_basic")
-                if base_api:
-                    new_api = ApiJob(
-                        api_name=base_api.api_name,
-                        provider_name=base_api.provider_name,
-                        method=base_api.method,
-                        params={
-                            **base_api.params,
-                            "ts_code": stock_id,
-                            "start_date": basic_start_date,
-                            "end_date": basic_end_date,
-                        },
-                        api_params=base_api.api_params,
-                        depends_on=base_api.depends_on,
-                        rate_limit=base_api.rate_limit,
-                        job_id=f"kline_{stock_id}_daily_basic",
-                    )
-                    expanded_apis.append(new_api)
-        
+
         logger.info(f"✅ 为 {len(set(api.job_id.split('_')[1] for api in expanded_apis if api.job_id.startswith('kline_')))} 只股票生成了 K 线数据获取任务，共 {len(expanded_apis)} 个 ApiJob")
         return expanded_apis
     
@@ -333,7 +280,7 @@ class KlineHandler(BaseHandler):
             return
         
         # 按股票分组处理数据
-        stock_data_map = self._process_fetched_data_by_stock(fetched_data, job_batch.api_jobs)
+        stock_data_map = self._process_fetched_data_by_stock(fetched_data, job_bundle.api_jobs)
         
         # 保存每个股票的数据
         for stock_id, records in stock_data_map.items():
@@ -353,200 +300,50 @@ class KlineHandler(BaseHandler):
                 logger.error(traceback.format_exc())
     
     def _process_fetched_data_by_stock(
-        self, 
+        self,
         fetched_data: Dict[str, Any],
-        api_jobs: List[ApiJob]
+        api_jobs: List[ApiJob],
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        按股票分组处理抓取的数据，合并 K 线数据和 daily_basic 数据
-        
-        Args:
-            fetched_data: {job_id: result} 格式的数据
-            api_jobs: ApiJob 列表
-            
-        Returns:
-            Dict[str, List[Dict]]: 按股票分组的记录，格式为 {stock_id: [records]}
-        """
-        stock_data_map = defaultdict(list)  # {stock_id: [records]}
-        
-        # 构建 job_id 到 stock_id 和 api_name 的映射
-        job_info_map = {}  # {job_id: (stock_id, api_name, term)}
+        """按股票分组处理抓取数据，仅 K 线（daily/weekly/monthly），不合并 daily_basic。"""
+        stock_data_map = defaultdict(list)
+
+        job_info_map = {}
         for api_job in api_jobs:
             job_id = api_job.job_id
             if not job_id or not job_id.startswith("kline_"):
                 continue
-            
             parts = job_id.split("_")
             if len(parts) < 3:
                 continue
-            
             stock_id = parts[1]
-            api_name = api_job.api_name or api_job.method
-            
-            # 判断 term
-            if "daily_basic" in job_id:
-                term = None
-            elif "daily" in job_id:
+            if "daily" in job_id and "daily_basic" not in job_id:
                 term = "daily"
             elif "weekly" in job_id:
                 term = "weekly"
             elif "monthly" in job_id:
                 term = "monthly"
             else:
-                term = None
-            
-            job_info_map[job_id] = (stock_id, api_name, term)
-        
-        # 按股票分组处理
-        stock_basic_map = {}  # {stock_id: basic_df}
-        
-        # 先收集所有 daily_basic 数据
-        for job_id, (stock_id, api_name, term) in job_info_map.items():
-            if term is None and "daily_basic" in api_name:
-                result = fetched_data.get(job_id)
-                if result is not None:
-                    if not isinstance(result, pd.DataFrame):
-                        basic_df = pd.DataFrame(result) if result else pd.DataFrame()
-                    else:
-                        basic_df = result
-                    if not basic_df.empty:
-                        stock_basic_map[stock_id] = basic_df
-        
-        # 处理每个周期的 K 线数据
-        term_mapping = {
-            "get_daily_kline": "daily",
-            "get_weekly_kline": "weekly",
-            "get_monthly_kline": "monthly",
-        }
-        
-        for job_id, (stock_id, api_name, term) in job_info_map.items():
-            if term is None:
-                continue  # daily_basic 已经处理过了
-            
-            # 获取该周期的 K 线数据
+                continue
+            job_info_map[job_id] = (stock_id, term)
+
+        for job_id, (stock_id, term) in job_info_map.items():
             kline_result = fetched_data.get(job_id)
             if kline_result is None:
                 continue
-            
             if not isinstance(kline_result, pd.DataFrame):
                 kline_df = pd.DataFrame(kline_result) if kline_result else pd.DataFrame()
             else:
                 kline_df = kline_result
-            
             if kline_df.empty:
                 continue
-            
-            # 获取 daily_basic 数据
-            basic_df = stock_basic_map.get(stock_id)
-            if basic_df is None or basic_df.empty:
-                logger.warning(f"⚠️  [{stock_id}] [{term}] daily_basic 数据为空，跳过保存，等待下次重试")
-                continue
-            
-            # 合并该周期的 K 线数据和 daily_basic 数据
-            merged_df = self._merge_kline_and_basic(kline_df, basic_df, stock_id, term)
-            
-            if merged_df is not None and not merged_df.empty:
-                # 转换为字典列表
-                records = merged_df.to_dict('records')
-                # 使用统一 helper 清理 NaN 值
-                records = self.clean_nan_in_records(records, default=None)
-                stock_data_map[stock_id].extend(records)
-        
+            kline_mapped = self._map_kline_fields(kline_df, stock_id)
+            kline_mapped["term"] = term
+            records = kline_mapped.to_dict("records")
+            records = self.clean_nan_in_records(records, default=None)
+            stock_data_map[stock_id].extend(records)
+
         return stock_data_map
-    
-    def _merge_kline_and_basic(self, kline_df: pd.DataFrame, basic_df: pd.DataFrame, stock_id: str, term: str) -> pd.DataFrame:
-        """
-        合并 K 线和 daily_basic 数据，并处理缺失值
-        
-        Args:
-            kline_df: K 线数据
-            basic_df: daily_basic 数据
-            stock_id: 股票代码
-            term: K 线周期
-            
-        Returns:
-            合并后的 DataFrame
-        """
-        if kline_df.empty:
-            return None
-        
-        # 字段映射（K 线数据）
-        kline_mapped = self._map_kline_fields(kline_df, stock_id)
-        
-        # 字段映射（daily_basic 数据）
-        basic_mapped = self._map_basic_fields(basic_df, stock_id) if not basic_df.empty else pd.DataFrame()
-        
-        # 移除 basic_mapped 中的 close 字段（使用 K-line 的 close 更准确）
-        if not basic_mapped.empty and 'close' in basic_mapped.columns:
-            basic_mapped = basic_mapped.drop(columns=['close'])
-        
-        # 合并数据
-        if basic_mapped.empty:
-            logger.warning(f"⚠️  [{stock_id}] [{term}] daily_basic 数据为空，跳过保存，等待下次重试")
-            return None
-        
-        # LEFT JOIN 合并（保留所有 K 线数据）
-        merged = pd.merge(
-            kline_mapped, 
-            basic_mapped, 
-            on=['id', 'date'], 
-            how='left', 
-            suffixes=('', '_basic')
-        )
-        
-        # 前向填充缺失值（只在有数据的范围内填充）
-        basic_columns = [
-            'turnover_rate', 'free_turnover_rate', 'volume_ratio',
-            'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm',
-            'dv_ratio', 'dv_ttm',
-            'total_share', 'float_share', 'free_share',
-            'total_market_value', 'circ_market_value'
-        ]
-        
-        # 按日期排序
-        merged = merged.sort_values('date')
-        
-        # 找到 basic_mapped 的日期范围（有数据的范围）
-        if not basic_mapped.empty:
-            basic_min_date = basic_mapped['date'].min()
-            basic_max_date = basic_mapped['date'].max()
-            
-            # 只在有数据的范围内使用 ffill
-            for col in basic_columns:
-                if col in merged.columns:
-                    mask = (merged['date'] >= basic_min_date) & (merged['date'] <= basic_max_date)
-                    if mask.any():
-                        merged.loc[mask, col] = merged.loc[mask, col].ffill()
-                        if basic_mapped[col].notna().any():
-                            first_valid = basic_mapped[col].dropna().iloc[0]
-                            merged.loc[mask, col] = merged.loc[mask, col].fillna(first_valid)
-                    # 对于填充后仍然为 NaN 的字段，使用默认值 0
-                    if merged[col].isna().any():
-                        merged[col] = merged[col].fillna(0.0)
-                    # 对于 basic_mapped 日期范围之前的数据，使用默认值 0
-                    before_mask = merged['date'] < basic_min_date
-                    if before_mask.any():
-                        merged.loc[before_mask, col] = 0.0
-        else:
-            # 如果没有 basic 数据，所有 basic 字段使用默认值 0
-            for col in basic_columns:
-                if col in merged.columns:
-                    merged[col] = 0.0
-        
-        # 添加 term 字段
-        merged['term'] = term
-        
-        # 清理数据：移除带 _basic 后缀的列
-        columns_to_drop = [col for col in merged.columns if col.endswith('_basic')]
-        if columns_to_drop:
-            merged = merged.drop(columns=columns_to_drop)
-        
-        # 处理 NaN 值：将 NaN 转换为 None
-        for col in merged.columns:
-            merged[col] = merged[col].where(pd.notna(merged[col]), None)
-        
-        return merged
-    
+
     def _map_kline_fields(self, df: pd.DataFrame, stock_id: str) -> pd.DataFrame:
         """
         映射 K 线字段
@@ -580,58 +377,6 @@ class KlineHandler(BaseHandler):
         numeric_cols = ['open', 'highest', 'lowest', 'close', 'pre_close', 
                        'price_change_delta', 'price_change_rate_delta', 'amount']
         int_cols = ['volume']
-        
-        for col in numeric_cols:
-            if col in mapped_df.columns:
-                mapped_df[col] = pd.to_numeric(mapped_df[col], errors='coerce').fillna(0.0)
-        
-        for col in int_cols:
-            if col in mapped_df.columns:
-                mapped_df[col] = pd.to_numeric(mapped_df[col], errors='coerce').fillna(0).astype(int)
-        
-        return mapped_df
-    
-    def _map_basic_fields(self, df: pd.DataFrame, stock_id: str) -> pd.DataFrame:
-        """
-        映射 daily_basic 字段
-        """
-        if df.empty:
-            return pd.DataFrame()
-        
-        # 字段映射
-        mapping = {
-            'ts_code': 'id',
-            'trade_date': 'date',
-            'turnover_rate': 'turnover_rate',
-            'turnover_rate_f': 'free_turnover_rate',
-            'volume_ratio': 'volume_ratio',
-            'pe': 'pe',
-            'pe_ttm': 'pe_ttm',
-            'pb': 'pb',
-            'ps': 'ps',
-            'ps_ttm': 'ps_ttm',
-            'dv_ratio': 'dv_ratio',
-            'dv_ttm': 'dv_ttm',
-            'total_share': 'total_share',
-            'float_share': 'float_share',
-            'free_share': 'free_share',
-            'total_mv': 'total_market_value',
-            'circ_mv': 'circ_market_value',
-        }
-        
-        # 重命名列
-        mapped_df = df.rename(columns=mapping)
-        
-        # 确保 id 字段存在
-        if 'id' not in mapped_df.columns:
-            mapped_df['id'] = stock_id
-        
-        # 类型转换
-        numeric_cols = ['turnover_rate', 'free_turnover_rate', 'volume_ratio',
-                       'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm',
-                       'dv_ratio', 'dv_ttm',
-                       'total_market_value', 'circ_market_value']
-        int_cols = ['total_share', 'float_share', 'free_share']
         
         for col in numeric_cols:
             if col in mapped_df.columns:

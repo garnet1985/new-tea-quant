@@ -38,8 +38,8 @@ class DataSourceConfig:
         验证 config 配置是否完整（根据 renew_mode 验证必填字段）。
         
         规则：
-        - incremental 模式：必须配置 table_name 和 date_field
-        - rolling 模式：必须配置 table_name、date_field、rolling_unit、rolling_length
+        - incremental 模式：必须配置顶层 table 和 date_field
+        - rolling 模式：必须配置顶层 table、date_field、rolling_unit、rolling_length
         
         Raises:
             ValueError: 如果配置不完整
@@ -117,7 +117,7 @@ class DataSourceConfig:
 
             table_name = self.get_table_name()
             if not table_name:
-                logger.warning(f"'{self._data_source_key}' 的 config 必须配置 table（顶层）或 renew.last_update_info.table_name")
+                logger.warning(f"'{self._data_source_key}' 的 config 必须配置顶层 table（绑定表名）")
                 return False
 
             date_field = self.get_date_field()
@@ -137,7 +137,7 @@ class DataSourceConfig:
             pass
             # last_update_info = renew_config.get("date_range")
             # if not last_update_info:
-            #     logger.warning(f"'{self._data_source_key}' 的 config.json 中 renew 必须配置 date_range 来找到以前renew到的时间点")
+            #     logger.warning(f"'{self._data_source_key}' 的 config 中 renew 必须配置 date_range 来找到以前 renew 到的时间点")
             #     return False
 
         return True
@@ -203,14 +203,9 @@ class DataSourceConfig:
     
     def get_table_name(self) -> str:
         """
-        获取绑定表名。优先顶层 table，其次 renew.last_update_info.table_name。
+        获取绑定表名。仅从顶层 table 读取（与 DB 表一一绑定）。
         """
-        top = self.get("table")
-        if top:
-            return top
-        renew = self.get("renew") or {}
-        last_info = renew.get("last_update_info") or {}
-        return last_info.get("table_name") or self.get("table_name") or ""
+        return (self.get("table") or "").strip()
     
     def get_date_field(self) -> str:
         """

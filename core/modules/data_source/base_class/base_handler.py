@@ -54,12 +54,21 @@ class BaseHandler:
         Handler 的同步执行入口（默认实现）。
 
         流程大纲：
+        0. on_before_run：若返回非 None，直接作为 result 返回，跳过后续所有步骤；
         1. _preprocess：预处理阶段（构建 ApiJobs、计算日期范围、调用 on_before_fetch 钩子）；
         2. _executing：执行阶段（构建批次、执行 API 请求、调用 on_after_fetch 钩子）；
         3. _postprocess：后处理阶段（标准化数据、调用 on_after_normalize 钩子、数据验证）；
-        4. _do_save：非 is_dry_run 时先调用 on_before_save（用户 save），再系统写入绑定表；
+        4. _do_save：非 is_dry_run 时先调用 on_before_save（用户可返回替代数据），再系统写入绑定表；
         5. 返回标准化后的数据。
         """
+        self._inject_dependencies(dependencies_data)
+        config = self.context.get("config")
+        self.context["is_dry_run"] = bool(config.get("is_dry_run", False) if config else False)
+
+        early_result = self.on_before_run(self.context)
+        if early_result is not None:
+            return early_result
+
         jobs = self._preprocess(dependencies_data)
 
         fetched_data = self._executing(jobs)
@@ -78,29 +87,22 @@ class BaseHandler:
     def _preprocess(self, dependencies_data: Optional[Dict[str, Any]] = None) -> List[ApiJob]:
         """
         预处理阶段：在执行 API 请求前的所有准备工作。
+        依赖与 is_dry_run 已由 execute() 在调用本方法前注入 context。
         
         步骤：
-        1. 注入全局依赖到 context（_inject_required_global_dependencies）；
-        2. 调用 on_prepare_context 钩子，允许子类基于依赖派生/注入额外的上下文数据；
-        3. 从 config 构建 ApiJob 列表（_config_to_api_jobs）；
-        4. 计算日期范围并注入到 ApiJobs 中（_add_date_range_to_api_jobs）；
-        5. 调用 on_before_fetch 钩子，允许子类调整 ApiJobs；
-        6. 检查 renew_if_over_days，过滤不需要更新的 entity（_filter_by_renew_if_over_days）。
+        1. 调用 on_prepare_context 钩子；
+        2. 从 config 构建 ApiJob 配置并计算实体日期范围；
+        3. 构建 ApiJobBundle 列表；
+        4. 调用 on_before_fetch 钩子。
         
         Returns:
             List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
         """
 
-        # 1. 注入全局依赖
-        self._inject_dependencies(dependencies_data)
-
-        # 2. 从 config 注入 is_dry_run 到 context（方便用户与框架读取）
-        config = self.context.get("config")
-        self.context["is_dry_run"] = bool(config.get("is_dry_run", False) if config else False)
-
+        # 1. 上下文准备
         self.on_prepare_context(self.context)
 
-        # 3. 从 config 构建 ApiJob 配置
+        # 2. 从 config 构建 ApiJob 配置
         config: DataSourceConfig = self.context.get("config")
         apis_conf = config.get_apis()
 
@@ -552,8 +554,9 @@ class BaseHandler:
             # 原始数据为空或类型不对，直接返回空结果
             return {"data": []}
 
-        # 步骤 2：做一次字段覆盖校验（提醒式，不中断执行）
-        DataSourceHandlerHelper.validate_field_coverage(apis_conf, schema)
+        # 步骤 2：做一次字段覆盖校验（提醒式，不中断执行；ignore_fields 不参与）
+        ignore_fields = config.get_ignore_fields() if config else []
+        DataSourceHandlerHelper.validate_field_coverage(apis_conf, schema, ignore_fields=ignore_fields)
 
         # 步骤 3 & 4：从所有 API 返回中提取并映射出标准字段记录
         # 检查是否配置了 merge_by_key（用于按 key 合并多个 API 的结果）
@@ -611,8 +614,12 @@ class BaseHandler:
             Dict[str, Any]: 验证后的数据（如果验证失败会抛出异常）
         """
         schema = self.context.get("schema")
+        config = self.context.get("config")
         data_source_key = self.context.get("data_source_key", "unknown")
-        DataSourceHandlerHelper.validate_normalized_data(normalized_data, schema, data_source_key)
+        ignore_fields = config.get_ignore_fields() if config else []
+        DataSourceHandlerHelper.validate_normalized_data(
+            normalized_data, schema, data_source_key, ignore_fields=ignore_fields
+        )
         return normalized_data
 
     def _is_dry_run(self) -> bool:
@@ -625,13 +632,15 @@ class BaseHandler:
     def _do_save(self, normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         在非 is_dry_run 时执行写入：先调用用户钩子 on_before_save，再系统写入绑定表。
+        on_before_save 若返回非 None，则用其作为即将写入的数据；否则使用传入的 normalized_data。
         is_dry_run 为 True 时不执行任何写入，直接返回 normalized_data。
         """
         if self._is_dry_run():
             return normalized_data
-        self.on_before_save(self.context, normalized_data)
-        self._system_save(normalized_data)
-        return normalized_data
+        resolved = self.on_before_save(self.context, normalized_data)
+        data_to_save = resolved if resolved is not None else normalized_data
+        self._system_save(data_to_save)
+        return data_to_save
 
     def _system_save(self, normalized_data: Dict[str, Any]) -> None:
         """
@@ -858,13 +867,22 @@ class BaseHandler:
         # 自动清洗 NaN
         return self.clean_nan_in_normalized_data(normalized_data, default=default)
 
-    def on_before_save(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> None:
+    def on_before_run(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        用户 save 钩子：在系统写入绑定表之前调用，供子类做自定义写入（如写其他表、打日志等）。
-        执行顺序：用户 on_before_save → 系统写入 config 绑定的表。
+        流程开始前钩子：在 _preprocess 之前调用。
+        若返回非 None，框架将该值作为 execute() 的结果直接返回，跳过 fetch / normalize / save 等后续所有步骤。
+        若返回 None，继续正常流程。可用于实现「有缓存则直接返回 DB 数据」等短路逻辑。
+        """
+        return None
+
+    def on_before_save(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        用户 save 钩子：在系统写入绑定表之前调用。
+        若返回非 None，框架用返回值作为即将写入绑定表的数据（并作为本次 execute 的最终结果）；
+        返回 None 则使用传入的 normalized_data。可用于在写入前做字段解析（如 name→id、is_alive 等）。
         context["is_dry_run"] 为 True 时不会调用本钩子，也不会执行系统写入。
         """
-        pass
+        return None
 
     def on_bundle_execution_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
         """

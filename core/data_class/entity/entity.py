@@ -19,7 +19,7 @@ class Entity:
     """对应 DB 表名，如 'stock_list', 'kline_daily'"""
 
     schema: Dict[str, Any]
-    """字段约定：字段名 -> 类型或配置（与 DataSourceSchema 对齐时可共用）"""
+    """字段约定：字段名 -> 类型或配置（与表 schema 对齐时可共用）"""
 
     unique_keys: Optional[List[str]] = None
     """写入时去重/替换用的键，如 ['id'], ['id', 'date']"""

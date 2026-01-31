@@ -1,13 +1,16 @@
 """
 股票K线数据 Model
+
+DEPRECATED: 本表定义已废弃。实际使用的表为 core/tables/stock/stock_klines（sys_stock_klines），
+由 DataManager 从 core/tables 发现并注册。请勿再依赖本 base_tables 下的 schema/model。
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
 
 class StockKlineModel(DbBaseModel):
-    """股票K线数据 Model"""
-    
+    """股票K线数据 Model（已废弃，请使用 core/tables/stock/stock_klines）"""
+
     def __init__(self, db=None):
         super().__init__('stock_kline', db)
     

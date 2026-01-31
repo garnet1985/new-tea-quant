@@ -1,13 +1,16 @@
 """
 股票列表 Model
+
+DEPRECATED: 本表定义已废弃。实际使用的表为 core/tables/stock/stock_list（sys_stock_list），
+由 DataManager 从 core/tables 发现并注册。请勿再依赖本 base_tables 下的 schema/model。
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
 
 class StockListModel(DbBaseModel):
-    """股票列表 Model"""
-    
+    """股票列表 Model（已废弃，请使用 core/tables/stock/stock_list）"""
+
     def __init__(self, db=None):
         super().__init__('stock_list', db)
     

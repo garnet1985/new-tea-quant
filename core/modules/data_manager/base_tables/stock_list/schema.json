@@ -1,4 +1,5 @@
 {
+    "_comment_deprecated": "DEPRECATED: 实际表为 sys_stock_list，定义在 core/tables/stock/stock_list",
     "name": "stock_list",
     "primaryKey": "id",
     "fields": [

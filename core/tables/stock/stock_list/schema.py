@@ -1,5 +1,5 @@
 """
-data_stock_list 表结构定义（Python，变量名 schema）
+股票列表（sys_stock_list）：不含 industry 列，行业通过 sys_industries + sys_stock_industries 关联。
 
 主键、时序列 nullable=false；其余 nullable=true。
 """
@@ -19,12 +19,6 @@ schema = {
             "name": "name",
             "type": "varchar",
             "length": 255,
-            "isRequired": True,
-            "nullable": True,
-        },
-        {
-            "name": "industry",
-            "type": "text",
             "isRequired": True,
             "nullable": True,
         },

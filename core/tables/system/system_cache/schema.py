@@ -1,7 +1,8 @@
 """
-cache_system 表结构定义（Python，变量名 schema）
+系统缓存（sys_cache）：key-value，value 存文本。
 
-系统缓存（原 system_cache）。主键 key nullable=false；其余 nullable=true。
+与 sys_meta_info 区分：本表 value 为 text；meta_info 为 json。二者均有 created_at、last_updated。
+主键 key nullable=false；其余 nullable=true。
 """
 schema = {
     "name": "sys_cache",
@@ -16,16 +17,24 @@ schema = {
         },
         {
             "name": "value",
-            "type": "varchar",
-            "length": 255,
+            "type": "text",
             "isRequired": True,
             "nullable": True,
+            "description": "缓存值，文本格式",
         },
         {
-            "name": "updated_at",
+            "name": "created_at",
             "type": "datetime",
             "isRequired": True,
             "nullable": True,
+            "description": "创建时间",
+        },
+        {
+            "name": "last_updated",
+            "type": "datetime",
+            "isRequired": True,
+            "nullable": True,
+            "description": "最后更新时间",
         },
     ],
 }

@@ -6,7 +6,7 @@ data_ppi 表 Model
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
-from core.tables.data_ppi.schema import schema as _schema
+from core.tables.macro.ppi.schema import schema as _schema
 
 
 class DataPpiModel(DbBaseModel):

@@ -6,7 +6,7 @@ data_industries 表 Model
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
-from core.tables.data_industries.schema import schema as _schema
+from core.tables.stock.industries.schema import schema as _schema
 
 
 class DataIndustriesModel(DbBaseModel):

@@ -6,7 +6,7 @@ data_pmi 表 Model
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
-from core.tables.data_pmi.schema import schema as _schema
+from core.tables.macro.pmi.schema import schema as _schema
 
 
 class DataPmiModel(DbBaseModel):

@@ -6,7 +6,7 @@ data_adj_factor_event 表 Model
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from core.infra.db import DbBaseModel
-from core.tables.data_adj_factor_event.schema import schema as _schema
+from core.tables.stock.adj_factor_events.schema import schema as _schema
 
 
 class DataAdjFactorEventModel(DbBaseModel):

@@ -332,12 +332,12 @@ def migrate_industries_from_stock_list(dm: DataManager, dry_run: bool = False) -
 
 
 def migrate_stock_list(dm: DataManager, dry_run: bool = False) -> int:
-    """stock_list -> sys_stock_list；去掉 industry 列。"""
+    """stock_list -> sys_stock_list；只迁 id/name/is_active/last_update，industry_id/market_id/board_id 留空由 renew 填充。"""
     return migrate_one_to_one(
         dm,
         "stock_list",
         "sys_stock_list",
-        ["id", "name", "type", "exchange_center", "is_active", "last_update"],
+        ["id", "name", "industry_id", "market_id", "board_id", "is_active", "last_update"],
         renames={"ts_code": "id"},
         unique_keys=["id"],
         dry_run=dry_run,
@@ -626,7 +626,7 @@ def _run_single_step(dm: DataManager, step_id: str, dry_run: bool = False) -> No
         "tag_value": ("tag_value", "sys_tag_value", ["entity_type", "entity_id", "tag_definition_id", "as_of_date", "start_date", "end_date", "json_value", "calculated_at"], {"definition_id": "tag_definition_id", "value": "json_value"}, ["entity_id", "tag_definition_id", "as_of_date"]),
         "system_cache": None,
         "meta_info": None,
-        "stock_list": ("stock_list", "sys_stock_list", ["id", "name", "type", "exchange_center", "is_active", "last_update"], {"ts_code": "id"}, ["id"]),
+        "stock_list": ("stock_list", "sys_stock_list", ["id", "name", "industry_id", "market_id", "board_id", "is_active", "last_update"], {"ts_code": "id"}, ["id"]),
         "adj_factor_event": ("adj_factor_event", "sys_adj_factor_events", ["id", "event_date", "factor", "qfq_diff", "last_update"], {"ts_code": "id", "ann_date": "event_date"}, ["id", "event_date"]),
         "corporate_finance": ("corporate_finance", "sys_corporate_finance", ["id", "quarter", "eps", "dt_eps", "roe_dt", "roe", "roa", "netprofit_margin", "gross_profit_margin", "op_income", "roic", "ebit", "ebitda", "dtprofit_to_profit", "profit_dedt", "or_yoy", "netprofit_yoy", "basic_eps_yoy", "dt_eps_yoy", "tr_yoy", "netdebt", "debt_to_eqt", "debt_to_assets", "interestdebt", "assets_to_eqt", "quick_ratio", "current_ratio", "ar_turn", "bps", "ocfps", "fcff", "fcfe"], {"ts_code": "id", "ann_date": "quarter"}, ["id", "quarter"]),
         "stock_index_indicator": ("stock_index_indicator", "sys_index_klines", ["id", "term", "date", "open", "close", "highest", "lowest", "price_change_delta", "price_change_rate_delta", "pre_close", "volume", "amount"], {"high": "highest", "low": "lowest"}, ["id", "term", "date"]),

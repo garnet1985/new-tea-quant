@@ -139,7 +139,7 @@ class DataSourceManager:
 
         步骤大纲：
         1. 从 self.mappings 中读取 handler 路径（支持简化格式）
-        2. 使用 DataSourceDefinition._normalize_handler_path 标准化为完整模块路径
+        2. 使用 DataSourceManagerHelper._normalize_handler_path 标准化为完整模块路径
         3. 动态 import 模块并获取 Handler 类
         4. 使用 (data_source_key, schema, config) 构造 Handler 实例
         5. 返回 Handler 实例，并写入缓存

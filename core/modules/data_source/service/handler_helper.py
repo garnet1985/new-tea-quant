@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from loguru import logger
 
@@ -434,9 +434,14 @@ class DataSourceHandlerHelper:
     # ========== 字段覆盖校验 ==========
 
     @staticmethod
-    def validate_field_coverage(apis_conf: Dict[str, Any], schema: Any) -> None:
+    def validate_field_coverage(
+        apis_conf: Dict[str, Any],
+        schema: Any,
+        ignore_fields: Optional[Iterable[str]] = None,
+    ) -> None:
         """
         校验：表 schema 中的字段是否都能在各 API 的 field_mapping 中找到对应来源。
+        ignore_fields 中的字段不参与校验（由 save 层或 DB 填充）。
 
         schema 为表 schema dict（fields 为 list）。仅做提醒式校验，不抛异常。
         """
@@ -444,6 +449,8 @@ class DataSourceHandlerHelper:
             return
         fields_list = schema.get("fields") or []
         schema_fields = {f.get("name") for f in fields_list if f.get("name")}
+        ign = set(ignore_fields) if ignore_fields else set()
+        schema_fields -= ign
         mapped_targets: set[str] = set()
 
         for api_name, api_cfg in (apis_conf or {}).items():
@@ -853,8 +860,11 @@ class DataSourceHandlerHelper:
             logger.info("fetched_data 为空或类型非法，返回空数据")
             return {"data": []}
 
-        # 步骤 1：字段覆盖校验（提醒式）
-        DataSourceHandlerHelper.validate_field_coverage(apis_conf, schema)
+        # 步骤 1：字段覆盖校验（提醒式；ignore_fields 不参与）
+        ignore_fields = (
+            config.get_ignore_fields() if hasattr(config, "get_ignore_fields") else (config.get("ignore_fields") or [])
+        )
+        DataSourceHandlerHelper.validate_field_coverage(apis_conf, schema, ignore_fields=ignore_fields)
 
         # 步骤 2：对每个 API 结果做 field_mapping，合并为 records
         mapped_records = DataSourceHandlerHelper.extract_mapped_records(apis_conf, fetched_data)
@@ -872,28 +882,36 @@ class DataSourceHandlerHelper:
     # ========== 数据验证 ==========
 
     @staticmethod
-    def validate_normalized_data(normalized_data: Dict[str, Any], schema: Any, data_source_key: str = "unknown") -> None:
+    def validate_normalized_data(
+        normalized_data: Dict[str, Any],
+        schema: Any,
+        data_source_key: str = "unknown",
+        ignore_fields: Optional[Iterable[str]] = None,
+    ) -> None:
         """
         验证标准化后的数据是否符合 schema。
 
         验证逻辑：
         - 如果数据是 {"data": [...]} 格式，验证列表中的每个记录
         - 如果数据不是 {"data": [...]} 格式，直接验证整个字典
+        - ignore_fields 中的字段不要求存在（由 save 层或 DB 填充）
         - 校验失败时抛出 ValueError
 
         Args:
             normalized_data: 标准化后的数据，通常是 {"data": [...]} 格式
             schema: 表 schema dict（用于验证，来自 DB）
             data_source_key: 数据源配置键（用于错误信息）
+            ignore_fields: data source 不管的字段名集合，这些字段不参与必填校验
 
         Raises:
             ValueError: 如果数据验证失败
         """
         if not schema or not isinstance(schema, dict):
             return
+        ign = set(ignore_fields) if ignore_fields else set()
 
         def _valid(record: dict) -> bool:
-            return DataSourceHandlerHelper._validate_record_against_schema(record, schema)
+            return DataSourceHandlerHelper._validate_record_against_schema(record, schema, ignore_fields=ign)
 
         # 如果数据是 {"data": [...]} 格式，验证列表中的每个记录
         if isinstance(normalized_data, dict) and "data" in normalized_data:
@@ -908,7 +926,7 @@ class DataSourceHandlerHelper:
                     errors.append(f"记录 {idx} 不是字典类型")
                     continue
                 if not _valid(record):
-                    record_errors = DataSourceHandlerHelper._collect_validation_errors(record, schema)
+                    record_errors = DataSourceHandlerHelper._collect_validation_errors(record, schema, ignore_fields=ign)
                     if record_errors:
                         errors.append(f"记录 {idx}: {', '.join(record_errors)}")
             if errors:
@@ -919,7 +937,7 @@ class DataSourceHandlerHelper:
             return
 
         if not _valid(normalized_data):
-            errors = DataSourceHandlerHelper._collect_validation_errors(normalized_data, schema)
+            errors = DataSourceHandlerHelper._collect_validation_errors(normalized_data, schema, ignore_fields=ign)
             error_msg = ", ".join(errors) if errors else "数据不符合表 schema"
             raise ValueError(
                 f"数据验证失败: {data_source_key} 的标准化数据不符合表 schema。"
@@ -927,15 +945,22 @@ class DataSourceHandlerHelper:
             )
 
     @staticmethod
-    def _validate_record_against_schema(record: Dict[str, Any], schema: Dict[str, Any]) -> bool:
-        """表 schema（dict）校验单条记录：必填存在、类型可接受。"""
+    def _validate_record_against_schema(
+        record: Dict[str, Any],
+        schema: Dict[str, Any],
+        ignore_fields: Optional[set] = None,
+    ) -> bool:
+        """表 schema（dict）校验单条记录：必填存在、类型可接受。ignore_fields 中的字段不要求存在。"""
         if not schema or not isinstance(schema, dict):
             return True
+        ign = ignore_fields or set()
         fields_list = schema.get("fields") or []
         type_map = DataSourceHandlerHelper._SCHEMA_TYPE_MAP
         for field_def in fields_list:
             name = field_def.get("name")
             if not name:
+                continue
+            if name in ign:
                 continue
             if field_def.get("isRequired") and name not in record:
                 return False
@@ -946,18 +971,26 @@ class DataSourceHandlerHelper:
         return True
 
     @staticmethod
-    def _collect_validation_errors(record: Dict[str, Any], schema: Any) -> List[str]:
+    def _collect_validation_errors(
+        record: Dict[str, Any],
+        schema: Any,
+        ignore_fields: Optional[set] = None,
+    ) -> List[str]:
         """
         收集数据验证错误信息。schema 为表 schema dict（fields 为 list）。
+        ignore_fields 中的字段不报缺失错误。
         """
         errors = []
         if not schema or not isinstance(schema, dict):
             return errors
+        ign = ignore_fields or set()
         fields_list = schema.get("fields") or []
         type_map = DataSourceHandlerHelper._SCHEMA_TYPE_MAP
         for field_def in fields_list:
             name = field_def.get("name")
             if not name:
+                continue
+            if name in ign:
                 continue
             if field_def.get("isRequired") and name not in record:
                 errors.append(f"{name}(缺失)")

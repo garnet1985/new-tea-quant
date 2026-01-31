@@ -44,8 +44,8 @@ class DataSourceManager:
         发现并加载数据源的 mapping 配置。
 
         约定：
-        - 使用 userspace/data_source/mapping.json 作为唯一入口
-        - 返回值为 data_sources 字典或 None
+        - 使用 userspace/data_source/mapping.py（DATA_SOURCES）作为入口；兼容 mapping.json。
+        - 返回 HandlerMapping(data_sources=...)
         """
         mapping_path = PathManager.data_source_mapping()
         mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
@@ -55,32 +55,32 @@ class DataSourceManager:
     def _discover_handlers(self, mappings: HandlerMapping, providers: Dict[str, BaseProvider]) -> List[BaseHandler]:
         handler_instances = []
 
-        for data_source_name in mappings.get_enabled().keys():
-            config = self._discover_config(data_source_name)
+        for data_source_key in mappings.get_enabled().keys():
+            config = self._discover_config(data_source_key)
             if config is None:
-                logger.error(f"Data source config {data_source_name} 没有找到，跳过")
+                logger.error(f"Data source config {data_source_key} 没有找到，跳过")
                 continue
 
             schema = self._get_schema_for_handler(config)
             if not schema:
-                logger.error(f"Data source {data_source_name} 无法从绑定表加载 schema，跳过")
+                logger.error(f"Data source {data_source_key} 无法从绑定表加载 schema，跳过")
                 continue
 
-            handler_cls = self._discover_handler(data_source_name, mappings)
+            handler_cls = self._discover_handler(data_source_key, mappings)
             if not handler_cls:
-                logger.error(f"Data source handler {data_source_name} 没有找到，跳过")
+                logger.error(f"Data source handler {data_source_key} 没有找到，跳过")
                 continue
 
             handler_instance = DataSourceManagerHelper.create_handler_instance(
                 handler_cls,
-                data_source_name,
+                data_source_key,
                 schema,
                 config,
                 providers,
-                mappings.get_depend_on_data_source_names(data_source_name),
+                mappings.get_depend_on_data_source_names(data_source_key),
             )
             if not handler_instance:
-                logger.error(f"Data source handler instance {data_source_name} 创建失败，跳过")
+                logger.error(f"Data source handler instance {data_source_key} 创建失败，跳过")
                 continue
 
             handler_instances.append(handler_instance)
@@ -105,33 +105,33 @@ class DataSourceManager:
             logger.warning(f"加载表 schema 失败 table={table_name}: {e}")
             return None
 
-    def _discover_config(self, data_source_name: str) -> Any:
+    def _discover_config(self, data_source_key: str) -> Any:
         """
         发现并加载指定数据源的 Config。仅支持 config.py，其中必须定义 CONFIG 字典。
         """
-        if data_source_name in self._all_valid_configs_cache:
-            return self._all_valid_configs_cache[data_source_name]
+        if data_source_key in self._all_valid_configs_cache:
+            return self._all_valid_configs_cache[data_source_key]
 
-        handler_dir = PathManager.data_source_handler(data_source_name)
+        handler_dir = PathManager.data_source_handler(data_source_key)
         config_path = handler_dir / "config.py"
 
         config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
         if not config_dict:
-            logger.info(f"Data source {data_source_name} 未找到或无法加载 config.py，跳过")
+            logger.info(f"Data source {data_source_key} 未找到或无法加载 config.py，跳过")
             return None
 
-        config = DataSourceConfig(config_dict, data_source_name=data_source_name)
+        config = DataSourceConfig(config_dict, data_source_key=data_source_key)
         if not config.is_valid():
-            logger.warning(f"Data source {data_source_name} 的 config 不完整，跳过")
+            logger.warning(f"Data source {data_source_key} 的 config 不完整，跳过")
             return None
 
-        self._all_valid_configs_cache[data_source_name] = config
+        self._all_valid_configs_cache[data_source_key] = config
         return config
 
 
     def _discover_handler(
         self,
-        data_source_name: str,
+        data_source_key: str,
         mappings: HandlerMapping,
     ) -> Any:
         """
@@ -141,20 +141,20 @@ class DataSourceManager:
         1. 从 self.mappings 中读取 handler 路径（支持简化格式）
         2. 使用 DataSourceDefinition._normalize_handler_path 标准化为完整模块路径
         3. 动态 import 模块并获取 Handler 类
-        4. 使用 (data_source_name, schema, config) 构造 Handler 实例
+        4. 使用 (data_source_key, schema, config) 构造 Handler 实例
         5. 返回 Handler 实例，并写入缓存
         """
-        # 简单缓存：同一 data_source_name 只创建一次实例
-        if data_source_name in self._all_valid_handlers_cache:
-            return self._all_valid_handlers_cache[data_source_name]
+        # 简单缓存：同一 data_source_key 只创建一次实例
+        if data_source_key in self._all_valid_handlers_cache:
+            return self._all_valid_handlers_cache[data_source_key]
 
-        handler_info = mappings.get_handler_info(data_source_name)
-        handler_cls = DataSourceManagerHelper.find_handler_class_from_mappings(handler_info, data_source_name)
+        handler_info = mappings.get_handler_info(data_source_key)
+        handler_cls = DataSourceManagerHelper.find_handler_class_from_mappings(handler_info, data_source_key)
 
         if not DataSourceManagerHelper.is_valid_handler(handler_cls):
             return None
 
-        self._all_valid_handlers_cache[data_source_name] = handler_cls
+        self._all_valid_handlers_cache[data_source_key] = handler_cls
         return handler_cls
 
     def _discover_providers(self) -> Dict[str, BaseProvider]:

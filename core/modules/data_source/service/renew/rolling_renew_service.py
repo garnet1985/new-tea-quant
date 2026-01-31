@@ -99,9 +99,9 @@ class RollingRenewService:
         # 获取是否需要分组
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
         
-        # 查询最新日期
+        # 查询最新日期（实体标识字段由 context 中 config.result_group_by.by_key 提供）
         latest_dates_dict = RenewCommonHelper.query_latest_date(
-            self.data_manager, table_name, date_field, date_format, needs_stock_grouping
+            self.data_manager, table_name, date_field, date_format, needs_stock_grouping, context=context
         )
         
         # 定义滚动模式的起始日期计算函数：判断是否在窗口内

@@ -13,6 +13,10 @@ from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
+from core.modules.data_source.reserved_dependencies import (
+    RESERVED_DEPENDENCY_KEYS,
+    resolve_reserved_dependency,
+)
 
 
 class DataSourceExecutionScheduler:
@@ -115,6 +119,8 @@ class DataSourceExecutionScheduler:
             
             depends_on = handler.get_dependency_data_source_names()
             for dep_name in depends_on:
+                if dep_name in RESERVED_DEPENDENCY_KEYS:
+                    continue
                 if dep_name not in handler_map:
                     raise ValueError(
                         f"数据源 '{data_source_key}' 依赖的数据源 '{dep_name}' 不存在或未启用"
@@ -175,25 +181,27 @@ class DataSourceExecutionScheduler:
     
     def _get_dependencies_data(self, data_source_key: str) -> Dict[str, Any]:
         """
-        收集依赖数据
-        
-        注意：返回浅拷贝（外层字典的拷贝），嵌套的可变对象仍是引用。
-        这意味着修改返回字典的键值对不会影响缓存，但修改嵌套对象仍会影响缓存。
+        收集依赖数据：分两层解析。
+        1. 保留依赖（如 latest_trading_date）：由 resolve_reserved_dependency 解析，不来自缓存。
+        2. 其他 data source：从 _dependency_cache 取（须先执行过对应 handler）。
         
         Args:
             data_source_key: 数据源配置键（mapping 中的 key）
             
         Returns:
-            Dict[str, Any]: 依赖数据字典（浅拷贝）
+            Dict[str, Any]: 依赖数据字典
         """
         dep = {}
         for dep_name in self.mappings.get_depend_on_data_source_names(data_source_key):
-            if dep_name in self._dependency_cache:
+            if dep_name in RESERVED_DEPENDENCY_KEYS:
+                dep[dep_name] = resolve_reserved_dependency(dep_name)
+            elif dep_name in self._dependency_cache:
                 dep[dep_name] = self._dependency_cache[dep_name]
             else:
                 raise ValueError(
-                    f"数据源 '{data_source_key}' 依赖的数据源 '{dep_name}' 不在缓存中。"
-                    f"可能原因：1) 依赖的数据源执行失败；2) 依赖的数据源未被缓存（不被其他数据源依赖）"
+                    f"数据源 '{data_source_key}' 依赖的 '{dep_name}' 无法解析："
+                    f"若为保留依赖请使用 {sorted(RESERVED_DEPENDENCY_KEYS)} 之一，"
+                    f"否则须为已执行的 data source 且被缓存。"
                 )
         return dep
 

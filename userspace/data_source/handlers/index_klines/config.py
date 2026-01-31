@@ -1,5 +1,5 @@
 """
-Stock Index Indicator Handler 配置。绑定表 sys_index_klines。
+Index Klines Handler 配置。绑定表 sys_index_klines。
 """
 CONFIG = {
     "table": "sys_index_klines",

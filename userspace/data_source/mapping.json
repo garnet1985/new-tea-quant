@@ -15,6 +15,11 @@
             "is_enabled": false,
             "depends_on": ["stock_list", "latest_trading_date"]
         },
+        "stock_indicators": {
+            "handler": "stock_indicators.StockIndicatorsHandler",
+            "is_enabled": false,
+            "depends_on": ["stock_list", "latest_trading_date"]
+        },
         "corporate_finance": {
             "handler": "corporate_finance.CorporateFinanceHandler",
             "is_enabled": false,
@@ -25,13 +30,13 @@
             "is_enabled": false,
             "depends_on": ["stock_list", "latest_trading_date"]
         },
-        "stock_index_indicator": {
-            "handler": "stock_index_indicator.StockIndexIndicatorHandler",
+        "index_klines": {
+            "handler": "index_klines.IndexKlinesHandler",
             "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
-        "stock_index_indicator_weight": {
-            "handler": "stock_index_indicator_weight.StockIndexIndicatorWeightHandler",
+        "index_weight": {
+            "handler": "index_weight.IndexWeightHandler",
             "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
@@ -40,8 +45,23 @@
             "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },
-        "price_indexes": {
-            "handler": "price_indexes.PriceIndexesHandler",
+        "cpi": {
+            "handler": "cpi.CpiHandler",
+            "is_enabled": false,
+            "depends_on": ["latest_trading_date"]
+        },
+        "ppi": {
+            "handler": "ppi.PpiHandler",
+            "is_enabled": false,
+            "depends_on": ["latest_trading_date"]
+        },
+        "pmi": {
+            "handler": "pmi.PmiHandler",
+            "is_enabled": false,
+            "depends_on": ["latest_trading_date"]
+        },
+        "money_supply": {
+            "handler": "money_supply.MoneySupplyHandler",
             "is_enabled": false,
             "depends_on": ["latest_trading_date"]
         },

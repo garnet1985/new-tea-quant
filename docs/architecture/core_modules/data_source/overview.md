@@ -1,6 +1,6 @@
 # Data Source 模块概览
 
-> **提示**：本文档提供快速上手指南。如需了解详细的设计理念、架构设计和决策记录，请参考 [architecture.md](./architecture.md) 和 [decisions.md](./decisions.md)。
+> **提示**：本文档提供快速上手指南。如需了解详细的设计理念、架构设计和决策记录，请参考 [architecture.md](./architecture.md) 和 [decisions.md](./decisions.md)。**API 级说明（类、方法、参数）**见 [api.md](./api.md)。
 
 ## 📋 模块简介
 

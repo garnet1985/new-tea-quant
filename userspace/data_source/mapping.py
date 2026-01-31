@@ -3,15 +3,12 @@
 
 约定：
 - handler 必须为「模块.类名」格式（如 kline.KlineHandler），框架从 handlers/<模块>/handler.py 加载该类。
-- depends_on: 需要先执行的数据源列表，执行顺序由框架拓扑排序。
+- depends_on: 依赖列表，可为「其他 data source key」或「保留依赖关键字」。保留关键字（如 latest_trading_date）由框架直接解析注入，不作为 data source 配置。
+- data source key 不能使用保留关键字（见 core.modules.data_source.reserved_dependencies.RESERVED_DEPENDENCY_KEYS）。
 """
 DATA_SOURCES = {
     "stock_list": {
         "handler": "stock_list.TushareStockListHandler",
-        "is_enabled": True,
-    },
-    "latest_trading_date": {
-        "handler": "latest_trading_date.LatestTradingDateHandler",
         "is_enabled": True,
     },
     "kline": {

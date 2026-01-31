@@ -5,7 +5,7 @@ sys_tag_scenario 表 Model
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
-from core.tables.sys_tag_scenario.schema import schema as _schema
+from core.tables.tag.tag_scenario.schema import schema as _schema
 
 
 class SysTagScenarioModel(DbBaseModel):

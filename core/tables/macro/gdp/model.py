@@ -5,7 +5,7 @@ data_gdp 表 Model
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
-from core.tables.data_gdp.schema import schema as _schema
+from core.tables.macro.gdp.schema import schema as _schema
 
 
 class DataGdpModel(DbBaseModel):

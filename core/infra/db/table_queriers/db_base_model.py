@@ -3,6 +3,7 @@ DbBaseModel - 数据库表操作的通用基类
 
 这是一个纯粹的工具类，封装了常见的数据库表操作，提供：
 - 基础 CRUD（增删改查）
+- 统计行数（count，支持 WHERE 条件）
 - 分页查询
 - 时序数据特有的查询（最新日期、最新记录等）
 - Upsert（插入或更新）
@@ -161,17 +162,37 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
     # ***********************************
     #        data count & exists operations
     # ***********************************
-    
+
     def count(self, condition: str = "1=1", params: tuple = ()) -> int:
-        """统计记录数"""
+        """
+        统计表记录数（支持条件过滤）。
+
+        Args:
+            condition: WHERE 条件，默认 "1=1" 表示全表统计。须使用占位符时用 %s，与 params 配合。
+            params: 条件参数元组，与 condition 中的 %s 一一对应。
+
+        Returns:
+            int: 满足条件的行数；表不存在或查询失败时返回 0。
+
+        示例:
+            model.count()                    # 全表行数
+            model.count("term = %s", ("daily",))  # term=daily 的行数
+        """
         try:
-            query = f"SELECT COUNT(*) as count FROM {self.table_name} WHERE {condition}"
+            query = f"SELECT COUNT(*) AS cnt FROM {self.table_name} WHERE {condition}"
             result = self.db.execute_sync_query(query, params)
-            return result[0]['count'] if result else 0
+            if not result or len(result) == 0:
+                return 0
+            row = result[0]
+            # 兼容不同驱动返回的列名（cnt / count / COUNT 等）
+            n = row.get("cnt") if "cnt" in row else row.get("count", 0)
+            if n is None:
+                return 0
+            return int(n)
         except Exception as e:
             logger.error(f"Failed to count records from {self.table_name}: {e}")
             return 0
-    
+
     def is_exists(self, condition: str, params: tuple = ()) -> bool:
         """检查记录是否存在"""
         return self.count(condition, params) > 0

@@ -6,7 +6,7 @@ data_money_supply 表 Model
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
-from core.tables.data_money_supply.schema import schema as _schema
+from core.tables.macro.money_supply.schema import schema as _schema
 
 
 class DataMoneySupplyModel(DbBaseModel):

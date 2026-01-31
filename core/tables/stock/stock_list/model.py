@@ -4,7 +4,7 @@ data_stock_list 表 Model
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
-from core.tables.data_stock_list.schema import schema as _schema
+from core.tables.stock.stock_list.schema import schema as _schema
 
 
 class DataStockListModel(DbBaseModel):

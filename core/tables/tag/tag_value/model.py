@@ -5,7 +5,7 @@ sys_tag_value 表 Model
 """
 from typing import List, Dict, Any
 from core.infra.db import DbBaseModel
-from core.tables.sys_tag_value.schema import schema as _schema
+from core.tables.tag.tag_value.schema import schema as _schema
 
 
 class SysTagValueModel(DbBaseModel):

@@ -5,7 +5,7 @@ data_corporate_finance 表 Model
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
-from core.tables.data_corporate_finance.schema import schema as _schema
+from core.tables.stock.corporate_finance.schema import schema as _schema
 
 
 class DataCorporateFinanceModel(DbBaseModel):

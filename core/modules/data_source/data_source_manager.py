@@ -29,6 +29,10 @@ class DataSourceManager:
 
 
     def execute(self):
+        """
+        执行所有启用的数据源：发现 mapping/config/handler → 按依赖顺序执行。
+        是否写库由各 handler 的 config 顶层 is_dry_run 控制（True 则不执行 DB 写入）。
+        """
         self._flush_cache()
         mappings = self._discover_mappings()
         providers = self._discover_providers()

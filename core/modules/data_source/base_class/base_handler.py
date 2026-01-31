@@ -57,13 +57,16 @@ class BaseHandler:
         1. _preprocess：预处理阶段（构建 ApiJobs、计算日期范围、调用 on_before_fetch 钩子）；
         2. _executing：执行阶段（构建批次、执行 API 请求、调用 on_after_fetch 钩子）；
         3. _postprocess：后处理阶段（标准化数据、调用 on_after_normalize 钩子、数据验证）；
-        4. 返回标准化后的数据。
+        4. _do_save：非 is_dry_run 时先调用 on_before_save（用户 save），再系统写入绑定表；
+        5. 返回标准化后的数据。
         """
         jobs = self._preprocess(dependencies_data)
 
         fetched_data = self._executing(jobs)
 
         normalized_data = self._postprocess(fetched_data)
+
+        normalized_data = self._do_save(normalized_data)
 
         return normalized_data
     
@@ -90,6 +93,10 @@ class BaseHandler:
 
         # 1. 注入全局依赖
         self._inject_dependencies(dependencies_data)
+
+        # 2. 从 config 注入 is_dry_run 到 context（方便用户与框架读取）
+        config = self.context.get("config")
+        self.context["is_dry_run"] = bool(config.get("is_dry_run", False) if config else False)
 
         self.on_prepare_context(self.context)
 
@@ -259,6 +266,11 @@ class BaseHandler:
     def _inject_dependencies(self, dependencies_data):
         """注入依赖数据；无依赖时设为空字典，避免后续 .get 报错。"""
         self.context["dependencies"] = dependencies_data if dependencies_data is not None else {}
+        # 从保留依赖 latest_trading_date 提取日期，供 context["latest_completed_trading_date"] 使用
+        if dependencies_data and "latest_trading_date" in dependencies_data:
+            val = dependencies_data["latest_trading_date"]
+            if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict) and "date" in val[0]:
+                self.context["latest_completed_trading_date"] = val[0]["date"]
 
     def _filter_by_renew_if_over_days(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """
@@ -603,6 +615,58 @@ class BaseHandler:
         DataSourceHandlerHelper.validate_normalized_data(normalized_data, schema, data_source_key)
         return normalized_data
 
+    def _is_dry_run(self) -> bool:
+        """
+        是否处于试跑模式（不执行任何 DB 写入）。
+        从 context["is_dry_run"] 读取，由框架在 _preprocess 中根据 config 顶层 is_dry_run 注入。
+        """
+        return bool(self.context.get("is_dry_run", False))
+
+    def _do_save(self, normalized_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        在非 is_dry_run 时执行写入：先调用用户钩子 on_before_save，再系统写入绑定表。
+        is_dry_run 为 True 时不执行任何写入，直接返回 normalized_data。
+        """
+        if self._is_dry_run():
+            return normalized_data
+        self.on_before_save(self.context, normalized_data)
+        self._system_save(normalized_data)
+        return normalized_data
+
+    def _system_save(self, normalized_data: Dict[str, Any]) -> None:
+        """
+        将标准化数据写入绑定表（使用表 schema 的 primaryKey 做 upsert）。
+        仅框架内部调用；用户自定义写入请在 on_before_save 中实现。
+        """
+        from loguru import logger
+        config = self.context.get("config")
+        data_manager = self.context.get("data_manager")
+        schema = self.context.get("schema")
+        if not config or not data_manager or not schema:
+            return
+        table_name = config.get_table_name()
+        if not table_name:
+            return
+        model = data_manager.get_table(table_name)
+        if not model or not hasattr(model, "batch_insert"):
+            logger.warning(f"表 {table_name} 未注册或无可用的 batch_insert，跳过系统写入")
+            return
+        records = (normalized_data or {}).get("data")
+        if not records or not isinstance(records, list):
+            return
+        pk = schema.get("primaryKey")
+        if isinstance(pk, str):
+            unique_keys = [pk]
+        elif isinstance(pk, list):
+            unique_keys = list(pk)
+        else:
+            unique_keys = None
+        try:
+            count = model.batch_insert(records, unique_keys=unique_keys)
+            logger.info(f"系统写入 {table_name}: {count} 条")
+        except Exception as e:
+            logger.error(f"系统写入 {table_name} 失败: {e}")
+            raise
 
     # ================================
     # Hooks
@@ -778,7 +842,9 @@ class BaseHandler:
         - 如果 config.date_format 为 "day" 或 "month"，默认值使用 0.0（数值数据）
         - 否则使用 None（可能包含非数值字段）
 
-        注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
+        默认清洗策略：
+        - 如果 config.date_format 为 "day" 或 "month"，默认值使用 0.0（数值数据）
+        - 否则使用 None（可能包含非数值字段）
         """
         config = context.get("config")
         date_format = config.get_date_format()
@@ -791,6 +857,14 @@ class BaseHandler:
         
         # 自动清洗 NaN
         return self.clean_nan_in_normalized_data(normalized_data, default=default)
+
+    def on_before_save(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> None:
+        """
+        用户 save 钩子：在系统写入绑定表之前调用，供子类做自定义写入（如写其他表、打日志等）。
+        执行顺序：用户 on_before_save → 系统写入 config 绑定的表。
+        context["is_dry_run"] 为 True 时不会调用本钩子，也不会执行系统写入。
+        """
+        pass
 
     def on_bundle_execution_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
         """

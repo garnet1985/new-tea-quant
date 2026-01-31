@@ -63,7 +63,7 @@ Data Source 的产出结果可能是 **N 个来源于不同 Provider 的 N 个 A
 │  - 执行上下文（context）                          │
 │    ├─ latest_completed_trading_date              │
 │    ├─ stock_list                                 │
-│    ├─ test_mode, dry_run 等参数                   │
+│    ├─ test_mode、context["is_dry_run"] 等         │
 │    └─ Handler 自定义参数                          │
 │                                                  │
 │  Processing（处理）:                              │
@@ -88,7 +88,7 @@ context = {
     "latest_completed_trading_date": "20251222",
     "stock_list": ["000001.SZ", "000002.SZ", ...],
     "test_mode": False,
-    "dry_run": False
+    "is_dry_run": False
 }
 ```
 

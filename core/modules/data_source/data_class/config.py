@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from loguru import logger
 from core.global_enums.enums import TermType, UpdateMode
 
@@ -15,6 +15,7 @@ class DataSourceConfig:
     - get_date_format() 的 fallback 会读顶层 "date_format" 键，与该方法名相同，仅文档说明。
     - renew_if_over_days、rolling 等子段暂无严格 schema 校验，依赖约定。
     - 可选顶层 "is_dry_run": bool；为 True 时该数据源不执行 DB 写入（用户 save 钩子与系统写入均跳过），便于调试。框架会将其注入 context["is_dry_run"]。
+    - 可选顶层 "ignore_fields": list；列名列表，表示这些字段由 data source 不管（如 is_alive、DB 自动生成字段），校验时不要求存在，由 save 层或 DB 填充。
     """
     
     def __init__(self, config_dict: Dict[str, Any], data_source_key: str = None):
@@ -33,7 +34,20 @@ class DataSourceConfig:
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置值（兼容 dict 接口）"""
         return self._config_dict.get(key, default)
-    
+
+    def get_ignore_fields(self) -> List[str]:
+        """
+        获取「data source 不管」的字段列表。
+        这些字段在标准化校验时不要求存在，由 save 层或 DB 填充。
+        约定：config 顶层 "ignore_fields": ["is_alive", "created_at", ...]，默认 []。
+        """
+        val = self._config_dict.get("ignore_fields")
+        if val is None:
+            return []
+        if isinstance(val, list):
+            return [str(x) for x in val if x is not None]
+        return []
+
     def is_valid(self) -> bool:
         """
         验证 config 配置是否完整（根据 renew_mode 验证必填字段）。

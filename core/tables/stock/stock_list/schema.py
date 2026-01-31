@@ -1,6 +1,8 @@
 """
-股票列表（sys_stock_list）：基本信息 + industry_id / market_id / board_id 关联
-sys_stock_industries、sys_stock_markets、sys_stock_boards 三个定义表；不再使用行业映射表。
+股票列表（sys_stock_list）：仅基本信息；行业/板块/市场由定义表 + 映射表维护。
+
+与 sys_industries、sys_boards、sys_markets 及 sys_stock_industry_map、sys_stock_board_map、
+sys_stock_market_map 解耦，本表不再包含 industry_id / market_id / board_id。
 
 主键、时序列 nullable=false；其余 nullable=true。
 """
@@ -22,27 +24,6 @@ schema = {
             "length": 255,
             "isRequired": True,
             "nullable": True,
-        },
-        {
-            "name": "industry_id",
-            "type": "int",
-            "isRequired": False,
-            "nullable": True,
-            "description": "行业 id，关联 sys_stock_industries.id",
-        },
-        {
-            "name": "market_id",
-            "type": "int",
-            "isRequired": False,
-            "nullable": True,
-            "description": "市场 id，关联 sys_stock_markets.id",
-        },
-        {
-            "name": "board_id",
-            "type": "int",
-            "isRequired": False,
-            "nullable": True,
-            "description": "板块 id，关联 sys_stock_boards.id（如主板、科创板、创业板、北交所）",
         },
         {
             "name": "is_active",

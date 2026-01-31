@@ -1,5 +1,5 @@
 """
-Stock Index Indicator Weight Handler 配置。绑定表 sys_index_weight。
+Index Weight Handler 配置。绑定表 sys_index_weight。
 """
 CONFIG = {
     "table": "sys_index_weight",

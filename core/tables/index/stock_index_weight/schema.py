@@ -1,10 +1,10 @@
 """
-data_stock_index_indicator_weight 表结构定义（Python，变量名 schema）
+index_weight 表结构定义（Python，变量名 schema）
 
-股指成分股权重。主键 id/date/stock_id nullable=false；其余 nullable=true。
+指数成分股权重。主键 id/date/stock_id nullable=false；其余 nullable=true。
 """
 schema = {
-    "name": "sys_stock_index_indicator_weight",
+    "name": "sys_index_weight",
     "primaryKey": ["id", "date", "stock_id"],
     "fields": [
         {
@@ -13,7 +13,7 @@ schema = {
             "length": 16,
             "isRequired": True,
             "nullable": False,
-            "description": "股指代码",
+            "description": "指数代码",
         },
         {
             "name": "date",
@@ -29,14 +29,14 @@ schema = {
             "length": 16,
             "isRequired": True,
             "nullable": False,
-            "description": "成分股代码",
+            "description": "指数成分股代码",
         },
         {
             "name": "weight",
             "type": "float",
             "isRequired": True,
             "nullable": True,
-            "description": "权重",
+            "description": "指数成分股权重",
         },
     ],
 }

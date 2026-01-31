@@ -5,11 +5,11 @@ data_stock_index_indicator 表 Model
 """
 from typing import List, Dict, Any
 from core.infra.db import DbBaseModel
-from core.tables.data_stock_index_indicator.schema import schema as _schema
+from core.tables.index.stock_index_klines.schema import schema as _schema
 
 
-class DataStockIndexIndicatorModel(DbBaseModel):
-    """股指指标表 Model（表名 data_stock_index_indicator）"""
+class DataStockIndexKlinesModel(DbBaseModel):
+    """股指K线表 Model（表名 data_stock_index_klines）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

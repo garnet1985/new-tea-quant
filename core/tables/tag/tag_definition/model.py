@@ -5,7 +5,7 @@ sys_tag_definition 表 Model
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
-from core.tables.sys_tag_definition.schema import schema as _schema
+from core.tables.tag.tag_definition.schema import schema as _schema
 
 
 class SysTagDefinitionModel(DbBaseModel):

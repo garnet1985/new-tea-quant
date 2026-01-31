@@ -26,7 +26,7 @@ DataSourceManager(is_verbose: bool = False)
 
 | 方法 | 说明 |
 |------|------|
-| `execute()` | 清空缓存 → 发现 mapping → 发现 providers → 发现并创建所有启用的 Handler 实例 → 调用 `DataSourceExecutionScheduler.run(handler_instances, mappings)` 执行 |
+| `execute()` | 清空缓存 → 发现 mapping → 发现 providers → 发现并创建所有启用的 Handler 实例 → 调用 `DataSourceExecutionScheduler.run(handler_instances, mappings)` 执行。是否写库由各 handler 的 config 顶层 `is_dry_run`（bool）控制。 |
 
 #### 内部流程（供理解）
 
@@ -54,7 +54,7 @@ DataSourceExecutionScheduler(is_verbose: bool = False)
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
-| `run` | `run(handler_instances: List[BaseHandler], mappings: HandlerMapping)` | 对 handlers 做拓扑排序 → 按序执行每个 handler.execute(dependencies_data)，并将上游结果注入下游 context → 可选重试失败的数据源 |
+| `run` | `run(handler_instances, mappings)` | 对 handlers 做拓扑排序 → 按序执行每个 handler.execute(dependencies_data) → 可选重试失败的数据源 |
 
 ---
 
@@ -94,7 +94,7 @@ BaseHandler(
 |------|------|------|
 | `get_key` | `get_key() -> Optional[str]` | 返回 `data_source_key` |
 | `get_dependency_data_source_names` | `get_dependency_data_source_names() -> List[str]` | 返回依赖的数据源 key 列表 |
-| `execute` | `execute(dependencies_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` | 同步执行入口：预处理 → 执行 API → 后处理，返回标准化后的数据（如 `{"data": [...]}`） |
+| `execute` | `execute(dependencies_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]` | 同步执行入口：预处理 → 执行 API → 后处理 → 当 `context["is_dry_run"]` 为 False 时先调用 `on_before_save`（用户 save）再系统写入绑定表，返回标准化后的数据（如 `{"data": [...]}`） |
 
 #### 生命周期钩子（子类可覆盖）
 
@@ -106,6 +106,7 @@ BaseHandler(
 | `on_after_fetch` | `on_after_fetch(context, fetched_data, apis)` | 抓取完成后、标准化之前；默认按 `group_by` 做分组或统一聚合 |
 | `on_after_mapping` | `on_after_mapping(context, mapped_records: List[Dict]) -> List[Dict]` | 字段映射之后、schema 应用之前；可补字段、过滤、转换 |
 | `on_after_normalize` | `on_after_normalize(context, normalized_data: Dict)` | 标准化之后；默认清洗 NaN，可自定义 |
+| `on_before_save` | `on_before_save(context, normalized_data: Dict) -> None` | 用户 save 钩子：在系统写入绑定表之前调用；`context["is_dry_run"]` 为 True 时不调用 |
 | `on_thread_execution_error` | `on_thread_execution_error(error, context, apis)` | 执行阶段异常时（不阻止异常传播） |
 | `on_bundle_execution_error` | `on_bundle_execution_error(error, context, apis)` | 单 bundle 执行异常时 |
 
@@ -335,9 +336,11 @@ Provider 调用异常，属性：`provider`、`api`、`original_error`；`str(e)
 | 约定 | 说明 |
 |------|------|
 | **mapping.py** | `userspace/data_source/mapping.py` 中定义 `DATA_SOURCES`（dict），每项含 `handler`、`is_enabled`、`depends_on` 等。 |
-| **config.py** | `userspace/data_source/handlers/{data_source_key}/config.py` 中定义 `CONFIG`（dict），含顶层 `table`、`renew`、`apis`、`result_group_by` 等。 |
-| **Schema** | 不单独定义；由 `config.get_table_name()` 绑定表，框架通过 `DataManager.get_table(table).load_schema()` 取得表 schema（dict）并注入 Handler。 |
-| **Handler 类** | 继承 `BaseHandler`，可覆盖 `on_prepare_context`、`on_before_fetch`、`on_after_mapping`、`on_after_normalize` 等钩子；默认管线已包含构建 ApiJob、执行、字段映射、schema 规范化与校验。 |
+| **config.py** | `userspace/data_source/handlers/{data_source_key}/config.py` 中定义 `CONFIG`（dict），含顶层 `table`、`renew`、`apis`、`result_group_by` 等；可选 **`is_dry_run`: bool**（该数据源是否仅试跑不写入，便于调试）。 |
+| **Schema** | 与 DB 公用：由 `config.get_table_name()` 绑定表，框架通过 `DataManager.get_table(table).load_schema()` 取得表 schema（dict）并注入 Handler，不做单独 data source schema。 |
+| **Save** | 当 `context["is_dry_run"]` 为 False 时：先调用用户钩子 `on_before_save(context, normalized_data)`，再由框架将 `normalized_data["data"]` 按表 schema 的 primaryKey 写入绑定表。 |
+| **is_dry_run** | 配置：config 顶层 **`"is_dry_run": True`**（bool）。框架在 _preprocess 中将其注入 **`context["is_dry_run"]`**，用户与框架均可读取。为 True 时不执行用户 save 与系统写入。 |
+| **Handler 类** | 继承 `BaseHandler`，可覆盖 `on_prepare_context`、`on_before_fetch`、`on_after_mapping`、`on_after_normalize`、`on_before_save` 等钩子；默认管线已包含构建 ApiJob、执行、字段映射、schema 规范化、校验与写入。 |
 | **Provider 类** | 继承 `BaseProvider`，定义 `provider_name`、`requires_auth`、`auth_type`、`api_limits`，实现 `_initialize()`；放在 `userspace/data_source/providers/{provider_name}/` 下并由框架发现。 |
 
 ---
@@ -346,8 +349,10 @@ Provider 调用异常，属性：`provider`、`api`、`original_error`；`str(e)
 
 | 用途 | 类/模块 |
 |------|---------|
-| 启动一次全量拉取 | `DataSourceManager.execute()` |
+| 启动一次全量拉取（可写库） | `DataSourceManager.execute()`，且各 handler 的 config 中 `is_dry_run` 为 False 或未配置 |
+| 试跑不写库（便于调试） | 在对应 handler 的 config.py 中设置 **`"is_dry_run": True`**；框架会注入到 `context["is_dry_run"]` |
 | 实现一个数据源 | 继承 `BaseHandler`，配置 `config.py` + mapping 中的 `handler` |
+| 自定义写入（在系统写入前） | 覆盖 `BaseHandler.on_before_save(context, normalized_data)` |
 | 实现一个数据供应商 | 继承 `BaseProvider`，实现 `_initialize()`，声明 `api_limits` |
 | 配置项访问 | `DataSourceConfig` 的 `get_*` 方法 |
 | 单次 API 任务描述 | `ApiJob` |

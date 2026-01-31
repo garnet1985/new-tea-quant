@@ -5,7 +5,7 @@ sys_meta_info 表 Model
 """
 from typing import Optional, Dict, Any, List
 from core.infra.db import DbBaseModel
-from core.tables.sys_meta_info.schema import schema as _schema
+from core.tables.system.meta_info.schema import schema as _schema
 
 
 class SysMetaInfoModel(DbBaseModel):

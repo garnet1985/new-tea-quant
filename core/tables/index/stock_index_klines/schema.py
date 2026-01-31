@@ -1,10 +1,10 @@
 """
-data_stock_index_indicator 表结构定义（Python，变量名 schema）
+index_klines 表结构定义（Python，变量名 schema）
 
-股指指标。主键、时序列 id/term/date nullable=false；其余 nullable=true。
+股指K线。主键、时序列 id/term/date nullable=false；其余 nullable=true。
 """
 schema = {
-    "name": "sys_stock_index_indicator",
+    "name": "sys_index_klines",
     "primaryKey": ["id", "term", "date"],
     "fields": [
         {"name": "id", "type": "varchar", "length": 16, "isRequired": True, "nullable": False, "description": "股指代码"},

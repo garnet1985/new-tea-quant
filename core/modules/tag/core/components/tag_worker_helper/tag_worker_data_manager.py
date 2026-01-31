@@ -240,7 +240,7 @@ class TagWorkerDataManager:
     
     def _load_earlier_data_by_date(self, end_date: str, max_records: int) -> Dict[str, Any]:
         """通过日期范围查询加载更早的数据（不更新 slice_state）"""
-        kline_model = self.data_mgr.get_table("sys_stock_kline_daily")
+        kline_model = self.data_mgr.get_table("sys_stock_klines")
         if not kline_model:
             return {'klines': {}}
         
@@ -271,7 +271,7 @@ class TagWorkerDataManager:
     
     def _load_all_klines_upto(self, as_of_date: str):
         """全量加载 K 线数据到指定日期（use_chunk=false）"""
-        kline_model = self.data_mgr.get_table("sys_stock_kline_daily")
+        kline_model = self.data_mgr.get_table("sys_stock_klines")
         if not kline_model:
             return
         
@@ -293,7 +293,7 @@ class TagWorkerDataManager:
     
     def _load_data_slice(self) -> Dict[str, Any]:
         """加载 K 线数据切片（按记录数）"""
-        kline_model = self.data_mgr.get_table("sys_stock_kline_daily")
+        kline_model = self.data_mgr.get_table("sys_stock_klines")
         if not kline_model:
             return {'klines': {}}
         
@@ -445,7 +445,7 @@ class TagWorkerDataManager:
             return
         
         if self.use_chunk:
-            kline_model = self.data_mgr.get_table("sys_stock_kline_daily")
+            kline_model = self.data_mgr.get_table("sys_stock_klines")
             if not kline_model:
                 logger.warning(f"无法获取 kline model，跳过初始化")
                 return

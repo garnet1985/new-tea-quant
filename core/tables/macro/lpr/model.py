@@ -5,7 +5,7 @@ data_lpr 表 Model
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
-from core.tables.data_lpr.schema import schema as _schema
+from core.tables.macro.lpr.schema import schema as _schema
 
 
 class DataLprModel(DbBaseModel):

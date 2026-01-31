@@ -22,8 +22,8 @@
     data_mgr.initialize()
     
     # 使用数据访问 API
-    data = data_mgr.prepare_data(stock, settings)
-    klines = data_mgr.load_klines('000001.SZ', term='daily', adjust='qfq')
+    klines = data_mgr.stock.kline.load('000001.SZ', term='daily', adjust='qfq')
+    stocks = data_mgr.stock.list.load(filtered=True)
 
 架构说明：
 - utils/db/ = 基础设施层（连接池、CRUD、Schema管理）

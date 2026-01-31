@@ -6,13 +6,22 @@
 
 基础表是系统运行所必需的核心数据表，与业务逻辑紧密相关，由 `DataManager` 统一管理。
 
+## ⚠️ 废弃表（DEPRECATED）
+
+以下 base_tables 仅作历史参考，**实际表由 core/tables 定义并由 DataManager 发现**，请勿再依赖此处 schema/model：
+
+| 本目录 | 实际表（core/tables） |
+|--------|------------------------|
+| `stock_kline/` | `core/tables/stock/stock_klines` → `sys_stock_klines` |
+| `stock_list/`  | `core/tables/stock/stock_list` → `sys_stock_list` |
+
 ## 📁 目录结构
 
 ```
 base_tables/
-├── stock_kline/            # K线数据表
+├── stock_kline/            # [DEPRECATED] K线 → 使用 core/tables/stock/stock_klines
 │   └── schema.json
-├── stock_list/             # 股票列表表
+├── stock_list/             # [DEPRECATED] 股票列表 → 使用 core/tables/stock/stock_list
 │   └── schema.json
 ├── gdp/                    # GDP数据表
 │   └── schema.json

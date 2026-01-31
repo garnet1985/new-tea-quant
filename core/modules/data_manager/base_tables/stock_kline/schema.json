@@ -1,4 +1,5 @@
 {
+    "_comment_deprecated": "DEPRECATED: 实际表为 sys_stock_klines，定义在 core/tables/stock/stock_klines",
     "name": "stock_kline",
     "primaryKey": [
         "id",

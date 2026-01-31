@@ -17,9 +17,6 @@ class CacheSystemModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        return _schema
-
     def load_by_key(self, key: str) -> Optional[Dict[str, Any]]:
         """根据 key 查询，返回整行（含 value、created_at、last_updated）。"""
         return self.load_one('"key" = %s', (key,))

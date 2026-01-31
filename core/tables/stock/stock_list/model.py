@@ -13,10 +13,6 @@ class DataStockListModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        """从本表 schema.py 加载，不依赖 base_tables"""
-        return _schema
-
     def load_by_id(self, stock_id: str) -> Optional[Dict[str, Any]]:
         """根据股票代码查询"""
         return self.load_one("id = %s", (stock_id,))

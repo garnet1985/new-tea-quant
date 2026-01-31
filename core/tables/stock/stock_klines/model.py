@@ -13,10 +13,6 @@ class DataStockKlinesModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_schema(self) -> dict:
-        """从本表 schema.py 加载"""
-        return _schema
-
     def load_by_date(self, date: str) -> List[Dict[str, Any]]:
         """查询指定日期的所有 K 线（所有股票、所有周期）"""
         return self.load("date = %s", (date,), order_by="id ASC, term ASC")

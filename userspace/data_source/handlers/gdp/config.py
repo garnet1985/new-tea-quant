@@ -1,18 +1,20 @@
-{
-    "_comment": "GDP Handler 配置",
+"""
+GDP Handler 配置。绑定表 sys_gdp。
+"""
+CONFIG = {
+    "table": "sys_gdp",
     "renew": {
         "type": "rolling",
         "last_update_info": {
             "date_field": "quarter",
             "date_format": "quarterly",
-            "table_name": "gdp"
+            "table_name": "sys_gdp",
         },
         "rolling": {
             "unit": "quarterly",
-            "length": 4
-        }
+            "length": 4,
+        },
     },
-
     "apis": {
         "gdp_data": {
             "provider_name": "tushare",
@@ -27,9 +29,9 @@
                 "secondary_industry": "si",
                 "secondary_industry_yoy": "si_yoy",
                 "tertiary_industry": "ti",
-                "tertiary_industry_yoy": "ti_yoy"
+                "tertiary_industry_yoy": "ti_yoy",
             },
-            "params": {}
-        }
-    }
+            "params": {},
+        },
+    },
 }

@@ -5,6 +5,7 @@ from loguru import logger
 from core.global_enums.enums import UpdateMode
 from core.infra.project_context import ConfigManager
 from core.modules.data_source.data_class.api_job import ApiJob
+from core.utils.utils import Utils
 
 
 class DataSourceHandlerHelper:
@@ -515,13 +516,21 @@ class DataSourceHandlerHelper:
             merged_by_key: Dict[str, Dict[str, Any]] = {}
 
             for api_name, api_cfg in (apis_conf or {}).items():
-                api_data = fetched_data.get(api_name) or {}
-                if not isinstance(api_data, dict):
-                    logger.warning(
-                        f"fetched_data[{api_name}] 不是 dict，期望统一格式 "
-                        f"{{api_name: {{entity_id: raw_result}}}}，已跳过"
-                    )
-                    continue
+                # fetched_data 的标准结构为:
+                # {api_name: {entity_id: raw_result}}
+                # 这里避免使用 "or {}" 以防 raw_result 是 DataFrame 时触发
+                # "The truth value of a DataFrame is ambiguous" 错误。
+                if Utils.is_dict(fetched_data):
+                    api_data = fetched_data.get(api_name)
+                else:
+                    # 兼容 fetched_data 直接是单个结果（如 DataFrame/list）的情况，
+                    # 将其包装为统一的 dict 结构。
+                    api_data = {"_unified": fetched_data}
+
+                # 兼容 fetched_data[api_name] 直接是单个结果（如 DataFrame/list）的情况，
+                # 自动包装为 {"_unified": raw_result}
+                if not Utils.is_dict(api_data):
+                    api_data = {"_unified": api_data}
 
                 for raw in api_data.values():
                     records = DataSourceHandlerHelper.result_to_records(raw)
@@ -556,13 +565,21 @@ class DataSourceHandlerHelper:
             mapped_records: List[Dict[str, Any]] = []
 
             for api_name, api_cfg in (apis_conf or {}).items():
-                api_data = fetched_data.get(api_name) or {}
-                if not isinstance(api_data, dict):
-                    logger.warning(
-                        f"fetched_data[{api_name}] 不是 dict，期望统一格式 "
-                        f"{{api_name: {{entity_id: raw_result}}}}，已跳过"
-                    )
-                    continue
+                # fetched_data 的标准结构为:
+                # {api_name: {entity_id: raw_result}}
+                # 这里避免使用 "or {}" 以防 raw_result 是 DataFrame 时触发
+                # "The truth value of a DataFrame is ambiguous" 错误。
+                if Utils.is_dict(fetched_data):
+                    api_data = fetched_data.get(api_name)
+                else:
+                    # 兼容 fetched_data 直接是单个结果（如 DataFrame/list）的情况，
+                    # 将其包装为统一的 dict 结构。
+                    api_data = {"_unified": fetched_data}
+
+                # 兼容 fetched_data[api_name] 直接是单个结果（如 DataFrame/list）的情况，
+                # 自动包装为 {"_unified": raw_result}
+                if not Utils.is_dict(api_data):
+                    api_data = {"_unified": api_data}
 
                 field_mapping = api_cfg.get("field_mapping") or {}
 

@@ -203,7 +203,7 @@ class KlineHandler(BaseHandler):
             try:
                 all_latest_records = kline_model.load_latest_records(
                     date_field='date',
-                    primary_keys=['id', 'term']
+                    group_fields=['id', 'term']
                 )
                 
                 if len(all_latest_records) == 0:

@@ -113,7 +113,7 @@ class IndexService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self._stock_index_indicator.replace(
+        return self._stock_index_indicator.upsert_many(
             indicator_data,
             unique_keys=["id", "term", "date"]
         )
@@ -181,7 +181,7 @@ class IndexService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self._stock_index_indicator_weight.replace(
+        return self._stock_index_indicator_weight.upsert_many(
             weight_data,
             unique_keys=["id", "date", "stock_id"]
         )
@@ -207,7 +207,7 @@ class IndexService(BaseDataService):
         # 使用批量查询：一次性获取所有指数的所有周期的最新记录
         all_latest_records = self._stock_index_indicator.load_latest_records(
             date_field='date',
-            primary_keys=['id', 'term']  # 按 id 和 term 分组
+            group_fields=['id', 'term']
         )
         
         # 构建结果字典
@@ -249,7 +249,7 @@ class IndexService(BaseDataService):
         # 使用批量查询：一次性获取所有指数的最新记录
         all_latest_records = self._stock_index_indicator_weight.load_latest_records(
             date_field='date',
-            primary_keys=['id']  # 按指数ID分组
+            group_fields=['id']
         )
         
         # 构建结果字典

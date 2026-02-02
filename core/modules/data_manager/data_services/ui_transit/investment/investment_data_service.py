@@ -157,12 +157,12 @@ class InvestmentDataService:
         
         model = self._get_trades_model()
         
-        # 如果有 id，使用 replace；否则 insert
+        # 如果有 id，使用 upsert；否则 insert
         if 'id' in data and data['id']:
-            affected = model.replace([data], ['id'])
+            affected = model.upsert_one(data, ['id'])
             return data['id'] if affected >= 0 else None
         else:
-            affected = model.insert([data])
+            affected = model.insert_one(data)
             if affected > 0:
                 # 获取最后插入的ID
                 last_trade = model.load("1=1", (), order_by="id DESC", limit=1)
@@ -234,7 +234,7 @@ class InvestmentDataService:
                 return False
         
         model = self._get_operations_model()
-        affected = model.insert([data])
+        affected = model.insert_one(data)
         return affected > 0
     
     def save_operations_batch(self, data_list: List[Dict[str, Any]]) -> bool:
@@ -258,7 +258,7 @@ class InvestmentDataService:
                     return False
         
         model = self._get_operations_model()
-        affected = model.insert(data_list)
+        affected = model.insert_many(data_list)
         return affected > 0
     
     # ========== 联合查询 ==========

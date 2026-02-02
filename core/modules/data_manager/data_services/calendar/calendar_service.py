@@ -121,27 +121,36 @@ class CalendarService(BaseDataService):
         """
         try:
             cache_model = self.data_manager.get_table("sys_cache")
-            cache_data = cache_model.load_by_key('latest_completed_trading_date')
-            
-            if not cache_data or not cache_data.get('value'):
+            cache_data = cache_model.load_by_key("latest_completed_trading_date")
+
+            if not cache_data:
                 return None
-            
-            # 解析缓存值（JSON格式）
+
+            # 优先从 json 字段读取，其次退回 text
+            raw_value = cache_data.get("json") or cache_data.get("text")
+            if not raw_value:
+                return None
+
+            # 解析缓存值（JSON 格式）
             try:
-                cache_info = json.loads(cache_data['value'])
-                cached_date = cache_info.get('date')
-                updated_at = cache_info.get('updated_at')
-                
+                if isinstance(raw_value, str):
+                    cache_info = json.loads(raw_value)
+                else:
+                    cache_info = raw_value
+
+                cached_date = cache_info.get("date")
+                updated_at = cache_info.get("updated_at")
+
                 if not cached_date or not updated_at:
                     return None
-                
+
                 # 返回日期和更新时间
                 return (cached_date, updated_at)
-                
+
             except (json.JSONDecodeError, KeyError) as e:
                 logger.warning(f"解析数据库缓存失败: {e}")
                 return None
-                
+
         except Exception as e:
             logger.warning(f"读取数据库缓存失败: {e}")
             return None
@@ -168,13 +177,14 @@ class CalendarService(BaseDataService):
         """
         try:
             cache_model = self.data_manager.get_table("sys_cache")
-            cache_value = json.dumps({
-                "date": date,
-                "updated_at": updated_at,
-                "provider": provider
-            })
-            cache_model.save_cache('latest_completed_trading_date', cache_value)
-            
+            cache_model.save_by_key(
+                "latest_completed_trading_date",
+                json={
+                    "date": date,
+                    "updated_at": updated_at,
+                    "provider": provider,
+                },
+            )
         except Exception as e:
             logger.warning(f"保存数据库缓存失败: {e}")
 

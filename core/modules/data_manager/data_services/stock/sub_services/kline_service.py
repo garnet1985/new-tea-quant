@@ -302,9 +302,11 @@ class KlineService(BaseDataService):
             batch_adj_events = self._load_batch_adj_events(stock_ids) if self._adj_factor_event else {}
             
             for stock_id in stock_ids:
-                if result[stock_id]:
-                    adj_events = batch_adj_events.get(stock_id, [])
-                    result[stock_id] = self._apply_qfq_to_klines(result[stock_id], stock_id, adj_events)
+                klines = result.get(stock_id) or []
+                if not klines:
+                    continue
+                adj_events = batch_adj_events.get(stock_id, [])
+                result[stock_id] = self._apply_qfq_to_klines(klines, stock_id, adj_events)
         
         return result
     
@@ -442,7 +444,10 @@ class KlineService(BaseDataService):
         
         if as_dataframe:
             import pandas as pd
-            return pd.DataFrame(result) if result else pd.DataFrame()
+            # 已经是 DataFrame：直接返回；否则从记录列表构建 DataFrame
+            if isinstance(result, pd.DataFrame):
+                return result
+            return pd.DataFrame(result or [])
         
         return result
     

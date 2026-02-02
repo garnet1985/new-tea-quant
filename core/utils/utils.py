@@ -3,7 +3,7 @@
 
 提供配置文件的加载、合并等工具方法
 """
-from typing import Dict, Any, Set
+from typing import Dict, Any, List, Set, Tuple
 import pandas as pd
 
 class Utils:
@@ -61,3 +61,19 @@ class Utils:
                 else:
                     merged[key] = value
         return merged
+
+    @staticmethod
+    def df_to_dict(df: pd.DataFrame) -> Dict[str, Any]:
+        return df.to_dict(orient="records")
+
+    @staticmethod
+    def dict_to_df(data: Dict[str, Any]) -> pd.DataFrame:
+        return pd.DataFrame(data)
+
+    @staticmethod
+    def df_to_header_and_lines(df: pd.DataFrame) -> Tuple[List[str], List[List[Any]]]:
+        return df.columns.tolist(), df.values.tolist()
+
+    @staticmethod
+    def header_and_lines_to_df(header: List[str], lines: List[List[Any]]) -> pd.DataFrame:
+        return pd.DataFrame(lines, columns=header)

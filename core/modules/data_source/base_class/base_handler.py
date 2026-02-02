@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Tuple, Optional, Union
 
+from loguru import logger
+
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.modules.data_source.service.api_job_executor import ApiJobExecutor
@@ -517,7 +519,7 @@ class BaseHandler:
     # ================================
     # Postprocess stage
     # ================================
-    def _postprocess(self, fetched_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _postprocess(self, fetched_data: Any) -> Dict[str, Any]:
 
         normalized_data = self._normalize_data(self.context, fetched_data)
 
@@ -527,7 +529,7 @@ class BaseHandler:
 
         return normalized_data
 
-    def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
+    def _normalize_data(self, context: Dict[str, Any], fetched_data: Any):
         """
         标准化阶段：默认实现按“步骤大纲”调用 Helper，将原始数据转换为标准结构。
 
@@ -543,6 +545,7 @@ class BaseHandler:
         复杂场景（多 API 复杂合并、自定义结构）应在子类中覆盖本方法。
         """
         from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
+        from core.utils.utils import Utils
 
         # 步骤 1：从 context 中解析 apis 配置和 schema（输入准备）
         config = context.get("config")
@@ -550,7 +553,7 @@ class BaseHandler:
         apis_conf = config.get_apis()
         schema = context.get("schema")
 
-        if not fetched_data or not isinstance(fetched_data, dict):
+        if not fetched_data:
             # 原始数据为空或类型不对，直接返回空结果
             return {"data": []}
 

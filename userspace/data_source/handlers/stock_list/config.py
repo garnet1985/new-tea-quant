@@ -7,6 +7,7 @@ CONFIG = {
     "renew": {
         "type": "refresh",
     },
+    "ignore_fields": ["is_active", "last_update"],
     "apis": {
         "stock_list_data": {
             "provider_name": "tushare",

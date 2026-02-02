@@ -33,7 +33,7 @@ def _ensure_dimension_id_sequences(db):
             try:
                 conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}")
                 conn.execute(f"ALTER TABLE {table_name} ALTER COLUMN id SET DEFAULT nextval('{seq_name}')")
-                conn.execute(f"SELECT setval('{seq_name}', (SELECT COALESCE(MAX(id), 0) FROM {table_name}))")
+                conn.execute(f"SELECT setval('{seq_name}', GREATEST(COALESCE((SELECT MAX(id) FROM {table_name}), 0), 1), false)")
                 logger.info(f"已为 {table_name}.id 设置自增序列 {seq_name}")
             except Exception as e:
                 logger.warning(f"为 {table_name} 设置 id 自增时失败（表可能尚未创建）: {e}")

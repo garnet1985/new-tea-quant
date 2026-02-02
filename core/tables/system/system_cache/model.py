@@ -1,10 +1,12 @@
 """
 sys_cache 表 Model
 
-系统缓存：value 为 text；写入时维护 created_at、last_updated。
+系统缓存：支持 text / json 两种存储形式；写入时维护 created_at、last_updated。
 """
 from datetime import datetime
 from typing import Optional, Dict, Any
+
+from loguru import logger
 
 from core.infra.db import DbBaseModel
 
@@ -17,23 +19,48 @@ class CacheSystemModel(DbBaseModel):
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
+    def is_exists(self, key: str) -> bool:
+        v = self.load_one('"key" = %s', (key,))
+        if v:
+            return True
+        return False
+
     def load_by_key(self, key: str) -> Optional[Dict[str, Any]]:
-        """根据 key 查询，返回整行（含 value、created_at、last_updated）。"""
+        """根据 key 查询，返回整行（含 text/json、created_at、last_updated）。"""
         return self.load_one('"key" = %s', (key,))
 
-    def save_cache(self, key: str, value: str) -> int:
-        """保存或更新：新插入时写 created_at、last_updated；更新时只写 value、last_updated。"""
+    def save_by_key(self, key: str, text: str = None, json: Optional[Dict[str, Any]] = None) -> int:
+        if not key:
+            logger.warning(f"设置缓存值时，key 不能为空")
+            return 0
+        params = {
+            "key": key,
+        }
+        if json or text:
+            params["text"] = text
+            params["json"] = json
+        else:
+            logger.warning(f"设置缓存值时，text 和 json 不能同时为空")
+            return 0
+        
         now = datetime.now()
-        row = self.load_by_key(key)
-        if row and row.get("created_at") is not None:
-            return self.replace(
-                [{"key": key, "value": value, "created_at": row["created_at"], "last_updated": now}],
-                unique_keys=["key"],
-            )
-        return self.replace(
-            [{"key": key, "value": value, "created_at": now, "last_updated": now}],
-            unique_keys=["key"],
-        )
+        params["last_updated"] = now
+
+        if not self.is_exists(key):
+            params["created_at"] = now
+
+        # 使用 batch_replace 同步落库，避免走写入队列导致进程退出前未 flush
+        return self.batch_replace([params], unique_keys=["key"])
+
+    def load_meta(self, key: str) -> Optional[Dict[str, Any]]:
+        """根据 key 查询，返回 created_at、last_updated。"""
+        v = self.load_one('"key" = %s', (key,))
+        if v:
+            return {
+                "created_at": v.get("created_at"),
+                "last_updated": v.get("last_updated"),
+            }
+        return None
 
     def delete_by_key(self, key: str) -> int:
         """按 key 删除一行。"""

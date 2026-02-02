@@ -1,7 +1,6 @@
 """
 Stock List Handler 配置。绑定表 sys_stock_list。
-行业/板块/市场由定义表 + 映射表维护，此处仅映射文本字段，保存前在 handler 内解析并写入维度表与映射表。
-schema 以外的字段（如 industry/board/market）在 normalized 时会被自动忽略，无需 ignore_fields。
+行业/板块/市场由定义表 + 映射表维护；field_mapping 中的 industry/board/market 仅用于 handler 钩子解析后写入维度表与映射表，不写入 sys_stock_list（schema 无这些字段）。
 """
 CONFIG = {
     "table": "sys_stock_list",

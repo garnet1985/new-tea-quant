@@ -244,7 +244,7 @@ class CorporateFinanceService(BaseDataService):
         
         model = self._get_model()
         unique_keys = ['id', 'quarter']
-        affected = model.replace([data], unique_keys)
+        affected = model.upsert_one(data, unique_keys)
         return affected >= 0
     
     def save_batch(self, data_list: List[Dict[str, Any]]) -> int:
@@ -267,7 +267,7 @@ class CorporateFinanceService(BaseDataService):
         
         model = self._get_model()
         unique_keys = ['id', 'quarter']
-        affected = model.replace(data_list, unique_keys)
+        affected = model.upsert_many(data_list, unique_keys)
         # 返回受影响的记录数（与 tag_service.save_batch 的语义保持一致）
         return affected
     

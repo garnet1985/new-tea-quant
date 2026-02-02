@@ -69,8 +69,8 @@ class MyStockListHandler(BaseDataSourceHandler):
         if not normalized_data.get("data"):
             return
         
-        model = self.data_manager.get_model("stock_list")
-        model.replace(normalized_data["data"])
+        model = self.data_manager.get_table("sys_stock_list")  # 或 data_stock_list，依实际表名
+        model.upsert_many(normalized_data["data"], unique_keys=["id"])
         self.logger.info(f"✅ 保存了 {len(normalized_data['data'])} 条数据")
 ```
 

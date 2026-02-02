@@ -517,7 +517,7 @@ class MacroService(BaseDataService):
         Returns:
             影响的行数
         """
-        return self._lpr.save_lpr_data(lpr_data) if hasattr(self._lpr, 'save_lpr_data') else self._lpr.replace(lpr_data, unique_keys=['date'])
+        return self._lpr.save_lpr_data(lpr_data) if hasattr(self._lpr, 'save_lpr_data') else self._lpr.upsert_many(lpr_data, unique_keys=['date'])
     
     def save_price_indexes_data(self, price_indexes_data: List[Dict[str, Any]]) -> int:
         """
@@ -541,12 +541,12 @@ class MacroService(BaseDataService):
                 money_rows.append({k: row[k] for k in ["date"] + MONEY_SUPPLY_FIELDS if k in row})
         total = 0
         if cpi_rows and self._cpi:
-            total += self._cpi.replace(cpi_rows, unique_keys=["date"])
+            total += self._cpi.upsert_many(cpi_rows, unique_keys=["date"])
         if ppi_rows and self._ppi:
-            total += self._ppi.replace(ppi_rows, unique_keys=["date"])
+            total += self._ppi.upsert_many(ppi_rows, unique_keys=["date"])
         if pmi_rows and self._pmi:
-            total += self._pmi.replace(pmi_rows, unique_keys=["date"])
+            total += self._pmi.upsert_many(pmi_rows, unique_keys=["date"])
         if money_rows and self._money_supply:
-            total += self._money_supply.replace(money_rows, unique_keys=["date"])
+            total += self._money_supply.upsert_many(money_rows, unique_keys=["date"])
         return total
 

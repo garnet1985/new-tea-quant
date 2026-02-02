@@ -15,4 +15,4 @@ class StockMarketMapModel(DbBaseModel):
 
     def replace_mapping(self, rows: List[Dict[str, Any]]) -> int:
         """批量替换映射（按 stock_id, market_id 去重）"""
-        return self.replace(rows, unique_keys=["stock_id", "market_id"])
+        return self.upsert_many(rows, unique_keys=["stock_id", "market_id"])

@@ -27,4 +27,4 @@ class DataLprModel(DbBaseModel):
         )
 
     def save_records(self, records: List[Dict[str, Any]]) -> int:
-        return self.replace(records, unique_keys=["date"])
+        return self.upsert_many(records, unique_keys=["date"])

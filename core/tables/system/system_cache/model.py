@@ -49,8 +49,8 @@ class CacheSystemModel(DbBaseModel):
         if not self.is_exists(key):
             params["created_at"] = now
 
-        # 使用 batch_replace 同步落库，避免走写入队列导致进程退出前未 flush
-        return self.batch_replace([params], unique_keys=["key"])
+        # 使用 upsert_one 同步落库，避免走写入队列导致进程退出前未 flush
+        return self.upsert_one(params, unique_keys=["key"])
 
     def load_meta(self, key: str) -> Optional[Dict[str, Any]]:
         """根据 key 查询，返回 created_at、last_updated。"""

@@ -18,4 +18,4 @@ class SysMetaInfoModel(DbBaseModel):
         return self.load_one("id = %s", (id,))
 
     def save_records(self, records: List[Dict[str, Any]]) -> int:
-        return self.replace(records, unique_keys=["id"])
+        return self.upsert_many(records, unique_keys=["id"])

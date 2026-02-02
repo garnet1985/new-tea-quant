@@ -39,4 +39,4 @@ class DataStockKlinesModel(DbBaseModel):
 
     def save_klines(self, klines: List[Dict[str, Any]]) -> int:
         """批量保存 K 线（按 id+term+date 去重）"""
-        return self.replace(klines, unique_keys=["id", "term", "date"])
+        return self.upsert_many(klines, unique_keys=["id", "term", "date"])

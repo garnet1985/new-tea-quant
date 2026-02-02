@@ -4,6 +4,7 @@
 使用 Tushare Provider 获取股票列表（包含所有交易所）。
 流程：on_before_run 检查 sys_cache -> 若今日已更新则从 DB 返回短路；否则 API -> on_before_save 写维度/映射/cache。
 """
+from cgitb import text
 from typing import List, Dict, Any, Optional, Set, Tuple
 from loguru import logger
 
@@ -27,11 +28,19 @@ class TushareStockListHandler(BaseHandler):
     def on_before_run(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """若 sys_cache 记录今日已更新，则从 DB 读取并返回，跳过 API 调用。"""
         dm = context.get("data_manager")
+        if not dm:
+            logger.warning("DataManager 实例不存在，跳过 stock_list 缓存检查")
+            return None
         try:
-            cache = dm.db_cache.get(CACHE_KEY)
+            cache = dm.db_cache.load(CACHE_KEY)
             logger.info(f"✅ stock_list 缓存: {cache}")
             if self._is_valid_cache(cache):
+                logger.info("✅ stock_list 缓存为今日，直接从 DB 读取股票列表")
                 return {"data": dm.stock.list.load_all()}
+            if cache:
+                logger.info("ℹ️ stock_list 缓存存在但已过期，本次将调用 API 刷新")
+            else:
+                logger.info("ℹ️ stock_list 缓存不存在，本次将调用 API 刷新")
             return None
         except Exception as e:
             logger.warning(f"检查 stock_list 缓存失败: {e}")
@@ -50,9 +59,9 @@ class TushareStockListHandler(BaseHandler):
             return {"data": []}
 
         # save 入口统一打本批次的 last_update 时间戳
-        batch_ts = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD_HH_MM_SS)
+        time_str = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD_HH_MM_SS)
         for r in main_records:
-            r["last_update"] = batch_ts
+            r["last_update"] = time_str
 
         if not dm or context.get("is_dry_run"):
             return {"data": main_records}
@@ -80,10 +89,10 @@ class TushareStockListHandler(BaseHandler):
             )
 
         # 使用本批次时间戳更新缓存
-        if batch_ts and dm.db_cache:
+        if time_str and dm.db_cache:
             try:
-                dm.db_cache.set(CACHE_KEY, batch_ts)
-                logger.info(f"✅ sys_cache 已记录 stock_list_last_update: {batch_ts}")
+                dm.db_cache.save(CACHE_KEY, text=time_str)
+                logger.info(f"✅ sys_cache 已记录 stock_list_last_update: {time_str}")
             except Exception as e:
                 logger.warning(f"写入 sys_cache 失败: {e}")
 
@@ -91,14 +100,17 @@ class TushareStockListHandler(BaseHandler):
 
     # ---------- 私有：钩子内步骤 ----------
 
-    def _is_valid_cache(self, cache: Dict[str, Any]) -> bool:
+    def _is_valid_cache(self, cache: Optional[Dict[str, Any]]) -> bool:
         if not cache:
             return False
         last_updated = cache.get("last_updated")
         if not last_updated:
             return False
         cache_date = DateUtils.normalize_to_format(last_updated, DateFormat.DAY)
-        return cache_date == DateUtils.get_current_date_str()
+
+        is_today = cache_date == DateUtils.get_current_date_str()
+        logger.info(f"🔎 stock_list 缓存校验: cache_date={cache_date}, today={DateUtils.get_current_date_str()}, is_valid={is_today}")
+        return is_today
 
     def _group_boards_markets_and_industries(self, raw_records: List[Dict[str, Any]]) -> Tuple[List[str], List[str], List[str]]:
         """从 raw_records 提取去重后的 board/market/industry 值列表。有则参与归类，无则不计入。"""

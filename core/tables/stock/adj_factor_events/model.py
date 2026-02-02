@@ -42,4 +42,4 @@ class DataAdjFactorEventModel(DbBaseModel):
             e.setdefault("last_update", now)
             if "event_date" in e:
                 e["event_date"] = str(e["event_date"]).replace("-", "")[:8]
-        return self.replace(events, unique_keys=["id", "event_date"])
+        return self.upsert_many(events, unique_keys=["id", "event_date"])

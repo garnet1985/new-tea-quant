@@ -29,4 +29,4 @@ class DataIndustriesModel(DbBaseModel):
 
     def save_records(self, records: List[Dict[str, Any]]) -> int:
         """批量保存（按 id 去重，若 id 自增则需先查再写或由 DB 生成）"""
-        return self.replace(records, unique_keys=["id"])
+        return self.upsert_many(records, unique_keys=["id"])

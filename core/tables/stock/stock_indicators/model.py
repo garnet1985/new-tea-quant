@@ -35,4 +35,4 @@ class DataStockIndicatorsModel(DbBaseModel):
 
     def save_indicators(self, records: List[Dict[str, Any]]) -> int:
         """批量保存指标（自动去重）"""
-        return self.replace(records, unique_keys=["id", "date"])
+        return self.upsert_many(records, unique_keys=["id", "date"])

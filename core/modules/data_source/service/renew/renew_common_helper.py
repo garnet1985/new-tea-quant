@@ -193,7 +193,13 @@ class RenewCommonHelper:
             
             # 需要分组：查询每个实体的最新日期；实体标识字段优先用 config.result_group_by.by_key
             try:
-                latest_records = model.load_latest_records(date_field=date_field)
+                primary_keys = model._get_primary_keys_from_schema()
+                group_keys = [k for k in primary_keys if k != date_field]
+                if not group_keys:
+                    return None
+                latest_records = model.load_latest_records(
+                    date_field=date_field, group_fields=group_keys
+                )
                 if not latest_records:
                     return None
 
@@ -203,12 +209,7 @@ class RenewCommonHelper:
                     if config and hasattr(config, "get_group_by_key"):
                         entity_key_field = config.get_group_by_key()
                 if not entity_key_field:
-                    try:
-                        primary_keys = model._get_primary_keys_from_schema()
-                        group_keys = [k for k in primary_keys if k != date_field]
-                        entity_key_field = group_keys[0] if group_keys else "id"
-                    except Exception:
-                        entity_key_field = "id"
+                    entity_key_field = group_keys[0] if group_keys else "id"
 
                 result = {}
                 for record in latest_records:

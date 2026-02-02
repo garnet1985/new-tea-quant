@@ -30,4 +30,4 @@ class DataGdpModel(DbBaseModel):
         return self.load_one("1=1", order_by="quarter DESC")
 
     def save_records(self, records: List[Dict[str, Any]]) -> int:
-        return self.replace(records, unique_keys=["quarter"])
+        return self.upsert_many(records, unique_keys=["quarter"])

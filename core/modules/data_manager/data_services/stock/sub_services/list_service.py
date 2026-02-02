@@ -269,7 +269,7 @@ class ListService(BaseDataService):
         """
         通用维度表 batch ensure + is_active 同步。
 
-        IO：1 次 load(已有) + 0~1 次 batch_insert(新值) + 0~1 次 load(新值 id) + 2 次 update(is_active)
+        IO：1 次 load(已有) + 0~1 次 insert_many(新值) + 0~1 次 load(新值 id) + 2 次 update(is_active)
         """
         if not model or not current_values:
             if model:
@@ -288,7 +288,7 @@ class ListService(BaseDataService):
 
         if new_values:
             rows = [{"value": v, "is_active": 1} for v in new_values]
-            model.batch_insert(rows)
+            model.insert_many(rows)
             new_rows = model.load(f'"{value_col}" IN %s', (tuple(new_values),))
             for row in new_rows:
                 if row.get(value_col) and row.get("id") is not None:
@@ -327,7 +327,7 @@ class ListService(BaseDataService):
                 if v in ("SSE", "SZSE", "BSE"):
                     payload["code"] = v
                 rows.append(payload)
-            model.batch_insert(rows)
+            model.insert_many(rows)
             new_rows = model.load('"value" IN %s', (tuple(new_values),))
             for row in new_rows:
                 if row.get("value") and row.get("id") is not None:

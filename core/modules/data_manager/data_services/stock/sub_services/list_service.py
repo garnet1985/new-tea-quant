@@ -32,8 +32,42 @@ class ListService(BaseDataService):
         self._stock_list = data_manager.get_table("sys_stock_list")
         self._industries = data_manager.get_table("sys_industries")
         self._boards = data_manager.get_table("sys_boards")
+        self._markets = data_manager.get_table("sys_markets")
         self._industry_map = data_manager.get_table("sys_stock_industry_map")
         self._board_map = data_manager.get_table("sys_stock_board_map")
+        self._market_map = data_manager.get_table("sys_stock_market_map")
+
+    # ==================== 维度/映射表 Model（供 Handler 等使用，避免直接 get_table） ====================
+
+    @property
+    def industries_model(self):
+        """sys_industries 表 Model"""
+        return self._industries
+
+    @property
+    def boards_model(self):
+        """sys_boards 表 Model"""
+        return self._boards
+
+    @property
+    def markets_model(self):
+        """sys_markets 表 Model"""
+        return self._markets
+
+    @property
+    def industry_map_model(self):
+        """sys_stock_industry_map 表 Model"""
+        return self._industry_map
+
+    @property
+    def board_map_model(self):
+        """sys_stock_board_map 表 Model"""
+        return self._board_map
+
+    @property
+    def market_map_model(self):
+        """sys_stock_market_map 表 Model"""
+        return self._market_map
     
     # ==================== 股票列表查询 ====================
     

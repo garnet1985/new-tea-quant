@@ -156,6 +156,23 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
         """
         return SchemaFormatter.format_table_description(self.schema, self.table_name, output)
 
+    def add_column(self, column_name: str, column_type: str):
+        # TODO: to be implemented
+        pass
+
+    def drop_column(self, column_name: str):
+        # TODO: to be implemented
+        pass
+
+    def rename_column(self, old_column_name: str, new_column_name: str):
+        # TODO: to be implemented
+        pass
+
+    def modify_column(self, column_name: str, column_type: str):
+        # TODO: to be implemented
+        pass
+
+
     # ***********************************
     #        data count & exists operations
     # ***********************************
@@ -451,15 +468,16 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
     
     def insert(self, data_list: List[Dict[str, Any]], unique_keys: List[str] = None, use_batch: bool = False) -> int:
         """
-        插入数据
+        插入数据（同步）
+        
+        默认行为：**同步写入**，调用返回时数据已落库。
+        如需使用批量写入队列（异步），请使用 `insert_async`。
         
         Args:
             data_list: 数据列表
             unique_keys: 唯一键列表（可选）。如果提供，将使用 INSERT ... ON CONFLICT DO NOTHING
                         如果不提供，使用纯 INSERT（可能重复插入）
-            use_batch: 是否使用批量插入模式（默认 False）
-                      - False: 使用批量写入队列（异步，适合并发场景）
-                      - True: 使用显式批量插入（同步，适合单线程或需要立即返回的场景）
+            use_batch: 保留兼容参数（目前无论 True/False 均走同步批量插入）
         
         Returns:
             插入的记录数
@@ -467,30 +485,46 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
         if not data_list:
             return 0
         
-        if use_batch:
-            # 使用显式批量插入
+        # 统一走显式批量插入（同步），避免隐式异步行为带来的困惑
+        return self.batch_insert(data_list, unique_keys)
+
+    def insert_async(self, data_list: List[Dict[str, Any]], unique_keys: List[str] = None) -> int:
+        """
+        插入数据（异步，使用批量写入队列）
+        
+        - 适合高并发、大批量写入场景
+        - 调用返回时数据**可能尚未真正写入数据库**，由后台队列按 batch_size/flush_interval 决定实际落库时间
+        
+        Args:
+            data_list: 数据列表
+            unique_keys: 唯一键列表（可选）。如果提供，将使用 INSERT ... ON CONFLICT DO NOTHING
+                        如果不提供，使用纯 INSERT（可能重复插入）
+        
+        Returns:
+            已入队的记录数（不是已落库记录数）
+        """
+        if not data_list:
+            return 0
+
+        try:
+            # 定义回调函数（可选，仅用于日志）
+            def write_callback(table_name, count):
+                if getattr(self.db, "is_verbose", False):
+                    logger.debug(f"Insert completed for {table_name}: {count} records")
+
+            # 如果提供了 unique_keys，使用 queue_write（会使用 INSERT ... ON CONFLICT）
+            # 如果没有提供 unique_keys，也使用 queue_write，但需要特殊处理（纯 INSERT）
+            if hasattr(self.db, "queue_write"):
+                # 如果没有 unique_keys，使用空列表（queue_write 会处理为纯 INSERT）
+                keys = unique_keys if unique_keys else []
+                self.db.queue_write(self.table_name, data_list, keys, write_callback)
+                return len(data_list)
+
+            # 兜底方案：直接执行批量插入（同步）
             return self.batch_insert(data_list, unique_keys)
-        else:
-            # 使用批量写入队列（默认）
-            try:
-                # 定义回调函数（可选，仅用于日志）
-                def write_callback(table_name, count):
-                    if getattr(self.db, 'is_verbose', False):
-                        logger.debug(f"Insert completed for {table_name}: {count} records")
-                
-                # 如果提供了 unique_keys，使用 queue_write（会使用 INSERT ... ON CONFLICT）
-                # 如果没有提供 unique_keys，也使用 queue_write，但需要特殊处理（纯 INSERT）
-                if hasattr(self.db, 'queue_write'):
-                    # 如果没有 unique_keys，使用空列表（queue_write 会处理为纯 INSERT）
-                    keys = unique_keys if unique_keys else []
-                    self.db.queue_write(self.table_name, data_list, keys, write_callback)
-                    return len(data_list)
-                
-                # 兜底方案：直接执行批量插入
-                return self.batch_insert(data_list, unique_keys)
-            except Exception as e:
-                logger.error(f"Failed to insert data into {self.table_name}: {e}")
-                return 0
+        except Exception as e:
+            logger.error(f"Failed to insert data into {self.table_name} (async): {e}")
+            return 0
     
     def batch_insert(self, data_list: List[Dict[str, Any]], unique_keys: List[str] = None) -> int:
         """
@@ -568,42 +602,58 @@ class DbBaseModel(TimeSeriesHelper, DataFrameHelper):
     # ***********************************
     def replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str], use_batch: bool = False) -> int:
         """
-        插入或更新数据（Upsert）
+        插入或更新数据（Upsert，同步）
+        
+        默认行为：**同步写入**，调用返回时数据已落库。
+        如需使用批量写入队列（异步），请使用 `replace_async`。
         
         Args:
             data_list: 数据列表
             unique_keys: 唯一键列表（用于判断是否已存在）
-            use_batch: 是否使用批量插入模式（默认 False）
-                      - False: 使用批量写入队列（异步，适合并发场景）
-                      - True: 使用显式批量插入（同步，适合单线程或需要立即返回的场景）
+            use_batch: 保留兼容参数（目前无论 True/False 均走同步批量插入）
         
         Returns:
             插入或更新的记录数
         """
         if not data_list:
             return 0
+
+        # 统一走显式批量 upsert（同步），避免隐式异步行为带来的困惑
+        return self.batch_replace(data_list, unique_keys)
+
+    def replace_async(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
+        """
+        插入或更新数据（Upsert，异步，使用批量写入队列）
         
-        if use_batch:
-            # 使用显式批量插入
+        - 适合高并发、大批量写入场景
+        - 调用返回时数据**可能尚未真正写入数据库**，由后台队列按 batch_size/flush_interval 决定实际落库时间
+        
+        Args:
+            data_list: 数据列表
+            unique_keys: 唯一键列表（用于判断是否已存在）
+        
+        Returns:
+            已入队的记录数（不是已落库记录数）
+        """
+        if not data_list:
+            return 0
+
+        try:
+            # 定义回调函数（可选，仅用于日志）
+            def write_callback(table_name, count):
+                if getattr(self.db, "is_verbose", False):
+                    logger.info(f"Upsert completed for {table_name}: {count} records")
+
+            # 交给 DatabaseManager 统一处理（内部使用 INSERT ... ON CONFLICT DO UPDATE）
+            if hasattr(self.db, "queue_write"):
+                self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)
+                return len(data_list)
+
+            # 兜底方案：直接执行批量 upsert（同步）
             return self.batch_replace(data_list, unique_keys)
-        else:
-            # 使用批量写入队列（默认）
-            try:
-                # 定义回调函数（可选，仅用于日志）
-                def write_callback(table_name, count):
-                    if getattr(self.db, 'is_verbose', False):
-                        logger.info(f"Upsert completed for {table_name}: {count} records")
-                
-                # 交给 DatabaseManager 统一处理（内部使用 INSERT ... ON CONFLICT DO UPDATE）
-                if hasattr(self.db, 'queue_write'):
-                    self.db.queue_write(self.table_name, data_list, unique_keys, write_callback)
-                    return len(data_list)
-                
-                # 兜底方案：直接执行批量插入
-                return self.batch_replace(data_list, unique_keys)
-            except Exception as e:
-                logger.error(f"Failed to upsert data in {self.table_name}: {e}")
-                return 0
+        except Exception as e:
+            logger.error(f"Failed to upsert data in {self.table_name} (async): {e}")
+            return 0
     
     def batch_replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
         """

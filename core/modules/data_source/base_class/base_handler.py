@@ -822,6 +822,15 @@ class BaseHandler:
             return DataSourceHandlerHelper.build_grouped_fetched_data(context, fetched_data, apis)
         return DataSourceHandlerHelper.build_unified_fetched_data(context, fetched_data, apis)
 
+    def on_before_normalize(self, context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        标准化前钩子：默认实现直接返回 fetched_data。
+
+        子类可覆盖此方法，在 normalize 之前对抓取结果做进一步预处理，
+        例如字段合并、结构调整、补充上下文信息等。
+        """
+        return fetched_data
+
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         字段映射后的钩子：允许子类在字段映射后、schema 应用前进行自定义处理。

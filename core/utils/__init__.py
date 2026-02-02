@@ -7,13 +7,13 @@ Utils Package - 通用工具模块
 - icon: 图标服务
 - progress: 进度条和跟踪器
 """
-from .util import deep_merge_config, merge_mapping_configs
+from .utils import Utils
 from .date.date_utils import DateUtils
 from .icon.icon_service import IconService, i as icon_i
 
 __all__ = [
     # 配置工具
-    'deep_merge_config',
+    'Utils',
     'merge_mapping_configs',
     # 日期工具
     'DateUtils',

@@ -4,7 +4,7 @@ Config Manager - 配置管理器
 职责：处理默认配置和用户配置的加载与合并。
 
 设计原则：
-- 配置合并逻辑复用 utils/util.py 的 deep_merge_config
+- 配置合并逻辑在本模块内部实现（不依赖通用 utils）
 - 支持 JSON 和 Python 两种文件格式
 - Python 文件支持动态导入（importlib）
 - 提供静态方法，无状态
@@ -36,8 +36,6 @@ class ConfigManager:
         """
         加载配置（用户配置覆盖默认配置）
         
-        内部调用 utils/util.py 的 deep_merge_config
-        
         Args:
             default_path: 默认配置文件路径
             user_path: 用户配置文件路径（可选，如果不存在则只返回默认配置）
@@ -67,23 +65,47 @@ class ConfigManager:
         if user_path.exists():
             user_config = ConfigManager._load_file(user_path, file_type)
             if user_config:
-                # 3. 调用 utils/util.py 的合并逻辑
-                try:
-                    from core.utils.util import deep_merge_config
-                    return deep_merge_config(
-                        defaults,
-                        user_config,
-                        deep_merge_fields=deep_merge_fields,
-                        override_fields=override_fields
-                    )
-                except ImportError:
-                    logger.warning(
-                        f"无法导入 utils.util.deep_merge_config，使用浅层合并"
-                    )
-                    # Fallback: 浅层合并
-                    return {**defaults, **user_config}
+                # 3. 使用内部合并逻辑
+                return ConfigManager._deep_merge_config(
+                    defaults,
+                    user_config,
+                    deep_merge_fields=deep_merge_fields,
+                    override_fields=override_fields,
+                )
         
         return defaults
+
+    @staticmethod
+    def _deep_merge_config(
+        defaults: Dict[str, Any],
+        custom: Dict[str, Any],
+        deep_merge_fields: Optional[Set[str]] = None,
+        override_fields: Optional[Set[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        内部使用的配置合并函数（原 deep_merge_config 语义）。
+
+        合并规则：
+        1. 对于 deep_merge_fields 中的字段，进行嵌套 dict 合并；
+        2. 对于 override_fields 中的字段，custom 完全覆盖 defaults；
+        3. 其他字段：浅层合并，custom 覆盖 defaults。
+        """
+        deep_merge_fields = deep_merge_fields or set()
+        override_fields = override_fields or set()
+
+        # 先进行浅层合并（custom 覆盖 defaults）
+        merged = {**defaults, **custom}
+
+        # 对于需要深度合并的字段，进行深度合并
+        for field in deep_merge_fields:
+            if field in defaults and field in custom:
+                if isinstance(defaults[field], dict) and isinstance(custom[field], dict):
+                    merged[field] = {**defaults[field], **custom[field]}
+                else:
+                    merged[field] = custom[field]
+
+        # override_fields 已在浅层合并中处理，这里不需要额外逻辑
+        return merged
     
     @staticmethod
     def load_json(path: Path) -> Dict[str, Any]:
@@ -232,21 +254,7 @@ class ConfigManager:
     # =========================
     # 业务级便捷访问方法
     # =========================
-
-    @staticmethod
-    def load_data_config() -> Dict[str, Any]:
-        """
-        加载数据配置（合并后的完整配置）
-        
-        Returns:
-            数据配置字典，包含 default_start_date, decimal_places, stock_list_filter 等
-        """
-        return ConfigManager.load_core_config(
-            'data',
-            deep_merge_fields={'stock_list_filter'},
-            override_fields=set()
-        )
-
+    
     @staticmethod
     def load_benchmark_stock_index_list() -> List[Dict[str, Any]]:
         """
@@ -346,8 +354,7 @@ class ConfigManager:
         
         # 8. 深度合并（用户配置覆盖默认配置）
         if user_config:
-            from core.utils.util import deep_merge_config
-            merged_config = deep_merge_config(
+            merged_config = ConfigManager._deep_merge_config(
                 default_config,
                 user_config,
                 deep_merge_fields={'batch_write', database_type},

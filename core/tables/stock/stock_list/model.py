@@ -27,4 +27,4 @@ class DataStockListModel(DbBaseModel):
 
     def save_stocks(self, stocks: List[Dict[str, Any]]) -> int:
         """批量保存股票（自动去重）"""
-        return self.replace(stocks, unique_keys=["id"])
+        return self.upsert_many(stocks, unique_keys=["id"])

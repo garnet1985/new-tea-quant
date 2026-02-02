@@ -35,4 +35,4 @@ class DataPmiModel(DbBaseModel):
 
     def save_records(self, records: List[Dict[str, Any]]) -> int:
         """批量保存（按 date 去重）"""
-        return self.replace(records, unique_keys=["date"])
+        return self.upsert_many(records, unique_keys=["date"])

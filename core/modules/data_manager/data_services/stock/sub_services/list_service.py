@@ -230,6 +230,20 @@ class ListService(BaseDataService):
         """
         return self._stock_list.save_stocks(stocks)
     
+    # ==================== 维度状态同步（active） ====================
+
+    def ensure_and_sync_industries(self, values: List[str]) -> Dict[str, int]:
+        """批量确保 sys_industries，按本批次 values 同步 is_active，返回 {value: id}。"""
+        return self._ensure_and_sync_dimension_batch(self._industries, values) if self._industries else {}
+
+    def ensure_and_sync_boards(self, values: List[str]) -> Dict[str, int]:
+        """批量确保 sys_boards，按本批次 values 同步 is_active，返回 {value: id}。"""
+        return self._ensure_and_sync_dimension_batch(self._boards, values) if self._boards else {}
+
+    def ensure_and_sync_markets(self, values: List[str]) -> Dict[str, int]:
+        """批量确保 sys_markets，按本批次 values 同步 is_active，返回 {value: id}。"""
+        return self._ensure_and_sync_market_batch(self._markets, values) if self._markets else {}
+    
     # ==================== 私有方法 ====================
 
     def _resolve_industry_id(self, industry: Union[str, int]) -> Optional[int]:
@@ -245,6 +259,93 @@ class ListService(BaseDataService):
             return board
         row = self._boards.load_one("value = %s", (board,)) if self._boards else None
         return int(row["id"]) if row and row.get("id") is not None else None
+
+    def _ensure_and_sync_dimension_batch(
+        self,
+        model,
+        current_values: List[str],
+        value_col: str = "value",
+    ) -> Dict[str, int]:
+        """
+        通用维度表 batch ensure + is_active 同步。
+
+        IO：1 次 load(已有) + 0~1 次 batch_insert(新值) + 0~1 次 load(新值 id) + 2 次 update(is_active)
+        """
+        if not model or not current_values:
+            if model:
+                self._sync_dimension_active(model, [], value_col)
+            return {}
+
+        vals = tuple(current_values)
+        existing = model.load(f'"{value_col}" IN %s', (vals,))
+        val_to_id: Dict[str, int] = {
+            row[value_col]: int(row["id"])
+            for row in existing
+            if row.get(value_col) and row.get("id") is not None
+        }
+        in_db = set(val_to_id.keys())
+        new_values = [v for v in current_values if v not in in_db]
+
+        if new_values:
+            rows = [{"value": v, "is_active": 1} for v in new_values]
+            model.batch_insert(rows)
+            new_rows = model.load(f'"{value_col}" IN %s', (tuple(new_values),))
+            for row in new_rows:
+                if row.get(value_col) and row.get("id") is not None:
+                    val_to_id[row[value_col]] = int(row["id"])
+
+        self._sync_dimension_active(model, current_values, value_col)
+        return {v: val_to_id[v] for v in current_values if v in val_to_id}
+
+    def _ensure_and_sync_market_batch(
+        self,
+        model,
+        current_values: List[str],
+    ) -> Dict[str, int]:
+        """
+        markets 专用 batch ensure + is_active 同步（含 code 字段处理）。
+        """
+        if not model or not current_values:
+            if model:
+                self._sync_dimension_active(model, [], "value")
+            return {}
+
+        vals = tuple(current_values)
+        existing = model.load('"value" IN %s', (vals,))
+        val_to_id: Dict[str, int] = {
+            row["value"]: int(row["id"])
+            for row in existing
+            if row.get("value") and row.get("id") is not None
+        }
+        in_db = set(val_to_id.keys())
+        new_values = [v for v in current_values if v not in in_db]
+
+        if new_values:
+            rows = []
+            for v in new_values:
+                payload: Dict[str, Any] = {"value": v, "is_active": 1}
+                if v in ("SSE", "SZSE", "BSE"):
+                    payload["code"] = v
+                rows.append(payload)
+            model.batch_insert(rows)
+            new_rows = model.load('"value" IN %s', (tuple(new_values),))
+            for row in new_rows:
+                if row.get("value") and row.get("id") is not None:
+                    val_to_id[row["value"]] = int(row["id"])
+
+        self._sync_dimension_active(model, current_values, "value")
+        return {v: val_to_id[v] for v in current_values if v in val_to_id}
+
+    def _sync_dimension_active(self, model, current_values: List[str], value_col: str = "value") -> None:
+        """按当前批次同步 is_active：在 current_values 中的置 1，不在的置 0。"""
+        if not hasattr(model, "update"):
+            return
+        if current_values:
+            vals = tuple(current_values)
+            model.update({"is_active": 0}, f'"{value_col}" NOT IN %s', (vals,))
+            model.update({"is_active": 1}, f'"{value_col}" IN %s', (vals,))
+        else:
+            model.update({"is_active": 0}, "1=1", ())
 
     def _merge_exclude_patterns(
         self,

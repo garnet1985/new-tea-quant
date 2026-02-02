@@ -12,8 +12,6 @@ from core.utils.date.date_utils import DateUtils, DateFormat
 
 from .helper import (
     format_mapped_records_with_defaults,
-    ensure_and_sync_dimension_batch,
-    ensure_and_sync_market_batch,
     save_stock_dimension_mappings,
 )
 
@@ -31,6 +29,7 @@ class TushareStockListHandler(BaseHandler):
         dm = context.get("data_manager")
         try:
             cache = dm.db_cache.get(CACHE_KEY)
+            logger.info(f"✅ stock_list 缓存: {cache}")
             if self._is_valid_cache(cache):
                 return {"data": dm.stock.list.load_all()}
             return None
@@ -61,9 +60,10 @@ class TushareStockListHandler(BaseHandler):
         raw_records = context.get("_stock_list_raw_records") or []
         boards, markets, industries = self._group_boards_markets_and_industries(raw_records)
 
-        board_val_to_id = self._save_boards(dm, boards)
-        market_val_to_id = self._save_markets(dm, markets)
-        industry_val_to_id = self._save_industries(dm, industries)
+        list_svc = dm.stock.list
+        board_val_to_id = list_svc.ensure_and_sync_boards(boards)
+        market_val_to_id = list_svc.ensure_and_sync_markets(markets)
+        industry_val_to_id = list_svc.ensure_and_sync_industries(industries)
 
         dimensions = self._build_dimensions(main_records, raw_records)
         val_to_id = {
@@ -71,7 +71,6 @@ class TushareStockListHandler(BaseHandler):
             "market": market_val_to_id,
             "industry": industry_val_to_id,
         }
-        list_svc = dm.stock.list
         if val_to_id and list_svc.industry_map_model and list_svc.board_map_model and list_svc.market_map_model:
             save_stock_dimension_mappings(
                 dimensions, val_to_id,
@@ -131,22 +130,6 @@ class TushareStockListHandler(BaseHandler):
             market = (raw.get("market") or "").strip()
             dimensions.append((stock_id, industry, board, market))
         return dimensions
-
-    def _save_boards(self, dm: Any, boards: List[str]) -> Dict[str, int]:
-        """批量确保 sys_boards，1 次 load + 0~1 次 batch_insert + 0~1 次 load + 2 次 update。"""
-        model = dm.stock.list.boards_model
-        return ensure_and_sync_dimension_batch(model, boards) if model else {}
-
-    def _save_markets(self, dm: Any, markets: List[str]) -> Dict[str, int]:
-        """批量确保 sys_markets，同上。"""
-        model = dm.stock.list.markets_model
-        return ensure_and_sync_market_batch(model, markets) if model else {}
-
-    def _save_industries(self, dm: Any, industries: List[str]) -> Dict[str, int]:
-        """批量确保 sys_industries，同上。"""
-        model = dm.stock.list.industries_model
-        return ensure_and_sync_dimension_batch(model, industries) if model else {}
-
 
     def _format_and_store_raw_records(
         self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]

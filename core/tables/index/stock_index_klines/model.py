@@ -15,4 +15,4 @@ class DataStockIndexKlinesModel(DbBaseModel):
         super().__init__(_schema["name"], db)
 
     def save_records(self, records: List[Dict[str, Any]]) -> int:
-        return self.replace(records, unique_keys=["id", "term", "date"])
+        return self.upsert_many(records, unique_keys=["id", "term", "date"])

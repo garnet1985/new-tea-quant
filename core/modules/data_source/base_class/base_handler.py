@@ -660,8 +660,8 @@ class BaseHandler:
         if not table_name:
             return
         model = data_manager.get_table(table_name)
-        if not model or not hasattr(model, "batch_insert"):
-            logger.warning(f"表 {table_name} 未注册或无可用的 batch_insert，跳过系统写入")
+        if not model or not hasattr(model, "upsert_many"):
+            logger.warning(f"表 {table_name} 未注册或无可用的 upsert_many，跳过系统写入")
             return
         records = (normalized_data or {}).get("data")
         if not records or not isinstance(records, list):
@@ -674,7 +674,10 @@ class BaseHandler:
         else:
             unique_keys = None
         try:
-            count = model.batch_insert(records, unique_keys=unique_keys)
+            if unique_keys:
+                count = model.upsert_many(records, unique_keys=unique_keys)
+            else:
+                count = model.insert_many(records)
             logger.info(f"系统写入 {table_name}: {count} 条")
         except Exception as e:
             logger.error(f"系统写入 {table_name} 失败: {e}")

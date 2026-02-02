@@ -23,8 +23,8 @@ class DataIndustriesModel(DbBaseModel):
         """按行业名查询"""
         return self.load_one("value = %s", (value,))
 
-    def load_alive(self) -> List[Dict[str, Any]]:
-        """查询所有有效行业"""
+    def load_active(self) -> List[Dict[str, Any]]:
+        """查询所有有效行业（is_alive = 1，旧表字段命名保留）"""
         return self.load("is_alive = 1", order_by="id ASC")
 
     def save_records(self, records: List[Dict[str, Any]]) -> int:

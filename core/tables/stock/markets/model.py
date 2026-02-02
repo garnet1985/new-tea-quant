@@ -21,6 +21,6 @@ class MarketsModel(DbBaseModel):
         """按市场名查询"""
         return self.load_one("value = %s", (value,))
 
-    def load_alive(self) -> List[Dict[str, Any]]:
-        """查询所有有效市场"""
-        return self.load("is_alive = 1", order_by="id ASC")
+    def load_active(self) -> List[Dict[str, Any]]:
+        """查询所有有效市场（is_active = 1）"""
+        return self.load("is_active = 1", order_by="id ASC")

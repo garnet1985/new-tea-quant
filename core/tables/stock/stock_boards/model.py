@@ -21,6 +21,6 @@ class DataBoardsModel(DbBaseModel):
         """按板块名查询"""
         return self.load_one("value = %s", (value,))
 
-    def load_alive(self) -> List[Dict[str, Any]]:
-        """查询所有有效板块"""
+    def load_active(self) -> List[Dict[str, Any]]:
+        """查询所有有效板块（is_alive = 1，旧表字段命名保留）"""
         return self.load("is_alive = 1", order_by="id ASC")

@@ -8,6 +8,7 @@
 涉及的表：
 - system_cache: 系统缓存表
 """
+import datetime
 from typing import List, Dict, Any, Optional
 from loguru import logger
 
@@ -27,15 +28,69 @@ class DbCacheService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model - 私有属性，不对外暴露
-        self._system_cache = data_manager.get_table("sys_cache")
+        self._cache_model = data_manager.get_table("sys_cache")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== 缓存操作方法 ====================
-    
-    def get(self, key: str) -> Optional[Dict[str, Any]]:
+
+    def is_exists(self, key: str) -> bool:
+        """
+        判断缓存是否存在
+        
+        Args:
+            key: 缓存键
+            
+        Returns:
+            True 表示缓存存在，False 表示缓存不存在
+        """
+        return self._cache_model.is_exists(key)
+
+    def load_meta(self, key: str) -> Optional[Dict[str, Any]]:
+        """
+        获取缓存元信息
+        
+        Args:
+            key: 缓存键
+            
+        Returns:
+            created_at、last_updated
+        """
+        return self._cache_model.load_meta(key)
+
+    def load_last_updated(self, key: str) -> Optional[str]:
+        """
+        获取缓存最后更新时间
+        
+        Args:
+            key: 缓存键
+            
+        Returns:
+            last_updated
+        """
+        meta = self.load_meta(key)
+        if meta:
+            return meta.get("last_updated")
+        return None
+
+    def load_created_at(self, key: str) -> Optional[str]:
+        """
+        获取缓存创建时间
+        
+        Args:
+            key: 缓存键
+            
+        Returns:
+            created_at
+        """
+        meta = self.load_meta(key)
+        if meta:
+            return meta.get("created_at")
+        return None
+
+    def load_json(self, key: str) -> Optional[Dict[str, Any]]:
         """
         获取缓存值
         
@@ -43,28 +98,62 @@ class DbCacheService(BaseDataService):
             key: 缓存键
             
         Returns:
-            缓存值字典（包含 'value' 字段），如果不存在返回 None
+            True 表示缓存存在，False 表示缓存不存在
         """
-        if not self._system_cache:
-            return None
+        value = self._cache_model.load_by_key(key)
+        if value:
+            return value.get("json")
+        return None
+
+    def load_text(self, key: str) -> Optional[str]:
+        """
+        获取缓存值
         
-        return self._system_cache.load_by_key(key)
-    
-    def set(self, key: str, value: str) -> int:
+        Args:
+            key: 缓存键
+            
+        Returns:
+            True 表示缓存存在，False 表示缓存不存在
+        """
+        value = self._cache_model.load_by_key(key)
+        if value:
+            return value.get("text")
+        return None
+
+    def load(self, key: str, field: str = "json") -> Optional[Dict[str, Any]]:
+        """
+        获取缓存值
+        
+        Args:
+            key: 缓存键
+            field: 字段名
+        Returns:
+            True 表示缓存存在，False 表示缓存不存在
+        """
+
+        if field == "json":
+            return self.load_json(key)
+        elif field == "text":
+            return self.load_text(key)
+        else:
+            logger.warning(f"{self._cache_model.table_name} 不支持的字段名: {field}")
+            return None
+
+    def save(self, key: str, text: str = None, json: Optional[Dict[str, Any]] = None) -> int:
         """
         设置缓存值
         
         Args:
             key: 缓存键
-            value: 缓存值
+            text: 缓存值
+            json: 缓存值
             
         Returns:
             影响的行数
         """
-        if not self._system_cache:
-            return 0
-        
-        return self._system_cache.save_cache(key, value)
+
+        return self._cache_model.save_by_key(key, text=text, json=json)
+
     
     def delete(self, key: str) -> int:
         """
@@ -76,22 +165,4 @@ class DbCacheService(BaseDataService):
         Returns:
             影响的行数
         """
-        if not self._system_cache:
-            return 0
-        
-        return self._system_cache.delete_by_key(key)
-    
-    def get_value(self, key: str) -> Optional[str]:
-        """
-        获取缓存值（仅返回 value 字段）
-        
-        Args:
-            key: 缓存键
-            
-        Returns:
-            缓存值字符串，如果不存在返回 None
-        """
-        cache_item = self.get(key)
-        if cache_item:
-            return cache_item.get('value')
-        return None
+        return self._cache_model.delete_by_key(key)

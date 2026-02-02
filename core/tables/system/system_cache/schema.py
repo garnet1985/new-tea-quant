@@ -16,11 +16,18 @@ schema = {
             "nullable": False,
         },
         {
-            "name": "value",
+            "name": "text",
             "type": "text",
             "isRequired": True,
             "nullable": True,
             "description": "缓存值，文本格式",
+        },
+        {
+            "name": "json",
+            "type": "json",
+            "isRequired": True,
+            "nullable": True,
+            "description": "缓存值，JSON 格式",
         },
         {
             "name": "created_at",

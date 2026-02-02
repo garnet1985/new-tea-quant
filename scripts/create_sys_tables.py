@@ -26,6 +26,33 @@ from loguru import logger
 from core.modules.data_manager.data_manager import DataManager
 
 
+def _ensure_dimension_id_sequences(db) -> None:
+    """为维度表补 id 自增（仅当 column_default 为 NULL 时）。新建表由 schema 的 autoIncrement 直接生成 SERIAL。"""
+    try:
+        rows = db.execute_sync_query(
+            """
+            SELECT table_name FROM information_schema.columns
+            WHERE table_name IN ('sys_industries', 'sys_boards', 'sys_markets')
+              AND column_name = 'id' AND column_default IS NULL
+            """,
+            (),
+        )
+        tables_to_fix = list({r["table_name"] for r in rows} if rows else [])
+    except Exception as e:
+        logger.warning(f"检查维度表 id 默认值失败: {e}")
+        return
+    for table_name in tables_to_fix:
+        seq_name = f"{table_name}_id_seq"
+        try:
+            with db.get_connection() as conn:
+                conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {seq_name}")
+                conn.execute(f"ALTER TABLE {table_name} ALTER COLUMN id SET DEFAULT nextval('{seq_name}')")
+                conn.execute(f"SELECT setval('{seq_name}', GREATEST(COALESCE((SELECT MAX(id) FROM {table_name}), 0), 1), false)")
+            logger.info(f"✅ 已为 {table_name}.id 补自增序列")
+        except Exception as e:
+            logger.warning(f"为 {table_name} 设置 id 自增时失败: {e}")
+
+
 def _seed_sys_index_list_if_empty(dm: DataManager) -> None:
     """若 sys_index_list 表存在且为空，从 core/tables/index/index_list/data.json 写入初始值。"""
     model = dm.get_table("sys_index_list")
@@ -62,6 +89,7 @@ def main():
     logger.info(f"✅ 系统表已创建并注册，共 {len(tables)} 个表")
     for name in tables:
         logger.info(f"   - {name}")
+    _ensure_dimension_id_sequences(dm.db)
     _seed_sys_index_list_if_empty(dm)
     logger.info("可执行数据迁移脚本，使用 data_manager.get_table('sys_xxx') 写入新表。")
 

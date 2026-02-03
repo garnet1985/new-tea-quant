@@ -89,7 +89,7 @@ class RollingRenewService:
         if latest_completed_trading_date:
             end_value = DateUtils.get_current_period(latest_completed_trading_date, date_format)
         else:
-            current_date = DateUtils.get_current_date_str()
+            current_date = DateUtils.get_today_str()
             end_value = DateUtils.get_current_period(current_date, date_format)
         
         # 计算 rolling 窗口的起始日期（从 end_value 前推 rolling_periods）

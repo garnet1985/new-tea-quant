@@ -337,15 +337,29 @@ class ListService(BaseDataService):
         return {v: val_to_id[v] for v in current_values if v in val_to_id}
 
     def _sync_dimension_active(self, model, current_values: List[str], value_col: str = "value") -> None:
-        """按当前批次同步 is_active：在 current_values 中的置 1，不在的置 0。"""
-        if not hasattr(model, "update"):
+        """按当前批次同步 is_active：在 current_values 中的置 1，不在的置 0。使用 upsert 实现。"""
+        try:
+            unique_keys = model.get_primary_keys()
+        except ValueError:
             return
         if current_values:
             vals = tuple(current_values)
-            model.update({"is_active": 0}, f'"{value_col}" NOT IN %s', (vals,))
-            model.update({"is_active": 1}, f'"{value_col}" IN %s', (vals,))
+            rows_deactivate = model.load(f'"{value_col}" NOT IN %s', (vals,))
+            if rows_deactivate:
+                for r in rows_deactivate:
+                    r["is_active"] = 0
+                model.upsert(rows_deactivate, unique_keys)
+            rows_activate = model.load(f'"{value_col}" IN %s', (vals,))
+            if rows_activate:
+                for r in rows_activate:
+                    r["is_active"] = 1
+                model.upsert(rows_activate, unique_keys)
         else:
-            model.update({"is_active": 0}, "1=1", ())
+            rows_all = model.load("1=1")
+            if rows_all:
+                for r in rows_all:
+                    r["is_active"] = 0
+                model.upsert(rows_all, unique_keys)
 
     def _merge_exclude_patterns(
         self,

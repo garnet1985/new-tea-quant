@@ -147,11 +147,21 @@ class BaseHandler:
         获取 per-entity 的实体列表。仅当 result_group_by.list == "stock_list" 时从
         dependencies 解析；其他 list 名（如 "stock_index_list"）需由子类在 on_before_fetch
         等钩子中自行注入实体列表，本方法返回 []。
+        
+        优先级：
+        1. context 中的 stock_list（handler 可能在 on_prepare_context 中修改了）
+        2. dependencies 中的 stock_list
         """
         config = self.context.get("config")
         group_by_entity_list_name = (config.get_group_by_entity_list_name() if config else None) or ""
 
         if group_by_entity_list_name == "stock_list":
+            # 优先使用 context 中的 stock_list（handler 可能在 on_prepare_context 中修改了）
+            if "stock_list" in self.context:
+                entity_list = self.context["stock_list"]
+                return entity_list or []
+            
+            # 回退到 dependencies
             deps = self.context.get("dependencies") or {}
             entity_list = deps.get("stock_list")
             return (entity_list or []) if entity_list is not None else []
@@ -486,13 +496,16 @@ class BaseHandler:
             logger.info(f"开始执行 1 个 bundle: bundle_id={bundle_id}")
             result = _run_async_in_sync(run_one_bundle(apis))
             logger.info(f"🔧 [single_bundle] 执行完成，准备调用钩子: bundle_id={bundle_id}, result_keys={list(result.keys())[:5] if isinstance(result, dict) else 'N/A'}...")
-            if hasattr(item, "apis") and hasattr(item, "bundle_id"):
+            # 根据 save_mode 决定是否调用钩子
+            if save_mode != "unified" and hasattr(item, "apis") and hasattr(item, "bundle_id"):
                 try:
                     logger.info(f"🔧 [single_bundle] 调用 on_after_single_api_job_bundle_complete: bundle_id={bundle_id}")
                     self.on_after_single_api_job_bundle_complete(self.context, item, result)
                     logger.info(f"✅ [single_bundle] on_after_single_api_job_bundle_complete 调用成功: bundle_id={bundle_id}")
                 except Exception as e:
                     logger.error(f"❌ [single_bundle] on_after_single_api_job_bundle_complete 调用失败: bundle_id={bundle_id}, error={e}", exc_info=True)
+            elif save_mode == "unified":
+                logger.debug(f"🔧 [single_bundle] save_mode='unified'，跳过 on_after_single_api_job_bundle_complete（将在 _do_save 中统一保存）")
             else:
                 logger.warning(f"⚠️ [single_bundle] item 没有 apis 或 bundle_id 属性，跳过钩子调用")
             logger.info(f"执行完成: 1/1 个 bundles")
@@ -582,7 +595,18 @@ class BaseHandler:
         processed_results = set()  # 记录已处理的结果，避免重复处理
         pending_results = []  # 待处理的结果列表
         results_processing_stop = threading.Event()
-        BATCH_SAVE_SIZE = 50  # 每完成50个bundles保存一次
+        
+        # 根据配置决定批量保存大小
+        config = self.context.get("config")
+        if not config or not hasattr(config, "get_save_mode"):
+            raise ValueError("config 必须配置 save_mode")
+        save_mode = config.get_save_mode()
+        if save_mode == "immediate":
+            BATCH_SAVE_SIZE = 1  # 立即保存：每个 bundle 完成后立即保存
+        elif save_mode == "batch":
+            BATCH_SAVE_SIZE = config.get_save_batch_size() if config and hasattr(config, "get_save_batch_size") else 50
+        else:  # unified
+            BATCH_SAVE_SIZE = float('inf')  # 统一保存：不在这里保存，在 _do_save 中统一保存
         
         def _has_actual_data(result_dict: Dict[str, Any]) -> bool:
             """
@@ -618,7 +642,7 @@ class BaseHandler:
             return False
         
         def _process_completed_results():
-            """批量处理完成的结果：每完成 N 个 bundles 保存一次"""
+            """批量处理完成的结果：根据 save_mode 决定保存时机"""
             from queue import Empty
             while not results_processing_stop.is_set() or worker.is_running:
                 try:
@@ -638,7 +662,14 @@ class BaseHandler:
                                 # 添加到待处理列表
                                 pending_results.append(result)
                                 
-                                # 当累积到 BATCH_SAVE_SIZE 个结果时，批量保存
+                                # 根据 save_mode 决定保存时机
+                                # unified 模式：不在这里保存，在 _do_save 中统一保存
+                                if save_mode == "unified":
+                                    # unified 模式：不调用 on_after_single_api_job_bundle_complete
+                                    processed_results.add(result.job_id)
+                                    continue
+                                
+                                # immediate 或 batch 模式：当累积到 BATCH_SAVE_SIZE 个结果时，批量保存
                                 if len(pending_results) >= BATCH_SAVE_SIZE:
                                     logger.info(f"🔧 [批量保存] 累积了 {len(pending_results)} 个有数据的结果，开始批量保存...")
                                     saved_count = 0
@@ -715,8 +746,8 @@ class BaseHandler:
         logger.info(f"🔧 [multi_thread] worker.run_jobs() 完成，获取到 {len(results_list)} 个剩余结果")
 
         # 处理剩余的结果（包括待处理列表中的和最后一批未达到批量大小的）
-        # 先处理待处理列表中的剩余结果
-        if pending_results:
+        # 先处理待处理列表中的剩余结果（仅 immediate 和 batch 模式）
+        if pending_results and save_mode != "unified":
             logger.info(f"🔧 [批量保存] 处理最后一批 {len(pending_results)} 个有数据的结果...")
             saved_count = 0
             for pending_result in pending_results:
@@ -751,7 +782,8 @@ class BaseHandler:
             if r.status == JobStatus.COMPLETED and _has_actual_data(r.result):
                 # 只处理有数据的结果
                 merged.update(r.result)
-                if r.job_id in bundle_id_to_item:
+                # unified 模式：不在这里调用钩子，在 _do_save 中统一保存
+                if save_mode != "unified" and r.job_id in bundle_id_to_item:
                     try:
                         self.on_after_single_api_job_bundle_complete(
                             self.context, bundle_id_to_item[r.job_id], r.result
@@ -760,6 +792,10 @@ class BaseHandler:
                         completed_count += 1
                     except Exception as e:
                         logger.error(f"❌ [剩余结果] on_after_single_api_job_bundle_complete 调用失败: bundle_id={r.job_id}, error={e}", exc_info=True)
+                else:
+                    # unified 模式：只标记为已处理，不调用钩子
+                    processed_results.add(r.job_id)
+                    completed_count += 1
             elif r.status == JobStatus.COMPLETED and not _has_actual_data(r.result):
                 # 空结果，标记为已处理但跳过
                 processed_results.add(r.job_id)
@@ -927,7 +963,22 @@ class BaseHandler:
         在非 is_dry_run 时执行写入：先调用用户钩子 on_before_save，再系统写入绑定表。
         on_before_save 若返回非 None，则用其作为即将写入的数据；否则使用传入的 normalized_data。
         is_dry_run 为 True 时不执行任何写入，直接返回 normalized_data。
+        
+        如果 save_mode == "per_bundle" 且 normalized_data 为空，跳过保存
+        （数据已在 on_after_single_api_job_bundle_complete 中保存）。
         """
+        config = self.context.get("config")
+        if not config or not hasattr(config, "get_save_mode"):
+            raise ValueError("config 必须配置 save_mode")
+        save_mode = config.get_save_mode()
+        
+        # 检查是否按批次保存且数据已保存
+        if save_mode in ["immediate", "batch"]:
+            data_list = normalized_data.get("data", []) if isinstance(normalized_data, dict) else []
+            if not data_list:
+                logger.info(f"🔧 [_do_save] save_mode='{save_mode}' 且数据为空，跳过统一保存（数据已在 on_after_single_api_job_bundle_complete 中保存）")
+                return normalized_data
+        
         logger.info(f"🔧 [_do_save] 开始保存阶段，normalized_data 数据条数: {len(normalized_data.get('data', [])) if isinstance(normalized_data, dict) else 0}")
         if self._is_dry_run():
             logger.info(f"🔧 [_do_save] Dry run 模式，跳过保存")
@@ -994,7 +1045,8 @@ class BaseHandler:
           - 预先查询并缓存后续步骤会频繁使用的数据；
           - 注入与本次执行强相关的业务状态。
 
-        默认行为：直接返回传入的 context，不做任何修改。
+        默认行为：
+        - 如果 latest_completed_trading_date 缺失，自动从 data_manager 获取
 
         Args:
             context: 当前执行上下文（已注入全局依赖）
@@ -1002,6 +1054,17 @@ class BaseHandler:
         Returns:
             Dict[str, Any]: 处理后的上下文字典
         """
+        # 如果 latest_completed_trading_date 缺失，自动获取
+        if "latest_completed_trading_date" not in context or not context.get("latest_completed_trading_date"):
+            data_manager = context.get("data_manager")
+            if data_manager:
+                try:
+                    latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
+                    context["latest_completed_trading_date"] = latest_completed_trading_date
+                except Exception:
+                    # 如果获取失败，保持原样（可能后续步骤会处理）
+                    pass
+        
         return context
 
     def on_calculate_date_range(
@@ -1067,15 +1130,15 @@ class BaseHandler:
         
         此钩子在 _build_job 方法中调用，用于：
         1. 从 entity_info 中提取实体 ID
-        2. 将实体 ID 注入到每个 API job 的 params 中（根据 config.apis.{api_name}.entity_param 配置）
+        2. 将实体 ID 注入到每个 API job 的 params 中
         
-        默认实现：从配置中获取 entity_key_field，使用 on_extract_entity_id 提取实体 ID，
-        然后根据每个 API 的 entity_param 配置注入到 job.params 中。
+        默认实现：仅提取实体 ID 并返回，不进行参数注入。
+        子类必须覆盖此方法来实现具体的参数注入逻辑。
         
         子类可以覆盖此方法来：
-        - 使用固定的字段名（如 "id"）提取实体 ID，避免猜测
+        - 使用固定的字段名（如 "id"）提取实体 ID
         - 自定义实体 ID 的格式转换
-        - 自定义参数注入逻辑
+        - 手动注入参数到 job.params（如 ts_code、stock_id 等）
         
         Args:
             entity_info: 实体信息（来自 dependencies，如 stock_list 中的一项）
@@ -1103,32 +1166,12 @@ class BaseHandler:
         if not entity_key_field:
             return None
         
-        # 提取实体 ID：使用内部辅助方法（子类覆盖 on_build_job_payload 时不需要此方法）
+        # 提取实体 ID：使用内部辅助方法
         entity_id = self._extract_entity_id(entity_info, entity_key_field, context)
         
-        if not entity_id:
-            return None
-        
-        # 为每个 API job 注入实体参数
-        for job in apis:
-            params = job.params or {}
-            api_params = job.api_params or {}
-            
-            # 使用 API 配置中的 entity_param 字段（必须配置）
-            api_param_name = api_params.get("entity_param")
-            if not api_param_name:
-                from loguru import logger
-                logger.warning(
-                    f"API {job.api_name} 未配置 entity_param，无法注入实体参数。"
-                    f"请在 config.apis.{job.api_name} 中添加 entity_param 配置。"
-                )
-                continue
-            
-            # 注入实体参数
-            params[api_param_name] = str(entity_id)
-            job.params = params
-        
-        return str(entity_id)
+        # 默认实现：仅返回实体 ID，不进行参数注入
+        # 子类需要覆盖此方法来手动注入参数
+        return str(entity_id) if entity_id else None
 
     def on_after_build_jobs(
         self, 
@@ -1196,6 +1239,14 @@ class BaseHandler:
     def on_after_single_api_job_bundle_complete(self, context: Dict[str, Any], job_bundle: ApiJobBundle, fetched_data: Dict[str, Any]):
         """
         执行单个 api job bundle 后的钩子。
+        
+        保存时机由 config.save_mode 控制：
+        - "unified"（默认）：不在此钩子中保存，数据会在 _do_save 中统一保存
+        - "immediate"：每个 bundle 完成后立即调用此钩子保存数据
+        - "batch"：累计 save_batch_size 个 bundle 后批量调用此钩子保存数据
+        
+        如果 save_mode != "unified"，子类应该在此钩子中保存数据，
+        并在 normalize_data 中返回空数据，避免重复保存。
         """
         return fetched_data
 

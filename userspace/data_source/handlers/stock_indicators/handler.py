@@ -34,37 +34,28 @@ class StockIndicatorsHandler(BaseHandler):
         """为每只股票创建一个 get_daily_basic ApiJob。"""
         stock_list = context.get("stock_list", [])
         if not stock_list:
-            logger.warning("股票列表为空，无法创建 stock_indicators 任务")
             return apis
 
         latest_trading_date = context.get("latest_completed_trading_date")
         if not latest_trading_date:
-            data_manager = context.get("data_manager")
-            if data_manager:
-                try:
-                    latest_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
-                except Exception as e:
-                    logger.warning(f"获取最新交易日失败: {e}")
-            if not latest_trading_date:
-                latest_trading_date = DateUtils.today()
+            latest_trading_date = context["data_manager"].service.calendar.get_latest_completed_trading_date()
         end_date = latest_trading_date
 
         stock_latest_dates = {}
-        data_manager = context.get("data_manager")
-        if data_manager:
-            try:
-                model = data_manager.get_table("sys_stock_indicators")
-                if model:
-                    all_latest = model.load_latests(date_field="date", group_fields=["id"])
-                    for rec in all_latest or []:
-                        sid = rec.get("id")
-                        d = rec.get("date")
-                        if sid and d:
-                            stock_latest_dates[sid] = d
-            except Exception as e:
-                logger.warning(f"查询 sys_stock_indicators 最新日期失败: {e}")
+        data_manager = context["data_manager"]
+        try:
+            model = data_manager.get_table("sys_stock_indicators")
+            if model:
+                all_latest = model.load_latests(date_field="date", group_fields=["id"])
+                for rec in all_latest or []:
+                    sid = rec.get("id")
+                    d = rec.get("date")
+                    if sid and d:
+                        stock_latest_dates[sid] = d
+        except Exception:
+            pass
 
-        base_api = apis[0] if apis else None
+        base_api = apis[0]
         if not base_api:
             return apis
 

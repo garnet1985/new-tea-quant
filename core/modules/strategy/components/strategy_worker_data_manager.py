@@ -605,7 +605,8 @@ class StrategyWorkerDataManager:
         from core.utils.date.date_utils import DateUtils
         try:
             # 使用自然日 * 1.5 倍，确保有足够的交易日数据
-            return DateUtils.get_date_before_with_multiplier(date, days, multiplier=1.5)
+            adjusted_days = int(days * 1.5)
+            return DateUtils.sub_days(date, adjusted_days)
         
         except Exception as e:
             logger.error(f"计算日期失败: date={date}, days={days}, error={e}")

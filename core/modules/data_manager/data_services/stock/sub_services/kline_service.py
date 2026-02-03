@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 from ... import BaseDataService
-from core.utils import DateUtils
+from core.utils.date.date_utils import DateUtils
 
 # 价格字段配置（用于复权计算）
 _PRICE_FIELDS = ['open', 'close', 'highest', 'lowest', 'pre_close']
@@ -660,7 +660,7 @@ class KlineService(BaseDataService):
         Returns:
             YYYYMMDD 格式的日期字符串，如果输入为 None 则返回 None
         """
-        return DateUtils.normalize_date(date_str)
+        return DateUtils.normalize_str(date_str)
     
     @staticmethod
     def _apply_qfq_prices(kline: Dict[str, Any], qfq_diff: float) -> None:

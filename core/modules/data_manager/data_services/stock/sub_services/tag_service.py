@@ -516,7 +516,7 @@ class TagDataService(BaseDataService):
         """
         # TODO: 委托给 CalendarService.get_next_trading_date() 实现
         # 当前使用简单逻辑：自然日 + 1 天
-        return DateUtils.get_next_date(date)
+        return DateUtils.add_days(date, 1)
     
     # ==================== 私有辅助方法 ====================
     
@@ -649,11 +649,11 @@ class TagDataService(BaseDataService):
         
         try:
             if isinstance(date_value, str):
-                # 使用 DateUtils.normalize_date 处理字符串
-                return DateUtils.normalize_date(date_value)
+                # 使用 DateUtils.normalize_str 处理字符串
+                return DateUtils.normalize_str(date_value)
             else:
                 # 如果是 date/datetime 对象，转换为字符串
-                return DateUtils.format_to_yyyymmdd(date_value)
+                return DateUtils.normalize(date_value)
         except Exception as e:
             logger.warning(f"日期格式转换失败: {date_value}, error={e}")
             return None

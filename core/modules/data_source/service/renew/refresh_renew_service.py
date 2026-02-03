@@ -60,7 +60,7 @@ class RefreshRenewService:
             return start_date, end_date
         
         # 使用 default_date_range 计算日期范围
-        current_date = DateUtils.get_today_str()
+        current_date = DateUtils.today()
         start_date, end_date = self._calculate_date_range_from_config(
             current_date, date_format, default_date_range, context
         )
@@ -90,7 +90,8 @@ class RefreshRenewService:
         context = context or {}
         
         # 获取当前周期值
-        current_value = DateUtils.get_current_period(current_date, date_format)
+        period_type = DateUtils.normalize_period_type(date_format)
+        current_value = DateUtils.to_period_str(current_date, period_type)
         
         # 获取结束日期（优先使用 latest_completed_trading_date）
         # 支持枚举和字符串两种格式（兼容性）
@@ -101,7 +102,9 @@ class RefreshRenewService:
         
         # 计算开始日期（业务逻辑：根据 default_date_range 配置）
         if date_format == TermType.QUARTERLY.value:
-            current_year, current_quarter = current_value
+            # current_value 是字符串格式 "2024Q1"
+            current_year = int(current_value[:4])
+            current_quarter = int(current_value[5])
             if "years" in default_date_range:
                 years = default_date_range["years"]
                 start_year = current_year - years
@@ -119,7 +122,9 @@ class RefreshRenewService:
                 start_quarter = 1
             start_date = f"{start_year}Q{start_quarter}"
         elif date_format == TermType.MONTHLY.value:
-            current_year, current_month = current_value
+            # current_value 是字符串格式 "202401"
+            current_year = int(current_value[:4])
+            current_month = int(current_value[4:6])
             if "years" in default_date_range:
                 years = default_date_range["years"]
                 start_year = current_year - years
@@ -139,12 +144,12 @@ class RefreshRenewService:
         else:  # date_format == TermType.DAILY.value
             if "years" in default_date_range:
                 years = default_date_range["years"]
-                start_date = DateUtils.get_date_before_days(end_date, years * 365)
+                start_date = DateUtils.sub_days(end_date, years * 365)
             elif "days" in default_date_range:
                 days = default_date_range["days"]
-                start_date = DateUtils.get_date_before_days(end_date, days)
+                start_date = DateUtils.sub_days(end_date, days)
             else:
                 # 默认 5 年
-                start_date = DateUtils.get_date_before_days(end_date, 5 * 365)
+                start_date = DateUtils.sub_days(end_date, 5 * 365)
         
         return start_date, end_date

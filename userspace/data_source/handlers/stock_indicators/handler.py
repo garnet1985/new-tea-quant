@@ -55,7 +55,7 @@ class StockIndicatorsHandler(BaseHandler):
             try:
                 model = data_manager.get_table("sys_stock_indicators")
                 if model:
-                    all_latest = model.load_latest_records(date_field="date", group_fields=["id"])
+                    all_latest = model.load_latests(date_field="date", group_fields=["id"])
                     for rec in all_latest or []:
                         sid = rec.get("id")
                         d = rec.get("date")

@@ -201,13 +201,13 @@ class KlineHandler(BaseHandler):
             
             # 使用批量查询：一次性获取所有股票的所有周期的最新记录
             try:
-                all_latest_records = kline_model.load_latest_records(
+                all_latest_records = kline_model.load_latests(
                     date_field='date',
                     group_fields=['id', 'term']
                 )
                 
                 if len(all_latest_records) == 0:
-                    logger.warning("⚠️  load_latest_records 返回空结果，尝试手动查询验证...")
+                    logger.warning("⚠️  load_latests 返回空结果，尝试手动查询验证...")
                     manual_query = """
                         SELECT t1.* 
                         FROM stock_kline t1

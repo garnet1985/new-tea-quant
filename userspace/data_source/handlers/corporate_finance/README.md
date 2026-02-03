@@ -111,7 +111,7 @@
 #### 5. 数据保存
 
 - **保存时机**: 每个 Task 执行完成后立即保存（`after_single_task_execute` 钩子）
-- **保存方式**: 使用 `CorporateFinanceModel.save_finance_data()`，内部调用 `replace()` 方法
+- **保存方式**: 使用 `CorporateFinanceModel.save_finance_data()`，内部调用 `upsert_many()` 方法
 - **去重机制**: 基于主键 `(id, quarter)` 自动去重/覆盖
 
 ## 配置参数

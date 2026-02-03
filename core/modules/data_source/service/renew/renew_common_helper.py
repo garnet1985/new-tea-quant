@@ -45,10 +45,10 @@ class RenewCommonHelper:
                 latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败: {e}，使用当前日期")
-                latest_completed_trading_date = DateUtils.get_today_str()
+                latest_completed_trading_date = DateUtils.today()
         
         if not latest_completed_trading_date:
-            latest_completed_trading_date = DateUtils.get_today_str()
+            latest_completed_trading_date = DateUtils.today()
         
         # 根据 date_format 转换日期格式
         start_date = RenewCommonHelper.convert_date_to_format(default_start_date, date_format)
@@ -106,14 +106,13 @@ class RenewCommonHelper:
             if date_format == "day":
                 return latest_completed_trading_date
             else:
-                return DateUtils.format_period(
-                    DateUtils.get_current_period(latest_completed_trading_date, date_format),
-                    date_format
-                )
+                period_type = DateUtils.normalize_period_type(date_format)
+                return DateUtils.to_period_str(latest_completed_trading_date, period_type)
         else:
-            current_date = DateUtils.get_today_str()
-            current_value = DateUtils.get_current_period(current_date, date_format)
-            return DateUtils.format_period(current_value, date_format)
+            current_date = DateUtils.today()
+            period_type = DateUtils.normalize_period_type(date_format)
+            current_period = DateUtils.to_period_str(current_date, period_type)
+            return current_period
     
     @staticmethod
     def get_needs_stock_grouping(context: Dict[str, Any]) -> Optional[bool]:

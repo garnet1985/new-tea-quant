@@ -78,12 +78,12 @@
 - 计算当前季度：`current_quarter = DateUtils.get_current_quarter(latest_completed_trading_date)`
 - 计算滚动窗口最老季度：`window_oldest_quarter = current_quarter 往前推 (ROLLING_QUARTERS - 1) 个季度`
 - 如果 `next_quarter(last_updated_quarter) <= window_oldest_quarter`：
-  - `start_date = get_start_date_of_quarter(window_oldest_quarter)`
+  - `start_date = get_quarter_start_date(window_oldest_quarter)`
   - `end_date = latest_completed_trading_date`
   - **行为**: 只刷新最近 3 个季度（实现滚动覆盖）
 
 **情况 C: 已有数据，但落后超过 3 个季度**
-- `start_date = get_start_date_of_quarter(last_updated_quarter)`
+- `start_date = get_quarter_start_date(last_updated_quarter)`
 - `end_date = latest_completed_trading_date`
 - **行为**: 从上次更新的季度起点开始，一路补到当前有效季度（逐步追平）
 

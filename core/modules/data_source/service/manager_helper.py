@@ -1,9 +1,9 @@
 import importlib.util
 import importlib
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from loguru import logger
-from core.infra.project_context import ConfigManager
+from core.infra.project_context import ConfigManager, PathManager
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.config import DataSourceConfig
@@ -150,28 +150,62 @@ class DataSourceManagerHelper:
 
 
     @staticmethod
+    def _find_handler_file_recursively(module_name: str) -> Optional[Path]:
+        """
+        递归查找 handler.py 文件
+        
+        Args:
+            module_name: 简化的模块名（如 "kline_daily"）
+        
+        Returns:
+            找到的 handler.py 文件路径，如果未找到则返回 None
+        """
+        handlers_dir = PathManager.data_source_handlers()
+        if not handlers_dir.exists():
+            return None
+        
+        # 递归查找所有包含 module_name 的目录下的 handler.py
+        for path in handlers_dir.rglob(f"*/{module_name}/handler.py"):
+            if path.exists() and path.is_file():
+                return path
+        
+        # 也支持查找目录名完全匹配的情况
+        for path in handlers_dir.rglob(f"{module_name}/handler.py"):
+            if path.exists() and path.is_file():
+                return path
+        
+        return None
+    
+    @staticmethod
     def _normalize_handler_path(handler_path: str) -> str:
         """
         标准化 handler 路径。
 
-        只支持两种形式：
+        支持三种形式：
         - 完整路径: "userspace.data_source.handlers.kline.KlineHandler"
-        - 简写:     "kline.KlineHandler"
+        - 多级简写: "stock_klines.kline_daily.KlineDailyHandler"（支持嵌套目录）
+        - 单级简写: "kline.KlineHandler"
         """
         # 已经是完整路径，直接返回
         if handler_path.startswith("userspace.data_source.handlers."):
             return handler_path
 
         parts = handler_path.split(".")
-        if len(parts) == 2:
-            module_name, class_name = parts
-            return f"userspace.data_source.handlers.{module_name}.{class_name}"
-
-        logger.error(
-            f"Handler 路径格式不正确: {handler_path}，"
-            f"期望 'module.ClassName' 或 'userspace.data_source.handlers.module.ClassName'"
-        )
-        raise ValueError(f"Invalid handler path: {handler_path}")
+        if len(parts) < 2:
+            logger.error(
+                f"Handler 路径格式不正确: {handler_path}，"
+                f"期望 'module.ClassName' 或 'userspace.data_source.handlers.module.ClassName'"
+            )
+            raise ValueError(f"Invalid handler path: {handler_path}")
+        
+        # 提取类名（最后一个部分）
+        class_name = parts[-1]
+        # 模块路径（除了类名之外的所有部分）
+        module_parts = parts[:-1]
+        
+        # 构建完整路径
+        module_path = ".".join(module_parts)
+        return f"userspace.data_source.handlers.{module_path}.{class_name}"
 
     @staticmethod
     def is_valid_handler(handler_cls: Any) -> bool:

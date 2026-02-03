@@ -1142,7 +1142,7 @@ class DataSourceHandlerHelper:
 
         # 是否需要按实体分组（如 per stock）
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
-
+        
         if not needs_stock_grouping:
             # 全局数据：查询整表最新一条记录
             try:
@@ -1166,7 +1166,7 @@ class DataSourceHandlerHelper:
                 # 查询失败时，保守返回空映射（后续逻辑会当作“无 last_update”处理）
                 return {}
 
-        # per-entity：一次性查询所有实体的最新日期（实体标识字段用 config.result_group_by.by_key）
+        # per-entity：一次性查询所有实体的最新日期（实体标识字段用 config.result_group_by.key 或 keys）
         latest_dates_dict = RenewCommonHelper.query_latest_date(
             data_manager=data_manager,
             table_name=table_name,
@@ -1178,16 +1178,20 @@ class DataSourceHandlerHelper:
 
         if not latest_dates_dict:
             # 表为空或查询失败：所有实体视为没有 last_update
+            logger.warning(f"⚠️ [compute_last_update_map] 查询 {table_name} 的最新日期返回空结果，可能表为空或查询失败")
             return {}
 
-        # latest_dates_dict: {entity_id: latest_date_raw}
-        for entity_id, raw_value in latest_dates_dict.items():
+        # latest_dates_dict: {entity_id: latest_date_raw} 或 {composite_key: latest_date_raw}
+        # 检查是否是多字段分组（通过检查 key 是否包含分隔符 "::"）
+        group_fields = config.get_group_fields() if config and hasattr(config, "get_group_fields") else []
+        is_multi_field = len(group_fields) > 1
+        
+        for key, raw_value in latest_dates_dict.items():
             if not raw_value:
-                last_update_map[str(entity_id)] = None
+                last_update_map[str(key)] = None
             else:
-                last_update_map[str(entity_id)] = DataSourceHandlerHelper._normalize_date_value(
-                    raw_value
-                )
+                normalized_date = DataSourceHandlerHelper._normalize_date_value(raw_value)
+                last_update_map[str(key)] = normalized_date
 
         return last_update_map
 
@@ -1414,8 +1418,17 @@ class DataSourceHandlerHelper:
             except Exception:
                 latest_completed_trading_date = DateUtils.today()
 
-        def should_trigger(last_update: Optional[str]) -> bool:
-            """根据 renew_if_over_days 判断是否需要触发本次更新。"""
+        def should_trigger(last_update: Optional[str], composite_key: Optional[str] = None) -> bool:
+            """
+            根据 renew_if_over_days 判断是否需要触发本次更新（更新频率检查）。
+            
+            这是第一层检查：判断距离上次更新是否已经过去了足够长的时间。
+            如果时间间隔不够，直接返回False，不进行后续的完整周期检查。
+            
+            Args:
+                last_update: 最后更新日期
+                composite_key: 复合key（如 "stock_id::term"），用于提取term信息（暂未使用）
+            """
             if not threshold_cfg:
                 return True
 
@@ -1428,6 +1441,8 @@ class DataSourceHandlerHelper:
                 # 没有 last_update（新实体或表为空）→ 需要更新
                 return True
 
+            # 第一层检查：更新频率（renew_if_over_days）
+            # 计算距离上次更新的天数差
             try:
                 days_diff = DateUtils.diff_days(
                     last_update, latest_completed_trading_date
@@ -1436,14 +1451,13 @@ class DataSourceHandlerHelper:
                 # 日期解析失败，保守策略：更新
                 return True
 
-            # 与 check_renew_if_over_days 保持一致：
-            # days_diff >= threshold → 需要更新；否则跳过
+            # days_diff >= threshold → 时间间隔足够，可以更新；否则跳过
             return days_diff >= threshold_days
 
         # 5. 根据需要分组与否，分别计算
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
         result: Dict[str, Tuple[str, str]] = {}
-
+        
         # 公共：根据模式计算起点
         def compute_start_for_mode(last_update: Optional[str]) -> str:
             # refresh: 总是从默认起点开始刷全量
@@ -1563,21 +1577,226 @@ class DataSourceHandlerHelper:
             result["_global"] = (start_date, end_date)
             return result
 
-        # per-entity：按 stock_list 遍历实体
-        stock_list = context.get("stock_list", [])
+        # per-entity：从 dependencies 中获取实体列表（标准位置）
+        dependencies = context.get("dependencies", {})
+        stock_list = dependencies.get("stock_list")
+        
         if not stock_list:
-            logger.warning("needs_stock_grouping=True 但 context['stock_list'] 为空，返回空日期范围")
+            logger.warning(
+                f"needs_stock_grouping=True 但 dependencies['stock_list'] 为空，返回空日期范围。"
+                f"请确保 stock_list 数据源已正确配置并执行。"
+            )
             return {}
 
-        for stock_id in stock_list:
-            entity_id = str(stock_id)
-            last_update = last_update_map.get(entity_id)
-            if not should_trigger(last_update):
-                continue
-            start_date = compute_start_for_mode(last_update)
-            result[entity_id] = (start_date, end_date)
+        # 检查是否是多字段分组（通过检查 last_update_map 的 key 是否包含分隔符 "::"）
+        group_fields = config.get_group_fields() if config and hasattr(config, "get_group_fields") else []
+        is_multi_field = len(group_fields) > 1
+        
+        if is_multi_field:
+            # 多字段分组：需要从 stock_list 遍历，为每个股票的每个term创建日期范围
+            # 这样可以处理新股票（不在last_update_map中）的情况
+            # 例如：{"000001.SZ::daily": "20240101", "000001.SZ::weekly": "20240107"}
+            
+            # 获取所有可能的term（优先从last_update_map中提取，如果没有则从config的apis中推断）
+            terms_set = set()
+            
+            # 方法1：从last_update_map中提取所有term
+            for key in last_update_map.keys():
+                if "::" in key:
+                    parts = key.split("::")
+                    if len(parts) >= 2:
+                        terms_set.add(parts[1].lower())
+            
+            # 方法2：如果map中没有term，尝试从config的apis中推断
+            # 例如：daily_kline -> daily, weekly_kline -> weekly
+            if not terms_set and config:
+                apis_conf = config.get_apis() if hasattr(config, "get_apis") else {}
+                for api_name in apis_conf.keys():
+                    # 尝试从API名称中提取term（例如：daily_kline -> daily）
+                    # 常见的命名模式：{term}_kline, {term}_data等
+                    api_name_lower = api_name.lower()
+                    if "_kline" in api_name_lower:
+                        term = api_name_lower.replace("_kline", "")
+                        terms_set.add(term)
+                    elif api_name_lower.endswith("_data"):
+                        term = api_name_lower.replace("_data", "")
+                        terms_set.add(term)
+                    elif api_name_lower in ["daily", "weekly", "monthly", "quarterly", "yearly"]:
+                        terms_set.add(api_name_lower)
+            
+            # 方法3：如果还是没有，使用默认的term列表（向后兼容）
+            if not terms_set:
+                terms_set = {"daily", "weekly", "monthly"}
+            
+            # 提取entity_key_field用于从stock_info中获取entity_id
+            entity_key_field = group_fields[0] if group_fields else "id"
+            
+            # 遍历stock_list，为每个股票的每个term创建日期范围
+            for stock_info in stock_list:
+                # 提取实体 ID
+                if isinstance(stock_info, dict):
+                    entity_id = str(stock_info.get(entity_key_field, ""))
+                else:
+                    entity_id = str(stock_info)
+                
+                if not entity_id:
+                    continue
+                
+                # 为每个term创建日期范围
+                for term in terms_set:
+                    composite_key = f"{entity_id}::{term}"
+                    last_update = last_update_map.get(composite_key)  # 可能为None（新股票）
+                    
+                    # 第一层检查：更新频率（renew_if_over_days）
+                    if not should_trigger(last_update, composite_key):
+                        continue
+                    
+                    # 第二层检查：完整周期检查（对于周线/月线，确保完整周期已过）
+                    if not last_update:
+                        # 没有 last_update（新股票），使用默认start_date
+                        start_date = compute_start_for_mode(None)  # None会返回default_start_date
+                        # 对于新股票，也需要计算合适的end_date
+                        term_end_date = end_date  # 默认使用统一的end_date
+                        
+                        # 对于周期性的term，计算上一周期的结束日期作为end_date
+                        if term in ["weekly", "monthly", "quarterly", "yearly"]:
+                            try:
+                                prev_period_end = DateUtils.get_previous_period_end(latest_completed_trading_date, term)
+                                if prev_period_end:
+                                    term_end_date = DataSourceHandlerHelper._get_last_trading_date_before(
+                                        data_manager, prev_period_end, latest_completed_trading_date
+                                    )
+                            except Exception:
+                                pass  # 使用默认end_date
+                        
+                        # 检查start_date是否已经达到或超过end_date（不应该发生，但保险起见）
+                        if DateUtils.is_after(start_date, term_end_date) or DateUtils.is_same(start_date, term_end_date):
+                            # start_date已经达到或超过end_date，说明数据已经是最新的，跳过
+                            continue
+                        
+                        # start_date < term_end_date，需要更新
+                        result[composite_key] = (start_date, term_end_date)
+                        continue
+                    
+                    # 从复合key中提取term（已提取，这里可以跳过）
+                    term_lower = term.lower()
+                    
+                    # 根据term判断是否完整周期已过，并计算合适的end_date
+                    term_end_date = end_date  # 默认使用统一的end_date
+                    
+                    # 使用通用方法处理周期性的term（weekly, monthly, quarterly, yearly）
+                    # 这个逻辑会自动：
+                    # 1. 检查last_update所在周期是否已完整结束（避免获取"脏数据"）
+                    # 2. 计算上一周期的结束日期作为end_date（避免获取当前未完成周期的数据）
+                    # 支持的周期类型：
+                    #   - weekly: 周线（A股的周交易日最后一天是周日）
+                    #   - monthly: 月线
+                    #   - quarterly: 季度线
+                    #   - yearly: 年线
+                    if term_lower in ["weekly", "monthly", "quarterly", "yearly"]:
+                        try:
+                            # 检查完整周期是否已过
+                            period_end = DateUtils.get_period_end(last_update, term_lower)
+                            if period_end and DateUtils.is_before(latest_completed_trading_date, period_end):
+                                continue  # 跳过，周期未完整结束
+                            
+                            # 计算上一周期的结束日期作为end_date
+                            prev_period_end = DateUtils.get_previous_period_end(latest_completed_trading_date, term_lower)
+                            if prev_period_end:
+                                # 找到这个日期之前的最后一个交易日
+                                term_end_date = DataSourceHandlerHelper._get_last_trading_date_before(
+                                    data_manager, prev_period_end, latest_completed_trading_date
+                                )
+                        except Exception as e:
+                            # 日期解析失败，保守策略：使用统一的end_date
+                            logger.debug(f"计算{term_lower}周期end_date失败: {e}，使用统一end_date")
+                            term_end_date = end_date
+                    
+                    # 通过了完整周期检查，计算日期范围
+                    start_date = compute_start_for_mode(last_update)
+                    
+                    # 第三层检查：如果start_date >= term_end_date，说明已经是最新的，不需要更新
+                    if DateUtils.is_after(start_date, term_end_date) or DateUtils.is_same(start_date, term_end_date):
+                        # start_date已经达到或超过end_date，说明数据已经是最新的，跳过
+                        continue
+                    
+                    result[composite_key] = (start_date, term_end_date)
+        else:
+            # 单字段分组：按 stock_list 遍历
+            config = context.get("config")
+            entity_key_field = config.get_group_by_key() if config else None
+            
+            for stock_info in stock_list:
+                # 提取实体 ID：如果 stock_info 是字典，使用 entity_key_field（通常是 "id"）
+                # 如果 stock_info 是字符串/数字，直接使用
+                if isinstance(stock_info, dict):
+                    if entity_key_field:
+                        entity_id = str(stock_info.get(entity_key_field, ""))
+                    else:
+                        # 如果没有配置 entity_key_field，尝试常见的字段名
+                        entity_id = str(stock_info.get("id") or stock_info.get("ts_code") or stock_info.get("code") or "")
+                else:
+                    entity_id = str(stock_info)
+                
+                if not entity_id:
+                    continue
+                
+                last_update = last_update_map.get(entity_id)
+                if not should_trigger(last_update):
+                    continue
+                start_date = compute_start_for_mode(last_update)
+                result[entity_id] = (start_date, end_date)
+            
+            logger.info(f"✅ 单字段分组计算完成: {len(result)} 个实体需要更新")
 
         return result
+
+    @staticmethod
+    def _get_last_trading_date_before(
+        data_manager,
+        target_date: str,
+        latest_completed_trading_date: str,
+        max_days_back: int = 7
+    ) -> str:
+        """
+        找到指定日期之前的最后一个交易日。
+        
+        用于周线和月线的end_date计算，避免获取未完成周期的数据。
+        
+        Args:
+            data_manager: DataManager实例
+            target_date: 目标日期（YYYYMMDD格式），要找这个日期之前的最后一个交易日
+            latest_completed_trading_date: 最新已完成交易日（作为上限，不会超过这个日期）
+            max_days_back: 最多往前查找的天数（防止无限循环，默认7天足够）
+        
+        Returns:
+            最后一个交易日（YYYYMMDD格式），如果找不到则返回target_date
+        """
+        from core.utils.date.date_utils import DateUtils
+        from datetime import datetime, timedelta
+        
+        # 确保不超过latest_completed_trading_date
+        if DateUtils.is_after(target_date, latest_completed_trading_date):
+            target_date = latest_completed_trading_date
+        
+        # 简单往前查找：从target_date开始往前找，最多找max_days_back天
+        # A股的周交易日：周一到周五通常是交易日，周日也可能是交易日（特殊情况下）
+        current_date = datetime.strptime(target_date, "%Y%m%d")
+        for i in range(max_days_back):
+            check_date = current_date - timedelta(days=i)
+            check_date_str = check_date.strftime("%Y%m%d")
+            
+            # 确保不超过latest_completed_trading_date
+            if DateUtils.is_after(check_date_str, latest_completed_trading_date):
+                continue
+            
+            # 判断：周一到周五是交易日，周日也可能是交易日（A股的周交易日最后一天是周日）
+            weekday = check_date.weekday()  # 0=Monday, 6=Sunday
+            if weekday < 5 or weekday == 6:  # 周一到周五，或周日
+                return check_date_str
+        
+        # 如果都找不到，返回target_date（保守策略）
+        return target_date
 
     @staticmethod
     def check_renew_if_over_days(
@@ -1687,7 +1906,7 @@ class DataSourceHandlerHelper:
                 logger.warning(f"查询全局数据最新日期失败: {e}")
                 return None
         
-        # Per entity：一次性查询所有 entity 的最新记录（实体标识字段用 config.result_group_by.by_key）
+        # Per entity：一次性查询所有 entity 的最新记录（实体标识字段用 config.result_group_by.key 或 keys）
         date_format = config.get_date_format()
         latest_dates_dict = RenewCommonHelper.query_latest_date(
             data_manager, table_name, counting_field, date_format, needs_stock_grouping, context=context
@@ -1713,7 +1932,7 @@ class DataSourceHandlerHelper:
                 candidates.append(entity_id)
                 continue
             
-            # 计算天数差
+            # 计算天数差（renew_if_over_days 检查：更新频率）
             try:
                 days_diff = DateUtils.diff_days(latest_date_str, latest_completed_trading_date)
                 

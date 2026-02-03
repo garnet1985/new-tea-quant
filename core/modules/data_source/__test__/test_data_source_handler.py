@@ -27,7 +27,7 @@ class TestBaseHandler:
         config_dict = {
             "table": "sys_test",
             "renew": {"type": "incremental", "last_update_info": {"date_field": "date", "date_format": "day"}},
-            "result_group_by": {"list": "stock_list", "by_key": "id"},
+            "result_group_by": {"list": "stock_list", "key": "id"},
             "apis": {"api1": {"provider_name": "tushare", "method": "get_xxx", "max_per_minute": 100}},
         }
         config = DataSourceConfig(config_dict, data_source_key="test_key")
@@ -51,7 +51,7 @@ class TestBaseHandler:
 
         schema = {"name": "t", "fields": []}
         config = DataSourceConfig(
-            {"table": "t", "renew": {"type": "incremental", "last_update_info": {}}, "result_group_by": {"list": "x", "by_key": "id"}, "apis": {"a": {"provider_name": "p", "method": "m", "max_per_minute": 1}}},
+            {"table": "t", "renew": {"type": "incremental", "last_update_info": {}}, "result_group_by": {"list": "x", "key": "id"}, "apis": {"a": {"provider_name": "p", "method": "m", "max_per_minute": 1}}},
             data_source_key="k",
         )
         handler = BaseHandler(

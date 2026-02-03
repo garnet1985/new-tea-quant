@@ -87,14 +87,16 @@ class RollingRenewService:
         end_date = RenewCommonHelper.get_end_date(date_format, context)
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if latest_completed_trading_date:
-            end_value = DateUtils.get_current_period(latest_completed_trading_date, date_format)
+            period_type = DateUtils.normalize_period_type(date_format)
+            end_value = DateUtils.to_period_str(latest_completed_trading_date, period_type)
         else:
-            current_date = DateUtils.get_today_str()
-            end_value = DateUtils.get_current_period(current_date, date_format)
+            current_date = DateUtils.today()
+            period_type = DateUtils.normalize_period_type(date_format)
+            end_value = DateUtils.to_period_str(current_date, period_type)
         
         # 计算 rolling 窗口的起始日期（从 end_value 前推 rolling_periods）
-        rolling_start_value = DateUtils.subtract_periods(end_value, rolling_periods, date_format)
-        rolling_start_date = DateUtils.format_period(rolling_start_value, date_format)
+        rolling_start_value = DateUtils.sub_periods(end_value, rolling_periods, period_type)
+        rolling_start_date = DateUtils.from_period_str(rolling_start_value, period_type, is_start=True)
         
         # 获取是否需要分组
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
@@ -106,14 +108,14 @@ class RollingRenewService:
         
         # 定义滚动模式的起始日期计算函数：判断是否在窗口内
         def _calculate_rolling_start(latest_value: str, end_date: str, date_format: str) -> str:
-            period_diff = DateUtils.calculate_period_diff(latest_value, end_value, date_format)
+            period_diff = DateUtils.diff_periods(latest_value, end_value, period_type)
             if period_diff <= rolling_periods:
                 # 在窗口内：使用 rolling 窗口的起始日期
                 return rolling_start_date
             else:
                 # 不在窗口内：从最新日期开始追赶
-                start_value = DateUtils.add_one_period(latest_value, date_format)
-                return DateUtils.format_period(start_value, date_format)
+                start_period = DateUtils.add_periods(latest_value, 1, period_type)
+                return DateUtils.from_period_str(start_period, period_type, is_start=True)
         
         # 如果不需要分组，返回单个日期范围
         if latest_dates_dict is None:

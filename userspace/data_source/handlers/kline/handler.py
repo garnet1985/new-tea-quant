@@ -72,9 +72,9 @@ class KlineHandler(BaseHandler):
                     latest_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
                 except Exception as e:
                     logger.warning(f"获取最新交易日失败: {e}")
-                    latest_trading_date = DateUtils.get_today_str()
+                    latest_trading_date = DateUtils.today()
             else:
-                latest_trading_date = DateUtils.get_today_str()
+                latest_trading_date = DateUtils.today()
         
         # 计算每个周期的结束日期
         end_dates = {
@@ -113,14 +113,13 @@ class KlineHandler(BaseHandler):
                     # 已有数据，检查是否需要更新
                     if term == "weekly":
                         # 周线：只有当时间间隔 >= 1 周时才更新
-                        time_gap_weeks = DateUtils.get_duration_in_days(latest_date, end_date) // 7
+                        time_gap_weeks = DateUtils.diff_days(latest_date, end_date) // 7
                         if time_gap_weeks < 1:
                             continue
                     elif term == "monthly":
                         # 月线：只有当时间间隔 >= 1 个月时才更新
-                        from datetime import datetime
-                        latest_dt = DateUtils.parse_yyyymmdd(latest_date)
-                        end_dt = DateUtils.parse_yyyymmdd(end_date)
+                        latest_dt = DateUtils.str_to_datetime(latest_date)
+                        end_dt = DateUtils.str_to_datetime(end_date)
                         year1, month1 = latest_dt.year, latest_dt.month
                         year2, month2 = end_dt.year, end_dt.month
                         month_diff = (year2 - year1) * 12 + (month2 - month1)
@@ -130,7 +129,7 @@ class KlineHandler(BaseHandler):
                             continue
                     
                     # 从最新日期 + 1 天开始（增量更新）
-                    start_date = DateUtils.get_date_after_days(latest_date, 1)
+                    start_date = DateUtils.add_days(latest_date, 1)
                     # 如果开始日期已经大于等于结束日期，说明数据已经是最新的，跳过该周期
                     if start_date > end_date:
                         continue

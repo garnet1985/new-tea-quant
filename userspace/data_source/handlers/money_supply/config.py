@@ -1,16 +1,19 @@
 """
 Money Supply Handler 配置。绑定表 sys_money_supply。
 """
+from core.utils.date import DateUtils
+
+
 CONFIG = {
     "table": "sys_money_supply",
     "renew": {
         "type": "rolling",
         "last_update_info": {
             "date_field": "date",
-            "date_format": "monthly",
+            "date_format": DateUtils.PERIOD_MONTH,
         },
         "rolling": {
-            "unit": "monthly",
+            "unit": DateUtils.PERIOD_MONTH,
             "length": 12,
         },
     },

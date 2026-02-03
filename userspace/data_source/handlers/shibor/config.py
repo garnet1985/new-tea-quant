@@ -1,16 +1,19 @@
 """
 Shibor Handler 配置。绑定表 sys_shibor。
 """
+from core.utils.date import DateUtils
+
+
 CONFIG = {
     "table": "sys_shibor",
     "renew": {
         "type": "rolling",
         "last_update_info": {
             "date_field": "date",
-            "date_format": "daily",
+            "date_format": DateUtils.PERIOD_DAY,
         },
         "rolling": {
-            "unit": "daily",
+            "unit": DateUtils.PERIOD_DAY,
             "length": 30,
         },
     },

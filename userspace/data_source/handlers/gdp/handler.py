@@ -1,28 +1,18 @@
 """
 GDP Handler - GDP 数据 Handler
 
-GDP（国内生产总值）数据获取 Handler，支持季度数据的滚动刷新机制。
+从 Tushare 获取 GDP（国内生产总值）数据，写入 sys_gdp 表。
 
-注意：这是一个简单的 Handler，只需要实现 on_after_normalize 保存数据，其他都由基类自动处理。
+注意：
+- 日期标准化由 BaseHandler 根据 config 中的 date_format 自动处理
+- 缺失字段会存为 NULL（符合 schema 的 nullable: true 设计）
 """
-from typing import Dict, Any
-from loguru import logger
-import pandas as pd
-
 from core.modules.data_source.base_class.base_handler import BaseHandler
 
 
 class GdpHandler(BaseHandler):
-    """
-    GDP Handler
-    
-    GDP 数据获取 Handler，使用季度数据格式，默认滚动刷新最近 4 个季度。
-    
-    配置（在 config.json 中）：
-    - renew_mode: "rolling"
-    - date_format: "quarter"
-    - rolling_unit: "quarter", rolling_length: 4
-    - apis: {...} (包含 provider_name, method, field_mapping 等)
-    """
+    """GDP 数据 Handler，绑定表 sys_gdp。"""
+    # BaseHandler 会自动处理日期标准化和数据规范化
+    # 缺失字段会按 schema 的 nullable 设置存为 NULL
     pass
 

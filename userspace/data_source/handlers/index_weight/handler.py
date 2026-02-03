@@ -43,9 +43,9 @@ class IndexWeightHandler(BaseHandler):
                         latest_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
                     except Exception as e:
                         logger.warning(f"获取最新交易日失败: {e}")
-                        latest_trading_date = DateUtils.get_current_date_str()
+                        latest_trading_date = DateUtils.get_today_str()
                 else:
-                    latest_trading_date = DateUtils.get_current_date_str()
+                    latest_trading_date = DateUtils.get_today_str()
             end_date = DateUtils.get_date_before_days(latest_trading_date, 1)
             context["end_date"] = end_date
 

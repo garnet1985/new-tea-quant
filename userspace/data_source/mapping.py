@@ -68,12 +68,12 @@ DATA_SOURCES = {
     },
     "shibor": {
         "handler": "shibor.ShiborHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
     "lpr": {
         "handler": "lpr.LprHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
 }

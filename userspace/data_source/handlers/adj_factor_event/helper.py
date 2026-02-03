@@ -346,12 +346,16 @@ class AdjFactorEventHandlerHelper:
             str: YYYYMMDD 格式的日期字符串
         """
         if isinstance(date_value, date):
-            return date_value.strftime('%Y%m%d')
+            return DateUtils.date_to_format(date_value)
         elif isinstance(date_value, str):
+            # 使用 normalize_str 自动识别并转换格式
+            normalized = DateUtils.normalize_str(date_value)
+            if normalized:
+                return normalized
+            # 如果 normalize_str 失败，尝试手动处理
             if '-' in date_value:
-                return DateUtils.yyyy_mm_dd_to_yyyymmdd(date_value)
-            else:
-                return date_value
+                return date_value.replace('-', '')
+            return date_value
         else:
             return str(date_value).replace('-', '')
     

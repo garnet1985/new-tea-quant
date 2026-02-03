@@ -43,10 +43,10 @@ class IndexWeightHandler(BaseHandler):
                         latest_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
                     except Exception as e:
                         logger.warning(f"获取最新交易日失败: {e}")
-                        latest_trading_date = DateUtils.get_today_str()
+                        latest_trading_date = DateUtils.today()
                 else:
-                    latest_trading_date = DateUtils.get_today_str()
-            end_date = DateUtils.get_date_before_days(latest_trading_date, 1)
+                    latest_trading_date = DateUtils.today()
+            end_date = DateUtils.sub_days(latest_trading_date, 1)
             context["end_date"] = end_date
 
         index_latest_dates = {}
@@ -68,7 +68,7 @@ class IndexWeightHandler(BaseHandler):
             index_id = index_info["id"]
             latest_date = index_latest_dates.get(index_id)
             if latest_date:
-                start_date = DateUtils.get_date_after_days(latest_date, 1)
+                start_date = DateUtils.add_days(latest_date, 1)
             else:
                 from core.infra.project_context import ConfigManager
                 start_date = ConfigManager.get_default_start_date()

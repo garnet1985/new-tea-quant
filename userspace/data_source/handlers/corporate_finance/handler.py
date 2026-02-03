@@ -226,7 +226,7 @@ class CorporateFinanceHandler(BaseHandler):
                         start_quarter = last_q
                     
                     # 将起始季度转换为日期
-                    start_date = DateUtils.get_start_date_of_quarter(start_quarter)
+                    start_date = DateUtils.get_quarter_start_date(start_quarter)
             
             target_list.append({
                 "stock_id": stock_id,

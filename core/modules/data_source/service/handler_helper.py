@@ -789,7 +789,7 @@ class DataSourceHandlerHelper:
             target_format: 目标格式，可选值：
                 - "day": YYYYMMDD（默认）
                 - "month": YYYYMM
-                - "quarter": YYYYQ[1-4]
+                - "quarter": YYYYMMQ[1-4]（例如 202403Q1）
                 - "none": 跳过标准化
 
         - 支持常见输入形式：YYYYMMDD, YYYY-MM-DD, datetime/date 等；
@@ -799,20 +799,13 @@ class DataSourceHandlerHelper:
             return records
 
         try:
-            from core.utils.date.date_utils import DateUtils, DateFormat
+            from core.utils.date.date_utils import DateUtils
         except ImportError:
             logger = DataSourceHandlerHelper._get_logger()
             logger.warning("无法导入 DateUtils，normalize_date_field 将跳过处理")
             return records
 
-        # 将字符串格式转换为枚举
-        format_map = {
-            "day": DateFormat.DAY,
-            "month": DateFormat.MONTH,
-            "quarter": DateFormat.QUARTER,
-            "none": DateFormat.NONE,
-        }
-        output_format = format_map.get(target_format.lower(), DateFormat.DAY)
+        period = target_format or DateUtils.PERIOD_DAY
 
         for r in records:
             if not isinstance(r, dict) or field not in r:
@@ -820,14 +813,10 @@ class DataSourceHandlerHelper:
             value = r.get(field)
             if value is None:
                 continue
-            
-            try:
-                normalized = DateUtils.normalize_to_format(value, output_format)
-                if normalized:
-                    r[field] = normalized
-            except Exception:
-                # 保留原值，交给上层决定是否过滤
-                continue
+
+            normalized = DateUtils.normalize_period_value(value, period)
+            if normalized:
+                r[field] = normalized
 
         return records
 
@@ -1252,8 +1241,9 @@ class DataSourceHandlerHelper:
             if not last_update:
                 return default_start_date
             try:
-                start_value = DateUtils.add_one_period(last_update, date_format)
-                return DateUtils.format_period(start_value, date_format)
+                period_type = DateUtils.normalize_period_type(date_format)
+                start_period = DateUtils.add_periods(last_update, 1, period_type)
+                return DateUtils.from_period_str(start_period, period_type, is_start=True)
             except Exception:
                 return default_start_date
 
@@ -1267,8 +1257,9 @@ class DataSourceHandlerHelper:
                 if not last_update:
                     return default_start_date
                 try:
-                    start_value = DateUtils.add_one_period(last_update, date_format)
-                    return DateUtils.format_period(start_value, date_format)
+                    period_type = DateUtils.normalize_period_type(date_format)
+                    start_period = DateUtils.add_periods(last_update, 1, period_type)
+                    return DateUtils.from_period_str(start_period, period_type, is_start=True)
                 except Exception:
                     return default_start_date
 
@@ -1314,26 +1305,30 @@ class DataSourceHandlerHelper:
             except Exception:
                 latest_completed_trading_date = None
 
+            period_type = DateUtils.normalize_period_type(date_format)
+            
             if latest_completed_trading_date:
-                end_value = DateUtils.get_current_period(
-                    latest_completed_trading_date, date_format
+                end_period = DateUtils.to_period_str(
+                    latest_completed_trading_date, period_type
                 )
             else:
-                current_date = DateUtils.get_today_str()
-                end_value = DateUtils.get_current_period(current_date, date_format)
+                current_date = DateUtils.today()
+                end_period = DateUtils.to_period_str(current_date, period_type)
 
-            rolling_start_value = DateUtils.subtract_periods(
-                end_value, rolling_periods, date_format
+            rolling_start_period = DateUtils.sub_periods(
+                end_period, rolling_periods, period_type
             )
-            rolling_start_date = DateUtils.format_period(rolling_start_value, date_format)
+            rolling_start_date = DateUtils.from_period_str(
+                rolling_start_period, period_type, is_start=True
+            )
 
             if not last_update:
                 # 表为空或新实体：退化为默认起点
                 return default_start_date
 
             try:
-                period_diff = DateUtils.calculate_period_diff(
-                    last_update, end_value, date_format
+                period_diff = DateUtils.diff_periods(
+                    last_update, end_period, period_type
                 )
             except Exception:
                 return default_start_date
@@ -1344,8 +1339,8 @@ class DataSourceHandlerHelper:
 
             # 落后太多：从 last_update 的后一个周期开始追
             try:
-                start_value = DateUtils.add_one_period(last_update, date_format)
-                return DateUtils.format_period(start_value, date_format)
+                start_period = DateUtils.add_periods(last_update, 1, period_type)
+                return DateUtils.from_period_str(start_period, period_type, is_start=True)
             except Exception:
                 return default_start_date
 
@@ -1353,8 +1348,9 @@ class DataSourceHandlerHelper:
         if not last_update:
             return default_start_date
         try:
-            start_value = DateUtils.add_one_period(last_update, date_format)
-            return DateUtils.format_period(start_value, date_format)
+            period_type = DateUtils.normalize_period_type(date_format)
+            start_period = DateUtils.add_periods(last_update, 1, period_type)
+            return DateUtils.from_period_str(start_period, period_type, is_start=True)
         except Exception:
             return default_start_date
 
@@ -1414,9 +1410,9 @@ class DataSourceHandlerHelper:
                         data_manager.service.calendar.get_latest_completed_trading_date()
                     )
                 else:
-                    latest_completed_trading_date = DateUtils.get_today_str()
+                    latest_completed_trading_date = DateUtils.today()
             except Exception:
-                latest_completed_trading_date = DateUtils.get_today_str()
+                latest_completed_trading_date = DateUtils.today()
 
         def should_trigger(last_update: Optional[str]) -> bool:
             """根据 renew_if_over_days 判断是否需要触发本次更新。"""
@@ -1433,7 +1429,7 @@ class DataSourceHandlerHelper:
                 return True
 
             try:
-                days_diff = DateUtils.get_duration_in_days(
+                days_diff = DateUtils.diff_days(
                     last_update, latest_completed_trading_date
                 )
             except Exception:
@@ -1459,8 +1455,9 @@ class DataSourceHandlerHelper:
                 if not last_update:
                     return default_start_date
                 try:
-                    start_value = DateUtils.add_one_period(last_update, date_format)
-                    return DateUtils.format_period(start_value, date_format)
+                    period_type = DateUtils.normalize_period_type(date_format)
+                    start_period = DateUtils.add_periods(last_update, 1, period_type)
+                    return DateUtils.from_period_str(start_period, period_type, is_start=True)
                 except Exception:
                     # 回退到默认起点
                     return default_start_date
@@ -1506,20 +1503,22 @@ class DataSourceHandlerHelper:
 
                 rolling_periods = _convert_rolling_length_to_periods()
 
-                # 计算 end_value / rolling_start
+                # 计算 end_period / rolling_start
+                period_type = DateUtils.normalize_period_type(date_format)
+                
                 if latest_completed_trading_date:
-                    end_value = DateUtils.get_current_period(
-                        latest_completed_trading_date, date_format
+                    end_period = DateUtils.to_period_str(
+                        latest_completed_trading_date, period_type
                     )
                 else:
-                    current_date = DateUtils.get_today_str()
-                    end_value = DateUtils.get_current_period(current_date, date_format)
+                    current_date = DateUtils.today()
+                    end_period = DateUtils.to_period_str(current_date, period_type)
 
-                rolling_start_value = DateUtils.subtract_periods(
-                    end_value, rolling_periods, date_format
+                rolling_start_period = DateUtils.sub_periods(
+                    end_period, rolling_periods, period_type
                 )
-                rolling_start_date = DateUtils.format_period(
-                    rolling_start_value, date_format
+                rolling_start_date = DateUtils.from_period_str(
+                    rolling_start_period, period_type, is_start=True
                 )
 
                 if not last_update:
@@ -1527,8 +1526,8 @@ class DataSourceHandlerHelper:
                     return default_start_date
 
                 try:
-                    period_diff = DateUtils.calculate_period_diff(
-                        last_update, end_value, date_format
+                    period_diff = DateUtils.diff_periods(
+                        last_update, end_period, period_type
                     )
                 except Exception:
                     # 日期解析失败，保守策略：从默认起点
@@ -1540,8 +1539,8 @@ class DataSourceHandlerHelper:
 
                 # 落后太多：从 last_update 的后一个周期开始追
                 try:
-                    start_value = DateUtils.add_one_period(last_update, date_format)
-                    return DateUtils.format_period(start_value, date_format)
+                    start_period = DateUtils.add_periods(last_update, 1, period_type)
+                    return DateUtils.from_period_str(start_period, period_type, is_start=True)
                 except Exception:
                     return default_start_date
 
@@ -1549,8 +1548,9 @@ class DataSourceHandlerHelper:
             if not last_update:
                 return default_start_date
             try:
-                start_value = DateUtils.add_one_period(last_update, date_format)
-                return DateUtils.format_period(start_value, date_format)
+                period_type = DateUtils.normalize_period_type(date_format)
+                start_period = DateUtils.add_periods(last_update, 1, period_type)
+                return DateUtils.from_period_str(start_period, period_type, is_start=True)
             except Exception:
                 return default_start_date
 
@@ -1645,7 +1645,7 @@ class DataSourceHandlerHelper:
                 latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新完成交易日失败: {e}")
-                latest_completed_trading_date = DateUtils.get_today_str()
+                latest_completed_trading_date = DateUtils.today()
         
         # ========== 步骤1：判断是全局数据还是 per entity ==========
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
@@ -1674,7 +1674,7 @@ class DataSourceHandlerHelper:
                     return None
                 
                 # ========== 步骤3：对比 - 计算天数差 ==========
-                days_diff = DateUtils.get_duration_in_days(latest_date_str, latest_completed_trading_date)
+                days_diff = DateUtils.diff_days(latest_date_str, latest_completed_trading_date)
                 
                 if days_diff >= threshold_days:
                     # 超过 threshold，返回 None（不过滤，需要更新）
@@ -1715,7 +1715,7 @@ class DataSourceHandlerHelper:
             
             # 计算天数差
             try:
-                days_diff = DateUtils.get_duration_in_days(latest_date_str, latest_completed_trading_date)
+                days_diff = DateUtils.diff_days(latest_date_str, latest_completed_trading_date)
                 
                 if days_diff >= threshold_days:
                     # 超过 threshold，进入 candidates
@@ -1749,9 +1749,9 @@ class DataSourceHandlerHelper:
         
         try:
             if isinstance(date_value, dt):
-                return date_value.strftime('%Y%m%d')
+                return DateUtils.datetime_to_format(date_value)
             elif isinstance(date_value, str):
-                return DateUtils.normalize_date(date_value) or date_value
+                return DateUtils.normalize_str(date_value) or date_value
             else:
                 return str(date_value).replace('-', '').replace(' ', '').replace(':', '')[:8]
         except Exception as e:

@@ -41,7 +41,7 @@ class CorporateFinanceHandler(BaseHandler):
         self.context = self._inject_required_global_dependencies(global_dependencies)
         
         # 判断是否需要抽样
-        current_date = DateUtils.get_today_str()
+        current_date = DateUtils.today()
         current_month = int(current_date[4:6])
         is_quarter_boundary_month = current_month in [1, 4, 7, 10]
         
@@ -78,7 +78,7 @@ class CorporateFinanceHandler(BaseHandler):
         - 如果不是：使用抽样后的股票列表进行rolling更新
         """
         # 获取当前日期
-        current_date = DateUtils.get_today_str()
+        current_date = DateUtils.today()
         current_month = int(current_date[4:6])
         
         # 判断是否是季度分界点的后一个月（4月、7月、10月、1月）
@@ -97,10 +97,11 @@ class CorporateFinanceHandler(BaseHandler):
             latest_completed_trading_date = current_date
         
         # 计算2个季度的rolling日期范围
-        end_value = DateUtils.get_current_period(latest_completed_trading_date, "quarter")
-        start_value = DateUtils.subtract_periods(end_value, 2, "quarter")
-        start_date = DateUtils.format_period(start_value, "quarter")
-        end_date = DateUtils.format_period(end_value, "quarter")
+        period_type = DateUtils.PERIOD_QUARTER
+        end_period = DateUtils.to_period_str(latest_completed_trading_date, period_type)
+        start_period = DateUtils.sub_periods(end_period, 2, period_type)
+        start_date = DateUtils.from_period_str(start_period, period_type, is_start=True)
+        end_date = DateUtils.from_period_str(end_period, period_type, is_start=True)
         
         # 为所有股票返回相同的日期范围（2个季度）
         logger.info(f"{'季度分界点月份' if is_quarter_boundary_month else '抽样'}更新 {len(stock_list)} 只股票，日期范围: {start_date} 至 {end_date}")
@@ -136,13 +137,14 @@ class GDPHandler(BaseHandler):
         # 获取结束日期
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if not latest_completed_trading_date:
-            latest_completed_trading_date = DateUtils.get_today_str()
+            latest_completed_trading_date = DateUtils.today()
         
         # 计算2个季度的rolling日期范围
-        end_value = DateUtils.get_current_period(latest_completed_trading_date, "quarter")
-        start_value = DateUtils.subtract_periods(end_value, 2, "quarter")
-        start_date = DateUtils.format_period(start_value, "quarter")
-        end_date = DateUtils.format_period(end_value, "quarter")
+        period_type = DateUtils.PERIOD_QUARTER
+        end_period = DateUtils.to_period_str(latest_completed_trading_date, period_type)
+        start_period = DateUtils.sub_periods(end_period, 2, period_type)
+        start_date = DateUtils.from_period_str(start_period, period_type, is_start=True)
+        end_date = DateUtils.from_period_str(end_period, period_type, is_start=True)
         
         logger.info(f"GDP rolling 更新: {start_date} 至 {end_date}（2个季度）")
         return (start_date, end_date)
@@ -204,7 +206,7 @@ class StockKlineQualityHandler(BaseHandler):
         # 获取结束日期
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if not latest_completed_trading_date:
-            latest_completed_trading_date = DateUtils.get_today_str()
+            latest_completed_trading_date = DateUtils.today()
         
         # 获取上次更新时间（从 context 或数据库查询）
         last_update_time = context.get("_last_update_time")

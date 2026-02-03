@@ -1,26 +1,17 @@
 """
 Shibor Handler - Shibor 数据 Handler
 
-Shibor（上海银行间同业拆放利率）数据获取 Handler，支持日期数据的滚动刷新机制。
+从 Tushare 获取 Shibor（上海银行间同业拆放利率）数据，写入 sys_shibor 表。
 
-注意：这是一个简单的 Handler，只需要实现 on_after_normalize 保存数据，其他都由基类自动处理。
+注意：
+- 日期标准化由 BaseHandler 根据 config 中的 date_format 自动处理
+- 缺失字段会存为 NULL（符合 schema 的 nullable: true 设计）
 """
-from typing import Dict, Any
-from loguru import logger
-import pandas as pd
-
 from core.modules.data_source.base_class.base_handler import BaseHandler
 
 
 class ShiborHandler(BaseHandler):
-    """
-    Shibor Handler
-    
-    Shibor 数据获取 Handler，使用日期数据格式，默认滚动刷新最近 30 天。
-    
-    配置（在 config.json 中）：
-    - renew_mode: "rolling"
-    - date_format: "day"
-    - rolling_unit: "day", rolling_length: 30
-    - apis: {...} (包含 provider_name, method, field_mapping 等)
-    """
+    """Shibor 数据 Handler，绑定表 sys_shibor。"""
+    # BaseHandler 会自动处理日期标准化和数据规范化
+    # 缺失字段会按 schema 的 nullable 设置存为 NULL
+    pass

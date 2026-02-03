@@ -5,6 +5,8 @@
 """
 from enum import Enum
 
+from core.utils.date.date_utils import DateUtils
+
 class EntityType(Enum):
     """实体类型枚举(有时序的)"""
     STOCK_KLINE_DAILY = "stock_kline_daily"
@@ -19,7 +21,7 @@ class EntityType(Enum):
 
 
 class TermType(Enum):
-    """周期类型枚举"""
+    """周期类型枚举（主要用于 K 线 term 等业务语义）"""
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -54,10 +56,10 @@ class SystemConstants:
     """系统级常量（不会频繁变更的）"""
     
     # 系统默认日期格式
-    DATE_FORMAT = "%Y%m%d"
+    DATE_FORMAT = DateUtils.FMT_YYYYMMDD
     
     # 系统默认时间格式
-    DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+    DATETIME_FORMAT = DateUtils.FMT_DATETIME
 
 class IndicatorType(Enum):
     """技术指标类型枚举"""

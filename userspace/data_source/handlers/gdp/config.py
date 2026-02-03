@@ -1,16 +1,20 @@
 """
 GDP Handler 配置。绑定表 sys_gdp。
 """
+from core.utils.date.date_utils import DateUtils
+
+
 CONFIG = {
     "table": "sys_gdp",
     "renew": {
         "type": "rolling",
         "last_update_info": {
             "date_field": "quarter",
-            "date_format": "quarterly",
+            # 使用标准周期 key，由 DateUtils 统一处理为 YYYYMMQn
+            "date_format": DateUtils.PERIOD_QUARTER,
         },
         "rolling": {
-            "unit": "quarterly",
+            "unit": DateUtils.PERIOD_QUARTER,
             "length": 4,
         },
     },

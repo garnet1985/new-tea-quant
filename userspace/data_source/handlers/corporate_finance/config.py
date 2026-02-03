@@ -18,7 +18,7 @@ CONFIG = {
         },
         "result_group_by": {
             "list": "stock_list",
-            "by_key": "id",
+            "key": "id",
         },
     },
     "apis": {

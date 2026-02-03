@@ -17,7 +17,7 @@ CONFIG = {
         },
         "result_group_by": {
             "list": "index_list",
-            "by_key": "id",
+            "key": "id",
         },
     },
     "apis": {

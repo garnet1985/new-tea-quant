@@ -48,7 +48,6 @@ import json
 import os
 
 from core.infra.db.helpers.db_helpers import DBHelper
-from core.infra.db.table_queriers.query_helpers import TimeSeriesHelper, DataFrameHelper
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
 
 
@@ -57,7 +56,6 @@ class DbBaseModel:
     通用表操作模型基类（顶层类，不继承 Helper）
 
     所有基础表的 Model 类都继承自此类，提供单表的 CRUD 操作。
-    TimeSeriesHelper、DataFrameHelper 通过组合调用，不继承。
     """
     
     def __init__(self, table_name: str, db=None):
@@ -74,7 +72,6 @@ class DbBaseModel:
         self.schema = self.load_schema()
         self.verbose = False
         self.is_base_table = False
-        self._ts_helper = TimeSeriesHelper(self)
 
     # ***********************************
     #        table operations
@@ -224,9 +221,6 @@ class DbBaseModel:
             logger.info(f"表 {self.table_name} 已将列 {column_name} 类型修改为 {column_type}")
 
     def get_primary_keys(self) -> List[str]:
-        return self._get_primary_keys_from_schema()
-
-    def _get_primary_keys_from_schema(self) -> List[str]:
         """从 schema 中获取主键列表"""
         if not hasattr(self, 'schema') or not self.schema:
             raise ValueError(f"表 {self.table_name} 没有 schema 信息")
@@ -407,187 +401,8 @@ class DbBaseModel:
             return []
 
     def load_latest_date(self, date_field: str) -> Optional[str]:
-        """加载表中最新的日期（委托给 TimeSeriesHelper）"""
-        return self._ts_helper.load_latest_date(date_field=date_field)
-
-    def load_many_df(self, condition: str = "1=1", params: tuple = (),
-                     limit: int = None, order_by: str = None, offset: int = None):
-        """加载多条记录，返回 DataFrame（委托给 DataFrameHelper）"""
-        return self._df_helper.load_many_df(condition, params, limit, order_by, offset)
-
-    def load_all_df(self, condition: str = "1=1", params: tuple = (), order_by: str = None):
-        """加载所有记录，返回 DataFrame（委托给 DataFrameHelper）"""
-        return self._df_helper.load_all_df(condition, params, order_by)
-
-    def insert_df(self, df) -> int:
-        """插入 DataFrame 数据（委托给 DataFrameHelper）"""
-        return self._df_helper.insert_df(df)
-
-    def replace_df(self, df, unique_keys: List[str]) -> int:
-        """Upsert DataFrame 数据（委托给 DataFrameHelper）"""
-        return self._df_helper.replace_df(df, unique_keys)
-
-    
-    
-    
-    # def load_latest_records(self, date_field: str = None, primary_keys: List[str] = None) -> List[Dict[str, Any]]:
-    #     """
-    #     加载每个主键分组中最新日期的记录
-        
-    #     用于增量更新时获取各股票/各实体的最新数据
-        
-    #     Args:
-    #         date_field: 日期字段名（如果为None，从schema中自动获取）
-    #         primary_keys: 主键列表（如果为None，从schema中自动获取）
-            
-    #     Returns:
-    #         List[Dict]: 最新记录列表
-            
-    #     Raises:
-    #         ValueError: 如果日期字段或主键未找到
-            
-    #     示例：
-    #         # 股票K线表：返回每个股票的最新K线记录
-    #         # 主键: ['id', 'date']
-    #         # 返回: [{id: '000001.SZ', date: '20240101', ...}, ...]
-    #     """
-    #     if date_field is None:
-    #         date_field = self._get_date_field_from_schema()
-        
-    #     if primary_keys is None:
-    #         primary_keys = self._get_primary_keys_from_schema()
-        
-    #     # 过滤掉日期字段（日期字段不用于分组）
-    #     group_keys = [k for k in primary_keys if k != date_field]
-        
-    #     if not group_keys:
-    #         # 没有分组键，返回最新的一条记录
-    #         latest_record = self.load_one("1=1", order_by=f"{date_field} DESC")
-    #         return [latest_record] if latest_record else []
-        
-    #     # 有分组键，查询每个分组的最新记录
-    #     group_keys_str = ', '.join(group_keys)
-    #     query = f"""
-    #         SELECT t1.* 
-    #         FROM {self.table_name} t1
-    #         INNER JOIN (
-    #             SELECT {group_keys_str}, MAX({date_field}) as max_date
-    #             FROM {self.table_name}
-    #             GROUP BY {group_keys_str}
-    #         ) t2 
-    #         ON {' AND '.join([f't1.{k} = t2.{k}' for k in group_keys])}
-    #         AND t1.{date_field} = t2.max_date
-    #     """
-        
-    #     try:
-    #         result = self.db.execute_sync_query(query)
-    #         return result
-    #     except Exception as e:
-    #         logger.error(f"加载最新记录失败 [{self.table_name}]: {e}")
-    #         logger.error(f"查询 SQL: {query}")
-    #         import traceback
-    #         logger.error(f"异常堆栈: {traceback.format_exc()}")
-    #         return []
-    
-    # def load_first_records(self, date_field: str = None, primary_keys: List[str] = None) -> List[Dict[str, Any]]:
-    #     """
-    #     加载每个主键分组中最早日期的记录
-        
-    #     常用于：
-    #     - 获取每只股票的第一根K线日期
-    #     - 需要全局“起点记录”的场景
-        
-    #     Args:
-    #         date_field: 日期字段名（如果为None，从schema中自动获取）
-    #         primary_keys: 主键列表（如果为None，从schema中自动获取）
-            
-    #     Returns:
-    #         List[Dict]: 最早记录列表
-    #     """
-    #     if date_field is None:
-    #         date_field = self._get_date_field_from_schema()
-        
-    #     if primary_keys is None:
-    #         primary_keys = self._get_primary_keys_from_schema()
-        
-    #     # 过滤掉日期字段（日期字段不用于分组）
-    #     group_keys = [k for k in primary_keys if k != date_field]
-        
-    #     if not group_keys:
-    #         # 没有分组键，返回最早的一条记录
-    #         first_record = self.load_one("1=1", order_by=f"{date_field} ASC")
-    #         return [first_record] if first_record else []
-        
-    #     group_keys_str = ', '.join(group_keys)
-    #     query = f"""
-    #         SELECT t1.*
-    #         FROM {self.table_name} t1
-    #         INNER JOIN (
-    #             SELECT {group_keys_str}, MIN({date_field}) as min_date
-    #             FROM {self.table_name}
-    #             GROUP BY {group_keys_str}
-    #         ) t2
-    #         ON {' AND '.join([f't1.{k} = t2.{k}' for k in group_keys])}
-    #         AND t1.{date_field} = t2.min_date
-    #     """
-        
-    #     try:
-    #         return self.db.execute_sync_query(query)
-    #     except Exception as e:
-    #         logger.error(f"加载最早记录失败 [{self.table_name}]: {e}")
-    #         return []
-    
-    # def _get_date_field_from_schema(self) -> str:
-    #     """
-    #     从schema中获取日期字段名
-        
-    #     Returns:
-    #         str: 日期字段名
-            
-    #     Raises:
-    #         ValueError: 如果未找到日期字段
-    #     """
-    #     if not hasattr(self, 'schema') or not self.schema:
-    #         raise ValueError(f"表 {self.table_name} 没有schema信息")
-        
-    #     # 常见的日期字段名
-    #     date_field_candidates = ['date', 'trade_date', 'quarter', 'end_date', 'ann_date']
-        
-    #     # 从fields中查找
-    #     fields = self.schema.get('fields', [])
-    #     for field in fields:
-    #         if field['name'] in date_field_candidates:
-    #             return field['name']
-        
-    #     raise ValueError(
-    #         f"表 {self.table_name} 的schema中未找到日期字段。"
-    #         f"请在schema中添加以下任一字段: {', '.join(date_field_candidates)}"
-    #     )
-    
-    # def _get_primary_keys_from_schema(self) -> List[str]:
-    #     """
-    #     从schema中获取主键列表
-        
-    #     Returns:
-    #         List[str]: 主键列表
-            
-    #     Raises:
-    #         ValueError: 如果schema不存在或主键配置不正确
-    #     """
-    #     if not hasattr(self, 'schema') or not self.schema:
-    #         raise ValueError(f"表 {self.table_name} 没有schema信息")
-        
-    #     primary_key = self.schema.get('primaryKey')
-        
-    #     if not primary_key:
-    #         raise ValueError(f"表 {self.table_name} 的schema中未配置主键")
-        
-    #     if isinstance(primary_key, str):
-    #         return [primary_key]
-    #     elif isinstance(primary_key, list):
-    #         return primary_key
-    #     else:
-    #         raise ValueError(f"表 {self.table_name} 的主键格式不正确: {primary_key}，应为字符串或列表")
+        latest_record = self.load_latest(date_field)
+        return latest_record[date_field] if latest_record else None
 
     # ***********************************
     #        data delete operations
@@ -756,22 +571,6 @@ class DbBaseModel:
         """
         return self.insert_async(rows, unique_keys)
 
-    # def update(self, data: Dict[str, Any], condition: str, params: tuple = ()) -> int:
-    #     """更新数据（别名方法）"""
-    #     try:
-    #         # 使用 ? 占位符（execute_sync_query 会自动转换 %s -> ?）
-    #         set_clause = ', '.join([f"{k} = ?" for k in data.keys()])
-    #         query = f"UPDATE {self.table_name} SET {set_clause} WHERE {condition}"
-            
-    #         # 转换 condition 中的 %s 为 ?
-    #         query = query.replace("%s", "?")
-            
-    #         with self.db.get_sync_cursor() as cursor:
-    #             cursor.execute(query, tuple(data.values()) + params)
-    #             return cursor.rowcount
-    #     except Exception as e:
-    #         logger.error(f"Failed to update data in {self.table_name}: {e}")
-    #         return 0
 
 
     # ***********************************
@@ -828,8 +627,6 @@ class DbBaseModel:
             logger.error(f"Failed to upsert data in {self.table_name}: {e}")
             return 0
 
-
-
     def upsert_one(self, row: Dict[str, Any], unique_keys: List[str]) -> int:
         """
         Upsert 单条数据（同步，wrapper）。
@@ -847,38 +644,6 @@ class DbBaseModel:
         Upsert 多条数据（异步，wrapper）。
         """
         return self.upsert_async(rows, unique_keys)
-
-    # ------------------------------------------------------------------
-    # 废弃：replace 系列，请迁移到 upsert_one / upsert_many / upsert_many_async
-    # ------------------------------------------------------------------
-
-    # def replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str], use_batch: bool = False) -> int:
-    #     """
-    #     [DEPRECATED] 请使用 upsert_many。
-    #     插入或更新数据，与 upsert_many 语义相同。
-    #     """
-    #     return self.upsert_many(data_list, unique_keys)
-
-    # def replace_async(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
-    #     """
-    #     [DEPRECATED] 请使用 upsert_many_async。
-    #     插入或更新数据（异步），与 upsert_many_async 语义相同。
-    #     """
-    #     return self.upsert_many_async(data_list, unique_keys)
-
-    # def batch_replace(self, data_list: List[Dict[str, Any]], unique_keys: List[str]) -> int:
-    #     """
-    #     [DEPRECATED] 内部实现，请勿直接调用。业务层请使用 upsert_many。
-    #     """
-    #     return self._batch_upsert(data_list, unique_keys)
-
-    # def replace_one(self, data: Dict[str, Any], unique_keys: List[str]) -> int:
-    #     """
-    #     [DEPRECATED] 请使用 upsert_one。
-    #     """
-    #     return self.upsert_one(data, unique_keys)
-    
-    
 
     
     # ***********************************

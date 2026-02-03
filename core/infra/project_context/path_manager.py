@@ -219,6 +219,44 @@ class PathManager:
         return PathManager.data_source_handlers() / handler_name
     
     @staticmethod
+    def find_config_recursively(base_dir: Path, data_source_key: str, config_filename: str = "config.py") -> Optional[Path]:
+        """
+        递归查找配置文件
+        
+        Args:
+            base_dir: 搜索的根目录
+            data_source_key: 数据源键名（用于匹配目录名）
+            config_filename: 配置文件名（默认为 "config.py"）
+        
+        Returns:
+            找到的配置文件路径，如果未找到则返回 None
+        
+        搜索规则：
+        1. 首先尝试直接路径：{base_dir}/{data_source_key}/{config_filename}
+        2. 如果找不到，递归查找所有包含 {data_source_key} 的目录
+        3. 例如：data_source_key="kline_daily" 会匹配 {base_dir}/stock_klines/kline_daily/{config_filename}
+        """
+        if not base_dir.exists():
+            return None
+        
+        # 首先尝试直接路径（向后兼容）
+        direct_path = base_dir / data_source_key / config_filename
+        if direct_path.exists() and direct_path.is_file():
+            return direct_path
+        
+        # 递归查找所有包含 data_source_key 的目录
+        for path in base_dir.rglob(f"*/{data_source_key}/{config_filename}"):
+            if path.exists() and path.is_file():
+                return path
+        
+        # 也支持查找目录名完全匹配的情况
+        for path in base_dir.rglob(f"{data_source_key}/{config_filename}"):
+            if path.exists() and path.is_file():
+                return path
+        
+        return None
+    
+    @staticmethod
     def data_source_providers() -> Path:
         """Data Source Providers 目录：userspace/data_source/providers"""
         return PathManager.data_source() / "providers"

@@ -165,13 +165,18 @@ class DataSourceExecutionScheduler:
         3. 捕获异常并记录失败的 handler
         4. 最后重试失败的 handler
         """
+        total = len(sorted_handler_instances)
+        logger.info(f"🚀 开始执行 {total} 个数据源")
+        
         for idx, handler_instance in enumerate(sorted_handler_instances):
             try:
                 data_source_key = handler_instance.get_key()
+                logger.info(f"📊 [{idx+1}/{total}] 执行数据源: {data_source_key}")
                 dependencies_data = self._get_dependencies_data(data_source_key)
                 normalized_data = handler_instance.execute(dependencies_data)
                 if self.mappings.is_dependency_for_downstream(data_source_key):
                     self._cache_result(data_source_key, normalized_data)
+                logger.info(f"✅ [{idx+1}/{total}] 数据源 {data_source_key} 执行完成")
                 # 只在成功执行后才清理不再需要的依赖缓存
                 self._clean_up_dependency_cache_if_no_longer_required(sorted_handler_instances, idx)
             except Exception as e:

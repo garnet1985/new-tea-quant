@@ -11,9 +11,9 @@ DATA_SOURCES = {
         "handler": "stock_list.TushareStockListHandler",
         "is_enabled": True,
     },
-    "kline": {
-        "handler": "kline.KlineHandler",
-        "is_enabled": False,
+    "stock_klines": {
+        "handler": "stock_klines.KlineHandler",
+        "is_enabled": True,
         "depends_on": ["stock_list", "latest_trading_date"],
     },
     "stock_indicators": {
@@ -43,37 +43,37 @@ DATA_SOURCES = {
     },
     "gdp": {
         "handler": "gdp.GdpHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
     "cpi": {
         "handler": "cpi.CpiHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
     "ppi": {
         "handler": "ppi.PpiHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
     "pmi": {
         "handler": "pmi.PmiHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
     "money_supply": {
         "handler": "money_supply.MoneySupplyHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
     "shibor": {
         "handler": "shibor.ShiborHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
     "lpr": {
         "handler": "lpr.LprHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
 }

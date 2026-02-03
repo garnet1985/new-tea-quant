@@ -496,6 +496,13 @@ class BaseHandler:
             logger.info(f"开始执行 1 个 bundle: bundle_id={bundle_id}")
             result = _run_async_in_sync(run_one_bundle(apis))
             logger.info(f"🔧 [single_bundle] 执行完成，准备调用钩子: bundle_id={bundle_id}, result_keys={list(result.keys())[:5] if isinstance(result, dict) else 'N/A'}...")
+            
+            # 获取 save_mode 配置
+            config = self.context.get("config")
+            if not config or not hasattr(config, "get_save_mode"):
+                raise ValueError("config 必须配置 save_mode")
+            save_mode = config.get_save_mode()
+            
             # 根据 save_mode 决定是否调用钩子
             if save_mode != "unified" and hasattr(item, "apis") and hasattr(item, "bundle_id"):
                 try:
@@ -694,7 +701,8 @@ class BaseHandler:
                             elif result.status == JobStatus.FAILED:
                                 # 失败的结果也标记为已处理，避免重复处理
                                 processed_results.add(result.job_id)
-                                logger.debug(f"⚠️ [批量保存] Bundle {result.job_id} 失败，跳过")
+                                error_msg = getattr(result, 'error', None) or '未知错误'
+                                logger.warning(f"⚠️ [批量保存] Bundle {result.job_id} 失败，跳过: {error_msg}")
                             elif result.status == JobStatus.COMPLETED:
                                 # COMPLETED 但没有数据，标记为已处理但跳过
                                 processed_results.add(result.job_id)
@@ -1019,16 +1027,21 @@ class BaseHandler:
             unique_keys = list(pk)
         else:
             unique_keys = None
-        try:
-            logger.info(f"系统写入 {table_name}: 准备写入 {len(records)} 条记录，unique_keys={unique_keys}")
-            if unique_keys:
-                count = model.upsert_many(records, unique_keys=unique_keys)
-            else:
-                count = model.insert_many(records)
-            logger.info(f"系统写入 {table_name}: {count} 条")
-        except Exception as e:
-            logger.error(f"系统写入 {table_name} 失败: {e}")
-            raise
+        
+        # 去重：如果配置了 unique_keys，在同一个批次中去重（保留最后一个）
+        if unique_keys and len(unique_keys) > 0:
+            seen = {}
+            deduplicated_records = []
+            for record in records:
+                # 构建唯一键
+                key_tuple = tuple(record.get(key) for key in unique_keys)
+                if None not in key_tuple:  # 只处理所有 unique_keys 都有值的记录
+                    seen[key_tuple] = record
+            deduplicated_records = list(seen.values())
+            if len(deduplicated_records) < len(records):
+                logger.debug(f"系统写入 {table_name}: 去重 {len(records)} -> {len(deduplicated_records)} 条记录")
+            records = deduplicated_records
+        
 
     # ================================
     # Hooks

@@ -45,7 +45,7 @@ class CorporateFinanceHandler(BaseHandler):
     CACHE_KEY = "corporate_finance_batch_offset"
     BATCH_AMOUNT = 10
     MIN_BATCH_SIZE = 1
-    MAX_BATCH_SIZE = 500
+    MAX_BATCH_SIZE = 450
     
     def __init__(
         self,
@@ -123,7 +123,7 @@ class CorporateFinanceHandler(BaseHandler):
         job_id = api_job.job_id or api_job.api_name
         result = fetched_data.get(job_id)
         
-        if not result:
+        if result is None:
             return fetched_data
         
         # 标准化数据
@@ -154,13 +154,38 @@ class CorporateFinanceHandler(BaseHandler):
         mapped_records = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
         
         # 处理特殊转换：end_date -> quarter, 添加 id
-        formatted = []
+        # 问题：API 可能返回重复记录，包括：
+        # 1. 同一个季度的多个不同 end_date（如 20230315 和 20230331），都转换为同一个 quarter
+        # 2. 完全相同的 end_date 的多条记录（API 数据源本身有重复）
+        # 解决：按 quarter 去重，保留 end_date 最大的记录（通常是最新的）
+        # 如果 end_date 相同，保留第一条（通常 API 返回的重复记录内容也相同）
+        quarter_records = {}  # {quarter: record} 用于去重，保留 end_date 最大的
         for record in mapped_records:
-            end_date = str(record.get('end_date', '')).replace('-', '')
-            quarter = DateUtils.date_to_quarter(end_date)
-            if not quarter:
+            end_date_raw = record.get('end_date', '')
+            end_date = str(end_date_raw).replace('-', '')
+            
+            # 检查日期格式
+            if len(end_date) != 8:
+                logger.debug(f"⚠️ {stock_id}: end_date 格式异常: {end_date_raw} -> {end_date}")
                 continue
             
+            quarter = DateUtils.date_to_quarter(end_date)
+            if not quarter:
+                logger.debug(f"⚠️ {stock_id}: 无法转换 end_date 到 quarter: {end_date}")
+                continue
+            
+            # 如果该 quarter 已存在，比较 end_date，保留较大的（最新的）
+            if quarter in quarter_records:
+                existing_end_date = str(quarter_records[quarter].get('end_date', '')).replace('-', '')
+                if end_date > existing_end_date:
+                    logger.debug(f"🔄 {stock_id}: quarter {quarter} 有重复，保留更新的 end_date: {end_date_raw} (替换 {existing_end_date})")
+                    quarter_records[quarter] = record
+            else:
+                quarter_records[quarter] = record
+        
+        # 转换为最终格式
+        formatted = []
+        for quarter, record in quarter_records.items():
             record["id"] = stock_id
             record["quarter"] = quarter
             record.pop("end_date", None)

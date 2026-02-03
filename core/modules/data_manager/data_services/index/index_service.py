@@ -205,7 +205,7 @@ class IndexService(BaseDataService):
             return {}
         
         # 使用批量查询：一次性获取所有指数的所有周期的最新记录
-        all_latest_records = self._stock_index_indicator.load_latest_records(
+        all_latest_records = self._stock_index_indicator.load_latests(
             date_field='date',
             group_fields=['id', 'term']
         )
@@ -247,7 +247,7 @@ class IndexService(BaseDataService):
             return {}
         
         # 使用批量查询：一次性获取所有指数的最新记录
-        all_latest_records = self._stock_index_indicator_weight.load_latest_records(
+        all_latest_records = self._stock_index_indicator_weight.load_latests(
             date_field='date',
             group_fields=['id']
         )

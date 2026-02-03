@@ -134,7 +134,7 @@ class StockKlineModel(DbBaseModel):
 **核心方法**：
 
 - **查询**：`load()`, `load_one()`, `load_all()`, `load_many()`, `load_paginated()`
-- **写入**：`insert()`, `replace()`, `batch_insert()`, `batch_replace()`
+- **写入**：`insert()`, `upsert()`, `batch_insert()`, `upsert_many()`
 - **删除**：`delete()`
 - **表管理**：`create_table()`, `drop_table()`, `clear_table()`, `describe()`
 

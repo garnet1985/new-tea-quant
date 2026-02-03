@@ -265,7 +265,7 @@ class TagDataService(BaseDataService):
             entity_id=tag_definition_id,
             update_data=update_data,
             current_entity=current_tag,
-            update_method=lambda: self._tag_definition_model.update("id = %s", (tag_definition_id,), update_data)
+            update_method=lambda: self._tag_definition_upsert(tag_definition_id, update_data)
         )
     
     def batch_update_tag_definitions(
@@ -519,6 +519,13 @@ class TagDataService(BaseDataService):
         return DateUtils.get_next_date(date)
     
     # ==================== 私有辅助方法 ====================
+    
+    def _tag_definition_upsert(self, tag_definition_id: int, update_data: Dict[str, Any]) -> None:
+        """使用 upsert 更新 tag definition 的非关键字段"""
+        entity = self._tag_definition_model.load_one("id = %s", (tag_definition_id,))
+        if entity:
+            entity.update(update_data)
+            self._tag_definition_model.upsert([entity], ["id"])
     
     def _update_entity(
         self,

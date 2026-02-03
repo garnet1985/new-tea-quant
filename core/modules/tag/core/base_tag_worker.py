@@ -238,7 +238,7 @@ class BaseTagWorker(ABC):
             return
         
         try:
-            # 使用 save_batch，内部会调用 model.batch_save_tag_values() → model.replace() → queue_write()
+            # 使用 save_batch，内部会调用 model.batch_save_tag_values() → model.upsert_many() → queue_write()
             # 已经自动支持批量写入队列，无需额外修改
             self.tag_data_service.save_batch(tag_values)
             logger.debug(

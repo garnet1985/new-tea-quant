@@ -1,13 +1,16 @@
 """
 Stock Indicators Handler 配置。绑定表 sys_stock_indicators（原 daily_basic 数据）。
 """
+from core.utils.date import DateUtils
+
+
 CONFIG = {
     "table": "sys_stock_indicators",
     "renew": {
         "type": "incremental",
         "last_update_info": {
             "date_field": "date",
-            "date_format": "daily",
+            "date_format": DateUtils.PERIOD_DAY,
         },
         "result_group_by": {
             "list": "stock_list",

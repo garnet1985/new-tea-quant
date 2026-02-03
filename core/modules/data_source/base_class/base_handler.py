@@ -100,6 +100,11 @@ class BaseHandler:
         Returns:
             List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
         """
+        from loguru import logger
+        data_source_key = self.get_key()
+        is_dry_run = self.context.get("is_dry_run", False)
+        dry_run_status = " [DRY RUN]" if is_dry_run else ""
+        logger.info(f"🔧 [{data_source_key}] 开始预处理阶段{dry_run_status}")
 
         # 1. 上下文准备
         self.on_prepare_context(self.context)
@@ -113,6 +118,10 @@ class BaseHandler:
 
         # 5. Phase 2：基于 last_update 映射计算各实体的 (start_date, end_date)
         entity_date_ranges = self._calculate_entity_date_ranges(last_update_map)
+        
+        # 将 last_update_map 和 entity_date_ranges 注入 context，供子类使用（特别是多字段分组场景）
+        self.context["_last_update_map"] = last_update_map
+        self.context["_entity_date_ranges"] = entity_date_ranges
 
         # 6. Phase 3：基于 entity_date_ranges 构建实际的 ApiJobBundle 列表
         if config.is_per_entity():
@@ -125,6 +134,11 @@ class BaseHandler:
                 jobs = [job]
 
         jobs = self.on_before_fetch(self.context, jobs)
+        
+        data_source_key = self.get_key()
+        is_dry_run = self.context.get("is_dry_run", False)
+        dry_run_status = " [DRY RUN]" if is_dry_run else ""
+        logger.info(f"🔧 [{data_source_key}] 预处理完成: {len(jobs)} 个 job bundles{dry_run_status}")
 
         return jobs
 
@@ -172,7 +186,8 @@ class BaseHandler:
         apis_conf: Dict[str, Any],
         entity_date_ranges: Dict[str, Tuple[str, str]],
     ) -> List[ApiJobBundle]:
-
+        from loguru import logger
+        
         entity_list = self._get_entity_list()
         config: DataSourceConfig = self.context.get("config")
         entity_key_field = config.get_group_by_key()
@@ -180,7 +195,7 @@ class BaseHandler:
         jobs: List[ApiJobBundle] = []
 
         for entity_info in entity_list:
-            # 实体 ID 的来源遵循 config.result_group_by.by_key 这一单一约定
+            # 实体 ID 的来源遵循 config.result_group_by.key 这一单一约定
             if isinstance(entity_info, dict):
                 entity_id = entity_info.get(entity_key_field)
             else:
@@ -199,6 +214,8 @@ class BaseHandler:
             job_collection = self._build_job(entity_info, apis_conf, date_range)
             if job_collection is not None:
                 jobs.append(job_collection)
+        
+        jobs = self.on_after_build_jobs(self.context, jobs, entity_date_ranges)
         
         return jobs
 
@@ -239,19 +256,14 @@ class BaseHandler:
         # 注入统一的日期范围（per-entity 已由 entity_date_ranges 决定）
         apis = DataSourceHandlerHelper.add_date_range(apis, start_date, end_date)
 
+        # per-entity 场景：构建 job payload（使用钩子方法，允许子类自定义如何提取实体 ID 并注入参数）
+        entity_id = self.on_build_job_payload(entity_info, apis, self.context)
+
         # 构造 bundle_id：{data_source_key}_batch 或 {data_source_key}_batch_{entity_id}
         base_bundle_id = ApiJobBundle.to_id(self.get_key())
 
-        # per-entity 场景：使用同一套实体 ID 约定（config.result_group_by.by_key）
-        entity_suffix = None
-        config: DataSourceConfig = self.context.get("config")
-        entity_key_field = config.get_group_by_key()
-        if entity_info:
-            if isinstance(entity_info, dict):
-                entity_suffix = entity_info.get(entity_key_field)
-            else:
-                entity_suffix = entity_info
-
+        # per-entity 场景：使用同一套实体 ID 约定（config.result_group_by.key）
+        entity_suffix = entity_id if entity_id else None
         if entity_suffix is not None:
             bundle_id = f"{base_bundle_id}_{entity_suffix}"
         else:
@@ -432,6 +444,7 @@ class BaseHandler:
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
+                    # 当前线程已有运行中的 loop，在单独线程中执行
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                         def _in_thread():
                             new_loop = asyncio.new_event_loop()
@@ -439,24 +452,50 @@ class BaseHandler:
                                 asyncio.set_event_loop(new_loop)
                                 return new_loop.run_until_complete(coro)
                             finally:
+                                # 确保所有任务完成后再关闭 loop
+                                try:
+                                    pending = asyncio.all_tasks(new_loop)
+                                    if pending:
+                                        new_loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                                except Exception:
+                                    pass
                                 new_loop.close()
                         future = pool.submit(_in_thread)
                         return future.result()
+                # 当前线程没有运行中的 loop，直接使用
                 return loop.run_until_complete(coro)
             except RuntimeError:
+                # 无法获取 event loop，创建新的
                 loop = asyncio.new_event_loop()
                 try:
                     asyncio.set_event_loop(loop)
                     return loop.run_until_complete(coro)
                 finally:
+                    # 确保所有任务完成后再关闭 loop
+                    try:
+                        pending = asyncio.all_tasks(loop)
+                        if pending:
+                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                    except Exception:
+                        pass
                     loop.close()
 
         # 仅一个 bundle：直接执行
         if len(bundles) == 1:
             bundle_id, apis, item = bundles[0]
+            logger.info(f"开始执行 1 个 bundle: bundle_id={bundle_id}")
             result = _run_async_in_sync(run_one_bundle(apis))
+            logger.info(f"🔧 [single_bundle] 执行完成，准备调用钩子: bundle_id={bundle_id}, result_keys={list(result.keys())[:5] if isinstance(result, dict) else 'N/A'}...")
             if hasattr(item, "apis") and hasattr(item, "bundle_id"):
-                self.on_after_single_api_job_bundle_complete(self.context, item, result)
+                try:
+                    logger.info(f"🔧 [single_bundle] 调用 on_after_single_api_job_bundle_complete: bundle_id={bundle_id}")
+                    self.on_after_single_api_job_bundle_complete(self.context, item, result)
+                    logger.info(f"✅ [single_bundle] on_after_single_api_job_bundle_complete 调用成功: bundle_id={bundle_id}")
+                except Exception as e:
+                    logger.error(f"❌ [single_bundle] on_after_single_api_job_bundle_complete 调用失败: bundle_id={bundle_id}, error={e}", exc_info=True)
+            else:
+                logger.warning(f"⚠️ [single_bundle] item 没有 apis 或 bundle_id 属性，跳过钩子调用")
+            logger.info(f"执行完成: 1/1 个 bundles")
             return result
 
         # 多个 bundle：使用多线程框架
@@ -499,20 +538,247 @@ class BaseHandler:
             worker.add_job(bundle_id, apis)
             bundle_id_to_item[bundle_id] = item
 
-        worker.run_jobs()
-        results_list = worker.get_results()
+        total_bundles = len(bundles)
 
-        # 合并为 {job_id: result}，并对每个 bundle 触发 on_after_single_api_job_bundle_complete
+        # 启动进度监控线程
+        import threading
+        import time
+        progress_stop = threading.Event()
+        last_reported_count = 0
+        PROGRESS_INTERVAL = 50  # 每完成50个job输出一次进度
+        
+        def _progress_monitor():
+            """后台线程：定期输出进度"""
+            nonlocal last_reported_count
+            while not progress_stop.is_set():
+                try:
+                    stats = worker.get_stats()
+                    completed = stats.get('completed_jobs', 0) + stats.get('failed_jobs', 0)
+                    
+                    # 每完成50个job输出一次进度
+                    if completed >= last_reported_count + PROGRESS_INTERVAL:
+                        current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
+                        logger.info(f"📊 进度: {completed}/{total_bundles} ({current_percent}%)")
+                        # 更新到下一个50的倍数
+                        last_reported_count = (completed // PROGRESS_INTERVAL) * PROGRESS_INTERVAL
+                    
+                    # 如果所有任务完成，输出最终进度并退出
+                    if completed >= total_bundles:
+                        if completed > last_reported_count:
+                            current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
+                            logger.info(f"📊 进度: {completed}/{total_bundles} ({current_percent}%)")
+                        break
+                except Exception:
+                    pass  # 忽略获取统计信息时的异常
+                time.sleep(1)  # 每1秒检查一次
+        
+        progress_thread = threading.Thread(target=_progress_monitor, daemon=True)
+        progress_thread.start()
+        
+        # 等待一小段时间，确保进度监控线程启动
+        time.sleep(0.1)
+
+        # 批量处理完成的结果：启动一个线程定期从 results_queue 中取出结果并批量调用钩子
+        processed_results = set()  # 记录已处理的结果，避免重复处理
+        pending_results = []  # 待处理的结果列表
+        results_processing_stop = threading.Event()
+        BATCH_SAVE_SIZE = 50  # 每完成50个bundles保存一次
+        
+        def _has_actual_data(result_dict: Dict[str, Any]) -> bool:
+            """
+            检查结果字典是否真正包含数据。
+            
+            result_dict 的格式是 {job_id: result_data}，其中 result_data 可能是：
+            - None: 执行失败
+            - []: 空列表（API返回空数据）
+            - [data]: 有数据的列表
+            - DataFrame: pandas DataFrame
+            
+            只有当至少有一个 job_id 对应的 result_data 非空时，才返回 True。
+            """
+            if not isinstance(result_dict, dict) or not result_dict:
+                return False
+            
+            import pandas as pd
+            for job_id, result_data in result_dict.items():
+                if result_data is None:
+                    continue
+                # 检查是否为 pandas DataFrame
+                if isinstance(result_data, pd.DataFrame):
+                    if not result_data.empty:
+                        return True
+                # 检查是否为列表或其他可迭代对象
+                elif isinstance(result_data, (list, tuple)):
+                    if len(result_data) > 0:
+                        return True
+                # 其他类型（如字典），检查是否非空
+                elif result_data:
+                    return True
+            
+            return False
+        
+        def _process_completed_results():
+            """批量处理完成的结果：每完成 N 个 bundles 保存一次"""
+            from queue import Empty
+            while not results_processing_stop.is_set() or worker.is_running:
+                try:
+                    # 从 results_queue 中获取完成的结果
+                    stats = worker.get_stats()
+                    results_count = stats.get('results_count', 0)
+                    
+                    if results_count > 0:
+                        # 获取所有可用的结果
+                        available_results = worker.get_results()
+                        for result in available_results:
+                            if result.job_id in processed_results:
+                                continue
+                            
+                            # 只处理成功完成且有数据的结果
+                            if result.status == JobStatus.COMPLETED and _has_actual_data(result.result):
+                                # 添加到待处理列表
+                                pending_results.append(result)
+                                
+                                # 当累积到 BATCH_SAVE_SIZE 个结果时，批量保存
+                                if len(pending_results) >= BATCH_SAVE_SIZE:
+                                    logger.info(f"🔧 [批量保存] 累积了 {len(pending_results)} 个有数据的结果，开始批量保存...")
+                                    saved_count = 0
+                                    for pending_result in pending_results:
+                                        if pending_result.job_id in processed_results:
+                                            continue
+                                        
+                                        processed_results.add(pending_result.job_id)
+                                        
+                                        # 调用钩子保存数据
+                                        if pending_result.job_id in bundle_id_to_item:
+                                            try:
+                                                self.on_after_single_api_job_bundle_complete(
+                                                    self.context, bundle_id_to_item[pending_result.job_id], pending_result.result
+                                                )
+                                                saved_count += 1
+                                            except Exception as e:
+                                                logger.error(f"❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: bundle_id={pending_result.job_id}, error={e}", exc_info=True)
+                                    
+                                    logger.info(f"✅ [批量保存] 完成 {saved_count}/{len(pending_results)} 个 bundles 的保存")
+                                    pending_results.clear()  # 清空待处理列表
+                            elif result.status == JobStatus.FAILED:
+                                # 失败的结果也标记为已处理，避免重复处理
+                                processed_results.add(result.job_id)
+                                logger.debug(f"⚠️ [批量保存] Bundle {result.job_id} 失败，跳过")
+                            elif result.status == JobStatus.COMPLETED:
+                                # COMPLETED 但没有数据，标记为已处理但跳过
+                                processed_results.add(result.job_id)
+                                # 检查 result.result 的结构，提供更详细的日志
+                                if isinstance(result.result, dict):
+                                    job_count = len(result.result)
+                                    import pandas as pd
+                                    empty_jobs = []
+                                    non_empty_jobs = []
+                                    for job_id, data in result.result.items():
+                                        is_empty = False
+                                        if data is None:
+                                            is_empty = True
+                                        elif isinstance(data, pd.DataFrame):
+                                            is_empty = data.empty
+                                        elif isinstance(data, (list, tuple)):
+                                            is_empty = len(data) == 0
+                                        elif isinstance(data, dict):
+                                            is_empty = len(data) == 0
+                                        elif not data:  # 其他 falsy 值
+                                            is_empty = True
+                                        
+                                        if is_empty:
+                                            empty_jobs.append(job_id)
+                                        else:
+                                            non_empty_jobs.append(job_id)
+                            else:
+                                # 其他状态（PENDING、RUNNING等），标记为已处理但跳过
+                                processed_results.add(result.job_id)
+                    time.sleep(0.5)  # 每0.5秒检查一次
+                except Exception as e:
+                    logger.error(f"❌ [批量保存] 处理结果时出错: {e}", exc_info=True)
+                    time.sleep(1)  # 出错后等待1秒再继续
+        
+        results_processing_thread = threading.Thread(target=_process_completed_results, daemon=True)
+        results_processing_thread.start()
+        
+        try:
+            worker.run_jobs()
+        finally:
+            progress_stop.set()  # 停止进度监控
+            results_processing_stop.set()  # 停止结果处理
+            # 等待进度线程结束（最多等待2秒）
+            progress_thread.join(timeout=2)
+            results_processing_thread.join(timeout=2)
+        
+        # 处理剩余的结果（可能有些结果在处理线程停止后才完成）
+        results_list = worker.get_results()
+        logger.info(f"🔧 [multi_thread] worker.run_jobs() 完成，获取到 {len(results_list)} 个剩余结果")
+
+        # 处理剩余的结果（包括待处理列表中的和最后一批未达到批量大小的）
+        # 先处理待处理列表中的剩余结果
+        if pending_results:
+            logger.info(f"🔧 [批量保存] 处理最后一批 {len(pending_results)} 个有数据的结果...")
+            saved_count = 0
+            for pending_result in pending_results:
+                if pending_result.job_id in processed_results:
+                    continue
+                
+                processed_results.add(pending_result.job_id)
+                
+                if pending_result.status == JobStatus.COMPLETED and _has_actual_data(pending_result.result):
+                    if pending_result.job_id in bundle_id_to_item:
+                        try:
+                            self.on_after_single_api_job_bundle_complete(
+                                self.context, bundle_id_to_item[pending_result.job_id], pending_result.result
+                            )
+                            saved_count += 1
+                        except Exception as e:
+                            logger.error(f"❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: bundle_id={pending_result.job_id}, error={e}", exc_info=True)
+            logger.info(f"✅ [批量保存] 完成最后一批 {saved_count}/{len(pending_results)} 个 bundles 的保存")
+            pending_results.clear()
+        
+        # 合并为 {job_id: result}，处理剩余的结果（已经在批量处理线程中处理过的会跳过）
         merged: Dict[str, Any] = {}
+        completed_count = len(processed_results)  # 已处理的数量
+        
+        logger.info(f"🔧 [multi_thread] 开始处理 {len(results_list)} 个剩余结果（已批量处理 {completed_count} 个）")
+        
         for r in results_list:
-            if r.status == JobStatus.COMPLETED and isinstance(r.result, dict):
+            # 跳过已经在批量处理线程中处理过的结果
+            if r.job_id in processed_results:
+                continue
+                
+            if r.status == JobStatus.COMPLETED and _has_actual_data(r.result):
+                # 只处理有数据的结果
                 merged.update(r.result)
                 if r.job_id in bundle_id_to_item:
-                    self.on_after_single_api_job_bundle_complete(
-                        self.context, bundle_id_to_item[r.job_id], r.result
+                    try:
+                        self.on_after_single_api_job_bundle_complete(
+                            self.context, bundle_id_to_item[r.job_id], r.result
+                        )
+                        processed_results.add(r.job_id)
+                        completed_count += 1
+                    except Exception as e:
+                        logger.error(f"❌ [剩余结果] on_after_single_api_job_bundle_complete 调用失败: bundle_id={r.job_id}, error={e}", exc_info=True)
+            elif r.status == JobStatus.COMPLETED and not _has_actual_data(r.result):
+                # 空结果，标记为已处理但跳过
+                processed_results.add(r.job_id)
+                # 检查 result.result 的结构，提供更详细的日志
+                if isinstance(r.result, dict):
+                    job_count = len(r.result)
+                    empty_jobs = [job_id for job_id, data in r.result.items() 
+                                if data is None or (isinstance(data, (list, tuple)) and len(data) == 0)]
+                    logger.debug(
+                        f"⚠️ [剩余结果] Bundle {r.job_id} 完成但无数据，跳过 "
+                        f"(共 {job_count} 个 API jobs，全部为空: {empty_jobs[:3]}{'...' if len(empty_jobs) > 3 else ''})"
                     )
+                else:
+                    logger.debug(f"⚠️ [剩余结果] Bundle {r.job_id} 完成但结果格式异常，跳过 (result类型: {type(r.result)})")
             elif r.status == JobStatus.FAILED and r.error:
                 logger.warning(f"Bundle {r.job_id} 失败: {r.error}")
+                completed_count += 1
+        
+        logger.info(f"执行完成: {completed_count}/{total_bundles} 个 bundles（批量处理 {len(processed_results)} 个）")
 
         return merged
 
@@ -520,8 +786,11 @@ class BaseHandler:
     # Postprocess stage
     # ================================
     def _postprocess(self, fetched_data: Any) -> Dict[str, Any]:
-
-        normalized_data = self._normalize_data(self.context, fetched_data)
+        logger.info(f"🔧 [_postprocess] 开始后处理阶段，fetched_data keys: {list(fetched_data.keys())[:5] if isinstance(fetched_data, dict) else 'N/A'}...")
+        
+        # 调用 normalize_data（子类可以覆盖此方法）
+        normalized_data = self.normalize_data(self.context, fetched_data)
+        logger.info(f"🔧 [_postprocess] normalize_data 完成，返回数据条数: {len(normalized_data.get('data', [])) if isinstance(normalized_data, dict) else 0}")
 
         normalized_data = self.on_after_normalize(self.context, normalized_data)
 
@@ -612,6 +881,20 @@ class BaseHandler:
         # 步骤 7：将最终记录包装为 {"data": [...]} 返回
         return DataSourceHandlerHelper.build_normalized_payload(normalized_records)
 
+    def normalize_data(self, context: Dict[str, Any], fetched_data: Any) -> Dict[str, Any]:
+        """
+        标准化数据钩子：子类可以覆盖此方法来自定义数据标准化逻辑。
+        
+        默认实现调用 _normalize_data 进行标准化的数据处理。
+        
+        Args:
+            context: 执行上下文
+            fetched_data: 抓取到的原始数据
+            
+        Returns:
+            Dict[str, Any]: 标准化后的数据，格式为 {"data": [...]}
+        """
+        return self._normalize_data(context, fetched_data)
 
     def _validate_normalized_data(self, normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -645,11 +928,15 @@ class BaseHandler:
         on_before_save 若返回非 None，则用其作为即将写入的数据；否则使用传入的 normalized_data。
         is_dry_run 为 True 时不执行任何写入，直接返回 normalized_data。
         """
+        logger.info(f"🔧 [_do_save] 开始保存阶段，normalized_data 数据条数: {len(normalized_data.get('data', [])) if isinstance(normalized_data, dict) else 0}")
         if self._is_dry_run():
+            logger.info(f"🔧 [_do_save] Dry run 模式，跳过保存")
             return normalized_data
         resolved = self.on_before_save(self.context, normalized_data)
         data_to_save = resolved if resolved is not None else normalized_data
+        logger.info(f"🔧 [_do_save] 准备调用 _system_save，数据条数: {len(data_to_save.get('data', [])) if isinstance(data_to_save, dict) else 0}")
         self._system_save(data_to_save)
+        logger.info(f"🔧 [_do_save] _system_save 完成")
         return data_to_save
 
     def _system_save(self, normalized_data: Dict[str, Any]) -> None:
@@ -672,6 +959,7 @@ class BaseHandler:
             return
         records = (normalized_data or {}).get("data")
         if not records or not isinstance(records, list):
+            logger.debug(f"系统写入 {table_name}: normalized_data 中没有数据或格式不正确，跳过写入")
             return
         pk = schema.get("primaryKey")
         if isinstance(pk, str):
@@ -681,6 +969,7 @@ class BaseHandler:
         else:
             unique_keys = None
         try:
+            logger.info(f"系统写入 {table_name}: 准备写入 {len(records)} 条记录，unique_keys={unique_keys}")
             if unique_keys:
                 count = model.upsert_many(records, unique_keys=unique_keys)
             else:
@@ -741,6 +1030,129 @@ class BaseHandler:
             - Dict[str, Tuple[str, str]]: per stock 的日期范围 {stock_id: (start_date, end_date)}
         """
         return None
+
+    def _extract_entity_id(
+        self, 
+        entity_info: Any, 
+        entity_key_field: str, 
+        context: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        提取实体 ID 的内部辅助方法：供 on_build_job_payload 的默认实现使用。
+        
+        注意：此方法为内部方法（以下划线开头），不建议子类直接使用。
+        子类应该覆盖 on_build_job_payload 来自定义提取和注入逻辑。
+        
+        Args:
+            entity_info: 实体信息（来自 dependencies，如 stock_list 中的一项）
+            entity_key_field: 实体键字段名（来自 config.result_group_by.key，通常是 "id"）
+            context: 执行上下文
+            
+        Returns:
+            str: 提取的实体 ID，如果无法提取则返回 None
+        """
+        if not isinstance(entity_info, dict):
+            return str(entity_info) if entity_info is not None else None
+        
+        return entity_info.get(entity_key_field)
+
+    def on_build_job_payload(
+        self,
+        entity_info: Any,
+        apis: List[ApiJob],
+        context: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        构建 job payload 的钩子：在构建 ApiJobBundle 时，为每个 API job 组装请求参数（payload）。
+        
+        此钩子在 _build_job 方法中调用，用于：
+        1. 从 entity_info 中提取实体 ID
+        2. 将实体 ID 注入到每个 API job 的 params 中（根据 config.apis.{api_name}.entity_param 配置）
+        
+        默认实现：从配置中获取 entity_key_field，使用 on_extract_entity_id 提取实体 ID，
+        然后根据每个 API 的 entity_param 配置注入到 job.params 中。
+        
+        子类可以覆盖此方法来：
+        - 使用固定的字段名（如 "id"）提取实体 ID，避免猜测
+        - 自定义实体 ID 的格式转换
+        - 自定义参数注入逻辑
+        
+        Args:
+            entity_info: 实体信息（来自 dependencies，如 stock_list 中的一项）
+            apis: ApiJob 列表（已注入日期范围，但尚未注入实体参数）
+            context: 执行上下文
+            
+        Returns:
+            Optional[str]: 提取的实体 ID（用于构建 bundle_id），如果不需要注入或无法提取则返回 None
+        """
+        if not entity_info:
+            return None
+        
+        config: DataSourceConfig = context.get("config")
+        if not config:
+            return None
+        
+        # 获取实体标识字段：多字段分组时使用第一个字段，单字段分组时使用 key
+        entity_key_field = None
+        group_fields = config.get_group_fields() if hasattr(config, "get_group_fields") else []
+        if group_fields and len(group_fields) > 0:
+            entity_key_field = group_fields[0]  # 多字段分组时，第一个字段是主键（如 id）
+        else:
+            entity_key_field = config.get_group_by_key()  # 单字段分组
+        
+        if not entity_key_field:
+            return None
+        
+        # 提取实体 ID：使用内部辅助方法（子类覆盖 on_build_job_payload 时不需要此方法）
+        entity_id = self._extract_entity_id(entity_info, entity_key_field, context)
+        
+        if not entity_id:
+            return None
+        
+        # 为每个 API job 注入实体参数
+        for job in apis:
+            params = job.params or {}
+            api_params = job.api_params or {}
+            
+            # 使用 API 配置中的 entity_param 字段（必须配置）
+            api_param_name = api_params.get("entity_param")
+            if not api_param_name:
+                from loguru import logger
+                logger.warning(
+                    f"API {job.api_name} 未配置 entity_param，无法注入实体参数。"
+                    f"请在 config.apis.{job.api_name} 中添加 entity_param 配置。"
+                )
+                continue
+            
+            # 注入实体参数
+            params[api_param_name] = str(entity_id)
+            job.params = params
+        
+        return str(entity_id)
+
+    def on_after_build_jobs(
+        self, 
+        context: Dict[str, Any], 
+        jobs: List[ApiJobBundle],
+        entity_date_ranges: Dict[str, Tuple[str, str]]
+    ) -> List[ApiJobBundle]:
+        """
+        Jobs 构建完成后的钩子：允许子类在 jobs 构建完成后进行修改（如 merge、过滤等）。
+
+        在 _build_jobs 完成后调用，子类可以：
+        - 合并多个 jobs（如将同一实体的多个周期合并为一个 bundle）
+        - 过滤不需要的 jobs
+        - 调整 jobs 的顺序或配置
+
+        Args:
+            context: 上下文信息
+            jobs: 已构建的 ApiJobBundle 列表
+            entity_date_ranges: 实体日期范围映射（key 可能是复合 key，如 "stock_id::term"）
+
+        Returns:
+            List[ApiJobBundle]: 处理后的 ApiJobBundle 列表
+        """
+        return jobs
 
     def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """

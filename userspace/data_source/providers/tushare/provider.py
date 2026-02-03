@@ -22,7 +22,7 @@ class TushareProvider(BaseProvider):
     auth_type = "token"
     
     # 声明每个 API 的限流（每分钟请求数）
-    # API 限流配置
+    # Tushare 对每个 API 分别限流，daily/weekly/monthly 各自独立限流
     api_limits = {
         "get_stock_list": 800,          # 股票列表，使用K线限流（800次/分钟）
         "get_daily_kline": 700,         # 日线数据

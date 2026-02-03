@@ -115,3 +115,93 @@ def is_same_impl(date1: str, date2: str) -> bool:
     dt1 = parse_date(date1)
     dt2 = parse_date(date2)
     return dt1.date() == dt2.date()
+
+
+def get_period_end_impl(date: str, term: str) -> Optional[str]:
+    """
+    获取某个日期所在周期的结束日期（自然日）。
+    
+    用于检查周期是否完整结束，避免获取未完成周期的"脏数据"。
+    
+    支持的周期类型：
+        - weekly: 返回该日期所在周的周日
+        - monthly: 返回该日期所在月的最后一天
+        - quarterly: 返回该日期所在季度的最后一天（0331, 0630, 0930, 1231）
+        - yearly: 返回该日期所在年的最后一天（1231）
+    
+    Args:
+        date: 日期（YYYYMMDD格式）
+        term: 周期类型（"weekly", "monthly", "quarterly", "yearly"）
+    
+    Returns:
+        周期结束日期（YYYYMMDD格式），如果term不支持则返回None
+    """
+    term_lower = term.lower()
+    try:
+        if term_lower == "weekly":
+            return get_week_end_impl(date)
+        elif term_lower == "monthly":
+            return get_month_end_impl(date)
+        elif term_lower == "quarterly":
+            return get_quarter_end_impl(date)
+        elif term_lower == "yearly":
+            return f"{date[:4]}1231"
+        else:
+            return None
+    except Exception:
+        return None
+
+
+def get_previous_period_end_impl(current_date: str, term: str) -> Optional[str]:
+    """
+    获取上一周期的结束日期（自然日）。
+    
+    用于计算end_date，确保只获取已完整结束的周期数据，避免获取当前未完成周期的"脏数据"。
+    
+    支持的周期类型：
+        - weekly: 返回上一周的周日（A股的周交易日最后一天是周日）
+        - monthly: 返回上一月的最后一天
+        - quarterly: 返回上一季度的最后一天
+        - yearly: 返回上一年的最后一天（1231）
+    
+    Args:
+        current_date: 当前日期（YYYYMMDD格式），通常是latest_completed_trading_date
+        term: 周期类型（"weekly", "monthly", "quarterly", "yearly"）
+    
+    Returns:
+        上一周期的结束日期（YYYYMMDD格式），如果term不支持则返回None
+    """
+    term_lower = term.lower()
+    try:
+        if term_lower == "weekly":
+            # A股的周交易日最后一天是周日，所以找到上一周的周日
+            current_week_start = get_week_start_impl(current_date)
+            # 上一周的周日 = 本周周一往前推1天
+            prev_week_sunday = (parse_date(current_week_start) - timedelta(days=1)).strftime(FMT_YYYYMMDD)
+            return prev_week_sunday
+        elif term_lower == "monthly":
+            # 找到上一月的结束日期
+            current_month_start = get_month_start_impl(current_date)
+            prev_month_end = (parse_date(current_month_start) - timedelta(days=1)).strftime(FMT_YYYYMMDD)
+            return prev_month_end
+        elif term_lower == "quarterly":
+            # 找到上一季度的结束日期
+            dt = parse_date(current_date)
+            quarter = (dt.month - 1) // 3 + 1
+            if quarter == 1:
+                # 上一季度是去年Q4
+                return f"{dt.year - 1}1231"
+            elif quarter == 2:
+                return f"{dt.year}0331"
+            elif quarter == 3:
+                return f"{dt.year}0630"
+            else:  # quarter == 4
+                return f"{dt.year}0930"
+        elif term_lower == "yearly":
+            # 上一年的结束日期
+            year = int(current_date[:4])
+            return f"{year - 1}1231"
+        else:
+            return None
+    except Exception:
+        return None

@@ -1,4 +1,5 @@
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
+from pathlib import Path
 from loguru import logger
 
 from core.infra.project_context import PathManager
@@ -112,14 +113,26 @@ class DataSourceManager:
     def _discover_config(self, data_source_key: str) -> Any:
         """
         发现并加载指定数据源的 Config。仅支持 config.py，其中必须定义 CONFIG 字典。
+        
+        支持递归查找：
+        1. 首先尝试直接路径：handlers/{data_source_key}/config.py（向后兼容）
+        2. 如果找不到，递归搜索 handlers 目录下的所有子目录，查找包含 {data_source_key} 的目录
         """
         if data_source_key in self._all_valid_configs_cache:
             return self._all_valid_configs_cache[data_source_key]
 
+        # 首先尝试直接路径（向后兼容）
         handler_dir = PathManager.data_source_handler(data_source_key)
         config_path = handler_dir / "config.py"
-
+        
         config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
+        
+        # 如果直接路径找不到，尝试递归查找
+        if not config_dict:
+            config_path = self._find_config_recursively(data_source_key)
+            if config_path:
+                config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
+        
         if not config_dict:
             logger.info(f"Data source {data_source_key} 未找到或无法加载 config.py，跳过")
             return None
@@ -131,6 +144,15 @@ class DataSourceManager:
 
         self._all_valid_configs_cache[data_source_key] = config
         return config
+    
+    def _find_config_recursively(self, data_source_key: str) -> Optional[Path]:
+        """
+        递归查找 config.py 文件
+        
+        使用 PathManager.find_config_recursively 进行查找。
+        """
+        handlers_dir = PathManager.data_source_handlers()
+        return PathManager.find_config_recursively(handlers_dir, data_source_key, "config.py")
 
 
     def _discover_handler(

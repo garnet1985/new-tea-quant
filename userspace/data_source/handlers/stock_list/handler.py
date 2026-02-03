@@ -4,12 +4,11 @@
 使用 Tushare Provider 获取股票列表（包含所有交易所）。
 流程：on_before_run 检查 sys_cache -> 若今日已更新则从 DB 返回短路；否则 API -> on_before_save 写维度/映射/cache。
 """
-from cgitb import text
 from typing import List, Dict, Any, Optional, Set, Tuple
 from loguru import logger
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
-from core.utils.date.date_utils import DateUtils, DateFormat
+from core.utils.date.date_utils import DateUtils
 
 from .helper import (
     format_mapped_records_with_defaults,
@@ -55,7 +54,7 @@ class TushareStockListHandler(BaseHandler):
             return {"data": []}
 
         # save 入口统一打本批次的 last_update 时间戳
-        time_str = DateUtils.get_today_str()
+        time_str = DateUtils.today()
         for r in main_records:
             r["last_update"] = time_str
 

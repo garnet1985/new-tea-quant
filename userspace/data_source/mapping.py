@@ -43,27 +43,27 @@ DATA_SOURCES = {
     },
     "gdp": {
         "handler": "gdp.GdpHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
     "cpi": {
         "handler": "cpi.CpiHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
     "ppi": {
         "handler": "ppi.PpiHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
     "pmi": {
         "handler": "pmi.PmiHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
     "money_supply": {
         "handler": "money_supply.MoneySupplyHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
     "shibor": {

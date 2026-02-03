@@ -1,16 +1,19 @@
 """
 PMI Handler 配置。绑定表 sys_pmi。
 """
+from core.utils.date.date_utils import DateUtils
+
+
 CONFIG = {
     "table": "sys_pmi",
     "renew": {
         "type": "rolling",
         "last_update_info": {
             "date_field": "date",
-            "date_format": "monthly",
+            "date_format": DateUtils.PERIOD_MONTH,
         },
         "rolling": {
-            "unit": "monthly",
+            "unit": DateUtils.PERIOD_MONTH,
             "length": 12,
         },
     },

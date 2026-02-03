@@ -580,15 +580,22 @@ class BaseHandler:
         # 步骤 4.4：自动日期标准化（如果配置了 date_format）
         # 根据 config.date_format 自动标准化 date 字段
         config = context.get("config")
-        date_format = config.get_date_format()
-        if date_format != "none":
-            # 将 date_format 映射到 target_format
-            # "day" -> "day", "month" -> "month", "quarter" -> "quarter"
-            target_format = date_format if date_format in ("day", "month", "quarter") else "day"
+        date_format = config.get_date_format() if config else None
+
+        # 使用 DateUtils 的 period 规范化逻辑，将各种配置值统一为
+        # "day" / "month" / "quarter"，再交给 normalize_date_field 处理。
+        try:
+            from core.utils.date.date_utils import DateUtils
+            target_format = DateUtils.normalize_period_type(date_format or DateUtils.PERIOD_DAY)
+        except Exception:
+            # 极端情况下（例如循环依赖），回退为按天标准化，保持兼容
+            target_format = "day"
+
+        if target_format and target_format != "none":
             mapped_records = DataSourceHandlerHelper.normalize_date_field(
                 mapped_records,
                 field="date",
-                target_format=target_format
+                target_format=target_format,
             )
 
         # 步骤 4.5：调用 on_after_mapping 钩子，允许子类在字段映射后、schema 应用前进行自定义处理

@@ -71,8 +71,9 @@ class IncrementalRenewService:
         
         # 定义增量模式的起始日期计算函数：最新日期的后一个周期
         def _calculate_incremental_start(latest_value: str, end_date: str, date_format: str) -> str:
-            start_value = DateUtils.add_one_period(latest_value, date_format)
-            return DateUtils.format_period(start_value, date_format)
+            period_type = DateUtils.normalize_period_type(date_format)
+            start_period = DateUtils.add_periods(latest_value, 1, period_type)
+            return DateUtils.from_period_str(start_period, period_type, is_start=True)
         
         # 如果不需要分组，返回单个日期范围
         if latest_dates_dict is None:

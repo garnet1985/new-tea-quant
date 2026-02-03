@@ -23,12 +23,12 @@ DATA_SOURCES = {
     },
     "corporate_finance": {
         "handler": "corporate_finance.CorporateFinanceHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["stock_list", "latest_trading_date"],
     },
     "adj_factor_event": {
         "handler": "adj_factor_event.AdjFactorEventHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["stock_list", "latest_trading_date"],
     },
     "index_klines": {

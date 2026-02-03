@@ -60,8 +60,14 @@ class AdjFactorEventHandlerHelper:
                 return qfq_map
             
             # 检查 API 返回的错误码
-            if eastmoney_result.get('rc') != 0:
-                logger.warning(f"东方财富 API 返回错误码: {eastmoney_result.get('rc')}, 消息: {eastmoney_result.get('rt')}")
+            rc = eastmoney_result.get('rc')
+            if rc != 0:
+                # rc: 102 可能表示参数错误或数据不存在，这是正常的（某些股票可能没有数据）
+                if rc == 102:
+                    logger.debug(f"东方财富 API 返回 rc=102（数据不存在或参数错误），可能是股票代码无效或日期范围无数据")
+                else:
+                    logger.warning(f"东方财富 API 返回错误码: {rc}, 消息: {eastmoney_result.get('rt')}")
+                return qfq_map
             
             data = eastmoney_result.get('data')
             if not data:
@@ -423,6 +429,10 @@ class AdjFactorEventHandlerHelper:
         # 为每个事件日期计算 qfq_diff 并构建事件记录
         events = []
         
+        # 如果 eastmoney_qfq_map 为空，记录一次警告（避免为每个事件日期都记录）
+        if not eastmoney_qfq_map:
+            logger.warning(f"{stock_id}: 无法获取东方财富前复权价格数据（API 返回格式异常或数据为空），该股票的所有事件日期都将使用 qfq_diff=0.0")
+        
         for event_date_ymd in changing_dates:
             # 获取该事件日的复权因子
             factor = AdjFactorEventHandlerHelper.get_factor_for_date(
@@ -446,9 +456,6 @@ class AdjFactorEventHandlerHelper:
             
             # 计算 qfq_diff = raw_price - EastMoney_QFQ
             qfq_diff = AdjFactorEventHandlerHelper.calculate_qfq_diff(raw_close, eastmoney_qfq)
-            
-            if eastmoney_qfq is None:
-                logger.warning(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格")
             
             events.append({
                 'id': stock_id,

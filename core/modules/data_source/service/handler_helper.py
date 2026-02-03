@@ -1418,6 +1418,25 @@ class DataSourceHandlerHelper:
             except Exception:
                 latest_completed_trading_date = DateUtils.today()
 
+        # 4.1 当 counting_field 与 date_field 不同时，单独查询 renew 门控用的时间（如 last_update）
+        # last_update_map 用 date_field（如 event_date）用于增量起点；renew_if_over_days 应用 counting_field（如 last_update）
+        renew_gate_map: Optional[Dict[str, Optional[str]]] = None
+        needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
+        if threshold_cfg:
+            counting_field = threshold_cfg.get("counting_field")
+            date_field = config.get_date_field()
+            if counting_field and counting_field != date_field:
+                table_name = config.get_table_name()
+                if table_name and needs_stock_grouping is not False:
+                    raw_map = RenewCommonHelper.query_latest_date(
+                        data_manager, table_name, counting_field, date_format,
+                        needs_stock_grouping, context=context
+                    )
+                    if raw_map:
+                        renew_gate_map = {}
+                        for k, v in raw_map.items():
+                            renew_gate_map[k] = DataSourceHandlerHelper._normalize_date_value(v) if v else None
+
         def should_trigger(last_update: Optional[str], composite_key: Optional[str] = None) -> bool:
             """
             根据 renew_if_over_days 判断是否需要触发本次更新（更新频率检查）。
@@ -1455,7 +1474,6 @@ class DataSourceHandlerHelper:
             return days_diff >= threshold_days
 
         # 5. 根据需要分组与否，分别计算
-        needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
         result: Dict[str, Tuple[str, str]] = {}
         
         # 公共：根据模式计算起点
@@ -1570,8 +1588,8 @@ class DataSourceHandlerHelper:
 
         # 非 per-entity：只算一条 "_global"
         if not needs_stock_grouping:
-            last_update = last_update_map.get("_global")
-            if not should_trigger(last_update):
+            gate_val = (renew_gate_map.get("_global") if renew_gate_map else None) or last_update_map.get("_global")
+            if not should_trigger(gate_val):
                 return {}
             start_date = compute_start_for_mode(last_update)
             result["_global"] = (start_date, end_date)
@@ -1645,10 +1663,11 @@ class DataSourceHandlerHelper:
                 # 为每个term创建日期范围
                 for term in terms_set:
                     composite_key = f"{entity_id}::{term}"
-                    last_update = last_update_map.get(composite_key)  # 可能为None（新股票）
+                    gate_val = renew_gate_map.get(composite_key) if renew_gate_map else last_update_map.get(composite_key)
+                    last_update = last_update_map.get(composite_key)
                     
-                    # 第一层检查：更新频率（renew_if_over_days）
-                    if not should_trigger(last_update, composite_key):
+                    # 第一层检查：更新频率（renew_if_over_days，使用 counting_field 如 last_update）
+                    if not should_trigger(gate_val, composite_key):
                         continue
                     
                     # 第二层检查：完整周期检查（对于周线/月线，确保完整周期已过）
@@ -1741,9 +1760,10 @@ class DataSourceHandlerHelper:
                 if not entity_id:
                     continue
                 
-                last_update = last_update_map.get(entity_id)
-                if not should_trigger(last_update):
+                gate_val = renew_gate_map.get(entity_id) if renew_gate_map else last_update_map.get(entity_id)
+                if not should_trigger(gate_val):
                     continue
+                last_update = last_update_map.get(entity_id)
                 start_date = compute_start_for_mode(last_update)
                 result[entity_id] = (start_date, end_date)
             

@@ -4,6 +4,7 @@ Stock List Handler 配置。绑定表 sys_stock_list。
 """
 CONFIG = {
     "table": "sys_stock_list",
+    "save_mode": "unified",  # 统一保存：所有数据在 _do_save 中统一保存
     "renew": {
         "type": "refresh",
     },

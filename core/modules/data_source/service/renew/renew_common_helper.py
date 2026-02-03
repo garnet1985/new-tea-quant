@@ -176,7 +176,7 @@ class RenewCommonHelper:
             if needs_stock_grouping is None:
                 # 如果未配置，根据主键结构自动判断
                 try:
-                    primary_keys = model._get_primary_keys_from_schema()
+                    primary_keys = model.get_primary_keys()
                     # 过滤掉日期字段，得到分组键
                     group_keys = [k for k in primary_keys if k != date_field]
                     needs_grouping = len(group_keys) > 0
@@ -193,11 +193,11 @@ class RenewCommonHelper:
             
             # 需要分组：查询每个实体的最新日期；实体标识字段优先用 config.result_group_by.by_key
             try:
-                primary_keys = model._get_primary_keys_from_schema()
+                primary_keys = model.get_primary_keys()
                 group_keys = [k for k in primary_keys if k != date_field]
                 if not group_keys:
                     return None
-                latest_records = model.load_latest_records(
+                latest_records = model.load_latests(
                     date_field=date_field, group_fields=group_keys
                 )
                 if not latest_records:
@@ -219,8 +219,8 @@ class RenewCommonHelper:
                         result[entity_id] = latest_date
                 return result if result else None
             except (AttributeError, Exception) as e:
-                # 如果 load_latest_records 不存在或失败，降级到简单查询
-                logger.debug(f"使用 load_latest_records 失败: {e}，降级到简单查询")
+                # 如果 load_latests 不存在或失败，降级到简单查询
+                logger.debug(f"使用 load_latests 失败: {e}，降级到简单查询")
                 # 对于需要分组的情况，降级查询无法获取 per stock 信息，返回 None
                 return None
         except Exception as e:

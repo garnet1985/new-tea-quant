@@ -8,6 +8,7 @@ CONFIG = {
     "table": "sys_corporate_finance",
     "save_mode": "batch",  # 批量保存：累计 save_batch_size 个 bundle 后保存
     "save_batch_size": 20,  # 每20个bundle保存一次
+    "ignore_fields": ["id", "quarter"],  # 这些字段由 handler 手动添加，不在 field_mapping 中
     "renew": {
         "type": "rolling",
         "rolling": {

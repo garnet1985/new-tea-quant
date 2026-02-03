@@ -17,6 +17,7 @@ from .helper import (
 )
 
 CACHE_KEY = "stock_list_last_update"
+CACHE_DATE_FIELD = "last_checked_at"     # 缓存日期字段
 
 class TushareStockListHandler(BaseHandler):
     """
@@ -32,16 +33,11 @@ class TushareStockListHandler(BaseHandler):
             logger.warning("DataManager 实例不存在，跳过 stock_list 缓存检查")
             return None
         try:
-            cache = dm.db_cache.load(CACHE_KEY)
-            logger.info(f"✅ stock_list 缓存: {cache}")
+            cache = dm.db_cache.load(CACHE_KEY, field="json")
             if self._is_valid_cache(cache):
-                logger.info("✅ stock_list 缓存为今日，直接从 DB 读取股票列表")
                 return {"data": dm.stock.list.load_all()}
-            if cache:
-                logger.info("ℹ️ stock_list 缓存存在但已过期，本次将调用 API 刷新")
             else:
-                logger.info("ℹ️ stock_list 缓存不存在，本次将调用 API 刷新")
-            return None
+                logger.info("ℹ️ stock_list 缓存校验失败，本次将调用 API 更新缓存")
         except Exception as e:
             logger.warning(f"检查 stock_list 缓存失败: {e}")
             return None
@@ -59,7 +55,7 @@ class TushareStockListHandler(BaseHandler):
             return {"data": []}
 
         # save 入口统一打本批次的 last_update 时间戳
-        time_str = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD_HH_MM_SS)
+        time_str = DateUtils.get_today_str()
         for r in main_records:
             r["last_update"] = time_str
 
@@ -91,8 +87,7 @@ class TushareStockListHandler(BaseHandler):
         # 使用本批次时间戳更新缓存
         if time_str and dm.db_cache:
             try:
-                dm.db_cache.save(CACHE_KEY, text=time_str)
-                logger.info(f"✅ sys_cache 已记录 stock_list_last_update: {time_str}")
+                dm.db_cache.save(CACHE_KEY, json={CACHE_DATE_FIELD: time_str})
             except Exception as e:
                 logger.warning(f"写入 sys_cache 失败: {e}")
 
@@ -103,14 +98,10 @@ class TushareStockListHandler(BaseHandler):
     def _is_valid_cache(self, cache: Optional[Dict[str, Any]]) -> bool:
         if not cache:
             return False
-        last_updated = cache.get("last_updated")
-        if not last_updated:
+        cache_date = cache.get(CACHE_DATE_FIELD)
+        if not cache_date:
             return False
-        cache_date = DateUtils.normalize_to_format(last_updated, DateFormat.DAY)
-
-        is_today = cache_date == DateUtils.get_current_date_str()
-        logger.info(f"🔎 stock_list 缓存校验: cache_date={cache_date}, today={DateUtils.get_current_date_str()}, is_valid={is_today}")
-        return is_today
+        return DateUtils.is_today(cache_date)
 
     def _group_boards_markets_and_industries(self, raw_records: List[Dict[str, Any]]) -> Tuple[List[str], List[str], List[str]]:
         """从 raw_records 提取去重后的 board/market/industry 值列表。有则参与归类，无则不计入。"""

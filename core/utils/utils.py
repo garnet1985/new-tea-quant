@@ -3,10 +3,19 @@
 
 提供配置文件的加载、合并等工具方法
 """
+import datetime
 from typing import Dict, Any, List, Set, Tuple
 import pandas as pd
 
 class Utils:
+    @staticmethod
+    def is_datetime(obj: Any) -> bool:
+        return isinstance(obj, datetime.datetime)
+
+    @staticmethod
+    def is_date_string(obj: Any) -> bool:
+        return Utils.is_string(obj) and obj.isdigit()
+
     @staticmethod
     def is_dict(obj: Any) -> bool:
         return isinstance(obj, dict)

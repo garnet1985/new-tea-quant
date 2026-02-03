@@ -41,7 +41,7 @@ class CorporateFinanceHandler(BaseHandler):
         self.context = self._inject_required_global_dependencies(global_dependencies)
         
         # 判断是否需要抽样
-        current_date = DateUtils.get_current_date_str()
+        current_date = DateUtils.get_today_str()
         current_month = int(current_date[4:6])
         is_quarter_boundary_month = current_month in [1, 4, 7, 10]
         
@@ -78,7 +78,7 @@ class CorporateFinanceHandler(BaseHandler):
         - 如果不是：使用抽样后的股票列表进行rolling更新
         """
         # 获取当前日期
-        current_date = DateUtils.get_current_date_str()
+        current_date = DateUtils.get_today_str()
         current_month = int(current_date[4:6])
         
         # 判断是否是季度分界点的后一个月（4月、7月、10月、1月）
@@ -136,7 +136,7 @@ class GDPHandler(BaseHandler):
         # 获取结束日期
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if not latest_completed_trading_date:
-            latest_completed_trading_date = DateUtils.get_current_date_str()
+            latest_completed_trading_date = DateUtils.get_today_str()
         
         # 计算2个季度的rolling日期范围
         end_value = DateUtils.get_current_period(latest_completed_trading_date, "quarter")
@@ -204,7 +204,7 @@ class StockKlineQualityHandler(BaseHandler):
         # 获取结束日期
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if not latest_completed_trading_date:
-            latest_completed_trading_date = DateUtils.get_current_date_str()
+            latest_completed_trading_date = DateUtils.get_today_str()
         
         # 获取上次更新时间（从 context 或数据库查询）
         last_update_time = context.get("_last_update_time")

@@ -1319,7 +1319,7 @@ class DataSourceHandlerHelper:
                     latest_completed_trading_date, date_format
                 )
             else:
-                current_date = DateUtils.get_current_date_str()
+                current_date = DateUtils.get_today_str()
                 end_value = DateUtils.get_current_period(current_date, date_format)
 
             rolling_start_value = DateUtils.subtract_periods(
@@ -1414,9 +1414,9 @@ class DataSourceHandlerHelper:
                         data_manager.service.calendar.get_latest_completed_trading_date()
                     )
                 else:
-                    latest_completed_trading_date = DateUtils.get_current_date_str()
+                    latest_completed_trading_date = DateUtils.get_today_str()
             except Exception:
-                latest_completed_trading_date = DateUtils.get_current_date_str()
+                latest_completed_trading_date = DateUtils.get_today_str()
 
         def should_trigger(last_update: Optional[str]) -> bool:
             """根据 renew_if_over_days 判断是否需要触发本次更新。"""
@@ -1512,7 +1512,7 @@ class DataSourceHandlerHelper:
                         latest_completed_trading_date, date_format
                     )
                 else:
-                    current_date = DateUtils.get_current_date_str()
+                    current_date = DateUtils.get_today_str()
                     end_value = DateUtils.get_current_period(current_date, date_format)
 
                 rolling_start_value = DateUtils.subtract_periods(
@@ -1645,7 +1645,7 @@ class DataSourceHandlerHelper:
                 latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新完成交易日失败: {e}")
-                latest_completed_trading_date = DateUtils.get_current_date_str()
+                latest_completed_trading_date = DateUtils.get_today_str()
         
         # ========== 步骤1：判断是全局数据还是 per entity ==========
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)

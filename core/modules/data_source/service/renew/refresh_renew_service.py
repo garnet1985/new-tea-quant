@@ -60,7 +60,7 @@ class RefreshRenewService:
             return start_date, end_date
         
         # 使用 default_date_range 计算日期范围
-        current_date = DateUtils.get_current_date_str()
+        current_date = DateUtils.get_today_str()
         start_date, end_date = self._calculate_date_range_from_config(
             current_date, date_format, default_date_range, context
         )

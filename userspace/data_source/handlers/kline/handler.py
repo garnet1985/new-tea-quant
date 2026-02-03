@@ -72,9 +72,9 @@ class KlineHandler(BaseHandler):
                     latest_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
                 except Exception as e:
                     logger.warning(f"获取最新交易日失败: {e}")
-                    latest_trading_date = DateUtils.get_current_date_str()
+                    latest_trading_date = DateUtils.get_today_str()
             else:
-                latest_trading_date = DateUtils.get_current_date_str()
+                latest_trading_date = DateUtils.get_today_str()
         
         # 计算每个周期的结束日期
         end_dates = {

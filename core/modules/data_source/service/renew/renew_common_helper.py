@@ -45,10 +45,10 @@ class RenewCommonHelper:
                 latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败: {e}，使用当前日期")
-                latest_completed_trading_date = DateUtils.get_current_date_str()
+                latest_completed_trading_date = DateUtils.get_today_str()
         
         if not latest_completed_trading_date:
-            latest_completed_trading_date = DateUtils.get_current_date_str()
+            latest_completed_trading_date = DateUtils.get_today_str()
         
         # 根据 date_format 转换日期格式
         start_date = RenewCommonHelper.convert_date_to_format(default_start_date, date_format)
@@ -111,7 +111,7 @@ class RenewCommonHelper:
                     date_format
                 )
         else:
-            current_date = DateUtils.get_current_date_str()
+            current_date = DateUtils.get_today_str()
             current_value = DateUtils.get_current_period(current_date, date_format)
             return DateUtils.format_period(current_value, date_format)
     

@@ -2,45 +2,16 @@
 PPI Handler - 生产者价格指数
 
 从 Tushare 获取 PPI 数据，写入 sys_ppi 表。
-"""
-from typing import List, Dict, Any
-from loguru import logger
 
+注意：
+- 日期标准化由 BaseHandler 根据 config 中的 date_format 自动处理
+- 缺失字段会存为 NULL（符合 schema 的 nullable: true 设计）
+"""
 from core.modules.data_source.base_class.base_handler import BaseHandler
 
 
 class PpiHandler(BaseHandler):
     """PPI 数据 Handler，绑定表 sys_ppi。"""
-
-    def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """标准化月份格式为 YYYYMM。"""
-        if not mapped_records:
-            return mapped_records
-        formatted = []
-        for record in mapped_records:
-            date_value = record.get("date")
-            if not date_value:
-                logger.warning("记录缺少 date 字段，跳过")
-                continue
-            normalized = self._normalize_month(str(date_value))
-            if not normalized:
-                logger.warning(f"月份格式异常: {date_value}，跳过")
-                continue
-            record["date"] = normalized
-            record.setdefault("ppi", 0.0)
-            record.setdefault("ppi_yoy", 0.0)
-            record.setdefault("ppi_mom", 0.0)
-            formatted.append(record)
-        formatted.sort(key=lambda x: x.get("date", ""))
-        return formatted
-
-    def _normalize_month(self, month: str) -> str:
-        """标准化为 YYYYMM。"""
-        if not month:
-            return ""
-        clean = "".join(c for c in month if c.isdigit())
-        if len(clean) == 6:
-            return clean
-        if len(clean) == 8:
-            return clean[:6]
-        return ""
+    # BaseHandler 会自动处理日期标准化和数据规范化
+    # 缺失字段会按 schema 的 nullable 设置存为 NULL
+    pass

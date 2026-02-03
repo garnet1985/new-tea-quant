@@ -1,14 +1,13 @@
 """
-复权因子事件 Handler（新算法 - 批量扫描版）
+复权因子事件 Handler（简化版 - 使用框架钩子）
 
-根据优化方案，实现高效的批量扫描和更新流程：
-0. CSV导入（如果表为空）
-1. 批量查询超过N天未更新的股票
-2. 为有变化的股票生成 ApiJobs（Tushare adj_factor + daily_kline + EastMoney QFQ）
-3. 保存数据
-4. 季度CSV导出
+特点：
+- CSV缓存：空表时从CSV快速恢复
+- 批量筛选：框架自动处理 renew_if_over_days
+- 多线程支持：框架自动处理
+- 季度CSV导出：定期备份数据
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from loguru import logger
 import os
 
@@ -17,19 +16,18 @@ from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from userspace.data_source.handlers.adj_factor_event.helper import AdjFactorEventHandlerHelper as helper
-from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
 
 
 class AdjFactorEventHandler(BaseHandler):
     """
-    复权因子事件 Handler（新算法 - 批量扫描版）
+    复权因子事件 Handler（简化版）
     
-    特点：
-    - CSV缓存：空表时从CSV快速恢复
-    - 批量筛选：一次SQL查询找出需要更新的股票
-    - 多线程支持：预筛选和精确计算都支持多线程
-    - 季度CSV导出：定期备份数据
+    使用框架的标准钩子：
+    - on_prepare_context: CSV 导入检查
+    - on_build_job_payload: 注入股票代码和日期参数
+    - on_after_single_api_job_bundle_complete: 处理每个股票的数据
+    - on_after_normalize: CSV 导出
     """
     
     def __init__(
@@ -41,273 +39,230 @@ class AdjFactorEventHandler(BaseHandler):
         depend_on_data_source_names: List[str] = None,
     ):
         super().__init__(data_source_key, schema, config, providers, depend_on_data_source_names or [])
-        
-        # 用于跟踪任务完成状态
-        self._total_stocks = 0
         self._completed_stocks = 0
-        self._tasks_incomplete = False
+        self._total_stocks = 0
     
-    def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
-        """
-        抓取前阶段钩子：筛选需要更新的股票，为每个股票创建 3 个 ApiJob
+    def on_prepare_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """预处理阶段的上下文准备钩子：CSV 导入检查（如果 model 支持）。"""
+        context = super().on_prepare_context(context)
         
-        Args:
-            context: 执行上下文
-            apis: 原始 ApiJob 列表（从 config 构建）
-            
-        Returns:
-            List[ApiJob]: 处理后的 ApiJob 列表（每个股票 3 个 ApiJob）
-        """
         data_manager = context["data_manager"]
-        stock_list = context.get("stock_list", [])
-        if not stock_list:
-            return apis
-        
         latest_completed_trading_date = context.get("latest_completed_trading_date")
-        if not latest_completed_trading_date:
-            latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
         
         # 记录本轮执行对应的最新完成交易日，用于后续季度 CSV 命名
         self._latest_completed_trading_date = latest_completed_trading_date
         
-        # 使用 service 访问 model
         adj_factor_event_model = data_manager.stock.kline._adj_factor_event
         
-        # ========== 步骤0：根据 DB / CSV 状态做初始化决策 ==========
+        # CSV 导入检查（如果 model 支持 CSV 功能）
         context["should_generate_csv"] = False
-        is_table_empty = adj_factor_event_model.is_table_empty()
+        
+        # 检查 model 是否支持表空检查
+        is_table_empty = False
+        if hasattr(adj_factor_event_model, 'is_table_empty'):
+            is_table_empty = adj_factor_event_model.is_table_empty()
+        else:
+            # 如果没有 is_table_empty 方法，尝试使用 count 方法
+            try:
+                count = adj_factor_event_model.count()
+                is_table_empty = count == 0
+            except Exception:
+                # 如果都不可用，假设表不为空，跳过 CSV 导入
+                return context
         
         if is_table_empty:
-            # 表为空：尝试从 CSV 恢复
-            if self._is_csv_exist_and_valid(adj_factor_event_model):
-                imported_count = adj_factor_event_model.import_from_csv()
-                if imported_count > 0:
-                    logger.info(f"✅ 从CSV导入 {imported_count} 条记录，表已恢复")
-                    is_table_empty = False
+            # 表为空：尝试从 CSV 恢复（如果支持）
+            if hasattr(adj_factor_event_model, 'get_latest_csv_file') and hasattr(adj_factor_event_model, 'import_from_csv'):
+                if self._is_csv_exist_and_valid(adj_factor_event_model):
+                    imported_count = adj_factor_event_model.import_from_csv()
+                    if imported_count > 0:
+                        logger.info(f"✅ 从CSV导入 {imported_count} 条记录，表已恢复")
+                    else:
+                        logger.warning("CSV导入失败或无数据")
                 else:
-                    logger.warning("CSV导入失败或无数据")
+                    logger.info("表为空且无有效CSV，将进行首次构建")
             else:
-                logger.info("表为空且无有效CSV，将进行首次构建")
+                logger.info("表为空，将进行首次构建（CSV功能未启用）")
         else:
-            # 表不为空：检查是否需要生成新的 CSV
-            if self._is_csv_expired(adj_factor_event_model, base_date=latest_completed_trading_date) or not self._is_csv_exist_and_valid(adj_factor_event_model):
-                context["should_generate_csv"] = True
-                logger.info("CSV已过期或不存在，将在更新后生成新CSV")
+            # 表不为空：检查是否需要生成新的 CSV（如果支持）
+            if hasattr(adj_factor_event_model, 'get_latest_csv_file') and hasattr(adj_factor_event_model, 'get_current_quarter_csv_name'):
+                if self._is_csv_expired(adj_factor_event_model, base_date=latest_completed_trading_date) or not self._is_csv_exist_and_valid(adj_factor_event_model):
+                    context["should_generate_csv"] = True
+                    logger.info("CSV已过期或不存在，将在更新后生成新CSV")
         
-        # ========== 步骤1：为所有股票创建 ApiJobs ==========
-        # 注意：框架会在 on_before_fetch 之后根据 renew_if_over_days 配置自动过滤不需要更新的股票
-        # 这里我们为所有股票创建 ApiJobs，框架会自动处理阈值过滤
-        
-        # 构建 API name 到 base_api 的映射
-        api_map = {api.api_name: api for api in apis}
-        
-        expanded_apis = []
-        default_start_date = ConfigManager.get_default_start_date()
-        end_date_ymd = latest_completed_trading_date
-        
-        # 为所有股票创建 ApiJobs（框架会自动过滤）
-        for stock in stock_list:
-            stock_id = stock.get('id') or stock.get('ts_code')
-            if not stock_id:
-                continue
-            
-            # 1. Tushare adj_factor API（全量复权因子）
-            adj_factor_api = api_map.get("adj_factor")
-            if adj_factor_api:
-                expanded_apis.append(ApiJob(
-                    api_name=adj_factor_api.api_name,
-                    provider_name=adj_factor_api.provider_name,
-                    method=adj_factor_api.method,
-                    params={
-                        **adj_factor_api.params,
-                        "ts_code": stock_id,
-                        "start_date": default_start_date,
-                        "end_date": end_date_ymd,
-                    },
-                    api_params=adj_factor_api.api_params,
-                    depends_on=adj_factor_api.depends_on,
-                    rate_limit=adj_factor_api.rate_limit,
-                    job_id=f"{stock_id}_adj_factor_full",
-                ))
-            
-            # 2. Tushare daily_kline API（全量原始收盘价）
-            daily_kline_api = api_map.get("daily_kline")
-            if daily_kline_api:
-                expanded_apis.append(ApiJob(
-                    api_name=daily_kline_api.api_name,
-                    provider_name=daily_kline_api.provider_name,
-                    method=daily_kline_api.method,
-                    params={
-                        **daily_kline_api.params,
-                        "ts_code": stock_id,
-                        "start_date": default_start_date,
-                        "end_date": end_date_ymd,
-                    },
-                    api_params=daily_kline_api.api_params,
-                    depends_on=daily_kline_api.depends_on,
-                    rate_limit=daily_kline_api.rate_limit,
-                    job_id=f"{stock_id}_daily_kline_full",
-                ))
-            
-            # 3. EastMoney API（全量前复权价格）
-            qfq_kline_api = api_map.get("qfq_kline")
-            if qfq_kline_api:
-                eastmoney_secid = helper.convert_to_eastmoney_secid(stock_id)
-                expanded_apis.append(ApiJob(
-                    api_name=qfq_kline_api.api_name,
-                    provider_name=qfq_kline_api.provider_name,
-                    method=qfq_kline_api.method,
-                    params={
-                        **qfq_kline_api.params,
-                        "secid": eastmoney_secid,
-                        "start_date": default_start_date,
-                        "end_date": end_date_ymd,
-                    },
-                    api_params=qfq_kline_api.api_params,
-                    depends_on=qfq_kline_api.depends_on,
-                    rate_limit=qfq_kline_api.rate_limit,
-                    job_id=f"{stock_id}_eastmoney_full",
-                ))
-        
-        logger.info(f"✅ 为 {len(stock_list)} 只股票生成了复权因子事件获取任务，共 {len(expanded_apis)} 个 ApiJob（框架会自动过滤不需要更新的股票）")
-        return expanded_apis
+        return context
     
-    def on_after_execute_job_batch_for_single_stock(
-        self, 
+    def on_build_job_payload(
+        self,
+        entity_info: Any,
+        apis: List[ApiJob],
+        context: Dict[str, Any]
+    ) -> Optional[str]:
+        """构建 job payload：注入股票代码和日期参数到每个 API job。"""
+        entity_id = entity_info.get("id") if isinstance(entity_info, dict) else str(entity_info)
+        if not entity_id:
+            return None
+        
+        latest_completed_trading_date = context.get("latest_completed_trading_date")
+        default_start_date = ConfigManager.get_default_start_date()
+        
+        # 为每个 API job 注入参数
+        for job in apis:
+            job.params = job.params or {}
+            
+            # 注入股票代码（根据 API 类型使用不同的参数名）
+            if job.api_name == "qfq_kline":
+                # EastMoney API 使用 secid
+                eastmoney_secid = helper.convert_to_eastmoney_secid(entity_id)
+                job.params["secid"] = eastmoney_secid
+            else:
+                # Tushare API 使用 ts_code
+                job.params["ts_code"] = str(entity_id)
+            
+            # 注入日期参数
+            job.params["start_date"] = default_start_date
+            job.params["end_date"] = latest_completed_trading_date
+        
+        return str(entity_id)
+    
+    def on_after_single_api_job_bundle_complete(
+        self,
         context: Dict[str, Any],
-        job_bundle: ApiJobBundle, 
+        job_bundle: ApiJobBundle,
         fetched_data: Dict[str, Any]
     ):
-        """
-        执行 job batch 后的钩子：按股票分组保存数据
+        """单个 api job bundle 完成后的钩子：处理该股票的复权因子事件数据。"""
+        # 从 bundle_id 提取股票代码（格式：adj_factor_event_batch_{stock_id}）
+        stock_id = job_bundle.bundle_id.replace("adj_factor_event_batch_", "")
         
-        由于基类将所有 apis 打包成一个 batch，我们需要在这里按股票分组处理数据
+        # 获取该股票的 3 个 API 结果（使用 api_name 作为 key）
+        adj_factor_result = None
+        daily_kline_result = None
+        qfq_kline_result = None
         
-        注意：此处的保存逻辑是按实体（股票）逐个保存，属于执行期保存模式。
-        如果未来需要将 save 逻辑完全抽离到上层，可以移除此处的保存调用。
-        """
-        data_manager = context["data_manager"]
+        # 获取该股票的 3 个 API 结果（使用 api_name 作为 key，因为 job_id 默认等于 api_name）
+        adj_factor_result = None
+        daily_kline_result = None
+        qfq_kline_result = None
         
-        # 按股票分组处理数据
-        stock_jobs_map = {}  # {stock_id: {job_id: result}}
-        
-        # 构建 job_id 到 stock_id 的映射
         for api_job in job_bundle.apis:
-            job_id = api_job.job_id
-            if not job_id:
-                continue
-            
-            # 解析 stock_id（job_id 格式：{stock_id}_adj_factor_full 或 {stock_id}_daily_kline_full 或 {stock_id}_eastmoney_full）
-            if "_adj_factor_full" in job_id:
-                stock_id = job_id.replace("_adj_factor_full", "")
-            elif "_daily_kline_full" in job_id:
-                stock_id = job_id.replace("_daily_kline_full", "")
-            elif "_eastmoney_full" in job_id:
-                stock_id = job_id.replace("_eastmoney_full", "")
-            else:
-                continue
-            
-            if stock_id not in stock_jobs_map:
-                stock_jobs_map[stock_id] = {}
-            
+            # job_id 默认等于 api_name（如果没有显式设置）
+            job_id = api_job.job_id or api_job.api_name
             result = fetched_data.get(job_id)
-            if result is not None:
-                stock_jobs_map[stock_id][job_id] = result
+            
+            if api_job.api_name == "adj_factor":
+                adj_factor_result = result
+            elif api_job.api_name == "daily_kline":
+                daily_kline_result = result
+            elif api_job.api_name == "qfq_kline":
+                qfq_kline_result = result
         
-        # 保存每个股票的数据
-        for stock_id, stock_results in stock_jobs_map.items():
-            try:
-                self._save_stock_adj_factor_events(data_manager, stock_id, stock_results)
-                self._completed_stocks += 1
-            except Exception as e:
-                logger.error(f"❌ 保存股票 {stock_id} 复权因子事件失败: {e}", exc_info=True)
-        
-        # 更新总股票数（用于 CSV 导出判断）
-        if not hasattr(self, '_total_stocks') or self._total_stocks == 0:
-            self._total_stocks = len(stock_jobs_map)
-    
-    def _save_stock_adj_factor_events(
-        self,
-        data_manager,
-        stock_id: str,
-        stock_results: Dict[str, Any]
-    ):
-        """
-        保存单个股票的复权因子事件数据
-        
-        Args:
-            data_manager: DataManager 实例
-            stock_id: 股票代码
-            stock_results: {job_id: result} 格式的数据
-        """
-        # 使用 service 访问 model
-        adj_factor_event_model = data_manager.stock.kline._adj_factor_event
-        
-        # 删除该股票的旧复权事件记录，实现"全量重算"
-        data_manager.stock.kline.delete_adj_factor_events(stock_id)
-        
-        # 获取三个全量 API 的结果
-        adj_factor_df = stock_results.get(f"{stock_id}_adj_factor_full")
-        daily_kline_df = stock_results.get(f"{stock_id}_daily_kline_full")
-        eastmoney_result = stock_results.get(f"{stock_id}_eastmoney_full")
+        # 调试：如果 qfq_kline_result 不是 dict，记录详细信息
+        if qfq_kline_result is not None and not isinstance(qfq_kline_result, dict):
+            logger.debug(f"{stock_id}: qfq_kline_result 类型异常: {type(qfq_kline_result)}, 值: {str(qfq_kline_result)[:200]}")
+            logger.debug(f"{stock_id}: fetched_data keys: {list(fetched_data.keys())}")
+            logger.debug(f"{stock_id}: job_bundle.apis: {[api.api_name for api in job_bundle.apis]}")
         
         # 验证必需的数据
-        if adj_factor_df is None or (hasattr(adj_factor_df, 'empty') and adj_factor_df.empty):
-            logger.warning(f"{stock_id}: 复权因子数据为空，跳过")
-            return
+        import pandas as pd
+        if adj_factor_result is None or (isinstance(adj_factor_result, pd.DataFrame) and adj_factor_result.empty):
+            logger.debug(f"{stock_id}: 复权因子数据为空，跳过")
+            return fetched_data
         
-        if daily_kline_df is None or (hasattr(daily_kline_df, 'empty') and daily_kline_df.empty):
-            logger.warning(f"{stock_id}: 日线数据为空，跳过")
-            return
+        if daily_kline_result is None or (isinstance(daily_kline_result, pd.DataFrame) and daily_kline_result.empty):
+            logger.debug(f"{stock_id}: 日线数据为空，跳过")
+            return fetched_data
         
         # 解析 EastMoney 全量数据，构建日期 -> QFQ 价格的映射
-        eastmoney_qfq_map = helper.parse_eastmoney_qfq_price_map(eastmoney_result)
+        # 注意：qfq_kline_result 可能为 None 或非 dict（API 失败或返回格式异常）
+        # parse_eastmoney_qfq_price_map 会处理这种情况，返回空字典
+        if qfq_kline_result is not None and not isinstance(qfq_kline_result, dict):
+            logger.debug(f"{stock_id}: 东方财富 API 返回的数据格式异常（类型: {type(qfq_kline_result)}），将使用空映射")
+        
+        eastmoney_qfq_map = helper.parse_eastmoney_qfq_price_map(qfq_kline_result)
+        
+        # 关键：EastMoney 失败时（如 RemoteDisconnected）eastmoney_qfq_map 为空，
+        # 若仍保存会导致 qfq_diff=0 覆盖 DB 中已有的正确复权数据，必须跳过
+        if not eastmoney_qfq_map:
+            logger.warning(
+                f"{stock_id}: 东方财富前复权数据为空（API 失败或返回异常），跳过保存，保留 DB 原有数据"
+            )
+            return fetched_data
         
         # 处理日线数据，构建日期 -> 原始收盘价的映射
-        raw_price_map = helper.build_raw_price_map(daily_kline_df)
+        raw_price_map = helper.build_raw_price_map(daily_kline_result)
         
         # 获取第一根日线日期
         first_kline_ymd = None
-        
-        # 1. 优先从 EastMoney 获取第一个K线日期
         if eastmoney_qfq_map:
-            first_eastmoney_date = min(eastmoney_qfq_map.keys())
-            first_kline_ymd = first_eastmoney_date
+            first_kline_ymd = min(eastmoney_qfq_map.keys())
+        elif isinstance(daily_kline_result, pd.DataFrame) and 'trade_date' in daily_kline_result.columns:
+            first_kline_date = daily_kline_result['trade_date'].min()
+            first_kline_ymd = helper.normalize_date_to_yyyymmdd(str(first_kline_date))
         
-        # 2. 如果 EastMoney 没有数据，从 daily_kline_df 获取
-        if not first_kline_ymd and not (hasattr(daily_kline_df, 'empty') and daily_kline_df.empty):
-            import pandas as pd
-            if isinstance(daily_kline_df, pd.DataFrame) and 'trade_date' in daily_kline_df.columns:
-                first_kline_date = daily_kline_df['trade_date'].min()
-                first_kline_ymd = helper.normalize_date_to_yyyymmdd(str(first_kline_date))
-        
-        # 复权因子和diff是为了股票的K线服务的，如果没有K线，因子和diff都没有存在的意义
         if not first_kline_ymd:
-            logger.warning(f"{stock_id}: 没有第一根K线数据（EastMoney 和 daily_kline 都没有数据），跳过复权因子保存")
-            return
+            logger.debug(f"{stock_id}: 没有第一根K线数据，跳过复权因子保存")
+            return fetched_data
         
         # 构建复权因子事件列表
         events_to_save = helper.build_adj_factor_events(
             stock_id=stock_id,
-            adj_factor_df=adj_factor_df,
+            adj_factor_df=adj_factor_result,
             raw_price_map=raw_price_map,
             eastmoney_qfq_map=eastmoney_qfq_map,
             first_kline_ymd=first_kline_ymd
         )
         
-        # 立即保存该股票的复权事件（全量替换：先删除再保存，每完成一只股票就立即保存）
-        if events_to_save:
+        # 保存该股票的复权事件（全量替换：先删除再保存）
+        if events_to_save and not context.get("is_dry_run"):
+            data_manager = context["data_manager"]
+            data_manager.stock.kline.delete_adj_factor_events(stock_id)
             count = data_manager.stock.kline.save_adj_factor_events(events_to_save)
             logger.info(f"✅ [全量替换] {stock_id}: 保存了 {len(events_to_save)} 个复权事件（实际保存 {count} 条）")
-        else:
-            logger.warning(f"{stock_id}: 没有可保存的复权事件")
+            self._completed_stocks += 1
+        
+        return fetched_data
     
-    def _is_table_empty(self, adj_factor_event_model) -> bool:
-        """检查复权因子事件表是否为空"""
-        return adj_factor_event_model.is_table_empty()
+    def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
+        """标准化后处理：季度CSV导出（如果 model 支持）。"""
+        data_manager = context.get("data_manager")
+        if not data_manager:
+            return normalized_data
+        
+        # 检查是否需要导出CSV
+        if not context.get("should_generate_csv"):
+            return normalized_data
+        
+        adj_factor_event_model = data_manager.stock.kline._adj_factor_event
+        
+        # 检查 model 是否支持 CSV 导出功能
+        if not (hasattr(adj_factor_event_model, 'get_current_quarter_csv_name') and 
+                hasattr(adj_factor_event_model, 'csv_dir') and 
+                hasattr(adj_factor_event_model, 'export_to_csv')):
+            logger.debug("CSV导出功能未启用（model 不支持）")
+            return normalized_data
+        
+        base_date = getattr(self, "_latest_completed_trading_date", None)
+        current_csv_name = adj_factor_event_model.get_current_quarter_csv_name(base_date=base_date)
+        current_csv_path = os.path.join(adj_factor_event_model.csv_dir, current_csv_name)
+        
+        if not os.path.exists(current_csv_path):
+            logger.info("📋 导出季度CSV...")
+            exported_count = adj_factor_event_model.export_to_csv(file_path=current_csv_path)
+            if exported_count > 0:
+                logger.info(f"✅ 导出季度CSV完成: {exported_count} 条记录 -> {current_csv_name}")
+            else:
+                logger.warning("导出季度CSV失败")
+        else:
+            logger.debug(f"当前季度CSV已存在: {current_csv_name}")
+        
+        return normalized_data
     
     def _is_csv_exist_and_valid(self, adj_factor_event_model) -> bool:
-        """检查CSV文件是否存在且有效"""
+        """检查CSV文件是否存在且有效（如果 model 支持）"""
+        if not hasattr(adj_factor_event_model, 'get_latest_csv_file'):
+            return False
+        
         csv_file = adj_factor_event_model.get_latest_csv_file()
         if not csv_file or not os.path.exists(csv_file):
             return False
@@ -321,7 +276,11 @@ class AdjFactorEventHandler(BaseHandler):
             return False
     
     def _is_csv_expired(self, adj_factor_event_model, base_date: str = None) -> bool:
-        """检查CSV文件是否过期（超过一个季度）"""
+        """检查CSV文件是否过期（超过一个季度）（如果 model 支持）"""
+        if not (hasattr(adj_factor_event_model, 'get_latest_csv_file') and 
+                hasattr(adj_factor_event_model, 'get_current_quarter_csv_name')):
+            return True
+        
         csv_file = adj_factor_event_model.get_latest_csv_file()
         if not csv_file:
             return True
@@ -329,73 +288,3 @@ class AdjFactorEventHandler(BaseHandler):
         current_csv_name = adj_factor_event_model.get_current_quarter_csv_name(base_date=base_date)
         csv_name = os.path.basename(csv_file)
         return csv_name != current_csv_name
-    
-    def _get_last_updated_dates(self, adj_factor_event_model) -> Dict[str, str]:
-        """获取每只股票的最后更新时间（last_update）"""
-        try:
-            query = f"""
-                SELECT id, MAX(last_update) as latest_last_update
-                FROM {adj_factor_event_model.table_name}
-                GROUP BY id
-            """
-            results = adj_factor_event_model.db.execute_sync_query(query)
-            result_dict = {}
-            for row in results:
-                if row.get('latest_last_update'):
-                    latest_update = row['latest_last_update']
-                    from datetime import datetime
-                    if isinstance(latest_update, datetime):
-                        latest_date_str = latest_update.strftime('%Y%m%d')
-                    elif isinstance(latest_update, str):
-                        try:
-                            dt = datetime.strptime(latest_update, '%Y-%m-%d %H:%M:%S')
-                            latest_date_str = dt.strftime('%Y%m%d')
-                        except:
-                            latest_date_str = latest_update.replace('-', '').replace(' ', '').replace(':', '')[:8]
-                    else:
-                        latest_date_str = str(latest_update).replace('-', '').replace(' ', '').replace(':', '')[:8]
-                    result_dict[row['id']] = latest_date_str
-            return result_dict
-        except Exception as e:
-            logger.error(f"获取最后更新日期失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            return {}
-    
-    def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        标准化后处理：季度CSV导出
-        
-        步骤6：季度CSV导出（仅在所有任务完成且写入落盘之后）
-        """
-        data_manager = context.get("data_manager")
-        if not data_manager:
-            return normalized_data
-        
-        # 检查任务是否全部完成
-        if self._completed_stocks < self._total_stocks:
-            self._tasks_incomplete = True
-            logger.warning(
-                f"⚠️ 复权因子事件任务未全部完成: 成功 {self._completed_stocks}/{self._total_stocks}，跳过季度CSV导出"
-            )
-            return normalized_data
-        
-        # 使用 service 访问 model
-        adj_factor_event_model = data_manager.stock.kline._adj_factor_event
-        
-        # 检查是否需要导出CSV
-        base_date = getattr(self, "_latest_completed_trading_date", None)
-        current_csv_name = adj_factor_event_model.get_current_quarter_csv_name(base_date=base_date)
-        current_csv_path = os.path.join(adj_factor_event_model.csv_dir, current_csv_name)
-        
-        if not os.path.exists(current_csv_path):
-            logger.info("📋 步骤 6/6: 导出季度CSV...")
-            exported_count = adj_factor_event_model.export_to_csv(file_path=current_csv_path)
-            if exported_count > 0:
-                logger.info(f"✅ 导出季度CSV完成: {exported_count} 条记录 -> {current_csv_name}")
-            else:
-                logger.warning("导出季度CSV失败")
-        else:
-            logger.debug(f"当前季度CSV已存在: {current_csv_name}")
-        
-        return normalized_data

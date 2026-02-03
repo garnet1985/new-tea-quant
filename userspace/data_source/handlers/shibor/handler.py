@@ -24,12 +24,3 @@ class ShiborHandler(BaseHandler):
     - rolling_unit: "day", rolling_length: 30
     - apis: {...} (包含 provider_name, method, field_mapping 等)
     """
-    
-    def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        标准化后处理：数据清洗（NaN 清理）已在基类中自动处理，这里直接返回。
-        
-        注意：data source 不负责 save，save 由上层（data_manager/service）自己处理。
-        """
-        # 基类已自动清洗 NaN（date_format="day" 会使用 default=0.0），直接返回
-        return normalized_data

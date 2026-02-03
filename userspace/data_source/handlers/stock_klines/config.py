@@ -1,79 +1,81 @@
 """
-Index Klines Handler 配置。绑定表 sys_index_klines。
+统一的 K 线 Handler 配置。绑定表 sys_stock_klines。
+
+包含 daily/weekly/monthly 三个周期的 API 配置。
 """
 from core.utils.date import DateUtils
 
 
 CONFIG = {
-    "table": "sys_index_klines",
+    "table": "sys_stock_klines",
     "renew": {
         "type": "incremental",
         "last_update_info": {
             "date_field": "date",
             "date_format": DateUtils.PERIOD_DAY,
         },
-        "renew_if_over_days": {
-            "value": 30,
-        },
         "result_group_by": {
-            "list": "index_list",
-            "key": "id",
+            "list": "stock_list",
+            "keys": ["id", "term"],  # 多字段分组：按股票 ID 和周期分组，分别查询每个 term 的 last_update
         },
     },
     "apis": {
         "daily_kline": {
             "provider_name": "tushare",
-            "method": "get_index_daily",
-            "max_per_minute": 500,
+            "method": "get_daily_kline",
+            "max_per_minute": 700,
+            "entity_param": "ts_code",
             "field_mapping": {
+                "id": "ts_code",
                 "date": "trade_date",
                 "open": "open",
-                "close": "close",
                 "highest": "high",
                 "lowest": "low",
+                "close": "close",
                 "pre_close": "pre_close",
                 "price_change_delta": "change",
                 "price_change_rate_delta": "pct_chg",
                 "volume": "vol",
                 "amount": "amount",
             },
-            "params": {},
         },
         "weekly_kline": {
             "provider_name": "tushare",
-            "method": "get_index_weekly",
-            "max_per_minute": 500,
+            "method": "get_weekly_kline",
+            "max_per_minute": 700,
+            "entity_param": "ts_code",
             "field_mapping": {
+                "id": "ts_code",
                 "date": "trade_date",
                 "open": "open",
-                "close": "close",
                 "highest": "high",
                 "lowest": "low",
+                "close": "close",
                 "pre_close": "pre_close",
                 "price_change_delta": "change",
                 "price_change_rate_delta": "pct_chg",
                 "volume": "vol",
                 "amount": "amount",
             },
-            "params": {},
         },
         "monthly_kline": {
             "provider_name": "tushare",
-            "method": "get_index_monthly",
-            "max_per_minute": 500,
+            "method": "get_monthly_kline",
+            "max_per_minute": 700,
+            "entity_param": "ts_code",
             "field_mapping": {
+                "id": "ts_code",
                 "date": "trade_date",
                 "open": "open",
-                "close": "close",
                 "highest": "high",
                 "lowest": "low",
+                "close": "close",
                 "pre_close": "pre_close",
                 "price_change_delta": "change",
                 "price_change_rate_delta": "pct_chg",
                 "volume": "vol",
                 "amount": "amount",
             },
-            "params": {},
         },
     },
 }

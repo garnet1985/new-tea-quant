@@ -260,6 +260,66 @@ class DateUtils:
         return _calculator.get_week_end_impl(date)
     
     @staticmethod
+    def get_period_end(date: str, term: str) -> Optional[str]:
+        """
+        获取某个日期所在周期的结束日期（自然日）。
+        
+        用于检查周期是否完整结束，避免获取未完成周期的"脏数据"。
+        
+        支持的周期类型：
+            - weekly: 返回该日期所在周的周日
+            - monthly: 返回该日期所在月的最后一天
+            - quarterly: 返回该日期所在季度的最后一天（0331, 0630, 0930, 1231）
+            - yearly: 返回该日期所在年的最后一天（1231）
+        
+        Args:
+            date: 日期（YYYYMMDD格式）
+            term: 周期类型（"weekly", "monthly", "quarterly", "yearly"）
+        
+        Returns:
+            周期结束日期（YYYYMMDD格式），如果term不支持则返回None
+        
+        Example:
+            >>> DateUtils.get_period_end("20260115", "weekly")
+            "20260121"  # 20260115所在周的周日
+            >>> DateUtils.get_period_end("20260115", "monthly")
+            "20260131"  # 20260115所在月的最后一天
+            >>> DateUtils.get_period_end("20260215", "quarterly")
+            "20260331"  # 20260215所在季度（Q1）的最后一天
+        """
+        return _calculator.get_period_end_impl(date, term)
+    
+    @staticmethod
+    def get_previous_period_end(current_date: str, term: str) -> Optional[str]:
+        """
+        获取上一周期的结束日期（自然日）。
+        
+        用于计算end_date，确保只获取已完整结束的周期数据，避免获取当前未完成周期的"脏数据"。
+        
+        支持的周期类型：
+            - weekly: 返回上一周的周日（A股的周交易日最后一天是周日）
+            - monthly: 返回上一月的最后一天
+            - quarterly: 返回上一季度的最后一天
+            - yearly: 返回上一年的最后一天（1231）
+        
+        Args:
+            current_date: 当前日期（YYYYMMDD格式），通常是latest_completed_trading_date
+            term: 周期类型（"weekly", "monthly", "quarterly", "yearly"）
+        
+        Returns:
+            上一周期的结束日期（YYYYMMDD格式），如果term不支持则返回None
+        
+        Example:
+            >>> DateUtils.get_previous_period_end("20260202", "weekly")  # 20260202是周一
+            "20260201"  # 上一周的周日
+            >>> DateUtils.get_previous_period_end("20260202", "monthly")  # 20260202是2月2日
+            "20260131"  # 上一月的最后一天
+            >>> DateUtils.get_previous_period_end("20260415", "quarterly")  # 20260415是Q2
+            "20260331"  # 上一季度（Q1）的最后一天
+        """
+        return _calculator.get_previous_period_end_impl(current_date, term)
+    
+    @staticmethod
     def is_before(date1: str, date2: str) -> bool:
         """date1 是否在 date2 之前"""
         return _calculator.is_before_impl(date1, date2)

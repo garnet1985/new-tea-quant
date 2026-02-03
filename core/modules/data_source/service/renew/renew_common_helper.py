@@ -128,8 +128,17 @@ class RenewCommonHelper:
         if not context:
             return None
         config = context.get("config")
-        if config and hasattr(config, "get_needs_stock_grouping"):
+        if not config:
+            return None
+        
+        # 使用 is_per_entity() 来判断是否需要分组（更可靠）
+        if hasattr(config, "is_per_entity"):
+            return config.is_per_entity()
+        
+        # 向后兼容：检查是否有 get_needs_stock_grouping 方法
+        if hasattr(config, "get_needs_stock_grouping"):
             return config.get_needs_stock_grouping()
+        
         return None
     
     @staticmethod
@@ -147,7 +156,7 @@ class RenewCommonHelper:
         逻辑：
         1. 通过 DataManager.get_table() 获取表的 model
         2. 根据配置或表的主键结构判断是否需要按实体分组
-        3. 需要分组时，实体标识字段优先用 context 中 config.result_group_by.by_key，
+        3. 需要分组时，实体标识字段优先用 context 中 config.result_group_by.key 或 keys，
            未提供时从表主键推断（除日期外的第一个主键）
 
         Args:
@@ -190,32 +199,50 @@ class RenewCommonHelper:
                 # 不需要分组：返回 None，调用方需要单独处理（查询整个表的最新日期）
                 return None
             
-            # 需要分组：查询每个实体的最新日期；实体标识字段优先用 config.result_group_by.by_key
+            # 需要分组：查询每个实体的最新日期
             try:
-                primary_keys = model.get_primary_keys()
-                group_keys = [k for k in primary_keys if k != date_field]
-                if not group_keys:
-                    return None
-                latest_records = model.load_latests(
-                    date_field=date_field, group_fields=group_keys
-                )
-                if not latest_records:
-                    return None
-
-                entity_key_field = None
+                # 优先从 config 读取 group_fields（支持多字段分组）
+                group_fields = None
                 if context:
                     config = context.get("config")
-                    if config and hasattr(config, "get_group_by_key"):
-                        entity_key_field = config.get_group_by_key()
-                if not entity_key_field:
-                    entity_key_field = group_keys[0] if group_keys else "id"
+                    if config and hasattr(config, "get_group_fields"):
+                        group_fields = config.get_group_fields()
+                
+                # 如果未配置 group_fields，从主键推断（向后兼容）
+                if not group_fields:
+                    primary_keys = model.get_primary_keys()
+                    group_fields = [k for k in primary_keys if k != date_field]
+                
+                if not group_fields:
+                    return None
+                
+                latest_records = model.load_latests(
+                    date_field=date_field, group_fields=group_fields
+                )
+                if not latest_records:
+                    logger.warning(f"⚠️ [query_latest_date] load_latests 返回空结果: table={table_name}, group_fields={group_fields}")
+                    return None
 
+                # 判断是单字段还是多字段分组
+                is_multi_field = len(group_fields) > 1
+                
                 result = {}
                 for record in latest_records:
-                    entity_id = record.get(entity_key_field)
                     latest_date = record.get(date_field)
-                    if entity_id is not None and latest_date:
-                        result[entity_id] = latest_date
+                    if not latest_date:
+                        logger.debug(f"⚠️ [query_latest_date] 记录缺少日期字段: {record}")
+                        continue
+                    
+                    if is_multi_field:
+                        # 多字段分组：使用分隔符 "::" 连接多个字段值作为复合键
+                        composite_key_parts = [str(record.get(field, "")) for field in group_fields]
+                        composite_key = "::".join(composite_key_parts)
+                        result[composite_key] = latest_date
+                    else:
+                        # 单字段分组：使用单个字段值作为 key（向后兼容）
+                        entity_id = record.get(group_fields[0])
+                        if entity_id is not None:
+                            result[str(entity_id)] = latest_date
                 return result if result else None
             except (AttributeError, Exception) as e:
                 # 如果 load_latests 不存在或失败，降级到简单查询

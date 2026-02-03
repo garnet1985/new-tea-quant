@@ -656,7 +656,7 @@ userspace/data_source/
 - 顶层 `table`：绑定 DB 表名，框架据此加载表 schema
 - `renew`：续跑模式（incremental/rolling/refresh）、last_update_info、date_field、date_format 等
 - `apis`：各 API 的 provider_name、method、field_mapping、params、max_per_minute 等
-- `result_group_by`：per-entity 时的 list、by_key
+- `result_group_by`：per-entity 时的 list、key（单字段）或 keys（多字段）
 
 **配置加载：** 框架从 config.py 加载 CONFIG，并据此创建 DataSourceConfig 实例；schema 来自 `DataManager.get_table(config.get_table_name()).load_schema()`，无需单独 schema 文件
 

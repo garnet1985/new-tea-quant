@@ -48,13 +48,13 @@ def _resolve_latest_trading_date() -> List[dict]:
     if not data_manager or not getattr(data_manager, "service", None):
         logger.warning("DataManager 或 service 不可用，保留依赖 latest_trading_date 无法解析")
         from core.utils.date.date_utils import DateUtils
-        fallback = DateUtils.get_current_date_str()
+        fallback = DateUtils.get_today_str()
         return [{"date": fallback}]
     calendar = getattr(data_manager.service, "calendar", None)
     if not calendar or not hasattr(calendar, "get_latest_completed_trading_date"):
         logger.warning("CalendarService 不可用，保留依赖 latest_trading_date 使用当前日期兜底")
         from core.utils.date.date_utils import DateUtils
-        fallback = DateUtils.get_current_date_str()
+        fallback = DateUtils.get_today_str()
         return [{"date": fallback}]
     date_str = calendar.get_latest_completed_trading_date()
     return [{"date": date_str}]

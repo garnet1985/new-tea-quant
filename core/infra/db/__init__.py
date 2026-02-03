@@ -9,7 +9,6 @@ from .schema_management.field import Field
 from .helpers import (
     DBHelper, DatabaseCursor
 )
-from .table_queriers.query_helpers import TimeSeriesHelper, DataFrameHelper, SchemaFormatter
 from .table_queriers.services import BatchOperation, BatchWriteQueue
 
 __all__ = [
@@ -25,11 +24,6 @@ __all__ = [
     # 辅助工具类（静态方法）
     'DBHelper',
     'DatabaseCursor',
-    'SchemaFormatter',
-    
-    # 辅助工具类（需要实例状态，通过继承提供）
-    'TimeSeriesHelper',
-    'DataFrameHelper',
     
     # 批量操作
     'BatchOperation',

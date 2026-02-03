@@ -46,7 +46,7 @@ class StockIndicatorsHandler(BaseHandler):
                 except Exception as e:
                     logger.warning(f"获取最新交易日失败: {e}")
             if not latest_trading_date:
-                latest_trading_date = DateUtils.get_current_date_str()
+                latest_trading_date = DateUtils.get_today_str()
         end_date = latest_trading_date
 
         stock_latest_dates = {}

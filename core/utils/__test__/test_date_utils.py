@@ -13,14 +13,14 @@ from core.utils.date.date_utils import DateUtils
 class TestDateUtils:
     """DateUtils 测试类"""
     
-    def test_get_current_date_str(self):
+    def test_get_today_str(self):
         """测试获取当前日期字符串"""
-        date_str = DateUtils.get_current_date_str()
+        date_str = DateUtils.get_today_str()
         assert len(date_str) == 8
         assert date_str.isdigit()
         
         # 测试自定义格式
-        date_str_custom = DateUtils.get_current_date_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
+        date_str_custom = DateUtils.get_today_str(DateUtils.DATE_FORMAT_YYYY_MM_DD)
         assert len(date_str_custom) == 10
         assert '-' in date_str_custom
     

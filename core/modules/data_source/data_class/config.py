@@ -346,6 +346,37 @@ class DataSourceConfig:
             return {}
         return data_merging
 
+    def get_save_mode(self) -> str:
+        """
+        获取保存模式（必须配置）。
+        
+        可选值：
+        - "unified"：统一保存模式，所有数据在 _do_save 中统一保存
+        - "immediate"：立即保存模式，每个 bundle 完成后立即保存
+        - "batch"：批量保存模式，累计 save_batch_size 个 bundle 后保存
+        
+        约定：config 顶层必须配置 "save_mode": "unified" | "immediate" | "batch"。
+        """
+        save_mode = self._config_dict.get("save_mode")
+        if not save_mode:
+            raise ValueError(f"{self._data_source_key or 'config'}: save_mode 必须配置，可选值: unified | immediate | batch")
+        if save_mode not in ["unified", "immediate", "batch"]:
+            raise ValueError(f"{self._data_source_key or 'config'}: save_mode 无效值 '{save_mode}'，可选值: unified | immediate | batch")
+        return save_mode
+    
+    def get_save_batch_size(self) -> int:
+        """
+        获取批量保存大小（当 save_mode="batch" 时使用）。
+        
+        约定：config 顶层 "save_batch_size": int，默认 50。
+        当 save_mode="immediate" 时，等价于 save_batch_size=1。
+        """
+        batch_size = self._config_dict.get("save_batch_size", 50)
+        try:
+            return int(batch_size)
+        except (TypeError, ValueError):
+            return 50
+    
     def get_merge_by_key(self) -> Optional[str]:
         """
         获取用于跨 API 合并结果的 key（merge_by_key）。

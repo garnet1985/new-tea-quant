@@ -6,6 +6,8 @@ from core.utils.date import DateUtils
 
 CONFIG = {
     "table": "sys_index_weight",
+    "save_mode": "batch",  # 批量保存：累计 save_batch_size 个 bundle 后保存
+    "save_batch_size": 20,  # 每20个bundle保存一次
     "renew": {
         "type": "incremental",
         "last_update_info": {

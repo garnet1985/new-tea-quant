@@ -6,6 +6,7 @@ from core.utils.date import DateUtils
 
 CONFIG = {
     "table": "sys_lpr",
+    "save_mode": "unified",  # 统一保存：所有数据在 _do_save 中统一保存
     "renew": {
         "type": "rolling",
         "rolling": {

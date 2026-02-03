@@ -27,19 +27,15 @@ class TushareStockListHandler(BaseHandler):
 
     def on_before_run(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """若 sys_cache 记录今日已更新，则从 DB 读取并返回，跳过 API 调用。"""
-        dm = context.get("data_manager")
-        if not dm:
-            logger.warning("DataManager 实例不存在，跳过 stock_list 缓存检查")
-            return None
+        dm = context["data_manager"]
         try:
             cache = dm.db_cache.load(CACHE_KEY, field="json")
             if self._is_valid_cache(cache):
                 return {"data": dm.stock.list.load_all()}
-            else:
-                logger.info("ℹ️ stock_list 缓存校验失败，本次将调用 API 更新缓存")
-        except Exception as e:
-            logger.warning(f"检查 stock_list 缓存失败: {e}")
-            return None
+            logger.info("ℹ️ stock_list 缓存校验失败，本次将调用 API 更新缓存")
+        except Exception:
+            pass
+        return None
 
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         formatted = self._format_and_store_raw_records(context, mapped_records)
@@ -48,8 +44,8 @@ class TushareStockListHandler(BaseHandler):
 
     def on_before_save(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """1. 同步维度表（boards/markets/industries）；2. 写 stock_list；3. 写映射表；4. 写 cache。返回 main_records 供 base 的 _system_save 写入。"""
-        dm = context.get("data_manager")
-        main_records = (normalized_data or {}).get("data") or []
+        dm = context["data_manager"]
+        main_records = normalized_data.get("data", [])
         if not main_records:
             return {"data": []}
 
@@ -58,7 +54,7 @@ class TushareStockListHandler(BaseHandler):
         for r in main_records:
             r["last_update"] = time_str
 
-        if not dm or context.get("is_dry_run"):
+        if context.get("is_dry_run"):
             return {"data": main_records}
 
         raw_records = context.get("_stock_list_raw_records") or []
@@ -84,11 +80,10 @@ class TushareStockListHandler(BaseHandler):
             )
 
         # 使用本批次时间戳更新缓存
-        if time_str and dm.db_cache:
-            try:
-                dm.db_cache.save(CACHE_KEY, json={CACHE_DATE_FIELD: time_str})
-            except Exception as e:
-                logger.warning(f"写入 sys_cache 失败: {e}")
+        try:
+            dm.db_cache.save(CACHE_KEY, json={CACHE_DATE_FIELD: time_str})
+        except Exception:
+            pass
 
         return {"data": main_records}
 

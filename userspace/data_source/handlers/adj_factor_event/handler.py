@@ -32,8 +32,15 @@ class AdjFactorEventHandler(BaseHandler):
     - 季度CSV导出：定期备份数据
     """
     
-    def __init__(self, data_source_key: str, schema, config, providers: Dict[str, BaseProvider]):
-        super().__init__(data_source_key, schema, config, providers)
+    def __init__(
+        self,
+        data_source_key: str,
+        schema,
+        config,
+        providers: Dict[str, BaseProvider],
+        depend_on_data_source_names: List[str] = None,
+    ):
+        super().__init__(data_source_key, schema, config, providers, depend_on_data_source_names or [])
         
         # 用于跟踪任务完成状态
         self._total_stocks = 0
@@ -51,25 +58,14 @@ class AdjFactorEventHandler(BaseHandler):
         Returns:
             List[ApiJob]: 处理后的 ApiJob 列表（每个股票 3 个 ApiJob）
         """
-        data_manager = context.get("data_manager")
-        if not data_manager:
-            logger.warning("DataManager 未初始化")
-            return apis
-        
-        # 获取股票列表
+        data_manager = context["data_manager"]
         stock_list = context.get("stock_list", [])
         if not stock_list:
-            logger.warning("股票列表为空，无法创建复权因子事件获取任务")
             return apis
         
-        # 获取最新完成交易日
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if not latest_completed_trading_date:
-            try:
-                latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
-            except Exception as e:
-                logger.warning(f"获取最新完成交易日失败: {e}")
-                return apis
+            latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
         
         # 记录本轮执行对应的最新完成交易日，用于后续季度 CSV 命名
         self._latest_completed_trading_date = latest_completed_trading_date
@@ -190,10 +186,7 @@ class AdjFactorEventHandler(BaseHandler):
         注意：此处的保存逻辑是按实体（股票）逐个保存，属于执行期保存模式。
         如果未来需要将 save 逻辑完全抽离到上层，可以移除此处的保存调用。
         """
-        data_manager = context.get("data_manager")
-        if not data_manager:
-            logger.warning("DataManager 未初始化，无法保存复权因子事件数据")
-            return
+        data_manager = context["data_manager"]
         
         # 按股票分组处理数据
         stock_jobs_map = {}  # {stock_id: {job_id: result}}
@@ -227,13 +220,7 @@ class AdjFactorEventHandler(BaseHandler):
                 self._save_stock_adj_factor_events(data_manager, stock_id, stock_results)
                 self._completed_stocks += 1
             except Exception as e:
-                logger.error(f"❌ 保存股票 {stock_id} 复权因子事件失败: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
-        
-        # 更新总股票数（用于 CSV 导出判断，基于实际执行的股票数）
-        if not hasattr(self, '_total_stocks') or self._total_stocks == 0:
-            self._total_stocks = len(stock_jobs_map)
+                logger.error(f"❌ 保存股票 {stock_id} 复权因子事件失败: {e}", exc_info=True)
         
         # 更新总股票数（用于 CSV 导出判断）
         if not hasattr(self, '_total_stocks') or self._total_stocks == 0:
@@ -374,16 +361,6 @@ class AdjFactorEventHandler(BaseHandler):
             import traceback
             logger.error(traceback.format_exc())
             return {}
-    
-    def _normalize_data(self, context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        标准化数据：覆盖基类方法，因为数据已经在 on_after_execute_job_batch_for_single_stock 中保存
-        
-        这里只返回空数据，避免重复处理
-        """
-        # 数据已经在 on_after_execute_job_batch_for_single_stock 中按股票逐个保存
-        # 这里不需要再次处理，返回空数据即可
-        return {"data": []}
     
     def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
         """

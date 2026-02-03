@@ -145,7 +145,7 @@ class DataSourceConfig:
                 logger.warning(f"'{self._data_source_key}' 的 config 中 renew 必须配置 date_format（顶层或 last_update_info）")
                 return False
 
-            # per-entity 时实体标识字段由 result_group_by.by_key 统一提供，不再要求 last_update_info.group_field
+            # per-entity 时实体标识字段由 result_group_by.key 或 keys 统一提供，不再要求 last_update_info.group_field
         # Rolling 模式验证
         if renew_type == UpdateMode.ROLLING.value:
             # TODO: add validation for date range related info
@@ -171,8 +171,16 @@ class DataSourceConfig:
             logger.warning(f"'{self._data_source_key}' 的 config 中 result_group_by 必须配置 list")
             return False
 
-        if not group_by.get("by_key"):
-            logger.warning(f"'{self._data_source_key}' 的 config 中 result_group_by 必须配置 by_key")
+        # 必须配置 key（单字段）或 keys（多字段）之一，且互斥
+        has_key = bool(group_by.get("key"))
+        has_keys = bool(group_by.get("keys"))
+        
+        if not has_key and not has_keys:
+            logger.warning(f"'{self._data_source_key}' 的 config 中 result_group_by 必须配置 key（单字段）或 keys（多字段）")
+            return False
+        
+        if has_key and has_keys:
+            logger.warning(f"'{self._data_source_key}' 的 config 中 result_group_by 不能同时配置 key 和 keys，它们是互斥的")
             return False
 
         return True
@@ -367,8 +375,10 @@ class DataSourceConfig:
         """
         获取结果分组字段（per-entity 配置）。
 
-        result_group_by.by_key 是「实体标识字段」的唯一配置：既用于构建任务时的实体键，
-        也用于增量/滚动续跑时查询表中「每实体的最新日期」（不再使用 last_update_info.group_field）。
+        result_group_by.key（单字段）或 keys（多字段）是「实体标识字段」的配置：
+        - key：单字段分组，用于构建任务时的实体键，也用于增量/滚动续跑时查询表中「每实体的最新日期」
+        - keys：多字段分组，用于按多个字段分组查询最新日期（如 ["id", "term"]）
+        - key 和 keys 互斥，不能同时配置
 
         result_group_by.list 语义：
         - "stock_list"：基类会从 dependencies["stock_list"] 解析实体列表；
@@ -390,11 +400,56 @@ class DataSourceConfig:
 
     def get_group_by_key(self) -> Optional[str]:
         """
-        获取实体标识字段（result_group_by.by_key）。
-        用于构建任务与增量/滚动续跑时查询「每实体的最新日期」，为唯一配置来源。
+        获取实体标识字段（result_group_by.key）。
+        用于单字段分组场景。
+        
+        注意：如果配置了 keys（多字段分组），该方法返回 None。
         """
         group_by = self.get_group_by()
-        return group_by.get("by_key") if isinstance(group_by, dict) else None
+        if not isinstance(group_by, dict):
+            return None
+        
+        # 如果配置了 keys（多字段），返回 None
+        if group_by.get("keys"):
+            return None
+        
+        return group_by.get("key")
+    
+    def get_group_fields(self) -> List[str]:
+        """
+        获取分组字段列表（result_group_by.keys）。
+        
+        支持两种配置方式：
+        1. 字符串：单个字段，如 "id" -> ["id"]
+        2. 列表：多个字段，如 ["id", "term"] -> ["id", "term"]
+        
+        如果配置了 key（单字段），则返回 [key]。
+        如果配置了 keys（多字段），则返回 keys（列表或转换为列表）。
+        
+        Returns:
+            List[str]: 分组字段列表
+        """
+        group_by = self.get_group_by()
+        if not isinstance(group_by, dict):
+            return []
+        
+        # 优先检查 keys（多字段分组）
+        keys = group_by.get("keys")
+        if keys is not None:
+            if isinstance(keys, str):
+                return [keys]
+            elif isinstance(keys, list):
+                return [str(f) for f in keys if f]
+            else:
+                logger.warning(f"'{self._data_source_key}' 的 keys 配置格式无效，应为字符串或列表")
+                return []
+        
+        # 检查 key（单字段分组）
+        key = group_by.get("key")
+        if key:
+            return [str(key)]
+        
+        return []
 
     def get_date_range_required_info(self) -> Dict[str, Any]:
         """获取日期范围计算所需信息"""

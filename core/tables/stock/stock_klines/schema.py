@@ -100,5 +100,9 @@ schema = {
         {"name": "idx_id_term_date", "fields": ["id", "term", "date"], "unique": True},
         {"name": "idx_id_term", "fields": ["id", "term"]},
         {"name": "idx_date", "fields": ["date"]},
+        # 优化按日期排序查询：复合索引 (term, date) 可以加速按周期和日期排序的查询
+        {"name": "idx_term_date", "fields": ["term", "date"]},
+        # 优化单股票按日期排序：复合索引 (id, date) 可以加速单股票按日期排序的查询
+        {"name": "idx_id_date", "fields": ["id", "date"]},
     ],
 }

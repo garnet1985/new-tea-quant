@@ -9,7 +9,7 @@ Rate limiter & API 限流相关助手。
 
 import threading
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from loguru import logger
 
@@ -98,19 +98,35 @@ def get_rate_limiter(
     api_name: str,
     max_per_minute: int,
     wait_buffer_seconds: float = 5.0,
+    provider_rate_limit: Optional[int] = None,
 ) -> RateLimiter:
     """
     获取或创建指定 (provider, api) 的 RateLimiter。
 
-    - 使用 "PROVIDER:API" 作为全局 key；
+    如果提供了 provider_rate_limit，则使用 provider 级别限流（所有 API 共享同一个限流器）。
+    否则，使用 "PROVIDER:API" 作为 key，按 API 分别限流。
+
     - 对限流值做 95% 安全折扣，避免逼近硬上限。
+    
+    Args:
+        provider_name: Provider 名称
+        api_name: API 名称
+        max_per_minute: API 级别的限流值
+        wait_buffer_seconds: 等待缓冲时间（秒）
+        provider_rate_limit: Provider 级别总体限流（如果提供，则所有 API 共享此限流器）
     """
-    limiter_key = f"{provider_name}:{api_name}"
+    # 如果提供了 provider_rate_limit，使用 provider 级别限流
+    if provider_rate_limit is not None:
+        limiter_key = provider_name  # 使用 provider 名称作为 key
+        effective_limit = provider_rate_limit
+    else:
+        limiter_key = f"{provider_name}:{api_name}"  # 使用 provider:api 作为 key
+        effective_limit = max_per_minute
 
     # 安全折扣
-    buffered_limit = int(max_per_minute * 0.95)
+    buffered_limit = int(effective_limit * 0.95)
     if buffered_limit <= 0:
-        buffered_limit = max_per_minute - 1 if max_per_minute > 1 else 1
+        buffered_limit = effective_limit - 1 if effective_limit > 1 else 1
 
     with _RATE_LIMITERS_LOCK:
         if limiter_key not in _RATE_LIMITERS:
@@ -122,7 +138,8 @@ def get_rate_limiter(
             _RATE_LIMITERS[limiter_key] = limiter
             logger.info(
                 f"🔧 创建 RateLimiter: {limiter_key}, "
-                f"限流值: {buffered_limit}/分钟 (原始: {max_per_minute})"
+                f"限流值: {buffered_limit}/分钟 (原始: {effective_limit})"
+                + (f" [Provider级别限流]" if provider_rate_limit is not None else "")
             )
         else:
             existing = _RATE_LIMITERS[limiter_key]

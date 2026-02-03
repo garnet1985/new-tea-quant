@@ -349,16 +349,14 @@ class MultiThreadWorker:
             except Empty:
                 break
         
-        # 等待所有任务完成 - 添加超时和强制完成处理
+        # 使用 as_completed 实时处理完成的任务，以便进度监控能够看到统计信息更新
         try:
             # 设置合理的超时时间，避免无限等待
             timeout = max(self.timeout, 300)  # 至少5分钟超时
             
-            # 等待所有任务完成
-            done, not_done = wait(futures, timeout=timeout, return_when="ALL_COMPLETED")
-            
-            # 处理所有完成的任务
-            for future in done:
+            # 使用 as_completed 实时处理完成的任务
+            completed_count = 0
+            for future in as_completed(futures, timeout=timeout):
                 if self.should_stop:
                     future.cancel()
                     continue
@@ -369,25 +367,28 @@ class MultiThreadWorker:
                         logger.debug(f"Processing result for job {result.job_id}")
                     self._update_stats(result)
                     self.results_queue.put(result)
+                    completed_count += 1
                 except Exception as e:
                     logger.error(f"Error getting result for job: {e}")
                     failed_result = JobResult(job_id="unknown", status=JobStatus.FAILED, error=e)
                     self._update_stats(failed_result)
                     self.results_queue.put(failed_result)
+                    completed_count += 1
                 finally:
                     if future in self.active_futures:
                         self.active_futures.remove(future)
             
-            # 强制完成未完成的任务
-            if not_done:
+            # 检查是否有未完成的任务
+            remaining_futures = [f for f in futures if not f.done()]
+            if remaining_futures:
                 with self.stats_lock:
                     self.stats['timed_out'] = True
-                    self.stats['not_done_count'] = len(not_done)
+                    self.stats['not_done_count'] = len(remaining_futures)
                 if self.is_verbose:
-                    logger.warning(f"Some tasks did not complete within timeout: {len(not_done)} tasks remaining")
+                    logger.warning(f"Some tasks did not complete within timeout: {len(remaining_futures)} tasks remaining")
                     logger.info("Forcing completion of remaining tasks...")
                 
-                for future in not_done:
+                for future in remaining_futures:
                     try:
                         if not future.done():
                             future.cancel()

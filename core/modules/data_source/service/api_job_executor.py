@@ -272,11 +272,18 @@ class ApiJobExecutor:
         api_name = api_job.api_name or api_job.method
         job_limit = api_limits.get(api_job.job_id)
         if job_limit:
+            # 检查 provider 是否有总体限流配置（可选，如果 provider 需要全局限流可以配置）
+            provider = self.providers.get(api_job.provider_name)
+            provider_rate_limit = None
+            if provider and hasattr(provider, "provider_rate_limit"):
+                provider_rate_limit = getattr(provider, "provider_rate_limit", None)
+            
             limiter = get_rate_limiter(
                 provider_name=api_job.provider_name,
                 api_name=api_name,
                 max_per_minute=job_limit,
                 wait_buffer_seconds=self.wait_buffer_seconds,
+                provider_rate_limit=provider_rate_limit,  # 如果为 None，则按 API 分别限流
             )
             import asyncio
 

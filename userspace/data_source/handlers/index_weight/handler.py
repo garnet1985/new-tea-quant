@@ -37,32 +37,22 @@ class IndexWeightHandler(BaseHandler):
         if not end_date:
             latest_trading_date = context.get("latest_completed_trading_date")
             if not latest_trading_date:
-                data_manager = context.get("data_manager")
-                if data_manager:
-                    try:
-                        latest_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
-                    except Exception as e:
-                        logger.warning(f"获取最新交易日失败: {e}")
-                        latest_trading_date = DateUtils.today()
-                else:
-                    latest_trading_date = DateUtils.today()
+                latest_trading_date = context["data_manager"].service.calendar.get_latest_completed_trading_date()
             end_date = DateUtils.sub_days(latest_trading_date, 1)
             context["end_date"] = end_date
 
-        index_latest_dates = {}
-        data_manager = context.get("data_manager")
-        if data_manager:
-            try:
-                index_latest_dates = data_manager.index.load_latest_weights()
-            except Exception as e:
-                logger.warning(f"查询数据库失败: {e}")
+        data_manager = context["data_manager"]
+        try:
+            index_latest_dates = data_manager.index.load_latest_weights()
+        except Exception:
+            index_latest_dates = {}
         context["index_latest_dates"] = index_latest_dates
 
-        expanded_apis = []
-        base_api = apis[0] if apis else None
+        base_api = apis[0]
         if not base_api:
-            logger.warning("未找到 base API，无法创建指数 ApiJobs")
             return apis
+
+        expanded_apis = []
 
         for index_info in self.index_list:
             index_id = index_info["id"]

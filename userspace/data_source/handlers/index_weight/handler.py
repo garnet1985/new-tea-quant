@@ -111,11 +111,10 @@ class IndexWeightHandler(BaseHandler):
         return unified
 
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """过滤无效记录并确保 weight 为 float。"""
+        """过滤无效记录。"""
         if not mapped_records:
             return mapped_records
         mapped_records = self.filter_records_by_required_fields(mapped_records, required_fields=["date"])
-        mapped_records = self.ensure_float_field(mapped_records, field="weight", default=0.0)
         logger.info(f"✅ 指数成分股权重数据处理完成，共 {len(mapped_records)} 条记录")
         return mapped_records
 

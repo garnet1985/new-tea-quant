@@ -1,13 +1,16 @@
 """
 Adj Factor Event Handler 配置。绑定表 sys_adj_factor_events。
 """
+from core.utils.date import DateUtils
+
+
 CONFIG = {
     "table": "sys_adj_factor_events",
     "renew": {
         "type": "incremental",
         "last_update_info": {
             "date_field": "event_date",
-            "date_format": "daily",
+            "date_format": DateUtils.PERIOD_DAY,
         },
         "renew_if_over_days": {
             "value": 15,

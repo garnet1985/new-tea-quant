@@ -1,13 +1,16 @@
 """
 Index Weight Handler 配置。绑定表 sys_index_weight。
 """
+from core.utils.date import DateUtils
+
+
 CONFIG = {
     "table": "sys_index_weight",
     "renew": {
         "type": "incremental",
         "last_update_info": {
             "date_field": "date",
-            "date_format": "daily",
+            "date_format": DateUtils.PERIOD_DAY,
         },
         "renew_if_over_days": {
             "value": 30,

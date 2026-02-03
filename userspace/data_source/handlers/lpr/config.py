@@ -1,17 +1,20 @@
 """
 LPR Handler 配置。绑定表 sys_lpr。
 """
+from core.utils.date import DateUtils
+
+
 CONFIG = {
     "table": "sys_lpr",
     "renew": {
         "type": "rolling",
         "rolling": {
             "length": 30,
-            "unit": "daily",
+            "unit": DateUtils.PERIOD_DAY,
         },
         "last_update_info": {
             "date_field": "date",
-            "date_format": "daily",
+            "date_format": DateUtils.PERIOD_DAY,
         },
     },
     "apis": {

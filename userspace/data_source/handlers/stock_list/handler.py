@@ -31,7 +31,9 @@ class TushareStockListHandler(BaseHandler):
         try:
             cache = dm.db_cache.load(CACHE_KEY, field="json")
             if self._is_valid_cache(cache):
-                return {"data": dm.stock.list.load_all()}
+                data = dm.stock.list.load_all()
+                logger.info(f"✅ stock_list 命中缓存，从 DB 直接返回（共 {len(data) if data else 0} 只）")
+                return {"data": data}
             logger.info("ℹ️ stock_list 缓存校验失败，本次将调用 API 更新缓存")
         except Exception:
             pass

@@ -4,6 +4,7 @@ from loguru import logger
 
 from core.global_enums.enums import UpdateMode
 from core.infra.project_context import ConfigManager
+from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.utils.utils import Utils
 
@@ -14,92 +15,39 @@ class DataSourceHandlerHelper:
 
     目标：
     - 将 config 中的 apis 转换为 ApiJob 列表；
-    - 提供基于 field_mapping / schema 的默认标准化实现；
+    - 提供基于 result_mapping / schema 的默认标准化实现；
     - 具体细节都收敛在这里，BaseHandler 中只保留“步骤大纲”。
     """
 
     # ========== ApiJob 构造 ==========
 
     @staticmethod
-    def build_api_jobs(apis: Dict[str, Any]) -> List[ApiJob]:
+    def build_api_jobs(apis: Dict[str, ApiConfig]) -> List[ApiJob]:
         """
         将 config 中的 apis 定义转换为 ApiJob 列表。
 
-        约定（保持宽松，主要由 userspace config 决定）：
-        - apis: {
-            "<api_name>": {
-                "provider_name": "tushare",
-                "method": "get_xxx",
-                "max_per_minute": 200,                      # 可选，限流信息（每分钟最大请求数）
-                "depends_on": ["other_api1", "other_api2"], # 可选，字符串或字符串列表
-                "params": {...},                            # 可选，请求参数
-                "field_mapping": {...},                     # 可选，字段映射
-                ... 其他自定义字段 ...
-            },
-            ...
-          }
-
-        封装规则（不做过多业务理解，只做统一包装）：
-        - ApiJob.api_name        = key 名（即 api_name）
-        - ApiJob.provider_name   = provider_name
-        - ApiJob.method          = method
-        - ApiJob.params          = params（默认为 {}）
-        - ApiJob.depends_on      = 归一化后的依赖列表（List[str]）
-        - ApiJob.rate_limit      = max_per_minute（缺省为一个安全默认值）
-        - ApiJob.api_params      = 整个 api 定义（dict，保留原始配置）
-        - ApiJob.job_id          = api_name（后续如需可扩展为更复杂规则）
+        apis: Dict[str, ApiConfig]，来自 DataSourceConfig.get_apis()
         """
         jobs: List[ApiJob] = []
-        default_rate_limit = 50
 
         if not apis:
-            logger.warning(f"apis 为空，返回空列表: {apis}")
             return jobs
 
-        if not isinstance(apis, dict):
-            logger.warning(f"apis 应为 dict，当前类型为: {type(apis)}")
-            return jobs
-
-        for api_name, api_conf in apis.items():
-            if not isinstance(api_conf, dict):
-                logger.warning(f"api 配置必须是 dict，当前 {api_name} 类型为: {type(api_conf)}，已跳过")
-                continue
-
-            # 依赖关系
-            depends_on = api_conf.get("depends_on", [])
-            if isinstance(depends_on, str):
-                depends_on = [depends_on]
-            elif not isinstance(depends_on, list):
-                depends_on = []
-
-            # 限流信息：从 max_per_minute 读取
-            max_per_minute = api_conf.get("max_per_minute")
-            if max_per_minute is None:
-                max_per_minute = default_rate_limit
-            try:
-                max_per_minute_int = int(max_per_minute)
-            except (TypeError, ValueError):
-                logger.warning(f"max_per_minute 非法，使用默认值 {default_rate_limit}，当前值: {max_per_minute}")
-                max_per_minute_int = default_rate_limit
-
-            # 请求参数
-            params = api_conf.get("params") or {}
-            if not isinstance(params, dict):
-                logger.warning(f"params 应为 dict，当前 {api_name} 类型为: {type(params)}，使用空字典")
-                params = {}
-
-            # 构造 ApiJob 实例：一次性通过构造函数注入所有字段，便于检查与对比
+        for api_name, api_cfg in apis.items():
             job = ApiJob(
                 api_name=api_name,
-                provider_name=api_conf.get("provider_name"),
-                method=api_conf.get("method"),
-                params=params,
-                api_params=api_conf,
-                depends_on=depends_on,
-                rate_limit=max_per_minute_int,
+                provider_name=api_cfg.provider_name,
+                method=api_cfg.method,
+                params=api_cfg.params,
+                api_params={
+                    "params_mapping": api_cfg.params_mapping,
+                    "result_mapping": api_cfg.result_mapping,
+                    **api_cfg.params,
+                },
+                depends_on=[],
+                rate_limit=api_cfg.max_per_minute,
                 job_id=api_name,
             )
-
             jobs.append(job)
 
         return jobs
@@ -128,11 +76,14 @@ class DataSourceHandlerHelper:
         if "start_date" in context and "end_date" in context:
             return
 
-        config: Dict[str, Any] = context.get("config") or {}
-        renew_mode = (config.get("renew_mode") or "").lower()
-        date_format = (config.get("date_format") or "day").lower()
-        default_range = config.get("default_date_range") or {}
-        years = int(default_range.get("years") or 1)
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
+        config = context.get("config")
+        if not isinstance(config, DataSourceConfig):
+            return
+        renew_mode = config.get_renew_mode().value
+        date_format = config.get_date_format().lower()
+        years = config.get_default_date_range_years()
 
         from datetime import datetime, timedelta
 
@@ -208,17 +159,24 @@ class DataSourceHandlerHelper:
             List[ApiJob]: 已注入日期范围的 ApiJob 列表
         """
         if per_stock_date_ranges:
-            # per stock 模式：从 ApiJob 的 params 中提取 stock_id，使用对应的日期范围
+            # per stock 模式：从 ApiJob 的 params 中按 params_mapping 提取 entity_id
             for job in apis or []:
                 params = job.params or {}
-                
-                # 尝试从 params 中提取 stock_id（支持多种字段名）
-                stock_id = (
-                    params.get("ts_code") or 
-                    params.get("code") or 
-                    params.get("stock_id") or
-                    params.get("id")
-                )
+                params_mapping = getattr(job, "api_params", None) or {}
+                params_mapping = params_mapping.get("params_mapping") or {}
+
+                stock_id = None
+                if params_mapping:
+                    entity_to_param = {v: k for k, v in params_mapping.items()}
+                    if len(entity_to_param) == 1:
+                        param_key = next(iter(entity_to_param.values()))
+                        stock_id = params.get(param_key)
+                    else:
+                        parts = [
+                            str(params.get(entity_to_param[ef], ""))
+                            for ef in sorted(entity_to_param.keys())
+                        ]
+                        stock_id = "::".join(parts) if parts and any(parts) else None
                 
                 if stock_id:
                     stock_id_str = str(stock_id)
@@ -265,10 +223,13 @@ class DataSourceHandlerHelper:
         返回：
         - (start_date, end_date)，字符串形式，格式取决于 date_format。
         """
-        config: Dict[str, Any] = context.get("config") or {}
-        date_format = (config.get("date_format") or "day").lower()
-        default_range = config.get("default_date_range") or {}
-        years = int(default_range.get("years") or 1)
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
+        config = context.get("config")
+        if not isinstance(config, DataSourceConfig):
+            return None, None
+        date_format = config.get_date_format().lower()
+        years = config.get_default_date_range_years()
 
         from datetime import datetime, timedelta
 
@@ -436,12 +397,12 @@ class DataSourceHandlerHelper:
 
     @staticmethod
     def validate_field_coverage(
-        apis_conf: Dict[str, Any],
+        apis_conf: Dict[str, ApiConfig],
         schema: Any,
         ignore_fields: Optional[Iterable[str]] = None,
     ) -> None:
         """
-        校验：表 schema 中的字段是否都能在各 API 的 field_mapping 中找到对应来源。
+        校验：表 schema 中的字段是否都能在各 API 的 result_mapping 中找到对应来源。
         ignore_fields 中的字段不参与校验（由 save 层或 DB 填充）。
 
         schema 为表 schema dict（fields 为 list）。仅做提醒式校验，不抛异常。
@@ -454,15 +415,13 @@ class DataSourceHandlerHelper:
         schema_fields -= ign
         mapped_targets: set[str] = set()
 
-        for api_name, api_cfg in (apis_conf or {}).items():
-            fm = api_cfg.get("field_mapping") or {}
-            if isinstance(fm, dict):
-                mapped_targets.update(fm.keys())
+        for api_cfg in (apis_conf or {}).values():
+            mapped_targets.update(api_cfg.result_mapping.keys())
 
         unmapped = sorted(schema_fields - mapped_targets)
         if unmapped:
             logger.warning(
-                "以下 schema 字段在任何 API 的 field_mapping 中都没有配置映射，"
+                "以下 schema 字段在任何 API 的 result_mapping 中都没有配置映射，"
                 f"可能导致标准化后缺少这些字段: {unmapped}"
             )
 
@@ -477,12 +436,12 @@ class DataSourceHandlerHelper:
 
     @staticmethod
     def extract_mapped_records(
-        apis_conf: Dict[str, Any],
+        apis_conf: Dict[str, ApiConfig],
         fetched_data: Dict[str, Any],
         merge_by_key: str = None,
     ) -> List[Dict[str, Any]]:
         """
-        从所有 API 的原始返回中，提取并映射出“已按 field_mapping 转换为标准字段”的记录列表。
+        从所有 API 的原始返回中，提取并映射出“已按 result_mapping 转换为标准字段”的记录列表。
 
         统一规范的 fetched_data 组织形式（BREAKING，所有 handler 需遵守）：
 
@@ -537,8 +496,8 @@ class DataSourceHandlerHelper:
                     if not records:
                         continue
 
-                    field_mapping = api_cfg.get("field_mapping") or {}
-                    mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
+                    result_mapping = api_cfg.result_mapping
+                    mapped = DataSourceHandlerHelper._apply_field_mapping(records, result_mapping)
 
                     # 按 merge_by_key 合并
                     for record in mapped:
@@ -581,14 +540,14 @@ class DataSourceHandlerHelper:
                 if not Utils.is_dict(api_data):
                     api_data = {"_unified": api_data}
 
-                field_mapping = api_cfg.get("field_mapping") or {}
+                result_mapping = api_cfg.result_mapping
 
                 for raw in api_data.values():
                     records = DataSourceHandlerHelper.result_to_records(raw)
                     if not records:
                         continue
 
-                    mapped = DataSourceHandlerHelper._apply_field_mapping(records, field_mapping)
+                    mapped = DataSourceHandlerHelper._apply_field_mapping(records, result_mapping)
                     mapped_records.extend(mapped)
 
             return mapped_records
@@ -604,27 +563,21 @@ class DataSourceHandlerHelper:
         apis: List[ApiJob],
     ) -> Dict[str, Dict[str, Any]]:
         """
-        根据配置中的 group_by 规则，将执行层返回的 {job_id: result} 统一整理为标准的
+        根据配置中的 params_mapping，将执行层返回的 {job_id: result} 统一整理为标准的
         fetched_data 结构，供 normalize 阶段使用。
 
-        统一规范（BREAKING）：
+        统一规范：
 
         fetched_data = {
             api_name: {
-                "_unified": raw_result,     # 全局数据（无实体维度或未配置 group_by 时）
-                entity_id1: raw_result_1,   # 按实体分组的数据（如 stock_id、index_id 等）
+                "_unified": raw_result,     # 全局数据（无 job_execution 时）
+                entity_id1: raw_result_1,   # 按实体分组的数据
                 entity_id2: raw_result_2,
                 ...
             }
         }
 
-        规则：
-        - 如果某个 api 在 config.apis[api_name] 中配置了 group_by 字段：
-          - 例如: {"group_by": "ts_code"}，则按 ApiJob.params["ts_code"] 进行分组；
-          - 得到 grouped[api_name][<entity_id>] = raw_result。
-        - 如果未配置 group_by 或对应的参数不存在：
-          - 默认将该 API 的所有结果合并为一个全局数据块，放入 "_unified"；
-          - 如果同一 api_name 多次写入 "_unified"，后写入的结果会覆盖之前的结果，并打印 warning。
+        规则：从 apis[api_name].params_mapping 的 key 取 entity_id；无 params_mapping 时放入 "_unified"。
 
         注意：
         - 该方法仅负责“按 API + entity 分组”，不负责字段映射和 schema 处理；
@@ -633,11 +586,12 @@ class DataSourceHandlerHelper:
         """
         from loguru import logger
 
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
         config = context.get("config")
-        if hasattr(config, "get_apis"):
-            apis_conf = config.get_apis()
-        else:
-            apis_conf = (config or {}).get("apis", {}) if isinstance(config, dict) else {}
+        if not isinstance(config, DataSourceConfig):
+            return {}
+        apis_conf = config.get_apis()
 
         grouped: Dict[str, Dict[str, Any]] = {}
 
@@ -651,38 +605,43 @@ class DataSourceHandlerHelper:
             if raw_result is None:
                 continue
 
-            api_conf = apis_conf.get(api_name, {})
-            group_by = None
-            if isinstance(api_conf, dict):
-                group_by = api_conf.get("group_by")
-            elif hasattr(api_conf, "get"):
-                group_by = api_conf.get("group_by", None)
+            api_conf = apis_conf.get(api_name)
+            params_mapping = api_conf.params_mapping if api_conf else {}
 
             bucket = grouped.setdefault(api_name, {})
+            params = getattr(api_job, "params", {}) or {}
 
-            if group_by:
-                # 按声明的参数名从 params 中提取实体 ID
-                entity_id = getattr(api_job, "params", {}).get(group_by)
-                if entity_id is None:
-                    logger.warning(
-                        f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
-                        f"配置了 group_by='{group_by}'，但 ApiJob.params 中未找到对应键，"
-                        "将该结果回退到 '_unified' 分组。"
-                    )
-                    if "_unified" in bucket:
-                        logger.warning(
-                            f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
-                            "存在多个未能识别实体 ID 的结果，写入同一 '_unified' 分组，后写将覆盖前写。"
-                        )
-                    bucket["_unified"] = raw_result
+            # per-entity 且有 params_mapping：从 params 取 entity_id
+            if params_mapping and config.has_result_group_by():
+                if len(params_mapping) == 1:
+                    param_key = next(iter(params_mapping.keys()))
+                    entity_id = params.get(param_key)
+                    if entity_id is not None:
+                        bucket[str(entity_id)] = raw_result
+                    else:
+                        if "_unified" in bucket:
+                            logger.warning(
+                                f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
+                                "存在多个未能识别实体 ID 的结果，写入同一 '_unified' 分组，后写将覆盖前写。"
+                            )
+                        bucket["_unified"] = raw_result
                 else:
-                    bucket[str(entity_id)] = raw_result
+                    # 多字段：用 "::" 拼接 params 值
+                    entity_id = "::".join(str(params.get(k, "")) for k in params_mapping.keys())
+                    if entity_id:
+                        bucket[str(entity_id)] = raw_result
+                    else:
+                        if "_unified" in bucket:
+                            logger.warning(
+                                f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
+                                "存在多个未能识别实体 ID 的结果，写入同一 '_unified' 分组，后写将覆盖前写。"
+                            )
+                        bucket["_unified"] = raw_result
             else:
-                # 未配置 group_by：默认按全局 unified 处理
                 if "_unified" in bucket:
                     logger.warning(
                         f"[DataSource:{context.get('data_source_key', 'unknown')}][API:{api_name}] "
-                        "在未配置 group_by 的情况下产生了多个结果，将按顺序覆盖 '_unified'。"
+                        "未配置 params_mapping 且产生了多个结果，将按顺序覆盖 '_unified'。"
                     )
                 bucket["_unified"] = raw_result
 
@@ -732,27 +691,23 @@ class DataSourceHandlerHelper:
     @staticmethod
     def has_group_by_config(context: Dict[str, Any], apis: List[ApiJob]) -> bool:
         """
-        检查本次执行涉及的 API 中，是否至少有一个配置了 group_by。
-        """
-        config = context.get("config")
-        if hasattr(config, "get_apis"):
-            apis_conf = config.get_apis()
-        else:
-            apis_conf = (config or {}).get("apis", {}) if isinstance(config, dict) else {}
+        检查是否应按 per-entity 分组整理 fetched_data。
 
+        返回 True：config 有 job_execution（per-entity 模式）且至少有一个 API 配置了 params_mapping。
+        """
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
+        config = context.get("config")
+        if not isinstance(config, DataSourceConfig) or not config.has_result_group_by():
+            return False
+        apis_conf = config.get_apis()
         for api_job in apis or []:
             api_name = getattr(api_job, "api_name", None)
             if not api_name:
                 continue
-            api_conf = apis_conf.get(api_name, {})
-            group_by = None
-            if isinstance(api_conf, dict):
-                group_by = api_conf.get("group_by")
-            elif hasattr(api_conf, "get"):
-                group_by = api_conf.get("group_by", None)
-            if group_by:
+            api_conf = apis_conf.get(api_name)
+            if api_conf and api_conf.params_mapping:
                 return True
-
         return False
 
     # ================================
@@ -858,8 +813,12 @@ class DataSourceHandlerHelper:
         3. 将所有 records 通过 schema 规范化字段集和类型；
         4. 包装为 {"data": [...]} 返回。
         """
-        config: Dict[str, Any] = context.get("config") or {}
-        apis_conf: Dict[str, Any] = config.get("apis") or {}
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
+        config = context.get("config")
+        if not isinstance(config, DataSourceConfig):
+            return {"data": []}
+        apis_conf = config.get_apis()
         schema = context.get("schema")
 
         if not fetched_data or not isinstance(fetched_data, dict):
@@ -867,12 +826,10 @@ class DataSourceHandlerHelper:
             return {"data": []}
 
         # 步骤 1：字段覆盖校验（提醒式；ignore_fields 不参与）
-        ignore_fields = (
-            config.get_ignore_fields() if hasattr(config, "get_ignore_fields") else (config.get("ignore_fields") or [])
-        )
+        ignore_fields = config.get_ignore_fields()
         DataSourceHandlerHelper.validate_field_coverage(apis_conf, schema, ignore_fields=ignore_fields)
 
-        # 步骤 2：对每个 API 结果做 field_mapping，合并为 records
+        # 步骤 2：对每个 API 结果做 result_mapping，合并为 records
         mapped_records = DataSourceHandlerHelper.extract_mapped_records(apis_conf, fetched_data)
 
         if not mapped_records:
@@ -1166,7 +1123,7 @@ class DataSourceHandlerHelper:
                 # 查询失败时，保守返回空映射（后续逻辑会当作“无 last_update”处理）
                 return {}
 
-        # per-entity：一次性查询所有实体的最新日期（实体标识字段用 config.result_group_by.key 或 keys）
+        # per-entity：一次性查询所有实体的最新日期（实体标识字段用 config.job_execution.key 或 keys）
         latest_dates_dict = RenewCommonHelper.query_latest_date(
             data_manager=data_manager,
             table_name=table_name,
@@ -1183,7 +1140,7 @@ class DataSourceHandlerHelper:
 
         # latest_dates_dict: {entity_id: latest_date_raw} 或 {composite_key: latest_date_raw}
         # 检查是否是多字段分组（通过检查 key 是否包含分隔符 "::"）
-        group_fields = config.get_group_fields() if config and hasattr(config, "get_group_fields") else []
+        group_fields = config.get_group_fields() if config else []
         is_multi_field = len(group_fields) > 1
         
         for key, raw_value in latest_dates_dict.items():
@@ -1596,18 +1553,20 @@ class DataSourceHandlerHelper:
             return result
 
         # per-entity：从 dependencies 中获取实体列表（标准位置）
+        # 实体列表名称由 config.job_execution.list 决定（如 stock_list、index_list）
+        entity_list_name = config.get_group_by_entity_list_name() if config else "stock_list"
         dependencies = context.get("dependencies", {})
-        stock_list = dependencies.get("stock_list")
+        entity_list = dependencies.get(entity_list_name)
         
-        if not stock_list:
+        if not entity_list:
             logger.warning(
-                f"needs_stock_grouping=True 但 dependencies['stock_list'] 为空，返回空日期范围。"
-                f"请确保 stock_list 数据源已正确配置并执行。"
+                f"needs_stock_grouping=True 但 dependencies['{entity_list_name}'] 为空，返回空日期范围。"
+                f"请在 handler 的 on_prepare_context 中注入 {entity_list_name}。"
             )
             return {}
 
         # 检查是否是多字段分组（通过检查 last_update_map 的 key 是否包含分隔符 "::"）
-        group_fields = config.get_group_fields() if config and hasattr(config, "get_group_fields") else []
+        group_fields = config.get_group_fields() if config else []
         is_multi_field = len(group_fields) > 1
         
         if is_multi_field:
@@ -1615,42 +1574,28 @@ class DataSourceHandlerHelper:
             # 这样可以处理新股票（不在last_update_map中）的情况
             # 例如：{"000001.SZ::daily": "20240101", "000001.SZ::weekly": "20240107"}
             
-            # 获取所有可能的term（优先从last_update_map中提取，如果没有则从config的apis中推断）
+            # 获取 terms：从 last_update_map 提取已有 term；不足时从 job_execution.terms 补充（不允许运行时推断）
             terms_set = set()
-            
-            # 方法1：从last_update_map中提取所有term
             for key in last_update_map.keys():
                 if "::" in key:
                     parts = key.split("::")
                     if len(parts) >= 2:
                         terms_set.add(parts[1].lower())
-            
-            # 方法2：如果map中没有term，尝试从config的apis中推断
-            # 例如：daily_kline -> daily, weekly_kline -> weekly
-            if not terms_set and config:
-                apis_conf = config.get_apis() if hasattr(config, "get_apis") else {}
-                for api_name in apis_conf.keys():
-                    # 尝试从API名称中提取term（例如：daily_kline -> daily）
-                    # 常见的命名模式：{term}_kline, {term}_data等
-                    api_name_lower = api_name.lower()
-                    if "_kline" in api_name_lower:
-                        term = api_name_lower.replace("_kline", "")
-                        terms_set.add(term)
-                    elif api_name_lower.endswith("_data"):
-                        term = api_name_lower.replace("_data", "")
-                        terms_set.add(term)
-                    elif api_name_lower in ["daily", "weekly", "monthly", "quarterly", "yearly"]:
-                        terms_set.add(api_name_lower)
-            
-            # 方法3：如果还是没有，使用默认的term列表（向后兼容）
+
+            config_terms = config.get_group_by_terms() if config else None
+            if not terms_set and config_terms:
+                terms_set = {str(t).lower() for t in config_terms if t}
             if not terms_set:
-                terms_set = {"daily", "weekly", "monthly"}
+                from core.modules.data_source.data_class.error import DataSourceConfigError
+                raise DataSourceConfigError(
+                    f"多字段分组时 terms 必须从 job_execution.terms 显式配置，不允许运行时推断"
+                )
             
             # 提取entity_key_field用于从stock_info中获取entity_id
             entity_key_field = group_fields[0] if group_fields else "id"
             
-            # 遍历stock_list，为每个股票的每个term创建日期范围
-            for stock_info in stock_list:
+            # 遍历 entity_list，为每个实体的每个 term 创建日期范围
+            for stock_info in entity_list:
                 # 提取实体 ID
                 if isinstance(stock_info, dict):
                     entity_id = str(stock_info.get(entity_key_field, ""))
@@ -1741,19 +1686,20 @@ class DataSourceHandlerHelper:
                     
                     result[composite_key] = (start_date, term_end_date)
         else:
-            # 单字段分组：按 stock_list 遍历
+            # 单字段分组：按 entity_list 遍历
             config = context.get("config")
             entity_key_field = config.get_group_by_key() if config else None
             
-            for stock_info in stock_list:
+            for stock_info in entity_list:
                 # 提取实体 ID：如果 stock_info 是字典，使用 entity_key_field（通常是 "id"）
                 # 如果 stock_info 是字符串/数字，直接使用
                 if isinstance(stock_info, dict):
-                    if entity_key_field:
-                        entity_id = str(stock_info.get(entity_key_field, ""))
-                    else:
-                        # 如果没有配置 entity_key_field，尝试常见的字段名
-                        entity_id = str(stock_info.get("id") or stock_info.get("ts_code") or stock_info.get("code") or "")
+                    if not entity_key_field:
+                        from core.modules.data_source.data_class.error import DataSourceConfigError
+                        raise DataSourceConfigError(
+                            "单字段分组时 job_execution.key 必须配置，不允许运行时推断"
+                        )
+                    entity_id = str(stock_info.get(entity_key_field, ""))
                 else:
                     entity_id = str(stock_info)
                 
@@ -1926,7 +1872,7 @@ class DataSourceHandlerHelper:
                 logger.warning(f"查询全局数据最新日期失败: {e}")
                 return None
         
-        # Per entity：一次性查询所有 entity 的最新记录（实体标识字段用 config.result_group_by.key 或 keys）
+        # Per entity：一次性查询所有 entity 的最新记录（实体标识字段用 config.job_execution.key 或 keys）
         date_format = config.get_date_format()
         latest_dates_dict = RenewCommonHelper.query_latest_date(
             data_manager, table_name, counting_field, date_format, needs_stock_grouping, context=context
@@ -1964,9 +1910,21 @@ class DataSourceHandlerHelper:
                 # 计算失败，保守策略：进入 candidates
                 candidates.append(entity_id)
         
-        # 如果提供了 stock_list，只返回在 stock_list 中的 entity
+        # 如果提供了 stock_list，只返回在 stock_list 中的 entity（按 config.group_fields 提取）
         if stock_list:
-            stock_ids = {stock.get("id") or stock.get("ts_code") for stock in stock_list if stock.get("id") or stock.get("ts_code")}
+            group_fields = config.get_group_fields()
+            if not group_fields:
+                from core.modules.data_source.data_class.error import DataSourceConfigError
+                raise DataSourceConfigError("stock_list 过滤需要 job_execution.key 或 keys 配置")
+            stock_ids = set()
+            for stock in stock_list:
+                if isinstance(stock, dict):
+                    parts = [str(stock.get(f, "")) for f in group_fields]
+                    eid = "::".join(parts) if len(parts) > 1 else (parts[0] if parts else "")
+                else:
+                    eid = str(stock)
+                if eid:
+                    stock_ids.add(eid)
             candidates = [eid for eid in candidates if eid in stock_ids]
         
         return candidates if candidates else None

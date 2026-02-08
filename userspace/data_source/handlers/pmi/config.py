@@ -6,7 +6,7 @@ from core.utils.date.date_utils import DateUtils
 
 CONFIG = {
     "table": "sys_pmi",
-    "save_mode": "unified",  # 统一保存：所有数据在 _do_save 中统一保存
+    "save_mode": "unified",
     "renew": {
         "type": "rolling",
         "last_update_info": {
@@ -23,7 +23,7 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_pmi",
             "max_per_minute": 10,
-            "field_mapping": {
+            "result_mapping": {
                 "date": "MONTH",
                 "pmi": "PMI010000",
                 "pmi_l_scale": "PMI010100",

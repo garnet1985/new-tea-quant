@@ -476,12 +476,12 @@ class KlineHandler(BaseHandler):
         # 获取字段映射配置
         apis_conf = config.get_apis() if config and hasattr(config, "get_apis") else {}
         api_config = apis_conf.get(api_name, {})
-        field_mapping = api_config.get("field_mapping", {})
+        result_mapping = api_config.get("result_mapping") or {}
         
         # 转换为记录列表并应用字段映射
         from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
         raw_records = kline_df.to_dict("records")
-        mapped_records = DataSourceHandlerHelper._apply_field_mapping(raw_records, field_mapping)
+        mapped_records = DataSourceHandlerHelper._apply_field_mapping(raw_records, result_mapping)
         
         # 添加必需字段（id 和 term）
         for record in mapped_records:

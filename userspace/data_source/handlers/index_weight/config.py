@@ -6,8 +6,8 @@ from core.utils.date import DateUtils
 
 CONFIG = {
     "table": "sys_index_weight",
-    "save_mode": "batch",  # 批量保存：累计 save_batch_size 个 bundle 后保存
-    "save_batch_size": 20,  # 每20个bundle保存一次
+    "save_mode": "batch",
+    "save_batch_size": 20,
     "renew": {
         "type": "incremental",
         "last_update_info": {
@@ -17,7 +17,7 @@ CONFIG = {
         "renew_if_over_days": {
             "value": 30,
         },
-        "result_group_by": {
+        "job_execution": {
             "list": "index_list",
             "key": "id",
         },
@@ -27,13 +27,15 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_index_weight",
             "max_per_minute": 200,
-            "field_mapping": {
+            "params_mapping": {
+                "index_code": "id",
+            },
+            "result_mapping": {
                 "date": "trade_date",
                 "stock_id": "con_code",
                 "weight": "weight",
             },
             "params": {},
-            "group_by": "index_code",
         },
     },
 }

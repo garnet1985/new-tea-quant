@@ -7,6 +7,11 @@ class DataSourceError(Exception):
         super().__init__(self.message)
 
 
+class DataSourceConfigError(DataSourceError):
+    """配置校验错误，在加载阶段抛出，不兼容不 fallback。"""
+    pass
+
+
 class ProviderError(Exception):
     """Provider 统一错误类"""
     

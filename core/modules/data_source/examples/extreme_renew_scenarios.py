@@ -188,9 +188,13 @@ class StockKlineQualityHandler(BaseHandler):
             logger.warning("config 为空，无法获取表名和字段信息")
             return None
         
-        # 获取配置信息
-        table_name = config.get("table_name") if isinstance(config, dict) else config.get_table_name()
-        date_field = config.get("date_field") if isinstance(config, dict) else config.get_date_field()
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
+        if not isinstance(config, DataSourceConfig):
+            logger.warning("config 必须为 DataSourceConfig 实例")
+            return None
+        table_name = config.get_table_name()
+        date_field = config.get_date_field()
         quality_field = "volume"  # 示例：检查 volume 字段是否为0
         
         if not table_name or not date_field:

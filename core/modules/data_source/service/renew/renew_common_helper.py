@@ -131,14 +131,10 @@ class RenewCommonHelper:
         if not config:
             return None
         
-        # 使用 is_per_entity() 来判断是否需要分组（更可靠）
-        if hasattr(config, "is_per_entity"):
-            return config.is_per_entity()
-        
-        # 向后兼容：检查是否有 get_needs_stock_grouping 方法
-        if hasattr(config, "get_needs_stock_grouping"):
-            return config.get_needs_stock_grouping()
-        
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
+        if isinstance(config, DataSourceConfig):
+            return config.is_per_entity() or config.get_needs_stock_grouping()
         return None
     
     @staticmethod
@@ -205,7 +201,7 @@ class RenewCommonHelper:
                 group_fields = None
                 if context:
                     config = context.get("config")
-                    if config and hasattr(config, "get_group_fields"):
+                    if config:
                         group_fields = config.get_group_fields()
                 
                 # 如果未配置 group_fields，从主键推断（向后兼容）

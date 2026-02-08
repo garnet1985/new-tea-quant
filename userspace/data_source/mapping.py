@@ -28,12 +28,12 @@ DATA_SOURCES = {
     },
     "adj_factor_event": {
         "handler": "adj_factor_event.AdjFactorEventHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["stock_list", "latest_trading_date"],
     },
     "index_klines": {
         "handler": "index_klines.IndexKlinesHandler",
-        "is_enabled": False,
+        "is_enabled": True,
         "depends_on": ["latest_trading_date"],
     },
     "index_weight": {

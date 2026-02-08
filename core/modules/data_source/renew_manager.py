@@ -193,46 +193,20 @@ class RenewManager:
     
     def _get_config(self, context: Dict[str, Any]):
         """
-        从 context 中获取 config，返回 DataSourceConfig 实例或兼容对象。
-        
-        优先返回 DataSourceConfig 实例，如果是 dict 则包装为 DataSourceConfig。
+        从 context 中获取 config，必须为 DataSourceConfig 实例。
+        不接受 dict，进入主程序前必须已完成转换。
         """
         from core.modules.data_source.data_class.config import DataSourceConfig
-        
+        from core.modules.data_source.data_class.error import DataSourceConfigError
+
         config = context.get("config")
         if config is None:
-            # 返回一个空的 DataSourceConfig 实例
-            return DataSourceConfig({}, data_source_key=context.get("data_source_key"))
-        
-        # 如果已经是 DataSourceConfig 实例，直接返回
-        if isinstance(config, DataSourceConfig):
-            return config
-        
-        # 如果是字典，包装为 DataSourceConfig 实例
-        if isinstance(config, dict):
-            data_source_key = context.get("data_source_key")
-            return DataSourceConfig(config, data_source_key=data_source_key)
-        
-        # 其他情况：尝试转换为字典再包装
-        if hasattr(config, "to_dict"):
-            data_source_key = context.get("data_source_key")
-            return DataSourceConfig(config.to_dict(), data_source_key=data_source_key)
-        
-        # 降级：尝试通过 __dict__ 或 asdict
-        try:
-            from dataclasses import asdict
-            if hasattr(config, "__dataclass_fields__"):
-                data_source_key = context.get("data_source_key")
-                return DataSourceConfig(asdict(config), data_source_key=data_source_key)
-        except Exception:
-            pass
-        
-        if hasattr(config, "__dict__"):
-            data_source_key = context.get("data_source_key")
-            return DataSourceConfig(config.__dict__, data_source_key=data_source_key)
-        
-        # 最后降级：返回空配置
-        return DataSourceConfig({}, data_source_key=context.get("data_source_key"))
+            raise DataSourceConfigError("context 中缺少 config")
+        if not isinstance(config, DataSourceConfig):
+            raise DataSourceConfigError(
+                f"config 必须是 DataSourceConfig 实例，收到: {type(config).__name__}"
+            )
+        return config
     
     def add_date_range(
         self,

@@ -9,6 +9,7 @@ from loguru import logger
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.utils.date.date_utils import DateUtils
 
@@ -25,7 +26,7 @@ class CorporateFinanceHandler(BaseHandler):
         self,
         data_source_key: str,
         schema,
-        config,
+        config: DataSourceConfig,
         providers: Dict[str, BaseProvider],
         depend_on_data_source_names: List[str] = None,
     ):
@@ -101,8 +102,8 @@ class CorporateFinanceHandler(BaseHandler):
             return {"data": []}
 
         records = self.clean_nan_in_records(records, default=None)
-        api_cfg = context["config"].get_apis().get("finance_data", {})
-        result_mapping = api_cfg.get("result_mapping") or {}
+        api_cfg = context["config"].get_apis()["finance_data"]
+        result_mapping = api_cfg.result_mapping
         mapped_records = DataSourceHandlerHelper._apply_field_mapping(records, result_mapping)
 
         quarter_records = {}

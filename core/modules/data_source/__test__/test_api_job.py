@@ -21,25 +21,25 @@ class TestApiJob:
     
     def test_init(self):
         """测试 ApiJob 初始化"""
-        from core.modules.data_source.data_class import ApiJob
-        
+        from core.modules.data_source.data_class.api_job import ApiJob
+
         job = ApiJob(
             provider_name="tushare",
             method="get_stock_list",
             params={"fields": "ts_code,name"}
         )
-        
+
         assert job.provider_name == "tushare"
         assert job.method == "get_stock_list"
         assert job.params == {"fields": "ts_code,name"}
         assert job.api_name == "get_stock_list"  # 自动设置
         assert job.depends_on == []
-        assert job.priority == 0
+        assert job.rate_limit == 0
     
     def test_post_init_api_name(self):
         """测试 api_name 自动设置"""
-        from core.modules.data_source.data_class import ApiJob
-        
+        from core.modules.data_source.data_class.api_job import ApiJob
+
         # 不指定 api_name，应该使用 method
         job1 = ApiJob(
             provider_name="tushare",
@@ -59,8 +59,8 @@ class TestApiJob:
     
     def test_depends_on(self):
         """测试依赖关系"""
-        from core.modules.data_source.data_class import ApiJob
-        
+        from core.modules.data_source.data_class.api_job import ApiJob
+
         job = ApiJob(
             provider_name="tushare",
             method="get_daily_kline",

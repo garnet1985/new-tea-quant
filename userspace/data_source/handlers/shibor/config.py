@@ -6,7 +6,7 @@ from core.utils.date import DateUtils
 
 CONFIG = {
     "table": "sys_shibor",
-    "save_mode": "unified",  # 统一保存：所有数据在 _do_save 中统一保存
+    "save_mode": "unified",
     "renew": {
         "type": "rolling",
         "last_update_info": {
@@ -23,7 +23,7 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_shibor",
             "max_per_minute": 10,
-            "field_mapping": {
+            "result_mapping": {
                 "date": "date",
                 "one_night": "on",
                 "one_week": "1w",

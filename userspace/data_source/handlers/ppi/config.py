@@ -6,7 +6,7 @@ from core.utils.date.date_utils import DateUtils
 
 CONFIG = {
     "table": "sys_ppi",
-    "save_mode": "unified",  # 统一保存：所有数据在 _do_save 中统一保存
+    "save_mode": "unified",
     "renew": {
         "type": "rolling",
         "last_update_info": {
@@ -23,7 +23,7 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_ppi",
             "max_per_minute": 10,
-            "field_mapping": {
+            "result_mapping": {
                 "date": "month",
                 "ppi": "ppi_accu",
                 "ppi_yoy": "ppi_yoy",

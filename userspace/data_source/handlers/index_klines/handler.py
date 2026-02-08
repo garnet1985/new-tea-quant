@@ -9,6 +9,7 @@ from loguru import logger
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 
 TERM_TO_API = {"daily": "daily_kline", "weekly": "weekly_kline", "monthly": "monthly_kline"}
@@ -22,7 +23,7 @@ class IndexKlinesHandler(BaseHandler):
         self,
         data_source_key: str,
         schema,
-        config,
+        config: DataSourceConfig,
         providers: Dict[str, BaseProvider],
         depend_on_data_source_names: List[str] = None,
     ):

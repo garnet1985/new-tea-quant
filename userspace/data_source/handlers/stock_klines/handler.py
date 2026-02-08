@@ -10,8 +10,10 @@ from loguru import logger
 import pandas as pd
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
+from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.utils.date.date_utils import DateUtils
 
@@ -170,7 +172,7 @@ class KlineHandler(BaseHandler):
     
     def _filter_apis_by_term_update_needs(
         self,
-        apis_conf: Dict[str, Any],
+        apis_conf: Dict[str, ApiConfig],
         stock_id: str,
         term_date_ranges: Dict[str, Tuple[str, str]],
         last_update_map: Dict[str, Optional[str]]
@@ -179,15 +181,15 @@ class KlineHandler(BaseHandler):
         根据时间间隔过滤需要更新的 API。
         
         Args:
-            apis_conf: API 配置字典
+            apis_conf: Dict[str, ApiConfig]，来自 config.get_apis()
             stock_id: 股票 ID
             term_date_ranges: 该股票的各个 term 的日期范围
             last_update_map: 上次更新时间的映射
         
         Returns:
-            过滤后的 API 配置字典
+            过滤后的 Dict[str, ApiConfig]
         """
-        filtered_apis_conf = {}
+        filtered_apis_conf: Dict[str, ApiConfig] = {}
         
         for api_name, api_config in apis_conf.items():
             term = self.API_TO_TERM.get(api_name)
@@ -292,7 +294,9 @@ class KlineHandler(BaseHandler):
         
         # 获取配置和实体列表
         config = context.get("config")
-        apis_conf = config.get_apis() if config and hasattr(config, "get_apis") else {}
+        if not isinstance(config, DataSourceConfig):
+            return []
+        apis_conf = config.get_apis()
         entity_list = self._get_entity_list()
         last_update_map = context.get("_last_update_map", {})
         
@@ -354,16 +358,15 @@ class KlineHandler(BaseHandler):
         
         return merged_jobs
     
-    def _get_entity_key_field(self, config: Any) -> Optional[str]:
+    def _get_entity_key_field(self, config: Optional[DataSourceConfig]) -> Optional[str]:
         """获取实体标识字段名。"""
         if not config:
             return None
         
-        group_fields = config.get_group_fields() if hasattr(config, "get_group_fields") else []
-        if group_fields and len(group_fields) > 0:
+        group_fields = config.get_group_fields()
+        if group_fields:
             return group_fields[0]  # 多字段分组时，第一个字段是主键（如 id）
-        else:
-            return config.get_group_by_key() if hasattr(config, "get_group_by_key") else None
+        return config.get_group_by_key()
     
     def _extract_entity_id(self, entity_info: Any, entity_key_field: str) -> Optional[str]:
         """从 entity_info 中提取实体 ID。"""
@@ -438,7 +441,7 @@ class KlineHandler(BaseHandler):
         api_job: ApiJob,
         stock_id: str,
         fetched_data: Dict[str, Any],
-        config: Any
+        config: DataSourceConfig
     ) -> List[Dict[str, Any]]:
         """
         处理单个 API job 的数据：提取、映射、标准化。
@@ -474,9 +477,8 @@ class KlineHandler(BaseHandler):
             return []
         
         # 获取字段映射配置
-        apis_conf = config.get_apis() if config and hasattr(config, "get_apis") else {}
-        api_config = apis_conf.get(api_name, {})
-        result_mapping = api_config.get("result_mapping") or {}
+        api_config = config.get_apis()[api_name]
+        result_mapping = api_config.result_mapping
         
         # 转换为记录列表并应用字段映射
         from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
@@ -508,7 +510,6 @@ class KlineHandler(BaseHandler):
             logger.info(f"🔍 [DRY RUN] 股票 {stock_id} {term_name} K 线数据: {len(records)} 条记录（未实际保存）")
         else:
             data_manager.stock.kline.save(records)
-            logger.info(f"✅ 保存股票 {stock_id} {term_name} K 线数据成功: {len(records)} 条记录")
     
     def _extract_stock_id_from_bundle(self, bundle_id: str) -> Optional[str]:
         """从 bundle_id 中提取股票 ID（格式：{data_source_key}_batch_{stock_id}）"""

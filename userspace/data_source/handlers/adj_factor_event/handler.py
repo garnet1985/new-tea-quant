@@ -135,11 +135,6 @@ class AdjFactorEventHandler(BaseHandler):
         # 从 bundle_id 提取股票代码（格式：adj_factor_event_batch_{stock_id}）
         stock_id = job_bundle.bundle_id.replace("adj_factor_event_batch_", "")
         
-        # 获取该股票的 3 个 API 结果（使用 api_name 作为 key）
-        adj_factor_result = None
-        daily_kline_result = None
-        qfq_kline_result = None
-        
         # 获取该股票的 3 个 API 结果（使用 api_name 作为 key，因为 job_id 默认等于 api_name）
         adj_factor_result = None
         daily_kline_result = None

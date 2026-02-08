@@ -26,11 +26,15 @@ class TestBaseHandler:
         schema = {"name": "test_table", "fields": [{"name": "id", "type": "string"}]}
         config_dict = {
             "table": "sys_test",
-            "renew": {"type": "incremental", "last_update_info": {"date_field": "date", "date_format": "day"}},
-            "result_group_by": {"list": "stock_list", "key": "id"},
+            "save_mode": "unified",
+            "renew": {
+                "type": "incremental",
+                "last_update_info": {"date_field": "date", "date_format": "day"},
+                "job_execution": {"list": "stock_list", "key": "id"},
+            },
             "apis": {"api1": {"provider_name": "tushare", "method": "get_xxx", "max_per_minute": 100}},
         }
-        config = DataSourceConfig(config_dict, data_source_key="test_key")
+        config = DataSourceConfig.from_dict(config_dict, "test_key")
         providers = {}
 
         handler = BaseHandler(
@@ -50,9 +54,18 @@ class TestBaseHandler:
         from core.modules.data_source.data_class.config import DataSourceConfig
 
         schema = {"name": "t", "fields": []}
-        config = DataSourceConfig(
-            {"table": "t", "renew": {"type": "incremental", "last_update_info": {}}, "result_group_by": {"list": "x", "key": "id"}, "apis": {"a": {"provider_name": "p", "method": "m", "max_per_minute": 1}}},
-            data_source_key="k",
+        config = DataSourceConfig.from_dict(
+            {
+                "table": "t",
+                "save_mode": "unified",
+                "renew": {
+                    "type": "incremental",
+                    "last_update_info": {"date_field": "date", "date_format": "day"},
+                    "job_execution": {"list": "x", "key": "id"},
+                },
+                "apis": {"a": {"provider_name": "p", "method": "m", "max_per_minute": 1}},
+            },
+            "k",
         )
         handler = BaseHandler(
             data_source_key="k",

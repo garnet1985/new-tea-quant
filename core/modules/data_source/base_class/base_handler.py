@@ -65,7 +65,7 @@ class BaseHandler:
         """
         self._inject_dependencies(dependencies_data)
         config = self.context.get("config")
-        self.context["is_dry_run"] = bool(config.get("is_dry_run", False) if config else False)
+        self.context["is_dry_run"] = config.get_is_dry_run() if config else False
 
         early_result = self.on_before_run(self.context)
         if early_result is not None:
@@ -144,7 +144,7 @@ class BaseHandler:
 
     def _get_entity_list(self) -> List[Any]:
         """
-        获取 per-entity 的实体列表。仅当 result_group_by.list == "stock_list" 时从
+        获取 per-entity 的实体列表。仅当 job_execution.list == "stock_list" 时从
         dependencies 解析；其他 list 名（如 "stock_index_list"）需由子类在 on_before_fetch
         等钩子中自行注入实体列表，本方法返回 []。
         
@@ -166,10 +166,10 @@ class BaseHandler:
             entity_list = deps.get("stock_list")
             return (entity_list or []) if entity_list is not None else []
         if group_by_entity_list_name:
-            raise ValueError(
-                f"不支持的 result_group_by.list: {group_by_entity_list_name}。"
-                "仅 'stock_list' 由基类从 dependencies 解析；其他实体列表请在 handler 的 on_before_fetch 中自行注入。"
-            )
+            # 其他 list 名（如 index_list）：从 dependencies 或 context 获取，由 handler 在 on_prepare_context 中注入
+            deps = self.context.get("dependencies") or {}
+            entity_list = deps.get(group_by_entity_list_name) or self.context.get(group_by_entity_list_name)
+            return (entity_list or []) if entity_list is not None else []
         return []
 
     def _get_last_update_map(self) -> Dict[str, Optional[str]]:
@@ -205,7 +205,7 @@ class BaseHandler:
         jobs: List[ApiJobBundle] = []
 
         for entity_info in entity_list:
-            # 实体 ID 的来源遵循 config.result_group_by.key 这一单一约定
+            # 实体 ID 的来源遵循 config.job_execution.key 这一单一约定
             if isinstance(entity_info, dict):
                 entity_id = entity_info.get(entity_key_field)
             else:
@@ -272,7 +272,7 @@ class BaseHandler:
         # 构造 bundle_id：{data_source_key}_batch 或 {data_source_key}_batch_{entity_id}
         base_bundle_id = ApiJobBundle.to_id(self.get_key())
 
-        # per-entity 场景：使用同一套实体 ID 约定（config.result_group_by.key）
+        # per-entity 场景：使用同一套实体 ID 约定（config.job_execution.key）
         entity_suffix = entity_id if entity_id else None
         if entity_suffix is not None:
             bundle_id = f"{base_bundle_id}_{entity_suffix}"
@@ -297,79 +297,6 @@ class BaseHandler:
             val = dependencies_data["latest_trading_date"]
             if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict) and "date" in val[0]:
                 self.context["latest_completed_trading_date"] = val[0]["date"]
-
-    def _filter_by_renew_if_over_days(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
-        """
-        根据 renew_if_over_days 配置过滤 ApiJobs。
-        
-        逻辑：
-        1. 调用 check_renew_if_over_days 获取需要更新的 entity 列表
-        2. 根据返回值过滤 ApiJobs：
-           - None: 不过滤（全局数据且需要更新，或表为空）
-           - []: 过滤掉所有 ApiJobs（全局数据且不需要更新）
-           - List[str]: 只保留这些 entity 的 ApiJobs（per entity 模式）
-        
-        Args:
-            context: 执行上下文
-            apis: ApiJob 列表（已注入日期范围）
-        
-        Returns:
-            List[ApiJob]: 过滤后的 ApiJob 列表
-        """
-        from loguru import logger
-        
-        config = self.context.get("config")
-        if not config:
-            return apis
-        
-        # 获取 renew_if_over_days 配置
-        threshold_config = config.get_renew_if_over_days()
-        if not threshold_config:
-            return apis
-        
-        # 检查 renew_if_over_days
-        stock_list = self.context.get("stock_list")
-        need_update_entities = DataSourceHandlerHelper.check_renew_if_over_days(
-            self.context, threshold_config, stock_list
-        )
-        
-        # 根据返回值过滤 ApiJobs
-        if need_update_entities is None:
-            # 不过滤（全局数据且需要更新，或表为空）
-            return apis
-        
-        if not need_update_entities:
-            # 过滤掉所有 ApiJobs（全局数据且不需要更新）
-            logger.info(f"renew_if_over_days 检查：没有需要更新的 entity，跳过所有 ApiJobs")
-            return []
-        
-        # 只保留需要更新的 entity 的 ApiJobs（per entity 模式）
-        need_update_set = set(need_update_entities)
-        filtered_apis = []
-        
-        for job in apis:
-            params = job.params or {}
-            
-            # 尝试从 params 中提取 entity_id（支持多种字段名）
-            entity_id = (
-                params.get("ts_code") or 
-                params.get("code") or 
-                params.get("stock_id") or
-                params.get("id") or
-                params.get("index_code")  # 用于指数
-            )
-            
-            if entity_id and str(entity_id) in need_update_set:
-                filtered_apis.append(job)
-            elif not entity_id:
-                # 如果无法提取 entity_id，保守策略：保留该 ApiJob
-                logger.debug(f"ApiJob {job.job_id} 无法提取 entity_id，保留该 ApiJob")
-                filtered_apis.append(job)
-        
-        logger.info(f"renew_if_over_days 检查：从 {len(apis)} 个 ApiJobs 过滤到 {len(filtered_apis)} 个")
-        return filtered_apis
-
-
 
     # ================================
     # Executing stage
@@ -397,7 +324,15 @@ class BaseHandler:
 
             fetched_data = self._multi_thread_execute(apis_job_bundles)
 
-            fetched_data = self.on_before_normalize(self.context, fetched_data)
+            # 将执行的 apis 扁平化注入 context，供 on_after_fetch 使用
+            all_apis: List[ApiJob] = []
+            for item in apis_job_bundles or []:
+                if isinstance(item, ApiJobBundle):
+                    all_apis.extend(item.apis or [])
+                elif isinstance(item, ApiJob):
+                    all_apis.append(item)
+
+            fetched_data = self.on_after_fetch(self.context, fetched_data, all_apis)
 
             return fetched_data
         except Exception as e:
@@ -424,10 +359,9 @@ class BaseHandler:
         data_source_key = self.context.get("data_source_key", "data_source")
 
         for i, item in enumerate(jobs or []):
-            if hasattr(item, "apis") and hasattr(item, "bundle_id"):
-                # ApiJobBundle
-                bid = getattr(item, "bundle_id", None) or f"{data_source_key}_bundle_{i}"
-                apis = getattr(item, "apis", []) or []
+            if isinstance(item, ApiJobBundle):
+                bid = item.bundle_id or f"{data_source_key}_bundle_{i}"
+                apis = item.apis or []
                 bundles.append((bid, apis, item))
             elif isinstance(item, ApiJob):
                 # 单个 ApiJob 视为一个 bundle
@@ -499,12 +433,12 @@ class BaseHandler:
             
             # 获取 save_mode 配置
             config = self.context.get("config")
-            if not config or not hasattr(config, "get_save_mode"):
+            if not config:
                 raise ValueError("config 必须配置 save_mode")
             save_mode = config.get_save_mode()
             
             # 根据 save_mode 决定是否调用钩子
-            if save_mode != "unified" and hasattr(item, "apis") and hasattr(item, "bundle_id"):
+            if save_mode != "unified" and isinstance(item, ApiJobBundle):
                 try:
                     logger.info(f"🔧 [single_bundle] 调用 on_after_single_api_job_bundle_complete: bundle_id={bundle_id}")
                     self.on_after_single_api_job_bundle_complete(self.context, item, result)
@@ -514,7 +448,7 @@ class BaseHandler:
             elif save_mode == "unified":
                 logger.debug(f"🔧 [single_bundle] save_mode='unified'，跳过 on_after_single_api_job_bundle_complete（将在 _do_save 中统一保存）")
             else:
-                logger.warning(f"⚠️ [single_bundle] item 没有 apis 或 bundle_id 属性，跳过钩子调用")
+                logger.debug(f"save_mode='unified' 或 item 非 ApiJobBundle，跳过 per-bundle 钩子")
             logger.info(f"执行完成: 1/1 个 bundles")
             return result
 
@@ -605,13 +539,13 @@ class BaseHandler:
         
         # 根据配置决定批量保存大小
         config = self.context.get("config")
-        if not config or not hasattr(config, "get_save_mode"):
+        if not config:
             raise ValueError("config 必须配置 save_mode")
         save_mode = config.get_save_mode()
         if save_mode == "immediate":
             BATCH_SAVE_SIZE = 1  # 立即保存：每个 bundle 完成后立即保存
         elif save_mode == "batch":
-            BATCH_SAVE_SIZE = config.get_save_batch_size() if config and hasattr(config, "get_save_batch_size") else 50
+            BATCH_SAVE_SIZE = config.get_save_batch_size() if config else 50
         else:  # unified
             BATCH_SAVE_SIZE = float('inf')  # 统一保存：不在这里保存，在 _do_save 中统一保存
         
@@ -848,9 +782,9 @@ class BaseHandler:
 
         步骤大纲：
         1. 从 context 中解析 apis 配置和 schema（输入准备）；
-        2. 做一次字段覆盖校验：哪些 schema 字段在 field_mapping 中没有被任何 API 覆盖（仅日志提醒）；
+        2. 做一次字段覆盖校验：哪些 schema 字段在 result_mapping 中没有被任何 API 覆盖（仅日志提醒）；
         3. 遍历每个 API，取出对应结果并转换为 records（DataFrame → records 或 list[dict]）；
-        4. 使用该 API 的 field_mapping 将原始字段映射到标准字段；
+        4. 使用该 API 的 result_mapping 将原始字段映射到标准字段；
         5. 合并所有 API 的映射结果，得到统一的 records 列表；
         6. 使用 schema 约束字段集和类型（只保留 schema 定义的字段，并做类型转换/默认值填充）；
         7. 将最终记录包装为 {"data": [...]} 返回。
@@ -877,8 +811,7 @@ class BaseHandler:
         # 步骤 3 & 4：从所有 API 返回中提取并映射出标准字段记录
         # 检查是否配置了 merge_by_key（用于按 key 合并多个 API 的结果）
         merge_by_key = None
-        if hasattr(config, "get_merge_by_key"):
-            merge_by_key = config.get_merge_by_key()
+        merge_by_key = config.get_merge_by_key() if config else None
         
         mapped_records: List[Dict[str, Any]] = DataSourceHandlerHelper.extract_mapped_records(
             apis_conf=apis_conf,
@@ -976,7 +909,7 @@ class BaseHandler:
         （数据已在 on_after_single_api_job_bundle_complete 中保存）。
         """
         config = self.context.get("config")
-        if not config or not hasattr(config, "get_save_mode"):
+        if not config:
             raise ValueError("config 必须配置 save_mode")
         save_mode = config.get_save_mode()
         
@@ -1121,7 +1054,7 @@ class BaseHandler:
         
         Args:
             entity_info: 实体信息（来自 dependencies，如 stock_list 中的一项）
-            entity_key_field: 实体键字段名（来自 config.result_group_by.key，通常是 "id"）
+            entity_key_field: 实体键字段名（来自 config.job_execution.key，通常是 "id"）
             context: 执行上下文
             
         Returns:
@@ -1170,7 +1103,7 @@ class BaseHandler:
         
         # 获取实体标识字段：多字段分组时使用第一个字段，单字段分组时使用 key
         entity_key_field = None
-        group_fields = config.get_group_fields() if hasattr(config, "get_group_fields") else []
+        group_fields = config.get_group_fields() if config else []
         if group_fields and len(group_fields) > 0:
             entity_key_field = group_fields[0]  # 多字段分组时，第一个字段是主键（如 id）
         else:
@@ -1297,28 +1230,16 @@ class BaseHandler:
 
     def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):
         """
-        抓取完成后的预处理钩子（标准化之前）。
+        抓取完成后的钩子：将 {job_id: result} 转为 {api_name: {entity_id: result}}，
+        供 normalize 阶段的 extract_mapped_records 使用。
 
-        默认行为：在编排层先判断是否存在 `group_by` 配置：
-        - 如果至少有一个 API 配置了 `group_by`，则调用
-          `DataSourceHandlerHelper.build_grouped_fetched_data`，按实体分组；
-        - 如果所有 API 都未配置 `group_by`，则调用
-          `DataSourceHandlerHelper.build_unified_fetched_data`，按 api_name 聚合到 `_unified`。
-
-        这样可以让「有实体分组」与「纯全局数据」两条路径在编排层语义更清晰。
+        默认行为：根据 has_group_by_config 选择：
+        - 有 job_execution 且 apis 含 params_mapping：build_grouped_fetched_data，按实体分组；
+        - 否则：build_unified_fetched_data，按 api_name 聚合到 "_unified"。
         """
         if DataSourceHandlerHelper.has_group_by_config(context, apis):
             return DataSourceHandlerHelper.build_grouped_fetched_data(context, fetched_data, apis)
         return DataSourceHandlerHelper.build_unified_fetched_data(context, fetched_data, apis)
-
-    def on_before_normalize(self, context: Dict[str, Any], fetched_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        标准化前钩子：默认实现直接返回 fetched_data。
-
-        子类可覆盖此方法，在 normalize 之前对抓取结果做进一步预处理，
-        例如字段合并、结构调整、补充上下文信息等。
-        """
-        return fetched_data
 
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -1332,7 +1253,7 @@ class BaseHandler:
 
         Args:
             context: 执行上下文
-            mapped_records: 已应用 field_mapping 的记录列表
+            mapped_records: 已应用 result_mapping 的记录列表
 
         Returns:
             List[Dict[str, Any]]: 处理后的记录列表（如果返回空列表，后续步骤会返回空数据）

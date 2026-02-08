@@ -1,10 +1,10 @@
 """
 Stock List Handler 配置。绑定表 sys_stock_list。
-行业/板块/市场由定义表 + 映射表维护；field_mapping 中的 industry/board/market 仅用于 handler 钩子解析后写入维度表与映射表，不写入 sys_stock_list（schema 无这些字段）。
+行业/板块/市场由定义表 + 映射表维护；result_mapping 中的 industry/board/market 仅用于 handler 钩子解析后写入维度表与映射表，不写入 sys_stock_list（schema 无这些字段）。
 """
 CONFIG = {
     "table": "sys_stock_list",
-    "save_mode": "unified",  # 统一保存：所有数据在 _do_save 中统一保存
+    "save_mode": "unified",
     "renew": {
         "type": "refresh",
     },
@@ -14,7 +14,7 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_stock_list",
             "max_per_minute": 10,
-            "field_mapping": {
+            "result_mapping": {
                 "id": "ts_code",
                 "name": "name",
                 "industry": "industry",

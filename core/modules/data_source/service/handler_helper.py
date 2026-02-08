@@ -1591,7 +1591,7 @@ class DataSourceHandlerHelper:
             gate_val = (renew_gate_map.get("_global") if renew_gate_map else None) or last_update_map.get("_global")
             if not should_trigger(gate_val):
                 return {}
-            start_date = compute_start_for_mode(last_update)
+            start_date = compute_start_for_mode(last_update_map.get("_global"))
             result["_global"] = (start_date, end_date)
             return result
 

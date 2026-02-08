@@ -8,17 +8,21 @@ from core.utils.date import DateUtils
 
 CONFIG = {
     "table": "sys_stock_klines",
-    "save_mode": "batch",  # 批量保存：累计 save_batch_size 个 bundle 后保存
-    "save_batch_size": 20,  # 每20个bundle保存一次
+    "save_mode": "batch",
+    "save_batch_size": 20,
     "renew": {
         "type": "incremental",
         "last_update_info": {
             "date_field": "date",
             "date_format": DateUtils.PERIOD_DAY,
         },
-        "result_group_by": {
+        "job_execution": {
             "list": "stock_list",
-            "keys": ["id", "term"],  # 多字段分组：按股票 ID 和周期分组，分别查询每个 term 的 last_update
+            "keys": ["id", "term"],
+            "terms": ["daily", "weekly", "monthly"],
+            "merge": {
+                "by": "id",
+            },
         },
     },
     "apis": {
@@ -26,7 +30,11 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_daily_kline",
             "max_per_minute": 700,
-            "field_mapping": {
+            "params_mapping": {
+                "ts_code": "id",
+                "term": "term",
+            },
+            "result_mapping": {
                 "id": "ts_code",
                 "date": "trade_date",
                 "open": "open",
@@ -44,7 +52,11 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_weekly_kline",
             "max_per_minute": 700,
-            "field_mapping": {
+            "params_mapping": {
+                "ts_code": "id",
+                "term": "term",
+            },
+            "result_mapping": {
                 "id": "ts_code",
                 "date": "trade_date",
                 "open": "open",
@@ -62,7 +74,11 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_monthly_kline",
             "max_per_minute": 700,
-            "field_mapping": {
+            "params_mapping": {
+                "ts_code": "id",
+                "term": "term",
+            },
+            "result_mapping": {
                 "id": "ts_code",
                 "date": "trade_date",
                 "open": "open",

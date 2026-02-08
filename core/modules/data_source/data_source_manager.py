@@ -11,6 +11,7 @@ from core.modules.data_source.service.manager_helper import DataSourceManagerHel
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.config import DataSourceConfig
+from core.modules.data_source.data_class.error import DataSourceConfigError
 
 class DataSourceManager:
     """
@@ -137,9 +138,10 @@ class DataSourceManager:
             logger.info(f"Data source {data_source_key} 未找到或无法加载 config.py，跳过")
             return None
 
-        config = DataSourceConfig(config_dict, data_source_key=data_source_key)
-        if not config.is_valid():
-            logger.warning(f"Data source {data_source_key} 的 config 不完整，跳过")
+        try:
+            config = DataSourceConfig.from_dict(config_dict, data_source_key)
+        except DataSourceConfigError as e:
+            logger.error(f"Data source {data_source_key} 配置错误: {e}")
             return None
 
         self._all_valid_configs_cache[data_source_key] = config

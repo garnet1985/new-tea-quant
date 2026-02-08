@@ -6,15 +6,15 @@ from core.utils.date import DateUtils
 
 CONFIG = {
     "table": "sys_stock_indicators",
-    "save_mode": "batch",  # 批量保存：累计 save_batch_size 个 bundle 后保存
-    "save_batch_size": 20,  # 每20个bundle保存一次
+    "save_mode": "batch",
+    "save_batch_size": 20,
     "renew": {
         "type": "incremental",
         "last_update_info": {
             "date_field": "date",
             "date_format": DateUtils.PERIOD_DAY,
         },
-        "result_group_by": {
+        "job_execution": {
             "list": "stock_list",
             "key": "id",
         },
@@ -24,7 +24,10 @@ CONFIG = {
             "provider_name": "tushare",
             "method": "get_daily_basic",
             "max_per_minute": 700,
-            "field_mapping": {
+            "params_mapping": {
+                "ts_code": "id",
+            },
+            "result_mapping": {
                 "id": "ts_code",
                 "date": "trade_date",
                 "turnover_rate": "turnover_rate",

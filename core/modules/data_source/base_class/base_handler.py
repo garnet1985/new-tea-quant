@@ -978,6 +978,7 @@ class BaseHandler:
         if not records or not isinstance(records, list):
             logger.debug(f"系统写入 {table_name}: normalized_data 中没有数据或格式不正确，跳过写入")
             return
+        original_count = len(records)
         pk = schema.get("primaryKey")
         if isinstance(pk, str):
             unique_keys = [pk]
@@ -998,6 +999,21 @@ class BaseHandler:
             deduplicated_records = list(seen.values())
             records = deduplicated_records
         
+        if not unique_keys or len(unique_keys) == 0:
+            logger.warning(
+                f"表 {table_name} 的 schema 未配置 primaryKey，无法确定 upsert 唯一键，跳过系统写入"
+            )
+            return
+        
+        try:
+            affected = model.upsert_many(records, unique_keys)
+            logger.info(
+                f"系统写入 {table_name}: upsert {affected} 条记录"
+                f"（原始 {original_count} 条，去重后 {len(records)} 条，unique_keys={unique_keys}）"
+            )
+        except Exception as e:
+            logger.error(f"系统写入 {table_name} 失败: {e}")
+            raise
 
     # ================================
     # Hooks

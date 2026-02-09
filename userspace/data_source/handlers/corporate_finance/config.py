@@ -7,7 +7,7 @@ from core.utils.date import DateUtils
 CONFIG = {
     "table": "sys_corporate_finance",
     "save_mode": "batch",
-    "save_batch_size": 20,
+    "save_batch_size": 100,
     "ignore_fields": ["id", "quarter"],
     "renew": {
         "type": "rolling",

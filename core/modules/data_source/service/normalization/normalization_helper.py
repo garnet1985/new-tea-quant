@@ -95,12 +95,22 @@ def result_to_records(result: Any) -> List[Dict[str, Any]]:
 # ================================
 
 _SCHEMA_TYPE_MAP = {
+    # 文本
     "varchar": str,
     "text": str,
+    # 整数
     "int": int,
-    "float": float,
     "tinyint": int,
+    "smallint": int,
+    "bigint": int,
+    # 浮点/小数
+    "float": float,
+    "double": float,
+    "decimal": float,
+    "numeric": float,
+    # 日期/时间
     "datetime": str,
+    "timestamp": str,
     "date": str,
 }
 

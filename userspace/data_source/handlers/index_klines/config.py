@@ -1,5 +1,7 @@
 """
 Index Klines Handler 配置。绑定表 sys_index_klines。
+
+与 stock_klines 逻辑一致：按 (id, term) 分组，支持 daily/weekly/monthly 独立追踪。
 """
 from core.utils.date import DateUtils
 
@@ -8,6 +10,7 @@ CONFIG = {
     "table": "sys_index_klines",
     "save_mode": "batch",
     "save_batch_size": 20,
+    "ignore_fields": ["id", "term"],  # 由 handler 注入
     "renew": {
         "type": "incremental",
         "last_update_info": {
@@ -15,11 +18,15 @@ CONFIG = {
             "date_format": DateUtils.PERIOD_DAY,
         },
         "renew_if_over_days": {
-            "value": 30,
+            "value": 1,
         },
         "job_execution": {
             "list": "index_list",
-            "key": "id",
+            "keys": ["id", "term"],
+            "terms": ["daily", "weekly", "monthly"],
+            "merge": {
+                "by": "id",
+            },
         },
     },
     "apis": {
@@ -29,6 +36,7 @@ CONFIG = {
             "max_per_minute": 500,
             "params_mapping": {
                 "ts_code": "id",
+                "term": "term",
             },
             "result_mapping": {
                 "date": "trade_date",
@@ -50,6 +58,7 @@ CONFIG = {
             "max_per_minute": 500,
             "params_mapping": {
                 "ts_code": "id",
+                "term": "term",
             },
             "result_mapping": {
                 "date": "trade_date",
@@ -71,6 +80,7 @@ CONFIG = {
             "max_per_minute": 500,
             "params_mapping": {
                 "ts_code": "id",
+                "term": "term",
             },
             "result_mapping": {
                 "date": "trade_date",

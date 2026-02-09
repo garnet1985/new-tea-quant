@@ -70,8 +70,8 @@
 - **Handler**: `stock_index_indicator`, `stock_index_indicator_weight`
 - **行为**：
   1. 调用 `super().on_after_fetch()` 让基类按 `group_by` 分组
-  2. 使用 `DataSourceHandlerHelper.result_to_records` 转换原始结果
-  3. 使用 `DataSourceHandlerHelper.add_constant_fields` 添加业务字段（如 `id`, `term`）
+  2. 使用 `normalization_helper.result_to_records` 转换原始结果
+  3. 使用 `add_constant_fields`（或等价逻辑）添加业务字段（如 `id`, `term`）
   4. 返回统一格式 `{api_name: {entity_id: records}}`
 - **示例**：
   ```python
@@ -98,7 +98,7 @@
 **模式 A：日期标准化 + 过滤 + 类型转换**
 - **Handler**: `stock_index_indicator`, `stock_index_indicator_weight`, `latest_trading_date`
 - **行为**：
-  1. 使用 `DataSourceHandlerHelper.normalize_date_field` 标准化日期格式
+  1. 使用 `normalization_helper.normalize_date_field` 标准化日期格式
   2. 使用 `self.filter_records_by_required_fields` 过滤缺少必需字段的记录
   3. 使用 `self.ensure_float_field` 确保数值字段为 float 类型
 - **示例**：
@@ -239,7 +239,7 @@
 
 1. **日期标准化**（6 个 handler）
    - `normalize_date_field` / `DateUtils.to_yyyymmdd` / `_normalize_month`
-   - **建议**：统一使用 `DataSourceHandlerHelper.normalize_date_field`，支持更多日期格式
+   - **建议**：统一使用 `normalization_helper.normalize_date_field`，支持更多日期格式
 
 2. **记录过滤**（3 个 handler）
    - `filter_records_by_required_fields`
@@ -272,7 +272,7 @@
 ### 简化建议
 
 1. **统一日期标准化**：
-   - `price_indexes` 的 `_normalize_month` 可以迁移到 `DataSourceHandlerHelper`，支持月份格式
+   - `price_indexes` 的 `_normalize_month` 可以迁移到 `normalization_helper` 或专门的日期 helper，支持月份格式
    - `latest_trading_date` 的日期提取逻辑可以简化
 
 2. **统一默认值设置**：
@@ -307,7 +307,7 @@
 
 ## 下一步行动
 
-1. **统一日期标准化**：扩展 `DataSourceHandlerHelper.normalize_date_field` 支持月份格式
+1. **统一日期标准化**：扩展 `normalization_helper.normalize_date_field` 支持月份格式
 2. **统一默认值设置**：添加 `set_default_values` 辅助方法
 3. **简化 `stock_list`**：使用 `filter_records_by_required_fields` 替代手动过滤
 4. **移除 `_normalize_data` 复写**：重构 `kline`, `corporate_finance`, `adj_factor_event` 使用钩子函数

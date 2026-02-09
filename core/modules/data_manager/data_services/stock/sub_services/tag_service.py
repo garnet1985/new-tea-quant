@@ -79,7 +79,11 @@ class TagDataService(BaseDataService):
             'description': description or ''
         }
         
-        self._tag_scenario_model.save_scenario(scenario_data)
+        # 统一通过 DataService 封装 upsert 规则：按唯一 name 约束
+        self._tag_scenario_model.upsert_many(
+            [scenario_data],
+            unique_keys=["name"],
+        )
         
         # 返回新创建的 scenario
         return self.load_scenario(scenario_name)
@@ -119,7 +123,11 @@ class TagDataService(BaseDataService):
             entity_id=scenario_id,
             update_data=update_data,
             current_entity=current_scenario,
-            update_method=lambda: self._tag_scenario_model.update_scenario(scenario_id, update_data)
+            update_method=lambda: self._tag_scenario_model.update(
+                update_data,
+                "id = %s",
+                (scenario_id,),
+            )
         )
     
     def list_scenarios(
@@ -139,7 +147,8 @@ class TagDataService(BaseDataService):
             scenario = self.load_scenario(scenario_name)
             return [scenario] if scenario else []
         else:
-            return self._tag_scenario_model.load_all()
+            # 统一由 DataService 决定查询规则
+            return self._tag_scenario_model.load("1=1", order_by="id ASC")
     
     def delete_scenario(self, scenario_id: int, cascade: bool = False) -> None:
         """
@@ -157,7 +166,8 @@ class TagDataService(BaseDataService):
             self.delete_tag_values_by_scenario(scenario_id)
             self.delete_tag_definitions_by_scenario(scenario_id)
         
-        self._tag_scenario_model.delete_scenario(scenario_id)
+        # 统一由 DataService 封装删除规则
+        self._tag_scenario_model.delete("id = %s", (scenario_id,))
     
     # ========================================================================
     # Tag Definition 相关 API
@@ -179,8 +189,10 @@ class TagDataService(BaseDataService):
             Dict[str, Any]: Tag definition 记录（包含 id, name, scenario_id, display_name, description 等）
             None: 如果不存在
         """
-        return self._tag_definition_model.load_by_name_and_scenario(
-            tag_name, scenario_id
+        # 所有业务过滤逻辑集中在 DataService：按 (scenario_id, name) 唯一键
+        return self._tag_definition_model.load_one(
+            "scenario_id = %s AND name = %s",
+            (scenario_id, tag_name),
         )
     
     def save(
@@ -209,7 +221,11 @@ class TagDataService(BaseDataService):
             'description': description or ''
         }
         
-        self._tag_definition_model.save_tag_definition(tag_data)
+        # DataService 负责 upsert 规则：按 (scenario_id, name) 唯一键
+        self._tag_definition_model.upsert_many(
+            [tag_data],
+            unique_keys=["scenario_id", "name"],
+        )
         
         # 返回新创建的 tag definition
         return self.load(tag_name, scenario_id)
@@ -229,7 +245,12 @@ class TagDataService(BaseDataService):
             List[Dict[str, Any]]: Tag definition 列表
         """
         if scenario_id:
-            return self._tag_definition_model.load_by_scenario_id(scenario_id)
+            # 按 scenario_id 过滤，由 DataService 统一封装 where/order_by
+            return self._tag_definition_model.load(
+                "scenario_id = %s",
+                (scenario_id,),
+                order_by="name ASC",
+            )
         else:
             # 查询所有 tag definitions
             return self._tag_definition_model.load("1=1", order_by="scenario_id ASC, name ASC")
@@ -344,7 +365,7 @@ class TagDataService(BaseDataService):
         Returns:
             None
         """
-        self._tag_definition_model.delete_by_scenario_id(scenario_id)
+        self._tag_definition_model.delete("scenario_id = %s", (scenario_id,))
     
     # ========================================================================
     # Tag Value 相关 API
@@ -367,7 +388,11 @@ class TagDataService(BaseDataService):
         Returns:
             int: 保存的记录数（通常是 1）
         """
-        return self._tag_value_model.save_tag_value(tag_value_data)
+        # 由 DataService 定义唯一键 (entity_id, tag_definition_id, as_of_date)
+        return self._tag_value_model.upsert_many(
+            [tag_value_data],
+            unique_keys=["entity_id", "tag_definition_id", "as_of_date"],
+        )
     
     def save_batch(self, tag_values: List[Dict[str, Any]]) -> int:
         """
@@ -379,7 +404,12 @@ class TagDataService(BaseDataService):
         Returns:
             int: 保存的记录数
         """
-        return self._tag_value_model.batch_save_tag_values(tag_values)
+        if not tag_values:
+            return 0
+        return self._tag_value_model.upsert_many(
+            tag_values,
+            unique_keys=["entity_id", "tag_definition_id", "as_of_date"],
+        )
     
     def delete_tag_values_by_scenario(self, scenario_id: int) -> None:
         """
@@ -394,9 +424,10 @@ class TagDataService(BaseDataService):
             None
         """
         # 使用 JOIN 一次删除，避免先查询 tag_definitions
+        # 注意：实际表名为 sys_tag_value / sys_tag_definition
         sql = """
-        DELETE tv FROM tag_value tv
-        INNER JOIN tag_definition td ON tv.tag_definition_id = td.id
+        DELETE tv FROM sys_tag_value tv
+        INNER JOIN sys_tag_definition td ON tv.tag_definition_id = td.id
         WHERE td.scenario_id = %s
         """
         
@@ -427,7 +458,7 @@ class TagDataService(BaseDataService):
             placeholders = ','.join(['%s'] * len(tag_definition_ids))
             sql = f"""
                 SELECT MAX(as_of_date) as max_date
-                FROM tag_value
+                FROM sys_tag_value
                 WHERE tag_definition_id IN ({placeholders})
             """
             
@@ -481,7 +512,7 @@ class TagDataService(BaseDataService):
             SELECT 
                 entity_id,
                 MAX(as_of_date) as max_as_of_date
-            FROM tag_value
+            FROM sys_tag_value
             WHERE tag_definition_id IN ({placeholders})
             GROUP BY entity_id
         """
@@ -501,6 +532,83 @@ class TagDataService(BaseDataService):
         except Exception as e:
             logger.error(f"查询 tag value 最后更新信息失败: {e}")
             return {}
+
+    def load_values_for_entity(
+        self,
+        entity_id: str,
+        scenario_name: str,
+        start_date: str,
+        end_date: str,
+        entity_type: str = "stock",
+    ) -> List[Dict[str, Any]]:
+        """
+        加载某个实体在指定 scenario 下、指定时间区间内的所有 tag values。
+
+        说明：
+        - 对外只暴露 scenario 维度，不暴露单个 tag definition 的加载接口
+        - 返回结果中会包含 tag_definition 的 name/display_name，方便上层策略按需使用
+
+        Args:
+            entity_id: 实体 ID（例如股票代码）
+            scenario_name: Scenario 名称（例如 'momentum_mid_term'）
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
+            entity_type: 实体类型，默认 'stock'
+
+        Returns:
+            List[Dict[str, Any]]: 标签值列表，按 as_of_date 升序、tag_name 升序排列
+        """
+        scenario = self.load_scenario(scenario_name)
+        if not scenario:
+            logger.warning(f"load_values_for_entity: scenario 不存在: {scenario_name}")
+            return []
+
+        scenario_id = scenario.get("id")
+        if not scenario_id:
+            logger.warning(f"load_values_for_entity: scenario 缺少 id 字段: {scenario}")
+            return []
+
+        try:
+            sql = """
+                SELECT
+                    tv.entity_id,
+                    tv.tag_definition_id,
+                    tv.as_of_date,
+                    tv.start_date,
+                    tv.end_date,
+                    tv.json_value,
+                    td.name AS tag_name,
+                    td.display_name AS tag_display_name,
+                    td.scenario_id
+                FROM sys_tag_value tv
+                INNER JOIN sys_tag_definition td
+                    ON tv.tag_definition_id = td.id
+                WHERE
+                    tv.entity_type = %s
+                    AND tv.entity_id = %s
+                    AND td.scenario_id = %s
+                    AND tv.as_of_date >= %s
+                    AND tv.as_of_date <= %s
+                ORDER BY tv.as_of_date ASC, td.name ASC
+            """
+
+            params = (
+                entity_type,
+                entity_id,
+                scenario_id,
+                start_date,
+                end_date,
+            )
+
+            results = self.db.execute_sync_query(sql, params)
+            return results or []
+        except Exception as e:
+            logger.error(
+                f"加载实体 Tag 数据失败: entity_id={entity_id}, "
+                f"scenario_name={scenario_name}, "
+                f"date_range={start_date}-{end_date}, error={e}"
+            )
+            return []
     
     def get_next_trading_date(self, date: str) -> str:
         """

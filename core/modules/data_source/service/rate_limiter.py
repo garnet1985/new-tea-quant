@@ -67,8 +67,6 @@ class RateLimiter:
                     continue
 
                 self._timestamps.append(now)
-                if len(self._timestamps) % 200 == 0:
-                    logger.debug(f"RateLimiter {self.api_name}: 滑动窗口内已 {len(self._timestamps)}/{self.max_per_minute}")
                 return
 
 
@@ -143,10 +141,10 @@ def collect_api_limits(
     """
     聚合每个 ApiJob 的限流信息。
 
-    优先级：
-    1. ApiJob.rate_limit（来自 handler config 的 max_per_minute，用户显式配置）；
-    2. Provider.get_api_limit(api_name)（Provider 声明的官方硬限流，作为兜底）；
-    3. 默认限流：default_limit（保守默认值）。
+    约定（与当前设计对齐）：
+    - **只使用 handler config / ApiJob 上的 rate_limit** 作为限流配置来源；
+    - Provider 中声明的 api_limits 仅作为文档/提示，不再参与运行时决策；
+    - 如果某个 Job 未配置 rate_limit，则退化为 default_limit（保守默认值）。
     """
     api_limits: Dict[str, int] = {}
 
@@ -154,26 +152,14 @@ def collect_api_limits(
         job_id = job.job_id or job.api_name or job.method
         limit: int = 0
 
-        # 1. 优先使用 ApiJob 自身的 rate_limit
+        # 1. 优先使用 ApiJob 自身的 rate_limit（来自 handler config 的 max_per_minute）
         if getattr(job, "rate_limit", None):
             try:
                 limit = int(job.rate_limit)
             except (TypeError, ValueError):
                 limit = 0
 
-        # 2. 其次尝试从 Provider 元数据中获取硬限流
-        if not limit:
-            provider = providers.get(job.provider_name)
-            if provider and hasattr(provider, "get_api_limit"):
-                api_name = job.api_name or job.method
-                provider_limit = provider.get_api_limit(api_name)
-                if provider_limit:
-                    try:
-                        limit = int(provider_limit)
-                    except (TypeError, ValueError):
-                        limit = 0
-
-        # 3. 最后使用默认值
+        # 2. 未配置时使用默认值
         if not limit:
             limit = default_limit
 

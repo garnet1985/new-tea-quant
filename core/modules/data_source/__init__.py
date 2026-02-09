@@ -1,8 +1,8 @@
-from core.modules.data_source.data_source_manager import DataSourceManager
-from core.modules.data_source.base_class.base_provider import BaseProvider
-from core.modules.data_source.base_class.base_handler import BaseHandler
-from core.modules.data_source.data_class.api_job import ApiJob
-from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
+from .data_source_manager import DataSourceManager
+from .base_class.base_provider import BaseProvider
+from .base_class.base_handler import BaseHandler
+from .data_class.api_job import ApiJob
+from .data_class.api_job_bundle import ApiJobBundle
 
 __all__ = [
     'DataSourceManager',

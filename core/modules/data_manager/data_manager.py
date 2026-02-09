@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-数据管理服务 - 统一的数据访问层
+数据管理服务 - 统一的数据访问层（driver）
 
 职责：
 - 管理 DatabaseManager（唯一持有者）
 - 初始化数据库和表结构
-- 提供统一的数据访问 API
+- 提供统一的数据访问 API（get_table 等）
 - 协调各个 DataService
+
+表名定义：
+-   表名由 DataManager 配合 PathManager 发现（core/tables、userspace/tables），
+  core 表须 sys_ 前缀，userspace 表无前缀限制；get_table(table_name) 使用实际表名字符串。
 
 架构：
 - DataManager: 数据访问层入口，管理 DB 和 DataServices
@@ -38,12 +42,12 @@ from core.utils.date.date_utils import DateUtils
 
 class DataManager:
     """
-    数据管理服务（数据访问总入口）
+    数据管理服务（数据访问总入口，driver）
 
     职责：
     - 唯一持有和管理 DatabaseManager
     - 初始化数据库、连接池、表结构（Base Tables + 策略表）
-    - 提供统一的数据访问 API（对应用/策略暴露的门面）
+    - 提供统一的数据访问 API（get_table 等；表名即发现并注册后的实际表名）
     - 协调各 DataService（stock, macro, calendar, ui_transit）
     - 预留 Repository / 策略表 Model 的注册与访问能力（新架构方向）
 
@@ -57,8 +61,9 @@ class DataManager:
 
         # 自动使用单例（推荐）
         data_mgr = DataManager(is_verbose=True)
-        data = data_mgr.service.prepare_data(stock, settings)
-        
+        data_mgr.initialize()
+        klines = data_mgr.stock.kline.load('000001.SZ', term='daily', adjust='qfq')
+
         # 强制创建新实例（不推荐，除非有特殊需求）
         data_mgr = DataManager(is_verbose=True, force_new=True)
     """
@@ -187,10 +192,10 @@ class DataManager:
             elif self.is_verbose:
                 logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
 
-            # 3. 自动发现并缓存 Base Tables
+            # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/tables -> cust_*）
             if self.is_verbose:
-                logger.info("🔧 自动发现 Base Tables...")
-            self._discover_base_tables()
+                logger.info("🔧 自动发现表（core/tables + userspace/tables）...")
+            self._discover_tables()
 
             # 4. 初始化 DataService（跨service协调器）
             if self.is_verbose:
@@ -211,142 +216,121 @@ class DataManager:
     # Table 发现与注册
     # ------------------------------------------------------------------
     
-    def register_table(self, table_folder_path: str) -> Optional[Type[Any]]:
+    def register_table(self, table_folder_path: str, from_core: bool = False) -> Optional[Type[Any]]:
         """
-        注册表（从文件夹路径加载）
+        注册表（从文件夹路径加载，配合 PathManager 发现的目录）。
         
-        表文件夹结构：
-        - schema.json: 表结构定义
-        - model.py: 继承自 DbBaseModel 的 Model 类
+        表文件夹结构：schema.py + model.py，表名取自 schema["name"]。
         
         Args:
-            table_folder_path: 表文件夹路径（例如 'app/core/modules/data_manager/base_tables/stock_kline'）
+            table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/tables/xxx）
+            from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过
         
         Returns:
-            Model 类（继承自 DbBaseModel），如果注册失败返回 None
-        
-        Example:
-            # 注册自定义表
-            model_class = data_mgr.register_table('app/userspace/tables/my_table')
-            if model_class:
-                model = model_class()  # 创建实例
+            Model 类（继承自 DbBaseModel），若校验不通过或加载失败返回 None
         """
         from core.infra.db import DbBaseModel
         from core.infra.project_context import FileManager
+        from core.infra.db.schema_management.schema_manager import SchemaManager
         
         try:
             table_folder = Path(table_folder_path)
             if not table_folder.is_absolute():
-                # 尝试相对于项目根目录
                 table_folder = Path.cwd() / table_folder
             
             if not table_folder.exists() or not table_folder.is_dir():
                 logger.error(f"❌ 表文件夹不存在: {table_folder_path}")
                 return None
             
-            # 1. 查找 schema.json
-            schema_file = table_folder / "schema.json"
-            if not schema_file.exists():
-                logger.error(f"❌ 表文件夹中未找到 schema.json: {table_folder_path}")
+            # 1. 加载 schema（仅 schema.py）
+            schema_py = table_folder / "schema.py"
+            if not schema_py.exists():
+                logger.error(f"❌ 表文件夹中未找到 schema.py: {table_folder_path}")
+                return None
+            schema_manager = SchemaManager()
+            schema = schema_manager.load_schema_from_python(str(schema_py))
+            if not schema:
                 return None
             
-            # 2. 查找 model.py
-            model_file_path = FileManager.find_file(
-                "model.py",
-                table_folder,
-                recursive=False
-            )
+            table_name = schema.get("name")
+            if not table_name:
+                logger.error(f"❌ schema 中未找到 name: {table_folder_path}")
+                return None
+            if from_core and not table_name.startswith("sys_"):
+                if self.is_verbose:
+                    logger.debug(f"⏭️  跳过 core 表（非 sys_ 前缀）: {table_name} ({table_folder_path})")
+                return None
+            
+            # 2. 查找并加载 model.py
+            model_file_path = FileManager.find_file("model.py", table_folder, recursive=False)
             if not model_file_path:
                 logger.error(f"❌ 表文件夹中未找到 model.py: {table_folder_path}")
                 return None
             
-            # 3. 从文件路径加载模块
             try:
                 spec = importlib.util.spec_from_file_location("table_model", model_file_path)
                 if spec is None or spec.loader is None:
                     logger.error(f"❌ 无法加载模块: {model_file_path}")
                     return None
-                
                 model_module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(model_module)
                 
-                # 4. 查找继承自 DbBaseModel 的类
                 model_class = None
                 for name, obj in inspect.getmembers(model_module):
-                    if (inspect.isclass(obj) and
-                        issubclass(obj, DbBaseModel) and
-                        obj != DbBaseModel):
+                    if (inspect.isclass(obj) and issubclass(obj, DbBaseModel) and obj != DbBaseModel):
                         model_class = obj
                         break
-                
                 if model_class is None:
                     logger.error(f"❌ 模块中未找到继承自 DbBaseModel 的类: {model_file_path}")
                     return None
                 
-                # 5. 从 schema.json 读取表名（使用 SchemaManager 统一加载）
-                from core.infra.db.schema_management.schema_manager import SchemaManager
-                schema_manager = SchemaManager()
-                schema = schema_manager.load_schema_from_file(schema_file)
-                table_name = schema.get('name')
-                if not table_name:
-                    logger.error(f"❌ schema.json 中未找到表名: {schema_file}")
-                    return None
-                
-                # 6. 缓存 Model 类
-                if table_name in self._table_cache:
-                    existing_class = self._table_cache[table_name]
-                    if existing_class != model_class:
-                        logger.warning(
-                            f"⚠️  覆盖已存在的 Table '{table_name}': "
-                            f"{existing_class.__name__} -> {model_class.__name__}"
-                        )
-                
+                if table_name in self._table_cache and self._table_cache[table_name] != model_class:
+                    logger.warning(
+                        f"⚠️  覆盖已存在的 Table '{table_name}': "
+                        f"{self._table_cache[table_name].__name__} -> {model_class.__name__}"
+                    )
                 self._table_cache[table_name] = model_class
-                
                 if self.is_verbose:
                     logger.info(f"✅ 注册 Table: {table_name} -> {model_class.__name__} ({table_folder_path})")
-                
                 return model_class
-                
             except Exception as e:
                 logger.error(f"❌ 加载模块失败: {model_file_path}, error={e}")
                 return None
-            
         except Exception as e:
             logger.error(f"❌ 注册 Table 失败: {table_folder_path}, error={e}")
             return None
     
-    def _discover_base_tables(self):
+    def _discover_tables(self):
         """
-        自动发现并缓存所有 Base Tables
-        
-        扫描 base_tables/ 目录下的所有子目录，使用 register_table 注册每个表。
-        
-        注意：此方法只在初始化时调用一次，结果缓存在 _table_cache 中
+        配合 PathManager 递归发现 core/tables 与 userspace/tables 下的表并缓存。
+        不依赖目录层级：递归查找所有 schema.py，以其所在目录为表目录并注册。
+        - core/tables：仅注册 schema["name"] 以 sys_ 开头的表，否则跳过。
+        - userspace/tables：表名无前缀限制，全部注册。
+        仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
+        from core.infra.project_context import PathManager
+
+        def _dirs_with_schema(root: Path) -> set:
+            """递归收集包含 schema.py 的目录。"""
+            return {p.parent for p in root.rglob("schema.py") if p.is_file()}
+
         try:
-            # 获取 base_tables 目录的绝对路径
-            base_tables_package = importlib.import_module('core.modules.data_manager.base_tables')
-            package_paths = base_tables_package.__path__
-            base_tables_dir = Path(package_paths[0]).resolve()
-            
-            # 遍历所有子目录
-            for table_folder in base_tables_dir.iterdir():
-                if not table_folder.is_dir() or table_folder.name.startswith('_'):
-                    continue
-                
-                # 使用 register_table 注册表
-                model_class = self.register_table(str(table_folder))
-                if model_class is None:
-                    if self.is_verbose:
-                        logger.debug(f"  ⚠️  跳过目录（无有效表）: {table_folder.name}")
-                    continue
-            
+            # 1. core/tables（仅接受 sys_ 前缀）
+            core_tables_dir = PathManager.core() / "tables"
+            if core_tables_dir.exists():
+                for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
+                    self.register_table(str(table_folder), from_core=True)
+
+            # 2. userspace/tables（表名无限制）
+            userspace_tables_dir = PathManager.userspace() / "tables"
+            if userspace_tables_dir.exists():
+                for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
+                    self.register_table(str(table_folder), from_core=False)
+
             if self.is_verbose:
-                logger.info(f"✅ 自动发现并缓存了 {len(self._table_cache)} 个 Base Tables")
-                
+                logger.info(f"✅ 自动发现并缓存了 {len(self._table_cache)} 个表")
         except Exception as e:
-            logger.error(f"❌ 自动发现 Base Tables 失败: {e}")
+            logger.error(f"❌ 自动发现表失败: {e}")
             raise
     
     # ------------------------------------------------------------------
@@ -355,35 +339,22 @@ class DataManager:
 
     def get_table(self, table_name: str) -> Any:
         """
-        获取指定表对应的 Model 实例（内部方法，仅供 DataService 使用）
+        获取指定表对应的 Model 实例（内部方法，仅供 DataService 使用）。
+        
+        表名由 DataManager 发现并注册（core 表 sys_ 前缀，userspace 表无限制）。
         
         Args:
-            table_name: 表名，例如 'stock_kline'、'stock_list' 等（Base Tables）
-                       或用户自定义的表名（需先通过 register_table 注册）
-                       也支持实体类型别名（如 'stock_kline_daily' 会映射到 'stock_kline'）
+            table_name: 实际表名，如 "sys_stock_list"。
             
         Returns:
             对应的 Model 实例（已自动绑定默认 db），如果未找到则返回 None
         """
-        # 表名映射（实体类型 -> 实际表名）
-        # 注意：stock_kline 表使用 term 字段区分周期，所以所有周期类型都映射到同一个表
-        table_name_mapping = {
-            'stock_kline_daily': 'stock_kline',
-            'stock_kline_weekly': 'stock_kline',
-            'stock_kline_monthly': 'stock_kline',
-        }
-        
-        # 如果存在映射，使用映射后的表名
-        actual_table_name = table_name_mapping.get(table_name, table_name)
-        
-        # 从缓存中获取 Model 类
-        model_class = self._table_cache.get(actual_table_name)
-        
+        model_class = self._table_cache.get(table_name)
+
         if not model_class:
-            logger.warning(f"⚠️  表 '{table_name}' (映射为 '{actual_table_name}') 没有对应的 Model 类（可能未注册）")
+            logger.warning(f"⚠️  表 '{table_name}' 没有对应的 Model 类（可能未注册）")
             return None
-        
-        # 返回 Model 实例（自动获取默认 db）
+
         return model_class()
 
     # ------------------------------------------------------------------
@@ -453,10 +424,8 @@ class DataManager:
     @property
     def service(self):
         """
-        跨service协调器（属性访问）
-        
-        用于跨service方法，如 prepare_data
-        
+        跨 service 协调器（属性访问），提供 data_mgr.stock / macro / calendar 等统一入口。
+
         Returns:
             DataService 实例
         """

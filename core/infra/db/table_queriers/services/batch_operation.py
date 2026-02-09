@@ -3,6 +3,7 @@ BatchOperation - 批量操作核心逻辑
 
 统一处理批量插入的 SQL 生成和执行逻辑。
 """
+import json
 import math
 from typing import List, Any, Tuple, Optional
 from datetime import datetime, date
@@ -40,6 +41,11 @@ class BatchOperation:
                 return f"'{value.strftime('%Y-%m-%d %H:%M:%S')}'"
             else:
                 return f"'{value.strftime('%Y-%m-%d')}'"
+        elif isinstance(value, (dict, list)):
+            # PostgreSQL json/jsonb 列需要合法 JSON 字符串（双引号），单引号需转义
+            s = json.dumps(value, ensure_ascii=False)
+            s = s.replace("\\", "\\\\").replace("'", "''")
+            return f"'{s}'"
         else:
             escaped_val = str(value).replace("'", "''")
             return f"'{escaped_val}'"

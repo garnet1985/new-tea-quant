@@ -69,8 +69,8 @@ class MyStockListHandler(BaseDataSourceHandler):
         if not normalized_data.get("data"):
             return
         
-        model = self.data_manager.get_model("stock_list")
-        model.replace(normalized_data["data"])
+        model = self.data_manager.get_table("sys_stock_list")  # 或 data_stock_list，依实际表名
+        model.upsert_many(normalized_data["data"], unique_keys=["id"])
         self.logger.info(f"✅ 保存了 {len(normalized_data['data'])} 条数据")
 ```
 
@@ -78,7 +78,7 @@ class MyStockListHandler(BaseDataSourceHandler):
 
 ## 步骤 2：配置 Handler
 
-在 `custom/mapping.json` 中添加配置：
+在 `mapping.py` 的 `DATA_SOURCES` 中添加配置：
 
 ```json
 {
@@ -113,7 +113,7 @@ await manager.renew_data()
 
 ### 场景 1：需要依赖数据（如股票列表）
 
-在 `mapping.json` 中声明依赖：
+在 `mapping.py` 的 `DATA_SOURCES` 中声明依赖：
 
 ```json
 {

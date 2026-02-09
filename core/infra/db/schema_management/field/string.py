@@ -16,10 +16,11 @@ class StringField(Field):
         length: Optional[int] = None,
         is_required: bool = False,
         default: Any = None,
-        comment: str = None
+        comment: str = None,
+        nullable: bool = True,
     ):
         self.length = length
-        super().__init__(name, is_required, default, comment)
+        super().__init__(name, is_required, default, comment, nullable=nullable)
     
     def validate(self) -> None:
         super().validate()
@@ -50,10 +51,11 @@ class CharField(Field):
         length: Optional[int] = None,
         is_required: bool = False,
         default: Any = None,
-        comment: str = None
+        comment: str = None,
+        nullable: bool = True,
     ):
         self.length = length or 1
-        super().__init__(name, is_required, default, comment)
+        super().__init__(name, is_required, default, comment, nullable=nullable)
     
     def validate(self) -> None:
         super().validate()

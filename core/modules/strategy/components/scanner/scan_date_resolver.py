@@ -77,15 +77,13 @@ class ScanDateResolver:
         """非严格模式：使用 DB 中最新 K 线日期"""
         try:
             # 查询 DB 中最新 K 线日期
-            kline_model = self.data_manager.get_table('stock_kline')
+            kline_model = self.data_manager.get_table("sys_stock_klines")
             if not kline_model:
-                raise ValueError("[ScanDateResolver] 无法获取 stock_kline model")
+                raise ValueError("[ScanDateResolver] 无法获取 K 线 model")
             
-            # 查询 MAX(date) FROM stock_kline WHERE term = 'daily'
             sql = """
                 SELECT MAX(date) as max_date
-                FROM stock_kline
-                WHERE term = 'daily'
+                FROM sys_stock_klines
             """
             results = self.data_manager.db.execute_sync_query(sql)
             
@@ -123,7 +121,7 @@ class ScanDateResolver:
         Returns:
             股票 ID 列表
         """
-        kline_model = self.data_manager.get_table('stock_kline')
+        kline_model = self.data_manager.get_table("sys_stock_klines")
         if not kline_model:
             return []
         

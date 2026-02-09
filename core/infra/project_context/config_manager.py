@@ -4,7 +4,7 @@ Config Manager - 配置管理器
 职责：处理默认配置和用户配置的加载与合并。
 
 设计原则：
-- 配置合并逻辑复用 utils/util.py 的 deep_merge_config
+- 配置合并逻辑在本模块内部实现（不依赖通用 utils）
 - 支持 JSON 和 Python 两种文件格式
 - Python 文件支持动态导入（importlib）
 - 提供静态方法，无状态
@@ -36,8 +36,6 @@ class ConfigManager:
         """
         加载配置（用户配置覆盖默认配置）
         
-        内部调用 utils/util.py 的 deep_merge_config
-        
         Args:
             default_path: 默认配置文件路径
             user_path: 用户配置文件路径（可选，如果不存在则只返回默认配置）
@@ -67,23 +65,47 @@ class ConfigManager:
         if user_path.exists():
             user_config = ConfigManager._load_file(user_path, file_type)
             if user_config:
-                # 3. 调用 utils/util.py 的合并逻辑
-                try:
-                    from core.utils.util import deep_merge_config
-                    return deep_merge_config(
-                        defaults,
-                        user_config,
-                        deep_merge_fields=deep_merge_fields,
-                        override_fields=override_fields
-                    )
-                except ImportError:
-                    logger.warning(
-                        f"无法导入 utils.util.deep_merge_config，使用浅层合并"
-                    )
-                    # Fallback: 浅层合并
-                    return {**defaults, **user_config}
+                # 3. 使用内部合并逻辑
+                return ConfigManager._deep_merge_config(
+                    defaults,
+                    user_config,
+                    deep_merge_fields=deep_merge_fields,
+                    override_fields=override_fields,
+                )
         
         return defaults
+
+    @staticmethod
+    def _deep_merge_config(
+        defaults: Dict[str, Any],
+        custom: Dict[str, Any],
+        deep_merge_fields: Optional[Set[str]] = None,
+        override_fields: Optional[Set[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        内部使用的配置合并函数（原 deep_merge_config 语义）。
+
+        合并规则：
+        1. 对于 deep_merge_fields 中的字段，进行嵌套 dict 合并；
+        2. 对于 override_fields 中的字段，custom 完全覆盖 defaults；
+        3. 其他字段：浅层合并，custom 覆盖 defaults。
+        """
+        deep_merge_fields = deep_merge_fields or set()
+        override_fields = override_fields or set()
+
+        # 先进行浅层合并（custom 覆盖 defaults）
+        merged = {**defaults, **custom}
+
+        # 对于需要深度合并的字段，进行深度合并
+        for field in deep_merge_fields:
+            if field in defaults and field in custom:
+                if isinstance(defaults[field], dict) and isinstance(custom[field], dict):
+                    merged[field] = {**defaults[field], **custom[field]}
+                else:
+                    merged[field] = custom[field]
+
+        # override_fields 已在浅层合并中处理，这里不需要额外逻辑
+        return merged
     
     @staticmethod
     def load_json(path: Path) -> Dict[str, Any]:
@@ -228,6 +250,26 @@ class ConfigManager:
             override_fields=override_fields,
             file_type="json"
         )
+
+    # =========================
+    # 业务级便捷访问方法
+    # =========================
+    
+    @staticmethod
+    def load_benchmark_stock_index_list() -> List[Dict[str, Any]]:
+        """
+        获取全局基准股票指数列表（benchmark_stock_index_list）。
+
+        - 默认值来自 core/default_config/data.json；
+        - 用户可以在 userspace/config/data.json 中覆盖或扩展该列表，
+          合并逻辑由 ConfigManager.load_core_config 负责。
+        """
+        config = ConfigManager.load_data_config()
+        index_list = config.get("benchmark_stock_index_list") or []
+        if not isinstance(index_list, list):
+            logger.warning("benchmark_stock_index_list 不是列表类型，已返回空列表")
+            return []
+        return index_list
     
     @staticmethod
     def load_database_config(database_type: str = None) -> Dict[str, Any]:
@@ -312,8 +354,7 @@ class ConfigManager:
         
         # 8. 深度合并（用户配置覆盖默认配置）
         if user_config:
-            from core.utils.util import deep_merge_config
-            merged_config = deep_merge_config(
+            merged_config = ConfigManager._deep_merge_config(
                 default_config,
                 user_config,
                 deep_merge_fields={'batch_write', database_type},
@@ -428,9 +469,9 @@ class ConfigManager:
     # ==================== 配置加载接口 ====================
     
     @staticmethod
-    def get_data_config() -> Dict[str, Any]:
+    def load_data_config() -> Dict[str, Any]:
         """
-        获取数据配置（合并后的完整配置）
+        加载数据配置（合并后的完整配置）
         
         Returns:
             数据配置字典，包含 default_start_date, decimal_places, stock_list_filter 等
@@ -441,23 +482,11 @@ class ConfigManager:
             override_fields=set()
         )
     
-    @staticmethod
-    def get_database_config(database_type: str = None) -> Dict[str, Any]:
-        """
-        获取数据库配置（合并后的完整配置）
-        
-        Args:
-            database_type: 数据库类型（可选）
-        
-        Returns:
-            数据库配置字典
-        """
-        return ConfigManager.load_database_config(database_type)
     
     @staticmethod
-    def get_market_config() -> Dict[str, Any]:
+    def load_market_config() -> Dict[str, Any]:
         """
-        获取市场配置（合并后的完整配置）
+        加载市场配置（合并后的完整配置）
         
         Returns:
             市场配置字典
@@ -469,9 +498,9 @@ class ConfigManager:
         )
     
     @staticmethod
-    def get_worker_config() -> Dict[str, Any]:
+    def load_worker_config() -> Dict[str, Any]:
         """
-        获取 Worker 配置（合并后的完整配置）
+        加载 Worker 配置（合并后的完整配置）
         
         Returns:
             Worker 配置字典
@@ -483,9 +512,9 @@ class ConfigManager:
         )
     
     @staticmethod
-    def get_system_config() -> Dict[str, Any]:
+    def load_system_config() -> Dict[str, Any]:
         """
-        获取系统配置（合并后的完整配置）
+        加载系统配置（合并后的完整配置）
         
         Returns:
             系统配置字典
@@ -495,6 +524,33 @@ class ConfigManager:
             deep_merge_fields=set(),
             override_fields=set()
         )
+    
+    # ==================== 向后兼容别名（已废弃，请使用 load_xxx_config）====================
+    
+    @staticmethod
+    def get_data_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_data_config()"""
+        return ConfigManager.load_data_config()
+    
+    @staticmethod
+    def get_database_config(database_type: str = None) -> Dict[str, Any]:
+        """已废弃：请使用 load_database_config()"""
+        return ConfigManager.load_database_config(database_type)
+    
+    @staticmethod
+    def get_market_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_market_config()"""
+        return ConfigManager.load_market_config()
+    
+    @staticmethod
+    def get_worker_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_worker_config()"""
+        return ConfigManager.load_worker_config()
+    
+    @staticmethod
+    def get_system_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_system_config()"""
+        return ConfigManager.load_system_config()
     
     # ==================== 便捷访问接口（频繁使用的配置）====================
     
@@ -506,8 +562,8 @@ class ConfigManager:
         Returns:
             默认开始日期字符串（格式：YYYYMMDD）
         """
-        data_config = ConfigManager.get_data_config()
-        return data_config.get('default_start_date', '20080101')
+        data_config = ConfigManager.load_data_config()
+        return data_config.get('default_start_date')
     
     @staticmethod
     def get_decimal_places() -> int:
@@ -517,7 +573,7 @@ class ConfigManager:
         Returns:
             小数位数（默认 2）
         """
-        data_config = ConfigManager.get_data_config()
+        data_config = ConfigManager.load_data_config()
         return data_config.get('decimal_places', 2)
     
     @staticmethod
@@ -528,7 +584,7 @@ class ConfigManager:
         Returns:
             股票过滤配置字典，包含 enable 和 exclude_patterns
         """
-        data_config = ConfigManager.get_data_config()
+        data_config = ConfigManager.load_data_config()
         return data_config.get('stock_list_filter', {
             'enable': True,
             'exclude_patterns': {
@@ -545,7 +601,7 @@ class ConfigManager:
         Returns:
             数据库类型（'postgresql', 'mysql', 'sqlite'）
         """
-        db_config = ConfigManager.get_database_config()
+        db_config = ConfigManager.load_database_config()
         return db_config.get('database_type', 'postgresql')
     
     @staticmethod
@@ -559,7 +615,7 @@ class ConfigManager:
         Returns:
             配置字典 {'task_type': TaskType, 'reserve_cores': int}
         """
-        worker_config = ConfigManager.get_worker_config()
+        worker_config = ConfigManager.load_worker_config()
         
         module_task_config = worker_config.get('module_task_config', {})
         default_task_config = worker_config.get('default_task_config', {

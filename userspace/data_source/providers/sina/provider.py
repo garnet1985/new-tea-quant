@@ -12,7 +12,7 @@ import requests
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from core.modules.data_source.base_provider import BaseProvider
+from core.modules.data_source.base_class.base_provider import BaseProvider
 
 
 class SinaProvider(BaseProvider):
@@ -46,7 +46,6 @@ class SinaProvider(BaseProvider):
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         }
-        logger.debug("Sina provider initialized (no auth required)")
     
     # ========== API 方法（纯封装）==========
     

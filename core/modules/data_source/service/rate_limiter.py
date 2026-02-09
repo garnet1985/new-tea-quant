@@ -2,13 +2,14 @@
 Rate limiter & API 限流相关助手。
 
 职责：
-- 提供基于固定时间窗口的 RateLimiter 实现；
+- 提供基于滑动时间窗口的 RateLimiter 实现（与 Tushare 等接口的滚动窗口一致）；
 - 聚合每个 ApiJob 的限流信息（优先 config，再看 provider，最后默认值）；
 - 对外只暴露与 ApiJob / provider 相关的纯函数，不依赖具体执行器。
 """
 
 import threading
 import time
+from collections import deque
 from typing import Dict, Any, List, Optional
 
 from loguru import logger
@@ -18,12 +19,12 @@ from core.modules.data_source.data_class.api_job import ApiJob
 
 class RateLimiter:
     """
-    固定窗口限流器（每分钟请求数）。
+    滑动窗口限流器（每分钟请求数）。
 
     设计要点：
-    - 窗口对齐到自然分钟（避免时间漂移）；
-    - 窗口切换时有 buffer 冷却，避免边界突刺；
-    - 使用条件变量 + 计数器，确保多线程下计数正确。
+    - 使用滑动 60 秒窗口，与 Tushare 等接口的滚动窗口一致，避免固定窗口在边界处的突刺；
+    - 维护最近 60 秒内的请求时间戳，任意时刻「过去 60 秒内的请求数」不超过 max_per_minute；
+    - 使用条件变量 + deque，确保多线程下计数正确。
     """
 
     def __init__(self, max_per_minute: int, api_name: str = "default", wait_buffer_seconds: float = 5.0):
@@ -33,60 +34,42 @@ class RateLimiter:
 
         self.lock = threading.Lock()
         self.condition = threading.Condition(self.lock)
-        self.window_start = self._current_window()
-        self.count = 0
-        self.window_cooldown_until = 0.0
-        self._instance_id = hex(id(self))[-8:]
+        self._timestamps: deque = deque()  # 最近 60 秒内的请求时间戳
+        self._block_logged_recently = 0.0  # 上次打「达到限制」日志的时间
 
-    def _current_window(self) -> int:
-        """获取当前窗口的起始时间戳（对齐到自然分钟）。"""
-        return int(time.time() // 60) * 60
+    def _prune_old(self, now: float) -> None:
+        """移除 60 秒前的时间戳。"""
+        cutoff = now - 60.0
+        while self._timestamps and self._timestamps[0] <= cutoff:
+            self._timestamps.popleft()
 
     def acquire(self) -> None:
         """
-        获取一次调用许可；如达到限制则阻塞直到下一窗口。
+        获取一次调用许可；如达到限制则阻塞直到滑动窗口内有空位。
         """
         while True:
             now = time.time()
-            current_window = self._current_window()
 
             with self.lock:
-                # 窗口切换：重置计数并设置冷却期
-                if current_window != self.window_start:
-                    self.window_start = current_window
-                    self.count = 0
-                    self.window_cooldown_until = now + self.wait_buffer_seconds
-                    self.condition.notify_all()
+                self._prune_old(now)
 
-                # 冷却期内，等待 buffer 时间
-                if now < self.window_cooldown_until:
-                    sleep_time = self.window_cooldown_until - now
+                if len(self._timestamps) >= self.max_per_minute:
+                    # 必须等待：最早的时间戳离开 60 秒窗口
+                    sleep_time = self._timestamps[0] + 60.0 - now + 0.01  # 额外 10ms 避免边界
                     if sleep_time > 0:
-                        logger.debug(f"⏳ {self.api_name}: 窗口冷却中，等待 {sleep_time:.2f}s")
-                        self.condition.wait(timeout=sleep_time)
-                        continue
+                        if now - self._block_logged_recently > 30:
+                            self._block_logged_recently = now
+                            logger.info(
+                                f"⏸️  {self.api_name}: 滑动窗口内已达 {len(self._timestamps)}/{self.max_per_minute}，"
+                                f"等待 {sleep_time:.1f}s"
+                            )
+                        self.condition.wait(timeout=min(sleep_time, 5.0))
+                    continue
 
-                # 达到限制：等待到下一窗口 + buffer
-                if self.count >= self.max_per_minute:
-                    next_window_start = self.window_start + 60
-                    sleep_time = next_window_start - now + self.wait_buffer_seconds
-                    if sleep_time > 0:
-                        logger.warning(
-                            f"⏸️  {self.api_name}: 当前窗口已调用 "
-                            f"{self.count}/{self.max_per_minute} 次，等待 {sleep_time:.1f}s 到下一窗口"
-                        )
-                        self.condition.wait(timeout=sleep_time)
-                    else:
-                        continue
-                else:
-                    # 还有配额，计数 +1 返回
-                    self.count += 1
-                    if self.count >= self.max_per_minute * 0.95:
-                        logger.warning(
-                            f"⚠️ {self.api_name}: 当前窗口已调用 "
-                            f"{self.count}/{self.max_per_minute} 次（接近限制）"
-                        )
-                    return
+                self._timestamps.append(now)
+                if len(self._timestamps) % 200 == 0:
+                    logger.debug(f"RateLimiter {self.api_name}: 滑动窗口内已 {len(self._timestamps)}/{self.max_per_minute}")
+                return
 
 
 _RATE_LIMITERS: Dict[str, RateLimiter] = {}
@@ -136,10 +119,10 @@ def get_rate_limiter(
                 wait_buffer_seconds=wait_buffer_seconds,
             )
             _RATE_LIMITERS[limiter_key] = limiter
-            logger.info(
-                f"🔧 创建 RateLimiter: {limiter_key}, "
-                f"限流值: {buffered_limit}/分钟 (原始: {effective_limit})"
-                + (f" [Provider级别限流]" if provider_rate_limit is not None else "")
+            logger.debug(
+                f"RateLimiter: {limiter_key}, "
+                f"{buffered_limit}/分钟"
+                + (f" [Provider级别]" if provider_rate_limit is not None else "")
             )
         else:
             existing = _RATE_LIMITERS[limiter_key]

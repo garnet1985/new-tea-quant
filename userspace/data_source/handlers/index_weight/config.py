@@ -15,7 +15,7 @@ CONFIG = {
             "date_format": DateUtils.PERIOD_DAY,
         },
         "renew_if_over_days": {
-            "value": 1,
+            "value": 30,
         },
         "job_execution": {
             "list": "index_list",

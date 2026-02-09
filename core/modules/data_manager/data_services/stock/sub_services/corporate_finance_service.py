@@ -63,9 +63,9 @@ class CorporateFinanceService(BaseDataService):
         self._finance_model = None
     
     def _get_model(self):
-        """获取财务数据 Model（延迟初始化）- 私有方法，内部使用"""
+        """获取财务数据 Model（延迟初始化）"""
         if not self._finance_model:
-            self._finance_model = self.data_manager.get_table('corporate_finance')
+            self._finance_model = self.data_manager.get_table("sys_corporate_finance")
         return self._finance_model
     
     def _filter_fields(self, data: Dict[str, Any], indicators: Optional[List[str]]) -> Dict[str, Any]:
@@ -244,7 +244,7 @@ class CorporateFinanceService(BaseDataService):
         
         model = self._get_model()
         unique_keys = ['id', 'quarter']
-        affected = model.replace([data], unique_keys)
+        affected = model.upsert_one(data, unique_keys)
         return affected >= 0
     
     def save_batch(self, data_list: List[Dict[str, Any]]) -> int:
@@ -267,7 +267,7 @@ class CorporateFinanceService(BaseDataService):
         
         model = self._get_model()
         unique_keys = ['id', 'quarter']
-        affected = model.replace(data_list, unique_keys)
+        affected = model.upsert_many(data_list, unique_keys)
         # 返回受影响的记录数（与 tag_service.save_batch 的语义保持一致）
         return affected
     

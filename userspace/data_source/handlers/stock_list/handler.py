@@ -1,173 +1,138 @@
 """
 股票列表 Handler
 
-使用 Tushare Provider 获取股票列表（包含所有交易所）
-使用当前日期时间作为 last_update（股票列表的更新时间）
+使用 Tushare Provider 获取股票列表（包含所有交易所）。
+流程：on_before_run 检查 sys_cache -> 若今日已更新则从 DB 返回短路；否则 API -> on_before_save 写维度/映射/cache。
 """
-from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Set, Tuple
 from loguru import logger
-import pandas as pd
 
-from typing import List, Dict, Any
-from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
+from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.utils.date.date_utils import DateUtils
 
+from .helper import (
+    format_mapped_records_with_defaults,
+    save_stock_dimension_mappings,
+)
 
-class TushareStockListHandler(BaseDataSourceHandler):
+CACHE_KEY = "stock_list_last_update"
+CACHE_DATE_FIELD = "last_checked_at"     # 缓存日期字段
+
+class TushareStockListHandler(BaseHandler):
     """
     股票列表 Handler
-    
-    从 Tushare 获取股票列表（包含所有交易所的股票）。
-    
-    特性：
-    - 使用当前日期时间作为 last_update 字段（股票列表的更新时间）
-    - 使用 upsert 模式更新数据
-    - 包含所有交易所的股票（不排除北交所）
-    
-    配置参数：
-    - api_fields (str): API 字段列表，默认包含所有必要字段
+
+    流程：on_before_run 检查 sys_cache，若今日已更新则从 DB 返回短路；否则 API -> on_before_save 写维度/映射/cache。
     """
-    
-    # 类属性（必须定义）
-    data_source = "stock_list"
-    description = "获取股票列表"
-    dependencies = []  # 无依赖
-    
-    # 可选类属性
-    requires_date_range = False  # 不需要日期范围参数
-    
-    def __init__(self, schema, data_manager=None, definition=None):
-        super().__init__(schema, data_manager, definition)
-        
-        # 从配置中获取 API 字段列表（默认使用所有必要字段）
-        self.api_fields = self.get_param(
-            "api_fields",
-            "ts_code,symbol,name,area,industry,market,exchange,list_date"
-        )
-        
-        # 存储 last_update（在 before_fetch 中设置）
-        self._last_update = None
-    
-    async def before_fetch(self, context: Dict[str, Any] = None):
-        """
-        数据准备阶段
-        
-        准备当前日期时间，用于设置 last_update 字段（股票列表的更新时间）
-        """
-        context = context or {}
-        
-        # last_update 是更新股票列表的时间，应该使用当前日期时间
-        # 格式：YYYY-MM-DD HH:MM:SS（数据库 datetime 格式）
-        from datetime import datetime
-        current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        self._last_update = current_datetime
-        context["last_update"] = current_datetime
-    
-    async def fetch(self, context: Dict[str, Any] = None) -> List:
-        """
-        生成获取股票列表的 Task
-        
-        逻辑：
-        1. 调用 Tushare stock_basic API 获取所有股票
-        2. 在 normalize 中处理字段映射
-        """
-        context = context or {}
-        
-        # 使用辅助方法创建简单的单 API 调用 Task
-        task = self.create_simple_task(
-            provider_name="tushare",
-            method="get_stock_list",
-            params={
-                "fields": self.api_fields,
-            }
-        )
-        
-        return [task]
-    
-    async def normalize(self, task_results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        标准化数据
-        
-        从 Tushare 返回的 DataFrame 中提取股票列表，进行字段映射和过滤
-        
-        特性：
-        - 使用当前日期时间作为 last_update（股票列表的更新时间，格式：YYYY-MM-DD HH:MM:SS）
-        - 字段映射与数据库 schema 保持一致
-        """
-        # 使用辅助方法获取简单 Task 的结果
-        df = self.get_simple_result(task_results)
-        
-        if df is None or df.empty:
-            logger.warning("股票列表查询返回空数据")
-            return {"data": []}
-        
-        # 获取 last_update（从实例变量获取，如果未设置则使用当前时间）
-        if not self._last_update:
-            from datetime import datetime
-            self._last_update = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        last_update = self._last_update
-        
-        # 转换为字典列表
-        records = df.to_dict('records')
-        
-        # 字段映射和数据处理
-        formatted = []
-        
-        for item in records:
-            # 字段映射
-            ts_code = item.get('ts_code', '')
-            
-            mapped = {
-                "id": ts_code,
-                "name": item.get('name', ''),
-                "industry": item.get('industry') or '未知行业',
-                "type": item.get('market') or '未知类型',
-                "exchange_center": item.get('exchange') or '未知交易所',
-                "is_active": 1,  # 从 API 获取的都是活跃股票
-                "last_update": last_update,  # 使用当前日期时间（更新股票列表的时间）
-            }
-            
-            # 只保留有效的记录（必须有 id 和 name）
-            if mapped.get('id') and mapped.get('name'):
-                formatted.append(mapped)
-        
-        logger.info(f"✅ 股票列表处理完成，共 {len(formatted)} 只股票（last_update: {last_update}）")
-        
-        return {
-            "data": formatted
-        }
-    
-    async def after_normalize(self, normalized_data: Dict[str, Any], context: Dict[str, Any] = None):
-        """
-        标准化后的钩子：保存数据到数据库
-        
-        在数据标准化完成后，自动保存到数据库。
-        """
-        context = context or {}
-        
-        # 检查是否是 dry_run 模式
-        dry_run = context.get('dry_run', False)
-        if dry_run:
-            logger.info("🧪 干运行模式：跳过股票列表数据保存")
-            return
-        
-        if not self.data_manager:
-            logger.warning("DataManager 未初始化，无法保存股票列表数据")
-            return
-        
-        # 验证数据格式
-        data_list = normalized_data.get("data") if isinstance(normalized_data, dict) else None
-        if not data_list:
-            logger.debug("股票列表数据为空，无需保存")
-            return
-        
+
+    def on_before_run(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """若 sys_cache 记录今日已更新，则从 DB 读取并返回，跳过 API 调用。"""
+        dm = context["data_manager"]
         try:
-            count = self.data_manager.stock.list.save(data_list)
-            logger.info(f"✅ 保存 {self.data_source} 数据完成，共 {count} 条记录")
-        except Exception as e:
-            logger.error(f"❌ 保存 {self.data_source} 数据失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            raise
+            cache = dm.db_cache.load(CACHE_KEY, field="json")
+            if self._is_valid_cache(cache):
+                data = dm.stock.list.load_all()
+                logger.info(f"✅ stock_list 命中缓存，从 DB 直接返回（共 {len(data) if data else 0} 只）")
+                return {"data": data}
+            logger.info("ℹ️ stock_list 缓存校验失败，本次将调用 API 更新缓存")
+        except Exception:
+            pass
+        return None
+
+    def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        formatted = self._format_and_store_raw_records(context, mapped_records)
+        logger.info(f"✅ 股票列表字段映射完成，共 {len(formatted)} 只股票")
+        return formatted
+
+    def on_before_save(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """1. 同步维度表（boards/markets/industries）；2. 写 stock_list；3. 写映射表；4. 写 cache。返回 main_records 供 base 的 _system_save 写入。"""
+        dm = context["data_manager"]
+        main_records = normalized_data.get("data", [])
+        if not main_records:
+            return {"data": []}
+
+        # save 入口统一打本批次的 last_update 时间戳
+        time_str = DateUtils.today()
+        for r in main_records:
+            r["last_update"] = time_str
+
+        if context.get("is_dry_run"):
+            return {"data": main_records}
+
+        raw_records = context.get("_stock_list_raw_records") or []
+        boards, markets, industries = self._group_boards_markets_and_industries(raw_records)
+
+        list_svc = dm.stock.list
+        board_val_to_id = list_svc.ensure_and_sync_boards(boards)
+        market_val_to_id = list_svc.ensure_and_sync_markets(markets)
+        industry_val_to_id = list_svc.ensure_and_sync_industries(industries)
+
+        dimensions = self._build_dimensions(main_records, raw_records)
+        val_to_id = {
+            "board": board_val_to_id,
+            "market": market_val_to_id,
+            "industry": industry_val_to_id,
+        }
+        if val_to_id and list_svc.industry_map_model and list_svc.board_map_model and list_svc.market_map_model:
+            save_stock_dimension_mappings(
+                dimensions, val_to_id,
+                list_svc.industry_map_model,
+                list_svc.board_map_model,
+                list_svc.market_map_model,
+            )
+
+        # 使用本批次时间戳更新缓存
+        try:
+            dm.db_cache.save(CACHE_KEY, json={CACHE_DATE_FIELD: time_str})
+        except Exception:
+            pass
+
+        return {"data": main_records}
+
+    # ---------- 私有：钩子内步骤 ----------
+
+    def _is_valid_cache(self, cache: Optional[Dict[str, Any]]) -> bool:
+        if not cache:
+            return False
+        cache_date = cache.get(CACHE_DATE_FIELD)
+        if not cache_date:
+            return False
+        return DateUtils.is_today(cache_date)
+
+    def _group_boards_markets_and_industries(self, raw_records: List[Dict[str, Any]]) -> Tuple[List[str], List[str], List[str]]:
+        """从 raw_records 提取去重后的 board/market/industry 值列表。有则参与归类，无则不计入。"""
+        boards: Set[str] = set()
+        markets: Set[str] = set()
+        industries: Set[str] = set()
+        for record in raw_records:
+            v = (record.get("board") or "").strip()
+            if v:
+                boards.add(v)
+            v = (record.get("market") or "").strip()
+            if v:
+                markets.add(v)
+            v = (record.get("industry") or "").strip()
+            if v:
+                industries.add(v)
+        return list(boards), list(markets), list(industries)
+
+    def _build_dimensions(
+        self, main_records: List[Dict[str, Any]], raw_records: List[Dict[str, Any]]
+    ) -> List[Tuple[str, str, str, str]]:
+        """构建 dimensions: [(stock_id, industry_val, board_val, market_val), ...]。空值传空串，映射时跳过。"""
+        dimensions: List[Tuple[str, str, str, str]] = []
+        for i, r in enumerate(main_records):
+            stock_id = str(r.get("id") or "")
+            raw = raw_records[i] if i < len(raw_records) else {}
+            industry = (raw.get("industry") or "").strip()
+            board = (raw.get("board") or "").strip()
+            market = (raw.get("market") or "").strip()
+            dimensions.append((stock_id, industry, board, market))
+        return dimensions
+
+    def _format_and_store_raw_records(
+        self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        formatted = format_mapped_records_with_defaults(mapped_records)
+        context["_stock_list_raw_records"] = formatted
+        return formatted

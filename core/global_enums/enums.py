@@ -5,6 +5,8 @@
 """
 from enum import Enum
 
+from core.utils.date.date_utils import DateUtils
+
 class EntityType(Enum):
     """实体类型枚举(有时序的)"""
     STOCK_KLINE_DAILY = "stock_kline_daily"
@@ -19,7 +21,7 @@ class EntityType(Enum):
 
 
 class TermType(Enum):
-    """周期类型枚举"""
+    """周期类型枚举（主要用于 K 线 term 等业务语义）"""
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -34,33 +36,30 @@ class AdjustType(Enum):
 
 class UpdateMode(Enum):
     """数据更新模式枚举"""
-    INCREMENTAL = "incremental"  
-    REFRESH = "refresh"               
-    ROLLING = "rolling"           
+    INCREMENTAL = "incremental"
+    REFRESH = "refresh"
+    ROLLING = "rolling"
 
-class TimeUnit(Enum):
-    """
-    时间单位枚举
-    
-    用于数据源 handler 配置，表示日期格式或滚动单位。
-    
-    注意：
-    - 统一使用 "day" 而不是 "date"
-    - 配置中的 "date" 需要改为 "day"
-    """
-    QUARTER = "quarter"  # 季度（YYYYQ[1-4]）
-    MONTH = "month"      # 月（YYYYMM）
-    DAY = "day"          # 天（YYYYMMDD）
-    NONE = "none"        # 不需要日期
+    @classmethod
+    def from_string(cls, value: str) -> "UpdateMode":
+        """从配置字符串解析为枚举。value 为 None 或无效时抛出 ValueError。"""
+        if value is None:
+            raise ValueError("renew type 未配置")
+        v = str(value).strip().lower()
+        for mode in cls:
+            if mode.value == v:
+                return mode
+        raise ValueError(f"无效的 renew 模式: {value!r}，应为 incremental | refresh | rolling")
+
 
 class SystemConstants:
     """系统级常量（不会频繁变更的）"""
     
     # 系统默认日期格式
-    DATE_FORMAT = "%Y%m%d"
+    DATE_FORMAT = DateUtils.FMT_YYYYMMDD
     
     # 系统默认时间格式
-    DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+    DATETIME_FORMAT = DateUtils.FMT_DATETIME
 
 class IndicatorType(Enum):
     """技术指标类型枚举"""

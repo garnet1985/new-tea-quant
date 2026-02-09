@@ -21,7 +21,7 @@ class DBHelper:
         2. 补足缺失的默认配置
         
         Args:
-            config: 配置字典（来自 ConfigManager.get_database_config()）
+            config: 配置字典（来自 ConfigManager.load_database_config()）
             
         Returns:
             解析和验证后的配置字典
@@ -209,38 +209,48 @@ class DatabaseCursor:
     通用数据库游标包装类
     
     兼容不同数据库的游标接口，统一返回字典格式的结果。
+    execute() 会真正执行 SQL：写操作走 adapter.execute_write，读操作延后到 fetchall 时走 adapter.execute_query。
     """
     def __init__(self, adapter: BaseDatabaseAdapter):
         self.adapter = adapter
         self._cursor = None
         self._result = None
-    
+        self._rowcount = 0
+
+    @staticmethod
+    def _is_write_query(query: str) -> bool:
+        q = query.strip().upper()
+        return q.startswith(('INSERT', 'UPDATE', 'DELETE'))
+
     def execute(self, query: str, params: Any = None):
-        """执行 SQL 查询"""
+        """执行 SQL：写操作立即执行并提交，读操作仅保存供 fetchall 使用。"""
         self._query = query
         self._params = params
+        self._result = None
+        self._rowcount = 0
+        if self._is_write_query(query):
+            self._rowcount = self.adapter.execute_write(query, params)
         return self
-    
+
     def fetchall(self) -> List[Dict[str, Any]]:
-        """获取所有结果，转换为字典列表"""
+        """获取所有结果，转换为字典列表（仅对读操作有效，会真正执行查询）。"""
         if not hasattr(self, '_query'):
             return []
-        
-        # 使用适配器的 execute_query 方法
-        return self.adapter.execute_query(self._query, self._params)
-    
+        self._result = self.adapter.execute_query(self._query, self._params)
+        return self._result
+
     def fetchone(self) -> Optional[Dict[str, Any]]:
         """获取一条结果"""
         results = self.fetchall()
         return results[0] if results else None
-    
+
     @property
     def rowcount(self) -> int:
-        """返回影响的行数"""
-        if self._result:
+        """返回影响的行数（写操作来自 execute_write，读操作为 0）。"""
+        if self._result is not None:
             return len(self._result)
-        return 0
-    
+        return getattr(self, '_rowcount', 0)
+
     def close(self):
         """关闭游标"""
         pass

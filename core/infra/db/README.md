@@ -285,7 +285,7 @@ with db.transaction() as cursor:
 ## 🔧 配置
 
 数据库配置通过 `ConfigManager.get_database_config()` 加载，支持：
-- 默认配置：`core/config/database/{database_type}.json`
+- 默认配置：`core/default_config/database/{database_type}.json`
 - 用户配置：`userspace/config/database/{database_type}.json`
 - 环境变量覆盖（最高优先级）
 
@@ -294,7 +294,7 @@ with db.transaction() as cursor:
 - `{database_type}`: 对应的数据库配置
 - `batch_write`: 批量写入配置（可选，有默认值）
 
-详细配置说明请参考 `core/config/database/README.md`。
+详细配置说明请参考 `core/default_config/database/README.md`。
 
 ## 📚 更多信息
 

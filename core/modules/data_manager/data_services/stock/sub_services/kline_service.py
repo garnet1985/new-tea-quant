@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 from ... import BaseDataService
-from core.utils import DateUtils
+from core.utils.date.date_utils import DateUtils
 
 # 价格字段配置（用于复权计算）
 _PRICE_FIELDS = ['open', 'close', 'highest', 'lowest', 'pre_close']
@@ -32,9 +32,9 @@ class KlineService(BaseDataService):
         """
         super().__init__(data_manager)
         
-        # 获取相关 Model - 私有属性，不对外暴露
-        self._stock_kline = data_manager.get_table('stock_kline')
-        self._adj_factor_event = data_manager.get_table('adj_factor_event')
+        # 获取相关 Model（表名由 DataManager 发现并注册）
+        self._stock_kline = data_manager.get_table("sys_stock_klines")
+        self._adj_factor_event = data_manager.get_table("sys_adj_factor_events")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
@@ -143,12 +143,12 @@ class KlineService(BaseDataService):
             e.event_date as adj_event_date,
             e.factor as adj_factor,
             e.qfq_diff as adj_qfq_diff
-        FROM stock_kline k
-        LEFT JOIN adj_factor_event e ON (
+        FROM sys_stock_klines k
+        LEFT JOIN sys_adj_factor_events e ON (
             e.id = k.id 
             AND e.event_date = (
                 SELECT MAX(e2.event_date)
-                FROM adj_factor_event e2
+                FROM sys_adj_factor_events e2
                 WHERE e2.id = k.id 
                 AND e2.event_date <= k.date
             )
@@ -302,9 +302,11 @@ class KlineService(BaseDataService):
             batch_adj_events = self._load_batch_adj_events(stock_ids) if self._adj_factor_event else {}
             
             for stock_id in stock_ids:
-                if result[stock_id]:
-                    adj_events = batch_adj_events.get(stock_id, [])
-                    result[stock_id] = self._apply_qfq_to_klines(result[stock_id], stock_id, adj_events)
+                klines = result.get(stock_id) or []
+                if not klines:
+                    continue
+                adj_events = batch_adj_events.get(stock_id, [])
+                result[stock_id] = self._apply_qfq_to_klines(klines, stock_id, adj_events)
         
         return result
     
@@ -442,7 +444,10 @@ class KlineService(BaseDataService):
         
         if as_dataframe:
             import pandas as pd
-            return pd.DataFrame(result) if result else pd.DataFrame()
+            # 已经是 DataFrame：直接返回；否则从记录列表构建 DataFrame
+            if isinstance(result, pd.DataFrame):
+                return result
+            return pd.DataFrame(result or [])
         
         return result
     
@@ -485,6 +490,15 @@ class KlineService(BaseDataService):
             影响的行数
         """
         return self._adj_factor_event.delete("id = %s", (stock_id,))
+
+    def update_adj_factor_last_update(self, stock_id: str) -> int:
+        """
+        仅更新指定股票的 last_update 时间戳（无复权变化时调用）。
+        
+        Returns:
+            影响的行数
+        """
+        return self._adj_factor_event.update_last_update_for_stock(stock_id)
     
     def load_with_latest(self, stock_id: str, term: str = 'daily') -> Optional[Dict[str, Any]]:
         """
@@ -501,9 +515,9 @@ class KlineService(BaseDataService):
         SELECT 
             s.*,
             k.date as kline_date,
-            k.open, k.high, k.low, k.close, k.volume, k.amount
-        FROM stock_list s
-        LEFT JOIN stock_kline k ON s.id = k.id AND k.term = %s
+            k.open, k.highest, k.lowest, k.close, k.volume, k.amount
+        FROM sys_stock_list s
+        LEFT JOIN sys_stock_klines k ON s.id = k.id AND k.term = %s
         WHERE s.id = %s
         ORDER BY k.date DESC
         LIMIT 1
@@ -524,9 +538,9 @@ class KlineService(BaseDataService):
         sql = """
         SELECT 
             s.*,
-            k.open, k.high, k.low, k.close, k.volume, k.amount
-        FROM stock_list s
-        INNER JOIN stock_kline k ON s.id = k.id
+            k.open, k.highest, k.lowest, k.close, k.volume, k.amount
+        FROM sys_stock_list s
+        INNER JOIN sys_stock_klines k ON s.id = k.id
         WHERE k.date = %s
         ORDER BY s.id ASC
         """
@@ -655,7 +669,7 @@ class KlineService(BaseDataService):
         Returns:
             YYYYMMDD 格式的日期字符串，如果输入为 None 则返回 None
         """
-        return DateUtils.normalize_date(date_str)
+        return DateUtils.normalize_str(date_str)
     
     @staticmethod
     def _apply_qfq_prices(kline: Dict[str, Any], qfq_diff: float) -> None:

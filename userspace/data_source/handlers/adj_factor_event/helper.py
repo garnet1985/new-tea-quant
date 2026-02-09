@@ -39,7 +39,72 @@ class AdjFactorEventHandlerHelper:
             logger.warning(f"未知交易所 {market} for {stock_id}")
             return stock_id
     
+    @staticmethod
+    def convert_to_akshare_symbol(stock_id: str) -> str:
+        """
+        转换股票代码为 AKShare 格式（6 位纯数字）
+        
+        Tushare: 000001.SZ -> AKShare: 000001
+        Tushare: 600000.SH -> AKShare: 600000
+        """
+        if '.' in stock_id:
+            return stock_id.split('.')[0]
+        return stock_id
+    
+    @staticmethod
+    def convert_to_tx_symbol(stock_id: str) -> str:
+        """
+        转换股票代码为腾讯格式（stock_zh_a_hist_tx）
+        
+        Tushare: 000001.SZ -> 腾讯: sz000001
+        Tushare: 600000.SH -> 腾讯: sh600000
+        """
+        if '.' not in stock_id:
+            return stock_id
+        code, market = stock_id.split('.')
+        if market == 'SZ':
+            return f"sz{code}"
+        elif market == 'SH':
+            return f"sh{code}"
+        elif market == 'BJ':
+            return f"bj{code}"
+        return stock_id
+    
     # ========== 数据解析类 ==========
+    
+    @staticmethod
+    def parse_akshare_qfq_price_map(akshare_df: Any) -> Dict[str, float]:
+        """
+        解析 AKShare 前复权 K 线 DataFrame，构建日期 -> QFQ 收盘价的映射
+        
+        Args:
+            akshare_df: AKShare stock_zh_a_hist(adjust="qfq") 返回的 DataFrame
+                       列：日期(YYYY-MM-DD)、收盘 等
+        
+        Returns:
+            Dict[str, float]: 日期（YYYYMMDD格式） -> 前复权收盘价的映射
+        """
+        qfq_map = {}
+        try:
+            if akshare_df is None or (isinstance(akshare_df, pd.DataFrame) and akshare_df.empty):
+                return qfq_map
+            df = pd.DataFrame(akshare_df) if not isinstance(akshare_df, pd.DataFrame) else akshare_df
+            # AKShare 列名：日期、收盘
+            date_col = '日期' if '日期' in df.columns else 'date'
+            close_col = '收盘' if '收盘' in df.columns else 'close'
+            if date_col not in df.columns or close_col not in df.columns:
+                logger.debug(f"AKShare DataFrame 缺少日期/收盘列: {list(df.columns)}")
+                return qfq_map
+            for _, row in df.iterrows():
+                date_val = str(row.get(date_col, ''))
+                close_val = float(row.get(close_col, 0))
+                date_ymd = date_val.replace('-', '') if date_val else ''
+                if len(date_ymd) == 8 and date_ymd.isdigit() and close_val > 0:
+                    qfq_map[date_ymd] = close_val
+        except Exception as e:
+            logger.warning(f"解析 AKShare 前复权数据失败: {e}")
+        return qfq_map
+    
     
     @staticmethod
     def parse_eastmoney_qfq_price_map(eastmoney_result: Any) -> Dict[str, float]:
@@ -60,8 +125,14 @@ class AdjFactorEventHandlerHelper:
                 return qfq_map
             
             # 检查 API 返回的错误码
-            if eastmoney_result.get('rc') != 0:
-                logger.warning(f"东方财富 API 返回错误码: {eastmoney_result.get('rc')}, 消息: {eastmoney_result.get('rt')}")
+            rc = eastmoney_result.get('rc')
+            if rc != 0:
+                # rc: 102 可能表示参数错误或数据不存在，这是正常的（某些股票可能没有数据）
+                if rc == 102:
+                    logger.debug(f"东方财富 API 返回 rc=102（数据不存在或参数错误），可能是股票代码无效或日期范围无数据")
+                else:
+                    logger.warning(f"东方财富 API 返回错误码: {rc}, 消息: {eastmoney_result.get('rt')}")
+                return qfq_map
             
             data = eastmoney_result.get('data')
             if not data:
@@ -190,7 +261,25 @@ class AdjFactorEventHandlerHelper:
             prev_factor = current_factor
         
         return changing_dates
-    
+
+    @staticmethod
+    def has_factor_change_in_range(
+        adj_factor_df: pd.DataFrame,
+        start_ymd: str,
+        end_ymd: str,
+    ) -> bool:
+        """
+        检查 [start_ymd, end_ymd] 区间内是否有复权因子变化。
+        start_ymd/end_ymd 为 YYYYMMDD 格式。
+        """
+        changing = AdjFactorEventHandlerHelper.get_factor_changing_dates(adj_factor_df)
+        if not changing:
+            return False
+        for d in changing:
+            if start_ymd <= d <= end_ymd:
+                return True
+        return False
+
     @staticmethod
     def get_factor_for_date(adj_factor_df: pd.DataFrame, event_date_ymd: str, default_factor: float = 1.0) -> float:
         """
@@ -346,12 +435,16 @@ class AdjFactorEventHandlerHelper:
             str: YYYYMMDD 格式的日期字符串
         """
         if isinstance(date_value, date):
-            return date_value.strftime('%Y%m%d')
+            return DateUtils.date_to_format(date_value)
         elif isinstance(date_value, str):
+            # 使用 normalize_str 自动识别并转换格式
+            normalized = DateUtils.normalize_str(date_value)
+            if normalized:
+                return normalized
+            # 如果 normalize_str 失败，尝试手动处理
             if '-' in date_value:
-                return DateUtils.yyyy_mm_dd_to_yyyymmdd(date_value)
-            else:
-                return date_value
+                return date_value.replace('-', '')
+            return date_value
         else:
             return str(date_value).replace('-', '')
     
@@ -362,7 +455,7 @@ class AdjFactorEventHandlerHelper:
         stock_id: str,
         adj_factor_df: pd.DataFrame,
         raw_price_map: Dict[str, float],
-        eastmoney_qfq_map: Dict[str, float],
+        qfq_map: Dict[str, float],
         first_kline_ymd: Optional[str]
     ) -> List[Dict[str, Any]]:
         """
@@ -372,7 +465,7 @@ class AdjFactorEventHandlerHelper:
             stock_id: 股票代码
             adj_factor_df: Tushare adj_factor API 返回的 DataFrame
             raw_price_map: 日期 -> 原始收盘价的映射
-            eastmoney_qfq_map: 日期 -> 东方财富前复权价格的映射
+            qfq_map: 日期 -> 前复权收盘价的映射（AKShare/腾讯等）
             first_kline_ymd: 第一根K线日期（YYYYMMDD格式）
         
         Returns:
@@ -398,8 +491,6 @@ class AdjFactorEventHandlerHelper:
         changing_dates = AdjFactorEventHandlerHelper.get_factor_changing_dates(adj_factor_df)
         
         # 确保第一根日线日期作为一个事件点（必须包含，即使早于所有复权因子数据）
-        # 注意：first_kline_ymd 应该来自 EastMoney 的第一个K线日期（因为复权因子依赖 EastMoney 的前复权价格）
-        # 这样可以确保第一根K线的复权因子与 EastMoney 的前复权价格保持一致
         if first_kline_ymd:
             if first_kline_ymd not in changing_dates:
                 # 插入到开头，确保第一根K线日期是第一个事件
@@ -419,6 +510,10 @@ class AdjFactorEventHandlerHelper:
         # 为每个事件日期计算 qfq_diff 并构建事件记录
         events = []
         
+        # 如果 qfq_map 为空，记录一次警告（避免为每个事件日期都记录）
+        if not qfq_map:
+            logger.warning(f"{stock_id}: 无法获取前复权价格数据（API 返回格式异常或数据为空），该股票的所有事件日期都将使用 qfq_diff=0.0")
+        
         for event_date_ymd in changing_dates:
             # 获取该事件日的复权因子
             factor = AdjFactorEventHandlerHelper.get_factor_for_date(
@@ -434,17 +529,13 @@ class AdjFactorEventHandlerHelper:
                 # 事件日没有原始收盘价属于正常情况，不再逐条打印 debug 日志
                 continue
             
-            # 获取该事件日的 EastMoney QFQ 价格
-            # 如果事件日不是交易日，查找该日期之前最近的交易日价格
-            eastmoney_qfq = AdjFactorEventHandlerHelper.get_eastmoney_qfq_for_date(
-                eastmoney_qfq_map, event_date_ymd, stock_id
+            # 获取该事件日的前复权价格（如果事件日不是交易日，查找该日期之前最近的交易日价格）
+            qfq_price = AdjFactorEventHandlerHelper.get_eastmoney_qfq_for_date(
+                qfq_map, event_date_ymd, stock_id
             )
             
-            # 计算 qfq_diff = raw_price - EastMoney_QFQ
-            qfq_diff = AdjFactorEventHandlerHelper.calculate_qfq_diff(raw_close, eastmoney_qfq)
-            
-            if eastmoney_qfq is None:
-                logger.warning(f"{stock_id} {event_date_ymd}: 无法获取东方财富前复权价格")
+            # 计算 qfq_diff = raw_price - qfq_price
+            qfq_diff = AdjFactorEventHandlerHelper.calculate_qfq_diff(raw_close, qfq_price)
             
             events.append({
                 'id': stock_id,

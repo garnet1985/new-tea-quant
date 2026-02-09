@@ -14,10 +14,11 @@ class EnumField(Field):
         values: List[str],
         is_required: bool = False,
         default: Any = None,
-        comment: str = None
+        comment: str = None,
+        nullable: bool = True,
     ):
         self.values = values or []
-        super().__init__(name, is_required, default, comment)
+        super().__init__(name, is_required, default, comment, nullable=nullable)
     
     def validate(self) -> None:
         super().validate()

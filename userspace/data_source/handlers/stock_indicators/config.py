@@ -9,7 +9,11 @@ CONFIG = {
     "save_mode": "batch",
     "save_batch_size": 20,
     "renew": {
-        "type": "incremental",
+        "type": "rolling",
+        "rolling": {
+            "unit": DateUtils.PERIOD_DAY,
+            "length": 7,
+        },
         "last_update_info": {
             "date_field": "date",
             "date_format": DateUtils.PERIOD_DAY,

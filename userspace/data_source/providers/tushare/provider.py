@@ -20,7 +20,7 @@ class TushareProvider(BaseProvider):
     provider_name = "tushare"
     requires_auth = True
     auth_type = "token"
-    
+
     # 声明每个 API 的限流（每分钟请求数）
     # Tushare 对每个 API 分别限流，daily/weekly/monthly 各自独立限流
     api_limits = {

@@ -268,30 +268,24 @@ class ApiJobExecutor:
         if not provider:
             raise ValueError(f"Provider '{api_job.provider_name}' 未找到")
 
-        # 应用限流：使用聚合后的限流值
+        # 应用限流：使用聚合后的限流值，必须串行 acquire 确保限流生效
         api_name = api_job.api_name or api_job.method
-        job_limit = api_limits.get(api_job.job_id)
-        if job_limit:
-            # 检查 provider 是否有总体限流配置（可选，如果 provider 需要全局限流可以配置）
-            provider = self.providers.get(api_job.provider_name)
-            provider_rate_limit = None
-            if provider and hasattr(provider, "provider_rate_limit"):
-                provider_rate_limit = getattr(provider, "provider_rate_limit", None)
-            
-            limiter = get_rate_limiter(
-                provider_name=api_job.provider_name,
-                api_name=api_name,
-                max_per_minute=job_limit,
-                wait_buffer_seconds=self.wait_buffer_seconds,
-                provider_rate_limit=provider_rate_limit,  # 如果为 None，则按 API 分别限流
-            )
-            import asyncio
+        job_id = api_job.job_id or api_name
+        job_limit = api_limits.get(job_id) or api_limits.get(api_name) or 60
+        provider = self.providers.get(api_job.provider_name)
+        provider_rate_limit = None
+        if provider and hasattr(provider, "provider_rate_limit"):
+            provider_rate_limit = getattr(provider, "provider_rate_limit", None)
 
-            try:
-                await asyncio.to_thread(limiter.acquire)
-            except AttributeError:
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, limiter.acquire)
+        limiter = get_rate_limiter(
+            provider_name=api_job.provider_name,
+            api_name=api_name,
+            max_per_minute=job_limit,
+            wait_buffer_seconds=self.wait_buffer_seconds,
+            provider_rate_limit=provider_rate_limit,
+        )
+        # 限流必须在 worker 线程内同步执行，避免多 event loop 各自默认 executor 导致实际并发超出预期
+        limiter.acquire()
 
         # 调用 Provider 方法
         method = getattr(provider, api_job.method, None)

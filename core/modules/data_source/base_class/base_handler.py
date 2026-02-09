@@ -1,3 +1,11 @@
+"""
+BaseHandler - 数据源 Handler 基类。
+
+模块加载时即禁用 tqdm，避免 akshare 等依赖的进度条与我们的日志混在一起。
+"""
+import os
+os.environ["TQDM_DISABLE"] = "1"  # 强制禁用，避免 akshare 等依赖的进度条混入日志
+
 from typing import Any, Dict, List, Tuple, Optional, Union
 
 from loguru import logger
@@ -120,7 +128,8 @@ class BaseHandler:
         entity_date_ranges = self._calculate_entity_date_ranges(last_update_map)
         
         # 将 last_update_map 和 entity_date_ranges 注入 context，供子类使用（特别是多字段分组场景）
-        self.context["_last_update_map"] = last_update_map
+        # compute_entity_date_ranges 在 last_update_map 为空时会单独查 gate 并注入 context，优先使用
+        self.context["_last_update_map"] = self.context.get("_last_update_map") or last_update_map
         self.context["_entity_date_ranges"] = entity_date_ranges
 
         # 6. Phase 3：基于 entity_date_ranges 构建实际的 ApiJobBundle 列表
@@ -512,7 +521,8 @@ class BaseHandler:
                     # 每完成50个job输出一次进度
                     if completed >= last_reported_count + PROGRESS_INTERVAL:
                         current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
-                        logger.info(f"📊 进度: {completed}/{total_bundles} ({current_percent}%)")
+                        ds_key = self.get_key()
+                        logger.info(f"📊 [{ds_key}] 进度: {completed}/{total_bundles} ({current_percent}%)")
                         # 更新到下一个50的倍数
                         last_reported_count = (completed // PROGRESS_INTERVAL) * PROGRESS_INTERVAL
                     
@@ -520,7 +530,8 @@ class BaseHandler:
                     if completed >= total_bundles:
                         if completed > last_reported_count:
                             current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
-                            logger.info(f"📊 进度: {completed}/{total_bundles} ({current_percent}%)")
+                            ds_key = self.get_key()
+                            logger.info(f"📊 [{ds_key}] 进度: {completed}/{total_bundles} ({current_percent}%)")
                         break
                 except Exception:
                     pass  # 忽略获取统计信息时的异常
@@ -536,6 +547,9 @@ class BaseHandler:
         processed_results = set()  # 记录已处理的结果，避免重复处理
         pending_results = []  # 待处理的结果列表
         results_processing_stop = threading.Event()
+        import concurrent.futures
+        batch_save_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self.context["_batch_save_executor"] = batch_save_executor  # batch 模式时异步执行 _run_batch_save
         
         # 根据配置决定批量保存大小
         config = self.context.get("config")
@@ -582,8 +596,10 @@ class BaseHandler:
             
             return False
         
+        _batch_save_trigger_count = [0]  # 诊断：触发了几次 batch 保存
+        
         def _process_completed_results():
-            """批量处理完成的结果：根据 save_mode 决定保存时机"""
+            """批量处理完成的结果：根据 save_mode 决定保存时机。每 20 个扫描完成 → 触发 1 次保存。"""
             from queue import Empty
             while not results_processing_stop.is_set() or worker.is_running:
                 try:
@@ -592,11 +608,20 @@ class BaseHandler:
                     results_count = stats.get('results_count', 0)
                     
                     if results_count > 0:
-                        # 获取所有可用的结果
+                        # 获取所有可用的结果（会清空队列）
                         available_results = worker.get_results()
                         for result in available_results:
                             if result.job_id in processed_results:
                                 continue
+                            
+                            # enrich_result_for_batch：子类可注入 last_update 等，使 actual data 恒非空
+                            job_bundle = bundle_id_to_item.get(result.job_id)
+                            if job_bundle is not None and result.status == JobStatus.COMPLETED:
+                                enriched = self.enrich_result_for_batch(
+                                    self.context, job_bundle, result.result
+                                )
+                                if enriched is not None:
+                                    result.result = enriched
                             
                             # 只处理成功完成且有数据的结果
                             if result.status == JobStatus.COMPLETED and _has_actual_data(result.result):
@@ -610,28 +635,35 @@ class BaseHandler:
                                     processed_results.add(result.job_id)
                                     continue
                                 
-                                # immediate 或 batch 模式：当累积到 BATCH_SAVE_SIZE 个结果时，批量保存
+                                # immediate 或 batch 模式：每 BATCH_SAVE_SIZE 个扫描完成 → 触发 1 次保存
                                 if len(pending_results) >= BATCH_SAVE_SIZE:
-                                    logger.info(f"🔧 [批量保存] 累积了 {len(pending_results)} 个有数据的结果，开始批量保存...")
-                                    saved_count = 0
-                                    for pending_result in pending_results:
-                                        if pending_result.job_id in processed_results:
-                                            continue
-                                        
-                                        processed_results.add(pending_result.job_id)
-                                        
-                                        # 调用钩子保存数据
-                                        if pending_result.job_id in bundle_id_to_item:
-                                            try:
-                                                self.on_after_single_api_job_bundle_complete(
-                                                    self.context, bundle_id_to_item[pending_result.job_id], pending_result.result
-                                                )
-                                                saved_count += 1
-                                            except Exception as e:
-                                                logger.error(f"❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: bundle_id={pending_result.job_id}, error={e}", exc_info=True)
-                                    
-                                    logger.info(f"✅ [批量保存] 完成 {saved_count}/{len(pending_results)} 个 bundles 的保存")
-                                    pending_results.clear()  # 清空待处理列表
+                                    batch = list(pending_results)
+                                    pending_results.clear()
+                                    for pr in batch:
+                                        processed_results.add(pr.job_id)
+                                    _batch_save_trigger_count[0] += 1
+                                    completed_now = worker.get_stats().get('completed_jobs', 0) + worker.get_stats().get('failed_jobs', 0)
+                                    logger.info(
+                                        f"🔧 [批量保存] 第 {_batch_save_trigger_count[0]} 次触发："
+                                        f"本批 {len(batch)} 个，累计已处理 {len(processed_results)} 个，worker 已完成 {completed_now} 个"
+                                    )
+                                    def _run_batch_save(b=batch, bim=bundle_id_to_item):
+                                        saved = 0
+                                        for pr in b:
+                                            if pr.job_id in bim:
+                                                try:
+                                                    self.on_after_single_api_job_bundle_complete(
+                                                        self.context, bim[pr.job_id], pr.result
+                                                    )
+                                                    saved += 1
+                                                except Exception as e:
+                                                    logger.error(f"❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: bundle_id={pr.job_id}, error={e}", exc_info=True)
+                                        logger.info(f"✅ [批量保存] 完成 {saved}/{len(b)} 个 bundles 的保存")
+                                    # immediate 模式：同步执行，确保中断时已处理=已落库（避免 executor 队列中的任务丢失）
+                                    if BATCH_SAVE_SIZE == 1:
+                                        _run_batch_save()
+                                    else:
+                                        batch_save_executor.submit(_run_batch_save)
                             elif result.status == JobStatus.FAILED:
                                 # 失败的结果也标记为已处理，避免重复处理
                                 processed_results.add(result.job_id)
@@ -640,29 +672,6 @@ class BaseHandler:
                             elif result.status == JobStatus.COMPLETED:
                                 # COMPLETED 但没有数据，标记为已处理但跳过
                                 processed_results.add(result.job_id)
-                                # 检查 result.result 的结构，提供更详细的日志
-                                if isinstance(result.result, dict):
-                                    job_count = len(result.result)
-                                    import pandas as pd
-                                    empty_jobs = []
-                                    non_empty_jobs = []
-                                    for job_id, data in result.result.items():
-                                        is_empty = False
-                                        if data is None:
-                                            is_empty = True
-                                        elif isinstance(data, pd.DataFrame):
-                                            is_empty = data.empty
-                                        elif isinstance(data, (list, tuple)):
-                                            is_empty = len(data) == 0
-                                        elif isinstance(data, dict):
-                                            is_empty = len(data) == 0
-                                        elif not data:  # 其他 falsy 值
-                                            is_empty = True
-                                        
-                                        if is_empty:
-                                            empty_jobs.append(job_id)
-                                        else:
-                                            non_empty_jobs.append(job_id)
                             else:
                                 # 其他状态（PENDING、RUNNING等），标记为已处理但跳过
                                 processed_results.add(result.job_id)
@@ -682,10 +691,21 @@ class BaseHandler:
             # 等待进度线程结束（最多等待2秒）
             progress_thread.join(timeout=2)
             results_processing_thread.join(timeout=2)
+            # 等待所有已提交的 batch 保存完成；若收到 Ctrl+C 则跳过等待，快速退出
+            interrupted = getattr(worker, "_interrupted_by_signal", False)
+            if interrupted:
+                batch_save_executor.shutdown(wait=False)
+                logger.warning("📋 [批量保存] 已收到中断信号，跳过等待 pending save，快速退出")
+            else:
+                batch_save_executor.shutdown(wait=True)
+            logger.info(f"📋 [批量保存] 处理线程期间共触发 {_batch_save_trigger_count[0]} 次 batch 保存")
         
         # 处理剩余的结果（可能有些结果在处理线程停止后才完成）
         results_list = worker.get_results()
-        logger.info(f"🔧 [multi_thread] worker.run_jobs() 完成，获取到 {len(results_list)} 个剩余结果")
+        logger.info(
+            f"🔧 [multi_thread] worker.run_jobs() 完成，获取到 {len(results_list)} 个剩余结果"
+            f"（处理线程已触发 {_batch_save_trigger_count[0]} 次 batch 保存）"
+        )
 
         # 处理剩余的结果（包括待处理列表中的和最后一批未达到批量大小的）
         # 先处理待处理列表中的剩余结果（仅 immediate 和 batch 模式）
@@ -721,8 +741,13 @@ class BaseHandler:
             if r.job_id in processed_results:
                 continue
                 
+            # enrich_result_for_batch：剩余结果也需 enrich 后再判断
+            job_bundle = bundle_id_to_item.get(r.job_id)
+            if job_bundle is not None and r.status == JobStatus.COMPLETED:
+                enriched = self.enrich_result_for_batch(self.context, job_bundle, r.result)
+                if enriched is not None:
+                    r.result = enriched
             if r.status == JobStatus.COMPLETED and _has_actual_data(r.result):
-                # 只处理有数据的结果
                 merged.update(r.result)
                 # unified 模式：不在这里调用钩子，在 _do_save 中统一保存
                 if save_mode != "unified" and r.job_id in bundle_id_to_item:
@@ -971,8 +996,6 @@ class BaseHandler:
                 if None not in key_tuple:  # 只处理所有 unique_keys 都有值的记录
                     seen[key_tuple] = record
             deduplicated_records = list(seen.values())
-            if len(deduplicated_records) < len(records):
-                logger.debug(f"系统写入 {table_name}: 去重 {len(records)} -> {len(deduplicated_records)} 条记录")
             records = deduplicated_records
         
 
@@ -1181,6 +1204,14 @@ class BaseHandler:
 
     def on_single_job_failed():
         pass
+
+    def enrich_result_for_batch(self, context: Dict[str, Any], job_bundle: Any, raw_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        在 batch 模式检查 _has_actual_data 之前，允许子类丰富 result，使空结果也包含元数据（如 last_update）。
+        需要复权的：复权信息 + update 时间；不需要复权的：update 时间。这样 actual data 恒非空。
+        默认返回原 result 不变。
+        """
+        return raw_result
 
     def on_after_single_api_job_bundle_complete(self, context: Dict[str, Any], job_bundle: ApiJobBundle, fetched_data: Dict[str, Any]):
         """

@@ -1,6 +1,10 @@
 # Data Source 模块概览
 
+<<<<<<< HEAD
 > **提示**：本文档提供快速上手指南。如需了解详细的设计理念、架构设计和决策记录，请参考 [architecture.md](./architecture.md) 和 [decisions.md](./decisions.md)。
+=======
+> **提示**：本文档提供快速上手指南。如需了解详细的设计理念、架构设计和决策记录，请参考 [architecture.md](./architecture.md) 和 [decisions.md](./decisions.md)。**API 级说明（类、方法、参数）**见 [api.md](./api.md)。
+>>>>>>> write-doc
 
 ## 📋 模块简介
 
@@ -71,12 +75,20 @@ Data Manager（数据库存储）
 ```
 DataSourceManager (协调层)
     │
+<<<<<<< HEAD
     ├── BaseDataSourceHandler (业务层)
     │       │
     │       ├── DataSourceTask (业务任务)
     │       │       └── ApiJob (API 调用任务)
     │       │
     │       └── TaskExecutor (任务执行器)
+=======
+    ├── BaseHandler (业务层)
+    │       │
+    │       ├── ApiJob / ApiJobBundle (API 任务与批次)
+    │       │
+    │       └── ApiJobExecutor (API 任务执行器，含限流/并发)
+>>>>>>> write-doc
     │
     └── BaseProvider (基础层)
 ```
@@ -86,6 +98,7 @@ DataSourceManager (协调层)
 ```
 core/modules/data_source/
 ├── __init__.py
+<<<<<<< HEAD
 ├── data_source_manager.py          # DataSourceManager 主类
 ├── base_data_source_handler.py     # Handler 基类
 ├── simple_config_handler.py        # 纯配置驱动的 Handler（零代码）
@@ -105,6 +118,36 @@ core/modules/data_source/
     ├── refresh_renew_service.py
     ├── rolling_renew_service.py
     └── renew_mode_service.py
+=======
+├── data_source_manager.py          # DataSourceManager 主类（协调层）
+├── execution_scheduler.py          # DataSourceExecutionScheduler：调度各 Handler 执行
+├── renew_manager.py                # RenewManager：日期范围与续跑编排
+├── base_class/                     # 基类
+│   ├── base_handler.py             # Handler 基类 BaseHandler
+│   └── base_provider.py            # Provider 基类 BaseProvider
+│
+├── data_class/                     # 数据类定义
+│   ├── api_job.py                  # ApiJob
+│   ├── api_job_bundle.py           # ApiJobBundle（批次）
+│   ├── config.py                   # DataSourceConfig
+│   ├── handler_mapping.py          # HandlerMapping
+│   ├── schema.py                   # Schema 定义
+│   ├── field.py                    # Field 定义
+│   └── ...                         # 其他数据类（error、renew_config 等）
+│
+├── service/                        # 服务层与 Helper
+│   ├── api_job_executor.py         # ApiJobExecutor：执行 ApiJob/ApiJobBundle，包含限流与并发
+│   ├── normalization/              # 标准化 service + helper
+│   ├── date_range/                 # 日期范围 & renew 计算 service + helper
+│   ├── renew/                      # incremental/rolling/refresh renew service
+│   ├── executor/                   # bundle 执行与 fetched_data 重组
+│   ├── persistence/                # persistence_service：写入绑定表
+│   ├── utils/                      # 通用工具（如 record_utils）
+│   └── ...                         # 其他 manager/helper
+│
+├── reserved_dependencies.py        # 预置依赖定义
+└── examples/                       # 示例脚本（极端 renew 场景等）
+>>>>>>> write-doc
 ```
 
 ## 🚀 模块的使用方法
@@ -144,8 +187,13 @@ result = await manager.fetch(
 | 概念 | 作用 | 关键点 |
 |------|------|--------|
 | **ApiJob** | 单个 API 调用任务 | 包含 Provider、方法、参数、依赖 |
+<<<<<<< HEAD
 | **DataSourceTask** | 业务任务 | 包含多个 ApiJob |
 | **TaskExecutor** | 任务执行引擎 | 依赖解析、限流、并发执行 |
+=======
+| **ApiJobBundle** | 一批 API 任务 | 表示一个批次（如某一实体的一组 ApiJobs） |
+| **ApiJobExecutor** | API 任务执行引擎 | 依赖解析、限流、并发执行 |
+>>>>>>> write-doc
 
 ---
 

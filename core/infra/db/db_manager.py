@@ -109,7 +109,6 @@ class DatabaseManager:
                 with cls._init_lock:
                     # 双重检查，避免重复初始化
                     if cls._default_instance is None:
-                        logger.info("🔄 检测到 DatabaseManager 未初始化，自动创建实例")
                         instance = cls(is_verbose=False)
                         instance.initialize()
                         cls._default_instance = instance

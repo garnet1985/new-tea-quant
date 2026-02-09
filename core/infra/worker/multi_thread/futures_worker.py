@@ -110,6 +110,7 @@ class MultiThreadWorker:
         self.is_running = False
         self.is_paused = False
         self.should_stop = False
+        self._interrupted_by_signal = False
         
         # 线程池
         self.executor = None
@@ -163,7 +164,8 @@ class MultiThreadWorker:
         """紧急关闭"""
         self.should_stop = True
         self.is_running = False
-        
+        self._interrupted_by_signal = True  # 供 base_handler 判断：收到 SIGINT 时跳过 executor.wait，快速退出
+
         # 取消所有活动任务
         cancelled_count = 0
         for future in self.active_futures:
@@ -189,9 +191,9 @@ class MultiThreadWorker:
         self.clear_queue()
         self.clear_results()
         
-        logger.warning("🚨 EMERGENCY shutdown completed - exiting immediately")
-        import os
-        os._exit(0)
+        logger.warning("🚨 EMERGENCY: 已设置 should_stop，主线程将执行 finally 完成 pending save 后退出")
+        # 不调用 os._exit(0)，让主线程正常返回 finally，执行 batch_save_executor.shutdown(wait=True) 等，
+        # 确保已提交的 save 任务完成落库后再退出
     
     def _cleanup(self):
         """清理资源"""

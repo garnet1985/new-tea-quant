@@ -22,6 +22,9 @@ matplotlib>=3.9.4
 
 # HTTP Requests
 requests==2.31.0
+# curl_cffi: 东方财富等站点需浏览器 TLS 指纹，requests 易被识别为脚本
+# 国内镜像安装: pip install curl_cffi -i https://pypi.tuna.tsinghua.edu.cn/simple
+curl_cffi>=0.5.0
 
 # Date/Time
 python-dateutil==2.8.2

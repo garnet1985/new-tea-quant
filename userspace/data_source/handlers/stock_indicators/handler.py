@@ -10,6 +10,7 @@ from loguru import logger
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
+from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
@@ -31,9 +32,9 @@ class StockIndicatorsHandler(BaseHandler):
     ):
         super().__init__(data_source_key, schema, config, providers, depend_on_data_source_names or [])
 
-    def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
-        """为每只股票创建一个 get_daily_basic ApiJob。"""
-        stock_list = context.get("stock_list", [])
+    def on_before_fetch(self, context: Dict[str, Any], apis: List) -> List:
+        """为每只股票创建一个 get_daily_basic ApiJob。apis 实际为 List[ApiJobBundle]。"""
+        stock_list = self._get_entity_list()
         if not stock_list:
             return apis
 
@@ -56,7 +57,14 @@ class StockIndicatorsHandler(BaseHandler):
         except Exception:
             pass
 
-        base_api = apis[0]
+        # apis 为 List[ApiJobBundle]，需从首个 bundle 中取出 ApiJob 作为模板
+        first_item = apis[0] if apis else None
+        if not first_item:
+            return apis
+        if isinstance(first_item, ApiJobBundle):
+            base_api = first_item.apis[0] if first_item.apis else None
+        else:
+            base_api = first_item
         if not base_api:
             return apis
 

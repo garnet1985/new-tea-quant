@@ -208,6 +208,10 @@ class RenewCommonHelper:
                 if not group_fields:
                     primary_keys = model.get_primary_keys()
                     group_fields = [k for k in primary_keys if k != date_field]
+                    # date_field=last_update 时按「实体」分组，应只用实体 id 而非复合主键
+                    # 例：adj_factor_events 主键 (id, event_date)，取 MAX(last_update) 应按 id 分组
+                    if date_field == "last_update" and len(group_fields) > 1:
+                        group_fields = [group_fields[0]]
                 
                 if not group_fields:
                     return None

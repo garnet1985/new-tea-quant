@@ -32,6 +32,12 @@ class IndexWeightHandler(BaseHandler):
         from core.infra.project_context.config_manager import ConfigManager
         self.index_list = ConfigManager.load_benchmark_stock_index_list()
 
+    def on_prepare_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """注入 index_list 到 dependencies（与 index_klines 一致）。"""
+        context = super().on_prepare_context(context)
+        context.setdefault("dependencies", {})["index_list"] = self.index_list
+        return context
+
     def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
         """为每个指数创建 ApiJob。"""
         end_date = context.get("end_date")
@@ -49,7 +55,11 @@ class IndexWeightHandler(BaseHandler):
             index_latest_dates = {}
         context["index_latest_dates"] = index_latest_dates
 
-        base_api = apis[0]
+        if not apis:
+            return apis
+        # apis 可能是 ApiJobBundle 列表，取第一个 bundle 的 apis[0] 作为模板
+        first = apis[0]
+        base_api = first.apis[0] if hasattr(first, "apis") and first.apis else first
         if not base_api:
             return apis
 

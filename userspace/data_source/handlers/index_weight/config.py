@@ -15,13 +15,15 @@ CONFIG = {
             "date_format": DateUtils.PERIOD_DAY,
         },
         "renew_if_over_days": {
-            "value": 30,
+            "value": 1,
         },
         "job_execution": {
             "list": "index_list",
             "key": "id",
         },
     },
+    # 不再忽略 id，让 schema 校验保护主键完整性
+    "ignore_fields": [],
     "apis": {
         "index_weight": {
             "provider_name": "tushare",
@@ -31,6 +33,7 @@ CONFIG = {
                 "index_code": "id",
             },
             "result_mapping": {
+                "id": "id",  # 来自 handler.on_after_fetch 注入的指数代码
                 "date": "trade_date",
                 "stock_id": "con_code",
                 "weight": "weight",

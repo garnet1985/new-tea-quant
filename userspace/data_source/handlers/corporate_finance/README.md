@@ -78,12 +78,12 @@
 - 计算当前季度：`current_quarter = DateUtils.get_current_quarter(latest_completed_trading_date)`
 - 计算滚动窗口最老季度：`window_oldest_quarter = current_quarter 往前推 (ROLLING_QUARTERS - 1) 个季度`
 - 如果 `next_quarter(last_updated_quarter) <= window_oldest_quarter`：
-  - `start_date = get_start_date_of_quarter(window_oldest_quarter)`
+  - `start_date = get_quarter_start_date(window_oldest_quarter)`
   - `end_date = latest_completed_trading_date`
   - **行为**: 只刷新最近 3 个季度（实现滚动覆盖）
 
 **情况 C: 已有数据，但落后超过 3 个季度**
-- `start_date = get_start_date_of_quarter(last_updated_quarter)`
+- `start_date = get_quarter_start_date(last_updated_quarter)`
 - `end_date = latest_completed_trading_date`
 - **行为**: 从上次更新的季度起点开始，一路补到当前有效季度（逐步追平）
 
@@ -111,7 +111,7 @@
 #### 5. 数据保存
 
 - **保存时机**: 每个 Task 执行完成后立即保存（`after_single_task_execute` 钩子）
-- **保存方式**: 使用 `CorporateFinanceModel.save_finance_data()`，内部调用 `replace()` 方法
+- **保存方式**: 使用 `CorporateFinanceModel.save_finance_data()`，内部调用 `upsert_many()` 方法
 - **去重机制**: 基于主键 `(id, quarter)` 自动去重/覆盖
 
 ## 配置参数
@@ -127,8 +127,6 @@
   - 如果未提供，会从 `DataManager.service.calendar.get_latest_completed_trading_date()` 获取
 - `stock_list`: 股票列表（可选）
   - 如果未提供，handler 会从数据库查询所有需要更新的股票
-- `dry_run`: 干运行模式（可选，默认 False）
-  - 如果为 True，只执行逻辑不写入数据库
 
 ## 数据质量保证
 
@@ -173,8 +171,7 @@ context = {
 
 result = await ds_manager.renew_corporate_finance_data(
     latest_completed_trading_date="20251223",
-    stock_list=stock_list,  # 可选
-    dry_run=False
+    stock_list=stock_list  # 可选
 )
 ```
 

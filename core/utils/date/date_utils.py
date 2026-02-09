@@ -1,793 +1,516 @@
 #!/usr/bin/env python3
 """
 日期工具类 - 提供统一的日期转换和处理方法
+
+统一对外接口，所有功能都通过 DateUtils 类暴露。
+内部模块化实现，用户无需了解内部结构。
 """
-from datetime import datetime, timedelta
-from typing import List, Optional
+from datetime import datetime, date
+from typing import Any, Optional, List
+
+from core.infra.project_context import ConfigManager
+
+# 导入内部模块（私有）
+from core.utils.date import _constants
+from core.utils.date import _parser
+from core.utils.date import _calculator
+from core.utils.date import _period
 
 
 class DateUtils:
-    """日期工具类 - 提供静态方法处理各种日期转换"""
+    """
+    日期工具类 - 统一对外接口
     
-    # 常用日期格式
-    DATE_FORMAT_YYYYMMDD = '%Y%m%d'
-    DATE_FORMAT_YYYY_MM_DD = '%Y-%m-%d'
-    DATE_FORMAT_YYYY_MM_DD_HH_MM_SS = '%Y-%m-%d %H:%M:%S'
+    所有日期时间相关的功能都通过本类提供，内部委托给专门模块实现。
+    """
     
-    # 默认日期常量
-    DEFAULT_START_DATE = '20080101'
-    DEFAULT_END_DATE = '20251231'
+    # ==================== 常量定义 ====================
+    
+    # 格式化字符串常量
+    FMT_YYYYMMDD = _constants.FMT_YYYYMMDD
+    FMT_YYYY_MM_DD = _constants.FMT_YYYY_MM_DD
+    FMT_YYYYMM = _constants.FMT_YYYYMM
+    FMT_YYYYQ = _constants.FMT_YYYYQ
+    FMT_DATETIME = _constants.FMT_DATETIME
+    
+    # 周期类型常量
+    PERIOD_DAY = _constants.PERIOD_DAY
+    PERIOD_WEEK = _constants.PERIOD_WEEK
+    PERIOD_MONTH = _constants.PERIOD_MONTH
+    PERIOD_QUARTER = _constants.PERIOD_QUARTER
+    PERIOD_YEAR = _constants.PERIOD_YEAR
+    
+    # 默认值
+    DEFAULT_FORMAT = _constants.DEFAULT_FORMAT
+    DEFAULT_START_DATE = ConfigManager.get_default_start_date()
+    
+    # ==================== 格式转换（通用方法）====================
     
     @staticmethod
-    def get_current_date_str(format_str: str = DATE_FORMAT_YYYYMMDD) -> str:
+    def to_format(input: Any, fmt: str = None) -> Optional[str]:
         """
-        获取当前日期字符串
+        通用格式化：将任意输入转换为指定格式的字符串
         
         Args:
-            format_str: 日期格式
-            
+            input: 可以是 datetime, date, str（自动识别类型）
+            fmt: 目标格式（默认 YYYYMMDD）
+        
         Returns:
-            str: 当前日期字符串
+            str: 格式化后的字符串，失败返回 None
+        
+        Examples:
+            to_format(datetime(2024, 1, 15)) -> "20240115"
+            to_format(date(2024, 1, 15), FMT_YYYY_MM_DD) -> "2024-01-15"
+            to_format("20240115", FMT_YYYY_MM_DD) -> "2024-01-15"
         """
-        return datetime.now().strftime(format_str)
+        if fmt is None:
+            fmt = DateUtils.DEFAULT_FORMAT
+        return _parser.to_format_impl(input, fmt)
     
     @staticmethod
-    def is_before_or_same_day(date1: str, date2: str) -> bool:
+    def normalize(input: Any, fmt: str = None) -> Optional[str]:
         """
-        判断date1是否在date2之前或同一天
-        """
-        date1_obj = datetime.strptime(date1, DateUtils.DATE_FORMAT_YYYYMMDD)
-        date2_obj = datetime.strptime(date2, DateUtils.DATE_FORMAT_YYYYMMDD)
-        return date1_obj.date() <= date2_obj.date()
-
-    @staticmethod
-    def convert_date_format(date_str: str, from_format: str, to_format: str) -> str:
-        """
-        转换日期格式
+        通用标准化：将任意输入标准化为指定格式（智能识别）
         
         Args:
-            date_str: 原始日期字符串
-            from_format: 原始格式
-            to_format: 目标格式
-            
+            input: 可以是 datetime, date, str, YYYYMM, YYYYQ1 等
+            fmt: 目标格式（默认 YYYYMMDD）
+        
         Returns:
-            str: 转换后的日期字符串
+            str: 标准化后的字符串，失败返回 None
+        
+        Examples:
+            normalize("2024-01-15") -> "20240115"
+            normalize(datetime(2024, 1, 15)) -> "20240115"
+            normalize("202401") -> "20240101" (视为当月第一天)
+            normalize("2024Q1") -> "20240101" (视为季度第一天)
         """
-        try:
-            date_obj = datetime.strptime(date_str, from_format)
-            return date_obj.strftime(to_format)
-        except ValueError as e:
-            raise ValueError(f"日期格式转换失败: {date_str} from {from_format} to {to_format}, error: {e}")
+        if fmt is None:
+            fmt = DateUtils.DEFAULT_FORMAT
+        return _parser.normalize_impl(input, fmt)
+    
+    # ==================== 格式转换（特定方向方法）====================
     
     @staticmethod
-    def yyyymmdd_to_yyyy_mm_dd(date_str: str) -> str:
+    def datetime_to_format(dt: datetime, fmt: str = None) -> str:
         """
-        YYYYMMDD 格式转换为 YYYY-MM-DD 格式
+        明确：datetime → str
+        
+        Raises:
+            ValueError: 如果输入不是 datetime
+        """
+        if fmt is None:
+            fmt = DateUtils.DEFAULT_FORMAT
+        return _parser.datetime_to_format_impl(dt, fmt)
+    
+    @staticmethod
+    def date_to_format(d: date, fmt: str = None) -> str:
+        """
+        明确：date → str
+        
+        Raises:
+            ValueError: 如果输入不是 date
+        """
+        if fmt is None:
+            fmt = DateUtils.DEFAULT_FORMAT
+        return _parser.date_to_format_impl(d, fmt)
+    
+    @staticmethod
+    def str_to_format(date_str: str, to_fmt: str, from_fmt: Optional[str] = None) -> Optional[str]:
+        """
+        明确：str → str（格式转换）
         
         Args:
-            date_str: YYYYMMDD 格式的日期字符串
-            
-        Returns:
-            str: YYYY-MM-DD 格式的日期字符串
-        """
-        return DateUtils.convert_date_format(date_str, DateUtils.DATE_FORMAT_YYYYMMDD, DateUtils.DATE_FORMAT_YYYY_MM_DD)
-    
-    @staticmethod
-    def yyyy_mm_dd_to_yyyymmdd(date_str: str) -> str:
-        """
-        YYYY-MM-DD 格式转换为 YYYYMMDD 格式
-        
-        Args:
-            date_str: YYYY-MM-DD 格式的日期字符串
-            
-        Returns:
-            str: YYYYMMDD 格式的日期字符串
-        """
-        return DateUtils.convert_date_format(date_str, DateUtils.DATE_FORMAT_YYYY_MM_DD, DateUtils.DATE_FORMAT_YYYYMMDD)
-    
-    @staticmethod
-    def generate_date_range(start_date: str, end_date: str, 
-                          start_format: str = DATE_FORMAT_YYYYMMDD,
-                          end_format: str = DATE_FORMAT_YYYYMMDD,
-                          output_format: str = DATE_FORMAT_YYYY_MM_DD) -> List[str]:
-        """
-        生成日期范围列表
-        
-        Args:
-            start_date: 开始日期
-            end_date: 结束日期
-            start_format: 开始日期格式
-            end_format: 结束日期格式
-            output_format: 输出格式
-            
-        Returns:
-            List[str]: 日期字符串列表
-        """
-        try:
-            start_dt = datetime.strptime(start_date, start_format)
-            end_dt = datetime.strptime(end_date, end_format)
-            
-            date_list = []
-            current_dt = start_dt
-            while current_dt <= end_dt:
-                date_list.append(current_dt.strftime(output_format))
-                current_dt += timedelta(days=1)
-            
-            return date_list
-            
-        except ValueError as e:
-            raise ValueError(f"生成日期范围失败: {start_date} to {end_date}, error: {e}")
-    
-    @staticmethod
-    def get_date_before_days(date_str: str, days: int, 
-                           input_format: str = DATE_FORMAT_YYYYMMDD,
-                           output_format: str = DATE_FORMAT_YYYYMMDD) -> str:
-        """
-        获取指定天数前的日期
-        
-        Args:
-            date_str: 基准日期
-            days: 天数
-            input_format: 输入格式
-            output_format: 输出格式
-            
-        Returns:
-            str: 计算后的日期字符串
-        """
-        try:
-            date_obj = datetime.strptime(date_str, input_format)
-            result_date = date_obj - timedelta(days=days)
-            return result_date.strftime(output_format)
-        except ValueError as e:
-            raise ValueError(f"计算日期失败: {date_str}, error: {e}")
-    
-    @staticmethod
-    def get_date_after_days(date_str: str, days: int, 
-                          input_format: str = DATE_FORMAT_YYYYMMDD,
-                          output_format: str = DATE_FORMAT_YYYYMMDD) -> str:
-        """
-        获取指定天数后的日期
-        
-        Args:
-            date_str: 基准日期
-            days: 天数
-            input_format: 输入格式
-            output_format: 输出格式
-            
-        Returns:
-            str: 计算后的日期字符串
-        """
-        try:
-            date_obj = datetime.strptime(date_str, input_format)
-            result_date = date_obj + timedelta(days=days)
-            return result_date.strftime(output_format)
-        except ValueError as e:
-            raise ValueError(f"计算日期失败: {date_str}, error: {e}")
-    
-    @staticmethod
-    def get_duration_by_term(term: str, start_date: str, end_date: str) -> int:
-        """
-        计算两个日期之间的term单位差
-        """
-        if term == 'daily':
-            return DateUtils.get_duration_in_days(start_date, end_date)
-        elif term == 'weekly':
-            return DateUtils.get_duration_in_days(start_date, end_date) // 7
-        elif term == 'monthly':
-            return DateUtils.get_duration_in_days(start_date, end_date) // 30
-
-
-    @staticmethod
-    def get_duration_in_days(start_date: str, end_date: str, 
-                           date_format: str = DATE_FORMAT_YYYYMMDD) -> int:
-        """
-        计算两个日期之间的天数差
-        
-        Args:
-            start_date: 开始日期
-            end_date: 结束日期
-            date_format: 日期格式
-            
-        Returns:
-            int: 天数差
-        """
-        try:
-            start_obj = datetime.strptime(start_date, date_format)
-            end_obj = datetime.strptime(end_date, date_format)
-            delta = end_obj - start_obj
-            return delta.days
-        except ValueError as e:
-            raise ValueError(f"计算日期差失败: {start_date} to {end_date}, error: {e}")
-    
-    @staticmethod
-    def parse_yyyymmdd(date_str: str) -> datetime:
-        """
-        解析 YYYYMMDD 格式的日期字符串
-        
-        Args:
-            date_str: YYYYMMDD 格式的日期字符串
-            
-        Returns:
-            datetime: 日期对象
-        """
-        return datetime.strptime(date_str, DateUtils.DATE_FORMAT_YYYYMMDD)
-    
-    @staticmethod
-    def format_to_yyyymmdd(date_obj: datetime) -> str:
-        """
-        将日期对象格式化为 YYYYMMDD 字符串
-        
-        Args:
-            date_obj: 日期对象
+            date_str: 源日期字符串
+            to_fmt: 目标格式
+            from_fmt: 源格式（None 时自动识别）
         
         Returns:
-            str: YYYYMMDD 格式的日期字符串
+            str: 转换后的字符串，失败返回 None
         """
-        return date_obj.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
+        return _parser.str_to_format_impl(date_str, to_fmt, from_fmt)
     
     @staticmethod
-    def normalize_date(date_str: str) -> Optional[str]:
+    def normalize_datetime(dt: datetime, fmt: str = None) -> str:
+        """明确：datetime → str（标准化）"""
+        if fmt is None:
+            fmt = DateUtils.DEFAULT_FORMAT
+        return _parser.normalize_datetime_impl(dt, fmt)
+    
+    @staticmethod
+    def normalize_date(d: date, fmt: str = None) -> str:
+        """明确：date → str（标准化）"""
+        if fmt is None:
+            fmt = DateUtils.DEFAULT_FORMAT
+        return _parser.normalize_date_impl(d, fmt)
+    
+    @staticmethod
+    def normalize_str(date_str: str, fmt: str = None) -> Optional[str]:
         """
-        将各种日期格式标准化为 YYYYMMDD 格式
+        明确：str → str（标准化）
         
-        支持的输入格式：
-        - YYYYMMDD (如 "20240101")
-        - YYYY-MM-DD (如 "2024-01-01")
+        支持自动识别：YYYYMMDD, YYYY-MM-DD, YYYYMM, YYYYQ1 等
+        """
+        if fmt is None:
+            fmt = DateUtils.DEFAULT_FORMAT
+        return _parser.normalize_str_impl(date_str, fmt)
+    
+    @staticmethod
+    def str_to_datetime(date_str: str, fmt: Optional[str] = None) -> datetime:
+        """
+        明确：str → datetime
         
         Args:
             date_str: 日期字符串
+            fmt: 源格式（None 时自动识别）
         
         Returns:
-            str: YYYYMMDD 格式的日期字符串，如果无法解析返回 None
+            datetime: 解析后的 datetime 对象
+        
+        Raises:
+            ValueError: 解析失败时抛出
         """
+        return _parser.str_to_datetime_impl(date_str, fmt)
+    
+    # ==================== 日期 ↔ 周期转换 ====================
+    
+    @staticmethod
+    def to_period_str(date: str, period_type: str) -> str:
+        """
+        将日期转换为周期字符串
+        
+        Args:
+            date: YYYYMMDD 格式
+            period_type: PERIOD_DAY/MONTH/QUARTER/YEAR
+        
+        Returns:
+            str: 周期字符串
+            - DAY -> "20240115"
+            - MONTH -> "202401"
+            - QUARTER -> "2024Q1"
+            - YEAR -> "2024"
+        """
+        return _period.to_period_str_impl(date, period_type)
+    
+    @staticmethod
+    def from_period_str(period_str: str, period_type: str, is_start: bool = True) -> str:
+        """
+        将周期字符串转换为日期
+        
+        Args:
+            period_str: 周期字符串
+            period_type: PERIOD_DAY/MONTH/QUARTER/YEAR
+            is_start: True=起始日，False=结束日
+        
+        Returns:
+            str: YYYYMMDD 格式
+        """
+        return _period.from_period_str_impl(period_str, period_type, is_start)
+    
+    # ==================== 日期计算 ====================
+    
+    @staticmethod
+    def today() -> str:
+        """获取今天，返回 YYYYMMDD"""
+        return _calculator.today_impl()
+    
+    @staticmethod
+    def add_days(date: str, days: int) -> str:
+        """加 N 天"""
+        return _calculator.add_days_impl(date, days)
+    
+    @staticmethod
+    def sub_days(date: str, days: int) -> str:
+        """减 N 天"""
+        return _calculator.sub_days_impl(date, days)
+    
+    @staticmethod
+    def diff_days(date1: str, date2: str) -> int:
+        """计算天数差（date2 - date1）"""
+        return _calculator.diff_days_impl(date1, date2)
+    
+    @staticmethod
+    def get_month_start(date: str) -> str:
+        """获取月初"""
+        return _calculator.get_month_start_impl(date)
+    
+    @staticmethod
+    def get_month_end(date: str) -> str:
+        """获取月末"""
+        return _calculator.get_month_end_impl(date)
+    
+    @staticmethod
+    def get_quarter_start(date: str) -> str:
+        """获取季度初"""
+        return _calculator.get_quarter_start_impl(date)
+    
+    @staticmethod
+    def get_quarter_end(date: str) -> str:
+        """获取季度末"""
+        return _calculator.get_quarter_end_impl(date)
+    
+    @staticmethod
+    def get_week_start(date: str) -> str:
+        """获取周一"""
+        return _calculator.get_week_start_impl(date)
+    
+    @staticmethod
+    def get_week_end(date: str) -> str:
+        """获取周日"""
+        return _calculator.get_week_end_impl(date)
+    
+    @staticmethod
+    def get_period_end(date: str, term: str) -> Optional[str]:
+        """
+        获取某个日期所在周期的结束日期（自然日）。
+        
+        用于检查周期是否完整结束，避免获取未完成周期的"脏数据"。
+        
+        支持的周期类型：
+            - weekly: 返回该日期所在周的周日
+            - monthly: 返回该日期所在月的最后一天
+            - quarterly: 返回该日期所在季度的最后一天（0331, 0630, 0930, 1231）
+            - yearly: 返回该日期所在年的最后一天（1231）
+        
+        Args:
+            date: 日期（YYYYMMDD格式）
+            term: 周期类型（"weekly", "monthly", "quarterly", "yearly"）
+        
+        Returns:
+            周期结束日期（YYYYMMDD格式），如果term不支持则返回None
+        
+        Example:
+            >>> DateUtils.get_period_end("20260115", "weekly")
+            "20260121"  # 20260115所在周的周日
+            >>> DateUtils.get_period_end("20260115", "monthly")
+            "20260131"  # 20260115所在月的最后一天
+            >>> DateUtils.get_period_end("20260215", "quarterly")
+            "20260331"  # 20260215所在季度（Q1）的最后一天
+        """
+        return _calculator.get_period_end_impl(date, term)
+    
+    @staticmethod
+    def get_previous_period_end(current_date: str, term: str) -> Optional[str]:
+        """
+        获取上一周期的结束日期（自然日）。
+        
+        用于计算end_date，确保只获取已完整结束的周期数据，避免获取当前未完成周期的"脏数据"。
+        
+        支持的周期类型：
+            - weekly: 返回上一周的周日（A股的周交易日最后一天是周日）
+            - monthly: 返回上一月的最后一天
+            - quarterly: 返回上一季度的最后一天
+            - yearly: 返回上一年的最后一天（1231）
+        
+        Args:
+            current_date: 当前日期（YYYYMMDD格式），通常是latest_completed_trading_date
+            term: 周期类型（"weekly", "monthly", "quarterly", "yearly"）
+        
+        Returns:
+            上一周期的结束日期（YYYYMMDD格式），如果term不支持则返回None
+        
+        Example:
+            >>> DateUtils.get_previous_period_end("20260202", "weekly")  # 20260202是周一
+            "20260201"  # 上一周的周日
+            >>> DateUtils.get_previous_period_end("20260202", "monthly")  # 20260202是2月2日
+            "20260131"  # 上一月的最后一天
+            >>> DateUtils.get_previous_period_end("20260415", "quarterly")  # 20260415是Q2
+            "20260331"  # 上一季度（Q1）的最后一天
+        """
+        return _calculator.get_previous_period_end_impl(current_date, term)
+    
+    @staticmethod
+    def is_before(date1: str, date2: str) -> bool:
+        """date1 是否在 date2 之前"""
+        return _calculator.is_before_impl(date1, date2)
+    
+    @staticmethod
+    def is_after(date1: str, date2: str) -> bool:
+        """date1 是否在 date2 之后"""
+        return _calculator.is_after_impl(date1, date2)
+    
+    @staticmethod
+    def is_same(date1: str, date2: str) -> bool:
+        """是否同一天"""
+        return _calculator.is_same_impl(date1, date2)
+    
+    @staticmethod
+    def is_today(date_str: str) -> bool:
+        """判断日期是否为今天"""
+        normalized = DateUtils.normalize_str(date_str)
+        if not normalized:
+            return False
+        return normalized == DateUtils.today()
+    
+    @staticmethod
+    def get_previous_week_end(date: str) -> str:
+        """获取指定日期所在周的前一周周日"""
+        week_start = DateUtils.get_week_start(date)
+        previous_sunday = DateUtils.sub_days(week_start, 1)
+        return previous_sunday
+    
+    @staticmethod
+    def get_previous_month_end(date: str) -> str:
+        """获取指定日期所在月的前一个月最后一天"""
+        month_start = DateUtils.get_month_start(date)
+        previous_month_end = DateUtils.sub_days(month_start, 1)
+        return previous_month_end
+    
+    # ==================== 周期计算（核心功能）====================
+    
+    @staticmethod
+    def add_periods(period: str, count: int, period_type: str) -> str:
+        """
+        周期加法
+        
+        Examples:
+            add_periods("202401", 3, PERIOD_MONTH) -> "202404"
+            add_periods("2024Q1", 2, PERIOD_QUARTER) -> "2024Q3"
+        """
+        return _period.add_periods_impl(period, count, period_type)
+    
+    @staticmethod
+    def sub_periods(period: str, count: int, period_type: str) -> str:
+        """周期减法"""
+        return _period.sub_periods_impl(period, count, period_type)
+    
+    @staticmethod
+    def diff_periods(period1: str, period2: str, period_type: str) -> int:
+        """
+        计算周期差值
+        
+        Returns:
+            int: period2 - period1 的周期数
+        """
+        return _period.diff_periods_impl(period1, period2, period_type)
+    
+    @staticmethod
+    def is_period_before(period1: str, period2: str, period_type: str) -> bool:
+        """period1 是否在 period2 之前"""
+        return _period.is_period_before_impl(period1, period2, period_type)
+    
+    @staticmethod
+    def is_period_after(period1: str, period2: str, period_type: str) -> bool:
+        """period1 是否在 period2 之后"""
+        return _period.is_period_after_impl(period1, period2, period_type)
+    
+    @staticmethod
+    def generate_period_range(start: str, end: str, period_type: str) -> List[str]:
+        """
+        生成周期序列
+        
+        Examples:
+            generate_period_range("202401", "202404", PERIOD_MONTH)
+            -> ["202401", "202402", "202403", "202404"]
+        """
+        return _period.generate_period_range_impl(start, end, period_type)
+    
+    @staticmethod
+    def normalize_period_type(period_type: str) -> str:
+        """
+        规范化周期类型字符串
+        
+        Examples:
+            "daily" -> "day"
+            "monthly" -> "month"
+            "quarterly" -> "quarter"
+        """
+        return _period.normalize_period_type(period_type)
+    
+    @staticmethod
+    def detect_period_type(period_str: str) -> str:
+        """
+        自动识别周期字符串类型
+        
+        Examples:
+            "202401" -> "month"
+            "2024Q1" -> "quarter"
+        """
+        return _period.detect_period_type(period_str)
+    
+    @staticmethod
+    def get_period_sort_key(period_str: str, period_type: str) -> str:
+        """
+        获取排序键（用于排序）
+        
+        将周期字符串转换为日期作为排序键
+        """
+        return _period.get_period_sort_key_impl(period_str, period_type)
+    
+    @staticmethod
+    def normalize_period_value(value: Any, period: str) -> Optional[str]:
+        """
+        将任意输入标准化为指定周期的字符串表示
+        
+        Args:
+            value: 可以是 datetime, date, str（自动识别）
+            period: PERIOD_DAY/MONTH/QUARTER/YEAR
+        
+        Returns:
+            str: 标准化后的周期字符串
+            - PERIOD_DAY -> "20240115"
+            - PERIOD_MONTH -> "202401"
+            - PERIOD_QUARTER -> "2024Q1"
+            - PERIOD_YEAR -> "2024"
+            失败返回 None
+        """
+        # 先标准化为日期字符串
+        date_str = DateUtils.normalize(value)
         if not date_str:
             return None
         
-        date_str = str(date_str).strip()
-        
-        # 如果已经是 YYYYMMDD 格式
-        if len(date_str) == 8 and date_str.isdigit():
-            return date_str
-        
-        # 如果是 YYYY-MM-DD 格式
-        if len(date_str) == 10 and date_str.count('-') == 2:
-            try:
-                return DateUtils.yyyy_mm_dd_to_yyyymmdd(date_str)
-            except ValueError:
-                return None
-        
-        # 尝试其他格式
+        # 转换为周期字符串
         try:
-            # 尝试解析为常见格式
-            for fmt in [DateUtils.DATE_FORMAT_YYYY_MM_DD, DateUtils.DATE_FORMAT_YYYYMMDD]:
-                try:
-                    date_obj = datetime.strptime(date_str, fmt)
-                    return date_obj.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
-                except ValueError:
-                    continue
+            return DateUtils.to_period_str(date_str, period)
         except Exception:
-            pass
-        
-        return None
+            return None
+    
+    # ==================== 季度专用（便捷方法）====================
     
     @staticmethod
-    def date_to_quarter(date_str: str) -> str:
-        """
-        将日期（YYYYMMDD）转换为季度（YYYYQ[1-4]）
-        
-        Args:
-            date_str: 日期字符串（YYYYMMDD）
-        
-        Returns:
-            str: 季度字符串（YYYYQ[1-4]）
-        """
-        if not date_str or len(date_str) != 8:
-            raise ValueError(f"日期格式错误: {date_str}，应为 YYYYMMDD 格式")
-        
-        year = int(date_str[:4])
-        month = int(date_str[4:6])
-        
-        if month <= 3:
-            quarter = 1
-        elif month <= 6:
-            quarter = 2
-        elif month <= 9:
-            quarter = 3
-        else:
-            quarter = 4
-        
-        return f"{year}Q{quarter}"
+    def date_to_quarter(date: str) -> str:
+        """YYYYMMDD -> 2024Q1"""
+        return _parser.date_to_quarter_str(date)
     
     @staticmethod
-    def quarter_to_date(quarter_str: str, is_start: bool = True) -> str:
+    def quarter_to_date(quarter: str, is_start: bool = True) -> str:
         """
-        将季度（YYYYQ[1-4]）转换为日期（YYYYMMDD）
+        2024Q1 -> YYYYMMDD
         
         Args:
-            quarter_str: 季度字符串（YYYYQ[1-4]）
-            is_start: True 返回季度开始日期，False 返回季度结束日期
-        
-        Returns:
-            str: 日期字符串（YYYYMMDD）
+            is_start: True=季度第一天，False=季度最后一天
         """
-        if not quarter_str or len(quarter_str) != 6 or quarter_str[4] != 'Q':
-            raise ValueError(f"季度格式错误: {quarter_str}，应为 YYYYQ[1-4] 格式")
-        
-        year = int(quarter_str[:4])
-        quarter = int(quarter_str[5])
-        
-        if quarter < 1 or quarter > 4:
-            raise ValueError(f"季度值错误: {quarter}，应为 1-4")
-        
-        if is_start:
-            # 季度开始日期
-            if quarter == 1:
-                return f"{year}0101"
-            elif quarter == 2:
-                return f"{year}0401"
-            elif quarter == 3:
-                return f"{year}0701"
-            else:  # quarter == 4
-                return f"{year}1001"
-        else:
-            # 季度结束日期
-            if quarter == 1:
-                return f"{year}0331"
-            elif quarter == 2:
-                return f"{year}0630"
-            elif quarter == 3:
-                return f"{year}0930"
-            else:  # quarter == 4
-                return f"{year}1231"
+        result = _parser.quarter_to_date_str(quarter, is_start)
+        if not result:
+            raise ValueError(f"季度格式错误: {quarter}，应为 YYYYQ1")
+        return result
     
     @staticmethod
-    def get_current_quarter(date_str: str = None) -> str:
-        """
-        根据日期获取当前季度
-        
-        Args:
-            date_str: 日期字符串（YYYYMMDD格式），如果为 None 则使用当前日期
-        
-        Returns:
-            str: 季度字符串（YYYYQ[1-4]）
-        """
-        if date_str is None:
-            date_str = DateUtils.get_current_date_str()
-        return DateUtils.date_to_quarter(date_str)
+    def add_quarters(quarter: str, count: int) -> str:
+        """季度加法（便捷方法）"""
+        return _period.add_quarters_impl(quarter, count)
     
     @staticmethod
-    def get_start_date_of_quarter(quarter_str: str) -> str:
-        """
-        获取季度的开始日期
-        
-        Args:
-            quarter_str: 季度字符串（YYYYQ[1-4]格式）
-        
-        Returns:
-            str: 季度开始日期（YYYYMMDD格式）
-        """
-        return DateUtils.quarter_to_date(quarter_str, is_start=True)
+    def sub_quarters(quarter: str, count: int) -> str:
+        """季度减法（便捷方法）"""
+        return _period.sub_quarters_impl(quarter, count)
     
     @staticmethod
-    def get_end_date_of_quarter(quarter_str: str) -> str:
-        """
-        获取季度的结束日期
-        
-        Args:
-            quarter_str: 季度字符串（YYYYQ[1-4]格式）
-        
-        Returns:
-            str: 季度结束日期（YYYYMMDD格式）
-        """
-        return DateUtils.quarter_to_date(quarter_str, is_start=False)
-
-    @staticmethod
-    def get_previous_quarter(quarter_str: str) -> str:
-        """
-        获取上一个季度
-        
-        Args:
-            quarter_str: 季度字符串（YYYYQ[1-4]格式）
-        
-        Returns:
-            str: 上一个季度（YYYYQ[1-4]格式）
-        """
-        year = int(quarter_str[:4])
-        quarter = int(quarter_str[5])
-        
-        if quarter > 1:
-            return f"{year}Q{quarter - 1}"
-        else:
-            return f"{year - 1}Q4"
-
-    @staticmethod
-    def get_next_quarter(quarter_str: str) -> str:
-        """
-        获取下一个季度
-        
-        Args:
-            quarter_str: 季度字符串（YYYYQ[1-4]格式）
-        
-        Returns:
-            str: 下一个季度（YYYYQ[1-4]格式）
-        """
-        year = int(quarter_str[:4])
-        quarter = int(quarter_str[5])
-        
-        if quarter < 4:
-            return f"{year}Q{quarter + 1}"
-        else:
-            return f"{year + 1}Q1"
+    def diff_quarters(quarter1: str, quarter2: str) -> int:
+        """季度差值（便捷方法）"""
+        return _period.diff_quarters_impl(quarter1, quarter2)
     
     @staticmethod
-    def get_previous_day(date_str: str) -> str:
-        """
-        获取前一天的日期（自然日）
-        
-        Args:
-            date_str: 日期字符串，格式YYYYMMDD
-        
-        Returns:
-            str: 前一天的日期，格式YYYYMMDD
-        """
-        return DateUtils.get_date_before_days(date_str, 1)
+    def get_current_quarter(date: str) -> str:
+        """获取指定日期所在的季度（YYYYQ1格式）"""
+        return DateUtils.date_to_quarter(date)
     
     @staticmethod
-    def get_next_date(date_str: str) -> str:
-        """
-        获取下一天的日期（自然日）
-        
-        Args:
-            date_str: 日期字符串，格式YYYYMMDD
-        
-        Returns:
-            str: 下一天的日期，格式YYYYMMDD
-        """
-        return DateUtils.get_date_after_days(date_str, 1)
+    def get_next_quarter(quarter: str) -> str:
+        """获取下一个季度（便捷方法）"""
+        return DateUtils.add_quarters(quarter, 1)
     
     @staticmethod
-    def get_date_before_with_multiplier(date_str: str, days: int, multiplier: float = 1.0) -> str:
-        """
-        获取 N 天前的日期（支持倍数，用于交易日估算）
-        
-        例如：如果需要 30 个交易日的数据，可以使用 multiplier=1.5 来估算自然日
-        days=30, multiplier=1.5 → 实际计算 45 天前，确保有足够的交易日数据
-        
-        Args:
-            date_str: 基准日期（YYYYMMDD）
-            days: 天数
-            multiplier: 倍数（默认 1.0，即自然日）
-        
-        Returns:
-            str: N 天前的日期（YYYYMMDD）
-        """
-        actual_days = int(days * multiplier)
-        return DateUtils.get_date_before_days(date_str, actual_days)
-    
-    @staticmethod
-    def get_previous_week_end(date_str: str) -> str:
-        """
-        获取指定日期所在周的前一周的周日
-        
-        逻辑：
-        1. 找到date所在周的周一
-        2. 前一周的周日 = 本周周一 - 1天
-        
-        例如：
-        - 20250930 (周二) → 本周一=20250929 → 前一周日=20250928
-        - 20251006 (周一) → 本周一=20251006 → 前一周日=20251005
-        
-        Args:
-            date_str: 日期字符串，格式YYYYMMDD
-            
-        Returns:
-            str: 前一周的周日，格式YYYYMMDD
-        """
-        date_obj = DateUtils.parse_yyyymmdd(date_str)
-        
-        # 计算本周的周一
-        days_since_monday = date_obj.weekday()  # 周一=0, 周日=6
-        this_week_monday = date_obj - timedelta(days=days_since_monday)
-        
-        # 前一周的周日 = 本周周一 - 1天
-        last_week_sunday = this_week_monday - timedelta(days=1)
-        
-        return last_week_sunday.strftime(DateUtils.DATE_FORMAT_YYYYMMDD)
-    
-    @staticmethod
-    def get_previous_month_end(date_str: str) -> str:
-        """
-        获取指定日期所在月的前一个月的最后一天
-        
-        逻辑：
-        1. 找到date所在月
-        2. 计算前一个月的最后一天
-        
-        例如：
-        - 20250930 → 所在月=9月 → 前一月=8月 → 返回 20250831
-        - 20251105 → 所在月=11月 → 前一月=10月 → 返回 20251031
-        - 20250115 → 所在月=1月 → 前一月=12月 → 返回 20241231
-        
-        Args:
-            date_str: 日期字符串，格式YYYYMMDD
-            
-        Returns:
-            str: 前一个月的最后一天，格式YYYYMMDD
-        """
-        import calendar
-        
-        year = int(date_str[:4])
-        month = int(date_str[4:6])
-        
-        # 前一个月的年月
-        if month == 1:
-            last_month_year = year - 1
-            last_month = 12
-        else:
-            last_month_year = year
-            last_month = month - 1
-        
-        # 前一个月的最后一天
-        last_day = calendar.monthrange(last_month_year, last_month)[1]
-        
-        return f"{last_month_year}{last_month:02d}{last_day:02d}"
-    
-    # ========== 周期格式处理（quarter/month/day）==========
-    
-    @staticmethod
-    def get_current_period(current_date: str, date_format: str):
-        """
-        根据 date_format 获取当前周期值
-        
-        将 YYYYMMDD 格式的日期转换为对应的周期格式。
-        
-        Args:
-            current_date: 日期字符串（YYYYMMDD）
-            date_format: 日期格式（"quarter" | "month" | "day"）
-        
-        Returns:
-            - quarter: (year, quarter) 元组，如 (2024, 1)
-            - month: (year, month) 元组，如 (2024, 1)
-            - day: 日期字符串（YYYYMMDD）
-        
-        Example:
-            >>> DateUtils.get_current_period("20240315", "quarter")
-            (2024, 1)
-            >>> DateUtils.get_current_period("20240315", "month")
-            (2024, 3)
-            >>> DateUtils.get_current_period("20240315", "day")
-            "20240315"
-        """
-        if date_format == "quarter":
-            current_year = int(current_date[:4])
-            current_month = int(current_date[4:6])
-            if current_month <= 3:
-                return (current_year, 1)
-            elif current_month <= 6:
-                return (current_year, 2)
-            elif current_month <= 9:
-                return (current_year, 3)
-            else:
-                return (current_year, 4)
-        elif date_format == "month":
-            return (int(current_date[:4]), int(current_date[4:6]))
-        else:  # date_format == "day" or "date"
-            return current_date
-    
-    @staticmethod
-    def parse_period(value: str, date_format: str):
-        """
-        解析周期格式字符串
-        
-        Args:
-            value: 周期字符串
-                - quarter: "2024Q1" 格式
-                - month: "202403" 格式
-                - day: "20240315" 格式
-            date_format: 日期格式（"quarter" | "month" | "day"）
-        
-        Returns:
-            - quarter: (year, quarter) 元组
-            - month: (year, month) 元组
-            - day: 日期字符串（YYYYMMDD）
-        
-        Example:
-            >>> DateUtils.parse_period("2024Q1", "quarter")
-            (2024, 1)
-            >>> DateUtils.parse_period("202403", "month")
-            (2024, 3)
-            >>> DateUtils.parse_period("20240315", "day")
-            "20240315"
-        """
-        if date_format == "quarter":
-            year = int(value[:4])
-            quarter = int(value[5])
-            return (year, quarter)
-        elif date_format == "month":
-            return (int(value[:4]), int(value[4:6]))
-        else:  # date_format == "day" or "date"
-            return value
-    
-    @staticmethod
-    def format_period(value, date_format: str) -> str:
-        """
-        格式化周期值为字符串
-        
-        Args:
-            value: 周期值
-                - quarter: (year, quarter) 元组
-                - month: (year, month) 元组
-                - day: 日期字符串（YYYYMMDD）
-            date_format: 日期格式（"quarter" | "month" | "day"）
-        
-        Returns:
-            格式化后的字符串
-                - quarter: "2024Q1"
-                - month: "202403"
-                - day: "20240315"
-        
-        Example:
-            >>> DateUtils.format_period((2024, 1), "quarter")
-            "2024Q1"
-            >>> DateUtils.format_period((2024, 3), "month")
-            "202403"
-            >>> DateUtils.format_period("20240315", "day")
-            "20240315"
-        """
-        if date_format == "quarter":
-            year, quarter = value
-            return f"{year}Q{quarter}"
-        elif date_format == "month":
-            year, month = value
-            return f"{year}{month:02d}"
-        else:  # date_format == "day" or "date"
-            return value
-    
-    @staticmethod
-    def calculate_period_diff(latest_value: str, current_value, date_format: str) -> int:
-        """
-        计算两个日期之间的周期差
-        
-        Args:
-            latest_value: 最新周期字符串
-            current_value: 当前周期值（元组或字符串）
-            date_format: 日期格式（"quarter" | "month" | "day"）
-        
-        Returns:
-            周期差（整数）
-                - quarter: 季度差
-                - month: 月份差
-                - day: 天数差
-        
-        Example:
-            >>> DateUtils.calculate_period_diff("2023Q4", (2024, 2), "quarter")
-            2
-            >>> DateUtils.calculate_period_diff("202401", (2024, 3), "month")
-            2
-        """
-        latest = DateUtils.parse_period(latest_value, date_format)
-        current = current_value
-        
-        if date_format == "quarter":
-            latest_year, latest_quarter = latest
-            current_year, current_quarter = current
-            return (current_year - latest_year) * 4 + (current_quarter - latest_quarter)
-        elif date_format == "month":
-            latest_year, latest_month = latest
-            current_year, current_month = current
-            return (current_year - latest_year) * 12 + (current_month - latest_month)
-        else:  # date_format == "day" or "date"
-            latest_date = DateUtils.parse_yyyymmdd(latest)
-            current_date = DateUtils.parse_yyyymmdd(current)
-            return (current_date - latest_date).days
-    
-    @staticmethod
-    def subtract_periods(value, periods: int, date_format: str):
-        """
-        减去 N 个周期
-        
-        Args:
-            value: 周期值（元组或字符串）
-            periods: 要减去的周期数
-            date_format: 日期格式（"quarter" | "month" | "day"）
-        
-        Returns:
-            减去周期后的值（元组或字符串）
-        
-        Example:
-            >>> DateUtils.subtract_periods((2024, 2), 2, "quarter")
-            (2023, 4)
-            >>> DateUtils.subtract_periods((2024, 3), 5, "month")
-            (2023, 10)
-            >>> DateUtils.subtract_periods("20240315", 30, "day")
-            "20240214"
-        """
-        from datetime import timedelta
-        
-        if date_format == "quarter":
-            year, quarter = value
-            quarter -= periods - 1
-            while quarter < 1:
-                quarter += 4
-                year -= 1
-            return (year, quarter)
-        elif date_format == "month":
-            year, month = value
-            month -= periods - 1
-            while month < 1:
-                month += 12
-                year -= 1
-            return (year, month)
-        else:  # date_format == "day" or "date"
-            date = DateUtils.parse_yyyymmdd(value)
-            new_date = date - timedelta(days=periods - 1)
-            return DateUtils.format_to_yyyymmdd(new_date)
-    
-    @staticmethod
-    def add_one_period(latest_value: str, date_format: str):
-        """
-        添加一个周期（用于历史追赶）
-        
-        Args:
-            latest_value: 最新周期字符串
-            date_format: 日期格式（"quarter" | "month" | "day"）
-        
-        Returns:
-            添加一个周期后的值（元组或字符串）
-        
-        Example:
-            >>> DateUtils.add_one_period("2023Q4", "quarter")
-            (2024, 1)
-            >>> DateUtils.add_one_period("202312", "month")
-            (2024, 1)
-            >>> DateUtils.add_one_period("20231231", "day")
-            "20240101"
-        """
-        from datetime import timedelta
-        
-        latest = DateUtils.parse_period(latest_value, date_format)
-        
-        if date_format == "quarter":
-            year, quarter = latest
-            quarter += 1
-            if quarter > 4:
-                quarter = 1
-                year += 1
-            return (year, quarter)
-        elif date_format == "month":
-            year, month = latest
-            month += 1
-            if month > 12:
-                month = 1
-                year += 1
-            return (year, month)
-        else:  # date_format == "day" or "date"
-            date = DateUtils.parse_yyyymmdd(latest)
-            new_date = date + timedelta(days=1)
-            return DateUtils.format_to_yyyymmdd(new_date)
-    
-    @staticmethod
-    def get_period_unit(date_format: str) -> str:
-        """
-        获取周期单位名称
-        
-        Args:
-            date_format: 日期格式（"quarter" | "month" | "day"）
-        
-        Returns:
-            周期单位名称（"季度" | "个月" | "天"）
-        
-        Example:
-            >>> DateUtils.get_period_unit("quarter")
-            "季度"
-            >>> DateUtils.get_period_unit("month")
-            "个月"
-            >>> DateUtils.get_period_unit("day")
-            "天"
-        """
-        if date_format == "quarter":
-            return "季度"
-        elif date_format == "month":
-            return "个月"
-        else:  # date_format == "day" or "date"
-            return "天"
+    def get_quarter_start_date(quarter: str) -> str:
+        """获取季度起始日期（便捷方法）"""
+        return DateUtils.quarter_to_date(quarter, is_start=True)

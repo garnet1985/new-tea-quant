@@ -84,7 +84,7 @@ class JobHelper:
                         # 如果无法获取下一个交易日，使用最后更新日期的下一天（简单处理）
                         logger.warning(f"无法获取 TagDataService，使用简单日期计算")
                         from core.utils.date.date_utils import DateUtils
-                        start_date = DateUtils.get_next_date(entity_last_update_date)
+                        start_date = DateUtils.add_days(entity_last_update_date, 1)
                 except Exception as e:
                     logger.warning(f"获取下一个交易日失败，使用最后更新日期: {e}")
                     start_date = entity_last_update_date

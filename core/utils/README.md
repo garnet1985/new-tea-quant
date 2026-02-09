@@ -37,7 +37,7 @@ from core.utils import (
 from core.utils import DateUtils
 
 # 获取当前日期
-date = DateUtils.get_current_date_str()  # "20240116"
+date = DateUtils.get_today_str()  # "20240116"
 
 # 日期格式转换
 date_str = DateUtils.yyyymmdd_to_yyyy_mm_dd("20240116")  # "2024-01-16"

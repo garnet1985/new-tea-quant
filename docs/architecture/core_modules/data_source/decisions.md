@@ -1,7 +1,11 @@
 # Data Source 重要决策记录
 
 **版本：** 3.0  
+<<<<<<< HEAD
 **最后更新**: 2026-01-17
+=======
+**最后更新**: 2026-01-23
+>>>>>>> write-doc
 
 ---
 
@@ -225,7 +229,11 @@
 - 优点：灵活性高
 - 缺点：限流管理混乱，线程安全问题，容易出错
 
+<<<<<<< HEAD
 **方案 B：Provider 声明限流信息，TaskExecutor 执行限流** ✅
+=======
+**方案 B：Provider 声明限流信息，由 ApiJobExecutor 等执行层统一限流** ✅
+>>>>>>> write-doc
 - 优点：统一管理，线程安全，防止突刺
 - 缺点：需要设计限流机制
 
@@ -233,14 +241,22 @@
 
 选择方案 B 的理由：
 1. **声明式**：Provider 只声明限流信息，不执行限流逻辑
+<<<<<<< HEAD
 2. **统一管理**：所有限流逻辑集中在 `TaskExecutor`
+=======
+2. **统一管理**：所有限流逻辑集中在执行层（如 `ApiJobExecutor`）
+>>>>>>> write-doc
 3. **线程安全**：使用锁和条件变量保证线程安全
 4. **防止突刺**：窗口切换冷却机制，防止边界突刺
 
 ### 实现方案
 
 - Provider 声明限流信息（`api_limits` 类属性）
+<<<<<<< HEAD
 - `TaskExecutor` 负责执行限流（通过 `RateLimiter`）
+=======
+- 执行层（如 `ApiJobExecutor`）负责执行限流（通过 `RateLimiter`）
+>>>>>>> write-doc
 - 固定窗口限流，窗口对齐到自然分钟
 - 窗口切换时强制冷却，防止边界突刺
 
@@ -252,6 +268,195 @@
 
 ---
 
+<<<<<<< HEAD
+=======
+## 决策 6：Data Source 不负责数据存储
+
+**日期**：2026-01-23  
+**状态**：已实施
+
+### 痛点
+
+在早期设计中，部分 Handler 在数据标准化后直接保存数据，导致：
+- **职责边界模糊**：Data Source 模块既负责数据获取，又负责数据存储，职责不清
+- **复杂度增加**：如果 Data Source 管理 save，需要处理 Data Source Schema 和 DB Schema 的映射关系，增加系统复杂度
+- **用户体验下降**：用户需要理解两套 Schema（Data Source Schema 和 DB Schema）的映射关系，学习成本高
+- **灵活性受限**：统一的 save 机制难以满足不同业务场景的存储需求（如不同的存储时机、格式转换等）
+
+### 可选方案
+
+**方案 A：Data Source 默认提供 save 功能**
+- 优点：用户使用方便，不需要自己实现 save
+- 缺点：职责边界不清，需要处理 Schema 映射，复杂度高，灵活性差
+
+**方案 B：Data Source 不负责存储，用户自行决定 save 时机和格式** ✅
+- 优点：职责清晰，保持 Data Source 的纯粹性，灵活性高
+- 缺点：用户需要在钩子中自行实现 save（但可以使用 data_manager）
+
+### 为什么选择当前方案
+
+选择方案 B 的理由：
+
+1. **保持职责边界清晰**：
+   - Data Source 的职责：数据获取和统一格式转换
+   - Data Manager 的职责：数据入库和存储管理
+   - 清晰的职责边界有助于系统的可维护性和可扩展性
+
+2. **避免复杂度增加**：
+   - Data Source Schema 和 DB Schema 可能不一致，需要映射
+   - 如果 Data Source 管理 save，需要内置 Schema 映射逻辑
+   - 这会导致 Data Source 模块复杂度显著增加，无论是实现复杂度还是用户体验都会变差
+
+3. **提供灵活性**：
+   - 用户可以在钩子函数（如 `on_after_normalize`）中自行决定 save 的时机
+   - 用户可以根据业务需求选择不同的存储格式和策略
+   - 用户可以使用 `data_manager` 提供的统一接口进行存储，保持一致性
+
+4. **符合设计原则**：
+   - 遵循单一职责原则：Data Source 专注于数据获取和格式转换
+   - 遵循关注点分离：数据获取和存储分离，各司其职
+
+### 设计原则
+
+1. **Data Source 不默认带有 save 功能**：
+   - `BaseHandler` 不提供默认的 save 方法
+   - Handler 的生命周期钩子（如 `on_after_normalize`）只负责数据转换和处理，不负责存储
+
+2. **用户可以在钩子中自行决定 save**：
+   - 用户可以在 `on_after_normalize`、`on_after_execute_single_api_job` 等钩子中使用 `data_manager` 进行存储
+   - 用户可以根据业务需求选择存储时机（如每个 API Job 完成后、所有数据标准化后等）
+   - 用户可以根据业务需求进行格式转换后再存储
+
+3. **使用 data_manager 进行存储**：
+   - 虽然 Data Source 不负责 save，但用户可以在钩子中使用 `data_manager` 提供的统一接口
+   - `data_manager` 负责处理 DB Schema 和存储逻辑
+   - 这样既保持了职责边界，又提供了统一的存储接口
+
+### 实现示例
+
+```python
+class MyHandler(BaseHandler):
+    def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str, Any]) -> Dict[str, Any]:
+        # Data Source 的职责：数据转换和处理
+        processed_data = self.process_data(normalized_data)
+        
+        # 用户自行决定存储时机和格式（使用 data_manager）
+        data_manager = context.get("data_manager")
+        if data_manager:
+            # 可以根据业务需求进行格式转换
+            db_records = self.convert_to_db_format(processed_data)
+            # 使用 data_manager 进行存储
+            data_manager.my_model.save_records(db_records)
+        
+        return processed_data
+```
+
+### 影响
+
+- ✅ **职责边界清晰**：Data Source 专注于数据获取和格式转换，Data Manager 专注于数据存储
+- ✅ **复杂度降低**：不需要处理 Data Source Schema 和 DB Schema 的映射关系
+- ✅ **灵活性提高**：用户可以根据业务需求灵活决定存储时机和格式
+- ✅ **用户体验改善**：用户只需要理解 Data Source Schema，不需要理解两套 Schema 的映射关系
+- ⚠️ **需要用户自行实现 save**：用户需要在钩子中使用 `data_manager` 进行存储（但这是合理的，因为存储是业务逻辑的一部分）
+
+---
+
+## 决策 7：Renew Interval 设计范围
+
+**日期**：2026-01-23  
+**状态**：已设计
+
+### 痛点
+
+不同数据源有不同的数据更新需求，如果每个 Handler 都自己实现更新逻辑，会导致：
+- 代码重复：相同的间隔检查逻辑在多个 Handler 中重复
+- 维护困难：修改更新逻辑需要修改多个 Handler
+- 学习成本高：用户需要理解各种复杂的更新策略
+
+### 可选方案
+
+**方案 A：框架实现所有更新策略**
+- 优点：用户使用方便，不需要自己实现
+- 缺点：框架复杂度高，难以覆盖所有场景，学习成本高
+
+**方案 B：框架实现核心需求，复杂场景通过钩子暴露** ✅
+- 优点：框架简洁，保持可扩展性，学习成本低
+- 缺点：复杂场景需要用户自己实现（但这是合理的）
+
+### 为什么选择当前方案
+
+选择方案 B 的理由：
+
+1. **框架只实现最通用、最常见的需求**：
+   - **间隔更新**：超过N个时间单位没更新的，触发更新（per entity）
+   - **固定时间更新**：超过了某个/某几个固定日期的，补全固定时间点的数据（per entity）
+   - 这两个需求覆盖了80%以上的使用场景
+
+2. **复杂场景通过钩子暴露**：
+   - **随机/带游标抽样**：太灵活，抽样可能需要额外记录，通过 `on_before_fetch` 钩子实现
+   - **特殊条件刷新**：条件未知，可能状况太多，通过 `on_before_fetch` 钩子实现
+   - 保持框架的简洁性和可扩展性
+
+3. **避免框架过度设计**：
+   - 不试图覆盖所有可能的场景
+   - 降低学习成本和维护成本
+   - 通过钩子提供足够的灵活性
+
+### 设计原则
+
+1. **框架实现（配置化）**：
+   - ✅ **间隔更新**：`renew_interval` 配置
+   - ✅ **固定时间更新**：`renew_schedule` 配置
+   - 配置清晰，易于使用
+
+2. **用户实现（钩子函数）**：
+   - ⚠️ **随机/带游标抽样**：通过 `on_before_fetch` 钩子实现
+   - ⚠️ **特殊条件刷新**：通过 `on_before_fetch` 钩子实现
+   - 提供参考示例（如 `corporate_finance` 的批次轮转逻辑）
+
+### 实现示例
+
+**框架实现（配置化）**：
+```json
+{
+  "renew_interval": {
+    "enabled": true,
+    "unit": "day",
+    "value": 30,
+    "field": "date"
+  },
+  "renew_schedule": {
+    "enabled": true,
+    "type": "monthly",
+    "months": [1, 4, 7, 10],
+    "day": 1,
+    "force_all": true
+  }
+}
+```
+
+**用户实现（钩子函数）**：
+```python
+def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[ApiJob]:
+    # 用户自己实现批次轮转逻辑
+    all_stocks = context.get("stock_list", [])
+    batch_size = len(all_stocks) // self.renew_rolling_batch
+    batch_offset = self._get_batch_offset()  # 从缓存读取
+    effective_stocks = self._select_batch(all_stocks, batch_offset, batch_size)
+    # ... 创建 ApiJobs
+```
+
+### 影响
+
+- ✅ **框架简洁**：只实现核心需求，保持简洁性
+- ✅ **可扩展性强**：通过钩子提供足够的灵活性
+- ✅ **学习成本低**：用户只需要理解两种核心配置
+- ✅ **维护成本低**：框架代码量少，易于维护
+- ⚠️ **复杂场景需要用户实现**：但这是合理的，因为复杂场景的业务逻辑差异很大
+
+---
+
+>>>>>>> write-doc
 ## 相关文档
 
 - **[overview.md](./overview.md)**：模块概览

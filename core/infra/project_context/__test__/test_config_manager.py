@@ -33,7 +33,7 @@ class TestConfigManager:
     def test_load_core_config(self):
         """测试加载核心配置"""
         # 测试加载 data 配置
-        data_config = ConfigManager.get_data_config()
+        data_config = ConfigManager.load_data_config()
         
         assert isinstance(data_config, dict)
         assert "default_start_date" in data_config
@@ -56,7 +56,7 @@ class TestConfigManager:
     
     def test_get_database_config(self):
         """测试获取数据库配置"""
-        db_config = ConfigManager.get_database_config()
+        db_config = ConfigManager.load_database_config()
         
         assert isinstance(db_config, dict)
         assert "database_type" in db_config

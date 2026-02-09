@@ -178,6 +178,13 @@ class RenewConfig:
             last_update_info = LastUpdateInfo.from_dict(
                 last_info_raw, data_source_key
             )
+        elif renew_mode == UpdateMode.REFRESH:
+            # REFRESH + renew_if_over_days 时需 last_update_info 提供 date_field 用于 gate 查询
+            last_info_raw = d.get("last_update_info")
+            if last_info_raw:
+                last_update_info = LastUpdateInfo.from_dict(
+                    last_info_raw, data_source_key
+                )
 
         if renew_mode == UpdateMode.ROLLING:
             rolling_raw = d.get("rolling")

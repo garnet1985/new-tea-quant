@@ -490,6 +490,15 @@ class KlineService(BaseDataService):
             影响的行数
         """
         return self._adj_factor_event.delete("id = %s", (stock_id,))
+
+    def update_adj_factor_last_update(self, stock_id: str) -> int:
+        """
+        仅更新指定股票的 last_update 时间戳（无复权变化时调用）。
+        
+        Returns:
+            影响的行数
+        """
+        return self._adj_factor_event.update_last_update_for_stock(stock_id)
     
     def load_with_latest(self, stock_id: str, term: str = 'daily') -> Optional[Dict[str, Any]]:
         """

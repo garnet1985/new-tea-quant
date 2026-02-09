@@ -1,0 +1,7 @@
+{
+  "db_path": "data/stocks.duckdb",
+  "threads": 4,
+  "memory_limit": "8GB",
+  "_comment": "DuckDB 配置：数据库文件路径、线程数、内存限制"
+}
+

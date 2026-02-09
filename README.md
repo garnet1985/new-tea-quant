@@ -96,7 +96,7 @@ pip install -r requirements.txt
 
 ### 3. 配置数据库
 
-创建 `core/config/database/db_config.json`（或复制 `db_config.example.json`）:
+创建 `core/default_config/database/db_config.json`（或复制 `db_config.example.json`）:
 ```json
 {
     "database_type": "postgresql",
@@ -232,7 +232,7 @@ python3 start.py
 
 ## 快速开始（旧版配置）
 
-编辑 `core/config/system.json` 或 `userspace/config/system.json`:
+编辑 `core/default_config/system.json` 或 `userspace/config/system.json`:
 ```json
 {
     "database": {
@@ -1136,12 +1136,31 @@ style: 代码格式调整
 ## 相关资源
 
 ### 文档
-- [DataManager 架构文档](core/modules/data_manager/ARCHITECTURE.md)
-- [DataSource 设计文档](core/modules/data_source/docs/DESIGN.md)
-- [Strategy 框架设计](core/modules/strategy/docs/DESIGN.md)
-- [Tag 系统设计](core/modules/tag/docs/DESIGN.md)
-- [数据库模块文档](core/infra/db/README.md)
-- [Project Management Module 设计](core/infra/project_context/DESIGN.md)
+
+**📚 [文档中心](docs/README.md)** - 完整的文档导航和索引
+
+**快速开始**：
+- [安装指南](docs/getting-started/installation.md)
+- [配置指南](docs/getting-started/configuration.md)
+- [虚拟环境使用](docs/getting-started/venv-usage.md)
+
+**用户指南**：
+- [用户指南首页](user-guide/README.md) - 用户指南导航
+- [策略开发指南](user-guide/strategy-development.md)
+- [数据源使用指南](user-guide/data-source-usage.md)
+- [标签系统指南](user-guide/tag-system.md)
+
+**架构文档**：
+- [系统架构概览](docs/architecture/project_overview.md) - 整体架构和设计理念
+- [默认配置架构](docs/architecture/default_config/architecture.md)
+- [DataManager 模块架构](docs/architecture/core_modules/data_manager/architecture.md)
+- [DataSource 模块架构](docs/architecture/core_modules/data_source/architecture.md)
+- [Strategy 模块架构](docs/architecture/core_modules/strategy/architecture.md)
+- [Tag 模块架构](docs/architecture/core_modules/tag/architecture.md)
+- [Indicator 模块架构](docs/architecture/core_modules/indicator/architecture.md)
+- [数据库基础设施架构](docs/architecture/infra/db/architecture.md)
+- [Project Context 模块架构](docs/architecture/infra/project_context/architecture.md)
+- [Worker 基础设施架构](docs/architecture/infra/worker/architecture.md)
 
 ### 示例策略
 - [Example 策略](userspace/strategies/example/) - 完整的策略示例，包含配置和文档

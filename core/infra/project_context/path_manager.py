@@ -112,28 +112,15 @@ class PathManager:
         return new_path
     
     @staticmethod
-    def config() -> Path:
-        """
-        config/ 目录（用户配置文件）
-        
-        支持两种路径结构：
-        1. core/config/（新结构）
-        2. config/（旧结构，迁移期间兼容）
-        """
+    def default_config() -> Path:
+        """默认配置目录：core/default_config/"""
         root = PathManager.get_root()
-        
-        # 优先使用新路径结构
-        new_path = root / "core" / "config"
-        if new_path.exists():
-            return new_path
-        
-        # 兼容旧路径结构
-        old_path = root / "config"
-        if old_path.exists():
-            return old_path
-        
-        # 如果都不存在，返回新路径（由调用方决定是否创建）
-        return new_path
+        return root / "core" / "default_config"
+
+    @staticmethod
+    def user_config() -> Path:
+        """用户配置目录：userspace/config/"""
+        return PathManager.userspace() / "config"
     
     @staticmethod
     def strategy(strategy_name: str) -> Path:

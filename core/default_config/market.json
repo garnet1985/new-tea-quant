@@ -1,0 +1,10 @@
+{
+  "_comment": "市场配置，未来扩展（当前关注A股）",
+  "_future": {
+    "trading_rule": {
+      "_comment": "交易规则：T+0/T+1、做空支持等",
+      "settlement_days": 1,
+      "short_selling": false
+    }
+  }
+}

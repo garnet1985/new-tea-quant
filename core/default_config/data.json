@@ -1,0 +1,15 @@
+{
+  "default_start_date": "20080101",
+  "decimal_places": 2,
+  "stock_list_filter": {
+    "enable": true,
+    "exclude_patterns": {
+      "start_with": {
+        "id": ["688"],
+        "name": ["*ST", "ST", "退"]
+      },
+      "contains": {}
+    },
+    "_comment": "股票清单过滤规则：用于过滤有交易门槛的股票（如科创板、ST股票等），提高运算效率"
+  }
+}

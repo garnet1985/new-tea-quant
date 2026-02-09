@@ -1377,22 +1377,35 @@ class DataSourceHandlerHelper:
 
         # 4.1 当 counting_field 与 date_field 不同时，单独查询 renew 门控用的时间（如 last_update）
         # last_update_map 用 date_field（如 event_date）用于增量起点；renew_if_over_days 应用 counting_field（如 last_update）
+        # REFRESH 模式：last_update_map 可能为空（框架未为其查 DB），此时必须单独查 gate 才能让 renew_if_over_days 生效
         renew_gate_map: Optional[Dict[str, Optional[str]]] = None
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
+        date_field = config.get_date_field()
         if threshold_cfg:
             counting_field = threshold_cfg.get("counting_field")
-            date_field = config.get_date_field()
-            if counting_field and counting_field != date_field:
-                table_name = config.get_table_name()
-                if table_name and needs_stock_grouping is not False:
-                    raw_map = RenewCommonHelper.query_latest_date(
-                        data_manager, table_name, counting_field, date_format,
-                        needs_stock_grouping, context=context
-                    )
-                    if raw_map:
-                        renew_gate_map = {}
-                        for k, v in raw_map.items():
-                            renew_gate_map[k] = DataSourceHandlerHelper._normalize_date_value(v) if v else None
+            table_name = config.get_table_name()
+            gate_field = counting_field if counting_field else date_field
+            # 需要单独查 gate：counting_field != date_field，或 last_update_map 为空（REFRESH 等场景）
+            need_gate_query = (
+                (counting_field and counting_field != date_field) or
+                (not last_update_map and table_name and needs_stock_grouping is not False)
+            )
+            if need_gate_query and table_name and needs_stock_grouping is not False:
+                raw_map = RenewCommonHelper.query_latest_date(
+                    data_manager, table_name, gate_field, date_format,
+                    needs_stock_grouping, context=context
+                )
+                if raw_map:
+                    renew_gate_map = {}
+                    for k, v in raw_map.items():
+                        renew_gate_map[k] = DataSourceHandlerHelper._normalize_date_value(v) if v else None
+                    if not last_update_map:
+                        logger.info(
+                            f"📋 [renew_if_over_days] last_update_map 为空，已单独查询 gate_field={gate_field}，"
+                            f"得到 {len(renew_gate_map)} 条用于过滤"
+                        )
+                        # 注入 context 供 handler 使用（如 on_after_single_api_job_bundle_complete 中的 last_check）
+                        context["_last_update_map"] = renew_gate_map
 
         def should_trigger(last_update: Optional[str], composite_key: Optional[str] = None) -> bool:
             """
@@ -1948,7 +1961,13 @@ class DataSourceHandlerHelper:
             if isinstance(date_value, dt):
                 return DateUtils.datetime_to_format(date_value)
             elif isinstance(date_value, str):
-                return DateUtils.normalize_str(date_value) or date_value
+                s = str(date_value).strip()
+                normalized = DateUtils.normalize_str(s)
+                if normalized:
+                    return normalized
+                # 处理 DB 返回的 datetime 字符串（如 "2026-02-08 20:39:24"）
+                result = DateUtils.str_to_format(s, DateUtils.FMT_YYYYMMDD, DateUtils.FMT_DATETIME)
+                return result
             else:
                 return str(date_value).replace('-', '').replace(' ', '').replace(':', '')[:8]
         except Exception as e:

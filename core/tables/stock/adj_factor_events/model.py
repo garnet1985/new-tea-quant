@@ -43,3 +43,11 @@ class DataAdjFactorEventModel(DbBaseModel):
             if "event_date" in e:
                 e["event_date"] = str(e["event_date"]).replace("-", "")[:8]
         return self.upsert_many(events, unique_keys=["id", "event_date"])
+
+    def update_last_update_for_stock(self, stock_id: str) -> int:
+        """仅更新指定股票的 last_update 时间戳（无复权变化时调用）。"""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return self.execute_raw_update(
+            "UPDATE sys_adj_factor_events SET last_update = %s WHERE id = %s",
+            (now, stock_id),
+        )

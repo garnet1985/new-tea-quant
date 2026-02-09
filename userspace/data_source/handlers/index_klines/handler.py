@@ -14,7 +14,7 @@ from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
+from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.utils.date.date_utils import DateUtils
 
 
@@ -285,7 +285,7 @@ class IndexKlinesHandler(BaseHandler):
         api_config = config.get_apis().get(api_name)
         result_mapping = api_config.result_mapping if api_config else {}
         records = df.to_dict("records")
-        mapped = DataSourceHandlerHelper._apply_field_mapping(records, result_mapping)
+        mapped = nh.apply_field_mapping(records, result_mapping)
         for r in mapped:
             r["id"] = index_id
             r["term"] = term

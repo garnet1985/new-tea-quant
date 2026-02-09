@@ -53,7 +53,7 @@
 2. **配置驱动，灵活切换**：通过 `mapping.json` 配置 handler 的启用、依赖和参数，运行时切换无需修改代码
 3. **一个 dataSource，多个 handler（但运行时只选一个）**：可以有多个 handler 实现，但运行时只能选择一个，避免数据互相覆盖
 4. **职责分离**：Provider 负责 API 封装，Handler 负责业务逻辑，Manager 负责协调管理
-5. **声明式限流**：Provider 只声明限流信息，TaskExecutor 负责执行限流
+5. **声明式限流**：Provider 只声明限流信息，由执行层（如 ApiJobExecutor）负责执行限流
 
 ### 分层架构
 
@@ -82,8 +82,8 @@ Data Source 采用三层架构，每层负责不同的职责：
 - ❌ **不负责**：
   - 不包含业务逻辑（业务逻辑由 Handler 负责）
   - 不负责数据标准化（数据标准化由 Handler 负责）
-  - 不执行限流逻辑（限流执行由 TaskExecutor 负责）
-  - 不负责多线程调度（多线程调度由 Manager 负责）
+  - 不执行限流逻辑（限流执行由 ApiJobExecutor 等执行层负责）
+  - 不负责多线程调度（多线程调度由 Manager/执行层负责）
 
 **组件**：
 - **BaseProvider**：Provider 基类，定义 Provider 的标准接口
@@ -107,11 +107,10 @@ Data Source 采用三层架构，每层负责不同的职责：
   - **Handler 元信息**：声明 Handler 的依赖需求（`dependencies`）
 - ❌ **不负责**：
   - 不负责多线程调度（多线程调度由 Manager 负责）
-  - 不负责全局限流管理（全局限流管理由 TaskExecutor 负责）
+  - 不负责全局限流管理（全局限流管理由 ApiJobExecutor 等执行层负责）
 
 **组件**：
-- **BaseDataSourceHandler**：Handler 基类，定义 Handler 的生命周期钩子和模板方法
-- **SimpleConfigHandler**：纯配置驱动的 Handler，无需编写代码即可完成简单的数据获取
+- **BaseHandler**：Handler 基类，定义 Handler 的生命周期钩子和模板方法
 - **Handler 实现**：用户自定义的 Handler（如 `KlineHandler`、`CorporateFinanceHandler`）
 
 **特点**：
@@ -133,7 +132,7 @@ Data Source 采用三层架构，每层负责不同的职责：
   - 不包含具体的数据获取逻辑（数据获取逻辑由 Handler 负责）
   - 不包含数据标准化逻辑（数据标准化逻辑由 Handler 负责）
   - 不处理依赖关系（Handler 自己解决依赖）
-  - 不执行限流（限流执行由 TaskExecutor 负责）
+  - 不执行限流（限流执行由 ApiJobExecutor 等执行层负责）
 
 **组件**：
 - **DataSourceManager**：数据源管理器，负责协调所有 Handler 的执行
@@ -145,16 +144,15 @@ Data Source 采用三层架构，每层负责不同的职责：
 
 ### 其他核心组件
 
-**DataSourceTask（业务任务）**：
-- 封装一个完整的业务任务，包含多个 `ApiJob`
-- 提供任务元信息（`task_id`、`description`）
-
 **ApiJob（API 调用任务）**：
 - 封装单个 API 调用所需的所有信息（Provider、方法、参数）
 - 定义依赖关系（`depends_on`）
 
-**TaskExecutor（任务执行器）**：
-- 执行 `DataSourceTask` 列表
+**ApiJobBundle（API 任务批次）**：
+- 表示一批需要一起执行的 ApiJobs（例如某一实体的一组 API 调用）
+
+**ApiJobExecutor（API 任务执行器）**：
+- 执行 `ApiJob` / `ApiJobBundle` 列表
 - 拓扑排序（根据 `depends_on`）
 - 限流控制（通过 `RateLimiter`）
 - 并发管理（多线程执行）
@@ -219,17 +217,16 @@ Data Manager（数据库存储）
 │           │                                              │
 │           ▼                                              │
 │  ┌──────────────────────────────────────────┐          │
-│  │  BaseDataSourceHandler (业务层)            │          │
+│  │  BaseHandler (业务层)                     │          │
 │  │  - 数据获取逻辑                            │          │
 │  │  - 数据标准化                              │          │
 │  │  - 多 Provider 组合                        │          │
 │  │  - 依赖处理                                │          │
 │  └──────────────────────────────────────────┘          │
 │           │                                              │
-│           ├─▶ DataSourceTask (业务任务)                  │
-│           │   └── ApiJob (API 调用任务)                   │
+│           ├─▶ ApiJob / ApiJobBundle（API 任务与批次）     │
 │           │                                              │
-│           ├─▶ TaskExecutor (任务执行器)                  │
+│           ├─▶ ApiJobExecutor (任务执行器)               │
 │           │   - 拓扑排序                                 │
 │           │   - 限流控制                                 │
 │           │   - 并发管理                                 │
@@ -292,26 +289,21 @@ Data Manager（数据库存储）
           │
           └─▶ 5. Handler.execute(context)
                  │
-                 ├─▶ Phase 1: 数据准备阶段
-                 │      - before_fetch(context) - 构建执行上下文
-                 │      - 自动处理 renew_mode（如果配置）
-                 │        - RenewModeService 计算日期范围
-                 │      - fetch(context) → List[DataSourceTask]
-                 │        - 生成 Tasks（包含多个 ApiJobs）
-                 │      - after_fetch(tasks, context) - Tasks 生成后
-                 │
-                 ├─▶ Phase 2: 执行阶段
-                 │      - before_all_tasks_execute(tasks, context)
-                 │      - TaskExecutor.execute(tasks)
-                 │        - 对每个 task：
-                 │          - before_single_task_execute(...)
-                 │          - 执行 task 的所有 ApiJobs：
-                 │            ├─ 拓扑排序（根据 depends_on）
-                 │            ├─ 限流控制（RateLimiter）
-                 │            ├─ 并发执行（多线程）
-                 │            └─ 返回结果
-                 │          - after_single_task_execute(...)
-                 │      - after_all_tasks_execute(task_results, ...)
+                ├─▶ Phase 1: 数据准备阶段
+                │      - before_fetch(context) - 构建执行上下文
+                │      - 自动处理 renew_mode（如果配置）
+                │        - Renew 服务（date_range_service + renew_*_service）计算日期范围
+                │      - 构建 ApiJob / ApiJobBundle 列表
+                │      - after_fetch(..., context) - Jobs / Bundles 生成后
+                │
+                ├─▶ Phase 2: 执行阶段
+                │      - ApiJobExecutor.execute(bundles)
+                │        - 对每个 batch：
+                │          - 执行 batch 的所有 ApiJobs：
+                │            ├─ 拓扑排序（根据 depends_on）
+                │            ├─ 限流控制（RateLimiter）
+                │            ├─ 并发执行（多线程）
+                │            └─ 返回结果
                  │
                  └─▶ Phase 3: 标准化阶段
                         - before_normalize(raw_data)
@@ -323,34 +315,32 @@ Data Manager（数据库存储）
                           - Schema 验证
 ```
 
-### TaskExecutor 执行流程
+### ApiJobExecutor 执行流程
 
 ```
-1. TaskExecutor.execute(tasks) 被调用
+1. ApiJobExecutor.execute(api_jobs 或 bundles) 被调用
    │
    ├─▶ 2. 计算限流值
-   │      - 遍历所有 tasks，收集所有 ApiJobs
+   │      - 遍历所有 ApiJobs / Bundles，收集所有 ApiJobs
    │      - 从 Provider 获取每个 API 的限流声明
    │      - 计算每个 task 的最小限流值（木桶效应）
    │
    ├─▶ 3. 决定线程数
-   │      - 根据 task 数量决定线程数（最多10个）
+   │      - 根据 batch / job 数量决定线程数（最多10个）
    │      - 根据最小限流值调整线程数
    │
-   ├─▶ 4. 并行执行 Tasks
+   ├─▶ 4. 并行执行 ApiJobBatch
    │      - 使用 MultiThreadWorker 并行执行
-   │      - 对每个 task：
-   │        - before_single_task_execute(task)
-   │        - 执行 task 的所有 ApiJobs：
+   │      - 对每个 batch：
+   │        - 执行 batch 的所有 ApiJobs：
    │          ├─ 拓扑排序（根据 depends_on）
    │          ├─ 按顺序执行：
    │          │   - RateLimiter.acquire()
    │          │   - provider.method(**params)
    │          │   - 收集结果
-   │        - after_single_task_execute(task_id, task_result)
    │
    └─▶ 5. 收集结果
-          - 返回 {task_id: {job_id: result}} 字典
+          - 返回 {batch_id 或 "_single": {job_id: result}} 字典
 ```
 
 ### 数据流
@@ -365,19 +355,19 @@ Data Manager（数据库存储）
 [Handler] before_fetch(context)
   └─ 构建执行上下文
   ↓
-[Handler] fetch(context) → List[DataSourceTask]
-  ├─ Task 1: 包含多个 ApiJobs
-  ├─ Task 2: 包含多个 ApiJobs
+[Handler] 构建 ApiJob / ApiJobBundle 列表
+  ├─ Bundle 1: 包含多个 ApiJobs
+  ├─ Bundle 2: 包含多个 ApiJobs
   └─ ...
   ↓
-[Handler] after_fetch(tasks, context)
-  └─ Tasks 生成后（还未执行）
+[Handler] after_fetch(..., context)
+  └─ ApiJob / Bundle 构建完成（还未执行）
   ↓
-[TaskExecutor] 执行 Tasks
+[ApiJobExecutor] 执行 ApiJobs / Bundles
   ├─ 拓扑排序（根据 depends_on）
   ├─ 限流控制（RateLimiter）
   ├─ 并发执行（多线程）
-  └─ 返回原始数据：{task_id: {job_id: result}}
+  └─ 返回原始数据：{batch_id 或 "_single": {job_id: result}}
   ↓
 [Handler] before_normalize(raw_data)
   └─ 标准化前

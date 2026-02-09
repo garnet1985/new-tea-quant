@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Tuple, Optional, Union
 from loguru import logger
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
-from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
+        from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
 from core.modules.data_source.service.api_job_executor import ApiJobExecutor
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
@@ -184,9 +184,12 @@ class BaseHandler:
     def _get_last_update_map(self) -> Dict[str, Optional[str]]:
         """
         Phase 1：获取所有实体的“原始” last_update 映射（不考虑 renew_mode）。
-        具体 DB 查询与标准化逻辑委托给 DataSourceHandlerHelper.compute_last_update_map。
+        具体 DB 查询与标准化逻辑委托给 DateRangeService（内部目前仍转调 DataSourceHandlerHelper）。
         """
-        return DataSourceHandlerHelper.compute_last_update_map(self.context)
+        from core.modules.data_source.service.date_range.date_range_service import DateRangeService
+
+        service = DateRangeService()
+        return service.compute_last_update_map(self.context)
 
     def _calculate_entity_date_ranges(
         self, last_update_map: Dict[str, Optional[str]]
@@ -195,47 +198,40 @@ class BaseHandler:
         Phase 2：基于 last_update 映射 + renew_mode + renew_if_over_days，
         计算本次需要抓取的实体及其 (start_date, end_date)。
 
-        实际计算逻辑委托给 DataSourceHandlerHelper.compute_entity_date_ranges，
+        实际计算逻辑委托给 DateRangeService（内部目前仍转调 DataSourceHandlerHelper），
         这里保留骨架，方便子类在必要时覆写。
         """
-        return DataSourceHandlerHelper.compute_entity_date_ranges(self.context, last_update_map)
+        from core.modules.data_source.service.date_range.date_range_service import DateRangeService
+
+        service = DateRangeService()
+        return service.compute_entity_date_ranges(self.context, last_update_map)
 
     def _build_jobs(
         self,
         apis_conf: Dict[str, Any],
         entity_date_ranges: Dict[str, Tuple[str, str]],
     ) -> List[ApiJobBundle]:
-        from loguru import logger
+        """
+        基于 entity_date_ranges 构建 ApiJobBundle 列表。
         
+        当前实现委托给 JobBuilder 完成实体维度的遍历和单个实体 Job 的构建，
+        然后在 BaseHandler 层调用 on_after_build_jobs 做二次处理（保持与旧行为一致）。
+        """
+        from core.modules.data_source.service.job.job_builder import JobBuilder
+
         entity_list = self._get_entity_list()
-        config: DataSourceConfig = self.context.get("config")
-        entity_key_field = config.get_group_by_key()
+        builder = JobBuilder()
 
-        jobs: List[ApiJobBundle] = []
+        jobs = builder.build_jobs(
+            context=self.context,
+            apis_conf=apis_conf,
+            entity_list=entity_list,
+            entity_date_ranges=entity_date_ranges,
+            build_single_job=self._build_job,
+        )
 
-        for entity_info in entity_list:
-            # 实体 ID 的来源遵循 config.job_execution.key 这一单一约定
-            if isinstance(entity_info, dict):
-                entity_id = entity_info.get(entity_key_field)
-            else:
-                # 如果依赖里直接给的是字符串/数字（如 ts_code），则直接当作实体 ID
-                entity_id = entity_info
-
-            if not entity_id:
-                continue
-
-            entity_key = str(entity_id)
-            date_range = entity_date_ranges.get(entity_key)
-            if not date_range:
-                # 该实体本次无需 renew（可能因为未过 renew_if_over_days 阈值）
-                continue
-
-            job_collection = self._build_job(entity_info, apis_conf, date_range)
-            if job_collection is not None:
-                jobs.append(job_collection)
-        
         jobs = self.on_after_build_jobs(self.context, jobs, entity_date_ranges)
-        
+
         return jobs
 
         
@@ -329,9 +325,18 @@ class BaseHandler:
         Returns:
             Dict[str, Any]: 汇总后的抓取结果 {job_id: result}
         """
-        try:
+        from core.modules.data_source.service.executor.bundle_execution_service import (
+            BundleExecutionService,
+        )
 
-            fetched_data = self._multi_thread_execute(apis_job_bundles)
+        try:
+            executor = BundleExecutionService()
+            fetched_data = executor.execute(
+                self.context,
+                apis_job_bundles,
+                on_after_single_bundle_complete=self.on_after_single_api_job_bundle_complete,
+                enrich_result_for_batch=self.enrich_result_for_batch,
+            )
 
             # 将执行的 apis 扁平化注入 context，供 on_after_fetch 使用
             all_apis: List[ApiJob] = []
@@ -348,442 +353,6 @@ class BaseHandler:
             # 步骤 6：错误处理
             self.on_bundle_execution_error(e, self.context, apis_job_bundles)
             raise
-
-    def _multi_thread_execute(self, jobs: List[Union["ApiJobBundle", ApiJob]]) -> Dict[str, Any]:
-        """
-        对 job bundles 进行多线程执行。
-
-        - 若 jobs 为空，返回 {}。
-        - 若仅有一个 bundle，在当前线程内用 ApiJobExecutor 执行后返回。
-        - 若有多个 bundle，使用 MultiThreadWorker（多线程）并行执行每个 bundle，
-          再合并各 bundle 的 {job_id: result}，并调用 on_after_single_api_job_bundle_complete 钩子。
-
-        jobs 中每项可为 ApiJobBundle（含 .bundle_id、.apis）或单个 ApiJob（会当作仅含一个 job 的 bundle 处理）。
-        """
-        from loguru import logger
-        import asyncio
-
-        # 归一化：统一成 (bundle_id, apis, item) 列表，便于后续按 bundle_id 回调钩子
-        bundles: List[Tuple[str, List[ApiJob], Any]] = []
-        data_source_key = self.context.get("data_source_key", "data_source")
-
-        for i, item in enumerate(jobs or []):
-            if isinstance(item, ApiJobBundle):
-                bid = item.bundle_id or f"{data_source_key}_bundle_{i}"
-                apis = item.apis or []
-                bundles.append((bid, apis, item))
-            elif isinstance(item, ApiJob):
-                # 单个 ApiJob 视为一个 bundle
-                bid = getattr(item, "job_id", None) or f"{data_source_key}_job_{i}"
-                bundles.append((bid, [item], item))
-            else:
-                logger.warning(f"未知 job 类型，已跳过: {type(item)}")
-                continue
-
-        if not bundles:
-            return {}
-
-        providers = self.context.get("providers") or {}
-        executor = ApiJobExecutor(providers=providers)
-
-        async def run_one_bundle(api_jobs: List[ApiJob]) -> Dict[str, Any]:
-            if not api_jobs:
-                return {}
-            return await executor.execute(api_jobs)
-
-        def _run_async_in_sync(coro):
-            """在同步上下文中运行 async coro。若当前线程已有运行中的 loop 则在单独线程中起新 loop 执行，避免同线程内再跑一个 loop。"""
-            import concurrent.futures
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 当前线程已有运行中的 loop，在单独线程中执行
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                        def _in_thread():
-                            new_loop = asyncio.new_event_loop()
-                            try:
-                                asyncio.set_event_loop(new_loop)
-                                return new_loop.run_until_complete(coro)
-                            finally:
-                                # 确保所有任务完成后再关闭 loop
-                                try:
-                                    pending = asyncio.all_tasks(new_loop)
-                                    if pending:
-                                        new_loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                                except Exception:
-                                    pass
-                                new_loop.close()
-                        future = pool.submit(_in_thread)
-                        return future.result()
-                # 当前线程没有运行中的 loop，直接使用
-                return loop.run_until_complete(coro)
-            except RuntimeError:
-                # 无法获取 event loop，创建新的
-                loop = asyncio.new_event_loop()
-                try:
-                    asyncio.set_event_loop(loop)
-                    return loop.run_until_complete(coro)
-                finally:
-                    # 确保所有任务完成后再关闭 loop
-                    try:
-                        pending = asyncio.all_tasks(loop)
-                        if pending:
-                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                    except Exception:
-                        pass
-                    loop.close()
-
-        # 仅一个 bundle：直接执行
-        if len(bundles) == 1:
-            bundle_id, apis, item = bundles[0]
-            logger.info(f"开始执行 1 个 bundle: bundle_id={bundle_id}")
-            result = _run_async_in_sync(run_one_bundle(apis))
-            logger.info(f"🔧 [single_bundle] 执行完成，准备调用钩子: bundle_id={bundle_id}, result_keys={list(result.keys())[:5] if isinstance(result, dict) else 'N/A'}...")
-            
-            # 获取 save_mode 配置
-            config = self.context.get("config")
-            if not config:
-                raise ValueError("config 必须配置 save_mode")
-            save_mode = config.get_save_mode()
-            
-            # 根据 save_mode 决定是否调用钩子
-            if save_mode != "unified" and isinstance(item, ApiJobBundle):
-                try:
-                    logger.info(f"🔧 [single_bundle] 调用 on_after_single_api_job_bundle_complete: bundle_id={bundle_id}")
-                    self.on_after_single_api_job_bundle_complete(self.context, item, result)
-                    logger.info(f"✅ [single_bundle] on_after_single_api_job_bundle_complete 调用成功: bundle_id={bundle_id}")
-                except Exception as e:
-                    logger.error(f"❌ [single_bundle] on_after_single_api_job_bundle_complete 调用失败: bundle_id={bundle_id}, error={e}", exc_info=True)
-            elif save_mode == "unified":
-                logger.debug(f"🔧 [single_bundle] save_mode='unified'，跳过 on_after_single_api_job_bundle_complete（将在 _do_save 中统一保存）")
-            else:
-                logger.debug(f"save_mode='unified' 或 item 非 ApiJobBundle，跳过 per-bundle 钩子")
-            logger.info(f"执行完成: 1/1 个 bundles")
-            return result
-
-        # 多个 bundle：使用多线程框架
-        from core.infra.worker.multi_thread.futures_worker import (
-            MultiThreadWorker,
-            ExecutionMode,
-            JobStatus,
-        )
-
-        def _decide_workers(bundle_count: int) -> int:
-            if bundle_count <= 1:
-                return 1
-            if bundle_count <= 5:
-                return 2
-            if bundle_count <= 10:
-                return 3
-            if bundle_count <= 20:
-                return 5
-            if bundle_count <= 50:
-                return 8
-            return 10
-
-        max_workers = _decide_workers(len(bundles))
-
-        def _bundle_executor(api_jobs: List[ApiJob]) -> Dict[str, Any]:
-            """单个 bundle 的执行器（同步接口，供 MultiThreadWorker 调用）。job_data 即 apis 列表。"""
-            return _run_async_in_sync(run_one_bundle(api_jobs))
-
-        worker = MultiThreadWorker(
-            max_workers=max_workers,
-            execution_mode=ExecutionMode.PARALLEL,
-            job_executor=_bundle_executor,
-            enable_monitoring=True,
-            timeout=3600,
-            is_verbose=False,
-        )
-
-        bundle_id_to_item: Dict[str, Any] = {}
-        for bundle_id, apis, item in bundles:
-            worker.add_job(bundle_id, apis)
-            bundle_id_to_item[bundle_id] = item
-
-        total_bundles = len(bundles)
-
-        # 启动进度监控线程
-        import threading
-        import time
-        progress_stop = threading.Event()
-        last_reported_count = 0
-        PROGRESS_INTERVAL = 50  # 每完成50个job输出一次进度
-        
-        def _progress_monitor():
-            """后台线程：定期输出进度"""
-            nonlocal last_reported_count
-            while not progress_stop.is_set():
-                try:
-                    stats = worker.get_stats()
-                    completed = stats.get('completed_jobs', 0) + stats.get('failed_jobs', 0)
-                    
-                    # 每完成50个job输出一次进度
-                    if completed >= last_reported_count + PROGRESS_INTERVAL:
-                        current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
-                        ds_key = self.get_key()
-                        logger.info(f"📊 [{ds_key}] 进度: {completed}/{total_bundles} ({current_percent}%)")
-                        # 更新到下一个50的倍数
-                        last_reported_count = (completed // PROGRESS_INTERVAL) * PROGRESS_INTERVAL
-                    
-                    # 如果所有任务完成，输出最终进度并退出
-                    if completed >= total_bundles:
-                        if completed > last_reported_count:
-                            current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
-                            ds_key = self.get_key()
-                            logger.info(f"📊 [{ds_key}] 进度: {completed}/{total_bundles} ({current_percent}%)")
-                        break
-                except Exception:
-                    pass  # 忽略获取统计信息时的异常
-                time.sleep(1)  # 每1秒检查一次
-        
-        progress_thread = threading.Thread(target=_progress_monitor, daemon=True)
-        progress_thread.start()
-        
-        # 等待一小段时间，确保进度监控线程启动
-        time.sleep(0.1)
-
-        # 批量处理完成的结果：启动一个线程定期从 results_queue 中取出结果并批量调用钩子
-        processed_results = set()  # 记录已处理的结果，避免重复处理
-        pending_results = []  # 待处理的结果列表
-        results_processing_stop = threading.Event()
-        import concurrent.futures
-        batch_save_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-        self.context["_batch_save_executor"] = batch_save_executor  # batch 模式时异步执行 _run_batch_save
-        
-        # 根据配置决定批量保存大小
-        config = self.context.get("config")
-        if not config:
-            raise ValueError("config 必须配置 save_mode")
-        save_mode = config.get_save_mode()
-        if save_mode == "immediate":
-            BATCH_SAVE_SIZE = 1  # 立即保存：每个 bundle 完成后立即保存
-        elif save_mode == "batch":
-            BATCH_SAVE_SIZE = config.get_save_batch_size() if config else 50
-        else:  # unified
-            BATCH_SAVE_SIZE = float('inf')  # 统一保存：不在这里保存，在 _do_save 中统一保存
-        
-        def _has_actual_data(result_dict: Dict[str, Any]) -> bool:
-            """
-            检查结果字典是否真正包含数据。
-            
-            result_dict 的格式是 {job_id: result_data}，其中 result_data 可能是：
-            - None: 执行失败
-            - []: 空列表（API返回空数据）
-            - [data]: 有数据的列表
-            - DataFrame: pandas DataFrame
-            
-            只有当至少有一个 job_id 对应的 result_data 非空时，才返回 True。
-            """
-            if not isinstance(result_dict, dict) or not result_dict:
-                return False
-            
-            import pandas as pd
-            for job_id, result_data in result_dict.items():
-                if result_data is None:
-                    continue
-                # 检查是否为 pandas DataFrame
-                if isinstance(result_data, pd.DataFrame):
-                    if not result_data.empty:
-                        return True
-                # 检查是否为列表或其他可迭代对象
-                elif isinstance(result_data, (list, tuple)):
-                    if len(result_data) > 0:
-                        return True
-                # 其他类型（如字典），检查是否非空
-                elif result_data:
-                    return True
-            
-            return False
-        
-        _batch_save_trigger_count = [0]  # 诊断：触发了几次 batch 保存
-        
-        def _process_completed_results():
-            """批量处理完成的结果：根据 save_mode 决定保存时机。每 20 个扫描完成 → 触发 1 次保存。"""
-            from queue import Empty
-            while not results_processing_stop.is_set() or worker.is_running:
-                try:
-                    # 从 results_queue 中获取完成的结果
-                    stats = worker.get_stats()
-                    results_count = stats.get('results_count', 0)
-                    
-                    if results_count > 0:
-                        # 获取所有可用的结果（会清空队列）
-                        available_results = worker.get_results()
-                        for result in available_results:
-                            if result.job_id in processed_results:
-                                continue
-                            
-                            # enrich_result_for_batch：子类可注入 last_update 等，使 actual data 恒非空
-                            job_bundle = bundle_id_to_item.get(result.job_id)
-                            if job_bundle is not None and result.status == JobStatus.COMPLETED:
-                                enriched = self.enrich_result_for_batch(
-                                    self.context, job_bundle, result.result
-                                )
-                                if enriched is not None:
-                                    result.result = enriched
-                            
-                            # 只处理成功完成且有数据的结果
-                            if result.status == JobStatus.COMPLETED and _has_actual_data(result.result):
-                                # 添加到待处理列表
-                                pending_results.append(result)
-                                
-                                # 根据 save_mode 决定保存时机
-                                # unified 模式：不在这里保存，在 _do_save 中统一保存
-                                if save_mode == "unified":
-                                    # unified 模式：不调用 on_after_single_api_job_bundle_complete
-                                    processed_results.add(result.job_id)
-                                    continue
-                                
-                                # immediate 或 batch 模式：每 BATCH_SAVE_SIZE 个扫描完成 → 触发 1 次保存
-                                if len(pending_results) >= BATCH_SAVE_SIZE:
-                                    batch = list(pending_results)
-                                    pending_results.clear()
-                                    for pr in batch:
-                                        processed_results.add(pr.job_id)
-                                    _batch_save_trigger_count[0] += 1
-                                    completed_now = worker.get_stats().get('completed_jobs', 0) + worker.get_stats().get('failed_jobs', 0)
-                                    logger.info(
-                                        f"🔧 [批量保存] 第 {_batch_save_trigger_count[0]} 次触发："
-                                        f"本批 {len(batch)} 个，累计已处理 {len(processed_results)} 个，worker 已完成 {completed_now} 个"
-                                    )
-                                    def _run_batch_save(b=batch, bim=bundle_id_to_item):
-                                        saved = 0
-                                        for pr in b:
-                                            if pr.job_id in bim:
-                                                try:
-                                                    self.on_after_single_api_job_bundle_complete(
-                                                        self.context, bim[pr.job_id], pr.result
-                                                    )
-                                                    saved += 1
-                                                except Exception as e:
-                                                    logger.error(f"❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: bundle_id={pr.job_id}, error={e}", exc_info=True)
-                                        logger.info(f"✅ [批量保存] 完成 {saved}/{len(b)} 个 bundles 的保存")
-                                    # immediate 模式：同步执行，确保中断时已处理=已落库（避免 executor 队列中的任务丢失）
-                                    if BATCH_SAVE_SIZE == 1:
-                                        _run_batch_save()
-                                    else:
-                                        batch_save_executor.submit(_run_batch_save)
-                            elif result.status == JobStatus.FAILED:
-                                # 失败的结果也标记为已处理，避免重复处理
-                                processed_results.add(result.job_id)
-                                error_msg = getattr(result, 'error', None) or '未知错误'
-                                logger.warning(f"⚠️ [批量保存] Bundle {result.job_id} 失败，跳过: {error_msg}")
-                            elif result.status == JobStatus.COMPLETED:
-                                # COMPLETED 但没有数据，标记为已处理但跳过
-                                processed_results.add(result.job_id)
-                            else:
-                                # 其他状态（PENDING、RUNNING等），标记为已处理但跳过
-                                processed_results.add(result.job_id)
-                    time.sleep(0.5)  # 每0.5秒检查一次
-                except Exception as e:
-                    logger.error(f"❌ [批量保存] 处理结果时出错: {e}", exc_info=True)
-                    time.sleep(1)  # 出错后等待1秒再继续
-        
-        results_processing_thread = threading.Thread(target=_process_completed_results, daemon=True)
-        results_processing_thread.start()
-        
-        try:
-            worker.run_jobs()
-        finally:
-            progress_stop.set()  # 停止进度监控
-            results_processing_stop.set()  # 停止结果处理
-            # 等待进度线程结束（最多等待2秒）
-            progress_thread.join(timeout=2)
-            results_processing_thread.join(timeout=2)
-            # 等待所有已提交的 batch 保存完成；若收到 Ctrl+C 则跳过等待，快速退出
-            interrupted = getattr(worker, "_interrupted_by_signal", False)
-            if interrupted:
-                batch_save_executor.shutdown(wait=False)
-                logger.warning("📋 [批量保存] 已收到中断信号，跳过等待 pending save，快速退出")
-            else:
-                batch_save_executor.shutdown(wait=True)
-            logger.info(f"📋 [批量保存] 处理线程期间共触发 {_batch_save_trigger_count[0]} 次 batch 保存")
-        
-        # 处理剩余的结果（可能有些结果在处理线程停止后才完成）
-        results_list = worker.get_results()
-        logger.info(
-            f"🔧 [multi_thread] worker.run_jobs() 完成，获取到 {len(results_list)} 个剩余结果"
-            f"（处理线程已触发 {_batch_save_trigger_count[0]} 次 batch 保存）"
-        )
-
-        # 处理剩余的结果（包括待处理列表中的和最后一批未达到批量大小的）
-        # 先处理待处理列表中的剩余结果（仅 immediate 和 batch 模式）
-        if pending_results and save_mode != "unified":
-            logger.info(f"🔧 [批量保存] 处理最后一批 {len(pending_results)} 个有数据的结果...")
-            saved_count = 0
-            for pending_result in pending_results:
-                if pending_result.job_id in processed_results:
-                    continue
-                
-                processed_results.add(pending_result.job_id)
-                
-                if pending_result.status == JobStatus.COMPLETED and _has_actual_data(pending_result.result):
-                    if pending_result.job_id in bundle_id_to_item:
-                        try:
-                            self.on_after_single_api_job_bundle_complete(
-                                self.context, bundle_id_to_item[pending_result.job_id], pending_result.result
-                            )
-                            saved_count += 1
-                        except Exception as e:
-                            logger.error(f"❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: bundle_id={pending_result.job_id}, error={e}", exc_info=True)
-            logger.info(f"✅ [批量保存] 完成最后一批 {saved_count}/{len(pending_results)} 个 bundles 的保存")
-            pending_results.clear()
-        
-        # 合并为 {job_id: result}，处理剩余的结果（已经在批量处理线程中处理过的会跳过）
-        merged: Dict[str, Any] = {}
-        completed_count = len(processed_results)  # 已处理的数量
-        
-        logger.info(f"🔧 [multi_thread] 开始处理 {len(results_list)} 个剩余结果（已批量处理 {completed_count} 个）")
-        
-        for r in results_list:
-            # 跳过已经在批量处理线程中处理过的结果
-            if r.job_id in processed_results:
-                continue
-                
-            # enrich_result_for_batch：剩余结果也需 enrich 后再判断
-            job_bundle = bundle_id_to_item.get(r.job_id)
-            if job_bundle is not None and r.status == JobStatus.COMPLETED:
-                enriched = self.enrich_result_for_batch(self.context, job_bundle, r.result)
-                if enriched is not None:
-                    r.result = enriched
-            if r.status == JobStatus.COMPLETED and _has_actual_data(r.result):
-                merged.update(r.result)
-                # unified 模式：不在这里调用钩子，在 _do_save 中统一保存
-                if save_mode != "unified" and r.job_id in bundle_id_to_item:
-                    try:
-                        self.on_after_single_api_job_bundle_complete(
-                            self.context, bundle_id_to_item[r.job_id], r.result
-                        )
-                        processed_results.add(r.job_id)
-                        completed_count += 1
-                    except Exception as e:
-                        logger.error(f"❌ [剩余结果] on_after_single_api_job_bundle_complete 调用失败: bundle_id={r.job_id}, error={e}", exc_info=True)
-                else:
-                    # unified 模式：只标记为已处理，不调用钩子
-                    processed_results.add(r.job_id)
-                    completed_count += 1
-            elif r.status == JobStatus.COMPLETED and not _has_actual_data(r.result):
-                # 空结果，标记为已处理但跳过
-                processed_results.add(r.job_id)
-                # 检查 result.result 的结构，提供更详细的日志
-                if isinstance(r.result, dict):
-                    job_count = len(r.result)
-                    empty_jobs = [job_id for job_id, data in r.result.items() 
-                                if data is None or (isinstance(data, (list, tuple)) and len(data) == 0)]
-                    logger.debug(
-                        f"⚠️ [剩余结果] Bundle {r.job_id} 完成但无数据，跳过 "
-                        f"(共 {job_count} 个 API jobs，全部为空: {empty_jobs[:3]}{'...' if len(empty_jobs) > 3 else ''})"
-                    )
-                else:
-                    logger.debug(f"⚠️ [剩余结果] Bundle {r.job_id} 完成但结果格式异常，跳过 (result类型: {type(r.result)})")
-            elif r.status == JobStatus.FAILED and r.error:
-                logger.warning(f"Bundle {r.job_id} 失败: {r.error}")
-                completed_count += 1
-        
-        logger.info(f"执行完成: {completed_count}/{total_bundles} 个 bundles（批量处理 {len(processed_results)} 个）")
-
-        return merged
 
     # ================================
     # Postprocess stage
@@ -803,85 +372,35 @@ class BaseHandler:
 
     def _normalize_data(self, context: Dict[str, Any], fetched_data: Any):
         """
-        标准化阶段：默认实现按“步骤大纲”调用 Helper，将原始数据转换为标准结构。
-
-        步骤大纲：
-        1. 从 context 中解析 apis 配置和 schema（输入准备）；
-        2. 做一次字段覆盖校验：哪些 schema 字段在 result_mapping 中没有被任何 API 覆盖（仅日志提醒）；
-        3. 遍历每个 API，取出对应结果并转换为 records（DataFrame → records 或 list[dict]）；
-        4. 使用该 API 的 result_mapping 将原始字段映射到标准字段；
-        5. 合并所有 API 的映射结果，得到统一的 records 列表；
-        6. 使用 schema 约束字段集和类型（只保留 schema 定义的字段，并做类型转换/默认值填充）；
-        7. 将最终记录包装为 {"data": [...]} 返回。
-
-        复杂场景（多 API 复杂合并、自定义结构）应在子类中覆盖本方法。
+        标准化阶段默认实现。
+        
+        为兼容现有行为，内部委托给 NormalizationService 完成公共标准化流程，
+        再在 BaseHandler 层调用 on_after_mapping 钩子。
         """
-        from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
-        from core.utils.utils import Utils
-
-        # 步骤 1：从 context 中解析 apis 配置和 schema（输入准备）
-        config = context.get("config")
-        # 使用 DataSourceConfig 的方法
-        apis_conf = config.get_apis()
-        schema = context.get("schema")
+        from core.modules.data_source.service.normalization.normalization_service import NormalizationService
+        from core.modules.data_source.service.normalization import normalization_helper as nh
 
         if not fetched_data:
-            # 原始数据为空或类型不对，直接返回空结果
             return {"data": []}
 
-        # 步骤 2：做一次字段覆盖校验（提醒式，不中断执行；ignore_fields 不参与）
-        ignore_fields = config.get_ignore_fields() if config else []
-        DataSourceHandlerHelper.validate_field_coverage(apis_conf, schema, ignore_fields=ignore_fields)
+        # 使用 NormalizationService 完成公共标准化流程（字段映射 / schema 等）
+        # 注意：NormalizatonService 内部已经做了字段覆盖校验、日期标准化等。
+        normalized = NormalizationService.normalize(context, fetched_data)
 
-        # 步骤 3 & 4：从所有 API 返回中提取并映射出标准字段记录
-        # 检查是否配置了 merge_by_key（用于按 key 合并多个 API 的结果）
-        merge_by_key = None
-        merge_by_key = config.get_merge_by_key() if config else None
-        
-        mapped_records: List[Dict[str, Any]] = DataSourceHandlerHelper.extract_mapped_records(
-            apis_conf=apis_conf,
-            fetched_data=fetched_data,
-            merge_by_key=merge_by_key,
-        )
+        # NormalizationService 已经返回 {"data": [...]} 结构；为了保持与旧实现兼容，
+        # 在这里拆出 records，交给 on_after_mapping 进行二次处理后再重新 apply_schema。
+        data_list = normalized.get("data") if isinstance(normalized, dict) else None
+        if not data_list:
+            return {"data": []}
 
+        # 在 mapping 后、schema 应用前调用 hook（行为与旧实现保持一致）
+        mapped_records = self.on_after_mapping(context, data_list)
         if not mapped_records:
-            # 所有 API 都没有产生有效记录
             return {"data": []}
 
-        # 步骤 4.4：自动日期标准化（如果配置了 date_format）
-        # 根据 config.date_format 自动标准化 date 字段
-        config = context.get("config")
-        date_format = config.get_date_format() if config else None
-
-        # 使用 DateUtils 的 period 规范化逻辑，将各种配置值统一为
-        # "day" / "month" / "quarter"，再交给 normalize_date_field 处理。
-        try:
-            from core.utils.date.date_utils import DateUtils
-            target_format = DateUtils.normalize_period_type(date_format or DateUtils.PERIOD_DAY)
-        except Exception:
-            # 极端情况下（例如循环依赖），回退为按天标准化，保持兼容
-            target_format = "day"
-
-        if target_format and target_format != "none":
-            mapped_records = DataSourceHandlerHelper.normalize_date_field(
-                mapped_records,
-                field="date",
-                target_format=target_format,
-            )
-
-        # 步骤 4.5：调用 on_after_mapping 钩子，允许子类在字段映射后、schema 应用前进行自定义处理
-        # 例如：处理schema里定义过的但无法直接通过API得到的字段
-        mapped_records = self.on_after_mapping(context, mapped_records)
-
-        if not mapped_records:
-            # 钩子过滤后没有有效记录
-            return {"data": []}
-
-        # 步骤 5 & 6：使用 schema 约束字段集和类型（只保留 schema 定义的字段，并做类型转换/默认值填充）
-        normalized_records = DataSourceHandlerHelper.apply_schema(mapped_records, schema)
-
-        # 步骤 7：将最终记录包装为 {"data": [...]} 返回
-        return DataSourceHandlerHelper.build_normalized_payload(normalized_records)
+        schema = context.get("schema")
+        normalized_records = nh.apply_schema(mapped_records, schema)
+        return nh.build_normalized_payload(normalized_records)
 
     def normalize_data(self, context: Dict[str, Any], fetched_data: Any) -> Dict[str, Any]:
         """
@@ -912,8 +431,13 @@ class BaseHandler:
         config = self.context.get("config")
         data_source_key = self.context.get("data_source_key", "unknown")
         ignore_fields = config.get_ignore_fields() if config else []
-        DataSourceHandlerHelper.validate_normalized_data(
-            normalized_data, schema, data_source_key, ignore_fields=ignore_fields
+        from core.modules.data_source.service.normalization import normalization_helper as nh
+
+        nh.validate_normalized_data(
+            normalized_data,
+            schema,
+            data_source_key,
+            ignore_fields=ignore_fields,
         )
         return normalized_data
 
@@ -961,59 +485,9 @@ class BaseHandler:
         将标准化数据写入绑定表（使用表 schema 的 primaryKey 做 upsert）。
         仅框架内部调用；用户自定义写入请在 on_before_save 中实现。
         """
-        from loguru import logger
-        config = self.context.get("config")
-        data_manager = self.context.get("data_manager")
-        schema = self.context.get("schema")
-        if not config or not data_manager or not schema:
-            return
-        table_name = config.get_table_name()
-        if not table_name:
-            return
-        model = data_manager.get_table(table_name)
-        if not model or not hasattr(model, "upsert_many"):
-            logger.warning(f"表 {table_name} 未注册或无可用的 upsert_many，跳过系统写入")
-            return
-        records = (normalized_data or {}).get("data")
-        if not records or not isinstance(records, list):
-            logger.debug(f"系统写入 {table_name}: normalized_data 中没有数据或格式不正确，跳过写入")
-            return
-        original_count = len(records)
-        pk = schema.get("primaryKey")
-        if isinstance(pk, str):
-            unique_keys = [pk]
-        elif isinstance(pk, list):
-            unique_keys = list(pk)
-        else:
-            unique_keys = None
-        
-        # 去重：如果配置了 unique_keys，在同一个批次中去重（保留最后一个）
-        if unique_keys and len(unique_keys) > 0:
-            seen = {}
-            deduplicated_records = []
-            for record in records:
-                # 构建唯一键
-                key_tuple = tuple(record.get(key) for key in unique_keys)
-                if None not in key_tuple:  # 只处理所有 unique_keys 都有值的记录
-                    seen[key_tuple] = record
-            deduplicated_records = list(seen.values())
-            records = deduplicated_records
-        
-        if not unique_keys or len(unique_keys) == 0:
-            logger.warning(
-                f"表 {table_name} 的 schema 未配置 primaryKey，无法确定 upsert 唯一键，跳过系统写入"
-            )
-            return
-        
-        try:
-            affected = model.upsert_many(records, unique_keys)
-            logger.info(
-                f"系统写入 {table_name}: upsert {affected} 条记录"
-                f"（原始 {original_count} 条，去重后 {len(records)} 条，unique_keys={unique_keys}）"
-            )
-        except Exception as e:
-            logger.error(f"系统写入 {table_name} 失败: {e}")
-            raise
+        from core.modules.data_source.service.persistence.persistence_service import PersistenceService
+
+        PersistenceService.save(self.context, normalized_data)
 
     # ================================
     # Hooks
@@ -1284,9 +758,11 @@ class BaseHandler:
         - 有 job_execution 且 apis 含 params_mapping：build_grouped_fetched_data，按实体分组；
         - 否则：build_unified_fetched_data，按 api_name 聚合到 "_unified"。
         """
-        if DataSourceHandlerHelper.has_group_by_config(context, apis):
-            return DataSourceHandlerHelper.build_grouped_fetched_data(context, fetched_data, apis)
-        return DataSourceHandlerHelper.build_unified_fetched_data(context, fetched_data, apis)
+        from core.modules.data_source.service.executor import fetched_data_helper as fd
+
+        if fd.has_group_by_config(context, apis):
+            return fd.build_grouped_fetched_data(context, fetched_data, apis)
+        return fd.build_unified_fetched_data(context, fetched_data, apis)
 
     def on_after_mapping(self, context: Dict[str, Any], mapped_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -1376,9 +852,11 @@ class BaseHandler:
         """
         清理一批记录中的 NaN/None 等异常数值，返回清洗后的记录列表。
 
-        内部委托 DataSourceHandlerHelper 和 DBHelper 实现，子类无需关心具体细节。
+        内部委托 record_utils 和 DBHelper 实现，子类无需关心具体细节。
         """
-        return DataSourceHandlerHelper.clean_nan_in_records(records, default=default)
+        from core.modules.data_source.service.utils import record_utils
+
+        return record_utils.clean_nan_in_records(records, default=default)
 
     @staticmethod   
     def clean_nan_in_normalized_data(normalized_data: Dict[str, Any], default: Any = None) -> Dict[str, Any]:
@@ -1387,17 +865,9 @@ class BaseHandler:
         - 如果 normalized_data 是 {"data": [...]}，则对 data 列表做清洗；
         - 否则尝试直接将 normalized_data 视为单条记录列表的一部分。
         """
-        if not normalized_data:
-            return normalized_data
+        from core.modules.data_source.service.utils import record_utils
 
-        if isinstance(normalized_data, dict) and "data" in normalized_data:
-            data_list = normalized_data.get("data") or []
-            if isinstance(data_list, list):
-                normalized_data["data"] = BaseHandler.clean_nan_in_records(data_list, default=default)
-            return normalized_data
-
-        # fallback：如果不是 {"data": [...]} 结构，则保持原样返回
-        return normalized_data
+        return record_utils.clean_nan_in_normalized_data(normalized_data, default=default)
 
     @staticmethod
     def filter_records_by_required_fields(
@@ -1413,9 +883,9 @@ class BaseHandler:
         Returns:
             List[Dict[str, Any]]: 过滤后的记录列表
         """
-        if not records or not required_fields:
-            return records
-        return [r for r in records if all(r.get(f) for f in required_fields)]
+        from core.modules.data_source.service.utils import record_utils
+
+        return record_utils.filter_records_by_required_fields(records, required_fields)
 
     @staticmethod       
     def ensure_float_field(
@@ -1432,22 +902,6 @@ class BaseHandler:
         Returns:
             List[Dict[str, Any]]: 处理后的记录列表（原地修改）
         """
-        if not records or not field:
-            return records
+        from core.modules.data_source.service.utils import record_utils
 
-        from loguru import logger
-
-        for r in records:
-            if not isinstance(r, dict):
-                continue
-            value = r.get(field)
-            if value is None:
-                r[field] = default
-            else:
-                try:
-                    r[field] = float(value)
-                except (ValueError, TypeError):
-                    logger.warning(f"字段 {field} 无法转换为 float: {value}，使用默认值 {default}")
-                    r[field] = default
-
-        return records
+        return record_utils.ensure_float_field(records, field, default=default)

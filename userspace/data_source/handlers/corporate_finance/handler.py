@@ -10,7 +10,7 @@ from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
+from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.utils.date.date_utils import DateUtils
 
 
@@ -97,14 +97,14 @@ class CorporateFinanceHandler(BaseHandler):
         self, context: Dict[str, Any], result: Any, stock_id: str
     ) -> Dict[str, Any]:
         """字段映射 + end_date -> quarter 转换，按 quarter 去重保留 end_date 最大的。"""
-        records = DataSourceHandlerHelper.result_to_records(result)
+        records = nh.result_to_records(result)
         if not records:
             return {"data": []}
 
         records = self.clean_nan_in_records(records, default=None)
         api_cfg = context["config"].get_apis()["finance_data"]
         result_mapping = api_cfg.result_mapping
-        mapped_records = DataSourceHandlerHelper._apply_field_mapping(records, result_mapping)
+        mapped_records = nh.apply_field_mapping(records, result_mapping)
 
         quarter_records = {}
         for record in mapped_records:

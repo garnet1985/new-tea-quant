@@ -14,7 +14,7 @@ from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
+from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.utils.date.date_utils import DateUtils
 
 
@@ -481,9 +481,8 @@ class KlineHandler(BaseHandler):
         result_mapping = api_config.result_mapping
         
         # 转换为记录列表并应用字段映射
-        from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
         raw_records = kline_df.to_dict("records")
-        mapped_records = DataSourceHandlerHelper._apply_field_mapping(raw_records, result_mapping)
+        mapped_records = nh.apply_field_mapping(raw_records, result_mapping)
         
         # 添加必需字段（id 和 term）
         for record in mapped_records:

@@ -10,7 +10,7 @@ from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
+from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.utils.date.date_utils import DateUtils
 
 
@@ -103,10 +103,12 @@ class IndexWeightHandler(BaseHandler):
                 continue
             bucket = {}
             for index_id, raw in per_index_data.items():
-                records = DataSourceHandlerHelper.result_to_records(raw)
+                records = nh.result_to_records(raw)
                 if not records:
                     continue
-                records = DataSourceHandlerHelper.add_constant_fields(records, id=index_id)
+                for r in records:
+                    if isinstance(r, dict):
+                        r["id"] = index_id
                 bucket[str(index_id)] = records
             unified[api_name] = bucket
         return unified

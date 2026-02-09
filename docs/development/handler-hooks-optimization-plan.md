@@ -119,10 +119,11 @@ def on_after_normalize(self, context: Dict[str, Any], normalized_data: Dict[str,
 config = context.get("config", {})
 date_format = (config.get("date_format") or "day").lower()
 if date_format != "none":
-    mapped_records = DataSourceHandlerHelper.normalize_date_field(
-        mapped_records, 
+    from core.modules.data_source.service.normalization import normalization_helper as nh
+    mapped_records = nh.normalize_date_field(
+        mapped_records,
         field="date",
-        target_format=date_format  # 需要扩展 normalize_date_field 支持不同格式
+        target_format=date_format,  # 需要扩展 normalize_date_field 支持不同格式
     )
 
 # 步骤 4.5：调用 on_after_mapping 钩子
@@ -135,7 +136,7 @@ mapped_records = self.on_after_mapping(context, mapped_records)
 - `price_indexes` 需要月份格式，可能需要特殊处理
 
 **注意**：
-- 需要扩展 `DataSourceHandlerHelper.normalize_date_field` 支持 `target_format` 参数
+- 需要扩展 `normalization_helper.normalize_date_field` 支持 `target_format` 参数
 - 或者根据 `date_format` 自动判断目标格式
 
 ---

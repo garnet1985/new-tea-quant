@@ -567,12 +567,14 @@ def on_after_fetch(self, context, fetched_data, apis):
        """
        默认行为：在编排层先判断是否存在 group_by 配置：
        - 如果至少有一个 API 配置了 group_by，则调用
-         DataSourceHandlerHelper.build_grouped_fetched_data；
-       - 否则调用 DataSourceHandlerHelper.build_unified_fetched_data。
+         fetched_data_helper.build_grouped_fetched_data；
+       - 否则调用 fetched_data_helper.build_unified_fetched_data。
        """
-       if DataSourceHandlerHelper.has_group_by_config(context, apis):
-           return DataSourceHandlerHelper.build_grouped_fetched_data(context, fetched_data, apis)
-       return DataSourceHandlerHelper.build_unified_fetched_data(context, fetched_data, apis)
+       from core.modules.data_source.service.executor import fetched_data_helper as fd
+
+       if fd.has_group_by_config(context, apis):
+           return fd.build_grouped_fetched_data(context, fetched_data, apis)
+       return fd.build_unified_fetched_data(context, fetched_data, apis)
    ```
 
 2. **`_normalize_data` 默认行为**: 假定 `fetched_data` 已经是统一格式：
@@ -763,7 +765,7 @@ normalized_data = {
 2. **字段覆盖校验**:
    - 检查哪些 schema 字段在 field_mapping 中没有被覆盖（仅日志提醒）
 
-3. **提取并映射记录** (`DataSourceHandlerHelper.extract_mapped_records`):
+3. **提取并映射记录** (`normalization_helper.extract_mapped_records`):
    ```python
    # 遍历每个 api_name
    for api_name, api_cfg in apis_conf.items():
@@ -780,11 +782,11 @@ normalized_data = {
    - 输入: `mapped_records: List[Dict[str, Any]]`（已应用 field_mapping）
    - 输出: `List[Dict[str, Any]]`（处理后的记录列表）
 
-5. **应用 schema** (`DataSourceHandlerHelper.apply_schema`):
+5. **应用 schema** (`normalization_helper.apply_schema`):
    - 只保留 schema 定义的字段
    - 类型转换和默认值填充
 
-6. **包装返回** (`DataSourceHandlerHelper.build_normalized_payload`):
+6. **包装返回** (`normalization_helper.build_normalized_payload`):
    ```python
    return {"data": normalized_records}
    ```

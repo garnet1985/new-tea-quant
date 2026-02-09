@@ -315,13 +315,6 @@ class BundleExecutionService:
                                     for pr in batch:
                                         processed_results.add(pr.job_id)
                                     _batch_save_trigger_count[0] += 1
-                                    completed_now = worker.get_stats().get("completed_jobs", 0) + worker.get_stats().get(
-                                        "failed_jobs", 0
-                                    )
-                                    logger.info(
-                                        f"🔧 [批量保存] 第 {_batch_save_trigger_count[0]} 次触发："
-                                        f"本批 {len(batch)} 个，累计已处理 {len(processed_results)} 个，worker 已完成 {completed_now} 个"
-                                    )
 
                                     def _run_batch_save(b=batch, bim=bundle_id_to_item):
                                         saved = 0

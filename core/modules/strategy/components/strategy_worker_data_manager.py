@@ -15,11 +15,15 @@ Strategy Worker Data Manager - 策略数据管理器
 类比 TagWorkerDataManager
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta
 import logging
 
 from core.modules.indicator import IndicatorService
+
+if TYPE_CHECKING:
+    from core.modules.strategy.models.strategy_settings import StrategySettings
+    from core.modules.data_manager.data_manager import DataManager
 
 logger = logging.getLogger(__name__)
 
@@ -513,22 +517,43 @@ class StrategyWorkerDataManager:
             logger.error(f"加载实体数据失败: type={entity_config}, error={e}")
             return []
     
-    def _load_tag_data(self, tag_name: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
-        """加载 Tag 数据"""
+    def _load_tag_data(self, scenario_name: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        """
+        加载 Tag 数据（基于 TagDataService，按 scenario 维度）
+
+        约定：
+        - 策略配置中的 required_entities 对于 Tag 只暴露 scenario：
+            {
+                "type": EntityType.TAG_SCENARIO.value,
+                "name": "<scenario_name>"
+            }
+        - 因此此处的参数 scenario_name 实际上来自 entity_config["name"]
+        - 不支持在策略侧单独按某个标签名称加载，只能一次性加载该 scenario 下的所有标签值
+        """
         try:
-            tag_model = self.data_mgr.get_table("sys_tag_value")
-            if not tag_model:
+            if not scenario_name:
+                logger.warning("加载 Tag 数据时未提供 scenario_name，返回空结果")
                 return []
-            
-            data = tag_model.load(
-                condition="stock_id = %s AND scenario_name = %s AND date >= %s AND date <= %s",
-                params=(self.stock_id, tag_name, start_date, end_date),
-                order_by="date ASC"
+
+            # 通过 DataManager 的 stock.tags（TagDataService）加载
+            tag_service = getattr(self.data_mgr.stock, "tags", None)
+            if tag_service is None:
+                logger.error("DataManager 未初始化 TagDataService: data_mgr.stock.tags 不存在")
+                return []
+
+            data = tag_service.load_values_for_entity(
+                entity_id=self.stock_id,
+                scenario_name=scenario_name,
+                start_date=start_date,
+                end_date=end_date,
             )
-            return data if data else []
-        
+            return data or []
         except Exception as e:
-            logger.error(f"加载Tag数据失败: tag={tag_name}, error={e}")
+            logger.error(
+                f"加载 Tag 数据失败: stock_id={self.stock_id}, "
+                f"scenario={scenario_name}, "
+                f"date_range={start_date}-{end_date}, error={e}"
+            )
             return []
     
     def _load_finance_data(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:

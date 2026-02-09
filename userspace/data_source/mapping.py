@@ -38,7 +38,7 @@ DATA_SOURCES = {
     },
     "index_weight": {
         "handler": "index_weight.IndexWeightHandler",
-        "is_enabled": True,
+        "is_enabled": False,
         "depends_on": ["latest_trading_date"],
     },
     "gdp": {

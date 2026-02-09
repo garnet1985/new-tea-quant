@@ -69,10 +69,10 @@ pytest core/infra/project_context/__test__/test_path_manager.py::TestPathManager
 
 ### ConfigManager 测试
 - ✅ `load_json()` - 加载 JSON 配置文件
-- ✅ `get_data_config()` - 获取数据配置
+- ✅ `load_data_config()` - 获取数据配置
 - ✅ `get_default_start_date()` - 获取默认开始日期
 - ✅ `get_decimal_places()` - 获取小数位数
-- ✅ `get_database_config()` - 获取数据库配置
+- ✅ `load_database_config()` - 获取数据库配置
 - ✅ `get_database_type()` - 获取数据库类型
 - ✅ `load_with_defaults()` - 加载配置（默认+用户）
 

@@ -4,12 +4,14 @@
 职责：
 - 提供股票列表相关的查询和操作
 - 支持全量股票列表、过滤股票列表等功能
-- 支持按类型、行业等条件筛选股票
+- 支持按行业、板块等条件筛选股票（通过 sys_stock_industry_map / sys_stock_board_map）
 
 涉及的表：
-- stock_list: 股票列表
+- sys_stock_list: 股票列表（仅 id、name、is_active、last_update）
+- sys_industries / sys_boards: 行业、板块定义
+- sys_stock_industry_map / sys_stock_board_map: 股票-行业、股票-板块映射
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from loguru import logger
 
 from ... import BaseDataService
@@ -17,18 +19,55 @@ from ... import BaseDataService
 
 class ListService(BaseDataService):
     """股票列表服务"""
-    
+
     def __init__(self, data_manager: Any):
         """
         初始化股票列表服务
-        
+
         Args:
             data_manager: DataManager 实例
         """
         super().__init__(data_manager)
-        
-        # 获取相关 Model（股票基础数据）- 私有属性，不对外暴露
-        self._stock_list = data_manager.get_table('stock_list')
+
+        self._stock_list = data_manager.get_table("sys_stock_list")
+        self._industries = data_manager.get_table("sys_industries")
+        self._boards = data_manager.get_table("sys_boards")
+        self._markets = data_manager.get_table("sys_markets")
+        self._industry_map = data_manager.get_table("sys_stock_industry_map")
+        self._board_map = data_manager.get_table("sys_stock_board_map")
+        self._market_map = data_manager.get_table("sys_stock_market_map")
+
+    # ==================== 维度/映射表 Model（供 Handler 等使用，避免直接 get_table） ====================
+
+    @property
+    def industries_model(self):
+        """sys_industries 表 Model"""
+        return self._industries
+
+    @property
+    def boards_model(self):
+        """sys_boards 表 Model"""
+        return self._boards
+
+    @property
+    def markets_model(self):
+        """sys_markets 表 Model"""
+        return self._markets
+
+    @property
+    def industry_map_model(self):
+        """sys_stock_industry_map 表 Model"""
+        return self._industry_map
+
+    @property
+    def board_map_model(self):
+        """sys_stock_board_map 表 Model"""
+        return self._board_map
+
+    @property
+    def market_map_model(self):
+        """sys_stock_market_map 表 Model"""
+        return self._market_map
     
     # ==================== 股票列表查询 ====================
     
@@ -105,83 +144,79 @@ class ListService(BaseDataService):
         # 排序
         return self._sort_stocks(filtered_stocks, order_by)
     
-    def load_by_type(
+    def load_by_board(
         self,
-        stock_type: str,
+        board: Union[str, int],
         filtered: bool = True,
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按类型加载股票列表（使用 SQL WHERE 优化）
-        
+        按板块加载股票列表（通过 sys_stock_board_map；支持板块名称或 id）
+
         Args:
-            stock_type: 股票类型（如 'main', 'gem', 'star' 等，具体类型取决于数据库字段）
-            filtered: 是否使用过滤规则（默认True）
+            board: 板块名称（如「创业板」「科创板」）或 sys_boards.id
+            filtered: 是否使用过滤规则（默认 True）
             order_by: 排序字段（默认 'id'）
-            
+
         Returns:
-            List[Dict]: 指定类型的股票列表
+            指定板块的股票列表；若 board 为名称且未找到则返回 []
         """
-        # 构建 SQL WHERE 条件
-        conditions = ["type = %s"]
-        params = [stock_type]
-        
-        # 如果 filtered=True，添加默认过滤条件
+        board_id = self._resolve_board_id(board)
+        if board_id is None or not self._board_map:
+            return []
+        map_rows = self._board_map.load("board_id = %s", (board_id,))
+        stock_ids = [r["stock_id"] for r in map_rows if r.get("stock_id")]
+        if not stock_ids:
+            return []
+        placeholders = ",".join(["%s"] * len(stock_ids))
+        conditions = [f"id IN ({placeholders})"]
+        params: List[Any] = list(stock_ids)
         if filtered:
-            # 排除科创板（id 以 688 开头）
-            conditions.append("id NOT LIKE %s")
-            params.append("688%")
-            # 排除 ST 股票（name 以 *ST、ST、退 开头）
-            conditions.append("name NOT LIKE %s")
-            params.append("*ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("退%")
-        
+            conditions.extend([
+                "id NOT LIKE %s",
+                "name NOT LIKE %s", "name NOT LIKE %s", "name NOT LIKE %s",
+            ])
+            params.extend(["688%", "*ST%", "ST%", "退%"])
         where_clause = " AND ".join(conditions)
-        
-        # 使用 SQL 查询而不是先加载所有再过滤
-        return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
-    
+        stocks = self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
+        return self._sort_stocks(stocks, order_by)
+
     def load_by_industry(
         self,
-        industry: str,
+        industry: Union[str, int],
         filtered: bool = True,
         order_by: str = 'id'
     ) -> List[Dict[str, Any]]:
         """
-        按行业加载股票列表（使用 SQL WHERE 优化）
-        
+        按行业加载股票列表（通过 sys_stock_industry_map；支持行业名称或 id）
+
         Args:
-            industry: 行业名称
-            filtered: 是否使用过滤规则（默认True）
+            industry: 行业名称或 sys_industries.id
+            filtered: 是否使用过滤规则（默认 True）
             order_by: 排序字段（默认 'id'）
-            
+
         Returns:
-            List[Dict]: 指定行业的股票列表
+            指定行业的股票列表；若 industry 为名称且未找到则返回 []
         """
-        # 构建 SQL WHERE 条件
-        conditions = ["industry = %s"]
-        params = [industry]
-        
-        # 如果 filtered=True，添加默认过滤条件
+        industry_id = self._resolve_industry_id(industry)
+        if industry_id is None or not self._industry_map:
+            return []
+        map_rows = self._industry_map.load("industry_id = %s", (industry_id,))
+        stock_ids = [r["stock_id"] for r in map_rows if r.get("stock_id")]
+        if not stock_ids:
+            return []
+        placeholders = ",".join(["%s"] * len(stock_ids))
+        conditions = [f"id IN ({placeholders})"]
+        params: List[Any] = list(stock_ids)
         if filtered:
-            # 排除科创板（id 以 688 开头）
-            conditions.append("id NOT LIKE %s")
-            params.append("688%")
-            # 排除 ST 股票（name 以 *ST、ST、退 开头）
-            conditions.append("name NOT LIKE %s")
-            params.append("*ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("ST%")
-            conditions.append("name NOT LIKE %s")
-            params.append("退%")
-        
+            conditions.extend([
+                "id NOT LIKE %s",
+                "name NOT LIKE %s", "name NOT LIKE %s", "name NOT LIKE %s",
+            ])
+            params.extend(["688%", "*ST%", "ST%", "退%"])
         where_clause = " AND ".join(conditions)
-        
-        # 使用 SQL 查询而不是先加载所有再过滤
-        return self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
+        stocks = self._stock_list.load(where_clause, tuple(params), order_by=f"{order_by} ASC")
+        return self._sort_stocks(stocks, order_by)
     
     def save(self, stocks: List[Dict[str, Any]]) -> int:
         """
@@ -195,8 +230,137 @@ class ListService(BaseDataService):
         """
         return self._stock_list.save_stocks(stocks)
     
-    # ==================== 私有方法 ====================
+    # ==================== 维度状态同步（active） ====================
+
+    def ensure_and_sync_industries(self, values: List[str]) -> Dict[str, int]:
+        """批量确保 sys_industries，按本批次 values 同步 is_active，返回 {value: id}。"""
+        return self._ensure_and_sync_dimension_batch(self._industries, values) if self._industries else {}
+
+    def ensure_and_sync_boards(self, values: List[str]) -> Dict[str, int]:
+        """批量确保 sys_boards，按本批次 values 同步 is_active，返回 {value: id}。"""
+        return self._ensure_and_sync_dimension_batch(self._boards, values) if self._boards else {}
+
+    def ensure_and_sync_markets(self, values: List[str]) -> Dict[str, int]:
+        """批量确保 sys_markets，按本批次 values 同步 is_active，返回 {value: id}。"""
+        return self._ensure_and_sync_market_batch(self._markets, values) if self._markets else {}
     
+    # ==================== 私有方法 ====================
+
+    def _resolve_industry_id(self, industry: Union[str, int]) -> Optional[int]:
+        """行业名称或 id -> sys_industries.id；未找到返回 None。"""
+        if isinstance(industry, int):
+            return industry
+        row = self._industries.load_one("value = %s", (industry,)) if self._industries else None
+        return int(row["id"]) if row and row.get("id") is not None else None
+
+    def _resolve_board_id(self, board: Union[str, int]) -> Optional[int]:
+        """板块名称或 id -> sys_boards.id；未找到返回 None。"""
+        if isinstance(board, int):
+            return board
+        row = self._boards.load_one("value = %s", (board,)) if self._boards else None
+        return int(row["id"]) if row and row.get("id") is not None else None
+
+    def _ensure_and_sync_dimension_batch(
+        self,
+        model,
+        current_values: List[str],
+        value_col: str = "value",
+    ) -> Dict[str, int]:
+        """
+        通用维度表 batch ensure + is_active 同步。
+
+        IO：1 次 load(已有) + 0~1 次 insert_many(新值) + 0~1 次 load(新值 id) + 2 次 update(is_active)
+        """
+        if not model or not current_values:
+            if model:
+                self._sync_dimension_active(model, [], value_col)
+            return {}
+
+        vals = tuple(current_values)
+        existing = model.load(f'"{value_col}" IN %s', (vals,))
+        val_to_id: Dict[str, int] = {
+            row[value_col]: int(row["id"])
+            for row in existing
+            if row.get(value_col) and row.get("id") is not None
+        }
+        in_db = set(val_to_id.keys())
+        new_values = [v for v in current_values if v not in in_db]
+
+        if new_values:
+            rows = [{"value": v, "is_active": 1} for v in new_values]
+            model.insert_many(rows)
+            new_rows = model.load(f'"{value_col}" IN %s', (tuple(new_values),))
+            for row in new_rows:
+                if row.get(value_col) and row.get("id") is not None:
+                    val_to_id[row[value_col]] = int(row["id"])
+
+        self._sync_dimension_active(model, current_values, value_col)
+        return {v: val_to_id[v] for v in current_values if v in val_to_id}
+
+    def _ensure_and_sync_market_batch(
+        self,
+        model,
+        current_values: List[str],
+    ) -> Dict[str, int]:
+        """
+        markets 专用 batch ensure + is_active 同步（含 code 字段处理）。
+        """
+        if not model or not current_values:
+            if model:
+                self._sync_dimension_active(model, [], "value")
+            return {}
+
+        vals = tuple(current_values)
+        existing = model.load('"value" IN %s', (vals,))
+        val_to_id: Dict[str, int] = {
+            row["value"]: int(row["id"])
+            for row in existing
+            if row.get("value") and row.get("id") is not None
+        }
+        in_db = set(val_to_id.keys())
+        new_values = [v for v in current_values if v not in in_db]
+
+        if new_values:
+            rows = []
+            for v in new_values:
+                payload: Dict[str, Any] = {"value": v, "is_active": 1}
+                if v in ("SSE", "SZSE", "BSE"):
+                    payload["code"] = v
+                rows.append(payload)
+            model.insert_many(rows)
+            new_rows = model.load('"value" IN %s', (tuple(new_values),))
+            for row in new_rows:
+                if row.get("value") and row.get("id") is not None:
+                    val_to_id[row["value"]] = int(row["id"])
+
+        self._sync_dimension_active(model, current_values, "value")
+        return {v: val_to_id[v] for v in current_values if v in val_to_id}
+
+    def _sync_dimension_active(self, model, current_values: List[str], value_col: str = "value") -> None:
+        """按当前批次同步 is_active：在 current_values 中的置 1，不在的置 0。使用 upsert 实现。"""
+        try:
+            unique_keys = model.get_primary_keys()
+        except ValueError:
+            return
+        if current_values:
+            vals = tuple(current_values)
+            rows_deactivate = model.load(f'"{value_col}" NOT IN %s', (vals,))
+            if rows_deactivate:
+                for r in rows_deactivate:
+                    r["is_active"] = 0
+                model.upsert(rows_deactivate, unique_keys)
+            rows_activate = model.load(f'"{value_col}" IN %s', (vals,))
+            if rows_activate:
+                for r in rows_activate:
+                    r["is_active"] = 1
+                model.upsert(rows_activate, unique_keys)
+        else:
+            rows_all = model.load("1=1")
+            if rows_all:
+                for r in rows_all:
+                    r["is_active"] = 0
+                model.upsert(rows_all, unique_keys)
+
     def _merge_exclude_patterns(
         self,
         default_exclude: Dict[str, Dict[str, List[str]]],

@@ -39,14 +39,14 @@ class DatabaseManager:
         初始化数据库管理器
         
         Args:
-            config: 数据库配置（默认使用 ConfigManager.get_database_config()）
+            config: 数据库配置（默认使用 ConfigManager.load_database_config()）
                 - 如果为 None，从 ConfigManager 加载配置
                 - 配置必须包含 database_type 和对应的数据库配置
             is_verbose: 是否输出详细日志
         """
         # 加载配置
         if config is None:
-            config = ConfigManager.get_database_config()
+            config = ConfigManager.load_database_config()
         
         # 解析和验证配置
         self.config = DBHelper.parse_database_config(config)
@@ -109,7 +109,6 @@ class DatabaseManager:
                 with cls._init_lock:
                     # 双重检查，避免重复初始化
                     if cls._default_instance is None:
-                        logger.info("🔄 检测到 DatabaseManager 未初始化，自动创建实例")
                         instance = cls(is_verbose=False)
                         instance.initialize()
                         cls._default_instance = instance
@@ -200,12 +199,14 @@ class DatabaseManager:
     @contextmanager
     def transaction(self):
         """事务上下文管理器（委托给 ConnectionManager）"""
-        return self.connection_manager.transaction()
+        with self.connection_manager.transaction() as cursor:
+            yield cursor
     
     @contextmanager
     def get_sync_cursor(self):
         """获取数据库游标（委托给 ConnectionManager）"""
-        return self.connection_manager.get_sync_cursor()
+        with self.connection_manager.get_sync_cursor() as cursor:
+            yield cursor
     
     def execute_sync_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
         """执行同步查询（委托给 ConnectionManager）"""

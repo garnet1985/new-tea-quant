@@ -19,7 +19,7 @@ import threading
 import json
 
 from core.utils.date.date_utils import DateUtils
-from core.modules.data_source.provider_instance_pool import get_provider_pool
+from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from .. import BaseDataService
 
 
@@ -49,6 +49,7 @@ class CalendarService(BaseDataService):
         super().__init__(data_manager)
     
     def get_latest_completed_trading_date(self) -> str:
+        # TODO: need to be refactored, now data is handled by data_source
         """
         获取最新已完成交易日（不是今天，即使今天已经收盘）
         
@@ -63,7 +64,7 @@ class CalendarService(BaseDataService):
         Returns:
             最新已完成交易日（YYYYMMDD，不是今天）
         """
-        today = DateUtils.get_current_date_str()
+        today = DateUtils.today()
         
         # 1. 检查内存缓存（如果今天已请求过，直接返回）
         cached_date = self._get_cache_from_memory()
@@ -101,7 +102,7 @@ class CalendarService(BaseDataService):
         Returns:
             缓存的交易日，如果今天未请求过或不存在返回 None
         """
-        today = DateUtils.get_current_date_str()
+        today = DateUtils.today()
         with self._memory_cache["lock"]:
             last_request_date = self._memory_cache["last_request_date"]
             last_trading_date = self._memory_cache["last_trading_date"]
@@ -119,28 +120,37 @@ class CalendarService(BaseDataService):
             Tuple[交易日（YYYYMMDD）, 更新时间（YYYYMMDD）]，如果缓存不存在或过期返回 None
         """
         try:
-            cache_model = self.data_manager.get_table('system_cache')
-            cache_data = cache_model.load_by_key('latest_completed_trading_date')
-            
-            if not cache_data or not cache_data.get('value'):
+            cache_model = self.data_manager.get_table("sys_cache")
+            cache_data = cache_model.load_by_key("latest_completed_trading_date")
+
+            if not cache_data:
                 return None
-            
-            # 解析缓存值（JSON格式）
+
+            # 优先从 json 字段读取，其次退回 text
+            raw_value = cache_data.get("json") or cache_data.get("text")
+            if not raw_value:
+                return None
+
+            # 解析缓存值（JSON 格式）
             try:
-                cache_info = json.loads(cache_data['value'])
-                cached_date = cache_info.get('date')
-                updated_at = cache_info.get('updated_at')
-                
+                if isinstance(raw_value, str):
+                    cache_info = json.loads(raw_value)
+                else:
+                    cache_info = raw_value
+
+                cached_date = cache_info.get("date")
+                updated_at = cache_info.get("updated_at")
+
                 if not cached_date or not updated_at:
                     return None
-                
+
                 # 返回日期和更新时间
                 return (cached_date, updated_at)
-                
+
             except (json.JSONDecodeError, KeyError) as e:
                 logger.warning(f"解析数据库缓存失败: {e}")
                 return None
-                
+
         except Exception as e:
             logger.warning(f"读取数据库缓存失败: {e}")
             return None
@@ -154,7 +164,7 @@ class CalendarService(BaseDataService):
         """
         with self._memory_cache["lock"]:
             self._memory_cache["last_trading_date"] = date
-            self._memory_cache["last_request_date"] = DateUtils.get_current_date_str()
+            self._memory_cache["last_request_date"] = DateUtils.today()
 
     def _save_to_db_cache(self, date: str, updated_at: str, provider: str):
         """
@@ -166,14 +176,15 @@ class CalendarService(BaseDataService):
             provider: 数据来源（如 'eastmoney', 'sina', 'guess'）
         """
         try:
-            cache_model = self.data_manager.get_table('system_cache')
-            cache_value = json.dumps({
-                "date": date,
-                "updated_at": updated_at,
-                "provider": provider
-            })
-            cache_model.save_cache('latest_completed_trading_date', cache_value)
-            
+            cache_model = self.data_manager.get_table("sys_cache")
+            cache_model.save_by_key(
+                "latest_completed_trading_date",
+                json={
+                    "date": date,
+                    "updated_at": updated_at,
+                    "provider": provider,
+                },
+            )
         except Exception as e:
             logger.warning(f"保存数据库缓存失败: {e}")
 
@@ -187,7 +198,7 @@ class CalendarService(BaseDataService):
         Returns:
             True 表示缓存已过期（不是今天更新的），False 表示缓存有效
         """
-        return updated_at != DateUtils.get_current_date_str()
+        return updated_at != DateUtils.today()
 
     def refresh(self) -> str:
         """
@@ -196,7 +207,7 @@ class CalendarService(BaseDataService):
         Returns:
             最新交易日（YYYYMMDD）
         """
-        today = DateUtils.get_current_date_str()
+        today = DateUtils.today()
         
         logger.info("🔄 强制刷新最新交易日（忽略缓存）...")
         new_trading_date, provider = self._fetch_with_fallback()
@@ -267,7 +278,7 @@ class CalendarService(BaseDataService):
         Returns:
             最新交易日（YYYYMMDD），如果失败或日期是今天返回 None
         """
-        today = DateUtils.get_current_date_str()
+        today = DateUtils.today()
         try:
             latest_date = fetch_func()
             if latest_date and latest_date != today:
@@ -287,8 +298,7 @@ class CalendarService(BaseDataService):
             最新已完成交易日（YYYYMMDD），如果失败返回 None
         """
         try:
-            pool = get_provider_pool()
-            provider = pool.get_provider("eastmoney")
+            provider = DataSourceProviderHelper.get_provider("eastmoney")
             if not provider:
                 raise ValueError("EastMoney Provider 未找到")
             
@@ -319,8 +329,7 @@ class CalendarService(BaseDataService):
             最新已完成交易日（YYYYMMDD），如果失败返回 None
         """
         try:
-            pool = get_provider_pool()
-            provider = pool.get_provider("sina")
+            provider = DataSourceProviderHelper.get_provider("sina")
             if not provider:
                 raise ValueError("Sina Provider 未找到")
             
@@ -361,7 +370,7 @@ class CalendarService(BaseDataService):
         """
         # 取最后2根
         last_two = klines[-2:] if len(klines) >= 2 else [klines[-1]]
-        today = DateUtils.get_current_date_str()
+        today = DateUtils.today()
         
         # 解析最后一根K线的日期
         last_kline = last_two[-1]
@@ -372,7 +381,7 @@ class CalendarService(BaseDataService):
             # 新浪财经格式：数组 ["日期", ...]
             last_date_str = last_kline[0]
         
-        last_date = DateUtils.yyyy_mm_dd_to_yyyymmdd(last_date_str)
+        last_date = DateUtils.normalize_str(last_date_str)
         
         # 如果最后一根是今天，使用倒数第二根
         if last_date == today and len(last_two) >= 2:
@@ -381,7 +390,7 @@ class CalendarService(BaseDataService):
                 second_last_date_str = second_last_kline.split(',')[0]
             else:
                 second_last_date_str = second_last_kline[0]
-            return DateUtils.yyyy_mm_dd_to_yyyymmdd(second_last_date_str)
+            return DateUtils.normalize_str(second_last_date_str)
         
         # 否则使用最后一根
         return last_date

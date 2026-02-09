@@ -134,7 +134,7 @@ class StockKlineModel(DbBaseModel):
 **核心方法**：
 
 - **查询**：`load()`, `load_one()`, `load_all()`, `load_many()`, `load_paginated()`
-- **写入**：`insert()`, `replace()`, `batch_insert()`, `batch_replace()`
+- **写入**：`insert()`, `upsert()`, `batch_insert()`, `upsert_many()`
 - **删除**：`delete()`
 - **表管理**：`create_table()`, `drop_table()`, `clear_table()`, `describe()`
 
@@ -284,7 +284,11 @@ with db.transaction() as cursor:
 
 ## 🔧 配置
 
+<<<<<<< HEAD
 数据库配置通过 `ConfigManager.get_database_config()` 加载，支持：
+=======
+数据库配置通过 `ConfigManager.load_database_config()` 加载，支持：
+>>>>>>> write-doc
 - 默认配置：`core/default_config/database/{database_type}.json`
 - 用户配置：`userspace/config/database/{database_type}.json`
 - 环境变量覆盖（最高优先级）

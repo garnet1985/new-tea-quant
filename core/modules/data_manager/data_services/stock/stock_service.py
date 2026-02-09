@@ -7,7 +7,7 @@
 3. 作为子服务的入口，提供子服务属性访问
 
 涉及的表：
-- stock_list: 股票列表
+- sys_stock_list、sys_industries、sys_stock_industry_map、sys_stock_klines 等（由 DataManager 发现）
 
 子服务：
 - list: 股票列表服务（data_mgr.stock.list.load()）
@@ -52,8 +52,8 @@ class StockService(BaseDataService):
         self.tags = TagDataService(data_manager)
         self.corporate_finance = CorporateFinanceService(data_manager)
         
-        # 获取相关 Model（股票基础数据）- 私有属性，不对外暴露
-        self._stock_list = data_manager.get_table('stock_list')
+        # 获取相关 Model（表名由 DataManager 发现并注册）
+        self._stock_list = data_manager.get_table("sys_stock_list")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
@@ -79,7 +79,7 @@ class StockService(BaseDataService):
         """
         获取股票基本信息和最新价格（使用 JOIN 优化）
         
-        跨表业务方法，组合stock_list和stock_kline的数据
+        跨表：sys_stock_list + sys_stock_industry_map + sys_industries + sys_stock_klines
         
         Args:
             stock_id: 股票ID
@@ -106,21 +106,25 @@ class StockService(BaseDataService):
                 ...
             }
         """
-        # 使用 JOIN 一次查询出股票信息和最新K线数据
+        # 使用 JOIN 一次查询出股票信息、行业（经映射表）、最新K线
         sql = """
-        SELECT 
-            s.*,
-            k.date as kline_date,
+        SELECT
+            s.id, s.name, s.is_active, s.last_update,
+            map.industry_id,
+            ind.value AS industry,
+            k.date AS kline_date,
             k.open, k.high, k.low, k.close, k.volume, k.amount,
             k.total_market_value, k.pe, k.pb, k.total_share, k.float_share,
             k.turnover_rate, k.highest, k.lowest
-        FROM stock_list s
-        LEFT JOIN stock_kline k ON (
-            s.id = k.id 
+        FROM sys_stock_list s
+        LEFT JOIN sys_stock_industry_map map ON s.id = map.stock_id
+        LEFT JOIN sys_industries ind ON map.industry_id = ind.id
+        LEFT JOIN sys_stock_klines k ON (
+            s.id = k.id
             AND k.term = 'daily'
             AND k.date = (
                 SELECT MAX(k2.date)
-                FROM stock_kline k2
+                FROM sys_stock_klines k2
                 WHERE k2.id = s.id AND k2.term = 'daily'
             )
         )
@@ -137,9 +141,9 @@ class StockService(BaseDataService):
             result = {
                 'id': row.get('id'),
                 'name': row.get('name'),
+                'industry_id': row.get('industry_id'),
                 'industry': row.get('industry'),
             }
-            
             # 如果有K线数据，添加价格相关字段
             if row.get('kline_date'):
                 result.update({
@@ -171,9 +175,10 @@ class StockService(BaseDataService):
             result = {
                 'id': stock_info.get('id'),
                 'name': stock_info.get('name'),
-                'industry': stock_info.get('industry'),
+                'industry_id': None,
+                'industry': None,
             }
-            
+            # 回退路径下 industry 需经 list 层按映射表查，此处暂不补
             latest_kline = self.kline.load_latest(stock_id)
             if latest_kline:
                 result.update({

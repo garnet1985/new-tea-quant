@@ -21,7 +21,7 @@ class TestDatabaseManager:
     
     def test_init_without_config(self):
         """测试使用默认配置初始化"""
-        with patch('core.infra.db.db_manager.ConfigManager.get_database_config') as mock_config:
+        with patch('core.infra.db.db_manager.ConfigManager.load_database_config') as mock_config:
             mock_config.return_value = {
                 'database_type': 'sqlite',
                 'sqlite': {'db_path': ':memory:'}

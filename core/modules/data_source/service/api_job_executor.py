@@ -269,7 +269,9 @@ class ApiJobExecutor:
             raise ValueError(f"Provider '{api_job.provider_name}' 未找到")
 
         # 应用限流：使用聚合后的限流值，必须串行 acquire 确保限流生效
+        # 对于限流 key，优先使用 provider 方法名，以便区分不同底层 API
         api_name = api_job.api_name or api_job.method
+        limiter_api_key = api_job.method or api_name
         job_id = api_job.job_id or api_name
         job_limit = api_limits.get(job_id) or api_limits.get(api_name) or 60
         provider = self.providers.get(api_job.provider_name)
@@ -279,7 +281,7 @@ class ApiJobExecutor:
 
         limiter = get_rate_limiter(
             provider_name=api_job.provider_name,
-            api_name=api_name,
+            api_name=limiter_api_key,
             max_per_minute=job_limit,
             wait_buffer_seconds=self.wait_buffer_seconds,
             provider_rate_limit=provider_rate_limit,

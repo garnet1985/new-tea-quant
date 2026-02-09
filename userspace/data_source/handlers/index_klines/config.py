@@ -9,7 +9,7 @@ from core.utils.date import DateUtils
 CONFIG = {
     "table": "sys_index_klines",
     "save_mode": "batch",
-    "save_batch_size": 20,
+    "save_batch_size": 100,
     "ignore_fields": ["id", "term"],  # 由 handler 注入
     "renew": {
         "type": "incremental",

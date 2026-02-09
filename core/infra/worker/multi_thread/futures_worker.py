@@ -148,52 +148,14 @@ class MultiThreadWorker:
         self._setup_signal_handlers()
     
     def _setup_signal_handlers(self):
-        """设置信号处理器"""
-        def signal_handler(signum, frame):
-            logger.warning(f"🚨 EMERGENCY: Received signal {signum}, forcing immediate shutdown...")
-            self._emergency_shutdown()
-        
-        try:
-            signal.signal(signal.SIGINT, signal_handler)
-            signal.signal(signal.SIGTERM, signal_handler)
-        except (ValueError, OSError) as e:
-            if self.is_verbose:
-                logger.warning(f"Could not set signal handlers: {e}")
-    
+        """保留接口但不覆盖 SIGINT/SIGTERM，由应用层决定如何处理中断。"""
+        return
+
     def _emergency_shutdown(self):
-        """紧急关闭"""
+        """兼容旧接口，目前交由应用层通过 KeyboardInterrupt 直接终止进程。"""
         self.should_stop = True
         self.is_running = False
-        self._interrupted_by_signal = True  # 供 base_handler 判断：收到 SIGINT 时跳过 executor.wait，快速退出
-
-        # 取消所有活动任务
-        cancelled_count = 0
-        for future in self.active_futures:
-            if not future.done():
-                future.cancel()
-                cancelled_count += 1
-        
-        if self.is_verbose:
-            logger.warning(f"Cancelled {cancelled_count} active tasks")
-        
-        # 强制关闭线程池
-        if self.executor:
-            try:
-                self.executor.shutdown(wait=False)
-                if self.is_verbose:
-                    logger.warning("ThreadPoolExecutor force shutdown completed")
-            except Exception as e:
-                logger.error(f"Error in force shutdown: {e}")
-            finally:
-                self.executor = None
-        
-        # 清空队列
-        self.clear_queue()
-        self.clear_results()
-        
-        logger.warning("🚨 EMERGENCY: 已设置 should_stop，主线程将执行 finally 完成 pending save 后退出")
-        # 不调用 os._exit(0)，让主线程正常返回 finally，执行 batch_save_executor.shutdown(wait=True) 等，
-        # 确保已提交的 save 任务完成落库后再退出
+        self._interrupted_by_signal = True
     
     def _cleanup(self):
         """清理资源"""

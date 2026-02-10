@@ -20,7 +20,6 @@ from datetime import datetime, timedelta
 import logging
 
 from core.modules.indicator import IndicatorService
-from core.data_class.time_series import TimeSeriesData
 
 if TYPE_CHECKING:
     from core.modules.strategy.models.strategy_settings import StrategySettings
@@ -61,13 +60,7 @@ class StrategyWorkerDataManager:
             # 其他数据类型...
         }
 
-        # 时序数据块（Simulator 使用，列式 + 游标）
-        # key: entity_type ('klines', 'corporate_finance', ...)
-        # val: TimeSeriesData
-        self._ts_data: Dict[str, TimeSeriesData] = {}
-
-        # 游标累积状态（历史：用于 List[Dict] 累积）
-        # 说明：在纯列式方案中不再使用，仅保留结构避免过多侵入性改动
+        # 游标累积状态（用于 List[Dict] 累积）
         self._cursor_state: Dict[str, Dict[str, Any]] = {}
     
     # =========================================================================
@@ -137,7 +130,6 @@ class StrategyWorkerDataManager:
         注意：这里加载全量数据，后续通过游标逐日过滤，避免每次切片复制。
         """
         # 0. 清空旧的数据结构
-        self._ts_data.clear()
         self._cursor_state.clear()
         self._current_data["klines"] = []
         
@@ -158,16 +150,7 @@ class StrategyWorkerDataManager:
         # 1.2 初始化游标累积状态（为 Enumerator 提供“截至今日”的 List[Dict] 视图）
         self._cursor_state["klines"] = {"cursor": -1, "acc": []}
 
-        # 1.3 构建 K 线的时序数据块（列式，可选，供后续模块使用）
-        ts_klines = TimeSeriesData(
-            name="klines",
-            date_field="date",
-            term=term,
-        )
-        ts_klines.attach_rows(klines)
-        self._ts_data["klines"] = ts_klines
-        
-        # 2. 加载其他依赖数据（全量，行式 -> 游标视图 + 可选列式）
+        # 2. 加载其他依赖数据（全量，行式 -> 游标视图）
         for entity_config in self.settings.required_entities:
             entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
             data = self._load_entity(entity_config, start_date, end_date)
@@ -175,16 +158,6 @@ class StrategyWorkerDataManager:
             # 2.1 为 Enumerator 保留行式数据 + 游标状态
             self._current_data[entity_type] = data
             self._cursor_state[entity_type] = {"cursor": -1, "acc": []}
-
-            # 2.2 可选：为依赖数据构建时序数据块（列式）
-            # 财务数据使用 quarter 字段，其余默认使用 date 字段
-            date_field = "quarter" if "finance" in str(entity_type).lower() else "date"
-            ts_entity = TimeSeriesData(
-                name=str(entity_type),
-                date_field=date_field,
-            )
-            ts_entity.attach_rows(data)
-            self._ts_data[str(entity_type)] = ts_entity
     
     # =========================================================================
     # 数据访问接口

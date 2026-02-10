@@ -69,13 +69,26 @@ class ResultPresenter:
         print(f"{IconService.get('error')} 失败次数: {session_summary.get('total_loss_investments', 0)}")
         print(f"{IconService.get('ongoing')} 未完成次数: {session_summary.get('total_open_investments', 0)}")
         
-        # 总盈利
+        # 盈利统计：人均视角
         total_profit = session_summary.get("total_profit", 0.0)
+        avg_profit_per_inv = session_summary.get("avg_profit_per_investment", 0.0)
+        avg_profit_per_stock = session_summary.get("avg_profit_per_stock", 0.0)
+        avg_investments_per_stock = session_summary.get("avg_investments_per_stock", 0.0)
         if total_profit >= 0:
             profit_icon = IconService.get("green_dot")
         else:
             profit_icon = IconService.get("red_dot")
-        print(f"{profit_icon} 总盈利: {total_profit:.2f}")
+        print(
+            f"{IconService.get('bar_chart')} 每笔平均盈利: {avg_profit_per_inv:.2f} "
+            f"(单位：1股机会的绝对盈亏)"
+        )
+        print(
+            f"{IconService.get('money')} 每只股票平均盈利: {avg_profit_per_stock:.2f} "
+            f"(单位：1股机会，按有机会的股票数均分)"
+        )
+        print(
+            f"{IconService.get('bar_chart')} 每只股票平均投资次数: {avg_investments_per_stock:.2f}"
+        )
         
         # 产生机会的股票数
         stocks_with_opportunities = session_summary.get("stocks_have_opportunities", 0)

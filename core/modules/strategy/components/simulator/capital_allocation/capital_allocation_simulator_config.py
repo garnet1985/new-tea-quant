@@ -25,9 +25,6 @@ class CapitalAllocationSimulatorConfig:
     #   - "output/latest": 使用最新的输出版本（output/ 目录，默认）
     output_version: str = "latest"  # 枚举器输出版本
 
-    # 是否使用采样配置（默认 True，使用 sampling 配置过滤股票）
-    use_sampling: bool = True
-
     # 初始资金（元）
     initial_capital: float = 1_000_000.0
 
@@ -47,6 +44,10 @@ class CapitalAllocationSimulatorConfig:
 
     # kelly 模式下的配置
     kelly_fraction: float = 0.5       # Kelly 仓位的折扣比例（0~1，用于风险控制）
+
+    # 时间窗口（可选），为空表示使用枚举 SOT 的全量时间
+    start_date: str = ""
+    end_date: str = ""
 
     # 交易成本（从顶层 fees 或 capital_simulator.fees 读取）
     commission_rate: float = 0.00025
@@ -74,11 +75,6 @@ class CapitalAllocationSimulatorConfig:
 
         # output_version（枚举器输出版本依赖）
         output_version = capital_sim_cfg.get("output_version", "latest")
-
-        # 是否使用采样（默认 True）
-        use_sampling = capital_sim_cfg.get("use_sampling", True)
-        if not isinstance(use_sampling, bool):
-            use_sampling = True  # 如果不是 bool，默认 True
 
         # 初始资金
         initial_capital = float(capital_sim_cfg.get("initial_capital", 1_000_000) or 1_000_000)
@@ -108,9 +104,12 @@ class CapitalAllocationSimulatorConfig:
         if not isinstance(save_equity_curve, bool):
             save_equity_curve = True
 
+        # 时间窗口（优先级：capital_simulator.start_date/end_date > simulator.start_date/end_date > 默认空）
+        start_date = capital_sim_cfg.get("start_date") or simulator_cfg.get("start_date") or ""
+        end_date = capital_sim_cfg.get("end_date") or simulator_cfg.get("end_date") or ""
+
         return cls(
             output_version=output_version,
-            use_sampling=use_sampling,
             initial_capital=initial_capital,
             allocation_mode=allocation_mode,
             max_portfolio_size=max_portfolio_size,
@@ -124,5 +123,7 @@ class CapitalAllocationSimulatorConfig:
             transfer_fee_rate=transfer_fee_rate,
             save_trades=save_trades,
             save_equity_curve=save_equity_curve,
+            start_date=start_date,
+            end_date=end_date,
         )
 

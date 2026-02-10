@@ -284,10 +284,16 @@ class DataLoader:
                     if t_idx < 0 or t_idx >= targets_table.size:
                         continue
                     target_row = targets_table.row_view(t_idx)
-                    target_date = target_row.get("date") or ""
+                    # 统一命名后，targets CSV 使用 date 表示实际成交日期。
+                    # 为兼容旧版本，这里仍然兼容 target_date。
+                    target_date = (
+                        target_row.get("date")
+                        or target_row.get("target_date")
+                        or ""
+                    )
                     if not target_date:
                         continue
-
+                    
                     events.append(
                         Event(
                             event_type="target",
@@ -345,7 +351,26 @@ class DataLoader:
                     opp_id = str(row.get("opportunity_id") or "").strip()
                     if not opp_id:
                         continue
-                    # 规范化数值字段
+                    # 规范化数值字段（部分字段在旧版 CSV 中可能不存在）
+                    # 统一约定：sell_price 表示实际成交价格
+                    try:
+                        raw_sell_price = (
+                            row.get("sell_price")
+                            or row.get("price")
+                            or row.get("target_price")
+                            or 0.0
+                        )
+                        row["sell_price"] = float(raw_sell_price)
+                    except (ValueError, TypeError):
+                        row["sell_price"] = 0.0
+                    try:
+                        row["sell_ratio"] = float(row.get("sell_ratio") or 0.0)
+                    except (ValueError, TypeError):
+                        row["sell_ratio"] = 0.0
+                    try:
+                        row["profit"] = float(row.get("profit") or 0.0)
+                    except (ValueError, TypeError):
+                        row["profit"] = 0.0
                     try:
                         row["weighted_profit"] = float(row.get("weighted_profit") or 0.0)
                     except (ValueError, TypeError):
@@ -411,7 +436,25 @@ class DataLoader:
                     opp_id = str(row.get("opportunity_id") or "").strip()
                     if not opp_id:
                         continue
-                    # 规范化数值字段
+                    # 规范化数值字段（兼容旧字段名）
+                    try:
+                        raw_sell_price = (
+                            row.get("sell_price")
+                            or row.get("price")
+                            or row.get("target_price")
+                            or 0.0
+                        )
+                        row["sell_price"] = float(raw_sell_price)
+                    except (ValueError, TypeError):
+                        row["sell_price"] = 0.0
+                    try:
+                        row["sell_ratio"] = float(row.get("sell_ratio") or 0.0)
+                    except (ValueError, TypeError):
+                        row["sell_ratio"] = 0.0
+                    try:
+                        row["profit"] = float(row.get("profit") or 0.0)
+                    except (ValueError, TypeError):
+                        row["profit"] = 0.0
                     try:
                         row["weighted_profit"] = float(row.get("weighted_profit") or 0.0)
                     except (ValueError, TypeError):

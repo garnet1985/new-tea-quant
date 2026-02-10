@@ -161,8 +161,8 @@ class PathManager:
     
     @staticmethod
     def strategy_capital_allocation(strategy_name: str) -> Path:
-        """资金分配模拟器结果目录：userspace/strategies/{strategy_name}/results/capital_allocation"""
-        return PathManager.strategy_results(strategy_name) / "capital_allocation"
+        """资金分配模拟器结果目录：userspace/strategies/{strategy_name}/results/simulations/capital_allocation"""
+        return PathManager.strategy_results(strategy_name) / "simulations" / "capital_allocation"
     
     @staticmethod
     def strategy_scan_cache(strategy_name: str) -> Path:

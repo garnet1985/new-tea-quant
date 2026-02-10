@@ -207,12 +207,35 @@ class PriceFactorInvestment(BaseInvestment):
         """构造 completed_targets 列表"""
         completed_targets: List[Dict[str, Any]] = []
         for t in targets:
-            sell_price = float(t.get("price", 0.0) or 0.0)
-            profit = float(t.get("profit", 0.0) or 0.0)
-            weighted_profit = float(t.get("weighted_profit", 0.0) or 0.0)
-            t_roi = float(t.get("roi", 0.0) or 0.0)
-            sell_ratio = float(t.get("sell_ratio", 0.0) or 0.0)
-            sell_date = t.get("date", "") or ""
+            # 统一字段读取：优先使用统一后的字段名，其次兼容旧字段
+            raw_price = t.get("sell_price")
+            if raw_price in (None, ""):
+                raw_price = t.get("price")
+            if raw_price in (None, ""):
+                raw_price = t.get("target_price")
+            try:
+                sell_price = float(raw_price or 0.0)
+            except (TypeError, ValueError):
+                sell_price = 0.0
+
+            try:
+                profit = float(t.get("profit", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                profit = 0.0
+            try:
+                weighted_profit = float(t.get("weighted_profit", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                weighted_profit = 0.0
+            try:
+                t_roi = float(t.get("roi", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                t_roi = 0.0
+            try:
+                sell_ratio = float(t.get("sell_ratio", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                sell_ratio = 0.0
+
+            sell_date = t.get("date", "") or t.get("sell_date", "") or t.get("target_date", "") or ""
             reason = (t.get("reason", "") or "").lower()
             
             if "win" in reason:

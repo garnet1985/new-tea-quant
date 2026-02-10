@@ -6,7 +6,7 @@
 """
 
 from typing import Dict, Any, List
-from .helpers import to_ratio, get_annual_return
+from .helpers import to_ratio
 
 
 class StockSummaryBuilder:
@@ -69,25 +69,18 @@ class StockSummaryBuilder:
         avg_duration_in_days = to_ratio(total_duration, total_investments)
         avg_roi = to_ratio(total_roi, total_investments, decimals=4)
 
-        # 计算年化收益率
-        annual_return_raw = get_annual_return(avg_roi, avg_duration_in_days)
-        annual_return = (
-            float(annual_return_raw.real)
-            if isinstance(annual_return_raw, complex)
-            else float(annual_return_raw)
-            if isinstance(annual_return_raw, (int, float))
-            else 0.0
-        )
-        annual_return_in_trading_days_raw = get_annual_return(
-            avg_roi, avg_duration_in_days, is_trading_days=True
-        )
-        annual_return_in_trading_days = (
-            float(annual_return_in_trading_days_raw.real)
-            if isinstance(annual_return_in_trading_days_raw, complex)
-            else float(annual_return_in_trading_days_raw)
-            if isinstance(annual_return_in_trading_days_raw, (int, float))
-            else 0.0
-        )
+        # 计算年化收益率（线性近似，而非极端复利）
+        # 解释：
+        # - 当前 PriceFactorSimulator 不模拟资金曲线，只统计“每笔机会的 ROI + 持仓天数”
+        # - 使用 ((1+ROI)^(365/days)-1) 这种复利公式，在 avg_duration_in_days 很小时会产生极端数字
+        #  （例如单日 5% 持有，按复利年化约等于 (1.05^365-1) ≈ 6e7，明显不具备参考意义）
+        # - 这里改为线性年化近似：annual = avg_roi * (一年天数 / 平均持有天数)
+        if avg_duration_in_days > 0:
+            annual_return = avg_roi * (365.0 / avg_duration_in_days)
+            annual_return_in_trading_days = avg_roi * (250.0 / avg_duration_in_days)
+        else:
+            annual_return = 0.0
+            annual_return_in_trading_days = 0.0
 
         # 计算胜率
         win_rate = to_ratio(

@@ -523,8 +523,8 @@ class Event:
           │                    - 计算当前总资产（现金 + 持仓市值）
           │
           ├─▶ g. 生成交易记录和权益曲线
-          │      - trades.json
-          │      - equity_curve.json
+          │      - trades.json / trades.csv
+          │      - portfolio_timeseries.json / portfolio_timeseries.csv
           │
           └─▶ h. 保存汇总结果（ResultPathManager）
                  - summary_stock.json
@@ -1170,9 +1170,9 @@ strategies/example/
 - `summary_stock.json`：单股汇总
 - `summary_strategy.json`：策略汇总
 
-**CapitalAllocationSimulator（JSON）**：
-- `trades.json`：交易记录
-- `equity_curve.json`：权益曲线
+**CapitalAllocationSimulator（JSON + CSV）**：
+- `trades.json` / `trades.csv`：交易记录（JSON 用于内部分析，CSV 便于人工查看）
+- `portfolio_timeseries.json` / `portfolio_timeseries.csv`：权益曲线（包含 `cash_balance`、`total_equity`、`open_positions`）
 - `summary_stock.json`：单股汇总
 - `summary_strategy.json`：策略汇总
 
@@ -1197,7 +1197,9 @@ results/
     └── {strategy_name}/
         └── {version_dir}/
             ├── trades.json
-            ├── equity_curve.json
+            ├── trades.csv
+            ├── portfolio_timeseries.json
+            ├── portfolio_timeseries.csv
             ├── summary_stock.json
             └── summary_strategy.json
 ```

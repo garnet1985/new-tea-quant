@@ -76,7 +76,7 @@ settings = {
     # ========================================
     "sampling": {
         "strategy": "continuous",
-        "sampling_amount": 1000,
+        "sampling_amount": 2000,
         # "pool": {
         #     # 直接在配置中给出一个很小的股票池，方便快速测试
         #     "stock_pool": ["000001.SZ", "000002.SZ"],

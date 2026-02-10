@@ -21,6 +21,7 @@ import csv
 import logging
 
 from core.modules.strategy.models.event import Event
+from core.data_class.time_series.columnar import ColumnarTable
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class DataLoader:
         logger.debug(f"[DataLoader] 已清空缓存: strategy={self.strategy_name}")
     
     # =========================================================================
-    # 机会和目标数据加载
+    # 机会和目标数据加载（行式）
     # =========================================================================
     
     def load_opportunities(
@@ -229,57 +230,74 @@ class DataLoader:
             事件列表，按日期排序
         """
         events: List[Event] = []
-        
+
         # 扫描所有 opportunities 和 targets 文件
         for entry in output_version_dir.iterdir():
             if not entry.is_file():
                 continue
-            
+
             name = entry.name
-            if name.endswith("_opportunities.csv"):
-                stock_id = name[: -len("_opportunities.csv")]
-                targets_path = output_version_dir / f"{stock_id}_targets.csv"
-                
-                # 加载机会和目标
-                opportunities, targets_map = self.load_opportunities_and_targets(
-                    output_version_dir,
-                    stock_id=stock_id,
-                    start_date=start_date,
-                    end_date=end_date,
-                )
-                
-                # 为每个机会创建 trigger 事件
-                for opp in opportunities:
-                    opp_id = str(opp.get("opportunity_id") or "").strip()
-                    trigger_date = opp.get("trigger_date") or ""
-                    
-                    if not opp_id or not trigger_date:
-                        continue
-                    
-                    events.append(Event(
+            if not name.endswith("_opportunities.csv"):
+                continue
+
+            stock_id = name[: -len("_opportunities.csv")]
+            opportunities_path = entry
+            targets_path = output_version_dir / f"{stock_id}_targets.csv"
+
+            # 使用列式加载该股票的机会和目标
+            opp_table, targets_table, targets_index = self.load_columnar_for_stock(
+                opportunities_path=opportunities_path,
+                targets_path=targets_path,
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+            if opp_table.size == 0:
+                continue
+
+            trigger_dates = opp_table.columns.get("trigger_date", [])
+            opp_ids = opp_table.columns.get("opportunity_id", [])
+
+            # 为每个机会创建 trigger 事件
+            for idx in range(opp_table.size):
+                row_view = opp_table.row_view(idx)
+                opp_id = str(opp_ids[idx] or "").strip()
+                trigger_date = trigger_dates[idx] or ""
+
+                if not opp_id or not trigger_date:
+                    continue
+
+                events.append(
+                    Event(
                         event_type="trigger",
                         date=trigger_date,
                         stock_id=stock_id,
                         opportunity_id=opp_id,
-                        opportunity=opp,
+                        opportunity=row_view,  # RowView，实现 Mapping 接口
                         target=None,
-                    ))
-                    
-                    # 为该机会的所有 targets 创建 target 事件
-                    targets = targets_map.get(opp_id, [])
-                    for target in targets:
-                        target_date = target.get("date") or ""
-                        if not target_date:
-                            continue
-                        
-                        events.append(Event(
+                    )
+                )
+
+                # 为该机会的所有 targets 创建 target 事件
+                target_indices = targets_index.get(opp_id, [])
+                for t_idx in target_indices:
+                    if t_idx < 0 or t_idx >= targets_table.size:
+                        continue
+                    target_row = targets_table.row_view(t_idx)
+                    target_date = target_row.get("date") or ""
+                    if not target_date:
+                        continue
+
+                    events.append(
+                        Event(
                             event_type="target",
                             date=target_date,
                             stock_id=stock_id,
                             opportunity_id=opp_id,
-                            opportunity=opp,  # 包含完整的 opportunity 信息
-                            target=target,
-                        ))
+                            opportunity=row_view,  # 复用同一机会视图
+                            target=target_row,
+                        )
+                    )
         
         # 按日期排序，同日多事件按 (stock_id, opportunity_id, event_type) 排序
         events.sort(key=lambda e: (
@@ -298,7 +316,71 @@ class DataLoader:
         return events
     
     # =========================================================================
-    # 私有辅助方法
+    # 列式加载（供模拟器使用）
+    # =========================================================================
+
+    def load_columnar_for_stock(
+        self,
+        opportunities_path: Path,
+        targets_path: Path,
+        start_date: str = "",
+        end_date: str = "",
+    ) -> Tuple[ColumnarTable, ColumnarTable, Dict[str, List[int]]]:
+        """
+        为单只股票加载列式 opportunities / targets 数据。
+
+        返回：
+            opportunities_table: ColumnarTable
+            targets_table: ColumnarTable
+            targets_index: {opportunity_id: [row_idx, ...]}
+        """
+        # 1. 读取 targets，按 opportunity_id 建立索引
+        target_rows: List[Dict[str, Any]] = []
+        targets_index: Dict[str, List[int]] = defaultdict(list)
+
+        if targets_path.exists():
+            with targets_path.open("r", encoding="utf-8") as f_t:
+                reader = csv.DictReader(f_t)
+                for row in reader:
+                    opp_id = str(row.get("opportunity_id") or "").strip()
+                    if not opp_id:
+                        continue
+                    # 规范化数值字段
+                    try:
+                        row["weighted_profit"] = float(row.get("weighted_profit") or 0.0)
+                    except (ValueError, TypeError):
+                        row["weighted_profit"] = 0.0
+
+                    target_rows.append(row)
+                    idx = len(target_rows) - 1
+                    targets_index[opp_id].append(idx)
+
+        targets_table = ColumnarTable.from_row_dicts(target_rows) if target_rows else ColumnarTable(headers=[], columns={})
+
+        # 2. 读取 opportunities（按时间窗口过滤）
+        opp_rows: List[Dict[str, Any]] = []
+        if opportunities_path.exists():
+            with opportunities_path.open("r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    trigger_date = row.get("trigger_date") or ""
+                    # 时间窗口过滤（基于字符串比较，YYYYMMDD 形式）
+                    if start_date and trigger_date < start_date:
+                        continue
+                    if end_date and trigger_date > end_date:
+                        continue
+                    opp_rows.append(row)
+        else:
+            logger.warning(
+                f"[DataLoader] opportunities 文件不存在: {opportunities_path}"
+            )
+
+        opp_table = ColumnarTable.from_row_dicts(opp_rows) if opp_rows else ColumnarTable(headers=[], columns={})
+
+        return opp_table, targets_table, targets_index
+
+    # =========================================================================
+    # 私有辅助方法（行式）
     # =========================================================================
     
     def _load_from_files(

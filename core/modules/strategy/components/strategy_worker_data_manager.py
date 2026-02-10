@@ -52,18 +52,16 @@ class StrategyWorkerDataManager:
         self.settings = settings
         self.data_mgr = data_mgr
         
-        # 当前股票的数据存储（NOT 缓存！）
-        # 生命周期：仅在当前 Worker 实例存活期间
-        # Worker 销毁时，这些数据自动被垃圾回收
-        self._current_data = {
-            'klines': [],
+        # 当前股票的原始数据存储（Scanner 使用，NOT 缓存！）
+        # - Scan 模式：使用 _current_data 提供 List[Dict] 给扫描器
+        # - Simulate / 枚举模式：不依赖 _current_data，只使用列式 TimeSeriesData
+        self._current_data: Dict[str, List[Dict[str, Any]]] = {
+            "klines": [],
             # 其他数据类型...
         }
-        
-        # 游标状态（用于 Simulator 逐日遍历）
-        # 存储各类数据的游标位置和累积数据
-        # 格式：{ 'klines': {'cursor': int, 'acc': list}, 'tags': {'cursor': int, 'acc': list}, ... }
-        self._cursor_state = {}
+
+        # 游标累积状态（用于 List[Dict] 累积）
+        self._cursor_state: Dict[str, Dict[str, Any]] = {}
     
     # =========================================================================
     # Scanner 数据加载
@@ -117,7 +115,7 @@ class StrategyWorkerDataManager:
     
     def load_historical_data(self, start_date: str, end_date: str):
         """
-        加载历史数据（Simulator 使用）
+        加载历史数据（Simulator / Enumerator 使用）
         
         Args:
             start_date: 开始日期
@@ -125,50 +123,56 @@ class StrategyWorkerDataManager:
         
         流程：
         1. 加载全量 K-line（从 start_date 到 end_date）
-        2. 加载其他全量数据
-        3. 初始化游标状态
+        2. 计算技术指标（行式 List[Dict] 上直接计算）
+        3. 为枚举器初始化游标状态（_cursor_state + _current_data）
+        4. 可选：构建列式 TimeSeriesData（_ts_data），供后续模块使用
         
-        注意：这里加载全量数据，后续通过游标逐日过滤
+        注意：这里加载全量数据，后续通过游标逐日过滤，避免每次切片复制。
         """
-        # 1. 加载全量 K-line
+        # 0. 清空旧的数据结构
+        self._cursor_state.clear()
+        self._current_data["klines"] = []
+        
+        # 1. 加载全量 K-line（行式），用于计算指标和游标切片
         term = self._extract_term_from_kline_base(self.settings.base_kline_type)
         adjust = self.settings.adjust_type
         
         klines = self._load_klines(start_date, end_date, term, adjust)
-        self._current_data['klines'] = klines
-
-        # 1.1 计算技术指标（仅基于 K 线，一次性完成）
-        self._apply_indicators()
         
         logger.debug(f"加载历史数据: stock={self.stock_id}, term={term}, "
                     f"records={len(klines)}, date_range={start_date}-{end_date}")
         
-        # 2. 加载其他依赖数据（全量）
+        # 1.1 计算技术指标（仅基于 K 线，一次性完成，直接写回 klines）
+        # 使用 _current_data['klines'] 以复用指标实现
+        self._current_data["klines"] = klines
+        self._apply_indicators()
+
+        # 1.2 初始化游标累积状态（为 Enumerator 提供“截至今日”的 List[Dict] 视图）
+        self._cursor_state["klines"] = {"cursor": -1, "acc": []}
+
+        # 2. 加载其他依赖数据（全量，行式 -> 游标视图）
         for entity_config in self.settings.required_entities:
             entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
             data = self._load_entity(entity_config, start_date, end_date)
+            
+            # 2.1 为 Enumerator 保留行式数据 + 游标状态
             self._current_data[entity_type] = data
-        
-        # 3. 初始化游标状态
-        self._init_cursor_state()
+            self._cursor_state[entity_type] = {"cursor": -1, "acc": []}
     
     # =========================================================================
     # 数据访问接口
     # =========================================================================
     
-    def get_klines(self) -> List[Dict[str, Any]]:
+    def get_klines(self):
         """
         获取当前股票的 K-line 数据
         
-        注意：这不是缓存，只是当前 Worker 实例的临时数据
-        
-        Returns:
-            klines: [
-                {'date': '20251219', 'open': 10.0, 'close': 10.5, ...},
-                ...
-            ]
+        Scan / Enumerator 模式：
+            - 返回 List[Dict]（来自 _current_data['klines']）
+        说明：
+            - 列式 TimeSeriesData 存放在 self._ts_data 中，供后续模块按需使用
         """
-        return self._current_data.get('klines', [])
+        return self._current_data.get("klines", [])
     
     def get_entity_data(self, entity_type: str) -> List[Dict[str, Any]]:
         """
@@ -195,124 +199,85 @@ class StrategyWorkerDataManager:
         核心思想:
         - 维护每类数据的游标位置（cursor）和累积数据（acc）
         - 每次调用只 append 新增的数据，不重新切片
-        - 大幅提高效率，避免重复复制
+        - 对调用方暴露“截至 date_of_today 的前缀视图”（List[Dict]），语义与旧实现保持一致
         
         Args:
             date_of_today: 当前虚拟日期（YYYYMMDD）
         
         Returns:
             data_of_today: {
-                'klines': [...],
+                'klines': [...],              # List[Dict]，日期 <= date_of_today
                 'tags': [...],
                 'corporate_finance': [...],
                 ...
             }
         """
-        result = {}
-        
-        # 1. 处理 K线 数据
-        klines_state = self._cursor_state.get('klines')
-        if klines_state:
-            # 记录累积前的状态（用于调试）
-            before_count = len(klines_state['acc'])
-            before_cursor = klines_state['cursor']
-            
-            self._advance_cursor_until(
-                data_list=self._current_data['klines'],
-                state=klines_state,
-                date_of_today=date_of_today,
-                date_field='date'
-            )
-            
-            after_count = len(klines_state['acc'])
-            after_cursor = klines_state['cursor']
-            
-            # 调试日志：如果累积的数据量异常，记录详细信息
-            if before_count == 0 and after_count < len(self._current_data['klines']):
-                logger.debug(
-                    f"游标累积: stock={self.stock_id}, date={date_of_today}, "
-                    f"before_cursor={before_cursor}, after_cursor={after_cursor}, "
-                    f"before_count={before_count}, after_count={after_count}, "
-                    f"total_klines={len(self._current_data['klines'])}"
-                )
-            
-            result['klines'] = klines_state['acc']
-        
-        # 2. 处理其他数据类型
-        for entity_type in self._current_data.keys():
-            if entity_type == 'klines':
+        result: Dict[str, Any] = {}
+
+        # 1. 处理 K 线数据（基于 _current_data['klines'] + 游标累积）
+        klines = self._current_data.get("klines") or []
+        klines_state = self._cursor_state.get("klines")
+
+        if klines and klines_state is not None:
+            before_cursor = klines_state.get("cursor", -1)
+            acc = klines_state.setdefault("acc", [])
+
+            i = before_cursor + 1
+            n = len(klines)
+            new_cursor = before_cursor
+
+            while i < n:
+                rec = klines[i]
+                d = rec.get("date")
+                if d is None:
+                    i += 1
+                    continue
+                if d > date_of_today:
+                    break
+
+                acc.append(rec)
+                new_cursor = i
+                i += 1
+
+            klines_state["cursor"] = new_cursor
+            result["klines"] = acc
+
+        # 2. 处理其他数据类型（tags / corporate_finance 等）
+        for entity_type, data in self._current_data.items():
+            if entity_type == "klines":
                 continue
-            
+
             state = self._cursor_state.get(entity_type)
-            if state:
-                # 判断日期字段（财务数据用 quarter，其他用 date）
-                date_field = 'quarter' if 'finance' in entity_type.lower() else 'date'
-                
-                self._advance_cursor_until(
-                    data_list=self._current_data[entity_type],
-                    state=state,
-                    date_of_today=date_of_today,
-                    date_field=date_field
-                )
-                result[entity_type] = state['acc']
-        
+            if state is None:
+                continue
+
+            # 财务数据使用 quarter 字段，其余默认使用 date 字段
+            date_field = "quarter" if "finance" in str(entity_type).lower() else "date"
+
+            before_cursor = state.get("cursor", -1)
+            acc = state.setdefault("acc", [])
+
+            i = before_cursor + 1
+            n = len(data)
+            new_cursor = before_cursor
+
+            while i < n:
+                rec = data[i]
+                d = rec.get(date_field)
+                if d is None:
+                    i += 1
+                    continue
+                if d > date_of_today:
+                    break
+
+                acc.append(rec)
+                new_cursor = i
+                i += 1
+
+            state["cursor"] = new_cursor
+            result[entity_type] = acc
+
         return result
-    
-    def _init_cursor_state(self):
-        """
-        初始化游标状态
-        
-        为每类数据创建：{'cursor': -1, 'acc': []}
-        """
-        self._cursor_state = {}
-        
-        # 初始化 K线 游标
-        if 'klines' in self._current_data:
-            self._cursor_state['klines'] = {'cursor': -1, 'acc': []}
-        
-        # 初始化其他数据类型的游标
-        for entity_type in self._current_data.keys():
-            if entity_type != 'klines':
-                self._cursor_state[entity_type] = {'cursor': -1, 'acc': []}
-        
-        logger.debug(f"初始化游标状态: stock={self.stock_id}, types={list(self._cursor_state.keys())}")
-    
-    def _advance_cursor_until(
-        self, 
-        data_list: List[Dict[str, Any]], 
-        state: Dict[str, Any], 
-        date_of_today: str,
-        date_field: str = 'date'
-    ):
-        """
-        推进游标直到指定日期（含）
-        
-        Args:
-            data_list: 全量数据列表
-            state: 游标状态 {'cursor': int, 'acc': list}
-            date_of_today: 当前日期
-            date_field: 日期字段名（'date' 或 'quarter'）
-        """
-        cursor = state['cursor']
-        acc = state['acc']
-        
-        i = cursor + 1
-        n = len(data_list)
-        
-        while i < n:
-            record = data_list[i]
-            record_date = record.get(date_field)
-            
-            # 如果记录日期为空或超过今天，停止
-            if not record_date or record_date > date_of_today:
-                break
-            
-            # 追加到累积数据
-            acc.append(record)
-            i += 1
-        
-        # 更新游标位置
-        state['cursor'] = i - 1
     
     # =========================================================================
     # 私有方法

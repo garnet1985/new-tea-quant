@@ -9,9 +9,11 @@ Simulator.capital_allocation 子包
 
 from .capital_allocation_simulator import CapitalAllocationSimulator  # noqa: F401
 from .capital_allocation_simulator_config import CapitalAllocationSimulatorConfig  # noqa: F401
+from .result_presenter import CapitalAllocationResultPresenter  # noqa: F401
 
 __all__ = [
     "CapitalAllocationSimulator",
     "CapitalAllocationSimulatorConfig",
+    "CapitalAllocationResultPresenter",
 ]
 

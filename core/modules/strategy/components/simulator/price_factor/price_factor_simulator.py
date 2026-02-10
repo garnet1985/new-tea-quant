@@ -47,8 +47,10 @@ class PriceFactorSimulatorConfig:
     """
     PriceFactorSimulator 的基础配置
 
-    这些配置中的大部分会从 userspace 策略的 settings 中派生，
-    当前类只是一个集中承载体，方便在主进程与 Worker 之间传递。
+    说明：
+    - 采样的语义统一下沉到枚举器层（opportunity_enumerator），
+      本层不再根据 use_sampling 做二次抽样，只是读取指定的 SOT 版本。
+    - output_version 决定读取的是 output/ 还是 test/ 下的哪一版数据。
     """
 
     # output_version：枚举器输出版本号；"latest" 表示使用最新的输出版本目录
@@ -58,9 +60,6 @@ class PriceFactorSimulatorConfig:
     #   - "test/latest": 使用最新的测试版本（test/ 目录）
     #   - "output/latest": 使用最新的输出版本（output/ 目录，默认）
     output_version: str = "latest"
-
-    # 是否使用采样配置（默认 True，使用 sampling 配置过滤股票）
-    use_sampling: bool = True
 
     # 时间窗口（可选），为空表示使用输出版本全量时间
     start_date: str = ""
@@ -158,47 +157,19 @@ class PriceFactorSimulator:
             )
             return {}
 
-        # 5. 根据 use_sampling 配置过滤股票列表
+        # 5. 根据枚举输出决定股票集合：
+        # - 如果枚举是全量（output/*），这里就全量跑这些股票；
+        # - 如果枚举是采样版本（test/*），这里就只跑采样产出的那部分股票。
         from core.modules.data_manager import DataManager
-        from core.modules.strategy.helper.stock_sampling_helper import (
-            StockSamplingHelper,
-        )
 
         data_mgr = DataManager(is_verbose=False)
         all_stocks_info = data_mgr.service.stock.list.load(filtered=True)
         stock_info_map = {s.get("id"): s for s in all_stocks_info}
 
-        # 如果启用采样，使用 sampling 配置过滤股票
-        if simulator_config.use_sampling:
-            sampling_cfg = base_settings.sampling or {}
-            sampling_strategy = sampling_cfg.get("strategy", "continuous")
-            sampling_amount = int(sampling_cfg.get("sampling_amount", 20))
-
-            # 获取采样后的股票列表
-            sampled_stock_ids = StockSamplingHelper.get_stock_list(
-                all_stocks=all_stocks_info,
-                sampling_amount=sampling_amount,
-                sampling_config=sampling_cfg,
-            )
-            sampled_stock_set = set(sampled_stock_ids)
-
-            # 过滤 stock_files，只保留采样后的股票
-            filtered_stock_files = {
-                stock_id: paths
-                for stock_id, paths in stock_files.items()
-                if stock_id in sampled_stock_set
-            }
-
-            logger.info(
-                f"[PriceFactorSimulator] 采样模式: "
-                f"strategy={sampling_strategy}, amount={sampling_amount}, "
-                f"原始={len(stock_files)} 只股票, 采样后={len(filtered_stock_files)} 只股票"
-            )
-            stock_files = filtered_stock_files
-        else:
-            logger.info(
-                f"[PriceFactorSimulator] 全量模式: {len(stock_files)} 只股票"
-            )
+        logger.info(
+            f"[PriceFactorSimulator] 使用 SOT 股票集合: {len(stock_files)} 只 "
+            f"(由枚举器输出版本 {output_version_dir.name} 决定)"
+        )
 
         # 6. 构建 job 列表（每只股票一个作业）
         jobs: List[Dict[str, Any]] = []
@@ -401,7 +372,6 @@ class PriceFactorSimulator:
 
         配置优先级：
         - max_workers: simulator.max_workers > enumerator.max_workers > performance.max_workers > "auto"
-        - use_sampling: simulator.use_sampling（默认 True）
         - output_version: simulator.output_version（默认 "latest"）
         """
         settings_dict = settings.to_dict()
@@ -411,11 +381,6 @@ class PriceFactorSimulator:
 
         # output_version（枚举器输出版本依赖）
         output_version = simulator_cfg.get("output_version", "latest")
-
-        # 是否使用采样（默认 True）
-        use_sampling = simulator_cfg.get("use_sampling", True)
-        if not isinstance(use_sampling, bool):
-            use_sampling = True  # 如果不是 bool，默认 True
 
         # 时间窗口
         start_date = simulator_cfg.get("start_date", "") or ""
@@ -433,7 +398,6 @@ class PriceFactorSimulator:
 
         return PriceFactorSimulatorConfig(
             output_version=output_version,
-            use_sampling=use_sampling,
             start_date=start_date,
             end_date=end_date,
             commission_rate=commission_rate,
@@ -762,18 +726,23 @@ class PriceFactorSimulatorWorker:
     # ------------------------------------------------------------------ #
     def _save_stock_json(self, stock_summary: Dict[str, Any]) -> None:
         """
-        在子进程中保存单个股票的 JSON 文件。
-        
+        在子进程中保存单个股票的结果。
+
+        - 保留 JSON 版本（结构化、供内部工具使用）
+        - 额外导出投资列表为 CSV，便于人工查看与 Excel 加载
+
         目录结构：
             userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.json
+            userspace/strategies/{strategy}/results/simulations/price_factor/{sim_version}/{stock_id}.csv
         """
         # 使用 ResultPathManager 统一管理结果目录与文件名
         from core.modules.strategy.managers.result_path_manager import ResultPathManager
+        from core.utils.io.csv_io import write_dicts_to_csv
 
         path_mgr = ResultPathManager(sim_version_dir=self.sim_version_dir)
         stock_path = path_mgr.stock_json_path(self.stock_id)
 
-        # 记录保存耗时与文件大小
+        # 1) 保存 JSON（完整结构）
         self.profiler.start_timer("save_csv")
         before = stock_path.stat().st_size if stock_path.exists() else 0
         with stock_path.open("w", encoding="utf-8") as f:
@@ -783,12 +752,36 @@ class PriceFactorSimulatorWorker:
 
         size_bytes = max(0, after - before)
         self.profiler.metrics.time_save_csv += elapsed
-        # 记录到通用 IO 统计中
         try:
             self.profiler.record_file_write(size_bytes=size_bytes, duration=elapsed)
         except TypeError:
-            # 向后兼容：旧版 record_file_write 可能没有关键字参数
             self.profiler.record_file_write(size_bytes, elapsed)
+
+        # 2) 额外导出 investments 为 CSV（扁平化主要字段）
+        investments = stock_summary.get("investments") or []
+        if investments:
+            csv_path = stock_path.with_suffix(".csv")
+            # 选择一组常用字段，保证列顺序稳定，其余字段按名称追加
+            preferred = [
+                "stock_id",
+                "result",
+                "start_date",
+                "end_date",
+                "purchase_price",
+                "duration_in_days",
+                "overall_profit",
+                "roi",
+                "overall_annual_return",
+            ]
+            # 确保每条记录都有 stock_id 字段
+            normalized_investments = []
+            for inv in investments:
+                if inv.get("stock_id") is None:
+                    inv = dict(inv)
+                    inv["stock_id"] = self.stock_id
+                normalized_investments.append(inv)
+
+            write_dicts_to_csv(csv_path, normalized_investments, preferred_order=preferred)
 
         logger.debug(f"[PriceFactorSimulatorWorker] 已保存: {stock_path}")
 

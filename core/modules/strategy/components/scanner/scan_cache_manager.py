@@ -73,15 +73,14 @@ class ScanCacheManager:
         
         # 写入 CSV
         if rows:
-            fieldnames = sorted({k for row in rows for k in row.keys()})
-            with csv_path.open('w', encoding='utf-8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-            
-            logger.info(
-                f"[ScanCacheManager] 已保存 {len(opportunities)} 个机会到 {csv_path}"
-            )
+            from core.utils.io.csv_io import write_dicts_to_csv
+
+            # 使用所有字段并集，按名称排序，确保兼容性
+            all_keys = {k for row in rows for k in row.keys()}
+            fieldnames = sorted(all_keys)
+            write_dicts_to_csv(csv_path, rows, preferred_order=fieldnames)
+
+            logger.info(f"[ScanCacheManager] 已保存 {len(opportunities)} 个机会到 {csv_path}")
     
     def load_opportunities(
         self,

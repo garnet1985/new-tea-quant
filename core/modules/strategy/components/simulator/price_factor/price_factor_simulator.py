@@ -28,6 +28,11 @@ from core.modules.strategy.managers.result_path_manager import ResultPathManager
 from core.modules.strategy.components.simulator.base.simulator_hooks_dispatcher import (
     SimulatorHooksDispatcher,
 )
+from core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
+    AggregateProfiler,
+    PerformanceMetrics,
+    PerformanceProfiler,
+)
 from .result_presenter import ResultPresenter
 from .result_aggregator import ResultAggregator
 from .investment_builder import InvestmentBuilder
@@ -239,6 +244,8 @@ class PriceFactorSimulator:
 
         # 记录开始时间
         start_time = time.time()
+        # 初始化性能聚合器
+        aggregate_profiler = AggregateProfiler()
         
         logger.info(
             f"🚀 [PriceFactorSimulator] 开始模拟: strategy={strategy_name}, "
@@ -284,6 +291,43 @@ class PriceFactorSimulator:
         for r in results:
             if r.get("success", False):
                 stock_summaries.append(r)
+                # 聚合性能指标（如果 Worker 返回了 performance_metrics）
+                perf_data = r.get("performance_metrics")
+                stock_id = r.get("stock_id")
+                if perf_data and stock_id:
+                    metrics = PerformanceMetrics()
+                    time_data = perf_data.get("time", {}) or {}
+                    io_data = perf_data.get("io", {}) or {}
+                    data_stats = perf_data.get("data", {}) or {}
+                    mem_stats = perf_data.get("memory", {}) or {}
+
+                    metrics.time_load_data = time_data.get("load_data", 0.0)
+                    metrics.time_calculate_indicators = time_data.get("calculate_indicators", 0.0)
+                    metrics.time_enumerate = time_data.get("enumerate", 0.0)
+                    metrics.time_serialize = time_data.get("serialize", 0.0)
+                    metrics.time_save_csv = time_data.get("save_csv", 0.0)
+                    metrics.time_total = time_data.get("total", 0.0)
+
+                    metrics.db_queries = io_data.get("db_queries", 0)
+                    metrics.db_query_time = io_data.get("db_query_time", 0.0)
+                    metrics.file_writes = io_data.get("file_writes", 0)
+                    metrics.file_write_time = io_data.get("file_write_time", 0.0)
+                    # file_write_size_mb 在 to_dict 中是 MB，这里按字节还原时允许为空
+                    file_size_mb = io_data.get("file_write_size_mb", 0.0)
+                    try:
+                        metrics.file_write_size = int(file_size_mb * 1024 * 1024)
+                    except Exception:
+                        metrics.file_write_size = 0
+
+                    metrics.kline_count = data_stats.get("kline_count", 0)
+                    metrics.opportunity_count = data_stats.get("opportunity_count", 0)
+                    metrics.target_count = data_stats.get("target_count", 0)
+
+                    metrics.memory_peak = mem_stats.get("peak_mb", 0.0)
+                    metrics.memory_start = mem_stats.get("start_mb", 0.0)
+                    metrics.memory_end = mem_stats.get("end_mb", 0.0)
+
+                    aggregate_profiler.add_stock_metrics(str(stock_id), metrics)
         
         if not stock_summaries:
             logger.warning("[PriceFactorSimulator] 没有成功的结果，无法生成 session summary")
@@ -317,7 +361,20 @@ class PriceFactorSimulator:
         # 10. 展示结果
         ResultPresenter.present_results(session_summary, strategy_name)
 
-        # 11. 运行 Analyzer（如果启用）
+        # 11. 保存性能报告（如果有性能数据）
+        try:
+            perf_summary = aggregate_profiler.get_summary()
+            if perf_summary:
+                perf_file = sim_version_dir / "0_performance_report.json"
+                with perf_file.open("w", encoding="utf-8") as f:
+                    json.dump(perf_summary, f, indent=2, ensure_ascii=False)
+                logger.info(f"[PriceFactorSimulator] 性能报告已保存: {perf_file}")
+        except Exception as exc:
+            logger.warning(
+                "[PriceFactorSimulator] 保存性能报告失败（不影响主流程）: %s", exc
+            )
+
+        # 12. 运行 Analyzer（如果启用）
         try:
             from core.modules.strategy.components.analyzer import Analyzer
 
@@ -332,7 +389,7 @@ class PriceFactorSimulator:
                 "[PriceFactorSimulator] Analyzer 执行失败（不影响主流程）: %s", exc
             )
 
-        # 12. 同时返回内存结构
+        # 13. 同时返回内存结构
         return session_summary
 
     # ------------------------------------------------------------------ #
@@ -488,6 +545,8 @@ class PriceFactorSimulatorWorker:
         self.config_dict: Dict[str, Any] = job_payload.get("config", {})
         # 钩子分发器（按策略名加载用户 StrategyWorker）
         self.hooks_dispatcher = SimulatorHooksDispatcher(self.strategy_name)
+        # 性能分析器（单股级）
+        self.profiler = PerformanceProfiler(self.stock_id)
 
     # ------------------------------------------------------------------ #
     # 静态入口（供 ProcessWorker 使用）
@@ -508,6 +567,8 @@ class PriceFactorSimulatorWorker:
         - 只在“未持仓”时接纳新机会（已持有且未结束时出现的新机会将被跳过）
         - 每个被接纳的机会视作买入 1 股并持有至 exit_date，基于 ROI 计算 PnL
         """
+        # 记录总耗时
+        self.profiler.start_timer("total")
         try:
             logger.info(f"[PriceFactorSimulatorWorker] 开始处理: {self.stock_id}")
             stock_summary = self._simulate_one_share_per_opportunity()
@@ -521,17 +582,29 @@ class PriceFactorSimulatorWorker:
                 f"investments={investment_count}"
             )
 
+            # 填充总耗时并最终生成性能指标
+            self.profiler.metrics.time_total = self.profiler.end_timer("total")
+            metrics = self.profiler.finalize()
+
             return {
                 "success": True,
                 "stock_id": self.stock_id,
                 "stock": stock_summary["stock"],
                 "investments": stock_summary["investments"],
                 "summary": stock_summary["summary"],
+                "performance_metrics": metrics.to_dict(),
             }
         except Exception as e:
             logger.error(
                 f"[PriceFactorSimulatorWorker] 处理股票失败: stock={self.stock_id}, error={e}"
             )
+            # 异常场景也尽量返回性能指标，便于观察
+            try:
+                self.profiler.metrics.time_total = self.profiler.end_timer("total")
+                metrics = self.profiler.finalize()
+                perf_dict = metrics.to_dict()
+            except Exception:
+                perf_dict = {}
             return {
                 "success": False,
                 "stock_id": self.stock_id,
@@ -539,6 +612,7 @@ class PriceFactorSimulatorWorker:
                 "investments": [],
                 "summary": {},
                 "error": str(e),
+                "performance_metrics": perf_dict,
             }
 
     # ------------------------------------------------------------------ #
@@ -559,6 +633,7 @@ class PriceFactorSimulatorWorker:
         end_date: str = cfg.get("end_date") or ""
 
         # 1. 创建 DataLoader 并加载 opportunities 和 targets（列式）
+        self.profiler.start_timer("load_data")
         from core.modules.strategy.managers.data_loader import DataLoader
         data_loader = DataLoader(strategy_name=self.strategy_name, cache_enabled=False)
 
@@ -568,6 +643,12 @@ class PriceFactorSimulatorWorker:
             start_date=start_date,
             end_date=end_date,
         )
+        # 记录加载耗时与数据规模
+        load_elapsed = self.profiler.end_timer("load_data")
+        self.profiler.metrics.time_load_data = load_elapsed
+        self.profiler.metrics.kline_count = 0  # 价格模拟阶段不直接处理 K 线
+        self.profiler.metrics.opportunity_count = opportunities_table.size
+        self.profiler.metrics.target_count = targets_table.size
 
         if opportunities_table.size == 0:
             stock_summary = {
@@ -594,6 +675,7 @@ class PriceFactorSimulatorWorker:
         )
         
         # 3. 按 trigger_date 排序（基于列）
+        self.profiler.start_timer("enumerate")
         trigger_dates = opportunities_table.columns.get("trigger_date", [])
         opp_ids = opportunities_table.columns.get("opportunity_id", [])
         order = sorted(
@@ -603,8 +685,8 @@ class PriceFactorSimulatorWorker:
         
         # 4. 模拟：同一时刻只持有一个机会（1 股），并构造 investments 列表
         investments: List[Dict[str, Any]] = []
-        holding: bool = False
-        current_exit_date: Optional[str] = None
+        # 使用 holding_until 记录当前持仓的结束日期（含）；为 None 表示当前无持仓
+        holding_until: Optional[str] = None
 
         for idx in order:
             row = opportunities_table.row_view(idx)
@@ -616,16 +698,18 @@ class PriceFactorSimulatorWorker:
             ) or row
             
             trigger_date = modified_row.get("trigger_date") or ""
-            exit_date = modified_row.get("exit_date") or ""
+            # 优先使用 SOT 中的 sell_date 作为退出日；如无则回退到 exit_date 或当日
+            sell_date = modified_row.get("sell_date") or ""
+            exit_date = sell_date or modified_row.get("exit_date") or trigger_date
             opp_id = str(modified_row.get("opportunity_id") or "").strip()
 
-            # 若当前仍有持仓，且新机会的触发日早于当前持仓结束，则跳过
-            if holding and current_exit_date is not None and trigger_date <= current_exit_date:
+            # 若当前仍有持仓，且新机会的触发日早于或等于当前持仓结束日，则跳过
+            # 这样保证同一只股票在任意时刻至多只有一笔持仓
+            if holding_until is not None and trigger_date <= holding_until:
                 continue
             
-            # 接纳该机会：视为买入 1 股并持有至 exit_date
-            holding = True
-            current_exit_date = exit_date
+            # 接纳该机会：视为买入 1 股并持有至 exit_date（若无 exit_date，则视为当日平仓）
+            holding_until = exit_date or trigger_date
             
             # 取出并通过钩子处理所有 target 行
             raw_target_indices = targets_index.get(opp_id) or []
@@ -651,9 +735,9 @@ class PriceFactorSimulatorWorker:
             )
             investments.append(investment)
 
-            # 更新持仓状态
-            holding = False
-            current_exit_date = exit_date
+        # 结束枚举计时
+        enum_elapsed = self.profiler.end_timer("enumerate")
+        self.profiler.metrics.time_enumerate = enum_elapsed
 
         # 5. 构建 summary
         summary = StockSummaryBuilder.build_summary(investments)
@@ -688,8 +772,23 @@ class PriceFactorSimulatorWorker:
 
         path_mgr = ResultPathManager(sim_version_dir=self.sim_version_dir)
         stock_path = path_mgr.stock_json_path(self.stock_id)
+
+        # 记录保存耗时与文件大小
+        self.profiler.start_timer("save_csv")
+        before = stock_path.stat().st_size if stock_path.exists() else 0
         with stock_path.open("w", encoding="utf-8") as f:
             json.dump(stock_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
-        
+        after = stock_path.stat().st_size if stock_path.exists() else 0
+        elapsed = self.profiler.end_timer("save_csv")
+
+        size_bytes = max(0, after - before)
+        self.profiler.metrics.time_save_csv += elapsed
+        # 记录到通用 IO 统计中
+        try:
+            self.profiler.record_file_write(size_bytes=size_bytes, duration=elapsed)
+        except TypeError:
+            # 向后兼容：旧版 record_file_write 可能没有关键字参数
+            self.profiler.record_file_write(size_bytes, elapsed)
+
         logger.debug(f"[PriceFactorSimulatorWorker] 已保存: {stock_path}")
 

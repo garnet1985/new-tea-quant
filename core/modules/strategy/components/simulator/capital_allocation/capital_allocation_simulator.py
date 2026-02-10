@@ -20,6 +20,9 @@ from core.modules.strategy.managers.result_path_manager import ResultPathManager
 from core.modules.strategy.components.simulator.base.simulator_hooks_dispatcher import (
     SimulatorHooksDispatcher,
 )
+from core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
+    PerformanceProfiler,
+)
 from core.modules.strategy.models.account import Account, Position
 from core.modules.strategy.models.event import Event
 from .fee_calculator import FeeCalculator
@@ -74,11 +77,13 @@ class CapitalAllocationSimulator:
             )
 
         from core.modules.strategy.models.strategy_settings import StrategySettings
-
+        
         base_settings = StrategySettings.from_dict(raw_settings)
         config = CapitalAllocationSimulatorConfig.from_settings(base_settings)
-
-        # 记录开始时间
+        
+        # 性能分析器（单进程）
+        profiler = PerformanceProfiler(stock_id="capital_allocation")
+        profiler.start_timer("total")
         start_time = time.time()
         
         # 2. 解析枚举器输出版本目录
@@ -107,12 +112,18 @@ class CapitalAllocationSimulator:
         self.hooks_dispatcher = SimulatorHooksDispatcher(strategy_name)
 
         # 5. 创建 DataLoader 并构建事件流
+        profiler.start_timer("load_data")
         data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
         events = data_loader.build_event_stream(
             output_version_dir,
             start_date=config.start_date or "",
             end_date=config.end_date or "",
         )
+        load_elapsed = profiler.end_timer("load_data")
+        profiler.metrics.time_load_data = load_elapsed
+        # 事件总数可视为本层的数据量指标之一
+        profiler.metrics.kline_count = 0
+        profiler.metrics.opportunity_count = len(events)
 
         if not events:
             logger.warning(
@@ -195,6 +206,7 @@ class CapitalAllocationSimulator:
         processed_events = 0
         last_progress_time = time.time()
 
+        profiler.start_timer("enumerate")
         for event in events:
             processed_events += 1
             event_date = event.date
@@ -276,12 +288,18 @@ class CapitalAllocationSimulator:
                 "portfolio_size": account.get_portfolio_size(),
             })
 
+        # 结束枚举计时
+        enum_elapsed = profiler.end_timer("enumerate")
+        profiler.metrics.time_enumerate = enum_elapsed
+
         # 9. 计算汇总统计
         summary = self._calculate_summary(
             account, trades, equity_curve, config.initial_capital
         )
 
         # 10. 保存结果
+        # 记录保存时间
+        profiler.start_timer("save_csv")
         self._save_results(
             sim_version_dir,
             sim_version_id,
@@ -292,9 +310,11 @@ class CapitalAllocationSimulator:
             config,
             base_settings.to_dict(),
         )
-
-        # 计算总时长
-        total_elapsed = time.time() - start_time
+        save_elapsed = profiler.end_timer("save_csv")
+        profiler.metrics.time_save_csv = save_elapsed
+        
+        # 计算总时长（用于日志展示）
+        total_elapsed = time.time() - profiler._timers.get("total", time.time())
         if total_elapsed < 60:
             total_time_str = f"{total_elapsed:.1f}秒"
         elif total_elapsed < 3600:
@@ -311,7 +331,25 @@ class CapitalAllocationSimulator:
             f"总收益={summary.get('total_return', 0):.2%}, "
             f"总耗时={total_time_str}"
         )
-
+        
+        # 完成性能分析并写入报告
+        profiler.metrics.time_total = profiler.end_timer("total")
+        metrics = profiler.finalize()
+        perf_summary = metrics.to_dict()
+        try:
+            path_mgr = ResultPathManager(sim_version_dir=sim_version_dir)
+            perf_path = path_mgr.ensure_root() / "0_performance_report.json"
+            with perf_path.open("w", encoding="utf-8") as f:
+                json.dump(perf_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+            logger.info(
+                f"[CapitalAllocationSimulator] 性能报告已保存: {perf_path}"
+            )
+        except Exception as exc:
+            logger.warning(
+                "[CapitalAllocationSimulator] 保存性能报告失败（不影响主流程）: %s",
+                exc,
+            )
+        
         # 运行 Analyzer（如果启用）
         try:
             from core.modules.strategy.components.analyzer import Analyzer

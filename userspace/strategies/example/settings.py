@@ -90,7 +90,7 @@ settings = {
         # 是否使用采样配置
         # True: 使用 sampling 配置进行采样枚举（结果保存在 test/ 子目录）
         # False: 使用全量股票列表进行枚举（结果保存在 output/ 子目录，作为 SOT）
-        "use_sampling": True,
+        "use_sampling": False,
         
         # 最多保留的测试模式版本数（默认 10）
         # 超过此数量的测试版本会被自动清理（删除最早的版本）

@@ -20,11 +20,15 @@ from core.modules.strategy.managers.result_path_manager import ResultPathManager
 from core.modules.strategy.components.simulator.base.simulator_hooks_dispatcher import (
     SimulatorHooksDispatcher,
 )
+from core.modules.strategy.components.opportunity_enumerator.performance_profiler import (
+    PerformanceProfiler,
+)
 from core.modules.strategy.models.account import Account, Position
 from core.modules.strategy.models.event import Event
 from .fee_calculator import FeeCalculator
 from .allocation_strategy import AllocationStrategy
 from .helpers import DateTimeEncoder
+from .result_presenter import CapitalAllocationResultPresenter
 
 
 logger = logging.getLogger(__name__)
@@ -74,11 +78,13 @@ class CapitalAllocationSimulator:
             )
 
         from core.modules.strategy.models.strategy_settings import StrategySettings
-
+        
         base_settings = StrategySettings.from_dict(raw_settings)
         config = CapitalAllocationSimulatorConfig.from_settings(base_settings)
-
-        # 记录开始时间
+        
+        # 性能分析器（单进程）
+        profiler = PerformanceProfiler(stock_id="capital_allocation")
+        profiler.start_timer("total")
         start_time = time.time()
         
         # 2. 解析枚举器输出版本目录
@@ -107,12 +113,18 @@ class CapitalAllocationSimulator:
         self.hooks_dispatcher = SimulatorHooksDispatcher(strategy_name)
 
         # 5. 创建 DataLoader 并构建事件流
+        profiler.start_timer("load_data")
         data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
         events = data_loader.build_event_stream(
             output_version_dir,
             start_date=config.start_date or "",
             end_date=config.end_date or "",
         )
+        load_elapsed = profiler.end_timer("load_data")
+        profiler.metrics.time_load_data = load_elapsed
+        # 事件总数可视为本层的数据量指标之一
+        profiler.metrics.kline_count = 0
+        profiler.metrics.opportunity_count = len(events)
 
         if not events:
             logger.warning(
@@ -120,48 +132,14 @@ class CapitalAllocationSimulator:
             )
             return {}
 
-        # 6. 根据 use_sampling 配置过滤事件（只保留采样股票的事件）
-        if config.use_sampling:
-            from core.modules.data_manager import DataManager
-            from core.modules.strategy.helper.stock_sampling_helper import (
-                StockSamplingHelper,
-            )
-
-            data_mgr = DataManager(is_verbose=False)
-            all_stocks_info = data_mgr.service.stock.list.load(filtered=True)
-
-            sampling_cfg = base_settings.sampling or {}
-            sampling_strategy = sampling_cfg.get("strategy", "continuous")
-            sampling_amount = int(sampling_cfg.get("sampling_amount", 20))
-
-            # 获取采样后的股票列表
-            sampled_stock_ids = StockSamplingHelper.get_stock_list(
-                all_stocks=all_stocks_info,
-                sampling_amount=sampling_amount,
-                sampling_config=sampling_cfg,
-            )
-            sampled_stock_set = set(sampled_stock_ids)
-
-            # 过滤事件，只保留采样后的股票
-            original_count = len(events)
-            events = [
-                e for e in events
-                if e.get("stock_id") in sampled_stock_set
-            ]
-
-            logger.info(
-                f"[CapitalAllocationSimulator] 采样模式: "
-                f"strategy={sampling_strategy}, amount={sampling_amount}, "
-                f"原始={original_count} 个事件, 采样后={len(events)} 个事件 "
-                f"(涉及 {len(sampled_stock_set)} 只股票)"
-            )
-        else:
-            # 统计涉及的股票数量
-            stock_ids = set(e.get("stock_id") for e in events)
-            logger.info(
-                f"[CapitalAllocationSimulator] 全量模式: {len(events)} 个事件 "
-                f"(涉及 {len(stock_ids)} 只股票)"
-            )
+        # 6. 事件集合完全由 SOT 决定：
+        # - 如果 SOT 是 output/*，这里就是全市场全时段的机会流；
+        # - 如果 SOT 是 test/*，这里就是采样后的机会流。
+        stock_ids = set(e.stock_id for e in events)
+        logger.info(
+            f"[CapitalAllocationSimulator] 使用 SOT 事件流: {len(events)} 个事件 "
+            f"(涉及 {len(stock_ids)} 只股票，版本={output_version_dir.name})"
+        )
 
         # 7. 初始化账户和策略
         account = Account(initial_cash=config.initial_capital, cash=config.initial_capital)
@@ -195,6 +173,7 @@ class CapitalAllocationSimulator:
         processed_events = 0
         last_progress_time = time.time()
 
+        profiler.start_timer("enumerate")
         for event in events:
             processed_events += 1
             event_date = event.date
@@ -207,12 +186,14 @@ class CapitalAllocationSimulator:
                         account, event.opportunity or (event.target or {})
                     )
                     equity = account.get_equity(stock_prices)
-                    equity_curve.append({
-                        "date": current_date,
-                        "cash": account.cash,
-                        "equity": equity,
-                        "portfolio_size": account.get_portfolio_size(),
-                    })
+                    equity_curve.append(
+                        {
+                            "date": current_date,
+                            "cash_balance": account.cash,
+                            "total_equity": equity,
+                            "open_positions": account.get_portfolio_size(),
+                        }
+                    )
                 current_date = event_date
 
             # 处理事件
@@ -269,12 +250,18 @@ class CapitalAllocationSimulator:
                 if position.shares > 0:
                     stock_prices[stock_id] = position.avg_cost  # 使用成本价作为最后估值
             equity = account.get_equity(stock_prices)
-            equity_curve.append({
-                "date": current_date,
-                "cash": account.cash,
-                "equity": equity,
-                "portfolio_size": account.get_portfolio_size(),
-            })
+            equity_curve.append(
+                {
+                    "date": current_date,
+                    "cash_balance": account.cash,
+                    "total_equity": equity,
+                    "open_positions": account.get_portfolio_size(),
+                }
+            )
+
+        # 结束枚举计时
+        enum_elapsed = profiler.end_timer("enumerate")
+        profiler.metrics.time_enumerate = enum_elapsed
 
         # 9. 计算汇总统计
         summary = self._calculate_summary(
@@ -282,6 +269,8 @@ class CapitalAllocationSimulator:
         )
 
         # 10. 保存结果
+        # 记录保存时间
+        profiler.start_timer("save_csv")
         self._save_results(
             sim_version_dir,
             sim_version_id,
@@ -292,9 +281,11 @@ class CapitalAllocationSimulator:
             config,
             base_settings.to_dict(),
         )
-
-        # 计算总时长
-        total_elapsed = time.time() - start_time
+        save_elapsed = profiler.end_timer("save_csv")
+        profiler.metrics.time_save_csv = save_elapsed
+        
+        # 计算总时长（用于日志展示）
+        total_elapsed = time.time() - profiler._timers.get("total", time.time())
         if total_elapsed < 60:
             total_time_str = f"{total_elapsed:.1f}秒"
         elif total_elapsed < 3600:
@@ -311,6 +302,27 @@ class CapitalAllocationSimulator:
             f"总收益={summary.get('total_return', 0):.2%}, "
             f"总耗时={total_time_str}"
         )
+        
+        # 完成性能分析并写入报告
+        profiler.metrics.time_total = profiler.end_timer("total")
+        metrics = profiler.finalize()
+        perf_summary = metrics.to_dict()
+        try:
+            path_mgr = ResultPathManager(sim_version_dir=sim_version_dir)
+            perf_path = path_mgr.ensure_root() / "0_performance_report.json"
+            with perf_path.open("w", encoding="utf-8") as f:
+                json.dump(perf_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+            logger.info(
+                f"[CapitalAllocationSimulator] 性能报告已保存: {perf_path}"
+            )
+        except Exception as exc:
+            logger.warning(
+                "[CapitalAllocationSimulator] 保存性能报告失败（不影响主流程）: %s",
+                exc,
+            )
+
+        # 控制台展示结果（类似 PriceFactorSimulator）
+        CapitalAllocationResultPresenter.present_results(summary, strategy_name)
 
         # 运行 Analyzer（如果启用）
         try:
@@ -456,10 +468,22 @@ class CapitalAllocationSimulator:
         stock_id = event.stock_id
         target = event.target or {}
         opp_id = str(target.get("opportunity_id", "")).strip()
-        target_price = float(target.get("price", 0.0) or 0.0)
-        sell_ratio = float(target.get("sell_ratio", 0.0) or 0.0)
+        # 统一约定：sell_price 表示实际成交价格
+        raw_sell_price = (
+            target.get("sell_price", 0.0)
+            or target.get("price", 0.0)
+            or target.get("target_price", 0.0)
+        )
+        sell_price = float(raw_sell_price or 0.0)
+        # 枚举 SOT 当前的 targets CSV 未包含 sell_ratio 字段，
+        # 为了在资金模拟 MVP 阶段能有完整的开平仓路径，这里将缺失或为 0 的 sell_ratio 视为 1.0（全量平仓）。
+        raw_sell_ratio = target.get("sell_ratio", 0.0)
+        try:
+            sell_ratio = float(raw_sell_ratio if raw_sell_ratio not in (None, "", 0) else 1.0)
+        except (TypeError, ValueError):
+            sell_ratio = 1.0
 
-        if not stock_id or not opp_id or target_price <= 0 or sell_ratio <= 0:
+        if not stock_id or not opp_id or sell_price <= 0 or sell_ratio <= 0:
             return None
 
         # 钩子：目标事件处理前，允许用户修改 event
@@ -475,9 +499,18 @@ class CapitalAllocationSimulator:
                 stock_id = event.stock_id
                 target = event.target or {}
                 opp_id = str(target.get("opportunity_id", "")).strip()
-                target_price = float(target.get("price", 0.0) or 0.0)
-                sell_ratio = float(target.get("sell_ratio", 0.0) or 0.0)
-                if not stock_id or not opp_id or target_price <= 0 or sell_ratio <= 0:
+                raw_sell_price = (
+                    target.get("sell_price", 0.0)
+                    or target.get("price", 0.0)
+                    or target.get("target_price", 0.0)
+                )
+                sell_price = float(raw_sell_price or 0.0)
+                raw_sell_ratio = target.get("sell_ratio", 0.0)
+                try:
+                    sell_ratio = float(raw_sell_ratio if raw_sell_ratio not in (None, "", 0) else 1.0)
+                except (TypeError, ValueError):
+                    sell_ratio = 1.0
+                if not stock_id or not opp_id or sell_price <= 0 or sell_ratio <= 0:
                     return None
 
         # 检查持仓
@@ -508,7 +541,7 @@ class CapitalAllocationSimulator:
             return None
 
         # 执行卖出
-        gross_amount = sell_shares * target_price
+        gross_amount = sell_shares * sell_price
         fees = fee_calculator.calculate_fees(gross_amount, "sell")
         net_proceeds = gross_amount - fees
 
@@ -532,13 +565,13 @@ class CapitalAllocationSimulator:
             "opportunity_id": opp_id,
             "side": "sell",
             "shares": sell_shares,
-            "price": target_price,
+            "price": sell_price,
             "amount": gross_amount,
             "fees": fees,
             "net_proceeds": net_proceeds,
             "pnl": pnl,
             "cash_after": account.cash,
-            "equity_after": account.get_equity({stock_id: target_price}),
+            "equity_after": account.get_equity({stock_id: sell_price}),
         }
 
         # 钩子：目标事件处理后，允许用户修改 trade
@@ -605,18 +638,22 @@ class CapitalAllocationSimulator:
         initial_capital: float,
     ) -> Dict[str, Any]:
         """计算汇总统计"""
-        # 计算最终权益
-        final_equity = equity_curve[-1].get("equity", account.cash) if equity_curve else account.cash
+        # 计算最终总资产（使用权益曲线里的 total_equity 字段）
+        final_equity = (
+            equity_curve[-1].get("total_equity", equity_curve[-1].get("equity", account.cash))
+            if equity_curve
+            else account.cash
+        )
 
         # 计算总收益
         total_return = (final_equity - initial_capital) / initial_capital if initial_capital > 0 else 0.0
 
-        # 计算最大回撤
+        # 计算最大回撤（基于 total_equity）
         max_drawdown = 0.0
         if equity_curve:
             peak = initial_capital
             for point in equity_curve:
-                equity = point.get("equity", initial_capital)
+                equity = point.get("total_equity", point.get("equity", initial_capital))
                 if equity > peak:
                     peak = equity
                 drawdown = (peak - equity) / peak if peak > 0 else 0.0
@@ -630,34 +667,40 @@ class CapitalAllocationSimulator:
         loss_trades = [t for t in sell_trades if t.get("pnl", 0) < 0]
 
         # 按股票汇总
-        stock_summary = defaultdict(lambda: {
-            "trade_count": 0,
-            "total_pnl": 0.0,
-            "win_trades": 0,
-            "loss_trades": 0,
-        })
+        stock_summary = defaultdict(
+            lambda: {
+                "trade_count": 0,
+                "total_profit": 0.0,
+                "win_trades": 0,
+                "loss_trades": 0,
+            }
+        )
         for trade in sell_trades:
             stock_id = trade.get("stock_id", "")
             stock_summary[stock_id]["trade_count"] += 1
-            stock_summary[stock_id]["total_pnl"] += trade.get("pnl", 0.0)
+            stock_summary[stock_id]["total_profit"] += trade.get("pnl", 0.0)
             if trade.get("pnl", 0) > 0:
                 stock_summary[stock_id]["win_trades"] += 1
             else:
                 stock_summary[stock_id]["loss_trades"] += 1
 
         return {
+            # 资金概况
             "initial_capital": initial_capital,
-            "final_cash": account.cash,
-            "final_equity": final_equity,
+            "final_cash_balance": account.cash,
+            "final_total_equity": final_equity,
             "total_return": total_return,
             "max_drawdown": max_drawdown,
+            # 交易统计
             "total_trades": len(trades),
             "buy_trades": len(buy_trades),
             "sell_trades": len(sell_trades),
             "win_trades": len(win_trades),
             "loss_trades": len(loss_trades),
             "win_rate": len(win_trades) / len(sell_trades) if sell_trades else 0.0,
-            "total_pnl": sum(t.get("pnl", 0.0) for t in sell_trades),
+            # 总盈亏
+            "total_profit": sum(t.get("pnl", 0.0) for t in sell_trades),
+            # 每只股票维度的盈亏汇总
             "stock_summary": dict(stock_summary),
         }
 
@@ -672,20 +715,52 @@ class CapitalAllocationSimulator:
         config: CapitalAllocationSimulatorConfig,
         settings_snapshot: Dict[str, Any],
     ) -> None:
-        """保存模拟结果"""
+        """保存模拟结果（JSON + CSV）"""
+        from core.utils.io.csv_io import write_dicts_to_csv
         path_mgr = ResultPathManager(sim_version_dir=sim_version_dir)
 
-        # 保存交易记录
-        if config.save_trades:
+        # 保存交易记录（大表：JSON + CSV）
+        if config.save_trades and trades:
             trades_path = path_mgr.trades_path()
+            # 原 JSON（供 Analyzer 等内部工具使用）
             with trades_path.open("w", encoding="utf-8") as f:
                 json.dump(trades, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
 
-        # 保存权益曲线
-        if config.save_equity_curve:
+            # 额外导出 CSV，方便人工查看与 Excel / pandas 加载
+            trades_csv_path = trades_path.with_suffix(".csv")
+            write_dicts_to_csv(
+                trades_csv_path,
+                trades,
+                preferred_order=[
+                    "date",
+                    "stock_id",
+                    "opportunity_id",
+                    "side",
+                    "shares",
+                    "price",
+                    "amount",
+                    "fees",
+                    "net_proceeds",
+                    "pnl",
+                    "cash_after",
+                    "equity_after",
+                ],
+            )
+        
+        # 保存权益曲线（大表：JSON + CSV）
+        if config.save_equity_curve and equity_curve:
             equity_path = path_mgr.equity_timeseries_path()
+            # 原 JSON
             with equity_path.open("w", encoding="utf-8") as f:
                 json.dump(equity_curve, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+
+            # 额外导出 CSV
+            equity_csv_path = equity_path.with_suffix(".csv")
+            write_dicts_to_csv(
+                equity_csv_path,
+                equity_curve,
+                preferred_order=["date", "cash_balance", "total_equity", "open_positions"],
+            )
 
         # 保存汇总
         summary_path = path_mgr.strategy_summary_path()

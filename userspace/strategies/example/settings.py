@@ -76,7 +76,7 @@ settings = {
     # ========================================
     "sampling": {
         "strategy": "continuous",
-        "sampling_amount": 2000,
+        "sampling_amount": 2,
         # "pool": {
         #     # 直接在配置中给出一个很小的股票池，方便快速测试
         #     "stock_pool": ["000001.SZ", "000002.SZ"],
@@ -90,7 +90,7 @@ settings = {
         # 是否使用采样配置
         # True: 使用 sampling 配置进行采样枚举（结果保存在 test/ 子目录）
         # False: 使用全量股票列表进行枚举（结果保存在 output/ 子目录，作为 SOT）
-        "use_sampling": False,
+        "use_sampling": True,
         
         # 最多保留的测试模式版本数（默认 10）
         # 超过此数量的测试版本会被自动清理（删除最早的版本）
@@ -126,18 +126,16 @@ settings = {
         # 时间窗口（可选），为空表示使用 SOT 全量时间
         "start_date": "",
         "end_date": "",
-        
-        # 枚举版本依赖（"latest" 表示使用最新的 output 版本）
-        # 支持格式：
+
+        # 枚举版本依赖
+        # 采样语义统一下沉到枚举器层，这里只负责指明读取哪一套 SOT：
         #   - "latest": 使用最新的输出版本（output/ 目录）
         #   - "test/latest": 使用最新的测试版本（test/ 目录）
         #   - "output/latest": 使用最新的输出版本（output/ 目录）
         #   - "1": 使用指定版本号（默认在 output/ 目录查找）
-        "output_version": "latest",
-        
-        # 是否使用采样配置（默认 True）
-        "use_sampling": True,
-        
+        #   - "test/67": 使用 test 目录下的第 67 版
+        "output_version": "test/67",
+
         # 模拟器专用 worker 数量（"auto" 或具体数字）
         "max_workers": "auto",
     },
@@ -157,11 +155,8 @@ settings = {
     # ========================================
     "capital_simulator": {
         # 枚举版本依赖（与 PriceFactor 一样的语义）
-        # "latest" / "test/latest" / "output/latest" / "1" 等
-        "output_version": "latest",
-
-        # 是否使用采样配置（默认 True，使用 sampling 配置过滤股票）
-        "use_sampling": True,
+        # "latest" / "test/latest" / "output/latest" / "1" / "test/67" 等
+        "output_version": "test/67",
 
         # 初始资金（元）
         "initial_capital": 1_000_000,

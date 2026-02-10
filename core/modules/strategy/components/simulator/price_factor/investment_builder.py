@@ -28,7 +28,8 @@ class InvestmentBuilder:
             investment 字典
         """
         trigger_date = opportunity_row.get("trigger_date", "")
-        exit_date = opportunity_row.get("exit_date", "")
+        # 优先使用 SOT 中的 sell_date 字段；如果未来引入 exit_date，则兼容回退
+        exit_date = opportunity_row.get("sell_date") or opportunity_row.get("exit_date", "")
         opp_id = str(opportunity_row.get("opportunity_id") or "").strip()
 
         # 解析基础字段
@@ -42,11 +43,11 @@ class InvestmentBuilder:
             roi = 0.0
 
         # 计算整体 PnL（1 股）
-        if targets_list:
-            pnl = sum(t.get("weighted_profit", 0.0) for t in targets_list)
-        else:
-            # 回退：使用整体 ROI 估算
-            pnl = trigger_price * roi
+        # 说明：
+        # - 当前 SOT targets CSV 只有 roi（收益率）而没有绝对 profit/weighted_profit，
+        #   因此在 PriceFactorSimulator MVP 阶段，我们统一使用「1 股 × 触发价 × ROI」近似总盈亏。
+        # - 等后续 SOT 增加绝对收益列或更细粒度的拆分时，再改为基于 targets_list 精细计算。
+        pnl = trigger_price * roi
 
         # 计算持续天数（自然日）
         start_dt = parse_yyyymmdd(trigger_date)

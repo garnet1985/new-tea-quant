@@ -592,17 +592,22 @@ class OpportunityEnumeratorWorker:
                 }
 
             # 提取 completed_targets（单独输出到 targets CSV）
-            completed_targets = opp_dict.get('completed_targets', [])
+            completed_targets = opp_dict.get("completed_targets", [])
             if completed_targets:
                 for target in completed_targets:
+                    # 统一命名约定：
+                    # - date / sell_price 表示实际成交（卖出）发生的日期和价格
+                    # - sell_ratio / profit / weighted_profit / roi / reason 为本次成交属性
+                    # 这里不再输出旧的 target_date / target_price 字段，避免和 sell_* 概念混淆。
                     target_row = {
-                        'opportunity_id': opp_dict.get('opportunity_id', ''),
-                        'target_type': target.get('type', ''),
-                        'target_value': target.get('value', ''),
-                        'target_date': target.get('date', ''),
-                        'target_price': target.get('price', ''),
-                        'reason': target.get('reason', ''),
-                        'roi': target.get('roi', ''),
+                        "opportunity_id": opp_dict.get("opportunity_id", ""),
+                        "date": target.get("date", ""),
+                        "sell_price": target.get("price", ""),
+                        "sell_ratio": target.get("sell_ratio", ""),
+                        "profit": target.get("profit", ""),
+                        "weighted_profit": target.get("weighted_profit", ""),
+                        "reason": target.get("reason", ""),
+                        "roi": target.get("roi", ""),
                     }
                     target_rows.append(target_row)
 
@@ -620,29 +625,26 @@ class OpportunityEnumeratorWorker:
 
         # 写入 opportunities CSV
         if opp_rows:
+            from core.utils.io.csv_io import write_dicts_to_csv
             opp_file = output_path / f"{self.stock_id}_opportunities.csv"
             if opp_file.exists():
                 opp_file.unlink()  # 删除旧文件
-            
-            with open(opp_file, 'w', newline='', encoding='utf-8') as f:
-                if opp_rows:
-                    writer = csv.DictWriter(f, fieldnames=opp_rows[0].keys())
-                    writer.writeheader()
-                    writer.writerows(opp_rows)
-                    total_write_size += opp_file.stat().st_size
+
+            # 使用第一行的 key 顺序作为首选顺序，保证列顺序稳定
+            preferred_fields = list(opp_rows[0].keys())
+            write_dicts_to_csv(opp_file, opp_rows, preferred_order=preferred_fields)
+            total_write_size += opp_file.stat().st_size
 
         # 写入 targets CSV
         if target_rows:
+            from core.utils.io.csv_io import write_dicts_to_csv
             target_file = output_path / f"{self.stock_id}_targets.csv"
             if target_file.exists():
                 target_file.unlink()  # 删除旧文件
-            
-            with open(target_file, 'w', newline='', encoding='utf-8') as f:
-                if target_rows:
-                    writer = csv.DictWriter(f, fieldnames=target_rows[0].keys())
-                    writer.writeheader()
-                    writer.writerows(target_rows)
-                    total_write_size += target_file.stat().st_size
+
+            preferred_fields = list(target_rows[0].keys())
+            write_dicts_to_csv(target_file, target_rows, preferred_order=preferred_fields)
+            total_write_size += target_file.stat().st_size
 
         logger.debug(
             f"已保存股票结果: stock={self.stock_id}, "

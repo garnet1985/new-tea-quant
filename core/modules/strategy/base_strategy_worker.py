@@ -101,7 +101,11 @@ class BaseStrategyWorker(ABC):
                     return stock_info
             
             # 如果都不可用，返回最小信息
-            logger.warning(f"无法加载股票信息: {self.stock_id}，使用最小信息")
+            # 说明：
+            # - 对于正常股票代码，这是一条有用的告警；
+            # - 对于模拟钩子内部构造的 DUMMY 虚拟股票，则不需要在日志里打扰用户。
+            if str(self.stock_id).upper() != "DUMMY":
+                logger.warning(f"无法加载股票信息: {self.stock_id}，使用最小信息")
             return {
                 'id': self.stock_id,
                 'name': self.stock_id,
@@ -110,7 +114,8 @@ class BaseStrategyWorker(ABC):
                 'exchange_center': ''
             }
         except Exception as e:
-            logger.error(f"加载股票信息失败: {self.stock_id}, error: {e}")
+            if str(self.stock_id).upper() != "DUMMY":
+                logger.error(f"加载股票信息失败: {self.stock_id}, error: {e}")
             return {
                 'id': self.stock_id,
                 'name': self.stock_id,

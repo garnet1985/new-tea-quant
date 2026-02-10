@@ -1,8 +1,6 @@
 {
   "default_start_date": "20080101",
   "decimal_places": 2,
-<<<<<<< HEAD
-=======
   "benchmark_stock_index_list": [
     {
       "id": "000001.SH",
@@ -30,7 +28,6 @@
       "description": "创业板指数，反映创业板股票整体表现"
     }
   ],
->>>>>>> write-doc
   "stock_list_filter": {
     "enable": true,
     "exclude_patterns": {

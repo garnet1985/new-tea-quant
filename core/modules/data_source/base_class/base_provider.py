@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Any
 import os
-
-from loguru import logger
+import logging
 
 from core.infra.project_context import PathManager
 from core.modules.data_source.data_class.error import ProviderError
+
+logger = logging.getLogger(__name__)
+
+
 class BaseProvider(ABC):
     """
     第三方数据源提供者基类

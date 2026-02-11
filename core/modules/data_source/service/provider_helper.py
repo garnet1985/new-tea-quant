@@ -1,9 +1,11 @@
 from typing import Any, Dict, Type, Optional
 import threading
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 class DataSourceProviderHelper:

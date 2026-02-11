@@ -7,7 +7,10 @@ import json
 import math
 from typing import List, Any, Tuple, Optional
 from datetime import datetime, date
-from loguru import logger
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class BatchOperation:

@@ -5,9 +5,12 @@ Tushare Provider 实现
 """
 import tushare as ts
 from typing import Dict, Any, Optional
-from loguru import logger
+import logging
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 class TushareProvider(BaseProvider):

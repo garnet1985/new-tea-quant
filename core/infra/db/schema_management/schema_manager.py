@@ -9,12 +9,15 @@ SchemaManager - Schema 管理和表初始化
 """
 import importlib.util
 import json
+import logging
 from typing import Dict, List, Optional, Callable
 from pathlib import Path
-from loguru import logger
 
 from core.infra.project_context import PathManager, FileManager
 from core.infra.db.schema_management.field import Field
+
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaManager:
@@ -42,6 +45,7 @@ class SchemaManager:
         else:
             # 默认指向 core/tables（sys_ 前缀表定义在此）
             self.tables_dir = str(PathManager.core() / 'tables')
+        # is_verbose 参数仅用于向后兼容，实际详细程度由 logging 配置控制
         self.is_verbose = is_verbose
         self.database_type = database_type or 'postgresql'  # 默认 PostgreSQL
         
@@ -324,8 +328,7 @@ class SchemaManager:
         with get_connection_func() as conn:
             conn.execute(create_sql)
         
-        if self.is_verbose:
-            logger.info(f"✅ 表 '{table_name}' 创建成功")
+        logger.debug(f"✅ 表 '{table_name}' 创建成功")
         
         # 创建索引
         indexes = schema.get('indexes', [])
@@ -346,8 +349,7 @@ class SchemaManager:
                 index_sql = self.generate_create_index_sql(table_name, index)
                 with get_connection_func() as conn:
                     conn.execute(index_sql)
-                if self.is_verbose:
-                    logger.info(f"✅ 索引 '{index['name']}' 创建成功")
+                logger.debug(f"✅ 索引 '{index['name']}' 创建成功")
             except Exception as e:
                 logger.error(f"❌ 创建索引失败 '{index['name']}': {e}")
     
@@ -386,8 +388,7 @@ class SchemaManager:
             schema: 表的 schema 定义
         """
         self.registered_tables[table_name] = schema
-        if self.is_verbose:
-            logger.info(f"✅ 表 '{table_name}' 已注册")
+        logger.debug(f"✅ 表 '{table_name}' 已注册")
     
     def create_registered_tables(self, get_connection_func: Callable):
         """

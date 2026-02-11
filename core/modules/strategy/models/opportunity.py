@@ -11,9 +11,12 @@ Opportunity Model - 投资机会模型
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional
 from datetime import datetime
-from loguru import logger
+import logging
 
 from core.modules.strategy.enums import OpportunityStatus
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

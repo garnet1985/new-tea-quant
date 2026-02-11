@@ -4,11 +4,14 @@
 将复杂的业务逻辑拆分为语义化的静态方法，便于测试和维护。
 """
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 import pandas as pd
 from datetime import date
 
 from core.utils.date.date_utils import DateUtils
+
+
+logger = logging.getLogger(__name__)
 
 
 class AdjFactorEventHandlerHelper:

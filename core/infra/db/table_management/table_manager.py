@@ -7,11 +7,14 @@ TableManager - 表操作 API
 - 直接写入（兜底方案）
 """
 from typing import List, Dict, Any, Optional, Callable
-from loguru import logger
+import logging
 
 from core.infra.db.table_queriers.services.batch_operation_queue import BatchWriteQueue
 from core.infra.db.helpers.db_helpers import DBHelper
 from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
+
+
+logger = logging.getLogger(__name__)
 
 
 class TableManager:

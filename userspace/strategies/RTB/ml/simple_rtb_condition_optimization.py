@@ -65,7 +65,7 @@ def analyze_current_rtb_performance():
     print("="*60)
     
     # 从最新的RTB结果中获取统计信息
-    results_dir = Path("/Users/garnet/Desktop/stocks-py/app/analyzer/strategy/RTB/tmp/2025_10_21-261")
+    results_dir = Path("/Users/garnet/Desktop/new-tea-quant/app/analyzer/strategy/RTB/tmp/2025_10_21-261")
     
     if results_dir.exists():
         summary_file = results_dir / "0_session_summary.json"

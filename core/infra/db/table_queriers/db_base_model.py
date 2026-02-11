@@ -43,12 +43,15 @@ DbBaseModel - 数据库表操作的通用基类
 """
 import math
 from typing import Dict, List, Any, Optional
-from loguru import logger
+import logging
 import json
 import os
 
 from core.infra.db.helpers.db_helpers import DBHelper
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
+
+
+logger = logging.getLogger(__name__)
 
 
 class DbBaseModel:
@@ -114,15 +117,13 @@ class DbBaseModel:
 
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(sql)
-            # 只在详细模式下输出日志，减少重复日志
-            if self.db.is_verbose:
-                logger.info(f"Table '{self.table_name}' is ready")
+            # 详细日志由 logging 配置控制
+            logger.debug(f"Table '{self.table_name}' is ready")
 
     def drop_table(self) -> None:
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(f"DROP TABLE IF EXISTS {self.table_name}")
-            if self.db.is_verbose:
-                logger.info(f"Table '{self.table_name}' is dropped")
+            logger.debug(f"Table '{self.table_name}' is dropped")
 
     def clear_table(self) -> int:
         """清空表数据"""
@@ -159,8 +160,7 @@ class DbBaseModel:
         sql = f"ALTER TABLE {self.table_name} ADD COLUMN {column_name} {column_type.strip()}"
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(sql)
-        if self.db.is_verbose:
-            logger.info(f"表 {self.table_name} 已添加列: {column_name}")
+        logger.debug(f"表 {self.table_name} 已添加列: {column_name}")
 
     def drop_column(self, column_name: str) -> None:
         """
@@ -173,8 +173,7 @@ class DbBaseModel:
         sql = f"ALTER TABLE {self.table_name} DROP COLUMN {column_name}"
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(sql)
-        if self.db.is_verbose:
-            logger.info(f"表 {self.table_name} 已删除列: {column_name}")
+        logger.debug(f"表 {self.table_name} 已删除列: {column_name}")
 
     def rename_column(self, old_column_name: str, new_column_name: str) -> None:
         """
@@ -189,8 +188,7 @@ class DbBaseModel:
         sql = f"ALTER TABLE {self.table_name} RENAME COLUMN {old_column_name} TO {new_column_name}"
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(sql)
-        if self.db.is_verbose:
-            logger.info(f"表 {self.table_name} 已将列 {old_column_name} 重命名为 {new_column_name}")
+        logger.debug(f"表 {self.table_name} 已将列 {old_column_name} 重命名为 {new_column_name}")
 
     def modify_column(self, column_name: str, column_type: str) -> None:
         """
@@ -217,8 +215,7 @@ class DbBaseModel:
             sql = f"ALTER TABLE {self.table_name} MODIFY COLUMN `{column_name}` {column_type.strip()}"
         with self.db.get_sync_cursor() as cursor:
             cursor.execute(sql)
-        if self.db.is_verbose:
-            logger.info(f"表 {self.table_name} 已将列 {column_name} 类型修改为 {column_type}")
+        logger.debug(f"表 {self.table_name} 已将列 {column_name} 类型修改为 {column_type}")
 
     def get_primary_keys(self) -> List[str]:
         """从 schema 中获取主键列表"""
@@ -484,8 +481,7 @@ class DbBaseModel:
 
         try:
             def write_callback(table_name, count):
-                if getattr(self.db, "is_verbose", False):
-                    logger.debug(f"Insert completed for {table_name}: {count} records")
+                logger.debug(f"Insert completed for {table_name}: {count} records")
 
             if hasattr(self.db, "queue_write"):
                 keys = unique_keys if unique_keys else []
@@ -591,8 +587,7 @@ class DbBaseModel:
             return 0
         try:
             def write_callback(table_name, count):
-                if getattr(self.db, "is_verbose", False):
-                    logger.info(f"Upsert completed for {table_name}: {count} records")
+                logger.debug(f"Upsert completed for {table_name}: {count} records")
             if hasattr(self.db, "queue_write"):
                 self.db.queue_write(self.table_name, rows, unique_keys, write_callback)
                 return len(rows)

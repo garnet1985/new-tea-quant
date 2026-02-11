@@ -5,11 +5,13 @@
 - mapping 中的 data source key 不能使用保留关键字（在 HandlerMapping 中校验）。
 """
 from typing import Any, List
-
-from loguru import logger
+import logging
 
 # 保留依赖关键字：用于 depends_on，不能作为 data source key 使用
 RESERVED_DEPENDENCY_KEYS = frozenset({"latest_trading_date"})
+
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_reserved_dependency(dep_key: str) -> Any:

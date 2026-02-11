@@ -11,10 +11,12 @@ K线数据服务（KlineService）
 - adj_factor_event: 复权因子事件
 """
 from typing import List, Dict, Any, Optional, Union
-from loguru import logger
+import logging
 
 from ... import BaseDataService
 from core.utils.date.date_utils import DateUtils
+
+logger = logging.getLogger(__name__)
 
 # 价格字段配置（用于复权计算）
 _PRICE_FIELDS = ['open', 'close', 'highest', 'lowest', 'pre_close']

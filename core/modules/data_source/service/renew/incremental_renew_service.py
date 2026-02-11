@@ -4,10 +4,13 @@ Incremental Renew Service
 增量更新模式（incremental）的自动处理逻辑。
 """
 from typing import Dict, Any, Tuple, Optional, Union
-from loguru import logger
+import logging
 
 from core.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+
+
+logger = logging.getLogger(__name__)
 
 
 class IncrementalRenewService:

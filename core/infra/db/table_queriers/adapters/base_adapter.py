@@ -6,7 +6,10 @@ BaseDatabaseAdapter - 数据库适配器基类
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, ContextManager
 from contextlib import contextmanager
-from loguru import logger
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class BaseDatabaseAdapter(ABC):

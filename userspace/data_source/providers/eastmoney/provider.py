@@ -11,7 +11,7 @@
 """
 import time
 from typing import Dict, Any, Optional
-from loguru import logger
+import logging
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
 
@@ -24,6 +24,9 @@ except ImportError:
     _HAS_CURL_CFFI = False
 
 import requests  # 始终导入，用于 fallback 及异常类型
+
+
+logger = logging.getLogger(__name__)
 
 
 class EastMoneyProvider(BaseProvider):

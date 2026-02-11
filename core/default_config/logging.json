@@ -1,0 +1,10 @@
+{
+  "level": "INFO",
+  "format": "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+  "datefmt": "%Y-%m-%d %H:%M:%S",
+  "_comment": "全局日志配置：可通过 userspace/config/logging.json 覆盖 level/format/datefmt",
+  "module_levels": {
+    "core": "INFO"
+  }
+}
+

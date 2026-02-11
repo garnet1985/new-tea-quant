@@ -214,7 +214,7 @@ def analyze_stock_trend(stock_id):
 ### 运行测试
 
 ```bash
-cd /Users/garnet/Desktop/new-tea-quant
+cd /path/to/new-tea-quant
 python3 app/core/modules/indicator/indicator_service.py
 ```
 

@@ -15,7 +15,7 @@
 
 ```bash
 git clone <repository-url>
-cd stocks-py
+cd new-tea-quant
 ```
 
 ### 2. 创建虚拟环境

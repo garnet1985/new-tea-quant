@@ -22,7 +22,7 @@ class ReversalDataGenerator:
         self.data_mgr = DataManager(is_verbose=False)
         self.positive_reversals = []
         self.negative_reversals = []
-        self.csv_root = "/Users/garnet/Desktop/stocks-py/app/analyzer/strategy/RTB/ml/data/"
+        self.csv_root = "/Users/garnet/Desktop/new-tea-quant/app/analyzer/strategy/RTB/ml/data/"
         
         # 确保目录存在
         os.makedirs(self.csv_root, exist_ok=True)

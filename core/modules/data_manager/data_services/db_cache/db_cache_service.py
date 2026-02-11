@@ -10,9 +10,12 @@
 """
 import datetime
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 
 from .. import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 class DbCacheService(BaseDataService):

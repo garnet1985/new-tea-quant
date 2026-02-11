@@ -14,13 +14,16 @@
 """
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
-from loguru import logger
+import logging
 import threading
 import json
 
 from core.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from .. import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 class CalendarService(BaseDataService):

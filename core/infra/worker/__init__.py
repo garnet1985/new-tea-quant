@@ -124,7 +124,7 @@ __all__ = [
     'Orchestrator',
 ]
 
-# 版本信息
-__version__ = "3.0.0"
+# 版本信息（与项目版本保持一致）
+__version__ = "0.1.0"
 __author__ = "New Tea Quant Team"
 __description__ = "通用任务执行器模块 - 支持多进程和多线程执行，模块化架构"

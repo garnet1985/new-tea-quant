@@ -5,7 +5,7 @@
 与 K 线 renew 分离，独立增量更新。
 """
 from typing import List, Dict, Any
-from loguru import logger
+import logging
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
@@ -14,6 +14,9 @@ from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class StockIndicatorsHandler(BaseHandler):

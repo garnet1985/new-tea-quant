@@ -1,6 +1,5 @@
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-
-from loguru import logger
+import logging
 
 from core.global_enums.enums import UpdateMode
 from core.infra.project_context import ConfigManager
@@ -10,6 +9,9 @@ from core.utils.utils import Utils
 from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.modules.data_source.service.executor import fetched_data_helper as fd
 from core.modules.data_source.service.date_range import date_range_helper as drh
+
+
+logger = logging.getLogger(__name__)
 
 
 class DataSourceHandlerHelper:

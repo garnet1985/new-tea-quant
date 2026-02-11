@@ -1,10 +1,13 @@
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-from loguru import logger
+import logging
 
 from core.infra.project_context import ConfigManager
 from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.models.tag_model import TagModel
+
+
+logger = logging.getLogger(__name__)
 
 
 class ScenarioModel:

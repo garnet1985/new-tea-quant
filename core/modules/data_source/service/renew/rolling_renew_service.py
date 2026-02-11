@@ -4,11 +4,14 @@ Rolling Renew Service
 滚动刷新模式（rolling）的自动处理逻辑。
 """
 from typing import Dict, Any, Tuple, Optional, Union
-from loguru import logger
+import logging
 
 from core.global_enums.enums import TermType
 from core.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+
+
+logger = logging.getLogger(__name__)
 
 
 class RollingRenewService:

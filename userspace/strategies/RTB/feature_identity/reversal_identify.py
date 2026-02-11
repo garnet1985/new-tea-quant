@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from loguru import logger
+import logging
 import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -25,6 +25,9 @@ sys.path.append(str(project_root))
 
 from core.modules.analyzer.analyzer_service import AnalyzerService
 from core.infra.project_context import ConfigManager
+
+
+logger = logging.getLogger(__name__)
 
 
 def identify_major_reversals(stock_id: str = "000001.SZ", 

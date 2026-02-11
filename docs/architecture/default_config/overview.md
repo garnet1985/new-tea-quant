@@ -38,6 +38,7 @@ core/default_config/            # 默认配置（只包含 JSON）
 ├── market.json                 # 市场配置（为未来扩展预留）
 ├── system.json                 # 系统级配置
 ├── worker.json                 # Worker 配置（任务类型、核心数等）
+├── logging.json                # 日志配置（全局 level/format 以及按模块覆盖）
 └── database/                   # 数据库配置
     ├── common.json             # 公共配置（database_type、batch_write 等）
     ├── postgresql.json         # PostgreSQL 默认配置
@@ -54,6 +55,7 @@ userspace/config/               # 用户覆盖配置（可选）
 ├── market.json                 # 用户市场配置
 ├── system.json                 # 用户系统配置
 ├── worker.json                 # 用户 Worker 配置
+├── logging.json                # 用户日志配置（覆盖默认 logging.json 的部分字段）
 └── database/
     ├── common.json             # 用户数据库公共配置（如 database_type）
     ├── postgresql.json         # 用户 PostgreSQL 配置（通常只需 user/password）

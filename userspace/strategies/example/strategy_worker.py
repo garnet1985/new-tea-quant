@@ -11,7 +11,10 @@ Example Strategy Worker - 示例策略
 from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from core.modules.strategy.models.opportunity import Opportunity
 from typing import Optional, Dict, Any
-from loguru import logger
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExampleStrategyWorker(BaseStrategyWorker):

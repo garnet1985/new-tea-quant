@@ -13,7 +13,10 @@ from typing import Dict, List, Any, Optional, Callable
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, date
-from loguru import logger
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

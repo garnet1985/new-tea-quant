@@ -5,13 +5,15 @@ normalization_helper - 标准化阶段相关的底层工具函数。
 便于 NormalizationService 等按职责依赖，逐步减轻 handler_helper 的体积。
 """
 from typing import Any, Dict, Iterable, List, Optional
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.utils.utils import Utils
+
+
+logger = logging.getLogger(__name__)
 
 
 # ================================

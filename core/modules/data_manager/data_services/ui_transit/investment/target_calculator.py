@@ -2,9 +2,12 @@
 投资目标计算器 - 计算下一止损和下一止盈目标
 """
 from typing import Dict, Any, List, Optional
-from loguru import logger
+import logging
 import json
 import importlib
+
+
+logger = logging.getLogger(__name__)
 
 
 class TargetCalculator:

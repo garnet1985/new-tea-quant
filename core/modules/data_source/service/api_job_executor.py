@@ -8,12 +8,14 @@ ApiJobExecutor: ApiJob 执行器（合并了原 ApiJobScheduler 的功能）。
 """
 
 from typing import Dict, Any, List
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.service.rate_limiter import collect_api_limits, get_rate_limiter
+
+
+logger = logging.getLogger(__name__)
 
 
 class ApiJobExecutor:

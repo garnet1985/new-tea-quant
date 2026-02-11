@@ -9,7 +9,7 @@
 # 最后 retry 失败的数据源
 
 from typing import Dict, Any, List, Set, Optional, Tuple
-from loguru import logger
+import logging
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
@@ -17,6 +17,9 @@ from core.modules.data_source.reserved_dependencies import (
     RESERVED_DEPENDENCY_KEYS,
     resolve_reserved_dependency,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class DataSourceExecutionScheduler:

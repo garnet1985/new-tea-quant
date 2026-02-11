@@ -11,10 +11,13 @@ Renew Manager
 - 返回已注入日期范围的 ApiJob 列表
 """
 from typing import Any, Dict, List, Tuple, Optional, Union
-from loguru import logger
+import logging
 
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+
+
+logger = logging.getLogger(__name__)
 
 
 class RenewManager:

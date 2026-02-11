@@ -11,10 +11,12 @@ import threading
 import time
 from collections import deque
 from typing import Dict, Any, List, Optional
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.data_class.api_job import ApiJob
+
+
+logger = logging.getLogger(__name__)
 
 
 class RateLimiter:

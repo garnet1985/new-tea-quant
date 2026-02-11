@@ -5,12 +5,15 @@
 """
 from typing import Dict, Any, Tuple, Optional, Union, List
 from datetime import datetime, timedelta
-from loguru import logger
+import logging
 import random
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.utils.date.date_utils import DateUtils
+
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================

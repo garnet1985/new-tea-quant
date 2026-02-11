@@ -9,11 +9,14 @@ ConnectionManager - 连接和事务管理
 """
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
-from loguru import logger
+import logging
 
 from core.infra.db.table_queriers.adapters.factory import DatabaseAdapterFactory
 from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
 from core.infra.db.helpers.db_helpers import DatabaseCursor
+
+
+logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
@@ -36,6 +39,7 @@ class ConnectionManager:
             is_verbose: 是否输出详细日志
         """
         self.config = config
+        # is_verbose 参数仅用于向后兼容；详细日志由 logging 配置控制
         self.is_verbose = is_verbose
         self.adapter: Optional[BaseDatabaseAdapter] = None
         self._initialized = False
@@ -58,24 +62,23 @@ class ConnectionManager:
             # 创建适配器
             self.adapter = DatabaseAdapterFactory.create(
                 self.config,
-                is_verbose=self.is_verbose
+                is_verbose=self.is_verbose,
             )
             
             self._initialized = True
             
             # 显示初始化信息
             database_type = self.config.get('database_type', 'postgresql')
-            if self.is_verbose:
-                if database_type == 'postgresql':
-                    pg_config = self.config.get('postgresql', {})
-                    logger.info(f"✅ 数据库连接已建立（PostgreSQL: {pg_config.get('database', 'unknown')}）")
-                elif database_type == 'mysql':
-                    mysql_config = self.config.get('mysql', {})
-                    logger.info(f"✅ 数据库连接已建立（MySQL: {mysql_config.get('database', 'unknown')}）")
-                elif database_type == 'sqlite':
-                    sqlite_config = self.config.get('sqlite', {})
-                    db_path = sqlite_config.get('db_path', 'unknown')
-                    logger.info(f"✅ 数据库连接已建立（SQLite: {db_path}）")
+            if database_type == 'postgresql':
+                pg_config = self.config.get('postgresql', {})
+                logger.debug(f"✅ 数据库连接已建立（PostgreSQL: {pg_config.get('database', 'unknown')}）")
+            elif database_type == 'mysql':
+                mysql_config = self.config.get('mysql', {})
+                logger.debug(f"✅ 数据库连接已建立（MySQL: {mysql_config.get('database', 'unknown')}）")
+            elif database_type == 'sqlite':
+                sqlite_config = self.config.get('sqlite', {})
+                db_path = sqlite_config.get('db_path', 'unknown')
+                logger.debug(f"✅ 数据库连接已建立（SQLite: {db_path}）")
                 
         except Exception as e:
             logger.error(f"❌ 数据库连接初始化失败: {e}")

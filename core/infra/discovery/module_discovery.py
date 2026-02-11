@@ -8,9 +8,12 @@ Module Discovery - 模块自动发现工具
 """
 from typing import Dict, Any, Optional, Callable, List
 from pathlib import Path
-from loguru import logger
+import logging
 import importlib
 import pkgutil
+
+
+logger = logging.getLogger(__name__)
 
 
 class ModuleDiscovery:

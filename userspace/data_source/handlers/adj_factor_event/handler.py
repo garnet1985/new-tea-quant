@@ -5,7 +5,7 @@
 每股拉取 adj_factor + daily_kline + qfq_kline，在 on_after_single_api_job_bundle_complete 中 build + save。
 """
 from typing import List, Dict, Any, Optional, Tuple
-from loguru import logger
+import logging
 import os
 import pandas as pd
 
@@ -16,6 +16,9 @@ from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
 from userspace.data_source.handlers.adj_factor_event.helper import AdjFactorEventHandlerHelper as helper
 from core.infra.project_context import ConfigManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class AdjFactorEventHandler(BaseHandler):

@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import List, Dict, Any
 import logging
 
-# 添加项目根目录到路径
-project_root = Path(__file__).parent.parent.parent.parent.parent
+# 添加项目根目录到路径（相对推断）
+project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 os.chdir(str(project_root))
 
@@ -22,7 +22,8 @@ class ReversalDataGenerator:
         self.data_mgr = DataManager(is_verbose=False)
         self.positive_reversals = []
         self.negative_reversals = []
-        self.csv_root = "/Users/garnet/Desktop/new-tea-quant/app/analyzer/strategy/RTB/ml/data/"
+        # 结果输出目录：相对于项目根目录
+        self.csv_root = str(project_root / "app/analyzer/strategy/RTB/ml/data/")
         
         # 确保目录存在
         os.makedirs(self.csv_root, exist_ok=True)

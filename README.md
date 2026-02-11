@@ -1,8 +1,16 @@
 # New Tea Quant - A股量化策略回测框架
 
+> New Tea Quant（NTQ）是一个面向研究和回测场景的 A 股量化框架，目前处于 **活跃开发 / beta 阶段**，API 仍有演进空间，不建议直接用作生产级实盘交易引擎。
+
 ## 项目概述
 
-New Tea Quant 是一个专注于A股市场的量化策略回测框架，提供完整的策略开发、回测、分析和优化功能。系统采用插件化策略设计，支持灵活的投资目标管理和自定义结算逻辑。
+New Tea Quant 是一个专注于 A 股市场的量化策略回测框架，提供完整的策略开发、回测、分析和优化功能。系统采用插件化策略设计，支持灵活的投资目标管理和自定义结算逻辑。
+
+从定位上看，本项目更偏向于：
+
+- **研究与回测基础设施**：帮助你系统性地拿数据、算指标/标签、做多阶段回测实验；
+- **高级用户/工程向量化选手**：假定你具备一定的 Python & 数据库基础，愿意阅读文档和配置；
+- **非实盘交易引擎**：框架不内置撮合与下单系统，如果要实盘，需要在此之上自行接入交易执行层。
 
 ## 核心特性
 
@@ -249,8 +257,8 @@ python3 start.py
 
 #### Tushare配置
 ```bash
-# 创建token文件
-echo "your_tushare_token" > core/modules/data_source/providers/tushare/auth_token.txt
+# 在用户空间创建 token 文件
+echo "your_tushare_token" > userspace/data_source/providers/tushare/auth_token.txt
 ```
 
 ### 5. 运行策略回测
@@ -1104,7 +1112,9 @@ style: 代码格式调整
 - 检查生成的 JSON 文件格式
 - 验证数据库查询性能
 
-## 更新日志
+## 更新日志（节选）
+
+完整更新记录请参见 `CHANGELOG.md`（未来版本会逐步从 README 中迁出）。这里仅保留最近几个重要版本摘要：
 
 ### v4.0.0 (2026-01-XX)
 - 🎯 **三层回测架构**: 机会枚举 → 价格因子模拟 → 资金分配模拟
@@ -1129,7 +1139,7 @@ style: 代码格式调整
 - 完善文档和示例
 
 ### v2.0.0 (2023-XX-XX)
-- 从Node.js迁移到Python
+- 从 Node.js 迁移到 Python
 - 重构系统架构
 - 添加多数据源支持
 
@@ -1151,7 +1161,6 @@ style: 代码格式调整
 - [标签系统指南](user-guide/tag-system.md)
 
 **架构文档**：
-<<<<<<< HEAD
 - [系统架构概览](docs/architecture/project_overview.md) - 整体架构和设计理念
 - [默认配置架构](docs/architecture/default_config/architecture.md)
 - [DataManager 模块架构](docs/architecture/core_modules/data_manager/architecture.md)
@@ -1162,15 +1171,23 @@ style: 代码格式调整
 - [数据库基础设施架构](docs/architecture/infra/db/architecture.md)
 - [Project Context 模块架构](docs/architecture/infra/project_context/architecture.md)
 - [Worker 基础设施架构](docs/architecture/infra/worker/architecture.md)
-=======
-- [系统架构概览](docs/architecture/overview.md) - 整体架构和设计理念
-- [DataManager 架构](docs/architecture/data_manager_architecture.md)
-- [Strategy 框架架构](docs/architecture/strategy_architecture.md)
-- [DataSource 架构](docs/architecture/data_source_architecture.md)
-- [Tag 系统架构](docs/architecture/tag_architecture.md)
-- [数据库模块文档](core/infra/db/README.md)
-- [Project Context 设计](core/infra/project_context/DESIGN.md)
->>>>>>> write-doc
+
+### 稳定 API 与内部实现
+
+为了保持一定的向后兼容性，同时保留迭代空间，项目约定：
+
+- **相对稳定的公共 API（建议依赖）**：
+  - `core/modules/strategy/*` 暴露给 `userspace/strategies` 的策略基类与管理器；
+  - `core/modules/data_manager/*` 提供的领域化数据访问接口；
+  - `core/modules/data_source/*` 中注明为「公共 API」的类与方法（详见对应 `api.md`）；
+  - `core/modules/tag/*`、`core/modules/indicator/*` 中在文档中标记为公共 API 的部分；
+  - `userspace/` 目录结构与配置约定（`userspace/config`, `userspace/strategies`, `userspace/data_source`, `userspace/tags` 等）。
+- **视为内部实现（未来可能有不兼容改动）**：
+  - `core/infra/*` 下的大部分实现细节（db/worker/project_context/discovery 等）；
+  - 未在文档中标记为公共 API 的内部工具函数、私有类、临时脚本；
+  - `tools/` 目录下的部分一次性或迁移类脚本。
+
+如果你计划在自己的项目中强依赖某个内部接口，建议先在 issue 中发起讨论，看看是否可以将其提升为稳定 API，或通过更长期稳定的方式暴露出来。
 
 ### 示例策略
 - [Example 策略](userspace/strategies/example/) - 完整的策略示例，包含配置和文档
@@ -1183,36 +1200,13 @@ style: 代码格式调整
 
 ## 许可证
 
-本项目采用 **非商业许可证（Non-Commercial License with Commercial Use Permission Required）**。
+本项目采用 **Apache License 2.0** 开源许可证。
 
-### 允许的使用方式 ✅
+- 你可以在符合 Apache-2.0 条款的前提下，**自由地使用、复制、修改和分发本项目**，包括用于商业用途；
+- 使用本项目即视为你已经阅读并接受根目录下的 `LICENSE` 文件条款。
 
-- **个人学习和研究**：可以自由使用、修改和学习
-- **教育用途**：可以用于教学和学术研究
-- **本地测试和开发**：可以在本地环境中测试和使用
-- **开源项目**：可以在符合本许可证的开源项目中使用
-
-### 禁止的使用方式 ❌
-
-- **未经许可的商业使用**：禁止将本项目用于商业目的
-- **商业产品集成**：禁止将本项目集成到商业产品中
-- **付费服务**：禁止使用本项目提供付费服务
-- **营利性业务**：禁止在营利性业务中使用本项目
-
-### 商业使用许可
-
-如果您希望将本项目用于商业用途，**必须获得作者的明确许可**。
-
-商业使用包括但不限于：
-- 将本项目集成到商业产品中
-- 使用本项目提供商业服务
-- 在营利性业务中使用本项目
-- 将本项目作为商业解决方案的一部分
-
-**商业使用可以是闭源的**，但需要与作者达成合作协议并获得书面许可。
-
-如需商业使用许可，请联系：[请在此处填写您的联系方式]
+完整的许可证文本见仓库根目录下的 [`LICENSE`](LICENSE) 文件。
 
 ---
 
-**免责声明**: 本项目仅供学习和研究使用，不构成投资建议。投资有风险，入市需谨慎。
+**免责声明**：本项目仅供学习和研究使用，不构成任何形式的投资建议。投资有风险，入市需谨慎。

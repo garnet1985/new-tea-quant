@@ -8,9 +8,12 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor, execute_batch
 from typing import Dict, List, Any, Optional
 from contextlib import contextmanager
-from loguru import logger
+import logging
 
 from .base_adapter import BaseDatabaseAdapter
+
+
+logger = logging.getLogger(__name__)
 
 
 class PostgreSQLAdapter(BaseDatabaseAdapter):

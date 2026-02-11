@@ -5,11 +5,13 @@ PersistenceService - 负责将标准化数据写入绑定表。
 方便后续在不影响 Handler 的情况下演进写库策略。
 """
 from typing import Any, Dict, List, Optional
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_manager.data_manager import DataManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class PersistenceService:

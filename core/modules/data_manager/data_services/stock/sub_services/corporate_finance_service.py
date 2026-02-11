@@ -8,10 +8,13 @@
 """
 
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 
 from core.utils.date.date_utils import DateUtils
 from ... import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 class CorporateFinanceService(BaseDataService):

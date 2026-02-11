@@ -12,9 +12,12 @@
 - lpr: LPR利率（日度）
 """
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 
 from .. import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 # 价格指数各表字段（用于路由与合并）

@@ -27,7 +27,7 @@ import os
 import argparse
 import asyncio
 import warnings
-from loguru import logger
+import logging
 
 # ============================================================================
 # 路径设置（必须在导入其他模块之前）
@@ -56,6 +56,7 @@ from core.modules.data_source.data_source_manager import DataSourceManager
 from core.modules.tag import TagManager
 from core.modules.strategy.components import PriceFactorSimulator
 from core.modules.strategy.components.simulator.capital_allocation import CapitalAllocationSimulator
+from core.infra.logging.logging_manager import LoggingManager
 
 
 # ============================================================================
@@ -69,7 +70,7 @@ class App:
         初始化应用
         
         Args:
-            is_verbose: 是否启用详细日志
+            is_verbose: 是否启用详细日志（已由全局 logging 控制，此参数仅作向后兼容）
         """
         self.is_verbose = is_verbose
         
@@ -584,6 +585,12 @@ def main():
     # 解析参数
     parser = create_argument_parser()
     args = parser.parse_args()
+
+    # 初始化全局日志（基于 logging.json + userspace 覆盖）
+    LoggingManager.setup_logging()
+    if args.verbose:
+        # verbose 模式下，将根 logger 提升到 DEBUG
+        logging.getLogger().setLevel(logging.DEBUG)
     
     # 解析命令
     command = resolve_command(args)

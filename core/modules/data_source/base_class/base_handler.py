@@ -7,8 +7,7 @@ import os
 os.environ["TQDM_DISABLE"] = "1"  # 强制禁用，避免 akshare 等依赖的进度条混入日志
 
 from typing import Any, Dict, List, Tuple, Optional, Union
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.service.handler_helper import DataSourceHandlerHelper
@@ -16,6 +15,9 @@ from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_manager.data_manager import DataManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class BaseHandler:
@@ -104,7 +106,6 @@ class BaseHandler:
         Returns:
             List[ApiJob]: 预处理完成后的 ApiJob 列表，已注入日期范围等参数
         """
-        from loguru import logger
         data_source_key = self.get_key()
         is_dry_run = self.context.get("is_dry_run", False)
         dry_run_status = " [DRY RUN]" if is_dry_run else ""
@@ -740,7 +741,6 @@ class BaseHandler:
             context: 上下文信息
             apis: 执行时的 ApiJob 列表
         """
-        from loguru import logger
         data_source_key = context.get("data_source_key", "unknown")
         logger.error(f"❌ 数据源 {data_source_key} 执行失败: {error}")
 

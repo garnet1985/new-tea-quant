@@ -27,9 +27,12 @@
     stock_with_price = data_mgr.stock.load_with_latest_price('000001.SZ')
 """
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 
 from .. import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 class StockService(BaseDataService):

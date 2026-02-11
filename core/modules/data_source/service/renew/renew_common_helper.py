@@ -4,11 +4,14 @@ Renew Common Helper
 提供所有 renew service 共用的工具方法（静态方法）。
 """
 from typing import Dict, Any, Tuple, Optional
-from loguru import logger
+import logging
 
 from core.global_enums.enums import TermType
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class RenewCommonHelper:

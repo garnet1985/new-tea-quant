@@ -114,7 +114,7 @@ def main():
     """主函数"""
     print(f"{Colors.BOLD}{Colors.GREEN}")
     print("=" * 60)
-    print("  stocks-py 一键安装脚本")
+    print("  New Tea Quant 一键安装脚本")
     print("=" * 60)
     print(f"{Colors.RESET}\n")
     

@@ -24,7 +24,7 @@ sys.path.append(str(project_root))
 
 def load_trading_results():
     """加载RTB ML增强版本的交易结果"""
-    results_dir = Path("/Users/garnet/Desktop/stocks-py/app/analyzer/strategy/RTB/tmp/2025_10_21-257")
+    results_dir = Path("/Users/garnet/Desktop/new-tea-quant/app/analyzer/strategy/RTB/tmp/2025_10_21-257")
     
     if not results_dir.exists():
         print(f"❌ 结果目录不存在: {results_dir}")
@@ -286,7 +286,7 @@ def generate_visualizations(df, results, feature_cols):
                        f'{score:.3f}', ha='center', va='bottom')
     
     plt.tight_layout()
-    plt.savefig('/Users/garnet/Desktop/stocks-py/rtb_ml_enhanced_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig('/Users/garnet/Desktop/new-tea-quant/rtb_ml_enhanced_analysis.png', dpi=300, bbox_inches='tight')
     print(f"✅ 图表已保存: rtb_ml_enhanced_analysis.png")
 
 def main():

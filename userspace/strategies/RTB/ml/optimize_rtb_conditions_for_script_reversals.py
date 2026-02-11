@@ -13,7 +13,7 @@ import sys
 import os
 
 # 添加项目根目录到Python路径
-sys.path.append('/Users/garnet/Desktop/stocks-py')
+sys.path.append('/Users/garnet/Desktop/new-tea-quant')
 
 from core.modules.analyzer.strategy.RTB.feature_identity.reversal_data_generator_enhanced import EnhancedReversalDataGenerator
 from core.modules.analyzer.strategy.RTB.RTB import ReverseTrendBet

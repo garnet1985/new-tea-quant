@@ -32,7 +32,7 @@ venv\Scripts\activate     # Windows
 
 详细说明请参考：[虚拟环境使用指南](venv-usage.md)
 
-### 3. 安装依赖
+### 3. 安装依赖（clone 即用）
 
 ```bash
 # 确保虚拟环境已激活
@@ -41,6 +41,9 @@ pip install -r requirements.txt
 # 如果需要升级 pip
 pip install --upgrade pip
 ```
+
+> 当前版本推荐以「clone 仓库 + 虚拟环境 + requirements.txt」的方式使用本项目。  
+> 暂未提供通过 `pip install new-tea-quant` 的官方发布包，后续会根据社区反馈考虑打包为可安装库。
 
 ### 4. 配置数据库
 

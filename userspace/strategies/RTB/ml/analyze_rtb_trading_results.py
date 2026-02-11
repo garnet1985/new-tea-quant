@@ -4,6 +4,7 @@
 提取成功和失败案例的特征，进行机器学习分析
 """
 
+import os
 import sys
 import json
 import pandas as pd
@@ -19,12 +20,21 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # 添加项目根目录到路径
-project_root = Path(__file__).parent.parent.parent.parent.parent
+project_root = Path(__file__).resolve().parents[4]
 sys.path.append(str(project_root))
 
 def load_trading_results():
-    """加载RTB ML增强版本的交易结果"""
-    results_dir = Path("/Users/garnet/Desktop/new-tea-quant/app/analyzer/strategy/RTB/tmp/2025_10_21-257")
+    """加载RTB ML增强版本的交易结果
+    
+    结果目录默认使用项目根目录下的相对路径：
+    app/analyzer/strategy/RTB/tmp/<session_folder>
+    可以通过环境变量 NTQ_RTB_ANALYSIS_DIR 覆盖。
+    """
+    # 默认结果目录（相对于项目根目录）
+    default_results_dir = project_root / "app" / "analyzer" / "strategy" / "RTB" / "tmp" / "2025_10_21-257"
+    # 允许通过环境变量覆盖
+    env_dir = os.getenv("NTQ_RTB_ANALYSIS_DIR")
+    results_dir = Path(env_dir) if env_dir else default_results_dir
     
     if not results_dir.exists():
         print(f"❌ 结果目录不存在: {results_dir}")
@@ -286,8 +296,9 @@ def generate_visualizations(df, results, feature_cols):
                        f'{score:.3f}', ha='center', va='bottom')
     
     plt.tight_layout()
-    plt.savefig('/Users/garnet/Desktop/new-tea-quant/rtb_ml_enhanced_analysis.png', dpi=300, bbox_inches='tight')
-    print(f"✅ 图表已保存: rtb_ml_enhanced_analysis.png")
+    output_path = project_root / "rtb_ml_enhanced_analysis.png"
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"✅ 图表已保存: {output_path}")
 
 def main():
     """主函数"""

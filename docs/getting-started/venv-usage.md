@@ -6,7 +6,7 @@
 
 ```bash
 # 进入项目目录
-cd /Users/garnet/Desktop/stocks-py
+cd /Users/garnet/Desktop/new-tea-quant
 
 # 创建虚拟环境（如果还没有）
 python3 -m venv venv
@@ -171,7 +171,7 @@ pip install -r requirements.txt
 
 ```bash
 # 1. 进入项目目录
-cd /Users/garnet/Desktop/stocks-py
+cd /Users/garnet/Desktop/new-tea-quant
 
 # 2. 创建虚拟环境（如果还没有）
 python3 -m venv venv
@@ -201,11 +201,11 @@ deactivate
 ```bash
 # 检查 Python 路径
 which python
-# 应该显示: /Users/garnet/Desktop/stocks-py/venv/bin/python
+# 应该显示: /Users/garnet/Desktop/new-tea-quant/venv/bin/python
 
 # 检查 pip 路径
 which pip
-# 应该显示: /Users/garnet/Desktop/stocks-py/venv/bin/pip
+# 应该显示: /Users/garnet/Desktop/new-tea-quant/venv/bin/pip
 
 # 检查已安装的包
 pip list | grep duckdb

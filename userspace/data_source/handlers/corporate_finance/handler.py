@@ -4,7 +4,7 @@
 从 Tushare 获取企业财务指标数据（季度）。滚动窗口、批次轮转由框架处理。
 """
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
@@ -12,6 +12,9 @@ from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.utils.date.date_utils import DateUtils
+
+
+logger = logging.getLogger(__name__)
 
 
 class CorporateFinanceHandler(BaseHandler):

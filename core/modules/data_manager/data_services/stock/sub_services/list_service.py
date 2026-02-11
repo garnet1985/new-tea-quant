@@ -12,9 +12,12 @@
 - sys_stock_industry_map / sys_stock_board_map: 股票-行业、股票-板块映射
 """
 from typing import List, Dict, Any, Optional, Union
-from loguru import logger
+import logging
 
 from ... import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 class ListService(BaseDataService):

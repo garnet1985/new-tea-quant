@@ -12,11 +12,13 @@ Fetched Data Helper
 """
 
 from typing import Any, Dict, List
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_grouped_fetched_data(

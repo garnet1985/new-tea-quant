@@ -98,6 +98,70 @@ export DB_MYSQL_PASSWORD=your_password
 
 只配置需要修改的部分，其他过滤规则使用系统默认值。
 
+## 日志配置
+
+### 默认日志配置（logging.json）
+
+框架的默认日志配置位于 `core/default_config/logging.json`：
+
+```json
+{
+  "level": "INFO",
+  "format": "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+  "datefmt": "%Y-%m-%d %H:%M:%S",
+  "_comment": "全局日志配置：可通过 userspace/config/logging.json 覆盖 level/format/datefmt",
+  "module_levels": {
+    "core": "INFO"
+  }
+}
+```
+
+- **level**: 全局默认日志级别（对应根 logger），常用值：`DEBUG` / `INFO` / `WARNING` / `ERROR`。
+- **format**: 日志格式，使用标准 `logging` 格式占位符。
+- **datefmt**: 时间格式。
+- **module_levels**: 按模块前缀单独设置日志级别，例如：
+
+  ```json
+  {
+    "module_levels": {
+      "core.modules.data_source": "DEBUG",
+      "core.infra.db": "INFO"
+    }
+  }
+  ```
+
+  上例会让数据源相关模块输出 `DEBUG`，而数据库模块仍保持 `INFO`。
+
+### 用户自定义日志配置
+
+要覆盖默认日志配置，在 `userspace/config/logging.json` 中只写需要修改的部分即可，例如：
+
+```json
+{
+  "level": "WARNING",
+  "module_levels": {
+    "core.modules.data_source": "INFO",
+    "core.modules.strategy": "DEBUG"
+  }
+}
+```
+
+- 未写入的字段会继承 `core/default_config/logging.json` 中的默认值。
+- 该文件会在 CLI 入口中由 `LoggingManager.setup_logging()` 自动加载并生效。
+
+### CLI 中开启 verbose 日志
+
+命令行入口 `start-cli.py` 支持通过 `--verbose` 参数临时提升日志级别，用于调试：
+
+```bash
+python start-cli.py run-data-source --verbose
+```
+
+行为说明：
+
+- 启动时先根据 `logging.json`（默认 + userspace 覆盖）初始化全局日志。
+- 如果传入 `--verbose`，会将**根 logger** 动态提升到 `DEBUG` 级别，相当于“临时全局 DEBUG”，适合排查问题。
+
 ## 完整配置示例
 
 ### 最小配置（只配置数据库）

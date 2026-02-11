@@ -14,13 +14,15 @@ handler 以及测试等直接调用。`DataSourceHandlerHelper` 中同名方法
 """
 
 from typing import Any, Dict, List, Optional, Tuple
-
-from loguru import logger
+import logging
 
 from core.global_enums.enums import TermType, UpdateMode
 from core.infra.project_context import ConfigManager
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
 from core.utils.date.date_utils import DateUtils
+
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_date_value(date_value: Any) -> Optional[str]:

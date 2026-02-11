@@ -525,6 +525,21 @@ class ConfigManager:
             override_fields=set()
         )
     
+    @staticmethod
+    def load_logging_config() -> Dict[str, Any]:
+        """
+        加载日志配置（合并后的完整配置）
+        
+        来源：
+        - 默认：core/default_config/logging.json
+        - 用户：userspace/config/logging.json（如存在则覆盖默认）
+        """
+        return ConfigManager.load_core_config(
+            'logging',
+            deep_merge_fields=set(),
+            override_fields=set()
+        )
+    
     # ==================== 向后兼容别名（已废弃，请使用 load_xxx_config）====================
     
     @staticmethod
@@ -551,6 +566,11 @@ class ConfigManager:
     def get_system_config() -> Dict[str, Any]:
         """已废弃：请使用 load_system_config()"""
         return ConfigManager.load_system_config()
+    
+    @staticmethod
+    def get_logging_config() -> Dict[str, Any]:
+        """已废弃：请使用 load_logging_config()"""
+        return ConfigManager.load_logging_config()
     
     # ==================== 便捷访问接口（频繁使用的配置）====================
     

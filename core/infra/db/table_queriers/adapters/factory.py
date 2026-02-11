@@ -5,12 +5,15 @@ DatabaseAdapterFactory - 数据库适配器工厂
 支持：PostgreSQL、MySQL、SQLite
 """
 from typing import Dict, Any, Optional
-from loguru import logger
+import logging
 
 from .base_adapter import BaseDatabaseAdapter
 from .postgresql_adapter import PostgreSQLAdapter
 from .mysql_adapter import MySQLAdapter
 from .sqlite_adapter import SQLiteAdapter
+
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseAdapterFactory:

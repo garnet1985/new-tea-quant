@@ -7,9 +7,12 @@ import pymysql
 from pymysql.cursors import DictCursor
 from typing import Dict, List, Any, Optional
 from contextlib import contextmanager
-from loguru import logger
+import logging
 
 from .base_adapter import BaseDatabaseAdapter
+
+
+logger = logging.getLogger(__name__)
 
 
 class MySQLAdapter(BaseDatabaseAdapter):

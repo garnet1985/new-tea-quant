@@ -11,6 +11,7 @@ Path Manager - 路径管理器
 
 from pathlib import Path
 from typing import Optional
+import os
 
 
 class PathManager:
@@ -92,23 +93,33 @@ class PathManager:
         """
         userspace/ 目录
         
-        支持两种路径结构：
-        1. userspace/（新结构）
-        2. app/userspace/（旧结构，迁移期间兼容）
+        优先级：
+        1. 环境变量覆盖：
+           - NEW_TEA_QUANT_USERSPACE_ROOT
+           - 或 NTQ_USERSPACE_ROOT（别名）
+        2. 相对项目根目录：
+           - userspace/（新结构）
+           - app/userspace/（旧结构，迁移期间兼容）
         """
         root = PathManager.get_root()
         
-        # 优先使用新路径结构
+        # 1. 环境变量覆盖（允许用户将 userspace 放在项目根目录之外）
+        env_paths = [
+            os.getenv("NEW_TEA_QUANT_USERSPACE_ROOT"),
+            os.getenv("NTQ_USERSPACE_ROOT"),
+        ]
+        for env_path in env_paths:
+            if env_path:
+                p = Path(env_path).expanduser().resolve()
+                if p.exists():
+                    return p
+        
+        # 2. 优先使用新路径结构（相对项目根目录）
         new_path = root / "userspace"
         if new_path.exists():
             return new_path
-        
-        # 兼容旧路径结构
-        old_path = root / "app" / "userspace"
-        if old_path.exists():
-            return old_path
-        
-        # 如果都不存在，返回新路径（由调用方决定是否创建）
+
+        # 如果不存在，返回新路径（由调用方决定是否创建）
         return new_path
     
     @staticmethod

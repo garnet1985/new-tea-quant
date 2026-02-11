@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Smoke test - import core modules
+        run: |
+          python - << 'EOF'
+          import importlib
+          modules = [
+              "core.infra.project_context.path_manager",
+              "core.modules.strategy",
+              "core.modules.data_manager",
+              "core.modules.data_source",
+              "core.modules.tag",
+              "core.modules.indicator",
+          ]
+          for m in modules:
+              importlib.import_module(m)
+          print("All core modules imported successfully.")
+          EOF
+
+      - name: Run core tests (if present)
+        run: |
+          if command -v pytest >/dev/null 2>&1; then
+            if ls core/**/__test__ 2>/dev/null; then
+              pytest $(find core -type d -name "__test__" | tr '\n' ' ') -v
+            else
+              echo "No __test__ directories found under core/, skipping pytest."
+            fi
+          else:
+            echo "pytest not installed, skipping tests."
+          fi
+

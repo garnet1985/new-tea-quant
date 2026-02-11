@@ -1,5 +1,7 @@
 # New Tea Quant - A股量化策略回测框架
 
+> New Tea Quant
+
 ## 项目概述
 
 New Tea Quant 是一个专注于A股市场的量化策略回测框架，提供完整的策略开发、回测、分析和优化功能。系统采用插件化策略设计，支持灵活的投资目标管理和自定义结算逻辑。
@@ -1151,7 +1153,6 @@ style: 代码格式调整
 - [标签系统指南](user-guide/tag-system.md)
 
 **架构文档**：
-<<<<<<< HEAD
 - [系统架构概览](docs/architecture/project_overview.md) - 整体架构和设计理念
 - [默认配置架构](docs/architecture/default_config/architecture.md)
 - [DataManager 模块架构](docs/architecture/core_modules/data_manager/architecture.md)
@@ -1162,15 +1163,6 @@ style: 代码格式调整
 - [数据库基础设施架构](docs/architecture/infra/db/architecture.md)
 - [Project Context 模块架构](docs/architecture/infra/project_context/architecture.md)
 - [Worker 基础设施架构](docs/architecture/infra/worker/architecture.md)
-=======
-- [系统架构概览](docs/architecture/overview.md) - 整体架构和设计理念
-- [DataManager 架构](docs/architecture/data_manager_architecture.md)
-- [Strategy 框架架构](docs/architecture/strategy_architecture.md)
-- [DataSource 架构](docs/architecture/data_source_architecture.md)
-- [Tag 系统架构](docs/architecture/tag_architecture.md)
-- [数据库模块文档](core/infra/db/README.md)
-- [Project Context 设计](core/infra/project_context/DESIGN.md)
->>>>>>> write-doc
 
 ### 示例策略
 - [Example 策略](userspace/strategies/example/) - 完整的策略示例，包含配置和文档

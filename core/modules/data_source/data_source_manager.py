@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Tuple, Optional
 from pathlib import Path
-from loguru import logger
+import logging
 
 from core.infra.project_context import PathManager
 from core.modules.data_manager.data_manager import DataManager
@@ -12,6 +12,10 @@ from core.modules.data_source.service.provider_helper import DataSourceProviderH
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.data_class.error import DataSourceConfigError
+
+
+logger = logging.getLogger(__name__)
+
 
 class DataSourceManager:
     """

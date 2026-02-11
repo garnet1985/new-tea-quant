@@ -10,9 +10,12 @@
 - stock_index_indicator_weight: 指数成分股权重数据
 """
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 
 from .. import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 class IndexService(BaseDataService):

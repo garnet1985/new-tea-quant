@@ -26,7 +26,7 @@ class TagManager:
     def __init__(self, is_verbose = False):
         """初始化 TagManager"""
         self.is_verbose = is_verbose
-        self.data_mgr = DataManager(is_verbose=False)
+        self.data_mgr = DataManager()
         self.tag_data_service = self.data_mgr.stock.tags
         self.scenario_cache = {}
         self.entity_list_cache = {}

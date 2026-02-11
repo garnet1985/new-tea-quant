@@ -27,7 +27,7 @@ from core.modules.data_manager.data_manager import DataManager
 
 def load_rtb_trading_results():
     """加载RTB策略的交易结果"""
-    results_dir = Path("/Users/garnet/Desktop/new-tea-quant/app/analyzer/strategy/RTB/tmp/2025_10_21-261")
+    results_dir = project_root / "app/analyzer/strategy/RTB/tmp/2025_10_21-261"
     
     if not results_dir.exists():
         print(f"❌ RTB结果目录不存在: {results_dir}")

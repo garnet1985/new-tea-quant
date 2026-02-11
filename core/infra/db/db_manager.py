@@ -10,13 +10,16 @@ DatabaseManager - 数据库管理器（支持多种数据库后端）
 """
 from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
-from loguru import logger
+import logging
 
 from core.infra.project_context import ConfigManager
 from core.infra.db.connection_management.connection_manager import ConnectionManager
 from core.infra.db.schema_management.schema_manager import SchemaManager
 from core.infra.db.table_management.table_manager import TableManager
 from core.infra.db.helpers.db_helpers import DBHelper
+
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseManager:
@@ -60,13 +63,13 @@ class DatabaseManager:
         # 1. ConnectionManager - 连接和事务管理
         self.connection_manager = ConnectionManager(
             config=self.config,
-            is_verbose=is_verbose
+            is_verbose=is_verbose,
         )
         
         # 2. SchemaManager - Schema 管理和表初始化
         self.schema_manager = SchemaManager(
             is_verbose=is_verbose,
-            database_type=database_type
+            database_type=database_type,
         )
         
         # 3. TableManager - 表操作 API（延迟初始化，需要 adapter）
@@ -81,8 +84,7 @@ class DatabaseManager:
             instance: DatabaseManager 实例
         """
         cls._default_instance = instance
-        if instance.is_verbose:
-            logger.info("✅ DatabaseManager 已设置为默认实例")
+        logger.debug("✅ DatabaseManager 已设置为默认实例")
     
     @classmethod
     def get_default(cls, auto_init: bool = True) -> 'DatabaseManager':
@@ -156,7 +158,6 @@ class DatabaseManager:
             self.table_manager = TableManager(
                 adapter=self.connection_manager.adapter,
                 config=self.config,
-                is_verbose=self.is_verbose
             )
             
             # 3. 批量写入队列延迟初始化（只在需要写入时才初始化）
@@ -165,19 +166,18 @@ class DatabaseManager:
             
             self._initialized = True
             
-            # 显示初始化信息
-            if self.is_verbose:
-                database_type = self.config.get('database_type', 'postgresql')
-                if database_type == 'postgresql':
-                    pg_config = self.config.get('postgresql', {})
-                    logger.info(f"✅ DatabaseManager 初始化完成（PostgreSQL: {pg_config.get('database', 'unknown')}）")
-                elif database_type == 'mysql':
-                    mysql_config = self.config.get('mysql', {})
-                    logger.info(f"✅ DatabaseManager 初始化完成（MySQL: {mysql_config.get('database', 'unknown')}）")
-                elif database_type == 'sqlite':
-                    sqlite_config = self.config.get('sqlite', {})
-                    db_path = sqlite_config.get('db_path', 'unknown')
-                    logger.info(f"✅ DatabaseManager 初始化完成（SQLite: {db_path}）")
+            # 显示初始化信息（使用 debug 级别，避免在默认 INFO 下过于啰嗦）
+            database_type = self.config.get('database_type', 'postgresql')
+            if database_type == 'postgresql':
+                pg_config = self.config.get('postgresql', {})
+                logger.debug(f"✅ DatabaseManager 初始化完成（PostgreSQL: {pg_config.get('database', 'unknown')}）")
+            elif database_type == 'mysql':
+                mysql_config = self.config.get('mysql', {})
+                logger.debug(f"✅ DatabaseManager 初始化完成（MySQL: {mysql_config.get('database', 'unknown')}）")
+            elif database_type == 'sqlite':
+                sqlite_config = self.config.get('sqlite', {})
+                db_path = sqlite_config.get('db_path', 'unknown')
+                logger.debug(f"✅ DatabaseManager 初始化完成（SQLite: {db_path}）")
                 
         except Exception as e:
             logger.error(f"❌ DatabaseManager 初始化失败: {e}")

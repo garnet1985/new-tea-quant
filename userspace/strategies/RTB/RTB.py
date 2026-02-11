@@ -15,13 +15,16 @@ V21.0 ML增强版本：
 import math
 import numpy as np
 from typing import Dict, List, Any, Optional
-from loguru import logger
+import logging
 
 from core.modules.analyzer.strategy.RTB.settings import settings
 from core.modules.analyzer.analyzer_service import AnalyzerService
 from core.utils.icon.icon_service import IconService
 from ...components.base_strategy import BaseStrategy
 from ...components.entity.opportunity import Opportunity
+
+
+logger = logging.getLogger(__name__)
 
 class ReverseTrendBet(BaseStrategy):
     """ReverseTrendBet ML增强版本策略实现"""

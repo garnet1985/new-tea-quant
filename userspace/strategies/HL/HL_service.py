@@ -1,8 +1,11 @@
 import math
 from typing import Dict, List, Any, Tuple
-from loguru import logger
+import logging
 
 from .settings import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class HistoricLowService:

@@ -5,12 +5,14 @@ sys_cache 表 Model
 """
 from datetime import datetime
 from typing import Optional, Dict, Any
-
-from loguru import logger
+import logging
 
 from core.infra.db import DbBaseModel
 
 from core.tables.system.system_cache.schema import schema as _schema
+
+
+logger = logging.getLogger(__name__)
 
 
 class CacheSystemModel(DbBaseModel):

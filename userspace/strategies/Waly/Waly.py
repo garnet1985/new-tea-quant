@@ -3,10 +3,14 @@
 Waly 策略 - 寻找市盈率小于 1/国债利率*2 and asset debt ratio < 0.5 的股票
 """
 from typing import Dict, List, Any, Optional
-from loguru import logger
+import logging
 
 from ...components.base_strategy import BaseStrategy
 from ...components.entity.opportunity import Opportunity
+
+
+logger = logging.getLogger(__name__)
+
 
 class Waly(BaseStrategy):
     """Waly 策略实现"""

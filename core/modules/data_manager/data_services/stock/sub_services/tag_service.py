@@ -11,10 +11,13 @@ Tag Data Service - Tag 系统数据服务
 - tag_value: 标签值表
 """
 from typing import List, Dict, Any, Optional
-from loguru import logger
+import logging
 from core.utils.date.date_utils import DateUtils
 
 from ... import BaseDataService
+
+
+logger = logging.getLogger(__name__)
 
 
 class TagDataService(BaseDataService):

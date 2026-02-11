@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Dict, Any
-from loguru import logger
+import logging
 
 from core.modules.data_source.data_class.field import DataSourceField
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

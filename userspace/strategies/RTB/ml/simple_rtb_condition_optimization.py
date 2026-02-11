@@ -12,8 +12,8 @@ from datetime import datetime
 import sys
 import os
 
-# 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent.parent.parent.parent
+# 添加项目根目录到Python路径（相对推断）
+project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.append(str(project_root))
 
 # 确保能够导入RTB相关模块
@@ -65,7 +65,7 @@ def analyze_current_rtb_performance():
     print("="*60)
     
     # 从最新的RTB结果中获取统计信息
-    results_dir = Path("/Users/garnet/Desktop/new-tea-quant/app/analyzer/strategy/RTB/tmp/2025_10_21-261")
+    results_dir = project_root / "app/analyzer/strategy/RTB/tmp/2025_10_21-261"
     
     if results_dir.exists():
         summary_file = results_dir / "0_session_summary.json"

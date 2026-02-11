@@ -5,7 +5,7 @@
 与 stock_klines 逻辑一致：按 (id, term) 分组，支持 daily/weekly/monthly 独立追踪。
 """
 from typing import List, Dict, Any, Optional, Tuple
-from loguru import logger
+import logging
 import pandas as pd
 
 from core.modules.data_source.base_class.base_handler import BaseHandler
@@ -16,6 +16,9 @@ from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.utils.date.date_utils import DateUtils
+
+
+logger = logging.getLogger(__name__)
 
 
 class IndexKlinesHandler(BaseHandler):

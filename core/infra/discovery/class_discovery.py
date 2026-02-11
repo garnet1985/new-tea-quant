@@ -10,10 +10,13 @@ Class Discovery - 类自动发现工具
 """
 from typing import Dict, Type, Any, Optional, Callable, List, Set
 from dataclasses import dataclass, field
-from loguru import logger
+import logging
 import importlib
 import pkgutil
 import inspect
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

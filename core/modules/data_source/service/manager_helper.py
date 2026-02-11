@@ -2,11 +2,14 @@ import importlib.util
 import importlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from loguru import logger
+import logging
 from core.infra.project_context import ConfigManager, PathManager
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.config import DataSourceConfig
+
+logger = logging.getLogger(__name__)
+
 
 class DataSourceManagerHelper:
     """

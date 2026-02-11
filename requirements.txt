@@ -35,9 +35,6 @@ pathlib2==2.3.7
 # Configuration
 python-dotenv==1.0.0
 
-# Logging
-loguru==0.7.2
-
 # Performance Monitoring
 psutil>=5.9.0
 

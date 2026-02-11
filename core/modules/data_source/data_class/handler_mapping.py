@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List
-
-from loguru import logger
+import logging
 
 from core.modules.data_source.reserved_dependencies import RESERVED_DEPENDENCY_KEYS
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

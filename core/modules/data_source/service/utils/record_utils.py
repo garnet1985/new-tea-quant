@@ -4,8 +4,10 @@ record_utils - 针对记录列表和标准化结果的通用工具函数。
 这些工具原本挂在 BaseHandler 上，现在抽到独立模块，便于复用与解耦。
 """
 from typing import Any, Dict, List
+import logging
 
-from loguru import logger
+
+logger = logging.getLogger(__name__)
 
 
 def clean_nan_in_records(records: List[Dict[str, Any]], default: Any = None) -> List[Dict[str, Any]]:

@@ -22,7 +22,7 @@
 """
 from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING, Type
 import pandas as pd
-from loguru import logger
+import logging
 import threading
 import importlib
 import importlib.util
@@ -38,6 +38,9 @@ if TYPE_CHECKING:
 # 所有功能已迁移到 data_services
 from core.infra.project_context import ConfigManager
 from core.utils.date.date_utils import DateUtils
+
+
+logger = logging.getLogger(__name__)
 
 
 class DataManager:

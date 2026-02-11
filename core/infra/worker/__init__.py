@@ -126,5 +126,5 @@ __all__ = [
 
 # 版本信息
 __version__ = "3.0.0"
-__author__ = "Stocks-Py Team"
+__author__ = "New Tea Quant Team"
 __description__ = "通用任务执行器模块 - 支持多进程和多线程执行，模块化架构"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostgreSQL 快速配置脚本
-# 用于 stocks-py 项目迁移
+# 用于 New Tea Quant 项目迁移
 
 # PostgreSQL 安装路径
 PG_BIN="/Library/PostgreSQL/18/bin"

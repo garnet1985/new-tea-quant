@@ -1,8 +1,8 @@
-# Stocks-Py - A股量化策略回测框架
+# New Tea Quant - A股量化策略回测框架
 
 ## 项目概述
 
-Stocks-Py 是一个专注于A股市场的量化策略回测框架，提供完整的策略开发、回测、分析和优化功能。系统采用插件化策略设计，支持灵活的投资目标管理和自定义结算逻辑。
+New Tea Quant 是一个专注于A股市场的量化策略回测框架，提供完整的策略开发、回测、分析和优化功能。系统采用插件化策略设计，支持灵活的投资目标管理和自定义结算逻辑。
 
 ## 核心特性
 
@@ -21,7 +21,7 @@ Stocks-Py 是一个专注于A股市场的量化策略回测框架，提供完整
 ## 系统架构
 
 ```
-stocks-py/
+new-tea-quant/
 ├── core/                      # 核心模块
 │   ├── modules/              # 业务模块
 │   │   ├── strategy/         # 策略框架
@@ -82,7 +82,7 @@ stocks-py/
 ```bash
 # 克隆项目
 git clone <repository-url>
-cd stocks-py
+cd new-tea-quant
 
 # 创建虚拟环境
 python -m venv venv

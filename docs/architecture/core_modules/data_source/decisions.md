@@ -1,11 +1,7 @@
 # Data Source 重要决策记录
 
 **版本：** 3.0  
-<<<<<<< HEAD
-**最后更新**: 2026-01-17
-=======
 **最后更新**: 2026-01-23
->>>>>>> write-doc
 
 ---
 
@@ -229,11 +225,7 @@
 - 优点：灵活性高
 - 缺点：限流管理混乱，线程安全问题，容易出错
 
-<<<<<<< HEAD
-**方案 B：Provider 声明限流信息，TaskExecutor 执行限流** ✅
-=======
 **方案 B：Provider 声明限流信息，由 ApiJobExecutor 等执行层统一限流** ✅
->>>>>>> write-doc
 - 优点：统一管理，线程安全，防止突刺
 - 缺点：需要设计限流机制
 
@@ -241,22 +233,14 @@
 
 选择方案 B 的理由：
 1. **声明式**：Provider 只声明限流信息，不执行限流逻辑
-<<<<<<< HEAD
-2. **统一管理**：所有限流逻辑集中在 `TaskExecutor`
-=======
 2. **统一管理**：所有限流逻辑集中在执行层（如 `ApiJobExecutor`）
->>>>>>> write-doc
 3. **线程安全**：使用锁和条件变量保证线程安全
 4. **防止突刺**：窗口切换冷却机制，防止边界突刺
 
 ### 实现方案
 
 - Provider 声明限流信息（`api_limits` 类属性）
-<<<<<<< HEAD
-- `TaskExecutor` 负责执行限流（通过 `RateLimiter`）
-=======
 - 执行层（如 `ApiJobExecutor`）负责执行限流（通过 `RateLimiter`）
->>>>>>> write-doc
 - 固定窗口限流，窗口对齐到自然分钟
 - 窗口切换时强制冷却，防止边界突刺
 
@@ -268,8 +252,6 @@
 
 ---
 
-<<<<<<< HEAD
-=======
 ## 决策 6：Data Source 不负责数据存储
 
 **日期**：2026-01-23  
@@ -456,7 +438,6 @@ def on_before_fetch(self, context: Dict[str, Any], apis: List[ApiJob]) -> List[A
 
 ---
 
->>>>>>> write-doc
 ## 相关文档
 
 - **[overview.md](./overview.md)**：模块概览

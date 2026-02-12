@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Markdown → HTML</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #1a1a2e; color: #e4e4e7; min-height: 100vh; }
+    h1 { font-size: 1.25rem; margin: 0 0 12px; }
+    .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 1200px; }
+    @media (max-width: 768px) { .wrap { grid-template-columns: 1fr; } }
+    label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #a1a1aa; }
+    textarea { width: 100%; height: 360px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: #252536; color: #e4e4e7; font-size: 13px; line-height: 1.5; resize: vertical; }
+    textarea:focus { outline: none; border-color: rgba(34, 211, 238, 0.5); }
+    .actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+    button { padding: 8px 14px; border-radius: 8px; border: none; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .btn-convert { background: linear-gradient(135deg, #a855f7, #22d3ee); color: #fff; }
+    .btn-convert:hover { opacity: 0.95; }
+    .btn-copy { background: rgba(255,255,255,0.1); color: #e4e4e7; }
+    .btn-copy:hover { background: rgba(255,255,255,0.18); }
+    .btn-copy.copied { background: rgba(34, 197, 94, 0.3); color: #86efac; }
+    .tip { font-size: 12px; color: #71717a; }
+  </style>
+</head>
+<body>
+  <h1>Markdown → HTML（贴到 CKEditor 用）</h1>
+  <div class="wrap">
+    <div>
+      <label for="md">Markdown 原文</label>
+      <textarea id="md" placeholder="粘贴 .md 内容…"></textarea>
+      <div class="actions">
+        <button type="button" class="btn-convert" id="convert">转换为 HTML</button>
+      </div>
+    </div>
+    <div>
+      <label for="html">生成的 HTML</label>
+      <textarea id="html" placeholder="转换后的 HTML，可复制到 CKEditor 源码" readonly></textarea>
+      <div class="actions">
+        <button type="button" class="btn-copy" id="copy">复制 HTML</button>
+        <span class="tip">复制后到 Drupal 节点正文里用「源码」粘贴。</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    marked.setOptions({ gfm: true, breaks: true });
+    var mdEl = document.getElementById('md');
+    var htmlEl = document.getElementById('html');
+    var convertBtn = document.getElementById('convert');
+    var copyBtn = document.getElementById('copy');
+
+    var BOX_CHARS = /[\u2500-\u257F\u2580-\u259F]/;  // 框线字符范围
+
+    function escapeHtml(s) {
+      return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // 用 div 画框图：外层 doc-diagram，行 doc-diagram__row，格 doc-diagram__cell，用 CSS border 画线不偏差
+    function buildDocDiagramDiv(rows, maxCols, firstRowIsHeader) {
+      var out = '<div class="doc-diagram">';
+      rows.forEach(function (cells, i) {
+        out += '<div class="doc-diagram__row">';
+        for (var j = 0; j < maxCols; j++) {
+          var isHead = firstRowIsHeader && i === 0 && rows.length > 1;
+          out += '<div class="doc-diagram__cell' + (isHead ? ' doc-diagram__cell--head' : '') + '">';
+          out += escapeHtml(cells[j] || '');
+          out += '</div>';
+        }
+        out += '</div>';
+      });
+      out += '</div>';
+      return out;
+    }
+
+    // 把 Markdown 生成的 <table> 转成 <div class="doc-diagram"> 结构（用 border 画框）
+    function tablesToDocDiagramDiv(html) {
+      return html.replace(/<table(\s[^>]*)?>([\s\S]*?)<\/table>/gi, function (_, attrs, body) {
+        var rows = [];
+        var maxCols = 0;
+        (body || '').replace(/<tr[^>]*>([\s\S]*?)<\/tr>/gi, function (__, trBody) {
+          var cells = [];
+          trBody.replace(/<t[hd]([^>]*)>([\s\S]*?)<\/t[hd]>/gi, function (___, cellAttrs, cellContent) {
+            cells.push(cellContent.replace(/<[^>]+>/g, '').trim());
+          });
+          if (cells.length) {
+            rows.push(cells);
+            if (cells.length > maxCols) maxCols = cells.length;
+          }
+        });
+        if (rows.length === 0) return '<table' + (attrs || '') + '>' + body + '</table>';
+        var out = '<div class="doc-diagram">';
+        rows.forEach(function (cells, i) {
+          out += '<div class="doc-diagram__row">';
+          for (var j = 0; j < maxCols; j++) {
+            var isHead = i === 0 && rows.length > 1;
+            out += '<div class="doc-diagram__cell' + (isHead ? ' doc-diagram__cell--head' : '') + '">' + (cells[j] || '') + '</div>';
+          }
+          out += '</div>';
+        });
+        out += '</div>';
+        return out;
+      });
+    }
+
+    var U_UL = '\u250C', U_UR = '\u2510', U_LL = '\u2514', U_V = '\u2502'; // ┌ ┐ └ │
+
+    function findMatchingBottom(lines, startLine, leftCol) {
+      var rightCol = lines[startLine].lastIndexOf(U_UR);
+      if (rightCol === -1) rightCol = lines[startLine].length - 1;
+      for (var j = startLine + 1; j < lines.length; j++) {
+        var ch = lines[j].charAt(leftCol);
+        if (ch === U_LL) return j;
+        var innerIdx = lines[j].indexOf(U_UL);
+        if (innerIdx !== -1 && innerIdx <= leftCol + 2) {
+          var inner = findMatchingBottom(lines, j, innerIdx);
+          if (inner !== -1) j = inner;
+        }
+      }
+      return -1;
+    }
+
+    function hasBoxInBody(lines, from, to) {
+      for (var k = from; k <= to; k++) {
+        if (lines[k].indexOf(U_UL) !== -1) return true;
+      }
+      return false;
+    }
+
+    // 留在 pre 里：只把「框」用 div 包起来并去掉该框的 ┌─┐│└┘，竖线/箭头 ├─▶ │ └── 仍保留在 pre 中
+    function asciiBlockToPreWithBoxDivs(html) {
+      return html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/gi, function (_, code) {
+        var text = (code || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+        if (!BOX_CHARS.test(text)) return '<pre><code>' + code + '</code></pre>';
+
+        var lines = text.split(/\r?\n/);
+        var boxes = [];
+        var i = 0;
+        while (i < lines.length) {
+          var leftCol = lines[i].indexOf(U_UL);
+          if (leftCol === -1) { i++; continue; }
+          var bottom = findMatchingBottom(lines, i, leftCol);
+          if (bottom === -1) { i++; continue; }
+          if (hasBoxInBody(lines, i + 1, bottom - 1)) {
+            var nextTop = -1;
+            for (var k = i + 1; k < bottom; k++) {
+              if (lines[k].indexOf(U_UL) !== -1) { nextTop = k; break; }
+            }
+            if (nextTop !== -1) { i = nextTop; continue; }
+          }
+          var rightCol = lines[i].lastIndexOf(U_UR);
+          if (rightCol === -1) rightCol = lines[i].length - 1;
+          var contentLines = [];
+          for (var k = i + 1; k < bottom; k++) {
+            var ln = lines[k];
+            if (ln.charAt(leftCol) === U_V) {
+              var cell = ln.substring(leftCol + 1, rightCol + 1).replace(/\s*\u2502\s*$/, '').trim();
+              if (cell) contentLines.push(cell);
+            }
+          }
+          if (contentLines.length > 0) {
+            boxes.push({ start: i, end: bottom, leftCol: leftCol, rightCol: rightCol, contentLines: contentLines });
+          }
+          i = bottom + 1;
+        }
+
+        var outer = null;
+        if (lines.length > 0 && lines[0].charAt(0) === U_UL) {
+          for (var j = lines.length - 1; j >= 0; j--) {
+            if (lines[j].charAt(0) === U_LL) {
+              outer = { start: 0, end: j, leftCol: 0, rightCol: lines[0].lastIndexOf(U_UR) };
+              if (outer.rightCol === -1) outer.rightCol = lines[0].length - 1;
+              break;
+            }
+          }
+        }
+
+        // 外层第一行正文（│ 标题 │）当作一个「标题框」
+        var titleBox = null;
+        if (outer && outer.start + 1 < outer.end) {
+          var firstBody = lines[outer.start + 1];
+          if (firstBody && firstBody.charAt(0) === U_V) {
+            var t = firstBody.substring(1, outer.rightCol).replace(/\s*\u2502\s*$/, '').trim();
+            if (t && !/^[\u2500\u251C\u2514\u2524\u2534]/.test(t)) {
+              titleBox = { start: outer.start + 1, end: outer.start + 1, contentLines: [t] };
+            }
+          }
+        }
+
+        function isInBox(lineIdx, box) {
+          if (lineIdx >= box.start && lineIdx <= box.end) return true;
+          return false;
+        }
+        // 每行只去掉「最左」「最右」各一个 │，当作外框边框；中间的 │ 是结构竖线保留
+        function stripOuterBorder(lineStr) {
+          if (!lineStr || lineStr.indexOf(U_V) === -1) return lineStr;
+          var arr = lineStr.split('');
+          var first = lineStr.indexOf(U_V);
+          var last = lineStr.lastIndexOf(U_V);
+          if (first !== -1) arr[first] = ' ';
+          if (last !== -1 && last !== first) arr[last] = ' ';
+          return arr.join('');
+        }
+
+        var segments = []; // { type: 'pre'|'box', preLines: [] or contentLines: [] }
+        var preBuf = [];
+        var L = 0;
+        while (L <= (outer ? outer.end : lines.length - 1)) {
+          var line = lines[L] || '';
+          var inLeafBox = boxes.some(function (b) { return L >= b.start && L <= b.end; });
+          var inTitleBox = titleBox && L >= titleBox.start && L <= titleBox.end;
+
+          if (inTitleBox && titleBox) {
+            if (preBuf.length) {
+              segments.push({ type: 'pre', lines: preBuf });
+              preBuf = [];
+            }
+            segments.push({ type: 'box', role: 'title', contentLines: titleBox.contentLines });
+            L = titleBox.end + 1;
+            continue;
+          }
+          if (inLeafBox) {
+            var box = boxes.filter(function (b) { return L >= b.start && L <= b.end; })[0];
+            if (box && L === box.start) {
+              if (preBuf.length) {
+                segments.push({ type: 'pre', lines: preBuf });
+                preBuf = [];
+              }
+              segments.push({ type: 'box', role: 'intro', contentLines: box.contentLines });
+              L = box.end + 1;
+              continue;
+            }
+          }
+          if (outer && (L === outer.start || L === outer.end)) {
+            L++;
+            continue;
+          }
+          preBuf.push(outer ? stripOuterBorder(line) : line);
+          L++;
+        }
+        if (preBuf.length) segments.push({ type: 'pre', lines: preBuf });
+
+        // 不输出「只有分隔线、没有分支文字」的 pre（如 ├─┤ 和孤立的 │）
+        function preHasBranchContent(preLines) {
+          return preLines.some(function (ln) {
+            return /\u251C\u2500\u25B6|\u2514\u2500/.test(ln);
+          });
+        }
+        segments = segments.filter(function (seg) {
+          if (seg.type === 'pre' && !preHasBranchContent(seg.lines)) return false;
+          return true;
+        });
+
+        if (segments.length === 0) return '<pre><code>' + code + '</code></pre>';
+
+        var out = '<div class="doc-diagram doc-diagram--pre">';
+        segments.forEach(function (seg) {
+          if (seg.type === 'pre') {
+            out += '<pre class="doc-diagram__tree">' + seg.lines.map(escapeHtml).join('\n') + '</pre>';
+          } else {
+            var boxClass = seg.role === 'title' ? 'doc-diagram__title-block' : (seg.role === 'intro' ? 'doc-diagram__intro-box' : 'doc-diagram-box');
+            out += '<div class="' + boxClass + '">';
+            seg.contentLines.forEach(function (ln) {
+              if (/^\s*-\s+/.test(ln)) {
+                out += '<div class="doc-diagram__li">' + escapeHtml(ln.replace(/^\s*-\s+/, '')) + '</div>';
+              } else {
+                out += '<div class="doc-diagram__heading">' + escapeHtml(ln) + '</div>';
+              }
+            });
+            out += '</div>';
+          }
+        });
+        out += '</div>';
+        return out;
+      });
+    }
+
+    function convert() {
+      var raw = mdEl.value.trim();
+      if (!raw) { htmlEl.value = ''; return; }
+      var html = marked.parse(raw);
+      html = tablesToDocDiagramDiv(html);
+      html = asciiBlockToPreWithBoxDivs(html);
+      htmlEl.value = html;
+    }
+
+    convertBtn.addEventListener('click', convert);
+
+    copyBtn.addEventListener('click', function () {
+      htmlEl.select();
+      document.execCommand('copy');
+      copyBtn.textContent = '已复制';
+      copyBtn.classList.add('copied');
+      setTimeout(function () { copyBtn.textContent = '复制 HTML'; copyBtn.classList.remove('copied'); }, 1500);
+    });
+  </script>
+</body>
+</html>

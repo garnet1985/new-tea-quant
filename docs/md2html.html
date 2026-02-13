@@ -25,7 +25,7 @@
 
     .preview {
       width: 100%;
-      min-height: 360px;
+      min-height: 600px;
       padding: 10px;
       border-radius: 8px;
       border: 1px solid rgba(255,255,255,0.15);
@@ -57,22 +57,104 @@
       word-break: break-all;
     }
 
+    .preview .diagram-static {
+      margin: 16px 0 0;
+      overflow: auto;
+    }
+    /* 流程图画布：带背景、带画布 border；流式布局，由内容撑开 */
+    .diagram-canvas {
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.3);
+      padding: 1rem;
+      min-height: 120px;
+    }
+    .shape-arrow {
+      position: absolute;
+      left: 2rem;
+      top: 100%; /* 从 box 底部开始往下画线 */
+      pointer-events: none;
+    }
+    .shape-arrow-line {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      height: calc(100% - 10px);
+    }
+    .shape-arrow-label {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 2px;
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      min-width: 300px;
+      transform: translateY(-6px);
+    }
+
+    .shape-arrow-head {
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    /* 方向：向下 */
+    .shape-arrow--down .shape-arrow-line {
+      width: 1px;
+      background-color: #94a3b8;
+    }
+    .shape-arrow--down .shape-arrow-head {
+      border-left: 3px solid transparent;
+      border-right: 3px solid transparent;
+      border-top: 10px solid #94a3b8;
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
     .preview .shape-box {
       border: 1px solid rgba(148, 163, 184, 0.9);
       border-radius: 6px;
-      padding: 10px 12px;
-      margin: 10px 0;
+      padding: 1rem;
       background: rgba(15, 23, 42, 0.9);
+      max-width: 600px;
+      position: relative;
+      font-size: 12px;
+      margin: 1rem 0;
+      transition: border-color 0.3s ease;
+
+      &.shape-box--has-attach {
+        margin-bottom: 1rem;
+      }
     }
 
-    .preview .shape-box--outer {
-      border-color: rgba(148, 163, 184, 0.9);
+    .shape-box .shape-box:hover {
+      border-color: rgba(255, 255, 255, 0.9);
     }
 
-    .preview .shape-box--inner {
-      border-color: rgba(248, 250, 252, 0.9);
-      background: rgba(15, 23, 42, 0.6);
-      margin-inline: 12px;
+    .shape-box.shape-layer--no-attach .shape-arrow{
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+
+    .preview .shape-row {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+
+    .preview .shape-row .shape-box {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .preview .shape-connector {
+      min-height: 2rem;
+      margin: 1rem 0;
+      padding-left: 2rem;
     }
 
     .preview .shape-line {
@@ -87,19 +169,16 @@
     }
 
     .preview .shape-line--li {
-      padding-left: 1.4em;
+      /* 现在用字符本身作为 bullet，仅保留一点左 padding 让文本不太挤 */
+      padding-left: 0.2em;
       position: relative;
-    }
-
-    .preview .shape-line--li::before {
-      content: "•";
-      position: absolute;
-      left: 0;
-      color: #fbbf24;
     }
 
     .preview .shape-line--center {
       text-align: center;
+      font-weight: bold;
+      color: #e5e7eb; /* 适配深色主题的标题色 */
+      margin-bottom: 0.5rem;
     }
 
     .preview .shape-heading {
@@ -109,7 +188,6 @@
 
     .preview .shape-tree {
       margin: 8px 0 0;
-      padding: 0;
       border: none;
       background: transparent;
       color: #9ca3af;
@@ -211,7 +289,7 @@
 
     // 将 ASCII 框图代码块转成基于规范的 shape-* 结构
     function asciiBlockToPreWithBoxDivs(html) {
-      // 允许 <code> 上带 class 等属性（例如 class="language-plaintext"）
+      var diagramCounter = 0;
       return html.replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, function (_, code) {
         var text = (code || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
         if (!BOX_CHARS.test(text)) return '<pre><code>' + code + '</code></pre>';
@@ -234,16 +312,15 @@
             }
             if (!okTop) continue;
 
-            // 往下找对应的 └ …… ┘（允许中间有 ┬ 等，只要左列是 └，右侧某处有 ┘ 即可）
+            // 往下找对应的 └ …… ┘（仅 └ 作为底边，├ 不作为底边，这样外框能包住内层 box）
             var bottom = -1;
             var rightCol = rightColTop;
             for (var j = i + 1; j < lines.length; j++) {
               var ln = lines[j];
               if (ln.charAt(col) === U_LL) { // 左侧同一列 └
-                var rBottom = ln.lastIndexOf(U_LR); // 这一行最右侧的 ┘
+                var rBottom = ln.lastIndexOf(U_LR);
                 if (rBottom > col) {
                   bottom = j;
-                  // 取顶/底两行中较小的 right，避免右侧多余字符错切
                   rightCol = Math.min(rightColTop, rBottom);
                   break;
                 }
@@ -320,6 +397,13 @@
 
         // 为每个 box 分配 id（抽取用）
         boxes.forEach(function (b, i) { b.id = 'n' + (i + 1); });
+
+        // #region agent log
+        try {
+          var _log = { location: 'md2html.html:box-detection', message: 'boxes and parent', data: { boxCount: boxes.length, boxes: boxes.map(function (b) { return { id: b.id, top: b.top, bottom: b.bottom, left: b.left, right: b.right, parentId: b.parent ? b.parent.id : null }; }), rootCount: boxes.filter(function (b) { return !b.parent; }).length }, timestamp: Date.now(), hypothesisId: 'H1-H2' };
+          fetch('http://127.0.0.1:7242/ingest/20a02fa4-ddc6-4ba9-aec5-a523284ee76c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_log) }).catch(function () {});
+        } catch (e) {}
+        // #endregion
 
         // 3) 标记每一行是否在任意 box 内
         var lineInBox = new Array(lines.length);
@@ -539,122 +623,458 @@
           edges: allInBoxEdges.concat(topLevelEdges)
         };
 
-        // 暂不渲染框图，仅输出抽取结果（先解决抽取再解决输出）
-        return '<pre class="diagram-extract">' + escapeHtml(JSON.stringify(extracted, null, 2)) + '</pre>';
-
-        /* -------------- 原框图 HTML 渲染已注释 --------------
-        // 5) 递归渲染 box（含嵌套 + 内容行 + 简单箭头）
-        function renderBox(box) {
-          var cls = 'shape-box';
-          if (!box.parent) cls += ' shape-box--outer';
-          else cls += ' shape-box--inner';
-          var html = '<div class="' + cls + '">';
-
-          // 当前 box 直接子 box（按 top 从上到下排序），用于查找箭头的上下游
-          var children = boxes.filter(function (b) { return b.parent === box; })
-            .sort(function (a, b) { return a.top - b.top; });
-          var lastChildForArrow = null; // 最近渲染过的子 box，作为箭头起点候选
-
-          var y = box.top + 1;
-          while (y < box.bottom) {
-            var childList = boxTopMap[y] || [];
-            var child = null;
-            for (var ci = 0; ci < childList.length; ci++) {
-              if (childList[ci].parent === box) { child = childList[ci]; break; }
-            }
-            if (child) {
-              html += renderBox(child);
-              lastChildForArrow = child;
-              y = child.bottom + 1;
-              continue;
-            }
-
-            var ln = lines[y];
-            var sliceEnd = Math.min(box.right, ln.length);
-            var inner = '';
-            if (sliceEnd > box.left + 1) {
-              inner = ln.substring(box.left + 1, sliceEnd);
-            }
-
-            // 箭头检测：父 box 内部只包含一个 ▼ 的行（允许前后空格），表示「上一个子 box → 下一个子 box」
-            var innerTrimmed = inner.replace(/\u2502+[\s\u00A0]*$/g, '').trim();
-            var arrowCol = -1;
-            if (/^\s*\u25BC\s*$/.test(innerTrimmed)) {
-              arrowCol = ln.indexOf('\u25BC');
-            }
-            if (arrowCol !== -1 && lastChildForArrow) {
-              // 在当前父 box 的 children 中，向下找到第一个覆盖该列的子 box，作为箭头终点
-              var nextChild = null;
-              for (var ci2 = 0; ci2 < children.length; ci2++) {
-                var c2 = children[ci2];
-                if (c2.top > y && c2.left < arrowCol && c2.right > arrowCol) {
-                  nextChild = c2;
-                  break;
-                }
-              }
-              // 要求箭头列同时落在起点和终点子 box 的水平范围内（路径校验可选，见 pathClear）
-              if (nextChild &&
-                  lastChildForArrow.left < arrowCol && lastChildForArrow.right > arrowCol) {
-                html += '<div class="shape-arrow shape-arrow--down">\u25BC</div>';
-                y++;
-                continue;
-              }
-            }
-
-            // 先去掉行尾所有边框竖线（│），再做左右空白 trim
-            var innerForAlign = inner.replace(/\u2502+[\s\u00A0]*$/g, '');
-            var alignCls = getAlign(innerForAlign) === 'center' ? ' shape-line--center' : '';
-            inner = innerForAlign.replace(/\s+$/g, '').replace(/^\s+/g, '');
-            // 再进一步：删除「不夹在文字中间」的竖线，例如单独的 │ 或 两侧都是空格的 │
-            // 形如 "│ xxx" / "xxx │" / "xxx  │   " / "  │  " 都会被视为框架线去掉
-            inner = inner.replace(/(^|\s)\u2502+(\s|$)/g, ' ');
-            // 如果这一行清洗后只剩下框线字符（例如单独一个 │ 或 ─┬─），认为是“结构线”，不当作盒内文本
-            if (/^[\u2500-\u257F]+$/.test(inner)) {
-              inner = '';
-            }
-            if (inner) {
-              var m = inner.match(/^-+\s+(.*)$/);
-              if (m) {
-                html += '<div class="shape-line shape-line--li' + alignCls + '">' + escapeHtml(m[1]) + '</div>';
-              } else {
-                html += '<div class="shape-line' + alignCls + '">' + escapeHtml(inner.trim()) + '</div>';
-              }
-            }
-            y++;
-          }
-
-          html += '</div>';
-          return html;
+        if (typeof console !== 'undefined') {
+          console.log('[md2html] 抽取数据 extracted:', JSON.stringify(extracted, null, 2));
         }
 
-        if (!segments.length && !rootBoxes.length) {
-          return '<pre><code>' + code + '</code></pre>';
-        }
+        // #region agent log
+        try {
+          var _nodesSummary = (extracted.nodes || []).map(function (n) { return { id: n.id, contentLen: (n.content || []).length, attachedLen: (n.attachedContent || []).length, childrenLen: (n.children || []).length }; });
+          fetch('http://127.0.0.1:7242/ingest/20a02fa4-ddc6-4ba9-aec5-a523284ee76c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'md2html.html:extracted', message: 'nodes summary', data: { nodeCount: extracted.nodes.length, nodes: _nodesSummary, edgeCount: (extracted.edges || []).length }, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(function () {});
+        } catch (e) {}
+        // #endregion
 
-        var out = '<div class="shape-diagram">';
-        segments.forEach(function (seg, segIdx) {
-          if (seg.type === 'heading') {
-            out += '<div class="shape-heading">' + escapeHtml(seg.text) + '</div>';
-          } else if (seg.type === 'tree') {
-            out += '<pre class="shape-tree">' + seg.lines.map(escapeHtml).join('\n') + '</pre>';
-          } else if (seg.type === 'arrow') {
-            var prevBox = segIdx > 0 && segments[segIdx - 1].type === 'box' ? segments[segIdx - 1].box : null;
-            var nextBox = segIdx < segments.length - 1 && segments[segIdx + 1].type === 'box' ? segments[segIdx + 1].box : null;
-            if (prevBox && nextBox && !prevBox.parent && !nextBox.parent &&
-                prevBox.bottom < seg.row && nextBox.top > seg.row &&
-                prevBox.left < seg.col && prevBox.right > seg.col &&
-                nextBox.left < seg.col && nextBox.right > seg.col) {
-              out += '<div class="shape-arrow shape-arrow--down">\u25BC</div>';
-            } else {
-              out += '<pre class="shape-tree">' + escapeHtml(lines[seg.row]) + '</pre>';
+        diagramCounter++;
+        var diagramId = 'diagram-' + diagramCounter;
+        var layoutResult = layoutDrawContent(extracted);
+        var diagramInnerHtml = toDiagramHtml(extracted, layoutResult);
+        return '<!-- diagram wrapper 从下方 div.diagram-static 开始 --><div class="diagram-static" id="' + diagramId + '">' + diagramInnerHtml + '</div>';
+
+      });
+    }
+
+    // ---------- 框图布局与静态 HTML 渲染 ----------
+    // 根据抽取结果计算每个节点的 (x,y,w,h)，再交给 toDiagramHtml 生成 div+SVG
+    function layoutDrawContent(extracted) {
+      var nodes = extracted.nodes || [];
+      var W = 220, lineHeight = 20, paddingV = 24, gapX = 48, gapY = 24;
+      var byId = {};
+      nodes.forEach(function (n) { byId[n.id] = n; });
+      var parent = {};
+      nodes.forEach(function (n) {
+        (n.children || []).forEach(function (cid) { parent[cid] = n.id; });
+      });
+      var roots = nodes.filter(function (n) { return !parent[n.id]; });
+      var depth = {};
+      function getDepth(id) {
+        if (depth[id] != null) return depth[id];
+        var p = parent[id];
+        depth[id] = p == null ? 0 : 1 + getDepth(p);
+        return depth[id];
+      }
+      nodes.forEach(function (n) { getDepth(n.id); });
+      var order = [];
+      var queue = roots.map(function (n) { return n.id; });
+      var seen = {};
+      while (queue.length) {
+        var n = byId[queue.shift()];
+        if (!n || seen[n.id]) continue;
+        seen[n.id] = true;
+        order.push(n.id);
+        if (n.parallelRows) {
+          n.parallelRows.forEach(function (row) {
+            row.forEach(function (cid) { if (!seen[cid]) queue.push(cid); });
+          });
+        } else
+          (n.children || []).forEach(function (cid) { if (!seen[cid]) queue.push(cid); });
+      }
+      var lineCount = {};
+      order.forEach(function (id) {
+        var n = byId[id];
+        var lines = (n.content || []).length + (n.attachedContent || []).length;
+        lineCount[id] = Math.max(1, lines);
+      });
+      var nodeH = {};
+      order.forEach(function (id) {
+        nodeH[id] = paddingV + lineCount[id] * lineHeight;
+      });
+      var edges = extracted.edges || [];
+      var depthToIds = {};
+      order.forEach(function (id) {
+        var r = depth[id];
+        if (!depthToIds[r]) depthToIds[r] = [];
+        depthToIds[r].push(id);
+      });
+      var rows = [];
+      Object.keys(depthToIds).map(Number).sort(function (a, b) { return a - b; }).forEach(function (d) {
+        var ids = depthToIds[d];
+        var chainOrder = [];
+        var inDegree = {};
+        ids.forEach(function (id) { inDegree[id] = 0; });
+        edges.forEach(function (e) {
+          if (ids.indexOf(e.from) >= 0 && ids.indexOf(e.to) >= 0) inDegree[e.to]++;
+        });
+        var queue = ids.filter(function (id) { return inDegree[id] === 0; });
+        while (queue.length) {
+          var id = queue.shift();
+          chainOrder.push(id);
+          edges.forEach(function (e) {
+            if (e.from === id && ids.indexOf(e.to) >= 0) {
+              inDegree[e.to]--;
+              if (inDegree[e.to] === 0) queue.push(e.to);
             }
-          } else if (seg.type === 'box') {
-            out += renderBox(seg.box);
+          });
+        }
+        if (chainOrder.length === ids.length && chainOrder.length >= 2) {
+          chainOrder.forEach(function (id) { rows.push([id]); });
+        } else {
+          rows.push(ids.slice());
+        }
+      });
+      var rowY = {};
+      var y = 0;
+      rows.forEach(function (row, ri) {
+        rowY[ri] = y;
+        var maxH = 0;
+        row.forEach(function (id) { if (nodeH[id] > maxH) maxH = nodeH[id]; });
+        y += maxH + gapY;
+      });
+      var nodeToRowCol = {};
+      rows.forEach(function (row, ri) {
+        row.forEach(function (id, ci) { nodeToRowCol[id] = { row: ri, col: ci }; });
+      });
+      var PAD = 40;
+      var layout = {};
+      var maxX = 0, maxY = 0;
+      order.forEach(function (id) {
+        var rc = nodeToRowCol[id] || { row: 0, col: 0 };
+        var x = PAD + rc.col * (W + gapX);
+        var yTop = PAD + rowY[rc.row];
+        layout[id] = { x: x, y: yTop, w: W, h: nodeH[id] };
+        if (x + W > maxX) maxX = x + W;
+        if (yTop + nodeH[id] > maxY) maxY = yTop + nodeH[id];
+      });
+
+      // 有子节点时，将父节点改为“容器”：其 box 包住自身标题区 + 所有子节点，这样渲染时外框会包住内框
+      function expandParentToContainer(nid) {
+        var n = byId[nid];
+        if (!n || !(n.children || []).length) return;
+        var kids = n.parallelRows ? n.parallelRows.reduce(function (acc, row) { return acc.concat(row); }, []) : (n.children || []);
+        kids.forEach(function (cid) { expandParentToContainer(cid); });
+        var self = layout[nid] || { x: 0, y: 0, w: W, h: 80 };
+        var minX = self.x, minY = self.y, maxX = self.x + (self.w || W), maxY = self.y + (self.h || 80);
+        kids.forEach(function (cid) {
+          var p = layout[cid];
+          if (!p) return;
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          var pr = p.x + (p.w || W), pb = p.y + (p.h || 80);
+          if (pr > maxX) maxX = pr;
+          if (pb > maxY) maxY = pb;
+        });
+        layout[nid] = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
+      roots.forEach(function (r) { expandParentToContainer(r.id); });
+
+      // #region agent log
+      try {
+        var _layoutKeys = Object.keys(layout);
+        var _layoutSummary = _layoutKeys.map(function (id) { var p = layout[id]; return { id: id, x: p.x, y: p.y, w: p.w, h: p.h }; });
+        fetch('http://127.0.0.1:7242/ingest/20a02fa4-ddc6-4ba9-aec5-a523284ee76c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'md2html.html:layout', message: 'layout result', data: { layoutKeys: _layoutKeys.length, layout: _layoutSummary, width: maxX + PAD + 40, height: maxY + PAD + 40 }, timestamp: Date.now(), hypothesisId: 'H4' }) }).catch(function () {});
+      } catch (e) {}
+      // #endregion
+
+      return { layout: layout, W: W, lineHeight: lineHeight, width: maxX + PAD + 40, height: maxY + PAD + 40 };
+    }
+
+    // 方案2：用 div + 箭头 DIV 生成静态 HTML（可复制到 CKEditor 直接显示）
+    function toDiagramHtml(extracted, layoutResult) {
+      var nodes = extracted.nodes || [], edges = extracted.edges || [];
+      function esc(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      var parentOf = {};
+      nodes.forEach(function (n) {
+        (n.children || []).forEach(function (cid) { parentOf[cid] = n.id; });
+      });
+      var edgesByFrom = {};
+      edges.forEach(function (e) {
+        if (!edgesByFrom[e.from]) edgesByFrom[e.from] = [];
+        edgesByFrom[e.from].push(e);
+      });
+      var edgeLabelsByFrom = {};
+      edges.forEach(function (e) {
+        if (!e.label) return;
+        var key = e.from;
+        if (!edgeLabelsByFrom[key]) edgeLabelsByFrom[key] = [];
+        edgeLabelsByFrom[key].push(String(e.label).trim());
+      });
+      var nodeHtml = [];
+      // #region agent log
+      try {
+        fetch('http://127.0.0.1:7242/ingest/20a02fa4-ddc6-4ba9-aec5-a523284ee76c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'md2html.html:toDiagramHtml', message: 'rendering nodes', data: { nodeCount: nodes.length, nodeIds: nodes.map(function (n) { return n.id; }) }, timestamp: Date.now(), hypothesisId: 'H5' }) }).catch(function () {});
+      } catch (e) {}
+      // #endregion
+
+      var rootsWithChildren = nodes.filter(function (n) { return !parentOf[n.id] && (n.children || []).length > 0; });
+
+      function buildNodeParts(n, options) {
+        options = options || {};
+        var contentOnly = n.content || [];
+        var parts = [];
+        var isTitleCenter = !options.forceFirstLineLeft && contentOnly[0] && contentOnly[0].align === 'center';
+        var hasChildren = (n.children || []).length > 0;
+        // 规范化缩进：同一 box 内，所有行减去该 box 最小 indent
+        var minIndent = null;
+        contentOnly.forEach(function (line) {
+          if (typeof line.indent === 'number') {
+            if (minIndent === null || line.indent < minIndent) minIndent = line.indent;
           }
         });
-        out += '</div>';
-        return out;
-        */
+        if (minIndent === null) minIndent = 0;
+        function normIndent(line) {
+          var raw = typeof line.indent === 'number' ? line.indent : 0;
+          var v = raw - minIndent;
+          return v > 0 ? v : 0;
+        }
+        if (hasChildren) {
+          var titleText = contentOnly[0] ? contentOnly[0].text : '';
+          parts.push('<div class="shape-line shape-line--center">' + esc(titleText) + '</div>');
+        } else if (isTitleCenter && contentOnly.length) {
+          parts.push('<div class="shape-line shape-line--center">' + esc(contentOnly[0].text) + '</div>');
+          for (var i = 1; i < contentOnly.length; i++) {
+            var line = contentOnly[i];
+            var bodyIndent = new Array(normIndent(line) + 1).join(' ');
+            var isLi = /^-/.test(line.text);
+            var cleanText = isLi ? line.text.replace(/^-\s*/, '') : line.text;
+            var bullet = isLi ? '• ' : '';
+            parts.push('<div class="shape-line' + (isLi ? ' shape-line--li' : '') + '">' + esc(bodyIndent + bullet + cleanText) + '</div>');
+          }
+        } else {
+          contentOnly.forEach(function (line) {
+            var indentSpaces = new Array(normIndent(line) + 1).join(' ');
+            var isLi = /^-/.test(line.text);
+            var cleanText = isLi ? line.text.replace(/^-\s*/, '') : line.text;
+            var bullet = isLi ? '• ' : '';
+            parts.push('<div class="shape-line' + (isLi ? ' shape-line--li' : '') + '">' + esc(indentSpaces + bullet + cleanText) + '</div>');
+          });
+        }
+        if (!parts.length) parts.push('<div class="shape-line">&#160;</div>');
+        return parts;
+      }
+
+      function firstEdgeFrom(fromId) {
+        var list = edgesByFrom[fromId] || [];
+        return list.length ? list[0] : null;
+      }
+      function nodeHasTreeAttach(node) {
+        var attached = node.attachedContent || [];
+        if (!attached.length) return false;
+        var labelSet = {};
+        (edgeLabelsByFrom[node.id] || []).forEach(function (t) { labelSet[t] = true; });
+        for (var i = 0; i < attached.length; i++) {
+          var rawText = String(attached[i].text || '');
+          var trimmed = rawText.trim();
+          if (!trimmed) continue;
+          if (labelSet[trimmed]) continue;
+          return true;
+        }
+        return false;
+      }
+
+      function attachedHtml(attached, nodeId) {
+        if (!attached || !attached.length) return '';
+        var labelSet = {};
+        (edgeLabelsByFrom[nodeId] || []).forEach(function (t) { labelSet[t] = true; });
+        var parts = [];
+        // 规范化缩进：同一 attachedContent 里，所有行减去最小 indent
+        var minIndent = null;
+        attached.forEach(function (line) {
+          if (typeof line.indent === 'number') {
+            if (minIndent === null || line.indent < minIndent) minIndent = line.indent;
+          }
+        });
+        if (minIndent === null) minIndent = 0;
+        function normIndent(line) {
+          var raw = typeof line.indent === 'number' ? line.indent : 0;
+          var v = raw - minIndent;
+          return v > 0 ? v : 0;
+        }
+        attached.forEach(function (line) {
+          var rawText = String(line.text || '');
+          var trimmed = rawText.trim();
+          if (labelSet[trimmed]) return; // 这行是箭头 label，不再当作 tree 渲染
+          var indentSpaces = new Array(normIndent(line) + 1).join(' ');
+          var isLi = /^-/.test(rawText);
+          var cleanText = isLi ? rawText.replace(/^-\s*/, '') : rawText;
+          var bullet = isLi ? '• ' : '';
+          parts.push('<div class="shape-line' + (isLi ? ' shape-line--li' : '') + '">' + esc(indentSpaces + bullet + cleanText) + '</div>');
+        });
+        return '<div class="diagram-node-attached shape-tree">' + parts.join('') + '</div>';
+      }
+
+      function arrowHtml(info) {
+        var dir = (info && info.dir) || info || 'down';
+        var label = info && info.label ? String(info.label) : '';
+        var toId = info && info.to ? String(info.to) : '';
+        var labelHtml = label ? esc(label) : '';
+        var toAttr = toId ? ' data-to-id="' + toId.replace(/"/g, '&quot;') + '"' : '';
+        return '<div class="shape-arrow shape-arrow--' + dir + '"' + toAttr + '><div class="shape-arrow-line"><div class="shape-arrow-label">' + labelHtml + '</div><div class="shape-arrow-head"></div></div></div>';
+      }
+
+      // 处理每一个“根容器”：自身内容 + 子 box 作为一层
+      rootsWithChildren.forEach(function (rootWithKids) {
+        var rootTitle = (rootWithKids.content || [])[0];
+        var rootTitleText = rootTitle ? rootTitle.text : '';
+        var outerInner = '<div class="shape-line shape-line--center">' + esc(rootTitleText) + '</div>';
+        var kidsHasAnyAttach = false;
+        var hasParallel = rootWithKids.parallelRows && rootWithKids.parallelRows.length;
+        if (hasParallel) {
+          // 并排布局：每一行一个 shape-row，行内子 box 横向排列
+          var rows = rootWithKids.parallelRows;
+          rows.forEach(function (rowIds) {
+            outerInner += '<div class="shape-row">';
+            rowIds.forEach(function (cid) {
+              var cn = nodes.filter(function (x) { return x.id === cid; })[0];
+              if (!cn) return;
+              var parts = buildNodeParts(cn, { forceFirstLineLeft: true });
+              var hasTreeAttach = nodeHasTreeAttach(cn);
+              if (hasTreeAttach) kidsHasAnyAttach = true;
+              var kidBoxClass = 'shape-box' + (hasTreeAttach ? ' shape-box--has-attach' : '');
+              // 并排场景下，通常不需要在行内画竖直箭头，箭头多为行与下一层之间的连接，由下一层处理
+              outerInner += '<div class="' + kidBoxClass + '" data-node-id="' + cn.id + '">' + parts.join('') + '</div>';
+            });
+            outerInner += '</div>';
+          });
+        } else {
+          var kids = (rootWithKids.children || []);
+          for (var i = 0; i < kids.length; i++) {
+            var cid = kids[i];
+            var cn = nodes.filter(function (x) { return x.id === cid; })[0];
+            if (!cn) continue;
+            var parts = buildNodeParts(cn);
+            var hasTreeAttach = nodeHasTreeAttach(cn);
+            if (hasTreeAttach) kidsHasAnyAttach = true;
+            var kidBoxClass = 'shape-box' + (hasTreeAttach ? ' shape-box--has-attach' : '');
+            var edgeInfo = firstEdgeFrom(cid);
+            if (edgeInfo) {
+              parts.push(arrowHtml({ dir: edgeInfo.direction || 'down', label: edgeInfo.label || '', to: edgeInfo.to }));
+            }
+            outerInner += '<div class="' + kidBoxClass + '" data-node-id="' + cn.id + '">' + parts.join('') + '</div>';
+            // 在同一层的相邻 box 之间插入一个连接 div；如果当前节点有 attachedContent，就放在这个连接 div 里
+            if (i + 1 < kids.length) {
+              var connectorInner = hasTreeAttach ? attachedHtml(cn.attachedContent || [], cn.id) : '';
+              outerInner += '<div class="shape-connector">' + connectorInner + '</div>';
+            } else if (hasTreeAttach) {
+              // 没有下一个兄弟节点时，仍然把附加内容直接放在最后一个 box 后面
+              outerInner += attachedHtml(cn.attachedContent || [], cn.id);
+            }
+          }
+        }
+        var rootBoxClass = 'shape-box' + (kidsHasAnyAttach ? '' : ' shape-layer--no-attach');
+        nodeHtml.push('<div class="' + rootBoxClass + '" data-node-id="' + rootWithKids.id + '">' + outerInner + '</div>');
+      });
+
+      // 其余节点（既不是根容器，也不是其直接子节点）作为顶层链路单独处理
+      var excludedIds = {};
+      rootsWithChildren.forEach(function (r) {
+        excludedIds[r.id] = true;
+        var kids = r.parallelRows ? r.parallelRows.reduce(function (acc, row) { return acc.concat(row); }, []) : (r.children || []);
+        kids.forEach(function (cid) { excludedIds[cid] = true; });
+      });
+
+      var topNodes = [];
+      nodes.forEach(function (n) {
+        if (excludedIds[n.id]) return;
+        topNodes.push(n);
+      });
+
+      var anyTopHasAttach = topNodes.some(function (n) { return nodeHasTreeAttach(n); });
+      var topLayerHtml = [];
+      for (var ti = 0; ti < topNodes.length; ti++) {
+        var tn = topNodes[ti];
+        var tParts = buildNodeParts(tn);
+        var topHasAttach = nodeHasTreeAttach(tn);
+        var topBoxClass = 'shape-box' + (topHasAttach ? ' shape-box--has-attach' : '');
+        var nextTop = ti + 1 < topNodes.length ? topNodes[ti + 1] : null;
+        var edgeInfoTop = firstEdgeFrom(tn.id);
+        if (edgeInfoTop) {
+          tParts.push(arrowHtml({ dir: edgeInfoTop.direction || 'down', label: edgeInfoTop.label || '', to: edgeInfoTop.to }));
+        }
+        topLayerHtml.push('<div class="' + topBoxClass + '" data-node-id="' + tn.id + '">' + tParts.join('') + '</div>');
+        if (nextTop) {
+          var topConnectorInner = topHasAttach ? attachedHtml(tn.attachedContent || [], tn.id) : '';
+          topLayerHtml.push('<div class="shape-connector">' + topConnectorInner + '</div>');
+        } else if (topHasAttach) {
+          topLayerHtml.push(attachedHtml(tn.attachedContent || [], tn.id));
+        }
+      }
+      if (topNodes.length) {
+        var topLayerClass = 'shape-layer' + (anyTopHasAttach ? '' : ' shape-layer--no-attach');
+        nodeHtml.push('<div class="' + topLayerClass + '">' + topLayerHtml.join('') + '</div>');
+      }
+      return '<div class="diagram-canvas"><div class="diagram-content">' + nodeHtml.join('') + '</div></div>';
+    }
+
+    // 根据实际 DOM 高度，精确计算箭头线段高度，避免中间内容过多时箭头不够长
+    function adjustDiagramArrows(rootEl) {
+      var container = rootEl || document;
+      var diagrams = container.querySelectorAll('.diagram-canvas');
+      diagrams.forEach(function (diagram) {
+        var arrows = diagram.querySelectorAll('.shape-arrow');
+        arrows.forEach(function (arrow) {
+          var fromBox = arrow.closest('.shape-box');
+          if (!fromBox) return;
+          var fromRect = fromBox.getBoundingClientRect();
+
+          // 优先根据 data-to-id 精确定位目标 box
+          var connector = null;
+          var toBox = null;
+          var toId = arrow.getAttribute('data-to-id');
+          if (toId) {
+            toBox = diagram.querySelector('.shape-box[data-node-id="' + toId + '"]');
+            // 在 DOM 顺序中，从 fromBox 向后找到 between 的 connector（如果有）
+            var sib = fromBox.nextElementSibling;
+            while (sib && sib !== toBox) {
+              if (sib.classList && sib.classList.contains('shape-connector')) {
+                connector = sib;
+                break;
+              }
+              sib = sib.nextElementSibling;
+            }
+          }
+
+          // 回退：如果没有 toId 或没找到对应的 box，则使用原先的「下一个 box」逻辑
+          if (!toBox) {
+            var sibling = fromBox.nextElementSibling;
+            while (sibling) {
+              if (sibling.classList && sibling.classList.contains('shape-connector')) {
+                connector = sibling;
+              } else if (sibling.classList && sibling.classList.contains('shape-box')) {
+                toBox = sibling;
+                break;
+              }
+              sibling = sibling.nextElementSibling;
+            }
+          }
+          if (!connector && !toBox) return;
+
+          var distance;
+          var toRect = toBox ? toBox.getBoundingClientRect() : null;
+          if (connector) {
+            var connRect = connector.getBoundingClientRect();
+            var hasTree = connector.querySelector('.shape-tree');
+            if (hasTree) {
+              // 有 tree：箭头贯穿整个 connector 区域（主要指向 tree 说明块）
+              distance = connRect.bottom - fromRect.bottom;
+            } else if (toRect) {
+              // 没有 tree：直接按 from → to 的真实 gap 计算
+              distance = toRect.top - fromRect.bottom;
+            } else {
+              // 没有目标 box 时的兜底：指向连接区域中点
+              distance = (connRect.top - fromRect.bottom) + connRect.height / 2;
+            }
+          } else if (toRect) {
+            // 没有 connector：从 fromBox 底部到下一个 box 顶部的距离
+            distance = toRect.top - fromRect.bottom;
+          } else {
+            return;
+          }
+          if (distance <= 0) return;
+
+          // 把算出来的总高度写在 wrapper 上，线段高度交给 CSS（height: calc(100% - 10px)）
+          arrow.style.height = distance + 'px';
+        });
       });
     }
 
@@ -667,6 +1087,10 @@
       htmlEl.value = html;
       if (previewEl) {
         previewEl.innerHTML = html;
+        // 等浏览器完成布局后再计算箭头高度
+        setTimeout(function () {
+          adjustDiagramArrows(previewEl);
+        }, 0);
       }
     }
 

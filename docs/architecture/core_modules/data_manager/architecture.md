@@ -68,11 +68,7 @@
 
 **Model（如 StockKlineModel）**：
 - ✅ **负责**：
-<<<<<<< HEAD
-  - 封装单表的 CRUD 操作（`load()`, `save()`, `delete()`, `update()`, `replace()`）
-=======
   - 封装单表的 CRUD 操作（`load()`, `save()`, `delete()`, `upsert()`）
->>>>>>> write-doc
   - 封装表特定的业务查询方法（如 `load_by_date_range()`, `load_latest()`）
   - 继承自 `DbBaseModel` 获得通用能力（批量操作、分页查询、时序数据优化等）
   - 自动加载对应的 Schema 定义

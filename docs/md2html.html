@@ -919,6 +919,9 @@
         var outerInner = '<div class="shape-line shape-line--center">' + esc(rootTitleText) + '</div>';
         var kidsHasAnyAttach = false;
         var hasParallel = rootWithKids.parallelRows && rootWithKids.parallelRows.length;
+        // 根节点自身的向下箭头（例如 Strategy 容器 → Adapter 模块 (Core)）
+        var rootEdges = edgesByFrom[rootWithKids.id] || [];
+        var rootDownEdge = rootEdges.length ? rootEdges[0] : null;
         if (hasParallel) {
           // 并排布局：每一行一个 shape-row，行内子 box 横向排列
           var rows = rootWithKids.parallelRows;
@@ -946,9 +949,14 @@
             var hasTreeAttach = nodeHasTreeAttach(cn);
             if (hasTreeAttach) kidsHasAnyAttach = true;
             var kidBoxClass = 'shape-box' + (hasTreeAttach ? ' shape-box--has-attach' : '');
+            // 1) 子节点自己的箭头（例如 Scanner → AdapterDispatcher）
             var edgeInfo = firstEdgeFrom(cid);
             if (edgeInfo) {
               parts.push(arrowHtml({ dir: edgeInfo.direction || 'down', label: edgeInfo.label || '', to: edgeInfo.to }));
+            }
+            // 2) 根容器的向下箭头（例如 Strategy 模块 → Adapter 模块 (Core)）挂在最后一个子 box 上
+            if (rootDownEdge && i === kids.length - 1) {
+              parts.push(arrowHtml({ dir: rootDownEdge.direction || 'down', label: rootDownEdge.label || '', to: rootDownEdge.to }));
             }
             outerInner += '<div class="' + kidBoxClass + '" data-node-id="' + cn.id + '">' + parts.join('') + '</div>';
             // 在同一层的相邻 box 之间插入一个连接 div；如果当前节点有 attachedContent，就放在这个连接 div 里

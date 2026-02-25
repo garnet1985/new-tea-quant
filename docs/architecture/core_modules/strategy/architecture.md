@@ -754,145 +754,141 @@ class Event:
 ### 数据流向图
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Strategy 系统数据流                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Settings (配置文件)                                         │
-│       │                                                      │
-│       ▼                                                      │
-│  StrategySettings (策略配置模型)                             │
-│       │                                                      │
-│       ├─▶ Scanner                                           │
-│       │      │                                               │
-│       │      ├─▶ StockSamplingHelper                        │
-│       │      │      │                                       │
-│       │      │      ▼                                       │
-│       │      │   Stock List (采样后)                        │
-│       │      │                                               │
-│       │      ├─▶ StrategyWorkerDataManager                  │
-│       │      │      │                                       │
-│       │      │      ├─▶ 加载 K 线数据                        │
-│       │      │      │      │                                │
-│       │      │      │      ▼                                │
-│       │      │      │   DataManager.stock.kline             │
-│       │      │      │                                       │
-│       │      │      ├─▶ 计算技术指标                        │
-│       │      │      │      │                                │
-│       │      │      │      ▼                                │
-│       │      │      │   IndicatorService                    │
-│       │      │      │                                       │
-│       │      │      └─▶ 加载 Required Data                  │
-│       │      │             │                                │
-│       │      │             ▼                                │
-│       │      │          DataManager (GDP, Tag 等)           │
-│       │      │                                               │
-│       │      ├─▶ scan_opportunity()                          │
-│       │      │      │                                       │
-│       │      │      ▼                                       │
-│       │      │   Opportunity (status=active)                │
-│       │      │                                               │
-│       │      └─▶ OpportunityService                          │
-│       │             │                                        │
-│       │             ▼                                        │
-│       │          JSON (scan results)                         │
-│       │                                                       │
-│       ├─▶ OpportunityEnumerator                             │
-│       │      │                                               │
-│       │      ├─▶ OpportunityEnumeratorWorker                 │
-│       │      │      │                                        │
-│       │      │      ├─▶ 加载全量 K 线数据                    │
-│       │      │      │      │                                │
-│       │      │      │      ▼                                │
-│       │      │      │   DataManager.stock.kline             │
-│       │      │      │                                       │
-│       │      │      ├─▶ 计算技术指标                        │
-│       │      │      │      │                                │
-│       │      │      │      ▼                                │
-│       │      │      │   IndicatorService                    │
-│       │      │      │                                       │
-│       │      │      ├─▶ 逐日迭代                            │
-│       │      │      │      │                                │
-│       │      │      │      ├─▶ check_targets()              │
-│       │      │      │      │   (检查止盈止损)                │
-│       │      │      │      │                                │
-│       │      │      │      └─▶ scan_opportunity()           │
-│       │      │      │          (扫描新机会)                  │
-│       │      │      │                                       │
-│       │      │      └─▶ 写出 CSV                            │
-│       │      │             │                                │
-│       │      │             ▼                                │
-│       │      │          CSV (opportunities + targets)       │
-│       │      │                                               │
-│       │      └─▶ metadata.json                               │
-│       │                                                       │
-│       ├─▶ PriceFactorSimulator                               │
-│       │      │                                               │
-│       │      ├─▶ DataLoader.load_opportunities_and_targets()│
-│       │      │      │                                       │
-│       │      │      ▼                                       │
-│       │      │   SOT CSV (opportunities + targets)          │
-│       │      │                                               │
-│       │      ├─▶ PriceFactorSimulatorWorker                  │
-│       │      │      │                                       │
-│       │      │      ├─▶ 从 Opportunity 创建 Investment      │
-│       │      │      │      │                                │
-│       │      │      │      ▼                                │
-│       │      │      │   PriceFactorInvestment               │
-│       │      │      │                                       │
-│       │      │      └─▶ 计算统计信息                        │
-│       │      │             │                                │
-│       │      │             ▼                                │
-│       │      │          Stock Summary                        │
-│       │      │                                               │
-│       │      ├─▶ ResultAggregator                            │
-│       │      │      │                                       │
-│       │      │      ▼                                       │
-│       │      │   Strategy Summary                            │
-│       │      │                                               │
-│       │      └─▶ ResultPathManager                           │
-│       │             │                                        │
-│       │             ▼                                        │
-│       │          JSON (summary_stock + summary_strategy)     │
-│       │                                                       │
-│       └─▶ CapitalAllocationSimulator                         │
-│              │                                               │
-│              ├─▶ DataLoader.build_event_stream()            │
-│              │      │                                       │
-│              │      ▼                                       │
-│              │   Event Stream (按日期排序)                   │
-│              │                                               │
-│              ├─▶ 按时间轴执行                                │
-│              │      │                                       │
-│              │      ├─▶ 处理卖出事件                         │
-│              │      │      │                                │
-│              │      │      ├─▶ 更新 Account                 │
-│              │      │      │                                │
-│              │      │      └─▶ 记录 Trade                   │
-│              │      │                                       │
-│              │      ├─▶ 处理买入事件                         │
-│              │      │      │                                │
-│              │      │      ├─▶ AllocationStrategy           │
-│              │      │      │   (决定买入数量)                │
-│              │      │      │                                │
-│              │      │      ├─▶ FeeCalculator                │
-│              │      │      │   (计算费用)                    │
-│              │      │      │                                │
-│              │      │      ├─▶ 更新 Account                 │
-│              │      │      │                                │
-│              │      │      └─▶ 记录 Trade                   │
-│              │      │                                       │
-│              │      └─▶ 更新权益曲线                        │
-│              │             │                                │
-│              │             ▼                                │
-│              │          Equity Curve                         │
-│              │                                               │
-│              └─▶ ResultPathManager                           │
-│                     │                                        │
-│                     ▼                                        │
-│                  JSON (trades + equity_curve + summary)       │
-│                                                               │
-└─────────────────────────────────────────────────────────────┘
+系统数据流                       
+                                                      
+Settings (配置文件)                                          
+      │                                                      
+      ▼                                                      
+StrategySettings (策略配置模型)                             
+      │                                                      
+      ├─▶ Scanner                                           
+      │      │                                               
+      │      ├─▶ StockSamplingHelper                        
+      │      │      │                                      
+      │      │      ▼                                       
+      │      │   Stock List (采样后)                        
+      │      │                                               
+      │      ├─▶ StrategyWorkerDataManager                  
+      │      │      │                                       
+      │      │      ├─▶ 加载 K 线数据                        
+      │      │      │      │                                
+      │      │      │      ▼                                
+      │      │      │   DataManager.stock.kline             
+      │      │      │                                       
+      │      │      ├─▶ 计算技术指标                        
+      │      │      │      │                                
+      │      │      │      ▼                                
+      │      │      │   IndicatorService                    
+      │      │      │                                       
+      │      │      └─▶ 加载 Required Data                  
+      │      │             │                               
+      │      │             ▼                                
+      │      │          DataManager (GDP, Tag 等)           
+      │      │                                               
+      │      ├─▶ scan_opportunity()                          
+      │      │      │                                       
+      │      │      ▼                                       
+      │      │   Opportunity (status=active)                
+      │      │                                               
+      │      └─▶ OpportunityService                          
+      │             │                                        
+      │             ▼                                        
+      │          JSON (scan results)                         
+      │                                                       
+      ├─▶ OpportunityEnumerator                             
+      │      │                                               
+      │      ├─▶ OpportunityEnumeratorWorker                 
+      │      │      │                                        
+      │      │      ├─▶ 加载全量 K 线数据                    
+      │      │      │      │                                
+      │      │      │      ▼                                
+      │      │      │   DataManager.stock.kline             
+      │      │      │                                       
+      │      │      ├─▶ 计算技术指标                        
+      │      │      │      │                                
+      │      │      │      ▼                                
+      │      │      │   IndicatorService                    
+      │      │      │                                       
+      │      │      ├─▶ 逐日迭代                            
+      │      │      │      │                                
+      │      │      │      ├─▶ check_targets()              
+      │      │      │      │   (检查止盈止损)                
+      │      │      │      │                                
+      │      │      │      └─▶ scan_opportunity()           
+      │      │      │          (扫描新机会)                  
+      │      │      │                                       
+      │      │      └─▶ 写出 CSV                            
+      │      │             │                                
+      │      │             ▼                                
+      │      │          CSV (opportunities + targets)       
+      │      │                                               
+      │      └─▶ metadata.json                               
+      │                                                       
+      ├─▶ PriceFactorSimulator                               
+      │      │                                               
+      │      ├─▶ DataLoader.load_opportunities_and_targets()
+      │      │      │                                      
+      │      │      ▼                                       
+      │      │   SOT CSV (opportunities + targets)          
+      │      │                                               
+      │      ├─▶ PriceFactorSimulatorWorker                  
+      │      │      │                                       
+      │      │      ├─▶ 从 Opportunity 创建 Investment      
+      │      │      │      │                                
+      │      │      │      ▼                                
+      │      │      │   PriceFactorInvestment               
+      │      │      │                                       
+      │      │      └─▶ 计算统计信息                        
+      │      │             │                                
+      │      │             ▼                                
+      │      │          Stock Summary                        
+      │      │                                               
+      │      ├─▶ ResultAggregator                            
+      │      │      │                                       
+      │      │      ▼                                       
+      │      │   Strategy Summary                           
+      │      │                                               
+      │      └─▶ ResultPathManager                           
+      │             │                                        
+      │             ▼                                        
+      │          JSON (summary_stock + summary_strategy)     
+      │                                                       
+      └─▶ CapitalAllocationSimulator                         
+            │                                               
+            ├─▶ DataLoader.build_event_stream()            
+            │      │                                       
+            │      ▼                                       
+            │   Event Stream (按日期排序)                   
+            │                                               
+            ├─▶ 按时间轴执行                                
+            │      │                                       
+            │      ├─▶ 处理卖出事件                         
+            │      │      │                                
+            │      │      ├─▶ 更新 Account                 
+            │      │      │                                
+            │      │      └─▶ 记录 Trade                   
+            │      │                                       
+            │      ├─▶ 处理买入事件                         
+            │      │      │                                
+            │      │      ├─▶ AllocationStrategy           
+            │      │      │   (决定买入数量)                
+            │      │      │                                
+            │      │      ├─▶ FeeCalculator                
+            │      │      │   (计算费用)                    
+            │      │      │                                
+            │      │      ├─▶ 更新 Account                 
+            │      │      │                                
+            │      │      └─▶ 记录 Trade                   
+            │      │                                       
+            │      └─▶ 更新权益曲线                        
+            │             │                                
+            │             ▼                                
+            │          Equity Curve                         
+            │                                               
+            └─▶ ResultPathManager                           
+                  │                                        
+                  ▼                                        
+               JSON (trades + equity_curve + summary)                                   
 ```
 
 ### 数据加载流程

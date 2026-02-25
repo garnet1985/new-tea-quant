@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API 文档 → HTML（带语义 class）</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #1a1a2e; color: #e4e4e7; min-height: 100vh; }
+    h1 { font-size: 1.25rem; margin: 0 0 12px; }
+    .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 1400px; align-items: flex-start; }
+    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+    label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #a1a1aa; }
+    textarea { width: 100%; height: 420px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: #252536; color: #e4e4e7; font-size: 13px; line-height: 1.5; resize: vertical; font-family: inherit; }
+    textarea:focus { outline: none; border-color: rgba(34, 211, 238, 0.5); }
+    .actions { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+    button { padding: 8px 14px; border-radius: 8px; border: none; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .btn-convert { background: linear-gradient(135deg, #a855f7, #22d3ee); color: #fff; }
+    .btn-convert:hover { opacity: 0.95; }
+    .btn-copy { background: rgba(255,255,255,0.1); color: #e4e4e7; }
+    .btn-copy:hover { background: rgba(255,255,255,0.18); }
+    .btn-copy.copied { background: rgba(34, 197, 94, 0.3); color: #86efac; }
+    .tip { font-size: 12px; color: #71717a; margin-top: 4px; }
+
+    .preview {
+      width: 100%;
+      min-height: 600px;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 14px;
+      line-height: 1.65;
+      overflow: auto;
+    }
+
+    /* ========== API 文档专用样式（预览 + 可复制到站点） ========== */
+    .api-doc { max-width: 72ch; margin: 0 auto; }
+    .api-doc > h1:first-child { font-size: 1.5rem; margin-bottom: 0.5em; color: #f1f5f9; }
+    .api-doc > p { color: #94a3b8; margin-bottom: 1.5em; }
+    .api-doc__section { margin-top: 2.5em; }
+    .api-doc__section-title { font-size: 1.25rem; color: #22d3ee; margin: 0 0 0.75em; padding-bottom: 0.35em; border-bottom: 1px solid rgba(34, 211, 238, 0.3); }
+    .api-entry {
+      margin-bottom: 2.5em;
+      padding: 1.25em 1.5em;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .api-entry__title-box { padding: 0.5em 0.75em; margin-bottom: 1em; border-radius: 8px; border: 1px solid rgba(34, 211, 238, 0.35); background: rgba(34, 211, 238, 0.08); }
+    .api-entry--deprecated .api-entry__title-box { border-color: rgba(234, 179, 8, 0.6); background: rgba(234, 179, 8, 0.12); }
+    .api-entry--warning .api-entry__title-box { border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.1); }
+    .api-entry__title { font-size: 1.1rem; margin: 0; color: #f1f5f9; font-weight: 600; }
+    .api-entry__description .api-entry__label, .api-entry__fn .api-entry__label, .api-entry__output .api-entry__label, .api-entry__params .api-entry__label { display: block; margin-bottom: 0.25em; }
+    .api-entry__value { margin: 0; }
+    .api-entry__description { margin-bottom: 0.75em; color: #cbd5e1; line-height: 1.6; }
+    .api-entry__description strong { color: #94a3b8; margin-right: 0.25em; }
+    .api-entry__meta { display: flex; flex-wrap: wrap; gap: 1em 1.5em; margin-bottom: 1em; font-size: 0.9em; }
+    .api-entry__status { color: #34d399; }
+    .api-entry__status strong { color: #6ee7b7; }
+    .api-entry__fn { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; color: #22d3ee; }
+    .api-entry__fn strong { color: #67e8f9; }
+    .api-entry__params { margin: 0.75em 0; }
+    .api-entry__params .api-entry__label { font-weight: 600; color: #94a3b8; margin-bottom: 0.35em; font-size: 0.9em; }
+    .api-params-table { width: 100%; border-collapse: collapse; font-size: 0.9em; margin-top: 0.25em; }
+    .api-params-table th, .api-params-table td { border: 1px solid rgba(148, 163, 184, 0.35); padding: 0.5em 0.75em; text-align: left; }
+    .api-params-table th { background: rgba(34, 211, 238, 0.1); color: #67e8f9; font-weight: 600; }
+    .api-params-table td:first-child { font-family: ui-monospace, monospace; color: #22d3ee; }
+    .api-entry__output { margin: 0.75em 0; color: #cbd5e1; }
+    .api-entry__output strong { color: #94a3b8; }
+    .api-entry__example { margin-top: 1em; }
+    .api-entry__example .api-entry__label { font-weight: 600; color: #94a3b8; margin-bottom: 0.35em; font-size: 0.9em; }
+    .api-example__code {
+      display: block;
+      margin: 0.35em 0 0;
+      padding: 1em 1.25em;
+      border-radius: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: rgba(15, 23, 42, 0.9);
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.85em;
+      line-height: 1.5;
+      overflow-x: auto;
+      color: #e2e8f0;
+    }
+    .api-entry__example p:not(.api-entry__label) { color: #94a3b8; font-size: 0.9em; margin-top: 0.25em; }
+    .api-entry hr { border: none; border-top: 1px solid rgba(148, 163, 184, 0.2); margin: 1em 0; }
+  </style>
+</head>
+<body>
+  <h1>API 文档 → HTML（带语义 class）</h1>
+  <p class="tip">粘贴「API 文档」Markdown（含 ### 标题、<strong>描述</strong>、<strong>函数签名</strong>、<strong>参数</strong> 表、<strong>输出</strong>、<strong>Example</strong>；可选 <strong>状态</strong>：deprecated / 即将淘汰 会生成对应 class）。</p>
+  <details class="tip" style="margin-bottom:12px;">
+    <summary>生成的 HTML 使用的 class（便于在主题里写样式）</summary>
+    <ul style="margin:8px 0 0 1em; font-size:12px; color:#94a3b8;">
+      <li><code>.api-doc</code> — 根容器</li>
+      <li><code>.api-doc__section</code> / <code>.api-doc__section-title</code> — 大节（如 DataSourceManager）</li>
+      <li><code>.api-entry</code> — 单个 API 卡片</li>
+      <li><code>.api-entry__title-box</code> — 标题外框（默认色；<code>.api-entry--deprecated</code> / <code>.api-entry--warning</code> 时为 warning/alert 色）</li>
+      <li><code>.api-entry__title</code> — API 标题（无序号）</li>
+      <li><code>.api-entry__description</code> / <code>.api-entry__fn</code> / <code>.api-entry__output</code> — 描述、函数签名、输出（标签与内容分两行）</li>
+      <li><code>.api-entry__params</code> — 参数区；内含 <code>.api-params-table</code> 表格</li>
+      <li><code>.api-entry__example</code> — 示例区；内含 <code>.api-example__code</code> 代码块</li>
+    </ul>
+  </details>
+  <div class="wrap">
+    <div>
+      <label for="md">API 文档 Markdown</label>
+      <textarea id="md" placeholder="粘贴 api.md 内容..."></textarea>
+      <div class="actions">
+        <button type="button" id="convert" class="btn-convert">转换</button>
+        <button type="button" id="copy" class="btn-copy">复制 HTML</button>
+      </div>
+    </div>
+    <div>
+      <label for="html">输出 HTML（预览如下）</label>
+      <textarea id="html" readonly placeholder="转换后的 HTML…"></textarea>
+      <div class="tip">下方为预览，复制 HTML 后可粘贴到 CKEditor 或静态页。</div>
+      <label style="margin-top:12px">预览</label>
+      <div id="preview" class="preview"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var mdEl = document.getElementById('md');
+      var htmlEl = document.getElementById('html');
+      var previewEl = document.getElementById('preview');
+      var convertBtn = document.getElementById('convert');
+      var copyBtn = document.getElementById('copy');
+
+      marked.setOptions({ gfm: true, breaks: false });
+
+      function wrapApiDoc(html) {
+        var wrap = document.createElement('div');
+        wrap.className = 'api-doc';
+        wrap.innerHTML = html;
+
+        var fragment = document.createDocumentFragment();
+        var currentSection = null;
+        var currentEntry = null;
+        var children = Array.from(wrap.children);
+        var i = 0;
+
+        while (i < children.length) {
+          var node = children[i];
+          var tag = node.tagName ? node.tagName.toLowerCase() : '';
+          var text = (node.textContent || '').trim();
+          var isH2 = tag === 'h2';
+          var isH3 = tag === 'h3';
+          var isHr = tag === 'hr';
+          var isP = tag === 'p';
+          var isTable = tag === 'table';
+          var isPre = tag === 'pre';
+
+          if (isH2) {
+            if (currentEntry) { fragment.appendChild(currentEntry); currentEntry = null; }
+            if (currentSection) fragment.appendChild(currentSection);
+            currentSection = document.createElement('div');
+            currentSection.className = 'api-doc__section';
+            node.className = 'api-doc__section-title';
+            currentSection.appendChild(node);
+            i++;
+            continue;
+          }
+
+          if (isH3) {
+            if (currentEntry) fragment.appendChild(currentEntry);
+            currentEntry = document.createElement('div');
+            currentEntry.className = 'api-entry';
+            node.className = 'api-entry__title';
+            var titleBox = document.createElement('div');
+            titleBox.className = 'api-entry__title-box';
+            titleBox.appendChild(node);
+            currentEntry.appendChild(titleBox);
+            i++;
+            continue;
+          }
+
+          if (currentEntry) {
+            if (isP && /<strong>描述<\/strong>/.test(node.innerHTML)) {
+              var descWrap = document.createElement('div');
+              descWrap.className = 'api-entry__description';
+              var descLabel = document.createElement('p');
+              descLabel.className = 'api-entry__label';
+              descLabel.textContent = '描述';
+              var descValue = document.createElement('p');
+              descValue.className = 'api-entry__value';
+              descValue.innerHTML = (node.innerHTML.replace(/^<strong>描述<\/strong>[：:]\s*/i, '').trim() || '').replace(/^[\s\u00a0]+/, '') || '';
+              if (!descValue.textContent.trim()) descValue.textContent = (node.textContent || '').replace(/^[^：:]*[：:]\s*/, '').trim();
+              descWrap.appendChild(descLabel);
+              descWrap.appendChild(descValue);
+              currentEntry.appendChild(descWrap);
+              i++;
+              continue;
+            } else if (isP && /<strong>状态<\/strong>/.test(node.innerHTML)) {
+              var statusText = (node.textContent || '').replace(/^[^：:]*[：:]\s*/, '').trim();
+              if (/deprecated/i.test(statusText)) currentEntry.classList.add('api-entry--deprecated');
+              else if (/即将淘汰|warning/i.test(statusText)) currentEntry.classList.add('api-entry--warning');
+              i++;
+              continue;
+            } else if (isP && (/<strong>函数名<\/strong>/.test(node.innerHTML) || /<strong>函数签名<\/strong>/.test(node.innerHTML))) {
+              var fnWrap = document.createElement('div');
+              fnWrap.className = 'api-entry__fn';
+              var fnLabel = document.createElement('p');
+              fnLabel.className = 'api-entry__label';
+              fnLabel.textContent = '函数签名';
+              var fnValue = document.createElement('p');
+              fnValue.className = 'api-entry__value';
+              fnValue.innerHTML = (node.innerHTML.replace(/<strong>(?:函数名|函数签名)<\/strong>(?:（[^）]*）)?[：:]\s*/i, '').trim() || '').replace(/^[\s\u00a0]+/, '') || '';
+              if (!fnValue.textContent.trim()) fnValue.textContent = (node.textContent || '').replace(/^[^：:]*[：:]\s*/, '').trim();
+              fnWrap.appendChild(fnLabel);
+              fnWrap.appendChild(fnValue);
+              currentEntry.appendChild(fnWrap);
+              i++;
+              continue;
+            } else if (isP && (/<strong>Params<\/strong>/.test(node.innerHTML) || /<strong>参数<\/strong>/.test(node.innerHTML))) {
+              var paramsWrap = document.createElement('div');
+              paramsWrap.className = 'api-entry__params';
+              var label = document.createElement('p');
+              label.className = 'api-entry__label';
+              label.textContent = '参数';
+              paramsWrap.appendChild(label);
+              var rest = (node.textContent || '').replace(/^[^：:]*[：:]\s*/, '').trim();
+              i++;
+              if (i < children.length && children[i].tagName && children[i].tagName.toLowerCase() === 'table') {
+                var table = children[i];
+                table.classList.add('api-params-table');
+                paramsWrap.appendChild(table);
+                i++;
+              } else if (rest) {
+                var restP = document.createElement('p');
+                restP.textContent = rest;
+                paramsWrap.appendChild(restP);
+              }
+              currentEntry.appendChild(paramsWrap);
+              continue;
+            } else if (isP && /<strong>输出<\/strong>/.test(node.innerHTML)) {
+              var outWrap = document.createElement('div');
+              outWrap.className = 'api-entry__output';
+              var outLabel = document.createElement('p');
+              outLabel.className = 'api-entry__label';
+              outLabel.textContent = '输出';
+              var outValue = document.createElement('p');
+              outValue.className = 'api-entry__value';
+              outValue.innerHTML = (node.innerHTML.replace(/^<strong>输出<\/strong>[：:]\s*/i, '').trim() || '').replace(/^[\s\u00a0]+/, '') || '';
+              if (!outValue.textContent.trim()) outValue.textContent = (node.textContent || '').replace(/^[^：:]*[：:]\s*/, '').trim();
+              outWrap.appendChild(outLabel);
+              outWrap.appendChild(outValue);
+              currentEntry.appendChild(outWrap);
+              i++;
+              continue;
+            } else if (isP && /<strong>Example<\/strong>/.test(node.innerHTML)) {
+              var exWrap = document.createElement('div');
+              exWrap.className = 'api-entry__example';
+              var exLabel = document.createElement('p');
+              exLabel.className = 'api-entry__label';
+              exLabel.textContent = 'Example';
+              exWrap.appendChild(exLabel);
+              var exRest = (node.textContent || '').replace(/^[^：:]*[：:]\s*/, '').trim();
+              if (exRest) {
+                var exRestP = document.createElement('p');
+                exRestP.textContent = exRest;
+                exWrap.appendChild(exRestP);
+              }
+              i++;
+              if (i < children.length) {
+                var next = children[i];
+                if (next.tagName && next.tagName.toLowerCase() === 'pre') {
+                  var code = next.querySelector('code');
+                  if (code) code.classList.add('api-example__code');
+                  exWrap.appendChild(next);
+                  i++;
+                }
+              }
+              currentEntry.appendChild(exWrap);
+              continue;
+            } else if (isTable && currentEntry.querySelector('.api-entry__params') && !currentEntry.querySelector('.api-params-table')) {
+              var pWrap = currentEntry.querySelector('.api-entry__params');
+              if (pWrap) {
+                node.classList.add('api-params-table');
+                pWrap.appendChild(node);
+              } else {
+                currentEntry.appendChild(node);
+              }
+              i++;
+              continue;
+            } else if (isPre && currentEntry.querySelector('.api-entry__example')) {
+              var ex = currentEntry.querySelector('.api-entry__example');
+              var c = node.querySelector('code');
+              if (c) c.classList.add('api-example__code');
+              ex.appendChild(node);
+              i++;
+              continue;
+            } else if (isHr) {
+              currentEntry.appendChild(node);
+              i++;
+              continue;
+            }
+            currentEntry.appendChild(node);
+          } else if (currentSection) {
+            currentSection.appendChild(node);
+          } else {
+            fragment.appendChild(node);
+          }
+          i++;
+        }
+
+        if (currentEntry) fragment.appendChild(currentEntry);
+        if (currentSection) fragment.appendChild(currentSection);
+
+        wrap.innerHTML = '';
+        wrap.appendChild(fragment);
+        return wrap.innerHTML;
+      }
+
+      function convert() {
+        var raw = mdEl.value.trim();
+        if (!raw) { htmlEl.value = ''; previewEl.innerHTML = ''; return; }
+        var html = marked.parse(raw);
+        html = wrapApiDoc(html);
+        htmlEl.value = html;
+        previewEl.innerHTML = html;
+      }
+
+      convertBtn.addEventListener('click', convert);
+      copyBtn.addEventListener('click', function () {
+        htmlEl.select();
+        document.execCommand('copy');
+        copyBtn.textContent = '已复制';
+        copyBtn.classList.add('copied');
+        setTimeout(function () { copyBtn.textContent = '复制 HTML'; copyBtn.classList.remove('copied'); }, 1500);
+      });
+    })();
+  </script>
+</body>
+</html>

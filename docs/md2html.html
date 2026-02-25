@@ -61,6 +61,23 @@
       margin: 16px 0 0;
       overflow: auto;
     }
+    /* 数据表（3 列及以上保留为 table）在预览中的样式 */
+    .preview table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.5em 0 1em;
+      font-size: 0.9em;
+    }
+    .preview table th,
+    .preview table td {
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .preview table th {
+      background: rgba(34, 211, 238, 0.12);
+      font-weight: 600;
+    }
     /* 流程图画布：带背景、带画布 border；流式布局，由内容撑开 */
     .diagram-canvas {
       border: 1px solid rgba(148, 163, 184, 0.1);
@@ -255,7 +272,7 @@
       return out;
     }
 
-    // 把 Markdown 生成的 <table> 转成 <div class="doc-diagram"> 结构（用 border 画框）
+    // 仅将「2 列」的 table 转成 doc-diagram（框图）；3 列及以上保留为 <table>（如 API 文档的参数表）
     function tablesToDocDiagramDiv(html) {
       return html.replace(/<table(\s[^>]*)?>([\s\S]*?)<\/table>/gi, function (_, attrs, body) {
         var rows = [];
@@ -271,6 +288,8 @@
           }
         });
         if (rows.length === 0) return '<table' + (attrs || '') + '>' + body + '</table>';
+        // 3 列及以上视为数据表，保留为 table，便于样式和可访问性
+        if (maxCols >= 3) return '<table' + (attrs || '') + '>' + body + '</table>';
         var out = '<div class="doc-diagram">';
         rows.forEach(function (cells, i) {
           out += '<div class="doc-diagram__row">';
@@ -1095,9 +1114,10 @@
       htmlEl.value = html;
       if (previewEl) {
         previewEl.innerHTML = html;
-        // 等浏览器完成布局后再计算箭头高度
+        // 等浏览器完成布局后再计算箭头高度，并把带 inline style 的 HTML 回写到输出框（粘贴到 CKEditor 时才能保留高度）
         setTimeout(function () {
           adjustDiagramArrows(previewEl);
+          htmlEl.value = previewEl.innerHTML;
         }, 0);
       }
     }

@@ -160,10 +160,11 @@ result = await manager.fetch(
 
 ## 📚 模块详细文档
 
+- **[user_guide.md](./user_guide.md)**：Userspace 使用指南（mapping、handlers、providers 配置与扩展）
 - **[architecture.md](./architecture.md)**：架构文档，包含详细的技术设计、核心组件、运行时 Workflow
 - **[decisions.md](./decisions.md)**：重要决策记录，包含架构设计决策和理由
 
-> **阅读建议**：先阅读本文档快速上手，然后阅读 [architecture.md](./architecture.md) 了解详细设计，最后阅读 [decisions.md](./decisions.md) 了解设计决策。
+> **阅读建议**：在 userspace 里配置或扩展数据源时先看 [user_guide.md](./user_guide.md)；再阅读本文档与 [architecture.md](./architecture.md) 了解详细设计，最后阅读 [decisions.md](./decisions.md) 了解设计决策。
 
 ---
 

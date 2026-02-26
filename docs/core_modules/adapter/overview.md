@@ -220,10 +220,11 @@ load_simulation_results: true
 
 ## 相关文档
 
+- **[user_guide.md](./user_guide.md)**：Userspace 使用指南（新增 adapter、settings、在策略中启用）
 - **[architecture.md](./architecture.md)**：详细架构设计
 - **[decisions.md](./decisions.md)**：重要决策记录
 
-> **提示**：本文档是快速入门指南。如需了解详细的设计理念和架构说明，请参考 [architecture.md](./architecture.md)。
+> **提示**：在 userspace 里新增或修改 adapter 时先看 [user_guide.md](./user_guide.md)；如需详细设计请参考 [architecture.md](./architecture.md)。
 
 ---
 

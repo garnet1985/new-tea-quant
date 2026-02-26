@@ -142,7 +142,8 @@ tag_values = tag_service.load_tag_values(
 
 ## 📚 模块详细文档
 
+- **[user_guide.md](./user_guide.md)**：Userspace 使用指南（新增场景、settings、tag_worker、执行与读取）
 - **[architecture.md](./architecture.md)**：架构文档，包含数据模型、组件职责、多进程执行和数据流设计
 - **[decisions.md](./decisions.md)**：重要决策记录，说明表结构、多进程策略、Chunk 模式等设计取舍
 
-> **阅读建议**：先阅读本文档快速上手，再阅读 `architecture.md` 理解内部设计，最后阅读 `decisions.md` 了解设计背景与权衡。 
+> **阅读建议**：在 userspace 里新增标签场景时先看 [user_guide.md](./user_guide.md)；再阅读本文档与 `architecture.md` 理解内部设计，最后阅读 `decisions.md` 了解设计背景与权衡。 

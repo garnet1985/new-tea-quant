@@ -151,6 +151,7 @@ export DB_POSTGRESQL_PASSWORD=my_password
 
 ## 相关文档
 
+- **[user_guide.md](./user_guide.md)**：Userspace 使用指南（userspace/config 目录、常用覆盖示例、代码中如何读）
 - **[architecture.md](./architecture.md)**：配置系统架构与设计细节（站在「配置文件」视角）
 - **[decisions.md](./decisions.md)**：关键设计决策记录
 - **`core/default_config/README.md`**：核心默认配置说明

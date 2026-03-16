@@ -1,5 +1,6 @@
 {
-  "_comment": "用户 PostgreSQL 配置示例 - 只需配置用户名和密码",
+  "_comment": "用户 PostgreSQL 配置示例 - 只需配置需要修改的部分",
   "user": "my_username",
-  "password": "my_password"
+  "password": "my_password",
+  "default_pgsql_schema": "public"
 }

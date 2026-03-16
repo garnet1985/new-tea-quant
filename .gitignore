@@ -45,6 +45,7 @@ userspace/config/**/*.json
 
 data/cache/
 data/downloads/*.xlsx
+backup/data/
 .pytest_cache/
 
 ########################
@@ -103,8 +104,7 @@ secrets.json
 
 tmp/
 temp/
-backup/
-backup_before_migration/
+devbackup/
 *.log
 logs/
 core/ui/

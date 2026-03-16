@@ -61,6 +61,10 @@ class DBHelper:
                 raise ValueError(
                     f"{database_type.upper()} 配置中缺少必需字段: {', '.join(missing_fields)}"
                 )
+
+            # PostgreSQL: 补全 pgsql_schema，默认 public
+            if database_type == 'postgresql':
+                db_config['pgsql_schema'] = db_config.get('default_pgsql_schema')
         
         # 4. 补足 batch_write 默认配置
         if 'batch_write' not in config:
@@ -220,7 +224,16 @@ class DatabaseCursor:
     @staticmethod
     def _is_write_query(query: str) -> bool:
         q = query.strip().upper()
-        return q.startswith(('INSERT', 'UPDATE', 'DELETE'))
+        # 写操作包括 DML 和 常见 DDL（需要立即执行并提交事务）
+        return q.startswith((
+            'INSERT',
+            'UPDATE',
+            'DELETE',
+            'CREATE',
+            'DROP',
+            'ALTER',
+            'TRUNCATE',
+        ))
 
     def execute(self, query: str, params: Any = None):
         """执行 SQL：写操作立即执行并提交，读操作仅保存供 fetchall 使用。"""

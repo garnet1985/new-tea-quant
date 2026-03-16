@@ -4,6 +4,7 @@
   "database": "stocks_py",
   "user": "postgres",
   "password": "your_password_here",
+  "default_pgsql_schema": "public",
   "_advanced": {
     "pool_size": 10,
     "max_connections": 100,

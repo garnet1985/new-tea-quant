@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 DbBaseModel - 数据库表操作的通用基类
 
@@ -42,16 +44,42 @@ DbBaseModel - 数据库表操作的通用基类
 更新日期：2024-12-04
 """
 import math
-from typing import Dict, List, Any, Optional
 import logging
 import json
 import os
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Literal
 
 from core.infra.db.helpers.db_helpers import DBHelper
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
+from core.utils.io import csv_io
+from core.utils.io import file_io
 
 
 logger = logging.getLogger(__name__)
+
+
+class ExportTemplateKind(Enum):
+    """
+    导出模板类型：
+
+    - FULL_TABLE: 整表导出，不切块
+    - ROW_CHUNK: 按行数切块（预留，当前实现等同于 FULL_TABLE）
+    """
+
+    FULL_TABLE = "full_table"
+    ROW_CHUNK = "row_chunk"
+
+
+@dataclass
+class ExportTemplate:
+    """导出模板元数据（plan 阶段的输出之一）"""
+
+    kind: ExportTemplateKind
+    # ROW_CHUNK：每块的行数上限；当前实现暂未按块拆分，仅作为未来扩展预留
+    chunk_rows: Optional[int] = None
 
 
 class DbBaseModel:
@@ -229,6 +257,222 @@ class DbBaseModel:
         if isinstance(primary_key, list):
             return primary_key
         raise ValueError(f"表 {self.table_name} 的主键格式不正确: {primary_key}")
+
+    # ***********************************
+    #        generic export / import
+    # ***********************************
+
+    def _default_export_template(self) -> ExportTemplate:
+        """
+        返回当前表的默认导出模板。
+
+        策略：
+        - 默认使用 FULL_TABLE
+        - 如行数超过一定阈值，则改用 ROW_CHUNK（按行数分块导出）
+        """
+        try:
+            total = self.count()
+        except Exception:
+            total = 0
+
+        # 行数较大时，使用按行数分块导出的模板（预留接口，当前实现仍生成多文件）
+        ROW_CHUNK_THRESHOLD = 500_000
+        DEFAULT_CHUNK_ROWS = 500_000
+
+        if total > ROW_CHUNK_THRESHOLD:
+            return ExportTemplate(kind=ExportTemplateKind.ROW_CHUNK, chunk_rows=DEFAULT_CHUNK_ROWS)
+
+        return ExportTemplate(kind=ExportTemplateKind.FULL_TABLE)
+
+    def _rows_to_csv_bytes(self, rows: List[Dict[str, Any]]) -> bytes:
+        """
+        将行列表序列化为 CSV（二进制），使用 DictWriter。
+        """
+        return csv_io.dicts_to_csv_bytes(rows)
+
+    def export_data(
+        self,
+        output_dir: str | Path,
+        *,
+        archive_format: Literal["tar.gz", "zip"] = "tar.gz",
+        template: Optional[ExportTemplate] = None,
+        condition: str = "1=1",
+        params: tuple = (),
+    ) -> List[Path]:
+        """
+        通用导出：把当前表的数据导出为一个或多个归档文件。
+
+        - condition / params: 过滤条件（WHERE 子句 + 参数），默认为全表
+        - FULL_TABLE: 符合条件的全部数据导出为单个归档
+        - ROW_CHUNK: 符合条件的数据按行数分块导出，每块一个归档文件
+        """
+        tpl = template or self._default_export_template()
+        if tpl.kind not in (ExportTemplateKind.FULL_TABLE, ExportTemplateKind.ROW_CHUNK):
+            raise ValueError(f"不支持的导出模板类型: {tpl.kind}")
+
+        # 目标目录
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        paths: List[Path] = []
+
+        if tpl.kind == ExportTemplateKind.FULL_TABLE or not tpl.chunk_rows:
+            # 整表（或条件过滤后的全集）一次性导出
+            try:
+                rows = self.load(condition=condition, params=params)
+            except Exception as e:
+                logger.error("导出表 %s 失败（FULL_TABLE 导出）: %s", self.table_name, e)
+                raise
+
+            csv_bytes = self._rows_to_csv_bytes(rows)
+            archive_path = file_io.write_archive(
+                out_dir,
+                archive_name=self.table_name,
+                files={f"{self.table_name}.csv": csv_bytes},
+                format="tar.gz" if archive_format == "tar.gz" else "zip",
+            )
+            logger.info("导出表 %s -> %s (行数=%d)", self.table_name, archive_path.name, len(rows))
+            paths.append(archive_path)
+            return paths
+
+        # ROW_CHUNK: 按行数切块导出
+        # 使用 LIMIT/OFFSET 方案分批拉取，生成多个归档文件
+        try:
+            total_rows = self.count(condition=condition, params=params)
+        except Exception as e:
+            logger.error("统计表 %s 行数失败，无法分块导出: %s", self.table_name, e)
+            raise
+
+        chunk_size = max(1, int(tpl.chunk_rows))
+        if total_rows <= 0:
+            # 无数据，直接返回空列表
+            logger.info("表 %s 无数据可导出（分块导出跳过）", self.table_name)
+            return paths
+
+        total_parts = (total_rows + chunk_size - 1) // chunk_size
+        offset = 0
+        part_index = 1
+
+        while offset < total_rows:
+            try:
+                rows = self.load(
+                    condition=condition,
+                    params=params,
+                    limit=chunk_size,
+                    offset=offset,
+                )
+            except Exception as e:
+                logger.error(
+                    "分块导出表 %s 失败（offset=%d, chunk_size=%d）: %s",
+                    self.table_name,
+                    offset,
+                    chunk_size,
+                    e,
+                )
+                raise
+
+            if not rows:
+                break
+
+            csv_bytes = self._rows_to_csv_bytes(rows)
+            archive_name = f"{self.table_name}_part{part_index}"
+            archive_path = file_io.write_archive(
+                out_dir,
+                archive_name=archive_name,
+                files={f"{self.table_name}.csv": csv_bytes},
+                format="tar.gz" if archive_format == "tar.gz" else "zip",
+            )
+            logger.info(
+                "分块导出表 %s -> %s (part=%d/%d, 行数=%d, offset=%d)",
+                self.table_name,
+                archive_path.name,
+                part_index,
+                total_parts,
+                len(rows),
+                offset,
+            )
+            paths.append(archive_path)
+
+            offset += len(rows)
+            part_index += 1
+
+        return paths
+
+    def _read_csv_rows_from_archive(self, file_path: Path) -> List[Dict[str, Any]]:
+        """
+        从 .tar.gz/.zip/.csv 文件中读取当前表的 CSV 行。
+        """
+        file_path = Path(file_path)
+        if file_path.suffix.lower() == ".csv":
+            return csv_io.read_csv_to_dicts(file_path)
+
+        # 归档文件：tar.gz / zip
+        files_bytes = file_io.read_archive_files(file_path, filter_ext=".csv")
+        if not files_bytes:
+            return []
+
+        # 优先匹配与表名一致的 CSV，其次取第一个
+        target_name = f"{self.table_name}.csv"
+        if target_name in files_bytes:
+            data = files_bytes[target_name]
+        else:
+            # 任取一个 CSV
+            _, data = next(iter(files_bytes.items()))
+
+        return csv_io.csv_bytes_to_dicts(data)
+
+    def import_data(
+        self,
+        files: List[str | Path],
+        *,
+        mode: Literal["overwrite", "replace"] = "overwrite",
+        target_table: Optional[str] = None,
+    ) -> None:
+        """
+        通用导入：
+
+        - overwrite: 先 DELETE FROM table，再导入所有文件中的数据
+        - replace: 预留 upsert 语义，当前未实现
+        """
+        if mode not in ("overwrite", "replace"):
+            raise ValueError(f"未知导入模式: {mode}")
+
+        if mode == "replace":
+            raise NotImplementedError("replace 模式（按主键替换行）尚未实现")
+
+        if not files:
+            logger.info("未提供任何文件，跳过导入表 %s", self.table_name)
+            return
+
+        physical_target = (target_table or self.table_name).strip()
+
+        field_names: Optional[List[str]] = None
+
+        with self.db.get_sync_cursor() as cursor:
+            # overwrite: 先清空表
+            cursor.execute(f"DELETE FROM {physical_target}")
+            logger.info("已清空表: %s", physical_target)
+
+            total_rows = 0
+            for file in files:
+                path = Path(file)
+                rows = self._read_csv_rows_from_archive(path)
+                if not rows:
+                    continue
+
+                if field_names is None:
+                    field_names = list(rows[0].keys())
+
+                col_list = ", ".join(field_names)
+                placeholders = ", ".join(["%s"] * len(field_names))
+                insert_sql = f"INSERT INTO {physical_target} ({col_list}) VALUES ({placeholders})"
+
+                for row in rows:
+                    values = [row.get(col) for col in field_names]
+                    cursor.execute(insert_sql, tuple(values))
+                total_rows += len(rows)
+
+        logger.info("导入表 %s -> %s 完成，共导入 %d 行", self.table_name, physical_target, total_rows)
 
 
     # ***********************************

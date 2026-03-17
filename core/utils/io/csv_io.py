@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence, Optional, List
 import csv
+from io import StringIO
 
 
 def write_dicts_to_csv(
@@ -53,4 +54,60 @@ def write_dicts_to_csv(
         writer.writeheader()
         for r in rows_list:
             writer.writerow(r)
+
+
+def dicts_to_csv_bytes(
+    rows: Iterable[Mapping[str, Any]],
+    preferred_order: Optional[Sequence[str]] = None,
+) -> bytes:
+    """
+    将一组字典序列化为 CSV bytes。
+
+    - 会自动合并所有行的字段，保证列集合完整
+    - preferred_order 指定的字段会优先排在前面
+    """
+    rows_list: List[Mapping[str, Any]] = list(rows)
+    if not rows_list:
+        return b""
+
+    # 收集所有字段名
+    all_keys = set()
+    for r in rows_list:
+        all_keys.update(r.keys())
+
+    preferred_order = list(preferred_order or [])
+    ordered = [k for k in preferred_order if k in all_keys]
+    remaining = sorted(all_keys.difference(ordered))
+    fieldnames = ordered + remaining
+
+    sio = StringIO()
+    writer = csv.DictWriter(sio, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in rows_list:
+        writer.writerow(r)
+    return sio.getvalue().encode("utf-8")
+
+
+def csv_bytes_to_dicts(data: bytes) -> List[dict]:
+    """
+    将 CSV bytes 解析为字典列表。
+    """
+    if not data:
+        return []
+    text = data.decode("utf-8")
+    sio = StringIO(text)
+    reader = csv.DictReader(sio)
+    return list(reader)
+
+
+def read_csv_to_dicts(path: Path | str) -> List[dict]:
+    """
+    从 CSV 文件读取字典列表。
+    """
+    path_obj = Path(path)
+    if not path_obj.exists():
+        return []
+    with path_obj.open("r", newline="", encoding="utf-8") as f_csv:
+        reader = csv.DictReader(f_csv)
+        return list(reader)
 

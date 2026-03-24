@@ -104,7 +104,7 @@ python start.py --help
 
 ### 运行安装脚本
 ```bash
-./install.sh
+python install.py
 ```
 
 ---

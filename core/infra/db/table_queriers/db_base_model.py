@@ -43,6 +43,7 @@ DbBaseModel - 数据库表操作的通用基类
 
 更新日期：2024-12-04
 """
+import ast
 import math
 import logging
 import json
@@ -421,18 +422,368 @@ class DbBaseModel:
 
         return csv_io.csv_bytes_to_dicts(data)
 
+    def _ensure_import_target_with_cursor(
+        self,
+        cursor,
+        source_sql: str,
+        target_sql: str,
+    ) -> None:
+        """
+        当目标与源不是同一张表时，按源表结构创建空目标表（PostgreSQL 会先 DROP 再建）。
+        """
+        if source_sql == target_sql:
+            return
+        db_type = DBHelper.normalize_database_type(self.db.config)
+        if db_type == "postgresql":
+            cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
+            cursor.execute(
+                f"CREATE TABLE {target_sql} AS SELECT * FROM {source_sql} WHERE 1=0"
+            )
+        elif db_type == "mysql":
+            cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
+            cursor.execute(f"CREATE TABLE {target_sql} LIKE {source_sql}")
+        elif db_type == "sqlite":
+            cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
+            cursor.execute(
+                f"CREATE TABLE {target_sql} AS SELECT * FROM {source_sql} WHERE 1=0"
+            )
+        else:
+            raise ValueError(f"不支持的数据库类型: {db_type}")
+        logger.info("已为目标表建立结构: %s <- %s", target_sql, source_sql)
+
+    def _normalize_json_for_import(self, value: Any) -> Any:
+        """
+        CSV 中 json 列常见：空串、合法 JSON、或 Python repr（单引号，非标准 JSON）。
+        PostgreSQL json/jsonb 需要合法 JSON 文本或 NULL。
+        """
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        if isinstance(value, bool):
+            return json.dumps(value)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return json.dumps(value)
+        if isinstance(value, str):
+            s = value.strip()
+            try:
+                parsed = json.loads(s)
+            except json.JSONDecodeError:
+                try:
+                    parsed = ast.literal_eval(s)
+                except (ValueError, SyntaxError, MemoryError) as e:
+                    logger.warning(
+                        "JSON 列无法解析，将写入 NULL: %r (%s)", value, e
+                    )
+                    return None
+            if parsed is None:
+                return None
+            if isinstance(parsed, (dict, list)):
+                return json.dumps(parsed, ensure_ascii=False)
+            if isinstance(parsed, (str, int, float, bool)):
+                return json.dumps(parsed, ensure_ascii=False)
+            logger.warning("JSON 列解析为非常规类型 %s，将写入 NULL", type(parsed))
+            return None
+        logger.warning("JSON 列不支持的类型 %s，将写入 NULL", type(value))
+        return None
+
+    # CSV 空串对 PG 数值/时间/布尔列非法，须映射为 NULL（varchar/text 可保留 ''）
+    _PG_EMPTY_TO_NULL_TYPES = frozenset(
+        {
+            "float",
+            "double",
+            "decimal",
+            "numeric",
+            "real",
+            "int",
+            "integer",
+            "bigint",
+            "smallint",
+            "tinyint",
+            "serial",
+            "bigserial",
+            "boolean",
+            "bool",
+            "date",
+            "datetime",
+            "time",
+            "timestamp",
+            "timestamptz",
+        }
+    )
+
+    def _coerce_import_cell_value(self, field_name: str, value: Any) -> Any:
+        """
+        按 schema 规范导入值：
+        - json/jsonb：空串→NULL，Python repr→合法 JSON 字符串
+        - 数值/日期/布尔：空串→NULL（PostgreSQL 不接受 '' 作为 double precision 等）
+        """
+        if not self.schema:
+            return value
+        type_map = {
+            f["name"]: str(f.get("type", "")).lower()
+            for f in self.schema.get("fields", [])
+        }
+        t = type_map.get(field_name, "")
+        if t in ("json", "jsonb"):
+            return self._normalize_json_for_import(value)
+        if (
+            isinstance(value, str)
+            and not value.strip()
+            and t in self._PG_EMPTY_TO_NULL_TYPES
+        ):
+            return None
+        return value
+
+    def _compute_insert_batch_size(self, num_columns: int) -> int:
+        """
+        多行一条 INSERT 时的行数上限。
+
+        PostgreSQL / MySQL：单语句占位符有上限（PG 约 65535），故实际为
+        min(目标上限, 65535 // 列数)。列很多时批次会低于目标上限，属正常。
+        SQLite：受 SQLITE_MAX_VARIABLE_NUMBER（默认 999）约束。
+        """
+        nc = max(num_columns, 1)
+        t = DBHelper.normalize_database_type(self.db.config)
+        # 目标：宽表自动缩小批次；窄表可一次合并上万行
+        _cap_pg_mysql = 10_000
+        if t == "sqlite":
+            return max(1, min(400, 999 // nc))
+        if t == "postgresql":
+            return max(1, min(_cap_pg_mysql, 65535 // nc))
+        return max(1, min(_cap_pg_mysql, 65535 // nc))
+
+    def _import_log_progress_after_chunk(
+        self,
+        *,
+        n: int,
+        processed: int,
+        logged_up_to: int,
+        progress_every: int,
+        large_hint_threshold: int,
+        target_sql: str,
+        archive_name: str,
+    ) -> int:
+        if n < large_hint_threshold:
+            return logged_up_to
+        while logged_up_to + progress_every <= processed:
+            logged_up_to += progress_every
+            m = min(logged_up_to, n)
+            logger.info(
+                "导入进度 %s -> %s [%s]: %d/%d 行 (%.1f%%)",
+                self.table_name,
+                target_sql,
+                archive_name,
+                m,
+                n,
+                100.0 * m / n,
+            )
+        if processed == n and logged_up_to < n:
+            logger.info(
+                "导入进度 %s -> %s [%s]: %d/%d 行 (100.0%%)",
+                self.table_name,
+                target_sql,
+                archive_name,
+                n,
+                n,
+            )
+        return logged_up_to
+
+    def _insert_rows_batched(
+        self,
+        cursor,
+        target_sql: str,
+        field_names: List[str],
+        rows: List[Dict[str, Any]],
+        *,
+        batch_size: int,
+        progress_every: int,
+        large_hint_threshold: int,
+        archive_name: str,
+    ) -> int:
+        """多行 VALUES 批量插入；返回插入行数。"""
+        col_list = ", ".join(field_names)
+        one_row = "(" + ", ".join(["%s"] * len(field_names)) + ")"
+        n = len(rows)
+        if n == 0:
+            return 0
+
+        if n >= large_hint_threshold:
+            logger.info(
+                "表 %s 本归档「%s」共 %d 行，使用批量 INSERT（每批约 %d 行），"
+                "大表仍可能耗时数分钟（约每 %d 行输出进度）",
+                self.table_name,
+                archive_name,
+                n,
+                batch_size,
+                progress_every,
+            )
+
+        logged_up_to = 0
+        for start in range(0, n, batch_size):
+            chunk = rows[start : start + batch_size]
+            values_clause = ", ".join([one_row] * len(chunk))
+            insert_sql = f"INSERT INTO {target_sql} ({col_list}) VALUES {values_clause}"
+            flat: List[Any] = []
+            for row in chunk:
+                for col in field_names:
+                    flat.append(self._coerce_import_cell_value(col, row.get(col)))
+            cursor.execute(insert_sql, tuple(flat))
+
+            processed = start + len(chunk)
+            logged_up_to = self._import_log_progress_after_chunk(
+                n=n,
+                processed=processed,
+                logged_up_to=logged_up_to,
+                progress_every=progress_every,
+                large_hint_threshold=large_hint_threshold,
+                target_sql=target_sql,
+                archive_name=archive_name,
+            )
+        return n
+
+    def _insert_rows_execute_values(
+        self,
+        pg_cursor,
+        target_sql: str,
+        field_names: List[str],
+        rows: List[Dict[str, Any]],
+        *,
+        batch_size: int,
+        progress_every: int,
+        large_hint_threshold: int,
+        archive_name: str,
+    ) -> int:
+        """PostgreSQL：psycopg2.extras.execute_values 批量展开 VALUES，减少客户端拼接与往返。"""
+        from psycopg2.extras import execute_values
+
+        col_list = ", ".join(field_names)
+        sql = f"INSERT INTO {target_sql} ({col_list}) VALUES %s"
+        n = len(rows)
+        if n == 0:
+            return 0
+
+        if n >= large_hint_threshold:
+            logger.info(
+                "表 %s 本归档「%s」共 %d 行，使用 execute_values（每批约 %d 行），"
+                "大表仍可能耗时数分钟（约每 %d 行输出进度）",
+                self.table_name,
+                archive_name,
+                n,
+                batch_size,
+                progress_every,
+            )
+
+        logged_up_to = 0
+        for start in range(0, n, batch_size):
+            chunk = rows[start : start + batch_size]
+            tuples = [
+                tuple(
+                    self._coerce_import_cell_value(col, row.get(col))
+                    for col in field_names
+                )
+                for row in chunk
+            ]
+            execute_values(pg_cursor, sql, tuples, page_size=len(tuples))
+
+            processed = start + len(chunk)
+            logged_up_to = self._import_log_progress_after_chunk(
+                n=n,
+                processed=processed,
+                logged_up_to=logged_up_to,
+                progress_every=progress_every,
+                large_hint_threshold=large_hint_threshold,
+                target_sql=target_sql,
+                archive_name=archive_name,
+            )
+        return n
+
+    def _import_data_file_loop(
+        self,
+        cursor,
+        target_sql: str,
+        files: List[str | Path],
+        insert_batch_size: Optional[int],
+        *,
+        pg_execute_values: bool,
+    ) -> int:
+        """在已清空的目标表上逐文件读 CSV 并批量插入。"""
+        _LARGE_IMPORT_HINT = 20_000
+        _PROGRESS_EVERY = 50_000
+        field_names: Optional[List[str]] = None
+        total_rows = 0
+        for file in files:
+            path = Path(file)
+            rows = self._read_csv_rows_from_archive(path)
+            if not rows:
+                continue
+            if field_names is None:
+                field_names = list(rows[0].keys())
+
+            bs = insert_batch_size
+            if bs is None:
+                bs = self._compute_insert_batch_size(len(field_names))
+
+            if pg_execute_values:
+                total_rows += self._insert_rows_execute_values(
+                    cursor,
+                    target_sql,
+                    field_names,
+                    rows,
+                    batch_size=bs,
+                    progress_every=_PROGRESS_EVERY,
+                    large_hint_threshold=_LARGE_IMPORT_HINT,
+                    archive_name=path.name,
+                )
+            else:
+                total_rows += self._insert_rows_batched(
+                    cursor,
+                    target_sql,
+                    field_names,
+                    rows,
+                    batch_size=bs,
+                    progress_every=_PROGRESS_EVERY,
+                    large_hint_threshold=_LARGE_IMPORT_HINT,
+                    archive_name=path.name,
+                )
+        return total_rows
+
+    def _import_data_overwrite_run(
+        self,
+        cursor,
+        source_sql: str,
+        target_sql: str,
+        files: List[str | Path],
+        insert_batch_size: Optional[int],
+        *,
+        pg_execute_values: bool,
+    ) -> int:
+        self._ensure_import_target_with_cursor(cursor, source_sql, target_sql)
+        cursor.execute(f"DELETE FROM {target_sql}")
+        logger.info("已清空表: %s", target_sql)
+        return self._import_data_file_loop(
+            cursor,
+            target_sql,
+            files,
+            insert_batch_size,
+            pg_execute_values=pg_execute_values,
+        )
+
     def import_data(
         self,
         files: List[str | Path],
         *,
         mode: Literal["overwrite", "replace"] = "overwrite",
         target_table: Optional[str] = None,
+        insert_batch_size: Optional[int] = None,
     ) -> None:
         """
-        通用导入：
+        overwrite：按需建目标表、DELETE 清空、再导入。target 与源不同名时见
+        `_ensure_import_target_with_cursor`。insert_batch_size 默认按列数与驱动占位符上限估算。
 
-        - overwrite: 先 DELETE FROM table，再导入所有文件中的数据
-        - replace: 预留 upsert 语义，当前未实现
+        PG：adapter 事务 + execute_values；MySQL：事务 + 多行 VALUES；SQLite：DatabaseCursor + 多行 VALUES（999 变量上限）。
         """
         if mode not in ("overwrite", "replace"):
             raise ValueError(f"未知导入模式: {mode}")
@@ -444,35 +795,28 @@ class DbBaseModel:
             logger.info("未提供任何文件，跳过导入表 %s", self.table_name)
             return
 
-        physical_target = (target_table or self.table_name).strip()
+        source_sql = DBHelper.sql_qualify_table_name(self.db.config, self.table_name)
+        target_logical = (target_table or self.table_name).strip()
+        target_sql = DBHelper.sql_qualify_table_name(self.db.config, target_logical)
 
-        field_names: Optional[List[str]] = None
+        db_type = DBHelper.normalize_database_type(self.db.config)
+        pg_ev = db_type == "postgresql"
+        ctx = (
+            self.db.connection_manager.transaction
+            if db_type in ("postgresql", "mysql")
+            else self.db.get_sync_cursor
+        )
+        with ctx() as cursor:
+            total_rows = self._import_data_overwrite_run(
+                cursor,
+                source_sql,
+                target_sql,
+                files,
+                insert_batch_size,
+                pg_execute_values=pg_ev,
+            )
 
-        with self.db.get_sync_cursor() as cursor:
-            # overwrite: 先清空表
-            cursor.execute(f"DELETE FROM {physical_target}")
-            logger.info("已清空表: %s", physical_target)
-
-            total_rows = 0
-            for file in files:
-                path = Path(file)
-                rows = self._read_csv_rows_from_archive(path)
-                if not rows:
-                    continue
-
-                if field_names is None:
-                    field_names = list(rows[0].keys())
-
-                col_list = ", ".join(field_names)
-                placeholders = ", ".join(["%s"] * len(field_names))
-                insert_sql = f"INSERT INTO {physical_target} ({col_list}) VALUES ({placeholders})"
-
-                for row in rows:
-                    values = [row.get(col) for col in field_names]
-                    cursor.execute(insert_sql, tuple(values))
-                total_rows += len(rows)
-
-        logger.info("导入表 %s -> %s 完成，共导入 %d 行", self.table_name, physical_target, total_rows)
+        logger.info("导入表 %s -> %s 完成，共导入 %d 行", self.table_name, target_sql, total_rows)
 
 
     # ***********************************

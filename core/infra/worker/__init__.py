@@ -124,7 +124,9 @@ __all__ = [
     'Orchestrator',
 ]
 
-# 版本信息（与项目版本保持一致）
-__version__ = "0.1.0"
+# 版本信息（与 core.system 保持一致）
+from core.system import get_version
+
+__version__ = get_version()
 __author__ = "New Tea Quant Team"
 __description__ = "通用任务执行器模块 - 支持多进程和多线程执行，模块化架构"

@@ -42,36 +42,32 @@ class ProjectContextManager:
     def core_info(self) -> Optional[Dict[str, Any]]:
         """
         获取 core meta 信息
-        
-        从 core/core_meta.json 读取并返回版本、发布日期等信息。
-        
-        Returns:
-            core meta 信息的字典，包含 version、release_date 等字段
-            如果文件不存在或读取失败，返回 None
+
+        优先读取 core/core_meta.json（若存在）；否则使用 core.system.SystemMeta。
         """
         core_dir = PathManager.core()
         meta_file = core_dir / "core_meta.json"
-        
+
         content = FileManager.read_file(meta_file)
-        if content is None:
-            return None
-        
+        if content is not None:
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                pass
+
         try:
-            return json.loads(content)
-        except json.JSONDecodeError:
+            from core.system import system_meta
+
+            return system_meta.to_dict()
+        except Exception:
             return None
-    
+
     def core_version(self) -> Optional[str]:
         """
-        获取 core 版本号
-        
-        从 core/core_meta.json 读取并返回版本号。
-        
-        Returns:
-            core 版本号字符串（如 "0.1.0"）
-            如果文件不存在或读取失败，返回 None
+        获取 core 版本号（与 core_info 同源）。
         """
         core_info = self.core_info()
         if core_info is None:
             return None
-        return core_info.get('version')
+        v = core_info.get("version")
+        return str(v) if v is not None else None

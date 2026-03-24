@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 安装 Python 依赖（requirements.txt）
-# 在仓库根目录执行；由根目录 install.sh 调用，也可单独运行：
+# 在仓库根目录执行；由根目录 install.py 间接使用，也可单独运行：
 #   USE_CHINA_MIRROR=1 bash setup/resolve_dep/install_python_deps.sh
 set -euo pipefail
 
@@ -9,7 +9,7 @@ cd "$ROOT"
 
 USE_CHINA_MIRROR="${USE_CHINA_MIRROR:-0}"
 
-# 与根 install.sh 行为一致：可选写入 ~/.pip/pip.conf
+# 与根 install.py 行为一致：可选写入 ~/.pip/pip.conf
 _setup_pip_mirror() {
     if [ "$USE_CHINA_MIRROR" != "1" ]; then
         return 0

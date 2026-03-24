@@ -8,7 +8,7 @@ Demo 数据安装流程（orchestration）。
   所有 .zip 解压到专用临时目录，再扫描解压产物并按表 import；**import 成功结束后删除该
   临时目录**（解压产物不保留）。用户放置的 .zip 可保留不动。
 - 内容：无状态业务数据；不含缓存等（如 sys_cache / sys_meta_info 不在 demo 包内）。
-- install.sh 中本步可跳过；执行前必须向用户展示「写入哪些目标表、如何写入（先 DELETE 再 INSERT）」，
+- install.py 中本步可跳过；执行前必须向用户展示「写入哪些目标表、如何写入（先 DELETE 再 INSERT）」，
   并在一次确认后开始逐表导入；交互式下输入 YES 即含「非空表则覆盖」的同意；非交互用 --confirm / --yes。
 - 安装方式唯一：目标表 DELETE 再 INSERT（与 backup 脚本的多种 mode 无关，实现保持简单）。
 - 某表导入失败：不做整库回滚；至多清空该表或保持失败时状态（实现择一即可）。

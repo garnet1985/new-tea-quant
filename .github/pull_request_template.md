@@ -21,7 +21,7 @@
 
 请勾选你已完成的检查：
 
-- [ ] 已在本地成功安装依赖（`pip install -r requirements.txt`）
+- [ ] 已在本地成功安装依赖（`pip install -r requirements-dev.txt` 或至少 `-r requirements.txt`）
 - [ ] 已在本地运行基础检查（至少 `python start.py --help` 或相关脚本）
 - [ ] 已添加或更新必要的测试（如适用）
 - [ ] 测试全部通过

@@ -1,134 +1,125 @@
 # Quick Start 与安装设计
 
-本文档记录 New Tea Quant 的 Quick Start 流程、安装脚本职责与 Demo 数据的安装/卸载规则，供实现与官网文档使用。
+本文档是 **Quick Start / 一键安装** 的单一设计源：用户路径、脚本职责、与实现状态对齐；官网教程可据此缩写。
 
 ---
 
-## 一、运行前提条件
+## 一、用户视角：干净的 Quick Start 阶梯
 
-用户在使用本应用前需自行满足以下条件（**install 脚本不负责安装 Python 或数据库服务**）：
+目标：**最少概念、顺序固定、每步可单独重跑**。建议对外只宣传下面 **5 步**（官网与根 README 一致）。
 
-| 条件 | 说明 |
+| 步骤 | 用户做什么 | 系统达到的状态 |
+|------|------------|----------------|
+| **0. 前置** | 自备 Python（版本见 `requirements`）、PostgreSQL 或 MySQL、已创建空库 | 环境与权限就绪 |
+| **1. 获取代码与虚拟环境** | `git clone`；可选 `python -m venv` + `activate` | 仓库在本地 |
+| **2. 安装 Python 依赖** | `./install.sh`（或 `pip install -r requirements.txt`） | `requirements` 已安装 |
+| **3. 配置数据库** | 编辑 `userspace/config/database/`（见 `ConfigManager.load_database_config` 合并规则） | 应用能连上目标库 |
+| **4. 表结构就绪** | 运行**建表/引导**入口（见 §3.3；可为显式命令或首次启动时创建） | 业务表存在或与 Demo 要求一致 |
+| **5.（可选）Demo 数据** | 将官网下载的 zip 放入 `userspace/demo_data/`，执行 `python3 -m setup.demo_data_handler` 或带开关的 `install.sh` | 数据落在 **带前缀** 的表（默认 `test_*`），不覆盖无前缀生产表 |
+
+**设计原则**
+
+- **不**在 install 里安装 PostgreSQL/MySQL 服务（平台差异大、需管理员权限）。
+- **不**在 install 里下载 Demo 大包（版权与体积）；只检查本地文件并导入。
+- **幂等**：重复执行「依赖安装」应可跳过或快速完成；Demo 导入有明确确认与非空表策略（见 §5）。
+- **单一入口优先**：能用一条命令完成的步骤，在文档里只写一个主入口，其它写「等价方式」。
+
+---
+
+## 二、`install.sh`：职责边界与实现状态
+
+### 2.1 当前已实现（`install.sh` + `setup/` 分步脚本）
+
+- 根目录 `install.sh`：`setup/sys_req_check/sys_req_check.py` → `setup/resolve_dep/install_python_deps.sh` →（可选）`setup/run_demo_data.sh`。
+- 独立脚本（见 `setup/README.md`）：`db_init/db_install.py`、`db_init/bootstrap_db.py`；Demo 亦可用 `python3 -m setup.demo_data_handler`。
+- **可选 Demo**：`INSTALL_DEMO_DATA=1 ./install.sh` 或 `./install.sh --with-demo-data`；**仅交互终端**会调用 Demo 脚本，非交互则打印手动命令（避免 CI/管道误连库）。
+
+### 2.2 建议后续增量（保持脚本仍「薄」）
+
+按实现成本从低到高排列：
+
+1. **自检**：`python3` 存在且 `>=` 项目最低版本；失败时打印明确错误并退出。
+2. **配置向导（可选）**：交互式写入 `userspace/config/database/common.json` 与 `postgresql.json` / `mysql.json`；非交互用环境变量或文档说明手改文件。
+3. **表结构引导**：调用统一入口（如 `python -m setup.bootstrap` 或现有 DataManager 建表 API），失败时退出非零并提示日志。
+4. **与 Demo 串联**：在 2、3 成功后再询问是否导入 Demo（或仍仅通过环境变量/子命令触发）。
+
+**原则**：`install.sh` 只做 **bash 能稳定做的事**；复杂逻辑放在 **Python 模块**（可测、可复用 CLI）。
+
+---
+
+## 三、数据库配置与建表
+
+### 3.1 配置加载（实现已存在）
+
+合并顺序见 `ConfigManager.load_database_config`：
+
+- `core/default_config/database/common.json`（含 `database_type`）
+- `core/default_config/database/{postgresql|mysql|sqlite}.json`
+- `userspace/config/database/common.json` 与 `userspace/config/database/{type}.json` 覆盖
+
+Quick Start 文档应告诉用户：**至少改 userspace 下配置**，避免直接改 `core/default_config`。
+
+### 3.2 表结构
+
+- 表定义来自 `core/tables` 与各 Model；`DbBaseModel.create_table` 等可在引导流程中调用。
+- **Quick Start 是否要求「显式建表一步」**：若应用首次使用即自动建表，文档可写「连接成功后首次启动会自动建表」；若必须批量预建，则 §一 第 4 步为**必选**并实现对应 CLI。
+
+### 3.3 待收敛的「引导入口」名称（实现时二选一即可）
+
+| 方案 | 说明 |
 |------|------|
-| **已安装 Python** | 版本需满足项目要求（见 requirements / 文档）。Windows 需下载安装包并配置 PATH；macOS / Linux 按系统或文档安装。 |
-| **已安装 PostgreSQL 或 MySQL** | 任选其一。可用系统包管理器、官方安装包或 Docker 等方式安装。 |
-| **已创建数据库** | 在 PG/MySQL 中已创建一个空库（或计划用于本项目的库），用于建表与存放数据。 |
+| **A. `python -m setup.bootstrap`** | 专门负责：测连、批量 `create_table`、打印成功/失败 |
+| **B. 复用现有入口** | 若已有 `start.py` / 迁移脚本，Quick Start 只链接该命令 |
 
-**设计理由**：能安装并运行本 Python 应用的用户，具备按文档安装数据库的能力；install 脚本仅收集连接信息并写入配置，不执行 `brew/apt install postgresql` 等系统级安装，避免平台差异与权限问题。
-
-**官网 Quick Start**：建议在官网单独写一篇 Quick Start，对上述 3 步分别给出详细步骤（含 Windows / macOS / Linux 及可选 Docker 方式），便于用户一次性完成环境准备。
+设计阶段先在文档中统称 **「建表/引导步骤」**，落地后把最终命令写回本文与 README。
 
 ---
 
-## 二、install.sh 职责与流程
+## 四、官网 / README 的叙事顺序（与 §一 对齐）
 
-同一脚本 `install.sh` 统一完成环境自检、依赖安装、数据库配置写入与可选 Demo 数据安装；**不安装** PostgreSQL/MySQL 服务。
-
-### 2.1 脚本步骤（建议顺序）
-
-1. **自检运行环境**
-   - 检查 Python 是否存在、版本是否满足要求。
-   - 可选：检查是否存在 pip、PostgreSQL/MySQL 客户端或驱动是否可用（仅作提示，不强制）。
-
-2. **安装 Python 依赖**
-   - 执行 `pip install -r requirements.txt`（或等价命令）。
-   - 可增加「已安装则跳过」逻辑（如通过 import 核心包或 `pip show` 判断），避免重复安装。
-
-3. **收集数据库连接信息并写入配置**
-   - 交互式或通过环境变量询问：主机、端口、数据库名、用户名、密码等。
-   - 将结果写入项目配置（如 `userspace/config/database/` 或环境变量），供应用连接使用。
-   - **不**在脚本中安装或启动 PostgreSQL/MySQL 服务。
-
-4. **建表 / 迁移**
-   - 若项目有迁移或建表脚本，在连接信息就绪后执行，确保库中表结构就绪。
-
-5. **安装 Demo 数据（可选）**
-   - 仅当满足「Demo 数据安装条件」时执行（见第三节）；否则跳过并给出提示。
-
-6. **收尾提示**
-   - 打印后续步骤（如配置 Tushare token、运行示例策略等）。
-
-### 2.2 复用与幂等
-
-- 脚本可**多次执行**：依赖已安装则跳过；数据库已配置可跳过或覆盖；Demo 数据仅在满足条件时安装。
-- 用户后续将 Demo 包放入 userspace 后再次运行 install，应能只执行「安装 Demo 数据」相关步骤（依赖与配置已就绪）。
+1. 安装 Python（平台分节）。
+2. 安装 PG 或 MySQL + 建空库（可附 Docker 示例）。
+3. 克隆项目 → 虚拟环境（可选）→ `./install.sh`。
+4. 配置 `userspace/config/database/`。
+5. 运行建表/引导（命令以 §3.3 落地为准）。
+6. （可选）放入 `userspace/demo_data/*.zip` → `python3 -m setup.demo_data_handler` 或带 Demo 的 install。
+7. **下一步**：Tushare token、跑一条最小策略或数据源示例（链到 `user-guide`）。
 
 ---
 
-## 三、Demo 数据安装条件
+## 五、Demo 数据（与当前实现对齐）
 
-Demo 数据**不随开源仓库分发**，需用户从官网（注册会员后）下载并放入指定目录。install 脚本**不拉取**大文件，仅做存在性检查与导入。
+### 5.1 包与目录
 
-### 3.1 安装 Demo 的前提（须同时满足）
+- 用户从官网获取 zip，放入 **`userspace/demo_data/`**（可多文件）。
+- **不**随 git 分发；install **不下载** zip。
 
-1. **存在文件且命名正确**
-   - 用户已将下载的 Demo 包放在约定路径，例如：`userspace/init_data/demo_data.zip`（具体路径与文件名以实现为准）。
-   - 脚本检查该路径下是否存在符合命名规范的文件。
+### 5.2 导入行为（`setup.demo_data_handler`）
 
-2. **需要导入的表均为空**
-   - 所有会被 Demo 导入写入的「Demo 相关表」在导入前必须为空（如通过 `SELECT COUNT(*)` 或现有 `is_table_empty()` 判断）。
-   - 若有任一相关表非空，则**不执行导入**，并提示用户：可先执行「卸载 Demo 数据」或清空相关表后再安装。
+- 解压到 `userspace/demo_data/_extract/`（可配置保留）；导入成功后默认删除该目录。
+- 数据写入 **带前缀** 的目标表（默认前缀 `test_`），与无前缀业务表隔离；`import_data` 在目标与源不同名时会按源表结构建目标表再 `DELETE` + 插入。
+- **确认**：交互式输入大写 `YES`；非交互使用 `--confirm`，若目标表已有数据需 `--yes`。
 
-只有上述两条都满足时，才执行解压/导入逻辑。
+### 5.3 与旧版文档的差异说明
 
-### 3.2 Demo 相关表
-
-- 维护一份「Demo 数据相关表」列表（与卸载时清空的表一致），用于：
-  - 安装前检查是否全部为空；
-  - 卸载时仅清空这些表的数据（不 DROP 表）。
-- 表名单一来源（脚本或配置文件），避免安装与卸载不一致。
+- 早期设想「仅当所有 Demo 表为空才导入」；当前实现为：**非空表需用户明确确认覆盖**（交互 `YES` / 非交互 `--yes`），更贴合「带前缀的 test 表」场景。
 
 ---
 
-## 四、Demo 数据卸载（uninstall demo）
+## 六、Demo 卸载（后续可做）
 
-### 4.1 卸载条件与步骤
-
-1. **取得用户确认**
-   - 交互式：提示「将清空所有 Demo 相关表数据」，要求用户输入确认词（如 `yes`）后再继续。
-   - 非交互：通过参数（如 `--confirm`）显式传入，避免误执行。
-
-2. **清空所有 Demo 相关表的数据**
-   - 对「Demo 相关表」列表中的每张表执行清空数据（如 `DELETE FROM table` 或调用现有 `clear_table()`），**不** DROP 表结构。
-
-### 4.2 与「重置数据」脚本的关系
-
-- 「卸载 Demo」仅针对 Demo 相关表，且需确认。
-- 若项目另有「重置数据」脚本（清空所有数据源表以便用户换自己的数据源），可与本卸载共用表列表或做范围区分（例如：卸载 Demo = 仅 Demo 表；重置数据 = 所有数据源表），在文档中说明区别与使用场景。
+- 对「Demo 目标表」列表（与前缀一致）执行 `DELETE` 或 `TRUNCATE`，需确认；不 DROP 表。
+- 可与「重置业务数据」脚本区分范围；表名单一来源（配置或常量）。
 
 ---
 
-## 五、官网 Quick Start 建议结构
-
-以下可作为官网 Quick Start 的提纲，每步在官网展开为详细说明与命令：
-
-1. **安装 Python**
-   - Windows：下载安装包、勾选 PATH、验证 `python --version`。
-   - macOS / Linux：系统自带或 Homebrew / apt 等，版本要求说明。
-
-2. **安装 PostgreSQL 或 MySQL**
-   - 各平台安装方式；可选：Docker 一键启动命令。
-
-3. **创建数据库**
-   - 使用 psql / mysql 或图形化工具创建空库，并记录连接信息。
-
-4. **克隆/下载项目并运行 install**
-   - 执行 `install.sh`，按提示输入数据库连接信息；可选放入 Demo 包后再次运行以安装 Demo 数据。
-
-5. **（可选）安装 Demo 数据**
-   - 从官网下载 Demo 包，放入 `userspace/init_data/`，确保命名正确；再次运行 install 或单独执行 load-demo。
-
-6. **下一步**
-   - 配置 Tushare token、运行示例策略等（可链接到现有 README 或用户指南）。
-
----
-
-## 六、小结
+## 七、小结
 
 | 项目 | 结论 |
 |------|------|
-| 运行前提 | 用户自备 Python、PG 或 MySQL、已建库；install 不装 DB 服务。 |
-| install.sh | 自检环境、装依赖、问连接信息并写配置、建表/迁移、可选安装 Demo；可重复执行、幂等。 |
-| Demo 安装 | 条件：文件存在且命名正确 + 所有 Demo 相关表为空；不满足则跳过并提示。 |
-| Demo 卸载 | 需确认；仅清空 Demo 相关表数据，不删表。 |
-| 文档 | 官网 Quick Start 对「Python / DB / 建库」三步写详细步骤，降低使用门槛。 |
+| Quick Start 对外阶梯 | §一 五步；Demo 为可选最后一步。 |
+| `install.sh` 当前 | 依赖 + 可选交互式 Demo；不含 DB 安装、不含写配置、不含建表。 |
+| 下一步工程化 | 自检 Python → 可选配置向导 → 统一建表引导 → 再考虑与 Demo 一键串联。 |
+| Demo | `userspace/demo_data/*.zip` + `python3 -m setup.demo_data_handler`；默认 `test_` 前缀与确认流见 §5。 |
+
+本文档随实现迭代更新；**根 README「快速开始」** 宜保持与 §一、§四 同序，避免多套说法。

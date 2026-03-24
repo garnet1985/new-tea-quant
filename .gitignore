@@ -24,8 +24,6 @@ venv.bak/
 *.db
 *.sqlite
 *.sqlite3
-*.duckdb
-*.duckdb.wal
 
 ########################
 # Database Configuration (sensitive)
@@ -37,7 +35,8 @@ config/database/pg_config.json
 
 # User configuration files (sensitive)
 userspace/config/**/*.json
-!userspace/config/**/*.example.json
+userspace/config/**/*.example.json
+userspace/demo_data/
 
 ########################
 # Data & Cache

@@ -207,6 +207,40 @@ class DBHelper:
         
         return [DBHelper.clean_nan_in_dict(item, default=default) for item in data_list]
 
+    @staticmethod
+    def normalize_database_type(config: Dict) -> str:
+        """归一化为 postgresql | mysql | sqlite。"""
+        raw = config.get("database_type") or "postgresql"
+        t = str(raw).lower()
+        if t in ("postgresql", "postgres", "pg"):
+            return "postgresql"
+        if t in ("mysql", "mariadb"):
+            return "mysql"
+        if "sqlite" in t:
+            return "sqlite"
+        return "postgresql"
+
+    @staticmethod
+    def sql_qualify_table_name(config: Dict, logical_name: str) -> str:
+        """
+        将逻辑表名转为 SQL 中可直接使用的表标识。
+
+        - 已含 schema（含英文句号）时原样返回
+        - PostgreSQL: {pgsql_schema}.table
+        - MySQL / SQLite: 裸表名
+        """
+        name = logical_name.strip()
+        if not name:
+            raise ValueError("表名为空")
+        if "." in name:
+            return name
+        t = DBHelper.normalize_database_type(config)
+        if t == "postgresql":
+            pg = config.get("postgresql") or {}
+            schema = pg.get("pgsql_schema") or pg.get("default_pgsql_schema") or "public"
+            return f"{schema}.{name}"
+        return name
+
 
 class DatabaseCursor:
     """

@@ -1,0 +1,6 @@
+# 测试与代码风格（CI / 本地开发）
+-r requirements.txt
+
+pytest>=7.4.0
+black>=23.11.0
+flake8>=6.1.0

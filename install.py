@@ -1,140 +1,49 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-一键安装脚本 - 自动安装项目依赖
+一键安装入口：在仓库根目录执行（需 Python 3.9+）。
 
-支持平台：
-- macOS
-- Linux
-- Windows
+根目录无命令行参数；按下方 _INSTALL_STEPS 顺序执行；各子步骤的选项见
+setup/<step>/install.py。共用工具见 setup/setup.py。
+
+默认自动创建并使用 venv/；跳过自动 venv：环境变量 NTQ_SKIP_AUTO_VENV=1。
+
+可选 Demo：INSTALL_DEMO_DATA=1（仍由 demo 子步骤自行判断是否交互等）。
 """
-import sys
+from __future__ import annotations
+
 import subprocess
-import platform
-import shutil
-import os
-from pathlib import Path
-from typing import Optional, Tuple
+import sys
 
-# 颜色输出
-class Colors:
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BLUE = '\033[94m'
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
+from setup.setup import NewTeaQuantSetup
 
-def print_info(msg: str):
-    print(f"{Colors.BLUE}ℹ️  {msg}{Colors.RESET}")
+# (步骤目录名, 传给该步 install.py 的 argv, disabled=True 则始终跳过该步)
+# order is important
+INSTALL_STEPS: tuple[tuple[str, tuple[str, ...], bool], ...] = (
+    ("sys_req_check", "", True),
+    ("resolve_deps", "", True),
+    ("init_database", "", True),
+    ("import_demo_data", "", False),
+)
 
-def print_success(msg: str):
-    print(f"{Colors.GREEN}✅ {msg}{Colors.RESET}")
+def main() -> None:
+    NewTeaQuantSetup.to_root_dir()
+    NewTeaQuantSetup.ensure_venv()
 
-def print_warning(msg: str):
-    print(f"{Colors.YELLOW}⚠️  {msg}{Colors.RESET}")
+    NewTeaQuantSetup.print_heading("New Tea Quant 一键安装")
 
-def print_error(msg: str):
-    print(f"{Colors.RED}❌ {msg}{Colors.RESET}")
+    total_steps = 0
+    for step, params, is_enabled in INSTALL_STEPS:
+        if is_enabled:
+            total_steps += 1
 
-def print_step(msg: str):
-    print(f"\n{Colors.BOLD}{Colors.BLUE}📦 {msg}{Colors.RESET}\n")
+    for i, (step, params, is_enabled) in enumerate(INSTALL_STEPS, start=1):
+        if is_enabled:
+            NewTeaQuantSetup.print_info(f"开始步骤 {i}/{total_steps}", f"{step}", "ongoing")
 
-
-def run_command(cmd: list, check: bool = True, capture_output: bool = False) -> Tuple[int, str, str]:
-    """
-    运行命令
-    
-    Returns:
-        (returncode, stdout, stderr)
-    """
-    try:
-        result = subprocess.run(
-            cmd,
-            check=check,
-            capture_output=capture_output,
-            text=True
-        )
-        stdout = result.stdout if capture_output else ""
-        stderr = result.stderr if capture_output else ""
-        return result.returncode, stdout, stderr
-    except subprocess.CalledProcessError as e:
-        if capture_output:
-            return e.returncode, e.stdout or "", e.stderr or ""
-        return e.returncode, "", ""
-
-
-def check_command_exists(cmd: str) -> bool:
-    """检查命令是否存在"""
-    return shutil.which(cmd) is not None
-
-
-def detect_os() -> str:
-    """检测操作系统"""
-    system = platform.system().lower()
-    if system == "darwin":
-        return "macos"
-    elif system == "linux":
-        return "linux"
-    elif system == "windows":
-        return "windows"
-    else:
-        return "unknown"
-
-
-
-
-def install_python_dependencies() -> bool:
-    """安装 Python 依赖"""
-    print_step("安装 Python 依赖")
-    
-    requirements_file = Path(__file__).parent / "requirements.txt"
-    if not requirements_file.exists():
-        print_error(f"未找到 requirements.txt: {requirements_file}")
-        return False
-    
-    
-    print_info("安装 Python 包...")
-    returncode, _, _ = run_command(
-        [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)],
-        check=False
-    )
-    
-    if returncode == 0:
-        print_success("Python 依赖安装成功！")
-        return True
-    else:
-        print_error("Python 依赖安装失败")
-        return False
-
-
-
-
-def main():
-    """主函数"""
-    print(f"{Colors.BOLD}{Colors.GREEN}")
-    print("=" * 60)
-    print("  New Tea Quant 一键安装脚本")
-    print("=" * 60)
-    print(f"{Colors.RESET}\n")
-    
-    # 检测操作系统
-    os_type = detect_os()
-    print_info(f"检测到操作系统: {os_type}")
-    
-    # 安装 Python 依赖
-    if not install_python_dependencies():
-        print_error("Python 依赖安装失败")
-        sys.exit(1)
-    
-    print(f"\n{Colors.BOLD}{Colors.GREEN}")
-    print("=" * 60)
-    print("  安装完成！")
-    print("=" * 60)
-    print(f"{Colors.RESET}\n")
-    print_info("下一步:")
-    print("  1. 配置数据库连接 (config/database/db_config.json)")
-    print("  2. 运行迁移脚本迁移数据")
+            subprocess.run([sys.executable, str(NewTeaQuantSetup.repo_root / "setup" / step / "install.py"), params], cwd=str(NewTeaQuantSetup.repo_root))
+            
+            NewTeaQuantSetup.print_info(f"步骤 {i}", "已经完成", "green_dot")
 
 
 if __name__ == "__main__":

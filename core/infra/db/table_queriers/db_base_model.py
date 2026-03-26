@@ -317,10 +317,23 @@ class DbBaseModel:
 
         paths: List[Path] = []
 
+        # 导出排序：优先按主键稳定排序，避免不同批次/不同执行计划下行序不一致。
+        export_order_by: Optional[str] = None
+        try:
+            pks = self.get_primary_keys()
+            if pks:
+                export_order_by = ", ".join([f"{k} ASC" for k in pks])
+        except Exception:
+            export_order_by = None
+
         if tpl.kind == ExportTemplateKind.FULL_TABLE or not tpl.chunk_rows:
             # 整表（或条件过滤后的全集）一次性导出
             try:
-                rows = self.load(condition=condition, params=params)
+                rows = self.load(
+                    condition=condition,
+                    params=params,
+                    order_by=export_order_by,
+                )
             except Exception as e:
                 logger.error("导出表 %s 失败（FULL_TABLE 导出）: %s", self.table_name, e)
                 raise
@@ -359,6 +372,7 @@ class DbBaseModel:
                 rows = self.load(
                     condition=condition,
                     params=params,
+                    order_by=export_order_by,
                     limit=chunk_size,
                     offset=offset,
                 )

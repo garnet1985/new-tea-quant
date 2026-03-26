@@ -1,27 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-按表导出/备份（测试用 CLI）：
+按表导出/备份（Demo 数据打包用 CLI）。
 
-- 直接调用 DbBaseModel.export_data，将单表数据导出到 backup/data/{today}/ 下
-- 提供若干批量导出测试入口：
-  - 单表全量导出
-  - stock klines 在 2023-01-01 ~ 2025-12-31 区间
-  - stock indicators 在 2023-01-01 ~ 2025-12-31 区间
-  - 其余表全量导出
+默认行为（不带 --full）：
+- 对所有表执行导出；
+- 存在时间字段（date/trade_date）的表，仅导出默认时间窗口（当前 1 年）；
+- 无时间字段的表，仍按全量导出。
 
-用法（在项目根目录执行）：
-    # 单表全量导出
-    python backup/export_table.py -t sys_corporate_finance
+全量行为（带 --full）：
+- 所有表全量导出。
 
-    # 批次一：stock klines 2023-01-01 ~ 2025-12-31
-    python backup/export_table.py --batch-klines-3y
-
-    # 批次二：stock indicators 2023-01-01 ~ 2025-12-31
-    python backup/export_table.py --batch-ind-3y
-
-    # 批次三：其余表全量导出
-    python backup/export_table.py --batch-others-full
+可选地可指定 --start-date / --end-date 覆盖默认窗口。
 """
 import sys
 import os
@@ -30,8 +20,8 @@ import argparse
 import logging
 import shutil
 from pathlib import Path
-from datetime import datetime, date, timedelta
-from typing import List
+from datetime import date
+from typing import List, Optional
 
 # 项目根目录
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -45,105 +35,91 @@ from core.utils.io import file_io
 OUT_DIR = _REPO_ROOT / "backup" / "data"
 
 DATE_FMT = "%Y%m%d"
+# 默认窗口：固定 2025 全年（Demo 对外数据窗口）
+DEFAULT_START_DATE = "20250101"
+DEFAULT_END_DATE = "20251231"
+TIME_FIELDS = ("date", "trade_date")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def run_test_stock_indicators_3y(archive_format: str) -> None:
+def _default_date_range() -> tuple[str, str]:
+    """默认导出时间窗口（固定 2025 全年）。"""
+    return DEFAULT_START_DATE, DEFAULT_END_DATE
+
+
+def _pick_time_field(model) -> Optional[str]:
     """
-    测试导出：导出 sys_stock_indicators 在 2023-01-01 ~ 2025-12-31 区间内的数据。
-
-    仅用于开发/验证用，后续会被更通用的业务导出能力替代。
+    从模型 schema 中选择时间字段（当前支持 date / trade_date）。
     """
-    from core.modules.data_manager import DataManager
+    schema = getattr(model, "schema", None) or {}
+    fields = schema.get("fields", []) if isinstance(schema, dict) else []
+    names = {f.get("name") for f in fields if isinstance(f, dict)}
+    for candidate in TIME_FIELDS:
+        if candidate in names:
+            return candidate
+    return None
 
-    dm = DataManager(is_verbose=False)
-    dm.initialize()
 
-    model = dm.get_table("sys_stock_indicators")
-    if model is None:
-        raise SystemExit("表未注册: sys_stock_indicators")
-
-    # 区间：2023-01-01 ~ 2025-12-31
-    start = "20230101"
-    end = "20251231"
-    condition = "date >= %s AND date <= %s"
-    params = (start, end)
-
-    # 备份目录（与 export_data 的全量导出保持一致）
-    backup_date = date.today().strftime(DATE_FMT)
-    backup_dir = OUT_DIR / backup_date
-    backup_dir.mkdir(parents=True, exist_ok=True)
-
-    # 走 DbBaseModel.export_data（条件导出 + 自动分批）
-    paths = model.export_data(
-        output_dir=backup_dir,
-        archive_format=archive_format,
-        condition=condition,
-        params=params,
-    )
-    for p in paths:
-        logger.info(
-            "测试导出 sys_stock_indicators 区间 [%s, %s] -> %s",
-            start,
-            end,
-            p.name,
+def _export_one_model(
+    *,
+    model,
+    table_name: str,
+    backup_dir: Path,
+    archive_format: str,
+    full: bool,
+    start_date: str,
+    end_date: str,
+) -> None:
+    """
+    导出单表：
+    - full=True: 全量
+    - full=False: 若有时间列按窗口过滤，否则全量
+    """
+    time_field = _pick_time_field(model)
+    if full:
+        logger.info("开始导出表 %s (全量)", table_name)
+        paths = model.export_data(
+            output_dir=backup_dir,
+            archive_format=archive_format,
         )
-
-
-def run_batch_stock_klines_3y(archive_format: str) -> None:
-    """
-    批次一：导出 stock klines 在 2023-01-01 ~ 2025-12-31 区间内的数据。
-    目前仅包含 sys_stock_klines，一旦有更多 kline 表可在此处扩展列表。
-    """
-    from core.modules.data_manager import DataManager
-
-    dm = DataManager(is_verbose=False)
-    dm.initialize()
-
-    backup_date = date.today().strftime(DATE_FMT)
-    backup_dir = OUT_DIR / backup_date / "batch1_stock_klines"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-
-    start = "20230101"
-    end = "20251231"
-    condition = "date >= %s AND date <= %s"
-    params = (start, end)
-
-    table_names = ["sys_stock_klines"]
-
-    logger.info("批次一：stock klines 表: %s", table_names)
-
-    for name in table_names:
-        model = dm.get_table(name)
-        if model is None:
-            logger.warning("表未注册，跳过: %s", name)
-            continue
-        logger.info("开始导出表 %s (2023-01-01 ~ 2025-12-31)", name)
+    elif time_field:
+        condition = f"{time_field} >= %s AND {time_field} <= %s"
+        params = (start_date, end_date)
+        logger.info(
+            "开始导出表 %s (按 %s 过滤: %s~%s)",
+            table_name,
+            time_field,
+            start_date,
+            end_date,
+        )
         paths = model.export_data(
             output_dir=backup_dir,
             archive_format=archive_format,
             condition=condition,
             params=params,
         )
-        for p in paths:
-            logger.info("导出 %s -> %s", name, p.name)
+    else:
+        logger.info("开始导出表 %s (无时间列，按全量导出)", table_name)
+        paths = model.export_data(
+            output_dir=backup_dir,
+            archive_format=archive_format,
+        )
 
-    logger.info("批次一完成，目录: %s", backup_dir)
+    for p in paths:
+        logger.info("导出 %s -> %s", table_name, p.name)
 
 
-def run_batch_stock_indicators_3y(archive_format: str) -> None:
+def run_export_all(
+    *,
+    archive_format: str,
+    full: bool,
+    start_date: str,
+    end_date: str,
+) -> None:
     """
-    批次二：导出 stock indicators 在 2023-01-01 ~ 2025-12-31 区间内的数据。
-    当前仅包含 sys_stock_indicators。
-    """
-    run_test_stock_indicators_3y(archive_format=archive_format)
-
-
-def run_batch_others_full(archive_format: str) -> None:
-    """
-    批次三：导出除 kline / indicators 外的所有表（全量，不按日期过滤）。
+    导出所有注册表。
     """
     from core.modules.data_manager import DataManager
 
@@ -151,7 +127,7 @@ def run_batch_others_full(archive_format: str) -> None:
     dm.initialize()
 
     backup_date = date.today().strftime(DATE_FMT)
-    backup_dir = OUT_DIR / backup_date / "batch3_others_full"
+    backup_dir = OUT_DIR / backup_date / "all_tables"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     # DataManager 内部使用 _table_cache 缓存所有注册表名
@@ -160,30 +136,32 @@ def run_batch_others_full(archive_format: str) -> None:
     except AttributeError:
         raise SystemExit("DataManager 不暴露 tables 属性，请检查实现或改用 _table_cache")
 
-    handled = {"sys_stock_klines", "sys_stock_indicators"}
-    other_tables = [name for name in all_tables if name not in handled]
-
-    logger.info("批次三：其余表（全量导出）: %s", other_tables)
-
-    for name in other_tables:
+    logger.info("将导出全部表，共 %d 张", len(all_tables))
+    for name in all_tables:
         model = dm.get_table(name)
         if model is None:
             logger.warning("表未注册，跳过: %s", name)
             continue
-        logger.info("开始导出表 %s (全量)", name)
-        paths = model.export_data(
-            output_dir=backup_dir,
+        _export_one_model(
+            model=model,
+            table_name=name,
+            backup_dir=backup_dir,
             archive_format=archive_format,
+            full=full,
+            start_date=start_date,
+            end_date=end_date,
         )
-        for p in paths:
-            logger.info("导出 %s -> %s", name, p.name)
 
-    logger.info("批次三完成，目录: %s", backup_dir)
+    logger.info("全部表导出完成，目录: %s", backup_dir)
 
 
 def run_export(
     table_name: str,
     archive_format: str,
+    *,
+    full: bool,
+    start_date: str,
+    end_date: str,
 ) -> None:
     from core.modules.data_manager import DataManager
 
@@ -202,13 +180,15 @@ def run_export(
     backup_dir = OUT_DIR / backup_date
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    # 直接走 DbBaseModel.export_data（整表导出，内部可自动分批）
-    paths = model.export_data(
-        output_dir=backup_dir,
+    _export_one_model(
+        model=model,
+        table_name=table_name,
+        backup_dir=backup_dir,
         archive_format=archive_format,
+        full=full,
+        start_date=start_date,
+        end_date=end_date,
     )
-    for p in paths:
-        logger.info("导出 %s -> %s", table_name, p.name)
 
 
 def prune_old_backups(keep: int) -> None:
@@ -246,9 +226,16 @@ def prune_old_backups(keep: int) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="按表导出/备份到 backup/data/（export_data 测试 CLI）"
+        description=(
+            "按表导出/备份到 backup/data/。默认按固定时间窗口导出（当前 2025 全年）；"
+            "带 --full 时全量导出。"
+        )
     )
-    parser.add_argument("-t", "--table", help="表名，如 sys_corporate_finance（单表导出时使用）")
+    parser.add_argument(
+        "-t",
+        "--table",
+        help="单表导出（不传则导出所有表）",
+    )
     parser.add_argument(
         "--format",
         choices=["tar.gz", "zip"],
@@ -262,36 +249,50 @@ def main() -> None:
         help="在 backup/data/ 下最多保留的备份日期目录数量，默认 3",
     )
     parser.add_argument(
-        "--batch-klines-3y",
+        "--full",
         action="store_true",
-        help="批次一：导出 stock klines 在 2023-01-01 ~ 2025-12-31 区间的数据",
+        help="全量导出（忽略时间窗口）",
     )
     parser.add_argument(
-        "--batch-ind-3y",
-        action="store_true",
-        help="批次二：导出 stock indicators 在 2023-01-01 ~ 2025-12-31 区间的数据",
+        "--start-date",
+        help="窗口起始日期（YYYYMMDD）。默认 20250101",
     )
     parser.add_argument(
-        "--batch-others-full",
-        action="store_true",
-        help="批次三：导出除 kline / indicators 外的所有表（全量）",
+        "--end-date",
+        help="窗口结束日期（YYYYMMDD）。默认 20251231",
     )
     args = parser.parse_args()
 
-    # 批量模式优先
-    if args.batch_klines_3y:
-        run_batch_stock_klines_3y(archive_format=args.format)
-    elif args.batch_ind_3y:
-        run_batch_stock_indicators_3y(archive_format=args.format)
-    elif args.batch_others_full:
-        run_batch_others_full(archive_format=args.format)
+    default_start, default_end = _default_date_range()
+    start_date = args.start_date or default_start
+    end_date = args.end_date or default_end
+
+    if not re.fullmatch(r"\d{8}", start_date):
+        raise SystemExit(f"--start-date 格式错误: {start_date}，应为 YYYYMMDD")
+    if not re.fullmatch(r"\d{8}", end_date):
+        raise SystemExit(f"--end-date 格式错误: {end_date}，应为 YYYYMMDD")
+    if start_date > end_date:
+        raise SystemExit(f"日期区间非法: start_date({start_date}) > end_date({end_date})")
+
+    if args.full:
+        logger.info("导出模式：全量（忽略时间窗口）")
     else:
-        if not args.table:
-            raise SystemExit("单表导出需要指定 -t/--table")
-        table_name = args.table.strip()
+        logger.info("导出模式：时间窗口 [%s, %s]", start_date, end_date)
+
+    if args.table:
         run_export(
-            table_name=table_name,
+            table_name=args.table.strip(),
             archive_format=args.format,
+            full=args.full,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    else:
+        run_export_all(
+            archive_format=args.format,
+            full=args.full,
+            start_date=start_date,
+            end_date=end_date,
         )
     prune_old_backups(args.keep)
 

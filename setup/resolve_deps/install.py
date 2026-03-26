@@ -22,6 +22,7 @@ def _use_china_mirror() -> bool:
 
 
 def main() -> int:
+    print(f"当前依赖安装解释器: {sys.executable}", file=sys.stderr)
     req = _REPO_ROOT / "requirements.txt"
     if not req.is_file():
         print(f"错误: 未找到 requirements.txt: {req}", file=sys.stderr)
@@ -32,6 +33,7 @@ def main() -> int:
         "-m",
         "pip",
         "install",
+        "--no-compile",
         "-r",
         str(req),
     ]

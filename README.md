@@ -109,8 +109,11 @@ source venv/bin/activate  # Linux/Mac
 # 或
 venv\Scripts\activate     # Windows
 
-# 安装依赖
-pip install -r requirements.txt
+# 安装依赖（推荐：含 Python 版本检查、可选国内镜像与 Demo）
+python install.py
+
+# 或仅 pip
+# pip install -r requirements.txt
 ```
 
 ### 3. 配置数据库
@@ -1050,7 +1053,7 @@ def analysis(self):
 ## 性能优化
 
 ### 数据库优化
-- **连接池管理**: 使用 DBUtils 管理连接，支持多进程环境
+- **连接池管理**: 适配器侧连接池与多进程下的连接重建，避免 fork 后复用无效连接
 - **批量操作**: 支持批量插入、批量更新，减少数据库交互
 - **SQL 优化**: 优先使用 JOIN 查询，减少查询次数
 - **索引优化**: 自动创建和维护索引，提升查询性能

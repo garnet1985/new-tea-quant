@@ -20,7 +20,7 @@ source venv/bin/activate  # macOS/Linux
 # 或
 venv\Scripts\activate     # Windows
 
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 数据库和配置请参考：

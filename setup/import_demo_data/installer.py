@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import shutil
 import sys
+import time
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -50,6 +51,12 @@ def format_demo_install_plan_text(
     """
     供打印或日志使用：说明将向哪些表、如何写入数据（不含执行导入）。
     """
+    safety_note = (
+        "不会修改与 Demo 包同名的无前缀生产表；数据只写入带前缀的目标表。"
+        if table_prefix
+        else "⚠️  未设置目标表前缀：数据将直接写入无前缀同名表（若表已有数据将先 DELETE 再 INSERT）。"
+    )
+
     lines = [
         "",
         "=" * 72,
@@ -61,7 +68,7 @@ def format_demo_install_plan_text(
         "  2) 对「目标表」执行 DELETE，清空已有行。",
         "  3) 将解压归档中的 CSV 行 INSERT 进「目标表」。",
         "",
-        "不会修改与 Demo 包同名的无前缀生产表；数据只写入带前缀的目标表。",
+        safety_note,
         "",
         f"数据目录: {data_dir}",
         f"目标表前缀: {table_prefix!r}",
@@ -248,8 +255,10 @@ class DemoDataInstaller:
         confirm_nonempty: bool = False,
         remove_extract: bool = True,
     ) -> None:
+        from setup.setup import NewTeaQuantSetup
         from core.modules.data_manager import DataManager
 
+        t0_all = time.perf_counter()
         data_dir = self.data_dir
         extract_root = data_dir / EXTRACT_SUBDIR
 
@@ -302,21 +311,39 @@ class DemoDataInstaller:
             nonempty_rows=nonempty,
         )
 
+        will_import_rows = [r for r in rows if r.get("will_import")]
+        total = len(will_import_rows)
         errors: List[Tuple[str, str]] = []
+        done = 0
         for r in rows:
             if not r["will_import"]:
                 logger.warning("跳过未注册的表（无 model）: %s", r["logical"])
                 continue
+            done += 1
             logical = r["logical"]
             paths = r["archives"]
             target = r["target"]
             model = dm.get_table(logical)
             assert model is not None
             try:
+                t0 = time.perf_counter()
+                NewTeaQuantSetup.print_check_info(
+                    f"[{done}/{total}] 开始导入: {logical} -> {target}（归档: {r.get('archive_basename_summary', '-') }）"
+                )
                 model.import_data(paths, target_table=target)
+                dt = time.perf_counter() - t0
+                NewTeaQuantSetup.print_check_ok(
+                    f"[{done}/{total}] {logical} 表数据导入已经完成（耗时 {dt:.1f}s）"
+                )
             except Exception as e:
                 logger.exception("导入失败: %s -> %s", logical, target)
                 errors.append((logical, str(e)))
+
+        dt_all = time.perf_counter() - t0_all
+        if not errors:
+            NewTeaQuantSetup.print_check_ok(f"Demo 数据导入完成（总耗时 {dt_all:.1f}s）")
+        else:
+            NewTeaQuantSetup.print_check_fail(f"Demo 数据导入存在失败项（已运行 {dt_all:.1f}s）")
 
         if remove_extract and not errors:
             shutil.rmtree(extract_root, ignore_errors=True)

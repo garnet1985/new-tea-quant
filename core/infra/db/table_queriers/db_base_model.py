@@ -725,7 +725,6 @@ class DbBaseModel:
     ) -> int:
         """在已清空的目标表上逐文件读 CSV 并批量插入。"""
         _LARGE_IMPORT_HINT = 20_000
-        _PROGRESS_EVERY = 50_000
         field_names: Optional[List[str]] = None
         total_rows = 0
         for file in files:
@@ -736,9 +735,33 @@ class DbBaseModel:
             if field_names is None:
                 field_names = list(rows[0].keys())
 
+            # 覆盖导入时，归档内若存在重复主键会触发 UNIQUE 约束错误；
+            # 这里按主键去重（保留最后一条），避免单包脏数据中断整表导入。
+            try:
+                pks = self.get_primary_keys()
+            except Exception:
+                pks = []
+            if pks and all(pk in rows[0] for pk in pks):
+                dedup_map: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+                for row in rows:
+                    k = tuple(row.get(pk) for pk in pks)
+                    dedup_map[k] = row
+                if len(dedup_map) < len(rows):
+                    removed = len(rows) - len(dedup_map)
+                    rows = list(dedup_map.values())
+                    logger.warning(
+                        "导入前按主键去重: %s [%s] 移除重复行 %d（主键=%s）",
+                        self.table_name,
+                        path.name,
+                        removed,
+                        ",".join(pks),
+                    )
+
             bs = insert_batch_size
             if bs is None:
                 bs = self._compute_insert_batch_size(len(field_names))
+            # 进度提示：至少每个 batch 输出一次（大表时避免“卡住”的错觉）
+            progress_every = max(1, int(bs))
 
             if pg_execute_values:
                 total_rows += self._insert_rows_execute_values(
@@ -747,7 +770,7 @@ class DbBaseModel:
                     field_names,
                     rows,
                     batch_size=bs,
-                    progress_every=_PROGRESS_EVERY,
+                    progress_every=progress_every,
                     large_hint_threshold=_LARGE_IMPORT_HINT,
                     archive_name=path.name,
                 )
@@ -758,7 +781,7 @@ class DbBaseModel:
                     field_names,
                     rows,
                     batch_size=bs,
-                    progress_every=_PROGRESS_EVERY,
+                    progress_every=progress_every,
                     large_hint_threshold=_LARGE_IMPORT_HINT,
                     archive_name=path.name,
                 )

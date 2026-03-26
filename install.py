@@ -17,13 +17,13 @@ import sys
 
 from setup.setup import NewTeaQuantSetup
 
-# (步骤目录名, 传给该步 install.py 的 argv, disabled=True 则始终跳过该步)
+# (步骤目录名, 传给该步 install.py 的 argv, enabled=True 则执行该步)
 # order is important
 INSTALL_STEPS: tuple[tuple[str, tuple[str, ...], bool], ...] = (
-    ("sys_req_check", "", True),
-    ("resolve_deps", "", True),
-    ("init_database", "", True),
-    ("import_demo_data", "", False),
+    ("sys_req_check", (), True),
+    ("resolve_deps", (), True),
+    ("init_database", (), True),
+    ("import_demo_data", (), True),
 )
 
 def main() -> None:
@@ -32,19 +32,30 @@ def main() -> None:
 
     NewTeaQuantSetup.print_heading("New Tea Quant 一键安装")
 
-    total_steps = 0
-    for step, params, is_enabled in INSTALL_STEPS:
-        if is_enabled:
-            total_steps += 1
+    enabled_steps = [(step, params) for step, params, enabled in INSTALL_STEPS if enabled]
+    total_steps = len(enabled_steps)
 
-    for i, (step, params, is_enabled) in enumerate(INSTALL_STEPS, start=1):
-        if is_enabled:
-            NewTeaQuantSetup.print_info(f"开始步骤 {i}/{total_steps}", f"{step}", "ongoing")
+    for i, (step, params) in enumerate(enabled_steps, start=1):
+        NewTeaQuantSetup.print_info(f"开始步骤 {i}/{total_steps}", f"{step}", "ongoing")
 
-            subprocess.run([sys.executable, str(NewTeaQuantSetup.repo_root / "setup" / step / "install.py"), params], cwd=str(NewTeaQuantSetup.repo_root))
-            
-            NewTeaQuantSetup.print_info(f"步骤 {i}", "已经完成", "green_dot")
+        step_script = NewTeaQuantSetup.repo_root / "setup" / step / "install.py"
+        if not step_script.is_file():
+            NewTeaQuantSetup.print_info(f"步骤 {i}", f"未找到脚本: {step_script}", "failed")
+            raise SystemExit(1)
 
+        result = subprocess.run(
+            [sys.executable, str(step_script), *params],
+            cwd=str(NewTeaQuantSetup.repo_root),
+        )
+        if result.returncode != 0:
+            NewTeaQuantSetup.print_info(
+                f"步骤 {i}",
+                f"执行失败（退出码 {result.returncode}）",
+                "failed",
+            )
+            raise SystemExit(result.returncode)
+
+        NewTeaQuantSetup.print_info(f"步骤 {i}", "已经完成", "green_dot")
 
 if __name__ == "__main__":
     main()

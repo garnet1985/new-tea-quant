@@ -490,6 +490,7 @@ class PriceFactorSimulator:
                 all_stocks=all_stocks,
                 sampling_amount=base_settings.sampling_amount or len(all_stocks),
                 sampling_config=base_settings.sampling_config or {},
+                strategy_name=strategy_name,
             )
         else:
             stock_list = [s["id"] for s in all_stocks]

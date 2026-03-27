@@ -10,6 +10,7 @@ Job Builder Helper - 作业构建助手
 from typing import List, Dict, Any
 from datetime import datetime
 import logging
+from core.modules.strategy.enums import ExecutionMode
 
 logger = logging.getLogger(__name__)
 

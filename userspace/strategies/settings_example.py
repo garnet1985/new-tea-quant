@@ -118,13 +118,17 @@ settings = {
         #     "seed": 42,
         # },
         # "pool": {
-        #     # 股票池采样：直接给股票列表
-        #     "stock_pool": ["000001.SZ", "000002.SZ"],
-        #     # 注意：当前代码读取的是 stock_pool
+        #     # 股票池采样：优先使用 stock_ids（inline）
+        #     "stock_ids": ["000001.SZ", "000002.SZ"],
+        #     # 如果 stock_ids 为空，可使用 file（相对当前策略目录）
+        #     # 例如 userspace/strategies/<strategy_name>/stock_lists/test_stocks.txt
+        #     # "file": "stock_lists/test_stocks.txt",
         # },
         # "blacklist": {
-        #     # 黑名单采样：排除这些股票
-        #     "blacklist": ["000001.SZ"],
+        #     # 黑名单采样：优先使用 stock_ids（inline）
+        #     "stock_ids": ["000001.SZ"],
+        #     # 如果 stock_ids 为空，可使用 file（相对当前策略目录）
+        #     # "file": "stock_lists/blacklist.txt",
         # },
     },
 

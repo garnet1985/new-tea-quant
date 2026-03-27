@@ -358,7 +358,7 @@ python start.py enumerate --strategy example --verbose
 #### 2. 价格因子模拟器 (PriceFactorSimulator)
 **职责**: 评估信号质量，不考虑资金约束
 
-- **输入**: 枚举器生成的 SOT 结果
+- **输入**: 枚举器生成的标准输出结果
 - **输出**: 每只股票的收益统计、整体策略表现
 - **特点**:
   - 每只股票独立模拟（1股级回放）
@@ -369,7 +369,7 @@ python start.py enumerate --strategy example --verbose
 #### 3. 资金分配模拟器 (CapitalAllocationSimulator)
 **职责**: 真实资金约束下的组合回测
 
-- **输入**: 枚举器生成的 SOT 结果
+- **输入**: 枚举器生成的标准输出结果
 - **输出**: 交易记录、权益曲线、组合统计
 - **特点**:
   - 单进程执行，保证资金一致性
@@ -430,7 +430,7 @@ example/
 └── results/             # 回测结果
     ├── opportunity_enums/  # 枚举结果
     │   ├── test/        # 测试模式结果
-    │   └── sot/         # 全量模式结果（Source of Truth）
+    │   └── output/      # 全量模式结果（标准输出）
     └── simulations/     # 模拟结果
         ├── price_factor/    # 价格因子模拟
         └── capital_allocation/  # 资金分配模拟

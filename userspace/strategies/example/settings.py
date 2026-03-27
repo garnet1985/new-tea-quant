@@ -89,7 +89,7 @@ settings = {
     "enumerator": {
         # 是否使用采样配置 - 如果您要全量枚举，请切记关闭此选项（False）
         # True: 使用 sampling 配置进行采样枚举（结果保存在 test/ 子目录）
-        # False: 使用全量股票列表进行枚举（结果保存在 output/ 子目录，作为 SOT）
+        # False: 使用全量股票列表进行枚举（结果保存在 output/ 子目录，作为枚举输出标准结果）
         "use_sampling": False,
         
         # 最多保留的测试模式版本数（默认 10）
@@ -140,7 +140,7 @@ settings = {
 
         "base_version": "latest",
 
-        # 时间窗口（可选），为空表示使用 SOT 全量时间
+        # 时间窗口（可选），为空表示使用枚举输出结果中的全量时间范围
         # "start_date": "",
         # "end_date": "",
 
@@ -199,6 +199,6 @@ settings = {
 
     "scanner": {
         "max_workers": "auto",
-        "adapter_name": "console"
+        "adapters": ["console"]
     },
 }

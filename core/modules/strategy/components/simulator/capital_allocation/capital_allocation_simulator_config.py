@@ -43,7 +43,7 @@ class CapitalAllocationSimulatorConfig:
     # kelly 模式下的配置
     kelly_fraction: float = 0.5       # Kelly 仓位的折扣比例（0~1，用于风险控制）
 
-    # 时间窗口（可选），为空表示使用枚举 SOT 的全量时间
+    # 时间窗口（可选），为空表示使用枚举输出结果的全量时间
     start_date: str = ""
     end_date: str = ""
 

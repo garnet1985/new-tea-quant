@@ -574,36 +574,34 @@ class DbBaseModel:
         *,
         n: int,
         processed: int,
-        logged_up_to: int,
-        progress_every: int,
+        last_logged_pct: int,
         large_hint_threshold: int,
         target_sql: str,
         archive_name: str,
     ) -> int:
         if n < large_hint_threshold:
-            return logged_up_to
-        while logged_up_to + progress_every <= processed:
-            logged_up_to += progress_every
-            m = min(logged_up_to, n)
+            return last_logged_pct
+
+        pct = int((processed * 100) // n)
+        # 仅在每 10% 节点打印一次，避免日志刷屏
+        next_mark = ((last_logged_pct // 10) + 1) * 10
+        while next_mark <= min(pct, 100):
+            m = int((next_mark / 100.0) * n)
+            pct_text = f"{float(next_mark):.1f}%"
             logger.info(
-                "导入进度 %s -> %s [%s]: %d/%d 行 (%.1f%%)",
+                "导入进度 %s -> %s [%s]: %d/%d 行 (%s)",
                 self.table_name,
                 target_sql,
                 archive_name,
-                m,
+                m if next_mark < 100 else n,
                 n,
-                100.0 * m / n,
+                pct_text,
             )
-        if processed == n and logged_up_to < n:
-            logger.info(
-                "导入进度 %s -> %s [%s]: %d/%d 行 (100.0%%)",
-                self.table_name,
-                target_sql,
-                archive_name,
-                n,
-                n,
-            )
-        return logged_up_to
+            next_mark += 10
+
+        if pct >= 100:
+            return 100
+        return max(last_logged_pct, (pct // 10) * 10)
 
     def _insert_rows_batched(
         self,
@@ -613,7 +611,6 @@ class DbBaseModel:
         rows: List[Dict[str, Any]],
         *,
         batch_size: int,
-        progress_every: int,
         large_hint_threshold: int,
         archive_name: str,
     ) -> int:
@@ -627,15 +624,14 @@ class DbBaseModel:
         if n >= large_hint_threshold:
             logger.info(
                 "表 %s 本归档「%s」共 %d 行，使用批量 INSERT（每批约 %d 行），"
-                "大表仍可能耗时数分钟（约每 %d 行输出进度）",
+                "大表仍可能耗时数分钟（每 10%% 输出进度）",
                 self.table_name,
                 archive_name,
                 n,
                 batch_size,
-                progress_every,
             )
 
-        logged_up_to = 0
+        last_logged_pct = 0
         for start in range(0, n, batch_size):
             chunk = rows[start : start + batch_size]
             values_clause = ", ".join([one_row] * len(chunk))
@@ -647,11 +643,10 @@ class DbBaseModel:
             cursor.execute(insert_sql, tuple(flat))
 
             processed = start + len(chunk)
-            logged_up_to = self._import_log_progress_after_chunk(
+            last_logged_pct = self._import_log_progress_after_chunk(
                 n=n,
                 processed=processed,
-                logged_up_to=logged_up_to,
-                progress_every=progress_every,
+                last_logged_pct=last_logged_pct,
                 large_hint_threshold=large_hint_threshold,
                 target_sql=target_sql,
                 archive_name=archive_name,
@@ -666,7 +661,6 @@ class DbBaseModel:
         rows: List[Dict[str, Any]],
         *,
         batch_size: int,
-        progress_every: int,
         large_hint_threshold: int,
         archive_name: str,
     ) -> int:
@@ -682,15 +676,14 @@ class DbBaseModel:
         if n >= large_hint_threshold:
             logger.info(
                 "表 %s 本归档「%s」共 %d 行，使用 execute_values（每批约 %d 行），"
-                "大表仍可能耗时数分钟（约每 %d 行输出进度）",
+                "大表仍可能耗时数分钟（每 10%% 输出进度）",
                 self.table_name,
                 archive_name,
                 n,
                 batch_size,
-                progress_every,
             )
 
-        logged_up_to = 0
+        last_logged_pct = 0
         for start in range(0, n, batch_size):
             chunk = rows[start : start + batch_size]
             tuples = [
@@ -703,11 +696,10 @@ class DbBaseModel:
             execute_values(pg_cursor, sql, tuples, page_size=len(tuples))
 
             processed = start + len(chunk)
-            logged_up_to = self._import_log_progress_after_chunk(
+            last_logged_pct = self._import_log_progress_after_chunk(
                 n=n,
                 processed=processed,
-                logged_up_to=logged_up_to,
-                progress_every=progress_every,
+                last_logged_pct=last_logged_pct,
                 large_hint_threshold=large_hint_threshold,
                 target_sql=target_sql,
                 archive_name=archive_name,
@@ -760,8 +752,6 @@ class DbBaseModel:
             bs = insert_batch_size
             if bs is None:
                 bs = self._compute_insert_batch_size(len(field_names))
-            # 进度提示：至少每个 batch 输出一次（大表时避免“卡住”的错觉）
-            progress_every = max(1, int(bs))
 
             if pg_execute_values:
                 total_rows += self._insert_rows_execute_values(
@@ -770,7 +760,6 @@ class DbBaseModel:
                     field_names,
                     rows,
                     batch_size=bs,
-                    progress_every=progress_every,
                     large_hint_threshold=_LARGE_IMPORT_HINT,
                     archive_name=path.name,
                 )
@@ -781,7 +770,6 @@ class DbBaseModel:
                     field_names,
                     rows,
                     batch_size=bs,
-                    progress_every=progress_every,
                     large_hint_threshold=_LARGE_IMPORT_HINT,
                     archive_name=path.name,
                 )

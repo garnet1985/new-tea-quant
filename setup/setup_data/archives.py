@@ -21,7 +21,6 @@ def _should_skip_archive_path(path: Path) -> bool:
     if name.startswith("._"):
         return True
     if name.startswith(".") and name not in (".", ".."):
-        # .DS_Store 等
         return True
     return False
 
@@ -32,11 +31,6 @@ def is_data_archive(path: Path) -> bool:
 
 
 def parse_archive_table_and_part(name: str) -> Optional[Tuple[str, Optional[int]]]:
-    """
-    返回 (逻辑表名, None 表示单文件全量，或 part 序号)。
-
-    支持: sys_x.tar.gz、sys_x_part1.tar.gz
-    """
     m = _ARCHIVE_NAME.match(name)
     if not m:
         return None

@@ -87,10 +87,25 @@ class CapitalAllocationSimulator:
         profiler.start_timer("total")
         start_time = time.time()
         
-        # 2. 解析枚举器输出版本目录
-        output_version = getattr(config, 'output_version', 'latest')
-        output_version_dir, _ = VersionManager.resolve_output_version(
-            strategy_name, output_version
+        # 2. 解析枚举器输出版本目录（显式规则）
+        # - use_sampling=True  -> test/{base_version}
+        # - use_sampling=False -> output/{base_version}
+        # - 指定版本找不到 -> 回退同目录 latest
+        # - 对应目录没有任何版本 -> 先自动触发一次对应模式枚举
+        base_version = getattr(config, "base_version", "latest")
+        use_sampling = bool(getattr(config, "use_sampling", True))
+        logger.info(
+            "[CapitalAllocationSimulator] 版本选择规则: use_sampling=%s -> source=%s, "
+            "base_version=%s, missing_version=>latest, empty_source=>auto_enumerate",
+            use_sampling,
+            "test" if use_sampling else "output",
+            base_version,
+        )
+        output_version_dir, output_root = self._resolve_or_build_enum_version(
+            strategy_name=strategy_name,
+            base_settings=base_settings,
+            use_sampling=use_sampling,
+            base_version=base_version,
         )
         
         logger.info(
@@ -98,7 +113,8 @@ class CapitalAllocationSimulator:
         )
         logger.info(
             f"[CapitalAllocationSimulator] 使用枚举器输出版本: strategy={strategy_name}, "
-            f"output_version={output_version_dir.name}"
+            f"output_version={output_version_dir.name}, "
+            f"source={output_root.name}"
         )
 
         # 3. 创建模拟器版本目录
@@ -341,6 +357,99 @@ class CapitalAllocationSimulator:
             )
 
         return summary
+
+    def _resolve_or_build_enum_version(
+        self,
+        strategy_name: str,
+        base_settings,
+        use_sampling: bool,
+        base_version: str,
+    ) -> tuple[Path, Path]:
+        """
+        解析资金模拟依赖的枚举版本。
+
+        规则：
+        - use_sampling=True: 从 test/ 读取
+        - use_sampling=False: 从 output/ 读取
+        - base_version 为空或找不到 -> 回退同目录 latest
+        - 如果该目录没有任何版本 -> 按对应模式先触发一次枚举，再取 latest
+        """
+        sub_dir = "test" if use_sampling else "output"
+        raw_version = (base_version or "latest").strip()
+        if "/" in raw_version:
+            raw_version = raw_version.split("/", 1)[1].strip() or "latest"
+
+        version_spec = f"{sub_dir}/{raw_version}"
+        try:
+            version_dir, root = VersionManager.resolve_output_version(
+                strategy_name, version_spec
+            )
+            return version_dir, root
+        except FileNotFoundError:
+            if raw_version != "latest":
+                logger.warning(
+                    "[CapitalAllocationSimulator] 指定版本不存在: %s，回退到 %s/latest",
+                    version_spec,
+                    sub_dir,
+                )
+                try:
+                    return VersionManager.resolve_output_version(
+                        strategy_name, f"{sub_dir}/latest"
+                    )
+                except FileNotFoundError:
+                    pass
+
+        logger.info(
+            "[CapitalAllocationSimulator] %s 目录无可用版本，先自动触发一次枚举",
+            sub_dir,
+        )
+        self._run_enumerator_for_mode(
+            strategy_name=strategy_name,
+            base_settings=base_settings,
+            use_sampling=use_sampling,
+        )
+        return VersionManager.resolve_output_version(strategy_name, f"{sub_dir}/latest")
+
+    def _run_enumerator_for_mode(
+        self,
+        strategy_name: str,
+        base_settings,
+        use_sampling: bool,
+    ) -> None:
+        """按模式触发一次枚举：sampling=True 触发 test，False 触发 output。"""
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
+        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.utils.date.date_utils import DateUtils
+
+        data_mgr = DataManager(is_verbose=False)
+        all_stocks = data_mgr.service.stock.list.load(filtered=True)
+        if use_sampling:
+            stock_list = StockSamplingHelper.get_stock_list(
+                all_stocks=all_stocks,
+                sampling_amount=base_settings.sampling_amount or len(all_stocks),
+                sampling_config=base_settings.sampling_config or {},
+            )
+        else:
+            stock_list = [s["id"] for s in all_stocks]
+
+        start_date = DateUtils.DEFAULT_START_DATE
+        end_date = data_mgr.service.calendar.get_latest_completed_trading_date()
+        logger.info(
+            "[CapitalAllocationSimulator] 自动触发枚举开始: mode=%s, stocks=%d, period=%s~%s",
+            "test" if use_sampling else "output",
+            len(stock_list),
+            start_date,
+            end_date,
+        )
+        OpportunityEnumerator.enumerate(
+            strategy_name=strategy_name,
+            start_date=start_date,
+            end_date=end_date,
+            stock_list=stock_list,
+            max_workers="auto",
+        )
+        logger.info("[CapitalAllocationSimulator] 自动触发枚举完成")
 
     def _handle_trigger_event(
         self,

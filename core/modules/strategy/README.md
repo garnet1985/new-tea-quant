@@ -90,14 +90,14 @@ Strategy 系统通过**四层架构**解决了这些问题：
 **Layer 2: PriceFactorSimulator（验证层）**
 - 验证策略效果（价格层面）
 - 无资金约束，只关注价格变化
-- 基于 OpportunityEnumerator 的 SOT 结果
+- 基于 OpportunityEnumerator 的枚举输出结果
 - 输出：Investment 记录（JSON 格式）
 - 用途：快速验证信号质量
 
 **Layer 3: CapitalAllocationSimulator（执行层）**
 - 模拟资金分配执行（资金层面）
 - 真实资金约束，考虑费用、持仓限制
-- 基于 OpportunityEnumerator 的 SOT 结果
+- 基于 OpportunityEnumerator 的枚举输出结果
 - 输出：Trade 记录、Equity Curve、Summary（JSON 格式）
 - 用途：完整回测
 
@@ -319,7 +319,7 @@ result = simulator.run(strategy_name="my_strategy")
 **需求**：快速验证策略的信号质量，不考虑资金约束
 
 **实现**：
-1. 先运行 OpportunityEnumerator 生成 SOT 结果
+1. 先运行 OpportunityEnumerator 生成枚举输出结果
 2. 调用 `PriceFactorSimulator.run()`
 3. 结果保存在 `results/price_factor/{strategy_name}/{version_dir}/`
 
@@ -328,7 +328,7 @@ result = simulator.run(strategy_name="my_strategy")
 **需求**：在真实资金约束下回测策略效果
 
 **实现**：
-1. 先运行 OpportunityEnumerator 生成 SOT 结果
+1. 先运行 OpportunityEnumerator 生成枚举输出结果
 2. 调用 `CapitalAllocationSimulator.run()`
 3. 结果保存在 `results/capital_allocation/{strategy_name}/{version_dir}/`
 4. 包含交易记录、权益曲线、汇总统计

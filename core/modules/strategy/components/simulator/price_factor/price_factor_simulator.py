@@ -49,7 +49,7 @@ class PriceFactorSimulatorConfig:
 
     说明：
     - 采样的语义统一下沉到枚举器层（opportunity_enumerator），
-      本层不再根据 use_sampling 做二次抽样，只是读取指定的 SOT 版本。
+      本层不再根据 use_sampling 做二次抽样，只是读取指定的枚举输出版本。
     - base_version 用于指定版本号；use_sampling 决定读取 test/ 或 output/。
     """
 
@@ -177,7 +177,7 @@ class PriceFactorSimulator:
         stock_info_map = {s.get("id"): s for s in all_stocks_info}
 
         logger.info(
-            f"[PriceFactorSimulator] 使用 SOT 股票集合: {len(stock_files)} 只 "
+            f"[PriceFactorSimulator] 使用枚举输出股票集合: {len(stock_files)} 只 "
             f"(由枚举器输出版本 {output_version_dir.name} 决定)"
         )
 
@@ -767,7 +767,7 @@ class PriceFactorSimulatorWorker:
             ) or row
             
             trigger_date = modified_row.get("trigger_date") or ""
-            # 优先使用 SOT 中的 sell_date 作为退出日；如无则回退到 exit_date 或当日
+            # 优先使用枚举输出中的 sell_date 作为退出日；如无则回退到 exit_date 或当日
             sell_date = modified_row.get("sell_date") or ""
             exit_date = sell_date or modified_row.get("exit_date") or trigger_date
             opp_id = str(modified_row.get("opportunity_id") or "").strip()

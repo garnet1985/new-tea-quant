@@ -29,7 +29,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 os.chdir(_REPO_ROOT)
 
-from core.utils.io import file_io
+from core.utils.io import file_io, csv_io
 
 # 输出目录：backup/data
 OUT_DIR = _REPO_ROOT / "backup" / "data"
@@ -62,6 +62,124 @@ def _pick_time_field(model) -> Optional[str]:
     return None
 
 
+def _export_adj_factor_events_for_window(
+    *,
+    model,
+    table_name: str,
+    backup_dir: Path,
+    archive_format: str,
+    start_date: str,
+    end_date: str,
+) -> None:
+    """
+    sys_adj_factor_events 专用导出：
+    - 导出窗口内 event_date ∈ [start_date, end_date] 的事件；
+    - 对每个股票补一条 start_date 锚点事件：
+      1) 优先取 <= start_date 的最近一条；
+      2) 若不存在，取 > start_date 的最早一条；
+      3) 若该股票无任何事件，则不补（该股票只能裸价）。
+    仅影响导出内容，不写回数据库。
+    """
+    db = getattr(model, "db", None)
+    if db is None:
+        raise RuntimeError(f"{table_name} model 不可用：缺少 db 连接")
+
+    # 以 K 线窗口内出现的股票为基准补锚点（保证 demo 用到的股票都可复权）
+    stock_rows = db.execute_sync_query(
+        """
+        SELECT DISTINCT id
+        FROM sys_stock_klines
+        WHERE date >= %s AND date <= %s
+        ORDER BY id ASC
+        """,
+        (start_date, end_date),
+    )
+    stock_ids = [r.get("id") for r in stock_rows or [] if r.get("id")]
+
+    # 窗口内原始事件
+    in_range_rows: List[dict] = []
+    if stock_ids:
+        placeholders = ",".join(["%s"] * len(stock_ids))
+        in_range_rows = db.execute_sync_query(
+            f"""
+            SELECT id, event_date, factor, qfq_diff, last_update
+            FROM {table_name}
+            WHERE id IN ({placeholders})
+              AND event_date >= %s
+              AND event_date <= %s
+            ORDER BY id ASC, event_date ASC
+            """,
+            tuple(stock_ids) + (start_date, end_date),
+        )
+
+    by_pk: dict[tuple[str, str], dict] = {}
+    for row in in_range_rows or []:
+        sid = row.get("id")
+        ed = row.get("event_date")
+        if not sid or not ed:
+            continue
+        by_pk[(sid, str(ed))] = dict(row)
+
+    # 每个股票补 start_date 锚点（若窗口内已存在该 pk 则不覆盖）
+    for sid in stock_ids:
+        # 1) <= start_date 最近
+        prev = db.execute_sync_query(
+            f"""
+            SELECT id, event_date, factor, qfq_diff, last_update
+            FROM {table_name}
+            WHERE id = %s AND event_date <= %s
+            ORDER BY event_date DESC
+            LIMIT 1
+            """,
+            (sid, start_date),
+        )
+        anchor = prev[0] if prev else None
+
+        # 2) 不存在则 > start_date 最早
+        if not anchor:
+            nxt = db.execute_sync_query(
+                f"""
+                SELECT id, event_date, factor, qfq_diff, last_update
+                FROM {table_name}
+                WHERE id = %s AND event_date > %s
+                ORDER BY event_date ASC
+                LIMIT 1
+                """,
+                (sid, start_date),
+            )
+            anchor = nxt[0] if nxt else None
+
+        # 3) 从未有事件，不补（该股票只能裸价）
+        if not anchor:
+            continue
+
+        k = (sid, start_date)
+        if k not in by_pk:
+            by_pk[k] = {
+                "id": sid,
+                "event_date": start_date,
+                "factor": anchor.get("factor"),
+                "qfq_diff": anchor.get("qfq_diff"),
+                "last_update": anchor.get("last_update"),
+            }
+
+    rows = sorted(by_pk.values(), key=lambda r: (str(r.get("id", "")), str(r.get("event_date", ""))))
+    csv_bytes = csv_io.dicts_to_csv_bytes(rows)
+    archive_path = file_io.write_archive(
+        backup_dir,
+        archive_name=table_name,
+        files={f"{table_name}.csv": csv_bytes},
+        format="tar.gz" if archive_format == "tar.gz" else "zip",
+    )
+    logger.info(
+        "导出 %s（窗口+起点锚点补齐） -> %s (行数=%d, 股票数=%d)",
+        table_name,
+        archive_path.name,
+        len(rows),
+        len(stock_ids),
+    )
+
+
 def _export_one_model(
     *,
     model,
@@ -77,6 +195,18 @@ def _export_one_model(
     - full=True: 全量
     - full=False: 若有时间列按窗口过滤，否则全量
     """
+    # 复权事件表特判：窗口导出 + 起点锚点补齐
+    if (not full) and table_name == "sys_adj_factor_events":
+        _export_adj_factor_events_for_window(
+            model=model,
+            table_name=table_name,
+            backup_dir=backup_dir,
+            archive_format=archive_format,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        return
+
     time_field = _pick_time_field(model)
     if full:
         logger.info("开始导出表 %s (全量)", table_name)

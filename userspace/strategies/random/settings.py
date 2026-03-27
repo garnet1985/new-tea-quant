@@ -79,8 +79,8 @@ settings = {
     "goal": {
             # 到期平仓（可选）
             "expiration": {
-                "fixed_period": 30,           # 持仓天数
-                "is_trading_period": True     # True = 交易日，False = 自然日
+                "fixed_window_in_days": 30,   # 持仓天数
+                "is_trading_days": True       # True = 交易日，False = 自然日
             },
             
             # 保本止损（可选）

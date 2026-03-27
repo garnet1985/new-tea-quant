@@ -12,7 +12,7 @@
 - **内存数据结构**：模拟过程中的机会、目标、事件、依赖数据的承载方式。
 - **数据读取路径**：
   - DB → `StrategyWorkerDataManager`（历史/依赖数据）；
-  - SOT CSV → `DataLoader` → PriceFactor / CapitalAllocation。
+  - 枚举输出 CSV → `DataLoader` → PriceFactor / CapitalAllocation。
 - **输出路径（可选）**：在写 JSON 结果前的内存结构转换方式。
 
 **明确不改动的部分（MVP 阶段）：**
@@ -117,7 +117,7 @@ class ColumnarTimeSeries(ColumnarTable):
 本次 MVP 不修改 DB 模型默认返回类型（仍为 `List[Dict]`），而是按照“**尽量靠近消费者**”的原则，在以下两条路径上完成行→列转换：
 
 1. **策略 Worker 历史/依赖数据（K 线 + 财务等）**
-2. **模拟器读取 SOT（opportunities/targets）**
+2. **模拟器读取 枚举输出结果（opportunities/targets）**
 
 #### 4.1 策略 Worker：StrategyWorkerDataManager
 
@@ -187,7 +187,7 @@ class ColumnarTimeSeries(ColumnarTable):
 
 **长期目标：**
 
-- SOT 结果以 Parquet 为主格式，CSV 作为可读/调试工具；
+- 枚举输出结果以 Parquet 为主格式，CSV 作为可读/调试工具；
 - 内存中统一通过 ColumnarTable 承载，不依赖具体落盘格式。
 
 ---
@@ -232,7 +232,7 @@ class ColumnarTimeSeries(ColumnarTable):
    - 确保目录结构与 VersionManager 兼容。
 
 9. **配置与文档更新**
-   - 在策略 settings 或全局配置中增加 SOT 输出格式开关；
+   - 在策略 settings 或全局配置中增加 枚举输出结果 输出格式开关；
    - 在 README/架构文档中说明：
      - Columnar 内存结构的存在；
      - Parquet 的使用建议与适用场景。

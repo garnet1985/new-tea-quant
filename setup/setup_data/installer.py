@@ -82,6 +82,8 @@ class SetupDataInstaller:
         return sorted(self.data_dir.glob("*.zip"))
 
     def _extract_zips(self, extract_root: Path) -> List[Path]:
+        from setup.setup import NewTeaQuantSetup
+
         zips = self.discover_data_packages()
         if not zips:
             raise FileNotFoundError(f"在 {self.data_dir} 下未找到 .zip 文件")
@@ -95,7 +97,7 @@ class SetupDataInstaller:
             dest.mkdir(parents=True, exist_ok=True)
             with zipfile.ZipFile(z, "r") as zf:
                 zf.extractall(dest)
-            logger.info("已解压: %s -> %s", z.name, dest)
+            NewTeaQuantSetup.print_check_info(f"已解压: {z.name} -> {dest}")
         return zips
 
     def _build_plan_rows(self, dm, plan: dict) -> List[Dict[str, Any]]:
@@ -143,6 +145,10 @@ class SetupDataInstaller:
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    def _clear_progress(self) -> None:
+        if self.progress_file.exists():
+            self.progress_file.unlink()
 
     def run(
         self,
@@ -203,12 +209,15 @@ class SetupDataInstaller:
             "data_dir": str(data_dir),
             "updated_at": int(time.time()),
             "completed_tables": completed.copy(),
-            "failed_tables": prev.get("failed_tables", {}) if same_profile else {},
+            "in_progress_table": None,
+            "interrupted_at": None,
         }
         self._save_progress(progress_payload)
 
         if not pending:
             NewTeaQuantSetup.print_check_item("done", "所有表已在当前数据包指纹下导入完成")
+            # 断点文件仅服务导入过程；全部完成后删除。
+            self._clear_progress()
             return
 
         total = len(pending)
@@ -221,6 +230,10 @@ class SetupDataInstaller:
             assert model is not None
 
             try:
+                progress_payload["in_progress_table"] = logical
+                progress_payload["updated_at"] = int(time.time())
+                self._save_progress(progress_payload)
+
                 t0 = time.perf_counter()
                 NewTeaQuantSetup.print_check_item(
                     "running",
@@ -233,13 +246,27 @@ class SetupDataInstaller:
                     f"[{idx}/{total}] {logical} 完成（{dt:.1f}s）",
                 )
                 progress_payload["completed_tables"][logical] = "done"
-                progress_payload["failed_tables"].pop(logical, None)
+                progress_payload["in_progress_table"] = None
                 progress_payload["updated_at"] = int(time.time())
                 self._save_progress(progress_payload)
+            except KeyboardInterrupt:
+                # 当前表视为未完成：不写 done，保持可重跑整表。
+                progress_payload["completed_tables"].pop(logical, None)
+                progress_payload["in_progress_table"] = None
+                progress_payload["interrupted_at"] = int(time.time())
+                progress_payload["updated_at"] = int(time.time())
+                self._save_progress(progress_payload)
+                NewTeaQuantSetup.print_check_item(
+                    "fail",
+                    f"[{idx}/{total}] {logical} 被中断（可重跑继续）",
+                )
+                raise
             except Exception as e:
                 logger.exception("导入失败: %s -> %s", logical, target)
                 errors.append((logical, str(e)))
-                progress_payload["failed_tables"][logical] = str(e)
+                # 当前表视为未完成：不写 done，保持可重跑整表。
+                progress_payload["completed_tables"].pop(logical, None)
+                progress_payload["in_progress_table"] = None
                 progress_payload["updated_at"] = int(time.time())
                 self._save_progress(progress_payload)
                 NewTeaQuantSetup.print_check_item(
@@ -262,3 +289,5 @@ class SetupDataInstaller:
             "done",
             f"初始化数据导入完成（总耗时 {dt_all:.1f}s）",
         )
+        # 全部成功后清理断点文件。
+        self._clear_progress()

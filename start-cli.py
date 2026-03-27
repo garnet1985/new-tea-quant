@@ -11,8 +11,8 @@
     python start-cli.py tag                  # 执行所有标签场景
     python start-cli.py tag --scenario xxx   # 执行指定标签场景
     python start-cli.py enumerate            # 枚举投资机会（测试用）
-    python start-cli.py price_factor         # 价格因子回放模拟（基于 SOT 结果）
-    python start-cli.py capital_allocation   # 资金分配模拟（基于 SOT 结果，真实资金约束）
+    python start-cli.py price_factor         # 价格因子回放模拟（基于枚举输出结果）
+    python start-cli.py capital_allocation   # 资金分配模拟（基于枚举输出结果，真实资金约束）
     
     python start-cli.py -c                   # 快捷: 扫描（等价于: python start.py scan）
     python start-cli.py -se                  # 快捷: simulate enumerator
@@ -342,7 +342,7 @@ class App:
     
     def price_factor_simulate(self, strategy_name: str = 'example'):
         """
-        基于 SOT 结果的价格因子回放模拟（PriceFactorSimulator）
+        基于枚举输出结果的价格因子回放模拟（PriceFactorSimulator）
         
         Args:
             strategy_name: 策略名称
@@ -355,7 +355,7 @@ class App:
     
     def capital_allocation_simulate(self, strategy_name: str = 'example'):
         """
-        基于 SOT 结果的资金分配模拟（CapitalAllocationSimulator）
+        基于枚举输出结果的资金分配模拟（CapitalAllocationSimulator）
         
         Args:
             strategy_name: 策略名称
@@ -456,8 +456,8 @@ def _get_help_epilog() -> str:
 命令说明:
   scan                 扫描投资机会（根据策略筛选当前符合条件的股票）
   simulate/simulate_enum 枚举器模拟回测（使用历史数据测试策略表现）
-  simulate_price       价格因子回放模拟（基于 SOT 机会结果）
-  simulate_allocation  资金分配模拟（基于 SOT 机会结果，真实资金约束）
+  simulate_price       价格因子回放模拟（基于枚举输出机会结果）
+  simulate_allocation  资金分配模拟（基于枚举输出机会结果，真实资金约束）
   simulate_all         全套模拟（占位，暂未开放）
   renew                更新数据（更新股票行情、标签等数据）
   analysis             分析结果（分析模拟回测的结果）

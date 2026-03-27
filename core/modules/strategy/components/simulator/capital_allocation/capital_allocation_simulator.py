@@ -148,12 +148,12 @@ class CapitalAllocationSimulator:
             )
             return {}
 
-        # 6. 事件集合完全由 SOT 决定：
-        # - 如果 SOT 是 output/*，这里就是全市场全时段的机会流；
-        # - 如果 SOT 是 test/*，这里就是采样后的机会流。
+        # 6. 事件集合完全由枚举输出结果决定：
+        # - 如果输入是 output/*，这里就是全市场全时段的机会流；
+        # - 如果输入是 test/*，这里就是采样后的机会流。
         stock_ids = set(e.stock_id for e in events)
         logger.info(
-            f"[CapitalAllocationSimulator] 使用 SOT 事件流: {len(events)} 个事件 "
+            f"[CapitalAllocationSimulator] 使用枚举输出事件流: {len(events)} 个事件 "
             f"(涉及 {len(stock_ids)} 只股票，版本={output_version_dir.name})"
         )
 
@@ -584,7 +584,7 @@ class CapitalAllocationSimulator:
             or target.get("target_price", 0.0)
         )
         sell_price = float(raw_sell_price or 0.0)
-        # 枚举 SOT 当前的 targets CSV 未包含 sell_ratio 字段，
+        # 当前枚举输出 targets CSV 未包含 sell_ratio 字段，
         # 为了在资金模拟 MVP 阶段能有完整的开平仓路径，这里将缺失或为 0 的 sell_ratio 视为 1.0（全量平仓）。
         raw_sell_ratio = target.get("sell_ratio", 0.0)
         try:

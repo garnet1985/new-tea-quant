@@ -3,24 +3,24 @@
 股票分析应用主入口
 
 使用示例：
-    python start.py                      # 默认: simulate
-    python start.py scan                 # 扫描投资机会
-    python start.py simulate             # 模拟回测
-    python start.py renew                # 更新数据
-    python start.py analysis             # 分析结果
-    python start.py tag                  # 执行所有标签场景
-    python start.py tag --scenario xxx   # 执行指定标签场景
-    python start.py enumerate            # 枚举投资机会（测试用）
-    python start.py price_factor         # 价格因子回放模拟（基于 SOT 结果）
-    python start.py capital_allocation   # 资金分配模拟（基于 SOT 结果，真实资金约束）
+    python start-cli.py                      # 默认: simulate
+    python start-cli.py scan                 # 扫描投资机会
+    python start-cli.py simulate             # 模拟回测
+    python start-cli.py renew                # 更新数据
+    python start-cli.py analysis             # 分析结果
+    python start-cli.py tag                  # 执行所有标签场景
+    python start-cli.py tag --scenario xxx   # 执行指定标签场景
+    python start-cli.py enumerate            # 枚举投资机会（测试用）
+    python start-cli.py price_factor         # 价格因子回放模拟（基于 SOT 结果）
+    python start-cli.py capital_allocation   # 资金分配模拟（基于 SOT 结果，真实资金约束）
     
-    python start.py -c                   # 快捷: 扫描（等价于: python start.py scan）
-    python start.py -s                   # 快捷: 模拟（等价于: python start.py simulate）
-    python start.py -r                   # 快捷: 更新（等价于: python start.py renew）
-    python start.py -a                   # 快捷: 分析（等价于: python start.py analysis）
-    python start.py -t                   # 快捷: 标签（等价于: python start.py tag）
-    python start.py -e                   # 快捷: 枚举（等价于: python start.py enumerate）
-    python start.py -h                   # 查看帮助
+    python start-cli.py -c                   # 快捷: 扫描（等价于: python start.py scan）
+    python start-cli.py -s                   # 快捷: 模拟（等价于: python start.py simulate）
+    python start-cli.py -r                   # 快捷: 更新（等价于: python start.py renew）
+    python start-cli.py -a                   # 快捷: 分析（等价于: python start.py analysis）
+    python start-cli.py -t                   # 快捷: 标签（等价于: python start.py tag）
+    python start-cli.py -e                   # 快捷: 枚举（等价于: python start.py enumerate）
+    python start-cli.py -h                   # 查看帮助
 """
 import sys
 import os
@@ -33,6 +33,30 @@ import logging
 # 路径设置（必须在导入其他模块之前）
 # ============================================================================
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def ensure_venv_for_cli() -> None:
+    """
+    若当前不在虚拟环境中，优先重启到项目 venv 解释器，避免缺少依赖（如 pandas）。
+    可用 NTQ_SKIP_AUTO_VENV=1 关闭该行为。
+    """
+    raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
+    if raw in ("1", "true", "yes"):
+        return
+    if sys.prefix != sys.base_prefix:
+        return
+
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    if os.name == "nt":
+        vpy = os.path.join(repo_root, "venv", "Scripts", "python.exe")
+    else:
+        vpy = os.path.join(repo_root, "venv", "bin", "python")
+
+    if os.path.isfile(vpy):
+        os.execv(vpy, [vpy, os.path.join(repo_root, "start-cli.py"), *sys.argv[1:]])
+
+
+ensure_venv_for_cli()
 
 # ============================================================================
 # 警告抑制（必须在导入第三方库之前）
@@ -47,6 +71,8 @@ def setup_warnings():
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='numpy')
 
 setup_warnings()
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # 导入应用模块

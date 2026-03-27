@@ -308,7 +308,8 @@ class App:
             stock_list = StockSamplingHelper.get_stock_list(
                 all_stocks=all_stocks,
                 sampling_amount=sampling_amount,
-                sampling_config=sampling_config
+                sampling_config=sampling_config,
+                strategy_name=settings.name,
             )
         else:
             stock_list = [s['id'] for s in all_stocks]

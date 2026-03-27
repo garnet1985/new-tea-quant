@@ -104,7 +104,8 @@ class StrategyManager:
         stock_list = StockSamplingHelper.get_stock_list(
             all_stocks, 
             settings.sampling_amount,
-            settings.sampling_config
+            settings.sampling_config,
+            strategy_name=strategy_name,
         )
         logger.info(f"📊 股票数量: {len(stock_list)}")
         
@@ -195,6 +196,7 @@ class StrategyManager:
                 all_stocks=all_stocks,
                 sampling_amount=sampling_amount,
                 sampling_config=sampling_cfg,
+                strategy_name=strategy_name,
             )
             logger.info("🧪 模拟股票模式: sampling (use_sampling=True)")
         else:

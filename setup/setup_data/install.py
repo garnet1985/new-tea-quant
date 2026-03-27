@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from pathlib import Path
@@ -29,6 +30,8 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    # 显示 setup_data 与底层 import 的 INFO 进度日志（大表分批导入会持续输出）。
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
     inst = SetupDataInstaller(table_prefix="")
     inst.run(force=args.force, remove_extract=True)

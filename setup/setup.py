@@ -92,22 +92,14 @@ class NewTeaQuantSetup:
 
     @staticmethod
     def print_check_item(status: str, msg: str) -> None:
-        """
-        统一 checklist 输出（ASCII）：
-        - running: [..]
-        - done:    [OK]
-        - warn:    [WARN]
-        - skip:    [SKIP]
-        - fail:    [FAIL]
-        """
         marks = {
-            "running": "[..]",
-            "done": "[OK]",
-            "warn": "[WARN]",
-            "skip": "[SKIP]",
-            "fail": "[FAIL]",
+            "running": "⏳",
+            "done": "✅",
+            "warn": "⚠️",
+            "skip": "⏭️",
+            "fail": "❌",
         }
-        mark = marks.get(status, "[ ]")
+        mark = marks.get(status, "ℹ️")
         print(f"{mark} {msg}", flush=True)
 
     @staticmethod
@@ -120,7 +112,7 @@ class NewTeaQuantSetup:
 
     @staticmethod
     def print_check_info(msg: str) -> None:
-        print(f"-> {msg}", flush=True)
+        print(f"[info] -> {msg}", flush=True)
 
     @classmethod
     def check_file_exists(cls, path: Path, ok_msg: str, fail_msg: str) -> bool:

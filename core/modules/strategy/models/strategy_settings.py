@@ -39,7 +39,7 @@ class StrategySettings:
             "stop_loss": {...},
             "take_profit": {...}
         },
-        "simulator": {
+        "price_simulator": {
             "start_date": "",
             "end_date": "",
             "output_version": "latest",
@@ -76,8 +76,8 @@ class StrategySettings:
         # 采样配置（新格式：顶层 "sampling"）
         self.sampling = settings_dict.get('sampling', {})
         
-        # Simulator 配置（新格式：使用 "simulator" 字段）
-        self.simulator = settings_dict.get('simulator', {})
+        # Price Simulator 配置（新格式：使用 "price_simulator" 字段）
+        self.price_simulator = settings_dict.get('price_simulator', {})
         
         # 投资目标配置（顶层配置，跨模块使用）
         self.goal = settings_dict.get('goal', {})
@@ -117,12 +117,12 @@ class StrategySettings:
     @property
     def start_date(self) -> str:
         """模拟开始日期"""
-        return self.simulator.get('start_date', '')
+        return self.price_simulator.get('start_date', '')
     
     @property
     def end_date(self) -> str:
         """模拟结束日期"""
-        return self.simulator.get('end_date', '')
+        return self.price_simulator.get('end_date', '')
     
     @property
     def sampling_amount(self) -> int:
@@ -139,9 +139,9 @@ class StrategySettings:
         """
         最大进程数（'auto' 或具体数字）
         
-        优先级：simulator.max_workers > enumerator.max_workers > performance.max_workers > "auto"
+        优先级：price_simulator.max_workers > enumerator.max_workers > performance.max_workers > "auto"
         """
-        simulator_cfg = self.simulator or {}
+        simulator_cfg = self.price_simulator or {}
         enumerator_cfg = self.get('enumerator') or {}
         performance_cfg = self.performance or {}
         

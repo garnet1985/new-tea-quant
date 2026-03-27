@@ -21,7 +21,7 @@ settings = {
         "extra_data_sources": [...]
     },
     "sampling": {...},
-    "simulator": {
+    "price_simulator": {
         "start_date": "...",
         "end_date": "...",
         "goal": {...}
@@ -58,7 +58,7 @@ class OpportunityEnumeratorSettings:
 
     # 下面字段在 __post_init__ 中由 raw 推导填充
     data: Dict[str, Any] = field(init=False)
-    simulator: Dict[str, Any] = field(init=False)
+    price_simulator: Dict[str, Any] = field(init=False)
     goal: Dict[str, Any] = field(init=False)
     use_sampling: bool = field(init=False)
     max_workers: "str | int" = field(init=False)
@@ -78,7 +78,7 @@ class OpportunityEnumeratorSettings:
         """
         在初始化后执行两步：
         1. 检查核心/必要字段是不是齐全有效
-        2. 补全缺失的可选字段（写回到内部 data/simulator 视图）
+        2. 补全缺失的可选字段（写回到内部 data/price_simulator 视图）
         """
         self._validate_and_normalize()
 
@@ -112,7 +112,7 @@ class OpportunityEnumeratorSettings:
            - data.min_required_records：缺失或非法时使用默认值 100
            - data.indicators：缺失时设为空 dict
            - data.required_entities：缺失时设为空 list
-           - simulator.goal：缺失时设为空 dict（允许“无止盈止损”，但建议用户配置）
+           - price_simulator.goal：缺失时设为空 dict（允许“无止盈止损”，但建议用户配置）
         """
         settings = self.raw or {}
 
@@ -211,8 +211,8 @@ class OpportunityEnumeratorSettings:
         
         self.monitor_interval = int(enumerator.get("monitor_interval", 5))
 
-        # ----- simulator 部分 -----
-        simulator = dict(settings.get("simulator") or {})
+        # ----- price_simulator 部分 -----
+        simulator = dict(settings.get("price_simulator") or {})
 
         # goal 配置：从顶层 goal 读取
         goal = settings.get("goal", {})
@@ -227,7 +227,7 @@ class OpportunityEnumeratorSettings:
                 f"    'expiration': {{'fixed_window_in_days': 30, 'is_trading_days': True}}\n"
                 f"  }}"
             )
-        self.simulator = simulator
+        self.price_simulator = simulator
         self.goal = goal
 
     # -------------------------------------------------------------------------
@@ -239,12 +239,12 @@ class OpportunityEnumeratorSettings:
 
         策略：
         - 从原始 raw 做一个浅拷贝
-        - 用枚举器内部的 data/simulator 视图覆盖对应字段
+        - 用枚举器内部的 data/price_simulator 视图覆盖对应字段
         - 其他字段（如 core/performance）原样保留，方便其他模块继续使用
         """
         merged = dict(self.raw or {})
         merged["data"] = self.data
-        merged["simulator"] = self.simulator
+        merged["price_simulator"] = self.price_simulator
         # 确保 enumerator 配置存在
         if "enumerator" not in merged:
             merged["enumerator"] = {}
@@ -258,6 +258,6 @@ class OpportunityEnumeratorSettings:
         merged["enumerator"]["min_batch_size"] = self.min_batch_size
         merged["enumerator"]["max_batch_size"] = self.max_batch_size
         merged["enumerator"]["monitor_interval"] = self.monitor_interval
-        # goal/min_required_records 已经写回 simulator/data 内部，这里不单独暴露
+        # goal/min_required_records 已经写回 price_simulator/data 内部，这里不单独暴露
         return merged
 

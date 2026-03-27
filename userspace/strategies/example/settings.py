@@ -87,7 +87,7 @@ settings = {
     # 枚举器配置
     # ========================================
     "enumerator": {
-        # 是否使用采样配置
+        # 是否使用采样配置 - 如果您要全量枚举，请切记关闭此选项（False）
         # True: 使用 sampling 配置进行采样枚举（结果保存在 test/ 子目录）
         # False: 使用全量股票列表进行枚举（结果保存在 output/ 子目录，作为 SOT）
         "use_sampling": False,
@@ -119,29 +119,7 @@ settings = {
     },
 
     # ========================================
-    # 模拟器配置
-    # ========================================
-    # TODO：to be renamed to price_simulator
-    "simulator": {
-        # 时间窗口（可选），为空表示使用 SOT 全量时间
-        "start_date": "",
-        "end_date": "",
-
-        # 枚举版本依赖
-        # 采样语义统一下沉到枚举器层，这里只负责指明读取哪一套 SOT：
-        #   - "latest": 使用最新的输出版本（output/ 目录）
-        #   - "test/latest": 使用最新的测试版本（test/ 目录）
-        #   - "output/latest": 使用最新的输出版本（output/ 目录）
-        #   - "1": 使用指定版本号（默认在 output/ 目录查找）
-        #   - "test/67": 使用 test 目录下的第 67 版
-        "output_version": "test/67",
-
-        # 模拟器专用 worker 数量（"auto" 或具体数字）
-        "max_workers": "auto",
-    },
-
-    # ========================================
-    # 交易成本配置（公用配置，可被 simulator / capital_simulator 覆盖）
+    # 交易成本配置（公用配置，可被 price_simulator / capital_simulator 覆盖）
     # ========================================
     "fees": {
         "commission_rate": 0.00025,      # 佣金率（双边，万2.5）
@@ -151,12 +129,38 @@ settings = {
     },
 
     # ========================================
+    # 模拟器配置
+    # ========================================
+    "price_simulator": {
+        # 是否使用采样配置 - 如果您要全量枚举，请切记关闭此选项（False）
+        "use_sampling": False,
+
+        # 模拟器专用 worker 数量（"auto" 或具体数字）
+        "max_workers": "auto",
+
+        "base_version": "latest",
+
+        # 时间窗口（可选），为空表示使用 SOT 全量时间
+        # "start_date": "",
+        # "end_date": "",
+
+        # 枚举版本依赖（读取 test 还是 output 由 use_sampling 决定）
+        #   - "latest": 使用对应目录的最新版本
+        #   - "1": 使用对应目录的指定版本号
+        #   - 如果没配置 / 配置找不到：回退到对应目录 latest
+        #   - 如果对应目录没有任何版本：会先自动触发一次对应模式枚举
+        # "base_version": "latest",
+    },
+
+    # ========================================
     # 资金分配模拟器配置（CapitalAllocationSimulator）
     # ========================================
     "capital_simulator": {
+        # 是否使用采样配置 - 如果您要全量枚举，请切记关闭此选项（False）
+        "use_sampling": False,
+
         # 枚举版本依赖（与 PriceFactor 一样的语义）
-        # "latest" / "test/latest" / "output/latest" / "1" / "test/67" 等
-        "output_version": "test/67",
+        "base_version": "latest",
 
         # 初始资金（元）
         "initial_capital": 1_000_000,

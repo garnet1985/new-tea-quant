@@ -41,7 +41,7 @@ class CapitalAllocationSettings(BaseSettings):
     资金分配模拟器设置
     
     配置字段：
-    - output_version: 枚举器输出版本依赖（默认 "latest"）
+    - base_version: 枚举器输出版本依赖（默认 "latest"）
     - use_sampling: 是否使用采样配置（默认 True）
     - initial_capital: 初始资金（默认 1_000_000，最小值 1000）
     - allocation: 资金分配配置
@@ -49,7 +49,7 @@ class CapitalAllocationSettings(BaseSettings):
     """
     
     # 资金分配模拟器特定字段（延迟提取）
-    _output_version: Optional[str] = None
+    _base_version: Optional[str] = None
     _use_sampling: Optional[bool] = None
     _initial_capital: Optional[float] = None
     _allocation: Optional[AllocationConfig] = None
@@ -67,7 +67,7 @@ class CapitalAllocationSettings(BaseSettings):
         - allocation.mode 必须是有效枚举值（Critical）
         - allocation.max_portfolio_size 必须 > 0（Critical）
         - 添加默认值
-        - 检查 output_version（Warning）
+        - 检查 base_version（Warning）
         - 检查 fees 配置（Warning）
         
         Returns:
@@ -109,12 +109,12 @@ class CapitalAllocationSettings(BaseSettings):
             ))
             result.is_valid = False
         
-        # 检查 output_version（Warning）
-        if self._output_version and self._output_version != "latest":
+        # 检查 base_version（Warning）
+        if self._base_version and self._base_version != "latest":
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
-                field_path="capital_simulator.output_version",
-                message=f"指定的输出版本 '{self._output_version}' 将在运行时检查，如果不存在将使用 'latest'",
+                field_path="capital_simulator.base_version",
+                message=f"指定的输出版本 '{self._base_version}' 将在运行时检查，如果不存在将使用 'latest'",
                 suggested_fix="如果版本不存在，系统将自动使用 'latest'，如果 'latest' 也不存在，建议先运行枚举器"
             ))
         
@@ -160,8 +160,8 @@ class CapitalAllocationSettings(BaseSettings):
         """提取资金分配模拟器特定字段并添加默认值"""
         capital_config = self.raw_settings.get("capital_simulator", {})
         
-        # output_version（默认 "latest"）
-        self._output_version = capital_config.get("output_version", "latest") or "latest"
+        # base_version（默认 "latest"）
+        self._base_version = capital_config.get("base_version", "latest") or "latest"
         
         # use_sampling（默认 True）
         use_sampling = capital_config.get("use_sampling")
@@ -228,13 +228,13 @@ class CapitalAllocationSettings(BaseSettings):
         """
         获取交易成本配置（带优先级）
         
-        优先级：capital_simulator.fees > simulator.fees > top_level.fees
+        优先级：capital_simulator.fees > price_simulator.fees > top_level.fees
         
         Returns:
             fees 配置字典
         """
         capital_config = self.raw_settings.get("capital_simulator", {})
-        simulator_config = self.raw_settings.get("simulator", {})
+        simulator_config = self.raw_settings.get("price_simulator", {})
         top_level_fees = self.get_fees_config()
         
         # 按优先级返回

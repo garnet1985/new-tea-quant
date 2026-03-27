@@ -96,49 +96,17 @@ class KlineService(BaseDataService):
         """
         return self._stock_kline.load_by_date(date)
     
-    def load_qfq(
+    def _query_qfq_join_rows(
         self,
         stock_id: str,
-        term: str = 'daily',
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        term: str,
+        start_date: Optional[str],
+        end_date: Optional[str],
     ) -> List[Dict[str, Any]]:
         """
-        加载前复权（QFQ）K线数据
-        
-        使用新的 adj_factor_event 表计算前复权价格：
-        qfq_price = raw_price - qfq_diff
-        
-        优化：使用 JOIN 一次查询出所有需要的数据，减少数据库查询次数
-        
-        Args:
-            stock_id: 股票代码
-            term: 周期（daily/weekly/monthly，默认 daily）
-            start_date: 开始日期（YYYYMMDD 或 YYYY-MM-DD，可选）
-            end_date: 结束日期（YYYYMMDD 或 YYYY-MM-DD，可选）
-        
-        Returns:
-            List[Dict]: 前复权K线数据列表，每条记录包含原始字段 + qfq_* 字段
+        JOIN 查询：K 线 + (event_date <= k.date) 最近复权事件。
+        返回原始查询结果（含 adj_event_date/adj_factor/adj_qfq_diff）。
         """
-        # 统一日期格式为 YYYYMMDD
-        start_date = self._normalize_date(start_date)
-        end_date = self._normalize_date(end_date)
-        
-        # 使用 JOIN 一次查询出 K 线数据和对应的复权因子事件
-        # 优化方案：使用窗口函数（ROW_NUMBER）替代相关子查询，性能更好
-        # 对于每个 K 线日期，找到小于等于该日期的最近一个复权因子事件
-        # ⚠️  性能问题：相关子查询在 JOIN 中对每条 K 线执行一次
-        # - 平均每只股票: ~3190 条 K 线
-        # - 相关子查询执行次数: ~3190 次/股票
-        # - 虽然只有 1 条 SQL 语句，但内部执行了大量子查询
-        # - 导致单次查询时间从 38.73ms 增加到 171.61ms（4.4倍）
-        #
-        # 💡 优化方向（待实施）：
-        # 1. 使用派生表预计算每个日期对应的最新因子（减少子查询执行次数）
-        # 2. 使用窗口函数（如果 MySQL 版本支持，MySQL 8.0+）
-        # 3. 或者回退到多次查询方式（3 次简单查询可能比 1 次复杂查询快）
-        #
-        # 当前实现：使用相关子查询（兼容性好，但性能较差）
         sql = """
         SELECT 
             k.*,
@@ -160,43 +128,146 @@ class KlineService(BaseDataService):
             AND (k.date <= %s OR %s IS NULL)
         ORDER BY k.date ASC
         """
-        
         params = (stock_id, term, start_date, start_date, end_date, end_date)
-        
+        return self.db.execute_sync_query(sql, params) or []
+
+    def _load_earliest_adj_event(self, stock_id: str) -> Optional[Dict[str, Any]]:
+        """获取该股票最早一条复权事件（用于默认连续模式的前段补齐）。"""
+        if not self._adj_factor_event:
+            return None
+        return self._adj_factor_event.load_one("id = %s", (stock_id,), order_by="event_date ASC")
+
+    @staticmethod
+    def _to_float_or_none(v: Any) -> Optional[float]:
+        if v is None:
+            return None
         try:
-            results = self.db.execute_sync_query(sql, params)
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+
+    def _build_qfq_rows_strict(
+        self,
+        results: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        严格输出：仅使用命中的历史事件；未命中时按原价（qfq_diff=0）。
+        """
+        qfq_klines: List[Dict[str, Any]] = []
+        for row in results:
+            qfq_kline = dict(row)
+            qfq_diff = self._to_float_or_none(qfq_kline.get('adj_qfq_diff'))
+            is_adjusted = qfq_diff is not None
+            if qfq_diff is None:
+                qfq_diff = 0.0
+
+            qfq_kline.pop('adj_event_date', None)
+            qfq_kline.pop('adj_factor', None)
+            qfq_kline.pop('adj_qfq_diff', None)
+
+            self._apply_qfq_prices(qfq_kline, qfq_diff)
+            qfq_kline['qfq_is_adjusted'] = is_adjusted
+            qfq_kline['qfq_is_inferred'] = False
+            qfq_klines.append(qfq_kline)
+        return qfq_klines
+
+    def _build_qfq_rows_default(
+        self,
+        *,
+        stock_id: str,
+        results: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        默认连续输出：无历史事件时沿用最早可用事件的 qfq_diff。
+        """
+        earliest_event = self._load_earliest_adj_event(stock_id)
+        inferred_qfq_diff = self._to_float_or_none(
+            earliest_event.get('qfq_diff') if earliest_event else None
+        )
+
+        qfq_klines: List[Dict[str, Any]] = []
+        for row in results:
+            qfq_kline = dict(row)
+            strict_qfq_diff = self._to_float_or_none(qfq_kline.get('adj_qfq_diff'))
+
+            is_inferred = False
+            is_adjusted = False
+
+            if strict_qfq_diff is not None:
+                qfq_diff = strict_qfq_diff
+                is_adjusted = True
+            elif inferred_qfq_diff is not None:
+                qfq_diff = inferred_qfq_diff
+                is_adjusted = True
+                is_inferred = True
+            else:
+                qfq_diff = 0.0
+
+            qfq_kline.pop('adj_event_date', None)
+            qfq_kline.pop('adj_factor', None)
+            qfq_kline.pop('adj_qfq_diff', None)
+
+            self._apply_qfq_prices(qfq_kline, qfq_diff)
+            qfq_kline['qfq_is_adjusted'] = is_adjusted
+            qfq_kline['qfq_is_inferred'] = is_inferred
+            qfq_klines.append(qfq_kline)
+        return qfq_klines
+
+    def load_qfq_strict(
+        self,
+        stock_id: str,
+        term: str = 'daily',
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        严格模式前复权：
+        - 仅使用 event_date <= k.date 的最近复权事件；
+        - 若找不到事件，不推断，直接按 qfq_diff=0 处理（等于原价）；
+        - 输出标记字段：
+            qfq_is_adjusted: 是否命中复权事件
+            qfq_is_inferred: 严格模式恒为 False
+        
+        Args:
+            stock_id: 股票代码
+            term: 周期（daily/weekly/monthly，默认 daily）
+            start_date: 开始日期（YYYYMMDD 或 YYYY-MM-DD，可选）
+            end_date: 结束日期（YYYYMMDD 或 YYYY-MM-DD，可选）
+        
+        Returns:
+            List[Dict]: 严格前复权K线数据列表
+        """
+        return self.load_qfq(stock_id, term, start_date, end_date, is_strict=True)
+
+    def load_qfq(
+        self,
+        stock_id: str,
+        term: str = 'daily',
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        is_strict: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        前复权加载统一入口：
+        - is_strict=False（默认连续）：缺历史事件时沿用最早可用事件的 qfq_diff 补齐
+        - is_strict=True（严格）：缺历史事件不推断，按原价（qfq_diff=0）
+        输出标记字段：
+            qfq_is_adjusted: 是否使用了复权差值
+            qfq_is_inferred: 是否属于默认连续模式下的推断补齐
+        """
+        start_date = self._normalize_date(start_date)
+        end_date = self._normalize_date(end_date)
+
+        try:
+            results = self._query_qfq_join_rows(stock_id, term, start_date, end_date)
             if not results:
                 return []
-            
-            # 转换结果并计算 QFQ 价格
-            qfq_klines = []
-            for row in results:
-                qfq_kline = dict(row)
-                
-                # 获取复权因子信息
-                qfq_diff = qfq_kline.get('adj_qfq_diff')
-                if qfq_diff is None:
-                    # 如果没有复权因子事件，使用默认值 0.0
-                    qfq_diff = 0.0
-                else:
-                    qfq_diff = float(qfq_diff)
-                
-                # 移除临时字段
-                qfq_kline.pop('adj_event_date', None)
-                qfq_kline.pop('adj_factor', None)
-                qfq_kline.pop('adj_qfq_diff', None)
-                
-                # 计算前复权价格字段
-                self._apply_qfq_prices(qfq_kline, qfq_diff)
-                
-                qfq_klines.append(qfq_kline)
-            
-            return qfq_klines
-            
+            if is_strict:
+                return self._build_qfq_rows_strict(results)
+            return self._build_qfq_rows_default(stock_id=stock_id, results=results)
         except Exception as e:
             logger.error(f"查询 QFQ K 线数据失败: {e}")
-            # 如果 JOIN 查询失败，回退到原来的多次查询方式
-            logger.warning(f"回退到多次查询方式")
+            logger.warning("回退到多次查询方式")
             return self._load_qfq_fallback(stock_id, term, start_date, end_date)
     
     def load_multiple(self, stock_id: str, settings: Dict[str, Any]) -> Dict[str, List[Dict]]:
@@ -571,7 +642,14 @@ class KlineService(BaseDataService):
         factor_events = self._load_factor_events(stock_id, raw_klines)
         if not factor_events:
             logger.warning(f"{stock_id} 没有复权因子事件，返回原始K线数据")
-            return raw_klines
+            rows = []
+            for kline in raw_klines:
+                qfq_kline = kline.copy()
+                self._apply_qfq_prices(qfq_kline, 0.0)
+                qfq_kline['qfq_is_adjusted'] = False
+                qfq_kline['qfq_is_inferred'] = False
+                rows.append(qfq_kline)
+            return rows
         
         # 获取最新复权因子（保留以兼容接口）
         F_T = self._get_latest_factor(stock_id) or 1.0
@@ -654,6 +732,9 @@ class KlineService(BaseDataService):
             # 计算前复权价格：qfq_price = raw_price - qfq_diff
             qfq_kline = kline.copy()
             self._apply_qfq_prices(qfq_kline, current_qfq_diff)
+            # 严格回退模式：仅当已有 <= 当前日期的事件时才视为复权过
+            qfq_kline['qfq_is_adjusted'] = event_idx > 0
+            qfq_kline['qfq_is_inferred'] = False
             qfq_klines.append(qfq_kline)
         
         return qfq_klines

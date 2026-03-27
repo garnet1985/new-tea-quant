@@ -157,7 +157,7 @@ simulator = PriceFactorSimulator(is_verbose=True)
 
 ### run
 
-**描述**：对指定策略执行**价格因子模拟**。读取枚举器输出版本（SOT），对每只股票构建模拟作业并多进程执行，输出轻量级 summary 结果和版本目录。
+**描述**：对指定策略执行**价格因子模拟**。读取枚举器输出版本（枚举输出结果），对每只股票构建模拟作业并多进程执行，输出轻量级 summary 结果和版本目录。
 
 **函数签名**：`PriceFactorSimulator.run(strategy_name: str) -> Dict[str, Any]`
 
@@ -185,7 +185,7 @@ print(summary)
 
 ### CapitalAllocationSimulator（构造函数）
 
-**描述**：创建资金分配模拟器（Layer 3）。在 PriceFactorSimulator 验证价格因子有效后，基于 SOT 机会流和资金管理配置，模拟真实资金约束下的交易与仓位分配。
+**描述**：创建资金分配模拟器（Layer 3）。在 PriceFactorSimulator 验证价格因子有效后，基于 枚举输出机会流和资金管理配置，模拟真实资金约束下的交易与仓位分配。
 
 **函数签名**：`CapitalAllocationSimulator(is_verbose: bool = False)`
 
@@ -209,7 +209,7 @@ simulator = CapitalAllocationSimulator(is_verbose=True)
 
 ### run
 
-**描述**：对指定策略执行**资金分配模拟**。读取枚举器输出版本中生成的事件流（SOT），结合资金、手续费和分配策略配置，生成交易记录与权益曲线。
+**描述**：对指定策略执行**资金分配模拟**。读取枚举器输出版本中生成的事件流（枚举输出结果），结合资金、手续费和分配策略配置，生成交易记录与权益曲线。
 
 **函数签名**：`CapitalAllocationSimulator.run(strategy_name: str) -> Dict[str, Any]`
 

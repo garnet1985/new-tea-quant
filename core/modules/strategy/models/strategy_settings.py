@@ -22,7 +22,7 @@ class StrategySettings:
         "data": {
             "base_price_source": "stock_kline_daily",
             "adjust_type": "qfq",
-            "min_required_records": 1000,
+            "min_required_records": 100,
             "indicators": {...},
             "extra_data_sources": [...]
         },
@@ -97,7 +97,7 @@ class StrategySettings:
     @property
     def min_required_records(self) -> int:
         """最小要求记录数"""
-        return self.data.get('min_required_records', 1000)
+        return self.data.get('min_required_records', 100)
     
     @property
     def adjust_type(self) -> str:

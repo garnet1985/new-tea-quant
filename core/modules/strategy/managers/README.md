@@ -21,11 +21,11 @@
 
 2. **价格因子模拟器（Price Factor Simulator）**
    - 独立的版本管理
-   - 支持对同一 SOT 版本进行多轮模拟对比
+   - 支持对同一 枚举输出版本进行多轮模拟对比
 
 3. **资金分配模拟器（Capital Allocation Simulator）**
    - 独立的版本管理
-   - 支持对同一 SOT 版本进行多轮模拟对比
+   - 支持对同一 枚举输出版本进行多轮模拟对比
 
 ### 版本目录格式
 
@@ -66,7 +66,7 @@
 ```python
 from app.core.modules.strategy.managers.version_manager import VersionManager
 
-# 创建 SOT 版本（完整枚举）
+# 创建 枚举输出版本（完整枚举）
 version_dir, version_id = VersionManager.create_enumerator_version(
     strategy_name="example",
     use_sampling=False
@@ -100,7 +100,7 @@ version_dir, version_id = VersionManager.create_enumerator_version(
 
 **示例**：
 ```python
-# 使用最新 SOT 版本
+# 使用最新 枚举输出版本
 version_dir, base_dir = VersionManager.resolve_enumerator_version(
     strategy_name="example",
     version_spec="latest"
@@ -223,7 +223,7 @@ app/userspace/strategies/{strategy_name}/results/
 │   ├── test/                   # 测试版本（采样模式）
 │   │   ├── meta.json
 │   │   └── {version_id}_{timestamp}/
-│   └── sot/                    # SOT 版本（完整枚举）
+│   └── sot/                    # 枚举输出版本（完整枚举）
 │       ├── meta.json
 │       └── {version_id}_{timestamp}/
 ├── simulations/

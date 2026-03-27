@@ -63,7 +63,12 @@ class ResultPresenter:
         print(f" - {annual_return_in_trading_days_dot} 按交易日: {annual_return_in_trading_days * 100:.2f}%")
 
         # 其他统计信息
-        print(f"{IconService.get('clock')} 平均投资时长: {session_summary.get('avg_duration_in_days', 0):.1f} 自然日")
+        avg_duration_days = session_summary.get("avg_duration_in_days", 0.0)
+        avg_duration_trading_days = session_summary.get("avg_duration_in_trading_days", 0.0)
+        print(
+            f"{IconService.get('clock')} 平均投资时长: "
+            f"{avg_duration_days:.1f} 自然日 / {avg_duration_trading_days:.1f} 交易日(换算)"
+        )
         print(f"{IconService.get('bar_chart')} 总投资次数: {session_summary.get('total_investments', 0)}")
         print(f"{IconService.get('success')} 成功次数: {session_summary.get('total_win_investments', 0)}")
         print(f"{IconService.get('error')} 失败次数: {session_summary.get('total_loss_investments', 0)}")

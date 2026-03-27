@@ -36,16 +36,15 @@ config/database/pg_config.json
 # User configuration files (sensitive)
 userspace/config/**/*.json
 userspace/config/**/*.example.json
-userspace/demo_data/*
+setup/init_data/*
 
 ########################
 # Data & Cache
 ########################
 
-data/cache/
-data/downloads/*.xlsx
 backup/data/
 .pytest_cache/
+setup/init_data/
 
 ########################
 # Strategy Results

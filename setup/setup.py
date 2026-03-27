@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -69,7 +68,7 @@ class NewTeaQuantSetup:
     def to_root_dir(cls) -> None:
         os.chdir(cls.repo_root)
 
-    @classmethod    
+    @classmethod
     def print_info(cls, title: str, msg: str, icon: str = None) -> None:
         icon_map = {
             "success": "✅",
@@ -92,6 +91,26 @@ class NewTeaQuantSetup:
         print(f"{line}\n")
 
     @staticmethod
+    def print_check_item(status: str, msg: str) -> None:
+        """
+        统一 checklist 输出（ASCII）：
+        - running: [..]
+        - done:    [OK]
+        - warn:    [WARN]
+        - skip:    [SKIP]
+        - fail:    [FAIL]
+        """
+        marks = {
+            "running": "[..]",
+            "done": "[OK]",
+            "warn": "[WARN]",
+            "skip": "[SKIP]",
+            "fail": "[FAIL]",
+        }
+        mark = marks.get(status, "[ ]")
+        print(f"{mark} {msg}", flush=True)
+
+    @staticmethod
     def print_check_ok(msg: str) -> None:
         print(f"✅ {msg}", flush=True)
 
@@ -111,34 +130,16 @@ class NewTeaQuantSetup:
         cls.print_check_fail(f"{fail_msg}: {path}")
         return False
 
-    # def use_china_mirror(self) -> bool:
-    #     raw = os.environ.get("USE_CHINA_MIRROR", "").strip().lower()
-    #     return raw in ("1", "true", "yes")
+    @classmethod
+    def install_script_path(cls, step_name: str) -> Path:
+        return cls.repo_root / "setup" / step_name / "install.py"
 
-    # def should_import_demo_data(self) -> bool:
-    #     return os.environ.get("INSTALL_DEMO_DATA", "0").strip() == "1"
-
-    # def install_script_path(self, step_name: str) -> Path:
-    #     """setup/<step_name>/install.py"""
-    #     return self.root / "setup" / step_name / "install.py"
-
-    # def run_install_script(
-    #     self,
-    #     step_name: str,
-    #     script_args: Sequence[str] = (),
-    # ) -> int:
-    #     """
-    #     以当前解释器执行 setup/<step_name>/install.py，并传入 script_args 作为其命令行参数。
-    #     返回子进程退出码；脚本不存在时返回 1。
-    #     """
-    #     script = self.install_script_path(step_name)
-    #     if not script.is_file():
-    #         self.print_info("错误", f"未找到步骤脚本: {script}", "failed")
-    #         return 1
-    #     cmd = [sys.executable, str(script), *script_args]
-    #     r = subprocess.run(
-    #         cmd,
-    #         cwd=str(self.root),
-    #         env=os.environ.copy(),
-    #     )
-    #     return int(r.returncode)
+    @classmethod
+    def run_install_script(cls, step_name: str, script_args: Sequence[str] = ()) -> int:
+        script = cls.install_script_path(step_name)
+        if not script.is_file():
+            cls.print_check_item("fail", f"未找到步骤脚本: {script}")
+            return 1
+        cmd = [sys.executable, str(script), *script_args]
+        r = subprocess.run(cmd, cwd=str(cls.repo_root), env=os.environ.copy())
+        return int(r.returncode)

@@ -288,12 +288,12 @@ class GoalValidator:
             ))
             return result
         
-        # 验证 fixed_window_in_days 或 fixed_period
-        if "fixed_window_in_days" not in expiration and "fixed_period" not in expiration:
+        # 验证 fixed_window_in_days
+        if "fixed_window_in_days" not in expiration:
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
                 field_path=field_path,
-                message="expiration 配置缺少 fixed_window_in_days 或 fixed_period",
+                message="expiration 配置缺少 fixed_window_in_days",
                 suggested_fix='在 expiration 中添加 "fixed_window_in_days": 30（例如）'
             ))
         

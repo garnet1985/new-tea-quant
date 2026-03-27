@@ -82,7 +82,7 @@ class StrategyWorkerDataManager:
         """
         # 1. 确定 lookback
         if lookback is None:
-            lookback = self.settings.min_required_records or 1000
+            lookback = self.settings.min_required_records or 100
         
         # 2. 获取最新交易日
         latest_date = self._get_latest_trading_date()

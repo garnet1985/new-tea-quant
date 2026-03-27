@@ -120,11 +120,11 @@ Strategy 模块旨在解决以下问题：
 │           │                                              │
 │           ├─▶ PriceFactorSimulator (Layer 2)            │
 │           │   - 价格因子模拟（无资金约束）              │
-│           │   - 基于 SOT 结果                           │
+│           │   - 基于 枚举输出结果                           │
 │           │                                              │
 │           └─▶ CapitalAllocationSimulator (Layer 3)      │
 │               - 资金分配模拟（真实资金约束）            │
-│               - 基于 SOT 结果                           │
+│               - 基于 枚举输出结果                           │
 │                                                           │
 │           │                                              │
 │           ▼                                              │
@@ -151,13 +151,13 @@ Strategy 模块旨在解决以下问题：
 
 ### Layer 0: OpportunityEnumerator（底层公用组件）
 
-**职责**：完整枚举所有可能的投资机会，并将其作为整个策略系统的「底层事实表（SOT）」供上层复用。
+**职责**：完整枚举所有可能的投资机会，并将其作为整个策略系统的「底层事实表（枚举输出结果）」供上层复用。
 
 **为什么单独拆出一层枚举器？**
 
 - **一次计算，多次复用**：枚举结果以 CSV 双表（`opportunities.csv` + `targets.csv`）形式落地后：
   - 所有模拟器、分析工具、机器学习任务都可以直接复用，而不再重复跑 on-bar 回测
-  - 改策略逻辑只需重跑枚举层，上层价格/资金模拟可以在同一 SOT 上多次叠加
+  - 改策略逻辑只需重跑枚举层，上层价格/资金模拟可以在同一 枚举输出结果 上多次叠加
 - **可追溯，便于调试**：
   - 每一个机会的触发与结束路径都被独立记录，可以随时「钻进去」看某只股票、某一天到底发生了什么
   - 当回测结果看起来异常时，可以直接回到枚举数据而不是重放整条时间线
@@ -193,12 +193,12 @@ Strategy 模块旨在解决以下问题：
 **为什么单独拆出价格层模拟？**
 
 - **关注策略本身的预测能力**：先回答「价格层面这套规则有没有 alpha」，再考虑资金约束
-- **极快的迭代速度**：基于枚举器的 SOT 缓存，PriceFactorSimulator 无需再跑 on-bar 流程，只在已有机会上做轻量模拟，非常适合频繁调参
+- **极快的迭代速度**：基于枚举器的 枚举输出缓存，PriceFactorSimulator 无需再跑 on-bar 流程，只在已有机会上做轻量模拟，非常适合频繁调参
 - **结果天然结构化**：输出的 Investment 记录适合作为后续统计分析、因子研究和可视化输入
 
 **核心特点**：
 - ✅ **无资金约束**：只关注价格变化，不涉及资金管理
-- ✅ **基于 SOT**：使用 OpportunityEnumerator 的 SOT 结果
+- ✅ **基于 枚举输出结果**：使用 OpportunityEnumerator 的 枚举输出结果
 - ✅ **单股独立**：每只股票独立模拟，适合多进程
 
 **输出**：Investment 记录（JSON 格式）
@@ -212,7 +212,7 @@ Strategy 模块旨在解决以下问题：
 - **角色不同**：
   - 价格模拟回答「这套信号逻辑有没有用」
   - 资金模拟回答「在真实资金/多股票场景下，怎么调仓、怎么分配资金更合适」
-- **复杂度更高但有 SOT 加持**：
+- **复杂度更高但有 枚举输出结果 加持**：
   - 资金层模拟涉及账户、持仓、费用、多股票竞争等，是天然更「重」的一层
   - 基于枚举器缓存，仍然可以避免重复遍历原始 K 线，大幅降低计算成本
 
@@ -277,7 +277,7 @@ Strategy 模块旨在解决以下问题：
 **职责**：价格因子模拟（Layer 2）
 
 **核心功能**：
-1. **基于 SOT**：使用 OpportunityEnumerator 的 SOT 结果
+1. **基于 枚举输出结果**：使用 OpportunityEnumerator 的 枚举输出结果
 2. **单股独立**：每只股票独立模拟，适合多进程
 3. **结果聚合**：聚合所有股票的结果，生成整体 summary
 
@@ -478,10 +478,10 @@ class Event:
    │      ├─▶ a. 解析策略配置
    │      │      - StrategySettings → PriceFactorSimulatorConfig
    │      │
-   │      ├─▶ b. 解析 SOT 版本目录（VersionManager）
+   │      ├─▶ b. 解析 枚举输出版本目录（VersionManager）
    │      │      - 支持 "latest"、具体版本号、"test/latest" 等
    │      │
-   │      ├─▶ c. 扫描 SOT 目录，获取股票列表
+   │      ├─▶ c. 扫描 枚举输出结果 目录，获取股票列表
    │      │      - 从 CSV 文件列表提取股票 ID
    │      │
    │      ├─▶ d. 构建 jobs（每只股票一个 job）
@@ -491,7 +491,7 @@ class Event:
    │      │      │
    │      │      └─▶ 子进程执行流程（PriceFactorSimulatorWorker）：
    │      │             │
-   │      │             ├─▶ 1. 加载该股票的 SOT 数据
+   │      │             ├─▶ 1. 加载该股票的 枚举输出数据
    │      │             │      - opportunities.csv
    │      │             │      - targets.csv
    │      │             │
@@ -516,12 +516,12 @@ class Event:
           ├─▶ a. 解析策略配置
           │      - StrategySettings → CapitalAllocationSimulatorConfig
           │
-          ├─▶ b. 解析 SOT 版本目录（VersionManager）
+          ├─▶ b. 解析 枚举输出版本目录（VersionManager）
           │
           ├─▶ c. 创建模拟器版本目录（VersionManager）
           │
           ├─▶ d. 构建事件流（DataLoader）
-          │      - 从 SOT CSV 构建 Event 列表
+          │      - 从 枚举输出 CSV 构建 Event 列表
           │      - 按日期排序
           │
           ├─▶ e. 初始化账户（Account）
@@ -685,13 +685,13 @@ class Event:
 1. **解析策略配置**
    - `StrategySettings` → `PriceFactorSimulatorConfig`
 
-2. **解析 SOT 版本目录**
+2. **解析 枚举输出版本目录**
    - 使用 `VersionManager.resolve_sot_version()`
 
 3. **创建模拟器版本目录**
    - 使用 `VersionManager.create_price_factor_version()`
 
-4. **扫描 SOT 目录，获取股票列表**
+4. **扫描 枚举输出结果 目录，获取股票列表**
 
 5. **构建 jobs**（每只股票一个 job）
 
@@ -705,7 +705,7 @@ class Event:
 
 **子进程**（`PriceFactorSimulatorWorker.run`）：
 
-1. **加载该股票的 SOT 数据**
+1. **加载该股票的 枚举输出数据**
    - 使用 `DataLoader.load_opportunities_and_targets()`
 
 2. **构建 Investment 列表**
@@ -724,13 +724,13 @@ class Event:
 1. **解析策略配置**
    - `StrategySettings` → `CapitalAllocationSimulatorConfig`
 
-2. **解析 SOT 版本目录**
+2. **解析 枚举输出版本目录**
 
 3. **创建模拟器版本目录**
 
 4. **构建事件流**
    - 使用 `DataLoader.build_event_stream()`
-   - 从 SOT CSV 构建 Event 列表
+   - 从 枚举输出 CSV 构建 Event 列表
    - 按日期排序
 
 5. **初始化账户**
@@ -829,7 +829,7 @@ StrategySettings (策略配置模型)
       │      ├─▶ DataLoader.load_opportunities_and_targets()
       │      │      │                                      
       │      │      ▼                                       
-      │      │   SOT CSV (opportunities + targets)          
+      │      │   枚举输出 CSV (opportunities + targets)          
       │      │                                               
       │      ├─▶ PriceFactorSimulatorWorker                  
       │      │      │                                       

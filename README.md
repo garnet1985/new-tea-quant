@@ -35,17 +35,24 @@
 | **演示行情等数据** | **默认不包含**；需自行接入数据源（如 Tushare）或从官网获取 |
 
 ## 如何联系到我？
-您可以在以下网址给我留言（不用注册也可）：
-**[new-tea.cn/zh-hans/contact](https://new-tea.cn/zh-hans/contact)** 
-框架是由我一人完成，工程量巨大，如有问题请您包容并及时反馈，谢谢您使用NTQ
 
+您可以在以下网址给我留言（不用注册也可）：
+
+**[new-tea.cn/zh-hans/contact](https://new-tea.cn/zh-hans/contact)**
+
+框架是由我一人完成，工程量巨大，如有问题请您包容并及时反馈，谢谢您使用 NTQ。
 
 ## 分支策略是什么？
-**master**：最新版本，拒绝任何直接的PR或者提交
-**dev**：可从中建立分析，dev会和master同步，到合适时机后会merge入master并且在master上建立rc分支用于release，之后release代码会回到dev
-**bugfix**: 请使用bugfix/your-change 的方式命名，否则无法merge
-**feature**: 请使用feature/your-change 的方式命名，否则无法merge
-**hotfix**: 请使用hotfix/your-change 的方式命名，否则无法merge，分支只能从rc分支拉取
+
+- **master**：最新版本，拒绝任何直接的 PR 或者提交
+
+- **dev**：可从中建立分析，dev 会和 master 同步，到合适时机后会 merge 入 master 并且在 master 上建立 rc 分支用于 release，之后 release 代码会回到 dev
+
+- **bugfix**：请使用 `bugfix/your-change` 的方式命名，否则无法 merge
+
+- **feature**：请使用 `feature/your-change` 的方式命名，否则无法 merge
+
+- **hotfix**：请使用 `hotfix/your-change` 的方式命名，否则无法 merge，分支只能从 rc 分支拉取
 
 ---
 

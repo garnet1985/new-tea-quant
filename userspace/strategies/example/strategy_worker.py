@@ -42,7 +42,7 @@ class ExampleStrategyWorker(BaseStrategyWorker):
             settings: 策略配置字典，包含：
                 - settings['core']: Dict - 核心配置（如 random_seed, rsi_length 等）
                 - settings['data']: Dict - 数据配置
-                - settings['simulator']: Dict - 模拟器配置
+                - settings['price_simulator']: Dict - 模拟器配置
                 - settings['goal']: Dict - 止盈止损配置
         
         Returns:

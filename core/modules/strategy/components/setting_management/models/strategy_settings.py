@@ -51,7 +51,7 @@ class StrategySettings(BaseSettings):
     
     def get_price_factor_config(self) -> Dict[str, Any]:
         """获取价格因子模拟器配置"""
-        return self.raw_settings.get("simulator", {})
+        return self.raw_settings.get("price_simulator", {})
     
     def get_capital_allocation_config(self) -> Dict[str, Any]:
         """获取资金分配模拟器配置"""

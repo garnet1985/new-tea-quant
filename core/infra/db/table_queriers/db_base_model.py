@@ -317,10 +317,23 @@ class DbBaseModel:
 
         paths: List[Path] = []
 
+        # 导出排序：优先按主键稳定排序，避免不同批次/不同执行计划下行序不一致。
+        export_order_by: Optional[str] = None
+        try:
+            pks = self.get_primary_keys()
+            if pks:
+                export_order_by = ", ".join([f"{k} ASC" for k in pks])
+        except Exception:
+            export_order_by = None
+
         if tpl.kind == ExportTemplateKind.FULL_TABLE or not tpl.chunk_rows:
             # 整表（或条件过滤后的全集）一次性导出
             try:
-                rows = self.load(condition=condition, params=params)
+                rows = self.load(
+                    condition=condition,
+                    params=params,
+                    order_by=export_order_by,
+                )
             except Exception as e:
                 logger.error("导出表 %s 失败（FULL_TABLE 导出）: %s", self.table_name, e)
                 raise
@@ -359,6 +372,7 @@ class DbBaseModel:
                 rows = self.load(
                     condition=condition,
                     params=params,
+                    order_by=export_order_by,
                     limit=chunk_size,
                     offset=offset,
                 )
@@ -560,36 +574,34 @@ class DbBaseModel:
         *,
         n: int,
         processed: int,
-        logged_up_to: int,
-        progress_every: int,
+        last_logged_pct: int,
         large_hint_threshold: int,
         target_sql: str,
         archive_name: str,
     ) -> int:
         if n < large_hint_threshold:
-            return logged_up_to
-        while logged_up_to + progress_every <= processed:
-            logged_up_to += progress_every
-            m = min(logged_up_to, n)
+            return last_logged_pct
+
+        pct = int((processed * 100) // n)
+        # 仅在每 10% 节点打印一次，避免日志刷屏
+        next_mark = ((last_logged_pct // 10) + 1) * 10
+        while next_mark <= min(pct, 100):
+            m = int((next_mark / 100.0) * n)
+            pct_text = f"{float(next_mark):.1f}%"
             logger.info(
-                "导入进度 %s -> %s [%s]: %d/%d 行 (%.1f%%)",
+                "导入进度 %s -> %s [%s]: %d/%d 行 (%s)",
                 self.table_name,
                 target_sql,
                 archive_name,
-                m,
+                m if next_mark < 100 else n,
                 n,
-                100.0 * m / n,
+                pct_text,
             )
-        if processed == n and logged_up_to < n:
-            logger.info(
-                "导入进度 %s -> %s [%s]: %d/%d 行 (100.0%%)",
-                self.table_name,
-                target_sql,
-                archive_name,
-                n,
-                n,
-            )
-        return logged_up_to
+            next_mark += 10
+
+        if pct >= 100:
+            return 100
+        return max(last_logged_pct, (pct // 10) * 10)
 
     def _insert_rows_batched(
         self,
@@ -599,7 +611,6 @@ class DbBaseModel:
         rows: List[Dict[str, Any]],
         *,
         batch_size: int,
-        progress_every: int,
         large_hint_threshold: int,
         archive_name: str,
     ) -> int:
@@ -613,15 +624,14 @@ class DbBaseModel:
         if n >= large_hint_threshold:
             logger.info(
                 "表 %s 本归档「%s」共 %d 行，使用批量 INSERT（每批约 %d 行），"
-                "大表仍可能耗时数分钟（约每 %d 行输出进度）",
+                "大表仍可能耗时数分钟（每 10%% 输出进度）",
                 self.table_name,
                 archive_name,
                 n,
                 batch_size,
-                progress_every,
             )
 
-        logged_up_to = 0
+        last_logged_pct = 0
         for start in range(0, n, batch_size):
             chunk = rows[start : start + batch_size]
             values_clause = ", ".join([one_row] * len(chunk))
@@ -633,11 +643,10 @@ class DbBaseModel:
             cursor.execute(insert_sql, tuple(flat))
 
             processed = start + len(chunk)
-            logged_up_to = self._import_log_progress_after_chunk(
+            last_logged_pct = self._import_log_progress_after_chunk(
                 n=n,
                 processed=processed,
-                logged_up_to=logged_up_to,
-                progress_every=progress_every,
+                last_logged_pct=last_logged_pct,
                 large_hint_threshold=large_hint_threshold,
                 target_sql=target_sql,
                 archive_name=archive_name,
@@ -652,7 +661,6 @@ class DbBaseModel:
         rows: List[Dict[str, Any]],
         *,
         batch_size: int,
-        progress_every: int,
         large_hint_threshold: int,
         archive_name: str,
     ) -> int:
@@ -668,15 +676,14 @@ class DbBaseModel:
         if n >= large_hint_threshold:
             logger.info(
                 "表 %s 本归档「%s」共 %d 行，使用 execute_values（每批约 %d 行），"
-                "大表仍可能耗时数分钟（约每 %d 行输出进度）",
+                "大表仍可能耗时数分钟（每 10%% 输出进度）",
                 self.table_name,
                 archive_name,
                 n,
                 batch_size,
-                progress_every,
             )
 
-        logged_up_to = 0
+        last_logged_pct = 0
         for start in range(0, n, batch_size):
             chunk = rows[start : start + batch_size]
             tuples = [
@@ -689,11 +696,10 @@ class DbBaseModel:
             execute_values(pg_cursor, sql, tuples, page_size=len(tuples))
 
             processed = start + len(chunk)
-            logged_up_to = self._import_log_progress_after_chunk(
+            last_logged_pct = self._import_log_progress_after_chunk(
                 n=n,
                 processed=processed,
-                logged_up_to=logged_up_to,
-                progress_every=progress_every,
+                last_logged_pct=last_logged_pct,
                 large_hint_threshold=large_hint_threshold,
                 target_sql=target_sql,
                 archive_name=archive_name,
@@ -711,7 +717,6 @@ class DbBaseModel:
     ) -> int:
         """在已清空的目标表上逐文件读 CSV 并批量插入。"""
         _LARGE_IMPORT_HINT = 20_000
-        _PROGRESS_EVERY = 50_000
         field_names: Optional[List[str]] = None
         total_rows = 0
         for file in files:
@@ -721,6 +726,28 @@ class DbBaseModel:
                 continue
             if field_names is None:
                 field_names = list(rows[0].keys())
+
+            # 覆盖导入时，归档内若存在重复主键会触发 UNIQUE 约束错误；
+            # 这里按主键去重（保留最后一条），避免单包脏数据中断整表导入。
+            try:
+                pks = self.get_primary_keys()
+            except Exception:
+                pks = []
+            if pks and all(pk in rows[0] for pk in pks):
+                dedup_map: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+                for row in rows:
+                    k = tuple(row.get(pk) for pk in pks)
+                    dedup_map[k] = row
+                if len(dedup_map) < len(rows):
+                    removed = len(rows) - len(dedup_map)
+                    rows = list(dedup_map.values())
+                    logger.warning(
+                        "导入前按主键去重: %s [%s] 移除重复行 %d（主键=%s）",
+                        self.table_name,
+                        path.name,
+                        removed,
+                        ",".join(pks),
+                    )
 
             bs = insert_batch_size
             if bs is None:
@@ -733,7 +760,6 @@ class DbBaseModel:
                     field_names,
                     rows,
                     batch_size=bs,
-                    progress_every=_PROGRESS_EVERY,
                     large_hint_threshold=_LARGE_IMPORT_HINT,
                     archive_name=path.name,
                 )
@@ -744,7 +770,6 @@ class DbBaseModel:
                     field_names,
                     rows,
                     batch_size=bs,
-                    progress_every=_PROGRESS_EVERY,
                     large_hint_threshold=_LARGE_IMPORT_HINT,
                     archive_name=path.name,
                 )

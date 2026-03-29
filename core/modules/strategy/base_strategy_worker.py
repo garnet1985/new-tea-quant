@@ -68,7 +68,14 @@ class BaseStrategyWorker(ABC):
         
         # Simulate 模式特有
         if self.execution_mode == ExecutionMode.SIMULATE.value:
-            self.opportunity = Opportunity.from_dict(job_payload['opportunity'])
+            # 兼容两种 simulate job 结构：
+            # 1) 旧版：按单个 opportunity 回放（payload 含 opportunity）
+            # 2) 当前：按 stock 全历史逐日回测（payload 不含 opportunity）
+            raw_opportunity = job_payload.get('opportunity')
+            self.opportunity = (
+                Opportunity.from_dict(raw_opportunity)
+                if raw_opportunity else None
+            )
             self.end_date = job_payload['end_date']
         else:
             self.scan_date = job_payload.get('scan_date')
@@ -335,13 +342,14 @@ class BaseStrategyWorker(ABC):
             
             if is_completed:
                 # 投资完成，记录结果
+                completed_opportunity = tracker['investing']
                 tracker['settled'].append(tracker['investing'].to_dict())
                 tracker['investing'] = None
                 
                 logger.debug(
                     f"投资完成: stock={self.stock_id}, "
                     f"date={current_kline['date']}, "
-                    f"reason={tracker['investing'].sell_reason}"
+                    f"reason={completed_opportunity.sell_reason}"
                 )
         
         # 2. 如果没有投资，扫描新机会

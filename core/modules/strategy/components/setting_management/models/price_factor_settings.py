@@ -63,7 +63,7 @@ class PriceFactorSettings(BaseSettings):
             # 这里只标记 Warning，实际版本检查在运行时进行
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
-                field_path="simulator.output_version",
+                field_path="price_simulator.output_version",
                 message=f"指定的输出版本 '{self._output_version}' 将在运行时检查，如果不存在将使用 'latest'",
                 suggested_fix="如果版本不存在，系统将自动使用 'latest'，如果 'latest' 也不存在，建议先运行枚举器"
             ))
@@ -72,11 +72,11 @@ class PriceFactorSettings(BaseSettings):
         if not self._start_date or not self._end_date:
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
-                field_path="simulator.start_date / end_date",
+                field_path="price_simulator.start_date / end_date",
                 message="start_date 或 end_date 未配置，将使用默认时间范围（从默认开始日期到最新交易日）",
                 suggested_fix=(
-                    '在 settings.py 的 simulator 中配置时间范围，例如：\n'
-                    '  "simulator": {\n'
+                    '在 settings.py 的 price_simulator 中配置时间范围，例如：\n'
+                    '  "price_simulator": {\n'
                     '    "start_date": "20240101",\n'
                     '    "end_date": "20241231"\n'
                     '  }'
@@ -87,9 +87,9 @@ class PriceFactorSettings(BaseSettings):
         if self._use_sampling is None:
             result.warnings.append(SettingError(
                 level=SettingErrorLevel.WARNING,
-                field_path="simulator.use_sampling",
+                field_path="price_simulator.use_sampling",
                 message="use_sampling 未配置，默认使用 True（在枚举器采样结果中抽样）",
-                suggested_fix='在 settings.py 的 simulator 中添加 "use_sampling": False 以使用全量结果'
+                suggested_fix='在 settings.py 的 price_simulator 中添加 "use_sampling": False 以使用全量结果'
             ))
         
         # 记录警告
@@ -102,7 +102,7 @@ class PriceFactorSettings(BaseSettings):
     
     def _extract_price_factor_fields(self) -> None:
         """提取价格因子模拟器特定字段并添加默认值"""
-        simulator_config = self.raw_settings.get("simulator", {})
+        simulator_config = self.raw_settings.get("price_simulator", {})
         
         # output_version（默认 "latest"）
         self._output_version = simulator_config.get("output_version", "latest") or "latest"

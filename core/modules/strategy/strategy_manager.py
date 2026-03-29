@@ -104,7 +104,8 @@ class StrategyManager:
         stock_list = StockSamplingHelper.get_stock_list(
             all_stocks, 
             settings.sampling_amount,
-            settings.sampling_config
+            settings.sampling_config,
+            strategy_name=strategy_name,
         )
         logger.info(f"📊 股票数量: {len(stock_list)}")
         
@@ -181,12 +182,26 @@ class StrategyManager:
         
         settings = strategy_info['settings']
         
-        # 2. 获取股票列表（使用 StockSamplingHelper）
-        stock_list = StockSamplingHelper.get_stock_list(
-            global_stock_list=self.global_cache['stock_list'],
-            sampling_config=settings.sampling_config,
-            data_mgr=self.data_mgr
-        )
+        # 2. 获取股票列表
+        # 规则与 price_simulator 对齐：
+        # - price_simulator.use_sampling = True  -> 使用 sampling 配置
+        # - price_simulator.use_sampling = False -> 使用全量股票
+        all_stocks = self.global_cache['stock_list'] or []
+        sim_cfg = settings.price_simulator or {}
+        use_sampling = bool(sim_cfg.get("use_sampling", True))
+        if use_sampling:
+            sampling_cfg = settings.sampling_config or {}
+            sampling_amount = settings.sampling_amount or len(all_stocks)
+            stock_list = StockSamplingHelper.get_stock_list(
+                all_stocks=all_stocks,
+                sampling_amount=sampling_amount,
+                sampling_config=sampling_cfg,
+                strategy_name=strategy_name,
+            )
+            logger.info("🧪 模拟股票模式: sampling (use_sampling=True)")
+        else:
+            stock_list = [s["id"] for s in all_stocks]
+            logger.info("📦 模拟股票模式: full (use_sampling=False)")
         logger.info(f"📊 股票数量: {len(stock_list)}")
         
         if not stock_list:
@@ -202,9 +217,9 @@ class StrategyManager:
         logger.info(f"📝 Session ID: {session_id}")
         
         # 4. 确定回测日期范围
-        simulator_config = settings.simulator
-        start_date = simulator_config.get('start_date', '20200101')
-        end_date = simulator_config.get('end_date', datetime.now().strftime('%Y%m%d'))
+        simulator_config = settings.price_simulator
+        start_date = simulator_config.get('start_date') or '20200101'
+        end_date = simulator_config.get('end_date') or datetime.now().strftime('%Y%m%d')
         
         logger.info(f"📅 回测日期范围: {start_date} ~ {end_date}")
         

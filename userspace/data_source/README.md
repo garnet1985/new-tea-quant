@@ -2,6 +2,12 @@
 
 本文件夹供用户完全控制，可以自由添加、修改、删除。
 
+## 一分钟上手
+
+- **Tushare**：在 `providers/tushare/` 放置 `auth_token.txt`（一行 token）或设置环境变量 `TUSHARE_TOKEN`。模板见 `auth_token.txt.example`，说明见 [providers/README.md](providers/README.md)。
+- **更新行情/标签数据**：配置完成后，在仓库根目录执行 `python start-cli.py -r`（renew）。
+- **接什么数据**：由根目录 `mapping.py` 里的 `DATA_SOURCES` 与 `handlers/` 下的 Handler 决定。
+
 ## 自定义 Handler
 
 1. 在 `handlers/` 文件夹中创建你的 handler

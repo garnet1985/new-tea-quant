@@ -8,9 +8,14 @@ Momentum Strategy Worker - 动量策略
 - 回测时，检查止盈止损
 """
 
+import logging
+from datetime import datetime
+from typing import Optional, Dict, Any
+
 from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from core.modules.strategy.models.opportunity import Opportunity
-from typing import Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class MomentumStrategyWorker(BaseStrategyWorker):
@@ -110,9 +115,10 @@ class MomentumStrategyWorker(BaseStrategyWorker):
         tracking_returns = [0]
         holding_days = 0
         
-        stop_loss = self.settings.execution.stop_loss
-        take_profit = self.settings.execution.take_profit
-        max_holding_days = self.settings.execution.max_holding_days
+        core = self.settings.core
+        stop_loss = core.get("simulate_stop_loss_ratio", -0.05)
+        take_profit = core.get("simulate_take_profit_ratio", 0.10)
+        max_holding_days = core.get("simulate_max_holding_days", 20)
         
         for i in range(buy_index + 1, len(klines)):
             current_kline = klines[i]

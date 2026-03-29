@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -44,9 +43,11 @@ class NewTeaQuantSetup:
     def ensure_venv(cls) -> None:
         """未在 venv 中时创建 venv/ 并用其解释器替换当前进程，避免后续装到全局。"""
         if cls.in_virtualenv():
+            print(f"使用虚拟环境解释器: {sys.executable}", flush=True)
             return
         raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
         if raw in ("1", "true", "yes"):
+            print(f"已跳过自动 venv，当前解释器: {sys.executable}", flush=True)
             return
 
         vpy = cls.venv_python()
@@ -57,6 +58,9 @@ class NewTeaQuantSetup:
                 cwd=str(cls.repo_root),
                 check=True,
             )
+        else:
+            print(f"检测到已有虚拟环境: {vpy}", flush=True)
+        print(f"切换到虚拟环境解释器: {vpy}", flush=True)
         argv = [str(vpy), str(cls.repo_root / "install.py")] + sys.argv[1:]
         os.execv(str(vpy), argv)
 
@@ -64,12 +68,17 @@ class NewTeaQuantSetup:
     def to_root_dir(cls) -> None:
         os.chdir(cls.repo_root)
 
-    @classmethod    
+    @classmethod
     def print_info(cls, title: str, msg: str, icon: str = None) -> None:
-        cls.ensure_sys_path()
-        from core.utils import i
+        icon_map = {
+            "success": "✅",
+            "green_dot": "🟢",
+            "failed": "❌",
+            "ongoing": "⏳",
+        }
+        icon_text = icon_map.get(icon, "")
         if icon:
-            print(f"\n{i(icon)} {title}: {msg}")
+            print(f"\n{icon_text} {title}: {msg}")
         else:
             print(f"\n{title}: {msg}")
 
@@ -81,34 +90,48 @@ class NewTeaQuantSetup:
         print(f"  {title}")
         print(f"{line}\n")
 
-    # def use_china_mirror(self) -> bool:
-    #     raw = os.environ.get("USE_CHINA_MIRROR", "").strip().lower()
-    #     return raw in ("1", "true", "yes")
+    @staticmethod
+    def print_check_item(status: str, msg: str) -> None:
+        marks = {
+            "running": "⏳",
+            "done": "✅",
+            "warn": "⚠️",
+            "skip": "⏭️",
+            "fail": "❌",
+        }
+        mark = marks.get(status, "ℹ️")
+        print(f"{mark} {msg}", flush=True)
 
-    # def should_import_demo_data(self) -> bool:
-    #     return os.environ.get("INSTALL_DEMO_DATA", "0").strip() == "1"
+    @staticmethod
+    def print_check_ok(msg: str) -> None:
+        print(f"✅ {msg}", flush=True)
 
-    # def install_script_path(self, step_name: str) -> Path:
-    #     """setup/<step_name>/install.py"""
-    #     return self.root / "setup" / step_name / "install.py"
+    @staticmethod
+    def print_check_fail(msg: str) -> None:
+        print(f"❌ {msg}", flush=True)
 
-    # def run_install_script(
-    #     self,
-    #     step_name: str,
-    #     script_args: Sequence[str] = (),
-    # ) -> int:
-    #     """
-    #     以当前解释器执行 setup/<step_name>/install.py，并传入 script_args 作为其命令行参数。
-    #     返回子进程退出码；脚本不存在时返回 1。
-    #     """
-    #     script = self.install_script_path(step_name)
-    #     if not script.is_file():
-    #         self.print_info("错误", f"未找到步骤脚本: {script}", "failed")
-    #         return 1
-    #     cmd = [sys.executable, str(script), *script_args]
-    #     r = subprocess.run(
-    #         cmd,
-    #         cwd=str(self.root),
-    #         env=os.environ.copy(),
-    #     )
-    #     return int(r.returncode)
+    @staticmethod
+    def print_check_info(msg: str) -> None:
+        print(f"[info] -> {msg}", flush=True)
+
+    @classmethod
+    def check_file_exists(cls, path: Path, ok_msg: str, fail_msg: str) -> bool:
+        if path.is_file():
+            cls.print_check_ok(ok_msg)
+            return True
+        cls.print_check_fail(f"{fail_msg}: {path}")
+        return False
+
+    @classmethod
+    def install_script_path(cls, step_name: str) -> Path:
+        return cls.repo_root / "setup" / step_name / "install.py"
+
+    @classmethod
+    def run_install_script(cls, step_name: str, script_args: Sequence[str] = ()) -> int:
+        script = cls.install_script_path(step_name)
+        if not script.is_file():
+            cls.print_check_item("fail", f"未找到步骤脚本: {script}")
+            return 1
+        cmd = [sys.executable, str(script), *script_args]
+        r = subprocess.run(cmd, cwd=str(cls.repo_root), env=os.environ.copy())
+        return int(r.returncode)

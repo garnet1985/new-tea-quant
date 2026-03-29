@@ -7,7 +7,7 @@ settings = {
     "name": "random",
     "description": "Random strategy for testing (fixed random seed for reproducibility)",
     # 参与扫描/模拟列表时需为 True
-    "is_enabled": True,
+    "is_enabled": False,
 
     # ========================================
     # 策略核心参数

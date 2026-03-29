@@ -1,30 +1,33 @@
-# 用户策略目录
+# 策略目录（`userspace/strategies/`）
 
-这里存放所有用户自定义的策略。
+每个子目录 = 一个策略，**目录名**一般与 `settings.py` 里的 `"name"` 一致。
 
-## 目录结构
+## 每个策略最少包含
 
-```
-app/userspace/strategies/
-├── example/                     # 示例策略
-│   ├── strategy_worker.py       # Worker 实现
-│   ├── settings.py              # 配置文件
-│   └── results/                 # 结果存储（自动生成）
-│       ├── scan/                # 扫描结果
-│       └── simulate/            # 模拟结果
-│
-├── momentum/                    # 动量策略
-├── mean_reversion/              # 均值回归策略
-└── ...
-```
+| 文件 | 作用 |
+|------|------|
+| `settings.py` | 策略配置：`data`、`goal`、`enumerator`、`price_simulator`、`capital_simulator`、`sampling` 等 |
+| `strategy_worker.py` | 继承 `BaseStrategyWorker`，实现 `scan_opportunity()`（必选）等 |
 
-## 创建新策略
+可选：`stock_lists/` 下放文本股票池，在 `sampling.pool.file` / `sampling.blacklist.file` 中引用（相对本策略目录）。
 
-1. 创建策略文件夹（如 `my_strategy/`）
-2. 创建 `strategy_worker.py`，继承 `BaseStrategyWorker`
-3. 创建 `settings.py`，定义策略配置
-4. 实现 `scan_opportunity()` 和 `simulate_opportunity()` 方法
+## 新建策略
 
-## 示例
+1. 复制 `example/` 或对照 [settings_example.py](settings_example.py) 写 `settings.py`。  
+2. 实现 `strategy_worker.py`。  
+3. 将 `"is_enabled": True` 设为要跑的策略；同时只启用一个可避免 CLI 歧义。  
 
-参考 `example/` 文件夹中的示例代码。
+更细的写法见 [策略开发指南](../../docs/user-guide/strategy-development.md)。
+
+## 回测结果（本地）
+
+运行枚举/模拟后，结果通常在：
+
+`userspace/strategies/<策略名>/results/`  
+
+该目录默认被 `.gitignore`，勿把大结果提交进 Git。
+
+## 示例策略
+
+- **example**：RSI 示例，配置最完整。  
+- **random / momentum**：演示用策略，可按需启用。

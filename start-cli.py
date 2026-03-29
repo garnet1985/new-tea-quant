@@ -30,6 +30,7 @@ import argparse
 import asyncio
 import warnings
 import logging
+from typing import Optional
 
 # ============================================================================
 # 路径设置（必须在导入其他模块之前）
@@ -387,6 +388,44 @@ class App:
         logger.info(f"✅ 手动导出复权因子事件 CSV 完成: {exported} 条记录 -> {file_path}")
 
 
+def resolve_cli_strategy_name(app: "App", explicit: Optional[str]) -> Optional[str]:
+    """
+    解析 CLI 使用的策略名。
+
+    - 若显式传入 --strategy，直接使用（不要求 is_enabled，便于单独调试某策略）。
+    - 若未传入：在「已启用」策略中选默认：
+        - 0 个启用：返回 None（调用方应中止）
+        - 1 个启用：使用该策略
+        - 多个启用：按名称排序后取第一个，并打 warning（请用 --strategy 明确指定）
+    """
+    if explicit:
+        return explicit.strip()
+
+    manager = app._ensure_strategy_manager()
+    enabled = sorted(
+        name
+        for name, info in manager.strategy_cache.items()
+        if info["settings"].is_enabled
+    )
+    if not enabled:
+        logger.error(
+            "未指定 --strategy，且当前没有任何 is_enabled=True 的策略。"
+            "请在 userspace/strategies/<name>/settings.py 中启用策略，或使用 --strategy 指定名称。"
+        )
+        return None
+    if len(enabled) == 1:
+        name = enabled[0]
+        logger.info("未指定 --strategy，使用唯一启用策略: %s", name)
+        return name
+    chosen = enabled[0]
+    logger.warning(
+        "未指定 --strategy，当前多个启用策略 %s；默认使用 %s。请使用 --strategy 明确指定。",
+        enabled,
+        chosen,
+    )
+    return chosen
+
+
 # ============================================================================
 # 命令行参数解析
 # ============================================================================
@@ -437,7 +476,9 @@ def _add_shortcut_flags(parser):
 def _add_extra_arguments(parser):
     """添加额外参数"""
     parser.add_argument('--strategy', type=str,
-                       help='指定策略名称（用于 scan/simulate/enumerate）')
+                       help='指定策略名称（用于 scan/simulate/enumerate/价格与资金模拟）；'
+                            '省略时：enumerate/-se/-sp/-sa 默认使用「唯一」is_enabled 的策略，'
+                            '多个启用时取名称排序第一个并提示使用本参数')
     parser.add_argument('--session', type=str,
                        help='指定session ID（用于 analysis）')
     parser.add_argument('--scenario', type=str,
@@ -658,19 +699,25 @@ class CommandExecutor:
     def _handle_enumerate(self, args):
         """处理 enumerate 命令"""
         logger.info("🔢 枚举投资机会...")
-        strategy = args.strategy or 'example'
+        strategy = resolve_cli_strategy_name(self.app, args.strategy)
+        if not strategy:
+            return
         self.app.enumerate(strategy_name=strategy, stock_count=args.stocks)
     
     def _handle_simulate_price(self, args):
         """处理 simulate_price 命令"""
         logger.info("🎯 运行价格因子回放模拟 (PriceFactorSimulator)...")
-        strategy = args.strategy or 'example'
+        strategy = resolve_cli_strategy_name(self.app, args.strategy)
+        if not strategy:
+            return
         self.app.price_factor_simulate(strategy_name=strategy)
     
     def _handle_simulate_allocation(self, args):
         """处理 simulate_allocation 命令"""
         logger.info("💰 运行资金分配模拟 (CapitalAllocationSimulator)...")
-        strategy = args.strategy or 'example'
+        strategy = resolve_cli_strategy_name(self.app, args.strategy)
+        if not strategy:
+            return
         self.app.capital_allocation_simulate(strategy_name=strategy)
 
     def _handle_simulate_all(self, args):

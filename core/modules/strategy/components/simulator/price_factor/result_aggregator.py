@@ -55,6 +55,8 @@ class ResultAggregator:
 
         # 会话级年化收益率：与 StockSummaryBuilder 保持一致，使用线性近似而非极端复利
         # annual_return 的单位保持为“百分比数值”，例如 18.5 表示 18.5%
+        # 同时补充交易日口径的平均持有时长（按 250/365 换算），用于展示时对齐理解。
+        avg_duration_trading_days = avg_duration_days * (250.0 / 365.0) if avg_duration_days > 0 else 0.0
         if avg_duration_days > 0:
             annual_return = avg_roi * (365.0 / avg_duration_days)
             annual_return_in_trading_days = avg_roi * (250.0 / avg_duration_days)
@@ -73,6 +75,7 @@ class ResultAggregator:
             "annual_return": annual_return,
             "annual_return_in_trading_days": annual_return_in_trading_days,
             "avg_duration_in_days": avg_duration_days,
+            "avg_duration_in_trading_days": round(avg_duration_trading_days, 1),
             "total_investments": total_investments,
             "total_open_investments": total_open,
             "total_win_investments": total_win,

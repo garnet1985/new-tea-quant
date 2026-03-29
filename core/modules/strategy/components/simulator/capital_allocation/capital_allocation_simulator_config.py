@@ -17,13 +17,11 @@ class CapitalAllocationSimulatorConfig:
     这些配置从 userspace 策略的 settings 中派生。
     """
 
-    # output_version：枚举器输出版本号；"latest" 表示使用最新的输出版本目录
-    # 支持格式：
-    #   - "latest": 使用最新的输出版本
-    #   - "1": 使用指定版本号
-    #   - "test/latest": 使用最新的测试版本（test/ 目录）
-    #   - "output/latest": 使用最新的输出版本（output/ 目录，默认）
-    output_version: str = "latest"  # 枚举器输出版本
+    # base_version：依赖的枚举版本号（如 "latest" / "1"）
+    # 实际从 test 还是 output 读取，由 use_sampling 决定。
+    base_version: str = "latest"
+    # 是否使用采样枚举结果（True: test/*；False: output/*）
+    use_sampling: bool = True
 
     # 初始资金（元）
     initial_capital: float = 1_000_000.0
@@ -45,7 +43,7 @@ class CapitalAllocationSimulatorConfig:
     # kelly 模式下的配置
     kelly_fraction: float = 0.5       # Kelly 仓位的折扣比例（0~1，用于风险控制）
 
-    # 时间窗口（可选），为空表示使用枚举 SOT 的全量时间
+    # 时间窗口（可选），为空表示使用枚举输出结果的全量时间
     start_date: str = ""
     end_date: str = ""
 
@@ -65,16 +63,17 @@ class CapitalAllocationSimulatorConfig:
         从 StrategySettings 中提取 CapitalAllocationSimulator 所需配置
 
         配置优先级：
-        - fees: capital_simulator.fees > simulator.fees > 顶层 fees > 默认值
+        - fees: capital_simulator.fees > price_simulator.fees > 顶层 fees > 默认值
         - 其他字段：capital_simulator.* > 默认值
         """
         settings_dict = settings.to_dict()
         capital_sim_cfg = settings_dict.get("capital_simulator", {}) or {}
-        simulator_cfg = settings_dict.get("simulator", {}) or {}
+        simulator_cfg = settings_dict.get("price_simulator", {}) or {}
         top_level_fees = settings_dict.get("fees", {}) or {}
 
-        # output_version（枚举器输出版本依赖）
-        output_version = capital_sim_cfg.get("output_version", "latest")
+        # base_version（枚举器输出版本依赖）
+        base_version = capital_sim_cfg.get("base_version", "latest") or "latest"
+        use_sampling = bool(capital_sim_cfg.get("use_sampling", True))
 
         # 初始资金
         initial_capital = float(capital_sim_cfg.get("initial_capital", 1_000_000) or 1_000_000)
@@ -88,7 +87,7 @@ class CapitalAllocationSimulatorConfig:
         lots_per_trade = int(allocation_cfg.get("lots_per_trade", 1) or 1)
         kelly_fraction = float(allocation_cfg.get("kelly_fraction", 0.5) or 0.5)
 
-        # 交易成本（优先级：capital_simulator.fees > simulator.fees > 顶层 fees > 默认值）
+        # 交易成本（优先级：capital_simulator.fees > price_simulator.fees > 顶层 fees > 默认值）
         fees_cfg = capital_sim_cfg.get("fees") or simulator_cfg.get("fees") or top_level_fees or {}
         commission_rate = float(fees_cfg.get("commission_rate", 0.00025) or 0.00025)
         min_commission = float(fees_cfg.get("min_commission", 5.0) or 5.0)
@@ -104,12 +103,13 @@ class CapitalAllocationSimulatorConfig:
         if not isinstance(save_equity_curve, bool):
             save_equity_curve = True
 
-        # 时间窗口（优先级：capital_simulator.start_date/end_date > simulator.start_date/end_date > 默认空）
+        # 时间窗口（优先级：capital_simulator.start_date/end_date > price_simulator.start_date/end_date > 默认空）
         start_date = capital_sim_cfg.get("start_date") or simulator_cfg.get("start_date") or ""
         end_date = capital_sim_cfg.get("end_date") or simulator_cfg.get("end_date") or ""
 
         return cls(
-            output_version=output_version,
+            base_version=base_version,
+            use_sampling=use_sampling,
             initial_capital=initial_capital,
             allocation_mode=allocation_mode,
             max_portfolio_size=max_portfolio_size,

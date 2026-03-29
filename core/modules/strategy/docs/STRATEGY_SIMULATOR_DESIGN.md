@@ -2,7 +2,7 @@
 
 ### 1. 目标与定位
 
-- **目标**：在没有资金约束的前提下，基于枚举器（Opportunity Enumerator）的 SOT 结果，对每只股票的机会进行价格驱动的模拟，评估“机会出现即买入 1 股，并持有到机会结束”的策略效果。
+- **目标**：在没有资金约束的前提下，基于枚举器（Opportunity Enumerator）的 枚举输出结果，对每只股票的机会进行价格驱动的模拟，评估“机会出现即买入 1 股，并持有到机会结束”的策略效果。
 - **输入**：枚举器在 `sot/` 目录下的某个版本（opportunity_enums/sot/{version}）导出的机会与目标结果。
 - **输出**：单股层面和策略整体层面的收益与统计指标，用于评估策略本身（不考虑资金管理和仓位分配）。
 
@@ -17,14 +17,14 @@
 
 #### 2.1 数据来源
 
-- 来自枚举器 SOT 版本目录：
+- 来自枚举器 枚举输出版本目录：
   - `app/userspace/strategies/{strategy_name}/results/opportunity_enums/sot/{version_dir}/`
   - 其中包含：
     - `{stock_id}_opportunities.csv`
     - `{stock_id}_targets.csv`
     - `metadata.json`（版本元信息）
 
-#### 2.2 输入选择（SOT 版本）
+#### 2.2 输入选择（枚举输出版本）
 
 - 在 `settings.simulator.sot_version` 中配置：
   - 具体版本名：如 `"1_20260112_161317"`  
@@ -63,8 +63,8 @@
 
 - 在 `settings.simulator.start_date` / `settings.simulator.end_date` 中配置：
   - 若为空：
-    - `start_date`：取该 SOT 版本中所有机会 `trigger_date` 的最小值。
-    - `end_date`：取该 SOT 版本中所有机会及其 `completed_targets.date` 的最大值。
+    - `start_date`：取该 枚举输出版本中所有机会 `trigger_date` 的最小值。
+    - `end_date`：取该 枚举输出版本中所有机会及其 `completed_targets.date` 的最大值。
 
 #### 3.2 机会筛选
 
@@ -205,11 +205,11 @@
 #### 7.1 并发模型
 
 - 每只股票模拟流程彼此独立：
-  - 输入：特定 stock 的 SOT CSV
+  - 输入：特定 stock 的 枚举输出 CSV
   - 输出：该 stock 的局部 summary + 交易记录
 - 可复用现有多进程框架（类似 OpportunityEnumeratorWorker）：
   - 主进程负责编排：
-    - 选择 SOT 版本
+    - 选择 枚举输出版本
     - 读取股票列表
     - 按股票构建作业列表
   - 子进程执行单股模拟，并将结果回传主进程。
@@ -218,7 +218,7 @@
 
 1. 解析 `settings.simulator`，确定：
    - `sot_version`、`start_date`、`end_date`
-2. 加载 SOT 版本目录，构建股票列表（与枚举器一致）
+2. 加载 枚举输出版本目录，构建股票列表（与枚举器一致）
 3. 为每只股票构建模拟任务（包含需要的路径与时间配置）
 4. 使用 ProcessWorker 并行执行单股 Strategy Simulation
 5. 聚合子结果，生成：
@@ -233,6 +233,6 @@
 - Strategy Simulator 只解决“机会本身质量”的问题：
   - 不涉及资金分配、仓位管理。
 - Capital Allocation Simulator 在此基础上引入真实资金约束：
-  - 使用同一套 SOT 数据和时间轴。
+  - 使用同一套 枚举输出数据和时间轴。
   - 但在全局账户维度上做交易决策。
 

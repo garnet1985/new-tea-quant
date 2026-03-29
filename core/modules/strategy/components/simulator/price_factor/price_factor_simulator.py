@@ -49,17 +49,15 @@ class PriceFactorSimulatorConfig:
 
     说明：
     - 采样的语义统一下沉到枚举器层（opportunity_enumerator），
-      本层不再根据 use_sampling 做二次抽样，只是读取指定的 SOT 版本。
-    - output_version 决定读取的是 output/ 还是 test/ 下的哪一版数据。
+      本层不再根据 use_sampling 做二次抽样，只是读取指定的枚举输出版本。
+    - base_version 用于指定版本号；use_sampling 决定读取 test/ 或 output/。
     """
 
-    # output_version：枚举器输出版本号；"latest" 表示使用最新的输出版本目录
-    # 支持格式：
-    #   - "latest": 使用最新的输出版本
-    #   - "1": 使用指定版本号
-    #   - "test/latest": 使用最新的测试版本（test/ 目录）
-    #   - "output/latest": 使用最新的输出版本（output/ 目录，默认）
-    output_version: str = "latest"
+    # base_version：依赖的枚举版本号（如 "latest" / "1"）
+    # 实际从 test 还是 output 读取，由 use_sampling 决定。
+    base_version: str = "latest"
+    # 是否使用采样枚举结果（True: test/*；False: output/*）
+    use_sampling: bool = True
 
     # 时间窗口（可选），为空表示使用输出版本全量时间
     start_date: str = ""
@@ -129,13 +127,25 @@ class PriceFactorSimulator:
         simulator_config = self._build_config_from_settings(base_settings)
 
         # 2. 解析枚举器输出版本目录（依赖的枚举版本）
-        output_version = getattr(simulator_config, 'output_version', 'latest')
-        output_version_dir, output_root = VersionManager.resolve_output_version(
-            strategy_name, output_version
+        base_version = getattr(simulator_config, "base_version", "latest")
+        use_sampling = bool(getattr(simulator_config, "use_sampling", True))
+        logger.info(
+            "[PriceFactorSimulator] 版本选择规则: use_sampling=%s -> source=%s, "
+            "base_version=%s, missing_version=>latest, empty_source=>auto_enumerate",
+            use_sampling,
+            "test" if use_sampling else "output",
+            base_version,
+        )
+        output_version_dir, output_root = self._resolve_or_build_enum_version(
+            strategy_name=strategy_name,
+            base_settings=base_settings,
+            use_sampling=use_sampling,
+            base_version=base_version,
         )
         logger.info(
             f"[PriceFactorSimulator] 使用枚举器输出版本: strategy={strategy_name}, "
-            f"output_version={output_version_dir.name}"
+            f"output_version={output_version_dir.name}, "
+            f"source={output_root.name}"
         )
 
         # 3. 创建模拟器版本目录（使用统一的版本管理）
@@ -167,7 +177,7 @@ class PriceFactorSimulator:
         stock_info_map = {s.get("id"): s for s in all_stocks_info}
 
         logger.info(
-            f"[PriceFactorSimulator] 使用 SOT 股票集合: {len(stock_files)} 只 "
+            f"[PriceFactorSimulator] 使用枚举输出股票集合: {len(stock_files)} 只 "
             f"(由枚举器输出版本 {output_version_dir.name} 决定)"
         )
 
@@ -371,16 +381,17 @@ class PriceFactorSimulator:
         从通用 StrategySettings 中提取 PriceFactorSimulator 所需配置。
 
         配置优先级：
-        - max_workers: simulator.max_workers > enumerator.max_workers > performance.max_workers > "auto"
-        - output_version: simulator.output_version（默认 "latest"）
+        - max_workers: price_simulator.max_workers > enumerator.max_workers > performance.max_workers > "auto"
+        - base_version: price_simulator.base_version（默认 "latest"）
         """
         settings_dict = settings.to_dict()
-        simulator_cfg = settings_dict.get("simulator", {}) or {}
+        simulator_cfg = settings_dict.get("price_simulator", {}) or {}
         enumerator_cfg = settings_dict.get("enumerator", {}) or {}
         performance_cfg = settings_dict.get("performance", {}) or {}
 
-        # output_version（枚举器输出版本依赖）
-        output_version = simulator_cfg.get("output_version", "latest")
+        # base_version（枚举器输出版本依赖）
+        base_version = simulator_cfg.get("base_version") or "latest"
+        use_sampling = bool(simulator_cfg.get("use_sampling", True))
 
         # 时间窗口
         start_date = simulator_cfg.get("start_date", "") or ""
@@ -393,11 +404,12 @@ class PriceFactorSimulator:
         stamp_duty_rate = float(fees_cfg.get("stamp_duty_rate", 0.0) or 0.0)
         transfer_fee_rate = float(fees_cfg.get("transfer_fee_rate", 0.0) or 0.0)
 
-        # max_workers：只从 simulator 配置读取，如果没有则使用 "auto"
+        # max_workers：只从 price_simulator 配置读取，如果没有则使用 "auto"
         max_workers = simulator_cfg.get("max_workers", "auto")
 
         return PriceFactorSimulatorConfig(
-            output_version=output_version,
+            base_version=base_version,
+            use_sampling=use_sampling,
             start_date=start_date,
             end_date=end_date,
             commission_rate=commission_rate,
@@ -406,6 +418,100 @@ class PriceFactorSimulator:
             transfer_fee_rate=transfer_fee_rate,
             max_workers=max_workers,
         )
+
+    def _resolve_or_build_enum_version(
+        self,
+        strategy_name: str,
+        base_settings,
+        use_sampling: bool,
+        base_version: str,
+    ) -> tuple[Path, Path]:
+        """
+        解析当前模拟依赖的枚举版本。
+
+        规则：
+        - use_sampling=True: 从 test/ 读取
+        - use_sampling=False: 从 output/ 读取
+        - base_version 为空或找不到 -> 回退同目录 latest
+        - 如果该目录没有任何版本 -> 按对应模式先触发一次枚举，再取 latest
+        """
+        sub_dir = "test" if use_sampling else "output"
+        raw_version = (base_version or "latest").strip()
+        if "/" in raw_version:
+            raw_version = raw_version.split("/", 1)[1].strip() or "latest"
+
+        version_spec = f"{sub_dir}/{raw_version}"
+        try:
+            version_dir, root = VersionManager.resolve_output_version(
+                strategy_name, version_spec
+            )
+            return version_dir, root
+        except FileNotFoundError:
+            if raw_version != "latest":
+                logger.warning(
+                    "[PriceFactorSimulator] 指定版本不存在: %s，回退到 %s/latest",
+                    version_spec,
+                    sub_dir,
+                )
+                try:
+                    return VersionManager.resolve_output_version(
+                        strategy_name, f"{sub_dir}/latest"
+                    )
+                except FileNotFoundError:
+                    pass
+
+        logger.info(
+            "[PriceFactorSimulator] %s 目录无可用版本，先自动触发一次枚举",
+            sub_dir,
+        )
+        self._run_enumerator_for_mode(
+            strategy_name=strategy_name,
+            base_settings=base_settings,
+            use_sampling=use_sampling,
+        )
+        return VersionManager.resolve_output_version(strategy_name, f"{sub_dir}/latest")
+
+    def _run_enumerator_for_mode(
+        self,
+        strategy_name: str,
+        base_settings,
+        use_sampling: bool,
+    ) -> None:
+        """按模式触发一次枚举：sampling=True 触发 test，False 触发 output。"""
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
+        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.utils.date.date_utils import DateUtils
+
+        data_mgr = DataManager(is_verbose=False)
+        all_stocks = data_mgr.service.stock.list.load(filtered=True)
+        if use_sampling:
+            stock_list = StockSamplingHelper.get_stock_list(
+                all_stocks=all_stocks,
+                sampling_amount=base_settings.sampling_amount or len(all_stocks),
+                sampling_config=base_settings.sampling_config or {},
+                strategy_name=strategy_name,
+            )
+        else:
+            stock_list = [s["id"] for s in all_stocks]
+        end_date = data_mgr.service.calendar.get_latest_completed_trading_date()
+        start_date = DateUtils.DEFAULT_START_DATE
+
+        logger.info(
+            "[PriceFactorSimulator] 自动触发枚举开始: mode=%s, stocks=%d, period=%s~%s",
+            "test" if use_sampling else "output",
+            len(stock_list),
+            start_date,
+            end_date,
+        )
+        OpportunityEnumerator.enumerate(
+            strategy_name=strategy_name,
+            start_date=start_date,
+            end_date=end_date,
+            stock_list=stock_list,
+            max_workers="auto",
+        )
+        logger.info("[PriceFactorSimulator] 自动触发枚举完成")
 
 
     def _scan_output_files(self, version_dir: Path) -> Dict[str, Dict[str, Path]]:
@@ -662,7 +768,7 @@ class PriceFactorSimulatorWorker:
             ) or row
             
             trigger_date = modified_row.get("trigger_date") or ""
-            # 优先使用 SOT 中的 sell_date 作为退出日；如无则回退到 exit_date 或当日
+            # 优先使用枚举输出中的 sell_date 作为退出日；如无则回退到 exit_date 或当日
             sell_date = modified_row.get("sell_date") or ""
             exit_date = sell_date or modified_row.get("exit_date") or trigger_date
             opp_id = str(modified_row.get("opportunity_id") or "").strip()

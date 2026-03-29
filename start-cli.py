@@ -14,14 +14,14 @@
     python start-cli.py price_factor         # 价格因子回放模拟（基于枚举输出结果）
     python start-cli.py capital_allocation   # 资金分配模拟（基于枚举输出结果，真实资金约束）
     
-    python start-cli.py -c                   # 快捷: 扫描（等价于: python start.py scan）
+    python start-cli.py -c                   # 快捷: 扫描（scan）
     python start-cli.py -se                  # 快捷: simulate enumerator
     python start-cli.py -sp                  # 快捷: simulate price factor
     python start-cli.py -sa                  # 快捷: simulate allocation
     python start-cli.py -s                   # 快捷: simulate all（占位）
-    python start-cli.py -r                   # 快捷: 更新（等价于: python start.py renew）
-    python start-cli.py -a                   # 快捷: 分析（等价于: python start.py analysis）
-    python start-cli.py -t                   # 快捷: 标签（等价于: python start.py tag）
+    python start-cli.py -r                   # 快捷: 更新（renew）
+    python start-cli.py -a                   # 快捷: 分析（analysis）
+    python start-cli.py -t                   # 快捷: 标签（tag）
     python start-cli.py -h                   # 查看帮助
 """
 import sys

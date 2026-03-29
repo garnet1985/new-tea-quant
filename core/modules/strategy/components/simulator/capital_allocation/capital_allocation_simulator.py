@@ -299,9 +299,10 @@ class CapitalAllocationSimulator:
         )
         save_elapsed = profiler.end_timer("save_csv")
         profiler.metrics.time_save_csv = save_elapsed
-        
-        # 计算总时长（用于日志展示）
-        total_elapsed = time.time() - profiler._timers.get("total", time.time())
+
+        # 总耗时须与 PerformanceProfiler 一致：start_timer 使用 perf_counter，不可用 time.time 相减
+        profiler.metrics.time_total = profiler.end_timer("total")
+        total_elapsed = profiler.metrics.time_total
         if total_elapsed < 60:
             total_time_str = f"{total_elapsed:.1f}秒"
         elif total_elapsed < 3600:
@@ -310,7 +311,7 @@ class CapitalAllocationSimulator:
             hours = int(total_elapsed // 3600)
             minutes = int((total_elapsed % 3600) // 60)
             total_time_str = f"{hours}小时{minutes}分钟"
-        
+
         logger.info(
             f"✅ [CapitalAllocationSimulator] 模拟完成: "
             f"初始资金={config.initial_capital:.2f}, "
@@ -318,9 +319,8 @@ class CapitalAllocationSimulator:
             f"总收益={summary.get('total_return', 0):.2%}, "
             f"总耗时={total_time_str}"
         )
-        
+
         # 完成性能分析并写入报告
-        profiler.metrics.time_total = profiler.end_timer("total")
         metrics = profiler.finalize()
         perf_summary = metrics.to_dict()
         try:

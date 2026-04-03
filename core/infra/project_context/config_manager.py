@@ -334,7 +334,17 @@ class ConfigManager:
         
         # 6. 加载用户数据库专用配置（如果存在）
         db_user_path = PathManager.userspace() / "config" / "database" / f"{database_type}.json"
-        db_user = ConfigManager.load_json(db_user_path) or {}
+        db_user_raw = ConfigManager.load_json(db_user_path) or {}
+        # 支持两种格式：
+        #  - 扁平：{ "user": "...", "password": "..." }
+        #  - wrapper：{ "postgresql": { "user": "...", "password": "..." } }
+        db_user = (
+            db_user_raw.get(database_type)
+            if isinstance(db_user_raw, dict)
+            and database_type in db_user_raw
+            and isinstance(db_user_raw.get(database_type), dict)
+            else db_user_raw
+        )
         
         # 7. 合并用户配置
         user_config = {}

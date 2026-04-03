@@ -1,7 +1,9 @@
 {
   "_comment": "用户 PostgreSQL 配置示例 - 只需配置需要修改的部分",
-  "user": "my_username",
-  "password": "my_password",
-  "database": "demo_db",
-  "default_pgsql_schema": "public"
+  "postgresql": {
+    "user": "my_username",
+    "password": "my_password",
+    "database": "demo_db",
+    "default_pgsql_schema": "public"
+  }
 }

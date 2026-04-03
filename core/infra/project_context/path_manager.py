@@ -42,7 +42,6 @@ class PathManager:
         # 项目根目录的标记文件/目录
         root_markers = [
             '.git',
-            'README.md',
             'pyproject.toml',
             'setup.py',
             'requirements.txt',

@@ -1,6 +1,8 @@
 {
   "_comment": "用户 MySQL 配置示例 - 只需配置用户名和密码",
-  "user": "my_username",
-  "password": "my_password",
-  "database": "demo_db"
+  "mysql": {
+    "user": "my_username",
+    "password": "my_password",
+    "database": "demo_db"
+  }
 }

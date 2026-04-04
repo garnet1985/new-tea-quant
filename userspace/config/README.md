@@ -119,13 +119,15 @@ export DB_POSTGRESQL_PASSWORD=my_password
 **完整示例** (`userspace/config/database/postgresql.example.json`):
 ```json
 {
-  "user": "my_username",
-  "password": "my_password"
+  "postgresql": {
+    "user": "my_username",
+    "password": "my_password"
+  }
 }
 ```
 
 **说明**：
-- 只需配置用户名和密码
+- 只需配置用户名和密码（放在 `postgresql` wrapper 内）
 - 其他配置（host、port、database、连接池等）使用系统默认值
 - 高级用户可以在 userspace 配置中覆盖高级参数
 
@@ -134,8 +136,10 @@ export DB_POSTGRESQL_PASSWORD=my_password
 **完整示例** (`userspace/config/database/mysql.example.json`):
 ```json
 {
-  "user": "my_username",
-  "password": "my_password"
+  "mysql": {
+    "user": "my_username",
+    "password": "my_password"
+  }
 }
 ```
 
@@ -144,7 +148,9 @@ export DB_POSTGRESQL_PASSWORD=my_password
 **完整示例** (`userspace/config/database/sqlite.example.json`):
 ```json
 {
-  "db_path": "data/my_stocks.db"
+  "sqlite": {
+    "db_path": "data/my_stocks.db"
+  }
 }
 ```
 
@@ -161,7 +167,9 @@ export DB_POSTGRESQL_PASSWORD=my_password
 
 // userspace/config/database/sqlite.json
 {
-  "db_path": "data/dev_stocks.db"
+  "sqlite": {
+    "db_path": "data/dev_stocks.db"
+  }
 }
 ```
 
@@ -182,11 +190,13 @@ export DB_POSTGRESQL_DATABASE=stocks_prod
 ```json
 // userspace/config/database/postgresql.json
 {
-  "user": "my_username",
-  "password": "my_password",
-  "_advanced": {
-    "pool_size": 20,
-    "max_connections": 200
+  "postgresql": {
+    "user": "my_username",
+    "password": "my_password",
+    "_advanced": {
+      "pool_size": 20,
+      "max_connections": 200
+    }
   }
 }
 ```

@@ -108,6 +108,14 @@ python start-cli.py -h
 
 ---
 
+## 如何运行测试？
+
+可以通过运行下列代码来实现，如果您要提交一个PR，请务必保证UT能跑过。
+
+```bash
+python -m pytest
+```
+
 ## 支持、反馈与捐赠
 
 - **文档与会员资源（Demo 数据、扩展策略等）**：[new-tea.cn](https://new-tea.cn)  

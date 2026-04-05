@@ -131,6 +131,11 @@ class PathManager:
     def user_config() -> Path:
         """用户配置目录：userspace/config/"""
         return PathManager.userspace() / "config"
+
+    @staticmethod
+    def config() -> Path:
+        """用户配置目录（同 `user_config()`，供简短调用）。"""
+        return PathManager.user_config()
     
     @staticmethod
     def strategy(strategy_name: str) -> Path:

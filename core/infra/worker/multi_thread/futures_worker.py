@@ -158,11 +158,24 @@ class MultiThreadWorker:
         self._interrupted_by_signal = True
     
     def _cleanup(self):
-        """清理资源"""
+        """清理资源。
+
+        atexit / pytest 结束时 stderr 可能已关闭，logging 默认会在 Handler.emit 失败时
+        打印 handleError 堆栈；此处临时关闭 raiseExceptions，避免污染 CI 输出。
+        """
+        import logging
+
+        prev = logging.raiseExceptions
+        logging.raiseExceptions = False
         try:
             self.shutdown()
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            try:
+                logger.error("Error during cleanup: %s", e)
+            except Exception:
+                pass
+        finally:
+            logging.raiseExceptions = prev
     
     def set_job_executor(self, executor_func: Callable):
         """设置任务执行函数"""
@@ -471,16 +484,16 @@ class MultiThreadWorker:
         """关闭任务执行器"""
         if self.is_verbose:
             logger.info("Shutting down MultiThreadWorker...")
-        
+
         self.should_stop = True
         self.is_running = False
-        
+
         # 取消所有活动任务
         if hasattr(self, 'active_futures'):
             for future in self.active_futures:
                 if not future.done():
                     future.cancel()
-        
+
         # 关闭线程池
         if self.executor:
             try:
@@ -488,14 +501,14 @@ class MultiThreadWorker:
                 if self.is_verbose:
                     logger.info("ThreadPoolExecutor shutdown completed")
             except Exception as e:
-                logger.error(f"Error shutting down ThreadPoolExecutor: {e}")
+                logger.error("Error shutting down ThreadPoolExecutor: %s", e)
             finally:
                 self.executor = None
-        
+
         # 清空队列
         self.clear_queue()
         self.clear_results()
-        
+
         if self.is_verbose:
             logger.info("FuturesWorker shutdown completed")
     

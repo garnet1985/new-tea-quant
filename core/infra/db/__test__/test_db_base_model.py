@@ -108,25 +108,25 @@ class TestDbBaseModel:
         assert result is None
     
     def test_insert_one(self):
-        """测试插入单条数据"""
+        """插入单条走同步 batch_insert，不经过 queue_write。"""
         mock_db = Mock()
-        mock_db.queue_write = Mock()
-        
+        mock_db.config = {'batch_write': {'_advanced': {}}}
+
         model = DbBaseModel('test_table', db=mock_db)
-        model.insert_one({'id': '001', 'name': 'test'})
-        
-        mock_db.queue_write.assert_called_once()
+        with patch.object(model, 'batch_insert', return_value=1) as mock_batch:
+            model.insert_one({'id': '001', 'name': 'test'})
+        mock_batch.assert_called_once_with([{'id': '001', 'name': 'test'}], None)
     
     def test_insert(self):
-        """测试批量插入"""
+        """批量插入走同步 batch_insert。"""
         mock_db = Mock()
-        mock_db.queue_write = Mock()
-        
+        mock_db.config = {'batch_write': {'_advanced': {}}}
+
         model = DbBaseModel('test_table', db=mock_db)
         data_list = [
             {'id': '001', 'name': 'test1'},
             {'id': '002', 'name': 'test2'}
         ]
-        model.insert(data_list)
-        
-        mock_db.queue_write.assert_called_once()
+        with patch.object(model, 'batch_insert', return_value=2) as mock_batch:
+            model.insert(data_list)
+        mock_batch.assert_called_once_with(data_list, None)

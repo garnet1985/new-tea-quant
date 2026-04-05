@@ -24,9 +24,12 @@ except ModuleNotFoundError as exc:
         raise
     DateUtils = None  # type: ignore[assignment]
 
+from .util import deep_merge_config, merge_mapping_configs
+
 __all__ = [
     # 配置工具
     'Utils',
+    'deep_merge_config',
     'merge_mapping_configs',
     # 日期工具
     'DateUtils',

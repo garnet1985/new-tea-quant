@@ -79,5 +79,5 @@ class TestPathManagerStrategyAPI:
         # 验证所有路径都基于 results_path
         assert enums_path.parent.parent == results_path
         assert price_factor_path.parent.parent == results_path
-        assert capital_path.parent == results_path
+        assert capital_path.parent.parent == results_path
         assert scan_path.parent == results_path

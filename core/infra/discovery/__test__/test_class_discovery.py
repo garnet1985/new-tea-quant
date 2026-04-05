@@ -21,7 +21,7 @@ class TestClassDiscovery:
     def test_discover_class_by_path(self):
         """测试通过路径发现类"""
         from core.infra.discovery import ClassDiscovery, DiscoveryConfig
-        from core.modules.data_source.base_provider import BaseProvider
+        from core.modules.data_source.base_class.base_provider import BaseProvider
         
         config = DiscoveryConfig(
             base_class=BaseProvider,
@@ -37,7 +37,7 @@ class TestClassDiscovery:
     def test_discover_class_attribute(self):
         """测试发现类的属性"""
         from core.infra.discovery import ClassDiscovery, DiscoveryConfig
-        from core.modules.data_source.base_provider import BaseProvider
+        from core.modules.data_source.base_class.base_provider import BaseProvider
         
         config = DiscoveryConfig(
             base_class=BaseProvider,
@@ -61,7 +61,7 @@ class TestClassDiscovery:
     def test_discover_with_config(self):
         """测试使用配置发现类"""
         from core.infra.discovery import ClassDiscovery, DiscoveryConfig
-        from core.modules.data_source.base_provider import BaseProvider
+        from core.modules.data_source.base_class.base_provider import BaseProvider
         
         config = DiscoveryConfig(
             base_class=BaseProvider,
@@ -79,7 +79,7 @@ class TestClassDiscovery:
     def test_cache_mechanism(self):
         """测试缓存机制"""
         from core.infra.discovery import ClassDiscovery, DiscoveryConfig
-        from core.modules.data_source.base_provider import BaseProvider
+        from core.modules.data_source.base_class.base_provider import BaseProvider
         
         config = DiscoveryConfig(
             base_class=BaseProvider,

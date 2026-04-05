@@ -112,8 +112,6 @@ tools/
 # Test Coverage
 ########################
 
-.coverage
-.coverage.*
 # htmlcov/ - 通常应该忽略，因为：
 # 1. 它是自动生成的构建产物，每次运行测试都会重新生成
 # 2. 开源项目通常通过 CI/CD + coverage 服务（如 codecov.io）展示覆盖率

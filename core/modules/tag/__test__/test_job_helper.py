@@ -28,23 +28,24 @@ class TestJobHelper:
     def test_decide_worker_amount_500_or_less(self):
         """测试 decide_worker_amount（500个及以下，100个以上）"""
         from core.modules.tag.core.components.helper.job_helper import JobHelper
-        
-        assert JobHelper.decide_worker_amount(101) == 2
-        assert JobHelper.decide_worker_amount(500) == 2
-    
+
+        # 传入足够大的 max_workers，避免实现里 min(档位, os.cpu_count()) 在 CI 小核机器上压扁结果
+        assert JobHelper.decide_worker_amount(101, max_workers=32) == 2
+        assert JobHelper.decide_worker_amount(500, max_workers=32) == 2
+
     def test_decide_worker_amount_1000_or_less(self):
         """测试 decide_worker_amount（1000个及以下，500个以上）"""
         from core.modules.tag.core.components.helper.job_helper import JobHelper
-        
-        assert JobHelper.decide_worker_amount(501) == 4
-        assert JobHelper.decide_worker_amount(1000) == 4
-    
+
+        assert JobHelper.decide_worker_amount(501, max_workers=32) == 4
+        assert JobHelper.decide_worker_amount(1000, max_workers=32) == 4
+
     def test_decide_worker_amount_2000_or_less(self):
         """测试 decide_worker_amount（2000个及以下，1000个以上）"""
         from core.modules.tag.core.components.helper.job_helper import JobHelper
-        
-        assert JobHelper.decide_worker_amount(1001) == 8
-        assert JobHelper.decide_worker_amount(2000) == 8
+
+        assert JobHelper.decide_worker_amount(1001, max_workers=32) == 8
+        assert JobHelper.decide_worker_amount(2000, max_workers=32) == 8
     
     def test_decide_worker_amount_over_2000(self):
         """测试 decide_worker_amount（2000个以上）"""

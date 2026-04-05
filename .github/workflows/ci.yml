@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, dev ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, dev ]
 
 jobs:
   tests:
@@ -41,15 +41,6 @@ jobs:
           print("All core modules imported successfully.")
           EOF
 
-      - name: Run core tests (if present)
-        run: |
-          if command -v pytest >/dev/null 2>&1; then
-            if ls core/**/__test__ 2>/dev/null; then
-              pytest $(find core -type d -name "__test__" | tr '\n' ' ') -v
-            else
-              echo "No __test__ directories found under core/, skipping pytest."
-            fi
-          else:
-            echo "pytest not installed, skipping tests."
-          fi
+      - name: Run core tests
+        run: python -m pytest -v
 

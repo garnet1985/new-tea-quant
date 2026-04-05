@@ -56,37 +56,43 @@ class TestOpportunityEnumeratorWorker:
     
     @patch('core.modules.strategy.components.strategy_worker_data_manager.StrategyWorkerDataManager')
     @patch('importlib.import_module')
-    def test_init(self, mock_import_module, mock_data_manager):
-        """测试 Worker 初始化"""
-        mock_data_mgr_instance = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr_instance
-        
+    @patch('core.modules.data_manager.DataManager')
+    def test_init(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):
+        """测试 Worker 初始化（Mock DataManager，避免 CI 无 PostgreSQL 时真实连库）"""
+        mock_dm_class.return_value = MagicMock()
+
+        mock_swdm_instance = MagicMock()
+        mock_strategy_worker_dm.return_value = mock_swdm_instance
+
         # Mock 用户策略模块
         mock_strategy_module = MagicMock()
         mock_strategy_class = MagicMock()
         mock_strategy_module.StrategyWorker = mock_strategy_class
         mock_import_module.return_value = mock_strategy_module
-        
+
         worker = OpportunityEnumeratorWorker(self.base_payload)
-        
+
         assert worker.stock_id == self.stock_id
         assert worker.strategy_name == self.strategy_name
         assert worker.start_date == '20230101'
         assert worker.end_date == '20230110'
-        mock_data_manager.assert_called_once()
+        mock_dm_class.assert_called_once_with(is_verbose=False)
+        mock_strategy_worker_dm.assert_called_once()
     
     @patch('core.modules.strategy.components.strategy_worker_data_manager.StrategyWorkerDataManager')
     @patch('importlib.import_module')
-    def test_get_date_before(self, mock_import_module, mock_data_manager):
+    @patch('core.modules.data_manager.DataManager')
+    def test_get_date_before(self, mock_dm_class, mock_import_module, mock_data_manager):
         """测试 _get_date_before 方法"""
+        mock_dm_class.return_value = MagicMock()
         mock_data_manager.return_value = MagicMock()
-        
+
         # Mock 用户策略模块
         mock_strategy_module = MagicMock()
         mock_strategy_class = MagicMock()
         mock_strategy_module.StrategyWorker = mock_strategy_class
         mock_import_module.return_value = mock_strategy_module
-        
+
         worker = OpportunityEnumeratorWorker(self.base_payload)
         
         # 测试日期计算
@@ -97,12 +103,18 @@ class TestOpportunityEnumeratorWorker:
     
     @patch('core.modules.strategy.components.strategy_worker_data_manager.StrategyWorkerDataManager')
     @patch('importlib.import_module')
-    def test_run_no_klines(self, mock_base_worker, mock_data_manager):
+    @patch('core.modules.data_manager.DataManager')
+    def test_run_no_klines(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):
         """测试 run 方法（无 K 线数据）"""
+        mock_dm_class.return_value = MagicMock()
         mock_data_mgr_instance = MagicMock()
         mock_data_mgr_instance.get_klines.return_value = []
-        mock_data_manager.return_value = mock_data_mgr_instance
-        
+        mock_strategy_worker_dm.return_value = mock_data_mgr_instance
+
+        mock_strategy_module = MagicMock()
+        mock_strategy_module.StrategyWorker = MagicMock()
+        mock_import_module.return_value = mock_strategy_module
+
         worker = OpportunityEnumeratorWorker(self.base_payload)
         result = worker.run()
         
@@ -112,8 +124,10 @@ class TestOpportunityEnumeratorWorker:
     
     @patch('core.modules.strategy.components.strategy_worker_data_manager.StrategyWorkerDataManager')
     @patch('importlib.import_module')
-    def test_run_with_klines_no_opportunities(self, mock_base_worker, mock_data_manager):
+    @patch('core.modules.data_manager.DataManager')
+    def test_run_with_klines_no_opportunities(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):
         """测试 run 方法（有 K 线但无机会）"""
+        mock_dm_class.return_value = MagicMock()
         mock_data_mgr_instance = MagicMock()
         # Mock K 线数据
         mock_klines = [
@@ -122,13 +136,17 @@ class TestOpportunityEnumeratorWorker:
         ]
         mock_data_mgr_instance.get_klines.return_value = mock_klines
         mock_data_mgr_instance.get_data_until.return_value = {'klines': mock_klines}
-        mock_data_manager.return_value = mock_data_mgr_instance
-        
+        mock_strategy_worker_dm.return_value = mock_data_mgr_instance
+
         # Mock strategy instance (不返回机会)
         mock_strategy = MagicMock()
         mock_strategy.scan_opportunity.return_value = None
-        mock_base_worker.return_value.get_strategy_instance.return_value = mock_strategy
-        
+        mock_data_mgr_instance.get_strategy_instance.return_value = mock_strategy
+
+        mock_strategy_module = MagicMock()
+        mock_strategy_module.StrategyWorker = MagicMock()
+        mock_import_module.return_value = mock_strategy_module
+
         worker = OpportunityEnumeratorWorker(self.base_payload)
         result = worker.run()
         
@@ -137,10 +155,16 @@ class TestOpportunityEnumeratorWorker:
     
     @patch('core.modules.strategy.components.strategy_worker_data_manager.StrategyWorkerDataManager')
     @patch('importlib.import_module')
-    def test_save_stock_results(self, mock_base_worker, mock_data_manager):
+    @patch('core.modules.data_manager.DataManager')
+    def test_save_stock_results(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):
         """测试保存股票结果"""
-        mock_data_manager.return_value = MagicMock()
-        
+        mock_dm_class.return_value = MagicMock()
+        mock_strategy_worker_dm.return_value = MagicMock()
+
+        mock_strategy_module = MagicMock()
+        mock_strategy_module.StrategyWorker = MagicMock()
+        mock_import_module.return_value = mock_strategy_module
+
         worker = OpportunityEnumeratorWorker(self.base_payload)
         
         # Mock opportunities

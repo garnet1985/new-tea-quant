@@ -125,7 +125,7 @@ python install.py
     "postgresql": {
         "host": "localhost",
         "port": 5432,
-        "database": "stocks_py",
+        "database": "new_tea_quant",
         "user": "postgres",
         "password": "your_password"
     },
@@ -152,7 +152,7 @@ python install.py
 ```json
 {
     "host": "localhost",
-    "database": "stocks_py",
+    "database": "new_tea_quant",
     "user": "root",
     "password": "password",
     "port": 3306  # 3306=MySQL, 5432=PostgreSQL
@@ -189,7 +189,7 @@ python3 start.py
     "postgresql": {
         "host": "localhost",
         "port": 5432,
-        "database": "stocks_py",
+        "database": "new_tea_quant",
         "user": "postgres",
         "password": "your_password",
         "pool_size": 10
@@ -210,7 +210,7 @@ python3 start.py
     "mysql": {
         "host": "localhost",
         "port": 3306,
-        "database": "stocks_py",
+        "database": "new_tea_quant",
         "user": "root",
         "password": "your_password",
         "charset": "utf8mb4"
@@ -261,7 +261,7 @@ python3 start.py
         "host": "localhost",
         "user": "root",
         "password": "your_password",
-        "database": "stocks_py",
+        "database": "new_tea_quant",
         "port": 3306
     }
 }

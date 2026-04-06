@@ -76,6 +76,8 @@ python install.py                 # 或: pip install -r requirements.txt
 
 更细的安装与配置也可对照仓库内 [docs/getting-started/installation.md](docs/getting-started/installation.md)；**以官网 [new-tea.cn](https://new-tea.cn) 的「快速开始」为准**。
 
+**Docker**：可用仓库内 `Dockerfile` 与 `docker-compose.yml` 拉起 PostgreSQL 与运行环境，步骤见 [docker/README.md](docker/README.md)。
+
 ## 有了新版本如何升级？
 
 下载最新的master到您的本地，保留您本地的userspace文件夹，其他的都替换成新版本的文件即可。

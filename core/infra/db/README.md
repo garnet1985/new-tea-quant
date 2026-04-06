@@ -163,7 +163,7 @@ DatabaseManager 内部使用三层架构：
   "postgresql": {
     "host": "localhost",
     "port": 5432,
-    "database": "stocks_py",
+    "database": "new_tea_quant",
     "user": "postgres",
     "password": "password"
   },

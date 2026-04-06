@@ -1,0 +1,24 @@
+# Git & IDE
+.git
+.gitignore
+.cursor
+.vscode
+.idea
+
+# Python
+venv
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Local / CI artifacts
+*.log
+.DS_Store
+
+# Optional: shrink build context (文档仍可从宿主机阅读)
+# docs

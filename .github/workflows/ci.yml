@@ -44,3 +44,16 @@ jobs:
       - name: Run core tests
         run: python -m pytest -v
 
+  # 确保 Dockerfile 可构建（不跑完整 install，避免 CI 时间过长）
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate compose file
+        run: docker compose -f docker-compose.yml config --quiet
+
+      - name: Build image
+        run: docker build -t new-tea-quant:ci .
+

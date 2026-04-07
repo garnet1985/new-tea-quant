@@ -615,7 +615,7 @@ class DbBaseModel:
         archive_name: str,
     ) -> int:
         """多行 VALUES 批量插入；返回插入行数。"""
-        col_list = ", ".join(field_names)
+        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
         one_row = "(" + ", ".join(["%s"] * len(field_names)) + ")"
         n = len(rows)
         if n == 0:
@@ -667,7 +667,7 @@ class DbBaseModel:
         """PostgreSQL：psycopg2.extras.execute_values 批量展开 VALUES，减少客户端拼接与往返。"""
         from psycopg2.extras import execute_values
 
-        col_list = ", ".join(field_names)
+        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
         sql = f"INSERT INTO {target_sql} ({col_list}) VALUES %s"
         n = len(rows)
         if n == 0:

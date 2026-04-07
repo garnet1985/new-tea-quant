@@ -17,6 +17,11 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from setup.setup import NewTeaQuantSetup
+
+# 允许用户直接运行该步骤，也默认使用项目 venv
+NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
+
 USER_DB_CONFIG_DIR = _REPO_ROOT / "userspace" / "config" / "database"
 
 

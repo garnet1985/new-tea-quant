@@ -80,12 +80,36 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # 导入应用模块
 # ============================================================================
-from core.modules.data_manager import DataManager
-from core.modules.data_source.data_source_manager import DataSourceManager
-from core.modules.tag import TagManager
-from core.modules.strategy.components import PriceFactorSimulator
-from core.modules.strategy.components.simulator.capital_allocation import CapitalAllocationSimulator
-from core.infra.logging.logging_manager import LoggingManager
+try:
+    from core.modules.data_manager import DataManager
+    from core.modules.data_source.data_source_manager import DataSourceManager
+    from core.modules.tag import TagManager
+    from core.modules.strategy.components import PriceFactorSimulator
+    from core.modules.strategy.components.simulator.capital_allocation import (
+        CapitalAllocationSimulator,
+    )
+    from core.infra.logging.logging_manager import LoggingManager
+except ModuleNotFoundError as e:
+    # 常见：用户未运行 install.py / 未创建 venv，导致 pandas 等依赖缺失
+    missing = getattr(e, "name", None) or str(e)
+    sys.stderr.write(
+        "\n".join(
+            [
+                f"❌ 缺少依赖包: {missing}",
+                "",
+                "建议：在仓库根目录先执行一次安装（会创建 venv/ 并安装 requirements.txt）：",
+                "  python3 install.py",
+                "",
+                "如果你已手动管理虚拟环境，请激活对应 venv 后再运行：",
+                "  pip install -r requirements.txt",
+                "",
+                "如需跳过自动 venv（不推荐），可设置：NTQ_SKIP_AUTO_VENV=1",
+                "",
+            ]
+        )
+        + "\n"
+    )
+    raise SystemExit(1) from e
 
 
 # ============================================================================

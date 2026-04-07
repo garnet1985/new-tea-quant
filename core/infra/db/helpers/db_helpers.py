@@ -3,7 +3,7 @@ DBHelpers - 数据库操作辅助工具
 
 提供纯静态方法，用于数据转换和处理、游标包装等。
 
-方言相关（MySQL / PostgreSQL / SQLite 标识符引用等）请统一通过 :class:`DBHelper` 的
+方言相关（MySQL / PostgreSQL 标识符引用等）请统一通过 :class:`DBHelper` 的
 ``quote_identifier*`` 方法处理；userspace 与业务代码不要直接依赖底层 ``sql_identifiers`` 模块。
 """
 import math
@@ -40,7 +40,7 @@ class DBHelper:
             raise ValueError("配置中缺少 'database_type' 字段")
         
         database_type = database_type.lower()
-        valid_types = ['postgresql', 'mysql', 'sqlite']
+        valid_types = ['postgresql', 'mysql']
         if database_type not in valid_types:
             raise ValueError(
                 f"不支持的数据库类型: {database_type}，"
@@ -56,20 +56,16 @@ class DBHelper:
             )
         
         # 3. 验证数据库配置的必需字段
-        if database_type == 'sqlite':
-            if 'db_path' not in db_config:
-                raise ValueError("SQLite 配置中缺少 'db_path' 字段")
-        elif database_type in ['postgresql', 'mysql']:
-            required_fields = ['host', 'port', 'database', 'user', 'password']
-            missing_fields = [f for f in required_fields if f not in db_config]
-            if missing_fields:
-                raise ValueError(
-                    f"{database_type.upper()} 配置中缺少必需字段: {', '.join(missing_fields)}"
-                )
+        required_fields = ['host', 'port', 'database', 'user', 'password']
+        missing_fields = [f for f in required_fields if f not in db_config]
+        if missing_fields:
+            raise ValueError(
+                f"{database_type.upper()} 配置中缺少必需字段: {', '.join(missing_fields)}"
+            )
 
-            # PostgreSQL: 补全 pgsql_schema，默认 public
-            if database_type == 'postgresql':
-                db_config['pgsql_schema'] = db_config.get('default_pgsql_schema')
+        # PostgreSQL: 补全 pgsql_schema，默认 public
+        if database_type == 'postgresql':
+            db_config['pgsql_schema'] = db_config.get('default_pgsql_schema')
         
         # 4. 补足 batch_write 默认配置
         if 'batch_write' not in config:
@@ -214,15 +210,13 @@ class DBHelper:
 
     @staticmethod
     def normalize_database_type(config: Dict) -> str:
-        """归一化为 postgresql | mysql | sqlite。"""
+        """归一化为 postgresql | mysql。"""
         raw = config.get("database_type") or "postgresql"
         t = str(raw).lower()
         if t in ("postgresql", "postgres", "pg"):
             return "postgresql"
         if t in ("mysql", "mariadb"):
             return "mysql"
-        if "sqlite" in t:
-            return "sqlite"
         return "postgresql"
 
     @staticmethod
@@ -231,7 +225,7 @@ class DBHelper:
         按当前 ``database_type`` 为 SQL 标识符加引号（表名、列名、索引名等）。
 
         - MySQL/MariaDB：反引号
-        - PostgreSQL / SQLite：双引号
+        - PostgreSQL：双引号
 
         动态拼接 DDL/DML 时调用，避免 ``key`` / ``text`` / ``json`` 等与保留字冲突。
         这是业务侧应使用的**唯一入口**，不必区分方言。
@@ -245,7 +239,7 @@ class DBHelper:
         在仅有方言字符串时引用标识符（如 :class:`SchemaManager` 仅持有 ``database_type``）。
 
         Args:
-            database_type: ``postgresql`` | ``mysql`` | ``sqlite``
+            database_type: ``postgresql`` | ``mysql``
         """
         return _quote_ddl_identifier_impl(database_type, name)
 
@@ -261,7 +255,7 @@ class DBHelper:
 
         - 已含 schema（含英文句号）时原样返回
         - PostgreSQL: {pgsql_schema}.table
-        - MySQL / SQLite: 裸表名
+        - MySQL: 裸表名
         """
         name = logical_name.strip()
         if not name:

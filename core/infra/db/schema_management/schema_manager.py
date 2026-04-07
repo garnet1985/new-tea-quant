@@ -39,7 +39,7 @@ class SchemaManager:
         Args:
             tables_dir: schema 目录（默认为 core/tables）
             is_verbose: 是否输出详细日志
-            database_type: 数据库类型（'postgresql', 'mysql', 'sqlite'），用于生成对应的 SQL
+            database_type: 数据库类型（'postgresql', 'mysql'），用于生成对应的 SQL
         """
         if tables_dir:
             self.tables_dir = tables_dir
@@ -225,19 +225,8 @@ class SchemaManager:
         
         # 添加主键（如果字段定义中没有包含）
         if primary_key:
-            # 检查是否已经有 AUTO_INCREMENT 主键（SQLite）
-            has_auto_inc_pk = False
-            if self.database_type == 'sqlite':
-                for field_obj in field_objects:
-                    if field_obj.auto_increment:
-                        pk_list = primary_key if isinstance(primary_key, list) else [primary_key]
-                        if field_obj.name in pk_list:
-                            has_auto_inc_pk = True
-                            break
-            
-            if not has_auto_inc_pk:
-                pk_def = self._generate_primary_key_definition(primary_key)
-                field_defs.append(pk_def)
+            pk_def = self._generate_primary_key_definition(primary_key)
+            field_defs.append(pk_def)
         
         # 生成完整 SQL
         fields_sql = ',\n    '.join(field_defs)

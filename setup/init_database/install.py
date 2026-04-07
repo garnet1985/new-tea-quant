@@ -165,8 +165,8 @@ def main() -> int:
 
     common_cfg = _load_json_dict(common_json)
     db_type = str(common_cfg.get("database_type") or "").strip().lower()
-    if db_type not in ("postgresql", "mysql", "sqlite"):
-        NewTeaQuantSetup.print_check_fail(f"common.json 里的 database_type 无效: {db_type!r}（可选: postgresql/mysql/sqlite）")
+    if db_type not in ("postgresql", "mysql"):
+        NewTeaQuantSetup.print_check_fail(f"common.json 里的 database_type 无效: {db_type!r}（可选: postgresql/mysql）")
         return 1
     NewTeaQuantSetup.print_check_ok(f"您当前要使用的数据库: {db_type}")
 
@@ -269,9 +269,6 @@ def main() -> int:
                 NewTeaQuantSetup.print_check_ok("提示: 可参考仓库根目录的 `setup_postgresql.sh` 或 docs/getting-started/configuration.md")
             else:
                 NewTeaQuantSetup.print_check_ok("提示: 请确认 MySQL 服务已启动、账号有权限、数据库已创建")
-        elif db_type == "sqlite":
-            db_path = (db_cfg or {}).get("db_path")
-            NewTeaQuantSetup.print_check_ok(f"提示: SQLite db_path={db_path}（路径相对仓库根）")
 
         print("\n--- traceback ---", file=sys.stderr)
         traceback.print_exc()

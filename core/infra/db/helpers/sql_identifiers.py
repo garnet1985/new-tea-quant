@@ -13,10 +13,10 @@ def quote_ddl_identifier(database_type: str, name: str) -> str:
     为 DDL 引用标识符。
 
     - ``mysql``：反引号 `` `name` ``（MariaDB 同）。
-    - ``postgresql`` / ``sqlite``：双引号 ``"name"``。
+    - ``postgresql``（及其它非 mysql）：双引号 ``"name"``。
 
     Args:
-        database_type: ``postgresql`` | ``mysql`` | ``sqlite`` 等。
+        database_type: ``postgresql`` | ``mysql`` 等。
         name: 表名、列名或索引名；``None`` 原样返回。
 
     Returns:

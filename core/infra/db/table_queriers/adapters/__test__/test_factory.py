@@ -51,23 +51,6 @@ class TestDatabaseAdapterFactory:
             mock_adapter_class.assert_called_once()
             mock_adapter.connect.assert_called_once()
     
-    def test_create_sqlite(self):
-        """测试创建 SQLite 适配器"""
-        config = {
-            'database_type': 'sqlite',
-            'sqlite': {
-                'db_path': ':memory:'
-            }
-        }
-        
-        with patch('core.infra.db.table_queriers.adapters.factory.SQLiteAdapter') as mock_adapter_class:
-            mock_adapter = Mock()
-            mock_adapter_class.return_value = mock_adapter
-            
-            adapter = DatabaseAdapterFactory.create(config, is_verbose=False)
-            mock_adapter_class.assert_called_once()
-            mock_adapter.connect.assert_called_once()
-    
     def test_create_invalid_type(self):
         """测试创建无效的数据库类型"""
         config = {

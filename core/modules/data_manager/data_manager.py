@@ -365,7 +365,7 @@ class DataManager:
         返回逻辑表在当前数据库下的“物理表名”（用于直接写 SQL 时使用）。
 
         - PostgreSQL: 使用 pgsql_schema.table_name
-        - MySQL / SQLite: 暂时返回逻辑名本身
+        - MySQL: 暂时返回逻辑名本身
         """
         # 先获取 Model，看表是否已注册
         model = self.get_table(logical_name)
@@ -379,7 +379,7 @@ class DataManager:
             pg_schema = pg_cfg.get("pgsql_schema", "public")
             return f"{pg_schema}.{model.table_name}"
 
-        # MySQL / SQLite：目前直接返回逻辑名；后续如有表名前缀等需求再扩展
+        # MySQL：目前直接返回逻辑名；后续如有表名前缀等需求再扩展
         return logical_name
 
     # ------------------------------------------------------------------

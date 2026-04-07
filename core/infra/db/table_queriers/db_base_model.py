@@ -61,6 +61,9 @@ from core.utils.io import file_io
 
 logger = logging.getLogger(__name__)
 
+# MySQL 单条 INSERT 受 max_allowed_packet 限制；在占位符上限之外再限制每批行数
+_MYSQL_INSERT_BATCH_ROW_CAP = 50
+
 
 class ExportTemplateKind(Enum):
     """
@@ -68,7 +71,7 @@ class ExportTemplateKind(Enum):
 
     - FULL_TABLE: 整表导出，不切块
     - ROW_CHUNK: 按行数切块（预留，当前实现等同于 FULL_TABLE）
-    """
+    """ 
 
     FULL_TABLE = "full_table"
     ROW_CHUNK = "row_chunk"
@@ -227,17 +230,10 @@ class DbBaseModel:
             column_name: 列名
             column_type: 新的列类型
 
-        Raises:
-            NotImplementedError: SQLite 不支持 ALTER COLUMN，需重建表
         """
         self._validate_column_name(column_name)
         self._validate_column_type(column_type)
         database_type = self.db.config.get('database_type', 'postgresql')
-        if database_type == 'sqlite':
-            raise NotImplementedError(
-                "SQLite 不支持修改列类型。请使用 execute_raw_update 手动重建表，"
-                "或迁移到 PostgreSQL/MySQL。"
-            )
         if database_type == 'postgresql':
             sql = f"ALTER TABLE {self.table_name} ALTER COLUMN {column_name} TYPE {column_type.strip()}"
         else:
@@ -456,11 +452,6 @@ class DbBaseModel:
         elif db_type == "mysql":
             cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
             cursor.execute(f"CREATE TABLE {target_sql} LIKE {source_sql}")
-        elif db_type == "sqlite":
-            cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
-            cursor.execute(
-                f"CREATE TABLE {target_sql} AS SELECT * FROM {source_sql} WHERE 1=0"
-            )
         else:
             raise ValueError(f"不支持的数据库类型: {db_type}")
         logger.info("已为目标表建立结构: %s <- %s", target_sql, source_sql)
@@ -555,19 +546,16 @@ class DbBaseModel:
         """
         多行一条 INSERT 时的行数上限。
 
-        PostgreSQL / MySQL：单语句占位符有上限（PG 约 65535），故实际为
-        min(目标上限, 65535 // 列数)。列很多时批次会低于目标上限，属正常。
-        SQLite：受 SQLITE_MAX_VARIABLE_NUMBER（默认 999）约束。
+        PostgreSQL / MySQL：单语句占位符有上限（约 65535），实际为 min(上限, 65535//列数)。
+        MySQL 另受 max_allowed_packet 约束，再限制每批最多 ``_MYSQL_INSERT_BATCH_ROW_CAP`` 行。
         """
         nc = max(num_columns, 1)
         t = DBHelper.normalize_database_type(self.db.config)
-        # 目标：宽表自动缩小批次；窄表可一次合并上万行
-        _cap_pg_mysql = 10_000
-        if t == "sqlite":
-            return max(1, min(400, 999 // nc))
+        _cap_pg = 10_000
+        by_ph = max(1, 65535 // nc)
         if t == "postgresql":
-            return max(1, min(_cap_pg_mysql, 65535 // nc))
-        return max(1, min(_cap_pg_mysql, 65535 // nc))
+            return max(1, min(_cap_pg, by_ph))
+        return max(1, min(_cap_pg, by_ph, _MYSQL_INSERT_BATCH_ROW_CAP))
 
     def _import_log_progress_after_chunk(
         self,
@@ -808,7 +796,7 @@ class DbBaseModel:
         overwrite：按需建目标表、DELETE 清空、再导入。target 与源不同名时见
         `_ensure_import_target_with_cursor`。insert_batch_size 默认按列数与驱动占位符上限估算。
 
-        PG：adapter 事务 + execute_values；MySQL：事务 + 多行 VALUES；SQLite：DatabaseCursor + 多行 VALUES（999 变量上限）。
+        PG：adapter 事务 + execute_values；MySQL：事务 + 多行 VALUES。
         """
         if mode not in ("overwrite", "replace"):
             raise ValueError(f"未知导入模式: {mode}")
@@ -826,11 +814,7 @@ class DbBaseModel:
 
         db_type = DBHelper.normalize_database_type(self.db.config)
         pg_ev = db_type == "postgresql"
-        ctx = (
-            self.db.connection_manager.transaction
-            if db_type in ("postgresql", "mysql")
-            else self.db.get_sync_cursor
-        )
+        ctx = self.db.connection_manager.transaction
         with ctx() as cursor:
             total_rows = self._import_data_overwrite_run(
                 cursor,

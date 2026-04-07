@@ -13,21 +13,6 @@
 - `settings.py` - 策略配置
 - 完整的文档和注释
 
-### RTB 策略
-
-位置：`userspace/strategies/RTB/`
-
-反转策略示例，包含：
-- 策略实现
-- ML 优化模块
-- 版本历史记录
-
-### 其他策略示例
-
-- `userspace/strategies/momentum/` - 动量策略
-- `userspace/strategies/HL/` - 历史低点策略
-- `userspace/strategies/Waly/` - Waly 策略
-
 ## 数据源示例
 
 ### Handler 示例

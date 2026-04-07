@@ -188,13 +188,18 @@ def main() -> int:
 
     db_cfg = config.get(db_type) or {}
     if isinstance(db_cfg, dict):
-        NewTeaQuantSetup.print_check_ok(f"{db_type} 当前配置: {_mask_password(db_cfg)}")
+        NewTeaQuantSetup.print_check_ok(f"已检测到使用数据库类型: {db_type}，当前配置:")
+        NewTeaQuantSetup.print_check_ok(f"host: {db_cfg.get('host')}")
+        NewTeaQuantSetup.print_check_ok(f"port: {db_cfg.get('port')}")
+        NewTeaQuantSetup.print_check_ok(f"user: {db_cfg.get('user')}")
+        if db_type == "postgresql":
+            NewTeaQuantSetup.print_check_ok(f"schema: {db_cfg.get('default_pgsql_schema')}")
     else:
-        NewTeaQuantSetup.print_check_ok(f"{db_type} 当前配置: {db_cfg!r}")
+        NewTeaQuantSetup.print_check_ok(f"未检测到使用数据库类型: 请检查userspace/config/database/{db_type}.json文件是否正确")
 
     if db_type in ("postgresql", "mysql") and isinstance(db_cfg, dict):
         pw = db_cfg.get("password")
-        if not pw or pw == "your_password_here":
+        if pw == "your_password_here":
             NewTeaQuantSetup.print_check_fail("未配置数据库密码（当前仍是默认占位符）")
             NewTeaQuantSetup.print_check_ok(f"请编辑: {USER_DB_CONFIG_DIR / f'{db_type}.json'}（写入 user/password 等）")
             return 1

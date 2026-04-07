@@ -211,13 +211,42 @@ class MySQLAdapter(BaseDatabaseAdapter):
     def get_connection(self):
         """
         获取数据库连接（用于需要直接访问连接的场景）
-        
+
+        返回包装对象，与 PostgreSQL 适配器一致，提供 ``conn.execute(sql)``，
+        供 SchemaManager 等使用（原始 pymysql.Connection 无 ``execute``，须通过游标执行）。
+
         Returns:
-            MySQL 连接对象
+            带 execute/cursor/commit/rollback 的包装对象
         """
         if not self.conn:
             raise RuntimeError("MySQL 适配器未初始化，请先调用 connect()")
-        return self.conn
+
+        mysql_conn = self.conn
+
+        class MySQLConnectionWrapper:
+            def __init__(self, raw, adapter):
+                self.mysql_conn = raw
+                self.adapter = adapter
+
+            def execute(self, query: str, params: Any = None):
+                with self.mysql_conn.cursor() as cursor:
+                    if params is None:
+                        cursor.execute(query)
+                    else:
+                        cursor.execute(query, params)
+                self.mysql_conn.commit()
+                return self
+
+            def cursor(self):
+                return self.mysql_conn.cursor()
+
+            def commit(self):
+                self.mysql_conn.commit()
+
+            def rollback(self):
+                self.mysql_conn.rollback()
+
+        return MySQLConnectionWrapper(mysql_conn, self)
     
     def is_table_exists(self, table_name: str) -> bool:
         """

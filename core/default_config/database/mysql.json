@@ -1,7 +1,7 @@
 {
   "host": "localhost",
   "port": 3306,
-  "database": "stocks_py",
+  "database": "new_tea_quant",
   "user": "root",
   "password": "your_password_here",
   "_advanced": {

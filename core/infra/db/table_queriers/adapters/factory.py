@@ -44,7 +44,7 @@ class DatabaseAdapterFactory:
                 'postgresql': {
                     'host': 'localhost',
                     'port': 5432,
-                    'database': 'stocks_py',
+                    'database': 'new_tea_quant',
                     'user': 'postgres',
                     'password': 'password'
                 }
@@ -56,7 +56,7 @@ class DatabaseAdapterFactory:
                 'mysql': {
                     'host': 'localhost',
                     'port': 3306,
-                    'database': 'stocks_py',
+                    'database': 'new_tea_quant',
                     'user': 'root',
                     'password': 'password'
                 }

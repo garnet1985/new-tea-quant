@@ -1,0 +1,48 @@
+# 本地 / 单机 OOTB：PostgreSQL + NTQ 应用容器
+# 数据库连接通过环境变量覆盖（与 ConfigManager._get_database_env_mapping 一致）
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ntq_dev
+      POSTGRES_DB: new_tea_quant
+    ports:
+      - "5432:5432"
+    volumes:
+      - ntq_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d new_tea_quant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # 默认 `docker compose up -d` 只拉起 postgres；跑 NTQ 用：`docker compose --profile ntq run --rm ntq ...`
+  ntq:
+    profiles:
+      - ntq
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NTQ_SKIP_AUTO_VENV: "1"
+      PYTHONPATH: /app
+      DB_POSTGRESQL_HOST: postgres
+      DB_POSTGRESQL_PORT: "5432"
+      DB_POSTGRESQL_USER: postgres
+      DB_POSTGRESQL_PASSWORD: ntq_dev
+      DB_POSTGRESQL_DATABASE: new_tea_quant
+    volumes:
+      # 策略、配置、结果等持久化在宿主机 userspace/
+      - ./userspace:/app/userspace
+    working_dir: /app
+    stdin_open: true
+    tty: true
+
+volumes:
+  ntq_pgdata:

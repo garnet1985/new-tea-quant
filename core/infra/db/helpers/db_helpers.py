@@ -2,9 +2,14 @@
 DBHelpers - 数据库操作辅助工具
 
 提供纯静态方法，用于数据转换和处理、游标包装等。
+
+方言相关（MySQL / PostgreSQL / SQLite 标识符引用等）请统一通过 :class:`DBHelper` 的
+``quote_identifier*`` 方法处理；userspace 与业务代码不要直接依赖底层 ``sql_identifiers`` 模块。
 """
 import math
 from typing import Dict, List, Any, Optional
+
+from core.infra.db.helpers.sql_identifiers import quote_ddl_identifier as _quote_ddl_identifier_impl
 from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
 
 
@@ -219,6 +224,35 @@ class DBHelper:
         if "sqlite" in t:
             return "sqlite"
         return "postgresql"
+
+    @staticmethod
+    def quote_identifier(config: Dict, name: str) -> str:
+        """
+        按当前 ``database_type`` 为 SQL 标识符加引号（表名、列名、索引名等）。
+
+        - MySQL/MariaDB：反引号
+        - PostgreSQL / SQLite：双引号
+
+        动态拼接 DDL/DML 时调用，避免 ``key`` / ``text`` / ``json`` 等与保留字冲突。
+        这是业务侧应使用的**唯一入口**，不必区分方言。
+        """
+        dt = DBHelper.normalize_database_type(config)
+        return _quote_ddl_identifier_impl(dt, name)
+
+    @staticmethod
+    def quote_identifier_for_dialect(database_type: str, name: str) -> str:
+        """
+        在仅有方言字符串时引用标识符（如 :class:`SchemaManager` 仅持有 ``database_type``）。
+
+        Args:
+            database_type: ``postgresql`` | ``mysql`` | ``sqlite``
+        """
+        return _quote_ddl_identifier_impl(database_type, name)
+
+    @staticmethod
+    def quote_identifier_list(config: Dict, names: List[str]) -> str:
+        """逗号分隔的已引用列名列表，用于 ``INSERT INTO t (…)`` 等。"""
+        return ", ".join(DBHelper.quote_identifier(config, n) for n in names)
 
     @staticmethod
     def sql_qualify_table_name(config: Dict, logical_name: str) -> str:

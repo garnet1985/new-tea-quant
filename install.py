@@ -62,7 +62,12 @@ def main() -> None:
         NewTeaQuantSetup.print_check_ok("安装完成")
         NewTeaQuantSetup.print_check_info("后续建议使用项目 venv 的 Python 运行命令（避免缺依赖）：")
         NewTeaQuantSetup.print_check_info(f"  {vpy} start-cli.py -h")
-        NewTeaQuantSetup.print_check_info(f"  {vpy} start-cli.py renew")
+        NewTeaQuantSetup.print_check_info(f"  {vpy} start-cli.py -sp")
+        NewTeaQuantSetup.print_check_info(f"  {vpy} start-cli.py -sa")
+
+        NewTeaQuantSetup.print_heading("🎉 如果您需要更多的测试数据，请进入 https://new-tea.cn 注册会员后下载。感谢您的支持。", done=True)
+
+
     except Exception:
         # 不影响安装流程
         pass

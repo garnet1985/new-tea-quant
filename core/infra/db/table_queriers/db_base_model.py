@@ -1243,6 +1243,7 @@ class DbBaseModel:
             if not columns:
                 return 0
             batch_size = self._get_insert_batch_size()
+            dt = DBHelper.normalize_database_type(self.db.config)
             with self.db.get_sync_cursor() as cursor:
                 return BatchOperation.execute_batch_insert(
                     executor=cursor,
@@ -1250,6 +1251,7 @@ class DbBaseModel:
                     columns=columns,
                     values=values,
                     batch_size=batch_size,
+                    database_type=dt,
                     unique_keys=unique_keys,
                     update_clause=update_clause
                 )

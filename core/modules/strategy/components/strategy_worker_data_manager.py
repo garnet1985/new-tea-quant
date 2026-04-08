@@ -497,37 +497,50 @@ class StrategyWorkerDataManager:
         Returns:
             data: [...]
         """
+        # 解析配置
+        if isinstance(entity_config, dict):
+            entity_type = entity_config.get("type")
+            entity_name = entity_config.get("name")
+            required = bool(entity_config.get("required", True))
+        else:
+            entity_type = entity_config
+            entity_name = None
+            required = True
+
+        entity_type_str = str(entity_type or "")
         try:
-            # 解析配置
-            if isinstance(entity_config, dict):
-                entity_type = entity_config.get('type')
-                entity_name = entity_config.get('name')
-            else:
-                entity_type = entity_config
-                entity_name = None
-            
             # 根据 entity_type 加载不同的数据
-            if 'tag' in entity_type.lower():
-                # 加载 Tag 数据
-                return self._load_tag_data(entity_name, start_date, end_date)
-            
-            elif 'corporate_finance' in entity_type.lower():
-                # 加载财务数据
+            if "tag" in entity_type_str.lower():
+                # 加载 Tag 数据（若声明依赖，则默认 required=True，缺失应 fail-fast）
+                return self._load_tag_data(
+                    scenario_name=entity_name,
+                    start_date=start_date,
+                    end_date=end_date,
+                    required=required,
+                )
+
+            if "corporate_finance" in entity_type_str.lower():
                 return self._load_finance_data(start_date, end_date)
-            
-            elif 'gdp' in entity_type.lower():
-                # 加载宏观数据
+
+            if "gdp" in entity_type_str.lower():
                 return self._load_macro_data("sys_gdp", start_date, end_date)
-            
-            else:
-                logger.warning(f"未知的实体类型: {entity_type}")
-                return []
-        
+
+            logger.warning(f"未知的实体类型: {entity_type_str}")
+            return []
         except Exception as e:
-            logger.error(f"加载实体数据失败: type={entity_config}, error={e}")
+            # 对 required 数据源，直接抛出，让上层在 preprocess/取数阶段中断
+            if required:
+                raise
+            logger.error(f"加载实体数据失败(已忽略): type={entity_config}, error={e}")
             return []
     
-    def _load_tag_data(self, scenario_name: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def _load_tag_data(
+        self,
+        scenario_name: str,
+        start_date: str,
+        end_date: str,
+        required: bool = True,
+    ) -> List[Dict[str, Any]]:
         """
         加载 Tag 数据（基于 TagDataService，按 scenario 维度）
 
@@ -540,34 +553,36 @@ class StrategyWorkerDataManager:
         - 因此此处的参数 scenario_name 实际上来自 entity_config["name"]
         - 不支持在策略侧单独按某个标签名称加载，只能一次性加载该 scenario 下的所有标签值
         """
-        try:
-            if not scenario_name:
-                logger.warning("加载 Tag 数据时未提供 scenario_name，返回空结果")
-                return []
-
-            # 通过 DataManager 的 stock.tags（TagDataService）加载
-            tag_service = getattr(self.data_mgr.stock, "tags", None)
-            if tag_service is None:
-                logger.error("DataManager 未初始化 TagDataService: data_mgr.stock.tags 不存在")
-                return []
-
-            data = tag_service.load_values_for_entity(
-                entity_id=self.stock_id,
-                scenario_name=scenario_name,
-                start_date=start_date,
-                end_date=end_date,
-                # sys_tag_value.entity_type 在 tag 系统中通常存的是 target_entity.type（例如 stock_kline_daily），
-                # 策略侧应使用一致的 entity_type 才能查到数据。
-                entity_type=getattr(self.settings, "base_kline_type", "stock_kline_daily"),
-            )
-            return data or []
-        except Exception as e:
-            logger.error(
-                f"加载 Tag 数据失败: stock_id={self.stock_id}, "
-                f"scenario={scenario_name}, "
-                f"date_range={start_date}-{end_date}, error={e}"
-            )
+        if not scenario_name:
+            if required:
+                raise RuntimeError("策略声明依赖 Tag 场景，但未提供 scenario_name")
+            logger.warning("加载 Tag 数据时未提供 scenario_name，返回空结果")
             return []
+
+        # 通过 DataManager 的 stock.tags（TagDataService）加载
+        tag_service = getattr(self.data_mgr.stock, "tags", None)
+        if tag_service is None:
+            raise RuntimeError("DataManager 未初始化 TagDataService: data_mgr.stock.tags 不存在")
+
+        # 先校验 scenario 元信息是否存在；不存在则直接 fail-fast（比子进程刷 warning 更明确）
+        scenario = tag_service.load_scenario(scenario_name)
+        if not scenario:
+            raise RuntimeError(
+                "策略依赖的 Tag 场景不存在，已中断取数："
+                f" stock_id={self.stock_id}, scenario={scenario_name}. "
+                "请先运行 -t/-tg 生成标签元信息与数据，或检查 scenario 名称是否正确。"
+            )
+
+        data = tag_service.load_values_for_entity(
+            entity_id=self.stock_id,
+            scenario_name=scenario_name,
+            start_date=start_date,
+            end_date=end_date,
+            # sys_tag_value.entity_type 在 tag 系统中通常存的是 target_entity.type（例如 stock_kline_daily），
+            # 策略侧应使用一致的 entity_type 才能查到数据。
+            entity_type=getattr(self.settings, "base_kline_type", "stock_kline_daily"),
+        )
+        return data or []
     
     def _load_finance_data(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """加载财务数据"""

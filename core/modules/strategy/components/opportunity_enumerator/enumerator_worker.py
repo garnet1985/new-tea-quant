@@ -212,7 +212,11 @@ class OpportunityEnumeratorWorker:
                             actual_start_date,
                             self.end_date,
                         )
-                        self.data_manager._current_data[entity_type] = data
+                        # tags：统一放到 result['tags']，避免上层需要关心 EntityType.TAG_SCENARIO 的具体字符串
+                        if entity_type and 'tag' in str(entity_type).lower():
+                            self.data_manager._current_data["tags"] = data
+                        else:
+                            self.data_manager._current_data[entity_type] = data
                     entity_query_time = time_module.perf_counter() - entity_query_start
 
                     # 这些查询仍然是 per-stock 的，这里按「每个实体一次查询」记账

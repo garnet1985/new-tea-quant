@@ -17,6 +17,7 @@ import logging
 
 from core.infra.project_context import PathManager
 from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.components.simulator.price_factor.helpers import DateTimeEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,8 @@ class OpportunityService:
         # 结果文件夹路径
         self.base_path = PathManager.strategy_results(strategy_name)
         self.scan_path = PathManager.strategy_scan_results(strategy_name)
-        self.simulate_path = self.base_path / "simulate"
+        # 回测（simulate/simulate_enum）统一归档到 results/simulations/enumerator/
+        self.simulate_path = PathManager.strategy_simulations_enumerator(strategy_name)
         
         # 确保文件夹存在
         self.scan_path.mkdir(parents=True, exist_ok=True)
@@ -99,7 +101,7 @@ class OpportunityService:
         
         # 5. 保存文件
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
         # 6. 更新 latest 软链接
         self._update_latest_link(self.scan_path, date)
@@ -157,7 +159,7 @@ class OpportunityService:
         
         summary_file = date_folder / "summary.json"
         with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+            json.dump(summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     def save_scan_config(self, date: str, config: Dict[str, Any]):
         """
@@ -170,7 +172,7 @@ class OpportunityService:
         
         config_file = date_folder / "config.json"
         with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+            json.dump(config, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     # =========================================================================
     # Simulator 相关
@@ -207,7 +209,7 @@ class OpportunityService:
         # 3. 保存文件
         file_path = session_folder / f"{stock_id}.json"
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
         # 4. 更新 latest 软链接
         self._update_latest_link(self.simulate_path, session_id)
@@ -223,7 +225,7 @@ class OpportunityService:
         
         summary_file = session_folder / "summary.json"
         with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+            json.dump(summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     def save_simulate_config(self, session_id: str, config: Dict[str, Any]):
         """
@@ -236,7 +238,7 @@ class OpportunityService:
         
         config_file = session_folder / "config.json"
         with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+            json.dump(config, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     # =========================================================================
     # 辅助方法

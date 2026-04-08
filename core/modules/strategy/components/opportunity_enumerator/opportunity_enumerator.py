@@ -418,7 +418,9 @@ class OpportunityEnumerator:
             performance_summary = aggregate_profiler.get_summary()
             performance_file = output_dir / "0_performance_report.json"
             with performance_file.open("w", encoding="utf-8") as f:
-                json.dump(performance_summary, f, indent=2, ensure_ascii=False)
+                # profiler 结果里可能包含 datetime（例如阶段起止时间），用统一 encoder 避免序列化失败
+                from core.modules.strategy.components.simulator.price_factor.helpers import DateTimeEncoder
+                json.dump(performance_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
             logger.info(f"📊 性能报告已保存: {performance_file}")
         
         # 5. 保存 metadata（含 settings 快照、版本信息）
@@ -530,7 +532,8 @@ class OpportunityEnumerator:
         
         # 会话级 metadata 也使用 0_ 前缀
         with open(output_dir / '0_metadata.json', 'w', encoding='utf-8') as f:
-            json.dump(metadata, f, indent=2, ensure_ascii=False)
+            from core.modules.strategy.components.simulator.price_factor.helpers import DateTimeEncoder
+            json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
         enum_mode = "全量枚举" if is_full_enumeration else "测试模式（采样）"
         logger.info(f"✅ 枚举 metadata 已保存: {output_dir} ({enum_mode})")

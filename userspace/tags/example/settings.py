@@ -77,7 +77,7 @@ Settings = {
 
     "core": {
         "window": 20,
-        "high_threshold": 1.5,
+        "high_threshold": 1.2,
         "low_threshold": 0.7,
     },
 

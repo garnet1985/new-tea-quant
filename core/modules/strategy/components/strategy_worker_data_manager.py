@@ -17,6 +17,7 @@ Strategy Worker Data Manager - 策略数据管理器
 
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta
+import datetime as dt
 import logging
 
 from core.modules.indicator import IndicatorService
@@ -107,7 +108,11 @@ class StrategyWorkerDataManager:
         for entity_config in self.settings.required_entities:
             entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
             data = self._load_entity(entity_config, start_date, latest_date)
-            self._current_data[entity_type] = data
+            # tags：统一放到 result['tags']，避免上层需要关心 EntityType.TAG_SCENARIO 的具体字符串
+            if entity_type and 'tag' in str(entity_type).lower():
+                self._current_data["tags"] = data
+            else:
+                self._current_data[entity_type] = data
     
     # =========================================================================
     # Simulator 数据加载
@@ -156,8 +161,12 @@ class StrategyWorkerDataManager:
             data = self._load_entity(entity_config, start_date, end_date)
             
             # 2.1 为 Enumerator 保留行式数据 + 游标状态
-            self._current_data[entity_type] = data
-            self._cursor_state[entity_type] = {"cursor": -1, "acc": []}
+            if entity_type and 'tag' in str(entity_type).lower():
+                self._current_data["tags"] = data
+                self._cursor_state["tags"] = {"cursor": -1, "acc": []}
+            else:
+                self._current_data[entity_type] = data
+                self._cursor_state[entity_type] = {"cursor": -1, "acc": []}
     
     # =========================================================================
     # 数据访问接口
@@ -251,8 +260,14 @@ class StrategyWorkerDataManager:
             if state is None:
                 continue
 
-            # 财务数据使用 quarter 字段，其余默认使用 date 字段
-            date_field = "quarter" if "finance" in str(entity_type).lower() else "date"
+            # 其他数据类型的时间字段约定：
+            # - tags: 使用 as_of_date（TagDataService 返回字段）
+            # - corporate_finance: 使用 quarter（兼容旧实现）
+            # - 其余：默认使用 date
+            if entity_type == "tags":
+                date_field = "as_of_date"
+            else:
+                date_field = "quarter" if "finance" in str(entity_type).lower() else "date"
 
             before_cursor = state.get("cursor", -1)
             acc = state.setdefault("acc", [])
@@ -267,7 +282,14 @@ class StrategyWorkerDataManager:
                 if d is None:
                     i += 1
                     continue
-                if d > date_of_today:
+
+                # DB 返回的日期字段（例如 tag.as_of_date）可能是 datetime.date/datetime.datetime；
+                # 这里统一转换为 YYYYMMDD 字符串后再比较，避免类型错误。
+                d_norm = self._normalize_date_value(d)
+                if d_norm is None:
+                    i += 1
+                    continue
+                if d_norm > date_of_today:
                     break
 
                 acc.append(rec)
@@ -278,6 +300,29 @@ class StrategyWorkerDataManager:
             result[entity_type] = acc
 
         return result
+
+    @staticmethod
+    def _normalize_date_value(value: Any) -> Optional[str]:
+        """
+        将各种可能的日期值归一化为 YYYYMMDD 字符串，便于与 date_of_today 进行比较。
+
+        支持：
+        - datetime.date / datetime.datetime -> strftime('%Y%m%d')
+        - 'YYYYMMDD' -> 原样返回
+        - 其他 -> None（调用方跳过该记录）
+        """
+        if value is None:
+            return None
+        if isinstance(value, dt.datetime):
+            return value.strftime("%Y%m%d")
+        if isinstance(value, dt.date):
+            return value.strftime("%Y%m%d")
+        if isinstance(value, str):
+            v = value.strip()
+            # quarter 等格式（YYYYQn）在当前实现中只用于 finance 分支；
+            # 对其它数据（如 tags）我们期望是 YYYYMMDD。
+            return v
+        return None
     
     # =========================================================================
     # 私有方法
@@ -511,6 +556,9 @@ class StrategyWorkerDataManager:
                 scenario_name=scenario_name,
                 start_date=start_date,
                 end_date=end_date,
+                # sys_tag_value.entity_type 在 tag 系统中通常存的是 target_entity.type（例如 stock_kline_daily），
+                # 策略侧应使用一致的 entity_type 才能查到数据。
+                entity_type=getattr(self.settings, "base_kline_type", "stock_kline_daily"),
             )
             return data or []
         except Exception as e:

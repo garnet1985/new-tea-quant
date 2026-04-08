@@ -185,49 +185,62 @@ class App:
         manager.scan(strategy_name=strategy_name)
     
     def analysis(self, session_id: str = None):
-        """分析策略模拟结果汇总（读取 summary.json）。"""
-        from core.modules.strategy.components.opportunity_service import OpportunityService
+        """
+        分析策略结果（读取 results/simulations 下的输出）。
+
+        约定：对外只保留三类结果目录（opportunity_enums / simulations / scan），
+        analysis 也应基于 simulations（price_factor / capital_allocation）做汇总展示。
+        """
+        import json
+        from core.infra.project_context import PathManager
 
         manager = self._ensure_strategy_manager()
         strategy_names = [
-            name for name, info in manager.strategy_cache.items()
-            if info['settings'].is_enabled
+            name for name, info in manager.strategy_cache.items() if info["settings"].is_enabled
         ]
         if not strategy_names:
             logger.warning("没有启用的策略可分析")
             return
 
+        def _read_latest_version(root: str):
+            meta = json.loads((root / "meta.json").read_text(encoding="utf-8"))
+            latest_id = int(meta.get("next_version_id", 1)) - 1
+            if latest_id <= 0:
+                return None
+            return root / str(latest_id)
+
         found = False
         for strategy_name in strategy_names:
-            svc = OpportunityService(strategy_name)
-            if session_id:
-                session = session_id
-            else:
-                latest = svc.simulate_path / "latest"
-                if not latest.exists():
-                    continue
-                session = latest.resolve().name
+            pf_root = PathManager.strategy_simulations_price_factor(strategy_name)
+            ca_root = PathManager.strategy_capital_allocation(strategy_name)
 
-            summary_file = svc.simulate_path / session / "summary.json"
-            if not summary_file.is_file():
-                continue
+            pf_latest = _read_latest_version(pf_root) if (pf_root / "meta.json").is_file() else None
+            ca_latest = _read_latest_version(ca_root) if (ca_root / "meta.json").is_file() else None
 
-            try:
-                import json
-                data = json.loads(summary_file.read_text(encoding="utf-8"))
-            except Exception as e:
-                logger.warning("读取分析结果失败: strategy=%s session=%s error=%s", strategy_name, session, e)
+            if not pf_latest and not ca_latest:
                 continue
 
             found = True
-            logger.info("📊 strategy=%s session=%s", strategy_name, session)
-            logger.info("   opportunities=%s success_stocks=%s failed_stocks=%s",
-                        data.get("opportunity_count", data.get("opportunities", "n/a")),
-                        data.get("success_stocks", "n/a"),
-                        data.get("failed_stocks", "n/a"))
+            logger.info("📊 strategy=%s", strategy_name)
+
+            if pf_latest:
+                ss = pf_latest / "0_session_summary.json"
+                if ss.is_file():
+                    data = json.loads(ss.read_text(encoding="utf-8"))
+                    logger.info("   price_factor: version=%s keys=%s", pf_latest.name, list(data.keys()))
+                else:
+                    logger.info("   price_factor: version=%s (missing 0_session_summary.json)", pf_latest.name)
+
+            if ca_latest:
+                summary = ca_latest / "summary_strategy.json"
+                if summary.is_file():
+                    data = json.loads(summary.read_text(encoding="utf-8"))
+                    logger.info("   capital_allocation: version=%s keys=%s", ca_latest.name, list(data.keys()))
+                else:
+                    logger.info("   capital_allocation: version=%s (missing summary_strategy.json)", ca_latest.name)
 
         if not found:
-            logger.warning("未找到可分析的模拟结果（请先运行 simulate）")
+            logger.warning("未找到可分析的 simulations 结果（请先运行 -sp/-sa）")
     
     # ========================================================================
     # 标签相关

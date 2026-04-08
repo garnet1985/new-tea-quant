@@ -37,12 +37,14 @@ class OpportunityService:
         # 结果文件夹路径
         self.base_path = PathManager.strategy_results(strategy_name)
         self.scan_path = PathManager.strategy_scan_results(strategy_name)
-        # 回测（simulate/simulate_enum）统一归档到 results/simulations/enumerator/
-        self.simulate_path = PathManager.strategy_simulations_enumerator(strategy_name)
+        # 注意：当前对外只保留三类结果目录（opportunity_enums / simulations / scan）。
+        # 这里保留 simulate_path 仅用于内部遗留方法，但不在 __init__ 中自动创建目录，
+        # 避免在只做 scan/enumerate/simulations 时生成多余文件夹。
+        self.simulate_path = PathManager.strategy_results(strategy_name) / "simulations" / "enumerator"
         
         # 确保文件夹存在
         self.scan_path.mkdir(parents=True, exist_ok=True)
-        self.simulate_path.mkdir(parents=True, exist_ok=True)
+        # simulate_path 按需在写入时创建（见 save_simulate_*）
     
     # =========================================================================
     # Scanner 相关
@@ -195,6 +197,7 @@ class OpportunityService:
             opportunities: 回测后的机会列表
         """
         # 1. 创建 session 文件夹
+        self.simulate_path.mkdir(parents=True, exist_ok=True)
         session_folder = self.simulate_path / session_id
         session_folder.mkdir(parents=True, exist_ok=True)
         
@@ -221,6 +224,7 @@ class OpportunityService:
         文件路径：simulate/{session_id}/summary.json
         """
         session_folder = self.simulate_path / session_id
+        self.simulate_path.mkdir(parents=True, exist_ok=True)
         session_folder.mkdir(parents=True, exist_ok=True)
         
         summary_file = session_folder / "summary.json"
@@ -234,6 +238,7 @@ class OpportunityService:
         文件路径：simulate/{session_id}/config.json
         """
         session_folder = self.simulate_path / session_id
+        self.simulate_path.mkdir(parents=True, exist_ok=True)
         session_folder.mkdir(parents=True, exist_ok=True)
         
         config_file = session_folder / "config.json"

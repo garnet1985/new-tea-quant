@@ -18,9 +18,6 @@ from core.modules.strategy.models.opportunity import Opportunity
 
 logger = logging.getLogger(__name__)
 
-# 诊断日志：每个子进程只输出一次，避免刷屏
-_DIAG_PRINTED = False
-
 
 class ExampleActivityHighStrategyWorker(BaseStrategyWorker):
     def scan_opportunity(self, data: Dict[str, Any], settings: Dict[str, Any]) -> Optional[Opportunity]:
@@ -28,9 +25,7 @@ class ExampleActivityHighStrategyWorker(BaseStrategyWorker):
 
         # 1) Tag gate：activity_high 必须为 True
         gate_tag_name = core.get("activity_gate_tag_name", "activity_high")
-        # 调试：输出当前已加载的 tag 行数
         tags = data.get("tags", []) or []
-        self._diag_once(data=data, gate_tag_name=gate_tag_name, tags=tags, settings=settings)
 
         if not self._is_tag_true(tags, gate_tag_name):
             return None
@@ -98,53 +93,4 @@ class ExampleActivityHighStrategyWorker(BaseStrategyWorker):
             return False
 
         return False
-
-    def _diag_once(self, *, data: Dict[str, Any], gate_tag_name: str, tags: Any, settings: Dict[str, Any]) -> None:
-        global _DIAG_PRINTED
-        if _DIAG_PRINTED:
-            return
-        _DIAG_PRINTED = True
-
-        try:
-            klines = data.get("klines", []) or []
-            today = klines[-1].get("date") if klines else None
-
-            rsi_length = int(settings["data"]["indicators"]["rsi"][0].get("period"))
-            rsi_field = f"rsi{rsi_length}"
-            latest_rsi = klines[-1].get(rsi_field) if klines else None
-
-            latest_gate_event = self._latest_tag_event(tags, gate_tag_name)
-
-            msg = (
-                "DIAG_TAG_GATE "
-                f"stock={getattr(self, 'stock_id', None)} "
-                f"today={today} "
-                f"tags_rows={(len(tags) if isinstance(tags, list) else None)} "
-                f"gate_tag={gate_tag_name} "
-                f"latest_gate_event={latest_gate_event} "
-                f"latest_rsi={latest_rsi} "
-                f"rsi_thr={(settings.get('core', {}) or {}).get('rsi_oversold_threshold')}"
-            )
-            # 用 WARNING + print 确保在多进程/不同日志级别下也能看到
-            logger.warning(msg)
-            print(msg)
-        except Exception as e:
-            logger.warning("DIAG_TAG_GATE failed: %s", e)
-
-    @staticmethod
-    def _latest_tag_event(tag_rows: Any, tag_name: str) -> Optional[Dict[str, Any]]:
-        if not tag_rows:
-            return None
-        if not isinstance(tag_rows, list):
-            return {"type": str(type(tag_rows))}
-
-        for row in reversed(tag_rows):
-            if (row.get("tag_name") or row.get("name")) != tag_name:
-                continue
-            return {
-                "as_of_date": row.get("as_of_date"),
-                "json_value": row.get("json_value"),
-                "entity_id": row.get("entity_id"),
-            }
-        return None
 

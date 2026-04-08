@@ -34,6 +34,25 @@ def default_init_data_dir() -> Path:
     return Path(__file__).resolve().parent.parent / DEFAULT_INIT_SUBDIR
 
 
+def resolve_init_data_dir_with_subdir(base: Path, subdir: str) -> Path:
+    """
+    将数据目录限制为 base / subdir，避免 init_data 根目录下多个 zip（demo + 正式）被一并导入。
+
+    subdir 不得含 .. 或绝对路径；结果必须仍在 base 之下。
+    """
+    s = (subdir or "").strip().replace("\\", "/")
+    if not s:
+        return base
+    if ".." in s or s.startswith("/"):
+        raise ValueError(f"非法子目录: {subdir!r}")
+    out = (base / s).resolve()
+    try:
+        out.relative_to(base.resolve())
+    except ValueError as e:
+        raise ValueError(f"子目录必须位于 {base} 之下: {subdir!r}") from e
+    return out
+
+
 def _bare_table_name_for_exists_check(qualified_table: str) -> str:
     s = qualified_table.strip().strip('"')
     if "." in s:
@@ -79,7 +98,15 @@ class SetupDataInstaller:
     def discover_data_packages(self) -> List[Path]:
         if not self.data_dir.is_dir():
             return []
-        return sorted(self.data_dir.glob("*.zip"))
+        zips = sorted(self.data_dir.glob("*.zip"))
+        if len(zips) <= 1:
+            return zips
+        names = ", ".join(p.name for p in zips)
+        raise RuntimeError(
+            "❌ 为避免混包导入，setup/init_data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
+            f"当前发现 {len(zips)} 个：{names}\n"
+            "请保留您需要导入的zip数据文件，另一个zip数据文件移走/改后缀后重新运行install.py。"
+        )
 
     def _extract_zips(self, extract_root: Path) -> List[Path]:
         from setup.setup import NewTeaQuantSetup

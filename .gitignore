@@ -18,14 +18,6 @@ env.bak/
 venv.bak/
 
 ########################
-# Database Files
-########################
-
-*.db
-*.sqlite
-*.sqlite3
-
-########################
 # Database Configuration (sensitive)
 ########################
 

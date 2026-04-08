@@ -26,7 +26,7 @@ settings = {
         "adjust_type": AdjustType.QFQ.value,
         
         # 最小要求的基础周期记录数
-        "min_required_records": 200,
+        "min_required_records": 30,
 
         # 仅计算本策略需要的 RSI 指标
         "indicators": {

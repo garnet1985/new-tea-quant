@@ -44,10 +44,11 @@ DbBaseModel - 数据库表操作的通用基类
 更新日期：2024-12-04
 """
 import ast
-import math
-import logging
 import json
+import logging
+import math
 import os
+import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -62,7 +63,7 @@ from core.utils.io import file_io
 logger = logging.getLogger(__name__)
 
 # MySQL 单条 INSERT 受 max_allowed_packet 限制；在占位符上限之外再限制每批行数
-_MYSQL_INSERT_BATCH_ROW_CAP = 50
+_MYSQL_INSERT_BATCH_ROW_CAP = 1000
 
 
 class ExportTemplateKind(Enum):
@@ -763,6 +764,44 @@ class DbBaseModel:
                 )
         return total_rows
 
+    def _clear_table_for_overwrite_import(self, cursor, target_sql: str) -> None:
+        """
+        覆盖导入前清空目标表：MySQL/PostgreSQL 优先 TRUNCATE（大表远快于 DELETE），
+        失败（如外键）时回退 DELETE。
+        """
+        dialect = DBHelper.normalize_database_type(self.db.config)
+        t_clear = time.perf_counter()
+        if dialect not in ("mysql", "postgresql"):
+            logger.info("覆盖导入：开始清空目标表 %s（DELETE FROM）", target_sql)
+            cursor.execute(f"DELETE FROM {target_sql}")
+            logger.info(
+                "覆盖导入：目标表 %s 已清空（DELETE），耗时 %.2fs",
+                target_sql,
+                time.perf_counter() - t_clear,
+            )
+            return
+        logger.info("覆盖导入：开始清空目标表 %s（TRUNCATE TABLE）", target_sql)
+        try:
+            cursor.execute(f"TRUNCATE TABLE {target_sql}")
+            logger.info(
+                "覆盖导入：目标表 %s 已清空（TRUNCATE），耗时 %.2fs",
+                target_sql,
+                time.perf_counter() - t_clear,
+            )
+        except Exception as e:
+            logger.warning(
+                "覆盖导入：TRUNCATE 失败，改用 DELETE：表=%s 原因=%s",
+                target_sql,
+                e,
+            )
+            t2 = time.perf_counter()
+            cursor.execute(f"DELETE FROM {target_sql}")
+            logger.info(
+                "覆盖导入：目标表 %s 已清空（DELETE 回退），耗时 %.2fs",
+                target_sql,
+                time.perf_counter() - t2,
+            )
+
     def _import_data_overwrite_run(
         self,
         cursor,
@@ -774,8 +813,7 @@ class DbBaseModel:
         pg_execute_values: bool,
     ) -> int:
         self._ensure_import_target_with_cursor(cursor, source_sql, target_sql)
-        cursor.execute(f"DELETE FROM {target_sql}")
-        logger.info("已清空表: %s", target_sql)
+        self._clear_table_for_overwrite_import(cursor, target_sql)
         return self._import_data_file_loop(
             cursor,
             target_sql,
@@ -793,7 +831,7 @@ class DbBaseModel:
         insert_batch_size: Optional[int] = None,
     ) -> None:
         """
-        overwrite：按需建目标表、DELETE 清空、再导入。target 与源不同名时见
+        overwrite：按需建目标表、TRUNCATE（或回退 DELETE）清空、再导入。target 与源不同名时见
         `_ensure_import_target_with_cursor`。insert_batch_size 默认按列数与驱动占位符上限估算。
 
         PG：adapter 事务 + execute_values；MySQL：事务 + 多行 VALUES。

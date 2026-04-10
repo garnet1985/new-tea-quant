@@ -5,7 +5,7 @@ from typing import Any, Mapping, Optional
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.contracts import DataContract, NonTimeSeriesContract, TimeSeriesContract
 from core.modules.data_contract.data_class.contract_meta import ContractMeta
-from core.modules.data_contract.loaders import BaseLoader, LOADER_REGISTRY
+from core.modules.data_contract.loaders import BaseLoader
 from core.modules.data_contract.mapping import DataSpecMap
 
 
@@ -86,26 +86,25 @@ class ContractIssuer:
         override_params: Mapping[str, Any],
     ) -> DataContract:
         spec = self.resolved_map[data_id]
-        loader_key = spec.get("loader")
-        if not loader_key:
+        loader_cls = spec.get("loader")
+        if loader_cls is None:
             raise ValueError(f"data_id={data_id.value} 未配置 loader，无法完成签发")
 
-        loader_cls = LOADER_REGISTRY.get(loader_key)
-        if loader_cls is None:
-            raise ValueError(
-                f"data_id={data_id.value} 指定的 loader={loader_key!r} 未注册，"
-                f"可用 loader: {sorted(LOADER_REGISTRY.keys())}"
+        if not isinstance(loader_cls, type):
+            raise TypeError(
+                f"data_id={data_id.value} 的 loader 配置错误："
+                f"期望 BaseLoader 子类，当前为 {type(loader_cls)!r}"
             )
         if not issubclass(loader_cls, BaseLoader):
-            raise TypeError(f"loader={loader_key!r} 必须继承 BaseLoader")
+            raise TypeError(f"data_id={data_id.value} 的 loader 必须继承 BaseLoader")
 
         try:
             loader_obj = loader_cls()
         except Exception as e:
-            raise TypeError(f"loader={loader_key!r} 无法实例化：{e}") from e
+            raise TypeError(f"data_id={data_id.value} 的 loader 无法实例化：{e}") from e
 
         if not isinstance(loader_obj, BaseLoader):
-            raise TypeError(f"loader={loader_key!r} 实例类型异常，必须为 BaseLoader")
+            raise TypeError(f"data_id={data_id.value} 的 loader 实例类型异常，必须为 BaseLoader")
 
         contract.loader = loader_obj
         defaults = dict(spec.get("defaults", {}))

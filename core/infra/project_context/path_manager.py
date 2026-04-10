@@ -292,6 +292,22 @@ class PathManager:
         return PathManager.userspace() / "data_contract"
 
     @staticmethod
+    def data_contract_mapping() -> Path:
+        """
+        Data Contract userspace mapping 文件：
+        userspace/data_contract/mapping.py
+        """
+        return PathManager.data_contract() / "mapping.py"
+
+    @staticmethod
+    def data_contract_loaders() -> Path:
+        """
+        Data Contract userspace loaders 目录：
+        userspace/data_contract/loaders
+        """
+        return PathManager.data_contract() / "loaders"
+
+    @staticmethod
     def data_source_providers() -> Path:
         """Data Source Providers 目录：userspace/data_source/providers"""
         return PathManager.data_source() / "providers"

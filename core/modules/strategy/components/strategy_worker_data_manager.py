@@ -143,7 +143,7 @@ class StrategyWorkerDataManager:
         adjust = self.settings.adjust_type
         
         klines = self._load_klines(start_date, end_date, term, adjust)
-        
+
         logger.debug(f"加载历史数据: stock={self.stock_id}, term={term}, "
                     f"records={len(klines)}, date_range={start_date}-{end_date}")
         
@@ -472,7 +472,7 @@ class StrategyWorkerDataManager:
             )
             
             return klines if klines else []
-        
+
         except Exception as e:
             logger.error(f"加载K线数据失败: stock={self.stock_id}, term={term}, "
                         f"date_range={start_date}-{end_date}, error={e}")
@@ -542,7 +542,7 @@ class StrategyWorkerDataManager:
         required: bool = True,
     ) -> List[Dict[str, Any]]:
         """
-        加载 Tag 数据（基于 TagDataService，按 scenario 维度）
+        加载 Tag 数据（基于 TagDataService，按 scenario 维度） 
 
         约定：
         - 策略配置中的 required_entities 对于 Tag 只暴露 scenario：
@@ -597,7 +597,7 @@ class StrategyWorkerDataManager:
                 order_by="report_date ASC"
             )
             return data if data else []
-        
+
         except Exception as e:
             logger.error(f"加载财务数据失败: error={e}")
             return []
@@ -615,7 +615,7 @@ class StrategyWorkerDataManager:
                 order_by="date ASC"
             )
             return data if data else []
-        
+
         except Exception as e:
             logger.error(f"加载宏观数据失败: type={macro_type}, error={e}")
             return []

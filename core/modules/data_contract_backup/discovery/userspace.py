@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-发现 userspace 中的 DataKey（字符串 id）-> Contract 工厂，并与 core 路由合并。
+发现 userspace 中的 DataKey（字符串 id）-> **规则类 Contract 工厂**，并与 core 路由合并。
 
-约定（与 data_source Provider 类似）：
+详见 `CONCEPTS.md`（工厂产出的是 **raw 校验用** 规则类，不是「句柄壳」）。
+
+约定：
 - 包：`userspace.data_contract`
-- 每个子模块（如 `contract_routes.py`、`plugin_foo.py`）可导出::
-
-      def register_data_contract_routes(registry: ContractRouteRegistry) -> None: ...
-
-  发现器会 import 该包下**所有子模块**并调用上述函数（若存在）。
-- 不在 core 的 `data_keys.py` 里改枚举；用户自定义 key 使用稳定字符串（建议集中放在 userspace 常量模块中）。
+- 子模块可导出 `register_data_contract_routes(registry: ContractRouteRegistry) -> None`
+- 用户自定义 key：稳定字符串 id + 注册；勿改 core `ids/data_keys.py`。
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ import pkgutil
 from typing import Optional
 
 from core.infra.project_context import PathManager
-from core.modules.data_contract.contract_route_registry import (
+from core.modules.data_contract.registry.route_registry import (
     ContractRouteRegistry,
     build_core_contract_route_registry,
 )

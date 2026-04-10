@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-DataKey -> Contract 工厂注册表（与 DataContractManager 解耦）。
+DataKey -> **规则类 Contract** 工厂注册表（与 DataContractManager 解耦）。
 
-- **Core DataKey**：仅在 `data_types/data_keys.py` 维护框架白名单；**升级会覆盖，用户勿改此文件**。
-- **Userspace DataKey**：在用户目录用稳定字符串定义（见 `userspace.data_contract` 与 `userspace_contract_discovery`），通过发现机制与 core 合并。
-- **定义如何签发**：`ContractRouteRegistry.register`；或由 `DataContractManager` 使用默认合并表（core + userspace 发现）。
+**语义**：此处工厂产出的是用于 **校验裸数据** 的 `BaseContract` 子类实例（`CONCEPTS.md` 称「规则类」）。
+**不是**「句柄 Contract 壳（meta + 空数据匣）」——后者见 `CONCEPTS.md` 目标架构。
 
-工厂签名：`factory(key_str, context) -> BaseContract`，其中 `key_str` 与 DataKey.value 一致，用于 contract_id/name。
+- **Core**：`ids/data_keys.py` 白名单；勿在业务仓库改该文件。
+- **Userspace**：`userspace.data_contract` 发现合并（`discovery.userspace`）。
+
+工厂：`factory(key_str, context) -> BaseContract`，`key_str` 与 DataKey.value 一致。
 """
 
 from __future__ import annotations
@@ -15,12 +17,12 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Union
 
 from core.modules.data_contract.contracts import (
     BaseContract,
-    GlobalNoTimeAxisContract,
-    GlobalTimeAxisContract,
-    PerEntityNoTimeAxisContract,
-    PerEntityTimeAxisContract,
+    EntityNonTimeseriesContract,
+    EntityTimeseriesContract,
+    GlobalNonTimeseriesContract,
+    GlobalTimeseriesContract,
 )
-from core.modules.data_contract.data_types import DataKey
+from core.modules.data_contract.ids import DataKey
 
 TAG_KIND_CONTEXT_KEY = "tag_kind"
 
@@ -35,13 +37,13 @@ def _as_key_str(key: Union[DataKey, str]) -> str:
     return key.value if isinstance(key, DataKey) else key
 
 
-def _pe_time_axis(
+def _entity_timeseries(
     key_str: str,
     *,
     time_axis_field: str,
     required_fields: Tuple[str, ...] = (),
-) -> PerEntityTimeAxisContract:
-    return PerEntityTimeAxisContract(
+) -> EntityTimeseriesContract:
+    return EntityTimeseriesContract(
         contract_id=key_str,
         name=key_str,
         time_axis_field=time_axis_field,
@@ -49,13 +51,13 @@ def _pe_time_axis(
     )
 
 
-def _global_time_axis(
+def _global_timeseries(
     key_str: str,
     *,
     time_axis_field: str,
     required_fields: Tuple[str, ...] = (),
-) -> GlobalTimeAxisContract:
-    return GlobalTimeAxisContract(
+) -> GlobalTimeseriesContract:
+    return GlobalTimeseriesContract(
         contract_id=key_str,
         name=key_str,
         time_axis_field=time_axis_field,
@@ -63,8 +65,8 @@ def _global_time_axis(
     )
 
 
-def _global_no_time_axis(key_str: str) -> GlobalNoTimeAxisContract:
-    return GlobalNoTimeAxisContract(contract_id=key_str, name=key_str)
+def _global_non_timeseries(key_str: str) -> GlobalNonTimeseriesContract:
+    return GlobalNonTimeseriesContract(contract_id=key_str, name=key_str)
 
 
 def _tag_scenario_factory(key_str: str, context: Optional[Mapping[str, Any]]) -> BaseContract:
@@ -76,9 +78,9 @@ def _tag_scenario_factory(key_str: str, context: Optional[Mapping[str, Any]]) ->
         kind = str(kind).lower()
 
     if kind == "category":
-        return PerEntityNoTimeAxisContract(contract_id=key_str, name=key_str)
+        return EntityNonTimeseriesContract(contract_id=key_str, name=key_str)
 
-    return PerEntityTimeAxisContract(
+    return EntityTimeseriesContract(
         contract_id=key_str,
         name=key_str,
         time_axis_field="as_of_date",
@@ -124,16 +126,16 @@ def build_core_contract_route_registry() -> ContractRouteRegistry:
     """框架内置：与当前 `DataKey` 白名单一致的默认路由。"""
     reg = ContractRouteRegistry()
 
-    reg.register(DataKey.STOCK_KLINE_DAILY_QFQ, lambda k, ctx: _pe_time_axis(k, time_axis_field="date", required_fields=_KLINE_REQUIRED))
-    reg.register(DataKey.STOCK_KLINE_DAILY_NFQ, lambda k, ctx: _pe_time_axis(k, time_axis_field="date", required_fields=_KLINE_REQUIRED))
-    reg.register(DataKey.STOCK_ADJ_FACTOR_EVENTS, lambda k, ctx: _pe_time_axis(k, time_axis_field="event_date", required_fields=()))
-    reg.register(DataKey.STOCK_CORPORATE_FINANCE, lambda k, ctx: _pe_time_axis(k, time_axis_field="quarter", required_fields=()))
+    reg.register(DataKey.STOCK_KLINE_DAILY_QFQ, lambda k, ctx: _entity_timeseries(k, time_axis_field="date", required_fields=_KLINE_REQUIRED))
+    reg.register(DataKey.STOCK_KLINE_DAILY_NFQ, lambda k, ctx: _entity_timeseries(k, time_axis_field="date", required_fields=_KLINE_REQUIRED))
+    reg.register(DataKey.STOCK_ADJ_FACTOR_EVENTS, lambda k, ctx: _entity_timeseries(k, time_axis_field="event_date", required_fields=()))
+    reg.register(DataKey.STOCK_CORPORATE_FINANCE, lambda k, ctx: _entity_timeseries(k, time_axis_field="quarter", required_fields=()))
 
-    reg.register(DataKey.INDEX_KLINE_DAILY, lambda k, ctx: _pe_time_axis(k, time_axis_field="date", required_fields=_KLINE_REQUIRED))
-    reg.register(DataKey.INDEX_WEIGHT_DAILY, lambda k, ctx: _pe_time_axis(k, time_axis_field="date", required_fields=()))
-    reg.register(DataKey.INDEX_LIST, lambda k, ctx: _global_no_time_axis(k))
+    reg.register(DataKey.INDEX_KLINE_DAILY, lambda k, ctx: _entity_timeseries(k, time_axis_field="date", required_fields=_KLINE_REQUIRED))
+    reg.register(DataKey.INDEX_WEIGHT_DAILY, lambda k, ctx: _entity_timeseries(k, time_axis_field="date", required_fields=()))
+    reg.register(DataKey.INDEX_LIST, lambda k, ctx: _global_non_timeseries(k))
 
-    reg.register(DataKey.MACRO_GDP, lambda k, ctx: _global_time_axis(k, time_axis_field="quarter", required_fields=()))
+    reg.register(DataKey.MACRO_GDP, lambda k, ctx: _global_timeseries(k, time_axis_field="quarter", required_fields=()))
     for macro in (
         DataKey.MACRO_LPR,
         DataKey.MACRO_CPI,
@@ -142,7 +144,7 @@ def build_core_contract_route_registry() -> ContractRouteRegistry:
         DataKey.MACRO_SHIBOR,
         DataKey.MACRO_MONEY_SUPPLY,
     ):
-        reg.register(macro, lambda k, ctx: _global_time_axis(k, time_axis_field="date", required_fields=()))
+        reg.register(macro, lambda k, ctx: _global_timeseries(k, time_axis_field="date", required_fields=()))
 
     for static in (
         DataKey.STOCK_LIST,
@@ -155,7 +157,7 @@ def build_core_contract_route_registry() -> ContractRouteRegistry:
         DataKey.SYSTEM_META_INFO,
         DataKey.SYSTEM_CACHE,
     ):
-        reg.register(static, lambda k, ctx: _global_no_time_axis(k))
+        reg.register(static, lambda k, ctx: _global_non_timeseries(k))
 
     reg.register(DataKey.TAG_SCENARIO, _tag_scenario_factory)
 

@@ -1,7 +1,9 @@
 """
-Userspace：自定义 DataKey（字符串 id）与 Contract 工厂注册。
+Userspace data contract extension.
 
-- **不要**修改 `core/.../data_keys.py`（随 core 升级会覆盖）。
-- 在 `contract_routes.py`（或本包下其它子模块）中实现 `register_data_contract_routes`，
-  由框架扫描并合并到默认 `DataContractManager` 使用的路由表。
+扩展入口（当前核心命名）：
+- 在 `mapping.py` 中提供 userspace 映射：`data_id -> spec`（shape/meta + loader key）
+- 在 `loaders/` 目录中实现对应 loader（需继承 `BaseLoader`）
+
+该包由 core discovery 自动扫描并合并。
 """

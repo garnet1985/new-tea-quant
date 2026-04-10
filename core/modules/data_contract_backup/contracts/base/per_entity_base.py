@@ -7,7 +7,7 @@ from .base import BaseContract
 from .contract_scope import ContractScope
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PerEntityContract(BaseContract):
     """
     PerEntityContract (MVP)
@@ -20,7 +20,7 @@ class PerEntityContract(BaseContract):
     concrete per-entity contracts (static/time-axis) don't duplicate it.
     """
 
-    context_entity_id_key: str = "entity_id"
+    context_entity_id_key: str = field(default="entity_id", init=False, repr=False)
 
     # Structural attributes (fixed by this contract type)
     _scope: ContractScope = field(default=ContractScope.PER_ENTITY, init=False, repr=False)

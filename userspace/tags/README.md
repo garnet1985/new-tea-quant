@@ -1,6 +1,8 @@
 # 标签场景（`userspace/tags/`）
 
 每个子目录通常是一个**标签场景**：`settings.py` + `tag_worker.py`（继承 `BaseTagWorker`）。
+**请注意：目前的tag系统必须是时序数据才能使用，之后会扩展到更泛的使用场景**
+
 
 ## 怎么用
 

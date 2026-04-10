@@ -6,7 +6,7 @@ from .base import BaseContract
 from .contract_scope import ContractScope
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GlobalContract(BaseContract):
     """
     GlobalContract (MVP)

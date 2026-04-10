@@ -5,13 +5,11 @@ from enum import Enum
 
 class DataKey(str, Enum):
     """
-    Core DataKey whitelist（随框架发布；**用户勿改本文件**，升级会覆盖）。
+    Core DataKey 白名单（框架内置；**业务侧勿改本文件**以免升级覆盖）。
 
-    用户自定义依赖标识：在 userspace 使用稳定字符串 + `userspace.data_contract` 注册路由，
-    由 `DataContractManager` 与下表合并后注入策略等模块。
+    **语义**：对外依赖的主标识之一；与 userspace 自定义 key（同形字符串 + 注册）的关系见 `CONCEPTS.md`。
 
-    - Strategy / 上游声明 *what*（DataKey 或 userspace 字符串 id）
-    - Framework 解析 raw 并按路由表选择 Contract（how）
+    **注意**：本枚举的「DataKey」是 **字符串 id**；目标架构里「DataKey + issue 句柄 + load」的完整说明不在此文件。
     """
 
     # =========================
@@ -65,4 +63,3 @@ class DataKey(str, Enum):
     # =========================
     SYSTEM_META_INFO = "system.meta_info"
     SYSTEM_CACHE = "system.cache"
-

@@ -282,6 +282,16 @@ class PathManager:
         return None
     
     @staticmethod
+    def data_contract() -> Path:
+        """
+        Data Contract 用户注册目录：userspace/data_contract
+
+        与 Python 包 `userspace.data_contract` 对应；路径受 `PathManager.userspace()`
+        （含环境变量覆盖）影响，供发现/诊断与文件侧约定一致。
+        """
+        return PathManager.userspace() / "data_contract"
+
+    @staticmethod
     def data_source_providers() -> Path:
         """Data Source Providers 目录：userspace/data_source/providers"""
         return PathManager.data_source() / "providers"

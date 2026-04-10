@@ -208,3 +208,57 @@ Tag 是一个特殊但常见的“多态数据”：
 | `sys_tag_scenario` / `sys_tag_definition` | `(id)` | `StaticCategoryContract` | - | Tag 元信息（其中包含 tag_kind 等多态声明） |
 | `sys_cache` / `meta_info` | `(key/...)` | `StaticCategoryContract` | - | 系统元信息/缓存；MVP 视为静态结构即可 |
 
+---
+
+## 9. DataKey 穷举与 Contract 路由（MVP：内部不可扩展）
+
+你说得对：只要是“声明式数据获取”，宇宙尽头就是某种形式的穷举。MVP 阶段我们把它做成**可控的穷举**：
+
+- **Data Contract（3 类）**：定义“数据形态的规则与签发流程”（how to validate/issue）
+- **DataKey（白名单穷举）**：定义“有哪些数据可以被 strategy 声明”（what to request）
+- **DataKey → ContractType 路由表**：定义“某个 DataKey 对应哪一类 contract”（how to route）
+
+### 9.1 设计目标
+
+- Strategy 侧只声明 DataKey（what），不声明 contract 类型（how）
+- 框架内部完成：
+  1) `DataKey -> resolver`（由 DataManager/现有加载逻辑拿 raw data）
+  2) `DataKey -> ContractType`（路由到三大 contract 之一）
+  3) `issue(raw) -> contracted`（contract 签发，fail-closed）
+
+### 9.2 DataKey 的定位（唯一标识）
+
+DataKey 是 strategy 声明依赖数据的“唯一标识”，建议具备：
+- 稳定、可读、可作为 key（例如 `stock.kline.daily.qfq`、`tag.scenario.activity-ratio20`、`macro.gdp`）
+- 不暴露底层表名/SQL（避免用户耦合内部 schema）
+
+> DataKey 的具体命名规范与列表（白名单）在 MVP 阶段由框架内置维护。
+
+### 9.3 DataKey → ContractType 路由表
+
+MVP 只需要一个小表，将 DataKey 归入三大 contract：
+- `PerEntityTimeAxisContract`
+- `GlobalTimeAxisContract`
+- `StaticCategoryContract`
+
+其中 Tag 的多态不由 DataKey 直接决定，而由 tag 元信息（tag_kind）决定（见第 7 节）。
+
+### 9.4 MVP 约束（不对用户开放扩展）
+
+MVP 阶段，以下三者都 **不对用户开放扩展**：
+- contract 类型体系（固定 3 类）
+- DataKey 白名单（由框架维护）
+- DataKey → ContractType 路由表（由框架维护）
+
+TODO（未来扩展方向，先记录不实现）：
+- 允许 userspace 扩展 DataKey（新增数据源标识）
+- 允许扩展路由表（将新 DataKey 绑定到某类 contract）
+- 允许扩展 resolver（DataKey -> raw data 的获取方式），但仍需经过 contract 签发（fail-closed）
+
+### 9.5 MVP 最终输出（对用户可见的使用方式）
+
+- **框架输出**：一组“可被声明”的 DataKey（白名单）
+- **用户输入**：strategy settings 里声明所需 DataKey
+- **框架行为**：自动加载 raw data -> route 到 contract -> 签发 contracted data -> 注入 strategy/enum/sim
+
+

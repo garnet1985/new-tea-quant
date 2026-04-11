@@ -9,6 +9,7 @@ class DataKey(str, Enum):
     STOCK_LIST = 'stock.list'
     STOCK_KLINE_DAILY_QFQ = 'stock.kline.daily.qfq'
     STOCK_KLINE_DAILY_NFQ = 'stock.kline.daily.nfq'
+    TAG = 'tag'
     STOCK_ADJ_FACTOR_EVENTS = 'stock.adj_factor.eventlog'
     STOCK_CORPORATE_FINANCE = 'stock.finance.quarterly'
     INDEX_LIST = 'index.list'

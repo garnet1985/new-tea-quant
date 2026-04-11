@@ -161,6 +161,10 @@
 - **显式输入**：contract 必要信息由 `issue(...)` 显式传入，不依赖隐式全局配置
 - **弱依赖 IO**：尽量通过 callable 注入“存在性查询”，避免 contract 直接绑死 DataManager
 - **先解决真实痛点**：优先 contract 化 tag scenario 依赖与 time axis 相关问题
+- **时序判定准则（面向用户与维护者）**：是否属于时序 contract，取决于存储结构里是否保留时间点字段。
+  - 表结构/存储记录中存在时间点字段（如 `date` / `event_date` / `as_of_date` / `quarter`）=> `TIME_SERIES`
+  - 若存储中无时间点字段 => `NON_TIME_SERIES`
+  - 查询时是否“按点取/切片”是使用方式（load 参数）问题，不改变 contract 类型
 
 ---
 

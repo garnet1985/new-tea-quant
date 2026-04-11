@@ -6,6 +6,7 @@ from core.modules.data_contract.contract_const import ContractScope, ContractTyp
 from core.modules.data_contract.loaders.base import BaseLoader
 from core.modules.data_contract.loaders.stock_kline import StockKlineLoader
 from core.modules.data_contract.loaders.stock_list import StockListLoader
+from core.modules.data_contract.loaders.tag import TagLoader
 
 
 class DataSpec(TypedDict, total=False):
@@ -50,5 +51,16 @@ default_map: DataSpecMap = {
         "loader": StockKlineLoader,
         "display_name": "Stock Kline Daily NFQ",
         "defaults": {"adjust": "nfq", "term": "daily"},
+    },
+    # 统一 tag：存储含 as_of_date，故为时序；通过 tag_scenario / scenario_id 区分场景（见 TagLoader）
+    DataKey.TAG: {
+        "scope": ContractScope.PER_ENTITY,
+        "type": ContractType.TIME_SERIES,
+        "unique_keys": ["entity_id", "tag_definition_id", "as_of_date"],
+        "time_axis_field": "as_of_date",
+        "time_axis_format": "YYYYMMDD",
+        "loader": TagLoader,
+        "display_name": "Tag（按 scenario）",
+        "defaults": {},
     },
 }

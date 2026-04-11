@@ -41,6 +41,14 @@
 - **上游负责喂 Raw Data**：DataSource / DataManager / Installer 等提供 raw_data
 - **下游只接收 Contracted Data**：Strategy/Tag/Indicator 等模块不再各写一套“自定义校验”
 
+## 时序判定准则（重要）
+
+- 是否是时序 contract，不看“怎么查”，看“怎么存”：
+  - 存储列里有时间点字段（如 `date` / `event_date` / `as_of_date` / `quarter`）=> `TIME_SERIES`
+  - 存储列里没有时间点字段 => `NON_TIME_SERIES`
+- `load()` 的点查/区间/切片只是使用方式，不改变 contract 类型。
+- **Tag**：统一 `DataKey.TAG`（值为 `tag`），`mapping` 中声明为时序（时间轴 `as_of_date`）。签发或加载时必须在 `params` 或 `context` 中提供 **scenario**（`tag_scenario` / `scenario_name` 或 `scenario_id`），否则 fail-fast。
+
 ## 推荐目录结构（待实现）
 
 > 本 README 先落地模块骨架；后续实现按模块习惯补齐 manager / contracts / helper。

@@ -46,8 +46,11 @@ class StrategyManager:
         # 发现阶段已做 settings.validate()；只保留一份「校验通过」映射，是否启用看 ``StrategyInfo.is_enabled``
         self.validated_strategies = StrategyDiscoveryHelper.discover_strategies()
 
-    def _resolve_strategy_info(self, strategy_name: str) -> Optional[StrategyInfo]:
-        """主缓存命中则返回（含未启用）；否则按需加载该目录（如新策略尚未 rediscover）。"""
+    def lookup_strategy_info(self, strategy_name: str) -> Optional[StrategyInfo]:
+        """
+        按名称解析 ``StrategyInfo``：先查 ``validated_strategies``，未命中再对该目录 ``load_strategy``。
+        供 CLI / 其它模块及本类内部共用。
+        """
         info = self.validated_strategies.get(strategy_name)
         if info is not None:
             return info
@@ -78,7 +81,7 @@ class StrategyManager:
 
         # 3. 确定要扫描的策略（仅 is_enabled；settings 已在发现时校验）
         if strategy_name:
-            strategy_info = self.validated_strategies.get(strategy_name)
+            strategy_info = self.lookup_strategy_info(strategy_name)
             if not strategy_info:
                 logger.warning(f"策略不存在或未发现: {strategy_name}")
                 return
@@ -149,25 +152,30 @@ class StrategyManager:
         # 1. 加载全局缓存
         self._load_global_cache()
         
-        # 2. 确定要模拟的策略
+        # 2. 确定要模拟的策略（内部一律传 ``StrategyInfo``）
         if strategy_name:
-            strategies_to_simulate = [strategy_name]
+            info = self.lookup_strategy_info(strategy_name)
+            if not info:
+                logger.warning(f"策略不存在或设置无效: {strategy_name}")
+                return
+            to_simulate = [info]
         else:
-            strategies_to_simulate = [
-                name for name, info in self.validated_strategies.items() if info.is_enabled
-            ]
-            
-            if not strategies_to_simulate:
+            to_simulate = [i for i in self.validated_strategies.values() if i.is_enabled]
+            if not to_simulate:
                 logger.warning("没有启用的策略可模拟")
                 return
-            
-            logger.info(f"🎮 模拟所有启用的策略: {strategies_to_simulate}")
+            logger.info(
+                "🎮 模拟所有启用的策略: %s",
+                [i.name for i in to_simulate],
+            )
         
         # 3. 对每个策略执行模拟
-        for strat_name in strategies_to_simulate:
-            self._simulate_single_strategy(strat_name, session_id, date)
+        for info in to_simulate:
+            self._simulate_single_strategy(info, session_id, date)
     
-    def _simulate_single_strategy(self, strategy_name: str, session_id: str = None, date: str = None):
+    def _simulate_single_strategy(
+        self, strategy_info: StrategyInfo, session_id: str = None, date: str = None
+    ):
         """
         模拟单个策略（历史回测）
         
@@ -178,13 +186,8 @@ class StrategyManager:
         4. 追踪投资状态（止盈止损）
         5. 返回所有已完成的 opportunities
         """
-        logger.info(f"🎮 开始模拟策略: {strategy_name}")
-        
-        # 1. 获取策略信息（缓存未命中时按需发现该目录）
-        strategy_info = self._resolve_strategy_info(strategy_name)
-        if not strategy_info:
-            logger.warning(f"策略不存在或设置无效: {strategy_name}")
-            return
+        name = strategy_info.name
+        logger.info(f"🎮 开始模拟策略: {name}")
         strategy_settings: StrategySettings = strategy_info.settings
         price_block = strategy_settings.price_simulator
         sampling_block = strategy_settings.sampling
@@ -205,7 +208,7 @@ class StrategyManager:
                 all_stocks=all_stocks,
                 sampling_amount=sampling_amount,
                 sampling_config=sampling_cfg,
-                strategy_name=strategy_name,
+                strategy_name=name,
             )
             logger.info("🧪 模拟股票模式: sampling (use_sampling=True)")
         else:
@@ -220,7 +223,7 @@ class StrategyManager:
         # 3. 创建 session
         if session_id is None:
             from core.modules.strategy.components.session_manager import SessionManager
-            session_mgr = SessionManager(strategy_name)
+            session_mgr = SessionManager(name)
             session_id = session_mgr.create_session()
         
         logger.info(f"📝 Session ID: {session_id}")
@@ -247,9 +250,9 @@ class StrategyManager:
         logger.info(f"✅ 完成回测: 共发现 {len(all_opportunities)} 个投资机会")
         
         # 8. 保存结果
-        self._save_simulate_results(strategy_name, session_id, all_opportunities, strategy_settings)
+        self._save_simulate_results(name, session_id, all_opportunities, strategy_settings)
         
-        logger.info(f"✅ 模拟完成: {strategy_name}")
+        logger.info(f"✅ 模拟完成: {name}")
     
     # =========================================================================
     # 多进程执行
@@ -446,8 +449,8 @@ class StrategyManager:
         return list(self.validated_strategies.keys())
     
     def get_strategy_info(self, strategy_name: str) -> Optional[StrategyInfo]:
-        """返回策略信息：优先主缓存；未命中时按需加载该策略目录。"""
-        return self._resolve_strategy_info(strategy_name)
+        """返回策略信息（同 ``lookup_strategy_info``）。"""
+        return self.lookup_strategy_info(strategy_name)
 
 # ================================================
 # Cache 缓存相关（跨多个strategy的缓存，也叫globa cache）

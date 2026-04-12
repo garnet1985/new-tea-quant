@@ -194,9 +194,6 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         self._capital_simulator_validated = True
         return result
 
-    def validate_and_prepare(self) -> ValidationReport:
-        return self.validate()
-
     def _validate_max_workers(self, result: ValidationReport) -> None:
         mw = self.capital_simulator.get("max_workers", "auto")
         if mw == "auto" or mw is None:

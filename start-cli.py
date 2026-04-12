@@ -309,7 +309,8 @@ class App:
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
-            max_workers=enum_settings.max_workers
+            max_workers=enum_settings.max_workers,
+            base_settings=settings,
         )
         
         # 5. 显示结果

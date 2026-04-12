@@ -9,7 +9,7 @@ Opportunity Enumerator - 机会枚举器
 - 每次都重新计算（保证最新）
 """
 
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Optional
 import json
 from pathlib import Path
 from datetime import datetime
@@ -33,7 +33,8 @@ class OpportunityEnumerator:
         start_date: str,
         end_date: str,
         stock_list: List[str],
-        max_workers: Union[str, int] = 'auto'
+        max_workers: Union[str, int] = 'auto',
+        base_settings: Optional[StrategySettings] = None,
     ) -> List[Dict[str, Any]]:
         """
         枚举所有投资机会（完整枚举）
@@ -46,6 +47,7 @@ class OpportunityEnumerator:
             max_workers: 最大并行数
                 - 'auto': 自动计算（推荐）
                 - 数字: 手动指定（会做保护，最多 2 倍 CPU 核心数）
+            base_settings: 若已持有 ``StrategySettings``（模型层），可传入以避免重复 import settings
         
         Returns:
             所有 opportunities（字典列表）
@@ -74,8 +76,9 @@ class OpportunityEnumerator:
         )
         aggregate_profiler = AggregateProfiler()
         
-        # 1. 加载策略配置（通用 StrategySettings 模型）
-        base_settings = OpportunityEnumerator._load_strategy_settings(strategy_name)
+        # 1. 策略配置（通用 StrategySettings 模型）
+        if base_settings is None:
+            base_settings = OpportunityEnumerator._load_strategy_settings(strategy_name)
 
         # 1.1 通过枚举器专用 Settings 视图进行校验与补全（组合，而非继承）
         enum_settings = OpportunityEnumeratorSettings.from_base(base_settings)

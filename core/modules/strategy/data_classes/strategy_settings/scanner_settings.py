@@ -74,9 +74,6 @@ class StrategyScannerSettings(SettingsBase):
         self._scanner_validated = True
         return result
 
-    def validate_and_prepare(self) -> ValidationReport:
-        return self.validate()
-
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         self._normalize_fields()

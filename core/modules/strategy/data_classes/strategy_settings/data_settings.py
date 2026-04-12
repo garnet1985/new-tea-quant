@@ -5,7 +5,7 @@
 职责：
 - 持有顶层 ``settings["data"]`` 的 **同一 dict 引用**（便于与整包 settings 同步）
 - ``apply_defaults``：data 域内默认值与最小结构
-- ``validate``：契约校验（委托 ``StrategySettings`` 字典模型的 ``validate_data_config``）
+- ``validate``：发现阶段合并校验时调用（委托 ``validate_data_config``）
 """
 
 from __future__ import annotations

@@ -108,9 +108,6 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         self._price_simulator_validated = True
         return result
 
-    def validate_and_prepare(self) -> ValidationReport:
-        return self.validate()
-
     def _validate_max_workers(self, result: ValidationReport) -> None:
         ps = self.price_simulator
         mw = ps.get("max_workers", "auto")

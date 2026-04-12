@@ -8,12 +8,6 @@ from unittest.mock import patch
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
-try:
-    import pytest
-    HAS_PYTEST = True
-except ImportError:
-    HAS_PYTEST = False
-
 from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import (
     OpportunityEnumeratorSettings
 )
@@ -55,31 +49,29 @@ class TestOpportunityEnumeratorSettings:
         assert enum_settings.goal == settings_dict["goal"]
     
     def test_from_raw_missing_base_required_data(self):
-        """测试从原始 settings 创建（缺少 base_required_data）"""
+        """缺少 base_required_data 时仍创建视图（契约由发现阶段 ``StrategySettings.validate`` 保证）。"""
         settings_dict = {
             "name": "test_strategy",
             "data": {},
-            "goal": {}
+            "goal": {},
         }
-        
-        with pytest.raises(ValueError, match="base_required_data"):
-            OpportunityEnumeratorSettings.from_raw(
-                strategy_name="test_strategy",
-                settings_dict=settings_dict
-            )
+        enum_settings = OpportunityEnumeratorSettings.from_raw(
+            strategy_name="test_strategy",
+            settings_dict=settings_dict,
+        )
+        assert enum_settings.data == {}
     
     def test_from_raw_missing_goal(self):
-        """测试从原始 settings 创建（缺少 goal）"""
+        """缺少 goal 时默认为空 dict（由发现阶段校验 goal 结构）。"""
         settings_dict = {
             "name": "test_strategy",
             "data": _data_block(),
         }
-        
-        with pytest.raises(ValueError, match="goal"):
-            OpportunityEnumeratorSettings.from_raw(
-                strategy_name="test_strategy",
-                settings_dict=settings_dict
-            )
+        enum_settings = OpportunityEnumeratorSettings.from_raw(
+            strategy_name="test_strategy",
+            settings_dict=settings_dict,
+        )
+        assert enum_settings.goal == {}
     
     def test_from_raw_default_min_required_records(self):
         """测试从原始 settings 创建（使用默认 min_required_records）"""
@@ -243,7 +235,7 @@ class TestOpportunityEnumeratorSettings:
         assert enum_settings.max_workers == "auto"
 
     def test_base_rejects_granular_kline_data_id(self):
-        """主依赖不允许使用 stock.kline.daily.qfq 等细粒度 data_id"""
+        """枚举器视图不再重复校验 data_id；细粒度 key 原样保留在 data 中。"""
         settings_dict = {
             "name": "test_strategy",
             "data": {
@@ -254,11 +246,14 @@ class TestOpportunityEnumeratorSettings:
             },
             "goal": {"expiration": {"fixed_window_in_days": 30}},
         }
-        with pytest.raises(ValueError, match="只能为"):
-            OpportunityEnumeratorSettings.from_raw("test_strategy", settings_dict)
+        enum_settings = OpportunityEnumeratorSettings.from_raw("test_strategy", settings_dict)
+        assert (
+            enum_settings.data["base_required_data"]["data_id"]
+            == DataKey.STOCK_KLINE_DAILY_QFQ.value
+        )
 
     def test_base_requires_term(self):
-        """params.term 必填"""
+        """枚举器视图不校验 term；缺省时原样保留 params。"""
         settings_dict = {
             "name": "test_strategy",
             "data": {
@@ -268,8 +263,8 @@ class TestOpportunityEnumeratorSettings:
             },
             "goal": {"expiration": {"fixed_window_in_days": 30}},
         }
-        with pytest.raises(ValueError, match="term"):
-            OpportunityEnumeratorSettings.from_raw("test_strategy", settings_dict)
+        enum_settings = OpportunityEnumeratorSettings.from_raw("test_strategy", settings_dict)
+        assert enum_settings.data["base_required_data"]["params"] == {"adjust": "qfq"}
 
     def test_resolved_adjust_defaults_qfq(self):
         ss = StrategySettings.from_dict(

@@ -3,7 +3,7 @@
 策略 settings 数据类包入口。
 
 ``StrategySettings``（本模块内定义）：接收用户 dict，**构造时**实例化各章 dataclass，并统一调度
-``apply_defaults`` / ``validate`` / ``to_dict``。进程级缓存由 ``StrategyManager`` 等外层负责。
+``apply_defaults`` / ``validate``（仅发现等入口调用一次）/ ``to_dict``。
 
 各章 ``Strategy*Settings`` 由同包其他模块提供，见下方 re-export。
 """
@@ -99,11 +99,12 @@ class StrategySettings(SettingsBase):
             self.capital_simulator.validate(),
             self.scanner.validate(),
         )
-        self._validated = True
+        self._validated = merged.is_usable()
         return merged
 
     def is_valid(self) -> bool:
-        return self.validate_base_settings().is_usable()
+        """是否已通过 ``validate()``（本模块内假定发现路径已调用，不再隐式重跑校验）。"""
+        return bool(self._validated)
 
     def to_dict(self) -> Dict[str, Any]:
         """整包权威 dict：以 ``raw_settings`` 深拷贝为底，用各章 ``to_dict()`` 覆盖对应块。"""

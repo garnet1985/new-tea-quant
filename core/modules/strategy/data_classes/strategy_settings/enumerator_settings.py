@@ -86,7 +86,7 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     def validate(self) -> ValidationReport:
         """
-        校验枚举器块 + ``goal``（与历史 ``validate_and_prepare`` 行为一致）。
+        校验枚举器块 + ``goal``（随整包 ``StrategySettings.validate()`` 在发现阶段调用）。
 
         先 ``apply_defaults``，再 ``StrategyGoalSettings.validate_goal_dict``，
         最后检查 ``max_*`` / ``max_workers`` 等类型。
@@ -118,10 +118,6 @@ class StrategyEnumeratorSettings(SettingsBase):
         SettingsBase.log_warnings(result, logger)
         self._enumerator_validated = True
         return result
-
-    def validate_and_prepare(self) -> ValidationReport:
-        """与 ``PriceFactorSettings`` 等命名一致；等价于 ``validate()``。"""
-        return self.validate()
 
     def _validate_numeric_fields(self, result: ValidationReport) -> None:
         e = self.enumerator

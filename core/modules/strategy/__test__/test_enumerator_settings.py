@@ -17,7 +17,18 @@ except ImportError:
 from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import (
     OpportunityEnumeratorSettings
 )
+from core.modules.data_contract.contract_const import DataKey
 from core.modules.strategy.models.strategy_settings import StrategySettings
+
+
+def _data_block(**extra):
+    d = {
+        "base_required_data": {
+            "params": {"term": "daily"},
+        },
+    }
+    d.update(extra)
+    return d
 
 
 class TestOpportunityEnumeratorSettings:
@@ -27,11 +38,7 @@ class TestOpportunityEnumeratorSettings:
         """测试从原始 settings 创建（基本配置）"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq",
-                "min_required_records": 200
-            },
+            "data": _data_block(min_required_records=200),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -43,38 +50,19 @@ class TestOpportunityEnumeratorSettings:
         )
         
         assert enum_settings.strategy_name == "test_strategy"
-        assert enum_settings.data["base_price_source"] == "stock_kline_daily"
-        assert enum_settings.data["adjust_type"] == "qfq"
+        assert enum_settings.data["base_required_data"]["params"]["term"] == "daily"
         assert enum_settings.min_required_records == 200
         assert enum_settings.goal == settings_dict["goal"]
     
-    def test_from_raw_missing_base_price_source(self):
-        """测试从原始 settings 创建（缺少 base_price_source）"""
+    def test_from_raw_missing_base_required_data(self):
+        """测试从原始 settings 创建（缺少 base_required_data）"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "adjust_type": "qfq"
-            },
+            "data": {},
             "goal": {}
         }
         
-        with pytest.raises(ValueError, match="base_price_source"):
-            OpportunityEnumeratorSettings.from_raw(
-                strategy_name="test_strategy",
-                settings_dict=settings_dict
-            )
-    
-    def test_from_raw_missing_adjust_type(self):
-        """测试从原始 settings 创建（缺少 adjust_type）"""
-        settings_dict = {
-            "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily"
-            },
-            "goal": {}
-        }
-        
-        with pytest.raises(ValueError, match="adjust_type"):
+        with pytest.raises(ValueError, match="base_required_data"):
             OpportunityEnumeratorSettings.from_raw(
                 strategy_name="test_strategy",
                 settings_dict=settings_dict
@@ -84,10 +72,7 @@ class TestOpportunityEnumeratorSettings:
         """测试从原始 settings 创建（缺少 goal）"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            }
+            "data": _data_block(),
         }
         
         with pytest.raises(ValueError, match="goal"):
@@ -100,10 +85,7 @@ class TestOpportunityEnumeratorSettings:
         """测试从原始 settings 创建（使用默认 min_required_records）"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -120,10 +102,7 @@ class TestOpportunityEnumeratorSettings:
         """测试从原始 settings 创建（使用默认 indicators）"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -140,10 +119,7 @@ class TestOpportunityEnumeratorSettings:
         """测试从原始 settings 创建（use_sampling 默认值）"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -160,10 +136,7 @@ class TestOpportunityEnumeratorSettings:
         """测试从原始 settings 创建（use_sampling 显式设置）"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "enumerator": {
                 "use_sampling": False
             },
@@ -183,10 +156,7 @@ class TestOpportunityEnumeratorSettings:
         """测试从 StrategySettings 创建"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -196,17 +166,14 @@ class TestOpportunityEnumeratorSettings:
         enum_settings = OpportunityEnumeratorSettings.from_base(base_settings)
         
         assert enum_settings.strategy_name == "test_strategy"
-        assert enum_settings.data["base_price_source"] == "stock_kline_daily"
+        assert enum_settings.data["base_required_data"]["params"]["term"] == "daily"
     
     def test_to_dict(self):
         """测试导出为字典"""
         settings_dict = {
             "name": "test_strategy",
             "core": {"rsi_threshold": 20},
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -220,7 +187,7 @@ class TestOpportunityEnumeratorSettings:
         result = enum_settings.to_dict()
         
         assert result["core"] == {"rsi_threshold": 20}  # 保留原始字段
-        assert result["data"]["base_price_source"] == "stock_kline_daily"
+        assert result["data"]["base_required_data"]["params"]["term"] == "daily"
         assert result["enumerator"]["use_sampling"] is True
         assert result["enumerator"]["max_test_versions"] == 10  # 默认值
     
@@ -228,10 +195,7 @@ class TestOpportunityEnumeratorSettings:
         """测试 max_test_versions 默认值"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -248,10 +212,7 @@ class TestOpportunityEnumeratorSettings:
         """测试 max_output_versions 默认值"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -268,10 +229,7 @@ class TestOpportunityEnumeratorSettings:
         """测试 max_workers 默认值"""
         settings_dict = {
             "name": "test_strategy",
-            "data": {
-                "base_price_source": "stock_kline_daily",
-                "adjust_type": "qfq"
-            },
+            "data": _data_block(),
             "goal": {
                 "expiration": {"fixed_window_in_days": 30}
             }
@@ -283,3 +241,42 @@ class TestOpportunityEnumeratorSettings:
         )
         
         assert enum_settings.max_workers == "auto"
+
+    def test_base_rejects_granular_kline_data_id(self):
+        """主依赖不允许使用 stock.kline.daily.qfq 等细粒度 data_id"""
+        settings_dict = {
+            "name": "test_strategy",
+            "data": {
+                "base_required_data": {
+                    "data_id": DataKey.STOCK_KLINE_DAILY_QFQ.value,
+                    "params": {"term": "daily"},
+                },
+            },
+            "goal": {"expiration": {"fixed_window_in_days": 30}},
+        }
+        with pytest.raises(ValueError, match="只能为"):
+            OpportunityEnumeratorSettings.from_raw("test_strategy", settings_dict)
+
+    def test_base_requires_term(self):
+        """params.term 必填"""
+        settings_dict = {
+            "name": "test_strategy",
+            "data": {
+                "base_required_data": {
+                    "params": {"adjust": "qfq"},
+                },
+            },
+            "goal": {"expiration": {"fixed_window_in_days": 30}},
+        }
+        with pytest.raises(ValueError, match="term"):
+            OpportunityEnumeratorSettings.from_raw("test_strategy", settings_dict)
+
+    def test_resolved_adjust_defaults_qfq(self):
+        ss = StrategySettings.from_dict(
+            {
+                "name": "t",
+                "data": {"base_required_data": {"params": {"term": "daily"}}},
+            }
+        )
+        assert ss.adjust_type == "qfq"
+        assert ss.resolved_base_required_data["data_id"] == DataKey.STOCK_KLINE.value

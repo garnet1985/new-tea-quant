@@ -29,7 +29,7 @@ class OpportunityEnumeratorWorker:
     """枚举器 Worker（子进程，带 DataManager / DB 访问）
 
     说明：
-    - 这个 Worker 是最完整的版本，支持从 DB 加载历史数据、required_entities 等。
+    - 这个 Worker 是最完整的版本，支持从 DB 加载历史数据、``extra_required_data_sources`` 等。
     - 在子进程中按需加载数据，通过 max_workers 限制并发数，避免内存爆炸。
     """
     
@@ -71,7 +71,8 @@ class OpportunityEnumeratorWorker:
         self.data_manager = StrategyWorkerDataManager(
             stock_id=self.stock_id,
             settings=self.settings,
-            data_mgr=self.data_mgr
+            data_mgr=self.data_mgr,
+            global_extra_cache=self.job_payload.get("global_extra_cache"),
         )
         
         # Opportunity ID 计数器（每个股票从 1 开始自增）
@@ -194,37 +195,18 @@ class OpportunityEnumeratorWorker:
                 # 2) 计算技术指标（仅基于 K 线，一次性完成）
                 self.data_manager._apply_indicators()
 
-                # 3) 加载其他依赖数据（财务、Tag、宏观等，仍然按股票各查一次）
-                required_entities_count = (
-                    len(self.settings.required_entities)
-                    if hasattr(self.settings, 'required_entities') else 0
-                )
-
-                if required_entities_count > 0:
+                # 3) 加载额外依赖（K 线已在主进程预加载；此处只拉 ``extra_required_data_sources``）
+                extras = getattr(self.settings, "extra_required_data_sources", []) or []
+                if extras:
                     entity_query_start = time_module.perf_counter()
-                    for entity_config in self.settings.required_entities:
-                        entity_type = (
-                            entity_config.get('type')
-                            if isinstance(entity_config, dict) else entity_config
+                    for item in extras:
+                        slot, rows = self.data_manager._materialize_data_source_item(
+                            item, actual_start_date, self.end_date
                         )
-                        data = self.data_manager._load_entity(
-                            entity_config,
-                            actual_start_date,
-                            self.end_date,
-                        )
-                        # tags：统一放到 result['tags']，避免上层需要关心 EntityType.TAG_SCENARIO 的具体字符串
-                        if entity_type and 'tag' in str(entity_type).lower():
-                            self.data_manager._current_data["tags"] = data
-                        else:
-                            self.data_manager._current_data[entity_type] = data
+                        self.data_manager._current_data[slot] = rows
                     entity_query_time = time_module.perf_counter() - entity_query_start
-
-                    # 这些查询仍然是 per-stock 的，这里按「每个实体一次查询」记账
-                    avg_entity_query_time = (
-                        entity_query_time / required_entities_count
-                        if required_entities_count > 0 else 0
-                    )
-                    for _ in range(required_entities_count):
+                    avg_entity_query_time = entity_query_time / len(extras)
+                    for _ in range(len(extras)):
                         self.profiler.record_db_query(avg_entity_query_time)
 
                 # 4) 初始化游标状态
@@ -243,7 +225,7 @@ class OpportunityEnumeratorWorker:
                 # 包装数据加载以统计 IO
                 # 注意：load_historical_data 内部会执行数据库查询：
                 # 1. load_qfq: 1 次查询（使用 JOIN 优化，一次查询出 K 线和复权因子）
-                # 2. required_entities: 每个实体 1 次查询（如果有配置）
+                # 2. 每个 data 源一次查询（按 ``required_data_sources`` 计数）
                 db_query_start = time_module.perf_counter()
                 self.data_manager.load_historical_data(
                     start_date=actual_start_date,
@@ -251,12 +233,8 @@ class OpportunityEnumeratorWorker:
                 )
                 db_query_time = time_module.perf_counter() - db_query_start
 
-                # 计算实际查询次数：1（K线 JOIN 查询）+ required_entities 数量
-                required_entities_count = (
-                    len(self.settings.required_entities)
-                    if hasattr(self.settings, 'required_entities') else 0
-                )
-                estimated_queries = 1 + required_entities_count  # 1 次 K 线查询 + N 次实体查询
+                required_sources = getattr(self.settings, "required_data_sources", []) or []
+                estimated_queries = max(len(required_sources), 1)
                 avg_query_time = (
                     db_query_time / estimated_queries if estimated_queries > 0 else 0
                 )
@@ -491,7 +469,7 @@ class OpportunityEnumeratorWorker:
         调用用户策略的 scan_opportunity 方法
         
         Args:
-            data: 今天及之前的所有数据（包含 klines、required_entities 等）
+            data: 今天及之前的所有数据（包含 klines、tags、其它声明的数据源等）
         
         Returns:
             Opportunity or None

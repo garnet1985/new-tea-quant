@@ -8,19 +8,21 @@ Strategy Worker Data Manager - 策略数据管理器
 - 数据生命周期：仅存在于当前 Worker 实例中
 
 重要：不缓存股票级别的数据！
-- ✅ 全局缓存（在 StrategyManager 中）：stock_list, GDP, LPR 等宏观数据
-- ❌ 不缓存股票数据：K线、财务数据等（内存占用大）
+- ✅ 全局数据（ContractScope.GLOBAL）：可由主进程预加载后经 ``global_extra_cache`` 传入（枚举器 MVP：opt1 pickle）
+- ❌ 不缓存 per-stock 大表：K 线、按票财务等仍在子进程加载
 - 📝 当前股票数据存储在 Worker 实例中，Worker 销毁时自动清理
 
 类比 TagWorkerDataManager
 """
 
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Any, Optional, TYPE_CHECKING, Tuple
 from datetime import datetime, timedelta
 import datetime as dt
 import logging
 
 from core.modules.indicator import IndicatorService
+from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.data_contract_manager import DataContractManager
 
 if TYPE_CHECKING:
     from core.modules.strategy.models.strategy_settings import StrategySettings
@@ -40,7 +42,14 @@ class StrategyWorkerDataManager:
     - 通过限制 Worker 数量控制内存使用
     """
     
-    def __init__(self, stock_id: str, settings: 'StrategySettings', data_mgr: 'DataManager'):
+    def __init__(
+        self,
+        stock_id: str,
+        settings: 'StrategySettings',
+        data_mgr: 'DataManager',
+        *,
+        global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+    ):
         """
         初始化数据管理器
         
@@ -48,10 +57,12 @@ class StrategyWorkerDataManager:
             stock_id: 股票代码
             settings: 策略配置
             data_mgr: DataManager 实例
+            global_extra_cache: 主进程已加载的 GLOBAL extra（槽位 key → rows）；未传则 GLOBAL 也在本进程加载
         """
         self.stock_id = stock_id
         self.settings = settings
         self.data_mgr = data_mgr
+        self._global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = global_extra_cache
         
         # 当前股票的原始数据存储（Scanner 使用，NOT 缓存！）
         # - Scan 模式：使用 _current_data 提供 List[Dict] 给扫描器
@@ -63,7 +74,74 @@ class StrategyWorkerDataManager:
 
         # 游标累积状态（用于 List[Dict] 累积）
         self._cursor_state: Dict[str, Dict[str, Any]] = {}
-    
+        self._dcf_mgr: Optional[DataContractManager] = None
+
+    def _contract_manager(self) -> DataContractManager:
+        if self._dcf_mgr is None:
+            self._dcf_mgr = DataContractManager()
+        return self._dcf_mgr
+
+    @staticmethod
+    def _storage_key_for(data_id: DataKey) -> str:
+        if data_id == DataKey.STOCK_KLINE:
+            return "klines"
+        if data_id == DataKey.TAG:
+            return "tags"
+        return data_id.value
+
+    def _merge_tag_entity_type(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(params)
+        if str(out.get("entity_type") or "").strip() == "":
+            et = getattr(self.settings, "tag_storage_entity_type", None)
+            if et:
+                out["entity_type"] = str(et)
+        return out
+
+    def _load_data_source_item(
+        self, item: Dict[str, Any], start_date: str, end_date: str
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """通过 DataContractManager 加载一项声明，返回 ``(存储槽位 key, rows)``。"""
+        data_id = DataKey(str(item["data_id"]))
+        params = dict(item.get("params") or {})
+        if data_id == DataKey.TAG:
+            params = self._merge_tag_entity_type(params)
+        ctx = {"stock_id": self.stock_id}
+        contract = self._contract_manager().issue(data_id, context=ctx, **params)
+        raw = contract.load(start=start_date, end=end_date)
+        rows = list(raw or [])
+        return self._storage_key_for(data_id), rows
+
+    def _materialize_data_source_item(
+        self, item: Dict[str, Any], start_date: str, end_date: str
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """
+        加载单条声明：GLOBAL 且主进程已提供 ``global_extra_cache`` 时直接使用缓存行（只读副本）；
+        否则走 ``DataContractManager``（子进程查库）。
+        """
+        data_id = DataKey(str(item["data_id"]))
+        spec = self._contract_manager().map.get(data_id)
+        if (
+            spec
+            and spec.get("scope") == ContractScope.GLOBAL
+            and self._global_extra_cache is not None
+        ):
+            slot = self._storage_key_for(data_id)
+            if slot in self._global_extra_cache:
+                return slot, list(self._global_extra_cache[slot])
+        return self._load_data_source_item(item, start_date, end_date)
+
+    def _init_cursor_state(self) -> None:
+        """在预加载 K 线后仅为「额外依赖」初始化游标（与 ``load_historical_data`` 语义对齐）。"""
+        for key, data in self._current_data.items():
+            if key == "klines":
+                if data:
+                    self._cursor_state["klines"] = {"cursor": -1, "acc": []}
+                continue
+            if key == DataKey.MACRO_GDP.value:
+                continue
+            if data:
+                self._cursor_state[key] = {"cursor": -1, "acc": []}
+
     # =========================================================================
     # Scanner 数据加载
     # =========================================================================
@@ -79,7 +157,7 @@ class StrategyWorkerDataManager:
         1. 获取最新交易日
         2. 计算开始日期（latest_date - lookback）
         3. 加载 K-line
-        4. 加载其他数据（根据 settings.required_entities）
+        4. 加载其他数据（根据 ``required_data_sources``，经 DataContractManager）
         """
         # 1. 确定 lookback
         if lookback is None:
@@ -90,29 +168,24 @@ class StrategyWorkerDataManager:
         
         # 3. 计算开始日期（使用 lookback 天数）
         start_date = self._get_date_before(latest_date, lookback)
-        
-        # 4. 加载 K-line
-        term = self._extract_term_from_kline_base(self.settings.base_kline_type)
-        adjust = self.settings.adjust_type
-        
-        klines = self._load_klines(start_date, latest_date, term, adjust)
-        self._current_data['klines'] = klines
+
+        # 4. 按声明加载（主依赖 + 额外依赖）
+        for item in self.settings.required_data_sources:
+            slot, rows = self._materialize_data_source_item(item, start_date, latest_date)
+            self._current_data[slot] = rows
+
+        klines = self._current_data.get("klines") or []
 
         # 4.1 计算技术指标（仅基于 K 线，一次性完成）
         self._apply_indicators()
         
-        logger.debug(f"加载最新数据: stock={self.stock_id}, term={term}, "
-                    f"records={len(klines)}, date_range={start_date}-{latest_date}")
-        
-        # 5. 加载其他依赖数据（也是临时存储，不缓存）
-        for entity_config in self.settings.required_entities:
-            entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
-            data = self._load_entity(entity_config, start_date, latest_date)
-            # tags：统一放到 result['tags']，避免上层需要关心 EntityType.TAG_SCENARIO 的具体字符串
-            if entity_type and 'tag' in str(entity_type).lower():
-                self._current_data["tags"] = data
-            else:
-                self._current_data[entity_type] = data
+        logger.debug(
+            "加载最新数据: stock=%s, records=%s, date_range=%s-%s",
+            self.stock_id,
+            len(klines),
+            start_date,
+            latest_date,
+        )
     
     # =========================================================================
     # Simulator 数据加载
@@ -137,36 +210,35 @@ class StrategyWorkerDataManager:
         # 0. 清空旧的数据结构
         self._cursor_state.clear()
         self._current_data["klines"] = []
-        
-        # 1. 加载全量 K-line（行式），用于计算指标和游标切片
-        term = self._extract_term_from_kline_base(self.settings.base_kline_type)
-        adjust = self.settings.adjust_type
-        
-        klines = self._load_klines(start_date, end_date, term, adjust)
 
-        logger.debug(f"加载历史数据: stock={self.stock_id}, term={term}, "
-                    f"records={len(klines)}, date_range={start_date}-{end_date}")
-        
+        # 1. 按声明加载主依赖与额外依赖（行式）
+        for item in self.settings.required_data_sources:
+            slot, rows = self._materialize_data_source_item(item, start_date, end_date)
+            self._current_data[slot] = rows
+
+        klines = self._current_data.get("klines") or []
+
+        logger.debug(
+            "加载历史数据: stock=%s, records=%s, date_range=%s-%s",
+            self.stock_id,
+            len(klines),
+            start_date,
+            end_date,
+        )
+
         # 1.1 计算技术指标（仅基于 K 线，一次性完成，直接写回 klines）
-        # 使用 _current_data['klines'] 以复用指标实现
-        self._current_data["klines"] = klines
         self._apply_indicators()
 
         # 1.2 初始化游标累积状态（为 Enumerator 提供“截至今日”的 List[Dict] 视图）
         self._cursor_state["klines"] = {"cursor": -1, "acc": []}
 
-        # 2. 加载其他依赖数据（全量，行式 -> 游标视图）
-        for entity_config in self.settings.required_entities:
-            entity_type = entity_config.get('type') if isinstance(entity_config, dict) else entity_config
-            data = self._load_entity(entity_config, start_date, end_date)
-            
-            # 2.1 为 Enumerator 保留行式数据 + 游标状态
-            if entity_type and 'tag' in str(entity_type).lower():
-                self._current_data["tags"] = data
-                self._cursor_state["tags"] = {"cursor": -1, "acc": []}
-            else:
-                self._current_data[entity_type] = data
-                self._cursor_state[entity_type] = {"cursor": -1, "acc": []}
+        for key, data in self._current_data.items():
+            if key == "klines":
+                continue
+            if key == DataKey.MACRO_GDP.value:
+                continue
+            if data:
+                self._cursor_state[key] = {"cursor": -1, "acc": []}
     
     # =========================================================================
     # 数据访问接口
@@ -256,6 +328,10 @@ class StrategyWorkerDataManager:
             if entity_type == "klines":
                 continue
 
+            if entity_type == DataKey.MACRO_GDP.value:
+                result[entity_type] = list(data or [])
+                continue
+
             state = self._cursor_state.get(entity_type)
             if state is None:
                 continue
@@ -266,8 +342,12 @@ class StrategyWorkerDataManager:
             # - 其余：默认使用 date
             if entity_type == "tags":
                 date_field = "as_of_date"
+            elif entity_type == DataKey.STOCK_CORPORATE_FINANCE.value or "finance" in str(
+                entity_type
+            ).lower():
+                date_field = "quarter"
             else:
-                date_field = "quarter" if "finance" in str(entity_type).lower() else "date"
+                date_field = "date"
 
             before_cursor = state.get("cursor", -1)
             acc = state.setdefault("acc", [])
@@ -440,186 +520,6 @@ class StrategyWorkerDataManager:
                 parts.append(f"{k}{v}")
         return "_".join(parts)
     
-    def _load_klines(
-        self, 
-        start_date: str, 
-        end_date: str, 
-        term: str,
-        adjust: str = 'qfq'
-    ) -> List[Dict[str, Any]]:
-        """
-        加载 K-line 数据（使用 DataManager API）
-        
-        Args:
-            start_date: 开始日期（YYYYMMDD）
-            end_date: 结束日期（YYYYMMDD）
-            term: 周期（daily/weekly/monthly）
-            adjust: 复权方式（qfq/hfq/none）
-        
-        Returns:
-            klines: [{'date': '20251219', 'open': 10.0, 'close': 10.5, ...}, ...]
-        """
-        try:
-            # 使用 DataManager 的 K线服务加载接口
-            klines = self.data_mgr.stock.kline.load(
-                stock_id=self.stock_id,
-                term=term,
-                start_date=start_date,
-                end_date=end_date,
-                adjust=adjust,
-                filter_negative=True,
-                as_dataframe=False  # 返回 List[Dict]
-            )
-            
-            return klines if klines else []
-
-        except Exception as e:
-            logger.error(f"加载K线数据失败: stock={self.stock_id}, term={term}, "
-                        f"date_range={start_date}-{end_date}, error={e}")
-            return []
-    
-    def _load_entity(
-        self, 
-        entity_config: Any, 
-        start_date: str, 
-        end_date: str
-    ) -> List[Dict[str, Any]]:
-        """
-        加载其他实体数据
-        
-        Args:
-            entity_config: 实体配置（字典或字符串）
-                - 如果是字典：{'type': 'xxx', 'name': 'xxx', ...}
-                - 如果是字符串：'xxx'
-            start_date: 开始日期
-            end_date: 结束日期
-        
-        Returns:
-            data: [...]
-        """
-        # 解析配置
-        if isinstance(entity_config, dict):
-            entity_type = entity_config.get("type")
-            entity_name = entity_config.get("name")
-            required = bool(entity_config.get("required", True))
-        else:
-            entity_type = entity_config
-            entity_name = None
-            required = True
-
-        entity_type_str = str(entity_type or "")
-        try:
-            # 根据 entity_type 加载不同的数据
-            if "tag" in entity_type_str.lower():
-                # 加载 Tag 数据（若声明依赖，则默认 required=True，缺失应 fail-fast）
-                return self._load_tag_data(
-                    scenario_name=entity_name,
-                    start_date=start_date,
-                    end_date=end_date,
-                    required=required,
-                )
-
-            if "corporate_finance" in entity_type_str.lower():
-                return self._load_finance_data(start_date, end_date)
-
-            if "gdp" in entity_type_str.lower():
-                return self._load_macro_data("sys_gdp", start_date, end_date)
-
-            logger.warning(f"未知的实体类型: {entity_type_str}")
-            return []
-        except Exception as e:
-            # 对 required 数据源，直接抛出，让上层在 preprocess/取数阶段中断
-            if required:
-                raise
-            logger.error(f"加载实体数据失败(已忽略): type={entity_config}, error={e}")
-            return []
-    
-    def _load_tag_data(
-        self,
-        scenario_name: str,
-        start_date: str,
-        end_date: str,
-        required: bool = True,
-    ) -> List[Dict[str, Any]]:
-        """
-        加载 Tag 数据（基于 TagDataService，按 scenario 维度） 
-
-        约定：
-        - 策略配置中的 required_entities 对于 Tag 只暴露 scenario：
-            {
-                "type": EntityType.TAG_SCENARIO.value,
-                "name": "<scenario_name>"
-            }
-        - 因此此处的参数 scenario_name 实际上来自 entity_config["name"]
-        - 不支持在策略侧单独按某个标签名称加载，只能一次性加载该 scenario 下的所有标签值
-        """
-        if not scenario_name:
-            if required:
-                raise RuntimeError("策略声明依赖 Tag 场景，但未提供 scenario_name")
-            logger.warning("加载 Tag 数据时未提供 scenario_name，返回空结果")
-            return []
-
-        # 通过 DataManager 的 stock.tags（TagDataService）加载
-        tag_service = getattr(self.data_mgr.stock, "tags", None)
-        if tag_service is None:
-            raise RuntimeError("DataManager 未初始化 TagDataService: data_mgr.stock.tags 不存在")
-
-        # 先校验 scenario 元信息是否存在；不存在则直接 fail-fast（比子进程刷 warning 更明确）
-        scenario = tag_service.load_scenario(scenario_name)
-        if not scenario:
-            raise RuntimeError(
-                "策略依赖的 Tag 场景不存在，已中断取数："
-                f" stock_id={self.stock_id}, scenario={scenario_name}. "
-                "请先运行 -t/-tg 生成标签元信息与数据，或检查 scenario 名称是否正确。"
-            )
-
-        data = tag_service.load_values_for_entity(
-            entity_id=self.stock_id,
-            scenario_name=scenario_name,
-            start_date=start_date,
-            end_date=end_date,
-            # sys_tag_value.entity_type 在 tag 系统中通常存的是 target_entity.type（例如 stock_kline_daily），
-            # 策略侧应使用一致的 entity_type 才能查到数据。
-            entity_type=getattr(self.settings, "base_kline_type", "stock_kline_daily"),
-        )
-        return data or []
-    
-    def _load_finance_data(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
-        """加载财务数据"""
-        try:
-            finance_model = self.data_mgr.get_table("sys_corporate_finance")
-            if not finance_model:
-                return []
-            
-            data = finance_model.load(
-                condition="id = %s AND report_date >= %s AND report_date <= %s",
-                params=(self.stock_id, start_date, end_date),
-                order_by="report_date ASC"
-            )
-            return data if data else []
-
-        except Exception as e:
-            logger.error(f"加载财务数据失败: error={e}")
-            return []
-    
-    def _load_macro_data(self, macro_type: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
-        """加载宏观数据"""
-        try:
-            macro_model = self.data_mgr.get_table(macro_type)
-            if not macro_model:
-                return []
-            
-            data = macro_model.load(
-                condition="date >= %s AND date <= %s",
-                params=(start_date, end_date),
-                order_by="date ASC"
-            )
-            return data if data else []
-
-        except Exception as e:
-            logger.error(f"加载宏观数据失败: type={macro_type}, error={e}")
-            return []
-    
     def _get_latest_trading_date(self) -> str:
         """
         获取最新交易日
@@ -665,25 +565,3 @@ class StrategyWorkerDataManager:
             logger.error(f"计算日期失败: date={date}, days={days}, error={e}")
             return date
     
-    def _extract_term_from_kline_base(self, base_kline_type: str) -> str:
-        """
-        从 base_kline_type 提取周期
-        
-        Args:
-            base_kline_type: 如 'stock_kline_daily' 或 EntityType.STOCK_KLINE_DAILY.value
-        
-        Returns:
-            term: 'daily' or 'weekly' or 'monthly'
-        """
-        base_str = str(base_kline_type).lower()
-        
-        if 'daily' in base_str:
-            return 'daily'
-        elif 'weekly' in base_str:
-            return 'weekly'
-        elif 'monthly' in base_str:
-            return 'monthly'
-        
-        # 默认返回 daily
-        logger.warning(f"无法识别K线周期，使用默认值 daily: {base_kline_type}")
-        return 'daily'

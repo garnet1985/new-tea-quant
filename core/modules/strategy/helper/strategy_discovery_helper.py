@@ -165,13 +165,11 @@ class StrategyDiscoveryHelper:
             logger.error("settings.data 必须是字典")
             return False
         
-        # 必须包含 base_price_source 和 adjust_type
-        if 'base_price_source' not in data:
-            logger.error("settings.data.base_price_source 不能为空")
+        try:
+            from core.modules.strategy.models.strategy_settings import StrategySettings as SS
+            SS.validate_data_config(data)
+        except ValueError as e:
+            logger.error("settings.data 数据契约配置无效: %s", e)
             return False
-        
-        if 'adjust_type' not in data:
-            logger.error("settings.data.adjust_type 不能为空")
-            return False
-        
+
         return True

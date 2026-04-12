@@ -17,6 +17,9 @@ import logging
 
 from .setting_errors import SettingError, SettingErrorLevel, SettingValidationResult
 
+from core.modules.data_contract.contract_const import DataKey
+from core.modules.strategy.models.strategy_settings import StrategySettings as StrategySettingsDictModel
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,13 +87,12 @@ class BaseSettings(ABC):
         
         验证内容：
         - name 不能为空或 'unknown'（Critical）
-        - data.base_price_source 不能为空（Critical）
-        - data.adjust_type 不能为空（Critical）
+        - data.base_required_data（含合法 ``data_id``、可选 ``params``）（Critical）
         
         同时添加默认值：
         - data.min_required_records: 默认 100
         - data.indicators: 默认 {}
-        - data.extra_data_sources: 默认 []
+        - data.extra_required_data_sources: 默认 []
         - sampling.strategy: 默认 "continuous"
         - sampling.sampling_amount: 默认 10
         
@@ -109,29 +111,22 @@ class BaseSettings(ABC):
             ))
             result.is_valid = False
         
-        # 验证 data.base_price_source
         data_config = self.raw_settings.get("data", {})
-        base_price_source = data_config.get("base_price_source")
-        if not base_price_source:
+        try:
+            StrategySettingsDictModel.validate_data_config(
+                data_config if isinstance(data_config, dict) else {}
+            )
+        except ValueError as e:
             result.errors.append(SettingError(
                 level=SettingErrorLevel.CRITICAL,
-                field_path="data.base_price_source",
-                message="基础价格数据源不能为空",
-                suggested_fix='在 settings.py 的 data 中添加 "base_price_source": "stock_kline_daily"'
+                field_path="data.base_required_data",
+                message=str(e),
+                suggested_fix='在 settings.py 的 data 中配置 '
+                '"base_required_data": {"params": {"term": "daily"}} '
+                '（data_id 可省略，仅能为 stock.kline；adjust 默认 qfq）',
             ))
             result.is_valid = False
-        
-        # 验证 data.adjust_type
-        adjust_type = data_config.get("adjust_type")
-        if not adjust_type:
-            result.errors.append(SettingError(
-                level=SettingErrorLevel.CRITICAL,
-                field_path="data.adjust_type",
-                message="复权类型不能为空",
-                suggested_fix='在 settings.py 的 data 中添加 "adjust_type": "qfq"'
-            ))
-            result.is_valid = False
-        
+
         # 添加默认值（不验证，直接添加）
         self._add_base_default_values()
         
@@ -158,11 +153,14 @@ class BaseSettings(ABC):
         if "indicators" not in data_config:
             data_config["indicators"] = {}
         
-        # extra_data_sources 默认值
-        if "extra_data_sources" not in data_config:
-            data_config["extra_data_sources"] = []
-        elif not isinstance(data_config["extra_data_sources"], list):
-            data_config["extra_data_sources"] = []
+        if "extra_required_data_sources" not in data_config:
+            data_config["extra_required_data_sources"] = []
+        elif not isinstance(data_config["extra_required_data_sources"], list):
+            data_config["extra_required_data_sources"] = []
+
+        base = data_config.get("base_required_data")
+        if isinstance(base, dict) and base.get("params") is None:
+            base["params"] = {}
         
         # sampling 默认值
         if "sampling" not in self.raw_settings:
@@ -202,15 +200,35 @@ class BaseSettings(ABC):
     # 数据配置便捷访问
     # =========================================================================
     
-    def get_base_price_source(self) -> str:
-        """获取基础价格数据源"""
+    def get_base_required_data(self) -> Dict[str, Any]:
+        """主数据依赖：``{"data_id": str, "params": dict}``。"""
         data_config = self.get_data_config()
-        return data_config.get("base_price_source", "stock_kline_daily")
-    
+        base = data_config.get("base_required_data")
+        return base if isinstance(base, dict) else {}
+
+    def get_extra_required_data_sources(self) -> list:
+        data_config = self.get_data_config()
+        xs = data_config.get("extra_required_data_sources", [])
+        return xs if isinstance(xs, list) else []
+
+    def get_base_data_id(self) -> str:
+        """主依赖的 DataKey 字符串（省略 data_id 时为 ``stock.kline``）。"""
+        base = self.get_base_required_data()
+        if not base:
+            return DataKey.STOCK_KLINE.value
+        try:
+            return StrategySettingsDictModel.normalize_base_required_data(base)["data_id"]
+        except ValueError:
+            return str(base.get("data_id", "") or "")
+
     def get_adjust_type(self) -> str:
-        """获取复权类型"""
-        data_config = self.get_data_config()
-        return data_config.get("adjust_type", "qfq")
+        """复权类型：具体 K 线 key 由 data_id 推导；``stock.kline`` 由 params.adjust 给出。"""
+        from core.modules.strategy.models.strategy_settings import StrategySettings as _StrategySettingsView
+
+        data_cfg = self.get_data_config()
+        if not isinstance(data_cfg, dict):
+            return "qfq"
+        return _StrategySettingsView({"data": data_cfg}).adjust_type
     
     def get_min_required_records(self) -> int:
         """获取最小要求记录数"""
@@ -226,11 +244,6 @@ class BaseSettings(ABC):
         data_config = self.get_data_config()
         return data_config.get("indicators", {})
     
-    def get_extra_data_sources(self) -> list:
-        """获取额外数据源列表"""
-        data_config = self.get_data_config()
-        extra_sources = data_config.get("extra_data_sources", [])
-        return extra_sources if isinstance(extra_sources, list) else []
     
     # =========================================================================
     # 采样配置便捷访问

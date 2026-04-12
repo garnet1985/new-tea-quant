@@ -121,7 +121,21 @@ class OpportunityEnumerator:
                 # ID 起始值（由主进程分配，避免进程间冲突）
                 'opportunity_id_start': start_id,
             })
-        
+
+        # 2.1 主进程预加载 GLOBAL 的 extra（MVP：opt1，随各 job pickle 到子进程；体量小可接受）
+        from core.modules.strategy.helpers.global_extra_preload import (
+            preload_global_extras_for_enumeration,
+        )
+
+        global_extra_cache = preload_global_extras_for_enumeration(
+            validated_settings, enum_start_date, end_date
+        )
+        if global_extra_cache:
+            logger.info(
+                "主进程已预加载 GLOBAL extra（将随 job 传入子进程）: %s",
+                list(global_extra_cache.keys()),
+            )
+
         # 3. 使用新的模块化架构进行批量调度
         from core.infra.worker import (
             # 新架构组件
@@ -182,13 +196,12 @@ class OpportunityEnumerator:
                 scheduler.max_batch_size,
             )
 
-        # 批量执行（内存优化：按 batch 提交，子进程加载数据）
-        # 注意：主进程严格禁止加载大型数据（K线数据等），只准备参数
-        # 子进程使用 OpportunityEnumeratorWorker 按需查询数据
+        # 批量执行（内存优化：按 batch 提交）
+        # 主进程：已预加载小体量 GLOBAL extra（见 global_extra_cache）；K 线等 PER_ENTITY 数据仍由子进程加载
         # ProcessWorker 的 QUEUE 模式会持续填充进程池，保证多进程并行执行
         # 通过 max_workers 限制，保证同时只有有限数量的子进程在加载数据，避免内存爆炸
         
-        # 按 batch 提交任务（主进程只准备参数，不加载数据）
+        # 按 batch 提交任务（参数 + global_extra_cache）
         # 确定总任务数（用于进度跟踪）
         total_jobs = len(jobs)
         
@@ -209,8 +222,6 @@ class OpportunityEnumerator:
             if batch_size > max_batch_size:
                 max_batch_size = batch_size
             
-            # 构建 payload（只包含参数，不包含数据）
-            # 子进程会使用 OpportunityEnumeratorWorker 按需查询数据
             process_jobs = []
             for job in batch:
                 payload = {
@@ -220,6 +231,7 @@ class OpportunityEnumerator:
                     'start_date': job['start_date'],
                     'end_date': job['end_date'],
                     'output_dir': job['output_dir'],
+                    'global_extra_cache': global_extra_cache,
                 }
                 process_jobs.append({'id': job['stock_id'], 'payload': payload})
             

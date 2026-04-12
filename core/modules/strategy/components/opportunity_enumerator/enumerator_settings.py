@@ -14,11 +14,10 @@ settings = {
     "is_enabled": True/False,
     "core": {...},
     "data": {
-        "base_price_source": ...,
-        "adjust_type": ...,
+        "base_required_data": {"params": {"term": "daily"}},
         "min_required_records": ...,
         "indicators": {...},
-        "extra_data_sources": [...]
+        "extra_required_data_sources": [...]
     },
     "sampling": {...},
     "price_simulator": {
@@ -106,31 +105,27 @@ class OpportunityEnumeratorSettings:
     def _validate_and_normalize(self) -> None:
         """
         1. 检查必要字段：
-           - data.base_price_source 存在且非空
-           - data.adjust_type 存在且非空
+           - data.base_required_data（仅 ``stock.kline`` + ``params.term`` 等）
         2. 补全可选字段：
            - data.min_required_records：缺失或非法时使用默认值 100
            - data.indicators：缺失时设为空 dict
-           - data.required_entities：缺失时设为空 list
+           - data.extra_required_data_sources：缺失时设为空 list
            - price_simulator.goal：缺失时设为空 dict（允许“无止盈止损”，但建议用户配置）
         """
         settings = self.raw or {}
 
         # ----- data 部分 -----
         data = dict(settings.get("data") or {})
-        base = data.get("base_price_source")
-        adjust = data.get("adjust_type")
+        try:
+            StrategySettings.validate_data_config(data)
+        except ValueError as e:
+            raise ValueError(
+                f"[OpportunityEnumeratorSettings] 策略 {self.strategy_name} 的 data 配置无效: {e}"
+            ) from e
 
-        if not base:
-            raise ValueError(
-                f"[OpportunityEnumeratorSettings] 策略 {self.strategy_name} 的 "
-                f"settings.data.base_price_source 不能为空"
-            )
-        if not adjust:
-            raise ValueError(
-                f"[OpportunityEnumeratorSettings] 策略 {self.strategy_name} 的 "
-                f"settings.data.adjust_type 不能为空"
-            )
+        brd = data.get("base_required_data")
+        if isinstance(brd, dict) and brd.get("params") is None:
+            brd["params"] = {}
 
         # min_required_records：记录数下限（用于预读和游标起点），默认 100
         mrr = data.get("min_required_records", 100)
@@ -148,10 +143,10 @@ class OpportunityEnumeratorSettings:
             indicators = {}
         data["indicators"] = indicators
 
-        required_entities = data.get("extra_data_sources")
-        if required_entities is None:
-            required_entities = []
-        data["extra_data_sources"] = required_entities
+        extra_sources = data.get("extra_required_data_sources")
+        if extra_sources is None:
+            extra_sources = []
+        data["extra_required_data_sources"] = extra_sources
 
         self.data = data
         self.min_required_records = mrr_int

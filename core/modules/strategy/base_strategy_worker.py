@@ -198,7 +198,7 @@ class BaseStrategyWorker(ABC):
         data = {
             'klines': self.data_manager._current_data.get('klines', []),
         }
-        # 添加其他 required_entities
+        # 添加其它已加载的数据槽位（如 tags、macro.gdp 等）
         for entity_type in self.data_manager._current_data.keys():
             if entity_type != 'klines':
                 data[entity_type] = self.data_manager._current_data.get(entity_type, [])

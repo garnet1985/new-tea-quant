@@ -1,5 +1,3 @@
-from core.global_enums.enums import EntityType, AdjustType
-
 settings = {
     # ========================================
     # 策略基本信息
@@ -20,11 +18,11 @@ settings = {
     # 数据配置（仅保留枚举器 / 模拟器真正需要的字段）
     # ========================================
     "data": {
-        # 基础价格数据源（K 线类型）
-        "base_price_source": EntityType.STOCK_KLINE_DAILY.value,
-        # 复权方式
-        "adjust_type": AdjustType.QFQ.value,
-        
+        # 主数据依赖：仅 stock.kline；data_id 可省略；params.term 必填；adjust 默认 qfq
+        "base_required_data": {
+            "params": {"term": "daily"},
+        },
+        "extra_required_data_sources": [],
         # 最小要求的基础周期记录数
         "min_required_records": 30,
 
@@ -34,9 +32,6 @@ settings = {
                 {"period": 14}
             ]
         },
-
-        # 额外数据源（GDP、tag、corporate_finance 等）
-        "extra_data_sources": []
     },
 
     "goal": {

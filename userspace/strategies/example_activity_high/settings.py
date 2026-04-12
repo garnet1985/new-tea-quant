@@ -1,4 +1,4 @@
-from core.global_enums.enums import EntityType, AdjustType
+from core.modules.data_contract.contract_const import DataKey
 
 settings = {
     # ========================================
@@ -24,16 +24,19 @@ settings = {
     # 数据配置
     # ========================================
     "data": {
-        "base_price_source": EntityType.STOCK_KLINE_DAILY.value,
-        "adjust_type": AdjustType.QFQ.value,
+        "base_required_data": {
+            "params": {
+                "term": "daily",
+                "tag_storage_entity_type": "stock_kline_daily",
+            },
+        },
+        "extra_required_data_sources": [
+            {"data_id": DataKey.TAG.value, "params": {"tag_scenario": "activity-ratio20"}},
+        ],
         "min_required_records": 30,
         "indicators": {
             "rsi": [{"period": 14}],
         },
-        # 额外数据源：加载 Tag 场景（一次性加载该 scenario 下所有 tag 值）
-        "extra_data_sources": [
-            {"type": EntityType.TAG_SCENARIO.value, "name": "activity-ratio20"}
-        ],
     },
 
     # 目标 / 风控配置：保持与 example 一致

@@ -1,4 +1,4 @@
-from core.global_enums.enums import AdjustType, EntityType
+from core.modules.data_contract.contract_const import DataKey
 
 # settings_example.py（完整选项说明版）
 # ---------------------------------------------------------------------------
@@ -9,7 +9,7 @@ from core.global_enums.enums import AdjustType, EntityType
 # ---------------------------------------------------------------------------
 #
 # 快速上手（最小可用）：
-# - 必填建议：name / core / data.base_price_source / data.adjust_type / goal
+# - 必填建议：name / core / data.base_required_data / goal
 # - 其他大多数字段可省略，系统会走默认值。
 #
 # 注意：
@@ -42,16 +42,22 @@ settings = {
     # 3) 数据配置（核心）
     # =======================================================================
     "data": {
-        # 基础价格数据类型（必填）
-        # 常用：EntityType.STOCK_KLINE_DAILY.value
-        "base_price_source": EntityType.STOCK_KLINE_DAILY.value,
-
-        # 复权类型（必填）
-        # 您在网上看到的所有策略，几乎都是用的 AdjustType.QFQ.value，
-        # 裸数据请使用 AdjustType.NONE.value，
-        # 前复权请使用 AdjustType.QFQ.value，
-        # 后复权请使用 AdjustType.HFQ.value，
-        "adjust_type": AdjustType.QFQ.value,
+        # 主数据依赖（必填）：DataKey 字符串 + 静态 params（与 data_contract 一致）
+        # 主数据：仅 stock.kline；data_id 可省略；params.term 必填；adjust 默认 qfq
+        "base_required_data": {
+            "params": {"term": "daily"},
+        },
+        # 显式写 data_id 时只能为：
+        # "base_required_data": {
+        #     "data_id": DataKey.STOCK_KLINE.value,
+        #     "params": {"term": "daily", "adjust": "qfq"},
+        # },
+        # 除主依赖外的其它数据（可省略；默认 []）
+        "extra_required_data_sources": [
+            {"data_id": DataKey.MACRO_GDP.value, "params": {}},
+            # {"data_id": DataKey.TAG.value, "params": {"tag_scenario": "my-scenario"}},
+            # {"data_id": DataKey.STOCK_CORPORATE_FINANCE.value, "params": {}},
+        ],
 
         # 最少历史记录条数（可省略；默认为 100）
         # 具体意义是当前股票的记录至少要达到这个数值才会对当前股票进行策略计算。
@@ -73,19 +79,6 @@ settings = {
             # atr: 平均真实波动
             # "atr": [{"period": 14}],
         },
-
-        # 额外数据源依赖（可省略；默认 []）
-        # 指除了 K 线（价格因子）之外，当前策略还需要的额外数据。
-        # 常用示例（同类型只保留一个示例）：
-        # - 宏观：GDP
-        # - 场景标签：TAG_SCENARIO（通常需要 name）
-        # - 财务：CORPORATE_FINANCE
-        # 完整可用类型：CORPORATE_FINANCE / GDP / LPR / SHIBOR / PRICE_INDEXES / TAG_SCENARIO
-        "extra_data_sources": [
-            {"type": EntityType.GDP.value},
-            # {"type": EntityType.TAG_SCENARIO.value, "name": "momentum_mid_term"},
-            # {"type": EntityType.CORPORATE_FINANCE.value},
-        ],
     },
 
     # =======================================================================
@@ -327,7 +320,7 @@ settings = {
     # =======================================================================
     "scanner": {
         # 并发 worker（默认 auto）
-        # "max_workers": "auto",
+        "max_workers": "auto",
 
         # 输出适配器列表（默认 ["console"]）
         # 表示如何继续处理用当前策略扫描出的投资机会 - 可以某种方式通知，可以使用第三方服务自动下单，可以进行机器学习等等。
@@ -343,5 +336,8 @@ settings = {
         # 扫描缓存天数（默认 10）
         # 保留最近 N 个扫描日期目录，多于这个数量的结果会被自动删除。
         "max_cache_days": 10,
+
+        # 股票列表文件路径，可以是相对路径，也可以是绝对路径。
+        "watch_list": "path/to/watch_list.txt", 
     },
 }

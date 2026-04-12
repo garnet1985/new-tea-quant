@@ -7,9 +7,10 @@ class DataKey(str, Enum):
     """Data key identifiers."""
 
     STOCK_LIST = 'stock.list'
-    STOCK_KLINE_DAILY_QFQ = 'stock.kline.daily.qfq'
-    STOCK_KLINE_DAILY_NFQ = 'stock.kline.daily.nfq'
+    # 通用 K 线：复权、周期由 params.adjust / params.term 指定（与下方具体 key 二选一）
+    STOCK_KLINE = 'stock.kline'
     TAG = 'tag'
+
     STOCK_ADJ_FACTOR_EVENTS = 'stock.adj_factor.eventlog'
     STOCK_CORPORATE_FINANCE = 'stock.finance.quarterly'
     INDEX_LIST = 'index.list'

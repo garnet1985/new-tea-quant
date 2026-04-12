@@ -63,7 +63,7 @@ class SettingManager:
         验证基础设置（第一步，必须调用）
         
         验证内容：
-        - name, data.base_price_source, data.adjust_type（Critical）
+        - name、``data.base_required_data``（Critical）
         - 添加默认值
         
         Returns:
@@ -185,12 +185,17 @@ class SettingManager:
         """获取交易成本配置"""
         return self.base_settings.get_fees_config()
     
-    def get_base_price_source(self) -> str:
-        """获取基础价格数据源"""
-        return self.base_settings.get_base_price_source()
-    
+    def get_base_required_data(self) -> Dict[str, Any]:
+        return self.base_settings.get_base_required_data()
+
+    def get_extra_required_data_sources(self) -> list:
+        return self.base_settings.get_extra_required_data_sources()
+
+    def get_base_data_id(self) -> str:
+        return self.base_settings.get_base_data_id()
+
     def get_adjust_type(self) -> str:
-        """获取复权类型"""
+        """获取复权类型（来自 ``base_required_data.params.adjust``）"""
         return self.base_settings.get_adjust_type()
     
     def get_min_required_records(self) -> int:
@@ -201,9 +206,6 @@ class SettingManager:
         """获取技术指标配置"""
         return self.base_settings.get_indicators_config()
     
-    def get_extra_data_sources(self) -> list:
-        """获取额外数据源列表"""
-        return self.base_settings.get_extra_data_sources()
     
     def get_sampling_strategy(self) -> str:
         """获取采样策略"""

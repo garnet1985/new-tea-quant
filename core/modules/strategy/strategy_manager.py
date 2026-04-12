@@ -21,7 +21,6 @@ from core.modules.strategy.helper import (
     JobBuilderHelper,
     StatisticsHelper
 )
-
 logger = logging.getLogger(__name__)
 
 
@@ -32,22 +31,36 @@ class StrategyManager:
         """初始化策略管理器"""
         self.is_verbose = is_verbose
         
-        # 策略缓存
-        self.strategy_cache = {}
-        
-        # 全局缓存
-        self.global_cache = {
-            'stock_list': None,
-            'trading_dates': None,
-            'macro_data': None
-        }
+        # 全局缓存（按需写入；如 stock_list 由 _load_stock_list 填充）
+        self.global_cache: Dict[str, Any] = {}
         
         # 数据管理器
         from core.modules.data_manager import DataManager
         self.data_mgr = DataManager(is_verbose=False)
         
-        # 发现所有策略（使用 Helper）
+        # 发现所有策略：name -> 完整 strategy_info（含 worker 路径、StrategySettings）
         self.strategy_cache = StrategyDiscoveryHelper.discover_strategies()
+        self.usable_strategies_cache = self._filter_enabled_and_valid_strategies()
+    
+    def _filter_enabled_and_valid_strategies(self) -> Dict[str, Dict[str, Any]]:
+        """过滤出启用的策略；值为完整 strategy_info，供 scan 透传。"""
+        usable: Dict[str, Dict[str, Any]] = {}
+        for name, strategy_info in self.strategy_cache.items():
+            settings = strategy_info.get("settings")
+            if settings is None:
+                logger.error(f"{name} 策略缺少 settings，跳过")
+                continue
+            
+            # TODO：
+            # if not settingValidator.is_valid(settings):
+            #     logger.error(f"{name} 策略设置无效，跳过")
+            #     continue
+
+            if not settings.is_enabled:
+                logger.info(f"{name} 未启用 (is_enabled=False)，跳过")
+                continue
+            usable[name] = strategy_info
+        return usable
     
     # =========================================================================
     # Scanner 执行
@@ -65,48 +78,56 @@ class StrategyManager:
         if date is None:
             date = datetime.now().strftime('%Y%m%d')
         
-        # 2. 加载全局缓存
-        self._load_global_cache()
-        
-        # 3. 确定要扫描的策略
+        # # 2. 加载全局缓存
+        # stock_list = self._load_stock_list()
+
+        # 3. 确定要扫描的策略（enabled 侧已是完整 strategy_info）
         if strategy_name:
-            strategies_to_scan = [strategy_name]
-        else:
-            strategies_to_scan = [
-                name for name, info in self.strategy_cache.items()
-                if info['settings'].is_enabled
-            ]
-            
-            if not strategies_to_scan:
-                logger.warning("没有启用的策略可扫描")
+            strategy_info = self.enabled_strategies_cache.get(strategy_name)
+            if not strategy_info:
+                logger.warning(f"策略未启用或设置无效: {strategy_name}")
                 return
-            
-            logger.info(f"🔍 扫描所有启用的策略: {strategies_to_scan}")
-        
-        # 4. 对每个策略执行扫描
-        for strat_name in strategies_to_scan:
-            self._scan_single_strategy(strat_name, date)
-    
-    def _scan_single_strategy(self, strategy_name: str, date: str):
-        """扫描单个策略"""
-        logger.info(f"🔍 开始扫描策略: {strategy_name}")
-        
-        # 1. 获取策略信息
-        strategy_info = self.strategy_cache.get(strategy_name)
-        if not strategy_info:
-            logger.error(f"策略不存在: {strategy_name}")
+            to_run = [info]
+        else:
+            to_run = list(self.enabled_strategies_cache.values())
+
+        if not to_run:
+            logger.warning("没有启用的策略可扫描")
             return
-        
-        settings = strategy_info['settings']
-        
-        # 2. 获取股票列表（使用 StockSamplingHelper）
-        all_stocks = self.global_cache['stock_list']
-        stock_list = StockSamplingHelper.get_stock_list(
-            all_stocks, 
-            settings.sampling_amount,
-            settings.sampling_config,
-            strategy_name=strategy_name,
-        )
+
+        for strategy_info in to_run:
+            self._scan_single_strategy(strategy_info, date)
+    
+    def _scan_single_strategy(self, strategy_info: Dict[str, Any], date: str):
+        """扫描单个策略（入参为完整 strategy_info）。"""
+        strategy_name = strategy_info["name"]
+        settings = strategy_info["settings"]
+        logger.info(f"🔍 开始扫描策略: {strategy_name}")
+
+        all_stocks = self._load_stock_list()
+
+        watch_list = settings.watch_list
+
+        # TODO: to be refactored: scan can only scan all stocks all stocks in watch list, so using sample should not be used here.
+        if watch_list:
+            stock_list = StockSamplingHelper.filter_stocks_by_list(
+                all_stocks=all_stocks,
+                watch_list=watch_list,
+            )
+        else:
+            stock_list = [s["id"] for s in all_stocks]
+
+        if is_use_sampling:
+            sampling_cfg = settings.sampling_config or {}
+            sampling_amount = settings.sampling_amount or len(all_stocks)
+            stock_list = StockSamplingHelper.get_stock_list(
+                all_stocks=all_stocks,
+                sampling_amount=sampling_amount,
+                sampling_config=sampling_cfg,
+                strategy_name=strategy_name,
+            )
+        else:
+            stock_list = [s["id"] for s in all_stocks]
         logger.info(f"📊 股票数量: {len(stock_list)}")
         
         # 3. 构建作业（使用 JobBuilderHelper）
@@ -114,7 +135,7 @@ class StrategyManager:
         logger.info(f"📦 作业数量: {len(jobs)}")
         
         # 4. 多进程执行
-        max_workers = self._get_max_workers()
+        max_workers = settings.get("scanner", {}).get("max_workers", "auto")
         results = self._execute_jobs(jobs, strategy_info, max_workers)
         
         # 5. 收集结果
@@ -176,22 +197,20 @@ class StrategyManager:
         
         # 1. 获取策略信息
         strategy_info = self.strategy_cache.get(strategy_name)
-        if not strategy_info:
-            logger.error(f"策略不存在: {strategy_name}")
-            return
-        
-        settings = strategy_info['settings']
+        strategy_settings = strategy_info['settings']
         
         # 2. 获取股票列表
         # 规则与 price_simulator 对齐：
         # - price_simulator.use_sampling = True  -> 使用 sampling 配置
         # - price_simulator.use_sampling = False -> 使用全量股票
-        all_stocks = self.global_cache['stock_list'] or []
-        sim_cfg = settings.price_simulator or {}
-        use_sampling = bool(sim_cfg.get("use_sampling", True))
-        if use_sampling:
-            sampling_cfg = settings.sampling_config or {}
-            sampling_amount = settings.sampling_amount or len(all_stocks)
+        all_stocks = self._load_stock_list()
+
+        price_simulator_config = strategy_settings.price_simulator or {}
+        is_use_sampling = bool(price_simulator_config.get("use_sampling", True))
+        
+        if is_use_sampling:
+            sampling_cfg = strategy_settings.sampling_config or {}
+            sampling_amount = strategy_settings.sampling_amount or len(all_stocks)
             stock_list = StockSamplingHelper.get_stock_list(
                 all_stocks=all_stocks,
                 sampling_amount=sampling_amount,
@@ -415,29 +434,22 @@ class StrategyManager:
     # 辅助方法
     # =========================================================================
     
-    def _get_max_workers(self, config_value: Any = None) -> int:
-        """获取最大进程数"""
-        import os
+    # def _get_max_workers(self, config_value: Any = None) -> int:
+    #     """获取最大进程数"""
+    #     import os
         
-        if config_value is None or config_value == 'auto':
-            cpu_count = os.cpu_count() or 4
-            return max(1, cpu_count - 1)
+    #     if config_value is None or config_value == 'auto':
+    #         cpu_count = os.cpu_count() or 4
+    #         return max(1, cpu_count - 1)
         
-        try:
-            return int(config_value)
-        except (ValueError, TypeError):
-            return 4
+    #     try:
+    #         return int(config_value)
+    #     except (ValueError, TypeError):
+    #         return 4
     
     def _load_global_cache(self):
         """加载全局缓存"""
-        if self.global_cache['stock_list'] is None:
-            try:
-                stock_list = self.data_mgr.stock.list.load_filtered()
-                self.global_cache['stock_list'] = stock_list
-                logger.info(f"📊 加载股票列表: {len(stock_list)} 只")
-            except Exception as e:
-                logger.error(f"加载股票列表失败: {e}")
-                self.global_cache['stock_list'] = []
+        self._load_stock_list()
     
     def list_strategies(self) -> List[str]:
         """列出所有已发现的策略"""
@@ -447,6 +459,28 @@ class StrategyManager:
         """获取策略信息"""
         return self.strategy_cache.get(strategy_name)
 
+# ================================================
+# Cache 缓存相关（跨多个strategy的缓存，也叫globa cache）
+# ================================================
+
+    def _load_stock_list(self) -> List[Dict[str, Any]]:
+        stock_list = self.get_global_cache('stock_list')
+        if not stock_list:
+            stock_list = self.data_mgr.stock.list.load_filtered()
+            self.set_global_cache('stock_list', stock_list)
+        return stock_list
+
+    def set_global_cache(self, key: str, value: Any):
+        """设置全局缓存"""
+        self.global_cache[key] = value
+    
+    def get_global_cache(self, key: str) -> Any:
+        """获取全局缓存"""
+        return self.global_cache.get(key)
+    
+    def clear_global_cache(self):
+        """清空全局缓存"""
+        self.global_cache.clear()
 
 # =========================================================================
 # CLI 入口

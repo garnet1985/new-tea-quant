@@ -7,12 +7,29 @@ Job Builder Helper - 作业构建助手
 - 构建 Simulator 作业
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from datetime import datetime
 import logging
 from core.modules.strategy.enums import ExecutionMode
 
 logger = logging.getLogger(__name__)
+
+
+def _strategy_job_fields(strategy_info: Any) -> Tuple[str, Any, str, str]:
+    """支持 ``StrategyInfo`` 或 dict 形态的策略描述。"""
+    if isinstance(strategy_info, dict):
+        return (
+            strategy_info["name"],
+            strategy_info["settings"],
+            strategy_info["worker_module_path"],
+            strategy_info["worker_class_name"],
+        )
+    return (
+        strategy_info.name,
+        strategy_info.settings,
+        strategy_info.worker_module_path,
+        strategy_info.worker_class_name,
+    )
 
 
 class JobBuilderHelper:
@@ -49,16 +66,17 @@ class JobBuilderHelper:
             ]
         """
         jobs = []
+        name, settings, worker_module_path, worker_class_name = _strategy_job_fields(strategy_info)
         
         for stock_id in stock_list:
             job = {
                 'stock_id': stock_id,
                 'execution_mode': ExecutionMode.SCAN.value,
-                'strategy_name': strategy_info['name'],
-                'settings': strategy_info['settings'].to_dict(),
+                'strategy_name': name,
+                'settings': settings.to_dict(),
                 'scan_date': date,
-                'worker_module_path': strategy_info['worker_module_path'],
-                'worker_class_name': strategy_info['worker_class_name']
+                'worker_module_path': worker_module_path,
+                'worker_class_name': worker_class_name
             }
             jobs.append(job)
         
@@ -101,18 +119,19 @@ class JobBuilderHelper:
             ]
         """
         jobs = []
+        name, settings, worker_module_path, worker_class_name = _strategy_job_fields(strategy_info)
         
         for stock_id in stock_list:
             job = {
                 'stock_id': stock_id,
                 'execution_mode': ExecutionMode.SIMULATE.value,
-                'strategy_name': strategy_info['name'],
-                'settings': strategy_info['settings'].to_dict(),
+                'strategy_name': name,
+                'settings': settings.to_dict(),
                 'session_id': session_id,
                 'start_date': start_date,
                 'end_date': end_date,
-                'worker_module_path': strategy_info['worker_module_path'],
-                'worker_class_name': strategy_info['worker_class_name']
+                'worker_module_path': worker_module_path,
+                'worker_class_name': worker_class_name
             }
             jobs.append(job)
         

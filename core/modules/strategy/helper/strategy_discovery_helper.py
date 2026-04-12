@@ -5,7 +5,7 @@ Strategy Discovery Helper - 策略发现和管理
 职责：
 - 发现用户策略
 - 加载策略配置
-- 验证策略有效性
+- 验证策略有效性（委托 ``BaseSettings.validate_base_settings``）
 """
 
 from typing import Dict, Any, Optional
@@ -14,6 +14,9 @@ import logging
 import importlib
 
 from core.infra.project_context import PathManager
+from core.modules.strategy.data_classes.strategy_info import StrategyInfo
+from core.modules.strategy.data_classes.strategy_settings.meta_settings import BaseSettings
+from core.modules.strategy.data_classes.strategy_settings.setting_errors import SettingErrorLevel
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +25,7 @@ class StrategyDiscoveryHelper:
     """策略发现助手"""
     
     @staticmethod
-    def discover_strategies(strategies_root: Path = None) -> Dict[str, Dict[str, Any]]:
+    def discover_strategies(strategies_root: Path = None) -> Dict[str, StrategyInfo]:
         """
         发现所有用户策略
         
@@ -30,7 +33,7 @@ class StrategyDiscoveryHelper:
             strategies_root: 策略根目录（默认使用 PathManager.userspace() / "strategies"）
         
         Returns:
-            strategy_cache: {strategy_name: strategy_info}
+            strategy_cache: {strategy_name: StrategyInfo}
         """
         if strategies_root is None:
             strategies_root = PathManager.userspace() / "strategies"
@@ -39,7 +42,7 @@ class StrategyDiscoveryHelper:
             logger.warning(f"策略目录不存在: {strategies_root}")
             return {}
         
-        strategy_cache = {}
+        strategy_cache: Dict[str, StrategyInfo] = {}
         
         # 遍历策略文件夹
         for strategy_folder in strategies_root.iterdir():
@@ -49,14 +52,13 @@ class StrategyDiscoveryHelper:
             # 加载策略
             strategy_info = StrategyDiscoveryHelper.load_strategy(strategy_folder)
             if strategy_info:
-                strategy_name = strategy_info['name']
-                strategy_cache[strategy_name] = strategy_info
-                logger.info(f"✅ 发现策略: {strategy_name}")
+                strategy_cache[strategy_info.name] = strategy_info
+                logger.info(f"✅ 发现策略: {strategy_info.name}")
         
         return strategy_cache
     
     @staticmethod
-    def load_strategy(strategy_folder: Path) -> Optional[Dict[str, Any]]:
+    def load_strategy(strategy_folder: Path) -> Optional[StrategyInfo]:
         """
         加载单个策略
         
@@ -64,14 +66,7 @@ class StrategyDiscoveryHelper:
             strategy_folder: 策略文件夹路径
         
         Returns:
-            strategy_info: {
-                'name': 'momentum',
-                'folder': Path(...),
-                'worker_class': MomentumStrategyWorker,
-                'worker_module_path': 'userspace.strategies.momentum.strategy_worker',
-                'worker_class_name': 'MomentumStrategyWorker',
-                'settings': StrategySettings(...)
-            }
+            StrategyInfo（settings 为已校验的 ``BaseSettings``）
         """
         strategy_name = strategy_folder.name
         
@@ -88,6 +83,10 @@ class StrategyDiscoveryHelper:
             settings_dict = getattr(settings_module, 'settings')
         except Exception as e:
             logger.error(f"加载 settings 失败: {strategy_name}, error={e}")
+            return None
+        
+        if not isinstance(settings_dict, dict):
+            logger.error(f"策略 {strategy_name} 的 settings 不是 dict")
             return None
         
         # 2. 加载 strategy_worker.py
@@ -120,56 +119,34 @@ class StrategyDiscoveryHelper:
             logger.error(f"加载 worker 失败: {strategy_name}, error={e}")
             return None
         
-        # 3. 验证 settings
-        if not StrategyDiscoveryHelper.validate_settings(settings_dict):
+        # 3. 数据类校验 settings（替代原 component 内校验）
+        settings = BaseSettings(raw_settings=dict(settings_dict))
+        validation = settings.validate_base_settings()
+        if not validation.is_valid or validation.has_critical_errors():
             logger.error(f"策略 {strategy_name} settings 验证失败")
+            for err in validation.errors:
+                if err.level == SettingErrorLevel.CRITICAL:
+                    logger.error("  [%s] %s", err.field_path, err.message)
             return None
+        validation.log_warnings(logger)
         
-        # 4. 创建 StrategySettings 对象
-        from core.modules.strategy.models.strategy_settings import StrategySettings
-        settings = StrategySettings(settings_dict)
-        
-        # 5. 返回策略信息
-        return {
-            'name': strategy_name,
-            'folder': strategy_folder,
-            'worker_class': worker_class,
-            'worker_module_path': worker_module_path,
-            'worker_class_name': worker_class.__name__,
-            'settings': settings
-        }
+        return StrategyInfo(
+            name=strategy_name,
+            folder=strategy_folder,
+            worker_class=worker_class,
+            worker_module_path=worker_module_path,
+            worker_class_name=worker_class.__name__,
+            settings=settings,
+        )
     
     @staticmethod
     def validate_settings(settings_dict: Dict[str, Any]) -> bool:
         """
-        验证 settings 有效性（新格式）
-        
-        必须包含：
-        - name: str
-        - data: dict（新格式，替代旧的 klines）
+        验证 settings 有效性（供外部工具调用；逻辑与加载策略时一致）。
         """
         if not isinstance(settings_dict, dict):
             logger.error("settings 必须是字典")
             return False
-        
-        # 新格式：必须包含 name 和 data
-        required_keys = ['name', 'data']
-        for key in required_keys:
-            if key not in settings_dict:
-                logger.error(f"settings 缺少必需字段: {key}")
-                return False
-        
-        # 验证 data 字段的必要子字段
-        data = settings_dict.get('data', {})
-        if not isinstance(data, dict):
-            logger.error("settings.data 必须是字典")
-            return False
-        
-        try:
-            from core.modules.strategy.models.strategy_settings import StrategySettings as SS
-            SS.validate_data_config(data)
-        except ValueError as e:
-            logger.error("settings.data 数据契约配置无效: %s", e)
-            return False
-
-        return True
+        bs = BaseSettings(raw_settings=dict(settings_dict))
+        r = bs.validate_base_settings()
+        return bool(r.is_valid) and not r.has_critical_errors()

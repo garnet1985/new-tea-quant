@@ -196,7 +196,7 @@ class App:
 
         manager = self._ensure_strategy_manager()
         strategy_names = [
-            name for name, info in manager.strategy_cache.items() if info["settings"].is_enabled
+            name for name, info in manager.strategy_cache.items() if info.settings.is_enabled
         ]
         if not strategy_names:
             logger.warning("没有启用的策略可分析")
@@ -283,7 +283,7 @@ class App:
             logger.error(f"策略不存在: {strategy_name}")
             return []
         
-        settings = StrategySettings.from_dict(strategy_info['settings'])
+        settings = StrategySettings.from_dict(strategy_info.settings.to_dict())
         enum_settings = OpportunityEnumeratorSettings.from_base(settings)
         
         # 2. 获取股票列表
@@ -445,7 +445,7 @@ def resolve_cli_strategy_name(app: "App", explicit: Optional[str]) -> Optional[s
     enabled = sorted(
         name
         for name, info in manager.strategy_cache.items()
-        if info["settings"].is_enabled
+        if info.settings.is_enabled
     )
     if not enabled:
         logger.error(

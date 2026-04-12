@@ -77,6 +77,66 @@ class BaseSettings(ABC):
             self._extract_basic_info()
         return self._is_enabled
     
+    @property
+    def name(self) -> str:
+        """与旧 ``StrategySettings.name`` 对齐。"""
+        return self.strategy_name
+
+    def is_valid(self) -> bool:
+        """基础校验通过且无 Critical 错误（与组件侧校验迁移后的入口一致）。"""
+        result = self.validate_base_settings()
+        return bool(result.is_valid) and not result.has_critical_errors()
+
+    @property
+    def price_simulator(self) -> Dict[str, Any]:
+        p = self.raw_settings.get("price_simulator")
+        return p if isinstance(p, dict) else {}
+
+    @property
+    def sampling_config(self) -> Dict[str, Any]:
+        return self.get_sampling_config()
+
+    @property
+    def sampling_amount(self) -> int:
+        return self.get_sampling_amount()
+
+    @property
+    def max_workers(self) -> Any:
+        simulator_cfg = self.price_simulator
+        enumerator_cfg = self.raw_settings.get("enumerator") or {}
+        performance_cfg = self.raw_settings.get("performance") or {}
+        scanner_cfg = self.raw_settings.get("scanner") or {}
+        if not isinstance(enumerator_cfg, dict):
+            enumerator_cfg = {}
+        if not isinstance(performance_cfg, dict):
+            performance_cfg = {}
+        if not isinstance(scanner_cfg, dict):
+            scanner_cfg = {}
+        return (
+            simulator_cfg.get("max_workers")
+            or enumerator_cfg.get("max_workers")
+            or performance_cfg.get("max_workers")
+            or scanner_cfg.get("max_workers")
+            or "auto"
+        )
+
+    @property
+    def start_date(self) -> str:
+        return str(self.price_simulator.get("start_date", "") or "")
+
+    @property
+    def end_date(self) -> str:
+        return str(self.price_simulator.get("end_date", "") or "")
+
+    def get_scanner_config(self) -> Dict[str, Any]:
+        s = self.raw_settings.get("scanner")
+        return s if isinstance(s, dict) else {}
+
+    @property
+    def watch_list(self) -> Any:
+        """``scanner.watch_list``：文件路径（相对策略目录）或内联列表。"""
+        return self.get_scanner_config().get("watch_list")
+
     # =========================================================================
     # 验证方法（按需调用）
     # =========================================================================

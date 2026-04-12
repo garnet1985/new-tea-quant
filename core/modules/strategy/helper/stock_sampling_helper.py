@@ -80,6 +80,29 @@ class StockSamplingHelper:
         else:
             logger.warning(f"未知的采样策略: {sampling_strategy}，使用全部股票")
             return all_stock_ids[:sampling_amount]
+
+    @staticmethod
+    def filter_stocks_by_list(
+        all_stocks: List[Dict[str, Any]],
+        watch_list: Any,
+        strategy_name: Optional[str] = None,
+    ) -> List[str]:
+        """
+        按 ``scanner.watch_list`` 过滤：内联股票 id 列表，或策略目录下相对路径文本文件。
+        """
+        if not watch_list:
+            return [s["id"] for s in all_stocks]
+        if isinstance(watch_list, list):
+            wanted = {str(x).strip() for x in watch_list if str(x).strip()}
+        else:
+            wanted = set(
+                StockSamplingHelper._load_stock_ids_from_file(
+                    strategy_name=strategy_name,
+                    relative_file_path=str(watch_list).strip(),
+                    field_name="scanner.watch_list",
+                )
+            )
+        return [s["id"] for s in all_stocks if s.get("id") in wanted]
     
     @staticmethod
     def sample_uniform(stock_ids: List[str], amount: int) -> List[str]:

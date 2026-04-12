@@ -196,7 +196,7 @@ class App:
 
         manager = self._ensure_strategy_manager()
         strategy_names = [
-            name for name, info in manager.strategy_cache.items() if info.settings.is_enabled
+            name for name, info in manager.validated_strategies.items() if info.is_enabled
         ]
         if not strategy_names:
             logger.warning("没有启用的策略可分析")
@@ -271,14 +271,14 @@ class App:
         """
         from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
         from core.modules.strategy.models.strategy_settings import StrategySettings
-        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
         from core.modules.strategy.strategy_manager import StrategyManager
         from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
         from core.utils.date.date_utils import DateUtils
         
         # 1. 加载策略配置
         strategy_manager = StrategyManager()
-        strategy_info = strategy_manager.strategy_cache.get(strategy_name)
+        strategy_info = strategy_manager.get_strategy_info(strategy_name)
         if not strategy_info:
             logger.error(f"策略不存在: {strategy_name}")
             return []
@@ -330,7 +330,7 @@ class App:
         Returns:
             list: 股票代码列表
         """
-        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
         
         if enum_settings.use_sampling:
             if stock_count is not None:
@@ -443,9 +443,7 @@ def resolve_cli_strategy_name(app: "App", explicit: Optional[str]) -> Optional[s
 
     manager = app._ensure_strategy_manager()
     enabled = sorted(
-        name
-        for name, info in manager.strategy_cache.items()
-        if info.settings.is_enabled
+        name for name, info in manager.validated_strategies.items() if info.is_enabled
     )
     if not enabled:
         logger.error(

@@ -123,9 +123,7 @@ class OpportunityEnumerator:
             })
 
         # 2.1 主进程预加载 GLOBAL 的 extra（MVP：opt1，随各 job pickle 到子进程；体量小可接受）
-        from core.modules.strategy.helpers.global_extra_preload import (
-            preload_global_extras_for_enumeration,
-        )
+        from core.modules.strategy.helpers import preload_global_extras_for_enumeration
 
         global_extra_cache = preload_global_extras_for_enumeration(
             validated_settings, enum_start_date, end_date

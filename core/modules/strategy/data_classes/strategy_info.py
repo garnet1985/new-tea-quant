@@ -11,7 +11,11 @@ from core.modules.strategy.data_classes.strategy_settings.strategy_settings impo
 @dataclass
 class StrategyInfo:
     """
-    策略信息
+    策略信息。
+
+    经 ``StrategyDiscoveryHelper.load_strategy`` 进入管理器的实例，其 ``settings`` 已在发现阶段
+    通过 ``validate()``，可视为 **valid**。是否参与 scan 等由 **``is_enabled``**（``settings`` 上的开关）决定；
+    ``StrategyManager`` 只缓存 ``validated_strategies`` 时，在循环里用 ``info.is_enabled`` 过滤即可。
     """
     name: str
     folder: Path
@@ -30,8 +34,10 @@ class StrategyInfo:
             "worker_class_name": self.worker_class_name,
         }
 
-    def is_usable(self) -> bool:
-        return self.settings.is_valid() and self.settings.is_enabled
+    @property
+    def is_enabled(self) -> bool:
+        """是否在配置中启用（与 ``settings.meta.is_enabled`` 一致）。"""
+        return bool(self.settings.is_enabled)
 
     def get_settings(self) -> StrategySettings:
         return self.settings

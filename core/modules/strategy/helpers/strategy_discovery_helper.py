@@ -5,7 +5,7 @@ Strategy Discovery Helper - 策略发现和管理
 职责：
 - 发现用户策略
 - 加载策略配置
-- 验证策略有效性（``StrategySettings.validate_base_settings``）
+- 验证策略有效性（``StrategySettings.validate()``）
 """
 
 from typing import Dict, Any, Optional
@@ -35,7 +35,7 @@ class StrategyDiscoveryHelper:
             strategies_root: 策略根目录（默认使用 PathManager.userspace() / "strategies"）
         
         Returns:
-            strategy_cache: {strategy_name: StrategyInfo}
+            {strategy_name: StrategyInfo}（仅含 settings 校验通过且具备 worker 的策略）
         """
         if strategies_root is None:
             strategies_root = PathManager.userspace() / "strategies"
@@ -44,7 +44,7 @@ class StrategyDiscoveryHelper:
             logger.warning(f"策略目录不存在: {strategies_root}")
             return {}
         
-        strategy_cache: Dict[str, StrategyInfo] = {}
+        out: Dict[str, StrategyInfo] = {}
         
         # 遍历策略文件夹
         for strategy_folder in strategies_root.iterdir():
@@ -54,10 +54,10 @@ class StrategyDiscoveryHelper:
             # 加载策略
             strategy_info = StrategyDiscoveryHelper.load_strategy(strategy_folder)
             if strategy_info:
-                strategy_cache[strategy_info.name] = strategy_info
+                out[strategy_info.name] = strategy_info
                 logger.info(f"✅ 发现策略: {strategy_info.name}")
         
-        return strategy_cache
+        return out
     
     @staticmethod
     def load_strategy(strategy_folder: Path) -> Optional[StrategyInfo]:
@@ -123,7 +123,7 @@ class StrategyDiscoveryHelper:
         
         # 3. 数据类校验 settings（替代原 component 内校验）
         settings = StrategySettings(raw_settings=dict(settings_dict))
-        validation = settings.validate_base_settings()
+        validation = settings.validate()
         if not validation.is_usable():
             logger.error(f"策略 {strategy_name} settings 验证失败")
             for err in validation.errors:
@@ -149,6 +149,5 @@ class StrategyDiscoveryHelper:
         if not isinstance(settings_dict, dict):
             logger.error("settings 必须是字典")
             return False
-        bs = StrategySettings(raw_settings=dict(settings_dict))
-        r = bs.validate_base_settings()
-        return r.is_usable()
+        s = StrategySettings(raw_settings=dict(settings_dict))
+        return s.validate().is_usable()

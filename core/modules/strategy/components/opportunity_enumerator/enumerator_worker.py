@@ -18,6 +18,7 @@ from core.modules.strategy.components.opportunity_enumerator.performance_profile
     PerformanceProfiler,
     PerformanceMetrics
 )
+from core.modules.data_contract.cache import ContractCacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +67,14 @@ class OpportunityEnumeratorWorker:
         
         # 加载完整的股票信息（提前组织好，避免每次创建 Opportunity 时重复查询）
         self.stock_info = self._load_stock_info()
-        
+
+        self.contract_cache = ContractCacheManager()
         from core.modules.strategy.components.strategy_worker_data_manager import StrategyWorkerDataManager
         self.data_manager = StrategyWorkerDataManager(
             stock_id=self.stock_id,
             settings=self.settings,
             data_mgr=self.data_mgr,
+            contract_cache=self.contract_cache,
             global_extra_cache=self.job_payload.get("global_extra_cache"),
         )
         

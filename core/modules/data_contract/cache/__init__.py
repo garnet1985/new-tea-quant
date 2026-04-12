@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-策略侧 contract 缓存组件：global / per-strategy 两 Store + ``ContractCacheManager``。
+Data contract 运行时缓存：按 mapping 将条目放入 global 或「单次 run」层。
+
+业务（如 strategy）在合适边界调用 ``ContractCacheManager.enter_strategy_run`` /
+``exit_strategy_run`` 清空 per-strategy 层。
 """
 
 from .cache_entry import ContractCacheEntry

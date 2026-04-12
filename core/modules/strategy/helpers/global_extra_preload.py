@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
 from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.strategy.models.strategy_settings import StrategySettings
@@ -35,7 +36,7 @@ def preload_global_extras_for_enumeration(
     if not extras:
         return {}
 
-    dcm = DataContractManager()
+    dcm = DataContractManager(contract_cache=ContractCacheManager())
     out: Dict[str, List[Dict[str, Any]]] = {}
 
     for raw in extras:
@@ -46,9 +47,8 @@ def preload_global_extras_for_enumeration(
             continue
 
         params = dict(item.get("params") or {})
-        contract = dcm.issue(dk, context=None, **params)
-        raw_rows = contract.load(start=start_date, end=end_date)
+        c = dcm.issue(dk, start=start_date, end=end_date, **params)
         slot = _storage_key_for_data_id(dk)
-        out[slot] = list(raw_rows or [])
+        out[slot] = list(c.data or [])
 
     return out

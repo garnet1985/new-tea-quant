@@ -18,6 +18,7 @@ import logging
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.models.strategy_settings import StrategySettings
 from core.modules.strategy.models.opportunity import Opportunity
+from core.modules.data_contract.cache import ContractCacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +59,14 @@ class BaseStrategyWorker(ABC):
         
         # 加载完整的股票信息（提前组织好，避免每次创建 Opportunity 时重复查询）
         self.stock_info = self._load_stock_info()
-        
+
+        self.contract_cache = ContractCacheManager()
         from core.modules.strategy.components.strategy_worker_data_manager import StrategyWorkerDataManager
         self.data_manager = StrategyWorkerDataManager(
             stock_id=self.stock_id,
             settings=self.settings,
-            data_mgr=self.data_mgr
+            data_mgr=self.data_mgr,
+            contract_cache=self.contract_cache,
         )
         
         # Simulate 模式特有

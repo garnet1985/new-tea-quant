@@ -18,14 +18,21 @@ class ContractIssuer:
     def issue(
         self,
         data_id: DataKey,
-        context: Optional[Mapping[str, Any]] = None,
+        *,
+        entity_id: Optional[str] = None,
         **override_params: Any,
     ) -> DataContract:
         if not self._is_key_exists(data_id):
             raise ValueError(f"未找到 data_id：{data_id.value}")
 
+        spec = self.resolved_map[data_id]
+        if spec.get("scope") == ContractScope.PER_ENTITY:
+            if entity_id is None or not str(entity_id).strip():
+                raise ValueError(f"data_id={data_id.value} 为 PER_ENTITY，须提供非空 entity_id")
+
         contract = self._select_contract(data_id)
         contract = self._add_meta_info(contract, data_id)
+        context = {"stock_id": str(entity_id).strip()} if entity_id is not None else None
         contract = self._inject_context(contract, context)
         contract = self._attach_loader(contract, data_id, override_params=override_params)
         return contract

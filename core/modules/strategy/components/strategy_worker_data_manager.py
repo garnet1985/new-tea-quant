@@ -7,10 +7,11 @@ Strategy Worker Data Manager - 策略数据管理器
 - 提供数据访问接口
 - 数据生命周期：仅存在于当前 Worker 实例中
 
-重要：不缓存股票级别的数据！
-- ✅ 全局数据（ContractScope.GLOBAL）：可由主进程预加载后经 ``global_extra_cache`` 传入（枚举器 MVP：opt1 pickle）
-- ❌ 不缓存 per-stock 大表：K 线、按票财务等仍在子进程加载
-- 📝 当前股票数据存储在 Worker 实例中，Worker 销毁时自动清理
+重要：
+- ✅ ``ContractScope.GLOBAL`` 的非时序 / 时序物化由 ``DataContractManager.issue`` 走进程内 contract 缓存（两层：global / per-run），见 ``data_contract.cache`` 与 ``DECISIONS.md``
+- ✅ 主进程预加载的 GLOBAL extra 仍可通过 ``global_extra_cache`` 传入（枚举器 MVP：opt1 pickle），优先于再拉数
+- ❌ ``PER_ENTITY`` 等不在上述缓存策略内，仍直走 loader；大表仍在子进程按声明加载
+- 📝 当前股票行数据存放在 Worker 实例字段中，Worker 销毁时释放
 
 类比 TagWorkerDataManager
 """
@@ -21,6 +22,7 @@ import datetime as dt
 import logging
 
 from core.modules.indicator import IndicatorService
+from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
 from core.modules.data_contract.data_contract_manager import DataContractManager
 
@@ -48,6 +50,7 @@ class StrategyWorkerDataManager:
         settings: 'StrategySettings',
         data_mgr: 'DataManager',
         *,
+        contract_cache: ContractCacheManager,
         global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ):
         """
@@ -57,12 +60,14 @@ class StrategyWorkerDataManager:
             stock_id: 股票代码
             settings: 策略配置
             data_mgr: DataManager 实例
+            contract_cache: 进程内 contract 缓存（与 ``DataContractManager`` 共用）
             global_extra_cache: 主进程已加载的 GLOBAL extra（槽位 key → rows）；未传则 GLOBAL 也在本进程加载
         """
         self.stock_id = stock_id
         self.settings = settings
         self.data_mgr = data_mgr
         self._global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = global_extra_cache
+        self._contract_cache = contract_cache
         
         # 当前股票的原始数据存储（Scanner 使用，NOT 缓存！）
         # - Scan 模式：使用 _current_data 提供 List[Dict] 给扫描器
@@ -78,7 +83,7 @@ class StrategyWorkerDataManager:
 
     def _contract_manager(self) -> DataContractManager:
         if self._dcf_mgr is None:
-            self._dcf_mgr = DataContractManager()
+            self._dcf_mgr = DataContractManager(contract_cache=self._contract_cache)
         return self._dcf_mgr
 
     @staticmethod
@@ -106,8 +111,17 @@ class StrategyWorkerDataManager:
         if data_id == DataKey.TAG:
             params = self._merge_tag_entity_type(params)
         ctx = {"stock_id": self.stock_id}
-        contract = self._contract_manager().issue(data_id, context=ctx, **params)
-        raw = contract.load(start=start_date, end=end_date)
+        c = self._contract_manager().issue(
+            data_id,
+            entity_id=self.stock_id,
+            start=start_date,
+            end=end_date,
+            **params,
+        )
+        if c.data is not None:
+            raw = c.data
+        else:
+            raw = c.load(start=start_date, end=end_date)
         rows = list(raw or [])
         return self._storage_key_for(data_id), rows
 
@@ -169,7 +183,8 @@ class StrategyWorkerDataManager:
         # 3. 计算开始日期（使用 lookback 天数）
         start_date = self._get_date_before(latest_date, lookback)
 
-        # 4. 按声明加载（主依赖 + 额外依赖）
+        # 4. 按声明加载（主依赖 + 额外依赖）；与 simulate 一致，清空 per-run 层再装填
+        self._contract_cache.enter_strategy_run()
         for item in self.settings.required_data_sources:
             slot, rows = self._materialize_data_source_item(item, start_date, latest_date)
             self._current_data[slot] = rows
@@ -211,7 +226,8 @@ class StrategyWorkerDataManager:
         self._cursor_state.clear()
         self._current_data["klines"] = []
 
-        # 1. 按声明加载主依赖与额外依赖（行式）
+        # 1. 按声明加载主依赖与额外依赖（行式）；清空 per-run 缓存层，避免沿用上一段区间
+        self._contract_cache.enter_strategy_run()
         for item in self.settings.required_data_sources:
             slot, rows = self._materialize_data_source_item(item, start_date, end_date)
             self._current_data[slot] = rows

@@ -5,7 +5,7 @@ Strategy Discovery Helper - 策略发现和管理
 职责：
 - 发现用户策略
 - 加载策略配置
-- 验证策略有效性（委托 ``BaseSettings.validate_base_settings``）
+- 验证策略有效性（``StrategySettings.validate_base_settings``）
 """
 
 from typing import Dict, Any, Optional
@@ -15,8 +15,10 @@ import importlib
 
 from core.infra.project_context import PathManager
 from core.modules.strategy.data_classes.strategy_info import StrategyInfo
-from core.modules.strategy.data_classes.strategy_settings.meta_settings import BaseSettings
-from core.modules.strategy.data_classes.strategy_settings.setting_errors import SettingErrorLevel
+from core.modules.strategy.data_classes.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
+from core.modules.strategy.data_classes.strategy_settings.settings_base import SettingsBase
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,7 @@ class StrategyDiscoveryHelper:
             strategy_folder: 策略文件夹路径
         
         Returns:
-            StrategyInfo（settings 为已校验的 ``BaseSettings``）
+            StrategyInfo（settings 为已校验的 ``StrategySettings``）
         """
         strategy_name = strategy_folder.name
         
@@ -120,13 +122,13 @@ class StrategyDiscoveryHelper:
             return None
         
         # 3. 数据类校验 settings（替代原 component 内校验）
-        settings = BaseSettings(raw_settings=dict(settings_dict))
+        settings = StrategySettings(raw_settings=dict(settings_dict))
         validation = settings.validate_base_settings()
-        if not validation.is_valid or validation.has_critical_errors():
+        if not validation.is_usable():
             logger.error(f"策略 {strategy_name} settings 验证失败")
             for err in validation.errors:
-                if err.level == SettingErrorLevel.CRITICAL:
-                    logger.error("  [%s] %s", err.field_path, err.message)
+                if err.get("level") == SettingsBase.LEVEL_CRITICAL:
+                    logger.error("  [%s] %s", err.get("field_path"), err.get("message"))
             return None
         validation.log_warnings(logger)
         
@@ -147,6 +149,6 @@ class StrategyDiscoveryHelper:
         if not isinstance(settings_dict, dict):
             logger.error("settings 必须是字典")
             return False
-        bs = BaseSettings(raw_settings=dict(settings_dict))
+        bs = StrategySettings(raw_settings=dict(settings_dict))
         r = bs.validate_base_settings()
-        return bool(r.is_valid) and not r.has_critical_errors()
+        return r.is_usable()

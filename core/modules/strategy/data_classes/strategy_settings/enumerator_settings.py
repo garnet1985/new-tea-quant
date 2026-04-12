@@ -1,159 +1,208 @@
 #!/usr/bin/env python3
 """
-枚举器设置
+策略 ``enumerator`` 配置块（对应 ``settings_example`` 第 6) 节）。
 
-职责：
-- 解析枚举器特定配置
-- 验证枚举器必要字段
-- 提供枚举器配置访问
+持有整包 ``settings`` 的引用，以便在校验时一并检查 ``goal``（枚举器依赖）；
+``enumerator`` 子树本身负责默认值与字段合法性。
 """
 
-from dataclasses import dataclass
-from typing import Dict, Any, Literal, Optional
-from .base_settings import BaseSettings
-from .setting_errors import SettingError, SettingErrorLevel, SettingValidationResult
-from .goal_validator import GoalValidator
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 import logging
+from typing import Any, Dict, Literal, Union
+
+from .goal_settings import StrategyGoalSettings
+from .settings_base import SettingsBase, ValidationReport
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class EnumeratorSettings(BaseSettings):
+class StrategyEnumeratorSettings(SettingsBase):
     """
-    枚举器设置
-    
-    配置字段：
-    - use_sampling: 是否使用采样配置（默认 False）
-    - max_test_versions: 最多保留的测试版本数（默认 10）
-    - max_output_versions: 最多保留的输出版本数（默认 3）
-    - max_workers: 最大进程数（默认 "auto"）
+    枚举器相关配置。
+
+    - ``raw_settings``：完整策略 settings 字典（与 ``StrategySettings.raw_settings`` 可为同一引用）
+    - ``enumerator``：通过属性访问 ``raw_settings["enumerator"]``
     """
-    
-    # 枚举器特定字段（延迟提取）
-    _use_sampling: Optional[bool] = None
-    _max_test_versions: Optional[int] = None
-    _max_output_versions: Optional[int] = None
-    _max_workers: Optional[Literal["auto"] | int] = None
-    
-    # 验证状态
-    _enumerator_validated: bool = False
-    
-    def validate_and_prepare(self) -> SettingValidationResult:
+
+    raw_settings: Dict[str, Any]
+    _missing_use_sampling_at_load: bool = field(default=False, repr=False)
+    _enumerator_validated: bool = field(default=False, repr=False)
+
+    @property
+    def enumerator(self) -> Dict[str, Any]:
+        block = self.raw_settings.get("enumerator")
+        if not isinstance(block, dict):
+            block = {}
+            self.raw_settings["enumerator"] = block
+        return block
+
+    @property
+    def strategy_name(self) -> str:
+        return str(self.raw_settings.get("name", "unknown") or "unknown")
+
+    @classmethod
+    def from_strategy_root(cls, root: Dict[str, Any]) -> StrategyEnumeratorSettings:
+        """挂载 ``enumerator``；缺省或非 dict 时写入 ``{}``。"""
+        if not isinstance(root, dict):
+            root = {}
+        block = root.get("enumerator")
+        missing_use_sampling = not isinstance(block, dict) or "use_sampling" not in block
+        if not isinstance(block, dict):
+            block = {}
+            root["enumerator"] = block
+        return cls(raw_settings=root, _missing_use_sampling_at_load=missing_use_sampling)
+
+    @classmethod
+    def from_base_settings(cls, base_settings: "StrategySettings") -> StrategyEnumeratorSettings:
+        """从顶层 ``StrategySettings`` 创建（共享 ``raw_settings`` 引用）。"""
+        return cls.from_strategy_root(base_settings.raw_settings)
+
+    def apply_defaults(self) -> None:
+        """与 ``settings_example`` 中 ``enumerator`` 默认值对齐。"""
+        e = self.enumerator
+        if "use_sampling" not in e:
+            e["use_sampling"] = False
+        if "max_test_versions" not in e:
+            e["max_test_versions"] = 10
+        if "max_output_versions" not in e:
+            e["max_output_versions"] = 3
+        if "max_workers" not in e:
+            e["max_workers"] = "auto"
+        if "is_verbose" not in e:
+            e["is_verbose"] = False
+        if "memory_budget_mb" not in e:
+            e["memory_budget_mb"] = "auto"
+        if "warmup_batch_size" not in e:
+            e["warmup_batch_size"] = "auto"
+        if "min_batch_size" not in e:
+            e["min_batch_size"] = "auto"
+        if "max_batch_size" not in e:
+            e["max_batch_size"] = "auto"
+        if "monitor_interval" not in e:
+            e["monitor_interval"] = 5
+
+    def validate(self) -> ValidationReport:
         """
-        验证并准备枚举器设置
-        
-        验证内容：
-        - goal 配置必须存在（Critical，除非 customized）
-        - 添加默认值
-        
-        Returns:
-            SettingValidationResult: 验证结果
+        校验枚举器块 + ``goal``（与历史 ``validate_and_prepare`` 行为一致）。
+
+        先 ``apply_defaults``，再 ``StrategyGoalSettings.validate_goal_dict``，
+        最后检查 ``max_*`` / ``max_workers`` 等类型。
         """
-        result = SettingValidationResult(is_valid=True)
-        
-        # 提取字段并添加默认值
-        self._extract_enumerator_fields()
-        
-        # 验证 goal 配置（Critical）
-        goal_config = self.get_goal_config()
-        goal_result = GoalValidator.validate_goal_config(
+        result = SettingsBase.new_validation()
+        self.apply_defaults()
+
+        goal_config = self.raw_settings.get("goal")
+        if not isinstance(goal_config, dict):
+            goal_config = {}
+        goal_result = StrategyGoalSettings.validate_goal_dict(
             goal_config, self.strategy_name, "goal"
         )
         result.errors.extend(goal_result.errors)
         result.warnings.extend(goal_result.warnings)
         if not goal_result.is_valid:
             result.is_valid = False
-        
-        # use_sampling 警告（如果未配置）
-        if self._use_sampling is None:
-            result.warnings.append(SettingError(
-                level=SettingErrorLevel.WARNING,
-                field_path="enumerator.use_sampling",
-                message="use_sampling 未配置，默认使用 False（全量枚举，结果保存在 output/ 目录）",
-                suggested_fix='在 settings.py 的 enumerator 中添加 "use_sampling": True 以启用采样枚举'
-            ))
-        
-        # 记录警告
-        result.log_warnings(logger)
-        
-        # 标记已验证
+
+        if self._missing_use_sampling_at_load:
+            SettingsBase.add_warning(
+                result,
+                "enumerator.use_sampling",
+                "use_sampling 未配置，已默认 False（全量枚举，结果保存在 output/ 目录）",
+                suggested_fix='在 settings.py 的 enumerator 中添加 "use_sampling": True 以启用采样枚举',
+            )
+
+        self._validate_numeric_fields(result)
+
+        SettingsBase.log_warnings(result, logger)
         self._enumerator_validated = True
-        
         return result
-    
-    def _extract_enumerator_fields(self) -> None:
-        """提取枚举器特定字段并添加默认值"""
-        enumerator_config = self.raw_settings.get("enumerator", {})
-        
-        # use_sampling（默认 False）
-        use_sampling = enumerator_config.get("use_sampling")
-        if use_sampling is None:
-            self._use_sampling = False  # 枚举器默认 False
-        else:
-            self._use_sampling = bool(use_sampling)
-        
-        # max_test_versions（默认 10）
-        max_test = enumerator_config.get("max_test_versions", 10)
-        try:
-            self._max_test_versions = max(int(max_test), 1)
-        except (TypeError, ValueError):
-            self._max_test_versions = 10
-        
-        # max_output_versions（默认 3）
-        max_output = enumerator_config.get("max_output_versions", 3)
-        try:
-            self._max_output_versions = max(int(max_output), 1)
-        except (TypeError, ValueError):
-            self._max_output_versions = 3
-        
-        # max_workers（默认 "auto"）
-        max_workers = enumerator_config.get("max_workers", "auto")
-        if max_workers == "auto" or max_workers is None:
-            self._max_workers = "auto"
+
+    def validate_and_prepare(self) -> ValidationReport:
+        """与 ``PriceFactorSettings`` 等命名一致；等价于 ``validate()``。"""
+        return self.validate()
+
+    def _validate_numeric_fields(self, result: ValidationReport) -> None:
+        e = self.enumerator
+
+        for key, default in (("max_test_versions", 10), ("max_output_versions", 3)):
+            val = e.get(key, default)
+            try:
+                n = int(val)
+                if n < 1:
+                    raise ValueError
+                e[key] = n
+            except (TypeError, ValueError):
+                SettingsBase.add_critical(
+                    result,
+                    f"enumerator.{key}",
+                    f"enumerator.{key} 必须为正整数",
+                    suggested_fix=f'设为例如 "{key}": 10',
+                )
+
+        mw = e.get("max_workers", "auto")
+        if mw == "auto" or mw is None:
+            e["max_workers"] = "auto"
         else:
             try:
-                self._max_workers = max(int(max_workers), 1)
+                e["max_workers"] = max(int(mw), 1)
             except (TypeError, ValueError):
-                self._max_workers = "auto"
-    
+                SettingsBase.add_critical(
+                    result,
+                    "enumerator.max_workers",
+                    'enumerator.max_workers 须为 "auto" 或正整数',
+                    suggested_fix='设为 "auto" 或例如 4',
+                )
+
+        mi = e.get("monitor_interval", 5)
+        try:
+            e["monitor_interval"] = max(int(mi), 1)
+        except (TypeError, ValueError):
+            SettingsBase.add_warning(
+                result,
+                "enumerator.monitor_interval",
+                "monitor_interval 非法，已回退为 5",
+                suggested_fix="设为不小于 1 的整数",
+            )
+            e["monitor_interval"] = 5
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.deep_copy_dict(dict(self.enumerator))
+
+    # --- 便捷访问（读 ``enumerator``，已含默认值）---
+
     @property
     def use_sampling(self) -> bool:
-        """是否使用采样配置"""
-        if self._use_sampling is None:
-            self._extract_enumerator_fields()
-        return self._use_sampling
-    
+        return bool(self.enumerator.get("use_sampling", False))
+
     @property
     def max_test_versions(self) -> int:
-        """最多保留的测试版本数"""
-        if self._max_test_versions is None:
-            self._extract_enumerator_fields()
-        return self._max_test_versions
-    
+        try:
+            return max(int(self.enumerator.get("max_test_versions", 10)), 1)
+        except (TypeError, ValueError):
+            return 10
+
     @property
     def max_output_versions(self) -> int:
-        """最多保留的输出版本数"""
-        if self._max_output_versions is None:
-            self._extract_enumerator_fields()
-        return self._max_output_versions
-    
+        try:
+            return max(int(self.enumerator.get("max_output_versions", 3)), 1)
+        except (TypeError, ValueError):
+            return 3
+
     @property
-    def max_workers(self) -> Literal["auto"] | int:
-        """最大进程数"""
-        if self._max_workers is None:
-            self._extract_enumerator_fields()
-        return self._max_workers
-    
-    @classmethod
-    def from_base_settings(cls, base_settings: BaseSettings) -> 'EnumeratorSettings':
-        """
-        从基础设置创建枚举器设置
-        
-        Args:
-            base_settings: 基础设置实例
-        
-        Returns:
-            EnumeratorSettings 实例（未验证）
-        """
-        return cls(raw_settings=base_settings.raw_settings)
+    def max_workers(self) -> Union[Literal["auto"], int]:
+        mw = self.enumerator.get("max_workers", "auto")
+        if mw == "auto" or mw is None:
+            return "auto"
+        try:
+            return max(int(mw), 1)
+        except (TypeError, ValueError):
+            return "auto"
+
+    @property
+    def is_verbose(self) -> bool:
+        return bool(self.enumerator.get("is_verbose", False))
+
+
+EnumeratorSettings = StrategyEnumeratorSettings

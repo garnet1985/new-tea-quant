@@ -1,27 +1,30 @@
 #!/usr/bin/env python3
 """
-资金分配模拟器设置
+策略 ``capital_simulator`` 配置块（对应 ``settings_example`` 第 9) 节）。
 
-职责：
-- 解析资金分配模拟器特定配置
-- 验证必要字段
-- 提供配置访问
+持有整包 ``raw_settings``，便于 ``get_fees_config_with_priority`` 读取
+``capital_simulator.fees`` / ``price_simulator.fees`` / 顶层 ``fees``。
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, Any, Literal, Optional
-from .base_settings import BaseSettings
-from .setting_errors import SettingError, SettingErrorLevel, SettingValidationResult
 import logging
+from typing import Any, Dict, Literal, Union
+
+from .settings_base import SettingsBase, ValidationReport
 
 logger = logging.getLogger(__name__)
+
+_VALID_MODES = frozenset({"equal_capital", "equal_shares", "kelly", "custom"})
 
 
 @dataclass
 class AllocationConfig:
-    """资金分配配置"""
-    mode: Literal["equal_capital", "equal_shares", "kelly", "custom"] = "equal_capital"
-    max_portfolio_size: int = 5
+    """``capital_simulator.allocation`` 解析视图。"""
+
+    mode: str = "equal_capital"
+    max_portfolio_size: int = 10
     max_weight_per_stock: float = 0.3
     lot_size: int = 100
     lots_per_trade: int = 1
@@ -30,230 +33,299 @@ class AllocationConfig:
 
 @dataclass
 class OutputConfig:
-    """输出配置"""
+    """``capital_simulator.output`` 解析视图。"""
+
     save_trades: bool = True
     save_equity_curve: bool = True
 
 
 @dataclass
-class CapitalAllocationSettings(BaseSettings):
-    """
-    资金分配模拟器设置
-    
-    配置字段：
-    - base_version: 枚举器输出版本依赖（默认 "latest"）
-    - use_sampling: 是否使用采样配置（默认 True）
-    - initial_capital: 初始资金（默认 1_000_000，最小值 1000）
-    - allocation: 资金分配配置
-    - output: 输出配置
-    """
-    
-    # 资金分配模拟器特定字段（延迟提取）
-    _base_version: Optional[str] = None
-    _use_sampling: Optional[bool] = None
-    _initial_capital: Optional[float] = None
-    _allocation: Optional[AllocationConfig] = None
-    _output: Optional[OutputConfig] = None
-    
-    # 验证状态
-    _capital_allocation_validated: bool = False
-    
-    def validate_and_prepare(self) -> SettingValidationResult:
-        """
-        验证并准备资金分配模拟器设置
-        
-        验证内容：
-        - initial_capital 必须 >= 1000（Critical）
-        - allocation.mode 必须是有效枚举值（Critical）
-        - allocation.max_portfolio_size 必须 > 0（Critical）
-        - 添加默认值
-        - 检查 base_version（Warning）
-        - 检查 fees 配置（Warning）
-        
-        Returns:
-            SettingValidationResult: 验证结果
-        """
-        result = SettingValidationResult(is_valid=True)
-        
-        # 提取字段并添加默认值
-        self._extract_capital_allocation_fields()
-        
-        # 验证 initial_capital（Critical）
-        if self._initial_capital < 1000:
-            result.errors.append(SettingError(
-                level=SettingErrorLevel.CRITICAL,
-                field_path="capital_simulator.initial_capital",
-                message=f"initial_capital ({self._initial_capital}) 必须 >= 1000 元，否则无法购买任何股票",
-                suggested_fix='在 settings.py 的 capital_simulator 中将 "initial_capital" 设置为至少 1000'
-            ))
-            result.is_valid = False
-        
-        # 验证 allocation.mode（Critical）
-        valid_modes = ["equal_capital", "equal_shares", "kelly", "custom"]
-        if self._allocation.mode not in valid_modes:
-            result.errors.append(SettingError(
-                level=SettingErrorLevel.CRITICAL,
-                field_path="capital_simulator.allocation.mode",
-                message=f"allocation.mode ({self._allocation.mode}) 必须是以下值之一: {valid_modes}",
-                suggested_fix=f'在 settings.py 的 capital_simulator.allocation 中将 "mode" 设置为 {valid_modes} 之一'
-            ))
-            result.is_valid = False
-        
-        # 验证 allocation.max_portfolio_size（Critical）
-        if self._allocation.max_portfolio_size <= 0:
-            result.errors.append(SettingError(
-                level=SettingErrorLevel.CRITICAL,
-                field_path="capital_simulator.allocation.max_portfolio_size",
-                message=f"max_portfolio_size ({self._allocation.max_portfolio_size}) 必须 > 0",
-                suggested_fix='在 settings.py 的 capital_simulator.allocation 中将 "max_portfolio_size" 设置为大于 0 的整数'
-            ))
-            result.is_valid = False
-        
-        # 检查 base_version（Warning）
-        if self._base_version and self._base_version != "latest":
-            result.warnings.append(SettingError(
-                level=SettingErrorLevel.WARNING,
-                field_path="capital_simulator.base_version",
-                message=f"指定的输出版本 '{self._base_version}' 将在运行时检查，如果不存在将使用 'latest'",
-                suggested_fix="如果版本不存在，系统将自动使用 'latest'，如果 'latest' 也不存在，建议先运行枚举器"
-            ))
-        
-        # 检查 fees 配置（Warning）
+class StrategyCapitalSimulatorSettings(SettingsBase):
+    """资金分配模拟器：``capital_simulator`` 子树 + 校验/默认值。"""
+
+    raw_settings: Dict[str, Any]
+    _missing_use_sampling_at_load: bool = field(default=False, repr=False)
+    _capital_simulator_validated: bool = field(default=False, repr=False)
+
+    @property
+    def capital_simulator(self) -> Dict[str, Any]:
+        block = self.raw_settings.get("capital_simulator")
+        if not isinstance(block, dict):
+            block = {}
+            self.raw_settings["capital_simulator"] = block
+        return block
+
+    @classmethod
+    def from_strategy_root(cls, root: Dict[str, Any]) -> StrategyCapitalSimulatorSettings:
+        if not isinstance(root, dict):
+            root = {}
+        block = root.get("capital_simulator")
+        missing_us = not isinstance(block, dict) or "use_sampling" not in block
+        if not isinstance(block, dict):
+            block = {}
+            root["capital_simulator"] = block
+        return cls(raw_settings=root, _missing_use_sampling_at_load=missing_us)
+
+    @classmethod
+    def from_base_settings(cls, base_settings: "StrategySettings") -> StrategyCapitalSimulatorSettings:
+        return cls.from_strategy_root(base_settings.raw_settings)
+
+    def apply_defaults(self) -> None:
+        """与 ``settings_example`` 第 9 节默认一致。"""
+        c = self.capital_simulator
+        if "use_sampling" not in c:
+            c["use_sampling"] = False
+        if "base_version" not in c:
+            c["base_version"] = "latest"
+        if "initial_capital" not in c:
+            c["initial_capital"] = 1_000_000
+        if "start_date" not in c:
+            c["start_date"] = ""
+        if "end_date" not in c:
+            c["end_date"] = ""
+
+        alloc = c.get("allocation")
+        if not isinstance(alloc, dict):
+            alloc = {}
+            c["allocation"] = alloc
+        if "mode" not in alloc:
+            alloc["mode"] = "equal_capital"
+        if "max_portfolio_size" not in alloc:
+            alloc["max_portfolio_size"] = 10
+        if "max_weight_per_stock" not in alloc:
+            alloc["max_weight_per_stock"] = 0.3
+        if "lot_size" not in alloc:
+            alloc["lot_size"] = 100
+        if "lots_per_trade" not in alloc:
+            alloc["lots_per_trade"] = 1
+        if "kelly_fraction" not in alloc:
+            alloc["kelly_fraction"] = 0.5
+
+        out = c.get("output")
+        if not isinstance(out, dict):
+            out = {}
+            c["output"] = out
+        if "save_trades" not in out:
+            out["save_trades"] = True
+        if "save_equity_curve" not in out:
+            out["save_equity_curve"] = True
+
+    def validate(self) -> ValidationReport:
+        result = SettingsBase.new_validation()
+        self.apply_defaults()
+
+        alloc = self._parse_allocation()
+        try:
+            ic = float(self.capital_simulator.get("initial_capital", 1_000_000))
+        except (TypeError, ValueError):
+            ic = 0.0
+        self.capital_simulator["initial_capital"] = max(ic, 0.0)
+
+        if self.capital_simulator["initial_capital"] < 1000:
+            SettingsBase.add_critical(
+                result,
+                "capital_simulator.initial_capital",
+                (
+                    f"initial_capital ({self.capital_simulator['initial_capital']}) 必须 >= 1000 元，"
+                    "否则无法购买任何股票"
+                ),
+                suggested_fix='在 capital_simulator 中将 "initial_capital" 设为至少 1000',
+            )
+
+        if alloc.mode not in _VALID_MODES:
+            SettingsBase.add_critical(
+                result,
+                "capital_simulator.allocation.mode",
+                f"allocation.mode ({alloc.mode!r}) 必须是: {sorted(_VALID_MODES)}",
+                suggested_fix='将 "mode" 设为 equal_capital / equal_shares / kelly / custom 之一',
+            )
+
+        if alloc.max_portfolio_size <= 0:
+            SettingsBase.add_critical(
+                result,
+                "capital_simulator.allocation.max_portfolio_size",
+                f"max_portfolio_size ({alloc.max_portfolio_size}) 必须 > 0",
+                suggested_fix='将 "max_portfolio_size" 设为大于 0 的整数',
+            )
+
+        bv = str(self.capital_simulator.get("base_version") or "latest")
+        if bv != "latest":
+            SettingsBase.add_warning(
+                result,
+                "capital_simulator.base_version",
+                f"指定枚举依赖版本 {bv!r}，将在运行时解析；不存在时将回退 latest",
+                suggested_fix="若目录不存在，请先跑枚举或改用 latest",
+            )
+
+        sd = self.capital_simulator.get("start_date", "") or ""
+        ed = self.capital_simulator.get("end_date", "") or ""
+        if not str(sd).strip() or not str(ed).strip():
+            SettingsBase.add_warning(
+                result,
+                "capital_simulator.start_date / end_date",
+                "start_date 或 end_date 为空，将使用默认时间范围（见 CapitalAllocationSimulator）",
+                suggested_fix='可填写 "start_date" / "end_date"（YYYYMMDD）',
+            )
+
         fees_config = self.get_fees_config_with_priority()
         if not fees_config or all(
             fees_config.get(key, 0.0) == 0.0
-            for key in ["commission_rate", "stamp_duty_rate", "transfer_fee_rate"]
+            for key in ("commission_rate", "stamp_duty_rate", "transfer_fee_rate")
         ):
-            result.warnings.append(SettingError(
-                level=SettingErrorLevel.WARNING,
-                field_path="fees",
-                message="fees 配置缺失或所有费率为 0，将忽略交易费用",
-                suggested_fix=(
-                    '在 settings.py 中添加 fees 配置，例如：\n'
-                    '  "fees": {\n'
-                    '    "commission_rate": 0.00025,\n'
-                    '    "min_commission": 5.0,\n'
-                    '    "stamp_duty_rate": 0.001,\n'
-                    '    "transfer_fee_rate": 0.0\n'
-                    '  }'
-                )
-            ))
-        
-        # use_sampling 警告（如果未配置）
-        if self._use_sampling is None:
-            result.warnings.append(SettingError(
-                level=SettingErrorLevel.WARNING,
-                field_path="capital_simulator.use_sampling",
-                message="use_sampling 未配置，默认使用 True（在枚举器采样结果中抽样）",
-                suggested_fix='在 settings.py 的 capital_simulator 中添加 "use_sampling": False 以使用全量结果'
-            ))
-        
-        # 记录警告
-        result.log_warnings(logger)
-        
-        # 标记已验证
-        self._capital_allocation_validated = True
-        
+            SettingsBase.add_warning(
+                result,
+                "fees",
+                "fees 配置缺失或主要费率为 0，可能忽略部分交易费用",
+                suggested_fix="在顶层 fees、price_simulator.fees 或 capital_simulator.fees 中补充费率",
+            )
+
+        if self._missing_use_sampling_at_load:
+            SettingsBase.add_warning(
+                result,
+                "capital_simulator.use_sampling",
+                "use_sampling 未配置，已默认 False（读 output/ 全量枚举结果）",
+                suggested_fix='需要读 test/ 时设置 "use_sampling": True',
+            )
+
+        self._validate_max_workers(result)
+        self._validate_fees_block(result)
+
+        SettingsBase.log_warnings(result, logger)
+        self._capital_simulator_validated = True
         return result
-    
-    def _extract_capital_allocation_fields(self) -> None:
-        """提取资金分配模拟器特定字段并添加默认值"""
-        capital_config = self.raw_settings.get("capital_simulator", {})
-        
-        # base_version（默认 "latest"）
-        self._base_version = capital_config.get("base_version", "latest") or "latest"
-        
-        # use_sampling（默认 True）
-        use_sampling = capital_config.get("use_sampling")
-        if use_sampling is None:
-            self._use_sampling = True  # 模拟器默认 True
-        else:
-            self._use_sampling = bool(use_sampling)
-        
-        # initial_capital（默认 1_000_000）
-        initial_capital = capital_config.get("initial_capital", 1_000_000)
+
+    def validate_and_prepare(self) -> ValidationReport:
+        return self.validate()
+
+    def _validate_max_workers(self, result: ValidationReport) -> None:
+        mw = self.capital_simulator.get("max_workers", "auto")
+        if mw == "auto" or mw is None:
+            self.capital_simulator["max_workers"] = "auto"
+            return
         try:
-            self._initial_capital = max(float(initial_capital), 0.0)
+            self.capital_simulator["max_workers"] = max(int(mw), 1)
         except (TypeError, ValueError):
-            self._initial_capital = 1_000_000.0
-        
-        # allocation
-        allocation_config = capital_config.get("allocation", {}) or {}
-        self._allocation = AllocationConfig(
-            mode=allocation_config.get("mode", "equal_capital"),
-            max_portfolio_size=max(int(allocation_config.get("max_portfolio_size", 5)), 1),
-            max_weight_per_stock=max(min(float(allocation_config.get("max_weight_per_stock", 0.3)), 1.0), 0.0),
-            lot_size=max(int(allocation_config.get("lot_size", 100)), 1),
-            lots_per_trade=max(int(allocation_config.get("lots_per_trade", 1)), 1),
-            kelly_fraction=max(min(float(allocation_config.get("kelly_fraction", 0.5)), 1.0), 0.0),
+            SettingsBase.add_critical(
+                result,
+                "capital_simulator.max_workers",
+                'capital_simulator.max_workers 须为 "auto" 或正整数',
+                suggested_fix='设为 "auto" 或例如 4',
+            )
+
+    def _validate_fees_block(self, result: ValidationReport) -> None:
+        fees = self.capital_simulator.get("fees")
+        if fees is None:
+            return
+        if not isinstance(fees, dict):
+            SettingsBase.add_critical(
+                result,
+                "capital_simulator.fees",
+                "fees 必须为对象（dict）",
+                suggested_fix="删除 fees 或改为与顶层 fees 相同结构",
+            )
+
+    def _parse_allocation(self) -> AllocationConfig:
+        a = self.capital_simulator.get("allocation") or {}
+        if not isinstance(a, dict):
+            a = {}
+            self.capital_simulator["allocation"] = a
+        try:
+            mps = max(int(a.get("max_portfolio_size", 10)), 1)
+        except (TypeError, ValueError):
+            mps = 10
+        try:
+            mw = max(min(float(a.get("max_weight_per_stock", 0.3)), 1.0), 0.0)
+        except (TypeError, ValueError):
+            mw = 0.3
+        try:
+            lot = max(int(a.get("lot_size", 100)), 1)
+        except (TypeError, ValueError):
+            lot = 100
+        try:
+            lots = max(int(a.get("lots_per_trade", 1)), 1)
+        except (TypeError, ValueError):
+            lots = 1
+        try:
+            kf = max(min(float(a.get("kelly_fraction", 0.5)), 1.0), 0.0)
+        except (TypeError, ValueError):
+            kf = 0.5
+        mode = str(a.get("mode", "equal_capital") or "equal_capital")
+        return AllocationConfig(
+            mode=mode,
+            max_portfolio_size=mps,
+            max_weight_per_stock=mw,
+            lot_size=lot,
+            lots_per_trade=lots,
+            kelly_fraction=kf,
         )
-        
-        # output
-        output_config = capital_config.get("output", {}) or {}
-        self._output = OutputConfig(
-            save_trades=bool(output_config.get("save_trades", True)),
-            save_equity_curve=bool(output_config.get("save_equity_curve", True)),
+
+    def _parse_output(self) -> OutputConfig:
+        o = self.capital_simulator.get("output") or {}
+        if not isinstance(o, dict):
+            o = {}
+            self.capital_simulator["output"] = o
+        return OutputConfig(
+            save_trades=bool(o.get("save_trades", True)),
+            save_equity_curve=bool(o.get("save_equity_curve", True)),
         )
-    
-    
+
+    def get_fees_config_with_priority(self) -> Dict[str, Any]:
+        """capital_simulator.fees > price_simulator.fees > 顶层 fees。"""
+        capital_config = self.raw_settings.get("capital_simulator", {}) or {}
+        simulator_config = self.raw_settings.get("price_simulator", {}) or {}
+        top_level_fees = self.raw_settings.get("fees", {}) or {}
+        if not isinstance(top_level_fees, dict):
+            top_level_fees = {}
+        return (
+            (capital_config.get("fees") if isinstance(capital_config.get("fees"), dict) else None)
+            or (simulator_config.get("fees") if isinstance(simulator_config.get("fees"), dict) else None)
+            or top_level_fees
+            or {}
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.deep_copy_dict(dict(self.capital_simulator))
+
     @property
     def use_sampling(self) -> bool:
-        """是否使用采样配置"""
-        if self._use_sampling is None:
-            self._extract_capital_allocation_fields()
-        return self._use_sampling
-    
+        return bool(self.capital_simulator.get("use_sampling", False))
+
+    @property
+    def base_version(self) -> str:
+        return str(self.capital_simulator.get("base_version", "latest") or "latest")
+
     @property
     def initial_capital(self) -> float:
-        """初始资金"""
-        if self._initial_capital is None:
-            self._extract_capital_allocation_fields()
-        return self._initial_capital
-    
+        try:
+            return float(self.capital_simulator.get("initial_capital", 1_000_000))
+        except (TypeError, ValueError):
+            return 1_000_000.0
+
+    @property
+    def start_date(self) -> str:
+        return str(self.capital_simulator.get("start_date", "") or "")
+
+    @property
+    def end_date(self) -> str:
+        return str(self.capital_simulator.get("end_date", "") or "")
+
+    @property
+    def max_workers(self) -> Union[Literal["auto"], int]:
+        mw = self.capital_simulator.get("max_workers", "auto")
+        if mw == "auto" or mw is None:
+            return "auto"
+        try:
+            return max(int(mw), 1)
+        except (TypeError, ValueError):
+            return "auto"
+
     @property
     def allocation(self) -> AllocationConfig:
-        """资金分配配置"""
-        if self._allocation is None:
-            self._extract_capital_allocation_fields()
-        return self._allocation
-    
+        return self._parse_allocation()
+
     @property
     def output(self) -> OutputConfig:
-        """输出配置"""
-        if self._output is None:
-            self._extract_capital_allocation_fields()
-        return self._output
-    
-    def get_fees_config_with_priority(self) -> Dict[str, Any]:
-        """
-        获取交易成本配置（带优先级）
-        
-        优先级：capital_simulator.fees > price_simulator.fees > top_level.fees
-        
-        Returns:
-            fees 配置字典
-        """
-        capital_config = self.raw_settings.get("capital_simulator", {})
-        simulator_config = self.raw_settings.get("price_simulator", {})
-        top_level_fees = self.get_fees_config()
-        
-        # 按优先级返回
-        return (
-            capital_config.get("fees") or
-            simulator_config.get("fees") or
-            top_level_fees or
-            {}
-        )
-    
-    @classmethod
-    def from_base_settings(cls, base_settings: BaseSettings) -> 'CapitalAllocationSettings':
-        """
-        从基础设置创建资金分配模拟器设置
-        
-        Args:
-            base_settings: 基础设置实例
-        
-        Returns:
-            CapitalAllocationSettings 实例（未验证）
-        """
-        return cls(raw_settings=base_settings.raw_settings)
+        return self._parse_output()
+
+
+CapitalAllocationSettings = StrategyCapitalSimulatorSettings

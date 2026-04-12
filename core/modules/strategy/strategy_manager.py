@@ -40,7 +40,7 @@ class StrategyManager:
         from core.modules.data_manager import DataManager
         self.data_mgr = DataManager(is_verbose=False)
         
-        # 发现所有策略：name -> StrategyInfo（含 worker 路径、BaseSettings）
+        # 发现所有策略：name -> StrategyInfo（含 worker 路径、StrategySettings）
         self.strategy_cache = StrategyDiscoveryHelper.discover_strategies()
         self.usable_strategies_cache = self._filter_enabled_and_valid_strategies()
     

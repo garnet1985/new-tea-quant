@@ -257,44 +257,7 @@
 
 ## 4. TestJobHelper (JobHelper 测试)
 
-### 4.1 Worker 数量决策测试
-
-#### `test_decide_worker_amount_100_or_less`
-- **目的**: 测试 decide_worker_amount（100个及以下）
-- **验证点**:
-  - 100 个及以下 job 返回 1 个 worker
-
-#### `test_decide_worker_amount_500_or_less`
-- **目的**: 测试 decide_worker_amount（500个及以下，100个以上）
-- **验证点**:
-  - 101-500 个 job 返回 2 个 worker
-
-#### `test_decide_worker_amount_1000_or_less`
-- **目的**: 测试 decide_worker_amount（1000个及以下，500个以上）
-- **验证点**:
-  - 501-1000 个 job 返回 4 个 worker
-
-#### `test_decide_worker_amount_2000_or_less`
-- **目的**: 测试 decide_worker_amount（2000个及以下，1000个以上）
-- **验证点**:
-  - 1001-2000 个 job 返回 8 个 worker
-
-#### `test_decide_worker_amount_over_2000`
-- **目的**: 测试 decide_worker_amount（2000个以上）
-- **验证点**:
-  - 2000 个以上 job 返回最大 worker 数（CPU 核心数）
-
-#### `test_decide_worker_amount_with_max_workers`
-- **目的**: 测试 decide_worker_amount（指定 max_workers）
-- **验证点**:
-  - 指定 max_workers 时，不超过该值
-
-#### `test_decide_worker_amount_with_auto`
-- **目的**: 测试 decide_worker_amount（max_workers="auto"）
-- **验证点**:
-  - "auto" 模式使用 CPU 核心数
-
-### 4.2 日期计算测试
+### 4.1 日期计算测试
 
 #### `test_calculate_start_and_end_date_refresh_mode`
 - **目的**: 测试 calculate_start_and_end_date（REFRESH 模式）

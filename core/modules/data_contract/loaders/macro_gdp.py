@@ -11,7 +11,4 @@ class MacroGdpLoader(BaseLoader):
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()
-        model = dm.get_table("sys_gdp")
-        if not model:
-            raise RuntimeError("加载 macro.gdp 失败：未注册 sys_gdp 表")
-        return model.load("1=1", order_by="quarter ASC") or []
+        return dm.macro.load_gdp()

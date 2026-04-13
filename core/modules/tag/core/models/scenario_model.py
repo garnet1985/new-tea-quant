@@ -5,6 +5,7 @@ import logging
 from core.infra.project_context import ConfigManager
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.mapping import default_map
+from core.utils.date.date_utils import DateUtils
 from core.modules.tag.core.enums import TagTargetType, TagUpdateMode
 from core.modules.tag.core.models.tag_model import TagModel
 
@@ -283,11 +284,8 @@ class ScenarioModel:
         
         # end_date: 默认使用最新已完成交易日
         if "end_date" not in filled_settings or filled_settings.get("end_date") == "":
-            # 从 DataManager 获取最新已完成交易日（单例模式）
             try:
-                from core.modules.data_manager import DataManager
-                data_mgr = DataManager(is_verbose=False)
-                filled_settings["end_date"] = data_mgr.service.calendar.get_latest_completed_trading_date()
+                filled_settings["end_date"] = DateUtils.today()
             except Exception as e:
                 logger.warning(f"获取最新交易日失败，使用空字符串: {e}")
                 filled_settings["end_date"] = ""

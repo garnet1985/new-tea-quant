@@ -39,7 +39,7 @@ def _resolve_scenario_name(
     params: Mapping[str, Any],
     context: Optional[Mapping[str, Any]],
     *,
-    scenario_model: Any,
+    tag_service: Any,
 ) -> str:
     """
     解析 scenario，用于 load_values_for_entity 的 scenario_name 参数。
@@ -57,14 +57,14 @@ def _resolve_scenario_name(
     if raw is not None and str(raw).strip() != "":
         raw_s = str(raw).strip()
         if raw_s.isdigit():
-            row = scenario_model.load_one("id = %s", (int(raw_s),))
+            row = next((x for x in (tag_service.list_scenarios() or []) if x.get("id") == int(raw_s)), None)
             if not row or not row.get("name"):
                 raise ValueError(f"加载 tag 失败：未找到 scenario id={raw_s}")
             return str(row["name"])
         return raw_s
 
     if scenario_id is not None:
-        row = scenario_model.load_one("id = %s", (int(scenario_id),))
+        row = next((x for x in (tag_service.list_scenarios() or []) if x.get("id") == int(scenario_id)), None)
         if not row or not row.get("name"):
             raise ValueError(f"加载 tag 失败：未找到 scenario_id={scenario_id!r}")
         return str(row["name"])
@@ -121,12 +121,9 @@ class TagLoader(BaseLoader):
 
         data_mgr = DataManager()
         tag_service = data_mgr.stock.tags
-        scenario_model = data_mgr.get_table("sys_tag_scenario")
-        if not scenario_model:
-            raise RuntimeError("加载 tag 失败：未注册 sys_tag_scenario 表 Model")
 
         entity_type = str(params.get("entity_type") or (context or {}).get("entity_type") or "stock")
-        scenario_name = _resolve_scenario_name(params, context, scenario_model=scenario_model)
+        scenario_name = _resolve_scenario_name(params, context, tag_service=tag_service)
 
         time_field = "as_of_date"
         start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None

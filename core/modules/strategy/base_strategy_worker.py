@@ -6,7 +6,7 @@ Base Strategy Worker - 策略 Worker 基类
 - 在子进程中实例化（每个股票一个 Worker）
 - 处理单个股票的扫描或回测
 - 提供统一的生命周期接口
-- 管理数据加载（通过 StrategyWorkerDataManager）
+- 管理数据加载（通过 StrategyDataManager）
 
 类比 BaseTagWorker
 """
@@ -61,8 +61,8 @@ class BaseStrategyWorker(ABC):
         self.stock_info = self._load_stock_info()
 
         self.contract_cache = ContractCacheManager()
-        from core.modules.strategy.components.strategy_worker_data_manager import StrategyWorkerDataManager
-        self.data_manager = StrategyWorkerDataManager(
+        from core.modules.strategy.components.data_management import StrategyDataManager
+        self.data_manager = StrategyDataManager(
             stock_id=self.stock_id,
             settings=self.settings,
             data_mgr=self.data_mgr,
@@ -196,15 +196,8 @@ class BaseStrategyWorker(ABC):
         lookback = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
         self.data_manager.load_latest_data(lookback=lookback)
         
-        # 2. 构建数据字典（从 data_manager._current_data 中提取）
-        # 格式与 get_data_until() 返回的格式一致
-        data = {
-            'klines': self.data_manager._current_data.get('klines', []),
-        }
-        # 添加其它已加载的数据槽位（如 tags、macro.gdp 等）
-        for entity_type in self.data_manager._current_data.keys():
-            if entity_type != 'klines':
-                data[entity_type] = self.data_manager._current_data.get(entity_type, [])
+        # 2. 构建数据字典（格式与 get_data_until() 返回一致）
+        data = self.data_manager.get_loaded_data()
         
         # 3. 调用用户钩子
         self.on_before_scan()

@@ -281,8 +281,9 @@ tag_scenario (业务场景层)
           │      - entity_based：通过 PER_ENTITY 合约的 entity_list_data_id 推导
           │      - general：固定使用 "__general__" 占位 owner
           │
-          ├─▶ d. 构建 jobs（每个 entity 一个 job）
-          │      - 包含 entity_id、scenario_name、tag_definitions 等
+          ├─▶ d. 构建 jobs（每个 owner 一个 job）
+          │      - entity_based: owner=entity_id
+          │      - general: owner="__general__"
           │
           ├─▶ e. 决定进程数
           │      - 根据 job 数量动态决定（最多 CPU 核心数）
@@ -297,11 +298,11 @@ tag_scenario (业务场景层)
                         │
                         ├─▶ 2. 预处理（_preprocess）
                         │      - 获取交易日列表
-                        │      - INCREMENTAL 模式下初始化数据加载
+                        │      - issue/load contracts + rebuild cursor
                         │
                         ├─▶ 3. 执行标签计算（_execute_tagging）
                         │      - 遍历每个交易日
-                        │      - 对每个日期：获取历史数据并过滤到 as_of_date
+                        │      - 对每个日期：`get_data_until(as_of_date)` 获取前缀视图
                         │      - 对每个 tag：调用 calculate_tag()
                         │      - 收集结果
                         │
@@ -389,7 +390,7 @@ tag_scenario (业务场景层)
 │              │                                               │
 │              ▼                                               │
 │  ┌──────────────────────────────────────────┐               │
-│  │  Job Building (每个 entity 一个 job)      │               │
+│  │  Job Building (每个 owner 一个 job)       │               │
 │  └──────────────────────────────────────────┘               │
 │              │                                               │
 │              ▼                                               │
@@ -491,20 +492,21 @@ tag_scenario (业务场景层)
 
 ---
 
-### 决策 3：以 Entity 为单位分割 Jobs
+### 决策 3：以 Owner 为单位分割 Jobs
 
 **问题**：如何分割 Jobs？按日期、按 Tag、还是按 Entity？
 
-**决策**：以 Entity 为单位分割 Jobs（每个 entity 一个 job）。
+**决策**：以 owner 为单位分割 Jobs（entity_based 为每个 entity 一个 job；general 为单 owner job）。
 
 **理由**：
-- **内存可控**：每个进程只处理一个 entity，内存使用可控
-- **数据加载简单**：每个 job 只需要加载一个 entity 的数据
-- **失败隔离**：单个 entity 失败不影响其他 entity
-- **批量保存方便**：一个 entity 的所有 tag values 可以批量保存
+- **内存可控**：每个进程只处理一个 owner，内存使用可控
+- **数据加载简单**：每个 job 只需要加载一个 owner 的数据
+- **失败隔离**：单个 owner 失败不影响其他 owner
+- **批量保存方便**：一个 owner 的所有 tag values 可以批量保存
 
 **影响**：
-- Job 数量等于 entity 数量（可能很多）
+- entity_based 下 Job 数量等于 entity 数量（可能很多）
+- general 下通常只有 1 个 owner job
 - 需要动态决定进程数（根据 job 数量）
 
 ---
@@ -521,7 +523,7 @@ tag_scenario (业务场景层)
 - 契约可复用缓存与 loader 能力
 
 **影响**：
-- 旧 `use_chunk/data_chunk_size` 配置下线
+- 旧 chunk 配置项已下线
 - 数据声明统一收口到 `data.required`
 
 ---
@@ -533,18 +535,18 @@ tag_scenario (业务场景层)
 **决策**：保留 `incremental_required_records_before_as_of_date` 语义，由 data contract 范围加载 + cursor 前缀视图共同保障。
 
 **理由**：
-- 保留历史窗口参数语义（不再依赖 chunk 推导）
-- 避免把窗口逻辑绑死在 chunk 策略
+- 保留历史窗口参数语义（不依赖 chunk 推导）
+- 避免把窗口逻辑绑死在旧 chunk 策略
 
 **影响**：
 - 配置仍需声明历史窗口需求
-- 不再依赖 chunk 数量推导
+- 不再依赖旧 chunk 数量推导
 
 ---
 
 ### 决策 6：数据过滤策略
 
-**问题**：如何避免"上帝模式"问题（计算时看到未来数据）？
+**问题**：如何避免未来函数泄露（计算时看到未来数据）？
 
 **决策**：框架层面强制过滤到 `as_of_date`。
 
@@ -554,7 +556,7 @@ tag_scenario (业务场景层)
 - **减少出错可能**：避免用户忘记过滤数据
 
 **影响**：
-- 每次调用 `calculate_tag()` 前都需要过滤数据（性能开销可接受）
+- 每次调用 `calculate_tag()` 前都需要基于 cursor 输出前缀视图（性能开销可接受）
 - 用户无法访问未来数据（这是期望的行为）
 
 ---
@@ -701,9 +703,9 @@ job = {
 ```
 
 **分割逻辑**：
-- 每个 entity 一个 job
-- Job 包含该 entity 的所有计算信息（tag definitions、配置、日期范围等）
-- Job ID 格式：`{entity_id}_{scenario_name}`
+- 每个 owner 一个 job（entity_based 为实体，general 为 `__general__`）
+- Job 包含该 owner 的完整计算信息（tag definitions、配置、日期范围等）
+- Job ID 默认格式：`{owner_id}_{scenario_name}`
 
 ### 进程数决定策略
 

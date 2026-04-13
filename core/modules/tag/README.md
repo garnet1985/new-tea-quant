@@ -265,7 +265,7 @@ tag_manager.execute(scenario_name="my_scenario")
 
 ### 数据配置（DataContract）
 
-Tag 模块已切到 DataContract + DataCursor 模式，不再使用 `required_entities/time_axis/use_chunk` 的手写加载链路。
+Tag 模块已切到 DataContract + DataCursor 模式，不再使用旧版手写数据加载链路。
 
 ```python
 {
@@ -425,7 +425,7 @@ self.tracker['last_month'] = current_month
 
 ### 2. 计算逻辑
 
-- ✅ **避免"上帝模式"**：框架已自动过滤数据到 `as_of_date`，无需担心
+- ✅ **避免未来函数泄露**：框架已自动过滤数据到 `as_of_date`，无需手写切片
 - ✅ **处理边界情况**：检查历史数据是否足够（如计算 60 天动量需要至少 60 条数据）
 - ✅ **返回结构化数据**：使用 JSON 格式返回标签值，支持复杂数据结构
 - ✅ **使用 Tracker**：对于需要跨日期状态的计算，使用 `self.tracker` 存储状态

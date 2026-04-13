@@ -11,7 +11,4 @@ class MacroPmiLoader(BaseLoader):
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()
-        model = dm.get_table("sys_pmi")
-        if not model:
-            raise RuntimeError("加载 macro.pmi 失败：未注册 sys_pmi 表")
-        return model.load("1=1", order_by="date ASC") or []
+        return dm.macro.load_pmi()

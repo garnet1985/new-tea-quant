@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
 from core.modules.data_cursor.data_cursor_manager import DataCursorManager
 from core.modules.data_contract.cache import ContractCacheManager
@@ -18,9 +18,7 @@ from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.indicator import IndicatorService
 from core.modules.strategy.models.strategy_settings import StrategySettings
-
-if TYPE_CHECKING:
-    from core.modules.data_manager.data_manager import DataManager
+from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
 
@@ -42,14 +40,12 @@ class StrategyDataManager:
         self,
         stock_id: str,
         settings: StrategySettings,
-        data_mgr: "DataManager",
         *,
         contract_cache: ContractCacheManager,
         global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> None:
         self.stock_id = stock_id
         self.settings = settings
-        self.data_mgr = data_mgr
         self._global_extra_cache = global_extra_cache
         self._contract_cache = contract_cache
         self._dcf_mgr: Optional[DataContractManager] = None
@@ -314,9 +310,19 @@ class StrategyDataManager:
 
     def _get_latest_trading_date(self) -> str:
         try:
-            latest_kline = self.data_mgr.stock.kline.load_latest(self.stock_id)
-            if latest_kline:
-                return latest_kline["date"]
+            params = dict(self.settings.resolved_base_required_data.get("params") or {})
+            c = self._contract_manager().issue(
+                DataKey.STOCK_KLINE,
+                entity_id=self.stock_id,
+                start=DateUtils.get_query_date_range_min(),
+                end=DateUtils.QUERY_DATE_RANGE_MAX,
+                **params,
+            )
+            rows = c.load(start=DateUtils.get_query_date_range_min(), end=DateUtils.QUERY_DATE_RANGE_MAX)
+            if rows:
+                last = rows[-1]
+                if isinstance(last, dict) and last.get("date"):
+                    return str(last["date"])
             logger.warning("无法获取最新交易日，使用当前日期: stock=%s", self.stock_id)
             return datetime.now().strftime("%Y%m%d")
         except Exception as e:

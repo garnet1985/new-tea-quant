@@ -19,8 +19,11 @@ class StockAdjFactorEventsLoader(BaseLoader):
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()
-        model = dm.get_table("sys_adj_factor_events")
-        if not model:
-            raise RuntimeError("加载 stock.adj_factor.eventlog 失败：未注册 sys_adj_factor_events 表")
         sid = _stock_id(params, context)
-        return model.load("id = %s", (sid,), order_by="event_date ASC") or []
+        start = params.get("start")
+        end = params.get("end")
+        return dm.stock.kline.load_adj_factor_events(
+            stock_id=sid,
+            start_date=str(start) if start else None,
+            end_date=str(end) if end else None,
+        )

@@ -11,7 +11,4 @@ class MacroPpiLoader(BaseLoader):
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()
-        model = dm.get_table("sys_ppi")
-        if not model:
-            raise RuntimeError("加载 macro.ppi 失败：未注册 sys_ppi 表")
-        return model.load("1=1", order_by="date ASC") or []
+        return dm.macro.load_ppi()

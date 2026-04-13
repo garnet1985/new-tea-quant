@@ -11,7 +11,4 @@ class MacroLprLoader(BaseLoader):
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()
-        model = dm.get_table("sys_lpr")
-        if not model:
-            raise RuntimeError("加载 macro.lpr 失败：未注册 sys_lpr 表")
-        return model.load("1=1", order_by="date ASC") or []
+        return dm.macro.load_lpr()

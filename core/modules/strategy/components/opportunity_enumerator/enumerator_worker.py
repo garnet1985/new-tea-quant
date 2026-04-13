@@ -61,10 +61,6 @@ class OpportunityEnumeratorWorker:
         from core.modules.strategy.models.strategy_settings import StrategySettings
         self.settings = StrategySettings.from_dict(job_payload['settings'])
         
-        # 初始化数据管理器
-        from core.modules.data_manager import DataManager
-        self.data_mgr = DataManager(is_verbose=False)
-        
         # 加载完整的股票信息（提前组织好，避免每次创建 Opportunity 时重复查询）
         self.stock_info = self._load_stock_info()
 
@@ -73,7 +69,6 @@ class OpportunityEnumeratorWorker:
         self.data_manager = StrategyDataManager(
             stock_id=self.stock_id,
             settings=self.settings,
-            data_mgr=self.data_mgr,
             contract_cache=self.contract_cache,
             global_extra_cache=self.job_payload.get("global_extra_cache"),
         )

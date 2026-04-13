@@ -19,9 +19,10 @@ class CorporateFinanceLoader(BaseLoader):
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()
-        model = dm.get_table("sys_corporate_finance")
-        if not model:
-            raise RuntimeError("加载 corporate finance 失败：未注册 sys_corporate_finance 表")
         sid = _stock_id(params, context)
-        rows = model.load("id = %s", (sid,), order_by="quarter ASC") or []
-        return rows
+        # 使用极宽季度范围等价于“全量季度序列”
+        return dm.stock.corporate_finance.load_trend(
+            sid,
+            start_quarter="0000Q1",
+            end_quarter="9999Q4",
+        )

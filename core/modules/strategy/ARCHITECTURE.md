@@ -882,7 +882,7 @@ class Event:
 
 3. **计算技术指标**
    - 根据 `data.indicators` 配置计算技术指标
-   - 自动添加到 klines 中（如 `kline["ma5"]`, `kline["rsi"]`）
+   - 自动添加到 klines 中（如 `kline["ssma5"]`, `kline["rsi"]`）
 
 4. **加载 Required Data**
    - 加载 GDP、Tag 等依赖数据
@@ -1049,7 +1049,7 @@ class Event:
 **理由**：
 - **统一管理**：框架统一计算，避免重复代码
 - **性能优化**：一次性计算所有指标，避免重复计算
-- **易于使用**：用户直接使用 `kline["ma5"]`，无需手动计算
+- **易于使用**：用户直接使用 `kline["ssma5"]`，无需手动计算
 
 **影响**：
 - 需要在 `StrategyWorkerDataManager` 中实现指标计算逻辑
@@ -1110,7 +1110,7 @@ class Event:
 
 ```python
 "indicators": {
-    "ma": [
+    "sma": [
         {"period": 5},
         {"period": 10},
         {"period": 20}
@@ -1127,7 +1127,7 @@ class Event:
 **工作流**：
 1. 用户配置需要的指标
 2. 框架自动计算并添加到 klines
-3. 用户直接使用：`kline["ma5"]`, `kline["rsi"]`
+3. 用户直接使用：`kline["ssma5"]`, `kline["rsi"]`
 
 ### Pools/Blacklists 文件
 
@@ -1287,11 +1287,12 @@ core/modules/strategy/
 │   ├── strategy_worker_data_manager.py # 数据管理器
 │   ├── opportunity_service.py         # 机会服务
 │   └── session_manager.py             # 会话管理器
-├── helper/                            # 辅助函数
+├── helpers/                           # 辅助函数（统一入口）
 │   ├── strategy_discovery_helper.py   # 策略发现
 │   ├── stock_sampling_helper.py       # 股票采样
 │   ├── job_builder_helper.py          # 作业构建
-│   └── statistics_helper.py           # 统计辅助
+│   ├── statistics_helper.py           # 统计辅助
+│   └── global_extra_preload.py        # 枚举 GLOBAL extra 预加载
 ├── managers/                          # 管理器
 │   ├── version_manager.py             # 版本管理器
 │   ├── result_path_manager.py         # 结果路径管理器

@@ -6,7 +6,7 @@ Base Strategy Worker - 策略 Worker 基类
 - 在子进程中实例化（每个股票一个 Worker）
 - 处理单个股票的扫描或回测
 - 提供统一的生命周期接口
-- 管理数据加载（通过 StrategyWorkerDataManager）
+- 管理数据加载（通过 StrategyDataManager）
 
 类比 BaseTagWorker
 """
@@ -18,6 +18,9 @@ import logging
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.models.strategy_settings import StrategySettings
 from core.modules.strategy.models.opportunity import Opportunity
+from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contract_const import DataKey
+from core.modules.data_contract.data_contract_manager import DataContractManager
 
 logger = logging.getLogger(__name__)
 
@@ -52,18 +55,14 @@ class BaseStrategyWorker(ABC):
         # 解析配置
         self.settings = StrategySettings.from_dict(job_payload['settings'])
         
-        # 初始化数据管理器
-        from core.modules.data_manager import DataManager
-        self.data_mgr = DataManager(is_verbose=False)
-        
+        self.contract_cache = ContractCacheManager()
         # 加载完整的股票信息（提前组织好，避免每次创建 Opportunity 时重复查询）
         self.stock_info = self._load_stock_info()
-        
-        from core.modules.strategy.components.strategy_worker_data_manager import StrategyWorkerDataManager
-        self.data_manager = StrategyWorkerDataManager(
+        from core.modules.strategy.components.data_management import StrategyDataManager
+        self.data_manager = StrategyDataManager(
             stock_id=self.stock_id,
             settings=self.settings,
-            data_mgr=self.data_mgr
+            contract_cache=self.contract_cache,
         )
         
         # Simulate 模式特有
@@ -95,17 +94,12 @@ class BaseStrategyWorker(ABC):
             Dict: 股票信息，包含 id, name, industry, type, exchange_center 等
         """
         try:
-            # 使用 StockService 加载股票信息
-            stock_info = self.data_mgr.stock.load_info(self.stock_id)
-            if stock_info:
+            dcm = DataContractManager(contract_cache=self.contract_cache)
+            stock_list_contract = dcm.issue(DataKey.STOCK_LIST, filtered=False)
+            stock_list = list(stock_list_contract.data or [])
+            stock_info = next((x for x in stock_list if x.get("id") == self.stock_id), None)
+            if isinstance(stock_info, dict):
                 return stock_info
-            
-            # 如果服务不可用，直接从 model 加载
-            stock_model = self.data_mgr.get_table("sys_stock_list")
-            if stock_model:
-                stock_info = stock_model.load_one("id = %s", (self.stock_id,))
-                if stock_info:
-                    return stock_info
             
             # 如果都不可用，返回最小信息
             # 说明：
@@ -193,15 +187,8 @@ class BaseStrategyWorker(ABC):
         lookback = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
         self.data_manager.load_latest_data(lookback=lookback)
         
-        # 2. 构建数据字典（从 data_manager._current_data 中提取）
-        # 格式与 get_data_until() 返回的格式一致
-        data = {
-            'klines': self.data_manager._current_data.get('klines', []),
-        }
-        # 添加其他 required_entities
-        for entity_type in self.data_manager._current_data.keys():
-            if entity_type != 'klines':
-                data[entity_type] = self.data_manager._current_data.get(entity_type, [])
+        # 2. 构建数据字典（格式与 get_data_until() 返回一致）
+        data = self.data_manager.get_loaded_data()
         
         # 3. 调用用户钩子
         self.on_before_scan()

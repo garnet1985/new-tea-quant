@@ -3,9 +3,9 @@
 股票分析应用主入口
 
 使用示例：
-    python start-cli.py                      # 默认: simulate_enum
+    python start-cli.py                      # 默认: scan
     python start-cli.py scan                 # 扫描投资机会
-    python start-cli.py simulate             # 模拟回测（等同 simulate_enum）
+    python start-cli.py simulate             # 运行模拟链路（price_factor + capital_allocation）
     python start-cli.py renew                # 更新数据
     python start-cli.py analysis             # 分析结果
     python start-cli.py tag                  # 执行所有标签场景
@@ -14,14 +14,17 @@
     python start-cli.py price_factor         # 价格因子回放模拟（基于枚举输出结果）
     python start-cli.py capital_allocation   # 资金分配模拟（基于枚举输出结果，真实资金约束）
     
-    python start-cli.py -c                   # 快捷: 扫描（scan）
-    python start-cli.py -se                  # 快捷: simulate enumerator
-    python start-cli.py -sp                  # 快捷: simulate price factor
-    python start-cli.py -sa                  # 快捷: simulate allocation
-    python start-cli.py -s                   # 快捷: simulate all（占位）
-    python start-cli.py -r                   # 快捷: 更新（renew）
-    python start-cli.py -a                   # 快捷: 分析（analysis）
-    python start-cli.py -t                   # 快捷: 标签（tag）
+    # 新快捷命令（模块首字母 + 行为命令）：
+    python start-cli.py -d                   # DataSource（默认 renew）
+    python start-cli.py -dr                  # DataSource renew（等同 -d）
+    python start-cli.py -t                   # Tag（默认 generating）
+    python start-cli.py -tg                  # Tag generating（等同 -t）
+    python start-cli.py -s                   # Strategy（默认 scan，等同 -sc）
+    python start-cli.py -sc                  # Strategy scan
+    python start-cli.py -se                  # Strategy enumerate
+    python start-cli.py -sp                  # Strategy price factor simulate
+    python start-cli.py -sa                  # Strategy capital allocation simulate
+    python start-cli.py -sy                  # Strategy analysis
     python start-cli.py -h                   # 查看帮助
 """
 import sys
@@ -182,49 +185,62 @@ class App:
         manager.scan(strategy_name=strategy_name)
     
     def analysis(self, session_id: str = None):
-        """分析策略模拟结果汇总（读取 summary.json）。"""
-        from core.modules.strategy.components.opportunity_service import OpportunityService
+        """
+        分析策略结果（读取 results/simulations 下的输出）。
+
+        约定：对外只保留三类结果目录（opportunity_enums / simulations / scan），
+        analysis 也应基于 simulations（price_factor / capital_allocation）做汇总展示。
+        """
+        import json
+        from core.infra.project_context import PathManager
 
         manager = self._ensure_strategy_manager()
         strategy_names = [
-            name for name, info in manager.strategy_cache.items()
-            if info['settings'].is_enabled
+            name for name, info in manager.validated_strategies.items() if info.is_enabled
         ]
         if not strategy_names:
             logger.warning("没有启用的策略可分析")
             return
 
+        def _read_latest_version(root: str):
+            meta = json.loads((root / "meta.json").read_text(encoding="utf-8"))
+            latest_id = int(meta.get("next_version_id", 1)) - 1
+            if latest_id <= 0:
+                return None
+            return root / str(latest_id)
+
         found = False
         for strategy_name in strategy_names:
-            svc = OpportunityService(strategy_name)
-            if session_id:
-                session = session_id
-            else:
-                latest = svc.simulate_path / "latest"
-                if not latest.exists():
-                    continue
-                session = latest.resolve().name
+            pf_root = PathManager.strategy_simulations_price_factor(strategy_name)
+            ca_root = PathManager.strategy_capital_allocation(strategy_name)
 
-            summary_file = svc.simulate_path / session / "summary.json"
-            if not summary_file.is_file():
-                continue
+            pf_latest = _read_latest_version(pf_root) if (pf_root / "meta.json").is_file() else None
+            ca_latest = _read_latest_version(ca_root) if (ca_root / "meta.json").is_file() else None
 
-            try:
-                import json
-                data = json.loads(summary_file.read_text(encoding="utf-8"))
-            except Exception as e:
-                logger.warning("读取分析结果失败: strategy=%s session=%s error=%s", strategy_name, session, e)
+            if not pf_latest and not ca_latest:
                 continue
 
             found = True
-            logger.info("📊 strategy=%s session=%s", strategy_name, session)
-            logger.info("   opportunities=%s success_stocks=%s failed_stocks=%s",
-                        data.get("opportunity_count", data.get("opportunities", "n/a")),
-                        data.get("success_stocks", "n/a"),
-                        data.get("failed_stocks", "n/a"))
+            logger.info("📊 strategy=%s", strategy_name)
+
+            if pf_latest:
+                ss = pf_latest / "0_session_summary.json"
+                if ss.is_file():
+                    data = json.loads(ss.read_text(encoding="utf-8"))
+                    logger.info("   price_factor: version=%s keys=%s", pf_latest.name, list(data.keys()))
+                else:
+                    logger.info("   price_factor: version=%s (missing 0_session_summary.json)", pf_latest.name)
+
+            if ca_latest:
+                summary = ca_latest / "summary_strategy.json"
+                if summary.is_file():
+                    data = json.loads(summary.read_text(encoding="utf-8"))
+                    logger.info("   capital_allocation: version=%s keys=%s", ca_latest.name, list(data.keys()))
+                else:
+                    logger.info("   capital_allocation: version=%s (missing summary_strategy.json)", ca_latest.name)
 
         if not found:
-            logger.warning("未找到可分析的模拟结果（请先运行 simulate）")
+            logger.warning("未找到可分析的 simulations 结果（请先运行 -sp/-sa）")
     
     # ========================================================================
     # 标签相关
@@ -255,19 +271,19 @@ class App:
         """
         from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
         from core.modules.strategy.models.strategy_settings import StrategySettings
-        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
         from core.modules.strategy.strategy_manager import StrategyManager
         from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
         from core.utils.date.date_utils import DateUtils
         
         # 1. 加载策略配置
         strategy_manager = StrategyManager()
-        strategy_info = strategy_manager.strategy_cache.get(strategy_name)
+        strategy_info = strategy_manager.get_strategy_info(strategy_name)
         if not strategy_info:
             logger.error(f"策略不存在: {strategy_name}")
             return []
         
-        settings = StrategySettings.from_dict(strategy_info['settings'])
+        settings = StrategySettings.from_dict(strategy_info.settings.to_dict())
         enum_settings = OpportunityEnumeratorSettings.from_base(settings)
         
         # 2. 获取股票列表
@@ -293,7 +309,8 @@ class App:
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
-            max_workers=enum_settings.max_workers
+            max_workers=enum_settings.max_workers,
+            base_settings=settings,
         )
         
         # 5. 显示结果
@@ -314,7 +331,7 @@ class App:
         Returns:
             list: 股票代码列表
         """
-        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
         
         if enum_settings.use_sampling:
             if stock_count is not None:
@@ -427,9 +444,7 @@ def resolve_cli_strategy_name(app: "App", explicit: Optional[str]) -> Optional[s
 
     manager = app._ensure_strategy_manager()
     enabled = sorted(
-        name
-        for name, info in manager.strategy_cache.items()
-        if info["settings"].is_enabled
+        name for name, info in manager.validated_strategies.items() if info.is_enabled
     )
     if not enabled:
         logger.error(
@@ -465,7 +480,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         'command',
         nargs='?',
-        help='要执行的命令（scan/simulate/simulate_enum/simulate_price/simulate_allocation/simulate_all/renew/analysis/tag/enumerate/price_factor/capital_allocation/export_adj_factor_csv）'
+        help='要执行的命令（scan/simulate/simulate_price/simulate_allocation/renew/analysis/tag/enumerate/price_factor/capital_allocation/export_adj_factor_csv）'
     )
     
     # 快捷 flag
@@ -479,22 +494,31 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
 def _add_shortcut_flags(parser):
     """添加快捷 flag"""
-    parser.add_argument('-c', '--scan-flag', dest='scan_flag', action='store_true',
-                       help='扫描机会（scan）')
-    parser.add_argument('-s', '--simulate-all-flag', dest='simulate_all_flag', action='store_true',
-                       help='运行全套模拟（simulate_all，占位）')
-    parser.add_argument('-se', '--simulate-enum-flag', dest='simulate_enum_flag', action='store_true',
-                       help='运行枚举器模拟（simulate_enum）')
-    parser.add_argument('-sp', '--simulate-price-flag', dest='simulate_price_flag', action='store_true',
-                       help='运行价格因子模拟（simulate_price）')
-    parser.add_argument('-sa', '--simulate-allocation-flag', dest='simulate_allocation_flag', action='store_true',
-                       help='运行资金分配模拟（simulate_allocation）')
-    parser.add_argument('-r', '--renew-flag', dest='renew_flag', action='store_true',
-                       help='更新数据（renew）')
-    parser.add_argument('-a', '--analysis-flag', dest='analysis_flag', action='store_true',
-                       help='分析结果（analysis）')
-    parser.add_argument('-t', '--tag-flag', dest='tag_flag', action='store_true',
-                       help='执行标签计算（tag）')
+    # DataSource
+    parser.add_argument('-d', dest='data_flag', action='store_true',
+                       help='DataSource 模块（默认 renew）')
+    parser.add_argument('-dr', dest='data_renew_flag', action='store_true',
+                       help='DataSource renew（等同 -d）')
+
+    # Tag
+    parser.add_argument('-t', dest='tag_flag', action='store_true',
+                       help='Tag 模块（默认 generating）')
+    parser.add_argument('-tg', dest='tag_generate_flag', action='store_true',
+                       help='Tag generating（等同 -t）')
+
+    # Strategy
+    parser.add_argument('-s', dest='strategy_flag', action='store_true',
+                       help='Strategy 模块（默认 scan，等同 -sc）')
+    parser.add_argument('-sc', dest='strategy_scan_flag', action='store_true',
+                       help='Strategy scan')
+    parser.add_argument('-se', dest='strategy_enum_flag', action='store_true',
+                       help='Strategy enumerate（写入 results/opportunity_enums/{test|output}）')
+    parser.add_argument('-sp', dest='strategy_price_flag', action='store_true',
+                       help='Strategy price factor simulation（基于枚举输出）')
+    parser.add_argument('-sa', dest='strategy_capital_flag', action='store_true',
+                       help='Strategy capital allocation simulation（基于枚举输出）')
+    parser.add_argument('-sy', dest='strategy_analysis_flag', action='store_true',
+                       help='Strategy analysis（分析模拟结果）')
 
 
 def _add_extra_arguments(parser):
@@ -521,10 +545,9 @@ def _get_help_epilog() -> str:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 命令说明:
   scan                 扫描投资机会（根据策略筛选当前符合条件的股票）
-  simulate/simulate_enum 枚举器模拟回测（使用历史数据测试策略表现）
+  simulate             上层模拟链路（依赖枚举输出）：price_factor + capital_allocation
   simulate_price       价格因子回放模拟（基于枚举输出机会结果）
   simulate_allocation  资金分配模拟（基于枚举输出机会结果，真实资金约束）
-  simulate_all         全套模拟（占位，暂未开放）
   renew                更新数据（更新股票行情、标签等数据）
   analysis             分析结果（分析模拟回测的结果）
   tag                  执行标签计算（计算并存储所有或指定场景的标签）
@@ -534,41 +557,46 @@ def _get_help_epilog() -> str:
   export_adj_factor_csv 手动导出复权因子事件季度 CSV
 
 快捷缩写:
-  -c           等同于 scan（Check opportunities）
-  -se          等同于 simulate_enum（Simulate enumerator）
-  -sp          等同于 simulate_price（Simulate price factor）
-  -sa          等同于 simulate_allocation（Simulate allocation）
-  -s           等同于 simulate_all（全套模拟，占位）
-  -r           等同于 renew（Renew data）
-  -a           等同于 analysis（Analysis results）
-  -t           等同于 tag（Tag calculation）
+  -d           DataSource（默认 renew）
+  -dr          DataSource renew
+  -t           Tag（默认 generating）
+  -tg          Tag generating
+  -s           Strategy（默认 scan）
+  -sc          Strategy scan
+  -se          Strategy enumerate
+  -sp          Strategy price factor simulation
+  -sa          Strategy capital allocation simulation
+  -sy          Strategy analysis
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 使用示例:
 
   单一命令:
-    %(prog)s                      默认运行 simulate_enum
+    %(prog)s                      默认运行 scan
     %(prog)s scan                 扫描投资机会
-    %(prog)s simulate             枚举器模拟（等同 simulate_enum）
+    %(prog)s simulate             上层模拟链路（price_factor + capital_allocation）
     %(prog)s simulate_price       价格因子模拟
     %(prog)s simulate_allocation  资金分配模拟
-    %(prog)s simulate_all         全套模拟（占位）
     %(prog)s renew                更新数据
     %(prog)s analysis             分析结果
     %(prog)s tag                  执行所有标签场景
     %(prog)s tag --scenario xxx   执行指定标签场景
 
   快捷方式:
-    %(prog)s -c                   快速扫描
-    %(prog)s -se                  枚举器模拟
-    %(prog)s -sp                  价格因子模拟
+    %(prog)s -d                   DataSource renew
+    %(prog)s -t                   Tag generating
+    %(prog)s -s                   Strategy scan
+    %(prog)s -se                  Strategy enumerate
+    %(prog)s -sp                  Strategy price factor simulation
+    %(prog)s -sa                  Strategy capital allocation simulation
+    %(prog)s -sy                  Strategy analysis
     %(prog)s -sa                  资金分配模拟
-    %(prog)s -s                   全套模拟（占位）
+    %(prog)s -s                   上层模拟链路（price_factor + capital_allocation）
     %(prog)s -r                   快速更新
     %(prog)s -t                   快速标签
 
   额外参数:
-    %(prog)s simulate --strategy RTB        只运行指定策略
+    %(prog)s simulate --strategy example    只运行指定策略
     %(prog)s analysis --session xxx         分析指定session
     %(prog)s tag --scenario xxx             执行指定标签场景
     %(prog)s price_factor --strategy xx     使用 PriceFactorSimulator 对指定策略做因子回放
@@ -592,7 +620,7 @@ def resolve_command(args) -> str:
         SystemExit: 如果命令冲突或无效
     """
     valid_commands = {
-        'scan', 'simulate', 'simulate_enum', 'simulate_price', 'simulate_allocation', 'simulate_all',
+        'scan', 'simulate', 'simulate_price', 'simulate_allocation',
         'renew', 'analysis', 'tag', 'enumerate', 'price_factor', 'capital_allocation', 'export_adj_factor_csv'
     }
     
@@ -600,7 +628,6 @@ def resolve_command(args) -> str:
     cmd_from_positional = None
     if args.command:
         aliases = {
-            "simulate": "simulate_enum",
             "price_factor": "simulate_price",
             "capital_allocation": "simulate_allocation",
         }
@@ -613,14 +640,21 @@ def resolve_command(args) -> str:
     
     # 从快捷 flag 获取命令
     flag_to_command = {
-        'renew_flag': 'renew',
-        'scan_flag': 'scan',
-        'simulate_all_flag': 'simulate_all',
-        'simulate_enum_flag': 'simulate_enum',
-        'simulate_price_flag': 'simulate_price',
-        'simulate_allocation_flag': 'simulate_allocation',
-        'analysis_flag': 'analysis',
+        # DataSource
+        'data_flag': 'renew',
+        'data_renew_flag': 'renew',
+
+        # Tag
         'tag_flag': 'tag',
+        'tag_generate_flag': 'tag',
+
+        # Strategy
+        'strategy_flag': 'scan',
+        'strategy_scan_flag': 'scan',
+        'strategy_enum_flag': 'enumerate',
+        'strategy_price_flag': 'simulate_price',
+        'strategy_capital_flag': 'simulate_allocation',
+        'strategy_analysis_flag': 'analysis',
     }
     
     flags = [flag_to_command[k] for k, v in flag_to_command.items() if getattr(args, k, False)]
@@ -632,7 +666,7 @@ def resolve_command(args) -> str:
         sys.exit(1)
     
     if not cmd_from_positional and len(set(flags)) > 1:
-        logger.error("❌ 命令冲突：同时指定了多个快捷命令 (-c/-se/-sp/-sa/-s/-r/-a)")
+        logger.error("❌ 命令冲突：同时指定了多个快捷命令（请每次只用一个快捷参数）")
         logger.info("每次运行只能执行一个命令，请保留一个 flag 即可")
         sys.exit(1)
     
@@ -642,8 +676,8 @@ def resolve_command(args) -> str:
     if flags:
         return flags[0]
     
-    # 默认：simulate_enum
-    return 'simulate_enum'
+    # 默认：scan
+    return 'scan'
 
 
 # ============================================================================
@@ -667,11 +701,9 @@ class CommandExecutor:
         return {
             'renew': self._handle_renew,
             'scan': self._handle_scan,
-            'simulate': self._handle_simulate_enum,
-            'simulate_enum': self._handle_simulate_enum,
+            'simulate': self._handle_simulate,
             'simulate_price': self._handle_simulate_price,
             'simulate_allocation': self._handle_simulate_allocation,
-            'simulate_all': self._handle_simulate_all,
             'analysis': self._handle_analysis,
             'tag': self._handle_tag,
             'enumerate': self._handle_enumerate,
@@ -705,10 +737,19 @@ class CommandExecutor:
         logger.info("🔍 扫描投资机会...")
         self.app.scan(strategy_name=args.strategy)
     
-    def _handle_simulate_enum(self, args):
-        """处理 simulate_enum 命令"""
-        logger.info("🎮 运行模拟回测（Enumerator）...")
-        self.app.simulate(strategy_name=args.strategy)
+    def _handle_simulate(self, args):
+        """
+        处理 simulate 命令（上层模拟链路）：
+        - price_factor（-sp）
+        - capital_allocation（-sa）
+        依赖枚举输出；若枚举输出不存在，底层模拟器会按既有逻辑自行提示/触发枚举。
+        """
+        logger.info("🎮 运行模拟链路（PriceFactor + CapitalAllocation）...")
+        strategy = resolve_cli_strategy_name(self.app, args.strategy)
+        if not strategy:
+            return
+        self.app.price_factor_simulate(strategy_name=strategy)
+        self.app.capital_allocation_simulate(strategy_name=strategy)
     
     def _handle_analysis(self, args):
         """处理 analysis 命令"""
@@ -744,11 +785,6 @@ class CommandExecutor:
             return
         self.app.capital_allocation_simulate(strategy_name=strategy)
 
-    def _handle_simulate_all(self, args):
-        """处理 simulate_all 命令（占位）"""
-        logger.warning("⏸️ simulate_all 暂未开放：需要先完成多模拟器日志合并。")
-        logger.info("请先分别运行：-se（enumerator）、-sp（price factor）、-sa（allocation）")
-    
     def _handle_export_adj_factor_csv(self, args):
         """处理 export_adj_factor_csv 命令"""
         logger.info("📤 手动导出复权因子事件季度 CSV...")

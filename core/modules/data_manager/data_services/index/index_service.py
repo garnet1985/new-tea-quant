@@ -39,6 +39,21 @@ class IndexService(BaseDataService):
         self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== 指数指标数据 ====================
+
+    def load_list(self, order_by: str = "id") -> List[Dict[str, Any]]:
+        """
+        加载指数列表（sys_index_list）。
+
+        Args:
+            order_by: 排序字段，默认 id
+
+        Returns:
+            指数列表
+        """
+        index_list_model = self.data_manager.get_table("sys_index_list")
+        if not index_list_model:
+            return []
+        return index_list_model.load("1=1", order_by=f"{order_by} ASC") or []
     
     def load_indicator(
         self,

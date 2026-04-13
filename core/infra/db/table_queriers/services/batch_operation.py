@@ -75,6 +75,8 @@ class BatchOperation:
         table_name: str,
         columns: List[str],
         values_list: List[str],
+        *,
+        database_type: str = "postgresql",
         unique_keys: Optional[List[str]] = None,
         update_clause: Optional[str] = None
     ) -> str:
@@ -91,15 +93,61 @@ class BatchOperation:
         Returns:
             完整的 SQL 语句
         """
-        columns_sql = ', '.join(columns)
+        # 引用列名（避免 key/text/json 等保留字在 MySQL 报错）
+        from core.infra.db.helpers.db_helpers import DBHelper
+
+        dt = DBHelper.normalize_database_type({"database_type": database_type})
+        qcols = [DBHelper.quote_identifier_for_dialect(dt, c) for c in columns]
+        columns_sql = ", ".join(qcols)
         values_sql = ', '.join(values_list)
         
         if unique_keys:
-            conflict_cols = ', '.join(unique_keys)
-            if update_clause:
+            if dt == "mysql":
+                # MySQL/MariaDB：ON DUPLICATE KEY UPDATE
+                # update_clause 形如：col = EXCLUDED.col, ...
+                update_fields: List[str] = []
+                if update_clause:
+                    for part in update_clause.split(","):
+                        left = part.split("=", 1)[0].strip()
+                        if left:
+                            update_fields.append(left)
+                else:
+                    update_fields = [c for c in columns if c not in unique_keys]
+
+                if update_fields:
+                    assigns = ", ".join(
+                        f"{DBHelper.quote_identifier_for_dialect(dt, f)} = VALUES({DBHelper.quote_identifier_for_dialect(dt, f)})"
+                        for f in update_fields
+                    )
+                else:
+                    # 没有可更新列时，用“主键自赋值”模拟 DO NOTHING
+                    uk = unique_keys[0]
+                    quk = DBHelper.quote_identifier_for_dialect(dt, uk)
+                    assigns = f"{quk} = {quk}"
+
                 return (
                     f"INSERT INTO {table_name} ({columns_sql}) VALUES {values_sql} "
-                    f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_clause}"
+                    f"ON DUPLICATE KEY UPDATE {assigns}"
+                )
+
+            # PostgreSQL：ON CONFLICT
+            conflict_cols = ", ".join(DBHelper.quote_identifier_for_dialect(dt, k) for k in unique_keys)
+            if update_clause:
+                # update_clause 由 DBHelper.to_upsert_params 生成，仍为未引用列名；这里补引用
+                assigns: List[str] = []
+                for part in update_clause.split(","):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    left, right = part.split("=", 1)
+                    col = left.strip()
+                    assigns.append(
+                        f"{DBHelper.quote_identifier_for_dialect(dt, col)} = EXCLUDED.{DBHelper.quote_identifier_for_dialect(dt, col)}"
+                    )
+                update_sql = ", ".join(assigns)
+                return (
+                    f"INSERT INTO {table_name} ({columns_sql}) VALUES {values_sql} "
+                    f"ON CONFLICT ({conflict_cols}) DO UPDATE SET {update_sql}"
                 )
             else:
                 return (
@@ -116,6 +164,8 @@ class BatchOperation:
         columns: List[str],
         values: List[Tuple[Any, ...]],
         batch_size: int = 5000,
+        *,
+        database_type: str = "postgresql",
         unique_keys: Optional[List[str]] = None,
         update_clause: Optional[str] = None
     ) -> int:
@@ -151,6 +201,7 @@ class BatchOperation:
                 table_name=table_name,
                 columns=columns,
                 values_list=formatted_values,
+                database_type=database_type,
                 unique_keys=unique_keys,
                 update_clause=update_clause
             )
@@ -171,6 +222,7 @@ class BatchOperation:
                         table_name=table_name,
                         columns=columns,
                         values_list=formatted_values,
+                        database_type=database_type,
                         unique_keys=None,
                         update_clause=None
                     )

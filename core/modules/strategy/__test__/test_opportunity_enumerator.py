@@ -50,8 +50,9 @@ class TestOpportunityEnumerator:
             mock_module.settings = {
                 "name": self.strategy_name,
                 "data": {
-                    "base_price_source": "stock_kline_daily",
-                    "adjust_type": "qfq"
+                    "base_required_data": {
+                        "params": {"term": "daily"},
+                    },
                 },
                 "goal": {
                     "expiration": {"fixed_window_in_days": 30}

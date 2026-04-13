@@ -121,16 +121,20 @@ class TagDataService(BaseDataService):
         if description is not None:
             update_data['description'] = description
         
+        # SysTagScenarioModel 未实现通用 update()；这里用 upsert_many 统一覆盖（按主键 id）。
+        # 语义：仅更新传入字段，其余字段保持 current_scenario 的值。
+        def _do_update():
+            base = dict(current_scenario or {}) if current_scenario else (self._tag_scenario_model.load_one("id = %s", (scenario_id,)) or {})
+            base.update(update_data)
+            base["id"] = scenario_id
+            self._tag_scenario_model.upsert_many([base], unique_keys=["id"])
+
         return self._update_entity(
             model=self._tag_scenario_model,
             entity_id=scenario_id,
             update_data=update_data,
             current_entity=current_scenario,
-            update_method=lambda: self._tag_scenario_model.update(
-                update_data,
-                "id = %s",
-                (scenario_id,),
-            )
+            update_method=_do_update,
         )
     
     def list_scenarios(

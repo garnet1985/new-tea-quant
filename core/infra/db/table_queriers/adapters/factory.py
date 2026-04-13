@@ -8,9 +8,6 @@ from typing import Dict, Any, Optional
 import logging
 
 from .base_adapter import BaseDatabaseAdapter
-from .postgresql_adapter import PostgreSQLAdapter
-from .mysql_adapter import MySQLAdapter
-
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +61,8 @@ class DatabaseAdapterFactory:
         database_type = config.get('database_type', 'postgresql').lower()
         
         if database_type == 'postgresql':
+            from .postgresql_adapter import PostgreSQLAdapter
+
             pg_config = config.get('postgresql')
             if not pg_config:
                 raise ValueError("PostgreSQL 配置缺失，请提供 'postgresql' 配置项")
@@ -73,6 +72,8 @@ class DatabaseAdapterFactory:
             return adapter
             
         elif database_type == 'mysql':
+            from .mysql_adapter import MySQLAdapter
+
             mysql_config = config.get('mysql')
             if not mysql_config:
                 raise ValueError("MySQL 配置缺失，请提供 'mysql' 配置项")

@@ -119,7 +119,13 @@ Settings = {
     "display_name": "我的业务场景",
     "description": "这是一个示例场景",
     "is_enabled": True,
+    "tag_target_type": "entity_based",
     "target_entity": {"type": "stock_kline_daily"},
+    "data": {
+        "required": [
+            {"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}},
+        ],
+    },
     "update_mode": "incremental",
     "incremental_required_records_before_as_of_date": 60,
     "tags": [
@@ -165,7 +171,7 @@ class MyTagWorker(BaseTagWorker):
         entity_id = self.entity['id']
         
         # 访问历史数据
-        daily_klines = historical_data['klines']['daily']
+        daily_klines = historical_data['stock.kline']
         
         # 实现计算逻辑
         # ...
@@ -230,7 +236,8 @@ tag_manager.execute(scenario_name="my_scenario")
 
 **必需配置**：
 - `name`：业务场景唯一代码
-- `target_entity`：目标实体类型（如 `stock_kline_daily`）
+- `tag_target_type`：Tag 目标类型（`entity_based` / `general`）
+- `data`：DataContract 声明（与 strategy 同款）
 - `tags`：标签列表（至少一个）
 
 **可选配置**：
@@ -256,23 +263,56 @@ tag_manager.execute(scenario_name="my_scenario")
 }
 ```
 
-### 性能配置
+### 数据配置（DataContract）
 
-**Chunk 模式**（推荐，适合大数据量）：
+Tag 模块已切到 DataContract + DataCursor 模式，不再使用 `required_entities/time_axis/use_chunk` 的手写加载链路。
+
 ```python
 {
-    "performance": {
-        "use_chunk": True,
-        "data_chunk_size": 500  # 每个 chunk 的记录数（默认 500，最小 300）
+    "tag_target_type": "entity_based",  # 或 "general"
+
+    # entity_based 推荐声明；general 可省略
+    "target_entity": {"type": "stock_kline_daily"},
+
+    "data": {
+        "required": [
+            {"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}},
+            {"data_id": "macro.gdp", "params": {}}
+        ],
+
+        # entity_based: 可选（默认使用 target_entity 对应主轴）
+        # general: 必填
+        "tag_time_axis_based_on": "stock.kline"
     }
 }
 ```
 
-**全量模式**（适合小数据量）：
+`historical_data` 统一使用 `data_id` 作为 key（例如 `historical_data['stock.kline']`），内部来源为 contract + cursor。
+
+### 两类 Tag 规则
+
+- `entity_based`
+  - 用于给具体实体打标签（如每只股票）
+  - `target_entity` 生效
+  - `data.tag_time_axis_based_on` 可选，默认使用 `target_entity` 对应主轴
+- `general`
+  - 用于宏观/上下文标签（非单实体）
+  - `target_entity` 可省略
+  - `data.tag_time_axis_based_on` 必填
+
+### 关键校验
+
+- `data.required` 必须是非空列表
+- `data.tag_time_axis_based_on` 必须命中 `data.required[*].data_id`（general 必须）
+- 若配置 `data.tag_time_axis_based_on`，对应数据必须是时序数据
+- `data.required` 内 `data_id` 不允许重复
+
+### 性能配置
+
 ```python
 {
     "performance": {
-        "use_chunk": False
+        "max_workers": "auto"
     }
 }
 ```
@@ -307,8 +347,8 @@ class MyTagWorker(BaseTagWorker):
         Args:
             as_of_date: 业务日期（格式：YYYYMMDD）
             historical_data: 历史数据（已过滤到 as_of_date）
-                - historical_data['klines']['daily']: 日线数据
-                - historical_data.get('corporate_finance', []): 财务数据（如果配置了）
+                - historical_data['stock.kline']: 日线数据
+                - historical_data.get('stock.finance.quarterly', []): 财务数据（如果配置了）
             tag_definition: Tag 定义对象
                 - tag_definition.get_name(): Tag 名称
                 - tag_definition.id: Tag ID
@@ -344,8 +384,8 @@ performance_config = self.config['performance']  # 性能配置
 
 **历史数据**：
 ```python
-daily_klines = historical_data['klines']['daily']  # 日线数据
-corporate_finance = historical_data.get('corporate_finance', [])  # 财务数据
+daily_klines = historical_data['stock.kline']  # 日线数据
+corporate_finance = historical_data.get('stock.finance.quarterly', [])  # 财务数据
 ```
 
 ### 钩子函数
@@ -381,7 +421,7 @@ self.tracker['last_month'] = current_month
 - ✅ **使用有意义的名称**：Scenario 和 Tag 名称应该清晰表达业务含义
 - ✅ **添加描述信息**：为 Scenario 和 Tag 添加 `display_name` 和 `description`
 - ✅ **合理设置更新模式**：大多数场景使用 INCREMENTAL 模式，提高效率
-- ✅ **配置性能参数**：根据数据量选择合适的 `use_chunk` 和 `data_chunk_size`
+- ✅ **优先简洁配置**：`data` 里只声明你实际需要的数据源
 
 ### 2. 计算逻辑
 
@@ -392,8 +432,7 @@ self.tracker['last_month'] = current_month
 
 ### 3. 性能优化
 
-- ✅ **使用 Chunk 模式**：大数据量场景使用 Chunk 模式，控制内存使用
-- ✅ **合理设置 chunk_size**：根据内存情况调整 `data_chunk_size`（默认 500，最小 300）
+- ✅ **使用 DataCursor**：框架自动做 as_of 前缀切片，避免手写过滤逻辑
 - ✅ **批量保存**：框架已自动批量保存，无需手动优化
 
 ### 4. 错误处理
@@ -438,9 +477,9 @@ tag_values = tag_service.load_tag_values(
 ### Q5: 如何控制内存使用？
 
 **A**: 
-- 使用 Chunk 模式（`use_chunk: True`）
-- 调整 `data_chunk_size`（默认 500，最小 300）
-- 系统已通过单 entity 单进程控制内存，每个进程只处理一个 entity
+- 控制 `data` 声明范围（只加载需要的数据源）
+- 通过 `max_workers` 控制并发占用
+- 系统使用 DataCursor 做按日期前缀视图，不会把未来数据传给 worker
 
 ### Q6: 如何查看执行进度？
 

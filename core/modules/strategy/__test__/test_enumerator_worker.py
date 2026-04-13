@@ -55,7 +55,7 @@ class TestOpportunityEnumeratorWorker:
         if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir)
     
-    @patch('core.modules.strategy.components.data_management.strategy_data_manager.StrategyDataManager')
+    @patch('core.modules.strategy.components.data_management.StrategyDataManager')
     @patch('importlib.import_module')
     @patch('core.modules.data_manager.DataManager')
     def test_init(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):
@@ -80,7 +80,7 @@ class TestOpportunityEnumeratorWorker:
         mock_dm_class.assert_called_once_with(is_verbose=False)
         mock_strategy_worker_dm.assert_called_once()
     
-    @patch('core.modules.strategy.components.data_management.strategy_data_manager.StrategyDataManager')
+    @patch('core.modules.strategy.components.data_management.StrategyDataManager')
     @patch('importlib.import_module')
     @patch('core.modules.data_manager.DataManager')
     def test_get_date_before(self, mock_dm_class, mock_import_module, mock_data_manager):
@@ -102,7 +102,7 @@ class TestOpportunityEnumeratorWorker:
         assert result is not None
         assert len(result) == 8  # YYYYMMDD 格式
     
-    @patch('core.modules.strategy.components.data_management.strategy_data_manager.StrategyDataManager')
+    @patch('core.modules.strategy.components.data_management.StrategyDataManager')
     @patch('importlib.import_module')
     @patch('core.modules.data_manager.DataManager')
     def test_run_no_klines(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):
@@ -123,7 +123,7 @@ class TestOpportunityEnumeratorWorker:
         assert result['opportunity_count'] == 0
         assert result['stock_id'] == self.stock_id
     
-    @patch('core.modules.strategy.components.data_management.strategy_data_manager.StrategyDataManager')
+    @patch('core.modules.strategy.components.data_management.StrategyDataManager')
     @patch('importlib.import_module')
     @patch('core.modules.data_manager.DataManager')
     def test_run_with_klines_no_opportunities(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):
@@ -154,7 +154,7 @@ class TestOpportunityEnumeratorWorker:
         assert result['success'] is True
         assert result['opportunity_count'] == 0
     
-    @patch('core.modules.strategy.components.data_management.strategy_data_manager.StrategyDataManager')
+    @patch('core.modules.strategy.components.data_management.StrategyDataManager')
     @patch('importlib.import_module')
     @patch('core.modules.data_manager.DataManager')
     def test_save_stock_results(self, mock_dm_class, mock_import_module, mock_strategy_worker_dm):

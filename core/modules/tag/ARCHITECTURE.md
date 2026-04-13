@@ -113,7 +113,7 @@ Scenario 产生的具体标签。
 - **TagManager**：发现和管理所有业务场景，负责多进程调度
 - **TagWorker**：实现业务计算逻辑，在子进程中执行
 - **BaseTagWorker**：框架基类，提供执行流程和钩子函数
-- **TagWorkerDataManager**：子进程数据管理器，负责数据加载和过滤
+- **TagDataManager**：子进程数据管理器，负责 contract 签发/加载与游标切片
 - **Settings**：配置文件，定义业务场景和标签配置
 
 ---
@@ -220,15 +220,15 @@ tag_scenario (业务场景层)
 3. **钩子函数**：提供多个钩子函数供用户扩展
 4. **批量保存**：管理 tag values 的批量保存
 
-### 3. TagWorkerDataManager (`tag_worker_data_manager.py`)
+### 3. TagDataManager (`tag_data_manager.py`)
 
-**职责**：子进程数据管理器，负责所有数据加载、缓存、过滤逻辑
+**职责**：子进程数据管理器，负责 DataContract + DataCursor 一体化数据流
 
 **核心功能**：
-1. **数据需求解析**：从 settings 自动解析数据需求
-2. **数据加载策略**：支持 Chunk 模式和全量模式
-3. **数据过滤**：过滤数据到指定日期，避免"上帝模式"
-4. **INCREMENTAL 模式初始化**：自动加载必要的历史数据
+1. **契约签发**：解析 `settings.data` 并调用 `issue_contracts`
+2. **数据装填**：对 `needs_load` 的 contract 执行 `load`
+3. **游标切片**：通过 `DataCursor.until(as_of_date)` 输出前缀视图
+4. **统一结构**：对外统一使用 `historical_data[data_id]` 结构
 
 ### 4. Settings (`settings.py`)
 
@@ -236,9 +236,11 @@ tag_scenario (业务场景层)
 
 **配置结构**：
 - 顶层配置：`is_enabled`, `name`, `recompute` 等
-- 目标实体配置：`target_entity`（必须）
+- 类型配置：`tag_target_type`（`entity_based` / `general`）
+- 目标实体配置：`target_entity`（`entity_based` 推荐；`general` 可省略）
+- 数据配置：`data.required` + `data.tag_time_axis_based_on`
 - 更新模式配置：`update_mode`, `incremental_required_records_before_as_of_date`
-- 性能配置：`performance.data_chunk_size`, `performance.use_chunk`
+- 性能配置：`performance.max_workers`
 - Tag 配置：`tags`（必须，至少一个）
 
 ### 5. TagWorker (`tag_worker.py`)
@@ -276,7 +278,8 @@ tag_scenario (业务场景层)
           │      - INCREMENTAL 模式：从最后更新日期的下一个交易日开始
           │
           ├─▶ c. 获取实体列表
-          │      - 根据 target_entity 类型获取实体列表
+          │      - entity_based：通过 PER_ENTITY 合约的 entity_list_data_id 推导
+          │      - general：固定使用 "__general__" 占位 owner
           │
           ├─▶ d. 构建 jobs（每个 entity 一个 job）
           │      - 包含 entity_id、scenario_name、tag_definitions 等
@@ -290,7 +293,7 @@ tag_scenario (业务场景层)
                         │
                         ├─▶ 1. 初始化 TagWorker
                         │      - 从 payload 提取信息
-                        │      - 初始化 TagWorkerDataManager
+                        │      - 初始化 TagDataManager
                         │
                         ├─▶ 2. 预处理（_preprocess）
                         │      - 获取交易日列表
@@ -332,18 +335,18 @@ tag_scenario (业务场景层)
 
 1. **初始化阶段**
    - 从 payload 提取 entity、scenario、job 等信息
-   - 初始化 TagWorkerDataManager
+   - 初始化 TagDataManager
    - 调用 `on_init()` 钩子
 
 2. **预处理阶段**（`_preprocess`）
    - 获取交易日列表（`get_trading_dates`）
-   - INCREMENTAL 模式下初始化数据加载（`initialize_for_incremental`）
+   - 根据 settings.data 签发并加载 contracts，构建 DataCursor
    - 调用 `on_before_execute_tagging()` 钩子
 
 3. **执行标签计算阶段**（`_execute_tagging`）
    - 遍历每个交易日
    - 对每个日期：
-     - 获取历史数据并过滤到 `as_of_date`（`filter_data_to_date`）
+     - 获取前缀历史数据（`get_data_until`）
      - 对每个 tag 调用 `calculate_tag()`
      - 调用 `on_tag_created()` 钩子
    - 调用 `on_as_of_date_calculate_complete()` 钩子
@@ -399,7 +402,7 @@ tag_scenario (业务场景层)
 │  │  子进程：TagWorker.process_entity()       │               │
 │  └──────────────────────────────────────────┘               │
 │              │                                               │
-│              ├─▶ TagWorkerDataManager                       │
+│              ├─▶ TagDataManager                             │
 │              │      │                                        │
 │              │      ├─▶ 加载 Base Data (Kline)              │
 │              │      │      │                                 │
@@ -411,7 +414,7 @@ tag_scenario (业务场景层)
 │              │      │      ▼                                 │
 │              │      │   DataManager (各种数据源)            │
 │              │      │                                        │
-│              │      └─▶ filter_data_to_date()               │
+│              │      └─▶ DataCursor.until(as_of_date)        │
 │              │             │                                 │
 │              │             ▼                                 │
 │              │          Historical Data (过滤到 as_of_date) │
@@ -431,25 +434,21 @@ tag_scenario (业务场景层)
 
 ### 数据加载流程
 
-**Chunk 模式**（`use_chunk=True`）：
-1. 初始化时加载包含 `start_date` 的当前 chunk 和前一个 chunk（共 2 个 chunk）
-2. 遍历日期时，按需加载新的 chunk
-3. 当需要加载第三个 chunk 时，自动删除第一个 chunk（滑动窗口）
-4. 每次调用 `filter_data_to_date()` 时，从内存中过滤数据
-
-**全量模式**（`use_chunk=False`）：
-1. 初始化时一次性加载所有数据到 `end_date`
-2. 每次调用 `filter_data_to_date()` 时，从内存中过滤数据
+**DataContract + DataCursor 模式**：
+1. 根据 `settings.data.required` 签发 contracts（`issue_contracts`）
+2. 对 `needs_load` 的 contract 执行 `load`
+3. 构建 `DataCursor`（按 contract meta 的时间字段解析）
+4. 每个 `as_of_date` 调用 `cursor.until(as_of_date)` 输出前缀视图
 
 ### 数据过滤流程
 
 **目的**：避免"上帝模式"问题（计算时看到未来数据）
 
 **流程**：
-1. `TagWorkerDataManager.filter_data_to_date(as_of_date)` 被调用
-2. 从缓存中获取数据（Chunk 模式或全量模式）
-3. 过滤数据：只返回从开始到 `as_of_date` 的历史数据
-4. 返回过滤后的数据给 `calculate_tag()` 方法
+1. `TagDataManager.get_data_until(as_of_date)` 被调用
+2. `DataCursor` 对每个时序源推进到 `as_of_date`（含）
+3. 非时序源保持全量输出
+4. 返回前缀历史数据给 `calculate_tag()` 方法
 
 ---
 
@@ -510,37 +509,36 @@ tag_scenario (业务场景层)
 
 ---
 
-### 决策 4：Chunk 模式 vs 全量模式
+### 决策 4：DataContract + DataCursor 一体化
 
-**问题**：数据加载使用 Chunk 模式还是全量模式？
+**问题**：Tag 数据加载与按日期切片应该如何实现？
 
-**决策**：同时支持两种模式，用户可以选择。
+**决策**：统一采用 DataContract 加载 + DataCursor 前缀切片。
 
 **理由**：
-- **Chunk 模式**：适合大数据量场景，内存可控（最多 2 个 chunk）
-- **全量模式**：适合小数据量场景，逻辑简单，性能更好
-- **灵活性**：用户可以根据场景选择，提高灵活性
+- 与 strategy 模块对齐，降低维护成本
+- 时间轴规则集中在 cursor，减少手写日期比较分支
+- 契约可复用缓存与 loader 能力
 
 **影响**：
-- 需要实现两种加载策略
-- 配置需要明确指定 `use_chunk` 参数
+- 旧 `use_chunk/data_chunk_size` 配置下线
+- 数据声明统一收口到 `data.required`
 
 ---
 
-### 决策 5：INCREMENTAL 模式初始化
+### 决策 5：INCREMENTAL 模式历史窗口
 
-**问题**：INCREMENTAL 模式下如何初始化数据加载？
+**问题**：INCREMENTAL 模式下如何保证历史窗口充足？
 
-**决策**：自动加载包含 `start_date` 的当前 chunk 和前一个 chunk（共 2 个 chunk）。
+**决策**：保留 `incremental_required_records_before_as_of_date` 语义，由 data contract 范围加载 + cursor 前缀视图共同保障。
 
 **理由**：
-- **保证数据完整性**：确保有足够的历史数据用于计算
-- **简化用户配置**：用户无需关心数据加载细节
-- **减少出错可能**：框架自动处理，减少配置错误
+- 保留历史窗口参数语义（不再依赖 chunk 推导）
+- 避免把窗口逻辑绑死在 chunk 策略
 
 **影响**：
-- 初始化时需要加载 2 个 chunk（约 1000 条记录）
-- 如果 `incremental_required_records_before_as_of_date > data_chunk_size`，需要验证并报错
+- 配置仍需声明历史窗口需求
+- 不再依赖 chunk 数量推导
 
 ---
 
@@ -637,29 +635,32 @@ tag_scenario (业务场景层)
 
 配置采用扁平化结构，主要包含：
 - **顶层配置**：`is_enabled`, `name`, `recompute` 等
-- **目标实体配置**：`target_entity`（必须）
-- **依赖实体配置**：`required_entities`（可选）
+- **类型配置**：`tag_target_type`（`entity_based` / `general`）
+- **目标实体配置**：`target_entity`（`entity_based` 推荐；`general` 可省略）
+- **数据配置**：`data.required`（非空）+ `data.tag_time_axis_based_on`
 - **更新模式配置**：`update_mode`, `incremental_required_records_before_as_of_date`（INCREMENTAL 模式必须）
 - **业务配置**：`core`, `performance`（可选）
 - **Tag 配置**：`tags`（必须，至少一个）
 
+两类 Tag 的时间轴规则：
+- **entity_based**：`data.tag_time_axis_based_on` 可选；默认使用 `target_entity` 对应主轴
+- **general**：`data.tag_time_axis_based_on` 必填
+
+校验约束：
+- `data.required` 必须非空
+- `data.required` 内 `data_id` 不可重复
+- `data.tag_time_axis_based_on`（若配置）必须命中 `data.required[*].data_id`
+- `data.tag_time_axis_based_on` 必须指向时序数据
+
 ### 性能配置说明
 
-**`data_chunk_size`**：
-- 默认值：500
-- 最小值：300
-- 说明：每个 chunk 包含的记录数，用于控制内存使用
-
-**`use_chunk`**：
-- 默认值：True
-- 说明：是否使用 chunk 模式加载数据
-  - `True`：使用滑动窗口策略，最多保持 2 个 chunk
-  - `False`：全量加载模式，一次性加载所有数据
+**`max_workers`**：
+- 默认值：`auto`
+- 说明：并行 worker 数量上限
 
 **`incremental_required_records_before_as_of_date`**：
 - INCREMENTAL 模式必须配置
-- 说明：在 INCREMENTAL 模式下，需要加载 `as_of_date` 之前的历史记录数
-- 验证：如果 `use_chunk=True`，此值不能超过 `data_chunk_size`
+- 说明：在增量模式下，保证 `as_of_date` 之前有足够历史窗口
 
 ---
 
@@ -740,7 +741,7 @@ job = {
 
 ### 组件职责矩阵
 
-| 功能 | Settings | TagWorker | BaseTagWorker | TagManager | TagWorkerDataManager |
+| 功能 | Settings | TagWorker | BaseTagWorker | TagManager | TagDataManager |
 |------|----------|-----------|---------------|------------|---------------------|
 | 定义配置 | ✅ | ❌ | ❌ | ❌ | ❌ |
 | 检查启用状态 | ❌ | ❌ | ❌ | ✅ | ❌ |
@@ -764,7 +765,7 @@ job = {
 - TagWorker 只实现计算
 - Manager 只管理
 - BaseTagWorker 只提供框架
-- TagWorkerDataManager 只管理数据
+- TagDataManager 只管理数据
 
 ### 2. 配置驱动
 
@@ -812,8 +813,8 @@ core/
         │       ├── helper/
         │       │   ├── job_helper.py
         │       │   └── tag_helper.py
-        │       └── tag_worker_helper/
-        │           └── tag_worker_data_manager.py
+        │       └── data_management/
+        │           └── tag_data_manager.py
         ├── docs/
         │   └── DESIGN.md                   # 旧设计文档（已废弃）
         ├── ARCHITECTURE.md                 # 架构文档（本文档）

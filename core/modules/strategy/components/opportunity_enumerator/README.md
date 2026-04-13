@@ -217,7 +217,7 @@ job = {
 
 **2. 技术指标计算**：
 - 根据 `settings.data.indicators`，使用 `IndicatorService` 在子进程里**一次性计算**所有指标
-- 结果直接写回每条 kline 的 dict（例如 `ma5`, `rsi14`, `macd` 等）
+- 结果直接写回每条 kline 的 dict（例如 `sma5`, `rsi14`, `macd` 等）
 - **重要**：虽然一次性计算，但通过游标 `get_data_until(date)` 切片时，只会看到 `date <= T` 的数据，避免上帝模式
 
 **3. Required Entities**：
@@ -427,7 +427,7 @@ A:
   - `scan_date: str`：扫描发生的日期（一般为今天）
   - `trigger_date: str`：机会对应的“买入日”（通常等于当前 K 线日期）
   - `trigger_price: float`
-  - `trigger_conditions: Dict[str, Any]`：触发时的条件快照（例如 `{"ma20": 10.23, "rsi14": 68.2, "signal": "price_breakout_ma20"}`）
+  - `trigger_conditions: Dict[str, Any]`：触发时的条件快照（例如 `{"sma20": 10.23, "rsi14": 68.2, "signal": "price_breakout_sma20"}`）
 - **结果信息（价格层面）**
   - `exit_date: Optional[str]`：退出日期（与 `trigger_date` 对称）
   - `exit_price: Optional[float]`：退出价格
@@ -650,7 +650,7 @@ def run(self) -> Dict:
     #    2.1 加载 K 线（根据 settings.data.base/adjust）
     self.data_manager.load_historical_data(actual_start_date, self.end_date)
     #    2.2 一次性计算技术指标（根据 settings.data.indicators）
-    #        - 指标结果直接写回每条 kline 的 dict（例如 ma5, rsi14, macd）
+    #        - 指标结果直接写回每条 kline 的 dict（例如 sma5, rsi14, macd）
     #        - 在 StrategyWorkerDataManager._apply_indicators() 中完成
     #    2.3 加载 required_entities（GDP、tag 等）
     #        - 在 load_historical_data() 中自动完成

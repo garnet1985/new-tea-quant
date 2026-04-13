@@ -117,7 +117,7 @@ settings = {
         "adjust": "qfq",
         "min_required_records": 1000,
         "indicators": {
-            "ma": [
+            "sma": [
                 {"period": 5},
                 {"period": 10}
             ],
@@ -194,21 +194,21 @@ class MyStrategyWorker(BaseStrategyWorker):
         current_kline = klines[-1]  # 最新一条
         
         # 访问技术指标（框架已自动计算）
-        ma5 = current_kline.get('ma5')
-        ma10 = current_kline.get('ma10')
+        sma5 = current_kline.get('ssma5')
+        sma10 = current_kline.get('sma10')
         rsi = current_kline.get('rsi')
         
         # 实现策略逻辑
         # 例如：MA5 上穿 MA10 且 RSI < 30
-        if ma5 and ma10 and rsi:
-            if ma5 > ma10 and rsi < 30:
+        if sma5 and sma10 and rsi:
+            if sma5 > sma10 and rsi < 30:
                 # 创建 Opportunity
                 opportunity = Opportunity(
                     stock=self.stock_info,
                     record_of_today=current_kline,
                     extra_fields={
-                        "ma5": ma5,
-                        "ma10": ma10,
+                        "ssma5": sma5,
+                        "sma10": sma10,
                         "rsi": rsi
                     }
                 )

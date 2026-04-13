@@ -3,7 +3,9 @@ from datetime import datetime
 import logging
 
 from core.infra.project_context import ConfigManager
-from core.modules.tag.core.enums import TagUpdateMode
+from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
+from core.modules.data_contract.mapping import default_map
+from core.modules.tag.core.enums import TagTargetType, TagUpdateMode
 from core.modules.tag.core.models.tag_model import TagModel
 
 
@@ -148,8 +150,37 @@ class ScenarioModel:
         # name 已经在发现场景时验证过了
         scenario_name = settings.get("name")
         
-        if settings.get("target_entity") is None or not settings.get("target_entity"):
-            logger.debug(f"当前传入的{scenario_name} settings缺少属性: target_entity")
+        tag_target_type = str(
+            settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
+        ).strip().lower()
+        if tag_target_type not in {x.value for x in TagTargetType}:
+            logger.error(
+                f"当前传入的{scenario_name} settings 的 tag_target_type 无效: {tag_target_type!r}，"
+                "仅支持 entity_based / general"
+            )
+            return False
+
+        if tag_target_type == TagTargetType.ENTITY_BASED.value:
+            target_entity = settings.get("target_entity")
+            if not isinstance(target_entity, dict):
+                logger.error(f"当前传入的{scenario_name} settings 的 target_entity 必须是 dict")
+                return False
+            target_type = str(target_entity.get("type") or "").strip()
+            if not target_type:
+                logger.debug(f"当前传入的{scenario_name} settings缺少属性: target_entity")
+                return False
+
+        data_cfg = settings.get("data")
+        if not isinstance(data_cfg, dict):
+            logger.error(f"当前传入的{scenario_name} settings缺少 data 配置（需使用 data contract 声明）")
+            return False
+        try:
+            ScenarioModel._validate_tag_data_config(
+                data_cfg,
+                tag_target_type=tag_target_type,
+            )
+        except ValueError as e:
+            logger.error(f"当前传入的{scenario_name} settings 的 data 配置无效: {e}")
             return False
 
         if settings.get("is_enabled") is None:
@@ -207,12 +238,8 @@ class ScenarioModel:
         self.name = scenario_setting["name"]
         
         # 设置 target_entity（从 target_entity.type 获取）
-        target_entity_config = scenario_setting.get("target_entity", {})
-        if isinstance(target_entity_config, dict):
-            self._target_entity = target_entity_config.get("type")
-        else:
-            # 如果 target_entity 是字符串（旧格式），直接使用
-            self._target_entity = target_entity_config
+        target_entity_config = scenario_setting.get("target_entity", {}) or {}
+        self._target_entity = target_entity_config.get("type")
         
         # 设置可选字段（有默认值）
         self.display_name = scenario_setting.get("display_name") or self.name  # 如果没有则使用 name
@@ -243,6 +270,9 @@ class ScenarioModel:
         """
         # 创建 settings 的副本，避免修改原始字典
         filled_settings = settings.copy()
+        filled_settings["tag_target_type"] = str(
+            filled_settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
+        ).strip().lower()
         
         # Scenario 级别可选字段（顶层）
         # display_name: 如果没有则使用 name（在 _set_values_from_setting 中处理，这里不需要）
@@ -262,11 +292,6 @@ class ScenarioModel:
                 logger.warning(f"获取最新交易日失败，使用空字符串: {e}")
                 filled_settings["end_date"] = ""
         
-        # required_entities: 默认空列表 []
-        if "required_entities" not in filled_settings:
-            filled_settings["required_entities"] = []
-        
-
         # calculator.performance: 确保存在
         if "performance" not in filled_settings:
             filled_settings["performance"] = {}
@@ -288,6 +313,79 @@ class ScenarioModel:
         # 但需要为每个 tag 填充默认值（在 TagModel 中处理）
         
         return filled_settings
+
+    @staticmethod
+    def _validate_tag_data_config(
+        data_cfg: Dict[str, Any],
+        *,
+        tag_target_type: str,
+    ) -> None:
+        required = data_cfg.get("required")
+        if not isinstance(required, list) or not required:
+            raise ValueError("data.required 必须是非空 list")
+
+        data_ids: List[str] = []
+        per_entity_data_ids: List[str] = []
+        for i, item in enumerate(required):
+            if not isinstance(item, dict):
+                raise ValueError(f"data.required[{i}] 必须为 dict")
+            data_id = str(item.get("data_id") or "").strip()
+            if not data_id:
+                raise ValueError(f"data.required[{i}].data_id 不能为空")
+            if data_id in data_ids:
+                raise ValueError(f"data.required 出现重复 data_id: {data_id}")
+            params = item.get("params")
+            if params is not None and not isinstance(params, dict):
+                raise ValueError(f"data.required[{i}].params 必须为 dict")
+            try:
+                dk = DataKey(data_id)
+            except ValueError as e:
+                raise ValueError(f"data.required[{i}].data_id 不合法: {data_id!r}") from e
+            spec = default_map.get(dk)
+            if spec is None:
+                raise ValueError(f"data.required[{i}].data_id 未注册: {data_id!r}")
+            if spec.get("scope") == ContractScope.PER_ENTITY:
+                list_data_id = spec.get("entity_list_data_id")
+                if not isinstance(list_data_id, DataKey):
+                    raise ValueError(
+                        f"data.required[{i}].data_id={data_id!r} 为 PER_ENTITY，"
+                        "但未注册 entity_list_data_id"
+                    )
+                list_spec = default_map.get(list_data_id)
+                if list_spec is None:
+                    raise ValueError(
+                        f"data.required[{i}].data_id={data_id!r} 的 entity_list_data_id={list_data_id.value!r} 未注册"
+                    )
+                if list_spec.get("scope") != ContractScope.GLOBAL:
+                    raise ValueError(
+                        f"data.required[{i}].data_id={data_id!r} 的 entity_list_data_id={list_data_id.value!r} 必须为 GLOBAL"
+                    )
+                per_entity_data_ids.append(data_id)
+            data_ids.append(data_id)
+
+        axis = str(data_cfg.get("tag_time_axis_based_on") or "").strip()
+        if tag_target_type == TagTargetType.GENERAL.value:
+            if not axis:
+                raise ValueError("general 模式必须提供 data.tag_time_axis_based_on")
+        else:
+            if not per_entity_data_ids:
+                raise ValueError(
+                    "entity_based 模式下 data.required 必须至少包含一个 PER_ENTITY 数据源"
+                )
+            if not axis:
+                # 默认使用第一个 PER_ENTITY 源作为时间轴（source of truth 直接来自 contract map）
+                axis = per_entity_data_ids[0]
+
+        if axis and axis not in data_ids:
+            raise ValueError(
+                f"data.tag_time_axis_based_on={axis!r} 不在 data.required 的 data_id 列表内"
+            )
+        if axis:
+            axis_spec = default_map.get(DataKey(axis))
+            if axis_spec and axis_spec.get("type") != ContractType.TIME_SERIES:
+                raise ValueError(
+                    f"data.tag_time_axis_based_on={axis!r} 必须指向时序数据源"
+                )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""

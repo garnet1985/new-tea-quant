@@ -143,7 +143,7 @@ settings = {
         "adjust": "qfq",
         "min_required_records": 1000,
         "indicators": {
-            "ma": [
+            "sma": [
                 {"period": 5},
                 {"period": 10}
             ],
@@ -220,21 +220,21 @@ class MyStrategyWorker(BaseStrategyWorker):
         current_kline = klines[-1]  # 最新一条
         
         # 访问技术指标（框架已自动计算）
-        ma5 = current_kline.get('ma5')
-        ma10 = current_kline.get('ma10')
+        sma5 = current_kline.get('ssma5')
+        sma10 = current_kline.get('sma10')
         rsi = current_kline.get('rsi')
         
         # 实现策略逻辑
         # 例如：MA5 上穿 MA10 且 RSI < 30
-        if ma5 and ma10 and rsi:
-            if ma5 > ma10 and rsi < 30:
+        if sma5 and sma10 and rsi:
+            if sma5 > sma10 and rsi < 30:
                 # 创建 Opportunity
                 opportunity = Opportunity(
                     stock=self.stock_info,
                     record_of_today=current_kline,
                     extra_fields={
-                        "ma5": ma5,
-                        "ma10": ma10,
+                        "ssma5": sma5,
+                        "sma10": sma10,
                         "rsi": rsi
                     }
                 )
@@ -355,7 +355,7 @@ result = simulator.run(strategy_name="my_strategy")
 {
     "data": {
         "indicators": {
-            "ma": [
+            "sma": [
                 {"period": 5},
                 {"period": 10},
                 {"period": 20}
@@ -468,15 +468,15 @@ class MyStrategyWorker(BaseStrategyWorker):
         current_kline = klines[-1]
         
         # 访问技术指标（框架已自动计算）
-        ma5 = current_kline.get('ma5')
+        sma5 = current_kline.get('ssma5')
         rsi = current_kline.get('rsi')
         
         # 实现策略逻辑
-        if ma5 and rsi and ma5 > 10 and rsi < 30:
+        if sma5 and rsi and sma5 > 10 and rsi < 30:
             opportunity = Opportunity(
                 stock=self.stock_info,
                 record_of_today=current_kline,
-                extra_fields={"ma5": ma5, "rsi": rsi}
+                extra_fields={"ssma5": sma5, "rsi": rsi}
             )
             return opportunity
         
@@ -493,8 +493,8 @@ current_kline = klines[-1]  # 最新一条
 
 **技术指标**（框架已自动计算）：
 ```python
-ma5 = current_kline.get('ma5')
-ma10 = current_kline.get('ma10')
+sma5 = current_kline.get('ssma5')
+sma10 = current_kline.get('sma10')
 rsi = current_kline.get('rsi')
 macd = current_kline.get('macd')
 ```
@@ -582,14 +582,14 @@ StrategyWorker 可以重写以下钩子函数：
 {
     "data": {
         "indicators": {
-            "ma": [{"period": 5}, {"period": 10}],
+            "sma": [{"period": 5}, {"period": 10}],
             "rsi": [{"period": 14}]
         }
     }
 }
 ```
 
-框架会自动计算并添加到 klines 中，可以直接使用 `kline["ma5"]`, `kline["rsi"]`。
+框架会自动计算并添加到 klines 中，可以直接使用 `kline["ssma5"]`, `kline["rsi"]`。
 
 ### Q6: 如何配置止盈止损？
 

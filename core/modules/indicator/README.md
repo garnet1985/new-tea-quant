@@ -48,6 +48,8 @@ cci = IndicatorService.calculate('cci', klines, length=20)
 
 ## 📚 API 文档
 
+可用指标总览与配置建议请看：`core/modules/indicator/AVAILABLE_INDICATORS.md`。
+
 ### 便捷 API（常用指标）
 
 | 方法 | 说明 | 示例 |

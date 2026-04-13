@@ -34,6 +34,7 @@ class TestTagHelper:
                 "name": "test_scenario",
                 "target_entity": {"type": "stock_kline_daily"},
                 "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
                 "tags": [{"name": "tag1"}]
             }
             

@@ -22,7 +22,7 @@ class TestDatabaseAdapterFactory:
             }
         }
         
-        with patch('core.infra.db.table_queriers.adapters.factory.PostgreSQLAdapter') as mock_adapter_class:
+        with patch('core.infra.db.table_queriers.adapters.postgresql_adapter.PostgreSQLAdapter') as mock_adapter_class:
             mock_adapter = Mock()
             mock_adapter_class.return_value = mock_adapter
             
@@ -43,7 +43,7 @@ class TestDatabaseAdapterFactory:
             }
         }
         
-        with patch('core.infra.db.table_queriers.adapters.factory.MySQLAdapter') as mock_adapter_class:
+        with patch('core.infra.db.table_queriers.adapters.mysql_adapter.MySQLAdapter') as mock_adapter_class:
             mock_adapter = Mock()
             mock_adapter_class.return_value = mock_adapter
             

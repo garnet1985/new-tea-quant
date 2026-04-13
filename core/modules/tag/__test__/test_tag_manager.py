@@ -105,6 +105,7 @@ class TestTagManager:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [{"name": "tag1"}],
             "incremental_required_records_before_as_of_date": 10
         }
@@ -204,3 +205,36 @@ class TestTagManager:
             result = manager._load_scenario_from_cache_by_name("test_scenario")
             
             assert result is None
+
+    @patch('core.modules.tag.core.tag_manager.DataManager')
+    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    def test_run_execute_pipeline_general_uses_general_owner(self, mock_get_scenarios_root, mock_data_manager):
+        """测试 general 模式固定使用 __general__ owner"""
+        from core.modules.tag.core.tag_manager import TagManager
+
+        mock_get_scenarios_root.return_value = Path("/test/scenarios")
+        mock_data_mgr = MagicMock()
+        mock_tag_service = MagicMock()
+        mock_data_mgr.stock.tags = mock_tag_service
+        mock_data_manager.return_value = mock_data_mgr
+
+        with patch.object(TagManager, '_discover_scenarios_from_folder'), \
+             patch.object(TagManager, '_get_worker_class', return_value=MagicMock()), \
+             patch.object(TagManager, '_build_jobs', return_value=[] ) as mock_build_jobs:
+            manager = TagManager(is_verbose=False)
+            scenario_model = MagicMock()
+            scenario_model.is_enabled.return_value = True
+            scenario_model.get_name.return_value = "macro_general"
+            scenario_model.get_settings.return_value = {
+                "name": "macro_general",
+                "tag_target_type": "general",
+                "data": {
+                    "required": [{"data_id": "macro.gdp", "params": {}}],
+                    "tag_time_axis_based_on": "macro.gdp",
+                },
+                "tags": [{"name": "macro_tag"}],
+            }
+            manager._run_execute_pipeline(scenario_model)
+
+            args, _ = mock_build_jobs.call_args
+            assert args[0] == ["__general__"]

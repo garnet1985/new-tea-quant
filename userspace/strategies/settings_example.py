@@ -75,19 +75,27 @@ settings = {
         # 技术指标配置
         # （选填；默认 {}）
         # 只写你需要的指标，避免额外计算
+        # 指标名请直接使用 pandas-ta-classic 原生函数名；
+        # 详细可用指标与参数说明见 core/modules/indicator/AVAILABLE_INDICATORS.md
         "indicators": {
-            # ma: 移动平均
-            "ma": [{"period": 5}, {"period": 20}],
-            # ema: 指数移动平均
-            # "ema": [{"period": 12}, {"period": 26}],
-            # rsi: 相对强弱指标
-            # "rsi": [{"period": 14}],
-            # macd: 需 fast/slow/signal
+            # 均线类
+            # "sma": [{"length": 5}, {"length": 10}, {"length": 20}],
+            # "ema": [{"length": 12}, {"length": 26}],
+
+            # 动量类
+            # "rsi": [{"length": 14}],
             # "macd": [{"fast": 12, "slow": 26, "signal": 9}],
-            # bbands: 布林带
-            # "bbands": [{"period": 20, "std": 2.0}],
-            # atr: 平均真实波动
-            # "atr": [{"period": 14}],
+            # "stoch": [{"k": 14, "d": 3, "smooth_k": 3}],
+            # "roc": [{"length": 10}],
+            # "cci": [{"length": 20}],
+
+            # 波动类
+            # "bbands": [{"length": 20, "std": 2.0}],
+            # "atr": [{"length": 14}],
+
+            # 趋势/量能类
+            # "adx": [{"length": 14}],
+            # "obv": [{}],
         },
     },
 

@@ -7,11 +7,14 @@ import time
 from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
 from pathlib import Path
-from core.modules.tag.core.enums import TagUpdateMode
+from core.modules.tag.core.enums import TagTargetType, TagUpdateMode
 from core.modules.tag.core.base_tag_worker import BaseTagWorker
 from core.modules.tag.core.components.helper.tag_helper import TagHelper
 from core.modules.tag.core.components.helper.job_helper import JobHelper
 from core.modules.data_manager import DataManager
+from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.tag.core.config import get_scenarios_root
 from core.infra.project_context import PathManager
 from core.modules.tag.core.enums import FileName
@@ -28,6 +31,8 @@ class TagManager:
         self.is_verbose = is_verbose
         self.data_mgr = DataManager()
         self.tag_data_service = self.data_mgr.stock.tags
+        self._contract_cache = ContractCacheManager()
+        self._data_contract_manager = DataContractManager(contract_cache=self._contract_cache)
         self.scenario_cache = {}
         self.entity_list_cache = {}
         self._discover_scenarios_from_folder()
@@ -189,39 +194,48 @@ class TagManager:
         Returns:
             List[str]: 实体ID列表
         """
-        from core.global_enums.enums import EntityType
-        
-        target_entity_str = scenario_model.get_target_entity()
-        
-        # 使用缓存
-        if target_entity_str in self.entity_list_cache:
-            return self.entity_list_cache[target_entity_str]
-        
-        # 将字符串转换为 EntityType 枚举
-        try:
-            entity_type = EntityType(target_entity_str)
-        except ValueError:
-            logger.warning(f"不支持的实体类型: {target_entity_str}")
+        settings = scenario_model.get_settings()
+        declarations = (settings.get("data") or {}).get("required") or []
+        per_entity_data_id = self._pick_primary_per_entity_data_id(declarations)
+        if per_entity_data_id is None:
+            logger.warning("当前场景无 PER_ENTITY 数据源，无法构建 entity 列表")
             return []
-        
-        # 根据实体类型调用对应的服务
-        entity_list = []
-        if entity_type in [EntityType.STOCK_KLINE_DAILY, EntityType.STOCK_KLINE_WEEKLY, EntityType.STOCK_KLINE_MONTHLY]:
-            # 股票类型：使用 stock.list.load()
-            stock_list = self.data_mgr.stock.list.load(filtered=True)
-            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
-        elif entity_type == EntityType.CORPORATE_FINANCE:
-            # 企业财务：也是股票类型
-            stock_list = self.data_mgr.stock.list.load(filtered=True)
-            entity_list = [stock.get('id') for stock in stock_list if stock.get('id')]
-        else:
-            # 其他类型：暂时不支持，返回空列表
-            logger.warning(f"暂不支持获取实体类型 {target_entity_str} 的列表")
+
+        cache_key = f"per_entity:{per_entity_data_id}"
+        if cache_key in self.entity_list_cache:
+            return self.entity_list_cache[cache_key]
+
+        spec = self._data_contract_manager.map.get(per_entity_data_id) or {}
+        list_data_id = spec.get("entity_list_data_id")
+        if not isinstance(list_data_id, DataKey):
+            logger.warning(
+                "data_id=%s 未注册 entity_list_data_id，无法推导实体列表",
+                per_entity_data_id.value,
+            )
             return []
-        
-        # 缓存结果
-        self.entity_list_cache[target_entity_str] = entity_list
+        list_contract = self._data_contract_manager.issue(list_data_id, filtered=True)
+        list_rows = list(list_contract.data or [])
+        list_spec = self._data_contract_manager.map.get(list_data_id) or {}
+        keys = list_spec.get("unique_keys") or ["id"]
+        id_field = str(keys[0]) if keys else "id"
+        entity_list = [row.get(id_field) for row in list_rows if row.get(id_field)]
+
+        self.entity_list_cache[cache_key] = entity_list
         return entity_list
+
+    def _pick_primary_per_entity_data_id(self, declarations: List[Dict[str, Any]]) -> Optional[DataKey]:
+        for item in declarations:
+            raw = str(item.get("data_id") or "").strip()
+            if not raw:
+                continue
+            try:
+                dk = DataKey(raw)
+            except ValueError:
+                continue
+            spec = self._data_contract_manager.map.get(dk)
+            if spec and spec.get("scope") == ContractScope.PER_ENTITY:
+                return dk
+        return None
 
     def _get_worker_class(self, scenario_name: str, scenario_model: ScenarioModel) -> Optional[Type[BaseTagWorker]]:
         """
@@ -275,8 +289,13 @@ class TagManager:
             return
         scenario_model.ensure_metadata(tag_data_service)
 
+        settings = scenario_model.get_settings()
+        tag_target_type = str(settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value).strip().lower()
         # 获取实体列表
-        entity_list = self._get_entity_list(scenario_model)
+        if tag_target_type == TagTargetType.GENERAL.value:
+            entity_list = ["__general__"]
+        else:
+            entity_list = self._get_entity_list(scenario_model)
         if not entity_list:
             logger.info(f"无法获取实体列表，跳过执行")
             return
@@ -293,7 +312,6 @@ class TagManager:
             return
 
         # 获取更新模式
-        settings = scenario_model.get_settings()
 
         # 调试：在调用 _build_jobs 前检查缓存
         if self.is_verbose:
@@ -353,7 +371,8 @@ class TagManager:
         default_end_date = settings.get("end_date")
         
         # 获取实体类型（从 scenario_model 获取）
-        entity_type = scenario_model.get_target_entity()
+        tag_target_type = str(settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value).strip().lower()
+        entity_type = "general" if tag_target_type == TagTargetType.GENERAL.value else scenario_model.get_target_entity()
         
         # 获取 tag definitions 列表（从 scenario_model 获取）
         tag_models = scenario_model.get_tag_models()
@@ -371,6 +390,7 @@ class TagManager:
                 entity_last_update_info = tag_data_service.get_tag_value_last_update_info(scenario_name)
         
         jobs = []
+        global_extra_cache = self._build_global_extra_cache(settings, start=default_start_date, end=default_end_date)
 
         for entity_id in entity_list:
             # 获取该 entity 的最后更新日期（INCREMENTAL 模式）
@@ -438,6 +458,7 @@ class TagManager:
                     "settings": settings,  # 添加完整的 settings
                     "worker_module_path": worker_module_path,  # 用于子进程重新导入
                     "worker_class_name": worker_class_name,  # 用于子进程重新导入
+                    "global_extra_cache": global_extra_cache,
                 },
             }
             
@@ -517,6 +538,43 @@ class TagManager:
             'elapsed_time': elapsed_time,
             'stats': stats
         }
+
+    def _build_global_extra_cache(
+        self,
+        settings: Dict[str, Any],
+        *,
+        start: Optional[str],
+        end: Optional[str],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        data_block = settings.get("data")
+        if not isinstance(data_block, dict):
+            return {}
+        if not start or not end:
+            return {}
+
+        declarations = data_block.get("required") or []
+        if not isinstance(declarations, list):
+            return {}
+        out: Dict[str, List[Dict[str, Any]]] = {}
+        for item in declarations:
+            data_id = str(item.get("data_id") or "").strip()
+            if not data_id:
+                continue
+            dk = DataKey(data_id)
+            spec = self._data_contract_manager.map.get(dk)
+            if not spec:
+                continue
+            if spec.get("scope") != ContractScope.GLOBAL:
+                continue
+            params = dict(item.get("params") or {})
+            c = self._data_contract_manager.issue(
+                dk,
+                start=start,
+                end=end,
+                **params,
+            )
+            out[dk.value] = list(c.data or [])
+        return out
 
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:

@@ -100,7 +100,7 @@ class ActivityRatio20TagWorker(BaseTagWorker):
         - activity_high: ratio20 >= high_threshold
         - activity_low : ratio20 <= low_threshold
         """
-        daily_klines = historical_data.get("klines", {}).get("daily", []) or []
+        daily_klines = historical_data.get("stock.kline", []) or []
         if not daily_klines:
             return None
 

@@ -30,6 +30,7 @@ class TagWorkerDataManager:
         self.entity_id = entity_id
         self.entity_type = entity_type
         self.settings = settings
+        self.time_axis = self._parse_time_axis(settings)
         
         # 从 settings 解析数据需求
         self._parse_data_requirements()
@@ -43,6 +44,45 @@ class TagWorkerDataManager:
         self.data_cache = {}
         self.chunk_count = 0
         self.slice_state = self._init_slice_state()
+
+    @staticmethod
+    def _parse_time_axis(settings: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        解析时间轴配置（用于 date 字段不叫 date、或同一数据存在多个时间字段时可显式指定）。
+
+        约定：
+        - 对 kline 数据，默认时间字段为 'date'（对应 sys_stock_klines.date）
+        - 对非 kline 数据，默认时间字段也使用 'date'
+        - corporate_finance 默认字段为 'quarter'（除非 per_source 覆盖）
+        """
+        raw = settings.get("time_axis") or {}
+        if not isinstance(raw, dict):
+            raw = {}
+
+        field = raw.get("field") or "date"
+        per_source = raw.get("per_source") or {}
+        if not isinstance(per_source, dict):
+            per_source = {}
+
+        return {"field": str(field), "per_source": per_source}
+
+    def _time_field_for(self, data_key: str) -> str:
+        """
+        返回某类数据的时间字段名。
+        - data_key: 'klines' / 'corporate_finance' / 具体 required_data key / base_data_source
+        """
+        per_source = self.time_axis.get("per_source") or {}
+        if isinstance(per_source, dict):
+            override = per_source.get(data_key)
+            if isinstance(override, dict):
+                override_field = override.get("field")
+                if override_field:
+                    return str(override_field)
+
+        if data_key == "corporate_finance":
+            return "quarter"
+
+        return str(self.time_axis.get("field") or "date")
     
     def _parse_data_requirements(self):
         """从 settings 解析数据需求和配置"""
@@ -143,9 +183,11 @@ class TagWorkerDataManager:
         if not record:
             return None
         if self.is_base_kline:
-            return record.get('date', '')
+            return record.get(self._time_field_for("klines"), '')
         
-        date_str = record.get('date') or record.get('quarter', '')
+        base_key = self.base_data_source or ""
+        tf = self._time_field_for(base_key)
+        date_str = record.get(tf) or record.get('quarter', '')
         if not date_str or len(date_str) <= 4:
             return date_str
         
@@ -198,7 +240,7 @@ class TagWorkerDataManager:
     def _find_as_of_index(self, base_data: List[Dict], as_of_date: str) -> Optional[int]:
         """找到 as_of_date 在 base_data 中的索引位置"""
         for i, record in enumerate(base_data):
-            record_date = record.get('date', '')
+            record_date = record.get(self._time_field_for("klines"), '')
             if record_date == as_of_date:
                 return i
             if record_date and as_of_date and record_date > as_of_date:
@@ -231,8 +273,9 @@ class TagWorkerDataManager:
             self.data_cache['klines'] = {}
         for term, new_data in new_slice['klines'].items():
             if term in self.data_cache['klines']:
-                existing_dates = {r.get('date') for r in self.data_cache['klines'][term]}
-                unique_new_data = [r for r in new_data if r.get('date') not in existing_dates]
+                tf = self._time_field_for("klines")
+                existing_dates = {r.get(tf) for r in self.data_cache['klines'][term]}
+                unique_new_data = [r for r in new_data if r.get(tf) not in existing_dates]
                 if unique_new_data:
                     self.data_cache['klines'][term] = unique_new_data + self.data_cache['klines'][term]
             else:
@@ -359,7 +402,8 @@ class TagWorkerDataManager:
     
     def _load_data_by_date_range(self, model, data_type: str, start_date: Optional[str], end_date: str) -> List[Dict]:
         """按日期范围加载数据（支持季度和日期类型）"""
-        if data_type == 'corporate_finance':
+        time_field = self._time_field_for(data_type)
+        if time_field == "quarter" or data_type == 'corporate_finance':
             end_quarter = self._date_to_quarter(end_date)
             if start_date:
                 start_quarter = self._date_to_quarter(start_date)
@@ -376,14 +420,14 @@ class TagWorkerDataManager:
         
         if start_date:
             return model.load(
-                condition="id = %s AND date >= %s AND date <= %s",
+                condition=f"id = %s AND {time_field} >= %s AND {time_field} <= %s",
                 params=(self.entity_id, start_date, end_date),
-                order_by="date ASC"
+                order_by=f"{time_field} ASC"
             )
         return model.load(
-            condition="id = %s AND date <= %s",
+            condition=f"id = %s AND {time_field} <= %s",
             params=(self.entity_id, end_date),
-            order_by="date ASC"
+            order_by=f"{time_field} ASC"
         )
     
     def _update_slice_state(self, new_slice: Dict[str, Any]):
@@ -401,9 +445,10 @@ class TagWorkerDataManager:
         if 'klines' in self.data_cache:
             filtered_klines = {}
             for term, kline_list in self.data_cache['klines'].items():
+                kline_tf = self._time_field_for("klines")
                 filtered_klines[term] = [
                     r for r in kline_list
-                    if r.get('date', '') and r.get('date', '') <= as_of_date
+                    if r.get(kline_tf, '') and r.get(kline_tf, '') <= as_of_date
                 ]
             filtered_data['klines'] = filtered_klines
         
@@ -413,7 +458,7 @@ class TagWorkerDataManager:
                     filtered_data[key] = data_list
                 continue
             
-            date_field = 'quarter' if key == 'corporate_finance' else 'date'
+            date_field = self._time_field_for(key)
             filtered_records = []
             
             for record in data_list:
@@ -527,9 +572,17 @@ class TagWorkerDataManager:
         
         base_kline = self.data_cache.get('klines', {}).get(self.base_term, [])
         if base_kline:
-            all_dates = sorted(set(r.get('date', '') for r in base_kline if r.get('date')))
+            kline_tf = self._time_field_for("klines")
+            all_dates = sorted(set(r.get(kline_tf, '') for r in base_kline if r.get(kline_tf)))
             if start_date and end_date:
-                trading_dates = [d for d in all_dates if start_date <= d <= end_date]
+                # 仅向后截断：如果任务 end_date 超过该股票实际有数据的最大日期，自动收敛到 max_date。
+                # 这样 Tag 系统只关心“传入的区间”，数据层负责按实体的实际数据边界裁剪，避免 demo 场景刷屏。
+                max_date = all_dates[-1] if all_dates else ""
+                effective_end = end_date
+                if max_date and effective_end and effective_end > max_date:
+                    effective_end = max_date
+
+                trading_dates = [d for d in all_dates if start_date <= d <= effective_end]
                 if trading_dates:
                     return trading_dates
         

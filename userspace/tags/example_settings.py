@@ -79,6 +79,35 @@ Settings = {
     # 如果为空字符串，使用系统默认值
     "end_date": "",
 
+    # 可选参数：时间轴配置（time_axis）
+    #
+    # 默认情况下，Tag 系统会把“时间”理解为字段名 `date`（K 线也是 `date`）。
+    # 但在以下场景，你需要显式配置 time_axis：
+    # - 你的数据时间字段不叫 `date`（例如叫 `dt` / `trade_date` / `ts` 等）
+    # - 同一张数据里有多个时间字段（例如 `created_at` 和 `report_date`），需要指定用哪个作为 tag 的时间轴
+    # - required_data / base_data_source 使用了不同的时间字段（可以用 per_source 覆写）
+    #
+    # 说明：
+    # - 对季度数据（例如 corporate_finance），系统默认使用 `quarter`；如需改也可用 per_source 覆写。
+    # - 大部分基于 K 线的场景保持默认即可，无需改动。
+    "time_axis": {
+        # 全局默认时间字段名（默认 "date"）
+        "field": "date",
+        # 针对某个数据源单独指定时间字段名：
+        # key 可以是 required_entities / required_data 中的名称（例如 "gdp"），
+        # 也可以是 "corporate_finance" / "klines" 等内部约定的 key。
+        "per_source": {
+            # 示例：如果某个宏观数据源的时间字段叫 dt，可以这样配置：
+            # "gdp": {"field": "dt"},
+            #
+            # 示例：如果你希望 corporate_finance 用 report_date 而不是 quarter（仅示意）：
+            # "corporate_finance": {"field": "report_date"},
+            #
+            # 示例：如果你的自定义 kline 时间字段不叫 date（极少数情况）：
+            # "klines": {"field": "trade_date"},
+        },
+    },
+
     # 可选参数，默认为空列表
     "required_entities": [
         {

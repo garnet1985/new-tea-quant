@@ -36,8 +36,9 @@ class TestOpportunityEnumeratorWorker:
             'strategy_name': self.strategy_name,
             'settings': {
                 'data': {
-                    'base_price_source': 'stock_kline_daily',
-                    'adjust_type': 'qfq',
+                    'base_required_data': {
+                        'params': {'term': 'daily'},
+                    },
                     'min_required_records': 200
                 },
                 'goal': {

@@ -3,6 +3,7 @@ Tag Manager - 统一管理所有业务场景（Scenario）
 
 负责发现、验证和执行所有 scenario workers。
 """
+import os
 import time
 from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
@@ -36,6 +37,16 @@ class TagManager:
         self.scenario_cache = {}
         self.entity_list_cache = {}
         self._discover_scenarios_from_folder()
+
+    @staticmethod
+    def _resolve_worker_amount(max_workers: Any) -> int:
+        """解析 worker 数量配置，保证返回 >=1 的整数。"""
+        if max_workers == "auto" or max_workers is None:
+            return os.cpu_count() or 10
+        try:
+            return max(1, int(max_workers))
+        except Exception:
+            return os.cpu_count() or 10
 
     def refresh_scenario(self):
         self._clear_cache()
@@ -331,7 +342,7 @@ class TagManager:
         # 从 settings 中获取 max_workers 配置
         performance = settings.get("performance", {})
         max_workers = performance.get("max_workers", "auto")
-        worker_amount = JobHelper.decide_worker_amount(len(jobs), max_workers=max_workers)
+        worker_amount = self._resolve_worker_amount(max_workers)
         self._execute_jobs(jobs, scenario_name, worker_class, worker_amount)
 
     def _build_jobs(self, entity_list: List[str], settings: Dict[str, Any], scenario_model: ScenarioModel, worker_class: Type[BaseTagWorker]):

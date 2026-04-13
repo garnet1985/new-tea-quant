@@ -34,6 +34,25 @@ def default_init_data_dir() -> Path:
     return Path(__file__).resolve().parent.parent / DEFAULT_INIT_SUBDIR
 
 
+def resolve_init_data_dir_with_subdir(base: Path, subdir: str) -> Path:
+    """
+    将数据目录限制为 base / subdir，避免 init_data 根目录下多个 zip（demo + 正式）被一并导入。
+
+    subdir 不得含 .. 或绝对路径；结果必须仍在 base 之下。
+    """
+    s = (subdir or "").strip().replace("\\", "/")
+    if not s:
+        return base
+    if ".." in s or s.startswith("/"):
+        raise ValueError(f"非法子目录: {subdir!r}")
+    out = (base / s).resolve()
+    try:
+        out.relative_to(base.resolve())
+    except ValueError as e:
+        raise ValueError(f"子目录必须位于 {base} 之下: {subdir!r}") from e
+    return out
+
+
 def _bare_table_name_for_exists_check(qualified_table: str) -> str:
     s = qualified_table.strip().strip('"')
     if "." in s:
@@ -79,7 +98,15 @@ class SetupDataInstaller:
     def discover_data_packages(self) -> List[Path]:
         if not self.data_dir.is_dir():
             return []
-        return sorted(self.data_dir.glob("*.zip"))
+        zips = sorted(self.data_dir.glob("*.zip"))
+        if len(zips) <= 1:
+            return zips
+        names = ", ".join(p.name for p in zips)
+        raise RuntimeError(
+            "❌ 为避免混包导入，setup/init_data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
+            f"当前发现 {len(zips)} 个：{names}\n"
+            "请保留您需要导入的zip数据文件，另一个zip数据文件移走/改后缀后重新运行install.py。"
+        )
 
     def _extract_zips(self, extract_root: Path) -> List[Path]:
         from setup.setup import NewTeaQuantSetup
@@ -175,28 +202,38 @@ class SetupDataInstaller:
         fingerprint = _file_fingerprint(zips)
         NewTeaQuantSetup.print_check_item("done", f"发现初始化数据包 {len(zips)} 个")
 
+        t_extract = time.perf_counter()
         self._extract_zips(extract_root)
         plan = collect_table_archives(extract_root)
         if not plan:
             raise RuntimeError(
                 f"解压后未找到任何 .tar.gz/.zip 数据归档，请检查 zip 内容: {extract_root}"
             )
-        NewTeaQuantSetup.print_check_item("done", f"数据完整性检查通过，识别表 {len(plan)} 个")
+        dt_extract = time.perf_counter() - t_extract
+        NewTeaQuantSetup.print_check_item(
+            "done",
+            f"数据完整性检查通过，识别表 {len(plan)} 个（解压与扫描 {dt_extract:.1f}s）",
+        )
 
+        t_dm = time.perf_counter()
         dm = DataManager(is_verbose=False)
         dm.initialize()
+        dt_dm = time.perf_counter() - t_dm
+        NewTeaQuantSetup.print_check_info(f"DataManager 初始化耗时 {dt_dm:.1f}s")
         db = dm.db
         if not db:
             raise RuntimeError("数据库不可用")
 
+        t_plan = time.perf_counter()
         rows = self._build_plan_rows(dm, plan)
         importable = [r for r in rows if r["will_import"]]
         if not importable:
             raise RuntimeError("没有可导入的表（均在框架中未注册 model）")
+        dt_plan = time.perf_counter() - t_plan
 
         NewTeaQuantSetup.print_check_item(
-            "running",
-            f"创建导入清单完成：可导入 {len(importable)} 张表",
+            "done",
+            f"创建导入清单：可导入 {len(importable)} 张表（清单构建 {dt_plan:.1f}s）",
         )
 
         prev = self._load_progress() if not force else {}
@@ -215,13 +252,18 @@ class SetupDataInstaller:
         self._save_progress(progress_payload)
 
         if not pending:
-            NewTeaQuantSetup.print_check_item("done", "所有表已在当前数据包指纹下导入完成")
+            dt_setup = time.perf_counter() - t0_all
+            NewTeaQuantSetup.print_check_item(
+                "done",
+                f"所有表已在当前数据包指纹下导入完成（setup_data 本步 {dt_setup:.1f}s）",
+            )
             # 断点文件仅服务导入过程；全部完成后删除。
             self._clear_progress()
             return
 
         total = len(pending)
         errors: List[Tuple[str, str]] = []
+        t_import_loop = time.perf_counter()
         for idx, r in enumerate(pending, start=1):
             logical = r["logical"]
             target = r["target"]
@@ -274,20 +316,21 @@ class SetupDataInstaller:
                     f"[{idx}/{total}] {logical} 失败",
                 )
 
-        dt_all = time.perf_counter() - t0_all
+        dt_import_tables = time.perf_counter() - t_import_loop
+        dt_setup_all = time.perf_counter() - t0_all
         if remove_extract and not errors:
             shutil.rmtree(extract_root, ignore_errors=True)
 
         if errors:
             NewTeaQuantSetup.print_check_item(
                 "fail",
-                f"初始化数据导入存在失败项（总耗时 {dt_all:.1f}s）",
+                f"初始化数据导入存在失败项（导入各表 {dt_import_tables:.1f}s，setup_data 全程 {dt_setup_all:.1f}s）",
             )
             raise RuntimeError(f"部分表导入失败: {errors}")
 
         NewTeaQuantSetup.print_check_item(
             "done",
-            f"初始化数据导入完成（总耗时 {dt_all:.1f}s）",
+            f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；setup_data 全程 {dt_setup_all:.1f}s）",
         )
         # 全部成功后清理断点文件。
         self._clear_progress()

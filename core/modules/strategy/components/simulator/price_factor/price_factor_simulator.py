@@ -480,7 +480,7 @@ class PriceFactorSimulator:
         """按模式触发一次枚举：sampling=True 触发 test，False 触发 output。"""
         from core.modules.data_manager import DataManager
         from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
-        from core.modules.strategy.helper.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
         from core.utils.date.date_utils import DateUtils
 
         data_mgr = DataManager(is_verbose=False)

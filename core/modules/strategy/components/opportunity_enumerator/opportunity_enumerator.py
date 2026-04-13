@@ -9,7 +9,7 @@ Opportunity Enumerator - 机会枚举器
 - 每次都重新计算（保证最新）
 """
 
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Optional
 import json
 from pathlib import Path
 from datetime import datetime
@@ -33,7 +33,8 @@ class OpportunityEnumerator:
         start_date: str,
         end_date: str,
         stock_list: List[str],
-        max_workers: Union[str, int] = 'auto'
+        max_workers: Union[str, int] = 'auto',
+        base_settings: Optional[StrategySettings] = None,
     ) -> List[Dict[str, Any]]:
         """
         枚举所有投资机会（完整枚举）
@@ -46,6 +47,7 @@ class OpportunityEnumerator:
             max_workers: 最大并行数
                 - 'auto': 自动计算（推荐）
                 - 数字: 手动指定（会做保护，最多 2 倍 CPU 核心数）
+            base_settings: 若已持有 ``StrategySettings``（模型层），可传入以避免重复 import settings
         
         Returns:
             所有 opportunities（字典列表）
@@ -74,8 +76,9 @@ class OpportunityEnumerator:
         )
         aggregate_profiler = AggregateProfiler()
         
-        # 1. 加载策略配置（通用 StrategySettings 模型）
-        base_settings = OpportunityEnumerator._load_strategy_settings(strategy_name)
+        # 1. 策略配置（通用 StrategySettings 模型）
+        if base_settings is None:
+            base_settings = OpportunityEnumerator._load_strategy_settings(strategy_name)
 
         # 1.1 通过枚举器专用 Settings 视图进行校验与补全（组合，而非继承）
         enum_settings = OpportunityEnumeratorSettings.from_base(base_settings)
@@ -121,7 +124,19 @@ class OpportunityEnumerator:
                 # ID 起始值（由主进程分配，避免进程间冲突）
                 'opportunity_id_start': start_id,
             })
-        
+
+        # 2.1 主进程预加载 GLOBAL 的 extra（MVP：opt1，随各 job pickle 到子进程；体量小可接受）
+        from core.modules.strategy.helpers import preload_global_extras_for_enumeration
+
+        global_extra_cache = preload_global_extras_for_enumeration(
+            validated_settings, enum_start_date, end_date
+        )
+        if global_extra_cache:
+            logger.info(
+                "主进程已预加载 GLOBAL extra（将随 job 传入子进程）: %s",
+                list(global_extra_cache.keys()),
+            )
+
         # 3. 使用新的模块化架构进行批量调度
         from core.infra.worker import (
             # 新架构组件
@@ -182,13 +197,12 @@ class OpportunityEnumerator:
                 scheduler.max_batch_size,
             )
 
-        # 批量执行（内存优化：按 batch 提交，子进程加载数据）
-        # 注意：主进程严格禁止加载大型数据（K线数据等），只准备参数
-        # 子进程使用 OpportunityEnumeratorWorker 按需查询数据
+        # 批量执行（内存优化：按 batch 提交）
+        # 主进程：已预加载小体量 GLOBAL extra（见 global_extra_cache）；K 线等 PER_ENTITY 数据仍由子进程加载
         # ProcessWorker 的 QUEUE 模式会持续填充进程池，保证多进程并行执行
         # 通过 max_workers 限制，保证同时只有有限数量的子进程在加载数据，避免内存爆炸
         
-        # 按 batch 提交任务（主进程只准备参数，不加载数据）
+        # 按 batch 提交任务（参数 + global_extra_cache）
         # 确定总任务数（用于进度跟踪）
         total_jobs = len(jobs)
         
@@ -209,8 +223,6 @@ class OpportunityEnumerator:
             if batch_size > max_batch_size:
                 max_batch_size = batch_size
             
-            # 构建 payload（只包含参数，不包含数据）
-            # 子进程会使用 OpportunityEnumeratorWorker 按需查询数据
             process_jobs = []
             for job in batch:
                 payload = {
@@ -220,6 +232,7 @@ class OpportunityEnumerator:
                     'start_date': job['start_date'],
                     'end_date': job['end_date'],
                     'output_dir': job['output_dir'],
+                    'global_extra_cache': global_extra_cache,
                 }
                 process_jobs.append({'id': job['stock_id'], 'payload': payload})
             
@@ -418,7 +431,9 @@ class OpportunityEnumerator:
             performance_summary = aggregate_profiler.get_summary()
             performance_file = output_dir / "0_performance_report.json"
             with performance_file.open("w", encoding="utf-8") as f:
-                json.dump(performance_summary, f, indent=2, ensure_ascii=False)
+                # profiler 结果里可能包含 datetime（例如阶段起止时间），用统一 encoder 避免序列化失败
+                from core.modules.strategy.components.simulator.price_factor.helpers import DateTimeEncoder
+                json.dump(performance_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
             logger.info(f"📊 性能报告已保存: {performance_file}")
         
         # 5. 保存 metadata（含 settings 快照、版本信息）
@@ -530,7 +545,8 @@ class OpportunityEnumerator:
         
         # 会话级 metadata 也使用 0_ 前缀
         with open(output_dir / '0_metadata.json', 'w', encoding='utf-8') as f:
-            json.dump(metadata, f, indent=2, ensure_ascii=False)
+            from core.modules.strategy.components.simulator.price_factor.helpers import DateTimeEncoder
+            json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
         enum_mode = "全量枚举" if is_full_enumeration else "测试模式（采样）"
         logger.info(f"✅ 枚举 metadata 已保存: {output_dir} ({enum_mode})")

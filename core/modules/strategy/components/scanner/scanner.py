@@ -34,9 +34,8 @@ class Scanner:
     
     def __post_init__(self):
         """初始化组件"""
-        # 加载配置
+        # 加载配置（scanner 块已在策略发现阶段随整包校验，此处不再 validate）
         self.settings = ScannerSettings.load_from_strategy_name(self.strategy_name)
-        self.settings.validate_and_prepare()
         
         # 初始化组件
         self.date_resolver = ScanDateResolver(self.data_manager)

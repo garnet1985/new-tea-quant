@@ -1287,11 +1287,12 @@ core/modules/strategy/
 │   ├── strategy_worker_data_manager.py # 数据管理器
 │   ├── opportunity_service.py         # 机会服务
 │   └── session_manager.py             # 会话管理器
-├── helper/                            # 辅助函数
+├── helpers/                           # 辅助函数（统一入口）
 │   ├── strategy_discovery_helper.py   # 策略发现
 │   ├── stock_sampling_helper.py       # 股票采样
 │   ├── job_builder_helper.py          # 作业构建
-│   └── statistics_helper.py           # 统计辅助
+│   ├── statistics_helper.py           # 统计辅助
+│   └── global_extra_preload.py        # 枚举 GLOBAL extra 预加载
 ├── managers/                          # 管理器
 │   ├── version_manager.py             # 版本管理器
 │   ├── result_path_manager.py         # 结果路径管理器

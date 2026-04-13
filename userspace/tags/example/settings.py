@@ -5,7 +5,7 @@ Settings = {
     # ========================================================================
     # Scenario 配置（顶层配置）
     # ========================================================================
-    "is_enabled": True,
+    "is_enabled": False,
 
     # 场景名（CLI: python start-cli.py -t --scenario activity-ratio20）
     "name": "activity-ratio20",
@@ -27,6 +27,7 @@ Settings = {
     # - 在活跃度低的股票里只买更极端的 RSI（更偏“冷门超卖”）：
     #       activity_low && rsi14 <= 20
     "recompute": False,
+    "tag_target_type": "entity_based",
 
     "target_entity": {
         "type": EntityType.STOCK_KLINE_DAILY.value,
@@ -42,34 +43,21 @@ Settings = {
     "start_date": "",
     "end_date": "",
 
-    # 时间轴配置（可选）
-    #
-    # 默认情况下，tag 系统会把“时间”理解为字段名 `date`（K 线也是 `date`）。
-    # 但在以下场景需要显式配置：
-    # - 你的数据时间字段不叫 `date`（例如叫 `dt` / `trade_date` / `ts` 等）
-    # - 同一张数据里有多个时间字段（例如 `created_at` 和 `report_date`），你要指定用哪个作为 tag 的时间轴
-    # - required_data / base_data_source 使用了不同的时间字段（可以用 per_source 覆写）
-    #
-    # 说明：
-    # - 对季度数据（例如 corporate_finance），系统默认使用 `quarter`；如需改也可用 per_source 覆写。
-    "time_axis": {
-        # 全局默认时间字段名（默认 "date"）
-        "field": "date",
-        # 针对某个数据源单独指定时间字段名：
-        # key 可以是 required_data 的名称（例如 "gdp"），也可以是 "corporate_finance" / "klines"
-        "per_source": {
-            # 示例：如果你有一个数据源时间字段叫 dt
-            # "gdp": {"field": "dt"},
-            #
-            # 示例：如果你希望 corporate_finance 用 report_date 而不是 quarter（仅示意）
-            # "corporate_finance": {"field": "report_date"},
-            #
-            # 示例：如果你的自定义 kline 时间字段不叫 date（极少数情况）
-            # "klines": {"field": "trade_date"},
-        },
+    # DataContract 声明（与 strategy 模块同款）
+    "data": {
+        "required": [
+            {
+                "data_id": "stock.kline",
+                "params": {
+                    "term": "daily",
+                    "adjust": "qfq",
+                },
+            },
+        ],
+        # entity_based 模式可省略，默认走 target_entity 对应主轴
+        # "tag_time_axis_based_on": "stock.kline",
     },
 
-    "required_entities": [],
     "update_mode": UpdateMode.INCREMENTAL.value,
 
     # 计算 ratio20 至少需要 20 个交易日；留一点缓冲
@@ -83,8 +71,6 @@ Settings = {
 
     "performance": {
         "max_workers": "auto",
-        "use_chunk": True,
-        "data_chunk_size": 500,
     },
 
     # ========================================================================

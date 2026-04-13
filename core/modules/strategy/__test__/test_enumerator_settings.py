@@ -59,7 +59,9 @@ class TestOpportunityEnumeratorSettings:
             strategy_name="test_strategy",
             settings_dict=settings_dict,
         )
-        assert enum_settings.data == {}
+        assert enum_settings.data["min_required_records"] == 100
+        assert enum_settings.data["indicators"] == {}
+        assert enum_settings.data["extra_required_data_sources"] == []
     
     def test_from_raw_missing_goal(self):
         """缺少 goal 时默认为空 dict（由发现阶段校验 goal 结构）。"""

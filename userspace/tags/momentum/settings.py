@@ -22,7 +22,7 @@ Settings = {
     # 每个Scenario对应一个calculator。
     # ========================================================================
 
-    "is_enabled": False,
+    "is_enabled": True,
 
     # 必须参数
     # 业务场景机器识别代码。请使用字母数字，并使用下划线连接，不能用特殊字符, 比如空格等
@@ -33,6 +33,7 @@ Settings = {
     # - 当为false时，会使用update mode来决定是否重新生成tags
     # - 当为true时，会重新生成所有tags
     "recompute": False,
+    "tag_target_type": "entity_based",
 
     # 必须参数
     "target_entity": {
@@ -58,37 +59,20 @@ Settings = {
     # 如果为空字符串，使用系统默认值
     "end_date": "",
 
-    # 可选参数：时间轴配置（time_axis）
-    #
-    # 默认情况下，Tag 系统会把“时间”理解为字段名 `date`（K 线也是 `date`）。
-    # 但在以下场景，你需要显式配置 time_axis：
-    # - 你的数据时间字段不叫 `date`（例如叫 `dt` / `trade_date` / `ts` 等）
-    # - 同一张数据里有多个时间字段（例如 `created_at` 和 `report_date`），需要指定用哪个作为 tag 的时间轴
-    # - required_entities / required_data 使用了不同的时间字段（可以用 per_source 覆写）
-    #
-    # 说明：
-    # - 对季度数据（例如 corporate_finance），系统默认使用 `quarter`；如需改也可用 per_source 覆写。
-    # - 大部分基于 K 线的场景保持默认即可，无需改动。
-    "time_axis": {
-        # 全局默认时间字段名（默认 "date"）
-        "field": "date",
-        # 针对某个数据源单独指定时间字段名：
-        # key 可以是 required_entities / required_data 中的名称（例如 "gdp"），
-        # 也可以是 "corporate_finance" / "klines" 等内部约定的 key。
-        "per_source": {
-            # 示例：如果某个宏观数据源的时间字段叫 dt，可以这样配置：
-            # "gdp": {"field": "dt"},
-            #
-            # 示例：如果你希望 corporate_finance 用 report_date 而不是 quarter（仅示意）：
-            # "corporate_finance": {"field": "report_date"},
-            #
-            # 示例：如果你的自定义 kline 时间字段不叫 date（极少数情况）：
-            # "klines": {"field": "trade_date"},
-        },
+    # DataContract 声明（与 strategy 模块同款）
+    "data": {
+        "required": [
+            {
+                "data_id": "stock.kline",
+                "params": {
+                    "term": "daily",
+                    "adjust": "qfq",
+                },
+            },
+        ],
+        # entity_based 模式可省略，默认走 target_entity 对应主轴
+        # "tag_time_axis_based_on": "stock.kline",
     },
-
-    # 可选参数，默认为空列表
-    "required_entities": [],
 
     # 可选参数，默认为 INCREMENTAL
     # 更新模式。可选值：
@@ -113,13 +97,6 @@ Settings = {
     "performance": {
         # 可选参数，默认"auto"，会根据job数量自动分配worker
         "max_workers": "auto",
-
-
-        "use_chunk": True,
-
-        # 可选参数，默认为 500
-        # 运行时数据切片大小（记录数）。切片越大，运行时内存占用越小但IO次数越多
-        "data_chunk_size": 500,
     },
 
     

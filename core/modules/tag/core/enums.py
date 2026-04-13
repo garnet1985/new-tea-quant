@@ -19,6 +19,13 @@ class TagUpdateMode(Enum):
     REFRESH = "refresh"          # 全量刷新
 
 
+class TagTargetType(Enum):
+    """Tag 目标类型：实体标签 or 全局标签。"""
+
+    ENTITY_BASED = "entity_based"
+    GENERAL = "general"
+
+
 # 已废弃：版本管理相关枚举已移除
 # class VersionChangeAction(Enum):
 #     """版本变更时的行为枚举（Scenario 级别）"""

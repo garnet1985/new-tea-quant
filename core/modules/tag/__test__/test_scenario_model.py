@@ -25,6 +25,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1", "display_name": "Tag 1"},
                 {"name": "tag2", "display_name": "Tag 2"}
@@ -52,6 +53,7 @@ class TestScenarioModel:
             "description": "Test description",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -72,6 +74,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -83,14 +86,15 @@ class TestScenarioModel:
         assert scenario is not None
         assert scenario.display_name == "test_scenario"  # 应该使用 name 作为默认值
     
-    def test_create_from_settings_target_entity_string(self):
-        """测试从 settings 创建 ScenarioModel（target_entity 为字符串）"""
+    def test_create_from_settings_target_entity_string_invalid(self):
+        """测试从 settings 创建 ScenarioModel（target_entity 字符串已不支持）"""
         from core.modules.tag.core.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
-            "target_entity": "stock_kline_daily",  # 旧格式：字符串
+            "target_entity": "stock_kline_daily",  # 非法：必须是 dict
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -98,9 +102,7 @@ class TestScenarioModel:
         }
         
         scenario = ScenarioModel.create_from_settings(settings)
-        
-        assert scenario is not None
-        assert scenario.get_target_entity() == "stock_kline_daily"
+        assert scenario is None
     
     def test_is_setting_valid_valid(self):
         """测试 is_setting_valid（有效配置）"""
@@ -110,6 +112,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -125,6 +128,7 @@ class TestScenarioModel:
         settings = {
             "name": "test_scenario",
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ]
@@ -152,6 +156,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": []
         }
         
@@ -165,6 +170,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -182,6 +188,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -200,6 +207,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -219,6 +227,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -238,6 +247,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -258,6 +268,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -276,6 +287,7 @@ class TestScenarioModel:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1", "display_name": "Tag 1"},
                 {"name": "tag2", "display_name": "Tag 2"}
@@ -301,6 +313,7 @@ class TestScenarioModel:
             "description": "Test description",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
+            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
             "tags": [
                 {"name": "tag1"}
             ],
@@ -320,3 +333,42 @@ class TestScenarioModel:
         assert result["description"] == "Test description"
         assert result["created_at"] == "2024-01-01"
         assert result["updated_at"] == "2024-01-02"
+
+    def test_is_setting_valid_general_requires_axis(self):
+        """测试 general 模式必须声明 tag_time_axis_based_on"""
+        from core.modules.tag.core.models.scenario_model import ScenarioModel
+
+        settings = {
+            "name": "macro_general",
+            "tag_target_type": "general",
+            "is_enabled": True,
+            "data": {
+                "required": [
+                    {"data_id": "macro.gdp", "params": {}},
+                ],
+            },
+            "tags": [{"name": "macro_tag"}],
+            "incremental_required_records_before_as_of_date": 0,
+        }
+
+        assert ScenarioModel.is_setting_valid(settings) is False
+
+    def test_is_setting_valid_general_with_axis(self):
+        """测试 general 模式合法配置"""
+        from core.modules.tag.core.models.scenario_model import ScenarioModel
+
+        settings = {
+            "name": "macro_general",
+            "tag_target_type": "general",
+            "is_enabled": True,
+            "data": {
+                "required": [
+                    {"data_id": "macro.gdp", "params": {}},
+                ],
+                "tag_time_axis_based_on": "macro.gdp",
+            },
+            "tags": [{"name": "macro_tag"}],
+            "incremental_required_records_before_as_of_date": 0,
+        }
+
+        assert ScenarioModel.is_setting_valid(settings) is True

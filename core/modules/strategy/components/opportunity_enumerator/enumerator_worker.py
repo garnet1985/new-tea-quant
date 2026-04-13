@@ -69,8 +69,8 @@ class OpportunityEnumeratorWorker:
         self.stock_info = self._load_stock_info()
 
         self.contract_cache = ContractCacheManager()
-        from core.modules.strategy.components.strategy_worker_data_manager import StrategyWorkerDataManager
-        self.data_manager = StrategyWorkerDataManager(
+        from core.modules.strategy.components.data_management import StrategyDataManager
+        self.data_manager = StrategyDataManager(
             stock_id=self.stock_id,
             settings=self.settings,
             data_mgr=self.data_mgr,
@@ -192,28 +192,32 @@ class OpportunityEnumeratorWorker:
                 # ===================== 预加载模式 =====================
                 preloaded_klines = self.job_payload['_preloaded_klines']
 
-                # 1) 注入 K 线数据
-                self.data_manager._current_data['klines'] = preloaded_klines
+                # 1) 注入 K 线 contract + 行数据
+                self.data_manager.preload_klines(
+                    preloaded_klines,
+                    start_date=actual_start_date,
+                    end_date=self.end_date,
+                )
 
                 # 2) 计算技术指标（仅基于 K 线，一次性完成）
-                self.data_manager._apply_indicators()
+                self.data_manager.apply_indicators()
 
                 # 3) 加载额外依赖（K 线已在主进程预加载；此处只拉 ``extra_required_data_sources``）
                 extras = getattr(self.settings, "extra_required_data_sources", []) or []
                 if extras:
                     entity_query_start = time_module.perf_counter()
-                    for item in extras:
-                        slot, rows = self.data_manager._materialize_data_source_item(
-                            item, actual_start_date, self.end_date
-                        )
-                        self.data_manager._current_data[slot] = rows
+                    self.data_manager.load_declared_items(
+                        extras,
+                        start_date=actual_start_date,
+                        end_date=self.end_date,
+                    )
                     entity_query_time = time_module.perf_counter() - entity_query_start
                     avg_entity_query_time = entity_query_time / len(extras)
                     for _ in range(len(extras)):
                         self.profiler.record_db_query(avg_entity_query_time)
 
                 # 4) 初始化游标状态
-                self.data_manager._init_cursor_state()
+                self.data_manager.rebuild_data_cursor()
 
                 self.profiler.metrics.time_load_data = self.profiler.end_timer('load_data')
 

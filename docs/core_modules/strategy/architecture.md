@@ -905,7 +905,7 @@ StrategySettings (策略配置模型)
 
 3. **计算技术指标**
    - 根据 `data.indicators` 配置计算技术指标
-   - 自动添加到 klines 中（如 `kline["ma5"]`, `kline["rsi"]`）
+   - 自动添加到 klines 中（如 `kline["ssma5"]`, `kline["rsi"]`）
 
 4. **加载 Required Data**
    - 加载 GDP、Tag 等依赖数据
@@ -965,7 +965,7 @@ StrategySettings (策略配置模型)
 
 ```python
 "indicators": {
-    "ma": [
+    "sma": [
         {"period": 5},
         {"period": 10},
         {"period": 20}
@@ -982,7 +982,7 @@ StrategySettings (策略配置模型)
 **工作流**：
 1. 用户配置需要的指标
 2. 框架自动计算并添加到 klines
-3. 用户直接使用：`kline["ma5"]`, `kline["rsi"]`
+3. 用户直接使用：`kline["ssma5"]`, `kline["rsi"]`
 
 ### Pools/Blacklists 文件
 

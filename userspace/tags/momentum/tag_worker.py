@@ -57,7 +57,7 @@ class MomentumTagWorker(BaseTagWorker):
     ) -> Optional[Dict[str, Any]]:
         """计算动量tag（仅在月份变化时计算）"""
         entity_id = self.entity['id']
-        daily_klines = historical_data.get("klines", {}).get("daily", [])
+        daily_klines = historical_data.get("stock.kline", [])
         
         if not daily_klines:
             return None

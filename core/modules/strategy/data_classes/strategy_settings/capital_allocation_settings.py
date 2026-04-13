@@ -4,6 +4,7 @@
 
 持有整包 ``raw_settings``，便于 ``get_fees_config_with_priority`` 读取
 ``capital_simulator.fees`` / ``price_simulator.fees`` / 顶层 ``fees``。
+``start_date`` / ``end_date`` 可省略，空表示使用枚举输出全时段。
 """
 
 from __future__ import annotations
@@ -155,16 +156,6 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
                 "capital_simulator.base_version",
                 f"指定枚举依赖版本 {bv!r}，将在运行时解析；不存在时将回退 latest",
                 suggested_fix="若目录不存在，请先跑枚举或改用 latest",
-            )
-
-        sd = self.capital_simulator.get("start_date", "") or ""
-        ed = self.capital_simulator.get("end_date", "") or ""
-        if not str(sd).strip() or not str(ed).strip():
-            SettingsBase.add_warning(
-                result,
-                "capital_simulator.start_date / end_date",
-                "start_date 或 end_date 为空，将使用默认时间范围（见 CapitalAllocationSimulator）",
-                suggested_fix='可填写 "start_date" / "end_date"（YYYYMMDD）',
             )
 
         fees_config = self.get_fees_config_with_priority()

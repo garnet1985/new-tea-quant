@@ -9,16 +9,10 @@ from typing import Any, Dict, List
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
 from core.modules.data_contract.data_contract_manager import DataContractManager
+from core.modules.strategy.components.data_management.strategy_data_manager import (
+    StrategyDataManager,
+)
 from core.modules.strategy.models.strategy_settings import StrategySettings
-
-
-def _storage_key_for_data_id(data_id: DataKey) -> str:
-    """与 ``StrategyWorkerDataManager._storage_key_for`` 保持一致（避免 helpers ↔ SWM 循环依赖）。"""
-    if data_id == DataKey.STOCK_KLINE:
-        return "klines"
-    if data_id == DataKey.TAG:
-        return "tags"
-    return data_id.value
 
 
 def preload_global_extras_for_enumeration(
@@ -48,7 +42,7 @@ def preload_global_extras_for_enumeration(
 
         params = dict(item.get("params") or {})
         c = dcm.issue(dk, start=start_date, end=end_date, **params)
-        slot = _storage_key_for_data_id(dk)
+        slot = StrategyDataManager.storage_key_for(dk)
         out[slot] = list(c.data or [])
 
     return out

@@ -19,15 +19,13 @@ class StrategySettings:
 
     **主数据依赖** ``data.base_required_data``（仅支持 K 线主源）：
 
-    - 只使用 ``DataKey.STOCK_KLINE``（``stock.kline``）。不在此写 ``stock.kline.daily.qfq`` 等细粒度 key，
-      周期与复权一律由 ``params`` 表达。
+    - 只使用 ``stock.kline``；周期与复权一律由 ``params``（``term`` / ``adjust``）表达。
     - ``data_id`` **可省略**；若填写则**只能**为 ``stock.kline``。
     - **必须**提供 ``params``，且其中 **``term`` 必填**（如 ``daily`` / ``weekly`` / ``monthly``）。
     - ``adjust`` 可选，**默认 ``qfq``**；其它键（如 ``tag_storage_entity_type``）可一并放在 ``params`` 里。
 
     **额外依赖** ``data.extra_required_data_sources``：每条须带 ``data_id``（如 ``tag``、``macro.gdp`` 等）。
     若某条也是 ``stock.kline``，则同样要求 ``params.term``，``adjust`` 默认 ``qfq``。
-    策略配置中**不允许**使用 ``stock.kline.daily.qfq`` 等细粒度 K 线 DataKey（请改用 ``stock.kline`` + ``params``）。
     """
 
     def __init__(self, settings_dict: Dict[str, Any]):
@@ -65,7 +63,7 @@ class StrategySettings:
             if data_id != DataKey.STOCK_KLINE.value:
                 raise ValueError(
                     f"data.base_required_data.data_id 只能为 {DataKey.STOCK_KLINE.value!r} 或省略；"
-                    f"勿使用细粒度 K 线 key，请用 params.term / params.adjust 声明周期与复权"
+                    "周期与复权请用 params.term / params.adjust"
                 )
 
         term = params.get("term")
@@ -84,19 +82,13 @@ class StrategySettings:
 
     @staticmethod
     def normalize_extra_required_data_item(item: Dict[str, Any]) -> Dict[str, Any]:
-        """额外数据源：须含 data_id；``stock.kline`` 时与主依赖相同的 params 规则；禁止细粒度 K 线 key。"""
+        """额外数据源：须含 data_id；``stock.kline`` 时与主依赖相同的 params 规则。"""
         if not isinstance(item, dict):
             raise ValueError("数据源项必须为 dict")
         raw_id = item.get("data_id")
         if not raw_id or not str(raw_id).strip():
             raise ValueError("extra_required_data_sources 每项必须包含非空的 data_id")
         data_id = str(raw_id).strip()
-
-        if data_id in (DataKey.STOCK_KLINE_DAILY_QFQ.value, DataKey.STOCK_KLINE_DAILY_NFQ.value):
-            raise ValueError(
-                f"策略配置不支持 data_id={data_id!r}，请改用 {DataKey.STOCK_KLINE.value!r} "
-                "并在 params 中指定 term、adjust（adjust 可省略，默认 qfq）"
-            )
 
         params = item.get("params")
         if params is None:

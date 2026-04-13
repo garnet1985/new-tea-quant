@@ -4,7 +4,7 @@ settings = {
     # ========================================
     "name": "example",
     "description": "Example RSI oversold strategy (minimal settings)",
-    "is_enabled": False,
+    "is_enabled": True,
 
     # ========================================
     # 策略核心参数（仅示例策略真正需要的字段）

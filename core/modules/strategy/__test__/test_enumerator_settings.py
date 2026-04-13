@@ -234,24 +234,6 @@ class TestOpportunityEnumeratorSettings:
         
         assert enum_settings.max_workers == "auto"
 
-    def test_base_rejects_granular_kline_data_id(self):
-        """枚举器视图不再重复校验 data_id；细粒度 key 原样保留在 data 中。"""
-        settings_dict = {
-            "name": "test_strategy",
-            "data": {
-                "base_required_data": {
-                    "data_id": DataKey.STOCK_KLINE_DAILY_QFQ.value,
-                    "params": {"term": "daily"},
-                },
-            },
-            "goal": {"expiration": {"fixed_window_in_days": 30}},
-        }
-        enum_settings = OpportunityEnumeratorSettings.from_raw("test_strategy", settings_dict)
-        assert (
-            enum_settings.data["base_required_data"]["data_id"]
-            == DataKey.STOCK_KLINE_DAILY_QFQ.value
-        )
-
     def test_base_requires_term(self):
         """枚举器视图不校验 term；缺省时原样保留 params。"""
         settings_dict = {

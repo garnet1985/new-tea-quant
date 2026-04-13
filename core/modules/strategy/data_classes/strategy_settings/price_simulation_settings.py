@@ -3,7 +3,7 @@
 策略 ``price_simulator`` 配置块（对应 ``settings_example`` 第 8) 节）。
 
 与 ``PriceFactorSimulator`` 使用的字段对齐：``use_sampling``、``base_version``、
-``max_workers``、``start_date`` / ``end_date``、可选 ``fees``。
+``max_workers``、``start_date`` / ``end_date``（可省略，空字符串表示使用输出版本全时段）、可选 ``fees``。
 
 兼容旧键名 ``output_version``（若存在且未写 ``base_version``，校验时会归并到 ``base_version``）。
 """
@@ -77,20 +77,6 @@ class StrategyPriceSimulatorSettings(SettingsBase):
                 "price_simulator.base_version",
                 f"指定枚举依赖版本 {bv!r}，将在运行时解析；不存在时将回退 latest",
                 suggested_fix="若目录不存在，请先跑枚举或改用 latest",
-            )
-
-        sd = self.price_simulator.get("start_date", "") or ""
-        ed = self.price_simulator.get("end_date", "") or ""
-        if not str(sd).strip() or not str(ed).strip():
-            SettingsBase.add_warning(
-                result,
-                "price_simulator.start_date / end_date",
-                "start_date 或 end_date 为空，将使用默认时间范围（见 PriceFactorSimulator）",
-                suggested_fix=(
-                    '可在 price_simulator 中填写：\n'
-                    '  "start_date": "20230101",\n'
-                    '  "end_date": "20241231"'
-                ),
             )
 
         if self._missing_use_sampling_at_load:

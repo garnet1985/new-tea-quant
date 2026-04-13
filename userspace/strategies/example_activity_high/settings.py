@@ -6,7 +6,7 @@ settings = {
     # ========================================
     "name": "example_activity_high",
     "description": "Example strategy gated by activity_high tag (activity-ratio20) + RSI oversold.",
-    "is_enabled": True,
+    "is_enabled": False,
 
     # ========================================
     # 策略核心参数

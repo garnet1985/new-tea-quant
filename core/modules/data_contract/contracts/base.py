@@ -17,6 +17,14 @@ class DataContract:
     loader_params: MutableMapping[str, Any] = field(default_factory=dict)
     data: Any = None
 
+    @property
+    def needs_load(self) -> bool:
+        """
+        ``True``：还没有数据，需要 ``load``（或等 DCM 写入 ``data``）。
+        ``False``：已有结果；可能是正常数据，也可能是空列表 ``[]``（表示加载过但无行）。
+        """
+        return self.data is None
+
     def get_meta(self) -> ContractMeta:
         return self.meta
 

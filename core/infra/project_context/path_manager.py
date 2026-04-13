@@ -178,6 +178,16 @@ class PathManager:
     def strategy_capital_allocation(strategy_name: str) -> Path:
         """资金分配模拟器结果目录：userspace/strategies/{strategy_name}/results/simulations/capital_allocation"""
         return PathManager.strategy_results(strategy_name) / "simulations" / "capital_allocation"
+
+    @staticmethod
+    def strategy_simulations_enumerator(strategy_name: str) -> Path:
+        """
+        枚举器回测（simulate/simulate_enum）结果目录：
+        userspace/strategies/{strategy_name}/results/simulations/enumerator
+
+        注意：这不是 opportunity_enums（枚举输出），而是历史回测 session 结果。
+        """
+        return PathManager.strategy_results(strategy_name) / "simulations" / "enumerator"
     
     @staticmethod
     def strategy_scan_cache(strategy_name: str) -> Path:
@@ -271,6 +281,32 @@ class PathManager:
         
         return None
     
+    @staticmethod
+    def data_contract() -> Path:
+        """
+        Data Contract 用户注册目录：userspace/data_contract
+
+        与 Python 包 `userspace.data_contract` 对应；路径受 `PathManager.userspace()`
+        （含环境变量覆盖）影响，供发现/诊断与文件侧约定一致。
+        """
+        return PathManager.userspace() / "data_contract"
+
+    @staticmethod
+    def data_contract_mapping() -> Path:
+        """
+        Data Contract userspace mapping 文件：
+        userspace/data_contract/mapping.py
+        """
+        return PathManager.data_contract() / "mapping.py"
+
+    @staticmethod
+    def data_contract_loaders() -> Path:
+        """
+        Data Contract userspace loaders 目录：
+        userspace/data_contract/loaders
+        """
+        return PathManager.data_contract() / "loaders"
+
     @staticmethod
     def data_source_providers() -> Path:
         """Data Source Providers 目录：userspace/data_source/providers"""

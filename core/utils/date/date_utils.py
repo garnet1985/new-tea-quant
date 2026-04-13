@@ -43,7 +43,23 @@ class DateUtils:
     # 默认值
     DEFAULT_FORMAT = _constants.DEFAULT_FORMAT
     DEFAULT_START_DATE = ConfigManager.get_default_start_date()
-    
+
+    # 无界查询上界（YYYYMMDD）
+    QUERY_DATE_RANGE_MAX = _constants.QUERY_DATE_RANGE_MAX
+
+    @staticmethod
+    def get_query_date_range_min() -> str:
+        """
+        无界查询下界（YYYYMMDD）：与 `core/default_config/data.json` 中 `default_start_date` 一致；
+        配置缺失或无法标准化时回退到内部兜底常量。
+        """
+        raw = ConfigManager.get_default_start_date()
+        if raw:
+            n = DateUtils.normalize_str(str(raw))
+            if n:
+                return n
+        return _constants.QUERY_DATE_RANGE_FALLBACK_MIN
+
     # ==================== 格式转换（通用方法）====================
     
     @staticmethod

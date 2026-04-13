@@ -17,6 +17,7 @@ import logging
 
 from core.infra.project_context import PathManager
 from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.components.simulator.price_factor.helpers import DateTimeEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +37,14 @@ class OpportunityService:
         # 结果文件夹路径
         self.base_path = PathManager.strategy_results(strategy_name)
         self.scan_path = PathManager.strategy_scan_results(strategy_name)
-        self.simulate_path = self.base_path / "simulate"
+        # 注意：当前对外只保留三类结果目录（opportunity_enums / simulations / scan）。
+        # 这里保留 simulate_path 仅用于内部遗留方法，但不在 __init__ 中自动创建目录，
+        # 避免在只做 scan/enumerate/simulations 时生成多余文件夹。
+        self.simulate_path = PathManager.strategy_results(strategy_name) / "simulations" / "enumerator"
         
         # 确保文件夹存在
         self.scan_path.mkdir(parents=True, exist_ok=True)
-        self.simulate_path.mkdir(parents=True, exist_ok=True)
+        # simulate_path 按需在写入时创建（见 save_simulate_*）
     
     # =========================================================================
     # Scanner 相关
@@ -99,7 +103,7 @@ class OpportunityService:
         
         # 5. 保存文件
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
         # 6. 更新 latest 软链接
         self._update_latest_link(self.scan_path, date)
@@ -157,7 +161,7 @@ class OpportunityService:
         
         summary_file = date_folder / "summary.json"
         with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+            json.dump(summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     def save_scan_config(self, date: str, config: Dict[str, Any]):
         """
@@ -170,7 +174,7 @@ class OpportunityService:
         
         config_file = date_folder / "config.json"
         with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+            json.dump(config, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     # =========================================================================
     # Simulator 相关
@@ -193,6 +197,7 @@ class OpportunityService:
             opportunities: 回测后的机会列表
         """
         # 1. 创建 session 文件夹
+        self.simulate_path.mkdir(parents=True, exist_ok=True)
         session_folder = self.simulate_path / session_id
         session_folder.mkdir(parents=True, exist_ok=True)
         
@@ -207,7 +212,7 @@ class OpportunityService:
         # 3. 保存文件
         file_path = session_folder / f"{stock_id}.json"
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         
         # 4. 更新 latest 软链接
         self._update_latest_link(self.simulate_path, session_id)
@@ -219,11 +224,12 @@ class OpportunityService:
         文件路径：simulate/{session_id}/summary.json
         """
         session_folder = self.simulate_path / session_id
+        self.simulate_path.mkdir(parents=True, exist_ok=True)
         session_folder.mkdir(parents=True, exist_ok=True)
         
         summary_file = session_folder / "summary.json"
         with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+            json.dump(summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     def save_simulate_config(self, session_id: str, config: Dict[str, Any]):
         """
@@ -232,11 +238,12 @@ class OpportunityService:
         文件路径：simulate/{session_id}/config.json
         """
         session_folder = self.simulate_path / session_id
+        self.simulate_path.mkdir(parents=True, exist_ok=True)
         session_folder.mkdir(parents=True, exist_ok=True)
         
         config_file = session_folder / "config.json"
         with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+            json.dump(config, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
     
     # =========================================================================
     # 辅助方法

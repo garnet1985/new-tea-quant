@@ -6,12 +6,12 @@
 
 | 测试文件 | 测试类 | 测试用例数 | 说明 |
 |---------|--------|-----------|------|
-| `test_scenario_model.py` | `TestScenarioModel` | 18 | ScenarioModel 模型测试 |
+| `test_scenario_model.py` | `TestScenarioModel` | 20 | ScenarioModel 模型测试 |
 | `test_tag_model.py` | `TestTagModel` | 13 | TagModel 模型测试 |
 | `test_tag_helper.py` | `TestTagHelper` | 9 | TagHelper 辅助函数测试 |
 | `test_job_helper.py` | `TestJobHelper` | 9 | JobHelper 任务辅助函数测试 |
-| `test_tag_manager.py` | `TestTagManager` | 8 | TagManager 核心管理器测试 |
-| **总计** | - | **57** | - |
+| `test_tag_manager.py` | `TestTagManager` | 9 | TagManager 核心管理器测试 |
+| **总计** | - | **60** | - |
 
 ---
 
@@ -36,10 +36,10 @@
 - **验证点**:
   - 当没有提供 display_name 时，使用 name 作为默认值
 
-#### `test_create_from_settings_target_entity_string`
-- **目的**: 测试从 settings 创建 ScenarioModel（target_entity 为字符串，向后兼容）
+#### `test_create_from_settings_target_entity_string_invalid`
+- **目的**: 测试从 settings 创建 ScenarioModel（target_entity 为字符串应判无效）
 - **验证点**:
-  - 支持旧格式的 target_entity（字符串类型）
+  - target_entity 必须是 dict 格式（包含 type）
 
 ### 1.2 配置验证测试
 
@@ -72,6 +72,16 @@
 - **目的**: 测试 is_setting_valid（INCREMENTAL 模式 required_records 无效）
 - **验证点**:
   - required_records 必须是非负整数
+
+#### `test_is_setting_valid_general_requires_axis`
+- **目的**: 测试 general 模式缺少 `data.tag_time_axis_based_on` 时判无效
+- **验证点**:
+  - general 模式必须显式声明时间轴来源
+
+#### `test_is_setting_valid_general_with_axis`
+- **目的**: 测试 general 模式在时间轴声明完整时可通过
+- **验证点**:
+  - `tag_target_type=general` + `data.required` + `data.tag_time_axis_based_on` 返回 True
 
 ### 1.3 更新模式测试
 
@@ -247,44 +257,7 @@
 
 ## 4. TestJobHelper (JobHelper 测试)
 
-### 4.1 Worker 数量决策测试
-
-#### `test_decide_worker_amount_100_or_less`
-- **目的**: 测试 decide_worker_amount（100个及以下）
-- **验证点**:
-  - 100 个及以下 job 返回 1 个 worker
-
-#### `test_decide_worker_amount_500_or_less`
-- **目的**: 测试 decide_worker_amount（500个及以下，100个以上）
-- **验证点**:
-  - 101-500 个 job 返回 2 个 worker
-
-#### `test_decide_worker_amount_1000_or_less`
-- **目的**: 测试 decide_worker_amount（1000个及以下，500个以上）
-- **验证点**:
-  - 501-1000 个 job 返回 4 个 worker
-
-#### `test_decide_worker_amount_2000_or_less`
-- **目的**: 测试 decide_worker_amount（2000个及以下，1000个以上）
-- **验证点**:
-  - 1001-2000 个 job 返回 8 个 worker
-
-#### `test_decide_worker_amount_over_2000`
-- **目的**: 测试 decide_worker_amount（2000个以上）
-- **验证点**:
-  - 2000 个以上 job 返回最大 worker 数（CPU 核心数）
-
-#### `test_decide_worker_amount_with_max_workers`
-- **目的**: 测试 decide_worker_amount（指定 max_workers）
-- **验证点**:
-  - 指定 max_workers 时，不超过该值
-
-#### `test_decide_worker_amount_with_auto`
-- **目的**: 测试 decide_worker_amount（max_workers="auto"）
-- **验证点**:
-  - "auto" 模式使用 CPU 核心数
-
-### 4.2 日期计算测试
+### 4.1 日期计算测试
 
 #### `test_calculate_start_and_end_date_refresh_mode`
 - **目的**: 测试 calculate_start_and_end_date（REFRESH 模式）
@@ -359,6 +332,11 @@
 - **验证点**:
   - scenario 不存在时返回 None
 
+#### `test_run_execute_pipeline_general_uses_general_owner`
+- **目的**: 测试 general 模式执行时固定使用 `__general__` owner
+- **验证点**:
+  - `_run_execute_pipeline` 给 `_build_jobs` 传入 `["__general__"]`
+
 ---
 
 ## 📊 测试覆盖统计
@@ -367,15 +345,15 @@
 
 | 功能模块 | 测试用例数 | 覆盖率 |
 |---------|-----------|--------|
-| **模型层** | 31 | - |
-| - ScenarioModel | 18 | 核心功能全覆盖 |
+| **模型层** | 33 | - |
+| - ScenarioModel | 20 | 核心功能全覆盖 |
 | - TagModel | 13 | 核心功能全覆盖 |
 | **辅助层** | 18 | - |
 | - TagHelper | 9 | 核心功能全覆盖 |
 | - JobHelper | 9 | 核心功能全覆盖 |
-| **管理层** | 8 | - |
-| - TagManager | 8 | 基础功能覆盖 |
-| **总计** | **57** | - |
+| **管理层** | 9 | - |
+| - TagManager | 9 | 基础功能覆盖 |
+| **总计** | **60** | - |
 
 ### 按测试类型分类
 
@@ -461,6 +439,6 @@ pytest core/modules/tag/__test__/test_scenario_model.py::TestScenarioModel::test
 ## 📌 注意事项
 
 1. **Mock 使用**: 大部分测试使用 mock 来隔离外部依赖（DataManager、FileManager 等）
-2. **向后兼容**: 测试覆盖了向后兼容的场景（如 target_entity 字符串格式）
+2. **配置约束**: 测试覆盖了严格配置约束（如 target_entity 必须为 dict）
 3. **边界条件**: 重点关注边界条件和错误处理
 4. **配置验证**: 详细测试配置验证逻辑，确保无效配置被正确拒绝

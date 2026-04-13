@@ -5,7 +5,7 @@ Strategy Manager - 策略管理器（重构精简版）
 职责：
 - 管理策略生命周期
 - 协调各个 helper 完成任务
-- 管理全局缓存
+- 主进程内持有 ``DataContractManager`` + ``ContractCacheManager``；股票列表等数据只经 contract 物化缓存，不在此重复维护一份 dict 缓存
 
 代码从 949 行精简到 ~350 行
 """
@@ -15,12 +15,19 @@ from datetime import datetime
 import logging
 
 # Helper 组件
-from core.modules.strategy.helper import (
+from core.modules.strategy.helpers import (
     StrategyDiscoveryHelper,
     StockSamplingHelper,
     JobBuilderHelper,
-    StatisticsHelper
+    StatisticsHelper,
 )
+from core.modules.strategy.data_classes.strategy_info import StrategyInfo
+from core.modules.strategy.data_classes.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
+from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contract_const import DataKey
+from core.modules.data_contract.data_contract_manager import DataContractManager
 
 logger = logging.getLogger(__name__)
 
@@ -31,23 +38,31 @@ class StrategyManager:
     def __init__(self, is_verbose: bool = False):
         """初始化策略管理器"""
         self.is_verbose = is_verbose
-        
-        # 策略缓存
-        self.strategy_cache = {}
-        
-        # 全局缓存
-        self.global_cache = {
-            'stock_list': None,
-            'trading_dates': None,
-            'macro_data': None
-        }
-        
+
+        self._contract_cache = ContractCacheManager()
+        self._data_contract_manager = DataContractManager(contract_cache=self._contract_cache)
+
         # 数据管理器
         from core.modules.data_manager import DataManager
         self.data_mgr = DataManager(is_verbose=False)
         
-        # 发现所有策略（使用 Helper）
-        self.strategy_cache = StrategyDiscoveryHelper.discover_strategies()
+        # 发现阶段已做 settings.validate()；只保留一份「校验通过」映射，是否启用看 ``StrategyInfo.is_enabled``
+        self.validated_strategies = StrategyDiscoveryHelper.discover_strategies()
+
+    def lookup_strategy_info(self, strategy_name: str) -> Optional[StrategyInfo]:
+        """
+        按名称解析 ``StrategyInfo``：先查 ``validated_strategies``，未命中再对该目录 ``load_strategy``。
+        供 CLI / 其它模块及本类内部共用。
+        """
+        info = self.validated_strategies.get(strategy_name)
+        if info is not None:
+            return info
+        from core.infra.project_context import PathManager
+
+        folder = PathManager.userspace() / "strategies" / strategy_name
+        if not folder.is_dir():
+            return None
+        return StrategyDiscoveryHelper.load_strategy(folder)
     
     # =========================================================================
     # Scanner 执行
@@ -65,65 +80,59 @@ class StrategyManager:
         if date is None:
             date = datetime.now().strftime('%Y%m%d')
         
-        # 2. 加载全局缓存
-        self._load_global_cache()
-        
-        # 3. 确定要扫描的策略
+        self._load_stock_list()
+
+        # 3. 确定要扫描的策略（仅 is_enabled；settings 已在发现时校验）
         if strategy_name:
-            strategies_to_scan = [strategy_name]
-        else:
-            strategies_to_scan = [
-                name for name, info in self.strategy_cache.items()
-                if info['settings'].is_enabled
-            ]
-            
-            if not strategies_to_scan:
-                logger.warning("没有启用的策略可扫描")
+            strategy_info = self.lookup_strategy_info(strategy_name)
+            if not strategy_info:
+                logger.warning(f"策略不存在或未发现: {strategy_name}")
                 return
-            
-            logger.info(f"🔍 扫描所有启用的策略: {strategies_to_scan}")
-        
-        # 4. 对每个策略执行扫描
-        for strat_name in strategies_to_scan:
-            self._scan_single_strategy(strat_name, date)
-    
-    def _scan_single_strategy(self, strategy_name: str, date: str):
-        """扫描单个策略"""
-        logger.info(f"🔍 开始扫描策略: {strategy_name}")
-        
-        # 1. 获取策略信息
-        strategy_info = self.strategy_cache.get(strategy_name)
-        if not strategy_info:
-            logger.error(f"策略不存在: {strategy_name}")
+            if not strategy_info.is_enabled:
+                logger.warning(f"策略未启用: {strategy_name}")
+                return
+            to_run = [strategy_info]
+        else:
+            to_run = [info for info in self.validated_strategies.values() if info.is_enabled]
+
+        if not to_run:
+            logger.warning("没有启用的策略可扫描")
             return
-        
-        settings = strategy_info['settings']
-        
-        # 2. 获取股票列表（使用 StockSamplingHelper）
-        all_stocks = self.global_cache['stock_list']
-        stock_list = StockSamplingHelper.get_stock_list(
-            all_stocks, 
-            settings.sampling_amount,
-            settings.sampling_config,
-            strategy_name=strategy_name,
-        )
+
+        for strategy_info in to_run:
+            self._scan_single_strategy(strategy_info, date)
+    
+    def _scan_single_strategy(self, strategy_info: StrategyInfo, date: str):
+        """扫描单个策略（入参为 ``StrategyInfo``；settings 为 data_classes ``StrategySettings``）。"""
+        strategy_name = strategy_info.name
+        settings: StrategySettings = strategy_info.settings
+        scanner = settings.scanner
+        logger.info(f"🔍 开始扫描策略: {strategy_name}")
+
+        all_stocks = self._load_stock_list()
+
+        watch_list = scanner.watch_list
+        if watch_list:
+            stock_list = StockSamplingHelper.filter_stocks_by_list(
+                all_stocks=all_stocks,
+                watch_list=watch_list,
+                strategy_name=strategy_name,
+            )
+        else:
+            stock_list = [s["id"] for s in all_stocks]
         logger.info(f"📊 股票数量: {len(stock_list)}")
-        
-        # 3. 构建作业（使用 JobBuilderHelper）
+
         jobs = JobBuilderHelper.build_scan_jobs(stock_list, strategy_info, date)
         logger.info(f"📦 作业数量: {len(jobs)}")
-        
-        # 4. 多进程执行
-        max_workers = self._get_max_workers()
+
+        max_workers = self._get_max_workers(scanner.max_workers)
         results = self._execute_jobs(jobs, strategy_info, max_workers)
-        
-        # 5. 收集结果
+
         opportunities = self._collect_scan_results(results)
         logger.info(f"✨ 发现机会: {len(opportunities)}")
-        
-        # 6. 保存结果
+
         self._save_scan_results(strategy_name, date, opportunities, settings)
-        
+
         logger.info(f"✅ 扫描完成: {strategy_name}")
     
     # =========================================================================
@@ -139,29 +148,33 @@ class StrategyManager:
             session_id: Session ID（自动生成）
             date: 要回测的扫描日期（默认 latest）
         """
-        # 1. 加载全局缓存
-        self._load_global_cache()
+        # 1. 预热主进程 contract 数据（股票列表等）
+        self._load_stock_list()
         
-        # 2. 确定要模拟的策略
+        # 2. 确定要模拟的策略（内部一律传 ``StrategyInfo``）
         if strategy_name:
-            strategies_to_simulate = [strategy_name]
+            info = self.lookup_strategy_info(strategy_name)
+            if not info:
+                logger.warning(f"策略不存在或设置无效: {strategy_name}")
+                return
+            to_simulate = [info]
         else:
-            strategies_to_simulate = [
-                name for name, info in self.strategy_cache.items()
-                if info['settings'].is_enabled
-            ]
-            
-            if not strategies_to_simulate:
+            to_simulate = [i for i in self.validated_strategies.values() if i.is_enabled]
+            if not to_simulate:
                 logger.warning("没有启用的策略可模拟")
                 return
-            
-            logger.info(f"🎮 模拟所有启用的策略: {strategies_to_simulate}")
+            logger.info(
+                "🎮 模拟所有启用的策略: %s",
+                [i.name for i in to_simulate],
+            )
         
         # 3. 对每个策略执行模拟
-        for strat_name in strategies_to_simulate:
-            self._simulate_single_strategy(strat_name, session_id, date)
+        for info in to_simulate:
+            self._simulate_single_strategy(info, session_id, date)
     
-    def _simulate_single_strategy(self, strategy_name: str, session_id: str = None, date: str = None):
+    def _simulate_single_strategy(
+        self, strategy_info: StrategyInfo, session_id: str = None, date: str = None
+    ):
         """
         模拟单个策略（历史回测）
         
@@ -172,75 +185,63 @@ class StrategyManager:
         4. 追踪投资状态（止盈止损）
         5. 返回所有已完成的 opportunities
         """
-        logger.info(f"🎮 开始模拟策略: {strategy_name}")
-        
-        # 1. 获取策略信息
-        strategy_info = self.strategy_cache.get(strategy_name)
-        if not strategy_info:
-            logger.error(f"策略不存在: {strategy_name}")
-            return
-        
-        settings = strategy_info['settings']
-        
-        # 2. 获取股票列表
-        # 规则与 price_simulator 对齐：
-        # - price_simulator.use_sampling = True  -> 使用 sampling 配置
-        # - price_simulator.use_sampling = False -> 使用全量股票
-        all_stocks = self.global_cache['stock_list'] or []
-        sim_cfg = settings.price_simulator or {}
-        use_sampling = bool(sim_cfg.get("use_sampling", True))
-        if use_sampling:
-            sampling_cfg = settings.sampling_config or {}
-            sampling_amount = settings.sampling_amount or len(all_stocks)
+        name = strategy_info.name
+        logger.info(f"🎮 开始模拟策略: {name}")
+        strategy_settings: StrategySettings = strategy_info.settings
+        price_block = strategy_settings.price_simulator
+        sampling_block = strategy_settings.sampling
+
+        all_stocks = self._load_stock_list()
+
+        price_simulator_config = price_block.price_simulator
+        is_use_sampling = bool(price_simulator_config.get("use_sampling", True))
+
+        if is_use_sampling:
+            sampling_cfg = sampling_block.sampling
+            sampling_amount = sampling_block.get_sampling_amount() or len(all_stocks)
             stock_list = StockSamplingHelper.get_stock_list(
                 all_stocks=all_stocks,
                 sampling_amount=sampling_amount,
                 sampling_config=sampling_cfg,
-                strategy_name=strategy_name,
+                strategy_name=name,
             )
             logger.info("🧪 模拟股票模式: sampling (use_sampling=True)")
         else:
             stock_list = [s["id"] for s in all_stocks]
             logger.info("📦 模拟股票模式: full (use_sampling=False)")
         logger.info(f"📊 股票数量: {len(stock_list)}")
-        
+
         if not stock_list:
             logger.warning("没有股票可模拟")
             return
-        
-        # 3. 创建 session
+
         if session_id is None:
             from core.modules.strategy.components.session_manager import SessionManager
-            session_mgr = SessionManager(strategy_name)
+            session_mgr = SessionManager(name)
             session_id = session_mgr.create_session()
-        
+
         logger.info(f"📝 Session ID: {session_id}")
-        
-        # 4. 确定回测日期范围
-        simulator_config = settings.price_simulator
+
+        simulator_config = price_simulator_config
         start_date = simulator_config.get('start_date') or '20200101'
         end_date = simulator_config.get('end_date') or datetime.now().strftime('%Y%m%d')
-        
+
         logger.info(f"📅 回测日期范围: {start_date} ~ {end_date}")
-        
-        # 5. 构建作业（使用 JobBuilderHelper）
+
         jobs = JobBuilderHelper.build_simulate_jobs(
             stock_list, strategy_info, session_id, start_date, end_date
         )
         logger.info(f"📦 作业数量: {len(jobs)}")
-        
-        # 6. 多进程执行
-        max_workers = self._get_max_workers(settings.max_workers)
+
+        max_workers = self._get_max_workers(price_block.max_workers)
         results = self._execute_jobs(jobs, strategy_info, max_workers)
-        
-        # 7. 收集结果（所有已完成的 opportunities）
+
         all_opportunities = self._collect_simulate_results(results)
         logger.info(f"✅ 完成回测: 共发现 {len(all_opportunities)} 个投资机会")
-        
-        # 8. 保存结果
-        self._save_simulate_results(strategy_name, session_id, all_opportunities, settings)
-        
-        logger.info(f"✅ 模拟完成: {strategy_name}")
+
+        self._save_simulate_results(name, session_id, all_opportunities, strategy_settings)
+
+        logger.info(f"✅ 模拟完成: {name}")
     
     # =========================================================================
     # 多进程执行
@@ -249,7 +250,7 @@ class StrategyManager:
     def _execute_jobs(
         self, 
         jobs: List[Dict[str, Any]], 
-        strategy_info: Dict[str, Any],
+        strategy_info: Any,
         max_workers: int
     ) -> List[Dict[str, Any]]:
         """多进程执行作业"""
@@ -351,7 +352,7 @@ class StrategyManager:
         strategy_name: str, 
         date: str, 
         opportunities: List[Dict[str, Any]],
-        settings: Any
+        settings: StrategySettings,
     ):
         """保存扫描结果"""
         from core.modules.strategy.components.opportunity_service import OpportunityService
@@ -373,7 +374,7 @@ class StrategyManager:
             opp_service.save_scan_opportunities(date, stock_id, opps)
         
         # 3. 保存 summary（使用 StatisticsHelper）
-        strategy_version = settings.name
+        strategy_version = settings.strategy_name
         summary = StatisticsHelper.generate_scan_summary(
             strategy_name, date, strategy_version, len(opportunities), opportunities
         )
@@ -384,7 +385,7 @@ class StrategyManager:
         strategy_name: str,
         session_id: str,
         opportunities: List[Dict[str, Any]],
-        settings: Any
+        settings: StrategySettings,
     ):
         """保存模拟结果"""
         from core.modules.strategy.components.opportunity_service import OpportunityService
@@ -428,25 +429,26 @@ class StrategyManager:
         except (ValueError, TypeError):
             return 4
     
-    def _load_global_cache(self):
-        """加载全局缓存"""
-        if self.global_cache['stock_list'] is None:
-            try:
-                stock_list = self.data_mgr.stock.list.load_filtered()
-                self.global_cache['stock_list'] = stock_list
-                logger.info(f"📊 加载股票列表: {len(stock_list)} 只")
-            except Exception as e:
-                logger.error(f"加载股票列表失败: {e}")
-                self.global_cache['stock_list'] = []
-    
     def list_strategies(self) -> List[str]:
-        """列出所有已发现的策略"""
-        return list(self.strategy_cache.keys())
+        """列出所有已发现且 settings 校验通过的策略名称（含未启用；筛启用请用 ``info.is_enabled``）。"""
+        return list(self.validated_strategies.keys())
     
-    def get_strategy_info(self, strategy_name: str) -> Optional[Dict[str, Any]]:
-        """获取策略信息"""
-        return self.strategy_cache.get(strategy_name)
+    def get_strategy_info(self, strategy_name: str) -> Optional[StrategyInfo]:
+        """返回策略信息（同 ``lookup_strategy_info``）。"""
+        return self.lookup_strategy_info(strategy_name)
 
+    @property
+    def contract_cache(self) -> ContractCacheManager:
+        """本进程 ``DataContractManager`` 使用的两层 contract 缓存（与子进程 Worker 各自实例无关）。"""
+        return self._contract_cache
+
+    def clear_contract_cache(self) -> None:
+        """清空 contract 全局层与 per-run 层（需强制刷新进程内物化结果时调用）。"""
+        self._contract_cache.clear_all()
+
+    def _load_stock_list(self) -> List[Dict[str, Any]]:
+        c = self._data_contract_manager.issue(DataKey.STOCK_LIST, filtered=True)
+        return list(c.data or [])
 
 # =========================================================================
 # CLI 入口

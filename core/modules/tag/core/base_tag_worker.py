@@ -49,12 +49,17 @@ class BaseTagWorker(ABC):
         self.tracker = {}
         self._extract_settings()
         
-        from core.modules.tag.core.components.tag_worker_helper.tag_worker_data_manager import TagWorkerDataManager
-        self.tag_worker_data_manager = TagWorkerDataManager(
+        from core.modules.data_contract.cache import ContractCacheManager
+        from core.modules.tag.core.components.data_management.tag_data_manager import TagDataManager
+
+        self.tag_data_manager = TagDataManager(
             entity_id=self.entity['id'],
             entity_type=self.entity['type'],
+            scenario_name=self.scenario['name'],
             settings=self.settings,
-            data_mgr=self.data_mgr
+            data_mgr=self.data_mgr,
+            contract_cache=ContractCacheManager(),
+            global_extra_cache=job_payload.get("global_extra_cache") or {},
         )
         
         self.on_init()
@@ -100,11 +105,12 @@ class BaseTagWorker(ABC):
     
     def _preprocess(self):
         """预处理阶段"""
-        # 在 INCREMENTAL 模式下，初始化数据加载
-        if self.scenario['update_mode'] and self.scenario['update_mode'].value == 'incremental':
-            self.tag_worker_data_manager.initialize_for_incremental(self.job['start_date'])
-        
-        self.trading_dates = self.tag_worker_data_manager.get_trading_dates(
+        self.tag_data_manager.hydrate_row_slots(
+            self.job['start_date'],
+            self.job['end_date'],
+        )
+        self.tag_data_manager.rebuild_data_cursor()
+        self.trading_dates = self.tag_data_manager.get_trading_dates(
             self.job['start_date'],
             self.job['end_date']
         )
@@ -117,7 +123,7 @@ class BaseTagWorker(ABC):
         
         流程：
         1. 遍历每个交易日
-        2. 对每个日期：获取历史数据（委托给 tag_worker_data_manager）
+        2. 对每个日期：获取历史数据（委托给 tag_data_manager + DataCursor）
         3. 对每个 tag：调用 calculate_tag()
         4. 收集结果
         5. 调用钩子函数
@@ -133,8 +139,8 @@ class BaseTagWorker(ABC):
         
         for as_of_date in self.trading_dates:
             try:
-                # 获取历史数据（tag_worker_data_manager 负责按需加载和过滤）
-                historical_data = self.tag_worker_data_manager.filter_data_to_date(as_of_date)
+                # 获取历史数据（由 DataCursor 按 as_of_date 生成前缀视图）
+                historical_data = self.tag_data_manager.get_data_until(as_of_date)
                 
                 # 对每个 tag 调用 calculate_tag()
                 for tag_definition in self.tag_definitions:
@@ -291,10 +297,8 @@ class BaseTagWorker(ABC):
         Args:
             as_of_date: 当前业务日期（YYYYMMDD格式）
             historical_data: 历史数据字典，结构根据 settings 中的配置保持一致：
-                - klines: {term: [records]}  # K线数据，例如 {'daily': [...], 'weekly': [...]}
-                - corporate_finance: [records]  # 财报数据（如果 settings 中配置了）
-                - gdp: [records]  # GDP数据（如果 settings 中配置了）
-                - 其他 required_data 按配置名称作为 key
+                - key 统一使用 data_id（例如 "stock.kline" / "macro.gdp"）
+                - value 为对应 data_id 的历史记录列表
             tag_definition: Tag定义对象（TagModel），包含：
                 - id: Tag定义ID
                 - tag_name: Tag名称

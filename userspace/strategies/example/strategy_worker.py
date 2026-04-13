@@ -35,7 +35,7 @@ class ExampleStrategyWorker(BaseStrategyWorker):
         
         Args:
             data: 数据字典，包含：
-                - data['klines']: List[Dict] - K线数据（已包含技术指标，如 ma5, rsi14 等）
+                - data['klines']: List[Dict] - K线数据（已包含技术指标，如 sma5, rsi14 等）
                 - data.get('tags', []): List[Dict] - 标签数据（如果配置了 required_entities）
                 - data.get('corporate_finance', []): List[Dict] - 财务数据（如果配置了）
                 - data.get('macro', {}): Dict - 宏观数据（如果配置了）

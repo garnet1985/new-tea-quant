@@ -279,61 +279,18 @@ class StrategyDataManager:
                 configs = [configs]
             for cfg in configs:
                 try:
-                    if name.lower() == "ma":
-                        length = cfg.get("period") or cfg.get("length")
-                        if not length:
-                            continue
-                        values = IndicatorService.ma(klines, length=int(length))
-                        if not values:
-                            continue
-                        field = f"ma{length}"
-                        for rec, val in zip(klines, values):
+                    result = IndicatorService.calculate(name, klines, **cfg)
+                    if not result:
+                        continue
+                    if isinstance(result, list):
+                        field = self._build_indicator_field_name(name, cfg)
+                        for rec, val in zip(klines, result):
                             rec[field] = val
-                    elif name.lower() == "ema":
-                        length = cfg.get("period") or cfg.get("length")
-                        if not length:
-                            continue
-                        values = IndicatorService.ema(klines, length=int(length))
-                        if not values:
-                            continue
-                        field = f"ema{length}"
-                        for rec, val in zip(klines, values):
-                            rec[field] = val
-                    elif name.lower() == "rsi":
-                        length = cfg.get("period") or cfg.get("length")
-                        if not length:
-                            continue
-                        values = IndicatorService.rsi(klines, length=int(length))
-                        if not values:
-                            continue
-                        field = f"rsi{length}"
-                        for rec, val in zip(klines, values):
-                            rec[field] = val
-                    elif name.lower() == "macd":
-                        fast = cfg.get("fast", 12)
-                        slow = cfg.get("slow", 26)
-                        signal = cfg.get("signal", 9)
-                        result = IndicatorService.macd(
-                            klines, fast=int(fast), slow=int(slow), signal=int(signal)
-                        )
-                        if not result:
-                            continue
+                    elif isinstance(result, dict):
                         for key, series in result.items():
+                            field = self._build_indicator_field_name(f"{name}_{key}", cfg)
                             for rec, val in zip(klines, series):
-                                rec[key] = val
-                    else:
-                        result = IndicatorService.calculate(name, klines, **cfg)
-                        if not result:
-                            continue
-                        if isinstance(result, list):
-                            field = self._build_indicator_field_name(name, cfg)
-                            for rec, val in zip(klines, result):
                                 rec[field] = val
-                        elif isinstance(result, dict):
-                            for key, series in result.items():
-                                field = self._build_indicator_field_name(f"{name}_{key}", cfg)
-                                for rec, val in zip(klines, series):
-                                    rec[field] = val
                 except Exception as e:
                     logger.error(
                         "计算指标失败: stock=%s, indicator=%s, params=%s, error=%s",

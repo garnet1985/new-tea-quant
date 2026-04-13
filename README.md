@@ -1,6 +1,76 @@
 # New Tea Quant（NTQ）- A股量化交易研究框架
 
 作者：Garnet
+当前版本：0.2.0
+
+## 快速安装（5分钟跑起来）
+
+目标：**5 分钟内跑起框架 + 跑通 `example` 策略**。
+
+### 前提条件
+
+- 本机已安装可用的 Python 3.9+。  
+- 本机已有可用数据库（MySQL 或 PostgreSQL）。
+
+### 第 1 步：下载代码
+
+可通过 `git clone`，也可以直接下载 zip：
+
+```bash
+git clone <仓库地址>
+cd new-tea-quant
+```
+
+### 第 2 步：完成数据库设置
+
+- 先创建一个新的数据库。  
+- 在 `userspace/config/database` 填写数据库配置：  
+  - 复制 `common.example.json` 并重命名为 `common.json`，填写要使用的数据库类型（MySQL 或 PostgreSQL）。  
+  - 复制对应数据库配置文件并去掉 `.example`（例如 `mysql.example.json` -> `mysql.json`），填写数据库名、用户名、密码等连接信息。
+
+### 第 3 步：安装并验证
+
+```bash
+python install.py
+```
+
+安装成功后，执行以下命令测试 `example` 策略：
+
+```bash
+python start-cli.py -sp
+```
+
+看到结果即表示已成功跑起第一个策略。
+
+### 更多常用命令
+
+查看帮助：
+
+```bash
+python start-cli.py -h
+```
+
+带资金的策略模拟：
+
+```bash
+python start-cli.py -sa
+```
+
+生成特征标签：
+
+```bash
+python start-cli.py -t
+```
+
+您也可以修改 `userspace/strategies/` 下的 settings 或 worker，自定义策略算法与目标。
+
+Have fun `^_^`
+
+### 数据说明（请先看）
+
+1. **仓库内置小数据**：只覆盖部分表，用于快速启动和演示。  
+2. **获取更多(3年)演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载放入setup/init_data后运行 python install.py 安装。（注意需要清空文件夹后再放入你的数据包，文件夹内只能有1个zip包）  
+3. **自有数据源**：也可自行接入（如 Tushare），详见 [userspace/data_source/README.md](userspace/data_source/README.md)。
 
 ## 为什么选择 NTQ？
 
@@ -21,12 +91,7 @@
 本项目 **Apache 2.0 开源**，您可以自由学习、改造与扩展。**更完整的教程、概念说明与可视化阅读体验**在官方网站：**[new-tea.cn](https://new-tea.cn)**（中文）。
 
 ## 请注意
-当前版本仍然是非正式版本 **v0.1.0** 框架现阶段不能保证任何API的稳定性，当版本进入1.0之后，API将基本稳定。详见 [CHANGELOG.md](CHANGELOG.md)。
-
-## 有演示数据让我试试水吗？
-有的。您可以在**[new-tea.cn](https://new-tea.cn)**注册会员后获取一份演示数据（仅供演示）和更多演示策略（框架默认带了一个演示策略），您可以按照指示下载到本地放入相应位置然后运行install.py进行安装
-
-完成会员注册后可以在 **[new-tea.cn/zh-hans/user](https://new-tea.cn/zh-hans/user)** 下找到演示数据和策略，按照内容提示放在相应的位置安装即可。
+当前版本仍然是非正式版本 **v0.x** 框架现阶段不能保证任何API的稳定性，当版本进入1.0之后，API将基本稳定。详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 开源仓库里包含什么？
 
@@ -34,7 +99,7 @@
 |------|------|
 | **框架代码** | `core/` 与命令行工具，可本地运行 |
 | **示例策略** | 仅内置 **`example`** 策略，用于对照配置与接口 |
-| **演示行情等数据** | **默认不包含**；需自行接入数据源（如 Tushare）或从官网获取 |
+| **演示行情等数据** | 包含一份可快速启动的小数据；更完整数据可从官网下载 |
 
 ## 如何联系到我？
 
@@ -55,26 +120,6 @@
 - **feature**：请使用 `feature/your-change` 的方式命名，否则无法 merge
 
 - **hotfix**：请使用 `hotfix/your-change` 的方式命名，否则无法 merge，分支只能从 rc 分支拉取
-
----
-
-## 快速搭起来框架（本地）
-
-**环境**：Python **3.9+**，数据库任选 PostgreSQL（推荐）/ MySQL；建议 **8GB+** 内存。
-
-```bash
-git clone <仓库地址>
-cd new-tea-quant
-python3 -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-python install.py                 # 或: pip install -r requirements.txt
-```
-
-1. **数据库**：复制并编辑 `userspace/config/database/*.example.json` → 对应 `*.json`（勿提交真实密码）。说明见 [userspace/config/README.md](userspace/config/README.md)。  
-2. **数据源（若不用官网 Demo 数据）**：例如 Tushare——在 `userspace/data_source/providers/tushare/` 放置 `auth_token.txt`（一行），或设置环境变量 `TUSHARE_TOKEN`。详见 [userspace/data_source/README.md](userspace/data_source/README.md)。  
-3. **策略**：默认仅 `example`；其它策略与数据请通过 **官网会员资源** 或自行开发。配置模板：[userspace/strategies/settings_example.py](userspace/strategies/settings_example.py)。
-
-更细的安装与配置也可对照仓库内 [docs/getting-started/installation.md](docs/getting-started/installation.md)；**以官网 [new-tea.cn](https://new-tea.cn) 的「快速开始」为准**。
 
 **Docker**：可用仓库内 `Dockerfile` 与 `docker-compose.yml` 拉起 PostgreSQL 与运行环境，步骤见 [docker/README.md](docker/README.md)。
 

@@ -2,40 +2,22 @@
 
 这里是 **Data Contract 的用户扩展入口**：你可以定义一种“新的数据类型”，然后让 strategy/tag 在配置里直接引用它。
 
-简单来说，先理解 3 个概念：
+您需要先理解几个概念：
 
-- `data_id`：这类数据的名字（必须唯一，建议长期稳定）。
-- `mapping`：这个数据的说明书（范围、是否时序、用哪个 loader）。
-- `loader`：真正把数据拿回来的代码实现。
+- `contract`：契约，就是一种符合某种特定格式和属性的数据。比如 K 线数据、宏观经济数据（可以细分）等。
+- `loader`：读取器，定义我声明的这个数据契约如何从数据库提取出来。
+- `mapping`：蓝图或者说是装配图，连接 contract 和 loader，定义我声明的数据契约该用哪个读取器去取到实际的数据。
 
 这三者连起来，就是一个新的数据契约。
 
 ## 一分钟上手（用已有示例理解）
 
-看 `mapping.py` 里注释掉的示例 `custom_map`，你会看到：
+看 `mapping.py` 里注释掉的示例 `custom_map`，您会看到：
 
-- 一个 `data_id`（比如 `user.example.daily_series`）
-- 这个数据是按实体取（`scope=PER_ENTITY`）
-- 这是时序数据（`type=TIME_SERIES`）
-- 时间字段是什么（`time_axis_field=date`）
-- 用哪个 loader 去取（`loader=user.example.daily_series`）
-
-最小验证代码：
-
-```python
-from core.modules.data_contract import ContractCacheManager, DataContractManager
-
-cache = ContractCacheManager()
-dcm = DataContractManager(contract_cache=cache)
-
-contract = dcm.issue(
-    "user.example.daily_series",
-    entity_id="000001.SZ",
-    start="20240101",
-    end="20241231",
-)
-rows = contract.load()
-```
+- `data_id` 数据契约的唯一标识符，类似身份证号码
+- `scope`：契约范围。我这数据是一堆人用一份（GLOBAL），还是每个人用一个属于自己的（PER_ENTITY）。例如 GDP 是全局的，而 K 线数据是每个股票有自己独有的数据。
+- `type`：数据种类，只有时序（TIME_SERIES）和非时序（NON_TIME_SERIES），指这个数据是不是随时间流逝而产生。
+- `loader`：我用哪个函数去读取数据（指向一个类）。
 
 ---
 
@@ -43,7 +25,7 @@ rows = contract.load()
 
 ### Step 1）先给它一个不重复的名字
 
-先起一个 `data_id`，例如：`user.sentiment.daily`。  
+先给这个契约起个独一无二的名字给 `data_id`，例如：`user.sentiment.daily`。  
 建议规则：`<domain>.<dataset>[.<variant>]`。
 
 ### Step 2）在 `mapping.py` 写清楚“这是什么数据”
@@ -53,10 +35,10 @@ rows = contract.load()
 - `scope`
 - `type`
 - `loader`
-
-如果是时序数据，建议再补：
-
 - `unique_keys`
+
+如果是时序数据，还需要以下字段：
+
 - `time_axis_field`
 - `time_axis_format`
 
@@ -82,20 +64,39 @@ custom_map = {
 
 ```python
 # userspace/data_contract/loaders/sentiment_daily_loader.py
-class SentimentDailyLoader(...):
+class SentimentDailyLoader(BaseLoader):
     def load(self, entity_id: str, start: str, end: str, **kwargs):
-        ...
+        # 你从数据库里读取数据的逻辑
+        dm = DataManager()
+        data = dm.get_table("my_table").load(start_date=start, end_date=end)
+        return data
 ```
 
-### Step 4）做一次最小验证
+### Step 4）您的新数据契约马上可以被 strategy 或者 tag 模块使用
 
-- 用 `dcm.issue(...)` 按 `data_id` 取 contract
-- 调 `load()`
-- 看返回字段是否符合预期（尤其时间字段和实体字段）
+拿 strategy 模块举例，您可以在配置里加上
 
-### Step 5）接入 Strategy / Tag
+```python
+# userspace/strategies/my_strategy/settings.py
+settings = {
+    "data": {
+        # ...
+        "extra_required_data_sources": [
+            {"data_id": "user.sentiment.daily", "params": {"source": "internal"}}
+        ],
+        # ...
+    }
+}
+```
+您在这里声明的 `params` 会覆盖定义在 map 里的属性，所以 contract 在使用的时候还有机会修改一些固有属性。
 
-在 strategy/tag 的 `settings` 里引用这个 `data_id`，先小样本跑通。
+然后在 `strategy_worker.py` 里，`scan_opportunity(...)` 拿到的 `data` 字典中就可以直接读取：
+
+```python
+sentiment_rows = data.get("user.sentiment.daily", [])
+```
+
+Tag 的接入模式也类似 strategy。
 
 ## 目录结构
 

@@ -6,36 +6,14 @@
 
 ---
 
-### Unreleased
+### v0.2.1 (2026-04-14)
 
-- `modules.strategy`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、`docs/components/` 下各子组件说明、重写模块 `README.md`；删除模块根目录 `ARCHITECTURE.md` 与 `docs/core_modules/strategy/*`；`__init__.py` 指向 `README`/`docs`；修复 `components/scanner/scanner.py` 错误 import、Job使用完整 `settings` 与 `StrategyInfo` worker 元数据、`_scan_stocks` 内计时变量；`DataLoader` 改为纯 `List[Dict]` 行式处理（`load_rows_for_stock`），并删除 `core/data_class/` 目录；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
-- `modules.tag`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、重写模块 `README.md`；删除模块根目录 `ARCHITECTURE.md`、`DECISIONS.md` 与 `docs/core_modules/tag/*` 重复文档；`__init__.py` 模块说明指向 `README`/`docs`；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
-- `modules.data_cursor`：补齐 `module_info.yaml`、`__init__.py` 导出与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、模块 `README.md`；`data_cursor_manager.py` 补全 `Any` 类型导入；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
-- `modules.indicator`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、重写模块 `README.md`；删除 `docs/core_modules/indicator/*`；`docs/project_overview.md` 与 `docs/README.md` 导航更新；保留根目录 `AVAILABLE_INDICATORS.md`供策略配置引用。
-- `modules.data_source`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、重写模块 `README.md`；删除原冗长 `README.md` 中失效外链与已不存在的 `SimpleConfigHandler` 描述；删除 `docs/core_modules/data_source/*`；`__init__.py` 增加模块文档指针；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
-- `modules.data_manager`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、重写模块 `README.md`；删除模块根目录 `API.md`、`ARCHITECTURE.md` 与 `docs/core_modules/data_manager/*` 重复文档；`__init__.py` 模块说明更新；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
-- `modules.data_contract`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS、CONCEPTS）、重写模块 `README.md`；删除模块根目录 `DESIGN.md`、`DECISIONS.md`、`CONCEPTS.md` 以免双源；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
-- `modules.adapter`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、模块 `README.md`；删除 `docs/core_modules/adapter/*` 重复文档；`docs/project_overview.md` 与 `docs/user-guide/examples.md` 导航指向模块内文档。
-- `infra.logging`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、模块 `README.md`；`docs/project_overview.md` 导航指向模块内文档；`__init__.py` 导出 `LoggingManager`。
-- `module_info.yaml` 字段简写：`name`、`version`、`description`、`dependencies`（不再使用 `module_` 前缀）；`docs/module-doc-standard.md` §4.6 已同步。
-- 已迁移的 `infra/db`、`infra/discovery`：删除 `docs/infra/db/*`、`docs/infra/discovery/*` 重复文档；`docs/project_overview.md` 改为指向模块内文档。
-- `infra.project_context`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、模块 `README.md`；删除 `docs/infra/project_context/*` 与根目录 `DESIGN.md`；`docs/default_config/*` 中链接改为指向 `core/infra/project_context/docs/`。
-- `infra.worker`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、重写模块 `README.md`；删除 `docs/infra/worker/*` 与根目录 `DESIGN.md`；`docs/project_overview.md` 导航指向模块内文档。
-- 文档治理约定落地：明确根目录 `README.md` 为主入口，统一命令入口为 `start-cli.py`。
-- 明确发布时文档最低同步要求：至少更新 `README.md` 与 `CHANGELOG.md`。
-- 记录 `docs/development/` 当前作为内部工作区文档，暂不纳入对外文档整理范围。
-- 新增模块文档统一规范 `docs/module-doc-standard.md`，定义模块文档清单、固定模板和更新触发规则。
-- 明确文档目录采用混合方案：模块文档就近放置，`docs/` 负责集中导航与跨模块专题。
-- 调整模块文档目录细则：模块根目录仅保留 `README.md` 与 `module_info.yaml`，其余模块文档统一放入模块内 `docs/` 子目录。
-- `module_info.yaml` 的 core 兼容字段统一为 `compatible_core_versions`，并使用 semver range（如 `^0.2.0`）。
-- 模块版本元数据规则更新：`version` 初始统一为 `0.2.0`，`compatible_core_versions` 初始统一为 `>=0.2.0`。
-- API 文档模板增强：每个函数条目至少包含函数名、状态、描述、诞生版本、参数（名称/类型/是否必须）、返回值。
-- 架构文档模板改为极简 overview：仅保留设计目标、模块职责、架构/流程图，并要求文档版本与模块版本一致。
-- 架构文档模板进一步细化：改为“模块介绍、模块目标、依赖说明、模块职责与边界、架构/流程图”。
-- 文档规范补充：README 不维护“下游使用方”信息；非 API/DECISIONS 文档只写当前事实，不写历史沿革。
-- 架构文档模板修订：移除“模块基础信息”区块，改为“工作拆分（子模块/管理器 + 职责）”；`DESIGN.md` 作为详细子模块说明文档。
-- `infra.discovery`：按模块文档规范补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS），重写模块 `README.md`。
-- `docs/module-doc-standard.md`：§4.3 明确 `API.md` 全仓库统一版式（`### 函数名`、`params` 三列表格、可选参数标 `(可选)`）、复杂 API 的示例放置方式；PR 自检项同步。
+- 为所有模块设计并添加了info的信息，并增加了对核心的版本支持能力
+- 废弃并删除了core/data_class
+- 重构所有文档的位置和内容，让文档保持最新状态
+- 重构userspace里的用户readme文档，让概念和例子更加易懂
+- 定义了文档标准并记录在`docs/module-doc-standard.md`
+- cli增加显示版本信息的命令`python start-cli --verison`
 
 ---
 

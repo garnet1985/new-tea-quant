@@ -1,0 +1,7 @@
+name: modules.data_manager
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "统一数据访问门面：DatabaseManager、core/userspace 表发现、各领域 DataService（stock/macro/calendar/index/db_cache）。"
+dependencies:
+  - infra.db
+  - infra.project_context

@@ -7,3 +7,7 @@ Logging package for New Tea Quant.
 - 为 core 内部模块提供一致的 logger 行为。
 """
 
+from core.infra.logging.logging_manager import LoggingManager
+
+__all__ = ["LoggingManager"]
+

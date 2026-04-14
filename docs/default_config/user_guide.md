@@ -71,7 +71,7 @@ userspace/config/                  # 用户配置（可选）
 - `ConfigManager.load_database_config()`、`ConfigManager.load_data_config()`、`ConfigManager.load_worker_config()` 等；
 - 或 `ProjectContextManager().config.load_with_defaults(default_path, user_path, ...)`。
 
-详见 `infra/project_context` 下的 [api.md](../infra/project_context/api.md) 与 [architecture.md](../infra/project_context/architecture.md)。
+详见 [`core/infra/project_context/docs/API.md`](../../core/infra/project_context/docs/API.md) 与 [`ARCHITECTURE.md`](../../core/infra/project_context/docs/ARCHITECTURE.md)。
 
 ---
 
@@ -79,4 +79,4 @@ userspace/config/                  # 用户配置（可选）
 
 - [Config 概览](./overview.md)
 - [Config 架构](./architecture.md)
-- [Project Context 配置管理](../infra/project_context/api.md)
+- [Project Context 配置管理](../../core/infra/project_context/docs/API.md)

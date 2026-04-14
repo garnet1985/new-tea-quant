@@ -702,12 +702,12 @@ class PriceFactorSimulatorWorker:
         start_date: str = cfg.get("start_date") or ""
         end_date: str = cfg.get("end_date") or ""
 
-        # 1. 创建 DataLoader 并加载 opportunities 和 targets（列式）
+        # 1. 创建 DataLoader 并加载 opportunities 和 targets（行式 dict）
         self.profiler.start_timer("load_data")
         from core.modules.strategy.managers.data_loader import DataLoader
         data_loader = DataLoader(strategy_name=self.strategy_name, cache_enabled=False)
 
-        opportunities_table, targets_table, targets_index = data_loader.load_columnar_for_stock(
+        opportunities_rows, targets_rows, targets_index = data_loader.load_rows_for_stock(
             opportunities_path=self.opportunities_path,
             targets_path=self.targets_path,
             start_date=start_date,
@@ -717,10 +717,10 @@ class PriceFactorSimulatorWorker:
         load_elapsed = self.profiler.end_timer("load_data")
         self.profiler.metrics.time_load_data = load_elapsed
         self.profiler.metrics.kline_count = 0  # 价格模拟阶段不直接处理 K 线
-        self.profiler.metrics.opportunity_count = opportunities_table.size
-        self.profiler.metrics.target_count = targets_table.size
+        self.profiler.metrics.opportunity_count = len(opportunities_rows)
+        self.profiler.metrics.target_count = len(targets_rows)
 
-        if opportunities_table.size == 0:
+        if not opportunities_rows:
             stock_summary = {
                 "stock": self.stock_info,
                 "investments": [],
@@ -735,22 +735,22 @@ class PriceFactorSimulatorWorker:
             )
             return modified or stock_summary
 
-        # 2. 调用“单股处理前”钩子（传入 RowView 列表）
-        opportunities_row_views = list(opportunities_table.iter_rows())
+        # 2. 调用“单股处理前”钩子（传入机会行列表）
         self.hooks_dispatcher.call_hook(
             "on_price_factor_before_process_stock",
             self.stock_id,
-            opportunities_row_views,
+            opportunities_rows,
             cfg,
         )
         
-        # 3. 按 trigger_date 排序（基于列）
+        # 3. 按 trigger_date 排序
         self.profiler.start_timer("enumerate")
-        trigger_dates = opportunities_table.columns.get("trigger_date", [])
-        opp_ids = opportunities_table.columns.get("opportunity_id", [])
         order = sorted(
-            range(opportunities_table.size),
-            key=lambda i: ((trigger_dates[i] or ""), str(opp_ids[i] or "")),
+            range(len(opportunities_rows)),
+            key=lambda i: (
+                opportunities_rows[i].get("trigger_date") or "",
+                str(opportunities_rows[i].get("opportunity_id") or ""),
+            ),
         )
         
         # 4. 模拟：同一时刻只持有一个机会（1 股），并构造 investments 列表
@@ -759,7 +759,7 @@ class PriceFactorSimulatorWorker:
         holding_until: Optional[str] = None
 
         for idx in order:
-            row = opportunities_table.row_view(idx)
+            row = opportunities_rows[idx]
             # 钩子：允许用户修改机会原始行
             modified_row = self.hooks_dispatcher.call_hook(
                 "on_price_factor_opportunity_trigger",
@@ -785,22 +785,20 @@ class PriceFactorSimulatorWorker:
             raw_target_indices = targets_index.get(opp_id) or []
             processed_targets: List[Dict[str, Any]] = []
             for t_idx in raw_target_indices:
-                t_row = targets_table.row_view(t_idx)
+                if t_idx < 0 or t_idx >= len(targets_rows):
+                    continue
+                t_row = targets_rows[t_idx]
                 modified_t = self.hooks_dispatcher.call_hook(
                     "on_price_factor_target_hit",
                     t_row,
                     modified_row,
                     cfg,
                 ) or t_row
-                # InvestmentBuilder 期望 List[Dict]，此处按需 materialize
-                processed_targets.append(
-                    modified_t.to_dict() if hasattr(modified_t, "to_dict") else dict(modified_t)  # type: ignore[arg-type]
-                )
+                processed_targets.append(dict(modified_t))  # type: ignore[arg-type]
             
             # 使用 InvestmentBuilder 构建 investment 记录
-            # InvestmentBuilder 接受 Mapping 风格的 opportunity_row，这里直接传 RowView/Mapping
             investment = InvestmentBuilder.build_investment(
-                modified_row.to_dict() if hasattr(modified_row, "to_dict") else dict(modified_row),  # type: ignore[arg-type]
+                dict(modified_row),  # type: ignore[arg-type]
                 processed_targets,
             )
             investments.append(investment)

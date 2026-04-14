@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_cursor.data_cursor_manager import DataCursorManager
+from core.modules.data_cursor import DataCursorManager
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract

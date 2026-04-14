@@ -1,0 +1,8 @@
+name: modules.data_source
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "配置驱动的数据抓取：mapping + handler config、Provider 发现、BaseHandler 执行管线、调度器按依赖拓扑执行并写回绑定表。"
+dependencies:
+  - modules.data_manager
+  - infra.project_context
+  - infra.discovery

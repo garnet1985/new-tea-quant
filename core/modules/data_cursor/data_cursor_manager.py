@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Hashable, List, Mapping, Optional
+from typing import Any, Dict, Hashable, List, Mapping, Optional
 
 from core.modules.data_contract.contracts import DataContract
 

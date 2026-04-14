@@ -3,8 +3,8 @@ from pathlib import Path
 import importlib.util
 import logging
 
-from core.modules.tag.core.base_tag_worker import BaseTagWorker
-from core.modules.tag.core.enums import FileName
+from core.modules.tag.base_tag_worker import BaseTagWorker
+from core.modules.tag.enums import FileName
 from core.infra.project_context import FileManager, ConfigManager
 
 logger = logging.getLogger(__name__)

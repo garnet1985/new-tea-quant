@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, List, Tuple
 import json
 import logging
 
-from core.modules.tag.core.base_tag_worker import BaseTagWorker
+from core.modules.tag.base_tag_worker import BaseTagWorker
 
 logger = logging.getLogger(__name__)
 

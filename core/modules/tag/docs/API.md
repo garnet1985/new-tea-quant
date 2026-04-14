@@ -21,7 +21,7 @@
 
 ## TagUpdateMode
 
-**枚举**（`core.modules.tag.core.enums.TagUpdateMode`），包内可从 **`core.modules.tag`** 导入。
+**枚举**（`core.modules.tag.enums.TagUpdateMode`），包内可从 **`core.modules.tag`** 导入。
 
 | 成员 | 值 | 说明 |
 |------|-----|------|

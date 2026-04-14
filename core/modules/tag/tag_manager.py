@@ -8,18 +8,18 @@ import time
 from typing import Dict, List, Optional, Type, Any, Tuple
 import logging
 from pathlib import Path
-from core.modules.tag.core.enums import TagTargetType, TagUpdateMode
-from core.modules.tag.core.base_tag_worker import BaseTagWorker
-from core.modules.tag.core.components.helper.tag_helper import TagHelper
-from core.modules.tag.core.components.helper.job_helper import JobHelper
+from core.modules.tag.enums import TagTargetType, TagUpdateMode
+from core.modules.tag.base_tag_worker import BaseTagWorker
+from core.modules.tag.components.helper.tag_helper import TagHelper
+from core.modules.tag.components.helper.job_helper import JobHelper
 from core.modules.data_manager import DataManager
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
 from core.modules.data_contract.data_contract_manager import DataContractManager
-from core.modules.tag.core.config import get_scenarios_root
+from core.modules.tag.config import get_scenarios_root
 from core.infra.project_context import PathManager
-from core.modules.tag.core.enums import FileName
-from core.modules.tag.core.models.scenario_model import ScenarioModel
+from core.modules.tag.enums import FileName
+from core.modules.tag.models.scenario_model import ScenarioModel
 from core.infra.worker.multi_process.process_worker import ExecutionMode, ProcessWorker
 
 logger = logging.getLogger(__name__)

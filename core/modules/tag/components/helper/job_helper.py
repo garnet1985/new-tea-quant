@@ -10,7 +10,7 @@ Job Builder - Job 构建器
 """
 from typing import Dict, List, Any, Tuple, Optional
 import logging
-from core.modules.tag.core.enums import TagUpdateMode
+from core.modules.tag.enums import TagUpdateMode
 from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)

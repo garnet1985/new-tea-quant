@@ -5,10 +5,10 @@ Tag 系统：场景化标签计算与落库。
 """
 
 # 导出核心类和模块，方便用户导入
-from core.modules.tag.core.base_tag_worker import BaseTagWorker
-from core.modules.tag.core.tag_manager import TagManager
-from core.modules.tag.core.enums import TagUpdateMode
-from core.modules.tag.core.config import get_scenarios_root
+from core.modules.tag.base_tag_worker import BaseTagWorker
+from core.modules.tag.tag_manager import TagManager
+from core.modules.tag.enums import TagUpdateMode
+from core.modules.tag.config import get_scenarios_root
 
 __all__ = [
     'BaseTagWorker',

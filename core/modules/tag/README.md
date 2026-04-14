@@ -29,13 +29,12 @@ core/modules/tag/
 ├── module_info.yaml
 ├── README.md
 ├── __init__.py
-├── core/
-│   ├── tag_manager.py
-│   ├── base_tag_worker.py
-│   ├── config.py
-│   ├── enums.py
-│   ├── components/
-│   └── models/
+├── tag_manager.py
+├── base_tag_worker.py
+├── config.py
+├── enums.py
+├── components/
+└── models/
 └── docs/
     ├── ARCHITECTURE.md
     ├── DESIGN.md

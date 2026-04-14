@@ -6,8 +6,8 @@ from core.infra.project_context import ConfigManager
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.mapping import default_map
 from core.utils.date.date_utils import DateUtils
-from core.modules.tag.core.enums import TagTargetType, TagUpdateMode
-from core.modules.tag.core.models.tag_model import TagModel
+from core.modules.tag.enums import TagTargetType, TagUpdateMode
+from core.modules.tag.models.tag_model import TagModel
 
 
 logger = logging.getLogger(__name__)

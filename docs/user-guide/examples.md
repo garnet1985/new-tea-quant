@@ -49,6 +49,8 @@
 - `console/` - 控制台适配器
 - `example/` - 示例适配器
 
+模块说明与扩展约定见 [`core/modules/adapter/README.md`](../../core/modules/adapter/README.md)。
+
 ## 相关文档
 
 - [策略开发指南](strategy-development.md)

@@ -1,0 +1,5 @@
+name: modules.indicator
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "技术指标计算：IndicatorService 作为 pandas-ta-classic 的代理，K 线 List[Dict] 与 DataFrame 互转，通用 calculate 与常用便捷方法。"
+dependencies: []

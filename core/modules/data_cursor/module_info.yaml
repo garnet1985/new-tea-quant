@@ -1,0 +1,6 @@
+name: modules.data_cursor
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "多数据源运行时前缀视图：基于已加载的 DataContract 或行字典，按 as_of 单调推进游标，输出累计切片（防未来数据泄露）。"
+dependencies:
+  - modules.data_contract

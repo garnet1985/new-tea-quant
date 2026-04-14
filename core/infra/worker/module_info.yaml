@@ -1,0 +1,6 @@
+name: infra.worker
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "NTQ 通用任务并发基础设施：多进程/多线程 Worker、TaskType 与可插拔的 Orchestrator 组件链。"
+dependencies:
+  - infra.project_context

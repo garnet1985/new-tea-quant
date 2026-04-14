@@ -18,11 +18,11 @@ except ImportError:
 class TestTagManager:
     """TagManager 测试类"""
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_init(self, mock_get_scenarios_root, mock_data_manager):
         """测试 TagManager 初始化"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         from pathlib import Path
         
         # Mock scenarios root
@@ -46,11 +46,11 @@ class TestTagManager:
             assert manager.entity_list_cache == {}
             mock_discover.assert_called_once()
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_refresh_scenario(self, mock_get_scenarios_root, mock_data_manager):
         """测试 refresh_scenario"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -71,11 +71,11 @@ class TestTagManager:
             mock_clear_cache.assert_called_once()
             mock_discover.assert_called_once()
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_execute_with_scenario_name(self, mock_get_scenarios_root, mock_data_manager):
         """测试 execute（指定 scenario_name）"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -90,11 +90,11 @@ class TestTagManager:
             
             mock_execute_single.assert_called_once_with("test_scenario")
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_execute_with_settings(self, mock_get_scenarios_root, mock_data_manager):
         """测试 execute（指定 settings）"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -118,11 +118,11 @@ class TestTagManager:
             
             mock_execute_tmp.assert_called_once_with(settings)
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_execute_all(self, mock_get_scenarios_root, mock_data_manager):
         """测试 execute（执行所有 scenarios）"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -144,11 +144,11 @@ class TestTagManager:
             mock_execute_single.assert_any_call("scenario1")
             mock_execute_single.assert_any_call("scenario2")
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_discover_scenarios_from_folder_not_exists(self, mock_get_scenarios_root, mock_data_manager):
         """测试 _discover_scenarios_from_folder（目录不存在）"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         
         mock_root = Path("/test/scenarios")
         mock_get_scenarios_root.return_value = mock_root
@@ -162,11 +162,11 @@ class TestTagManager:
             
             assert manager.scenario_cache == {}
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_load_scenario_from_cache_by_name_exists(self, mock_get_scenarios_root, mock_data_manager):
         """测试 _load_scenario_from_cache_by_name（存在）"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -187,11 +187,11 @@ class TestTagManager:
             assert result is not None
             assert result["settings"]["name"] == "test_scenario"
     
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_load_scenario_from_cache_by_name_not_exists(self, mock_get_scenarios_root, mock_data_manager):
         """测试 _load_scenario_from_cache_by_name（不存在）"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -206,11 +206,11 @@ class TestTagManager:
             
             assert result is None
 
-    @patch('core.modules.tag.core.tag_manager.DataManager')
-    @patch('core.modules.tag.core.tag_manager.get_scenarios_root')
+    @patch('core.modules.tag.tag_manager.DataManager')
+    @patch('core.modules.tag.tag_manager.get_scenarios_root')
     def test_run_execute_pipeline_general_uses_general_owner(self, mock_get_scenarios_root, mock_data_manager):
         """测试 general 模式固定使用 __general__ owner"""
-        from core.modules.tag.core.tag_manager import TagManager
+        from core.modules.tag.tag_manager import TagManager
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()

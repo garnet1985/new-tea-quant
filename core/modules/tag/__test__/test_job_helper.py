@@ -20,11 +20,11 @@ class TestJobHelper:
 
     def test_calculate_start_and_end_date_refresh_mode(self):
         """测试 calculate_start_and_end_date（REFRESH 模式）"""
-        from core.modules.tag.core.components.helper.job_helper import JobHelper
-        from core.modules.tag.core.enums import TagUpdateMode
+        from core.modules.tag.components.helper.job_helper import JobHelper
+        from core.modules.tag.enums import TagUpdateMode
         
         with patch('core.infra.project_context.ConfigManager.get_default_start_date') as mock_get_start, \
-             patch('core.modules.tag.core.components.helper.job_helper.DateUtils.today') as mock_today:
+             patch('core.modules.tag.components.helper.job_helper.DateUtils.today') as mock_today:
             
             mock_get_start.return_value = "20200101"
             mock_today.return_value = "20201231"
@@ -40,10 +40,10 @@ class TestJobHelper:
     
     def test_calculate_start_and_end_date_incremental_mode_with_last_date(self):
         """测试 calculate_start_and_end_date（INCREMENTAL 模式，有最后更新日期）"""
-        from core.modules.tag.core.components.helper.job_helper import JobHelper
-        from core.modules.tag.core.enums import TagUpdateMode
+        from core.modules.tag.components.helper.job_helper import JobHelper
+        from core.modules.tag.enums import TagUpdateMode
         
-        with patch('core.modules.tag.core.components.helper.job_helper.DateUtils.add_days') as mock_add_days:
+        with patch('core.modules.tag.components.helper.job_helper.DateUtils.add_days') as mock_add_days:
             mock_add_days.return_value = "20200102"
             
             start_date, end_date = JobHelper.calculate_start_and_end_date(
@@ -57,11 +57,11 @@ class TestJobHelper:
     
     def test_calculate_start_and_end_date_incremental_mode_no_last_date(self):
         """测试 calculate_start_and_end_date（INCREMENTAL 模式，无最后更新日期）"""
-        from core.modules.tag.core.components.helper.job_helper import JobHelper
-        from core.modules.tag.core.enums import TagUpdateMode
+        from core.modules.tag.components.helper.job_helper import JobHelper
+        from core.modules.tag.enums import TagUpdateMode
         
         with patch('core.infra.project_context.ConfigManager.get_default_start_date') as mock_get_start, \
-             patch('core.modules.tag.core.components.helper.job_helper.DateUtils.today') as mock_today:
+             patch('core.modules.tag.components.helper.job_helper.DateUtils.today') as mock_today:
             
             mock_get_start.return_value = "20200101"
             mock_today.return_value = "20201231"

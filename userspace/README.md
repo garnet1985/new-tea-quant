@@ -8,6 +8,7 @@
 |------|------|
 | [strategies/](strategies/README.md) | 策略：`settings.py` + `strategy_worker.py`，结果在 `results/`（通常 gitignore） |
 | [data_source/](data_source/README.md) | 数据源 mapping、handlers、providers（Tushare / AKShare 等） |
+| [data_contract/](data_contract/README.md) | Data Contract userspace 扩展：`mapping.py` + `loaders/` |
 | [tags/](tags/README.md) | 标签场景与 `tag_worker.py` |
 | [adapters/](adapters/) | 扫描结果输出适配器（如 console） |
 | [config/](config/README.md) | **本地**数据库等 JSON 配置（勿提交含密码的文件；用 `*.example.json` 作模板） |

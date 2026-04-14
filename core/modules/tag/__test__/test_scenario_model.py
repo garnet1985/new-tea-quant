@@ -19,7 +19,7 @@ class TestScenarioModel:
     
     def test_create_from_settings_basic(self):
         """测试从 settings 创建 ScenarioModel（基本配置）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -45,7 +45,7 @@ class TestScenarioModel:
     
     def test_create_from_settings_with_display_name(self):
         """测试从 settings 创建 ScenarioModel（带 display_name）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -68,7 +68,7 @@ class TestScenarioModel:
     
     def test_create_from_settings_default_display_name(self):
         """测试从 settings 创建 ScenarioModel（默认 display_name）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -88,7 +88,7 @@ class TestScenarioModel:
     
     def test_create_from_settings_target_entity_string_invalid(self):
         """测试从 settings 创建 ScenarioModel（target_entity 字符串已不支持）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -106,7 +106,7 @@ class TestScenarioModel:
     
     def test_is_setting_valid_valid(self):
         """测试 is_setting_valid（有效配置）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -123,7 +123,7 @@ class TestScenarioModel:
     
     def test_is_setting_valid_missing_target_entity(self):
         """测试 is_setting_valid（缺少 target_entity）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -138,7 +138,7 @@ class TestScenarioModel:
     
     def test_is_setting_valid_missing_tags(self):
         """测试 is_setting_valid（缺少 tags）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -150,7 +150,7 @@ class TestScenarioModel:
     
     def test_is_setting_valid_empty_tags(self):
         """测试 is_setting_valid（tags 为空列表）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -164,7 +164,7 @@ class TestScenarioModel:
     
     def test_is_setting_valid_incremental_missing_required_records(self):
         """测试 is_setting_valid（INCREMENTAL 模式缺少 required_records）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -182,7 +182,7 @@ class TestScenarioModel:
     
     def test_is_setting_valid_incremental_invalid_required_records(self):
         """测试 is_setting_valid（INCREMENTAL 模式 required_records 无效）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -200,8 +200,8 @@ class TestScenarioModel:
     
     def test_calculate_update_mode_incremental(self):
         """测试 calculate_update_mode（INCREMENTAL 模式）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
-        from core.modules.tag.core.enums import TagUpdateMode
+        from core.modules.tag.models.scenario_model import ScenarioModel
+        from core.modules.tag.enums import TagUpdateMode
         
         settings = {
             "name": "test_scenario",
@@ -220,8 +220,8 @@ class TestScenarioModel:
     
     def test_calculate_update_mode_refresh(self):
         """测试 calculate_update_mode（REFRESH 模式）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
-        from core.modules.tag.core.enums import TagUpdateMode
+        from core.modules.tag.models.scenario_model import ScenarioModel
+        from core.modules.tag.enums import TagUpdateMode
         
         settings = {
             "name": "test_scenario",
@@ -240,8 +240,8 @@ class TestScenarioModel:
     
     def test_calculate_update_mode_recompute(self):
         """测试 calculate_update_mode（recompute=True 时返回 REFRESH）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
-        from core.modules.tag.core.enums import TagUpdateMode
+        from core.modules.tag.models.scenario_model import ScenarioModel
+        from core.modules.tag.enums import TagUpdateMode
         
         settings = {
             "name": "test_scenario",
@@ -261,8 +261,8 @@ class TestScenarioModel:
     
     def test_calculate_update_mode_default(self):
         """测试 calculate_update_mode（默认值）"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
-        from core.modules.tag.core.enums import TagUpdateMode
+        from core.modules.tag.models.scenario_model import ScenarioModel
+        from core.modules.tag.enums import TagUpdateMode
         
         settings = {
             "name": "test_scenario",
@@ -281,7 +281,7 @@ class TestScenarioModel:
     
     def test_get_tags_dict(self):
         """测试 get_tags_dict"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -305,7 +305,7 @@ class TestScenarioModel:
     
     def test_to_dict(self):
         """测试 to_dict"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
         
         settings = {
             "name": "test_scenario",
@@ -336,7 +336,7 @@ class TestScenarioModel:
 
     def test_is_setting_valid_general_requires_axis(self):
         """测试 general 模式必须声明 tag_time_axis_based_on"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
 
         settings = {
             "name": "macro_general",
@@ -355,7 +355,7 @@ class TestScenarioModel:
 
     def test_is_setting_valid_general_with_axis(self):
         """测试 general 模式合法配置"""
-        from core.modules.tag.core.models.scenario_model import ScenarioModel
+        from core.modules.tag.models.scenario_model import ScenarioModel
 
         settings = {
             "name": "macro_general",

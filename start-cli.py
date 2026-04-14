@@ -92,6 +92,7 @@ try:
         CapitalAllocationSimulator,
     )
     from core.infra.logging.logging_manager import LoggingManager
+    from core.system import system_meta
 except ModuleNotFoundError as e:
     # 常见：用户未运行 install.py / 未创建 venv，导致 pandas 等依赖缺失
     missing = getattr(e, "name", None) or str(e)
@@ -535,7 +536,9 @@ def _add_extra_arguments(parser):
                        help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
     parser.add_argument('--base-date', type=str,
                        help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
-    parser.add_argument('-v', '--verbose', action='store_true',
+    parser.add_argument('-v', '--version', action='store_true',
+                       help='显示当前 core 版本信息并退出')
+    parser.add_argument('-V', '--verbose', action='store_true',
                        help='详细输出模式')
 
 
@@ -600,7 +603,7 @@ def _get_help_epilog() -> str:
     %(prog)s analysis --session xxx         分析指定session
     %(prog)s tag --scenario xxx             执行指定标签场景
     %(prog)s price_factor --strategy xx     使用 PriceFactorSimulator 对指定策略做因子回放
-    %(prog)s -se -v                         详细输出模式
+    %(prog)s -se -V                         详细输出模式
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     '''
@@ -799,6 +802,12 @@ def main():
     # 解析参数
     parser = create_argument_parser()
     args = parser.parse_args()
+
+    # 版本查询（尽早返回，避免初始化重资源）
+    if args.version:
+        print(f"NTQ Core Version: {system_meta.version}")
+        print(f"Release Date: {system_meta.release_date}")
+        return
 
     # 初始化全局日志（基于 logging.json + userspace 覆盖）
     LoggingManager.setup_logging()

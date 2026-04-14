@@ -1,0 +1,5 @@
+name: infra.project_context
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "NTQ 项目上下文基础设施：统一项目根路径、userspace 与配置目录、文件查找与默认/用户配置合并。"
+dependencies: []

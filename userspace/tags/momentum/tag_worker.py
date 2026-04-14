@@ -11,7 +11,7 @@ MOM = (P_t-60d / P_t-5d) - 1
 """
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from core.modules.tag.core.base_tag_worker import BaseTagWorker
+from core.modules.tag.base_tag_worker import BaseTagWorker
 import logging
 
 logger = logging.getLogger(__name__)

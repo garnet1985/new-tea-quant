@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from core.modules.tag.core.base_tag_worker import BaseTagWorker
+from core.modules.tag.base_tag_worker import BaseTagWorker
 
 
 class MacroRegimeTagWorker(BaseTagWorker):

@@ -13,7 +13,7 @@
 **用途：** 用于多个 data source（如 `latest_trading_date`、`kline`、`corporate_finance` 等）
 
 **配置：**
-- 创建 `userspace/data_source/providers/tushare/auth_token.txt` 文件，内容为你的 Tushare token（一行）
+- 创建 `userspace/data_source/providers/tushare/auth_token.txt` 文件，内容为您的 Tushare token（一行）
 - 或者设置环境变量 `TUSHARE_TOKEN=your_token`
 
 **文件结构：**

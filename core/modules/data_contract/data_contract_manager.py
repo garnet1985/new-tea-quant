@@ -22,7 +22,7 @@ _TS_FULL_RANGE_WINDOW = "__full__"
 
 
 class DataContractManager:
-    """Manager: discover/merge map；对外以 ``issue`` 为统一入口（含可缓存 GLOBAL 的物化）。详见 ``DECISIONS.md``。"""
+    """Manager: discover/merge map；对外以 ``issue`` 为统一入口（含可缓存 GLOBAL 的物化）。详见 ``docs/DECISIONS.md``。"""
 
     def __init__(self, *, contract_cache: ContractCacheManager) -> None:
         custom_map = self._discover_custom_map()
@@ -43,7 +43,7 @@ class DataContractManager:
         签发 ``DataContract``。可缓存的 GLOBAL 数据在命中策略下 **直接物化并写入 ``contract.data``**；
         ``PER_ENTITY`` 等不缓存项仅装配句柄，``data`` 为空，需再 ``load``。
 
-        参数约定见 ``DECISIONS.md``。
+        参数约定见 ``docs/DECISIONS.md``。
         """
         spec = self.map.get(data_id)
         if not spec:

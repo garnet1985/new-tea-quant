@@ -21,7 +21,6 @@ import csv
 import logging
 
 from core.modules.strategy.models.event import Event
-from core.data_class.time_series.columnar import ColumnarTable
 
 logger = logging.getLogger(__name__)
 
@@ -244,25 +243,21 @@ class DataLoader:
             opportunities_path = entry
             targets_path = output_version_dir / f"{stock_id}_targets.csv"
 
-            # 使用列式加载该股票的机会和目标
-            opp_table, targets_table, targets_index = self.load_columnar_for_stock(
+            # 加载该股票的机会和目标（行式 dict）
+            opp_rows, target_rows, targets_index = self.load_rows_for_stock(
                 opportunities_path=opportunities_path,
                 targets_path=targets_path,
                 start_date=start_date,
                 end_date=end_date,
             )
 
-            if opp_table.size == 0:
+            if not opp_rows:
                 continue
 
-            trigger_dates = opp_table.columns.get("trigger_date", [])
-            opp_ids = opp_table.columns.get("opportunity_id", [])
-
             # 为每个机会创建 trigger 事件
-            for idx in range(opp_table.size):
-                row_view = opp_table.row_view(idx)
-                opp_id = str(opp_ids[idx] or "").strip()
-                trigger_date = trigger_dates[idx] or ""
+            for idx, opportunity in enumerate(opp_rows):
+                opp_id = str(opportunity.get("opportunity_id") or "").strip()
+                trigger_date = opportunity.get("trigger_date") or ""
 
                 if not opp_id or not trigger_date:
                     continue
@@ -273,7 +268,7 @@ class DataLoader:
                         date=trigger_date,
                         stock_id=stock_id,
                         opportunity_id=opp_id,
-                        opportunity=row_view,  # RowView，实现 Mapping 接口
+                        opportunity=opportunity,
                         target=None,
                     )
                 )
@@ -281,9 +276,9 @@ class DataLoader:
                 # 为该机会的所有 targets 创建 target 事件
                 target_indices = targets_index.get(opp_id, [])
                 for t_idx in target_indices:
-                    if t_idx < 0 or t_idx >= targets_table.size:
+                    if t_idx < 0 or t_idx >= len(target_rows):
                         continue
-                    target_row = targets_table.row_view(t_idx)
+                    target_row = target_rows[t_idx]
                     # 统一命名后，targets CSV 使用 date 表示实际成交日期。
                     # 为兼容旧版本，这里仍然兼容 target_date。
                     target_date = (
@@ -300,7 +295,7 @@ class DataLoader:
                             date=target_date,
                             stock_id=stock_id,
                             opportunity_id=opp_id,
-                            opportunity=row_view,  # 复用同一机会视图
+                            opportunity=opportunity,
                             target=target_row,
                         )
                     )
@@ -322,22 +317,22 @@ class DataLoader:
         return events
     
     # =========================================================================
-    # 列式加载（供模拟器使用）
+    # 按股票加载（供模拟器使用）
     # =========================================================================
 
-    def load_columnar_for_stock(
+    def load_rows_for_stock(
         self,
         opportunities_path: Path,
         targets_path: Path,
         start_date: str = "",
         end_date: str = "",
-    ) -> Tuple[ColumnarTable, ColumnarTable, Dict[str, List[int]]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, List[int]]]:
         """
-        为单只股票加载列式 opportunities / targets 数据。
+        为单只股票加载 opportunities / targets 数据（行式 dict）。
 
         返回：
-            opportunities_table: ColumnarTable
-            targets_table: ColumnarTable
+            opportunities_rows: List[Dict[str, Any]]
+            targets_rows: List[Dict[str, Any]]
             targets_index: {opportunity_id: [row_idx, ...]}
         """
         # 1. 读取 targets，按 opportunity_id 建立索引
@@ -380,8 +375,6 @@ class DataLoader:
                     idx = len(target_rows) - 1
                     targets_index[opp_id].append(idx)
 
-        targets_table = ColumnarTable.from_row_dicts(target_rows) if target_rows else ColumnarTable(headers=[], columns={})
-
         # 2. 读取 opportunities（按时间窗口过滤）
         opp_rows: List[Dict[str, Any]] = []
         if opportunities_path.exists():
@@ -400,9 +393,7 @@ class DataLoader:
                 f"[DataLoader] opportunities 文件不存在: {opportunities_path}"
             )
 
-        opp_table = ColumnarTable.from_row_dicts(opp_rows) if opp_rows else ColumnarTable(headers=[], columns={})
-
-        return opp_table, targets_table, targets_index
+        return opp_rows, target_rows, targets_index
 
     # =========================================================================
     # 私有辅助方法（行式）

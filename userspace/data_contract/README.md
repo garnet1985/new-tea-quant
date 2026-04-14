@@ -1,6 +1,6 @@
 # Data Contract（`userspace/data_contract/`）
 
-这里是 **Data Contract 的用户扩展入口**：你可以扩展一种“已有的数据类型”的取数方式，然后让 strategy/tag 在配置里直接引用它。
+这里是 **Data Contract 的用户扩展入口**：您可以扩展一种“已有的数据类型”的取数方式，然后让 strategy/tag 在配置里直接引用它。
 
 您需要先理解几个概念：
 
@@ -23,7 +23,7 @@
 
 ## 白话版：从 0 创建一个新数据契约
 
-### Step 1）先选一个你要扩展的 `data_id`
+### Step 1）先选一个您要扩展的 `data_id`
 
 当前版本里，`data_id` 需要来自 `DataKey` 枚举（例如 `macro.gdp`、`stock.kline`）。  
 也就是说，这里通常是“扩展已有 data_id 的契约配置和 loader”，不是新增任意字符串 key。

@@ -1,0 +1,10 @@
+name: modules.tag
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "标签资产层：按场景（Scenario）发现配置、多进程执行 TagWorker，基于 DataContract + DataCursor 按 as_of 切片计算并批量落库。"
+dependencies:
+  - modules.data_manager
+  - modules.data_contract
+  - modules.data_cursor
+  - infra.project_context
+  - infra.worker

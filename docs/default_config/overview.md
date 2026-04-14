@@ -1,7 +1,7 @@
 # Config 模块概览
 
 > **快速入门指南**：本文档介绍配置系统的整体用途、目录结构和配置机制。  
-> 具体「如何加载与合并配置」的实现细节，位于 `infra/project_context` 下的配置管理组件文档。
+> 具体「如何加载与合并配置」的实现细节，见 `core/infra/project_context/docs/`（如 [`API.md`](../../core/infra/project_context/docs/API.md)）。
 
 ---
 
@@ -132,7 +132,7 @@ export DB_POSTGRESQL_PASSWORD=my_password
 只配置自己关心的部分，其余数据配置（开始日期、小数位数等）继续使用默认值。
 
 > 上述示例只描述「**配置文件怎么写**」。  
-> 具体「在代码中如何读取这些配置」的 API，请参考 `infra/project_context` 下的配置管理文档。
+> 具体「在代码中如何读取这些配置」的 API，请参考 [`core/infra/project_context/docs/API.md`](../../core/infra/project_context/docs/API.md)。
 
 ---
 
@@ -156,7 +156,7 @@ export DB_POSTGRESQL_PASSWORD=my_password
 - **[decisions.md](./decisions.md)**：关键设计决策记录
 - **`core/default_config/README.md`**：核心默认配置说明
 - **`userspace/config/README.md`**：用户配置说明
-- **`infra/project_context` 架构文档**：配置管理组件与 ConfigManager 的实现与用法说明
+- **[project_context 架构/ API](../../core/infra/project_context/docs/)**：配置管理组件与 `ConfigManager` 的实现与用法
 
 ---
 

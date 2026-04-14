@@ -93,6 +93,15 @@ Have fun `^_^`
 ## 请注意
 当前版本仍然是非正式版本 **v0.x** 框架现阶段不能保证任何API的稳定性，当版本进入1.0之后，API将基本稳定。详见 [CHANGELOG.md](CHANGELOG.md)。
 
+## 文档维护约定
+
+- **根目录 `README.md` 是仓库文档主入口**，用于对外说明项目用法与当前推荐流程。
+- **命令入口统一为 `start-cli.py`**；如其他文档出现 `start.py`，以本页与 `python start-cli.py -h` 为准。
+- **`docs/development/` 为内部工作区文档**，当前阶段不纳入对外文档整理范围。
+- 每次版本发布至少同步更新：
+  - `README.md`
+  - `CHANGELOG.md`
+
 ## 开源仓库里包含什么？
 
 | 内容 | 说明 |

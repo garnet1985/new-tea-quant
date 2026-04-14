@@ -1,6 +1,6 @@
 # Data Contract（`userspace/data_contract/`）
 
-这里是 **Data Contract 的用户扩展入口**：你可以定义一种“新的数据类型”，然后让 strategy/tag 在配置里直接引用它。
+这里是 **Data Contract 的用户扩展入口**：你可以扩展一种“已有的数据类型”的取数方式，然后让 strategy/tag 在配置里直接引用它。
 
 您需要先理解几个概念：
 
@@ -23,10 +23,10 @@
 
 ## 白话版：从 0 创建一个新数据契约
 
-### Step 1）先给它一个不重复的名字
+### Step 1）先选一个你要扩展的 `data_id`
 
-先给这个契约起个独一无二的名字给 `data_id`，例如：`user.sentiment.daily`。  
-建议规则：`<domain>.<dataset>[.<variant>]`。
+当前版本里，`data_id` 需要来自 `DataKey` 枚举（例如 `macro.gdp`、`stock.kline`）。  
+也就是说，这里通常是“扩展已有 data_id 的契约配置和 loader”，不是新增任意字符串 key。
 
 ### Step 2）在 `mapping.py` 写清楚“这是什么数据”
 
@@ -46,13 +46,13 @@
 
 ```python
 custom_map = {
-    "user.sentiment.daily": {
-        "scope": ContractScope.PER_ENTITY,
+    DataKey.MACRO_GDP.value: {
+        "scope": ContractScope.GLOBAL,
         "type": ContractType.TIME_SERIES,
-        "loader": "user.sentiment.daily",
-        "unique_keys": ["date", "entity_id"],
-        "time_axis_field": "date",
-        "time_axis_format": "YYYYMMDD",
+        "loader": MacroGdpLoaderCustom,
+        "unique_keys": ["quarter"],
+        "time_axis_field": "quarter",
+        "time_axis_format": "YYYYQ",
         "defaults": {},
     }
 }
@@ -63,10 +63,12 @@ custom_map = {
 新增对应 loader 文件，逻辑保持“输入参数清晰、输出字段稳定”。
 
 ```python
-# userspace/data_contract/loaders/sentiment_daily_loader.py
-class SentimentDailyLoader(BaseLoader):
-    def load(self, entity_id: str, start: str, end: str, **kwargs):
-        # 你从数据库里读取数据的逻辑
+# userspace/data_contract/loaders/macro_gdp_custom.py
+class MacroGdpLoaderCustom(BaseLoader):
+    def load(self, params, context=None):
+        # 从 params/context 里取参数，再读取数据
+        start = params.get("start")
+        end = params.get("end")
         dm = DataManager()
         data = dm.get_table("my_table").load(start_date=start, end_date=end)
         return data
@@ -82,7 +84,7 @@ settings = {
     "data": {
         # ...
         "extra_required_data_sources": [
-            {"data_id": "user.sentiment.daily", "params": {"source": "internal"}}
+            {"data_id": DataKey.MACRO_GDP.value, "params": {}}
         ],
         # ...
     }
@@ -93,7 +95,7 @@ settings = {
 然后在 `strategy_worker.py` 里，`scan_opportunity(...)` 拿到的 `data` 字典中就可以直接读取：
 
 ```python
-sentiment_rows = data.get("user.sentiment.daily", [])
+macro_rows = data.get(DataKey.MACRO_GDP.value, [])
 ```
 
 Tag 的接入模式也类似 strategy。

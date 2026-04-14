@@ -44,7 +44,7 @@
 
 1. **配置与逻辑彻底分离**
    - `core/default_config/` 只放 JSON 文件，不放任何 Python 代码
-   - 所有加载、合并、校验逻辑由 Infra 层的配置管理组件统一处理（实现位于 `infra/project_context`，不在本模块内）
+   - 所有加载、合并、校验逻辑由 Infra 层的配置管理组件统一处理（实现位于 `core/infra/project_context`，不在本模块内）
 2. **深度合并（partial override）**
    - 用户只写需要覆盖的那一小块，其余自动继承默认配置
 3. **多层来源统一建模**
@@ -108,7 +108,7 @@ userspace/config/                # 用户覆盖配置（可选）
 ## 核心组件与职责
 
 > Config 模块自身没有 Python 代码，本节只从「配置文件」视角描述职责；  
-> 具体加载与合并逻辑由 Infra 层的配置管理组件实现（见 `infra/project_context` 文档）。
+> 具体加载与合并逻辑由 Infra 层的配置管理组件实现（见 [`core/infra/project_context/docs/`](../../core/infra/project_context/docs/)）。
 
 ### `core/default_config/`（默认配置）
 
@@ -139,7 +139,7 @@ userspace/config/                # 用户覆盖配置（可选）
 ## 配置加载机制（概念层）
 
 > 本节只描述「配置文件从哪来、如何被组合」的整体机制，不涉及具体类名和 API；  
-> 加载实现细节由 `infra/project_context` 下的配置管理组件负责。
+> 加载实现细节由 `core/infra/project_context` 下的配置管理组件负责。
 
 以数据库配置为例，整体流程如下：
 
@@ -211,7 +211,7 @@ userspace/config/                # 用户覆盖配置（可选）
 > 可以看到：用户只覆盖了 `id` 部分，其余字段保持不变。
 
 关于「在代码中如何访问这些配置值」（例如提供按域获取完整配置、或语义化便捷方法），  
-请参考 `infra/project_context` 中关于配置管理组件的架构文档。
+请参考 [`core/infra/project_context/docs/ARCHITECTURE.md`](../../core/infra/project_context/docs/ARCHITECTURE.md) 中关于配置管理组件的说明。
 
 ---
 

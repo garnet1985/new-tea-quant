@@ -1,68 +1,85 @@
-# Data Contract 模块（全局）
+# Data Contract 模块（`modules.data_contract`）
 
-## 目标
+用 **`DataKey`** 声明「要哪类数据」，由 **`DataSpecMap`**（core `default_map` + userspace 合并）描述 **scope、时序/非时序、loader、唯一键、时间轴字段** 等；**`DataContractManager.issue`** 统一签发 **`DataContract`** 句柄，并在 **可缓存的 GLOBAL** 场景下按需 **物化 `data`**；**`PER_ENTITY`** 等则句柄上 **`data` 为空**，需再 **`load(start=..., end=...)`**。Strategy / Tag 等通过 **`ContractCacheManager`** 在 run 边界清理缓存。
 
-`data_contract` 是一个**全局模块**，负责把“外部/裸数据（Raw Data）”通过一套可重复、可审计的流程，**签发**为“满足契约的标准数据（Contracted Data）”。
+## 适用场景
 
-> 重要：`data_contract` **不关心**数据来自哪里、谁来喂、怎么喂（DB/API/文件/手工导入都可以）。  
-> 它只关心：输入是否满足契约；不满足就 fail-closed（明确失败），满足则输出标准结果。
+- 策略或标签侧按 **`DataKey`** 取数，避免散落字符串绑表。
+- 需要 **GLOBAL 清单类数据** 在进程内复用（如股票列表）或 **GLOBAL 时序宏观数据** 按策略 run 缓存。
+- 在 **`userspace/data_contract/mapping.py`** 中 **追加** 与 core **不重复** 的 `DataKey` 映射（键须为已定义的 `DataKey` 枚举成员）。
 
-## 非目标（MVP）
+## 快速开始
 
-- 不负责 query / join / DataManager 的加载逻辑
-- 不负责写入数据库（导入/灌库属于其他模块）
-- 不做“通用用户表适配系统”（MVP 仅覆盖我们当前需要的契约）
+```python
+from core.modules.data_contract import (
+    ContractCacheManager,
+    DataContractManager,
+    DataKey,
+)
 
-## 核心概念
+cache = ContractCacheManager()
+cache.enter_strategy_run()
+dcm = DataContractManager(contract_cache=cache)
 
-- **ContractConfig**：契约配置（字段、时间轴、required 等）
-- **Contract（契约）**：可执行的规则集合（校验、规范化、裁剪等）
-- **ContractManager（签发者/管理者）**：读取 config、签发 contract、管理生命周期与入口 API
-- **Raw Data**：未被信任的数据输入（结构可能不一致、字段可能缺失、格式不确定）
-- **Contracted Data**：通过契约签发后的输出（结构/字段/时间轴符合约定）
+# GLOBAL 非时序：issue 时可能已物化 data（视缓存命中）
+c = dcm.issue(DataKey.STOCK_LIST)
+rows = c.data if c.data is not None else c.load()
 
-## 输入 / 输出（建议接口形态）
+# PER_ENTITY 时序：须 entity_id；数据通常需再 load
+k = dcm.issue(
+    DataKey.STOCK_KLINE,
+    entity_id="000001.SZ",
+    start="20240101",
+    end="20241231",
+    adjust="qfq",
+    term="D",
+)
+data = k.load()
+cache.exit_strategy_run()
+```
 
-### 输入
+更多参数与缓存语义见 [`docs/DECISIONS.md`](docs/DECISIONS.md) 与 [`docs/DESIGN.md`](docs/DESIGN.md)。
 
-- `raw_data`：`List[Dict[str, Any]]` 或其他可迭代记录集
-- `config`：`ContractConfig`
-- `context`：可选上下文（例如：时间范围、entity_id、策略名等）
+## 目录结构（本模块）
 
-### 输出
+```text
+core/modules/data_contract/
+├── module_info.yaml
+├── README.md
+├── data_contract_manager.py
+├── contract_issuer.py
+├── contract_const.py      # DataKey / ContractScope / ContractType
+├── mapping.py               # default_map
+├── discovery.py
+├── contracts/
+├── loaders/
+├── cache/
+├── data_class/
+└── docs/
+    ├── ARCHITECTURE.md
+    ├── DESIGN.md
+    ├── API.md
+    ├── DECISIONS.md
+    └── CONCEPTS.md
+```
 
-- 成功：`ContractedData`（可继续被上层模块消费/注入）
-- 失败：抛出 `ContractViolationError`（fail-closed，错误信息要面向用户）
+## 模块依赖（`module_info.yaml`）
 
-## 责任边界（约束原则）
+- **`modules.data_manager`**：各 `BaseLoader` 实现通过 `DataManager` 等取数。
+- **`infra.project_context`**：`discover_userspace_map` 使用路径管理器定位 `userspace/data_contract`。
 
-- **Contract 不做 IO**：不直接访问 DB / 文件 / 网络
-- **ContractManager 做编排**：决定“何时校验、校验什么、失败如何表达”
-- **上游负责喂 Raw Data**：DataSource / DataManager / Installer 等提供 raw_data
-- **下游只接收 Contracted Data**：Strategy/Tag/Indicator 等模块不再各写一套“自定义校验”
+## 测试
 
-## 时序判定准则（重要）
+在仓库根目录：
 
-- 是否是时序 contract，不看“怎么查”，看“怎么存”：
-  - 存储列里有时间点字段（如 `date` / `event_date` / `as_of_date` / `quarter`）=> `TIME_SERIES`
-  - 存储列里没有时间点字段 => `NON_TIME_SERIES`
-- `load()` 的点查/区间/切片只是使用方式，不改变 contract 类型。
-- **Tag**：统一 `DataKey.TAG`（值为 `tag`），`mapping` 中声明为时序（时间轴 `as_of_date`）。签发或加载时必须在 `params` 或 `context` 中提供 **scenario**（`tag_scenario` / `scenario_name` 或 `scenario_id`），否则 fail-fast。
+```bash
+python3 -m pytest core/modules/data_contract/__test__/ -q
+```
 
-## 推荐目录结构（待实现）
+## 相关文档
 
-> 本 README 先落地模块骨架；后续实现按模块习惯补齐 manager / contracts / helper。
-
-- `contract_manager.py`：读取 config、签发、管理入口
-- `contracts/`：契约定义（可复数）
-- `models/`：契约相关数据结构（config/spec/result）
-- `helper/`：时间轴、schema 等通用工具
-- `errors.py`：统一异常（ContractViolationError 等）
-
-## MVP 计划（建议）
-
-优先做“能立刻解决现有痛点”的契约：
-
-- **TagScenarioContract**：策略依赖的 tag scenario 必须存在，否则在 preprocess 阶段 fail-fast
-- **KlineContract**：K 线必须具备时间轴字段（`date`），且可被裁剪/排序（用于枚举/模拟一致性）
-
+- [架构与边界](docs/ARCHITECTURE.md)
+- [设计与映射](docs/DESIGN.md)
+- [公开 API](docs/API.md)
+- [设计决策（issue / 缓存）](docs/DECISIONS.md)
+- [术语与概念](docs/CONCEPTS.md)

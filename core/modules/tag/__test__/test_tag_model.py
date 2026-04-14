@@ -19,7 +19,7 @@ class TestTagModel:
     
     def test_create_from_settings_basic(self):
         """测试从 settings 创建 TagModel（基本配置）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag"
@@ -35,7 +35,7 @@ class TestTagModel:
     
     def test_create_from_settings_with_display_name(self):
         """测试从 settings 创建 TagModel（带 display_name）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag",
@@ -52,7 +52,7 @@ class TestTagModel:
     
     def test_create_from_settings_default_display_name(self):
         """测试从 settings 创建 TagModel（默认 display_name）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag"
@@ -65,7 +65,7 @@ class TestTagModel:
     
     def test_is_setting_valid_valid(self):
         """测试 is_setting_valid（有效配置）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag"
@@ -75,7 +75,7 @@ class TestTagModel:
     
     def test_is_setting_valid_missing_name(self):
         """测试 is_setting_valid（缺少 name）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {}
         
@@ -83,7 +83,7 @@ class TestTagModel:
     
     def test_is_setting_valid_empty_name(self):
         """测试 is_setting_valid（name 为空）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": ""
@@ -93,7 +93,7 @@ class TestTagModel:
     
     def test_is_setting_valid_none_name(self):
         """测试 is_setting_valid（name 为 None）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": None
@@ -103,7 +103,7 @@ class TestTagModel:
     
     def test_from_dict(self):
         """测试 from_dict（从字典创建 TagModel）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_dict = {
             "id": 1,
@@ -128,7 +128,7 @@ class TestTagModel:
     
     def test_to_dict(self):
         """测试 to_dict"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag",
@@ -154,7 +154,7 @@ class TestTagModel:
     
     def test_get_settings(self):
         """测试 get_settings"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag",
@@ -172,7 +172,7 @@ class TestTagModel:
     
     def test_has_meta_diff_different_display_name(self):
         """测试 _has_meta_diff（display_name 不同）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag",
@@ -190,7 +190,7 @@ class TestTagModel:
     
     def test_has_meta_diff_different_description(self):
         """测试 _has_meta_diff（description 不同）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag",
@@ -208,7 +208,7 @@ class TestTagModel:
     
     def test_has_meta_diff_no_diff(self):
         """测试 _has_meta_diff（无差异）"""
-        from core.modules.tag.core.models.tag_model import TagModel
+        from core.modules.tag.models.tag_model import TagModel
         
         tag_setting = {
             "name": "test_tag",

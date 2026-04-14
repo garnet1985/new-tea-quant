@@ -1,0 +1,5 @@
+name: infra.discovery
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "NTQ 的扩展发现基础设施：按包路径与命名约定扫描并加载子类、模块级对象及类属性。"
+dependencies: []

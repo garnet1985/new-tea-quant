@@ -6,7 +6,7 @@
 
 ### 创建自定义 Handler
 
-参考 [数据源快速开始](../../userspace/data_source/QUICK_START.md) 创建自定义 Handler。
+参考 [数据源用户指南](../../userspace/data_source/USER_GUIDE.md) 创建自定义 Handler。
 
 ### 使用现有 Handler
 
@@ -54,7 +54,7 @@ data = await tushare.get_stock_list()
 
 ## 详细文档
 
-- [数据源快速开始](../../userspace/data_source/QUICK_START.md) - 完整教程
+- [数据源用户指南](../../userspace/data_source/USER_GUIDE.md) - 完整教程
 - [DataSource 架构](../docs/architecture/data_source_architecture.md) - 架构设计
 - [DataSource README](../../core/modules/data_source/README.md) - 详细文档
 - [Provider 文档](../../userspace/data_source/providers/README.md) - Provider 开发指南

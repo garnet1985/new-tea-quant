@@ -20,14 +20,14 @@ class TestTagHelper:
     
     def test_load_scenario_settings_success(self):
         """测试 load_scenario_settings（成功加载）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         
         # Mock FileManager.find_file
         mock_settings_path = Path("/test/scenario/settings.py")
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
-             patch('core.modules.tag.core.components.helper.tag_helper.ConfigManager.load_python') as mock_load_python:
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
+             patch('core.modules.tag.components.helper.tag_helper.ConfigManager.load_python') as mock_load_python:
             
             mock_find_file.return_value = mock_settings_path
             mock_load_python.return_value = {
@@ -49,10 +49,10 @@ class TestTagHelper:
     
     def test_load_scenario_settings_file_not_found(self):
         """测试 load_scenario_settings（文件不存在）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file:
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file:
             mock_find_file.return_value = None
             
             scenario_dir = Path("/test/scenario")
@@ -63,13 +63,13 @@ class TestTagHelper:
     
     def test_load_scenario_settings_invalid_settings(self):
         """测试 load_scenario_settings（settings 无效）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         
         mock_settings_path = Path("/test/scenario/settings.py")
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
-             patch('core.modules.tag.core.components.helper.tag_helper.ConfigManager.load_python') as mock_load_python:
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
+             patch('core.modules.tag.components.helper.tag_helper.ConfigManager.load_python') as mock_load_python:
             
             mock_find_file.return_value = mock_settings_path
             mock_load_python.return_value = None  # 返回 None
@@ -82,13 +82,13 @@ class TestTagHelper:
     
     def test_load_scenario_settings_not_dict(self):
         """测试 load_scenario_settings（settings 不是字典）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         
         mock_settings_path = Path("/test/scenario/settings.py")
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
-             patch('core.modules.tag.core.components.helper.tag_helper.ConfigManager.load_python') as mock_load_python:
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
+             patch('core.modules.tag.components.helper.tag_helper.ConfigManager.load_python') as mock_load_python:
             
             mock_find_file.return_value = mock_settings_path
             mock_load_python.return_value = "not a dict"  # 返回非字典类型
@@ -101,8 +101,8 @@ class TestTagHelper:
     
     def test_load_worker_class_success(self):
         """测试 load_worker_class（成功加载）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
-        from core.modules.tag.core.base_tag_worker import BaseTagWorker
+        from core.modules.tag.components.helper.tag_helper import TagHelper
+        from core.modules.tag.base_tag_worker import BaseTagWorker
         from pathlib import Path
         import types
         
@@ -113,7 +113,7 @@ class TestTagHelper:
         
         mock_worker_path = Path("/test/scenario/tag_worker.py")
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
              patch('importlib.util.spec_from_file_location') as mock_spec_from_file, \
              patch('importlib.util.module_from_spec') as mock_module_from_spec:
             
@@ -139,10 +139,10 @@ class TestTagHelper:
     
     def test_load_worker_class_file_not_found(self):
         """测试 load_worker_class（文件不存在）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file:
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file:
             mock_find_file.return_value = None
             
             scenario_folder = Path("/test/scenario")
@@ -153,13 +153,13 @@ class TestTagHelper:
     
     def test_load_worker_class_no_worker_class(self):
         """测试 load_worker_class（没有 worker 类）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         import types
         
         mock_worker_path = Path("/test/scenario/tag_worker.py")
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
              patch('importlib.util.spec_from_file_location') as mock_spec_from_file, \
              patch('importlib.util.module_from_spec') as mock_module_from_spec:
             
@@ -184,12 +184,12 @@ class TestTagHelper:
     
     def test_load_worker_class_spec_none(self):
         """测试 load_worker_class（spec 为 None）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         
         mock_worker_path = Path("/test/scenario/tag_worker.py")
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
              patch('importlib.util.spec_from_file_location') as mock_spec_from_file:
             
             mock_find_file.return_value = mock_worker_path
@@ -203,12 +203,12 @@ class TestTagHelper:
     
     def test_load_worker_class_loader_none(self):
         """测试 load_worker_class（loader 为 None）"""
-        from core.modules.tag.core.components.helper.tag_helper import TagHelper
+        from core.modules.tag.components.helper.tag_helper import TagHelper
         from pathlib import Path
         
         mock_worker_path = Path("/test/scenario/tag_worker.py")
         
-        with patch('core.modules.tag.core.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
+        with patch('core.modules.tag.components.helper.tag_helper.FileManager.find_file') as mock_find_file, \
              patch('importlib.util.spec_from_file_location') as mock_spec_from_file:
             
             mock_find_file.return_value = mock_worker_path

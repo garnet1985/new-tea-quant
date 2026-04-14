@@ -20,13 +20,13 @@
 
 ## 工作拆分
 
-- **`core/tag_manager.py`**：场景发现与缓存、`execute` / `refresh_scenario`、实体列表与 Job 构建、`ProcessWorker` 调度与汇总。
-- **`core/base_tag_worker.py`**：子进程内生命周期（预处理 → 逐日打标 → 批量保存）与可重写钩子；抽象 **`calculate_tag`**。
-- **`core/components/data_management/tag_data_manager.py`**：`hydrate_row_slots`、`rebuild_data_cursor`、`get_data_until`、`get_trading_dates` 等与契约/游标交互。
-- **`core/components/helper/*`**：`TagHelper`、`JobHelper` 等编排辅助。
-- **`core/models/*`**：`ScenarioModel`、`TagModel` 等与配置结构对应。
-- **`core/config.py`**：`get_scenarios_root()`（委托 **`PathManager.tags()`**）。
-- **`core/enums.py`**：`TagUpdateMode`、`TagTargetType`、`FileName` 等。
+- **`tag_manager.py`**：场景发现与缓存、`execute` / `refresh_scenario`、实体列表与 Job 构建、`ProcessWorker` 调度与汇总。
+- **`base_tag_worker.py`**：子进程内生命周期（预处理 → 逐日打标 → 批量保存）与可重写钩子；抽象 **`calculate_tag`**。
+- **`components/data_management/tag_data_manager.py`**：`hydrate_row_slots`、`rebuild_data_cursor`、`get_data_until`、`get_trading_dates` 等与契约/游标交互。
+- **`components/helper/*`**：`TagHelper`、`JobHelper` 等编排辅助。
+- **`models/*`**：`ScenarioModel`、`TagModel` 等与配置结构对应。
+- **`config.py`**：`get_scenarios_root()`（委托 **`PathManager.tags()`**）。
+- **`enums.py`**：`TagUpdateMode`、`TagTargetType`、`FileName` 等。
 
 ---
 

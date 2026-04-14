@@ -7,9 +7,9 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple, Type
 import inspect
 import logging
-from core.modules.tag.core.enums import TagUpdateMode
+from core.modules.tag.enums import TagUpdateMode
 from core.modules.data_manager import DataManager
-from core.modules.tag.core.models.tag_model import TagModel
+from core.modules.tag.models.tag_model import TagModel
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class BaseTagWorker(ABC):
         self._extract_settings()
         
         from core.modules.data_contract.cache import ContractCacheManager
-        from core.modules.tag.core.components.data_management.tag_data_manager import TagDataManager
+        from core.modules.tag.components.data_management.tag_data_manager import TagDataManager
 
         self.tag_data_manager = TagDataManager(
             entity_id=self.entity['id'],

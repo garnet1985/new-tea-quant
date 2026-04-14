@@ -44,7 +44,7 @@ cd userspace/tags/my_scenario
 创建 `tag_worker.py`，继承 `BaseTagWorker`：
 
 ```python
-from core.modules.tag.core.tag_worker import BaseTagWorker
+from core.modules.tag.base_tag_worker import BaseTagWorker
 
 class MyTagWorker(BaseTagWorker):
     """我的标签场景"""
@@ -62,11 +62,14 @@ class MyTagWorker(BaseTagWorker):
 创建 `settings.py`：
 
 ```python
-from core.modules.tag.core.config import BaseTagScenarioConfig
-
-class MyScenarioConfig(BaseTagScenarioConfig):
-    scenario_name = "my_scenario"
-    description = "我的标签场景"
+settings = {
+    "scenario": {
+        "name": "my_scenario",
+        "entity_type": "stock",
+        "update_mode": "incremental",
+    },
+    "tags": [],
+}
 ```
 
 ### 4. 运行标签计算

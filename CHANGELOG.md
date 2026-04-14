@@ -8,7 +8,7 @@
 
 ### Unreleased
 
-- `modules.strategy`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、`docs/components/` 下各子组件说明、重写模块 `README.md`；删除模块根目录 `ARCHITECTURE.md` 与 `docs/core_modules/strategy/*`；`__init__.py` 指向 `README`/`docs`；修复 `components/scanner/scanner.py` 错误 import、Job使用完整 `settings` 与 `StrategyInfo` worker 元数据、`_scan_stocks` 内计时变量；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
+- `modules.strategy`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、`docs/components/` 下各子组件说明、重写模块 `README.md`；删除模块根目录 `ARCHITECTURE.md` 与 `docs/core_modules/strategy/*`；`__init__.py` 指向 `README`/`docs`；修复 `components/scanner/scanner.py` 错误 import、Job使用完整 `settings` 与 `StrategyInfo` worker 元数据、`_scan_stocks` 内计时变量；`DataLoader` 改为纯 `List[Dict]` 行式处理（`load_rows_for_stock`），并删除 `core/data_class/` 目录；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
 - `modules.tag`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、重写模块 `README.md`；删除模块根目录 `ARCHITECTURE.md`、`DECISIONS.md` 与 `docs/core_modules/tag/*` 重复文档；`__init__.py` 模块说明指向 `README`/`docs`；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
 - `modules.data_cursor`：补齐 `module_info.yaml`、`__init__.py` 导出与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、模块 `README.md`；`data_cursor_manager.py` 补全 `Any` 类型导入；`docs/project_overview.md` 与 `docs/README.md` 导航更新。
 - `modules.indicator`：补齐 `module_info.yaml` 与 `docs/`（ARCHITECTURE、DESIGN、API、DECISIONS）、重写模块 `README.md`；删除 `docs/core_modules/indicator/*`；`docs/project_overview.md` 与 `docs/README.md` 导航更新；保留根目录 `AVAILABLE_INDICATORS.md`供策略配置引用。

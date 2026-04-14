@@ -47,7 +47,7 @@
 ### 2. 开发数据源 Handler
 
 1. 阅读 [数据源使用指南](data-source-usage.md)
-2. 参考 [数据源快速开始](../../userspace/data_source/QUICK_START.md)
+2. 参考 [数据源用户指南](../../userspace/data_source/USER_GUIDE.md)
 3. 查看现有 Handler 实现
 
 ### 3. 使用标签系统
@@ -83,7 +83,7 @@
 → [策略开发指南](strategy-development.md) → [示例策略](../../userspace/strategies/example/)
 
 ### 我要开发数据源
-→ [数据源使用指南](data-source-usage.md) → [数据源快速开始](../../userspace/data_source/QUICK_START.md)
+→ [数据源使用指南](data-source-usage.md) → [数据源用户指南](../../userspace/data_source/USER_GUIDE.md)
 
 ### 我要使用标签
 → [标签系统指南](tag-system.md) → [示例标签场景](../../userspace/tags/momentum/)

@@ -1,93 +1,121 @@
-# 用户自定义区域
+# 数据源（`userspace/data_source/`）
 
-本文件夹供用户完全控制，可以自由添加、修改、删除。
+这里是**数据接入的用户空间**：你可以配置“要抓哪些数据”（`mapping.py`），也可以新增/替换“怎么抓”（`handlers/` + `providers/`）。
 
-## 一分钟上手
+简单来说，先理解 3 个概念：
 
-- **Tushare**：在 `providers/tushare/` 放置 `auth_token.txt`（一行 token）或设置环境变量 `TUSHARE_TOKEN`。模板见 `auth_token.txt.example`，说明见 [providers/README.md](providers/README.md)。
-- **更新行情/标签数据**：配置完成后，在仓库根目录执行 `python start-cli.py -r`（renew）。
-- **接什么数据**：由根目录 `mapping.py` 里的 `DATA_SOURCES` 与 `handlers/` 下的 Handler 决定。
+- `provider`：谁给你数据（比如 AKShare、Tushare、Sina、EastMoney）。
+- `handler`：你怎么抓数据（调用哪个 API、传什么参数、怎么整理成统一格式）。
+- `mapping`：这是串联整个数据获取流程的装配图。比如我从谁那里取数据（哪个provider）？取到数据后交给谁处理（对应哪个handler）？等等。我可以随时切换我的数据（甚至是完整数据的一部分）的来源和处理方式，也可以作为备选方案的快速切换开关
 
-## 自定义 Handler
+## 一分钟上手（用已有数据源“GDP”举例如何获取GDP数据）
 
-1. 在 `handlers/` 文件夹中创建你的 handler
-2. 继承 `BaseDataSourceHandler` 类
-3. 实现 `fetch()` 和 `normalize()` 方法
-4. 在 `mapping.py` 的 `DATA_SOURCES` 中配置使用你的 handler
+注：GDP数据源已经存在Tushare版本的，如果你想直接跑起来，请：
 
-## 示例
+1. 配置 Tushare 的认证 Token（见 `providers/tushare/auth_token.txt.example`）。
+2. 打开 `mapping.py`，确认目标数据源 `is_enabled=True`。
+3. 在仓库根目录运行：
+
+```bash
+python start-cli.py renew
+```
+
+---
+
+## 简单理解现在的GDP是怎么配置的：从 0 创建一个新数据源（GDP 示例）
+
+我们用“新增一个 GDP 数据源”来举例，只需要以下简单几步：
+
+### Step 1）先给它一个不重复的名字
+
+给我们的新的数据源起个独一无二的名字（也就是key），比如 `gdp_custom`。  
+
+这个名字是机器用的名字，用来串联步骤，也可以当id用，这个名字会用在：
+- `mapping.py` 里（作为配置 key）
+- `handlers/` 目录里（作为 handler 模块名）
+
+### Step 2）选择数据供应商 provider
+
+先看 `providers/` 下现有 provider（Tushare / AKShare / EastMoney / Sina）里有没有你要的 GDP 接口。（如果你不想用这些 provider，可以自己按照已经存在的例子新建一个就可以了，在里边定义你要使用的 API 就行。详见[providers/README.md](providers/README.md)）
+
+- **如果有**：直接复用，不用改 provider
+- **如果没有**：按 `providers/README.md` 的例子给对应 provider 增加一个新 API 方法
+
+例如：
 
 ```python
-# userspace/data_source/handlers/my_handler.py
-from core.modules.data_source.base_data_source_handler import BaseDataSourceHandler
-from core.modules.data_source.data_classes import DataSourceTask, ApiJob
+# userspace/data_source/providers/my_provider/provider.py
+class MyProvider(...):
+    def get_gdp(self, start_date: str, end_date: str):
+        # 调用你的外部接口，然后返回原始结果
+        return self.client.fetch_gdp(start_date=start_date, end_date=end_date)
+```
 
-class MyHandler(BaseDataSourceHandler):
-    data_source = "my_custom_data"
-    description = "我的自定义数据源"
-    dependencies = []
-    
+然后在 handler 里从上下文里的 `providers` 里取到这个 provider，再调用 `get_gdp(...)` 就可以了。
+
+### Step 3）Handler 里定义“怎么处理数据、怎么入库”
+
+Handler 本身有一个默认的执行步骤（你的类继承的 BaseHandler 里有默认流程）。当您通过 provider 的请求得到数据的时候，handler 会自动通过配置帮你掌管限流，快速获取（多线程），整理数据，然后写入数据库。当然，这里的每一步您都可以重新定义（通过定义一个基类里同名的步骤函数来覆盖）。这样您可以通过使用 handler 的默认处理方式或者自定义的一些流程来完成从 provider 的数据获取到放入数据库前的所有工作。当然 handler 随后也能自动帮您写入数据库。
+
+> 请注意：DataSource（数据源）和您的数据库的某张表是强绑定的，如果您还没有数据表，需要先新建一个  
+> - 新建数据表在框架中很简单，声明一个表结构框架会帮助您自动生成数据表  
+> - 每次程序重新运行的时候才会重新自动创建表
+
+例如：
+
+```python
+# handlers/gdp/handler.py（决定“怎么抓 + 怎么整理”）
+class GdpCustomHandler(BaseHandler):
     async def fetch(self, context):
-        # 生成 Tasks
-        task = self.create_simple_task(
-            provider_name="tushare",
-            method="get_my_data",
-            params={}
-        )
-        return [task]
-    
-    async def normalize(self, task_results):
-        # 标准化数据
-        df = self.get_simple_result(task_results)
-        # 处理数据...
-        return {"data": [...]}
+        start_date = "20200101"
+        end_date = context.get("latest_trading_date")
+        provider = self.context["providers"]["my_provider"]
+        raw = provider.get_gdp(start_date=start_date, end_date=end_date)
+        return raw
+
+    async def normalize(self, raw_data):
+        #这里定义你取到provider的裸数据raw_data后怎么做重组和纠错等等
+        processed_data = self._my_logic_to_process_data(raw_data)
+        return processed_data
 ```
 
-```json
-# userspace/data_source/mapping.py 中的 DATA_SOURCES
-{
-    "data_sources": {
-        "my_custom_data": {
-            "handler": "userspace.data_source.handlers.my_handler.MyHandler",
-            "is_enabled": true,
-            "dependencies": {
-                "latest_completed_trading_date": false,
-                "stock_list": false
-            },
-            "params": {}
-        }
-    }
-}
-```
+### Step 4）在 mapping 里把前面步骤串起来并启用
 
-## Handler 可以做什么
+在 `mapping.py` 的 `DATA_SOURCES` 里增加：
 
-- 使用一个或多个 provider
-- 处理 provider 之间的依赖关系
-- 实现限流、重试、缓存等逻辑
-- 合并多个数据源的数据
-- 标准化数据为框架 schema
+- `handler`: 指向你刚写的 handler
+- `depends_on`: 需要的依赖（如 `latest_trading_date`）
+- `is_enabled: True`
 
-## 自定义 Schema
-
-如果默认 schema 不满足需求，可以在 `schemas.py` 中自定义：
+例如：
 
 ```python
-# userspace/data_source/schemas.py
-from core.modules.data_source.data_class.field import DataSourceField
-from core.modules.data_source.data_class.schema import DataSourceSchema
-
-MY_CUSTOM_SCHEMA = DataSourceSchema(
-    name="my_custom_data",
-    description="我的自定义数据",
-    fields={
-        "field1": DataSourceField(str, required=True),
-        "field2": DataSourceField(float, required=False),
+# mapping.py（决定“跑哪个数据源”）
+DATA_SOURCES = {
+    "gdp_custom": {
+        "handler": "gdp_custom.GdpCustomHandler",
+        "is_enabled": True,
+        "depends_on": ["latest_trading_date"],
     }
-)
-
-CUSTOM_SCHEMAS = {
-    "my_custom_data": MY_CUSTOM_SCHEMA,
 }
 ```
 
+完成后，运行：
+
+```bash
+python start-cli.py renew
+```
+
+这样你的新数据源就会进入统一更新流程，数据会被拉取并写入数据库。
+
+当然，我们的DataSource模块的功能远比这个复杂，详细用法请参考[USER_GUIDE.md](USER_GUIDE.md)
+
+## 目录结构
+
+```text
+userspace/data_source/
+├── mapping.py              # 选择抓哪些数据、用哪个 handler、依赖关系
+├── handlers/               # 各类数据的 handler（怎么抓 + 怎么清洗）
+├── providers/              # 外部数据源 provider（Tushare/AKShare/...）
+└── USER_GUIDE.md
+```

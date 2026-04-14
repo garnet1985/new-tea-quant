@@ -29,7 +29,7 @@
 
 ### 快速开始教程
 
-- [数据源快速开始](../../userspace/data_source/QUICK_START.md) - 手把手创建 Handler 教程
+- [数据源用户指南](../../userspace/data_source/USER_GUIDE.md) - 手把手创建 Handler 教程
 
 ## 标签示例
 

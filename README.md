@@ -1,5 +1,7 @@
 # New Tea Quant（NTQ）- A股量化交易研究框架
 
+
+
 <p align="center">
   <img src="https://new-tea.cn/sites/default/files/2026-01/logo_0.png" alt="New Tea Quant Logo" width="220" />
 </p>
@@ -12,7 +14,7 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
 </p>
 
-> For an English introduction, please see **[README_en.md](README_en.md)**.
+> For an English introduction, please see **[here](README_en.md)**.
 
 作者：Garnet Xin  
 

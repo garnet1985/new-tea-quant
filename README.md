@@ -3,16 +3,16 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.2.1-3776AB"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.2.1-8A2BE2"></a>&nbsp;
+  <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
-  <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-3776AB"></a>&nbsp;
-  <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-3776AB?logo=github&logoColor=181717"></a>&nbsp;
-  <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-3776AB?logo=gitee&logoColor=C71D23"></a>&nbsp;
+  <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
 </p>
 
 # New Tea Quant（NTQ）- A股量化交易研究框架
-作者：Garnet Xin
+作者：Garnet Xin  
+GitHub：<https://github.com/garnet1985/new-tea-quant> · Gitee：<https://gitee.com/garnet/new-tea-quant>
 
 > For an English introduction, please see **[README_en.md](README_en.md)**.
 

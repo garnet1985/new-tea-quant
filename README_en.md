@@ -5,8 +5,8 @@
 ## New Tea Quant (NTQ) - A-Share Quant Research Framework
 
 <p align="center">
-  <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
-  <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
+  <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-3776AB?logo=github&logoColor=181717"></a>&nbsp;
+  <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-3776AB?logo=gitee&logoColor=C71D23"></a>&nbsp;
   <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.2.1-3776AB"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-3776AB"></a>&nbsp;

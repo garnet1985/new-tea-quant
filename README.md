@@ -1,4 +1,12 @@
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/2026-01/logo_0.png" alt="New Tea Quant Logo" width="220" />
+</p>
+
 # New Tea Quant（NTQ）- A股量化交易研究框架
+
+[![GitHub](https://img.shields.io/badge/GitHub-garnet1985%2Fnew--tea--quant-181717?logo=github)](https://github.com/garnet1985/new-tea-quant)
+[![Gitee](https://img.shields.io/badge/Gitee-garnet%2Fnew--tea--quant-C71D23?logo=gitee)](https://gitee.com/garnet/new-tea-quant)
+[![Build](https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg)](https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml)
 
 作者：Garnet
 当前版本：0.2.1

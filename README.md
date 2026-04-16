@@ -1,3 +1,4 @@
+# New Tea Quant（NTQ）- A股量化交易研究框架
 <p align="center">
   <img src="https://new-tea.cn/sites/default/files/2026-01/logo_0.png" alt="New Tea Quant Logo" width="220" />
 </p>
@@ -10,11 +11,11 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
 </p>
 
-# New Tea Quant（NTQ）- A股量化交易研究框架
-作者：Garnet Xin  
-GitHub：<https://github.com/garnet1985/new-tea-quant> · Gitee：<https://gitee.com/garnet/new-tea-quant>
-
 > For an English introduction, please see **[README_en.md](README_en.md)**.
+
+作者：Garnet Xin  
+<a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
+<a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>
 
 > ## ⭐ 支持一下项目
 > 如果您对项目有兴趣，并想持续关注，欢迎为仓库点亮一个 Star！  

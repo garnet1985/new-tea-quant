@@ -1,8 +1,11 @@
+# New Tea Quant (NTQ) - A-Share Quant Research Framework
+Author: Garnet Xin  
+<a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
+<a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>
+
 <p align="center">
   <img src="https://new-tea.cn/sites/default/files/2026-01/logo_0.png" alt="New Tea Quant Logo" width="220" />
 </p>
-
-## New Tea Quant (NTQ) - A-Share Quant Research Framework
 
 <p align="center">
   <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.2.1-8A2BE2"></a>&nbsp;
@@ -11,9 +14,6 @@
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
 </p>
-
-Author: Garnet Xin  
-GitHub: <https://github.com/garnet1985/new-tea-quant> · Gitee: <https://gitee.com/garnet/new-tea-quant>
 
 > **Tip:** This is a short English introduction of the project. For the full and always up‑to‑date documentation, please also refer to the Chinese README and the official site.
 

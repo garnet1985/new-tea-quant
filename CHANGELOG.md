@@ -6,6 +6,17 @@
 
 ---
 
+### v0.2.2 (TBD)
+
+- 增加了Readme里的小徽章和相应的github gitee自动化
+- 添加英文Readme（todo）
+- 增加了UT coverage和merge的最小要求（todo）
+- 对所有模块增加了测试的覆盖率，修复Github的CI错误（todo）
+
+---
+
+---
+
 ### v0.2.1 (2026-04-14)
 
 - 为所有模块设计并添加了info的信息，并增加了对核心的版本支持能力

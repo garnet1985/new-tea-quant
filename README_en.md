@@ -1,6 +1,6 @@
 # New Tea Quant (NTQ) - A-Share Quant Research Framework
 
-
+<br/>
 
 <p align="center">
   <img src="https://new-tea.cn/sites/default/files/2026-01/logo_0.png" alt="New Tea Quant Logo" width="220" />
@@ -17,7 +17,10 @@
 Author：Garnet Xin  
 
 <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
-<a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>
+<a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
+<a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
+
+<br/>
 
 > **Tip:** This is a short English introduction of the project. For the full and always up‑to‑date documentation, please also refer to the Chinese README and the official site.
 

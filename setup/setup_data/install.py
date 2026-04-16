@@ -22,6 +22,8 @@ os.chdir(_REPO_ROOT)
 from setup.setup import NewTeaQuantSetup
 from setup.setup_data.installer import SetupDataInstaller
 
+NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="导入 setup/init_data 初始化数据")

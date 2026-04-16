@@ -1,7 +1,0 @@
-{
-  "db_path": "data/stocks.db",
-  "_advanced": {
-    "timeout": 5.0,
-    "check_same_thread": false
-  }
-}

@@ -17,6 +17,11 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from setup.setup import NewTeaQuantSetup
+
+# 允许用户直接运行该步骤，也默认使用项目 venv（可用 NTQ_SKIP_AUTO_VENV=1 关闭）
+NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
+
 from core.system import python_minimum
 from core.utils import i
 

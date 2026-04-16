@@ -165,7 +165,7 @@ class TableManager:
                 columns_sql = ', '.join(columns)
                 values = [tuple(data[col] for col in columns) for data in data_list]
             else:
-                # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL/SQLite 风格 Upsert）
+                # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL Upsert）
                 columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
                 
                 if not columns:

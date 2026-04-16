@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Tuple
 
 class SystemMeta:
     def __init__(self) -> None:
-        self._version = "0.1.0"
-        self._release_date = "2026-01-16"
-        self._description = "初始版本"
+        self._version = "0.2.1"
+        self._release_date = "2026-04-14"
+        self._description = "版本发布"
         # 与 JSON/序列化习惯一致用 list；比较时再转成 tuple
         self.python = {"minimum": [3, 9]}
         self.new_features: List[str] = []

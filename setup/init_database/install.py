@@ -17,6 +17,11 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from setup.setup import NewTeaQuantSetup
+
+# 允许用户直接运行该步骤，也默认使用项目 venv
+NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
+
 USER_DB_CONFIG_DIR = _REPO_ROOT / "userspace" / "config" / "database"
 
 
@@ -165,8 +170,8 @@ def main() -> int:
 
     common_cfg = _load_json_dict(common_json)
     db_type = str(common_cfg.get("database_type") or "").strip().lower()
-    if db_type not in ("postgresql", "mysql", "sqlite"):
-        NewTeaQuantSetup.print_check_fail(f"common.json 里的 database_type 无效: {db_type!r}（可选: postgresql/mysql/sqlite）")
+    if db_type not in ("postgresql", "mysql"):
+        NewTeaQuantSetup.print_check_fail(f"common.json 里的 database_type 无效: {db_type!r}（可选: postgresql/mysql）")
         return 1
     NewTeaQuantSetup.print_check_ok(f"您当前要使用的数据库: {db_type}")
 
@@ -188,13 +193,18 @@ def main() -> int:
 
     db_cfg = config.get(db_type) or {}
     if isinstance(db_cfg, dict):
-        NewTeaQuantSetup.print_check_ok(f"{db_type} 当前配置: {_mask_password(db_cfg)}")
+        NewTeaQuantSetup.print_check_ok(f"已检测到使用数据库类型: {db_type}，当前配置:")
+        NewTeaQuantSetup.print_check_ok(f"host: {db_cfg.get('host')}")
+        NewTeaQuantSetup.print_check_ok(f"port: {db_cfg.get('port')}")
+        NewTeaQuantSetup.print_check_ok(f"user: {db_cfg.get('user')}")
+        if db_type == "postgresql":
+            NewTeaQuantSetup.print_check_ok(f"schema: {db_cfg.get('default_pgsql_schema')}")
     else:
-        NewTeaQuantSetup.print_check_ok(f"{db_type} 当前配置: {db_cfg!r}")
+        NewTeaQuantSetup.print_check_ok(f"未检测到使用数据库类型: 请检查userspace/config/database/{db_type}.json文件是否正确")
 
     if db_type in ("postgresql", "mysql") and isinstance(db_cfg, dict):
         pw = db_cfg.get("password")
-        if not pw or pw == "your_password_here":
+        if pw == "your_password_here":
             NewTeaQuantSetup.print_check_fail("未配置数据库密码（当前仍是默认占位符）")
             NewTeaQuantSetup.print_check_ok(f"请编辑: {USER_DB_CONFIG_DIR / f'{db_type}.json'}（写入 user/password 等）")
             return 1
@@ -264,9 +274,6 @@ def main() -> int:
                 NewTeaQuantSetup.print_check_ok("提示: 可参考仓库根目录的 `setup_postgresql.sh` 或 docs/getting-started/configuration.md")
             else:
                 NewTeaQuantSetup.print_check_ok("提示: 请确认 MySQL 服务已启动、账号有权限、数据库已创建")
-        elif db_type == "sqlite":
-            db_path = (db_cfg or {}).get("db_path")
-            NewTeaQuantSetup.print_check_ok(f"提示: SQLite db_path={db_path}（路径相对仓库根）")
 
         print("\n--- traceback ---", file=sys.stderr)
         traceback.print_exc()

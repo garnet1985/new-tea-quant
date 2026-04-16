@@ -33,6 +33,7 @@ Settings = {
     # - 当为false时，会使用update mode来决定是否重新生成tags
     # - 当为true时，会重新生成所有tags
     "recompute": False,
+    "tag_target_type": "entity_based",
 
     # 必须参数
     "target_entity": {
@@ -58,8 +59,20 @@ Settings = {
     # 如果为空字符串，使用系统默认值
     "end_date": "",
 
-    # 可选参数，默认为空列表
-    "required_entities": [],
+    # DataContract 声明（与 strategy 模块同款）
+    "data": {
+        "required": [
+            {
+                "data_id": "stock.kline",
+                "params": {
+                    "term": "daily",
+                    "adjust": "qfq",
+                },
+            },
+        ],
+        # entity_based 模式可省略，默认走 target_entity 对应主轴
+        # "tag_time_axis_based_on": "stock.kline",
+    },
 
     # 可选参数，默认为 INCREMENTAL
     # 更新模式。可选值：
@@ -84,13 +97,6 @@ Settings = {
     "performance": {
         # 可选参数，默认"auto"，会根据job数量自动分配worker
         "max_workers": "auto",
-
-
-        "use_chunk": True,
-
-        # 可选参数，默认为 500
-        # 运行时数据切片大小（记录数）。切片越大，运行时内存占用越小但IO次数越多
-        "data_chunk_size": 500,
     },
 
     

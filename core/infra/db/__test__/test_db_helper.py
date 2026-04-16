@@ -31,20 +31,6 @@ class TestDBHelper:
         assert 'postgresql' in result
         assert 'batch_write' in result
     
-    def test_parse_database_config_valid_sqlite(self):
-        """测试解析有效的 SQLite 配置"""
-        config = {
-            'database_type': 'sqlite',
-            'sqlite': {
-                'db_path': ':memory:'
-            }
-        }
-        
-        result = DBHelper.parse_database_config(config)
-        assert result['database_type'] == 'sqlite'
-        assert 'sqlite' in result
-        assert result['sqlite']['db_path'] == ':memory:'
-    
     def test_parse_database_config_missing_database_type(self):
         """测试缺少 database_type 的配置"""
         config = {
@@ -93,25 +79,17 @@ class TestDBHelper:
         with pytest.raises(ValueError, match="配置中缺少必需字段"):
             DBHelper.parse_database_config(config)
     
-    def test_parse_database_config_missing_required_fields_sqlite(self):
-        """测试 SQLite 配置缺少必需字段"""
-        config = {
-            'database_type': 'sqlite',
-            'sqlite': {}
-            # 缺少 db_path
-        }
-        
-        with pytest.raises(ValueError, match="配置中缺少 'sqlite' 数据库配置"):
-            DBHelper.parse_database_config(config)
-    
     def test_parse_database_config_complete_batch_write(self):
         """测试补足 batch_write 默认配置"""
         config = {
-            'database_type': 'sqlite',
-            'sqlite': {
-                'db_path': ':memory:'
+            'database_type': 'mysql',
+            'mysql': {
+                'host': 'localhost',
+                'port': 3306,
+                'database': 'test_db',
+                'user': 'u',
+                'password': 'p',
             }
-            # 缺少 batch_write
         }
         
         result = DBHelper.parse_database_config(config)
@@ -123,13 +101,16 @@ class TestDBHelper:
     def test_parse_database_config_partial_batch_write(self):
         """测试部分 batch_write 配置"""
         config = {
-            'database_type': 'sqlite',
-            'sqlite': {
-                'db_path': ':memory:'
+            'database_type': 'mysql',
+            'mysql': {
+                'host': 'localhost',
+                'port': 3306,
+                'database': 'test_db',
+                'user': 'u',
+                'password': 'p',
             },
             'batch_write': {
                 'enable': False
-                # 缺少 batch_size 和 flush_interval
             }
         }
         

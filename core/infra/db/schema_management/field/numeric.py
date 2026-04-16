@@ -17,12 +17,9 @@ class IntField(Field):
         if self.auto_increment:
             if database_type == 'postgresql':
                 return "SERIAL"
-            elif database_type == 'mysql':
+            if database_type == 'mysql':
                 return "INT AUTO_INCREMENT"
-            elif database_type == 'sqlite':
-                return "INTEGER PRIMARY KEY AUTOINCREMENT"
-            else:
-                return "SERIAL"
+            return "SERIAL"
         return "INTEGER"
     
     def get_type_name(self) -> str:
@@ -39,12 +36,9 @@ class BigIntField(Field):
         if self.auto_increment:
             if database_type == 'postgresql':
                 return "BIGSERIAL"
-            elif database_type == 'mysql':
+            if database_type == 'mysql':
                 return "BIGINT AUTO_INCREMENT"
-            elif database_type == 'sqlite':
-                return "INTEGER PRIMARY KEY AUTOINCREMENT"
-            else:
-                return "BIGSERIAL"
+            return "BIGSERIAL"
         return "BIGINT"
     
     def get_type_name(self) -> str:
@@ -77,12 +71,9 @@ class DoubleField(Field):
     def _to_sql_impl(self, database_type: str) -> str:
         if database_type == 'postgresql':
             return "DOUBLE PRECISION"
-        elif database_type == 'mysql':
+        if database_type == 'mysql':
             return "DOUBLE"
-        elif database_type == 'sqlite':
-            return "REAL"
-        else:
-            return "DOUBLE"
+        return "DOUBLE PRECISION"
     
     def get_type_name(self) -> str:
         return "double"

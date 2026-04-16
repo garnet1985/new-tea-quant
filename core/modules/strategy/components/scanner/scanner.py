@@ -12,13 +12,16 @@ from dataclasses import dataclass
 from typing import List, Dict, Any
 import logging
 import time
-from pathlib import Path
 
 from core.modules.strategy.enums import ExecutionMode
 from core.modules.strategy.components.scanner.scan_date_resolver import ScanDateResolver
 from core.modules.strategy.components.scanner.scan_cache_manager import ScanCacheManager
 from core.modules.strategy.components.scanner.adapter_dispatcher import AdapterDispatcher
-from core.modules.strategy.components.setting_management.models.scanner_settings import ScannerSettings
+from core.modules.strategy.data_classes.strategy_settings.scanner_settings import (
+    StrategyScannerSettings,
+)
+from core.modules.strategy.helpers.strategy_discovery_helper import StrategyDiscoveryHelper
+from core.infra.project_context import PathManager
 from core.modules.strategy.models.opportunity import Opportunity
 
 logger = logging.getLogger(__name__)
@@ -34,9 +37,11 @@ class Scanner:
     
     def __post_init__(self):
         """初始化组件"""
-        # 加载配置
-        self.settings = ScannerSettings.load_from_strategy_name(self.strategy_name)
-        self.settings.validate_and_prepare()
+        folder = PathManager.userspace() / "strategies" / self.strategy_name
+        self._strategy_info = StrategyDiscoveryHelper.load_strategy(folder)
+        if self._strategy_info is None:
+            raise ValueError(f"无法加载策略或校验失败: {self.strategy_name}")
+        self.settings = StrategyScannerSettings.from_base_settings(self._strategy_info.settings)
         
         # 初始化组件
         self.date_resolver = ScanDateResolver(self.data_manager)
@@ -134,10 +139,12 @@ class Scanner:
             ProcessWorker,
             ExecutionMode as ProcessExecutionMode,
         )
-        
-        # 获取 worker 信息（用于子进程加载）
-        worker_module_path = f"userspace.strategies.{self.strategy_name}.strategy_worker"
-        worker_class_name = self._get_worker_class_name()
+
+        start_time = time.time()
+
+        info = self._strategy_info
+        worker_module_path = info.worker_module_path
+        worker_class_name = info.worker_class_name
         
         # 构建 job list
         jobs = []
@@ -146,7 +153,7 @@ class Scanner:
                 'stock_id': stock_id,
                 'execution_mode': ExecutionMode.SCAN.value,
                 'strategy_name': self.strategy_name,
-                'settings': self.settings.to_dict(),
+                'settings': info.settings.to_dict(),
                 'scan_date': scan_date,
                 'worker_module_path': worker_module_path,
                 'worker_class_name': worker_class_name
@@ -204,31 +211,6 @@ class Scanner:
                     opportunities.append(opp)
         
         return opportunities
-    
-    def _get_worker_class_name(self) -> str:
-        """获取 Worker 类名"""
-        import importlib
-        import inspect
-        from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
-        
-        module_path = f"userspace.strategies.{self.strategy_name}.strategy_worker"
-        try:
-            module = importlib.import_module(module_path)
-            
-            # 查找继承自 BaseStrategyWorker 的类
-            for name, obj in inspect.getmembers(module):
-                if (
-                    inspect.isclass(obj)
-                    and issubclass(obj, BaseStrategyWorker)
-                    and obj is not BaseStrategyWorker
-                ):
-                    return obj.__name__
-            
-            # 如果找不到，返回默认名称
-            return "StrategyWorker"
-        except Exception as e:
-            logger.warning(f"[Scanner] 无法获取 Worker 类名，使用默认: {e}")
-            return "StrategyWorker"
     
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:

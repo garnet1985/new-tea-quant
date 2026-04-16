@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Callable
 from pathlib import Path
 
 from core.infra.project_context import PathManager, FileManager
+from core.infra.db.helpers.db_helpers import DBHelper
 from core.infra.db.schema_management.field import Field
 
 
@@ -38,7 +39,7 @@ class SchemaManager:
         Args:
             tables_dir: schema 目录（默认为 core/tables）
             is_verbose: 是否输出详细日志
-            database_type: 数据库类型（'postgresql', 'mysql', 'sqlite'），用于生成对应的 SQL
+            database_type: 数据库类型（'postgresql', 'mysql'），用于生成对应的 SQL
         """
         if tables_dir:
             self.tables_dir = tables_dir
@@ -164,6 +165,13 @@ class SchemaManager:
             except ValueError as e:
                 raise ValueError(f"字段 '{field_dict.get('name', 'unknown')}' 定义无效: {e}")
     
+    def quote_ddl_identifier(self, name: str) -> str:
+        """
+        为当前 ``database_type`` 引用 DDL 标识符。
+        方言差异由 :meth:`DBHelper.quote_identifier_for_dialect` 统一处理。
+        """
+        return DBHelper.quote_identifier_for_dialect(self.database_type, name)
+    
     # ==================== SQL 生成 ====================
     
     def generate_create_table_sql(self, schema: Dict) -> str:
@@ -202,38 +210,28 @@ class SchemaManager:
         comments = []  # 存储 COMMENT 语句（PostgreSQL/MySQL）
         
         for field_obj in field_objects:
-            # 生成字段 SQL（包含字段名）
-            field_sql = f"{field_obj.name} {field_obj.to_sql(self.database_type)}"
+            col_name = self.quote_ddl_identifier(field_obj.name)
+            field_sql = f"{col_name} {field_obj.to_sql(self.database_type)}"
             field_sql += field_obj.get_not_null_sql()
             field_sql += field_obj.get_default_sql(self.database_type)
             field_defs.append(field_sql)
             
-            # 处理 COMMENT（PostgreSQL/MySQL）
-            if field_obj.comment and self.database_type in ['postgresql', 'mysql']:
-                if self.database_type == 'postgresql':
-                    # 转义单引号：PostgreSQL 中单引号需要转义为两个单引号
-                    escaped_comment = field_obj.comment.replace("'", "''")
-                    comments.append(f"COMMENT ON COLUMN {table_name}.{field_obj.name} IS '{escaped_comment}';")
+            # 处理 COMMENT（PostgreSQL；MySQL 列注释若需可另走 ALTER，此处保持原行为）
+            if field_obj.comment and self.database_type == "postgresql":
+                escaped_comment = field_obj.comment.replace("'", "''")
+                qt = self.quote_ddl_identifier(table_name)
+                qc = self.quote_ddl_identifier(field_obj.name)
+                comments.append(f"COMMENT ON COLUMN {qt}.{qc} IS '{escaped_comment}';")
         
         # 添加主键（如果字段定义中没有包含）
         if primary_key:
-            # 检查是否已经有 AUTO_INCREMENT 主键（SQLite）
-            has_auto_inc_pk = False
-            if self.database_type == 'sqlite':
-                for field_obj in field_objects:
-                    if field_obj.auto_increment:
-                        pk_list = primary_key if isinstance(primary_key, list) else [primary_key]
-                        if field_obj.name in pk_list:
-                            has_auto_inc_pk = True
-                            break
-            
-            if not has_auto_inc_pk:
-                pk_def = self._generate_primary_key_definition(primary_key)
-                field_defs.append(pk_def)
+            pk_def = self._generate_primary_key_definition(primary_key)
+            field_defs.append(pk_def)
         
         # 生成完整 SQL
         fields_sql = ',\n    '.join(field_defs)
-        create_sql = f"CREATE TABLE IF NOT EXISTS {table_name} (\n    {fields_sql}\n);"
+        table_sql_name = self.quote_ddl_identifier(table_name)
+        create_sql = f"CREATE TABLE IF NOT EXISTS {table_sql_name} (\n    {fields_sql}\n);"
         
         # 添加 COMMENT 语句（PostgreSQL）
         if comments:
@@ -252,10 +250,10 @@ class SchemaManager:
             PRIMARY KEY SQL 定义
         """
         if isinstance(primary_key, list):
-            pk_fields = ', '.join([f"{f}" for f in primary_key])
-            return f"PRIMARY KEY ({pk_fields})"
+            pk_fields = ", ".join(self.quote_ddl_identifier(f) for f in primary_key)
         else:
-            return f"PRIMARY KEY ({primary_key})"
+            pk_fields = self.quote_ddl_identifier(primary_key)
+        return f"PRIMARY KEY ({pk_fields})"
     
     def generate_create_index_sql(self, table_name: str, index: Dict) -> str:
         """
@@ -274,22 +272,9 @@ class SchemaManager:
         
         unique_keyword = 'UNIQUE' if is_unique else ''
         
-        # 根据数据库类型处理标识符引用
-        if self.database_type == 'postgresql':
-            # PostgreSQL 使用双引号
-            fields_str = ', '.join([f'"{f}"' if f.lower() in ['key', 'value', 'order', 'group'] else f for f in index_fields])
-            table_name_quoted = f'"{table_name}"' if table_name.lower() in ['key', 'value', 'order', 'group'] else table_name
-            index_name_quoted = f'"{index_name}"' if index_name.lower() in ['key', 'value', 'order', 'group'] else index_name
-        elif self.database_type == 'mysql':
-            # MySQL 使用反引号
-            fields_str = ', '.join([f'`{f}`' if f.lower() in ['key', 'value', 'order', 'group'] else f for f in index_fields])
-            table_name_quoted = f'`{table_name}`' if table_name.lower() in ['key', 'value', 'order', 'group'] else table_name
-            index_name_quoted = f'`{index_name}`' if index_name.lower() in ['key', 'value', 'order', 'group'] else index_name
-        else:
-            # SQLite 通常不需要引号，但为了安全也可以使用双引号
-            fields_str = ', '.join(index_fields)
-            table_name_quoted = table_name
-            index_name_quoted = index_name
+        fields_str = ", ".join(self.quote_ddl_identifier(f) for f in index_fields)
+        table_name_quoted = self.quote_ddl_identifier(table_name)
+        index_name_quoted = self.quote_ddl_identifier(index_name)
         
         sql = f"CREATE {unique_keyword} INDEX IF NOT EXISTS {index_name_quoted} ON {table_name_quoted} ({fields_str})"
         return sql

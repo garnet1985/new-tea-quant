@@ -11,7 +11,7 @@ MOM = (P_t-60d / P_t-5d) - 1
 """
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from core.modules.tag.core.base_tag_worker import BaseTagWorker
+from core.modules.tag.base_tag_worker import BaseTagWorker
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class MomentumTagWorker(BaseTagWorker):
     ) -> Optional[Dict[str, Any]]:
         """计算动量tag（仅在月份变化时计算）"""
         entity_id = self.entity['id']
-        daily_klines = historical_data.get("klines", {}).get("daily", [])
+        daily_klines = historical_data.get("stock.kline", [])
         
         if not daily_klines:
             return None

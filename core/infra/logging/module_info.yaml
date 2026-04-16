@@ -1,0 +1,6 @@
+name: infra.logging
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "集中初始化标准库 logging：从 ConfigManager 加载 logging.json（含 userspace 覆盖），配置根 logger 与可选的按模块级别。"
+dependencies:
+  - infra.project_context

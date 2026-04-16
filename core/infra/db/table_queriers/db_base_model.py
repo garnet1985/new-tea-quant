@@ -44,10 +44,11 @@ DbBaseModel - 数据库表操作的通用基类
 更新日期：2024-12-04
 """
 import ast
-import math
-import logging
 import json
+import logging
+import math
 import os
+import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -61,6 +62,9 @@ from core.utils.io import file_io
 
 logger = logging.getLogger(__name__)
 
+# MySQL 单条 INSERT 受 max_allowed_packet 限制；在占位符上限之外再限制每批行数
+_MYSQL_INSERT_BATCH_ROW_CAP = 1000
+
 
 class ExportTemplateKind(Enum):
     """
@@ -68,7 +72,7 @@ class ExportTemplateKind(Enum):
 
     - FULL_TABLE: 整表导出，不切块
     - ROW_CHUNK: 按行数切块（预留，当前实现等同于 FULL_TABLE）
-    """
+    """ 
 
     FULL_TABLE = "full_table"
     ROW_CHUNK = "row_chunk"
@@ -227,17 +231,10 @@ class DbBaseModel:
             column_name: 列名
             column_type: 新的列类型
 
-        Raises:
-            NotImplementedError: SQLite 不支持 ALTER COLUMN，需重建表
         """
         self._validate_column_name(column_name)
         self._validate_column_type(column_type)
         database_type = self.db.config.get('database_type', 'postgresql')
-        if database_type == 'sqlite':
-            raise NotImplementedError(
-                "SQLite 不支持修改列类型。请使用 execute_raw_update 手动重建表，"
-                "或迁移到 PostgreSQL/MySQL。"
-            )
         if database_type == 'postgresql':
             sql = f"ALTER TABLE {self.table_name} ALTER COLUMN {column_name} TYPE {column_type.strip()}"
         else:
@@ -456,11 +453,6 @@ class DbBaseModel:
         elif db_type == "mysql":
             cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
             cursor.execute(f"CREATE TABLE {target_sql} LIKE {source_sql}")
-        elif db_type == "sqlite":
-            cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
-            cursor.execute(
-                f"CREATE TABLE {target_sql} AS SELECT * FROM {source_sql} WHERE 1=0"
-            )
         else:
             raise ValueError(f"不支持的数据库类型: {db_type}")
         logger.info("已为目标表建立结构: %s <- %s", target_sql, source_sql)
@@ -555,19 +547,16 @@ class DbBaseModel:
         """
         多行一条 INSERT 时的行数上限。
 
-        PostgreSQL / MySQL：单语句占位符有上限（PG 约 65535），故实际为
-        min(目标上限, 65535 // 列数)。列很多时批次会低于目标上限，属正常。
-        SQLite：受 SQLITE_MAX_VARIABLE_NUMBER（默认 999）约束。
+        PostgreSQL / MySQL：单语句占位符有上限（约 65535），实际为 min(上限, 65535//列数)。
+        MySQL 另受 max_allowed_packet 约束，再限制每批最多 ``_MYSQL_INSERT_BATCH_ROW_CAP`` 行。
         """
         nc = max(num_columns, 1)
         t = DBHelper.normalize_database_type(self.db.config)
-        # 目标：宽表自动缩小批次；窄表可一次合并上万行
-        _cap_pg_mysql = 10_000
-        if t == "sqlite":
-            return max(1, min(400, 999 // nc))
+        _cap_pg = 10_000
+        by_ph = max(1, 65535 // nc)
         if t == "postgresql":
-            return max(1, min(_cap_pg_mysql, 65535 // nc))
-        return max(1, min(_cap_pg_mysql, 65535 // nc))
+            return max(1, min(_cap_pg, by_ph))
+        return max(1, min(_cap_pg, by_ph, _MYSQL_INSERT_BATCH_ROW_CAP))
 
     def _import_log_progress_after_chunk(
         self,
@@ -615,7 +604,7 @@ class DbBaseModel:
         archive_name: str,
     ) -> int:
         """多行 VALUES 批量插入；返回插入行数。"""
-        col_list = ", ".join(field_names)
+        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
         one_row = "(" + ", ".join(["%s"] * len(field_names)) + ")"
         n = len(rows)
         if n == 0:
@@ -667,7 +656,7 @@ class DbBaseModel:
         """PostgreSQL：psycopg2.extras.execute_values 批量展开 VALUES，减少客户端拼接与往返。"""
         from psycopg2.extras import execute_values
 
-        col_list = ", ".join(field_names)
+        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
         sql = f"INSERT INTO {target_sql} ({col_list}) VALUES %s"
         n = len(rows)
         if n == 0:
@@ -775,6 +764,44 @@ class DbBaseModel:
                 )
         return total_rows
 
+    def _clear_table_for_overwrite_import(self, cursor, target_sql: str) -> None:
+        """
+        覆盖导入前清空目标表：MySQL/PostgreSQL 优先 TRUNCATE（大表远快于 DELETE），
+        失败（如外键）时回退 DELETE。
+        """
+        dialect = DBHelper.normalize_database_type(self.db.config)
+        t_clear = time.perf_counter()
+        if dialect not in ("mysql", "postgresql"):
+            logger.info("覆盖导入：开始清空目标表 %s（DELETE FROM）", target_sql)
+            cursor.execute(f"DELETE FROM {target_sql}")
+            logger.info(
+                "覆盖导入：目标表 %s 已清空（DELETE），耗时 %.2fs",
+                target_sql,
+                time.perf_counter() - t_clear,
+            )
+            return
+        logger.info("覆盖导入：开始清空目标表 %s（TRUNCATE TABLE）", target_sql)
+        try:
+            cursor.execute(f"TRUNCATE TABLE {target_sql}")
+            logger.info(
+                "覆盖导入：目标表 %s 已清空（TRUNCATE），耗时 %.2fs",
+                target_sql,
+                time.perf_counter() - t_clear,
+            )
+        except Exception as e:
+            logger.warning(
+                "覆盖导入：TRUNCATE 失败，改用 DELETE：表=%s 原因=%s",
+                target_sql,
+                e,
+            )
+            t2 = time.perf_counter()
+            cursor.execute(f"DELETE FROM {target_sql}")
+            logger.info(
+                "覆盖导入：目标表 %s 已清空（DELETE 回退），耗时 %.2fs",
+                target_sql,
+                time.perf_counter() - t2,
+            )
+
     def _import_data_overwrite_run(
         self,
         cursor,
@@ -786,8 +813,7 @@ class DbBaseModel:
         pg_execute_values: bool,
     ) -> int:
         self._ensure_import_target_with_cursor(cursor, source_sql, target_sql)
-        cursor.execute(f"DELETE FROM {target_sql}")
-        logger.info("已清空表: %s", target_sql)
+        self._clear_table_for_overwrite_import(cursor, target_sql)
         return self._import_data_file_loop(
             cursor,
             target_sql,
@@ -805,10 +831,10 @@ class DbBaseModel:
         insert_batch_size: Optional[int] = None,
     ) -> None:
         """
-        overwrite：按需建目标表、DELETE 清空、再导入。target 与源不同名时见
+        overwrite：按需建目标表、TRUNCATE（或回退 DELETE）清空、再导入。target 与源不同名时见
         `_ensure_import_target_with_cursor`。insert_batch_size 默认按列数与驱动占位符上限估算。
 
-        PG：adapter 事务 + execute_values；MySQL：事务 + 多行 VALUES；SQLite：DatabaseCursor + 多行 VALUES（999 变量上限）。
+        PG：adapter 事务 + execute_values；MySQL：事务 + 多行 VALUES。
         """
         if mode not in ("overwrite", "replace"):
             raise ValueError(f"未知导入模式: {mode}")
@@ -826,11 +852,7 @@ class DbBaseModel:
 
         db_type = DBHelper.normalize_database_type(self.db.config)
         pg_ev = db_type == "postgresql"
-        ctx = (
-            self.db.connection_manager.transaction
-            if db_type in ("postgresql", "mysql")
-            else self.db.get_sync_cursor
-        )
+        ctx = self.db.connection_manager.transaction
         with ctx() as cursor:
             total_rows = self._import_data_overwrite_run(
                 cursor,
@@ -1221,6 +1243,7 @@ class DbBaseModel:
             if not columns:
                 return 0
             batch_size = self._get_insert_batch_size()
+            dt = DBHelper.normalize_database_type(self.db.config)
             with self.db.get_sync_cursor() as cursor:
                 return BatchOperation.execute_batch_insert(
                     executor=cursor,
@@ -1228,6 +1251,7 @@ class DbBaseModel:
                     columns=columns,
                     values=values,
                     batch_size=batch_size,
+                    database_type=dt,
                     unique_keys=unique_keys,
                     update_clause=update_clause
                 )

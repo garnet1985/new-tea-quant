@@ -263,7 +263,7 @@ class BatchWriteQueue:
                 values = [tuple(data[col] for col in columns) for data in data_list]
                 update_clause = None
             else:
-                # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL/SQLite 风格 Upsert）
+                # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL Upsert）
                 columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
                 
                 if not columns:
@@ -276,12 +276,14 @@ class BatchWriteQueue:
             # 通过 adapter 获取连接并执行 SQL
             conn = self.table_manager.adapter.get_connection()
             try:
+                dt = DBHelper.normalize_database_type(self.table_manager.config)
                 BatchOperation.execute_batch_insert(
                     executor=conn,
                     table_name=table_name,
                     columns=columns,
                     values=values,
                     batch_size=self.insert_batch_size,
+                    database_type=dt,
                     unique_keys=unique_keys if unique_keys else None,
                     update_clause=update_clause
                 )

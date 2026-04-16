@@ -60,14 +60,14 @@ class TestConfigManager:
         
         assert isinstance(db_config, dict)
         assert "database_type" in db_config
-        assert db_config["database_type"] in ["postgresql", "mysql", "sqlite"]
+        assert db_config["database_type"] in ["postgresql", "mysql"]
     
     def test_get_database_type(self):
         """测试获取数据库类型"""
         db_type = ConfigManager.get_database_type()
         
         assert isinstance(db_type, str)
-        assert db_type in ["postgresql", "mysql", "sqlite"]
+        assert db_type in ["postgresql", "mysql"]
     
     def test_load_with_defaults(self):
         """测试加载配置（默认+用户）"""

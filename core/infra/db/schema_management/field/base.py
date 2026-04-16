@@ -19,7 +19,7 @@ class Field(ABC):
     """
     
     # 支持的数据库列表（子类可以覆盖）
-    supported_databases = ['postgresql', 'mysql', 'sqlite']
+    supported_databases = ['postgresql', 'mysql']
     
     def __init__(
         self,
@@ -98,7 +98,7 @@ class Field(ABC):
         生成字段 SQL 定义（严格模式）
         
         Args:
-            database_type: 数据库类型（'postgresql', 'mysql', 'sqlite'）
+            database_type: 数据库类型（'postgresql', 'mysql'）
             
         Returns:
             字段 SQL 定义（不包含字段名）
@@ -135,7 +135,7 @@ class Field(ABC):
             
             # 处理 MySQL 的 ON UPDATE CURRENT_TIMESTAMP
             if 'ON UPDATE CURRENT_TIMESTAMP' in default_upper:
-                # PostgreSQL/SQLite 不支持 ON UPDATE，只保留 CURRENT_TIMESTAMP
+                # PostgreSQL 不支持 ON UPDATE，只保留 CURRENT_TIMESTAMP
                 if 'CURRENT_TIMESTAMP' in default_upper:
                     default_value = 'CURRENT_TIMESTAMP'
                 else:

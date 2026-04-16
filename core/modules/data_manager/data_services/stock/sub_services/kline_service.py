@@ -551,6 +551,29 @@ class KlineService(BaseDataService):
             影响的行数
         """
         return self._adj_factor_event.save_events(events)
+
+    def load_adj_factor_events(
+        self,
+        stock_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        加载指定股票的复权因子事件序列。
+        """
+        if not self._adj_factor_event:
+            return []
+
+        conditions = ["id = %s"]
+        params: List[Any] = [stock_id]
+        if start_date:
+            conditions.append("event_date >= %s")
+            params.append(start_date)
+        if end_date:
+            conditions.append("event_date <= %s")
+            params.append(end_date)
+        where_clause = " AND ".join(conditions)
+        return self._adj_factor_event.load(where_clause, tuple(params), order_by="event_date ASC")
     
     def delete_adj_factor_events(self, stock_id: str) -> int:
         """

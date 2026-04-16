@@ -286,14 +286,14 @@ class ConfigManager:
         7. 环境变量覆盖（最高优先级）
         
         Args:
-            database_type: 数据库类型（'postgresql', 'mysql', 'sqlite'）
+            database_type: 数据库类型（'postgresql', 'mysql'）
                           如果为 None，从配置文件中获取
         
         Returns:
             合并后的数据库配置字典，格式：
             {
                 'database_type': 'postgresql',
-                'postgresql': {...},  # 或 'mysql': {...}, 'sqlite': {...}
+                'postgresql': {...},  # 或 'mysql': {...}
                 'batch_write': {...}
             }
         """
@@ -629,7 +629,7 @@ class ConfigManager:
         获取当前使用的数据库类型
         
         Returns:
-            数据库类型（'postgresql', 'mysql', 'sqlite'）
+            数据库类型（'postgresql', 'mysql'）
         """
         db_config = ConfigManager.load_database_config()
         return db_config.get('database_type', 'postgresql')

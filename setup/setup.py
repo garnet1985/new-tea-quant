@@ -65,6 +65,34 @@ class NewTeaQuantSetup:
         os.execv(str(vpy), argv)
 
     @classmethod
+    def ensure_venv_for_setup_step(cls, script_path: str | Path) -> None:
+        """
+        setup/*/install.py 直接执行时，也默认切到项目 venv 解释器。
+
+        - 与 ensure_venv() 的区别：这里重启的是“当前脚本”，不是根目录 install.py。
+        - 目的：避免用户只跑某一步时把依赖装到系统 Python，或运行时缺少依赖（如 pandas）。
+        - 可用 NTQ_SKIP_AUTO_VENV=1 关闭该行为。
+        """
+        if cls.in_virtualenv():
+            return
+        raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
+        if raw in ("1", "true", "yes"):
+            return
+
+        vpy = cls.venv_python()
+        if not vpy.is_file():
+            # 尽量自给自足：没有 venv 时先创建，再重启到 venv
+            print("正在创建虚拟环境 venv/ …", flush=True)
+            subprocess.run(
+                [sys.executable, "-m", "venv", str(cls.venv_dir)],
+                cwd=str(cls.repo_root),
+                check=True,
+            )
+        sp = Path(script_path).resolve()
+        argv = [str(vpy), str(sp)] + sys.argv[1:]
+        os.execv(str(vpy), argv)
+
+    @classmethod
     def to_root_dir(cls) -> None:
         os.chdir(cls.repo_root)
 

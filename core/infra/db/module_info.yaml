@@ -1,0 +1,6 @@
+name: infra.db
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "NTQ 的数据库基础设施模块，提供连接管理、Schema 管理、表操作与批量写入能力。"
+dependencies:
+  - infra.project_context

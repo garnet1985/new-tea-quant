@@ -10,12 +10,9 @@ class BooleanField(Field):
     def _to_sql_impl(self, database_type: str) -> str:
         if database_type == 'postgresql':
             return "BOOLEAN"
-        elif database_type == 'mysql':
+        if database_type == 'mysql':
             return "TINYINT(1)"
-        elif database_type == 'sqlite':
-            return "INTEGER"
-        else:
-            return "BOOLEAN"
+        return "BOOLEAN"
     
     def get_type_name(self) -> str:
         return "boolean"

@@ -1,0 +1,12 @@
+name: modules.strategy
+version: 0.2.0
+compatible_core_versions: ">=0.2.0"
+description: "策略发现与回测：机会枚举（CSV事实表）、扫描、价格因子模拟与资金分配模拟；配置驱动 userspace/strategies。"
+dependencies:
+  - modules.data_manager
+  - modules.data_contract
+  - modules.data_cursor
+  - modules.indicator
+  - modules.adapter
+  - infra.project_context
+  - infra.worker

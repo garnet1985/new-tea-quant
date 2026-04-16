@@ -2,16 +2,12 @@
 DatabaseAdapterFactory - 数据库适配器工厂
 
 根据配置创建相应的数据库适配器。
-支持：PostgreSQL、MySQL、SQLite
+支持：PostgreSQL、MySQL
 """
 from typing import Dict, Any, Optional
 import logging
 
 from .base_adapter import BaseDatabaseAdapter
-from .postgresql_adapter import PostgreSQLAdapter
-from .mysql_adapter import MySQLAdapter
-from .sqlite_adapter import SQLiteAdapter
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +26,7 @@ class DatabaseAdapterFactory:
         
         Args:
             config: 数据库配置字典
-                必须包含 'database_type' 字段（'postgresql', 'mysql', 'sqlite'）
+                必须包含 'database_type' 字段（'postgresql', 'mysql'）
                 以及对应的数据库配置
             is_verbose: 是否输出详细日志
             
@@ -61,18 +57,12 @@ class DatabaseAdapterFactory:
                     'password': 'password'
                 }
             }
-            
-            # SQLite 配置
-            config = {
-                'database_type': 'sqlite',
-                'sqlite': {
-                    'db_path': 'data/stocks.db'
-                }
-            }
         """
         database_type = config.get('database_type', 'postgresql').lower()
         
         if database_type == 'postgresql':
+            from .postgresql_adapter import PostgreSQLAdapter
+
             pg_config = config.get('postgresql')
             if not pg_config:
                 raise ValueError("PostgreSQL 配置缺失，请提供 'postgresql' 配置项")
@@ -82,6 +72,8 @@ class DatabaseAdapterFactory:
             return adapter
             
         elif database_type == 'mysql':
+            from .mysql_adapter import MySQLAdapter
+
             mysql_config = config.get('mysql')
             if not mysql_config:
                 raise ValueError("MySQL 配置缺失，请提供 'mysql' 配置项")
@@ -90,14 +82,5 @@ class DatabaseAdapterFactory:
             adapter.connect()
             return adapter
             
-        elif database_type == 'sqlite':
-            sqlite_config = config.get('sqlite')
-            if not sqlite_config:
-                raise ValueError("SQLite 配置缺失，请提供 'sqlite' 配置项")
-            
-            adapter = SQLiteAdapter(sqlite_config, is_verbose=is_verbose)
-            adapter.connect()
-            return adapter
-            
         else:
-            raise ValueError(f"不支持的数据库类型: {database_type}，支持的类型: 'postgresql', 'mysql', 'sqlite'")
+            raise ValueError(f"不支持的数据库类型: {database_type}，支持的类型: 'postgresql', 'mysql'")

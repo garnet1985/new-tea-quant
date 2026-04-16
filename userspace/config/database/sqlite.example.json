@@ -1,6 +1,0 @@
-{
-  "_comment": "用户 SQLite 配置示例 - 只需配置 db_path",
-  "sqlite": {
-    "db_path": "data/my_stocks.db"
-  }
-}

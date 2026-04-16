@@ -34,15 +34,10 @@ class EnumField(Field):
         values_str = ', '.join(escaped_values)
         
         if database_type == 'postgresql':
-            # PostgreSQL 使用 CHECK 约束
             return f"VARCHAR(255) CHECK ({self.name} IN ({values_str}))"
-        elif database_type == 'mysql':
+        if database_type == 'mysql':
             return f"ENUM({values_str})"
-        elif database_type == 'sqlite':
-            # SQLite 使用 CHECK 约束
-            return f"VARCHAR(255) CHECK ({self.name} IN ({values_str}))"
-        else:
-            return "VARCHAR(255)"
+        return "VARCHAR(255)"
     
     def get_type_name(self) -> str:
         return "enum"

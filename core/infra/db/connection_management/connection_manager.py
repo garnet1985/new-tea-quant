@@ -75,10 +75,6 @@ class ConnectionManager:
             elif database_type == 'mysql':
                 mysql_config = self.config.get('mysql', {})
                 logger.debug(f"✅ 数据库连接已建立（MySQL: {mysql_config.get('database', 'unknown')}）")
-            elif database_type == 'sqlite':
-                sqlite_config = self.config.get('sqlite', {})
-                db_path = sqlite_config.get('db_path', 'unknown')
-                logger.debug(f"✅ 数据库连接已建立（SQLite: {db_path}）")
                 
         except Exception as e:
             logger.error(f"❌ 数据库连接初始化失败: {e}")

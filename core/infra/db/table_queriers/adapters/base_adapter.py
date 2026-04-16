@@ -99,7 +99,7 @@ class BaseDatabaseAdapter(ABC):
         返回占位符类型
         
         Returns:
-            '%s' (PostgreSQL/MySQL) 或 '?' (SQLite)
+            '%s'（PostgreSQL/MySQL）
         """
         pass
     
@@ -130,9 +130,7 @@ class BaseDatabaseAdapter(ABC):
         """
         标准化查询语句（转换占位符）
         
-        支持双向转换：
-        - SQLite: '%s' -> '?' 或 '?' 保持不变
-        - PostgreSQL/MySQL: '?' -> '%s' 或 '%s' 保持不变
+        支持占位符统一：'?' -> '%s'（PostgreSQL/MySQL 使用 ``%s``）
         
         Args:
             query: 原始查询语句（可能包含 '%s' 或 '?' 占位符）
@@ -142,11 +140,8 @@ class BaseDatabaseAdapter(ABC):
         """
         placeholder = self.get_placeholder()
         if placeholder == '?':
-            # SQLite 使用 ?，需要转换 %s -> ?
             return query.replace("%s", "?")
-        else:
-            # PostgreSQL/MySQL 使用 %s，需要转换 ? -> %s
-            return query.replace("?", "%s")
+        return query.replace("?", "%s")
     
     def is_initialized(self) -> bool:
         """

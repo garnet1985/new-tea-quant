@@ -117,11 +117,15 @@ new-tea-quant/
 │   │   ├── data_manager/          # 数据管理器（读写数据库）
 │   │   ├── data_source/           # 数据源系统（抓数据）
 │   │   ├── tag/                   # 标签系统（一次算好，多次复用）
-│   │   └── indicator/             # 技术指标（对 pandas-ta 的代理）
+│   │   ├── indicator/             # 技术指标（对 pandas-ta 的代理）
+│   │   ├── data_contract/         # DataKey、数据契约签发与缓存
+│   │   ├── data_cursor/           # 多源时序前缀游标（as_of 累计视图）
+│   │   └── adapter/               # 扫描结果适配器（userspace 扩展）
 │   ├── infra/                     # 基础设施
 │   │   ├── db/                    # 数据库连接 & Schema 管理
 │   │   ├── worker/                # 多进程 / 多线程 / Orchestrator
 │   │   ├── discovery/             # 自动发现模块和类
+│   │   ├── logging/               # 日志初始化（标准库 logging 配置入口）
 │   │   └── project_context/       # 路径、配置、文件、环境
 │   └── default_config/            # 框架默认配置（不可变基线）
 ├── userspace/                     # 用户空间（你真正工作的地方）
@@ -211,21 +215,24 @@ new-tea-quant/
 
 ## 想看某个模块的细节？
 
-本文件只是 project 级别的「总览图」，每个模块都有自己的三件套文档：`overview.md` / `architecture.md` / `decisions.md`。
+本文件只是 project 级别的「总览图」。已迁移模块以各目录 **`README.md`** 与 **`docs/`** 为准；尚未迁移的模块仍可在 `docs/core_modules/<name>/` 下查阅。
 
 - **核心业务模块（Core Modules）**
-  - `core_modules/strategy/overview.md`
-  - `core_modules/data_manager/overview.md`
-  - `core_modules/data_source/overview.md`
-  - `core_modules/tag/overview.md`
-  - `core_modules/indicator/overview.md`
-  - `core_modules/adapter/overview.md`
+  - [`modules/strategy`](../core/modules/strategy/README.md)（模块内 [`docs/`](../core/modules/strategy/docs/)，组件见 [`docs/components/`](../core/modules/strategy/docs/components/README.md)）
+  - [`modules/tag`](../core/modules/tag/README.md)（模块内 [`docs/`](../core/modules/tag/docs/)）
+  - [`modules/adapter`](../core/modules/adapter/README.md)（模块内 [`docs/`](../core/modules/adapter/docs/)）
+  - [`modules/data_contract`](../core/modules/data_contract/README.md)（模块内 [`docs/`](../core/modules/data_contract/docs/)）
+  - [`modules/data_cursor`](../core/modules/data_cursor/README.md)（模块内 [`docs/`](../core/modules/data_cursor/docs/)）
+  - [`modules/data_manager`](../core/modules/data_manager/README.md)（模块内 [`docs/`](../core/modules/data_manager/docs/)）
+  - [`modules/data_source`](../core/modules/data_source/README.md)（模块内 [`docs/`](../core/modules/data_source/docs/)）
+  - [`modules/indicator`](../core/modules/indicator/README.md)（模块内 [`docs/`](../core/modules/indicator/docs/)）
 
 - **基础设施（Infra）+ 默认配置**
-  - `infra/project_context/overview.md`
-  - `infra/worker/overview.md`
-  - `infra/db/overview.md`
-  - `infra/discovery/overview.md`
+  - [`infra/project_context`](../core/infra/project_context/README.md)（模块内 [`docs/`](../core/infra/project_context/docs/)）
+  - [`infra/worker`](../core/infra/worker/README.md)（模块内 [`docs/`](../core/infra/worker/docs/)）
+  - [`infra/db`](../core/infra/db/README.md)（模块内 [`docs/`](../core/infra/db/docs/)）
+  - [`infra/discovery`](../core/infra/discovery/README.md)（模块内 [`docs/`](../core/infra/discovery/docs/)）
+  - [`infra/logging`](../core/infra/logging/README.md)（模块内 [`docs/`](../core/infra/logging/docs/)）
   - `default_config/overview.md`
 
 安装与上手，请参见：

@@ -4,11 +4,13 @@
 
 ## New Tea Quant (NTQ) - A-Share Quant Research Framework
 
-[![Build](https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg)](https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](#)
-[![GitHub](https://img.shields.io/badge/GitHub-garnet1985%2Fnew--tea--quant-181717?logo=github)](https://github.com/garnet1985/new-tea-quant)
-[![Gitee](https://img.shields.io/badge/Gitee-garnet%2Fnew--tea--quant-C71D23?logo=gitee)](https://gitee.com/garnet/new-tea-quant)
-[![Version](https://img.shields.io/badge/version-0.2.1-blue)](CHANGELOG.md)
+<p align="center">
+  <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github"></a>
+  <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee"></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.2.1-blueviolet"></a>
+  <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-lightgrey"></a>
+</p>
 
 Author: Garnet Xin
 

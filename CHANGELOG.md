@@ -1,17 +1,20 @@
 ## 变更日志（Changelog）
 
 本文件汇总 New Tea Quant 的主要版本变更。  
-自 `v0.1.0` 起采用统一版本规范 `v[a].[b].[c]`（a=大版本，b=小版本，c=微小版本）。  
+自 `v0.1.0` 起采用统一版本规范 `v[a].[b].[c]`（a=Version，b=Function，c=Patch）。  
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
 ---
 
-### v0.2.2 (TBD)
+### v0.2.2 (2026-04-21)
 
 - 增加了Readme里的小徽章和相应的github gitee自动化
-- 添加英文Readme（todo）
-- 增加了UT coverage和merge的最小要求（todo）
-- 对所有模块增加了测试的覆盖率，修复Github的CI错误（todo）
+- 添加英文Readme
+- 增加了UT coverage和merge的最小要求
+- 对所有模块增加了测试的覆盖率，修复Github的CI错误
+- 为官网增加了不少新的样式
+- 在官网重新写了API文档，对NTQ的死链接进行了清理
+- 修复了官网注册不成功的bug，修改了官网提交反馈form的时候会出现email无法发送的bug
 
 ---
 

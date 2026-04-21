@@ -353,5 +353,4 @@ A: 可以，但不推荐。手动修改可能导致版本ID冲突。如果必须
 
 ## 📚 相关文档
 
-- [Strategy 模块架构设计](../../ARCHITECTURE_DESIGN.md)
-- [Setting Management README](../components/setting_management/README.md)
+- [Strategy 模块架构设计](../docs/ARCHITECTURE.md)

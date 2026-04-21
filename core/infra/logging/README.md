@@ -34,7 +34,7 @@ log.info("ready")
 
 CLI 入口 `start-cli.py` 在解析参数后首先调用 `LoggingManager.setup_logging()`；若传入 `--verbose`，会将根 logger 级别提升为 `DEBUG`（见该文件中的处理）。
 
-配置键与合并规则见 [`docs/getting-started/configuration.md`](../../../docs/getting-started/configuration.md) 及本模块 [`docs/DESIGN.md`](docs/DESIGN.md)。
+配置键与合并规则见 [`docs/default_config/user_guide.md`](../../../docs/default_config/user_guide.md) 及本模块 [`docs/DESIGN.md`](docs/DESIGN.md)。
 
 ## 文档索引
 

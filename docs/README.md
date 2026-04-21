@@ -2,18 +2,18 @@
 
 **主文档与教程请优先访问官网 [new-tea.cn](https://new-tea.cn)。** 以下为仓库内 Markdown，便于离线查阅。
 
-## 入门
+## 配置文档（仓库内）
 
-- [安装与环境](getting-started/installation.md)
-- [配置总览](getting-started/configuration.md)
-- [虚拟环境](getting-started/venv-usage.md)
+- [默认配置总览](default_config/overview.md)
+- [默认配置架构](default_config/architecture.md)
+- [默认配置决策](default_config/decisions.md)
+- [默认配置用户指南](default_config/user_guide.md)
 
-## 用户指南
+## 用户指南（迁移至 userspace）
 
-- [用户指南首页](user-guide/README.md)
-- [策略开发](user-guide/strategy-development.md)
-- [数据源使用](user-guide/data-source-usage.md)
-- [标签系统](user-guide/tag-system.md)
+- [策略开发](../userspace/strategies/USER_GUIDE.md)
+- [数据源使用](../userspace/data_source/USER_GUIDE.md)
+- [标签系统](../userspace/tags/USER_GUIDE.md)
 
 ## 架构与设计
 
@@ -24,7 +24,7 @@
 
 ## 归档
 
-- [历史根 README（精简前全文）](archive/README-root-before-slim-2026-03.md)
+- 历史根 README 归档已移除（请以仓库根 `README.md` 与模块文档为准）
 
 ## 变更记录
 

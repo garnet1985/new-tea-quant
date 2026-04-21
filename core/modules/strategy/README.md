@@ -2,7 +2,7 @@
 
 **`StrategyManager`** 在 **`userspace/strategies/`** 下发现策略（**`settings.py`** + **`strategy_worker.py`**），提供 **`scan`**（最新日扫描）与 **`simulate`**（逐日主线回测）。**`OpportunityEnumerator`** 产出 **CSV 枚举事实表**，**`PriceFactorSimulator`** / **`CapitalAllocationSimulator`** 在其上叠加价格层与资金层模拟。
 
-深入教程见 **[策略开发](../../../docs/user-guide/strategy-development.md)**。子目录职责见 **[docs/components/](docs/components/README.md)**。
+深入教程见 **[策略开发](../../../userspace/strategies/USER_GUIDE.md)**。子目录职责见 **[docs/components/](docs/components/README.md)**。
 
 ## 适用场景
 

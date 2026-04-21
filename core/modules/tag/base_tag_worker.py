@@ -66,6 +66,8 @@ class BaseTagWorker(ABC):
     
     def _extract_settings(self):
         """从 settings 中提取配置"""
+        # TODO: 与 self.settings 并列的 self.config 易混淆；后续可改为实例属性
+        #   self.core、self.performance，直接对应 settings 中的 core / performance 子树。
         self.config = {
             'core': self.settings.get('core', {}),
             'performance': self.settings.get('performance', {})

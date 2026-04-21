@@ -16,7 +16,7 @@
 
 > For an English introduction, please see **[here](README_en.md)**.
 
-作者：Garnet Xin  
+作者：Garnet Xin
 
 <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
@@ -108,7 +108,7 @@ python start-cli.py -t
 
 您也可以修改 `userspace/strategies/` 下的 settings 或 worker，自定义策略算法与目标。
 
-Have fun `^_^`
+Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh-hans/more-examples)
 
 ### 数据说明（请先看）
 
@@ -221,6 +221,6 @@ python -m pytest
 <summary>仓库内文档与归档</summary>
 
 - 离线文档索引：[docs/README.md](docs/README.md)  
-- 历史超长 README 归档：[docs/archive/README-root-before-slim-2026-03.md](docs/archive/README-root-before-slim-2026-03.md)（部分内容可能已过时，以本页与 <code>start-cli.py -h</code> 为准）
+- 历史超长 README 归档：已移除（部分内容已并入当前文档与模块内 README）
 
 </details>

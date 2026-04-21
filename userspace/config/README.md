@@ -210,6 +210,6 @@ export DB_POSTGRESQL_DATABASE=stocks_prod
 
 ## 🔗 相关文档
 
-- [核心默认配置说明](../../core/default_config/README.md) - 系统默认配置说明
-- [配置设计文档](../../core/default_config/DESIGN.md) - 配置系统设计理念
-- [数据库配置详细说明](../../core/default_config/database/README.md) - 数据库配置详细说明
+- [核心默认配置说明](../../docs/default_config/overview.md) - 系统默认配置说明
+- [配置设计文档](../../docs/default_config/architecture.md) - 配置系统设计理念
+- [默认配置用户指南](../../docs/default_config/user_guide.md) - 配置项与使用方法

@@ -49,7 +49,7 @@ settings = {
             # （选填）默认见内部
             "params": {
                 # （选填）默认daily
-                "term": "daily"
+                "term": "daily",
                 # （选填）可填值：qfq（前复权）（默认值）｜ raw（不复权）｜ hfq（后复权）
                 "adjust": "qfq"
             },

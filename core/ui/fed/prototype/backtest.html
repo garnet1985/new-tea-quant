@@ -6,6 +6,7 @@
   <title>NTQ Prototype - 策略回测</title>
   <link rel="stylesheet" href="./global.css" />
   <link rel="stylesheet" href="./components.css" />
+  <link rel="stylesheet" href="./backtest.css" />
 </head>
 <body>
   <div class="layout">
@@ -25,54 +26,401 @@
       <header class="topbar">
         <div>
           <h1 class="title">策略回测</h1>
-          <p class="subtitle">直接使用现有策略运行回测，快速验证策略效果</p>
+          <p class="subtitle">当前页面策略为只读，若需修改策略配置请前往「高级功能」页面</p>
         </div>
-        <button class="button">开始回测</button>
+        <span class="status">推荐顺序：1 枚举 -> 2 价格回测 -> 3 资金回测</span>
       </header>
 
-      <section class="grid cards-2">
-        <article class="card">
-          <h3>基础范围</h3>
-          <table class="table">
-            <tbody>
-              <tr><td>回测区间</td><td>2019-01-01 ~ 2025-12-31</td></tr>
-              <tr><td>标的池</td><td>全部A股 + 黑名单排除</td></tr>
-              <tr><td>基准</td><td>中证全指</td></tr>
-              <tr><td>频率</td><td>日线</td></tr>
-            </tbody>
-          </table>
-        </article>
-        <article class="card">
-          <h3>资金执行</h3>
-          <table class="table">
-            <tbody>
-              <tr><td>初始资金</td><td>1,000,000</td></tr>
-              <tr><td>手续费</td><td>万3 + 最低5元</td></tr>
-              <tr><td>滑点</td><td>0.08%</td></tr>
-              <tr><td>成交规则</td><td>下一交易日开盘撮合</td></tr>
-            </tbody>
-          </table>
-        </article>
+      <section class="card action-bar">
+        <div class="action-left">
+          <button class="button action-btn" id="run-enum-btn" data-action="enum">1. 运行枚举</button>
+          <button class="button action-btn" id="run-price-btn" data-action="price">2. 运行价格回测</button>
+          <button class="button action-btn" id="run-capital-btn" data-action="capital">3. 运行资金回测</button>
+          <button class="button ghost-btn" id="clear-btn">清空选择</button>
+        </div>
+        <div class="action-right">
+          <span class="status" id="run-flag">空闲</span>
+          <span class="muted" id="summary-text">已选 0 个策略，0 个运行中，0 个排队中</span>
+        </div>
+      </section>
+
+      <section class="card strategy-table-wrap" style="margin-top: 14px;">
+        <table class="table strategy-table">
+          <thead>
+            <tr>
+              <th style="width: 44px;"><input type="checkbox" checked disabled /></th>
+              <th>策略</th>
+              <th>状态</th>
+              <th>启用</th>
+              <th>股票池规模</th>
+              <th style="min-width: 180px;">回测进度</th>
+              <th>描述 / 配置说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-strategy-row data-enabled="true">
+              <td><input type="checkbox" data-select checked /></td>
+              <td class="strategy-name">
+                double-bottom-v3
+              </td>
+              <td><span class="status status-idle" data-state-pill>空闲</span></td>
+              <td><span class="status ok">Enabled</span></td>
+              <td>4,521</td>
+              <td>
+                <div class="run-progress"><span data-progress-bar style="width: 0%;"></span></div>
+                <div class="muted progress-label" data-progress-label>等待开始</div>
+              </td>
+              <td>
+                <span class="desc-ellipsis">双低点反弹 + 成交量确认，适合中短周期验证</span>
+                <span class="tooltip-icon" title="双低点反弹 + 成交量确认，适合中短周期验证">ⓘ</span>
+              </td>
+            </tr>
+            <tr data-strategy-row data-enabled="true">
+              <td><input type="checkbox" data-select /></td>
+              <td class="strategy-name">
+                momentum-breakout-v2
+              </td>
+              <td><span class="status status-idle" data-state-pill>空闲</span></td>
+              <td><span class="status ok">Enabled</span></td>
+              <td>3,876</td>
+              <td>
+                <div class="run-progress"><span data-progress-bar style="width: 0%;"></span></div>
+                <div class="muted progress-label" data-progress-label>等待开始</div>
+              </td>
+              <td>
+                <span class="desc-ellipsis">趋势突破 + 波动过滤，强调连续性与风险控制</span>
+                <span class="tooltip-icon" title="趋势突破 + 波动过滤，强调连续性与风险控制">ⓘ</span>
+              </td>
+            </tr>
+            <tr data-strategy-row data-enabled="true">
+              <td><input type="checkbox" data-select checked /></td>
+              <td class="strategy-name">
+                activity-high-v1
+              </td>
+              <td><span class="status status-idle" data-state-pill>空闲</span></td>
+              <td><span class="status ok">Enabled</span></td>
+              <td>2,914</td>
+              <td>
+                <div class="run-progress"><span data-progress-bar style="width: 0%;"></span></div>
+                <div class="muted progress-label" data-progress-label>等待开始</div>
+              </td>
+              <td>
+                <span class="desc-ellipsis">活跃度优先 + 标签约束，偏向高流动性样本</span>
+                <span class="tooltip-icon" title="活跃度优先 + 标签约束，偏向高流动性样本">ⓘ</span>
+              </td>
+            </tr>
+            <tr data-strategy-row data-enabled="false">
+              <td><input type="checkbox" data-select disabled /></td>
+              <td class="strategy-name">
+                mean-revert-test
+              </td>
+              <td><span class="status status-idle" data-state-pill>空闲</span></td>
+              <td><span class="status err">Disabled</span></td>
+              <td>4,120</td>
+              <td>
+                <div class="run-progress"><span data-progress-bar style="width: 0%;"></span></div>
+                <div class="muted progress-label" data-progress-label>未启用</div>
+              </td>
+              <td>
+                <span class="desc-ellipsis">均值回归实验策略，当前关闭以避免与主策略冲突</span>
+                <span class="tooltip-icon" title="均值回归实验策略，当前关闭以避免与主策略冲突">ⓘ</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <section class="grid cards-3" style="margin-top: 14px;">
-        <article class="card">
-          <h3>Layer 1 信号筛选</h3>
-          <div class="muted">输出候选信号集合</div>
-          <p>低点触发阈值、成交量确认、趋势条件</p>
+        <article class="card result-card">
+          <h3>枚举结果</h3>
+          <div class="metric" id="enum-metric">--</div>
+          <div class="muted" id="enum-desc">等待运行枚举</div>
+          <button class="button ghost-btn report-btn" data-report-type="enum">详细报告</button>
         </article>
-        <article class="card">
-          <h3>Layer 2 资金决策</h3>
-          <div class="muted">生成买卖和仓位建议</div>
-          <p>分批建仓、加减仓比例、单票上限</p>
+        <article class="card result-card">
+          <h3>价格回测结果</h3>
+          <div class="metric-dual">
+            <div>
+              <div class="metric-label">胜率</div>
+              <div class="metric" id="price-win-metric">--</div>
+            </div>
+            <div>
+              <div class="metric-label">ROI</div>
+              <div class="metric" id="price-roi-metric">--</div>
+            </div>
+          </div>
+          <div class="muted" id="price-desc">等待运行价格回测</div>
+          <button class="button ghost-btn report-btn" data-report-type="price">详细报告</button>
         </article>
-        <article class="card">
-          <h3>Layer 3 执行回放</h3>
-          <div class="muted">形成最终交易路径</div>
-          <p>撮合细节、手续费影响、收益曲线</p>
+        <article class="card result-card">
+          <h3>资金回测结果</h3>
+          <div class="metric" id="capital-metric">--</div>
+          <div class="muted" id="capital-desc">等待运行资金回测</div>
+          <button class="button ghost-btn report-btn" data-report-type="capital">详细报告</button>
         </article>
       </section>
     </main>
   </div>
+  <div class="report-modal hidden" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <div class="report-panel">
+      <div class="report-header">
+        <h3 id="report-title">详细报告</h3>
+        <button class="button ghost-btn report-close" id="report-close-btn">关闭</button>
+      </div>
+      <div class="report-content" id="report-content">暂无报告，请先运行对应 action。</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const rows = Array.from(document.querySelectorAll("[data-strategy-row]"));
+      const runButtons = Array.from(document.querySelectorAll(".action-btn"));
+      const reportButtons = Array.from(document.querySelectorAll("[data-report-type]"));
+      const clearBtn = document.getElementById("clear-btn");
+      const runFlag = document.getElementById("run-flag");
+      const summaryText = document.getElementById("summary-text");
+      const enumMetric = document.getElementById("enum-metric");
+      const enumDesc = document.getElementById("enum-desc");
+      const priceWinMetric = document.getElementById("price-win-metric");
+      const priceRoiMetric = document.getElementById("price-roi-metric");
+      const priceDesc = document.getElementById("price-desc");
+      const capitalMetric = document.getElementById("capital-metric");
+      const capitalDesc = document.getElementById("capital-desc");
+      const reportModal = document.getElementById("report-modal");
+      const reportCloseBtn = document.getElementById("report-close-btn");
+      const reportTitle = document.getElementById("report-title");
+      const reportContent = document.getElementById("report-content");
+      let running = false;
+      let tickTimer = null;
+      let queue = [];
+      let activeItem = null;
+      let currentAction = null;
+      const reportStore = {
+        enum: "<p>暂无报告，请先运行对应 action。</p>",
+        price: "<p>暂无报告，请先运行对应 action。</p>",
+        capital: "<p>暂无报告，请先运行对应 action。</p>"
+      };
+
+      const model = rows.map((row) => {
+        const enabled = row.dataset.enabled === "true";
+        return {
+          row,
+          enabled,
+          checkbox: row.querySelector("[data-select]"),
+          pill: row.querySelector("[data-state-pill]"),
+          bar: row.querySelector("[data-progress-bar]"),
+          label: row.querySelector("[data-progress-label]"),
+          progress: 0,
+          state: "idle",
+          duration: 8500 + Math.floor(Math.random() * 2500)
+        };
+      });
+
+      function setRowState(item, state) {
+        item.state = state;
+        item.pill.className = "status";
+        item.row.classList.remove("is-running", "is-queued");
+        if (state === "running") {
+          item.pill.classList.add("warn");
+          item.pill.textContent = "运行中";
+          item.row.classList.add("is-running");
+          item.label.textContent = `运行中 ${Math.floor(item.progress)}%`;
+        } else if (state === "queued") {
+          item.pill.classList.add("status-queued");
+          item.pill.textContent = "队列中";
+          item.row.classList.add("is-queued");
+          item.label.textContent = "队列中";
+        } else if (state === "done") {
+          item.pill.classList.add("ok");
+          item.pill.textContent = "完成";
+          item.label.textContent = "回测完成";
+        } else {
+          item.pill.classList.add("status-idle");
+          item.pill.textContent = "空闲";
+          item.label.textContent = item.enabled ? "等待开始" : "未启用";
+        }
+      }
+
+      function updateSummary() {
+        const selected = model.filter((m) => m.enabled && m.checkbox.checked).length;
+        const runningCount = model.filter((m) => m.state === "running").length;
+        const queuedCount = model.filter((m) => m.state === "queued").length;
+        summaryText.textContent = `已选 ${selected} 个策略，${runningCount} 个运行中，${queuedCount} 个排队中`;
+        runFlag.className = "status";
+        if (running) {
+          runFlag.classList.add("warn");
+          runFlag.textContent = `${currentAction}进行中`;
+        } else {
+          runFlag.classList.add("status-idle");
+          runFlag.textContent = "空闲";
+        }
+      }
+
+      function syncActionState() {
+        const hasSelection = model.some((m) => m.enabled && m.checkbox.checked);
+        runButtons.forEach((btn) => {
+          btn.disabled = running || !hasSelection;
+        });
+        model.forEach((m) => {
+          m.checkbox.disabled = running || !m.enabled;
+        });
+        clearBtn.disabled = running || !hasSelection;
+      }
+
+      function clearSelections() {
+        model.forEach((m) => {
+          if (m.enabled) m.checkbox.checked = false;
+        });
+        syncActionState();
+        updateSummary();
+      }
+
+      function startNext() {
+        if (queue.length === 0) {
+          activeItem = null;
+          running = false;
+          if (tickTimer) {
+            clearInterval(tickTimer);
+            tickTimer = null;
+          }
+          syncActionState();
+          updateSummary();
+          return;
+        }
+        activeItem = queue.shift();
+        setRowState(activeItem, "running");
+        updateSummary();
+      }
+
+      function updateResultCard(actionName) {
+        if (actionName === "枚举") {
+          const total = 800 + Math.floor(Math.random() * 1800);
+          enumMetric.textContent = `${total} 个机会`;
+          enumDesc.textContent = `共找到 ${total} 个机会，可进入价格回测进一步验证`;
+          reportStore.enum = `
+            <h4>任务摘要</h4>
+            <p>枚举任务执行完成，共发现 <strong>${total}</strong> 个可用机会。</p>
+            <h4>关键信息</h4>
+            <p>已选策略数：${model.filter((m) => m.enabled && m.checkbox.checked).length}</p>
+            <p>扫描窗口：2019-01-01 ~ 2025-12-31</p>
+            <p>任务状态：成功</p>
+          `;
+        } else if (actionName === "价格回测") {
+          const winRate = 45 + Math.floor(Math.random() * 30);
+          const roi = (Math.random() * 60 - 10).toFixed(1);
+          priceWinMetric.textContent = `${winRate}%`;
+          priceRoiMetric.textContent = `${Number(roi) >= 0 ? "+" : ""}${roi}%`;
+          priceRoiMetric.classList.toggle("metric-positive", Number(roi) >= 0);
+          priceRoiMetric.classList.toggle("metric-negative", Number(roi) < 0);
+          priceDesc.textContent = `ROI ${Number(roi) >= 0 ? "+" : ""}${roi}%（未考虑资金约束）`;
+          reportStore.price = `
+            <h4>任务摘要</h4>
+            <p>价格回测已完成，当前策略在价格层验证通过。</p>
+            <h4>关键指标</h4>
+            <p>胜率：<strong>${winRate}%</strong></p>
+            <p>ROI：<strong>${Number(roi) >= 0 ? "+" : ""}${roi}%</strong></p>
+            <p>样本数：${300 + Math.floor(Math.random() * 300)}</p>
+            <p>任务状态：成功</p>
+          `;
+        } else if (actionName === "资金回测") {
+          const initial = 1000000;
+          const ret = (Math.random() * 50 - 8).toFixed(1);
+          const end = Math.round(initial * (1 + Number(ret) / 100));
+          capitalMetric.textContent = `${Number(ret) >= 0 ? "+" : ""}${ret}%`;
+          capitalMetric.classList.toggle("metric-positive", Number(ret) >= 0);
+          capitalMetric.classList.toggle("metric-negative", Number(ret) < 0);
+          capitalDesc.textContent = `初始资金 ${initial.toLocaleString()} -> 结束资金 ${end.toLocaleString()}`;
+          reportStore.capital = `
+            <h4>任务摘要</h4>
+            <p>资金回测已完成，结果基于默认资金假设。</p>
+            <h4>关键指标</h4>
+            <p>初始资金：<strong>${initial.toLocaleString()}</strong></p>
+            <p>结束资金：<strong>${end.toLocaleString()}</strong></p>
+            <p>收益率：<strong>${Number(ret) >= 0 ? "+" : ""}${ret}%</strong></p>
+            <p>任务状态：成功</p>
+          `;
+        }
+      }
+
+      function openReport(type) {
+        const titleMap = {
+          enum: "枚举详细报告",
+          price: "价格回测详细报告",
+          capital: "资金回测详细报告"
+        };
+        reportTitle.textContent = titleMap[type] || "详细报告";
+        reportContent.innerHTML = reportStore[type] || "<p>暂无报告，请先运行对应 action。</p>";
+        reportModal.classList.remove("hidden");
+      }
+
+      function closeReport() {
+        reportModal.classList.add("hidden");
+      }
+
+
+      function startRun(actionName) {
+        if (running) return;
+        queue = model.filter((m) => m.enabled && m.checkbox.checked);
+        if (queue.length === 0) return;
+        running = true;
+        currentAction = actionName;
+        model.forEach((m) => {
+          m.progress = 0;
+          m.bar.style.width = "0%";
+          if (m.enabled && m.checkbox.checked) {
+            setRowState(m, "queued");
+          } else {
+            setRowState(m, "idle");
+          }
+        });
+        syncActionState();
+        updateSummary();
+        startNext();
+        tickTimer = setInterval(() => {
+          if (!activeItem) return;
+          const step = 100 / (activeItem.duration / 200);
+          activeItem.progress = Math.min(100, activeItem.progress + step);
+          activeItem.bar.style.width = `${activeItem.progress}%`;
+          activeItem.label.textContent = `运行中 ${Math.floor(activeItem.progress)}%`;
+          if (activeItem.progress >= 100) {
+            setRowState(activeItem, "done");
+            startNext();
+            if (!activeItem) {
+              updateResultCard(actionName);
+            }
+          }
+        }, 200);
+      }
+
+      model.forEach((m) => {
+        setRowState(m, "idle");
+        m.checkbox.addEventListener("change", () => {
+          syncActionState();
+          updateSummary();
+        });
+      });
+
+      runButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const actionMap = {
+            enum: "枚举",
+            price: "价格回测",
+            capital: "资金回测"
+          };
+          const actionName = actionMap[btn.dataset.action] || "回测";
+          startRun(actionName);
+        });
+      });
+      clearBtn.addEventListener("click", clearSelections);
+      reportButtons.forEach((btn) => {
+        btn.addEventListener("click", () => openReport(btn.dataset.reportType));
+      });
+      reportCloseBtn.addEventListener("click", closeReport);
+      reportModal.addEventListener("click", (event) => {
+        if (event.target === reportModal) closeReport();
+      });
+      syncActionState();
+      updateSummary();
+    })();
+  </script>
 </body>
 </html>

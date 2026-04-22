@@ -17,12 +17,18 @@
 }
 
 body {
+  min-width: 1280px;
   min-height: 100vh;
   color: var(--tone-4);
   background:
     radial-gradient(circle at 8% -20%, rgba(255, 255, 255, 0.2), transparent 38%),
     radial-gradient(circle at 88% -20%, rgba(255, 255, 255, 0.16), transparent 40%),
     linear-gradient(150deg, #0d0f14, #161920 45%, #1c2028 100%);
+  overflow-x: auto;
+}
+
+.layout {
+  min-width: 1280px;
 }
 
 .bg-layer,

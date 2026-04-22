@@ -6,6 +6,16 @@
 
 ---
 
+### v0.3.0 (TBD)
+
+- (可能引起破坏的改动) 清理文件夹结构，将backup文件夹放入userspace，将docker以及badge生成还有自动更新readme这类代码放入devtools文件夹并更新代码引用和文档
+- 在核心内加入BFF和UI，引入前端UI（TODO）
+- 加入Launder.py，一键启动app和UI（TODO）
+
+---
+
+---
+
 ### v0.2.2 (2026-04-21)
 
 - 增加了Readme里的小徽章和相应的github gitee自动化

@@ -22,10 +22,9 @@
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-<br/>
 
 > ## ⭐ 支持一下项目
-> 如果您对项目有兴趣，并想持续关注，欢迎为仓库点亮一个 Star！  
+> 如果您对项目有兴趣，并想持续关注，欢迎为仓库点亮一个Star！  
 > 这是我第一次尝试做开源项目，您的认可就是我前进的最大动力，谢谢您！
 
 ## NTQ 是什么？

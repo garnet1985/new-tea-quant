@@ -1,0 +1,32 @@
+# New Tea Quant runtime dependencies (top-level only)
+
+# ========================
+# Core system runtime
+# ========================
+
+# Database adapters
+pymysql
+psycopg2-binary
+
+# Data
+pandas
+numpy
+
+# Indicators
+pandas-ta-classic
+
+# HTTP / data source
+requests
+curl_cffi
+tushare
+akshare
+
+# Worker monitoring
+psutil
+
+# ========================
+# UI BFF runtime (Flask)
+# ========================
+flask
+flask-cors
+loguru

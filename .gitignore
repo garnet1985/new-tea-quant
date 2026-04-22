@@ -34,6 +34,7 @@ userspace/config/**/*.example.json
 ########################
 
 backup/data/
+userspace/backup/data/
 .pytest_cache/
 
 # setup/init_data：除 example 演示数据 zip 外全部忽略（解压目录、其它 zip、断点文件等）

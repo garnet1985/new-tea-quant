@@ -33,7 +33,7 @@ userspace/config/**/*.example.json
 # Data & Cache
 ########################
 
-backup/data/
+backup
 userspace/backup/data/
 .pytest_cache/
 

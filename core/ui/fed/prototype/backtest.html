@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - 策略回测</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a class="active" href="./backtest.html">策略回测</a>
+        <a href="./scan.html">机会扫描</a>
+        <a href="./advanced.html">高级功能</a>
+        <a href="./settings.html">设置</a>
+      </nav>
+    </header>
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="title">策略回测</h1>
+          <p class="subtitle">直接使用现有策略运行回测，快速验证策略效果</p>
+        </div>
+        <button class="button">开始回测</button>
+      </header>
+
+      <section class="grid cards-2">
+        <article class="card">
+          <h3>基础范围</h3>
+          <table class="table">
+            <tbody>
+              <tr><td>回测区间</td><td>2019-01-01 ~ 2025-12-31</td></tr>
+              <tr><td>标的池</td><td>全部A股 + 黑名单排除</td></tr>
+              <tr><td>基准</td><td>中证全指</td></tr>
+              <tr><td>频率</td><td>日线</td></tr>
+            </tbody>
+          </table>
+        </article>
+        <article class="card">
+          <h3>资金执行</h3>
+          <table class="table">
+            <tbody>
+              <tr><td>初始资金</td><td>1,000,000</td></tr>
+              <tr><td>手续费</td><td>万3 + 最低5元</td></tr>
+              <tr><td>滑点</td><td>0.08%</td></tr>
+              <tr><td>成交规则</td><td>下一交易日开盘撮合</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="grid cards-3" style="margin-top: 14px;">
+        <article class="card">
+          <h3>Layer 1 信号筛选</h3>
+          <div class="muted">输出候选信号集合</div>
+          <p>低点触发阈值、成交量确认、趋势条件</p>
+        </article>
+        <article class="card">
+          <h3>Layer 2 资金决策</h3>
+          <div class="muted">生成买卖和仓位建议</div>
+          <p>分批建仓、加减仓比例、单票上限</p>
+        </article>
+        <article class="card">
+          <h3>Layer 3 执行回放</h3>
+          <div class="muted">形成最终交易路径</div>
+          <p>撮合细节、手续费影响、收益曲线</p>
+        </article>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

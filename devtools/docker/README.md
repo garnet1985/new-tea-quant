@@ -1,5 +1,7 @@
 # Docker 运行说明
 
+文档在 `devtools/docker/`；**`Dockerfile`** 与 **`docker-compose.yml`** 仍在**仓库根目录**（构建上下文与 CI 约定不变），命令需在根目录执行。
+
 ## 前置
 
 - 已安装 [Docker](https://docs.docker.com/get-docker/) 与 [Docker Compose](https://docs.docker.com/compose/)（Docker Desktop 通常已包含 Compose V2）。

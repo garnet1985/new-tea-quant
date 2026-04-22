@@ -5,32 +5,32 @@
 
 默认行为（不带 --full）：
 - 对所有表执行备份；
-- 存在时间字段（date/trade_date）的表，仅备份默认时间窗口（当前 1 年）；
+- 存在时间字段（date / trade_date / event_date）的表，仅备份默认时间窗口（见 DEFAULT_*）；
 - 无时间字段的表，仍按全量备份。
 
 全量行为（带 --full）：
 - 所有表全量备份。
 
 可选地可指定 --start-date / --end-date 覆盖默认窗口。
+
+清理旧备份目录调用与核心一致的 `DataManager.backup_restore.prune_old_backups`。
 """
 import sys
-import os
 import re
 import argparse
 import logging
-import shutil
 from pathlib import Path
 from datetime import date
-from typing import List, Optional
+from typing import Optional, Tuple
 
-# 项目根目录
+# 项目根目录（供 import core）
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-os.chdir(_REPO_ROOT)
 
-# 输出目录：userspace/backup/data
-OUT_DIR = _REPO_ROOT / "userspace" / "backup" / "data"
+from core.infra.project_context import PathManager
+
+OUT_DIR = PathManager.backup_data()
 
 DATE_FMT = "%Y%m%d"
 # 默认窗口：固定 2025 全年（Demo 对外数据窗口）
@@ -42,15 +42,13 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def _default_date_range() -> tuple[str, str]:
+def _default_date_range() -> Tuple[str, str]:
     """默认导出时间窗口（固定 2025 全年）。"""
     return DEFAULT_START_DATE, DEFAULT_END_DATE
 
 
 def _pick_time_field(model) -> Optional[str]:
-    """
-    从模型 schema 中选择时间字段（当前支持 date / trade_date）。
-    """
+    """从模型 schema 中选择时间字段（支持 date / trade_date / event_date）。"""
     schema = getattr(model, "schema", None) or {}
     fields = schema.get("fields", []) if isinstance(schema, dict) else []
     names = {f.get("name") for f in fields if isinstance(f, dict)}
@@ -58,6 +56,35 @@ def _pick_time_field(model) -> Optional[str]:
         if candidate in names:
             return candidate
     return None
+
+
+def _condition_for_export(
+    *,
+    model,
+    table_name: str,
+    full: bool,
+    start_date: str,
+    end_date: str,
+) -> Tuple[str, tuple]:
+    """返回传给 model.export_data 的 condition 与 params。"""
+    if full:
+        logger.info("开始导出表 %s (全量)", table_name)
+        return "1=1", ()
+
+    time_field = _pick_time_field(model)
+    if time_field:
+        logger.info(
+            "开始导出表 %s (按 %s 过滤: %s~%s)",
+            table_name,
+            time_field,
+            start_date,
+            end_date,
+        )
+        cond = f"{time_field} >= %s AND {time_field} <= %s"
+        return cond, (start_date, end_date)
+
+    logger.info("开始导出表 %s (无时间列，按全量导出)", table_name)
+    return "1=1", ()
 
 
 def _export_one_model(
@@ -70,70 +97,37 @@ def _export_one_model(
     start_date: str,
     end_date: str,
 ) -> None:
-    """
-    导出单表：
-    - full=True: 全量
-    - full=False: 若有时间列按窗口过滤，否则全量
-    """
-    time_field = _pick_time_field(model)
-    if full:
-        logger.info("开始导出表 %s (全量)", table_name)
-        paths = model.export_data(
-            output_dir=backup_dir,
-            archive_format=archive_format,
-        )
-    elif time_field:
-        condition = f"{time_field} >= %s AND {time_field} <= %s"
-        params = (start_date, end_date)
-        logger.info(
-            "开始导出表 %s (按 %s 过滤: %s~%s)",
-            table_name,
-            time_field,
-            start_date,
-            end_date,
-        )
-        paths = model.export_data(
-            output_dir=backup_dir,
-            archive_format=archive_format,
-            condition=condition,
-            params=params,
-        )
-    else:
-        logger.info("开始导出表 %s (无时间列，按全量导出)", table_name)
-        paths = model.export_data(
-            output_dir=backup_dir,
-            archive_format=archive_format,
-        )
-
+    condition, params = _condition_for_export(
+        model=model,
+        table_name=table_name,
+        full=full,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    paths = model.export_data(
+        output_dir=backup_dir,
+        archive_format=archive_format,
+        condition=condition,
+        params=params,
+    )
     for p in paths:
         logger.info("导出 %s -> %s", table_name, p.name)
 
 
 def run_export_all(
+    dm,
     *,
     archive_format: str,
     full: bool,
     start_date: str,
     end_date: str,
 ) -> None:
-    """
-    导出所有注册表。
-    """
-    from core.modules.data_manager import DataManager
-
-    dm = DataManager(is_verbose=False)
-    dm.initialize()
-
+    """导出所有注册表到 userspace/backup/data/{今日}/all_tables/。"""
     backup_date = date.today().strftime(DATE_FMT)
     backup_dir = OUT_DIR / backup_date / "all_tables"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    # DataManager 内部使用 _table_cache 缓存所有注册表名
-    try:
-        all_tables = sorted(dm._table_cache.keys())
-    except AttributeError:
-        raise SystemExit("DataManager 不暴露 tables 属性，请检查实现或改用 _table_cache")
-
+    all_tables = sorted(dm._table_cache.keys())
     logger.info("将导出全部表，共 %d 张", len(all_tables))
     for name in all_tables:
         model = dm.get_table(name)
@@ -154,6 +148,7 @@ def run_export_all(
 
 
 def run_export(
+    dm,
     table_name: str,
     archive_format: str,
     *,
@@ -161,19 +156,14 @@ def run_export(
     start_date: str,
     end_date: str,
 ) -> None:
-    from core.modules.data_manager import DataManager
-
-    dm = DataManager(is_verbose=False)
-    dm.initialize()
-    db = dm.db
-    if not db:
+    """导出单表到 userspace/backup/data/{今日}/。"""
+    if not dm.db:
         raise RuntimeError("DataManager 未初始化或数据库不可用")
 
     model = dm.get_table(table_name)
     if model is None:
         raise SystemExit(f"表未注册: {table_name}")
 
-    # 统一确定备份日期目录
     backup_date = date.today().strftime(DATE_FMT)
     backup_dir = OUT_DIR / backup_date
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -187,39 +177,6 @@ def run_export(
         start_date=start_date,
         end_date=end_date,
     )
-
-
-def prune_old_backups(keep: int) -> None:
-    """
-    在 userspace/backup/data/ 下按日期目录名（YYYYMMDD）保留最新 keep 个，其余整目录删除。
-    """
-    if keep <= 0 or not OUT_DIR.exists():
-        return
-
-    candidates: List[Path] = []
-    for p in OUT_DIR.iterdir():
-        if p.is_dir() and re.fullmatch(r"\d{8}", p.name):
-            candidates.append(p)
-
-    if len(candidates) <= keep:
-        return
-
-    # 按目录名倒序（新日期在前）
-    candidates.sort(key=lambda p: p.name, reverse=True)
-    to_delete = candidates[keep:]
-    if not to_delete:
-        return
-
-    logger.info(
-        "清理旧备份目录，只保留最近 %d 个：删除 %s",
-        keep,
-        ", ".join(p.name for p in to_delete),
-    )
-    for p in to_delete:
-        try:
-            shutil.rmtree(p)
-        except Exception as e:
-            logger.warning("删除备份目录失败 %s: %s", p, e)
 
 
 def main() -> None:
@@ -277,8 +234,14 @@ def main() -> None:
     else:
         logger.info("导出模式：时间窗口 [%s, %s]", start_date, end_date)
 
+    from core.modules.data_manager import DataManager
+
+    dm = DataManager(is_verbose=False)
+    dm.initialize()
+
     if args.table:
         run_export(
+            dm,
             table_name=args.table.strip(),
             archive_format=args.format,
             full=args.full,
@@ -287,12 +250,14 @@ def main() -> None:
         )
     else:
         run_export_all(
+            dm,
             archive_format=args.format,
             full=args.full,
             start_date=start_date,
             end_date=end_date,
         )
-    prune_old_backups(args.keep)
+
+    dm.backup_restore.prune_old_backups(keep=args.keep)
 
 
 if __name__ == "__main__":

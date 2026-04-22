@@ -54,6 +54,18 @@ class TestPathManager:
         assert isinstance(strategy_dir, Path)
         # 策略目录路径应该正确
         assert "example" in str(strategy_dir)
+
+    def test_backup_paths(self):
+        """备份目录落在 userspace/backup 约定下"""
+        root = PathManager.get_root()
+        backup_dir = PathManager.backup()
+        backup_data_dir = PathManager.backup_data()
+
+        assert isinstance(backup_dir, Path)
+        assert isinstance(backup_data_dir, Path)
+        assert backup_data_dir == backup_dir / "data"
+        assert backup_dir.is_relative_to(root)
+        assert "userspace" in backup_dir.parts and "backup" in backup_dir.parts
     
     def test_root_caching(self):
         """测试根目录缓存"""

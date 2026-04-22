@@ -135,6 +135,7 @@ Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh
 | **框架代码** | `core/` 与命令行工具，可本地运行 |
 | **示例策略** | 仅内置 **`example`** 策略，用于对照配置与接口 |
 | **演示行情等数据** | 包含一份可快速启动的小数据；更完整数据可从官网下载 |
+| **辅助工具** | `devtools/`：Docker 说明、维护用自动化脚本等（非业务核心，索引见 [docs/README.md](docs/README.md) 中「仓库辅助工具」一节） |
 
 ## 如何联系到我？
 
@@ -156,7 +157,7 @@ Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh
 
 - **hotfix**：请使用 `hotfix/your-change` 的方式命名，否则无法 merge，分支只能从 rc 分支拉取
 
-**Docker**：可用仓库内 `Dockerfile` 与 `docker-compose.yml` 拉起 PostgreSQL 与运行环境，步骤见 [docker/README.md](docker/README.md)。
+**Docker**：可用仓库内 `Dockerfile` 与 `docker-compose.yml` 拉起 PostgreSQL 与运行环境，步骤见 [devtools/docker/README.md](devtools/docker/README.md)。
 
 ## 有了新版本如何升级？
 
@@ -205,7 +206,7 @@ python -m pytest
 - **参与贡献**：[CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)  
 - **安全披露**：[SECURITY.md](SECURITY.md)  
 
-若您希望 **捐赠或商业合作**，请以 **官网** 当前公示的联系方式或页面为准（若有单独「支持我们」入口，以站内说明为准）。
+若您希望 **捐赠或商业合作**，请以 **官网** 当前公示的联系方式或页面为准。
 
 ---
 
@@ -221,6 +222,6 @@ python -m pytest
 <summary>仓库内文档与归档</summary>
 
 - 离线文档索引：[docs/README.md](docs/README.md)  
-- 历史超长 README 归档：已移除（部分内容已并入当前文档与模块内 README）
+- **辅助工具 `devtools/`**：[文档索引](docs/README.md) · [Docker 说明](devtools/docker/README.md)  
 
 </details>

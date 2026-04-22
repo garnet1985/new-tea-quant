@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - 设置</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a href="./backtest.html">策略回测</a>
+        <a href="./scan.html">机会扫描</a>
+        <a href="./advanced.html">高级功能</a>
+        <a class="active" href="./settings.html">设置</a>
+      </nav>
+    </header>
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="title">设置</h1>
+          <p class="subtitle">管理系统参数、运行偏好与环境配置</p>
+        </div>
+        <button class="button">保存设置</button>
+      </header>
+
+      <section class="grid cards-3">
+        <article class="card"><h3>总收益率</h3><div class="metric">+38.4%</div><div class="muted">年化 17.2%</div></article>
+        <article class="card"><h3>最大回撤</h3><div class="metric">-11.6%</div><div class="muted">可接受阈值：15%</div></article>
+        <article class="card"><h3>胜率</h3><div class="metric">62.3%</div><div class="muted">交易样本：428 笔</div></article>
+      </section>
+
+      <section class="grid" style="grid-template-columns: 1fr 320px; margin-top: 14px;">
+        <article class="card">
+          <h3>可视化图表占位</h3>
+          <p class="muted">后续接入真实图表：收益曲线 / 回撤带 / 月度收益热力图。</p>
+          <div style="height: 220px; border-radius: 12px; background: linear-gradient(135deg, #eff6ff, #f8fafc); display: grid; place-items: center; color: #64748b;">
+            图表区域（Static Placeholder）
+          </div>
+        </article>
+        <article class="card">
+          <h3>Run Reference</h3>
+          <table class="table">
+            <tbody>
+              <tr><td>策略版本</td><td>double-bottom v3</td></tr>
+              <tr><td>配置快照</td><td>CFG-20260422-01</td></tr>
+              <tr><td>数据窗口</td><td>2019 ~ 2025</td></tr>
+              <tr><td>运行耗时</td><td>8m 42s</td></tr>
+              <tr><td>标签</td><td>稳健 / 中频</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 14px;">
+        <h3>事件时间线（回溯入口）</h3>
+        <div class="step"><div class="dot">1</div><div>14:38 提交任务并通过配置校验。</div></div>
+        <div class="step"><div class="dot">2</div><div>14:40 Layer 1 输出 581 个候选信号。</div></div>
+        <div class="step"><div class="dot">3</div><div>14:45 Layer 2 触发仓位保护规则。</div></div>
+        <div class="step"><div class="dot">4</div><div>14:47 Layer 3 完成并产出结果。</div></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

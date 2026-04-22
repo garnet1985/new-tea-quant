@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - 机会扫描</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a href="./backtest.html">策略回测</a>
+        <a class="active" href="./scan.html">机会扫描</a>
+        <a href="./advanced.html">高级功能</a>
+        <a href="./settings.html">设置</a>
+      </nav>
+    </header>
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="title">机会扫描</h1>
+          <p class="subtitle">基于当前策略与最新数据快速扫描市场机会</p>
+        </div>
+        <button class="button">开始扫描</button>
+      </header>
+
+      <section class="grid" style="grid-template-columns: 260px 1fr 320px;">
+        <article class="card">
+          <h3>模块库</h3>
+          <p class="muted">拖拽或点击添加到中间流程</p>
+          <div class="step"><div class="dot">C</div><div>条件：历史低点 / 均线突破</div></div>
+          <div class="step"><div class="dot">F</div><div>过滤：行业、流动性、波动率</div></div>
+          <div class="step"><div class="dot">R</div><div>风控：止损、止盈、仓位规则</div></div>
+        </article>
+
+        <article class="card">
+          <h3>策略流程画布</h3>
+          <div class="step"><div class="dot">1</div><div>输入标的池（沪深A股 + 自选池）</div></div>
+          <div class="step"><div class="dot">2</div><div>信号层：历史低点反弹 + 成交量确认</div></div>
+          <div class="step"><div class="dot">3</div><div>资金层：分批建仓，单票仓位上限 12%</div></div>
+          <div class="step"><div class="dot">4</div><div>退出层：目标收益与回撤联动</div></div>
+          <p class="foot-note">交互草案：后续可替换为节点连线编辑器。</p>
+        </article>
+
+        <article class="card">
+          <h3>参数面板</h3>
+          <table class="table">
+            <tbody>
+              <tr><td>窗口期</td><td>120 日</td></tr>
+              <tr><td>低点容忍</td><td>2.5%</td></tr>
+              <tr><td>初始资金</td><td>1,000,000</td></tr>
+              <tr><td>调仓频率</td><td>周度</td></tr>
+            </tbody>
+          </table>
+          <p class="muted">高级配置（默认收起）：手续费模型、滑点、停牌处理。</p>
+        </article>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

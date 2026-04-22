@@ -127,16 +127,21 @@ new-tea-quant/
 │   │   ├── discovery/             # 自动发现模块和类
 │   │   ├── logging/               # 日志初始化（标准库 logging 配置入口）
 │   │   └── project_context/       # 路径、配置、文件、环境
+│   ├── tables/                    # 内置表 schema / model（sys_*）
 │   └── default_config/            # 框架默认配置（不可变基线）
 ├── userspace/                     # 用户空间（你真正工作的地方）
 │   ├── strategies/                # 用户策略
 │   ├── data_source/               # 用户自定义数据源
+│   ├── data_contract/             # Data Contract 扩展
+│   ├── tables/                    # 用户自定义表（可选）
 │   ├── tags/                      # 用户标签场景
+│   ├── adapters/                  # 扫描输出适配器
+│   ├── backup/                    # 备份数据目录（多为生成物，见该目录 README）
 │   └── config/                    # 用户项目配置（覆盖 core/default_config）
-└── docs/                          # 文档
-    ├── architecture/              # 架构 & 设计文档（当前这个文件在这里）
-    ├── getting-started/           # 安装、配置、上手
-    └── development/               # 测试、覆盖率、Road-map
+├── setup/                         # 安装、初始化数据包等
+├── devtools/                      # 维护用：Docker 说明、自动化脚本等（非运行时核心）
+├── tools/                         # 临时/一次性工具脚本（DB 比对、演示导出等）
+└── docs/                          # 仓库文档
 ```
 
 ---

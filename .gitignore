@@ -100,8 +100,8 @@ temp/
 devbackup/
 *.log
 logs/
-core/ui/
 tools/
+core/ui/fed/build/
 
 ########################
 # Test Coverage

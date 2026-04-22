@@ -1,0 +1,183 @@
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.action-left,
+.action-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.action-left {
+  flex-wrap: wrap;
+}
+
+.button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.strategy-table-wrap {
+  overflow: visible;
+  position: relative;
+}
+
+.strategy-table th,
+.strategy-table td {
+  vertical-align: middle;
+}
+
+.strategy-name {
+  font-weight: 600;
+  color: rgba(245, 247, 250, 0.96);
+}
+
+.desc-ellipsis {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.tooltip-icon {
+  margin-left: 6px;
+  color: rgba(229, 231, 235, 0.68);
+  cursor: help;
+  font-size: 12px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+
+.is-running {
+  background: rgba(255, 210, 138, 0.06);
+}
+
+.is-queued {
+  background: rgba(142, 197, 255, 0.05);
+}
+
+.status.status-idle {
+  color: rgba(229, 231, 235, 0.78);
+}
+
+.status.status-queued {
+  color: var(--info);
+}
+
+.run-progress {
+  width: 160px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.run-progress > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, rgba(142, 197, 255, 0.95), rgba(127, 227, 174, 0.95));
+  transition: width 180ms linear;
+}
+
+.progress-label {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.result-card {
+  display: grid;
+  gap: 8px;
+}
+
+.metric-dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: rgba(229, 231, 235, 0.72);
+}
+
+.report-btn {
+  width: fit-content;
+}
+
+.metric-positive {
+  color: var(--success);
+}
+
+.metric-negative {
+  color: var(--danger);
+}
+
+.report-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 11, 16, 0.68);
+  display: grid;
+  place-items: center;
+  z-index: 120;
+}
+
+.report-modal.hidden {
+  display: none;
+}
+
+.report-panel {
+  width: min(920px, 92vw);
+  max-height: 82vh;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(145deg, rgba(21, 24, 31, 0.92), rgba(16, 19, 26, 0.88));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.report-header h3 {
+  margin: 0;
+}
+
+.report-close {
+  padding: 8px 12px;
+}
+
+.report-content {
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(231, 236, 241, 0.9);
+  background: rgba(10, 13, 18, 0.62);
+}
+
+.report-content h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: rgba(246, 248, 252, 0.96);
+}
+
+.report-content p {
+  margin: 0 0 8px;
+}

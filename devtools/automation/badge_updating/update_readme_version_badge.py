@@ -2,8 +2,8 @@
 """
 Sync README version badge with core/system.py version.
 
-Usage:
-  python3 scripts/update_readme_version_badge.py
+Usage (from repository root):
+  python3 devtools/automation/badge_updating/update_readme_version_badge.py
 """
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ import pathlib
 import re
 import sys
 
-
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+# devtools/automation/badge_updating/this_file -> parents[3] = repo root
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 SYSTEM_PY = REPO_ROOT / "core" / "system.py"
 README_MD = REPO_ROOT / "README.md"
 

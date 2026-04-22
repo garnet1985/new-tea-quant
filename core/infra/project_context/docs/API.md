@@ -137,6 +137,34 @@
 ---
 
 ### 函数名
+`PathManager.backup() -> Path`
+
+- 状态：`stable`
+- 描述：`userspace/backup/` 目录。
+- 诞生版本：`0.2.1`
+- params：
+
+无
+
+- 返回值：`Path`
+
+---
+
+### 函数名
+`PathManager.backup_data() -> Path`
+
+- 状态：`stable`
+- 描述：`userspace/backup/data/` 目录。
+- 诞生版本：`0.2.1`
+- params：
+
+无
+
+- 返回值：`Path`
+
+---
+
+### 函数名
 `PathManager.strategy(strategy_name: str) -> Path`
 
 - 状态：`stable`

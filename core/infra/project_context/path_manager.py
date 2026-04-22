@@ -136,6 +136,20 @@ class PathManager:
     def config() -> Path:
         """用户配置目录（同 `user_config()`，供简短调用）。"""
         return PathManager.user_config()
+
+    @staticmethod
+    def backup() -> Path:
+        """
+        备份目录：userspace/backup
+        """
+        return PathManager.userspace() / "backup"
+
+    @staticmethod
+    def backup_data() -> Path:
+        """
+        备份数据目录：userspace/backup/data
+        """
+        return PathManager.backup() / "data"
     
     @staticmethod
     def strategy(strategy_name: str) -> Path:

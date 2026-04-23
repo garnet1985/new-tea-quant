@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - Setup 向导</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+  <link rel="stylesheet" href="./backtest.css" />
+  <link rel="stylesheet" href="./workbench.css" />
+</head>
+<body>
+  <div class="layout">
+    <main class="content workbench-detail-wide setup-page">
+      <header class="topbar setup-topbar">
+        <div>
+          <p class="breadcrumb">系统安装引导 / <span>Setup</span></p>
+          <h1 class="title">首次安装向导</h1>
+          <p class="subtitle">按步骤完成环境检查、数据库配置、依赖安装与数据导入；本页面不提供任何外部跳转。</p>
+        </div>
+        <span class="status status-idle" id="setup-global-status">待初始化</span>
+      </header>
+
+      <section class="card setup-overview-card">
+        <div class="setup-overview-head">
+          <h3>安装总览</h3>
+          <span class="muted" id="setup-overview-text">已完成 0 / 4 步</span>
+        </div>
+        <div class="setup-overview-track" aria-hidden="true">
+          <span class="setup-overview-fill" id="setup-overview-fill"></span>
+        </div>
+      </section>
+
+      <section class="setup-step-list" id="setup-step-list">
+        <article class="card setup-step-card" data-step="env">
+          <div class="setup-step-head">
+            <div class="setup-step-title-wrap">
+              <span class="setup-step-index">步骤 1</span>
+              <h3>环境检查</h3>
+            </div>
+            <span class="status status-idle" id="step-env-status">未开始</span>
+          </div>
+          <p class="muted setup-step-note">自动检查 Python / Node 是否可用；通过后将自动进入数据库配置。</p>
+          <div class="setup-inline-grid">
+            <div><span class="muted">Python</span><strong id="env-python">待检查</strong></div>
+            <div><span class="muted">Node.js</span><strong id="env-node">待检查</strong></div>
+            <div><span class="muted">检查时间</span><strong id="env-ts">—</strong></div>
+          </div>
+          <div class="setup-step-actions"><span class="muted">该步骤自动执行，无需手动操作。</span></div>
+        </article>
+
+        <article class="card setup-step-card setup-step-hidden" data-step="db">
+          <div class="setup-step-head">
+            <div class="setup-step-title-wrap">
+              <span class="setup-step-index">步骤 2</span>
+              <h3>数据库配置与测试</h3>
+            </div>
+            <span class="status status-idle" id="step-db-status">未开始</span>
+          </div>
+          <div class="config-form setup-config-form">
+            <label>
+              数据库类型
+              <select id="setup-db-type">
+                <option value="mysql" selected>MySQL</option>
+                <option value="postgresql">PostgreSQL</option>
+              </select>
+            </label>
+            <label>
+              Host
+              <input id="setup-db-host" value="localhost" />
+            </label>
+            <label>
+              Port
+              <input id="setup-db-port" type="number" value="3306" />
+            </label>
+            <label>
+              Database
+              <input id="setup-db-name" value="new_tea_quant" />
+            </label>
+            <label>
+              User
+              <input id="setup-db-user" value="root" />
+            </label>
+            <label>
+              Password
+              <input id="setup-db-password" type="password" value="" placeholder="请输入数据库密码" />
+            </label>
+          </div>
+          <p class="muted setup-step-note">占位逻辑：后续接入后端时将写入 `userspace/config/database/*.json` 并执行 `SELECT 1` 探活。</p>
+          <div class="setup-step-actions">
+            <button type="button" class="button" id="btn-test-db">保存并测试连接</button>
+            <button type="button" class="button ghost-btn setup-next-btn" id="btn-next-db" hidden>下一步：安装依赖</button>
+          </div>
+        </article>
+
+        <article class="card setup-step-card setup-step-hidden" data-step="deps">
+          <div class="setup-step-head">
+            <div class="setup-step-title-wrap">
+              <span class="setup-step-index">步骤 3</span>
+              <h3>安装依赖</h3>
+            </div>
+            <span class="status status-idle" id="step-deps-status">未开始</span>
+          </div>
+          <p class="muted setup-step-note">该步骤自动执行并展示进度；完成后自动进入下一步。</p>
+          <div class="setup-inline-progress">
+            <div class="setup-progress-track">
+              <span class="setup-progress-fill" id="deps-progress-fill"></span>
+            </div>
+            <span class="muted" id="deps-progress-text">未开始</span>
+          </div>
+          <div class="setup-step-actions"><span class="muted">该步骤自动执行，无需手动操作。</span></div>
+        </article>
+
+        <article class="card setup-step-card setup-step-hidden" data-step="data">
+          <div class="setup-step-head">
+            <div class="setup-step-title-wrap">
+              <span class="setup-step-index">步骤 4</span>
+              <h3>导入初始数据</h3>
+            </div>
+            <span class="status status-idle" id="step-data-status">未开始</span>
+          </div>
+          <p class="muted setup-step-note">默认自动导入 `setup/init_data` 下数据包；完成后自动进入安装完成界面。</p>
+          <div class="setup-inline-grid">
+            <div><span class="muted">数据包</span><strong id="data-package-state">未检测</strong></div>
+            <div><span class="muted">导入进度</span><strong id="data-progress-state">0%</strong></div>
+            <div><span class="muted">最近动作</span><strong id="data-last-action">—</strong></div>
+          </div>
+          <div class="setup-inline-progress">
+            <div class="setup-progress-track">
+              <span class="setup-progress-fill" id="data-progress-fill"></span>
+            </div>
+          </div>
+          <div class="setup-step-actions"><span class="muted">该步骤自动执行，无需手动操作。</span></div>
+        </article>
+      </section>
+
+      <section class="card setup-success-screen" id="setup-success-screen" hidden>
+        <p class="setup-success-title">SUCCESS</p>
+        <p class="muted setup-success-subtitle">安装向导已完成，系统已就绪。</p>
+        <div class="setup-finish-actions setup-finish-actions-static">
+          <span class="muted">下一步请在启动器中打开：策略工作台 / 机会扫描 / 设置</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const state = {
+        env: false,
+        db: false,
+        deps: false,
+        data: false
+      };
+
+      const steps = ["env", "db", "deps", "data", "finish"];
+      const statusEls = {
+        env: document.getElementById("step-env-status"),
+        db: document.getElementById("step-db-status"),
+        deps: document.getElementById("step-deps-status"),
+        data: document.getElementById("step-data-status")
+      };
+
+      const stepList = document.getElementById("setup-step-list");
+      const stepCards = {
+        env: document.querySelector('[data-step="env"]'),
+        db: document.querySelector('[data-step="db"]'),
+        deps: document.querySelector('[data-step="deps"]'),
+        data: document.querySelector('[data-step="data"]')
+      };
+      let currentStepIndex = 0;
+
+      const overviewText = document.getElementById("setup-overview-text");
+      const overviewFill = document.getElementById("setup-overview-fill");
+      const globalStatus = document.getElementById("setup-global-status");
+      const successScreen = document.getElementById("setup-success-screen");
+      const envTs = document.getElementById("env-ts");
+      const envPython = document.getElementById("env-python");
+      const envNode = document.getElementById("env-node");
+
+      const depsFill = document.getElementById("deps-progress-fill");
+      const depsText = document.getElementById("deps-progress-text");
+      const dataFill = document.getElementById("data-progress-fill");
+      const dataPkg = document.getElementById("data-package-state");
+      const dataPct = document.getElementById("data-progress-state");
+      const dataLast = document.getElementById("data-last-action");
+
+      function setStepStatus(id, done) {
+        const el = statusEls[id];
+        if (!el) return;
+        el.className = done ? "status ok" : "status status-idle";
+        el.textContent = done ? "已完成" : "未完成";
+      }
+
+      function showCurrentStep() {
+        steps.forEach((k, i) => {
+          const card = stepCards[k];
+          if (!card) return;
+          card.classList.toggle("setup-step-hidden", i !== currentStepIndex);
+        });
+        const onFinish = steps[currentStepIndex] === "finish";
+        stepList.hidden = onFinish;
+        successScreen.hidden = !onFinish;
+      }
+
+      const autoStepStarted = {
+        env: false,
+        deps: false,
+        data: false
+      };
+
+      function goNextStep() {
+        currentStepIndex = Math.min(currentStepIndex + 1, steps.length - 1);
+        showCurrentStep();
+        maybeRunAutoStep(steps[currentStepIndex]);
+      }
+
+      function refreshOverview() {
+        const flowSteps = ["env", "db", "deps", "data"];
+        const doneCount = flowSteps.filter((k) => state[k]).length;
+        const pct = Math.round((doneCount / flowSteps.length) * 100);
+        overviewText.textContent = `已完成 ${doneCount} / ${flowSteps.length} 步`;
+        overviewFill.style.width = `${pct}%`;
+        const done = doneCount === flowSteps.length;
+        if (done) {
+          globalStatus.className = "status ok";
+          globalStatus.textContent = "已就绪";
+        } else {
+          globalStatus.className = "status warn";
+          globalStatus.textContent = "引导中";
+        }
+      }
+
+      function runProgress(fillEl, onTick, onDone, stepMs) {
+        let p = 0;
+        fillEl.style.width = "0%";
+        const timer = window.setInterval(() => {
+          p = Math.min(100, p + Math.floor(Math.random() * 15 + 8));
+          fillEl.style.width = `${p}%`;
+          onTick(p);
+          if (p >= 100) {
+            window.clearInterval(timer);
+            onDone();
+          }
+        }, stepMs);
+      }
+
+      function runEnvCheckAuto() {
+        autoStepStarted.env = true;
+        statusEls.env.className = "status warn";
+        statusEls.env.textContent = "检查中";
+        envPython.textContent = "检测中…";
+        envNode.textContent = "检测中…";
+        envTs.textContent = new Date().toLocaleString("zh-CN", { hour12: false });
+        window.setTimeout(() => {
+          envPython.textContent = "3.11.9";
+          envNode.textContent = "v20.12.2";
+          state.env = true;
+          setStepStatus("env", true);
+          refreshOverview();
+          goNextStep();
+        }, 620);
+      }
+
+      document.getElementById("btn-test-db").addEventListener("click", () => {
+        statusEls.db.className = "status warn";
+        statusEls.db.textContent = "测试中";
+        window.setTimeout(() => {
+          state.db = true;
+          setStepStatus("db", true);
+          document.getElementById("btn-next-db").hidden = false;
+          refreshOverview();
+        }, 800);
+      });
+
+      document.getElementById("btn-next-db").addEventListener("click", () => {
+        goNextStep();
+      });
+
+      function runDepsAuto() {
+        autoStepStarted.deps = true;
+        statusEls.deps.className = "status warn";
+        statusEls.deps.textContent = "安装中";
+        depsText.textContent = "准备安装…";
+        runProgress(
+          depsFill,
+          (p) => {
+            depsText.textContent = `安装依赖中 ${p}%`;
+          },
+          () => {
+            depsText.textContent = "依赖安装完成";
+            state.deps = true;
+            setStepStatus("deps", true);
+            refreshOverview();
+            goNextStep();
+          },
+          300
+        );
+      }
+
+      function runDataImportAuto() {
+        autoStepStarted.data = true;
+        statusEls.data.className = "status warn";
+        statusEls.data.textContent = "导入中";
+        dataPkg.textContent = "已检测到 setup/init_data/demo.zip（占位）";
+        dataLast.textContent = "开始导入";
+        runProgress(
+          dataFill,
+          (p) => {
+            dataPct.textContent = `${p}%`;
+            dataLast.textContent = `正在导入第 ${Math.max(1, Math.ceil(p / 20))} 批`;
+          },
+          () => {
+            dataLast.textContent = "导入完成";
+            state.data = true;
+            setStepStatus("data", true);
+            refreshOverview();
+            goNextStep();
+          },
+          320
+        );
+      }
+
+      function maybeRunAutoStep(step) {
+        if (step === "env" && !autoStepStarted.env) runEnvCheckAuto();
+        if (step === "deps" && !autoStepStarted.deps) runDepsAuto();
+        if (step === "data" && !autoStepStarted.data) runDataImportAuto();
+      }
+
+      steps.forEach((k) => setStepStatus(k, state[k]));
+      showCurrentStep();
+      refreshOverview();
+      maybeRunAutoStep(steps[currentStepIndex]);
+    })();
+  </script>
+</body>
+</html>

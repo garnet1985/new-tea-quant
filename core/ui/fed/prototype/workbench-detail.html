@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - 策略验证</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+  <link rel="stylesheet" href="./backtest.css" />
+  <link rel="stylesheet" href="./workbench.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a class="active" href="./workbench.html">策略工作台</a>
+        <a href="./scan.html">机会扫描</a>
+        <a href="./advanced.html">高级功能</a>
+        <a href="./settings.html">设置</a>
+      </nav>
+    </header>
+    <main class="content workbench-detail-wide">
+      <header class="topbar">
+        <div>
+          <p class="breadcrumb"><a href="./workbench.html">策略工作台</a> / <span id="breadcrumb-name">策略验证</span></p>
+          <h1 class="title">策略验证</h1>
+          <div class="backtest-range-banner" role="note" aria-label="策略回测使用的数据日期区间">
+            <span class="backtest-range-banner-label">回测数据区间</span>
+            <strong id="backtest-range-banner-value" class="backtest-range-banner-range"></strong>
+            <span class="muted backtest-range-banner-note">本页枚举、价格、资金三层结果均基于此区间内的行情 / 样本（占位数据与正式 API 对齐后替换）。</span>
+          </div>
+          <p class="subtitle">单策略实验：左侧信息与参数；右侧执行计划内嵌分层结果；三层全部完成后解锁下方样本股票列表（接口顺序）</p>
+        </div>
+        <span class="status" id="run-flag">空闲</span>
+      </header>
+
+      <div class="workbench-split">
+        <aside class="workbench-left">
+          <article class="card">
+            <div class="section-head">
+              <h3>策略信息</h3>
+            </div>
+            <div class="meta-grid" id="strategy-meta">
+              <div><span class="muted">名称</span><strong id="meta-name">—</strong></div>
+              <div><span class="muted">启用</span><strong id="meta-enabled">—</strong></div>
+              <div><span class="muted">股票池</span><strong id="meta-pool">—</strong></div>
+            </div>
+            <p class="muted" id="active-strategy-desc" style="margin: 10px 0 0;">—</p>
+          </article>
+
+          <article class="card settings-readonly">
+            <div class="section-head">
+              <h3>策略 Settings</h3>
+              <span class="muted">预览 · 后续可在此直接调参</span>
+            </div>
+            <div class="config-form">
+              <label>
+                RSI 超卖阈值
+                <input id="cfg-rsi" type="number" min="5" max="45" value="20" />
+              </label>
+              <label>
+                采样股票数
+                <input id="cfg-sample" type="number" min="1" max="500" value="120" />
+              </label>
+              <label>
+                初始资金（元）
+                <input id="cfg-capital" type="number" min="100000" step="10000" value="1000000" />
+              </label>
+              <label>
+                验证模式
+                <select id="cfg-mode">
+                  <option value="quick">快速粗测</option>
+                  <option value="standard" selected>标准验证</option>
+                </select>
+              </label>
+            </div>
+            <div class="config-meta">
+              <div class="muted" id="defaults-hint">默认参数：—</div>
+              <button class="button ghost-btn" id="reset-overrides-btn">恢复默认</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <h3>运行历史</h3>
+              <span class="muted">最近 5 次</span>
+            </div>
+            <div id="history-list" class="history-list">
+              <p class="muted">暂无历史记录。</p>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <h3>其他策略</h3>
+              <span class="muted">切换将打开对应验证页</span>
+            </div>
+            <div class="other-strategies" id="other-strategies">
+              <!-- filled by script -->
+            </div>
+          </article>
+        </aside>
+
+        <div class="workbench-right">
+          <article class="card plan-panel">
+            <div class="section-head">
+              <h3>执行计划（三层）</h3>
+              <div class="plan-head-actions">
+                <button type="button" class="button ghost-btn" id="btn-snapshot" disabled>运行快照</button>
+                <span class="status status-idle" id="plan-status">等待开始</span>
+              </div>
+            </div>
+            <div class="plan-steps plan-steps-compact">
+              <div class="plan-step plan-step-compact" data-plan-step="enum">
+                <div class="plan-step-fill" aria-hidden="true">
+                  <span class="plan-step-fill-bar" data-progress-step="enum"></span>
+                </div>
+                <div class="plan-step-line">
+                  <span class="plan-step-label-cell">
+                    <span class="plan-step-index-ring" aria-hidden="true"><span class="plan-step-index-num">1</span></span>
+                    <span class="plan-step-label">枚举机会</span>
+                  </span>
+                  <button type="button" class="plan-play" data-action="enum" title="运行步骤 1">
+                    <span class="plan-play-icon" aria-hidden="true">▶</span>
+                  </button>
+                  <div class="plan-step-metrics">
+                    <span class="plan-metric-inline">机会总数：<strong id="enum-metric">--</strong></span>
+                  </div>
+                  <button type="button" class="button ghost-btn btn-layer-more btn-more-compact" data-layer="enum" disabled>更多</button>
+                </div>
+              </div>
+              <div class="plan-step plan-step-compact" data-plan-step="price">
+                <div class="plan-step-fill" aria-hidden="true">
+                  <span class="plan-step-fill-bar" data-progress-step="price"></span>
+                </div>
+                <div class="plan-step-line">
+                  <span class="plan-step-label-cell">
+                    <span class="plan-step-index-ring" aria-hidden="true"><span class="plan-step-index-num">2</span></span>
+                    <span class="plan-step-label">价格回测</span>
+                  </span>
+                  <button type="button" class="plan-play" data-action="price" title="运行步骤 2">
+                    <span class="plan-play-icon" aria-hidden="true">▶</span>
+                  </button>
+                  <div class="plan-step-metrics plan-step-metrics-dense plan-step-metrics-price-row">
+                    <span>胜率：<strong id="price-win-metric">--</strong></span>
+                    <span class="metric-sep">·</span>
+                    <span>ROI：<strong id="price-roi-metric">--</strong></span>
+                    <span class="metric-sep">·</span>
+                    <span>平均投资时长：<strong id="price-hold-metric">--</strong><span class="muted"> 自然日</span></span>
+                  </div>
+                  <button type="button" class="button ghost-btn btn-layer-more btn-more-compact" data-layer="price" disabled>更多</button>
+                </div>
+              </div>
+              <div class="plan-step plan-step-compact plan-step-capital-wrap" data-plan-step="capital">
+                <div class="plan-step-fill" aria-hidden="true">
+                  <span class="plan-step-fill-bar" data-progress-step="capital"></span>
+                </div>
+                <div class="plan-step-line plan-step-line-capital">
+                  <span class="plan-step-label-cell">
+                    <span class="plan-step-index-ring" aria-hidden="true"><span class="plan-step-index-num">3</span></span>
+                    <span class="plan-step-label">资金模拟</span>
+                  </span>
+                  <button type="button" class="plan-play" data-action="capital" title="运行步骤 3">
+                    <span class="plan-play-icon" aria-hidden="true">▶</span>
+                  </button>
+                  <div class="plan-step-metrics plan-capital-metrics-stack">
+                    <div class="plan-capital-result-body">
+                      <div class="plan-capital-col-left">
+                        <div class="plan-capital-metrics-top">
+                          <span>收益率：<strong id="capital-ret-metric">--</strong></span>
+                          <span class="metric-sep">·</span>
+                          <span>收益：<strong id="capital-profit-metric">--</strong></span>
+                        </div>
+                        <div class="plan-capital-metrics-range-row">
+                          <span class="muted plan-capital-range" id="capital-range-line">-- → --</span>
+                        </div>
+                      </div>
+                      <div class="plan-capital-col-right">
+                        <div class="plan-capital-equity-strip equity-inline" id="equity-inline">曲线占位</div>
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="button ghost-btn btn-layer-more btn-more-compact" data-layer="capital" disabled>更多</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <section class="card stock-rail stock-rail-inline stock-rail-locked" id="stock-rail-panel">
+            <div class="stock-rail-head">
+              <div>
+                <h3 class="stock-rail-title">样本股票（最多 10 只）</h3>
+                <p class="muted stock-rail-desc">须在当前参数下依次完成上方三层（枚举机会、价格回测、资金模拟）后，才会展示样本列表；列表顺序与接口一致，排序仅作用于当前视图。</p>
+              </div>
+              <div class="stock-rail-controls">
+                <input type="search" id="stock-search" placeholder="搜索代码或名称…" autocomplete="off" />
+                <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:13px;">
+                  排序
+                  <select id="stock-sort">
+                    <option value="api" selected>接口顺序</option>
+                    <option value="win">胜率</option>
+                    <option value="roi">ROI</option>
+                    <option value="hold">持有天数</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="stock-table-wrap">
+              <table class="table stock-table">
+                <thead>
+                  <tr>
+                    <th>代码</th>
+                    <th>名称</th>
+                    <th>胜率</th>
+                    <th>ROI</th>
+                    <th>持有天数</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="stock-tbody">
+                  <tr><td colspan="6" class="muted">请先完成三层执行计划（枚举机会 → 价格回测 → 资金模拟），完成后将展示样本股票。</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="report-modal hidden" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <div class="report-panel">
+      <div class="report-header">
+        <h3 id="report-title">详细报告</h3>
+        <button class="button ghost-btn report-close" id="report-close-btn">关闭</button>
+      </div>
+      <div class="report-content" id="report-content">暂无报告。</div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const RPT_TAIL = '<p class="muted" style="margin-top:14px;">（分层完整报告占位，接入接口后替换为明细。）</p>';
+
+      /** 与本实验对齐的回测样本日期窗（占位；日后由配置/API 下发） */
+      const PROTOTYPE_BACKTEST_DATE_RANGE = "2019-01-01 ~ 2025-12-31";
+
+      const params = new URLSearchParams(window.location.search);
+      const requestedId = params.get("id");
+
+      const runButtons = Array.from(document.querySelectorAll(".plan-play[data-action]"));
+      const runFlag = document.getElementById("run-flag");
+      const planStatus = document.getElementById("plan-status");
+      const planSteps = Array.from(document.querySelectorAll("[data-plan-step]"));
+      const enumMetric = document.getElementById("enum-metric");
+      const priceWinMetric = document.getElementById("price-win-metric");
+      const priceRoiMetric = document.getElementById("price-roi-metric");
+      const priceHoldMetric = document.getElementById("price-hold-metric");
+      const capitalRetMetric = document.getElementById("capital-ret-metric");
+      const capitalProfitMetric = document.getElementById("capital-profit-metric");
+      const capitalRangeLine = document.getElementById("capital-range-line");
+      const equityInline = document.getElementById("equity-inline");
+      const btnSnapshot = document.getElementById("btn-snapshot");
+      const historyList = document.getElementById("history-list");
+      const activeStrategyDesc = document.getElementById("active-strategy-desc");
+      const metaName = document.getElementById("meta-name");
+      const metaEnabled = document.getElementById("meta-enabled");
+      const metaPool = document.getElementById("meta-pool");
+      const defaultsHint = document.getElementById("defaults-hint");
+      const breadcrumbName = document.getElementById("breadcrumb-name");
+      const otherStrategiesEl = document.getElementById("other-strategies");
+      const cfgRsi = document.getElementById("cfg-rsi");
+      const cfgSample = document.getElementById("cfg-sample");
+      const cfgCapital = document.getElementById("cfg-capital");
+      const cfgMode = document.getElementById("cfg-mode");
+      const resetOverridesBtn = document.getElementById("reset-overrides-btn");
+      const reportModal = document.getElementById("report-modal");
+      const reportCloseBtn = document.getElementById("report-close-btn");
+      const reportTitle = document.getElementById("report-title");
+      const reportContent = document.getElementById("report-content");
+      const stockTbody = document.getElementById("stock-tbody");
+      const stockSearch = document.getElementById("stock-search");
+      const stockSort = document.getElementById("stock-sort");
+      const stockRailPanel = document.getElementById("stock-rail-panel");
+      const backtestRangeBannerValue = document.getElementById("backtest-range-banner-value");
+
+      backtestRangeBannerValue.textContent = PROTOTYPE_BACKTEST_DATE_RANGE;
+
+      let running = false;
+      let tickTimer = null;
+      let latestReportHTML = "<p>暂无运行快照。</p>";
+      let latestLayerReports = { enum: "", price: "", capital: "" };
+      let runHistory = [];
+      let activeStrategy = "double-bottom-v3";
+
+      /** 当前参数下各层缓存：参数签名变化则三步全部作废 */
+      let resultCache = {
+        sig: null,
+        enum: null,
+        price: null,
+        capital: null
+      };
+
+      const API_STOCK_ORDER = [
+        { code: "600519.SH", name: "贵州茅台" },
+        { code: "000858.SZ", name: "五粮液" },
+        { code: "601318.SH", name: "中国平安" },
+        { code: "600036.SH", name: "招商银行" },
+        { code: "000333.SZ", name: "美的集团" },
+        { code: "002594.SZ", name: "比亚迪" },
+        { code: "601012.SH", name: "隆基绿能" },
+        { code: "300750.SZ", name: "宁德时代" },
+        { code: "688981.SH", name: "中芯国际" },
+        { code: "601899.SH", name: "紫金矿业" }
+      ];
+
+      let stockRows = [];
+
+      const strategyMap = {
+        "double-bottom-v3": {
+          name: "double-bottom-v3",
+          desc: "双低点反弹 + 成交量确认，适合中短周期验证",
+          pool: 4521,
+          enabled: true,
+          defaults: { rsi: 20, sample: 120, capital: 1000000 }
+        },
+        "momentum-breakout-v2": {
+          name: "momentum-breakout-v2",
+          desc: "趋势突破 + 波动过滤，强调连续性与风险控制",
+          pool: 3876,
+          enabled: true,
+          defaults: { rsi: 26, sample: 160, capital: 1000000 }
+        },
+        "activity-high-v1": {
+          name: "activity-high-v1",
+          desc: "活跃度优先 + 标签约束，偏向高流动性样本",
+          pool: 2914,
+          enabled: true,
+          defaults: { rsi: 18, sample: 220, capital: 800000 }
+        },
+        "mean-revert-test": {
+          name: "mean-revert-test",
+          desc: "均值回归实验策略，未启用时不建议直接跑批",
+          pool: 4120,
+          enabled: false,
+          defaults: { rsi: 30, sample: 80, capital: 500000 }
+        }
+      };
+
+      function resolveStrategyId() {
+        if (requestedId && strategyMap[requestedId]) return requestedId;
+        return "double-bottom-v3";
+      }
+
+      function currentSignature() {
+        const o = parseOverrides();
+        return JSON.stringify({
+          rsi: o.rsi,
+          sample: o.sample,
+          capital: o.capital,
+          mode: o.mode
+        });
+      }
+
+      function layerValid(layer) {
+        const sig = currentSignature();
+        return resultCache.sig === sig && resultCache[layer] != null;
+      }
+
+      /** 枚举为底座；价格与资金都只依赖枚举（未跑枚举时会自动先跑枚举）。价格↔资金互不依赖：单独跑价格不得清空资金结果，反之亦然；仅重跑枚举会同时使价格与资金失效。 */
+      function buildChain(target) {
+        if (target === "enum") return ["enum"];
+        const chain = [];
+        if (target === "price") {
+          if (!layerValid("enum")) chain.push("enum");
+          chain.push("price");
+          return chain;
+        }
+        if (target === "capital") {
+          if (!layerValid("enum")) chain.push("enum");
+          chain.push("capital");
+          return chain;
+        }
+        return [];
+      }
+
+      function actionLabel(action) {
+        if (action === "enum") return "步骤 1（枚举机会）";
+        if (action === "price") return "步骤 2（价格回测）";
+        return "步骤 3（资金模拟）";
+      }
+
+      function stepLabel(step) {
+        if (step === "enum") return "枚举机会";
+        if (step === "price") return "价格回测";
+        return "资金模拟";
+      }
+
+      function formatMode(value) {
+        return value === "quick" ? "快速粗测" : "标准验证";
+      }
+
+      function parseOverrides() {
+        return {
+          rsi: Number(cfgRsi.value),
+          sample: Number(cfgSample.value),
+          capital: Number(cfgCapital.value),
+          mode: cfgMode.value
+        };
+      }
+
+      function invalidateIfParamsMismatch() {
+        const sig = currentSignature();
+        if (resultCache.sig !== null && sig !== resultCache.sig) {
+          clearResultState();
+        }
+      }
+
+      function clearResultState() {
+        resultCache = { sig: null, enum: null, price: null, capital: null };
+        resetInlineMetrics();
+        btnSnapshot.disabled = true;
+        document.querySelectorAll(".btn-layer-more").forEach((b) => {
+          b.disabled = true;
+        });
+        stockRows = [];
+        latestReportHTML = "<p>暂无与当前参数一致的运行快照。</p>";
+        latestLayerReports = { enum: "", price: "", capital: "" };
+        planSteps.forEach((el) => {
+          el.classList.remove("is-current", "is-complete", "is-pending");
+        });
+        resetStepProgressBars();
+        syncActionState();
+      }
+
+      function resetInlineMetrics() {
+        enumMetric.textContent = "--";
+        resetPriceMetrics();
+        resetCapitalMetrics();
+      }
+
+      function resetPriceMetrics() {
+        priceWinMetric.textContent = "--";
+        priceRoiMetric.textContent = "--";
+        priceRoiMetric.classList.remove("metric-positive", "metric-negative");
+        priceHoldMetric.textContent = "--";
+      }
+
+      function syncCapitalRangePlaceholder() {
+        const initial = Number(cfgCapital.value);
+        if (!Number.isFinite(initial) || initial <= 0) {
+          capitalRangeLine.textContent = "-- → --";
+          return;
+        }
+        capitalRangeLine.textContent = `${initial.toLocaleString()} → --`;
+      }
+
+      function resetCapitalMetrics() {
+        capitalRetMetric.textContent = "--";
+        capitalRetMetric.classList.remove("metric-positive", "metric-negative");
+        capitalProfitMetric.textContent = "--";
+        capitalProfitMetric.classList.remove("metric-positive", "metric-negative");
+        syncCapitalRangePlaceholder();
+        equityInline.textContent = "曲线占位";
+      }
+
+      function clearStockTablePlaceholder() {
+        stockRows = [];
+        updateStockRailVisibility();
+      }
+
+      function stockRailUnlocked() {
+        return layerValid("enum") && layerValid("price") && layerValid("capital");
+      }
+
+      function updateStockRailVisibility() {
+        if (!stockRailPanel) return;
+        const unlocked = stockRailUnlocked();
+        stockRailPanel.classList.toggle("stock-rail-unlocked", unlocked);
+        stockRailPanel.classList.toggle("stock-rail-locked", !unlocked);
+        stockSearch.disabled = !unlocked || running;
+        stockSort.disabled = !unlocked || running;
+        if (!unlocked) {
+          stockRows = [];
+          stockTbody.innerHTML =
+            '<tr><td colspan="6" class="muted">请先完成三层执行计划（枚举机会 → 价格回测 → 资金模拟），完成后将展示样本股票。</td></tr>';
+          return;
+        }
+        if (stockRows.length === 0 && layerValid("capital")) {
+          generateStockRows();
+        }
+        renderStockTable();
+      }
+
+      function resetStepProgressBars() {
+        document.querySelectorAll("[data-progress-step]").forEach((el) => {
+          el.style.width = "0%";
+        });
+      }
+
+      function syncStepProgressBars(chain, currentIndex, progressPct) {
+        ["enum", "price", "capital"].forEach((step) => {
+          const fill = document.querySelector(`[data-progress-step="${step}"]`);
+          if (!fill) return;
+          const i = chain.indexOf(step);
+          if (i === -1) fill.style.width = "0%";
+          else if (i < currentIndex) fill.style.width = "100%";
+          else if (i === currentIndex) fill.style.width = `${progressPct}%`;
+          else fill.style.width = "0%";
+        });
+      }
+
+      function refreshLayerMoreButtons() {
+        const sig = currentSignature();
+        const ok = (layer) => resultCache.sig === sig && resultCache[layer] != null;
+        document.querySelectorAll(".btn-layer-more").forEach((btn) => {
+          btn.disabled = !ok(btn.dataset.layer);
+        });
+        btnSnapshot.disabled = !(resultCache.sig === sig && (resultCache.enum || resultCache.price || resultCache.capital));
+      }
+
+      function rebuildSnapshotHtml(overrides, chainText, timestamp, modeLabel) {
+        const pool = strategyMap[activeStrategy].pool;
+        const e = resultCache.enum;
+        const p = resultCache.price;
+        const c = resultCache.capital;
+
+        latestLayerReports.enum =
+          (e ? `<h4>枚举</h4><p>机会数：<strong>${e.enumTotal}</strong></p><p>池规模：${pool.toLocaleString()}</p>` : "<p>暂无枚举结果。</p>") +
+          RPT_TAIL;
+
+        latestLayerReports.price =
+          (p
+            ? `<h4>价格回测</h4><p>胜率：<strong>${p.winRate}%</strong></p><p>ROI：<strong>${p.roi >= 0 ? "+" : ""}${p.roi}%</strong></p><p>平均机会时长：<strong>${p.avgHoldDays}</strong> 天</p>`
+            : "<p>暂无价格层结果。</p>") + RPT_TAIL;
+
+        latestLayerReports.capital =
+          (c
+            ? `<h4>资金模拟</h4><p>初始：<strong>${c.initial.toLocaleString()}</strong></p><p>结束：<strong>${c.end.toLocaleString()}</strong></p><p>净利润：<strong>${c.profit >= 0 ? "+" : ""}¥${Math.abs(c.profit).toLocaleString()}</strong></p>`
+            : "<p>暂无资金层结果。</p>") + RPT_TAIL;
+
+        latestReportHTML = `
+          <h4>运行快照</h4>
+          <p>策略：<strong>${activeStrategy}</strong></p>
+          <p>记录时间：<strong>${timestamp}</strong></p>
+          <p>本趟执行链：<strong>${chainText}</strong></p>
+          <h4>参数快照</h4>
+          <p>RSI <strong>${overrides.rsi}</strong> · 采样 <strong>${overrides.sample}</strong> · 初始资金 <strong>${overrides.capital.toLocaleString()}</strong> · <strong>${modeLabel}</strong></p>
+          <p>回测数据区间：<strong>${PROTOTYPE_BACKTEST_DATE_RANGE}</strong> · 股票池 ${pool.toLocaleString()}</p>
+          <h4>分层摘要</h4>
+          ${e ? `<p>枚举：<strong>${e.enumTotal}</strong> 个机会</p>` : "<p>枚举：尚无</p>"}
+          ${p ? `<p>价格：胜率 <strong>${p.winRate}%</strong> · ROI <strong>${p.roi >= 0 ? "+" : ""}${p.roi}%</strong> · 平均机会时长 <strong>${p.avgHoldDays}</strong> 天</p>` : "<p>价格：尚无</p>"}
+          ${c ? `<p>资金：净利润 <strong>${c.profit >= 0 ? "+" : ""}¥${Math.abs(c.profit).toLocaleString()}</strong>（收益率 ${c.retPct >= 0 ? "+" : ""}${c.retPct}%）</p>` : "<p>资金：尚无</p>"}
+        `;
+
+        refreshLayerMoreButtons();
+      }
+
+      function renderOtherStrategies() {
+        const ids = Object.keys(strategyMap);
+        otherStrategiesEl.innerHTML = ids
+          .map((id) => {
+            const s = strategyMap[id];
+            const cur = id === activeStrategy ? " is-current" : "";
+            return `<a class="${cur.trim()}" href="./workbench-detail.html?id=${encodeURIComponent(id)}">${s.name}<span class="muted"> · 池 ${s.pool.toLocaleString()}</span></a>`;
+          })
+          .join("");
+      }
+
+      function renderMeta() {
+        const strategy = strategyMap[activeStrategy];
+        metaName.textContent = strategy.name;
+        metaEnabled.innerHTML = strategy.enabled
+          ? '<span class="status ok">Enabled</span>'
+          : '<span class="status err">Disabled</span>';
+        metaPool.textContent = `${strategy.pool.toLocaleString()} 只`;
+        activeStrategyDesc.textContent = strategy.desc;
+        breadcrumbName.textContent = strategy.name;
+        defaultsHint.textContent = `默认参数：RSI=${strategy.defaults.rsi} / sampling=${strategy.defaults.sample} / initial_capital=${strategy.defaults.capital.toLocaleString()}`;
+      }
+
+      function renderContext() {
+        renderMeta();
+      }
+
+      function syncStepCompletionStyles() {
+        planSteps.forEach((el) => {
+          const id = el.dataset.planStep;
+          el.classList.remove("is-current", "is-pending");
+          el.classList.toggle("is-complete", layerValid(id));
+        });
+      }
+
+      function syncActionState() {
+        const stratOk = strategyMap[activeStrategy].enabled;
+        cfgRsi.disabled = running || !stratOk;
+        cfgSample.disabled = running || !stratOk;
+        cfgCapital.disabled = running || !stratOk;
+        cfgMode.disabled = running || !stratOk;
+        resetOverridesBtn.disabled = running || !stratOk;
+
+        const blocked = running || !stratOk;
+        document.querySelectorAll(".plan-play[data-action]").forEach((btn) => {
+          btn.disabled = blocked;
+        });
+
+        if (!blocked) {
+          const playEnum = document.querySelector('.plan-play[data-action="enum"]');
+          const playPrice = document.querySelector('.plan-play[data-action="price"]');
+          const playCapital = document.querySelector('.plan-play[data-action="capital"]');
+          if (playEnum) playEnum.title = "运行步骤 1 · 枚举机会";
+          if (playPrice) {
+            playPrice.title = "运行步骤 2；若当前参数下尚未跑枚举，将先自动跑枚举";
+          }
+          if (playCapital) {
+            playCapital.title = "运行步骤 3；若当前参数下尚未跑枚举，将先自动跑枚举（不依赖价格层）";
+          }
+        }
+        updateStockRailVisibility();
+      }
+
+      function setRunIdle() {
+        runFlag.className = "status status-idle";
+        runFlag.textContent = "空闲";
+        planStatus.className = "status status-idle";
+        planStatus.textContent = "等待开始";
+      }
+
+      function setRunBusy() {
+        runFlag.className = "status warn";
+        runFlag.textContent = "实验运行中";
+        planStatus.className = "status warn";
+        planStatus.textContent = "执行中";
+      }
+
+      function refreshStepState(chain, currentStep) {
+        planSteps.forEach((el) => {
+          const id = el.dataset.planStep;
+          el.classList.remove("is-current", "is-complete", "is-pending");
+          if (!chain.includes(id)) {
+            if (layerValid(id)) el.classList.add("is-complete");
+            else el.classList.add("is-pending");
+            return;
+          }
+          if (id === currentStep) {
+            el.classList.add("is-current");
+          } else if (chain.indexOf(id) < chain.indexOf(currentStep)) {
+            el.classList.add("is-complete");
+          } else {
+            el.classList.add("is-pending");
+          }
+        });
+      }
+
+      function renderHistory() {
+        if (runHistory.length === 0) {
+          historyList.innerHTML = "<p class='muted'>暂无历史记录。</p>";
+          return;
+        }
+        historyList.innerHTML = runHistory
+          .map((item, index) => `
+            <div class="history-row">
+              <div>
+                <p><strong>#${runHistory.length - index}</strong> ${item.strategy}</p>
+                <p class="muted">${item.timestamp} · ${item.chainText}</p>
+                <p class="muted">参数改动：${item.deltaText}</p>
+              </div>
+              <button class="button ghost-btn history-report-btn" data-history-id="${item.id}">查看报告</button>
+            </div>
+          `)
+          .join("");
+        Array.from(document.querySelectorAll(".history-report-btn")).forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const reportItem = runHistory.find((item) => item.id === btn.dataset.historyId);
+            if (!reportItem) return;
+            reportTitle.textContent = `实验报告：${reportItem.strategy}`;
+            reportContent.innerHTML = reportItem.reportHTML;
+            reportModal.classList.remove("hidden");
+          });
+        });
+      }
+
+      function applyDefaultsForStrategy() {
+        clearResultState();
+        const defaults = strategyMap[activeStrategy].defaults;
+        cfgRsi.value = defaults.rsi;
+        cfgSample.value = defaults.sample;
+        cfgCapital.value = defaults.capital;
+        cfgMode.value = "standard";
+        renderContext();
+      }
+
+      function buildDeltaText(overrides) {
+        const defaults = strategyMap[activeStrategy].defaults;
+        const delta = [];
+        if (overrides.rsi !== defaults.rsi) delta.push(`RSI ${defaults.rsi}→${overrides.rsi}`);
+        if (overrides.sample !== defaults.sample) delta.push(`采样 ${defaults.sample}→${overrides.sample}`);
+        if (overrides.capital !== defaults.capital) {
+          delta.push(`资金 ${defaults.capital.toLocaleString()}→${overrides.capital.toLocaleString()}`);
+        }
+        if (delta.length === 0) return "无改动（与默认一致）";
+        return delta.join(" / ");
+      }
+
+      function generateStockRows() {
+        stockRows = API_STOCK_ORDER.map((row) => ({
+          ...row,
+          win: Number((0.35 + Math.random() * 0.55).toFixed(2)),
+          roi: Number((Math.random() * 40 - 12).toFixed(1)),
+          holdDays: Math.floor(5 + Math.random() * 36)
+        }));
+      }
+
+      function compareStockSort(a, b, key) {
+        if (key === "win") return b.win - a.win;
+        if (key === "roi") return b.roi - a.roi;
+        if (key === "hold") return b.holdDays - a.holdDays;
+        return 0;
+      }
+
+      function renderStockTable() {
+        const q = (stockSearch.value || "").trim().toLowerCase();
+        const sortKey = stockSort.value;
+        let rows = stockRows.slice();
+
+        if (sortKey !== "api") {
+          rows.sort((a, b) => compareStockSort(a, b, sortKey));
+        }
+
+        if (q) {
+          rows = rows.filter(
+            (r) =>
+              r.code.toLowerCase().includes(q) ||
+              r.name.toLowerCase().includes(q)
+          );
+        }
+
+        if (rows.length === 0) {
+          stockTbody.innerHTML = '<tr><td colspan="6" class="muted">无匹配股票。</td></tr>';
+          return;
+        }
+
+        stockTbody.innerHTML = rows
+          .map(
+            (r) => `
+          <tr>
+            <td>${r.code}</td>
+            <td>${r.name}</td>
+            <td>${(r.win * 100).toFixed(1)}%</td>
+            <td class="${r.roi >= 0 ? "metric-positive" : "metric-negative"}">${r.roi >= 0 ? "+" : ""}${r.roi}%</td>
+            <td>${r.holdDays} 天</td>
+            <td><a class="button ghost-btn" style="padding:6px 10px;font-size:12px;" href="./workbench-stock.html?strategy=${encodeURIComponent(activeStrategy)}&code=${encodeURIComponent(r.code)}&name=${encodeURIComponent(r.name)}">K 线</a></td>
+          </tr>
+        `
+          )
+          .join("");
+      }
+
+      function finalizeRun(targetAction, chain, overrides) {
+        const sig = currentSignature();
+        const chainText = chain.map(stepLabel).join(" -> ");
+        const modeLabel = formatMode(overrides.mode);
+        const timestamp = new Date().toLocaleString("zh-CN", { hour12: false });
+        const deltaText = buildDeltaText(overrides);
+
+        if (chain.includes("enum")) {
+          resultCache.price = null;
+          resultCache.capital = null;
+          resetPriceMetrics();
+          resetCapitalMetrics();
+          clearStockTablePlaceholder();
+        }
+
+        for (const step of chain) {
+          if (step === "enum") {
+            const enumTotal = Math.round(overrides.sample * (5 + Math.random() * 6));
+            resultCache.enum = { enumTotal };
+            enumMetric.textContent = `${enumTotal.toLocaleString()} 个`;
+          }
+          if (step === "price") {
+            const winRate = (42 + Math.random() * 35).toFixed(1);
+            const roi = Number((Math.random() * 42 - 6).toFixed(1));
+            const avgHoldDays = (8 + Math.random() * 28).toFixed(1);
+            resultCache.price = { winRate, roi, avgHoldDays };
+            priceWinMetric.textContent = `${winRate}%`;
+            priceRoiMetric.textContent = `${roi >= 0 ? "+" : ""}${roi}%`;
+            priceRoiMetric.classList.toggle("metric-positive", roi >= 0);
+            priceRoiMetric.classList.toggle("metric-negative", roi < 0);
+            priceHoldMetric.textContent = String(avgHoldDays);
+          }
+          if (step === "capital") {
+            const roiProxy = resultCache.price ? resultCache.price.roi : 0;
+            const capitalRet = Number((roiProxy * 0.8 + (Math.random() * 8 - 2)).toFixed(1));
+            const initial = overrides.capital;
+            const endCapital = Math.round(initial * (1 + capitalRet / 100));
+            const profit = endCapital - initial;
+            resultCache.capital = {
+              initial,
+              end: endCapital,
+              profit,
+              retPct: capitalRet
+            };
+            capitalRetMetric.textContent = `${capitalRet >= 0 ? "+" : ""}${capitalRet}%`;
+            capitalRetMetric.classList.toggle("metric-positive", capitalRet >= 0);
+            capitalRetMetric.classList.toggle("metric-negative", capitalRet < 0);
+            capitalProfitMetric.textContent = `${profit >= 0 ? "+" : ""}¥${Math.abs(profit).toLocaleString()}`;
+            capitalProfitMetric.classList.toggle("metric-positive", profit >= 0);
+            capitalProfitMetric.classList.toggle("metric-negative", profit < 0);
+            capitalRangeLine.textContent = `${initial.toLocaleString()} → ${endCapital.toLocaleString()}`;
+            equityInline.textContent = "曲线占位";
+          }
+        }
+
+        resultCache.sig = sig;
+        rebuildSnapshotHtml(overrides, chainText, timestamp, modeLabel);
+
+        runHistory = [
+          {
+            id: `${Date.now()}`,
+            strategy: activeStrategy,
+            timestamp,
+            chainText,
+            deltaText,
+            reportHTML: latestReportHTML
+          },
+          ...runHistory
+        ].slice(0, 5);
+        renderHistory();
+        syncStepCompletionStyles();
+        syncActionState();
+      }
+
+      function startRun(targetAction) {
+        if (running) return;
+        if (!strategyMap[activeStrategy].enabled) return;
+        const overrides = parseOverrides();
+        const chain = buildChain(targetAction);
+        let currentIndex = 0;
+        let progress = 0;
+        running = true;
+        setRunBusy();
+        syncActionState();
+        resetStepProgressBars();
+        refreshStepState(chain, chain[currentIndex]);
+
+        tickTimer = setInterval(() => {
+          progress = Math.min(100, progress + 5);
+          syncStepProgressBars(chain, currentIndex, progress);
+          planStatus.textContent = `${stepLabel(chain[currentIndex])} ${Math.floor(progress)}%`;
+          if (progress >= 100) {
+            currentIndex += 1;
+            if (currentIndex >= chain.length) {
+              clearInterval(tickTimer);
+              tickTimer = null;
+              running = false;
+              setRunIdle();
+              finalizeRun(targetAction, chain, overrides);
+              resetStepProgressBars();
+              return;
+            }
+            progress = 0;
+            refreshStepState(chain, chain[currentIndex]);
+          }
+        }, 140);
+      }
+
+      runButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          startRun(btn.dataset.action || "enum");
+        });
+      });
+
+      [cfgMode, cfgRsi, cfgSample, cfgCapital].forEach((el) => {
+        el.addEventListener("change", () => {
+          invalidateIfParamsMismatch();
+          renderContext();
+        });
+        el.addEventListener("input", () => {
+          if (!running) invalidateIfParamsMismatch();
+        });
+      });
+
+      resetOverridesBtn.addEventListener("click", applyDefaultsForStrategy);
+
+      btnSnapshot.addEventListener("click", () => {
+        reportTitle.textContent = "运行快照";
+        reportContent.innerHTML = latestReportHTML;
+        reportModal.classList.remove("hidden");
+      });
+
+      document.querySelectorAll(".btn-layer-more").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const layer = btn.dataset.layer;
+          reportTitle.textContent =
+            layer === "enum" ? "枚举 · 更多" : layer === "price" ? "价格回测 · 更多" : "资金模拟 · 更多";
+          reportContent.innerHTML =
+            latestLayerReports[layer] || "<p>暂无内容。</p>";
+          reportModal.classList.remove("hidden");
+        });
+      });
+
+      reportCloseBtn.addEventListener("click", () => reportModal.classList.add("hidden"));
+      reportModal.addEventListener("click", (event) => {
+        if (event.target === reportModal) reportModal.classList.add("hidden");
+      });
+
+      stockSearch.addEventListener("input", renderStockTable);
+      stockSort.addEventListener("change", renderStockTable);
+
+      activeStrategy = resolveStrategyId();
+      renderOtherStrategies();
+      setRunIdle();
+      applyDefaultsForStrategy();
+      syncActionState();
+      renderHistory();
+    })();
+  </script>
+</body>
+</html>

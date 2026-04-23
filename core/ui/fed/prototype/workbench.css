@@ -1,0 +1,705 @@
+/* Strategy workbench: list + two-column detail + stock rail */
+
+/* 策略验证页：主区域约 90vw，桌面端最小可读宽度 */
+main.content.workbench-detail-wide {
+  box-sizing: border-box;
+  width: min(90vw, 100%);
+  max-width: none;
+  min-width: 960px;
+  margin-inline: auto;
+}
+
+@media (max-width: 991px) {
+  main.content.workbench-detail-wide {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.workbench-hint {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(142, 197, 255, 0.22);
+  background: rgba(142, 197, 255, 0.08);
+  font-size: 13px;
+  color: rgba(229, 231, 235, 0.88);
+}
+
+.workbench-table-wrap .strategy-row {
+  cursor: pointer;
+  transition: background 130ms ease;
+}
+
+.workbench-table-wrap .strategy-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.workbench-table-wrap .strategy-row:focus-within {
+  outline: none;
+}
+
+.workbench-table-wrap .strategy-row td:first-child {
+  font-weight: 600;
+}
+
+.breadcrumb {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.breadcrumb a {
+  color: rgba(142, 197, 255, 0.95);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.workbench-split {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.workbench-left {
+  display: grid;
+  gap: 14px;
+}
+
+.workbench-right {
+  display: grid;
+  gap: 14px;
+}
+
+.meta-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.meta-grid div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.settings-readonly {
+  opacity: 0.92;
+}
+
+.other-strategies {
+  display: grid;
+  gap: 8px;
+}
+
+.other-strategies a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.other-strategies a:hover {
+  border-color: rgba(142, 197, 255, 0.35);
+  background: rgba(142, 197, 255, 0.06);
+}
+
+.other-strategies a.is-current {
+  border-color: rgba(142, 197, 255, 0.45);
+  background: rgba(142, 197, 255, 0.1);
+  pointer-events: none;
+}
+
+.report-section h3 {
+  margin: 0 0 8px;
+}
+
+.report-section .metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 8px;
+}
+
+.report-section .metric-block {
+  min-width: 120px;
+}
+
+.equity-placeholder {
+  margin-top: 10px;
+  height: 140px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  display: grid;
+  place-items: center;
+  color: rgba(229, 231, 235, 0.62);
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.stock-rail-title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.stock-rail-desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+.stock-rail.stock-rail-locked .stock-rail-controls {
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.stock-rail.stock-rail-locked .stock-table-wrap {
+  opacity: 0.55;
+}
+
+.stock-rail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.stock-rail-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.stock-rail-controls input,
+.stock-rail-controls select {
+  background: rgba(10, 13, 18, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(242, 245, 249, 0.94);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.stock-table-wrap {
+  overflow: auto;
+  max-height: min(420px, 55vh);
+}
+
+/* 右侧栏内样本表：与执行计划同列，略压缩滚动区高度 */
+.workbench-right .stock-rail-inline .stock-table-wrap {
+  max-height: min(360px, 42vh);
+}
+
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.stock-table th,
+.stock-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stock-table tr:hover td {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.stock-chart-placeholder {
+  min-height: 320px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-items: center;
+  color: rgba(229, 231, 235, 0.65);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.plan-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 执行计划：枚举｜播放｜结果｜更多 单行；每步单独进度为背景条 */
+.plan-steps.plan-steps-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.plan-steps.plan-steps-compact .plan-step.plan-step-compact {
+  display: block;
+  flex-direction: unset;
+  gap: 0;
+}
+
+.plan-step-compact {
+  position: relative;
+  padding: 0;
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.plan-steps-compact .plan-step-compact + .plan-step-compact {
+  margin-top: 12px;
+}
+
+/* 已完成步骤：绿色强调（覆盖 compact 默认底） */
+.plan-steps.plan-steps-compact .plan-step.plan-step-compact.is-complete {
+  border-color: rgba(127, 227, 174, 0.48);
+  background: rgba(127, 227, 174, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(127, 227, 174, 0.18);
+}
+
+.plan-steps.plan-steps-compact .plan-step.plan-step-compact.is-complete .plan-step-label-cell .plan-step-label {
+  color: rgba(186, 245, 208, 0.96);
+}
+
+.plan-step-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.plan-step-fill-bar {
+  display: block;
+  height: 100%;
+  width: 0%;
+  margin: 0;
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(142, 197, 255, 0.07),
+    rgba(127, 227, 174, 0.09)
+  );
+  transition: width 120ms linear;
+}
+
+.plan-step-line {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(108px, 128px) 44px minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  align-items: center;
+  padding: 14px 12px;
+  min-height: 58px;
+}
+
+.plan-step-line-capital {
+  min-height: auto;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.plan-step-label-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.plan-step-index-ring {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid rgba(142, 197, 255, 0.48);
+  background: rgba(142, 197, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(142, 197, 255, 0.12);
+  display: grid;
+  place-items: center;
+}
+
+.plan-step-index-num {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(142, 197, 255, 0.95);
+}
+
+.plan-steps.plan-steps-compact .plan-step.plan-step-compact.is-complete .plan-step-index-ring {
+  border-color: rgba(127, 227, 174, 0.56);
+  background: rgba(127, 227, 174, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(127, 227, 174, 0.18);
+}
+
+.plan-steps.plan-steps-compact .plan-step.plan-step-compact.is-complete .plan-step-index-num {
+  color: rgba(186, 245, 208, 0.96);
+}
+
+.plan-step.plan-step-compact.is-current .plan-step-index-ring {
+  border-color: rgba(142, 197, 255, 0.82);
+  box-shadow:
+    inset 0 0 0 1px rgba(142, 197, 255, 0.2),
+    0 0 0 3px rgba(142, 197, 255, 0.14);
+}
+
+.plan-step-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(243, 246, 250, 0.94);
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+}
+
+.plan-play {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(246, 248, 252, 0.95);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.plan-play:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.04);
+}
+
+.plan-play:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.plan-play-icon {
+  display: block;
+  font-size: 12px;
+  margin-left: 2px;
+  line-height: 1;
+}
+
+.plan-step-metrics {
+  min-width: 0;
+  font-size: 13px;
+  color: rgba(229, 231, 235, 0.92);
+}
+
+.plan-metric-inline strong {
+  font-weight: 600;
+  color: rgba(245, 247, 250, 0.96);
+}
+
+.plan-metric-primary {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(245, 247, 250, 0.96);
+}
+
+.plan-step-metrics-dense {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 12px;
+}
+
+.metric-sep {
+  color: rgba(229, 231, 235, 0.35);
+  user-select: none;
+}
+
+.plan-capital-metrics-stack {
+  min-width: 0;
+  font-size: 13px;
+  color: rgba(229, 231, 235, 0.92);
+}
+
+.plan-capital-result-body {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.plan-capital-col-left {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  min-width: 0;
+}
+
+.plan-capital-col-right {
+  flex: 1 1 220px;
+  min-width: 140px;
+  display: flex;
+  align-items: stretch;
+}
+
+.plan-capital-metrics-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.plan-capital-metrics-range-row .plan-capital-range {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-capital-col-right .plan-capital-equity-strip.equity-inline {
+  width: 100%;
+  min-height: 88px;
+  margin-left: 0;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+}
+
+.plan-capital-sub-inline {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.btn-more-compact {
+  padding: 6px 10px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.plan-step-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px 18px;
+  font-size: 13px;
+}
+
+.equity-inline {
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  display: grid;
+  place-items: center;
+  color: rgba(229, 231, 235, 0.52);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 1100px) {
+  .workbench-split {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-capital-result-body {
+    flex-direction: column;
+  }
+
+  .plan-capital-col-right {
+    min-width: 0;
+  }
+}
+
+/* 单股 K 线页 workbench-stock.html */
+.stock-k-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.stock-k-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.stock-k-back {
+  flex-shrink: 0;
+}
+
+.stock-k-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(229, 231, 235, 0.92);
+  min-width: 0;
+}
+
+.stock-k-meta .muted {
+  font-size: 13px;
+}
+
+.stock-k-meta strong {
+  font-weight: 600;
+  color: rgba(244, 247, 252, 0.95);
+}
+
+.stock-k-meta-sep {
+  color: rgba(229, 231, 235, 0.32);
+  user-select: none;
+  margin: 0 2px;
+}
+
+.stock-k-meta-warn {
+  color: rgba(255, 210, 138, 0.95);
+  font-size: 13px;
+}
+
+.stock-k-meta-warn code {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.stock-k-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stock-k-tab {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(229, 231, 235, 0.88);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.stock-k-tab:hover {
+  border-color: rgba(142, 197, 255, 0.35);
+  background: rgba(142, 197, 255, 0.08);
+}
+
+.stock-k-tab.is-active {
+  border-color: rgba(142, 197, 255, 0.45);
+  background: rgba(142, 197, 255, 0.12);
+  color: rgba(244, 247, 252, 0.96);
+}
+
+.stock-k-tab:focus-visible {
+  outline: 2px solid rgba(142, 197, 255, 0.55);
+  outline-offset: 2px;
+}
+
+.stock-k-chart-card {
+  margin-top: 0;
+}
+
+.stock-k-chart-placeholder {
+  min-height: 380px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 24px;
+  color: rgba(229, 231, 235, 0.62);
+  background: rgba(0, 0, 0, 0.14);
+  font-size: 14px;
+}
+
+.stock-k-chart-caption {
+  margin: 12px 0 8px;
+  font-size: 13px;
+}
+
+.stock-k-chart-caption strong {
+  color: rgba(142, 197, 255, 0.95);
+  font-weight: 600;
+}
+
+.stock-k-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 策略验证 / K 线页：回测数据区间（全局约定，占位常量） */
+.backtest-range-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(142, 197, 255, 0.28);
+  border-left: 4px solid rgba(142, 197, 255, 0.65);
+  background: linear-gradient(
+    105deg,
+    rgba(142, 197, 255, 0.14),
+    rgba(127, 227, 174, 0.06)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.backtest-range-banner-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(186, 220, 255, 0.92);
+}
+
+.backtest-range-banner-range {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(244, 247, 252, 0.98);
+  font-variant-numeric: tabular-nums;
+}
+
+.backtest-range-banner-note {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.stock-k-range-banner {
+  margin-top: 0;
+  margin-bottom: 16px;
+}

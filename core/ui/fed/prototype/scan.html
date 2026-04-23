@@ -6,6 +6,8 @@
   <title>NTQ Prototype - 机会扫描</title>
   <link rel="stylesheet" href="./global.css" />
   <link rel="stylesheet" href="./components.css" />
+  <link rel="stylesheet" href="./backtest.css" />
+  <link rel="stylesheet" href="./workbench.css" />
 </head>
 <body>
   <div class="layout">
@@ -21,47 +23,404 @@
         <a href="./settings.html">设置</a>
       </nav>
     </header>
-    <main class="content">
-      <header class="topbar">
+    <main class="content workbench-detail-wide scan-page">
+      <header class="topbar scan-topbar">
         <div>
           <h1 class="title">机会扫描</h1>
-          <p class="subtitle">基于当前策略与最新数据快速扫描市场机会</p>
+          <p class="subtitle">
+            勾选下方<strong>已启用</strong>的策略，对当前市场机会进行批量扫描；每个策略按其配置的标的域（target）分别执行。
+          </p>
         </div>
-        <button class="button">开始扫描</button>
+        <span class="status status-idle" id="scan-status">就绪</span>
       </header>
 
-      <section class="grid" style="grid-template-columns: 260px 1fr 320px;">
-        <article class="card">
-          <h3>模块库</h3>
-          <p class="muted">拖拽或点击添加到中间流程</p>
-          <div class="step"><div class="dot">C</div><div>条件：历史低点 / 均线突破</div></div>
-          <div class="step"><div class="dot">F</div><div>过滤：行业、流动性、波动率</div></div>
-          <div class="step"><div class="dot">R</div><div>风控：止损、止盈、仓位规则</div></div>
-        </article>
+      <section class="scan-mode-card card">
+        <div class="section-head">
+          <h3>扫描模式</h3>
+          <span class="muted">接入数据服务后由服务端校验</span>
+        </div>
+        <div class="scan-mode-options" role="radiogroup" aria-label="扫描模式">
+          <label class="scan-mode-option">
+            <input type="radio" name="scan-mode" value="strict" checked />
+            <span class="scan-mode-option-body">
+              <strong>严格模式</strong>
+              <span class="muted scan-mode-desc">仅当行情、因子等依赖数据均已更新至<strong>最新交易日</strong>后才允许执行扫描；不满足则中断并提示缺口。</span>
+            </span>
+          </label>
+          <label class="scan-mode-option">
+            <input type="radio" name="scan-mode" value="demo" />
+            <span class="scan-mode-option-body">
+              <strong>扫描演示</strong>
+              <span class="muted scan-mode-desc">以数据集中<strong>已有最新日期</strong>作为扫描截止日（占位：<span id="scan-demo-asof">—</span>），用于演示链路，不代表实时市场。</span>
+            </span>
+          </label>
+        </div>
+      </section>
 
-        <article class="card">
-          <h3>策略流程画布</h3>
-          <div class="step"><div class="dot">1</div><div>输入标的池（沪深A股 + 自选池）</div></div>
-          <div class="step"><div class="dot">2</div><div>信号层：历史低点反弹 + 成交量确认</div></div>
-          <div class="step"><div class="dot">3</div><div>资金层：分批建仓，单票仓位上限 12%</div></div>
-          <div class="step"><div class="dot">4</div><div>退出层：目标收益与回撤联动</div></div>
-          <p class="foot-note">交互草案：后续可替换为节点连线编辑器。</p>
-        </article>
+      <section class="card scan-strategies-card">
+        <div class="scan-strategies-toolbar">
+          <div class="scan-strategies-toolbar-left">
+            <button type="button" class="button" id="btn-scan-start">开始扫描</button>
+            <label class="scan-select-all muted">
+              <input type="checkbox" id="scan-select-all" />
+              全选已启用策略
+            </label>
+          </div>
+          <p class="muted scan-toolbar-hint" id="scan-selection-hint">未选择策略</p>
+        </div>
 
-        <article class="card">
-          <h3>参数面板</h3>
-          <table class="table">
-            <tbody>
-              <tr><td>窗口期</td><td>120 日</td></tr>
-              <tr><td>低点容忍</td><td>2.5%</td></tr>
-              <tr><td>初始资金</td><td>1,000,000</td></tr>
-              <tr><td>调仓频率</td><td>周度</td></tr>
+        <div class="scan-progress-panel" id="scan-progress-panel" hidden>
+          <div class="scan-progress-track">
+            <div class="scan-progress-bar" id="scan-progress-bar"></div>
+          </div>
+          <p class="muted scan-progress-label" id="scan-progress-label"></p>
+        </div>
+
+        <div class="workbench-table-wrap scan-table-wrap">
+          <table class="table scan-strategy-table">
+            <thead>
+              <tr>
+                <th class="scan-col-check"><span class="sr-only">选择</span></th>
+                <th>策略</th>
+                <th>启用</th>
+                <th>股票池规模</th>
+                <th>描述</th>
+                <th class="scan-col-count">机会数量</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="scan-strategy-tbody">
+              <!-- filled by script -->
             </tbody>
           </table>
-          <p class="muted">高级配置（默认收起）：手续费模型、滑点、停牌处理。</p>
-        </article>
+        </div>
+      </section>
+
+      <section class="card scan-result-card" id="scan-result-section" hidden>
+        <div class="section-head">
+          <h3 id="scan-report-title">扫描报告</h3>
+          <span class="muted" id="scan-result-meta"></span>
+        </div>
+        <div id="scan-result-body" class="scan-report-body"></div>
       </section>
     </main>
   </div>
+
+  <div class="report-modal hidden" id="scan-detail-modal" role="dialog" aria-modal="true" aria-labelledby="scan-detail-title">
+    <div class="report-panel scan-detail-panel">
+      <div class="report-header">
+        <h3 id="scan-detail-title">机会明细</h3>
+        <button type="button" class="button ghost-btn" id="scan-detail-close-btn">关闭</button>
+      </div>
+      <div class="report-content scan-detail-content">
+        <p class="muted scan-detail-intro" id="scan-detail-intro"></p>
+        <div class="workbench-table-wrap">
+          <table class="table scan-detail-table">
+            <thead>
+              <tr>
+                <th>代码</th>
+                <th>名称</th>
+                <th>建议买入最高价</th>
+              </tr>
+            </thead>
+            <tbody id="scan-detail-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      /** 演示模式：数据内「最新交易日」占位（与验证页区间无关） */
+      const PROTOTYPE_DATA_ASOF_DATE = "2025-12-30";
+
+      /** 占位：模拟行情里抽样的标的，用于生成机会明细 */
+      const MOCK_UNIVERSE = [
+        { code: "600519.SH", name: "贵州茅台" },
+        { code: "000858.SZ", name: "五粮液" },
+        { code: "601318.SH", name: "中国平安" },
+        { code: "600036.SH", name: "招商银行" },
+        { code: "000333.SZ", name: "美的集团" },
+        { code: "002594.SZ", name: "比亚迪" },
+        { code: "601012.SH", name: "隆基绿能" },
+        { code: "300750.SZ", name: "宁德时代" },
+        { code: "688981.SH", name: "中芯国际" },
+        { code: "601899.SH", name: "紫金矿业" }
+      ];
+
+      const STRATEGIES = [
+        {
+          id: "double-bottom-v3",
+          name: "double-bottom-v3",
+          enabled: true,
+          pool: 4521,
+          desc: "双低点反弹 + 成交量确认"
+        },
+        {
+          id: "momentum-breakout-v2",
+          name: "momentum-breakout-v2",
+          enabled: true,
+          pool: 3876,
+          desc: "趋势突破 + 波动过滤"
+        },
+        {
+          id: "activity-high-v1",
+          name: "activity-high-v1",
+          enabled: true,
+          pool: 2914,
+          desc: "活跃度优先 + 标签约束"
+        },
+        {
+          id: "mean-revert-test",
+          name: "mean-revert-test",
+          enabled: false,
+          pool: 4120,
+          desc: "实验策略（未启用时不参与扫描）"
+        }
+      ];
+
+      /** 最近一次扫描：仅包含本次勾选且已完成的策略 */
+      let lastScanResults = {};
+
+      const tbody = document.getElementById("scan-strategy-tbody");
+      const btnStart = document.getElementById("btn-scan-start");
+      const selectAll = document.getElementById("scan-select-all");
+      const hintEl = document.getElementById("scan-selection-hint");
+      const scanStatus = document.getElementById("scan-status");
+      const demoAsofEl = document.getElementById("scan-demo-asof");
+      const resultSection = document.getElementById("scan-result-section");
+      const resultMeta = document.getElementById("scan-result-meta");
+      const resultBody = document.getElementById("scan-result-body");
+      const progressPanel = document.getElementById("scan-progress-panel");
+      const progressBar = document.getElementById("scan-progress-bar");
+      const progressLabel = document.getElementById("scan-progress-label");
+      const detailModal = document.getElementById("scan-detail-modal");
+      const detailTitle = document.getElementById("scan-detail-title");
+      const detailIntro = document.getElementById("scan-detail-intro");
+      const detailTbody = document.getElementById("scan-detail-tbody");
+      const detailCloseBtn = document.getElementById("scan-detail-close-btn");
+
+      demoAsofEl.textContent = PROTOTYPE_DATA_ASOF_DATE;
+
+      function mockOpportunities(strategyId) {
+        const n = 3 + Math.floor(Math.random() * 10);
+        const seed = [...strategyId].reduce((a, c) => a + c.charCodeAt(0), 0);
+        const out = [];
+        for (let i = 0; i < n; i += 1) {
+          const ix = (seed + i * 17) % MOCK_UNIVERSE.length;
+          const s = MOCK_UNIVERSE[ix];
+          const jitter = ((seed + i) % 97) / 100;
+          const maxBuy = Number((18 + jitter * 220 + (i % 7) * 3).toFixed(2));
+          out.push({
+            code: s.code,
+            name: s.name,
+            maxBuy,
+            maxBuyFormatted: maxBuy.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          });
+        }
+        return out;
+      }
+
+      function renderOpportunityCell(s) {
+        const data = lastScanResults[s.id];
+        if (!data || !s.enabled) {
+          return '<span class="muted">—</span>';
+        }
+        const n = data.opportunities.length;
+        return `<button type="button" class="button ghost-btn scan-count-btn" data-strategy="${s.id}">${n}</button>`;
+      }
+
+      function renderTable() {
+        tbody.innerHTML = STRATEGIES.map(
+          (s) => `
+          <tr class="scan-strategy-row${s.enabled ? "" : " scan-row-disabled"}" data-id="${s.id}">
+            <td class="scan-col-check">
+              <input type="checkbox" class="scan-row-cb" data-id="${s.id}" ${s.enabled ? "" : "disabled"} aria-label="选择 ${s.name}" />
+            </td>
+            <td><strong>${s.name}</strong></td>
+            <td>${s.enabled ? '<span class="status ok">Enabled</span>' : '<span class="status err">Disabled</span>'}</td>
+            <td>${s.pool.toLocaleString()}</td>
+            <td><span class="muted">${s.desc}</span></td>
+            <td class="scan-col-count">${renderOpportunityCell(s)}</td>
+            <td><a class="button ghost-btn" style="padding:6px 10px;font-size:12px;" href="./workbench-detail.html?id=${encodeURIComponent(s.id)}">调试策略</a></td>
+          </tr>
+        `
+        ).join("");
+
+        tbody.querySelectorAll(".scan-row-cb").forEach((cb) => {
+          cb.addEventListener("change", updateHint);
+        });
+      }
+
+      function selectedIds() {
+        return Array.from(tbody.querySelectorAll(".scan-row-cb:checked")).map((cb) => cb.dataset.id);
+      }
+
+      function updateHint() {
+        const n = selectedIds().length;
+        hintEl.textContent = n === 0 ? "未选择策略" : `已选 ${n} 个策略`;
+      }
+
+      function enabledRowCheckboxes() {
+        return tbody.querySelectorAll(".scan-strategy-row:not(.scan-row-disabled) .scan-row-cb");
+      }
+
+      function setRunning(on) {
+        btnStart.disabled = on;
+        selectAll.disabled = on;
+        enabledRowCheckboxes().forEach((cb) => {
+          cb.disabled = on;
+        });
+        scanStatus.className = on ? "status warn" : "status status-idle";
+        scanStatus.textContent = on ? "扫描中…" : "就绪";
+      }
+
+      function openDetailModal(strategyId) {
+        const pack = lastScanResults[strategyId];
+        if (!pack) return;
+
+        detailTitle.textContent = `机会明细 · ${strategyId}`;
+        detailIntro.textContent =
+          pack.opportunities.length === 0
+            ? "本轮扫描未命中机会（占位逻辑）。"
+            : `共 ${pack.opportunities.length} 条；以下为占位数据，接入 API 后替换为实盘扫描结果。`;
+        detailTbody.innerHTML =
+          pack.opportunities.length === 0
+            ? '<tr><td colspan="3" class="muted">暂无明细</td></tr>'
+            : pack.opportunities
+                .map(
+                  (o) =>
+                    `<tr><td>${o.code}</td><td>${o.name}</td><td>¥${o.maxBuyFormatted}</td></tr>`
+                )
+                .join("");
+        detailModal.classList.remove("hidden");
+      }
+
+      function closeDetailModal() {
+        detailModal.classList.add("hidden");
+      }
+
+      tbody.addEventListener("click", (e) => {
+        const btn = e.target.closest(".scan-count-btn");
+        if (!btn) return;
+        openDetailModal(btn.dataset.strategy);
+      });
+
+      detailCloseBtn.addEventListener("click", closeDetailModal);
+      detailModal.addEventListener("click", (event) => {
+        if (event.target === detailModal) closeDetailModal();
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !detailModal.classList.contains("hidden")) closeDetailModal();
+      });
+
+      function runScanWithProgress(ids, onDone) {
+        progressPanel.hidden = false;
+        progressBar.style.width = "0%";
+        progressLabel.textContent = "准备扫描…";
+
+        let step = 0;
+
+        function tick() {
+          if (step >= ids.length) {
+            progressBar.style.width = "100%";
+            progressLabel.textContent = "写入报告…";
+            window.setTimeout(() => {
+              progressPanel.hidden = true;
+              onDone();
+            }, 280);
+            return;
+          }
+
+          const id = ids[step];
+          const pct = ((step + 1) / ids.length) * 100;
+          progressBar.style.width = `${pct}%`;
+          progressLabel.textContent = `正在扫描 ${id}（${step + 1} / ${ids.length}）`;
+          step += 1;
+          window.setTimeout(tick, 420 + Math.floor(Math.random() * 180));
+        }
+
+        window.requestAnimationFrame(() => {
+          window.setTimeout(tick, 120);
+        });
+      }
+
+      selectAll.addEventListener("change", () => {
+        const on = selectAll.checked;
+        enabledRowCheckboxes().forEach((cb) => {
+          cb.checked = on;
+        });
+        updateHint();
+      });
+
+      btnStart.addEventListener("click", () => {
+        const ids = selectedIds();
+        const mode = document.querySelector('input[name="scan-mode"]:checked').value;
+
+        if (ids.length === 0) {
+          hintEl.textContent = "请先勾选至少一个已启用的策略";
+          return;
+        }
+
+        lastScanResults = {};
+        renderTable();
+        updateHint();
+
+        setRunning(true);
+        resultSection.hidden = true;
+
+        runScanWithProgress(ids, () => {
+          ids.forEach((sid) => {
+            lastScanResults[sid] = {
+              opportunities: mockOpportunities(sid)
+            };
+          });
+
+          renderTable();
+
+          enabledRowCheckboxes().forEach((cb) => {
+            cb.checked = ids.includes(cb.dataset.id);
+          });
+          selectAll.checked =
+            ids.length === enabledRowCheckboxes().length && ids.length > 0;
+
+          const modeLabel =
+            mode === "strict"
+              ? "严格模式（服务端校验数据已对齐最新交易日）"
+              : `扫描演示（截止 ${PROTOTYPE_DATA_ASOF_DATE}）`;
+
+          let totalOpps = 0;
+          ids.forEach((sid) => {
+            totalOpps += lastScanResults[sid].opportunities.length;
+          });
+
+          resultSection.hidden = false;
+          resultMeta.textContent = `${modeLabel} · ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+
+          resultBody.innerHTML = `
+            <div class="scan-report-summary">
+              <p><strong>${ids.length}</strong> 个策略已完成扫描；合计命中 <strong>${totalOpps}</strong> 条机会（占位）。表格中点击<strong>机会数量</strong>可查看该股清单与建议买入最高价。</p>
+              <ul class="muted scan-report-list">
+                ${ids
+                  .map(
+                    (sid) =>
+                      `<li>${sid}：<strong>${lastScanResults[sid].opportunities.length}</strong> 条</li>`
+                  )
+                  .join("")}
+              </ul>
+              <p class="muted">正式环境：严格模式下若数据未更新至最新交易日将拦截；演示模式以数据集中最新已有交易日为截止。</p>
+            </div>
+          `;
+
+          setRunning(false);
+        });
+      });
+
+      renderTable();
+      updateHint();
+    })();
+  </script>
 </body>
 </html>

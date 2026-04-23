@@ -24,8 +24,8 @@
       </nav>
     </header>
     <main class="content workbench-detail-wide">
-      <header class="topbar">
-        <div>
+      <header class="topbar workbench-detail-topbar">
+        <div class="workbench-detail-topbar-main">
           <p class="breadcrumb"><a href="./workbench.html">策略工作台</a> / <span id="breadcrumb-name">策略验证</span></p>
           <h1 class="title">策略验证</h1>
           <div class="backtest-range-banner" role="note" aria-label="策略回测使用的数据日期区间">
@@ -35,7 +35,24 @@
           </div>
           <p class="subtitle">单策略实验：左侧信息与参数；右侧执行计划内嵌分层结果；三层全部完成后解锁下方样本股票列表（接口顺序）</p>
         </div>
-        <span class="status" id="run-flag">空闲</span>
+        <div class="workbench-detail-topbar-right">
+          <span class="status" id="run-flag">空闲</span>
+          <div class="workbench-detail-actions">
+            <span class="workbench-detail-action-toast muted" id="detail-action-toast" hidden aria-live="polite"></span>
+            <button type="button" class="button" id="btn-save-strategy" title="保存当前策略调试参数（RSI、采样、资金、模式等）">
+              保存
+            </button>
+            <button type="button" class="button ghost-btn" id="btn-clone-strategy" title="复制策略配置为新策略">
+              克隆
+            </button>
+            <button type="button" class="button ghost-btn" id="btn-toggle-enable" title="启用或停用该策略">
+              禁用
+            </button>
+            <button type="button" class="button ghost-btn workbench-btn-danger-outline" id="btn-delete-strategy" title="删除策略（仅占位）">
+              删除
+            </button>
+          </div>
+        </div>
       </header>
 
       <div class="workbench-split">
@@ -575,12 +592,32 @@
         const strategy = strategyMap[activeStrategy];
         metaName.textContent = strategy.name;
         metaEnabled.innerHTML = strategy.enabled
-          ? '<span class="status ok">Enabled</span>'
-          : '<span class="status err">Disabled</span>';
+          ? '<span class="status ok">已启用</span>'
+          : '<span class="status err">已停用</span>';
         metaPool.textContent = `${strategy.pool.toLocaleString()} 只`;
         activeStrategyDesc.textContent = strategy.desc;
         breadcrumbName.textContent = strategy.name;
         defaultsHint.textContent = `默认参数：RSI=${strategy.defaults.rsi} / sampling=${strategy.defaults.sample} / initial_capital=${strategy.defaults.capital.toLocaleString()}`;
+        updateToggleEnableLabel();
+      }
+
+      function updateToggleEnableLabel() {
+        const btn = document.getElementById("btn-toggle-enable");
+        if (!btn) return;
+        btn.textContent = strategyMap[activeStrategy].enabled ? "禁用" : "启用";
+      }
+
+      let detailActionToastTimer = null;
+      function showDetailActionToast(message) {
+        const el = document.getElementById("detail-action-toast");
+        if (!el) return;
+        if (detailActionToastTimer) window.clearTimeout(detailActionToastTimer);
+        el.textContent = message;
+        el.hidden = false;
+        detailActionToastTimer = window.setTimeout(() => {
+          el.hidden = true;
+          el.textContent = "";
+        }, 3200);
       }
 
       function renderContext() {
@@ -606,6 +643,15 @@
         const blocked = running || !stratOk;
         document.querySelectorAll(".plan-play[data-action]").forEach((btn) => {
           btn.disabled = blocked;
+        });
+
+        const managing = running;
+        const btnSave = document.getElementById("btn-save-strategy");
+        const btnClone = document.getElementById("btn-clone-strategy");
+        const btnToggle = document.getElementById("btn-toggle-enable");
+        const btnDel = document.getElementById("btn-delete-strategy");
+        [btnSave, btnClone, btnToggle, btnDel].forEach((b) => {
+          if (b) b.disabled = managing;
         });
 
         if (!blocked) {
@@ -885,6 +931,39 @@
       });
 
       resetOverridesBtn.addEventListener("click", applyDefaultsForStrategy);
+
+      document.getElementById("btn-save-strategy").addEventListener("click", () => {
+        const o = parseOverrides();
+        showDetailActionToast(
+          `已保存当前调试参数（RSI=${o.rsi} · 采样=${o.sample} · 资金=${o.capital.toLocaleString()} · 模式=${formatMode(o.mode)}）。占位：持久化接入后端后生效。`
+        );
+      });
+
+      document.getElementById("btn-clone-strategy").addEventListener("click", () => {
+        showDetailActionToast(
+          `占位：将复制「${strategyMap[activeStrategy].name}」的配置并由后端分配新策略 ID；接入 API 后跳转或刷新列表。`
+        );
+      });
+
+      document.getElementById("btn-toggle-enable").addEventListener("click", () => {
+        strategyMap[activeStrategy].enabled = !strategyMap[activeStrategy].enabled;
+        renderMeta();
+        syncActionState();
+        updateStockRailVisibility();
+        syncStepCompletionStyles();
+        showDetailActionToast(strategyMap[activeStrategy].enabled ? "策略已启用（占位）。" : "策略已停用（占位）。");
+      });
+
+      document.getElementById("btn-delete-strategy").addEventListener("click", () => {
+        const name = strategyMap[activeStrategy].name;
+        if (
+          window.confirm(
+            `确认删除策略「${name}」？\n此为原型占位：正式环境需后端校验权限与引用关系。`
+          )
+        ) {
+          showDetailActionToast("占位：删除请求已模拟；接入 API 后将移除策略并返回列表。");
+        }
+      });
 
       btnSnapshot.addEventListener("click", () => {
         reportTitle.textContent = "运行快照";

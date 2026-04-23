@@ -16,6 +16,51 @@ main.content.workbench-detail-wide {
   }
 }
 
+.workbench-detail-topbar {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+}
+
+.workbench-detail-topbar-main {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.workbench-detail-topbar-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.workbench-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: min(100%, 520px);
+}
+
+.workbench-detail-action-toast {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(127, 227, 174, 0.92);
+  text-align: right;
+  max-width: 300px;
+}
+
+.workbench-btn-danger-outline {
+  border-color: rgba(255, 142, 142, 0.45) !important;
+  color: rgba(255, 210, 210, 0.95) !important;
+}
+
+.workbench-btn-danger-outline:hover:not(:disabled) {
+  border-color: rgba(255, 142, 142, 0.65) !important;
+  background: rgba(255, 80, 80, 0.12) !important;
+}
+
 .workbench-hint {
   margin: 0 0 10px;
   padding: 10px 12px;
@@ -702,4 +747,197 @@ main.content.workbench-detail-wide {
 .stock-k-range-banner {
   margin-top: 0;
   margin-bottom: 16px;
+}
+
+/* 机会扫描 scan.html */
+.scan-page .scan-topbar {
+  align-items: flex-start;
+}
+
+.scan-mode-card .section-head {
+  margin-bottom: 12px;
+}
+
+.scan-mode-options {
+  display: grid;
+  gap: 12px;
+}
+
+.scan-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.scan-mode-option:has(input:checked) {
+  border-color: rgba(142, 197, 255, 0.38);
+  background: rgba(142, 197, 255, 0.08);
+}
+
+.scan-mode-option input {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.scan-mode-option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.scan-mode-option-body strong {
+  font-size: 14px;
+  color: rgba(244, 247, 252, 0.96);
+}
+
+.scan-mode-desc {
+  display: block;
+}
+
+.scan-strategies-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.scan-strategies-toolbar-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.scan-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.scan-toolbar-hint {
+  margin: 0;
+  font-size: 13px;
+}
+
+.scan-table-wrap {
+  margin-top: 0;
+}
+
+.scan-col-check {
+  width: 44px;
+  text-align: center;
+}
+
+.scan-strategy-table .scan-col-check input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.scan-row-disabled {
+  opacity: 0.48;
+}
+
+.scan-row-disabled .scan-row-cb {
+  cursor: not-allowed;
+}
+
+.scan-result-card .section-head {
+  margin-bottom: 8px;
+}
+
+.scan-result-card code {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.scan-progress-panel {
+  margin-bottom: 16px;
+}
+
+.scan-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.scan-progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(142, 197, 255, 0.85),
+    rgba(127, 227, 174, 0.72)
+  );
+  transition: width 220ms ease;
+}
+
+.scan-progress-label {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.scan-col-count {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.scan-count-btn {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-report-body {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.scan-report-summary p {
+  margin: 0 0 10px;
+}
+
+.scan-report-list {
+  margin: 0 0 12px;
+  padding-left: 1.2em;
+  font-size: 13px;
+}
+
+.scan-detail-intro {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.scan-detail-panel {
+  max-width: 720px;
+  max-height: min(88vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+.scan-detail-content {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.scan-detail-table {
+  font-size: 13px;
 }

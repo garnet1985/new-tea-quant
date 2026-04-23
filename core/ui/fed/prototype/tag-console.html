@@ -31,18 +31,471 @@
       </nav>
     </header>
 
-    <main class="content workbench-detail-wide">
+    <main class="content workbench-detail-wide tag-console-page">
       <header class="topbar">
         <div>
           <h1 class="title">标签工作台 / 配置</h1>
-          <p class="subtitle">页面骨架已就绪，内容区域暂留空。</p>
+          <p class="subtitle">左侧选择 scenario，右侧按重要级配置 tag settings。</p>
         </div>
+        <button class="button" type="button">保存当前 Scenario（占位）</button>
       </header>
 
-      <section class="card" aria-label="标签工作台内容占位">
-        <div style="height: 320px;"></div>
+      <section class="tag-console-layout">
+        <aside class="card tag-scenario-list-card">
+          <div class="section-head">
+            <h3>Scenario 列表</h3>
+          </div>
+          <div class="tag-scenario-list" id="scenario-list">
+            <button class="tag-scenario-item is-active" data-scenario="activity-ratio20" type="button">
+              <strong>activity-ratio20</strong>
+              <span class="muted">entity_based</span>
+            </button>
+            <button class="tag-scenario-item" data-scenario="momentum_mid_term" type="button">
+              <strong>momentum_mid_term</strong>
+              <span class="muted">entity_based</span>
+            </button>
+            <button class="tag-scenario-item" data-scenario="macro_regime" type="button">
+              <strong>macro_regime</strong>
+              <span class="muted">general</span>
+            </button>
+          </div>
+        </aside>
+
+        <div class="tag-console-main">
+          <section class="card">
+            <div class="section-head">
+              <h3>Scenario Meta</h3>
+              <span class="muted">当前 tag 定义数: <strong id="tag-count-value">2</strong></span>
+            </div>
+            <div class="settings-sections-row">
+              <span class="settings-section-chip settings-section-chip-active">scenario: <strong id="meta-scenario-name">activity-ratio20</strong></span>
+              <span class="settings-section-chip">display_name: <strong id="meta-display-name">活跃度（成交额/20日均值）</strong></span>
+              <span class="settings-section-chip">target_type: <strong id="meta-target-type">entity_based</strong></span>
+              <span class="settings-section-chip">is_enabled: <strong id="meta-enabled">false</strong></span>
+              <span class="settings-section-chip">update_mode: <strong id="meta-update-mode">incremental</strong></span>
+            </div>
+            <div class="tag-run-bar">
+              <button class="button" type="button" id="btn-run-tags">运行 Tags（占位）</button>
+              <span class="muted" id="tag-run-status">未运行</span>
+            </div>
+            <div class="scan-progress-panel tag-run-progress" id="tag-run-progress-wrap" hidden>
+              <div class="scan-progress-track">
+                <div class="scan-progress-bar" id="tag-run-progress-bar"></div>
+              </div>
+              <p class="muted scan-progress-label" id="tag-run-progress-label">准备中…</p>
+            </div>
+          </section>
+
+          <details class="card tag-accordion" open>
+            <summary class="tag-accordion-summary">核心配置</summary>
+            <div class="tag-accordion-body">
+              <section class="tag-core-section">
+                <div class="section-head">
+                  <h3>数据配置（Target + DataContract）</h3>
+                </div>
+                <div class="tag-mode-row">
+                  <label class="advanced-radio">
+                    <input type="radio" name="tag-target-type" value="entity_based" checked />
+                    <span>entity_based</span>
+                  </label>
+                  <label class="advanced-radio">
+                    <input type="radio" name="tag-target-type" value="general" />
+                    <span>general</span>
+                  </label>
+                </div>
+                <div id="entity-target-fields" class="tag-form-grid">
+                  <label>
+                    target_entity.type
+                    <select id="target-entity-type">
+                      <option value="stock_kline_daily">stock_kline_daily</option>
+                      <option value="stock_basic_info">stock_basic_info</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="general-axis-fields" class="tag-form-grid" hidden>
+                  <label>
+                    data.tag_time_axis_based_on
+                    <input id="tag-time-axis" type="text" value="macro.gdp" />
+                  </label>
+                </div>
+
+                <div class="tag-list-head">
+                  <span class="muted">data.required 依赖列表</span>
+                  <button class="button ghost-btn" type="button" id="btn-add-data-row">新增依赖（占位）</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>data_id</th>
+                        <th>params(JSON)</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="data-required-tbody">
+                      <tr>
+                        <td><input class="tag-table-input" type="text" value="stock.kline" /></td>
+                        <td><input class="tag-table-input" type="text" value='{"term":"daily","adjust":"qfq"}' /></td>
+                        <td><button class="button ghost-btn tag-row-remove-btn" type="button">删除</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="tag-core-section">
+                <div class="section-head">
+                  <h3>tag 定义（tags[]）</h3>
+                </div>
+                <div class="tag-list-head">
+                  <span class="muted">定义当前 scenario 会产出的 tags。</span>
+                  <button class="button ghost-btn" type="button" id="btn-add-tag-row">新增标签（占位）</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>name</th>
+                        <th>display_name</th>
+                        <th>description</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tags-tbody">
+                      <tr>
+                        <td><input class="tag-table-input" type="text" value="activity_high" /></td>
+                        <td><input class="tag-table-input" type="text" value="活跃度高" /></td>
+                        <td><input class="tag-table-input" type="text" value="amount / avg(amount,20d) >= high_threshold" /></td>
+                        <td><button class="button ghost-btn tag-row-remove-btn" type="button">删除</button></td>
+                      </tr>
+                      <tr>
+                        <td><input class="tag-table-input" type="text" value="activity_low" /></td>
+                        <td><input class="tag-table-input" type="text" value="活跃度低" /></td>
+                        <td><input class="tag-table-input" type="text" value="amount / avg(amount,20d) <= low_threshold" /></td>
+                        <td><button class="button ghost-btn tag-row-remove-btn" type="button">删除</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </details>
+
+          <details class="card tag-accordion">
+            <summary class="tag-accordion-summary">其他配置</summary>
+            <div class="tag-accordion-body">
+              <section class="tag-core-section">
+                <div class="section-head">
+                  <h3>场景信息（Scenario Meta）</h3>
+                </div>
+                <div class="tag-form-grid">
+                  <label>
+                    name（只读）
+                    <input id="scenario-name" type="text" value="activity-ratio20" readonly />
+                  </label>
+                  <label>
+                    display_name
+                    <input id="scenario-display-name" type="text" value="活跃度（成交额/20日均值）" />
+                  </label>
+                  <label class="tag-form-grid-full">
+                    description
+                    <input id="scenario-description" type="text" value="每天计算一次，但仅在状态变化时写入标签（delta log）。" />
+                  </label>
+                  <label>
+                    is_enabled
+                    <select id="scenario-enabled">
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  </label>
+                  <label>
+                    recompute
+                    <select id="scenario-recompute">
+                      <option value="false">false</option>
+                      <option value="true">true</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section class="tag-core-section">
+                <div class="section-head">
+                  <h3>更新方式与性能</h3>
+                </div>
+              <div class="tag-form-grid">
+                <label>
+                  update_mode
+                  <select id="update-mode">
+                    <option value="incremental">incremental</option>
+                    <option value="refresh">refresh</option>
+                  </select>
+                </label>
+                <label>
+                  incremental_required_records_before_as_of_date
+                  <input id="incremental-records" type="number" value="25" min="0" />
+                </label>
+                <label>
+                  performance.max_workers
+                  <input id="max-workers" type="text" value="auto" />
+                </label>
+                <label>
+                  core(JSON)
+                  <input id="core-json" type="text" value='{"window":20,"high_threshold":1.2,"low_threshold":0.7}' />
+                </label>
+              </div>
+              </section>
+            </div>
+          </details>
+        </div>
       </section>
     </main>
   </div>
+  <script>
+    (() => {
+      const scenarios = {
+        "activity-ratio20": {
+          name: "activity-ratio20",
+          displayName: "活跃度（成交额/20日均值）",
+          description: "每天计算一次，但仅在状态变化时写入标签（delta log）。",
+          enabled: "false",
+          recompute: "false",
+          targetType: "entity_based",
+          targetEntityType: "stock_kline_daily",
+          tagTimeAxis: "",
+          dataRequired: [{ dataId: "stock.kline", params: '{"term":"daily","adjust":"qfq"}' }],
+          tags: [
+            { name: "activity_high", displayName: "活跃度高", description: "amount / avg(amount,20d) >= high_threshold" },
+            { name: "activity_low", displayName: "活跃度低", description: "amount / avg(amount,20d) <= low_threshold" }
+          ],
+          updateMode: "incremental",
+          incrementalRecords: 25,
+          maxWorkers: "auto",
+          coreJson: '{"window":20,"high_threshold":1.2,"low_threshold":0.7}'
+        },
+        "momentum_mid_term": {
+          name: "momentum_mid_term",
+          displayName: "股票动量（60天）",
+          description: "动量因子为过去 60 天的累计收益。",
+          enabled: "true",
+          recompute: "false",
+          targetType: "entity_based",
+          targetEntityType: "stock_kline_daily",
+          tagTimeAxis: "",
+          dataRequired: [{ dataId: "stock.kline", params: '{"term":"daily","adjust":"qfq"}' }],
+          tags: [{ name: "momentum_60_days", displayName: "动量（60天）", description: "根据最远60个交易日计算出的动量因子" }],
+          updateMode: "incremental",
+          incrementalRecords: 60,
+          maxWorkers: "auto",
+          coreJson: '{"tag_interval":"monthly"}'
+        },
+        macro_regime: {
+          name: "macro_regime",
+          displayName: "宏观环境示例",
+          description: "general 类型 Tag 示例：根据宏观数据输出环境标签",
+          enabled: "false",
+          recompute: "false",
+          targetType: "general",
+          targetEntityType: "",
+          tagTimeAxis: "macro.gdp",
+          dataRequired: [
+            { dataId: "macro.gdp", params: "{}" },
+            { dataId: "macro.cpi", params: "{}" },
+            { dataId: "macro.pmi", params: "{}" }
+          ],
+          tags: [{ name: "macro_regime", displayName: "宏观环境", description: "示例：仅演示 general 模式配置与执行链路" }],
+          updateMode: "incremental",
+          incrementalRecords: 0,
+          maxWorkers: "auto",
+          coreJson: "{}"
+        }
+      };
+      let currentScenarioKey = "activity-ratio20";
+
+      const scenarioList = document.getElementById("scenario-list");
+      const targetTypeInputs = Array.from(document.querySelectorAll('input[name="tag-target-type"]'));
+      const entityFields = document.getElementById("entity-target-fields");
+      const generalFields = document.getElementById("general-axis-fields");
+      const dataTbody = document.getElementById("data-required-tbody");
+      const tagsTbody = document.getElementById("tags-tbody");
+      const btnAddDataRow = document.getElementById("btn-add-data-row");
+      const btnAddTagRow = document.getElementById("btn-add-tag-row");
+      const tagCountValue = document.getElementById("tag-count-value");
+      const btnRunTags = document.getElementById("btn-run-tags");
+      const tagRunStatus = document.getElementById("tag-run-status");
+      const tagRunProgressWrap = document.getElementById("tag-run-progress-wrap");
+      const tagRunProgressBar = document.getElementById("tag-run-progress-bar");
+      const tagRunProgressLabel = document.getElementById("tag-run-progress-label");
+      let simulatedRecordWrites = 0;
+
+      const scenarioNameInput = document.getElementById("scenario-name");
+      const scenarioDisplayNameInput = document.getElementById("scenario-display-name");
+      const scenarioDescriptionInput = document.getElementById("scenario-description");
+      const scenarioEnabledSelect = document.getElementById("scenario-enabled");
+      const scenarioRecomputeSelect = document.getElementById("scenario-recompute");
+      const targetEntityTypeSelect = document.getElementById("target-entity-type");
+      const tagTimeAxisInput = document.getElementById("tag-time-axis");
+      const updateModeSelect = document.getElementById("update-mode");
+      const incrementalRecordsInput = document.getElementById("incremental-records");
+      const maxWorkersInput = document.getElementById("max-workers");
+      const coreJsonInput = document.getElementById("core-json");
+      const metaScenarioName = document.getElementById("meta-scenario-name");
+      const metaDisplayName = document.getElementById("meta-display-name");
+      const metaTargetType = document.getElementById("meta-target-type");
+      const metaEnabled = document.getElementById("meta-enabled");
+      const metaUpdateMode = document.getElementById("meta-update-mode");
+
+      function updateTagCount() {
+        tagCountValue.textContent = String(tagsTbody.children.length);
+      }
+
+      function refreshTargetModeUI() {
+        const mode = targetTypeInputs.find((input) => input.checked)?.value || "entity_based";
+        entityFields.hidden = mode !== "entity_based";
+        generalFields.hidden = mode !== "general";
+      }
+
+      function wireRemoveButtons(scope) {
+        scope.querySelectorAll(".tag-row-remove-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const row = btn.closest("tr");
+            if (!row) return;
+            const tbody = row.parentElement;
+            if (tbody && tbody.children.length <= 1) return;
+            row.remove();
+            updateTagCount();
+          });
+        });
+      }
+
+      function renderDataRequiredRows(rows) {
+        dataTbody.innerHTML = "";
+        rows.forEach((item) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td><input class="tag-table-input" type="text" value="${item.dataId}" /></td>
+            <td><input class="tag-table-input" type="text" value='${item.params}' /></td>
+            <td><button class="button ghost-btn tag-row-remove-btn" type="button">删除</button></td>
+          `;
+          dataTbody.appendChild(row);
+        });
+        wireRemoveButtons(dataTbody);
+      }
+
+      function renderTagsRows(rows) {
+        tagsTbody.innerHTML = "";
+        rows.forEach((item) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td><input class="tag-table-input" type="text" value="${item.name}" /></td>
+            <td><input class="tag-table-input" type="text" value="${item.displayName}" /></td>
+            <td><input class="tag-table-input" type="text" value="${item.description}" /></td>
+            <td><button class="button ghost-btn tag-row-remove-btn" type="button">删除</button></td>
+          `;
+          tagsTbody.appendChild(row);
+        });
+        wireRemoveButtons(tagsTbody);
+        updateTagCount();
+      }
+
+      function selectTargetType(value) {
+        targetTypeInputs.forEach((input) => {
+          input.checked = input.value === value;
+        });
+        refreshTargetModeUI();
+      }
+
+      function renderScenario(key) {
+        const scenario = scenarios[key];
+        if (!scenario) return;
+        currentScenarioKey = key;
+
+        scenarioNameInput.value = scenario.name;
+        scenarioDisplayNameInput.value = scenario.displayName;
+        scenarioDescriptionInput.value = scenario.description;
+        scenarioEnabledSelect.value = scenario.enabled;
+        scenarioRecomputeSelect.value = scenario.recompute;
+        targetEntityTypeSelect.value = scenario.targetEntityType || "stock_kline_daily";
+        tagTimeAxisInput.value = scenario.tagTimeAxis;
+        updateModeSelect.value = scenario.updateMode;
+        incrementalRecordsInput.value = String(scenario.incrementalRecords);
+        maxWorkersInput.value = scenario.maxWorkers;
+        coreJsonInput.value = scenario.coreJson;
+        metaScenarioName.textContent = scenario.name;
+        metaDisplayName.textContent = scenario.displayName;
+        metaTargetType.textContent = scenario.targetType;
+        metaEnabled.textContent = scenario.enabled;
+        metaUpdateMode.textContent = scenario.updateMode;
+
+        selectTargetType(scenario.targetType);
+        renderDataRequiredRows(scenario.dataRequired);
+        renderTagsRows(scenario.tags);
+
+        scenarioList.querySelectorAll(".tag-scenario-item").forEach((btn) => {
+          btn.classList.toggle("is-active", btn.dataset.scenario === key);
+        });
+        simulatedRecordWrites = 0;
+        tagRunStatus.textContent = "未运行（0 条记录变更）";
+      }
+
+      function runProgress() {
+        tagRunProgressWrap.hidden = false;
+        tagRunProgressBar.style.width = "0%";
+        tagRunProgressLabel.textContent = "运行中 0%";
+        tagRunStatus.textContent = "运行中（正在处理 entity 与时间轴）";
+        let p = 0;
+        const timer = window.setInterval(() => {
+          p = Math.min(100, p + Math.floor(Math.random() * 16 + 8));
+          tagRunProgressBar.style.width = `${p}%`;
+          tagRunProgressLabel.textContent = `运行中 ${p}%`;
+          if (p >= 100) {
+            window.clearInterval(timer);
+            const processedEntities = Math.floor(Math.random() * 4 + 3);
+            const processedDates = Math.floor(Math.random() * 26 + 12);
+            const writes = Math.floor(Math.random() * 18 + 8);
+            simulatedRecordWrites = writes;
+            tagRunStatus.textContent = `运行完成：处理 ${processedEntities} 个实体 / ${processedDates} 个日期，新增或更新 ${writes} 条 tag 记录`;
+          }
+        }, 240);
+      }
+
+      btnAddDataRow.addEventListener("click", () => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><input class="tag-table-input" type="text" value="macro.cpi" /></td>
+          <td><input class="tag-table-input" type="text" value="{}" /></td>
+          <td><button class="button ghost-btn tag-row-remove-btn" type="button">删除</button></td>
+        `;
+        dataTbody.appendChild(row);
+        wireRemoveButtons(row);
+      });
+
+      btnAddTagRow.addEventListener("click", () => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td><input class="tag-table-input" type="text" value="new_tag" /></td>
+          <td><input class="tag-table-input" type="text" value="新标签" /></td>
+          <td><input class="tag-table-input" type="text" value="" /></td>
+          <td><button class="button ghost-btn tag-row-remove-btn" type="button">删除</button></td>
+        `;
+        tagsTbody.appendChild(row);
+        wireRemoveButtons(row);
+        updateTagCount();
+      });
+
+      targetTypeInputs.forEach((input) => {
+        input.addEventListener("change", refreshTargetModeUI);
+      });
+
+      scenarioList.querySelectorAll(".tag-scenario-item").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          renderScenario(btn.dataset.scenario);
+        });
+      });
+
+      btnRunTags.addEventListener("click", runProgress);
+
+      renderScenario(currentScenarioKey);
+    })();
+  </script>
 </body>
 </html>

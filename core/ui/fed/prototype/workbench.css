@@ -942,6 +942,102 @@ main.content.workbench-detail-wide {
   font-size: 13px;
 }
 
+/* advanced.html 备份与恢复 */
+.advanced-page {
+  display: grid;
+  gap: 14px;
+}
+
+#backup-restore {
+  display: grid;
+  gap: 14px;
+}
+
+.advanced-tabbar {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.advanced-tab {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(230, 233, 239, 0.9);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.advanced-tab.is-active {
+  border-color: rgba(142, 197, 255, 0.45);
+  background: rgba(142, 197, 255, 0.12);
+  color: #fff;
+}
+
+.advanced-tab-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.advanced-tab-panel[hidden] {
+  display: none;
+}
+
+.advanced-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.advanced-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(230, 233, 239, 0.9);
+}
+
+.advanced-form-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 360px);
+}
+
+.advanced-form-grid[hidden] {
+  display: none;
+}
+
+.advanced-form-grid label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.advanced-form-grid select {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 13, 18, 0.58);
+  color: rgba(242, 245, 249, 0.95);
+  padding: 9px 10px;
+}
+
+.advanced-progress-wrap {
+  margin: 2px 0 0;
+}
+
+.advanced-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.advanced-result {
+  margin: 0;
+  font-size: 13px;
+}
+
 /* Setup 向导 setup.html */
 .setup-page {
   display: grid;

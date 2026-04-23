@@ -37,6 +37,8 @@ body {
 }
 
 .top-nav {
+  max-width: 1320px;
+  margin: 0 auto;
   border: 1px solid transparent;
   border-top: 0;
   border-left: 0;

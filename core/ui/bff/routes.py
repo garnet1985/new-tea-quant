@@ -2,7 +2,7 @@
 BFF API 路由定义
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from .api import BFFApi
 
 # 创建蓝图

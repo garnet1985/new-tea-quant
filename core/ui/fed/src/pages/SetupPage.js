@@ -28,7 +28,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   getSetupDefinition,
   getImportDataProgress,
@@ -49,9 +49,15 @@ const STEP_STATUS = {
   FAILED: 'failed',
 };
 const DEFAULT_STEP_ID = 'db_connection';
+const EMPTY_IMPORT_PROGRESS = {
+  running: false,
+  totalTables: 0,
+  completedCount: 0,
+  currentTable: '',
+  percent: 0,
+};
 
 function SetupPage() {
-  const navigate = useNavigate();
   const [definition, setDefinition] = useState([]);
   const [status, setStatus] = useState(null);
   const [flowStage, setFlowStage] = useState('input');
@@ -68,13 +74,7 @@ function SetupPage() {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [userspacePathExists, setUserspacePathExists] = useState(false);
   const [checkingUserspacePath, setCheckingUserspacePath] = useState(false);
-  const [importProgress, setImportProgress] = useState({
-    running: false,
-    totalTables: 0,
-    completedCount: 0,
-    currentTable: '',
-    percent: 0,
-  });
+  const [importProgress, setImportProgress] = useState(EMPTY_IMPORT_PROGRESS);
 
   const restoreFlowStage = (defs, current) => {
     const stepStates = current?.stepStates || [];
@@ -333,13 +333,7 @@ function SetupPage() {
     setErrorMessage('');
     setFailedStep('');
     setPausedStep('');
-    setImportProgress({
-      running: false,
-      totalTables: 0,
-      completedCount: 0,
-      currentTable: '',
-      percent: 0,
-    });
+    setImportProgress(EMPTY_IMPORT_PROGRESS);
     setProgressText('准备执行安装步骤...');
     const result = await runningWithProgress((onProgress) => startSetupWorkflow(onProgress));
     consumePipelineResult(result, definition[0]?.id || DEFAULT_STEP_ID);
@@ -409,13 +403,7 @@ function SetupPage() {
     setFormValues({});
     setUserspacePathEditable(false);
     setUserspacePathExists(false);
-    setImportProgress({
-      running: false,
-      totalTables: 0,
-      completedCount: 0,
-      currentTable: '',
-      percent: 0,
-    });
+    setImportProgress(EMPTY_IMPORT_PROGRESS);
   };
 
   useEffect(() => {
@@ -702,7 +690,7 @@ function SetupPage() {
                 安装流程已完成。你可以进入主业务页面。
               </Typography>
               <Stack direction="row" spacing={2}>
-                <Button component={RouterLink} to="/workbench" variant="contained" onClick={() => navigate('/workbench')}>
+                <Button component={RouterLink} to="/workbench" variant="contained">
                   前往策略工作台
                 </Button>
                 <Button component={RouterLink} to="/settings" variant="outlined">

@@ -1,0 +1,16 @@
+{
+  "id": "import_data",
+  "name": "Init Data Import",
+  "description": "导入初始化数据包，完成系统基础数据准备。",
+  "scriptEntry": "setup/steps/import_data/install.py",
+  "requiresUserInput": false,
+  "inputSchema": [],
+  "retryPolicy": {
+    "mode": "retry_same_step"
+  },
+  "dependencies": [
+    "db_connection"
+  ],
+  "order": 5,
+  "uiVisible": true
+}

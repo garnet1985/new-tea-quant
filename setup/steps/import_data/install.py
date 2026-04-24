@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """
 安装流程步骤：导入初始化数据（必跑）。
-
-行为：
-- 若 setup/init_data 无数据包：结束本步骤并明确提示如何导入
-- 若有数据包：完整性检查 -> 创建清单 -> 按现有逻辑导入并显示进度
 """
 from __future__ import annotations
 
@@ -14,13 +10,13 @@ import os
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 os.chdir(_REPO_ROOT)
 
 from setup.setup import NewTeaQuantSetup
-from setup.setup_data.installer import SetupDataInstaller
+from setup.steps.import_data.installer import SetupDataInstaller
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
@@ -32,7 +28,6 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    # 显示 setup_data 与底层 import 的 INFO 进度日志（大表分批导入会持续输出）。
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
     inst = SetupDataInstaller(table_prefix="")

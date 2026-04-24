@@ -1,0 +1,14 @@
+{
+  "id": "sys_req_check",
+  "name": "系统环境检查",
+  "description": "检查 Python 运行时是否满足最低版本要求。",
+  "scriptEntry": "setup/steps/sys_req_check/install.py",
+  "requiresUserInput": false,
+  "inputSchema": [],
+  "retryPolicy": {
+    "mode": "retry_same_step"
+  },
+  "dependencies": [],
+  "order": 1,
+  "uiVisible": false
+}

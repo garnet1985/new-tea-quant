@@ -14,7 +14,6 @@ _ARCHIVE_NAME = re.compile(
 
 
 def _should_skip_archive_path(path: Path) -> bool:
-    """跳过 macOS 资源分叉、__MACOSX 等无效归档。"""
     if "__MACOSX" in path.parts:
         return True
     name = path.name
@@ -42,9 +41,6 @@ def parse_archive_table_and_part(name: str) -> Optional[Tuple[str, Optional[int]
 
 
 def collect_table_archives(root: Path) -> Dict[str, List[Path]]:
-    """
-    扫描 root 下所有数据归档，按表名分组；同一表多个 part 按序号排序。
-    """
     buckets: Dict[str, List[Tuple[int, Path]]] = {}
     if not root.exists():
         return {}

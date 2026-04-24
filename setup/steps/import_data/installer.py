@@ -3,7 +3,7 @@ Init Data 导入流程（必跑步骤的执行体）。
 
 约定：
 - 数据包目录：setup/init_data
-- 导入逻辑目录：setup/setup_data
+- 导入逻辑目录：setup/steps/import_data
 - 导入方式：目标表 DELETE 再 INSERT（沿用现有 import_data 逻辑）
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ PROGRESS_FILE = ".import_progress.json"
 
 
 def default_init_data_dir() -> Path:
-    return Path(__file__).resolve().parent.parent / DEFAULT_INIT_SUBDIR
+    return Path(__file__).resolve().parent.parent.parent / DEFAULT_INIT_SUBDIR
 
 
 def resolve_init_data_dir_with_subdir(base: Path, subdir: str) -> Path:
@@ -255,9 +255,8 @@ class SetupDataInstaller:
             dt_setup = time.perf_counter() - t0_all
             NewTeaQuantSetup.print_check_item(
                 "done",
-                f"所有表已在当前数据包指纹下导入完成（setup_data 本步 {dt_setup:.1f}s）",
+                f"所有表已在当前数据包指纹下导入完成（import_data 本步 {dt_setup:.1f}s）",
             )
-            # 断点文件仅服务导入过程；全部完成后删除。
             self._clear_progress()
             return
 
@@ -292,7 +291,6 @@ class SetupDataInstaller:
                 progress_payload["updated_at"] = int(time.time())
                 self._save_progress(progress_payload)
             except KeyboardInterrupt:
-                # 当前表视为未完成：不写 done，保持可重跑整表。
                 progress_payload["completed_tables"].pop(logical, None)
                 progress_payload["in_progress_table"] = None
                 progress_payload["interrupted_at"] = int(time.time())
@@ -306,7 +304,6 @@ class SetupDataInstaller:
             except Exception as e:
                 logger.exception("导入失败: %s -> %s", logical, target)
                 errors.append((logical, str(e)))
-                # 当前表视为未完成：不写 done，保持可重跑整表。
                 progress_payload["completed_tables"].pop(logical, None)
                 progress_payload["in_progress_table"] = None
                 progress_payload["updated_at"] = int(time.time())
@@ -324,13 +321,12 @@ class SetupDataInstaller:
         if errors:
             NewTeaQuantSetup.print_check_item(
                 "fail",
-                f"初始化数据导入存在失败项（导入各表 {dt_import_tables:.1f}s，setup_data 全程 {dt_setup_all:.1f}s）",
+                f"初始化数据导入存在失败项（导入各表 {dt_import_tables:.1f}s，import_data 全程 {dt_setup_all:.1f}s）",
             )
             raise RuntimeError(f"部分表导入失败: {errors}")
 
         NewTeaQuantSetup.print_check_item(
             "done",
-            f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；setup_data 全程 {dt_setup_all:.1f}s）",
+            f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；import_data 全程 {dt_setup_all:.1f}s）",
         )
-        # 全部成功后清理断点文件。
         self._clear_progress()

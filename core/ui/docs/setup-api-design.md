@@ -19,7 +19,7 @@
 {
   "id": "db_connection",
   "name": "DB 配置检查/填写",
-  "description": "对应 setup/init_database 的前置配置检查。",
+  "description": "对应 setup/steps/db_connection 的前置配置检查。",
   "requiredUserInputs": [
     {
       "key": "dbType",
@@ -63,10 +63,14 @@
   "isReady": false,
   "stepStates": [
     { "stepId": "resolve_deps", "status": "success", "errorMessage": "" },
-    { "stepId": "db_connection", "status": "waiting_input", "errorMessage": "" },
-    { "stepId": "seed_data", "status": "not_started", "errorMessage": "" }
+    { "stepId": "init_userspace", "status": "waiting_input", "errorMessage": "" },
+    { "stepId": "db_connection", "status": "not_started", "errorMessage": "" },
+    { "stepId": "import_data", "status": "not_started", "errorMessage": "" }
   ],
   "inputsByStep": {
+    "init_userspace": {
+      "userspaceTargetPath": ""
+    },
     "db_connection": {
       "dbType": "postgresql",
       "host": "localhost",
@@ -96,13 +100,21 @@
       {
         "id": "resolve_deps",
         "name": "依赖安装",
-        "description": "对应 setup/resolve_deps 步骤。",
+        "description": "对应 setup/steps/resolve_deps 步骤。",
         "requiredUserInputs": []
+      },
+      {
+        "id": "init_userspace",
+        "name": "Init Userspace",
+        "description": "对应 setup/steps/init_userspace 步骤。",
+        "requiredUserInputs": [
+          { "key": "userspaceTargetPath", "label": "Userspace Target Path", "type": "text", "required": false }
+        ]
       },
       {
         "id": "db_connection",
         "name": "DB 配置检查/填写",
-        "description": "对应 setup/init_database 的前置配置检查。",
+        "description": "对应 setup/steps/db_connection 的前置配置检查。",
         "requiredUserInputs": [
           { "key": "dbType", "label": "Database Type", "type": "select", "required": true, "defaultValue": "postgresql", "options": [{ "label": "postgresql", "value": "postgresql" }, { "label": "mysql", "value": "mysql" }] },
           { "key": "host", "label": "Host", "type": "text", "required": true },
@@ -114,9 +126,9 @@
         ]
       },
       {
-        "id": "seed_data",
-        "name": "初始数据导入",
-        "description": "对应 setup/setup_data 步骤。",
+        "id": "import_data",
+        "name": "Init Data Import",
+        "description": "对应 setup/steps/import_data 步骤。",
         "requiredUserInputs": []
       }
     ]
@@ -156,7 +168,7 @@
   "status": "ok",
   "message": {
     "kind": "paused",
-    "pausedStepId": "db_connection",
+    "pausedStepId": "init_userspace",
     "snapshot": {}
   }
 }

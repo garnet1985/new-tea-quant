@@ -21,13 +21,27 @@ export const SETUP_DEFINITION = [
   {
     id: 'resolve_deps',
     name: '依赖安装',
-    description: '对应 setup/resolve_deps 步骤。',
+    description: '对应 setup/steps/resolve_deps 步骤。',
     requiredUserInputs: [],
+  },
+  {
+    id: 'init_userspace',
+    name: 'Init Userspace',
+    description: '对应 setup/steps/init_userspace 步骤。',
+    requiredUserInputs: [
+      {
+        key: 'userspaceTargetPath',
+        label: 'Userspace Target Path',
+        type: 'text',
+        required: false,
+        defaultValue: '',
+      },
+    ],
   },
   {
     id: 'db_connection',
     name: 'DB 配置检查/填写',
-    description: '对应 setup/init_database 的前置配置检查。',
+    description: '对应 setup/steps/db_connection 的前置配置检查。',
     requiredUserInputs: [
       {
         key: 'dbType',
@@ -49,9 +63,9 @@ export const SETUP_DEFINITION = [
     ],
   },
   {
-    id: 'seed_data',
-    name: '初始数据导入',
-    description: '对应 setup/setup_data 步骤。',
+    id: 'import_data',
+    name: 'Init Data Import',
+    description: '对应 setup/steps/import_data 步骤。',
     requiredUserInputs: [],
   },
 ];
@@ -101,6 +115,9 @@ const defaultStatus = {
   isReady: false,
   stepStates: createDefaultStepStates(),
   inputsByStep: {
+    init_userspace: {
+      userspaceTargetPath: '',
+    },
     db_connection: applyDbDefaults({}),
   },
   debug: {
@@ -288,6 +305,19 @@ function resetFromStep(status, stepId) {
 
 export async function getSetupDefinition() {
   await wait();
+  try {
+    const resp = await fetch('/api/v1/setup/definition');
+    if (!resp.ok) throw new Error(`http_${resp.status}`);
+    const json = await resp.json();
+    if (json?.status === 'ok' && Array.isArray(json?.message?.steps)) {
+      return json.message.steps.map((step) => ({
+        ...step,
+        requiredUserInputs: step.requiredUserInputs || step.inputSchema || [],
+      }));
+    }
+  } catch (_error) {
+    // Fallback to local mock when BFF is unavailable.
+  }
   return SETUP_DEFINITION;
 }
 

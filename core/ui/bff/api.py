@@ -5,6 +5,7 @@ from flask import jsonify
 from .APIs.stock_api import StockApi
 from .APIs.investment_api import InvestmentApi
 from core.modules.data_manager import DataManager
+from setup.meta_loader import load_setup_step_meta
 
 
 class BFFApi:
@@ -42,6 +43,16 @@ class BFFApi:
             "success": True,
             "message": "BFF API 运行正常",
             "timestamp": "当前时间"
+        })
+
+    def get_setup_definition(self):
+        """获取 setup 步骤定义（来自 setup/*/meta.json）"""
+        steps = load_setup_step_meta(ui_only=True)
+        return jsonify({
+            "status": "ok",
+            "message": {
+                "steps": steps
+            }
         })
     
     # ==================== 股票相关 API ====================

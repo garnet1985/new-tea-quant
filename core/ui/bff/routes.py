@@ -22,6 +22,12 @@ def health_check():
     """健康检查接口"""
     return get_bff_api().health_check()
 
+
+@api_bp.route('/v1/setup/definition', methods=['GET'])
+def get_setup_definition():
+    """获取 setup 步骤定义"""
+    return get_bff_api().get_setup_definition()
+
 @api_bp.route('/stock/kline/<stock_id>/<term>', methods=['GET'])
 def get_stock_kline(stock_id, term):
     """获取股票K线数据"""

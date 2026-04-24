@@ -1,0 +1,23 @@
+{
+  "id": "init_userspace",
+  "name": "Init Userspace",
+  "description": "从初始化 userspace zip 解压到目标目录，并写入路径状态供 ProjectContext 使用。",
+  "scriptEntry": "setup/steps/init_userspace/install.py",
+  "requiresUserInput": true,
+  "inputSchema": [
+    {
+      "key": "userspaceTargetPath",
+      "label": "Userspace Target Path",
+      "type": "text",
+      "required": false
+    }
+  ],
+  "retryPolicy": {
+    "mode": "input_required_on_failure"
+  },
+  "dependencies": [
+    "resolve_deps"
+  ],
+  "order": 3,
+  "uiVisible": true
+}

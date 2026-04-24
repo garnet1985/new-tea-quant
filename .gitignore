@@ -17,25 +17,16 @@ ENV/
 env.bak/
 venv.bak/
 
-########################
-# Database Configuration (sensitive)
-########################
-
-config/database/db_config.json
-config/database/db_conf.json
-config/database/pg_config.json
-
-# User configuration files (sensitive)
-userspace/config/**/*.json
-userspace/config/**/*.example.json
+# User data directory (all ignored)
+userspace/
 
 ########################
 # Data & Cache
 ########################
 
 backup
-userspace/backup/data/
 .pytest_cache/
+.ntq/
 
 # setup/init_data：除 example 演示数据 zip 外全部忽略（解压目录、其它 zip、断点文件等）
 setup/init_data/*
@@ -44,8 +35,6 @@ setup/init_data/*
 ########################
 # Strategy Results
 ########################
-
-userspace/strategies/**/results/
 
 ########################
 # Node / Frontend

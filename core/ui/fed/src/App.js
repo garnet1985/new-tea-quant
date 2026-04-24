@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
-import SetupPage from './pages/SetupPage';
+import SetupPage from './pages/setupPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import SetupGuard from './components/SetupGuard';
 import MainLayout from './layouts/MainLayout';

@@ -47,4 +47,4 @@ if __name__ == "__main__":
     port = int(os.getenv("NTQ_BFF_PORT", "5001"))
     debug = os.getenv("NTQ_BFF_DEBUG", "false").lower() == "true"
 
-    app.run(host=host, port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug, threaded=True)

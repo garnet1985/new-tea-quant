@@ -19,6 +19,11 @@ class PathManager:
     
     _root_cache: Optional[Path] = None
     _userspace_cache: Optional[Path] = None
+
+    @staticmethod
+    def invalidate_userspace_cache() -> None:
+        """清理 userspace 路径缓存。用于 setup 运行时路径切换后强制重读。"""
+        PathManager._userspace_cache = None
     
     @staticmethod
     def get_root() -> Path:

@@ -246,6 +246,8 @@ class SetupDataInstaller:
             "data_dir": str(data_dir),
             "updated_at": int(time.time()),
             "completed_tables": completed.copy(),
+            "total_tables": len(importable),
+            "table_order": [r["logical"] for r in importable],
             "in_progress_table": None,
             "interrupted_at": None,
         }

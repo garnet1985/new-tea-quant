@@ -18,11 +18,12 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from setup.setup import NewTeaQuantSetup
+from core.infra.project_context.path_manager import PathManager
 
 # 允许用户直接运行该步骤，也默认使用项目 venv
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
-USER_DB_CONFIG_DIR = _REPO_ROOT / "userspace" / "config" / "database"
+USER_DB_CONFIG_DIR = PathManager.userspace() / "config" / "database"
 
 
 def _mask_password(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -229,6 +230,10 @@ def main() -> int:
                     return 1
             else:
                 NewTeaQuantSetup.print_check_ok(f"数据库 {db_cfg.get('database')!r} 已存在（跳过创建）")
+                NewTeaQuantSetup.print_check_item(
+                    "warn",
+                    "检测到已存在数据库：后续初始化步骤可能写入/覆盖初始化表数据，请先确认目标库是否正确。",
+                )
 
         if db_type == "mysql" and isinstance(db_cfg, dict):
             try:
@@ -248,6 +253,10 @@ def main() -> int:
                     return 1
             else:
                 NewTeaQuantSetup.print_check_ok(f"数据库 {db_cfg.get('database')!r} 已存在（跳过创建）")
+                NewTeaQuantSetup.print_check_item(
+                    "warn",
+                    "检测到已存在数据库：后续初始化步骤可能写入/覆盖初始化表数据，请先确认目标库是否正确。",
+                )
 
         from core.infra.db.db_manager import DatabaseManager
         db = DatabaseManager(config=config, is_verbose=False)

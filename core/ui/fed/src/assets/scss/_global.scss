@@ -1,0 +1,38 @@
+@use 'variables' as *;
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: $ntq-body-min-width;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+#root {
+  min-height: 100%;
+}
+
+// 与 $ntq-content-width / $ntq-content-max-width 一致；用于 header 内条、<main>、footer 内条，保持同一竖线对齐
+// 全宽条（AppBar、footer 顶边等）用满屏宽，其内部再包一层本 class 限制内容宽度
+.ntq-content-inner,
+.ntq-content {
+  width: $ntq-content-width;
+  max-width: $ntq-content-max-width;
+  margin-left: auto;
+  margin-right: auto;
+}

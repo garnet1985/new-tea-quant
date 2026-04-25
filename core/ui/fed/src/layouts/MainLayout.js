@@ -1,14 +1,14 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { Outlet } from 'react-router-dom';
-import AppNavigation from '../components/AppNavigation';
-import AppFooter from '../components/AppFooter';
+import AppNavigation from '../components/appNavigation';
+import AppFooter from '../components/appFooter';
 
 function MainLayout() {
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppNavigation />
-      <Box component="main" sx={{ flex: 1 }}>
+      <Box component="main" className="ntq-content-inner" sx={{ flex: 1 }}>
         <Outlet />
       </Box>
       <AppFooter />

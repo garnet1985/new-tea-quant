@@ -1,0 +1,6 @@
+// 需要全局变量时：@use '../../assets/scss/variables' as *;
+
+// 策略列表：页面级 scss 与模块同目录
+.strategy-list-page {
+  min-width: 0; // 避免 flex 子项内 DataGrid 撑破主内容区（.ntq-content-inner）
+}

@@ -1,20 +1,5 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-* {
-  box-sizing: border-box;
-}
+/* 全局 base（body、字体、#root、.ntq-content-inner）在 src/assets/scss/_global.scss */
+/* 以下为历史/页面级 class，后续可逐页迁入模块 scss */
 
 /* Container - 可以根据需要选择是否使用 */
 .container {

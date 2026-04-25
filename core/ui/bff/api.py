@@ -3,11 +3,8 @@
 from flask import jsonify
 from pathlib import Path
 
-from .APIs.stock_api import StockApi
-from .APIs.investment_api import InvestmentApi
 from .setup_runtime import SetupRuntimeManager
 from core.infra.project_context.path_manager import PathManager
-from core.modules.data_manager import DataManager
 from setup.meta_loader import load_setup_step_meta
 
 
@@ -16,35 +13,7 @@ class BFFApi:
     
     def __init__(self):
         """初始化 BFF API。"""
-        # DataManager 改为惰性初始化，避免 /api/health 在 setup 前强依赖数据库。
-        self._data_mgr = None
-        
-        # 初始化业务API（惰性创建）
-        self._stock_api = None
-        self._investment_api = None
         self._setup_runtime = SetupRuntimeManager()
-
-    @property
-    def data_mgr(self):
-        """DataManager（延迟初始化）"""
-        if self._data_mgr is None:
-            self._data_mgr = DataManager(is_verbose=False)
-        return self._data_mgr
-    
-    @property
-    def stock_api(self):
-        """股票API（延迟初始化）"""
-        if self._stock_api is None:
-            self._stock_api = StockApi(data_mgr=self.data_mgr)
-        return self._stock_api
-    
-    @property
-    def investment_api(self):
-        """投资API（延迟初始化）"""
-        if self._investment_api is None:
-            # InvestmentApi 依赖 DataManager；这里与 stock_api 共享同一实例。
-            self._investment_api = InvestmentApi(data_mgr=self.data_mgr)
-        return self._investment_api
     
     # ==================== 健康检查 ====================
     
@@ -114,89 +83,36 @@ class BFFApi:
 
     def get_import_data_progress(self):
         return jsonify(self._setup_runtime.get_import_data_progress())
-    
-    # ==================== 股票相关 API ====================
-    
-    def get_stock_kline(self, stock_id: str, term: str = 'daily'):
-        """获取股票K线数据"""
-        return self.stock_api.get_stock_kline(stock_id, term)
-    
-    def get_stock_scan(self, strategy: str, stock_id: str):
-        """获取股票策略扫描结果"""
-        return self.stock_api.get_stock_scan(strategy, stock_id)
-    
-    def get_stock_simulate(self, strategy: str, stock_id: str):
-        """获取股票策略模拟结果"""
-        return self.stock_api.get_stock_simulate(strategy, stock_id)
 
-    def get_stock_hl_analysis(self, stock_id: str):
-        """获取股票 HL 策略分析结果。"""
-        return self.stock_api.get_stock_hl_analysis(stock_id)
+    # ==================== 策略工作台（v1） ====================
 
-    def get_stock_all_historic_lows(self, stock_id: str):
-        """获取股票所有历史低点。"""
-        return self.stock_api.get_stock_all_historic_lows(stock_id)
-    
-    # ==================== 投资相关 API ====================
-    
-    def get_all_closed_trades(self):
-        """获取所有已关闭的交易"""
-        return self.investment_api.get_all_closed_trades()
+    def get_strategies(self):
+        """
+        获取已发现策略列表（策略工作台 list 页使用）。
 
-    def get_all_open_trades(self):
-        """获取所有进行中的交易。"""
-        return self.investment_api.get_all_open_trades()
-    
-    def get_open_positions(self):
-        """获取当前持仓（兼容旧方法，转发到 open trades）。"""
-        return self.investment_api.get_all_open_trades()
-    
-    def get_trades_by_stock(self, stock_id: str):
-        """按股票获取交易记录"""
-        return self.investment_api.get_trades_by_stock(stock_id)
-    
-    def get_investment_overview(self):
-        """获取投资概览（当前 BFF 未提供专用聚合，先返回 open trades）。"""
-        return self.investment_api.get_all_open_trades()
+        返回结构与前端 requestJson 约定一致：status=ok，列表挂在 message.strategies。
+        """
+        try:
+            from core.modules.strategy.helpers.strategy_discovery_helper import StrategyDiscoveryHelper
 
-    def get_trade_detail(self, trade_id: int):
-        """获取单笔交易详情。"""
-        return self.investment_api.get_trade_detail(trade_id)
+            strategies = []
+            discovered = StrategyDiscoveryHelper.discover_strategies()
+            for _name, info in (discovered or {}).items():
+                meta = getattr(info.settings, "meta", None)
+                strategies.append({
+                    "key": str(info.folder.name),
+                    "name": str(getattr(meta, "name", info.name)),
+                    "description": str(getattr(meta, "description", "") or ""),
+                    "is_enabled": bool(getattr(meta, "is_enabled", False)),
+                    "is_valid": True,
+                })
 
-    def get_trade_operations(self, trade_id: int):
-        """获取交易操作列表。"""
-        return self.investment_api.get_trade_operations(trade_id)
-
-    def create_trade(self, data: dict):
-        """创建交易。"""
-        return self.investment_api.create_trade(data)
-
-    def create_operation(self, trade_id: int, data: dict):
-        """创建交易操作。"""
-        return self.investment_api.create_operation(trade_id, data)
-
-    def get_strategies_list(self):
-        """获取策略列表。"""
-        return self.investment_api.get_strategies_list()
-
-    def search_stocks(self, keyword: str):
-        """搜索股票（自动完成）。"""
-        return self.investment_api.search_stocks(keyword)
-
-    def update_trade(self, trade_id: int, data: dict):
-        """更新交易。"""
-        return self.investment_api.update_trade(trade_id, data)
-
-    def delete_trade(self, trade_id: int):
-        """删除交易。"""
-        return self.investment_api.delete_trade(trade_id)
-
-    def update_operation(self, trade_id: int, operation_id: int, data: dict):
-        """更新交易操作。"""
-        return self.investment_api.update_operation(trade_id, operation_id, data)
-
-    def delete_operation(self, trade_id: int, operation_id: int):
-        """删除交易操作。"""
-        return self.investment_api.delete_operation(trade_id, operation_id)
+            strategies.sort(key=lambda x: x.get("key", ""))
+            return jsonify({"status": "ok", "message": {"strategies": strategies}})
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": {"detail": f"获取策略列表失败: {str(e)}"},
+            }), 500
 
 

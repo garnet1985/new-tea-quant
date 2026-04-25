@@ -27,12 +27,10 @@ def create_app():
             "version": "1.0.0",
             "endpoints": {
                 "health": "/api/health",
-                "stock_kline": "/api/stock/kline/<stock_id>/<term>",
-                "stock_simulate": "/api/stock/simulate/<strategy>/<stock_id>",
-                "stock_scan": "/api/stock/scan/<strategy>/<stock_id>",
-                "investment_trades": "/api/investment/trades",
-                "investment_trade_detail": "/api/investment/trades/<trade_id>",
-                "investment_operations": "/api/investment/trades/<trade_id>/operations"
+                "setup_definition": "/api/v1/setup/definition",
+                "setup_status": "/api/v1/setup/status",
+                "setup_start": "/api/v1/setup/start",
+                "strategies": "/api/v1/strategies"
             },
             "docs": "所有API端点都在 /api 前缀下"
         }

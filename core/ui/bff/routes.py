@@ -22,6 +22,7 @@ def health_check():
     """健康检查接口"""
     return get_bff_api().health_check()
 
+# ==================== v1 - 新版 API（当前仅保留 setup + strategies） ====================
 
 @api_bp.route('/v1/setup/definition', methods=['GET'])
 def get_setup_definition():
@@ -82,93 +83,7 @@ def get_import_data_progress():
     """读取 import_data 步骤进度（表级）"""
     return get_bff_api().get_import_data_progress()
 
-@api_bp.route('/stock/kline/<stock_id>/<term>', methods=['GET'])
-def get_stock_kline(stock_id, term):
-    """获取股票K线数据"""
-    return get_bff_api().get_stock_kline(stock_id, term)
-
-@api_bp.route('/stock/scan/<strategy>/<stock_id>', methods=['GET'])
-def get_stock_scan(strategy, stock_id):
-    """获取股票策略扫描结果"""
-    return get_bff_api().get_stock_scan(strategy, stock_id)
-
-@api_bp.route('/stock/simulate/<strategy>/<stock_id>', methods=['GET'])
-def get_stock_simulate(strategy, stock_id):
-    """获取股票策略模拟结果"""
-    return get_bff_api().get_stock_simulate(strategy, stock_id)
-
-@api_bp.route('/stock/hl-analysis/<stock_id>', methods=['GET'])
-def get_stock_hl_analysis(stock_id):
-    """获取股票HL策略分析结果"""
-    return get_bff_api().get_stock_hl_analysis(stock_id)
-
-@api_bp.route('/stock/all-historic-lows/<stock_id>', methods=['GET'])
-def get_stock_all_historic_lows(stock_id):
-    """获取股票所有计算出的历史低点"""
-    return get_bff_api().get_stock_all_historic_lows(stock_id)
-
-# ==================== 投资跟踪 API ====================
-
-@api_bp.route('/investment/trades', methods=['GET'])
-def get_all_open_trades():
-    """获取所有正在进行中的交易（复数）"""
-    return get_bff_api().get_all_open_trades()
-
-@api_bp.route('/investment/trades/history', methods=['GET'])
-def get_all_closed_trades():
-    """获取所有已关闭的交易（历史记录）"""
-    return get_bff_api().get_all_closed_trades()
-
-@api_bp.route('/investment/trades/<int:trade_id>', methods=['GET'])
-def get_trade_detail(trade_id):
-    """获取单个交易详情"""
-    return get_bff_api().get_trade_detail(trade_id)
-
-@api_bp.route('/investment/trades/<int:trade_id>/operations', methods=['GET'])
-def get_trade_operations(trade_id):
-    """获取某个交易的所有操作记录（复数）"""
-    return get_bff_api().get_trade_operations(trade_id)
-
-@api_bp.route('/investment/trades', methods=['POST'])
-def create_trade():
-    """创建一笔交易（单数操作，复数路径）"""
-    data = request.get_json()
-    return get_bff_api().create_trade(data)
-
-@api_bp.route('/investment/trades/<int:trade_id>/operations', methods=['POST'])
-def create_operation(trade_id):
-    """创建一笔操作（单数操作，复数路径）"""
-    data = request.get_json()
-    return get_bff_api().create_operation(trade_id, data)
-
-@api_bp.route('/investment/strategies', methods=['GET'])
-def get_strategies_list():
-    """获取可用策略列表"""
-    return get_bff_api().get_strategies_list()
-
-@api_bp.route('/investment/stocks/search/<keyword>', methods=['GET'])
-def search_stocks(keyword):
-    """搜索股票（用于自动完成）"""
-    return get_bff_api().search_stocks(keyword)
-
-@api_bp.route('/investment/trades/<int:trade_id>', methods=['PUT'])
-def update_trade(trade_id):
-    """更新一笔交易"""
-    data = request.get_json()
-    return get_bff_api().update_trade(trade_id, data)
-
-@api_bp.route('/investment/trades/<int:trade_id>', methods=['DELETE'])
-def delete_trade(trade_id):
-    """删除一笔交易"""
-    return get_bff_api().delete_trade(trade_id)
-
-@api_bp.route('/investment/trades/<int:trade_id>/operations/<int:operation_id>', methods=['PUT'])
-def update_operation(trade_id, operation_id):
-    """更新一笔操作"""
-    data = request.get_json()
-    return get_bff_api().update_operation(trade_id, operation_id, data)
-
-@api_bp.route('/investment/trades/<int:trade_id>/operations/<int:operation_id>', methods=['DELETE'])
-def delete_operation(trade_id, operation_id):
-    """删除一笔操作"""
-    return get_bff_api().delete_operation(trade_id, operation_id)
+@api_bp.route('/v1/strategies', methods=['GET'])
+def get_strategies():
+    """获取已发现策略列表（策略工作台 list 页使用）"""
+    return get_bff_api().get_strategies()

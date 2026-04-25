@@ -15,6 +15,11 @@ import {
 } from '@mui/material';
 import CoreDictEditorView from './components/coreDictEditorView';
 import GoalSettingsEditor from './components/goalSettingsEditor';
+import SamplingSettingsEditor from './components/samplingSettingsEditor';
+import FeesConfigEditor from './components/feesConfigEditor';
+import EnumeratorSettingsEditor from './components/enumeratorSettingsEditor';
+import PriceSimulatorSettingsEditor from './components/priceSimulatorSettingsEditor';
+import CapitalSimulatorSettingsEditor from './components/capitalSimulatorSettingsEditor';
 
 function SectionAccordion({ title, defaultExpanded = false, children }) {
   return (
@@ -33,56 +38,6 @@ function isPlainObject(value) {
 
 function hasNonEmptyCore(value) {
   return isPlainObject(value) && Object.keys(value).length > 0;
-}
-
-function formatPrimitive(value) {
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (value === null || value === undefined) return '';
-  return String(value);
-}
-
-function SettingsFields({ data, level = 0 }) {
-  if (!isPlainObject(data)) {
-    return (
-      <Typography variant="body2" color="text.secondary">
-        无可展示字段
-      </Typography>
-    );
-  }
-
-  return (
-    <Stack spacing={1.25}>
-      {Object.entries(data || {}).map(([key, value]) => (
-        isPlainObject(value) ? (
-          <Box
-            key={key}
-            sx={{
-              border: 1,
-              borderColor: 'divider',
-              borderRadius: 1,
-              p: 1.25,
-              backgroundColor: level > 0 ? 'action.hover' : 'transparent',
-            }}
-          >
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-              {key}
-            </Typography>
-            <SettingsFields data={value} level={level + 1} />
-          </Box>
-        ) : (
-          <TextField
-            key={key}
-            size="small"
-            label={key}
-            value={Array.isArray(value) ? JSON.stringify(value) : formatPrimitive(value)}
-            fullWidth
-            variant="outlined"
-            InputProps={{ readOnly: true }}
-          />
-        )
-      ))}
-    </Stack>
-  );
 }
 
 export function MetaInfoSection({ meta, model = [], onMetaChange }) {
@@ -159,28 +114,51 @@ export function MetaInfoSection({ meta, model = [], onMetaChange }) {
   );
 }
 
-export function StrategySettingsSection({ settings, coreEditor, onGoalChange }) {
+export function StrategySettingsSection({
+  settings,
+  coreEditor,
+  onGoalChange,
+  onSamplingChange,
+  onFeesChange,
+  onEnumeratorChange,
+  onPriceSimulatorChange,
+  onCapitalSimulatorChange,
+}) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
 
   return (
-    <SectionAccordion title="策略参数设置" defaultExpanded>
+    <SectionAccordion title="策略参数设置">
       <Stack spacing={1}>
         {shouldShowCore ? (
-          <SectionAccordion title="策略核心设置" defaultExpanded>
+          <SectionAccordion title="策略核心设置">
             <CoreDictEditorView {...coreEditor} />
           </SectionAccordion>
         ) : null}
-        <SectionAccordion title="策略目标设置" defaultExpanded>
+        <SectionAccordion title="策略目标设置">
           <GoalSettingsEditor value={settings?.goal} onChange={onGoalChange} />
         </SectionAccordion>
+        <SectionAccordion title="全局费用设置">
+          <FeesConfigEditor value={settings?.fees} onChange={onFeesChange} />
+        </SectionAccordion>
         <SectionAccordion title="机会枚举参数">
-          <SettingsFields data={settings?.enumerator} />
+          <EnumeratorSettingsEditor value={settings?.enumerator} onChange={onEnumeratorChange} />
         </SectionAccordion>
         <SectionAccordion title="价格回测参数">
-          <SettingsFields data={settings?.price_simulator} />
+          <PriceSimulatorSettingsEditor
+            value={settings?.price_simulator}
+            globalFees={settings?.fees}
+            onChange={onPriceSimulatorChange}
+          />
         </SectionAccordion>
         <SectionAccordion title="资金模拟参数">
-          <SettingsFields data={settings?.capital_simulator} />
+          <CapitalSimulatorSettingsEditor
+            value={settings?.capital_simulator}
+            globalFees={settings?.fees}
+            onChange={onCapitalSimulatorChange}
+          />
+        </SectionAccordion>
+        <SectionAccordion title="采样配置">
+          <SamplingSettingsEditor value={settings?.sampling} onChange={onSamplingChange} />
         </SectionAccordion>
       </Stack>
     </SectionAccordion>

@@ -60,11 +60,39 @@ function StrategyConsolePage() {
                   value={draftSettings?.meta}
                   defaultExpanded={metaSectionModel.defaultExpanded}
                   onChange={(nextMeta) => updateSection(metaSectionModel.sectionKey, nextMeta)}
+                  simulationRange={{
+                    from: draftSettings?.price_simulator?.start_date || '',
+                    to: draftSettings?.price_simulator?.end_date || '',
+                  }}
+                  onSimulationRangeChange={({ from, to }) => {
+                    updateSection('price_simulator', {
+                      ...(draftSettings?.price_simulator || {}),
+                      start_date: from || '',
+                      end_date: to || '',
+                    });
+                    updateSection('capital_simulator', {
+                      ...(draftSettings?.capital_simulator || {}),
+                      start_date: from || '',
+                      end_date: to || '',
+                    });
+                  }}
+                  minRequiredRecords={draftSettings?.data?.min_required_records}
+                  onMinRequiredRecordsChange={(nextValue) => {
+                    updateSection('data', {
+                      ...(draftSettings?.data || {}),
+                      min_required_records: nextValue,
+                    });
+                  }}
                 />
                 <StrategySettingsSection
                   settings={draftSettings}
                   coreEditor={coreEditor}
                   onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
+                  onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}
+                  onFeesChange={(nextFees) => updateSection('fees', nextFees)}
+                  onEnumeratorChange={(nextEnumerator) => updateSection('enumerator', nextEnumerator)}
+                  onPriceSimulatorChange={(nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator)}
+                  onCapitalSimulatorChange={(nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator)}
                 />
                 <PlaceholderSection
                   title="回测历史"
@@ -80,12 +108,10 @@ function StrategyConsolePage() {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <PlaceholderSection
                   title="执行面板"
-                  defaultExpanded
                   text="Placeholder：三步骤（枚举、价格回测、资金模拟）执行区，后续接任务状态与触发按钮。"
                 />
                 <PlaceholderSection
                   title="模拟结果"
-                  defaultExpanded
                   text="Placeholder：后续展示分层结果摘要、曲线与实验对比。"
                 />
               </Box>

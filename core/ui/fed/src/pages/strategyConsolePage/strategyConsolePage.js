@@ -64,6 +64,7 @@ function StrategyConsolePage() {
                 <StrategySettingsSection
                   settings={draftSettings}
                   coreEditor={coreEditor}
+                  onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
                 />
                 <PlaceholderSection
                   title="回测历史"

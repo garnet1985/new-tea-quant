@@ -14,6 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import CoreDictEditorView from './components/coreDictEditorView';
+import GoalSettingsEditor from './components/goalSettingsEditor';
 
 function SectionAccordion({ title, defaultExpanded = false, children }) {
   return (
@@ -158,27 +159,27 @@ export function MetaInfoSection({ meta, model = [], onMetaChange }) {
   );
 }
 
-export function StrategySettingsSection({ settings, coreEditor }) {
+export function StrategySettingsSection({ settings, coreEditor, onGoalChange }) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
 
   return (
-    <SectionAccordion title="策略设置" defaultExpanded>
+    <SectionAccordion title="策略参数设置" defaultExpanded>
       <Stack spacing={1}>
         {shouldShowCore ? (
-          <SectionAccordion title="策略核心设施" defaultExpanded>
+          <SectionAccordion title="策略核心设置" defaultExpanded>
             <CoreDictEditorView {...coreEditor} />
           </SectionAccordion>
         ) : null}
         <SectionAccordion title="策略目标设置" defaultExpanded>
-          <SettingsFields data={settings?.goal} />
+          <GoalSettingsEditor value={settings?.goal} onChange={onGoalChange} />
         </SectionAccordion>
-        <SectionAccordion title="枚举设置">
+        <SectionAccordion title="机会枚举参数">
           <SettingsFields data={settings?.enumerator} />
         </SectionAccordion>
-        <SectionAccordion title="价格回测">
+        <SectionAccordion title="价格回测参数">
           <SettingsFields data={settings?.price_simulator} />
         </SectionAccordion>
-        <SectionAccordion title="资金模拟">
+        <SectionAccordion title="资金模拟参数">
           <SettingsFields data={settings?.capital_simulator} />
         </SectionAccordion>
       </Stack>

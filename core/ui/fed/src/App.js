@@ -8,6 +8,7 @@ import SetupGuard from './components/setupGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyConsolePage from './pages/strategyConsolePage';
+import JsonFieldTestPage from './pages/jsonFieldTestPage';
 
 const theme = createTheme();
 
@@ -44,6 +45,7 @@ function App() {
               path="/settings"
               element={<ComingSoonPage title="设置" description="系统、数据路径与运行参数等将在此配置。" />}
             />
+            <Route path="/test/json-fields" element={<JsonFieldTestPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/strategy-workbench" replace />} />
         </Routes>

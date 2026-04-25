@@ -6,6 +6,7 @@ const navItems = [
   { label: '策略工作台', path: '/strategy-workbench' },
   { label: '机会扫描', path: '/scan' },
   { label: '高级功能', path: '/advanced' },
+  { label: 'JSON测试', path: '/test/json-fields' },
   { label: '设置', path: '/settings' },
 ];
 

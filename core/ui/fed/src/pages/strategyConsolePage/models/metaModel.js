@@ -8,6 +8,6 @@ export function normalizeMeta(rawMeta) {
 
 export const metaSectionModel = {
   sectionKey: 'meta',
-  sectionTitle: 'Meta 信息',
+  sectionTitle: '策略基本信息',
   defaultExpanded: true,
 };

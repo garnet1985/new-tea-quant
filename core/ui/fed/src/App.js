@@ -3,9 +3,11 @@ import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-d
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import SetupPage from './pages/setupPage';
-import PlaceholderPage from './pages/PlaceholderPage';
-import SetupGuard from './components/SetupGuard';
-import MainLayout from './layouts/MainLayout';
+import ComingSoonPage from './pages/comingSoonPage';
+import SetupGuard from './components/setupGuard';
+import MainLayout from './layouts/mainLayout';
+import StrategyListPage from './pages/strategyListPage';
+import StrategyConsolePage from './pages/strategyConsolePage';
 
 const theme = createTheme();
 
@@ -23,24 +25,27 @@ function App() {
               </SetupGuard>
             )}
           >
-            <Route
-              path="/workbench"
-              element={<PlaceholderPage title="策略工作台" description="Setup 完成后，这里将接入 workbench 列表页原型。" />}
-            />
+            <Route path="/strategy-workbench/:strategyName" element={<StrategyConsolePage />} />
+            <Route path="/strategy-workbench" element={<StrategyListPage />} />
             <Route
               path="/scan"
-              element={<PlaceholderPage title="机会扫描" description="Setup 完成后，这里将接入 scan 页原型。" />}
+              element={<ComingSoonPage title="机会扫描" description="全市场/自选池扫描与结果列表将在此提供。" />}
             />
             <Route
               path="/advanced"
-              element={<PlaceholderPage title="高级功能" description="Setup 完成后，这里将接入 data-acquire / tag-console / backup 原型入口。" />}
+              element={(
+                <ComingSoonPage
+                  title="高级功能"
+                  description="数据采集、标签控制台、备份与恢复等入口将集中于此。"
+                />
+              )}
             />
             <Route
               path="/settings"
-              element={<PlaceholderPage title="设置" description="Setup 完成后，这里将接入 settings 页原型。" />}
+              element={<ComingSoonPage title="设置" description="系统、数据路径与运行参数等将在此配置。" />}
             />
           </Route>
-          <Route path="*" element={<Navigate to="/workbench" replace />} />
+          <Route path="*" element={<Navigate to="/strategy-workbench" replace />} />
         </Routes>
       </Router>
     </ThemeProvider>

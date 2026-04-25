@@ -155,9 +155,9 @@ def launch_ui_stack() -> None:
     fed_proc = subprocess.Popen(fed_cmd, cwd=str(FED_ROOT), env=fed_env)
 
     print("UI 已启动：BFF + FED", flush=True)
-    print("FED 默认地址: http://localhost:8888", flush=True)
+    print("FED 默认地址: http://localhost:8888/strategy-workbench", flush=True)
     try:
-        webbrowser.open("http://localhost:8888")
+        webbrowser.open("http://localhost:8888/strategy-workbench")
     except Exception:
         pass
     try:

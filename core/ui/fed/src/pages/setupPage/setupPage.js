@@ -575,7 +575,7 @@ function SetupPage() {
                   安装流程已完成。你可以进入主业务页面。
                 </Typography>
                 <Stack direction="row" spacing={2}>
-                  <Button component={RouterLink} to="/workbench" variant="contained">
+                  <Button component={RouterLink} to="/strategy-workbench" variant="contained">
                     前往策略工作台
                   </Button>
                   <Button component={RouterLink} to="/settings" variant="outlined">

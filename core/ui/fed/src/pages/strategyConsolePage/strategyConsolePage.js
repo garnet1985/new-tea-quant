@@ -9,12 +9,13 @@ import {
 } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { defaultMetaInfo, defaultSettings } from './strategyConsole.mock';
-import StrategySettingsContainer from './containers/strategySettingsContainer';
-import { normalizeMeta } from './editorSchemas/strategyMeta';
+import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
+import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
+import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
 import {
   PlaceholderSection,
-  StrategySettingsSection,
-} from './strategyConsoleSections';
+  StrategySettingsPanel,
+} from './panels/strategySettingsPanel/strategySettingsPanel';
 
 function StrategyConsolePage() {
   const { strategyName } = useParams();
@@ -54,7 +55,7 @@ function StrategyConsolePage() {
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <StrategySettingsSection
+                <StrategySettingsPanel
                   settings={draftSettings}
                   onSettingsChange={setDraftSettings}
                   coreEditor={coreEditor}
@@ -77,10 +78,7 @@ function StrategyConsolePage() {
             </Grid>
             <Grid item xs={12} md={8}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <PlaceholderSection
-                  title="执行面板"
-                  text="Placeholder：三步骤（枚举、价格回测、资金模拟）执行区，后续接任务状态与触发按钮。"
-                />
+                <StrategyExecutionPanel settings={draftSettings} />
                 <PlaceholderSection
                   title="模拟结果"
                   text="Placeholder：后续展示分层结果摘要、曲线与实验对比。"

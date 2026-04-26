@@ -5,12 +5,15 @@ import {
   AccordionDetails,
   AccordionSummary,
   Box,
-  Button,
-  Chip,
+  IconButton,
+  MenuItem,
   LinearProgress,
+  Select,
   Stack,
   Typography,
 } from '@mui/material';
+import { ReactComponent as PlayCircleIcon } from '../../../../assets/icon/play_circle.svg';
+import { ReactComponent as DoneIcon } from '../../../../assets/icon/task_alt.svg';
 
 const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
@@ -20,18 +23,6 @@ function wait(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
-}
-
-function formatStatusLabel(status) {
-  if (status === 'running') return '执行中';
-  if (status === 'done') return '已完成';
-  return '未开始';
-}
-
-function formatStatusColor(status) {
-  if (status === 'running') return 'warning';
-  if (status === 'done') return 'success';
-  return 'default';
 }
 
 function getRunChain(target, stepStatus) {
@@ -62,6 +53,29 @@ function simulateCapitalResult(settings) {
   return { initialCapital, endCapital, profit, retPct };
 }
 
+const mockCompareSummaries = {
+  latest: {
+    enum: { opportunities: 100 },
+    price: { winRate: 56.2, roi: 18.4 },
+    capital: { initialCapital: 1000000, endCapital: 1031800, profit: 31800, retPct: 31.8 },
+  },
+  v3: {
+    enum: { opportunities: 108 },
+    price: { winRate: 52.8, roi: 12.6 },
+    capital: { initialCapital: 1000000, endCapital: 1065000, profit: 65000, retPct: 6.5 },
+  },
+  v2: {
+    enum: { opportunities: 103 },
+    price: { winRate: 49.6, roi: 9.3 },
+    capital: { initialCapital: 1000000, endCapital: 1042000, profit: 42000, retPct: 4.2 },
+  },
+  v1: {
+    enum: { opportunities: 115 },
+    price: { winRate: 44.1, roi: 6.7 },
+    capital: { initialCapital: 1000000, endCapital: 1020000, profit: 20000, retPct: 2.0 },
+  },
+};
+
 function StrategyExecutionPanel({ settings }) {
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
@@ -75,6 +89,11 @@ function StrategyExecutionPanel({ settings }) {
     price: null,
     capital: null,
   });
+  const [compareVersion, setCompareVersion] = useState({
+    enum: '',
+    price: '',
+    capital: '',
+  });
 
   const isRunning = Boolean(runningStep);
 
@@ -84,6 +103,152 @@ function StrategyExecutionPanel({ settings }) {
     if (runningStep === STEP_PRICE) return '正在执行：价格回测';
     return '正在执行：资金模拟';
   }, [runningStep]);
+
+  const getStepClass = (status) => {
+    if (status === 'running') return 'is-running';
+    if (status === 'done') return 'is-done';
+    return 'is-idle';
+  };
+
+  const getStepSx = (status) => {
+    if (status === 'done') {
+      return {
+        borderColor: 'success.main',
+        backgroundColor: 'success.50',
+      };
+    }
+    if (status === 'running') {
+      return {
+        borderColor: 'warning.main',
+        backgroundColor: 'warning.50',
+      };
+    }
+    return {
+      borderColor: 'divider',
+      backgroundColor: 'background.paper',
+    };
+  };
+
+  const renderStepDoneIcon = (step) => {
+    if (stepStatus[step] !== 'done') return null;
+    return (
+      <DoneIcon
+        width={16}
+        height={16}
+        style={{ color: 'var(--mui-palette-success-main)' }}
+      />
+    );
+  };
+
+  const formatPriceLine = (price, withComparePrefix = false) => (
+    price
+      ? `${withComparePrefix ? '(对比版本) ' : ''}胜率：${price.winRate}% · ROI：${price.roi}%`
+      : `${withComparePrefix ? '(对比版本) ' : ''}胜率：-- · ROI：--`
+  );
+
+  const getCompareResultColor = (currentValue, compareValue) => {
+    if (!Number.isFinite(currentValue) || !Number.isFinite(compareValue)) return 'text.secondary';
+    if (currentValue > compareValue) return 'success.main';
+    if (currentValue < compareValue) return 'error.main';
+    return 'text.secondary';
+  };
+
+  const getCurrentResultColor = (currentValue, compareValue) => {
+    if (!Number.isFinite(currentValue) || !Number.isFinite(compareValue)) return 'text.primary';
+    if (currentValue > compareValue) return 'success.main';
+    if (currentValue < compareValue) return 'error.main';
+    return 'text.primary';
+  };
+
+  const renderEnumSummary = () => {
+    const currentOpportunities = result.enum?.opportunities;
+    const compareOpportunities = compareVersion.enum
+      ? mockCompareSummaries?.[compareVersion.enum]?.enum?.opportunities
+      : null;
+
+    if (Number.isFinite(currentOpportunities) && Number.isFinite(compareOpportunities)) {
+      return (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+            alignItems: 'center',
+            columnGap: 1,
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              color: getCurrentResultColor(currentOpportunities, compareOpportunities),
+              fontWeight: 600,
+            }}
+          >
+            机会总数：{currentOpportunities} 个
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: getCompareResultColor(compareOpportunities, currentOpportunities),
+              fontWeight: 600,
+            }}
+          >
+            (对比版本) 机会总数：{compareOpportunities} 个
+          </Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Typography variant="body2">
+        机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
+      </Typography>
+    );
+  };
+
+  const renderPriceSummary = () => {
+    const currentPrice = result.price;
+    const comparePrice = compareVersion.price
+      ? mockCompareSummaries?.[compareVersion.price]?.price
+      : null;
+
+    if (currentPrice && comparePrice) {
+      return (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+            alignItems: 'center',
+            columnGap: 1,
+          }}
+        >
+          <Typography
+            variant="body2"
+            sx={{
+              color: getCurrentResultColor(currentPrice.roi, comparePrice.roi),
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatPriceLine(currentPrice)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: getCompareResultColor(comparePrice.roi, currentPrice.roi),
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatPriceLine(comparePrice, true)}
+          </Typography>
+        </Box>
+      );
+    }
+
+    return <Typography variant="body2">{formatPriceLine(currentPrice)}</Typography>;
+  };
 
   const runStep = async (step) => {
     setRunningStep(step);
@@ -153,43 +318,265 @@ function StrategyExecutionPanel({ settings }) {
           ) : null}
 
           <Stack spacing={1}>
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Typography fontWeight={600}>1. 枚举机会</Typography>
-                <Chip size="small" label={formatStatusLabel(stepStatus.enum)} color={formatStatusColor(stepStatus.enum)} />
-              </Stack>
-              <Typography variant="body2" sx={{ mt: 0.75 }}>
-                机会总数：{result.enum ? `${result.enum.opportunities} 个` : '--'}
-              </Typography>
-              <Button size="small" variant="outlined" sx={{ mt: 1 }} onClick={() => handleRun(STEP_ENUM)} disabled={isRunning}>
-                运行枚举
-              </Button>
+            <Box
+              className={`exec-step-card ${getStepClass(stepStatus.enum)}`}
+              sx={{
+                border: 1,
+                borderRadius: 1,
+                p: 1,
+                ...getStepSx(stepStatus.enum),
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '48px minmax(140px, 220px) minmax(280px, 1fr) minmax(200px, 260px)',
+                  gap: 1,
+                  alignItems: 'center',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    border: 1,
+                    borderColor: 'text.secondary',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  1
+                </Box>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography fontWeight={600}>枚举机会</Typography>
+                  {renderStepDoneIcon(STEP_ENUM)}
+                  <IconButton size="small" onClick={() => handleRun(STEP_ENUM)} disabled={isRunning}>
+                    <PlayCircleIcon width={18} height={18} />
+                  </IconButton>
+                </Stack>
+                {renderEnumSummary()}
+                {stepStatus.enum === 'done' ? (
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                    <Typography variant="caption" color="text.secondary">对比版本</Typography>
+                    <Select
+                      size="small"
+                      value={compareVersion.enum}
+                      onChange={(e) => setCompareVersion((prev) => ({ ...prev, enum: e.target.value }))}
+                      sx={{ minWidth: 120 }}
+                    >
+                      <MenuItem value="">不对比</MenuItem>
+                      <MenuItem value="latest">latest</MenuItem>
+                      <MenuItem value="v3">v3</MenuItem>
+                      <MenuItem value="v2">v2</MenuItem>
+                      <MenuItem value="v1">v1</MenuItem>
+                    </Select>
+                  </Stack>
+                ) : null}
+              </Box>
             </Box>
 
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Typography fontWeight={600}>2. 价格回测</Typography>
-                <Chip size="small" label={formatStatusLabel(stepStatus.price)} color={formatStatusColor(stepStatus.price)} />
-              </Stack>
-              <Typography variant="body2" sx={{ mt: 0.75 }}>
-                胜率：{result.price ? `${result.price.winRate}%` : '--'} · ROI：{result.price ? `${result.price.roi}%` : '--'} · 平均持有：{result.price ? `${result.price.avgHoldDays} 天` : '--'}
-              </Typography>
-              <Button size="small" variant="outlined" sx={{ mt: 1 }} onClick={() => handleRun(STEP_PRICE)} disabled={isRunning}>
-                运行价格回测
-              </Button>
+            <Box
+              className={`exec-step-card ${getStepClass(stepStatus.price)}`}
+              sx={{
+                border: 1,
+                borderRadius: 1,
+                p: 1,
+                ...getStepSx(stepStatus.price),
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '48px minmax(140px, 220px) minmax(280px, 1fr) minmax(200px, 260px)',
+                  gap: 1,
+                  alignItems: 'center',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    border: 1,
+                    borderColor: 'text.secondary',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  2
+                </Box>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography fontWeight={600}>价格回测</Typography>
+                  {renderStepDoneIcon(STEP_PRICE)}
+                  <IconButton size="small" onClick={() => handleRun(STEP_PRICE)} disabled={isRunning}>
+                    <PlayCircleIcon width={18} height={18} />
+                  </IconButton>
+                </Stack>
+                <Box sx={{ overflowX: 'auto', overflowY: 'hidden', '&::-webkit-scrollbar': { height: 6 } }}>
+                  {renderPriceSummary()}
+                </Box>
+                {stepStatus.price === 'done' ? (
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                    <Typography variant="caption" color="text.secondary">对比版本</Typography>
+                    <Select
+                      size="small"
+                      value={compareVersion.price}
+                      onChange={(e) => setCompareVersion((prev) => ({ ...prev, price: e.target.value }))}
+                      sx={{ minWidth: 120 }}
+                    >
+                      <MenuItem value="">不对比</MenuItem>
+                      <MenuItem value="latest">latest</MenuItem>
+                      <MenuItem value="v3">v3</MenuItem>
+                      <MenuItem value="v2">v2</MenuItem>
+                      <MenuItem value="v1">v1</MenuItem>
+                    </Select>
+                  </Stack>
+                ) : null}
+              </Box>
             </Box>
 
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Typography fontWeight={600}>3. 资金模拟</Typography>
-                <Chip size="small" label={formatStatusLabel(stepStatus.capital)} color={formatStatusColor(stepStatus.capital)} />
-              </Stack>
-              <Typography variant="body2" sx={{ mt: 0.75 }}>
-                收益率：{result.capital ? `${result.capital.retPct}%` : '--'} · 收益：{result.capital ? `${result.capital.profit >= 0 ? '+' : ''}${result.capital.profit.toLocaleString()}` : '--'} · 资金：{result.capital ? `${result.capital.initialCapital.toLocaleString()} -> ${result.capital.endCapital.toLocaleString()}` : '--'}
-              </Typography>
-              <Button size="small" variant="outlined" sx={{ mt: 1 }} onClick={() => handleRun(STEP_CAPITAL)} disabled={isRunning}>
-                运行资金模拟
-              </Button>
+            <Box
+              className={`exec-step-card ${getStepClass(stepStatus.capital)}`}
+              sx={{
+                border: 1,
+                borderRadius: 1,
+                p: 1,
+                ...getStepSx(stepStatus.capital),
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: '48px minmax(140px, 220px) minmax(280px, 1fr) minmax(200px, 260px)',
+                  gap: 1,
+                  alignItems: 'center',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    border: 1,
+                    borderColor: 'text.secondary',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  3
+                </Box>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography fontWeight={600}>资金模拟</Typography>
+                  {renderStepDoneIcon(STEP_CAPITAL)}
+                  <IconButton size="small" onClick={() => handleRun(STEP_CAPITAL)} disabled={isRunning}>
+                    <PlayCircleIcon width={18} height={18} />
+                  </IconButton>
+                </Stack>
+                {result.capital && compareVersion.capital ? (
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                      alignItems: 'start',
+                      columnGap: 1,
+                    }}
+                  >
+                    <Stack spacing={0.25}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: getCurrentResultColor(
+                            result.capital.profit,
+                            mockCompareSummaries?.[compareVersion.capital]?.capital?.profit,
+                          ),
+                          fontWeight: 600,
+                        }}
+                      >
+                        收益：{`${result.capital.profit >= 0 ? '+' : ''}${result.capital.profit.toLocaleString()} (${result.capital.retPct}%)`}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: getCurrentResultColor(
+                            result.capital.endCapital,
+                            mockCompareSummaries?.[compareVersion.capital]?.capital?.endCapital,
+                          ),
+                          fontWeight: 600,
+                        }}
+                      >
+                        {`${result.capital.initialCapital.toLocaleString()} -> ${result.capital.endCapital.toLocaleString()}`}
+                      </Typography>
+                    </Stack>
+
+                    <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
+                      <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+                    </Stack>
+
+                    <Stack spacing={0.25}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: getCompareResultColor(
+                            mockCompareSummaries?.[compareVersion.capital]?.capital?.profit,
+                            result.capital.profit,
+                          ),
+                          fontWeight: 600,
+                        }}
+                      >
+                        (对比版本) 收益：{`${mockCompareSummaries?.[compareVersion.capital]?.capital?.profit >= 0 ? '+' : ''}${mockCompareSummaries?.[compareVersion.capital]?.capital?.profit?.toLocaleString() || '--'} (${mockCompareSummaries?.[compareVersion.capital]?.capital?.retPct ?? '--'}%)`}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: getCompareResultColor(
+                            mockCompareSummaries?.[compareVersion.capital]?.capital?.endCapital,
+                            result.capital.endCapital,
+                          ),
+                          fontWeight: 600,
+                        }}
+                      >
+                        {`${mockCompareSummaries?.[compareVersion.capital]?.capital?.initialCapital?.toLocaleString() || '--'} -> ${mockCompareSummaries?.[compareVersion.capital]?.capital?.endCapital?.toLocaleString() || '--'}`}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                ) : (
+                  <Stack spacing={0.25}>
+                    <Typography variant="body2">
+                      收益：{result.capital ? `${result.capital.profit >= 0 ? '+' : ''}${result.capital.profit.toLocaleString()} (${result.capital.retPct}%)` : '--'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {result.capital ? `${result.capital.initialCapital.toLocaleString()} -> ${result.capital.endCapital.toLocaleString()}` : '--'}
+                    </Typography>
+                  </Stack>
+                )}
+                {stepStatus.capital === 'done' ? (
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                    <Typography variant="caption" color="text.secondary">对比版本</Typography>
+                    <Select
+                      size="small"
+                      value={compareVersion.capital}
+                      onChange={(e) => setCompareVersion((prev) => ({ ...prev, capital: e.target.value }))}
+                      sx={{ minWidth: 120 }}
+                    >
+                      <MenuItem value="">不对比</MenuItem>
+                      <MenuItem value="latest">latest</MenuItem>
+                      <MenuItem value="v3">v3</MenuItem>
+                      <MenuItem value="v2">v2</MenuItem>
+                      <MenuItem value="v1">v1</MenuItem>
+                    </Select>
+                  </Stack>
+                ) : null}
+              </Box>
             </Box>
           </Stack>
         </Stack>

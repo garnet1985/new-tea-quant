@@ -10,6 +10,7 @@ import {
 
 function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNode, context }) {
   const children = Array.isArray(node.children) ? node.children : [];
+  const getChildKey = (child, index) => child?.name || child?.label || `${node.name || 'section'}-${index}`;
 
   return (
     <Accordion key={node.name} defaultExpanded={Boolean(node.defaultExpanded)} disableGutters>
@@ -18,7 +19,11 @@ function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNod
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>
-          {children.map((child) => renderNode(child, value, onChange, errors, emitChangeMeta, context))}
+          {children.map((child, index) => (
+            <React.Fragment key={getChildKey(child, index)}>
+              {renderNode(child, value, onChange, errors, emitChangeMeta, context)}
+            </React.Fragment>
+          ))}
         </Stack>
       </AccordionDetails>
     </Accordion>

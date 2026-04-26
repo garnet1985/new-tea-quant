@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Accordion,
@@ -8,9 +8,8 @@ import {
   Typography,
 } from '@mui/material';
 import Editor from '../../components/editor/editor';
-import PriceSimulatorSettingsEditor from './components/priceSimulatorSettingsEditor';
-import CapitalSimulatorSettingsEditor from './components/capitalSimulatorSettingsEditor';
 import strategyCoreSchema from './editorSchemas/strategyCore';
+import strategyMetaSchema from './editorSchemas/strategyMeta';
 import strategyEnumeratorSchema from './editorSchemas/strategyEnumerator';
 import {
   applyGoalActions,
@@ -18,6 +17,8 @@ import {
 } from './editorSchemas/strategyGoal';
 import strategyGoalSchema from './editorSchemas/strategyGoal';
 import strategyFeesSchema from './editorSchemas/strategyFees';
+import strategyPriceSimulatorSchema from './editorSchemas/strategyPriceSimulator';
+import strategyCapitalSimulatorSchema from './editorSchemas/strategyCapitalSimulator';
 import strategySamplingSchema, {
   cleanupSamplingByStrategy,
   normalizeSamplingSettings,
@@ -44,6 +45,7 @@ function hasNonEmptyCore(value) {
 
 export function StrategySettingsSection({
   settings,
+  onSettingsChange,
   coreEditor,
   onGoalChange,
   onSamplingChange,
@@ -53,10 +55,27 @@ export function StrategySettingsSection({
   onCapitalSimulatorChange,
 }) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
+  const [metaEditorErrors, setMetaEditorErrors] = useState({});
 
   return (
-    <SectionAccordion title="策略参数设置">
+    <SectionAccordion title="策略参数设置" defaultExpanded>
       <Stack spacing={1}>
+        <Editor
+          schema={strategyMetaSchema}
+          value={settings}
+          onChange={onSettingsChange}
+          errors={metaEditorErrors}
+          onValidate={(nextValue) => {
+            const start = nextValue?.price_simulator?.start_date || '';
+            const end = nextValue?.price_simulator?.end_date || '';
+            const errors = {};
+            if (start && end && end < start) {
+              errors['price_simulator.end_date'] = '结束日期不能早于开始日期';
+            }
+            return errors;
+          }}
+          onValidationChange={setMetaEditorErrors}
+        />
         {shouldShowCore ? (
           <Editor
             schema={strategyCoreSchema}
@@ -90,16 +109,16 @@ export function StrategySettingsSection({
           />
         </SectionAccordion>
         <SectionAccordion title="价格回测参数">
-          <PriceSimulatorSettingsEditor
+          <Editor
+            schema={strategyPriceSimulatorSchema}
             value={settings?.price_simulator}
-            globalFees={settings?.fees}
             onChange={onPriceSimulatorChange}
           />
         </SectionAccordion>
         <SectionAccordion title="资金模拟参数">
-          <CapitalSimulatorSettingsEditor
+          <Editor
+            schema={strategyCapitalSimulatorSchema}
             value={settings?.capital_simulator}
-            globalFees={settings?.fees}
             onChange={onCapitalSimulatorChange}
           />
         </SectionAccordion>

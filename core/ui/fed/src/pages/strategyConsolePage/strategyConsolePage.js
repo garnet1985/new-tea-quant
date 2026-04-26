@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
   Box,
@@ -9,9 +9,10 @@ import {
 } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { defaultMetaInfo, defaultSettings } from './strategyConsole.mock';
-import { metaSectionModel, normalizeMeta } from './models/metaModel';
+import { normalizeMeta } from './models/metaModel';
 import StrategySettingsContainer from './containers/strategySettingsContainer';
-import MetaCompactEditor from './components/metaCompactEditor';
+import Editor from '../../components/editor/editor';
+import strategyMetaSchema from './editorSchemas/strategyMeta';
 import {
   PlaceholderSection,
   StrategySettingsSection,
@@ -19,6 +20,7 @@ import {
 
 function StrategyConsolePage() {
   const { strategyName } = useParams();
+  const [metaEditorErrors, setMetaEditorErrors] = useState({});
   const initialSettings = useMemo(
     () => ({
       ...defaultSettings,
@@ -51,38 +53,25 @@ function StrategyConsolePage() {
       </Typography>
 
       <StrategySettingsContainer initialSettings={initialSettings}>
-        {({ draftSettings, updateSection, coreEditor }) => (
+        {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <MetaCompactEditor
-                  sectionTitle={metaSectionModel.sectionTitle}
-                  value={draftSettings?.meta}
-                  defaultExpanded={metaSectionModel.defaultExpanded}
-                  onChange={(nextMeta) => updateSection(metaSectionModel.sectionKey, nextMeta)}
-                  simulationRange={{
-                    from: draftSettings?.price_simulator?.start_date || '',
-                    to: draftSettings?.price_simulator?.end_date || '',
+                <Editor
+                  schema={strategyMetaSchema}
+                  value={draftSettings}
+                  onChange={setDraftSettings}
+                  errors={metaEditorErrors}
+                  onValidate={(nextValue) => {
+                    const start = nextValue?.price_simulator?.start_date || '';
+                    const end = nextValue?.price_simulator?.end_date || '';
+                    const errors = {};
+                    if (start && end && end < start) {
+                      errors['price_simulator.end_date'] = '结束日期不能早于开始日期';
+                    }
+                    return errors;
                   }}
-                  onSimulationRangeChange={({ from, to }) => {
-                    updateSection('price_simulator', {
-                      ...(draftSettings?.price_simulator || {}),
-                      start_date: from || '',
-                      end_date: to || '',
-                    });
-                    updateSection('capital_simulator', {
-                      ...(draftSettings?.capital_simulator || {}),
-                      start_date: from || '',
-                      end_date: to || '',
-                    });
-                  }}
-                  minRequiredRecords={draftSettings?.data?.min_required_records}
-                  onMinRequiredRecordsChange={(nextValue) => {
-                    updateSection('data', {
-                      ...(draftSettings?.data || {}),
-                      min_required_records: nextValue,
-                    });
-                  }}
+                  onValidationChange={setMetaEditorErrors}
                 />
                 <StrategySettingsSection
                   settings={draftSettings}

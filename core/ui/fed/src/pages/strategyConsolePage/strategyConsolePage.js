@@ -53,7 +53,7 @@ function StrategyConsolePage() {
       <StrategySettingsContainer initialSettings={initialSettings}>
         {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <StrategySettingsPanel
                   settings={draftSettings}
@@ -76,7 +76,7 @@ function StrategyConsolePage() {
                 />
               </Box>
             </Grid>
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={9}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <StrategyExecutionPanel settings={draftSettings} />
                 <PlaceholderSection

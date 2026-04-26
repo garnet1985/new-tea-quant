@@ -1,3 +1,5 @@
+import { strategyFeeFields } from './strategyFees';
+
 function parseNumber(raw) {
   if (raw === '' || raw === null || raw === undefined) return '';
   const n = Number(raw);
@@ -75,6 +77,15 @@ const strategyCapitalSimulatorSchema = {
       description: '仅在“凯莉公式”模式下生效（0~1，默认 0.5）',
       parse: parseNumber,
       visibleWhen: ({ values }) => values?.allocation?.mode === 'kelly',
+    },
+    {
+      name: 'capitalSimulator.feesOverride',
+      type: 'feesOverride',
+      label: '费用设置',
+      switchLabel: '覆盖全局费用',
+      flagName: 'override_fees',
+      feesName: 'fees',
+      feeFields: strategyFeeFields,
     },
   ],
 };

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
   Box,
@@ -9,10 +9,8 @@ import {
 } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { defaultMetaInfo, defaultSettings } from './strategyConsole.mock';
-import { normalizeMeta } from './models/metaModel';
 import StrategySettingsContainer from './containers/strategySettingsContainer';
-import Editor from '../../components/editor/editor';
-import strategyMetaSchema from './editorSchemas/strategyMeta';
+import { normalizeMeta } from './editorSchemas/strategyMeta';
 import {
   PlaceholderSection,
   StrategySettingsSection,
@@ -20,7 +18,6 @@ import {
 
 function StrategyConsolePage() {
   const { strategyName } = useParams();
-  const [metaEditorErrors, setMetaEditorErrors] = useState({});
   const initialSettings = useMemo(
     () => ({
       ...defaultSettings,
@@ -57,24 +54,9 @@ function StrategyConsolePage() {
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <Editor
-                  schema={strategyMetaSchema}
-                  value={draftSettings}
-                  onChange={setDraftSettings}
-                  errors={metaEditorErrors}
-                  onValidate={(nextValue) => {
-                    const start = nextValue?.price_simulator?.start_date || '';
-                    const end = nextValue?.price_simulator?.end_date || '';
-                    const errors = {};
-                    if (start && end && end < start) {
-                      errors['price_simulator.end_date'] = '结束日期不能早于开始日期';
-                    }
-                    return errors;
-                  }}
-                  onValidationChange={setMetaEditorErrors}
-                />
                 <StrategySettingsSection
                   settings={draftSettings}
+                  onSettingsChange={setDraftSettings}
                   coreEditor={coreEditor}
                   onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
                   onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}

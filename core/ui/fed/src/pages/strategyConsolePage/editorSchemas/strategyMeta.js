@@ -1,9 +1,17 @@
+export function normalizeMeta(rawMeta) {
+  return {
+    name: rawMeta?.name || '',
+    description: rawMeta?.description || '',
+    is_enabled: Boolean(rawMeta?.is_enabled),
+  };
+}
+
 const strategyMetaSchema = {
   name: 'strategyMeta',
   label: '策略基本信息',
   description: '启用状态与全局模拟窗口',
   type: 'section',
-  defaultExpanded: false,
+  defaultExpanded: true,
   children: [
     {
       name: 'meta.is_enabled',

@@ -6,6 +6,7 @@ import {
   DictParserField,
   FieldCollectionField,
   FieldGroupField,
+  FeesOverrideField,
   InputField,
   SectionField,
   SelectField,
@@ -36,6 +37,10 @@ function renderNode(node, value, onChange, errors, emitChangeMeta, context) {
 
   if (node.type === 'fieldCollection') {
     return <FieldCollectionField field={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} />;
+  }
+
+  if (node.type === 'feesOverride') {
+    return <FeesOverrideField field={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} />;
   }
 
   if (node.type === 'switch') {

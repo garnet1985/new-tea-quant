@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
   Box,
@@ -12,6 +12,7 @@ import { defaultMetaInfo, defaultSettings } from './strategyConsole.mock';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
+import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
 import {
   PlaceholderSection,
   StrategySettingsPanel,
@@ -19,6 +20,24 @@ import {
 
 function StrategyConsolePage() {
   const { strategyName } = useParams();
+  const [executionState, setExecutionState] = useState({
+    stepStatus: {
+      enum: 'idle',
+      price: 'idle',
+      capital: 'idle',
+    },
+    result: {
+      enum: null,
+      price: null,
+      capital: null,
+    },
+    compareVersion: {
+      enum: '',
+      price: '',
+      capital: '',
+    },
+    runningStep: '',
+  });
   const initialSettings = useMemo(
     () => ({
       ...defaultSettings,
@@ -78,11 +97,11 @@ function StrategyConsolePage() {
             </Grid>
             <Grid item xs={12} md={9}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                <StrategyExecutionPanel settings={draftSettings} />
-                <PlaceholderSection
-                  title="模拟结果"
-                  text="Placeholder：后续展示分层结果摘要、曲线与实验对比。"
+                <StrategyExecutionPanel
+                  settings={draftSettings}
+                  onExecutionStateChange={setExecutionState}
                 />
+                <StrategyReportPanel executionState={executionState} />
               </Box>
             </Grid>
           </Grid>

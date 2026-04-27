@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Accordion,
@@ -76,7 +76,7 @@ const mockCompareSummaries = {
   },
 };
 
-function StrategyExecutionPanel({ settings }) {
+function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
     price: 'idle',
@@ -94,6 +94,11 @@ function StrategyExecutionPanel({ settings }) {
     price: '',
     capital: '',
   });
+
+  useEffect(() => {
+    if (!onExecutionStateChange) return;
+    onExecutionStateChange({ stepStatus, result, compareVersion, runningStep });
+  }, [compareVersion, onExecutionStateChange, result, runningStep, stepStatus]);
 
   const isRunning = Boolean(runningStep);
 

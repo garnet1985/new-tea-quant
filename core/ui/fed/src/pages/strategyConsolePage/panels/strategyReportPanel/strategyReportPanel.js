@@ -326,10 +326,34 @@ function StrategyReportPanel({ executionState }) {
     setActiveTab(nextValue);
   };
 
-  const renderReportByTab = (tabKey, reportData, title) => {
-    if (tabKey === 'enum') return <OpportunityEnumrateReport metrics={reportData?.enumMetrics} title={title} />;
-    if (tabKey === 'price') return <PriceFactorReport metrics={reportData?.priceMetrics} title={title} />;
-    if (tabKey === 'capital') return <CapitalAllocationReport metrics={reportData?.capitalMetrics} title={title} />;
+  const renderReportByTab = (tabKey, reportData, title, options = {}) => {
+    if (tabKey === 'enum') {
+      return (
+        <OpportunityEnumrateReport
+          metrics={reportData?.enumMetrics}
+          title={title}
+          showStockGrid={options.showStockGrid !== false}
+        />
+      );
+    }
+    if (tabKey === 'price') {
+      return (
+        <PriceFactorReport
+          metrics={reportData?.priceMetrics}
+          title={title}
+          showStockGrid={options.showStockGrid !== false}
+        />
+      );
+    }
+    if (tabKey === 'capital') {
+      return (
+        <CapitalAllocationReport
+          metrics={reportData?.capitalMetrics}
+          title={title}
+          showStockGrid={options.showStockGrid !== false}
+        />
+      );
+    }
     return null;
   };
 
@@ -429,6 +453,7 @@ function StrategyReportPanel({ executionState }) {
                     capitalMetrics: buildCapitalMetrics(executionState),
                   },
                   '本次报告',
+                  { showStockGrid: false },
                 )}
               </Stack>
               <Stack spacing={1}>
@@ -442,6 +467,7 @@ function StrategyReportPanel({ executionState }) {
                       capitalMetrics: buildCapitalMetricsFromBase(MOCK_CAPITAL_SUMMARIES[compareVersion]),
                     },
                     `对比报告（${compareVersion}）`,
+                    { showStockGrid: false },
                   )
                   : (
                     <Box

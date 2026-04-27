@@ -15,7 +15,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import OpportunityEnumrateReport from './reports/opportunityEnumrate';
+import OpportunityEnumrateReport from './reports/opportunityEnumerate';
 import PriceFactorReport from './reports/priceFactor';
 import CapitalAllocationReport from './reports/capitalAllocation';
 import CompareVersionSelect from './components/compareVersionSelect';
@@ -27,6 +27,12 @@ const STEP_TABS = [
 ];
 const REPORT_COMPARE_OPTIONS = ['latest', 'v3', 'v2', 'v1'];
 const MOCK_ENUM_OPPORTUNITIES = { latest: 100, v3: 108, v2: 103, v1: 115 };
+const MOCK_PRICE_SUMMARIES = {
+  latest: { winRate: 56.2, roi: 18.4, avgHoldDays: 13.1 },
+  v3: { winRate: 52.8, roi: 12.6, avgHoldDays: 16.2 },
+  v2: { winRate: 49.6, roi: 9.3, avgHoldDays: 14.5 },
+  v1: { winRate: 44.1, roi: 6.7, avgHoldDays: 18.9 },
+};
 
 function buildEnumMetricsFromTotal(totalOpportunities) {
   if (totalOpportunities <= 0) return null;
@@ -94,6 +100,101 @@ function buildEnumMetrics(executionState) {
   return buildEnumMetricsFromTotal(totalOpportunities);
 }
 
+function buildPriceMetricsFromBase(base) {
+  if (!base) return null;
+  const winRate = Number(base.winRate || 0);
+  const avgRoi = Number(base.roi || 0);
+  const avgDurationDays = Number(base.avgHoldDays || 0);
+
+  const totalInvestments = Math.max(18, Math.round(36 + winRate * 1.4));
+  const totalWinInvestments = Math.round(totalInvestments * (winRate / 100));
+  const totalLossInvestments = Math.max(0, totalInvestments - totalWinInvestments - 2);
+  const totalOpenInvestments = totalInvestments - totalWinInvestments - totalLossInvestments;
+  const stocksWithOpportunities = Math.max(8, Math.round(totalInvestments / 2.8));
+  const avgInvestmentsPerStock = Number((totalInvestments / stocksWithOpportunities).toFixed(2));
+
+  const annualReturn = avgDurationDays > 0
+    ? Number((avgRoi * (365 / avgDurationDays)).toFixed(2))
+    : 0;
+  const avgProfitPerInvestment = Math.round(12000 + avgRoi * 1400);
+  const avgProfitPerStock = Math.round(avgProfitPerInvestment * avgInvestmentsPerStock);
+
+  const roiP10 = Number((avgRoi * 0.28).toFixed(2));
+  const roiP20 = Number((avgRoi * 0.42).toFixed(2));
+  const roiP30 = Number((avgRoi * 0.58).toFixed(2));
+  const roiP40 = Number((avgRoi * 0.73).toFixed(2));
+  const roiP50 = Number((avgRoi * 0.92).toFixed(2));
+  const roiP60 = Number((avgRoi * 1.07).toFixed(2));
+  const roiP70 = Number((avgRoi * 1.22).toFixed(2));
+  const roiP80 = Number((avgRoi * 1.38).toFixed(2));
+  const roiP90 = Number((avgRoi * 1.55).toFixed(2));
+  const roiP25 = Number(((roiP20 + roiP30) / 2).toFixed(2));
+  const roiP75 = Number(((roiP70 + roiP80) / 2).toFixed(2));
+  const roiIqr = Number((roiP75 - roiP25).toFixed(2));
+  const roiBucketEdges = [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50];
+  const roiBucketLabels = roiBucketEdges.slice(0, -1).map((start, index) => {
+    const end = roiBucketEdges[index + 1];
+    return `${start}%~${end}%`;
+  });
+  const sigma = 18;
+  const roiBucketWeights = roiBucketEdges.slice(0, -1).map((start, index) => {
+    const center = (start + roiBucketEdges[index + 1]) / 2;
+    return Math.exp(-((center - avgRoi) ** 2) / (2 * sigma * sigma));
+  });
+  const weightSum = roiBucketWeights.reduce((sum, weight) => sum + weight, 0) || 1;
+  const rawCounts = roiBucketWeights.map((weight) => (weight / weightSum) * totalInvestments);
+  const roiBucketCounts = rawCounts.map((value) => Math.floor(value));
+  let remaining = totalInvestments - roiBucketCounts.reduce((sum, count) => sum + count, 0);
+  const remainders = rawCounts
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort((a, b) => b.remainder - a.remainder);
+  for (let i = 0; i < remainders.length && remaining > 0; i += 1) {
+    roiBucketCounts[remainders[i].index] += 1;
+    remaining -= 1;
+  }
+
+  const roiConclusion = roiP50 > 0 && roiP25 > 0
+    ? '中位与下分位均为正，收益结构较稳'
+    : (roiP50 > 0 ? '中位收益为正，但下分位承压' : '中位收益偏弱，需关注策略有效性');
+
+  return {
+    winRate: Number(winRate.toFixed(1)),
+    avgRoi: Number(avgRoi.toFixed(2)),
+    avgDurationDays: Number(avgDurationDays.toFixed(1)),
+    annualReturn,
+    totalInvestments,
+    totalWinInvestments,
+    totalLossInvestments,
+    totalOpenInvestments,
+    stocksWithOpportunities,
+    avgInvestmentsPerStock,
+    avgProfitPerInvestment,
+    avgProfitPerStock,
+    roiP10,
+    roiP20,
+    roiP30,
+    roiP40,
+    roiP50,
+    roiP60,
+    roiP70,
+    roiP80,
+    roiP90,
+    roiP25,
+    roiP75,
+    roiIqr,
+    roiConclusion,
+    roiBucketLabels,
+    roiBucketCounts,
+    roiPercentileLabels: ['10%分位', '20%分位', '30%分位', '40%分位', '50%分位', '60%分位', '70%分位', '80%分位', '90%分位'],
+    roiPercentileValues: [roiP10, roiP20, roiP30, roiP40, roiP50, roiP60, roiP70, roiP80, roiP90],
+  };
+}
+
+function buildPriceMetrics(executionState) {
+  const base = executionState?.result?.price || MOCK_PRICE_SUMMARIES.latest;
+  return buildPriceMetricsFromBase(base);
+}
+
 function StrategyReportPanel({ executionState }) {
   const availableTabs = useMemo(() => {
     const stepStatus = executionState?.stepStatus || {};
@@ -116,7 +217,7 @@ function StrategyReportPanel({ executionState }) {
 
   const renderReportByTab = (tabKey, reportData, title) => {
     if (tabKey === 'enum') return <OpportunityEnumrateReport metrics={reportData?.enumMetrics} title={title} />;
-    if (tabKey === 'price') return <PriceFactorReport title={title} />;
+    if (tabKey === 'price') return <PriceFactorReport metrics={reportData?.priceMetrics} title={title} />;
     if (tabKey === 'capital') return <CapitalAllocationReport title={title} />;
     return null;
   };
@@ -143,7 +244,7 @@ function StrategyReportPanel({ executionState }) {
     }
 
     if (resolvedActiveTab === 'price') {
-      return renderReportByTab('price', {}, '价格回测报告（Placeholder）');
+      return renderReportByTab('price', { priceMetrics: buildPriceMetrics(executionState) }, '价格回测报告（草图）');
     }
 
     return renderReportByTab('capital', {}, '资金模拟报告（Placeholder）');
@@ -211,7 +312,10 @@ function StrategyReportPanel({ executionState }) {
                 <Typography variant="subtitle2" fontWeight={700}>本次结果</Typography>
                 {renderReportByTab(
                   resolvedActiveTab,
-                  { enumMetrics: buildEnumMetrics(executionState) },
+                  {
+                    enumMetrics: buildEnumMetrics(executionState),
+                    priceMetrics: buildPriceMetrics(executionState),
+                  },
                   '本次报告',
                 )}
               </Stack>
@@ -220,7 +324,10 @@ function StrategyReportPanel({ executionState }) {
                 {compareVersion
                   ? renderReportByTab(
                     resolvedActiveTab,
-                    { enumMetrics: buildEnumMetricsFromTotal(MOCK_ENUM_OPPORTUNITIES[compareVersion] || 0) },
+                    {
+                      enumMetrics: buildEnumMetricsFromTotal(MOCK_ENUM_OPPORTUNITIES[compareVersion] || 0),
+                      priceMetrics: buildPriceMetricsFromBase(MOCK_PRICE_SUMMARIES[compareVersion]),
+                    },
                     `对比报告（${compareVersion}）`,
                   )
                   : (

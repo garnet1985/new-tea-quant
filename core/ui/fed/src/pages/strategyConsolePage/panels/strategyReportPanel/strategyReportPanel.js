@@ -33,6 +33,12 @@ const MOCK_PRICE_SUMMARIES = {
   v2: { winRate: 49.6, roi: 9.3, avgHoldDays: 14.5 },
   v1: { winRate: 44.1, roi: 6.7, avgHoldDays: 18.9 },
 };
+const MOCK_CAPITAL_SUMMARIES = {
+  latest: { totalReturnPct: 31.8, maxDrawdownPct: 9.6, winRatePct: 57.1 },
+  v3: { totalReturnPct: 24.6, maxDrawdownPct: 11.4, winRatePct: 54.2 },
+  v2: { totalReturnPct: 19.2, maxDrawdownPct: 12.9, winRatePct: 51.0 },
+  v1: { totalReturnPct: 13.7, maxDrawdownPct: 15.6, winRatePct: 47.8 },
+};
 
 function buildEnumMetricsFromTotal(totalOpportunities) {
   if (totalOpportunities <= 0) return null;
@@ -195,6 +201,111 @@ function buildPriceMetrics(executionState) {
   return buildPriceMetricsFromBase(base);
 }
 
+function buildCapitalMetricsFromBase(base) {
+  if (!base) return null;
+  const initialCapital = 1_000_000;
+  const totalReturnPct = Number(base.totalReturnPct || 0);
+  const maxDrawdownPct = Number(base.maxDrawdownPct || 0);
+  const winRatePct = Number(base.winRatePct || 0);
+
+  const finalEquity = Math.round(initialCapital * (1 + totalReturnPct / 100));
+  const totalProfit = finalEquity - initialCapital;
+  const calmarRatio = maxDrawdownPct > 0 ? Number((totalReturnPct / maxDrawdownPct).toFixed(2)) : 0;
+
+  const sellTrades = Math.max(80, Math.round(140 + winRatePct * 1.1));
+  const buyTrades = sellTrades;
+  const totalTrades = buyTrades + sellTrades;
+  const winTrades = Math.round(sellTrades * (winRatePct / 100));
+  const lossTrades = Math.max(0, sellTrades - winTrades);
+  const avgPnlPerTrade = sellTrades > 0 ? Math.round(totalProfit / sellTrades) : 0;
+
+  const peakPositions = 10;
+  const avgOpenPositions = Number((peakPositions * (0.56 + winRatePct / 250)).toFixed(1));
+  const fullExposureDaysRatio = Number((10 + winRatePct / 3).toFixed(1));
+  const avgCashRatio = Number((34 - totalReturnPct * 0.45).toFixed(1));
+  const capitalUtilizationRatio = Number((100 - avgCashRatio).toFixed(1));
+
+  const maxLossStreak = Math.max(2, Math.round(9 - winRatePct / 10));
+  const maxDrawdownDurationDays = Math.max(8, Math.round(42 - totalReturnPct / 1.8));
+  const worstTradePnls = [
+    -Math.round(initialCapital * (maxDrawdownPct / 100) * 0.17),
+    -Math.round(initialCapital * (maxDrawdownPct / 100) * 0.14),
+    -Math.round(initialCapital * (maxDrawdownPct / 100) * 0.11),
+  ];
+
+  const stockCount = Math.max(25, Math.round(46 + winRatePct / 2));
+  const avgTradesPerStock = Number((sellTrades / stockCount).toFixed(2));
+  const top5ContributionRatio = Number((34 + totalReturnPct * 0.5).toFixed(1));
+  const stockPnlCv = Number((1.6 - totalReturnPct / 65).toFixed(2));
+
+  const equityCurveLabels = ['T0', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11'];
+  const equityRatios = [0, 0.03, 0.08, 0.06, 0.12, 0.16, 0.13, 0.21, 0.24, 0.22, 0.28, 0.318];
+  const normalizedTarget = totalReturnPct / 100;
+  const normalizedBase = 0.318;
+  const equityCurveValues = equityRatios.map((ratio) => (
+    Math.round(initialCapital * (1 + (ratio / normalizedBase) * normalizedTarget))
+  ));
+  const runningPeak = [];
+  let peak = equityCurveValues[0];
+  for (let i = 0; i < equityCurveValues.length; i += 1) {
+    peak = Math.max(peak, equityCurveValues[i]);
+    runningPeak.push(peak);
+  }
+  const drawdownCurveValues = equityCurveValues.map((value, index) => {
+    const dd = runningPeak[index] > 0 ? ((runningPeak[index] - value) / runningPeak[index]) * 100 : 0;
+    return Number(dd.toFixed(2));
+  });
+  const maxDrawdownRealized = Math.max(...drawdownCurveValues, maxDrawdownPct);
+  const maxDrawdownDisplay = Number(maxDrawdownRealized.toFixed(2));
+
+  return {
+    initialCapital,
+    finalEquity,
+    totalProfit,
+    totalReturnPct: Number(totalReturnPct.toFixed(2)),
+    maxDrawdownPct: maxDrawdownDisplay,
+    calmarRatio,
+    totalTrades,
+    buyTrades,
+    sellTrades,
+    winTrades,
+    lossTrades,
+    winRatePct: Number(winRatePct.toFixed(2)),
+    avgPnlPerTrade,
+    avgOpenPositions,
+    peakPositions,
+    fullExposureDaysRatio,
+    avgCashRatio,
+    capitalUtilizationRatio,
+    maxLossStreak,
+    maxDrawdownDurationDays,
+    worstTradePnls,
+    stockCount,
+    avgTradesPerStock,
+    top5ContributionRatio,
+    stockPnlCv,
+    equityCurveLabels,
+    equityCurveValues,
+    drawdownCurveValues,
+  };
+}
+
+function buildCapitalMetrics(executionState) {
+  const summary = executionState?.result?.capital;
+  const parsed = summary
+    ? {
+      totalReturnPct: Number((Number(summary.totalReturn || 0) * 100).toFixed(2)),
+      maxDrawdownPct: Number((Number(summary.maxDrawdown || 0) * 100).toFixed(2)),
+      winRatePct: Number((Number(summary.winRate || 0) * 100).toFixed(2)),
+    }
+    : null;
+  const hasRealCapitalMetrics = Boolean(
+    parsed && (Math.abs(parsed.totalReturnPct) > 0 || Math.abs(parsed.maxDrawdownPct) > 0 || Math.abs(parsed.winRatePct) > 0),
+  );
+  const base = hasRealCapitalMetrics ? parsed : MOCK_CAPITAL_SUMMARIES.latest;
+  return buildCapitalMetricsFromBase(base);
+}
+
 function StrategyReportPanel({ executionState }) {
   const availableTabs = useMemo(() => {
     const stepStatus = executionState?.stepStatus || {};
@@ -218,7 +329,7 @@ function StrategyReportPanel({ executionState }) {
   const renderReportByTab = (tabKey, reportData, title) => {
     if (tabKey === 'enum') return <OpportunityEnumrateReport metrics={reportData?.enumMetrics} title={title} />;
     if (tabKey === 'price') return <PriceFactorReport metrics={reportData?.priceMetrics} title={title} />;
-    if (tabKey === 'capital') return <CapitalAllocationReport title={title} />;
+    if (tabKey === 'capital') return <CapitalAllocationReport metrics={reportData?.capitalMetrics} title={title} />;
     return null;
   };
 
@@ -247,7 +358,7 @@ function StrategyReportPanel({ executionState }) {
       return renderReportByTab('price', { priceMetrics: buildPriceMetrics(executionState) }, '价格回测报告（草图）');
     }
 
-    return renderReportByTab('capital', {}, '资金模拟报告（Placeholder）');
+    return renderReportByTab('capital', { capitalMetrics: buildCapitalMetrics(executionState) }, '资金模拟报告（草图）');
   };
 
   return (
@@ -315,6 +426,7 @@ function StrategyReportPanel({ executionState }) {
                   {
                     enumMetrics: buildEnumMetrics(executionState),
                     priceMetrics: buildPriceMetrics(executionState),
+                    capitalMetrics: buildCapitalMetrics(executionState),
                   },
                   '本次报告',
                 )}
@@ -327,6 +439,7 @@ function StrategyReportPanel({ executionState }) {
                     {
                       enumMetrics: buildEnumMetricsFromTotal(MOCK_ENUM_OPPORTUNITIES[compareVersion] || 0),
                       priceMetrics: buildPriceMetricsFromBase(MOCK_PRICE_SUMMARIES[compareVersion]),
+                      capitalMetrics: buildCapitalMetricsFromBase(MOCK_CAPITAL_SUMMARIES[compareVersion]),
                     },
                     `对比报告（${compareVersion}）`,
                   )

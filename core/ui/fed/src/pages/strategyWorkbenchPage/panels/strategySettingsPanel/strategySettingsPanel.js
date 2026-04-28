@@ -134,12 +134,19 @@ export function StrategySettingsPanel({
   );
 }
 
-export function PlaceholderSection({ title, text, defaultExpanded = false }) {
+export function PlaceholderSection({
+  title,
+  text,
+  defaultExpanded = false,
+  children,
+}) {
   return (
     <SectionAccordion title={title} defaultExpanded={defaultExpanded}>
-      <Typography variant="body2" color="text.secondary">
-        {text || 'Coming soon...'}
-      </Typography>
+      {children || (
+        <Typography variant="body2" color="text.secondary">
+          {text || 'Coming soon...'}
+        </Typography>
+      )}
     </SectionAccordion>
   );
 }

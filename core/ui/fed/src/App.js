@@ -7,7 +7,7 @@ import ComingSoonPage from './pages/comingSoonPage';
 import SetupGuard from 'components/setupGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
-import StrategyConsolePage from './pages/strategyConsolePage';
+import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
 import JsonFieldTestPage from './pages/jsonFieldTestPage';
 
 const theme = createTheme();
@@ -26,7 +26,7 @@ function App() {
               </SetupGuard>
             )}
           >
-            <Route path="/strategy-workbench/:strategyName" element={<StrategyConsolePage />} />
+            <Route path="/strategy-workbench/:strategyName" element={<StrategyWorkbenchPage />} />
             <Route path="/strategy-workbench" element={<StrategyListPage />} />
             <Route
               path="/scan"

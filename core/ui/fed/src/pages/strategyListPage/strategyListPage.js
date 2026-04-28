@@ -16,7 +16,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import SearchIcon from '@mui/icons-material/Search';
-import { fetchStrategyList, getStrategyConsolePath } from '../../api/apis/strategyApi';
+import { fetchStrategyList, getStrategyWorkbenchPath } from '../../api/apis/strategyApi';
 import './strategyListPage.scss';
 
 function StrategyListPage() {
@@ -64,7 +64,7 @@ function StrategyListPage() {
       renderCell: (params) => (
         <Link
           component={RouterLink}
-          to={getStrategyConsolePath(params.row.name)}
+          to={getStrategyWorkbenchPath(params.row.name)}
           underline="hover"
           onClick={(e) => e.stopPropagation()}
         >
@@ -91,7 +91,7 @@ function StrategyListPage() {
       renderCell: (params) => (
         <Link
           component={RouterLink}
-          to={getStrategyConsolePath(params.row.name)}
+          to={getStrategyWorkbenchPath(params.row.name)}
           underline="hover"
           onClick={(e) => e.stopPropagation()}
         >
@@ -142,9 +142,11 @@ function StrategyListPage() {
         />
       </Stack>
       <Typography color="text.secondary" component="div" variant="body2" sx={{ mb: 2 }}>
-        本页为进入系统后的落地页。列表数据当前为前端 mock，列字段与
-        <code> settings</code> 的 meta 段（<code>name</code>、<code>description</code>、<code>is_enabled</code>
-        ）一致，与各策略目录下 <code>settings.py</code> 中写入的 meta 相同，后续可对接 BFF。
+        本页为进入系统后的落地页。列表数据来自 BFF{' '}
+        <code>GET /api/v1/strategies</code>
+        ，列字段对应各策略 <code>settings</code> 中 meta 段（
+        <code>name</code>、<code>description</code>、<code>is_enabled</code>
+        ），与各策略目录下 <code>settings.py</code> 一致。
       </Typography>
       {loadError ? <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert> : null}
       <Box sx={{ width: '100%', minHeight: 400 }}>
@@ -156,7 +158,7 @@ function StrategyListPage() {
           localeText={zhCN}
           disableRowSelectionOnClick
           onRowDoubleClick={(params) => {
-            navigate(getStrategyConsolePath(params.row.name));
+            navigate(getStrategyWorkbenchPath(params.row.name));
           }}
           // 仅 [10]：MUI TablePagination 在仅一项时不渲染 “Rows per page” 与下拉（避免英文标签）
           pageSizeOptions={[10]}

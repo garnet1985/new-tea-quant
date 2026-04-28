@@ -17,6 +17,14 @@ function parseNumber(raw) {
 
 const STRATEGY_DEFAULT = 'continuous';
 const STRATEGY_KEYS = ['continuous', 'uniform', 'stratified', 'random', 'pool', 'blacklist'];
+const DEFAULT_SAMPLING_STRATEGY_OPTIONS = [
+  { label: '连续采样（默认）', value: 'continuous' },
+  { label: '均匀采样', value: 'uniform' },
+  { label: '分层采样', value: 'stratified' },
+  { label: '随机采样', value: 'random' },
+  { label: '指定股票池采样', value: 'pool' },
+  { label: '排除黑名单采样', value: 'blacklist' },
+];
 
 export function normalizeSamplingSettings(sampling) {
   const next = sampling && typeof sampling === 'object' ? { ...sampling } : {};
@@ -37,23 +45,19 @@ export function cleanupSamplingByStrategy(sampling) {
   return next;
 }
 
-const strategySamplingSchema = {
-  name: 'strategySampling',
-  type: 'fieldGroup',
-  label: '',
-  children: [
+export function buildStrategySamplingSchema(samplingStrategyOptions = DEFAULT_SAMPLING_STRATEGY_OPTIONS) {
+  return {
+    name: 'strategySampling',
+    type: 'fieldGroup',
+    label: '',
+    children: [
     {
       name: 'strategy',
       type: 'select',
       label: '采样策略',
-      options: [
-        { label: '连续采样（默认）', value: 'continuous' },
-        { label: '均匀采样', value: 'uniform' },
-        { label: '分层采样', value: 'stratified' },
-        { label: '随机采样', value: 'random' },
-        { label: '指定股票池采样', value: 'pool' },
-        { label: '排除黑名单采样', value: 'blacklist' },
-      ],
+      options: Array.isArray(samplingStrategyOptions) && samplingStrategyOptions.length > 0
+        ? samplingStrategyOptions
+        : DEFAULT_SAMPLING_STRATEGY_OPTIONS,
     },
     {
       name: 'sampling_amount',
@@ -115,7 +119,10 @@ const strategySamplingSchema = {
       label: '黑名单文件路径（可选）',
       visibleWhen: ({ values }) => values?.strategy === 'blacklist',
     },
-  ],
-};
+    ],
+  };
+}
+
+const strategySamplingSchema = buildStrategySamplingSchema();
 
 export default strategySamplingSchema;

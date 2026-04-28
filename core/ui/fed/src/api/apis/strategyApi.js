@@ -60,6 +60,211 @@ export async function saveStrategySettings(strategyName, settings) {
 }
 
 /**
+ * SWB-17：读取策略工作台版本列表。
+ * @param {string} strategyName
+ * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string }> }>}
+ */
+export async function fetchStrategyVersions(strategyName) {
+  const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/versions`, { method: 'GET' });
+  return {
+    versions: json?.message?.versions ?? [],
+  };
+}
+
+/**
+ * SWB-18：读取单个版本详情。
+ * @param {string} strategyName
+ * @param {string} versionId
+ * @returns {Promise<{ version_id: string, settings: object }>}
+ */
+export async function fetchStrategyVersionDetail(strategyName, versionId) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/versions/${encodeURIComponent(versionId)}`,
+    { method: 'GET' },
+  );
+  return {
+    version_id: json?.message?.version_id || versionId,
+    settings: json?.message?.settings || {},
+  };
+}
+
+/**
+ * SWB-19：恢复指定版本到当前 settings。
+ * @param {string} strategyName
+ * @param {string} versionId
+ * @returns {Promise<{ restored: boolean, version_id: string }>}
+ */
+export async function restoreStrategyVersion(strategyName, versionId) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/versions/${encodeURIComponent(versionId)}/restore`,
+    { method: 'POST' },
+  );
+  return {
+    restored: Boolean(json?.message?.restored),
+    version_id: json?.message?.version_id || versionId,
+  };
+}
+
+/**
+ * SWB-20：固化当前工作台配置为后端版本。
+ * @param {string} strategyName
+ * @param {object} settings
+ * @param {string=} source
+ * @returns {Promise<{ version_id: string, created: boolean }>}
+ */
+export async function createStrategyVersion(strategyName, settings, source = 'manual_apply') {
+  const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/versions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      source,
+      source_ref: null,
+      settings,
+    }),
+  });
+  return {
+    version_id: json?.message?.version_id || '',
+    created: Boolean(json?.message?.created),
+  };
+}
+
+/**
+ * SWB-06：启动执行 run。
+ * @param {string} strategyName
+ * @param {'enum'|'price'|'capital'} targetStep
+ */
+export async function startStrategyRun(strategyName, targetStep) {
+  const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/runs`, {
+    method: 'POST',
+    body: JSON.stringify({ target_step: targetStep }),
+  });
+  return json?.message || {};
+}
+
+/**
+ * SWB-07：读取执行状态。
+ * @param {string} strategyName
+ * @param {string} runId
+ */
+export async function fetchStrategyRunStatus(strategyName, runId) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/runs/${encodeURIComponent(runId)}`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * SWB-08：取消执行。
+ * @param {string} strategyName
+ * @param {string} runId
+ */
+export async function cancelStrategyRun(strategyName, runId) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/runs/${encodeURIComponent(runId)}/cancel`,
+    { method: 'POST' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * SWB-09：读取执行摘要结果。
+ * @param {string} strategyName
+ * @param {string} runId
+ */
+export async function fetchStrategyRunResults(strategyName, runId) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/run-results/${encodeURIComponent(runId)}`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * SWB-10：读取对比版本选项。
+ * @param {string} strategyName
+ */
+export async function fetchStrategyCompareOptions(strategyName) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/compare-options`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * SWB-11：读取报告摘要。
+ * @param {string} strategyName
+ * @param {string} runId
+ * @param {string[]} [reportTypes]
+ */
+export async function fetchStrategyReports(strategyName, runId, reportTypes) {
+  const params = new URLSearchParams();
+  if (Array.isArray(reportTypes) && reportTypes.length > 0) {
+    params.set('report_types', reportTypes.join(','));
+  }
+  const query = params.toString();
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/reports/${encodeURIComponent(runId)}${query ? `?${query}` : ''}`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * SWB-12：读取报告样本股票表。
+ * @param {string} strategyName
+ * @param {string} runId
+ * @param {'enum'|'price'|'capital'} reportType
+ * @param {{limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc'|'desc'}} [options]
+ */
+export async function fetchStrategyReportStocks(strategyName, runId, reportType, options = {}) {
+  const params = new URLSearchParams();
+  params.set('report_type', reportType);
+  if (Number.isFinite(options.limit)) params.set('limit', String(options.limit));
+  if (options.search) params.set('search', options.search);
+  if (options.sortBy) params.set('sort_by', options.sortBy);
+  if (options.sortOrder) params.set('sort_order', options.sortOrder);
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/reports/${encodeURIComponent(runId)}/stocks?${params.toString()}`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * SWB-13：读取单股票 K 线与买卖点。
+ * @param {string} strategyName
+ * @param {string} runId
+ * @param {string} stockId
+ */
+export async function fetchStrategyReportStockKline(strategyName, runId, stockId) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/reports/${encodeURIComponent(runId)}/stocks/${encodeURIComponent(stockId)}/kline`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * SWB-14：读取报告对比数据。
+ * @param {string} strategyName
+ * @param {string} baseRunId
+ * @param {string} compareVersion
+ * @param {'enum'|'price'|'capital'} [reportType]
+ */
+export async function fetchStrategyReportCompare(strategyName, baseRunId, compareVersion, reportType) {
+  const params = new URLSearchParams();
+  params.set('base_run_id', baseRunId);
+  params.set('compare_version', compareVersion);
+  if (reportType) params.set('report_type', reportType);
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/reports/compare?${params.toString()}`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
  * SWB-02：资金分配模式选项（`capital_simulator.allocation.mode`）
  * @returns {Promise<StrategySettingOption[]>}
  */

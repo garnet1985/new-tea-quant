@@ -77,7 +77,74 @@ export function buildStockKlineChartOption(stock) {
   };
 }
 
-function StockKlineDialog({ open, stock, onClose }) {
+function buildStockKlineChartOptionFromApi(payload) {
+  if (!payload || !Array.isArray(payload.candles) || payload.candles.length === 0) return {};
+  const dates = payload.candles.map((item) => item.date);
+  const candleData = payload.candles.map((item) => [item.open, item.close, item.low, item.high]);
+  const markerData = Array.isArray(payload.markers)
+    ? payload.markers.map((item) => ({
+      value: [dates.indexOf(item.date), item.price],
+      itemStyle: { color: item.type === 'buy' ? '#2E7D32' : '#C62828' },
+      label: {
+        show: true,
+        formatter: item.type === 'buy' ? '买入' : '卖出',
+        position: 'top',
+      },
+    })).filter((item) => item.value[0] >= 0)
+    : [];
+  return {
+    animation: false,
+    grid: { left: 36, right: 12, top: 20, bottom: 28 },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      scale: true,
+      boundaryGap: true,
+      axisLine: { lineStyle: { color: '#D0D7DE' } },
+      axisLabel: { color: '#5F6368', fontSize: 10 },
+    },
+    yAxis: {
+      scale: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#5F6368', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#ECEFF1' } },
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+    },
+    series: [
+      {
+        type: 'candlestick',
+        data: candleData,
+        itemStyle: {
+          color: '#ef5350',
+          color0: '#26a69a',
+          borderColor: '#ef5350',
+          borderColor0: '#26a69a',
+        },
+      },
+      {
+        type: 'scatter',
+        symbolSize: 10,
+        data: markerData,
+      },
+    ],
+  };
+}
+
+function StockKlineDialog({
+  open,
+  stock,
+  klineData,
+  loading = false,
+  error = '',
+  onClose,
+}) {
+  const option = klineData
+    ? buildStockKlineChartOptionFromApi(klineData)
+    : buildStockKlineChartOption(stock);
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle>
@@ -85,10 +152,16 @@ function StockKlineDialog({ open, stock, onClose }) {
       </DialogTitle>
       <DialogContent dividers>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          展示该股票区间 K 线，以及本次回测中的买入/卖出点位（当前为 mock 示意）。
+          展示该股票区间 K 线，以及本次回测中的买入/卖出点位。
         </Typography>
+        {loading ? (
+          <Typography variant="caption" color="text.secondary">正在加载 K 线数据...</Typography>
+        ) : null}
+        {error ? (
+          <Typography variant="caption" color="error">{error}</Typography>
+        ) : null}
         <ReactECharts
-          option={buildStockKlineChartOption(stock)}
+          option={option}
           style={{ height: 420, width: '100%' }}
           notMerge
           lazyUpdate

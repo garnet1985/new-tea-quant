@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Accordion,
@@ -18,8 +18,9 @@ import {
 import strategyGoalSchema from './editorSchemas/strategyGoal';
 import strategyFeesSchema from './editorSchemas/strategyFees';
 import strategyPriceSimulatorSchema from './editorSchemas/strategyPriceSimulator';
-import strategyCapitalSimulatorSchema from './editorSchemas/strategyCapitalSimulator';
-import strategySamplingSchema, {
+import { buildStrategyCapitalSimulatorSchema } from './editorSchemas/strategyCapitalSimulator';
+import {
+  buildStrategySamplingSchema,
   cleanupSamplingByStrategy,
   normalizeSamplingSettings,
 } from './editorSchemas/strategySampling';
@@ -53,9 +54,19 @@ export function StrategySettingsPanel({
   onEnumeratorChange,
   onPriceSimulatorChange,
   onCapitalSimulatorChange,
+  allocationModeOptions,
+  samplingStrategyOptions,
 }) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
   const [metaEditorErrors, setMetaEditorErrors] = useState({});
+  const capitalSimulatorSchema = useMemo(
+    () => buildStrategyCapitalSimulatorSchema(allocationModeOptions),
+    [allocationModeOptions],
+  );
+  const samplingSchema = useMemo(
+    () => buildStrategySamplingSchema(samplingStrategyOptions),
+    [samplingStrategyOptions],
+  );
 
   return (
     <SectionAccordion title="策略参数设置" defaultExpanded>
@@ -117,14 +128,14 @@ export function StrategySettingsPanel({
         </SectionAccordion>
         <SectionAccordion title="资金模拟参数">
           <Editor
-            schema={strategyCapitalSimulatorSchema}
+            schema={capitalSimulatorSchema}
             value={settings?.capital_simulator}
             onChange={onCapitalSimulatorChange}
           />
         </SectionAccordion>
         <SectionAccordion title="采样配置">
           <Editor
-            schema={strategySamplingSchema}
+            schema={samplingSchema}
             value={normalizeSamplingSettings(settings?.sampling)}
             onChange={(nextSampling) => onSamplingChange(cleanupSamplingByStrategy(nextSampling))}
           />

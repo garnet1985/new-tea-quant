@@ -292,6 +292,8 @@ class BatchWriteQueue:
                 if hasattr(self.table_manager.adapter, '_put_connection'):
                     if hasattr(conn, 'pg_conn'):
                         self.table_manager.adapter._put_connection(conn.pg_conn)
+                    elif hasattr(conn, 'mysql_conn'):
+                        self.table_manager.adapter._put_connection(conn.mysql_conn)
                     else:
                         self.table_manager.adapter._put_connection(conn)
             

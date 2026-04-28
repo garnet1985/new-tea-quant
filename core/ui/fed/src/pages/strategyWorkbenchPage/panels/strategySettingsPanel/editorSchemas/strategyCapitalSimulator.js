@@ -13,11 +13,19 @@ function parseIntNumber(raw) {
   return Math.trunc(n);
 }
 
-const strategyCapitalSimulatorSchema = {
-  name: 'strategyCapitalSimulator',
-  type: 'fieldGroup',
-  label: '',
-  children: [
+const DEFAULT_ALLOCATION_MODE_OPTIONS = [
+  { label: '每个机会均等资金买入', value: 'equal_capital' },
+  { label: '每个机会均等股数买入', value: 'equal_shares' },
+  { label: '凯莉公式', value: 'kelly' },
+  { label: '自定义', value: 'custom' },
+];
+
+export function buildStrategyCapitalSimulatorSchema(allocationModeOptions = DEFAULT_ALLOCATION_MODE_OPTIONS) {
+  return {
+    name: 'strategyCapitalSimulator',
+    type: 'fieldGroup',
+    label: '',
+    children: [
     {
       name: 'use_sampling',
       type: 'switch',
@@ -40,12 +48,9 @@ const strategyCapitalSimulatorSchema = {
       name: 'allocation.mode',
       type: 'select',
       label: '资金分配策略',
-      options: [
-        { label: '每个机会均等资金买入', value: 'equal_capital' },
-        { label: '每个机会均等股数买入', value: 'equal_shares' },
-        { label: '凯莉公式', value: 'kelly' },
-        { label: '自定义', value: 'custom' },
-      ],
+      options: Array.isArray(allocationModeOptions) && allocationModeOptions.length > 0
+        ? allocationModeOptions
+        : DEFAULT_ALLOCATION_MODE_OPTIONS,
     },
     {
       name: 'allocation.max_weight_per_stock',
@@ -87,7 +92,10 @@ const strategyCapitalSimulatorSchema = {
       feesName: 'fees',
       feeFields: strategyFeeFields,
     },
-  ],
-};
+    ],
+  };
+}
+
+const strategyCapitalSimulatorSchema = buildStrategyCapitalSimulatorSchema();
 
 export default strategyCapitalSimulatorSchema;

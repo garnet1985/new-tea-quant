@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -22,10 +22,14 @@ import {
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import {
+  createStrategyVersion,
+  fetchCapitalAllocationModeConfig,
   fetchStrategyList,
   fetchStrategySettings,
+  fetchStrategyVersions,
+  fetchSamplingStrategyConfig,
+  restoreStrategyVersion,
   getStrategyWorkbenchPath,
-  saveStrategySettings,
 } from '../../api/apis/strategyApi';
 import { defaultMetaInfo, defaultSettings } from './strategyWorkbench.mock';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
@@ -53,6 +57,9 @@ function StrategyWorkbenchPage() {
   const [settingsError, setSettingsError] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [settingsOptionError, setSettingsOptionError] = useState('');
+  const [allocationModeOptions, setAllocationModeOptions] = useState([]);
+  const [samplingStrategyOptions, setSamplingStrategyOptions] = useState([]);
   const [executionState, setExecutionState] = useState({
     stepStatus: {
       enum: 'idle',
@@ -71,10 +78,10 @@ function StrategyWorkbenchPage() {
     },
     runningStep: '',
   });
-  const buildFallbackSettings = () => ({
+  const buildFallbackSettings = useCallback(() => ({
     ...defaultSettings,
     meta: normalizeMeta({ ...defaultMetaInfo, name: strategyName || defaultMetaInfo.name }),
-  });
+  }), [strategyName]);
   const [initialSettings, setInitialSettings] = useState(() => buildFallbackSettings());
 
   const deepClone = (value) => JSON.parse(JSON.stringify(value));
@@ -97,6 +104,60 @@ function StrategyWorkbenchPage() {
         setStrategyRows([]);
       });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetchCapitalAllocationModeConfig(),
+      fetchSamplingStrategyConfig(),
+    ])
+      .then(([allocationConfig, samplingConfig]) => {
+        if (cancelled) return;
+        setAllocationModeOptions(allocationConfig?.options || []);
+        setSamplingStrategyOptions(samplingConfig?.options || []);
+        setSettingsOptionError('');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSettingsOptionError(err?.message || '读取设置选项失败，已使用默认值');
+        setAllocationModeOptions([]);
+        setSamplingStrategyOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+    if (!strategyName) {
+      setConfigVersions([]);
+      setSelectedConfigVersion('');
+      return () => {
+        isCancelled = true;
+      };
+    }
+
+    fetchStrategyVersions(strategyName)
+      .then((res) => {
+        if (isCancelled) return;
+        const rows = (res?.versions || []).map((version) => ({
+          id: version.version_id || `v${version.version || ''}`,
+          createdAt: version.created_at || '',
+          updatedAt: version.updated_at || '',
+          version: Number(version.version || 0),
+        }));
+        setConfigVersions(rows);
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setConfigVersions([]);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [buildFallbackSettings, strategyName]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -148,9 +209,8 @@ function StrategyWorkbenchPage() {
     return () => {
       isCancelled = true;
     };
-  }, [strategyName]);
+  }, [buildFallbackSettings, strategyName]);
 
-  const formatVersionLabel = (versionId, createdAt) => `${versionId}（${createdAt}）`;
   const versionMap = useMemo(
     () => Object.fromEntries(configVersions.map((version) => [version.id, version])),
     [configVersions],
@@ -162,6 +222,7 @@ function StrategyWorkbenchPage() {
     return configVersions.filter((version) => (
       version.id.toLowerCase().includes(keyword)
       || version.createdAt.toLowerCase().includes(keyword)
+      || version.updatedAt.toLowerCase().includes(keyword)
     ));
   }, [configVersions, latestFiveVersions, versionSearch]);
 
@@ -199,6 +260,12 @@ function StrategyWorkbenchPage() {
               const workspaceVersionLabel = selectedConfigVersion || '未保存';
               const appliedVersionLabel = appliedVersionId || 'file_current';
               const visibleStrategies = strategyRows.filter((row) => row?.name && row.name !== strategyName);
+              const disableSettingsActions = isSavingSettings || isLoadingSettings || !strategyName;
+              const getDraftSettingsForSubmit = () => (
+                coreEditor?.getDraftSettingsForSubmit
+                  ? coreEditor.getDraftSettingsForSubmit()
+                  : draftSettings
+              );
 
               const requestSwitchStrategy = (nextStrategyName) => {
                 if (!nextStrategyName) return;
@@ -210,30 +277,22 @@ function StrategyWorkbenchPage() {
                 navigate(getStrategyWorkbenchPath(nextStrategyName));
               };
 
-              const createWorkspaceVersion = (settingsValue) => {
-                const now = new Date();
-                const stamp = now.toISOString().replace('T', ' ').slice(0, 19);
-                const versionId = `${strategyName || 'strategy'}_${now.getTime()}`;
-                setConfigVersions((prev) => ([
-                  {
-                    id: versionId,
-                    createdAt: stamp,
-                    settings: deepClone(settingsValue),
-                  },
-                  ...prev,
-                ]));
-                setSelectedConfigVersion(versionId);
-                setSavedBaselineSettings(deepClone(settingsValue));
+              const createWorkspaceVersion = async (settingsValue) => {
+                if (!strategyName) return '';
+                const resolvedSettings = settingsValue || getDraftSettingsForSubmit();
+                const created = await createStrategyVersion(strategyName, resolvedSettings);
+                const versionId = created?.version_id || '';
+                const latest = await fetchStrategyVersions(strategyName);
+                const rows = (latest?.versions || []).map((version) => ({
+                  id: version.version_id || `v${version.version || ''}`,
+                  createdAt: version.created_at || '',
+                  updatedAt: version.updated_at || '',
+                  version: Number(version.version || 0),
+                }));
+                setConfigVersions(rows);
+                if (versionId) setSelectedConfigVersion(versionId);
+                setSavedBaselineSettings(deepClone(resolvedSettings));
                 return versionId;
-              };
-
-              const handleApplySettings = () => {
-                let targetVersionId = selectedConfigVersion;
-                if (!targetVersionId || hasUnsavedChanges) {
-                  targetVersionId = createWorkspaceVersion(draftSettings);
-                }
-                setAppliedSettings(deepClone(draftSettings));
-                setAppliedVersionId(targetVersionId);
               };
 
               return (
@@ -268,6 +327,11 @@ function StrategyWorkbenchPage() {
                   保存失败：{saveError}
                 </Typography>
               ) : null}
+              {settingsOptionError ? (
+                <Typography variant="body2" color="warning.main">
+                  选项加载提示：{settingsOptionError}
+                </Typography>
+              ) : null}
 
               <Box
                 sx={{
@@ -281,10 +345,13 @@ function StrategyWorkbenchPage() {
                 <Stack spacing={1}>
                   <Stack direction="row" spacing={0.75} alignItems="center">
                     <Typography variant="subtitle2" fontWeight={700}>应用工作台版本</Typography>
-                    <Tooltip title="当前工作台里的修改不会自动写入策略配置。只有点击应用按钮才会写入真实策略配置。">
+                    <Tooltip title="触发任一步执行时会自动保存当前工作台参数到策略配置；应用按钮用于版本选择与恢复。">
                       <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                     </Tooltip>
                   </Stack>
+                  <Typography variant="caption" color="text.secondary">
+                    字段合法性以后端校验结果为准，前端仅做最小交互约束。
+                  </Typography>
                   <Box
                     sx={{
                       display: 'flex',
@@ -307,11 +374,17 @@ function StrategyWorkbenchPage() {
                       <Button
                         variant="contained"
                         size="small"
-                        onClick={() => {
-                          if (!selectedConfigVersion || hasUnsavedChanges) {
-                            createWorkspaceVersion(draftSettings);
+                        disabled={disableSettingsActions}
+                        onClick={async () => {
+                          try {
+                            setSaveError('');
+                            if (!selectedConfigVersion || hasUnsavedChanges) {
+                              await createWorkspaceVersion(getDraftSettingsForSubmit());
+                            }
+                            setMoreVersionsOpen(true);
+                          } catch (err) {
+                            setSaveError(err?.message || '创建工作台版本失败');
                           }
-                          setMoreVersionsOpen(true);
                         }}
                       >
                         应用当前工作台版本到策略
@@ -328,6 +401,8 @@ function StrategyWorkbenchPage() {
                   settings={draftSettings}
                   onSettingsChange={setDraftSettings}
                   coreEditor={coreEditor}
+                  allocationModeOptions={allocationModeOptions}
+                  samplingStrategyOptions={samplingStrategyOptions}
                   onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
                   onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}
                   onFeesChange={(nextFees) => updateSection('fees', nextFees)}
@@ -360,10 +435,15 @@ function StrategyWorkbenchPage() {
               <Grid item xs={12} md={9}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   <StrategyExecutionPanel
+                    strategyName={strategyName}
                     settings={draftSettings}
+                    getSettingsForRun={getDraftSettingsForSubmit}
                     onExecutionStateChange={setExecutionState}
                   />
-                  <StrategyReportPanel executionState={executionState} />
+                  <StrategyReportPanel
+                    strategyName={strategyName}
+                    executionState={executionState}
+                  />
                 </Box>
               </Grid>
             </Grid>
@@ -392,17 +472,41 @@ function StrategyWorkbenchPage() {
                     }
                     setIsSavingSettings(true);
                     setSaveError('');
-                    saveStrategySettings(strategyName, target.settings)
+                    restoreStrategyVersion(strategyName, target.id)
                       .then(() => {
-                        setDraftSettings(deepClone(target.settings));
+                        return fetchStrategySettings(strategyName);
+                      })
+                      .then((res) => {
+                        const fallback = buildFallbackSettings();
+                        const serverSettings = res?.settings || {};
+                        const incomingMeta = (
+                          serverSettings?.meta && typeof serverSettings.meta === 'object'
+                            ? serverSettings.meta
+                            : {
+                              name: serverSettings?.name,
+                              description: serverSettings?.description,
+                              is_enabled: serverSettings?.is_enabled,
+                            }
+                        );
+                        const mergedSettings = {
+                          ...fallback,
+                          ...serverSettings,
+                          meta: normalizeMeta({
+                            ...fallback.meta,
+                            ...incomingMeta,
+                            name: strategyName,
+                          }),
+                        };
+                        setInitialSettings(mergedSettings);
+                        setDraftSettings(deepClone(mergedSettings));
                         setSelectedConfigVersion(target.id);
-                        setSavedBaselineSettings(deepClone(target.settings));
-                        setAppliedSettings(deepClone(target.settings));
+                        setSavedBaselineSettings(deepClone(mergedSettings));
+                        setAppliedSettings(deepClone(mergedSettings));
                         setAppliedVersionId(target.id);
                         setConfirmOpen(false);
                       })
                       .catch((err) => {
-                        setSaveError(err?.message || '保存策略配置失败');
+                        setSaveError(err?.message || '应用工作台版本失败');
                       })
                       .finally(() => {
                         setIsSavingSettings(false);
@@ -437,7 +541,7 @@ function StrategyWorkbenchPage() {
                       >
                         <ListItemText
                           primary={version.id}
-                          secondary={version.createdAt}
+                          secondary={version.updatedAt || version.createdAt}
                         />
                       </ListItemButton>
                     )) : (

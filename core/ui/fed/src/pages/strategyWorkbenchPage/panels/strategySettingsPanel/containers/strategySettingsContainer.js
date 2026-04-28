@@ -196,19 +196,27 @@ function StrategySettingsContainer({ initialSettings, children }) {
     }));
   };
 
+  const parseCoreInput = (text) => {
+    let result;
+    try {
+      const parsed = JSON.parse(text);
+      result = {
+        parsed,
+        pretty: JSON.stringify(parsed, null, 2),
+        mode: 'JSON',
+      };
+    } catch (_jsonErr) {
+      result = tryParsePythonDictLike(text);
+    }
+    if (!result?.parsed || typeof result.parsed !== 'object' || Array.isArray(result.parsed)) {
+      throw new Error('core 必须是 dict/object');
+    }
+    return result;
+  };
+
   const applyCoreAndFormat = () => {
     try {
-      let result;
-      try {
-        const parsed = JSON.parse(coreInputText);
-        result = {
-          parsed,
-          pretty: JSON.stringify(parsed, null, 2),
-          mode: 'JSON',
-        };
-      } catch (_jsonErr) {
-        result = tryParsePythonDictLike(coreInputText);
-      }
+      const result = parseCoreInput(coreInputText);
 
       setCoreInputText(result.pretty);
       setCoreParseError('');
@@ -217,7 +225,6 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreErrorColumn(0);
       setCoreErrorPosition(-1);
       setCoreParseMode(result.mode);
-      updateSection('core', result.parsed);
     } catch (err) {
       const msg = err?.message || '解析失败';
       let pos = extractErrorPosition(msg);
@@ -235,6 +242,40 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreErrorColumn(loc.column);
       setCoreErrorPosition(pos);
       setCoreParseMode('');
+    }
+  };
+
+  const getDraftSettingsForSubmit = () => {
+    try {
+      const result = parseCoreInput(coreInputText);
+      setCoreParseError('');
+      setCoreLineHint('');
+      setCoreErrorLine(0);
+      setCoreErrorColumn(0);
+      setCoreErrorPosition(-1);
+      setCoreParseMode(result.mode);
+      return {
+        ...draftSettings,
+        core: result.parsed,
+      };
+    } catch (err) {
+      const msg = err?.message || '解析失败';
+      let pos = extractErrorPosition(msg);
+      let loc = getLineColumnByPosition(coreInputText, pos);
+      if (loc.line <= 0 || loc.column <= 0) {
+        const lc = extractErrorLineColumn(msg);
+        if (lc.line > 0 && lc.column > 0) {
+          loc = lc;
+          pos = getPositionByLineColumn(coreInputText, lc.line, lc.column);
+        }
+      }
+      setCoreParseError(msg);
+      setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
+      setCoreErrorLine(loc.line);
+      setCoreErrorColumn(loc.column);
+      setCoreErrorPosition(pos);
+      setCoreParseMode('');
+      throw new Error(`core 参数格式不合法：${msg}`);
     }
   };
 
@@ -277,6 +318,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
       errorColumn: coreErrorColumn,
       errorContext: coreErrorContext,
       parseMode: coreParseMode,
+      getDraftSettingsForSubmit,
     },
   });
 }

@@ -1,72 +1,25 @@
 import React, { useMemo, useState } from 'react';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import { Box, Button, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
+import { buildPriceSampleStockRows } from '../../../mocks/strategyReportSampleRows';
+import MetricCard from 'components/metricCard/metricCard';
+import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
+import StockKlineDialog from '../components/stockKlineDialog';
 
-function MetricCard({ title, value, hint }) {
-  return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 1,
-        p: 1.25,
-        backgroundColor: 'background.paper',
-      }}
-    >
-      <Stack spacing={0.25}>
-        <Typography variant="caption" color="text.secondary">{title}</Typography>
-        <Typography variant="h6" fontWeight={700} lineHeight={1.2}>{value}</Typography>
-        {hint ? <Typography variant="caption" color="text.secondary">{hint}</Typography> : null}
-      </Stack>
-    </Box>
-  );
-}
+const PRICE_STOCK_SORT_MENU = [
+  { value: 'default', label: '接口顺序' },
+  { value: 'winRateDesc', label: '胜率（高到低）' },
+  { value: 'roiDesc', label: 'ROI（高到低）' },
+  { value: 'holdDaysAsc', label: '平均投资天数（低到高）' },
+];
 
-function SectionTitle({ title, tip }) {
-  return (
-    <Stack direction="row" spacing={0.5} alignItems="center">
-      <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
-      <Tooltip title={tip} placement="top">
-        <InfoOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
-      </Tooltip>
-    </Stack>
-  );
-}
-
-function SectionBlock({ title, tip, children }) {
-  return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 1,
-        p: 1.25,
-        backgroundColor: 'background.paper',
-      }}
-    >
-      <Stack spacing={1}>
-        <SectionTitle title={title} tip={tip} />
-        {children}
-      </Stack>
-    </Box>
-  );
-}
+const EMPTY_METRICS_BASE = {
+  totalInvestments: 0,
+  winRate: 0,
+  avgRoi: 0,
+  avgDurationDays: 0,
+};
 
 function buildRoiDistributionOption(metrics) {
   return {
@@ -146,154 +99,16 @@ function buildRoiBucketOption(metrics) {
   };
 }
 
-const STOCK_NAME_POOL = [
-  '贵州茅台',
-  '五粮液',
-  '中国平安',
-  '招商银行',
-  '美的集团',
-  '比亚迪',
-  '隆基绿能',
-  '宁德时代',
-  '中芯国际',
-  '海康威视',
-  '恒瑞医药',
-  '中国中免',
-  '紫金矿业',
-  '迈瑞医疗',
-  '中信证券',
-  '药明康德',
-  '万华化学',
-  '立讯精密',
-];
-
-const STOCK_CODE_POOL = [
-  '600519.SH',
-  '000858.SZ',
-  '601318.SH',
-  '600036.SH',
-  '000333.SZ',
-  '002594.SZ',
-  '601012.SH',
-  '300750.SZ',
-  '688981.SH',
-  '002415.SZ',
-  '600276.SH',
-  '601888.SH',
-  '601899.SH',
-  '300760.SZ',
-  '600030.SH',
-  '603259.SH',
-  '600309.SH',
-  '002475.SZ',
-];
-
-function buildSampleStocks(metrics) {
-  const baseCount = Math.max(10, Math.min(18, metrics.totalInvestments));
-  return Array.from({ length: baseCount }).map((_, index) => {
-    const seed = index + 1;
-    const winRate = Math.max(20, Math.min(92, Number((metrics.winRate + (seed % 5) * 4 - 8).toFixed(1))));
-    const roi = Number((metrics.avgRoi + (seed % 7) * 2.3 - 6.9).toFixed(1));
-    const holdDays = Math.max(3, Math.round(metrics.avgDurationDays + (seed % 6) * 3 - 7));
-    return {
-      id: `${STOCK_CODE_POOL[index]}-${seed}`,
-      stockCode: STOCK_CODE_POOL[index] || `688${900 + seed}.SH`,
-      stockName: STOCK_NAME_POOL[index] || `样本股票${seed}`,
-      winRate,
-      roi,
-      holdDays,
-    };
-  });
-}
-
-function hashString(text) {
-  let hash = 0;
-  for (let i = 0; i < text.length; i += 1) hash = ((hash << 5) - hash) + text.charCodeAt(i);
-  return Math.abs(hash);
-}
-
-function buildStockKlineOption(stock) {
-  if (!stock) return {};
-  const seed = hashString(stock.stockCode);
-  const points = 42;
-  const dates = Array.from({ length: points }).map((_, index) => `D${index + 1}`);
-  const base = 80 + (seed % 120);
-  let prevClose = base;
-  const candleData = dates.map((_, index) => {
-    const drift = Math.sin((index + (seed % 7)) / 4.5) * 1.7 + ((seed + index) % 5 - 2) * 0.35;
-    const open = Number((prevClose + drift * 0.4).toFixed(2));
-    const close = Number((open + drift).toFixed(2));
-    const high = Number((Math.max(open, close) + 0.8 + ((seed + index) % 3) * 0.35).toFixed(2));
-    const low = Number((Math.min(open, close) - 0.8 - ((seed + index) % 2) * 0.4).toFixed(2));
-    prevClose = close;
-    return [open, close, low, high];
-  });
-  const buyIndex = 9;
-  const sellIndex = 31;
-  const buyPrice = candleData[buyIndex]?.[1];
-  const sellPrice = candleData[sellIndex]?.[1];
-
-  return {
-    animation: false,
-    grid: { left: 36, right: 12, top: 20, bottom: 28 },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      scale: true,
-      boundaryGap: true,
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 10 },
-    },
-    yAxis: {
-      scale: true,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
-    },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'cross' },
-    },
-    series: [
-      {
-        type: 'candlestick',
-        data: candleData,
-        itemStyle: {
-          color: '#ef5350',
-          color0: '#26a69a',
-          borderColor: '#ef5350',
-          borderColor0: '#26a69a',
-        },
-      },
-      {
-        type: 'scatter',
-        symbolSize: 10,
-        data: [
-          { value: [buyIndex, buyPrice], itemStyle: { color: '#2E7D32' }, label: { show: true, formatter: '买入', position: 'top' } },
-          { value: [sellIndex, sellPrice], itemStyle: { color: '#C62828' }, label: { show: true, formatter: '卖出', position: 'top' } },
-        ],
-        tooltip: {
-          formatter: (params) => `${params.data?.label?.formatter || '点位'}：${params.value?.[1] || '--'}`,
-        },
-      },
-    ],
-  };
-}
-
 function PriceFactorReport({ metrics, title = '价格回测报告（草图）', showStockGrid = true }) {
   const [stockSearch, setStockSearch] = useState('');
   const [stockSortBy, setStockSortBy] = useState('default');
   const [selectedStock, setSelectedStock] = useState(null);
+
   const stockRows = useMemo(() => {
-    const base = metrics || {
-      totalInvestments: 0,
-      winRate: 0,
-      avgRoi: 0,
-      avgDurationDays: 0,
-    };
-    return buildSampleStocks(base);
+    const base = metrics || EMPTY_METRICS_BASE;
+    return buildPriceSampleStockRows(base);
   }, [metrics]);
+
   const filteredAndSortedRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
     const filtered = keyword
@@ -308,7 +123,7 @@ function PriceFactorReport({ metrics, title = '价格回测报告（草图）', 
     return sorted.slice(0, 10);
   }, [stockRows, stockSearch, stockSortBy]);
 
-  const stockColumns = [
+  const stockColumns = useMemo(() => [
     {
       field: 'stockCode',
       headerName: '代码',
@@ -344,7 +159,7 @@ function PriceFactorReport({ metrics, title = '价格回测报告（草图）', 
       width: 110,
       valueFormatter: (params) => `${params.value} 天`,
     },
-  ];
+  ], []);
 
   if (!metrics) {
     return (
@@ -359,47 +174,18 @@ function PriceFactorReport({ metrics, title = '价格回测报告（草图）', 
       <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
 
       {showStockGrid ? (
-        <SectionBlock
+        <ReportStockSampleGrid
           title="样本股票（最多 10 只）"
           tip="用于快速查看本次价格回测中代表性股票的核心表现，支持搜索和核心参数排序。点击代码可查看 K 线与买卖点。"
-        >
-          <Stack spacing={1}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-              <TextField
-                size="small"
-                placeholder="搜索代码或名称..."
-                value={stockSearch}
-                onChange={(event) => setStockSearch(event.target.value)}
-                sx={{ minWidth: { xs: '100%', md: 220 } }}
-              />
-              <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 180 } }}>
-                <InputLabel id="price-stock-sort-label">排序</InputLabel>
-                <Select
-                  labelId="price-stock-sort-label"
-                  value={stockSortBy}
-                  label="排序"
-                  onChange={(event) => setStockSortBy(event.target.value)}
-                >
-                  <MenuItem value="default">接口顺序</MenuItem>
-                  <MenuItem value="winRateDesc">胜率（高到低）</MenuItem>
-                  <MenuItem value="roiDesc">ROI（高到低）</MenuItem>
-                  <MenuItem value="holdDaysAsc">平均投资天数（低到高）</MenuItem>
-                </Select>
-              </FormControl>
-            </Stack>
-            <Box sx={{ height: 360 }}>
-              <DataGrid
-                rows={filteredAndSortedRows}
-                columns={stockColumns}
-                hideFooter
-                disableColumnMenu
-                disableColumnFilter
-                disableRowSelectionOnClick
-                density="compact"
-              />
-            </Box>
-          </Stack>
-        </SectionBlock>
+          searchValue={stockSearch}
+          onSearchChange={setStockSearch}
+          sortValue={stockSortBy}
+          onSortChange={setStockSortBy}
+          sortSelectLabelId="price-stock-sort-label"
+          sortMenuItems={PRICE_STOCK_SORT_MENU}
+          rows={filteredAndSortedRows}
+          columns={stockColumns}
+        />
       ) : null}
 
       <SectionBlock
@@ -468,22 +254,11 @@ function PriceFactorReport({ metrics, title = '价格回测报告（草图）', 
         </Box>
       </SectionBlock>
 
-      <Dialog open={Boolean(selectedStock)} onClose={() => setSelectedStock(null)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          {selectedStock ? `${selectedStock.stockCode} · ${selectedStock.stockName}` : 'K 线详情'}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            展示该股票区间 K 线，以及本次回测中的买入/卖出点位（当前为 mock 示意）。
-          </Typography>
-          <ReactECharts
-            option={buildStockKlineOption(selectedStock)}
-            style={{ height: 420, width: '100%' }}
-            notMerge
-            lazyUpdate
-          />
-        </DialogContent>
-      </Dialog>
+      <StockKlineDialog
+        open={Boolean(selectedStock)}
+        stock={selectedStock}
+        onClose={() => setSelectedStock(null)}
+      />
     </Stack>
   );
 }

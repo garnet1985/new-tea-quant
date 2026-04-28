@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { Outlet } from 'react-router-dom';
-import AppNavigation from '../components/appNavigation';
+import AppNavigation from 'components/appNavigation';
 
 function MainLayout() {
   return (

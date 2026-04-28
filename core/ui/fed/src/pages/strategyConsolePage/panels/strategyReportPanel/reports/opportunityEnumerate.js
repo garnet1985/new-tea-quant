@@ -1,68 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import {
-  Box,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
+import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
+import { buildEnumSampleStockRows } from '../../../mocks/strategyReportSampleRows';
+import MetricCard from 'components/metricCard/metricCard';
+import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 
-function MetricCard({ title, value, hint }) {
-  return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 1,
-        p: 1.25,
-        backgroundColor: 'background.paper',
-      }}
-    >
-      <Stack spacing={0.25}>
-        <Typography variant="caption" color="text.secondary">{title}</Typography>
-        <Typography variant="h6" fontWeight={700} lineHeight={1.2}>{value}</Typography>
-        {hint ? <Typography variant="caption" color="text.secondary">{hint}</Typography> : null}
-      </Stack>
-    </Box>
-  );
-}
-
-function SectionTitle({ title, tip }) {
-  return (
-    <Stack direction="row" spacing={0.5} alignItems="center">
-      <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
-      <Tooltip title={tip} placement="top">
-        <InfoOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
-      </Tooltip>
-    </Stack>
-  );
-}
-
-function SectionBlock({ title, tip, children }) {
-  return (
-    <Box
-      sx={{
-        border: 1,
-        borderColor: 'divider',
-        borderRadius: 1,
-        p: 1.25,
-        backgroundColor: 'background.paper',
-      }}
-    >
-      <Stack spacing={1}>
-        <SectionTitle title={title} tip={tip} />
-        {children}
-      </Stack>
-    </Box>
-  );
-}
+const ENUM_STOCK_SORT_MENU = [
+  { value: 'default', label: '接口顺序' },
+  { value: 'opportunitiesDesc', label: '机会数（高到低）' },
+  { value: 'completionDesc', label: '完整度（高到低）' },
+  { value: 'spanAsc', label: '平均机会间隔（低到高）' },
+];
 
 function buildStockDistributionOption(metrics) {
   return {
@@ -103,66 +52,11 @@ function buildStockDistributionOption(metrics) {
   };
 }
 
-const STOCK_NAME_POOL = [
-  '贵州茅台',
-  '五粮液',
-  '中国平安',
-  '招商银行',
-  '美的集团',
-  '比亚迪',
-  '隆基绿能',
-  '宁德时代',
-  '中芯国际',
-  '海康威视',
-  '恒瑞医药',
-  '中国中免',
-  '紫金矿业',
-  '迈瑞医疗',
-  '中信证券',
-];
-
-const STOCK_CODE_POOL = [
-  '600519.SH',
-  '000858.SZ',
-  '601318.SH',
-  '600036.SH',
-  '000333.SZ',
-  '002594.SZ',
-  '601012.SH',
-  '300750.SZ',
-  '688981.SH',
-  '002415.SZ',
-  '600276.SH',
-  '601888.SH',
-  '601899.SH',
-  '300760.SZ',
-  '600030.SH',
-];
-
-function buildEnumSampleStocks(metrics) {
-  const count = Math.max(10, Math.min(15, metrics.triggerStocks || 10));
-  const avgBase = Number(metrics.avgPerStock || 0);
-  return Array.from({ length: count }).map((_, index) => {
-    const seed = index + 1;
-    const opportunities = Math.max(1, Math.round(avgBase * (0.6 + (seed % 7) * 0.22)));
-    const completionRate = Math.max(35, Math.min(98, Number((metrics.completedRatio + (seed % 5) * 2.2 - 5.5).toFixed(1))));
-    const triggerSpanDays = Math.max(3, Math.round(metrics.meanGap + (seed % 6) * 1.8));
-    return {
-      id: `${STOCK_CODE_POOL[index] || `688${900 + seed}.SH`}-${seed}`,
-      stockCode: STOCK_CODE_POOL[index] || `688${900 + seed}.SH`,
-      stockName: STOCK_NAME_POOL[index] || `样本股票${seed}`,
-      opportunities,
-      completionRate,
-      triggerSpanDays,
-    };
-  });
-}
-
 function OpportunityEnumrateReport({ metrics, title = '枚举核心结论（草图）', showStockGrid = true }) {
   const [stockSearch, setStockSearch] = useState('');
   const [stockSortBy, setStockSortBy] = useState('default');
 
-  const stockRows = useMemo(() => buildEnumSampleStocks(metrics || {}), [metrics]);
+  const stockRows = useMemo(() => buildEnumSampleStockRows(metrics || {}), [metrics]);
 
   const filteredAndSortedRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
@@ -206,47 +100,18 @@ function OpportunityEnumrateReport({ metrics, title = '枚举核心结论（草�
       <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
 
       {showStockGrid ? (
-        <SectionBlock
+        <ReportStockSampleGrid
           title="样本股票（最多 10 只）"
           tip="用于快速查看枚举阶段的单股机会覆盖情况，支持搜索和核心参数排序。"
-        >
-          <Stack spacing={1}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
-              <TextField
-                size="small"
-                placeholder="搜索代码或名称..."
-                value={stockSearch}
-                onChange={(event) => setStockSearch(event.target.value)}
-                sx={{ minWidth: { xs: '100%', md: 220 } }}
-              />
-              <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 200 } }}>
-                <InputLabel id="enum-stock-sort-label">排序</InputLabel>
-                <Select
-                  labelId="enum-stock-sort-label"
-                  value={stockSortBy}
-                  label="排序"
-                  onChange={(event) => setStockSortBy(event.target.value)}
-                >
-                  <MenuItem value="default">接口顺序</MenuItem>
-                  <MenuItem value="opportunitiesDesc">机会数（高到低）</MenuItem>
-                  <MenuItem value="completionDesc">完整度（高到低）</MenuItem>
-                  <MenuItem value="spanAsc">平均机会间隔（低到高）</MenuItem>
-                </Select>
-              </FormControl>
-            </Stack>
-            <Box sx={{ height: 360 }}>
-              <DataGrid
-                rows={filteredAndSortedRows}
-                columns={stockColumns}
-                hideFooter
-                disableColumnMenu
-                disableColumnFilter
-                disableRowSelectionOnClick
-                density="compact"
-              />
-            </Box>
-          </Stack>
-        </SectionBlock>
+          searchValue={stockSearch}
+          onSearchChange={setStockSearch}
+          sortValue={stockSortBy}
+          onSortChange={setStockSortBy}
+          sortSelectLabelId="enum-stock-sort-label"
+          sortMenuItems={ENUM_STOCK_SORT_MENU}
+          rows={filteredAndSortedRows}
+          columns={stockColumns}
+        />
       ) : null}
 
       <SectionBlock

@@ -4,7 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import SetupPage from './pages/setupPage';
 import ComingSoonPage from './pages/comingSoonPage';
-import SetupGuard from './components/setupGuard';
+import SetupGuard from 'components/setupGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyConsolePage from './pages/strategyConsolePage';

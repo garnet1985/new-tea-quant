@@ -11,6 +11,7 @@ function CompareVersionSelect({
   onChange,
   options = [],
   label = '选择对比版本',
+  labelId = 'compare-version-select-label',
   includeEmpty = true,
   emptyLabel = '不对比',
   minWidth = 220,
@@ -18,9 +19,9 @@ function CompareVersionSelect({
 }) {
   return (
     <FormControl size="small" sx={{ minWidth, maxWidth }}>
-      <InputLabel id="compare-version-select-label">{label}</InputLabel>
+      <InputLabel id={labelId}>{label}</InputLabel>
       <Select
-        labelId="compare-version-select-label"
+        labelId={labelId}
         value={value}
         label={label}
         onChange={(event) => onChange(event.target.value)}

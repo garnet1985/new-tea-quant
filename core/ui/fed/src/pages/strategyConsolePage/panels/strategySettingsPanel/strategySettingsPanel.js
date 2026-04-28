@@ -7,7 +7,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import Editor from '../../../../components/editor/editor';
+import Editor from 'components/editor/editor';
 import strategyCoreSchema from './editorSchemas/strategyCore';
 import strategyMetaSchema from './editorSchemas/strategyMeta';
 import strategyEnumeratorSchema from './editorSchemas/strategyEnumerator';

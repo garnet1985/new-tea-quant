@@ -14,7 +14,7 @@ import {
 import { Link as RouterLink } from 'react-router-dom';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import JSON5 from 'json5';
-import PythonDictInputPanel from '../../components/pythonDictInputPanel';
+import PythonDictInputPanel from 'components/pythonDictInputPanel';
 
 const defaultInput = JSON.stringify(
   {

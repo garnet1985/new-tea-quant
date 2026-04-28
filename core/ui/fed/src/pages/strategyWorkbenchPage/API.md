@@ -646,7 +646,7 @@ HTTP 500（或与错误语义一致的 4xx/5xx），示例：
 #### BFF / Backend 职责
 
 1. `StrategyDiscoveryHelper.discover_strategies()` 发现策略并遍历。
-2. 每项：`key` = 目录名；`name` / `description` / `is_enabled` 来自 `StrategyInfo.settings.meta`（与当前 `core/ui/bff/api.py` 一致）。
+2. 每项：`key` = 目录名；`name` / `description` / `is_enabled` 来自 `StrategyInfo.settings.meta`（与当前 `core/ui/bff/APIs/strategy_workbench/service.py` 一致）。
 3. 按 `key` 升序排序。
 4. 异常时返回 `status: error`、`message.detail`，HTTP 500。
 

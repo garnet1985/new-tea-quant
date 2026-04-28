@@ -2,21 +2,31 @@
 BFF API 主应用
 """
 
-import os
-
 from flask import Flask
 from flask_cors import CORS
-from .routes import api_bp
+from .APIs.health import health_api_bp
+from .APIs.setup import setup_api_bp
+from .APIs.strategy_workbench import strategy_workbench_api_bp
+from .conf import conf
 
 def create_app():
     """创建Flask应用"""
     app = Flask(__name__)
     
     # 启用CORS
-    CORS(app)
+    CORS(
+        app,
+        origins=conf["CORS_ALLOW_ORIGINS"],
+        methods=conf["CORS_ALLOW_METHODS"],
+        allow_headers=conf["CORS_ALLOW_HEADERS"],
+        supports_credentials=bool(conf["CORS_ALLOW_CREDENTIALS"]),
+        max_age=int(conf["CORS_MAX_AGE"]),
+    )
     
     # 注册蓝图 - 所有API都在 /api 前缀下
-    app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(health_api_bp, url_prefix='/api')
+    app.register_blueprint(setup_api_bp, url_prefix='/api')
+    app.register_blueprint(strategy_workbench_api_bp, url_prefix='/api')
     
     # 添加根路径重定向到API文档
     @app.route('/', methods=['GET'])
@@ -31,6 +41,8 @@ def create_app():
                 "setup_status": "/api/v1/setup/status",
                 "setup_start": "/api/v1/setup/start",
                 "strategies": "/api/v1/strategies",
+                "strategy_settings_get": "/api/v1/strategies/{strategy_name}/settings",
+                "strategy_settings_save": "/api/v1/strategies/{strategy_name}/settings",
                 "strategies_settings_options_allocation_modes": "/api/v1/strategies/settings-options/allocation-modes",
                 "strategies_settings_options_sampling_strategies": "/api/v1/strategies/settings-options/sampling-strategies",
             },
@@ -40,11 +52,11 @@ def create_app():
     return app
 
 if __name__ == "__main__":
-    # 默认仅在本机开发环境运行，避免在生产环境暴露 debug 和 0.0.0.0 监听
+    # 启动参数统一读取 core/ui/bff/conf.py
     app = create_app()
 
-    host = os.getenv("NTQ_BFF_HOST", "127.0.0.1")
-    port = int(os.getenv("NTQ_BFF_PORT", "5001"))
-    debug = os.getenv("NTQ_BFF_DEBUG", "false").lower() == "true"
+    host = str(conf["HOST"])
+    port = int(conf["PORT"])
+    debug = bool(conf["DEBUG"])
 
     app.run(host=host, port=port, debug=debug, threaded=True)

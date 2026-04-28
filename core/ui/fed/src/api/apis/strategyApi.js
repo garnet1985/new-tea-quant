@@ -30,6 +30,36 @@ export function getStrategyWorkbenchPath(strategyName) {
 }
 
 /**
+ * SWB-04：读取单策略完整 settings。
+ * @param {string} strategyName
+ * @returns {Promise<{ strategy_name: string, settings: object }>}
+ */
+export async function fetchStrategySettings(strategyName) {
+  const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/settings`, { method: 'GET' });
+  return {
+    strategy_name: json?.message?.strategy_name || strategyName,
+    settings: json?.message?.settings || {},
+  };
+}
+
+/**
+ * SWB-05：保存单策略完整 settings。
+ * @param {string} strategyName
+ * @param {object} settings
+ * @returns {Promise<{ strategy_name: string, saved: boolean }>}
+ */
+export async function saveStrategySettings(strategyName, settings) {
+  const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/settings`, {
+    method: 'PUT',
+    body: JSON.stringify({ settings }),
+  });
+  return {
+    strategy_name: json?.message?.strategy_name || strategyName,
+    saved: Boolean(json?.message?.saved),
+  };
+}
+
+/**
  * SWB-02：资金分配模式选项（`capital_simulator.allocation.mode`）
  * @returns {Promise<StrategySettingOption[]>}
  */

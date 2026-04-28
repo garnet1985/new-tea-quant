@@ -182,6 +182,10 @@ function StrategySettingsContainer({ initialSettings, children }) {
   const coreInputRef = useRef(null);
 
   useEffect(() => {
+    setDraftSettings(normalizedInitial);
+  }, [normalizedInitial]);
+
+  useEffect(() => {
     setCoreInputText(coreValueText);
   }, [coreValueText]);
 

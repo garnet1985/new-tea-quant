@@ -10,14 +10,21 @@
 python -m core.ui.bff.app
 ```
 
-可通过环境变量覆盖默认监听：
+默认配置读取：
 
-- `NTQ_BFF_HOST`（默认 `127.0.0.1`）
-- `NTQ_BFF_PORT`（默认 `5001`）
-- `NTQ_BFF_DEBUG`（默认 `false`）
+- `core/ui/bff/conf.py`
+  - `HOST`
+  - `PORT`
+  - `DEBUG`
+  - `CORS_*`
 
 ## 说明
 
-- 统一入口：`core/ui/bff/api.py`
-- 路由定义：`core/ui/bff/routes.py`
-- 业务 API：`core/ui/bff/APIs/`
+- 应用入口与注册：`core/ui/bff/app.py`
+- API 按业务拆分：`core/ui/bff/APIs/`
+- 每个业务建议目录化：
+  - `routes.py`：endpoint 与请求解析
+  - `service.py`：业务逻辑
+  - `runtime.py` / `helpers.py`：共享状态、流程或工具
+- 跨业务复用能力：`core/ui/bff/shared/`
+  - 仅放跨业务通用方法（如 response/file ops）

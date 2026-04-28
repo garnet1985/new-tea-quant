@@ -21,7 +21,12 @@ import {
 } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { fetchStrategyList, getStrategyWorkbenchPath } from '../../api/apis/strategyApi';
+import {
+  fetchStrategyList,
+  fetchStrategySettings,
+  getStrategyWorkbenchPath,
+  saveStrategySettings,
+} from '../../api/apis/strategyApi';
 import { defaultMetaInfo, defaultSettings } from './strategyWorkbench.mock';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
@@ -44,6 +49,10 @@ function StrategyWorkbenchPage() {
   const [strategyRows, setStrategyRows] = useState([]);
   const [pendingStrategyName, setPendingStrategyName] = useState('');
   const [switchStrategyConfirmOpen, setSwitchStrategyConfirmOpen] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [settingsError, setSettingsError] = useState('');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [executionState, setExecutionState] = useState({
     stepStatus: {
       enum: 'idle',
@@ -62,13 +71,11 @@ function StrategyWorkbenchPage() {
     },
     runningStep: '',
   });
-  const initialSettings = useMemo(
-    () => ({
-      ...defaultSettings,
-      meta: normalizeMeta({ ...defaultMetaInfo, name: strategyName || defaultMetaInfo.name }),
-    }),
-    [strategyName],
-  );
+  const buildFallbackSettings = () => ({
+    ...defaultSettings,
+    meta: normalizeMeta({ ...defaultMetaInfo, name: strategyName || defaultMetaInfo.name }),
+  });
+  const [initialSettings, setInitialSettings] = useState(() => buildFallbackSettings());
 
   const deepClone = (value) => JSON.parse(JSON.stringify(value));
   const [savedBaselineSettings, setSavedBaselineSettings] = useState(() => deepClone(initialSettings));
@@ -90,6 +97,58 @@ function StrategyWorkbenchPage() {
         setStrategyRows([]);
       });
   }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const fallback = buildFallbackSettings();
+
+    if (!strategyName) {
+      setInitialSettings(fallback);
+      setIsLoadingSettings(false);
+      setSettingsError('');
+      return () => {
+        isCancelled = true;
+      };
+    }
+
+    setIsLoadingSettings(true);
+    setSettingsError('');
+    fetchStrategySettings(strategyName)
+      .then((res) => {
+        if (isCancelled) return;
+        const serverSettings = res?.settings || {};
+        const incomingMeta = (
+          serverSettings?.meta && typeof serverSettings.meta === 'object'
+            ? serverSettings.meta
+            : {
+              name: serverSettings?.name,
+              description: serverSettings?.description,
+              is_enabled: serverSettings?.is_enabled,
+            }
+        );
+        setInitialSettings({
+          ...fallback,
+          ...serverSettings,
+          meta: normalizeMeta({
+            ...fallback.meta,
+            ...incomingMeta,
+            name: strategyName,
+          }),
+        });
+      })
+      .catch((err) => {
+        if (isCancelled) return;
+        setInitialSettings(fallback);
+        setSettingsError(err?.message || '读取策略配置失败');
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingSettings(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [strategyName]);
 
   const formatVersionLabel = (versionId, createdAt) => `${versionId}（${createdAt}）`;
   const versionMap = useMemo(
@@ -192,8 +251,23 @@ function StrategyWorkbenchPage() {
                 {strategyName ? ` — ${strategyName}` : ''}
               </Typography>
               <Typography color="text.secondary">
-                策略作用是调参数并观察结果变化。本页先按 mock 数据构建完整 UI 骨架。
+                策略作用是调参数并观察结果变化。本页设置区已接入 BFF `SWB-04/05`。
               </Typography>
+              {isLoadingSettings ? (
+                <Typography variant="body2" color="text.secondary">
+                  正在加载策略配置...
+                </Typography>
+              ) : null}
+              {settingsError ? (
+                <Typography variant="body2" color="error">
+                  读取失败：{settingsError}
+                </Typography>
+              ) : null}
+              {saveError ? (
+                <Typography variant="body2" color="error">
+                  保存失败：{saveError}
+                </Typography>
+              ) : null}
 
               <Box
                 sx={{
@@ -233,7 +307,12 @@ function StrategyWorkbenchPage() {
                       <Button
                         variant="contained"
                         size="small"
-                        onClick={() => setMoreVersionsOpen(true)}
+                        onClick={() => {
+                          if (!selectedConfigVersion || hasUnsavedChanges) {
+                            createWorkspaceVersion(draftSettings);
+                          }
+                          setMoreVersionsOpen(true);
+                        }}
                       >
                         应用当前工作台版本到策略
                       </Button>
@@ -304,19 +383,33 @@ function StrategyWorkbenchPage() {
                 <Button onClick={() => setConfirmOpen(false)}>取消</Button>
                 <Button
                   variant="contained"
+                  disabled={isSavingSettings}
                   onClick={() => {
                     const target = versionMap[pendingVersionId];
-                    if (target) {
-                      setDraftSettings(deepClone(target.settings));
-                      setSelectedConfigVersion(target.id);
-                      setSavedBaselineSettings(deepClone(target.settings));
-                      setAppliedSettings(deepClone(target.settings));
-                      setAppliedVersionId(target.id);
+                    if (!target || !strategyName) {
+                      setConfirmOpen(false);
+                      return;
                     }
-                    setConfirmOpen(false);
+                    setIsSavingSettings(true);
+                    setSaveError('');
+                    saveStrategySettings(strategyName, target.settings)
+                      .then(() => {
+                        setDraftSettings(deepClone(target.settings));
+                        setSelectedConfigVersion(target.id);
+                        setSavedBaselineSettings(deepClone(target.settings));
+                        setAppliedSettings(deepClone(target.settings));
+                        setAppliedVersionId(target.id);
+                        setConfirmOpen(false);
+                      })
+                      .catch((err) => {
+                        setSaveError(err?.message || '保存策略配置失败');
+                      })
+                      .finally(() => {
+                        setIsSavingSettings(false);
+                      });
                   }}
                 >
-                  确认应用
+                  {isSavingSettings ? '保存中...' : '确认应用'}
                 </Button>
               </DialogActions>
             </Dialog>

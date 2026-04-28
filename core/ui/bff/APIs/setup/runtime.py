@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.infra.project_context.path_manager import PathManager
 from setup.meta_loader import load_setup_step_meta
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[5]
 STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
 
 
@@ -24,7 +24,6 @@ class SetupRuntimeManager:
     STATUS_FAILED = "failed"
 
     def __init__(self) -> None:
-        # 需要支持同线程内的嵌套加锁（例如 reset/get_status -> _save_state），避免自锁死。
         self._lock = threading.RLock()
 
     def get_definition(self) -> List[Dict[str, Any]]:
@@ -62,7 +61,6 @@ class SetupRuntimeManager:
         return self._run_pipeline(state, force_step_id=step_id)
 
     def retry(self) -> Dict[str, Any]:
-        # 简化语义：失败后重试一律从第一步重新开始，避免“部分跳过”带来的歧义和风险。
         definition = self.get_definition()
         state = self._new_state(definition)
         self._save_state(state)
@@ -259,7 +257,6 @@ class SetupRuntimeManager:
 
             self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
             if step_id == "init_userspace":
-                # init_userspace 可能切换目标目录；清理缓存，确保后续步骤读取最新 userspace。
                 PathManager.invalidate_userspace_cache()
             return True, ""
         except Exception as e:  # pragma: no cover
@@ -281,8 +278,6 @@ class SetupRuntimeManager:
         if db_type not in ("postgresql", "mysql"):
             db_type = "postgresql"
 
-        # 关键：优先使用本次 setup 会话里 init_userspace 的目标路径，
-        # 避免 PathManager 缓存导致“写到A、读到B”的路径错位。
         userspace_root = self._resolve_userspace_root(state)
         db_cfg_dir = userspace_root / "config" / "database"
         db_cfg_dir.mkdir(parents=True, exist_ok=True)

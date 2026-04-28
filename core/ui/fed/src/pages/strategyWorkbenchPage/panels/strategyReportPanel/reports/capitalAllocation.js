@@ -98,25 +98,28 @@ function buildDrawdownCurveOption(metrics) {
   };
 }
 
-function CapitalAllocationReport({ metrics, title = '资金模拟报告（草图）', showStockGrid = true }) {
+function CapitalAllocationReport({ metrics, stockRows, title = '资金模拟报告（草图）', showStockGrid = true }) {
   const [stockSearch, setStockSearch] = useState('');
   const [stockSortBy, setStockSortBy] = useState('default');
 
-  const stockRows = useMemo(() => buildCapitalSampleStockRows(metrics || {}), [metrics]);
+  const derivedStockRows = useMemo(() => {
+    if (Array.isArray(stockRows) && stockRows.length > 0) return stockRows;
+    return buildCapitalSampleStockRows(metrics || {});
+  }, [metrics, stockRows]);
 
   const filteredAndSortedRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
     const filtered = keyword
-      ? stockRows.filter((row) => (
+      ? derivedStockRows.filter((row) => (
         row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
       ))
-      : stockRows;
+      : derivedStockRows;
     const sorted = [...filtered];
     if (stockSortBy === 'pnlDesc') sorted.sort((a, b) => b.pnl - a.pnl);
     if (stockSortBy === 'tradeCountDesc') sorted.sort((a, b) => b.tradeCount - a.tradeCount);
     if (stockSortBy === 'winRateDesc') sorted.sort((a, b) => b.winRate - a.winRate);
     return sorted.slice(0, 10);
-  }, [stockRows, stockSearch, stockSortBy]);
+  }, [derivedStockRows, stockSearch, stockSortBy]);
 
   const stockColumns = [
     { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },

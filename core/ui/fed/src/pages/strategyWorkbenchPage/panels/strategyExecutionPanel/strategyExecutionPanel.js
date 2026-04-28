@@ -4,6 +4,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Button,
   Box,
   IconButton,
   MenuItem,
@@ -16,31 +17,25 @@ import { ReactComponent as PlayCircleIcon } from '../../../../assets/icon/play_c
 import { ReactComponent as DoneIcon } from '../../../../assets/icon/task_alt.svg';
 import {
   MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION,
-  STRATEGY_WORKBENCH_COMPARE_VERSION_OPTIONS,
 } from '../../mocks/strategyWorkbenchMocks';
 import {
-  simulateCapitalResult,
-  simulateEnumResult,
-  simulatePriceResult,
-} from '../../mocks/strategyExecutionMocks';
+  cancelStrategyRun,
+  fetchStrategyCompareOptions,
+  fetchStrategyRunStatus,
+  saveStrategySettings,
+  startStrategyRun,
+} from '../../../../api/apis/strategyApi';
 
 const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
 const STEP_CAPITAL = 'capital';
 
-function wait(ms) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
-function getRunChain(target, stepStatus) {
-  if (target === STEP_ENUM) return [STEP_ENUM];
-  if (stepStatus.enum === 'done') return [target];
-  return [STEP_ENUM, target];
-}
-
-function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
+function StrategyExecutionPanel({
+  strategyName,
+  settings,
+  getSettingsForRun,
+  onExecutionStateChange,
+}) {
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
     price: 'idle',
@@ -58,11 +53,70 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
     price: '',
     capital: '',
   });
+  const [compareOptions, setCompareOptions] = useState(['latest']);
+  const [activeRunId, setActiveRunId] = useState('');
+  const [latestRunId, setLatestRunId] = useState('');
+  const [runError, setRunError] = useState('');
 
   useEffect(() => {
     if (!onExecutionStateChange) return;
-    onExecutionStateChange({ stepStatus, result, compareVersion, runningStep });
-  }, [compareVersion, onExecutionStateChange, result, runningStep, stepStatus]);
+    onExecutionStateChange({
+      stepStatus,
+      result,
+      compareVersion,
+      runningStep,
+      runId: latestRunId,
+      activeRunId,
+    });
+  }, [activeRunId, compareVersion, latestRunId, onExecutionStateChange, result, runningStep, stepStatus]);
+
+  useEffect(() => {
+    let disposed = false;
+    if (!strategyName) {
+      setCompareOptions(['latest']);
+      return undefined;
+    }
+    const loadCompareOptions = async () => {
+      try {
+        const data = await fetchStrategyCompareOptions(strategyName);
+        if (disposed) return;
+        const options = Array.isArray(data?.versions)
+          ? data.versions.filter((item) => typeof item === 'string' && item.trim() !== '')
+          : [];
+        setCompareOptions(options.length > 0 ? options : ['latest']);
+      } catch (err) {
+        if (disposed) return;
+        setCompareOptions(['latest']);
+      }
+    };
+    loadCompareOptions();
+    return () => {
+      disposed = true;
+    };
+  }, [strategyName]);
+
+  useEffect(() => {
+    setStepStatus({
+      enum: 'idle',
+      price: 'idle',
+      capital: 'idle',
+    });
+    setRunningStep('');
+    setProgress(0);
+    setResult({
+      enum: null,
+      price: null,
+      capital: null,
+    });
+    setCompareVersion({
+      enum: '',
+      price: '',
+      capital: '',
+    });
+    setActiveRunId('');
+    setLatestRunId('');
+    setRunError('');
+  }, [strategyName]);
 
   const isRunning = Boolean(runningStep);
 
@@ -74,6 +128,7 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
   }, [runningStep]);
 
   const getStepClass = (status) => {
+    if (status === 'failed') return 'is-error';
     if (status === 'running') return 'is-running';
     if (status === 'done') return 'is-done';
     return 'is-idle';
@@ -90,6 +145,12 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
       return {
         borderColor: 'warning.main',
         backgroundColor: 'warning.50',
+      };
+    }
+    if (status === 'failed') {
+      return {
+        borderColor: 'error.main',
+        backgroundColor: 'error.50',
       };
     }
     return {
@@ -219,50 +280,79 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
     return <Typography variant="body2">{formatPriceLine(currentPrice)}</Typography>;
   };
 
-  const runStep = async (step) => {
-    setRunningStep(step);
-    setStepStatus((prev) => ({ ...prev, [step]: 'running' }));
-    setProgress(0);
+  useEffect(() => {
+    if (!strategyName || !activeRunId) return undefined;
 
-    await wait(200);
-    setProgress(25);
-    await wait(220);
-    setProgress(60);
-    await wait(240);
-    setProgress(100);
-    await wait(120);
-
-    if (step === STEP_ENUM) {
+    let stopped = false;
+    const applyStatus = (status) => {
+      const nextStepStatus = status?.step_status || {};
+      const normalized = {
+        enum: nextStepStatus.enum || 'idle',
+        price: nextStepStatus.price || 'idle',
+        capital: nextStepStatus.capital || 'idle',
+      };
+      if (status?.run_id) setLatestRunId(status.run_id);
+      setStepStatus(normalized);
+      setRunningStep(status?.running_step || '');
+      setProgress(Number(status?.progress_pct || 0));
+      const summary = status?.result_summary || {};
       setResult((prev) => ({
-        ...prev,
-        enum: simulateEnumResult(settings),
-        // 重新跑枚举会使下游两层结果失效
-        price: null,
-        capital: null,
+        enum: summary.enum ?? prev.enum,
+        price: summary.price ?? prev.price,
+        capital: summary.capital ?? prev.capital,
       }));
-      setStepStatus({
-        enum: 'done',
-        price: 'idle',
-        capital: 'idle',
-      });
-    } else if (step === STEP_PRICE) {
-      setResult((prev) => ({ ...prev, price: simulatePriceResult() }));
-      setStepStatus((prev) => ({ ...prev, price: 'done' }));
-    } else if (step === STEP_CAPITAL) {
-      setResult((prev) => ({ ...prev, capital: simulateCapitalResult(settings) }));
-      setStepStatus((prev) => ({ ...prev, capital: 'done' }));
-    }
+      if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {
+        setActiveRunId('');
+        if (status?.state === 'failed') setRunError('执行失败，请检查后端日志。');
+      }
+    };
 
-    setRunningStep('');
-    setProgress(0);
-  };
+    const poll = async () => {
+      try {
+        const status = await fetchStrategyRunStatus(strategyName, activeRunId);
+        if (stopped) return;
+        applyStatus(status);
+      } catch (err) {
+        if (stopped) return;
+        setRunError(err?.message || '读取执行状态失败');
+        setActiveRunId('');
+      }
+    };
+
+    poll();
+    const timer = window.setInterval(poll, 800);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [activeRunId, strategyName]);
 
   const handleRun = async (target) => {
-    if (isRunning) return;
-    const chain = getRunChain(target, stepStatus);
-    for (let i = 0; i < chain.length; i += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      await runStep(chain[i]);
+    if (isRunning || !strategyName) return;
+    try {
+      setRunError('');
+      const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
+      if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
+      // 按约定：触发任一步执行前，先将当前工作台参数落到策略 settings。
+      await saveStrategySettings(strategyName, resolvedSettings);
+      const started = await startStrategyRun(strategyName, target);
+      const runId = started?.run_id;
+      if (!runId) throw new Error('启动执行失败：缺少 run_id');
+      setActiveRunId(runId);
+      setLatestRunId(runId);
+      setRunningStep(started?.resolved_chain?.[0] || target);
+      setProgress(0);
+    } catch (err) {
+      setRunError(err?.message || '启动执行失败');
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!strategyName || !activeRunId) return;
+    try {
+      await cancelStrategyRun(strategyName, activeRunId);
+    } catch (err) {
+      setRunError(err?.message || '取消执行失败');
     }
   };
 
@@ -283,7 +373,13 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
                 {runLabel}
               </Typography>
               <LinearProgress variant="determinate" value={progress} sx={{ mt: 0.5 }} />
+              <Box sx={{ mt: 0.75, display: 'flex', justifyContent: 'flex-end' }}>
+                <Button size="small" color="error" onClick={handleCancel}>取消执行</Button>
+              </Box>
             </Box>
+          ) : null}
+          {runError ? (
+            <Typography variant="caption" color="error">{runError}</Typography>
           ) : null}
 
           <Stack spacing={1}>
@@ -338,7 +434,7 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
                       sx={{ minWidth: 120 }}
                     >
                       <MenuItem value="">不对比</MenuItem>
-                      {STRATEGY_WORKBENCH_COMPARE_VERSION_OPTIONS.map((v) => (
+                      {compareOptions.map((v) => (
                         <MenuItem key={v} value={v}>{v}</MenuItem>
                       ))}
                     </Select>
@@ -400,7 +496,7 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
                       sx={{ minWidth: 120 }}
                     >
                       <MenuItem value="">不对比</MenuItem>
-                      {STRATEGY_WORKBENCH_COMPARE_VERSION_OPTIONS.map((v) => (
+                      {compareOptions.map((v) => (
                         <MenuItem key={v} value={v}>{v}</MenuItem>
                       ))}
                     </Select>
@@ -536,7 +632,7 @@ function StrategyExecutionPanel({ settings, onExecutionStateChange }) {
                       sx={{ minWidth: 120 }}
                     >
                       <MenuItem value="">不对比</MenuItem>
-                      {STRATEGY_WORKBENCH_COMPARE_VERSION_OPTIONS.map((v) => (
+                      {compareOptions.map((v) => (
                         <MenuItem key={v} value={v}>{v}</MenuItem>
                       ))}
                     </Select>

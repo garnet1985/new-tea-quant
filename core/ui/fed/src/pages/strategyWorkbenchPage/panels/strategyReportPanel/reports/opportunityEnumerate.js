@@ -52,25 +52,33 @@ function buildStockDistributionOption(metrics) {
   };
 }
 
-function OpportunityEnumrateReport({ metrics, title = '枚举核心结论（草图）', showStockGrid = true }) {
+function OpportunityEnumrateReport({
+  metrics,
+  stockRows,
+  title = '枚举核心结论（草图）',
+  showStockGrid = true,
+}) {
   const [stockSearch, setStockSearch] = useState('');
   const [stockSortBy, setStockSortBy] = useState('default');
 
-  const stockRows = useMemo(() => buildEnumSampleStockRows(metrics || {}), [metrics]);
+  const derivedStockRows = useMemo(() => {
+    if (Array.isArray(stockRows) && stockRows.length > 0) return stockRows;
+    return buildEnumSampleStockRows(metrics || {});
+  }, [metrics, stockRows]);
 
   const filteredAndSortedRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
     const filtered = keyword
-      ? stockRows.filter((row) => (
+      ? derivedStockRows.filter((row) => (
         row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
       ))
-      : stockRows;
+      : derivedStockRows;
     const sorted = [...filtered];
     if (stockSortBy === 'opportunitiesDesc') sorted.sort((a, b) => b.opportunities - a.opportunities);
     if (stockSortBy === 'completionDesc') sorted.sort((a, b) => b.completionRate - a.completionRate);
     if (stockSortBy === 'spanAsc') sorted.sort((a, b) => a.triggerSpanDays - b.triggerSpanDays);
     return sorted.slice(0, 10);
-  }, [stockRows, stockSearch, stockSortBy]);
+  }, [derivedStockRows, stockSearch, stockSortBy]);
 
   const stockColumns = [
     { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Accordion,
@@ -20,19 +20,16 @@ import PriceFactorReport from './reports/priceFactor';
 import CapitalAllocationReport from './reports/capitalAllocation';
 import CompareVersionSelect from 'components/compareVersionSelect/compareVersionSelect';
 import {
-  MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION,
-  MOCK_REPORT_ENUM_OPPORTUNITIES_BY_VERSION,
-  MOCK_REPORT_PRICE_SUMMARIES_BY_VERSION,
-  STRATEGY_WORKBENCH_COMPARE_VERSION_OPTIONS,
-} from '../../mocks/strategyWorkbenchMocks';
-import {
   buildCapitalMetrics,
-  buildCapitalMetricsFromBase,
   buildEnumMetrics,
-  buildEnumMetricsFromTotal,
   buildPriceMetrics,
-  buildPriceMetricsFromBase,
 } from '../../mocks/strategyReportMetrics';
+import {
+  fetchStrategyCompareOptions,
+  fetchStrategyReportCompare,
+  fetchStrategyReportStocks,
+  fetchStrategyReports,
+} from '../../../../api/apis/strategyApi';
 
 const STEP_TABS = [
   { key: 'enum', label: '枚举报告' },
@@ -40,21 +37,173 @@ const STEP_TABS = [
   { key: 'capital', label: '资金模拟报告' },
 ];
 
-function StrategyReportPanel({ executionState }) {
+function StrategyReportPanel({ strategyName, executionState }) {
+  const [remoteReports, setRemoteReports] = useState({ reports: {}, availableTabs: [] });
+  const [compareOptions, setCompareOptions] = useState(['latest']);
+  const [reportStocks, setReportStocks] = useState({ enum: [], price: [], capital: [] });
+  const [reportError, setReportError] = useState('');
+  const runId = executionState?.runId || '';
+
   const availableTabs = useMemo(() => {
+    const remoteTabs = Array.isArray(remoteReports?.availableTabs)
+      ? remoteReports.availableTabs
+      : [];
+    if (remoteTabs.length > 0) {
+      return STEP_TABS.filter((tab) => remoteTabs.includes(tab.key));
+    }
     const stepStatus = executionState?.stepStatus || {};
     return STEP_TABS.filter((tab) => stepStatus[tab.key] === 'done');
-  }, [executionState]);
+  }, [executionState, remoteReports]);
 
   const [activeTab, setActiveTab] = useState('');
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareVersion, setCompareVersion] = useState('');
-
+  const [comparePayload, setComparePayload] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState('');
   const resolvedActiveTab = useMemo(() => {
     if (availableTabs.length === 0) return '';
     if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
     return availableTabs[availableTabs.length - 1].key;
   }, [activeTab, availableTabs]);
+
+  useEffect(() => {
+    let disposed = false;
+    if (!strategyName) {
+      setCompareOptions(['latest']);
+      return undefined;
+    }
+    const loadCompareOptions = async () => {
+      try {
+        const data = await fetchStrategyCompareOptions(strategyName);
+        if (disposed) return;
+        const options = Array.isArray(data?.versions)
+          ? data.versions.filter((item) => typeof item === 'string' && item.trim() !== '')
+          : [];
+        setCompareOptions(options.length > 0 ? options : ['latest']);
+      } catch (err) {
+        if (disposed) return;
+        setCompareOptions(['latest']);
+      }
+    };
+    loadCompareOptions();
+    return () => {
+      disposed = true;
+    };
+  }, [strategyName]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!strategyName || !runId) {
+      setRemoteReports({ reports: {}, availableTabs: [] });
+      setReportStocks({ enum: [], price: [], capital: [] });
+      setReportError('');
+      return undefined;
+    }
+    const loadReports = async () => {
+      try {
+        setReportError('');
+        const data = await fetchStrategyReports(strategyName, runId);
+        if (cancelled) return;
+        setRemoteReports({
+          reports: data?.reports || {},
+          availableTabs: data?.available_tabs || [],
+        });
+      } catch (err) {
+        if (cancelled) return;
+        setReportError(err?.message || '读取报告摘要失败');
+        setRemoteReports({ reports: {}, availableTabs: [] });
+      }
+    };
+    loadReports();
+    return () => {
+      cancelled = true;
+    };
+  }, [runId, strategyName]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!strategyName || !runId || !resolvedActiveTab) return undefined;
+    const loadStocks = async () => {
+      try {
+        const data = await fetchStrategyReportStocks(strategyName, runId, resolvedActiveTab, { limit: 10 });
+        if (cancelled) return;
+        const rows = Array.isArray(data?.rows) ? data.rows : [];
+        const mapped = rows.map((row, index) => {
+          if (resolvedActiveTab === 'enum') {
+            return {
+              id: `${row.stock_id}-${index}`,
+              stockCode: row.stock_id,
+              stockName: row.stock_name,
+              opportunities: Number(row.opportunities || 0),
+              completionRate: Number(row.completion_rate || 0),
+              triggerSpanDays: Number(row.trigger_span_days || 0),
+            };
+          }
+          if (resolvedActiveTab === 'price') {
+            return {
+              id: `${row.stock_id}-${index}`,
+              stockCode: row.stock_id,
+              stockName: row.stock_name,
+              winRate: Number(row.win_rate || 0),
+              roi: Number(row.roi || 0),
+              holdDays: Number(row.hold_days || 0),
+            };
+          }
+          return {
+            id: `${row.stock_id}-${index}`,
+            stockCode: row.stock_id,
+            stockName: row.stock_name,
+            tradeCount: Number(row.trade_count || 0),
+            pnl: Number(row.pnl || 0),
+            winRate: Number(row.win_rate || 0),
+          };
+        });
+        setReportStocks((prev) => ({ ...prev, [resolvedActiveTab]: mapped }));
+      } catch (err) {
+        if (cancelled) return;
+        setReportStocks((prev) => ({ ...prev, [resolvedActiveTab]: [] }));
+      }
+    };
+    loadStocks();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedActiveTab, runId, strategyName]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!compareDialogOpen || !strategyName || !runId || !resolvedActiveTab || !compareVersion) {
+      setComparePayload(null);
+      setCompareError('');
+      setCompareLoading(false);
+      return undefined;
+    }
+    const loadCompare = async () => {
+      try {
+        setCompareLoading(true);
+        setCompareError('');
+        const data = await fetchStrategyReportCompare(
+          strategyName,
+          runId,
+          compareVersion,
+          resolvedActiveTab,
+        );
+        if (cancelled) return;
+        setComparePayload(data || null);
+      } catch (err) {
+        if (cancelled) return;
+        setCompareError(err?.message || '读取对比报告失败');
+        setComparePayload(null);
+      } finally {
+        if (!cancelled) setCompareLoading(false);
+      }
+    };
+    loadCompare();
+    return () => {
+      cancelled = true;
+    };
+  }, [compareDialogOpen, compareVersion, resolvedActiveTab, runId, strategyName]);
 
   const handleTabChange = (_event, nextValue) => {
     setActiveTab(nextValue);
@@ -65,6 +214,7 @@ function StrategyReportPanel({ executionState }) {
       return (
         <OpportunityEnumrateReport
           metrics={reportData?.enumMetrics}
+          stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
         />
@@ -74,6 +224,9 @@ function StrategyReportPanel({ executionState }) {
       return (
         <PriceFactorReport
           metrics={reportData?.priceMetrics}
+          stockRows={reportData?.stockRows}
+          strategyName={strategyName}
+          runId={runId}
           title={title}
           showStockGrid={options.showStockGrid !== false}
         />
@@ -83,6 +236,7 @@ function StrategyReportPanel({ executionState }) {
       return (
         <CapitalAllocationReport
           metrics={reportData?.capitalMetrics}
+          stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
         />
@@ -100,8 +254,16 @@ function StrategyReportPanel({ executionState }) {
       );
     }
 
+    const metricsSource = {
+      result: {
+        enum: remoteReports?.reports?.enum || executionState?.result?.enum || null,
+        price: remoteReports?.reports?.price || executionState?.result?.price || null,
+        capital: remoteReports?.reports?.capital || executionState?.result?.capital || null,
+      },
+    };
+
     if (resolvedActiveTab === 'enum') {
-      const enumMetrics = buildEnumMetrics(executionState);
+      const enumMetrics = buildEnumMetrics(metricsSource);
       if (!enumMetrics) {
         return (
           <Typography variant="body2" color="text.secondary">
@@ -109,14 +271,32 @@ function StrategyReportPanel({ executionState }) {
           </Typography>
         );
       }
-      return renderReportByTab('enum', { enumMetrics }, '枚举核心结论（草图）');
+      return renderReportByTab(
+        'enum',
+        { enumMetrics, stockRows: reportStocks.enum },
+        '枚举核心结论（草图）',
+      );
     }
 
     if (resolvedActiveTab === 'price') {
-      return renderReportByTab('price', { priceMetrics: buildPriceMetrics(executionState) }, '价格回测报告（草图）');
+      return renderReportByTab(
+        'price',
+        {
+          priceMetrics: buildPriceMetrics(metricsSource),
+          stockRows: reportStocks.price,
+        },
+        '价格回测报告（草图）',
+      );
     }
 
-    return renderReportByTab('capital', { capitalMetrics: buildCapitalMetrics(executionState) }, '资金模拟报告（草图）');
+    return renderReportByTab(
+      'capital',
+      {
+        capitalMetrics: buildCapitalMetrics(metricsSource),
+        stockRows: reportStocks.capital,
+      },
+      '资金模拟报告（草图）',
+    );
   };
 
   return (
@@ -148,10 +328,13 @@ function StrategyReportPanel({ executionState }) {
               对比结果
             </Button>
           </Stack>
+          {reportError ? (
+            <Typography variant="caption" color="error">{reportError}</Typography>
+          ) : null}
           {renderTabContent()}
           <Divider />
           <Typography variant="caption" color="text.secondary">
-            注：当前为 UI 草图数据（由执行结果 mock 推导）。确认样式后可直接替换为真实汇总统计。
+            注：报告数据已优先接入 BFF API，暂缺字段时会回退为草图推导值。
           </Typography>
         </Stack>
       </AccordionDetails>
@@ -163,7 +346,7 @@ function StrategyReportPanel({ executionState }) {
             <CompareVersionSelect
               value={compareVersion}
               onChange={setCompareVersion}
-              options={STRATEGY_WORKBENCH_COMPARE_VERSION_OPTIONS}
+              options={compareOptions}
               label="选择对比版本"
               includeEmpty
               emptyLabel="不对比"
@@ -182,9 +365,15 @@ function StrategyReportPanel({ executionState }) {
                 {renderReportByTab(
                   resolvedActiveTab,
                   {
-                    enumMetrics: buildEnumMetrics(executionState),
-                    priceMetrics: buildPriceMetrics(executionState),
-                    capitalMetrics: buildCapitalMetrics(executionState),
+                    enumMetrics: buildEnumMetrics({
+                      result: { enum: comparePayload?.base_report || remoteReports?.reports?.enum || executionState?.result?.enum || null },
+                    }),
+                    priceMetrics: buildPriceMetrics({
+                      result: { price: comparePayload?.base_report || remoteReports?.reports?.price || executionState?.result?.price || null },
+                    }),
+                    capitalMetrics: buildCapitalMetrics({
+                      result: { capital: comparePayload?.base_report || remoteReports?.reports?.capital || executionState?.result?.capital || null },
+                    }),
                   },
                   '本次报告',
                   { showStockGrid: false },
@@ -192,13 +381,19 @@ function StrategyReportPanel({ executionState }) {
               </Stack>
               <Stack spacing={1}>
                 <Typography variant="subtitle2" fontWeight={700}>对比版本结果</Typography>
+                {compareLoading ? (
+                  <Typography variant="caption" color="text.secondary">正在加载对比结果...</Typography>
+                ) : null}
+                {compareError ? (
+                  <Typography variant="caption" color="error">{compareError}</Typography>
+                ) : null}
                 {compareVersion
                   ? renderReportByTab(
                     resolvedActiveTab,
                     {
-                      enumMetrics: buildEnumMetricsFromTotal(MOCK_REPORT_ENUM_OPPORTUNITIES_BY_VERSION[compareVersion] || 0),
-                      priceMetrics: buildPriceMetricsFromBase(MOCK_REPORT_PRICE_SUMMARIES_BY_VERSION[compareVersion]),
-                      capitalMetrics: buildCapitalMetricsFromBase(MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION[compareVersion]),
+                      enumMetrics: buildEnumMetrics({ result: { enum: comparePayload?.compare_report || null } }),
+                      priceMetrics: buildPriceMetrics({ result: { price: comparePayload?.compare_report || null } }),
+                      capitalMetrics: buildCapitalMetrics({ result: { capital: comparePayload?.compare_report || null } }),
                     },
                     `对比报告（${compareVersion}）`,
                     { showStockGrid: false },

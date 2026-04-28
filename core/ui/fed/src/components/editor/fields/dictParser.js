@@ -25,7 +25,7 @@ function DictParserField({ field, context = {} }) {
     <Box>
       <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
         <Button variant="contained" size="small" onClick={parser.onApply}>
-          应用并格式化
+          检查并格式化
         </Button>
         <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
           支持 JSON / Python dict 风格输入
@@ -50,7 +50,7 @@ function DictParserField({ field, context = {} }) {
 
       {!parser.parseError && parser.parseMode ? (
         <Alert severity="success" sx={{ mb: 1 }}>
-          已应用，当前解析模式：{parser.parseMode}
+          格式检查通过，当前解析模式：{parser.parseMode}
         </Alert>
       ) : null}
 

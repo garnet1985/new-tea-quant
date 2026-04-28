@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import { buildPriceSampleStockRows } from '../../../mocks/strategyReportSampleRows';
@@ -6,6 +6,7 @@ import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 import StockKlineDialog from '../components/stockKlineDialog';
+import { fetchStrategyReportStockKline } from '../../../../../api/apis/strategyApi';
 
 const PRICE_STOCK_SORT_MENU = [
   { value: 'default', label: '接口顺序' },
@@ -99,29 +100,40 @@ function buildRoiBucketOption(metrics) {
   };
 }
 
-function PriceFactorReport({ metrics, title = '价格回测报告（草图）', showStockGrid = true }) {
+function PriceFactorReport({
+  metrics,
+  stockRows,
+  strategyName,
+  runId,
+  title = '价格回测报告（草图）',
+  showStockGrid = true,
+}) {
   const [stockSearch, setStockSearch] = useState('');
   const [stockSortBy, setStockSortBy] = useState('default');
   const [selectedStock, setSelectedStock] = useState(null);
+  const [klineData, setKlineData] = useState(null);
+  const [klineLoading, setKlineLoading] = useState(false);
+  const [klineError, setKlineError] = useState('');
 
-  const stockRows = useMemo(() => {
+  const derivedStockRows = useMemo(() => {
+    if (Array.isArray(stockRows) && stockRows.length > 0) return stockRows;
     const base = metrics || EMPTY_METRICS_BASE;
     return buildPriceSampleStockRows(base);
-  }, [metrics]);
+  }, [metrics, stockRows]);
 
   const filteredAndSortedRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
     const filtered = keyword
-      ? stockRows.filter((row) => (
+      ? derivedStockRows.filter((row) => (
         row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
       ))
-      : stockRows;
+      : derivedStockRows;
     const sorted = [...filtered];
     if (stockSortBy === 'winRateDesc') sorted.sort((a, b) => b.winRate - a.winRate);
     if (stockSortBy === 'roiDesc') sorted.sort((a, b) => b.roi - a.roi);
     if (stockSortBy === 'holdDaysAsc') sorted.sort((a, b) => a.holdDays - b.holdDays);
     return sorted.slice(0, 10);
-  }, [stockRows, stockSearch, stockSortBy]);
+  }, [derivedStockRows, stockSearch, stockSortBy]);
 
   const stockColumns = useMemo(() => [
     {
@@ -160,6 +172,35 @@ function PriceFactorReport({ metrics, title = '价格回测报告（草图）', 
       valueFormatter: (params) => `${params.value} 天`,
     },
   ], []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedStock || !strategyName || !runId) {
+      setKlineData(null);
+      setKlineLoading(false);
+      setKlineError('');
+      return undefined;
+    }
+    const loadKline = async () => {
+      try {
+        setKlineLoading(true);
+        setKlineError('');
+        const data = await fetchStrategyReportStockKline(strategyName, runId, selectedStock.stockCode);
+        if (cancelled) return;
+        setKlineData(data || null);
+      } catch (err) {
+        if (cancelled) return;
+        setKlineError(err?.message || '读取K线数据失败');
+        setKlineData(null);
+      } finally {
+        if (!cancelled) setKlineLoading(false);
+      }
+    };
+    loadKline();
+    return () => {
+      cancelled = true;
+    };
+  }, [runId, selectedStock, strategyName]);
 
   if (!metrics) {
     return (
@@ -257,7 +298,14 @@ function PriceFactorReport({ metrics, title = '价格回测报告（草图）', 
       <StockKlineDialog
         open={Boolean(selectedStock)}
         stock={selectedStock}
-        onClose={() => setSelectedStock(null)}
+        klineData={klineData}
+        loading={klineLoading}
+        error={klineError}
+        onClose={() => {
+          setSelectedStock(null);
+          setKlineData(null);
+          setKlineError('');
+        }}
       />
     </Stack>
   );

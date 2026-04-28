@@ -87,3 +87,15 @@ def get_import_data_progress():
 def get_strategies():
     """获取已发现策略列表（策略工作台 list 页使用）"""
     return get_bff_api().get_strategies()
+
+
+@api_bp.route('/v1/strategies/settings-options/allocation-modes', methods=['GET'])
+def get_strategy_settings_options_allocation_modes():
+    """策略 settings — 资金分配模式枚举（左侧 capital_simulator）"""
+    return get_bff_api().get_strategy_settings_options_allocation_modes()
+
+
+@api_bp.route('/v1/strategies/settings-options/sampling-strategies', methods=['GET'])
+def get_strategy_settings_options_sampling_strategies():
+    """策略 settings — 采样策略枚举（左侧 sampling）"""
+    return get_bff_api().get_strategy_settings_options_sampling_strategies()

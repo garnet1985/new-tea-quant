@@ -1,22 +1,15 @@
 #!/usr/bin/env python3
-"""
-Version Manager - 统一版本管理器
-"""
+"""Output version manager for strategy artifacts."""
 
 from datetime import datetime
 import json
-import logging
 from pathlib import Path
 from typing import Tuple
 
 from core.infra.project_context import PathManager
 
-logger = logging.getLogger(__name__)
-
 
 class VersionManager:
-    """统一版本管理器（静态方法）"""
-
     @staticmethod
     def create_enumerator_version(
         strategy_name: str,
@@ -58,18 +51,24 @@ class VersionManager:
         else:
             sub_dir_name, version_str = "output", version_spec
 
-        root = PathManager.strategy_opportunity_enums(strategy_name, use_sampling=(sub_dir_name == "test"))
+        root = PathManager.strategy_opportunity_enums(
+            strategy_name, use_sampling=(sub_dir_name == "test")
+        )
         base_root = root.parent
         if not root.exists():
-            raise FileNotFoundError(f"[VersionManager] 枚举目录不存在: {root}")
+            raise FileNotFoundError(f"[VersionManager] enum dir missing: {root}")
         if version_str == "latest":
-            candidates = [p for p in root.iterdir() if p.is_dir() and p.name[0].isdigit()]
+            candidates = [
+                p for p in root.iterdir() if p.is_dir() and p.name[0].isdigit()
+            ]
             if not candidates:
-                raise FileNotFoundError(f"[VersionManager] {sub_dir_name} 目录下没有任何版本: {root}")
+                raise FileNotFoundError(
+                    f"[VersionManager] no versions under {sub_dir_name}: {root}"
+                )
             return sorted(candidates, key=lambda p: p.name)[-1], base_root
         version_dir = root / version_str
         if not version_dir.exists() or not version_dir.is_dir():
-            raise FileNotFoundError(f"[VersionManager] 指定版本目录不存在: {version_dir}")
+            raise FileNotFoundError(f"[VersionManager] version dir missing: {version_dir}")
         return version_dir, base_root
 
     @staticmethod
@@ -108,16 +107,24 @@ class VersionManager:
     ) -> Tuple[Path, int]:
         root_dir = PathManager.strategy_simulations_price_factor(strategy_name)
         if not root_dir.exists():
-            raise FileNotFoundError(f"[VersionManager] 价格因子模拟器目录不存在: {root_dir}")
+            raise FileNotFoundError(
+                f"[VersionManager] price factor simulator dir missing: {root_dir}"
+            )
         if version_spec == "latest":
-            candidates = [p for p in root_dir.iterdir() if p.is_dir() and p.name[0].isdigit()]
+            candidates = [
+                p for p in root_dir.iterdir() if p.is_dir() and p.name[0].isdigit()
+            ]
             if not candidates:
-                raise FileNotFoundError(f"[VersionManager] 价格因子模拟器目录下没有任何版本: {root_dir}")
+                raise FileNotFoundError(
+                    f"[VersionManager] no price factor versions: {root_dir}"
+                )
             version_dir = sorted(candidates, key=lambda p: p.name)[-1]
             return version_dir, int(version_dir.name)
         version_dir = root_dir / version_spec
         if not version_dir.exists() or not version_dir.is_dir():
-            raise FileNotFoundError(f"[VersionManager] 指定价格因子模拟器版本目录不存在: {version_dir}")
+            raise FileNotFoundError(
+                f"[VersionManager] specified price factor version missing: {version_dir}"
+            )
         return version_dir, int(version_spec)
 
     @staticmethod
@@ -155,16 +162,24 @@ class VersionManager:
     ) -> Tuple[Path, int]:
         base_dir = PathManager.strategy_capital_allocation(strategy_name)
         if not base_dir.exists():
-            raise FileNotFoundError(f"[VersionManager] 资金分配模拟器目录不存在: {base_dir}")
+            raise FileNotFoundError(
+                f"[VersionManager] capital allocation simulator dir missing: {base_dir}"
+            )
         if version_spec == "latest":
-            version_dirs = [d for d in base_dir.iterdir() if d.is_dir() and d.name[0].isdigit()]
+            version_dirs = [
+                d for d in base_dir.iterdir() if d.is_dir() and d.name[0].isdigit()
+            ]
             if not version_dirs:
-                raise FileNotFoundError(f"[VersionManager] 资金分配模拟器目录下没有任何版本: {base_dir}")
+                raise FileNotFoundError(
+                    f"[VersionManager] no capital allocation versions: {base_dir}"
+                )
             version_dirs.sort(key=lambda d: d.name, reverse=True)
             return version_dirs[0], int(version_dirs[0].name)
         version_dir = base_dir / version_spec
         if not version_dir.exists() or not version_dir.is_dir():
-            raise FileNotFoundError(f"[VersionManager] 指定资金分配模拟器版本目录不存在: {version_dir}")
+            raise FileNotFoundError(
+                f"[VersionManager] specified capital allocation version missing: {version_dir}"
+            )
         return version_dir, int(version_spec)
 
     @staticmethod
@@ -172,5 +187,10 @@ class VersionManager:
         strategy_name: str,
         output_version: str,
     ) -> Tuple[Path, Path]:
-        version_dir, _ = VersionManager.resolve_enumerator_version(strategy_name, output_version)
+        version_dir, _ = VersionManager.resolve_enumerator_version(
+            strategy_name, output_version
+        )
         return version_dir, version_dir.parent
+
+
+__all__ = ["VersionManager"]

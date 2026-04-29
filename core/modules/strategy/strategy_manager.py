@@ -11,7 +11,9 @@ from core.infra.project_context import PathManager
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.data_manager import DataManager
-from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+    DiscoveredStrategy,
+)
 from core.modules.strategy.engines.scanner.manager import ScannerManager
 from core.modules.strategy.engines.simulator.capital_allocation.manager import (
     CapitalAllocationManager,
@@ -34,7 +36,9 @@ class StrategyManager:
         self.data_mgr = DataManager(is_verbose=False)
         self.validated_strategies = StrategyDiscoveryHelper.discover_strategies()
 
-    def lookup_strategy_info(self, strategy_name: str) -> Optional[StrategyInfo]:
+    def lookup_strategy_info(
+        self, strategy_name: str
+    ) -> Optional[DiscoveredStrategy]:
         info = self.validated_strategies.get(strategy_name)
         if info is not None:
             return info
@@ -46,7 +50,7 @@ class StrategyManager:
     def list_strategies(self) -> List[str]:
         return list(self.validated_strategies.keys())
 
-    def get_strategy_info(self, strategy_name: str) -> Optional[StrategyInfo]:
+    def get_strategy_info(self, strategy_name: str) -> Optional[DiscoveredStrategy]:
         return self.lookup_strategy_info(strategy_name)
 
     def scan(self, strategy_name: str = None, date: str = None):
@@ -103,7 +107,7 @@ class StrategyManager:
 
     def _resolve_targets(
         self, strategy_name: str = None, enabled_only: bool = True
-    ) -> List[StrategyInfo]:
+    ) -> List[DiscoveredStrategy]:
         if strategy_name:
             info = self.lookup_strategy_info(strategy_name)
             if not info:

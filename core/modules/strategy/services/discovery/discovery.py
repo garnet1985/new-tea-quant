@@ -17,7 +17,9 @@ from typing import Any, Dict, Optional
 
 from core.infra.project_context import PathManager
 from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
-from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+    DiscoveredStrategy,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.settings_base import (
     SettingsBase,
 )
@@ -32,8 +34,10 @@ class StrategyDiscoveryHelper:
     """策略发现助手。"""
 
     @staticmethod
-    def discover_strategies(strategies_root: Path = None) -> Dict[str, StrategyInfo]:
-        """发现所有用户策略（仅返回 settings 可用且存在 worker 的策略）。"""
+    def discover_strategies(
+        strategies_root: Path = None,
+    ) -> Dict[str, DiscoveredStrategy]:
+        """发现所有用户策略（包含 enabled 与 disabled，但必须可加载且可校验）。"""
         if strategies_root is None:
             strategies_root = PathManager.userspace() / "strategies"
 
@@ -41,7 +45,7 @@ class StrategyDiscoveryHelper:
             logger.warning("策略目录不存在: %s", strategies_root)
             return {}
 
-        discovered: Dict[str, StrategyInfo] = {}
+        discovered: Dict[str, DiscoveredStrategy] = {}
         for strategy_folder in strategies_root.iterdir():
             if not strategy_folder.is_dir() or strategy_folder.name.startswith("_"):
                 continue
@@ -52,7 +56,7 @@ class StrategyDiscoveryHelper:
         return discovered
 
     @staticmethod
-    def load_strategy(strategy_folder: Path) -> Optional[StrategyInfo]:
+    def load_strategy(strategy_folder: Path) -> Optional[DiscoveredStrategy]:
         """加载单个策略并返回结构化策略信息。"""
         strategy_name = strategy_folder.name
 
@@ -108,7 +112,7 @@ class StrategyDiscoveryHelper:
             return None
         validation.log_warnings(logger)
 
-        return StrategyInfo(
+        discovered = DiscoveredStrategy(
             name=strategy_name,
             folder=strategy_folder,
             worker_class=worker_class,
@@ -116,6 +120,8 @@ class StrategyDiscoveryHelper:
             worker_class_name=worker_class.__name__,
             settings=settings,
         )
+        discovered.validate_required_fields()
+        return discovered
 
     @staticmethod
     def validate_settings(settings_dict: Dict[str, Any]) -> bool:

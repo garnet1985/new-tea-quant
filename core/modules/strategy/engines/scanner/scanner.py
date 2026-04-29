@@ -16,7 +16,9 @@ from core.modules.strategy.engines.shared.helpers.strategy_runtime import load_s
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+    from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+        DiscoveredStrategy,
+    )
 
 
 @dataclass
@@ -24,7 +26,7 @@ class Scanner:
     strategy_name: str
     data_manager: any
     is_verbose: bool = False
-    strategy_info: Optional["StrategyInfo"] = None
+    strategy_info: Optional["DiscoveredStrategy"] = None
 
     def __post_init__(self):
         self._strategy_info = self.strategy_info or load_strategy_info(self.strategy_name)

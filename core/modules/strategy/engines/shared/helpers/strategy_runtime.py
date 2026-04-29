@@ -14,10 +14,12 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 
 if TYPE_CHECKING:
     from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
-    from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+    from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+        DiscoveredStrategy,
+    )
 
 
-def load_strategy_info(strategy_name: str) -> Optional["StrategyInfo"]:
+def load_strategy_info(strategy_name: str) -> Optional["DiscoveredStrategy"]:
     from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 
     folder = PathManager.userspace() / "strategies" / strategy_name
@@ -29,7 +31,7 @@ def load_strategy_info(strategy_name: str) -> Optional["StrategyInfo"]:
 def load_strategy_settings_view(
     strategy_name: str,
     *,
-    strategy_info: Optional["StrategyInfo"] = None,
+    strategy_info: Optional["DiscoveredStrategy"] = None,
 ) -> StrategySettingsView:
     if strategy_info is not None:
         return StrategySettingsView.from_dict(strategy_info.settings.to_dict())
@@ -81,7 +83,7 @@ def resolve_worker_class(
 def resolve_worker_ref(
     strategy_name: str,
     *,
-    strategy_info: Optional["StrategyInfo"] = None,
+    strategy_info: Optional["DiscoveredStrategy"] = None,
 ) -> Tuple[str, str]:
     if strategy_info is not None:
         return strategy_info.worker_module_path, strategy_info.worker_class_name

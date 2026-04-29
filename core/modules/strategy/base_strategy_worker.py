@@ -33,9 +33,9 @@ class BaseStrategyWorker(ABC):
 
         self.contract_cache = ContractCacheManager()
         self.stock_info = self._load_stock_info()
-        from core.modules.strategy.services.data import StrategyDataManager
+        from core.modules.strategy.services.data import StrategyDataInjectionService
 
-        self.data_manager = StrategyDataManager(
+        self.data_manager = StrategyDataInjectionService(
             stock_id=self.stock_id,
             settings=self.settings,
             contract_cache=self.contract_cache,

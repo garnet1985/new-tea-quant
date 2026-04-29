@@ -3,7 +3,6 @@
 
 __all__ = [
     "CapitalAllocationFlow",
-    "CapitalAllocationSimulatorConfig",
     "CapitalReport",
     "DateTimeEncoder",
     "AllocationStrategy",

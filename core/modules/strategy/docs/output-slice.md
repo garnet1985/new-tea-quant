@@ -1,6 +1,6 @@
 # Output Slice API
 
-`StrategyDataOutputService.load_opportunity_snapshot(...)` provides a lightweight time-slice read API over enumerator artifacts.
+`StrategyOutputReaderService.load_opportunity_snapshot(...)` provides a lightweight time-slice read API over enumerator artifacts.
 
 ## Method
 

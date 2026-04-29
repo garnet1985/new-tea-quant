@@ -81,20 +81,37 @@ class PriceFactorFlow(BaseSimulationFlow):
         preprocessed: PriceFactorPreprocessContext,
         executed: PriceFactorExecuteContext,
     ) -> Dict[str, object]:
-        # step1: aggregate report + persist artifacts + run analyzer hooks
-        preprocessed_payload = {
-            "strategy_name": preprocessed.strategy_name,
-            "base_settings": preprocessed.base_settings,
-            "output_version_dir": preprocessed.output_version_dir,
-            "output_root": preprocessed.output_root,
-            "sim_version_dir": preprocessed.sim_version_dir,
-            "sim_version_id": preprocessed.sim_version_id,
-        }
-        executed_payload = {
-            "stock_summaries": executed.stock_summaries,
-            "aggregate_profiler": executed.aggregate_profiler,
-        }
-        return self._impl.postprocess(preprocessed_payload, executed_payload)
+        # step1: aggregate per-stock results into session summary
+        session_summary = self._impl.build_session_summary(
+            stock_summaries=executed.stock_summaries,
+            output_version_dir=preprocessed.output_version_dir,
+            output_root=preprocessed.output_root,
+            sim_version_dir=preprocessed.sim_version_dir,
+            sim_version_id=preprocessed.sim_version_id,
+        )
+        if not session_summary:
+            return {}
+        # step2: persist summary/metadata artifacts for this simulation version
+        self._impl.save_session_outputs(
+            strategy_name=preprocessed.strategy_name,
+            sim_version_dir=preprocessed.sim_version_dir,
+            sim_version_id=preprocessed.sim_version_id,
+            output_version_dir=preprocessed.output_version_dir,
+            session_summary=session_summary,
+            settings_snapshot=preprocessed.base_settings.to_dict(),
+        )
+        # step3: persist aggregate performance report
+        self._impl.save_performance_report(
+            sim_version_dir=preprocessed.sim_version_dir,
+            aggregate_profiler=executed.aggregate_profiler,
+        )
+        # step4: trigger analyzer hooks
+        self._impl.run_analyzer_hook(
+            strategy_name=preprocessed.strategy_name,
+            sim_version_dir=preprocessed.sim_version_dir,
+            raw_settings=preprocessed.base_settings.to_dict(),
+        )
+        return session_summary
 
 
 __all__ = ["PriceFactorFlow"]

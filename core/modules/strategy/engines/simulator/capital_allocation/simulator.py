@@ -22,6 +22,7 @@ from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
 )
 from core.modules.strategy.engines.shared.simulator_hooks_dispatcher import SimulatorHooksDispatcher
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
+from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.account import Account, Position
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.report import CapitalReport
 from core.modules.strategy.engines.simulator.capital_allocation.helpers.allocation import AllocationStrategy
@@ -90,15 +91,16 @@ class CapitalAllocationSimulatorConfig:
         )
 
 
-class CapitalAllocationSimulator:
+class CapitalAllocationSimulator(BaseSimulationFlow):
     def __init__(self, is_verbose: bool = False) -> None:
         self.is_verbose = is_verbose
         self.hooks_dispatcher: Optional[SimulatorHooksDispatcher] = None
 
-    def run(
+    def preprocess(
         self,
+        *,
         strategy_name: str,
-        strategy_info: Optional[DiscoveredStrategy] = None,
+        strategy_info: Optional[DiscoveredStrategy],
     ) -> Dict[str, Any]:
         base_settings = load_strategy_settings_view(
             strategy_name, strategy_info=strategy_info
@@ -116,7 +118,21 @@ class CapitalAllocationSimulator:
         )
         sim_version_dir, sim_version_id = VersionManager.create_capital_allocation_version(strategy_name)
         self.hooks_dispatcher = SimulatorHooksDispatcher(strategy_name)
+        return {
+            "strategy_name": strategy_name,
+            "base_settings": base_settings,
+            "config": config,
+            "output_version_dir": output_version_dir,
+            "sim_version_dir": sim_version_dir,
+            "sim_version_id": sim_version_id,
+            "profiler": profiler,
+        }
 
+    def execute(self, preprocessed: Dict[str, Any]) -> Dict[str, Any]:
+        strategy_name = preprocessed["strategy_name"]
+        config: CapitalAllocationSimulatorConfig = preprocessed["config"]
+        output_version_dir: Path = preprocessed["output_version_dir"]
+        profiler: PerformanceProfiler = preprocessed["profiler"]
         profiler.start_timer("load_data")
         data_loader = StrategyDataOutputService(
             strategy_name=strategy_name, cache_enabled=True
@@ -129,7 +145,7 @@ class CapitalAllocationSimulator:
         profiler.metrics.time_load_data = profiler.end_timer("load_data")
         profiler.metrics.opportunity_count = len(events)
         if not events:
-            return {}
+            return {"empty": True}
 
         account = Account(initial_cash=config.initial_capital, cash=config.initial_capital)
         fee_calculator = FeeCalculator(
@@ -187,8 +203,40 @@ class CapitalAllocationSimulator:
                 }
             )
 
+        return {
+            "events": events,
+            "account": account,
+            "trades": trades,
+            "equity_curve": equity_curve,
+            "completed_opportunities_map": completed_opportunities_map,
+        }
+
+    def postprocess(
+        self, preprocessed: Dict[str, Any], executed: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if executed.get("empty"):
+            return {}
+        strategy_name = preprocessed["strategy_name"]
+        base_settings: StrategySettingsView = preprocessed["base_settings"]
+        config: CapitalAllocationSimulatorConfig = preprocessed["config"]
+        output_version_dir: Path = preprocessed["output_version_dir"]
+        sim_version_dir: Path = preprocessed["sim_version_dir"]
+        sim_version_id: int = preprocessed["sim_version_id"]
+        profiler: PerformanceProfiler = preprocessed["profiler"]
+        events: List[SimulationEvent] = executed["events"]
+        account: Account = executed["account"]
+        trades: List[Dict[str, Any]] = executed["trades"]
+        equity_curve: List[Dict[str, Any]] = executed["equity_curve"]
+        completed_opportunities_map: Dict[str, Dict[str, Any]] = executed[
+            "completed_opportunities_map"
+        ]
         summary = self._calculate_summary(
-            account, trades, equity_curve, config.initial_capital, events, completed_opportunities_map
+            account,
+            trades,
+            equity_curve,
+            config.initial_capital,
+            events,
+            completed_opportunities_map,
         )
         profiler.start_timer("save_csv")
         self._save_results(
@@ -204,9 +252,18 @@ class CapitalAllocationSimulator:
         profiler.metrics.time_save_csv = profiler.end_timer("save_csv")
         profiler.metrics.time_total = profiler.end_timer("total")
         try:
-            perf_path = ResultPathManager(sim_version_dir=sim_version_dir).ensure_root() / "0_performance_report.json"
+            perf_path = (
+                ResultPathManager(sim_version_dir=sim_version_dir).ensure_root()
+                / "0_performance_report.json"
+            )
             with perf_path.open("w", encoding="utf-8") as f:
-                json.dump(profiler.finalize().to_dict(), f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+                json.dump(
+                    profiler.finalize().to_dict(),
+                    f,
+                    indent=2,
+                    ensure_ascii=False,
+                    cls=DateTimeEncoder,
+                )
         except Exception:
             pass
         try:

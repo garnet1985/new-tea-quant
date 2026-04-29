@@ -26,6 +26,7 @@ from core.modules.strategy.engines.shared.performance_profiler import (
     PerformanceMetrics,
     PerformanceProfiler,
 )
+from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.engines.simulator.price_factor.data_classes.investment import (
     PriceFactorInvestment,
 )
@@ -53,14 +54,15 @@ class PriceFactorSimulatorConfig:
     max_workers: "str | int" = "auto"
 
 
-class PriceFactorSimulator:
+class PriceFactorSimulator(BaseSimulationFlow):
     def __init__(self, is_verbose: bool = False) -> None:
         self.is_verbose = is_verbose
 
-    def run(
+    def preprocess(
         self,
+        *,
         strategy_name: str,
-        strategy_info: Optional[DiscoveredStrategy] = None,
+        strategy_info: Optional[DiscoveredStrategy],
     ) -> Dict[str, Any]:
         base_settings = load_strategy_settings_view(
             strategy_name, strategy_info=strategy_info
@@ -74,15 +76,28 @@ class PriceFactorSimulator:
             strategy_info=strategy_info,
         )
         sim_version_dir, sim_version_id = VersionManager.create_price_factor_version(strategy_name)
-        data_loader = StrategyDataOutputService(
-            strategy_name=strategy_name, cache_enabled=True
-        )
         stock_files = self._scan_output_files(output_version_dir)
-        if not stock_files:
-            return {}
+        return {
+            "strategy_name": strategy_name,
+            "base_settings": base_settings,
+            "simulator_config": simulator_config,
+            "output_version_dir": output_version_dir,
+            "output_root": output_root,
+            "sim_version_dir": sim_version_dir,
+            "sim_version_id": sim_version_id,
+            "stock_files": stock_files,
+        }
 
+    def execute(self, preprocessed: Dict[str, Any]) -> Dict[str, Any]:
         from core.infra.worker.multi_process.process_worker import ExecutionMode as ProcessExecutionMode
         from core.infra.worker.multi_process.process_worker import JobStatus, ProcessWorker
+
+        strategy_name = preprocessed["strategy_name"]
+        simulator_config: PriceFactorSimulatorConfig = preprocessed["simulator_config"]
+        sim_version_dir: Path = preprocessed["sim_version_dir"]
+        stock_files: Dict[str, Dict[str, Path]] = preprocessed["stock_files"]
+        if not stock_files:
+            return {"stock_summaries": [], "aggregate_profiler": AggregateProfiler()}
 
         jobs: List[Dict[str, Any]] = []
         for stock_id, paths in stock_files.items():
@@ -118,7 +133,22 @@ class PriceFactorSimulator:
                 if perf_data and stock_id:
                     metrics = PerformanceMetrics.from_dict(perf_data)
                     aggregate_profiler.add_stock_metrics(str(stock_id), metrics)
+        return {
+            "stock_summaries": stock_summaries,
+            "aggregate_profiler": aggregate_profiler,
+        }
 
+    def postprocess(
+        self, preprocessed: Dict[str, Any], executed: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        strategy_name = preprocessed["strategy_name"]
+        base_settings: StrategySettingsView = preprocessed["base_settings"]
+        output_version_dir: Path = preprocessed["output_version_dir"]
+        output_root: Path = preprocessed["output_root"]
+        sim_version_dir: Path = preprocessed["sim_version_dir"]
+        sim_version_id: int = preprocessed["sim_version_id"]
+        stock_summaries: List[Dict[str, Any]] = executed["stock_summaries"]
+        aggregate_profiler: AggregateProfiler = executed["aggregate_profiler"]
         if not stock_summaries:
             return {}
         report = PriceReport.from_stock_summaries(stock_summaries)

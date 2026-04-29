@@ -15,10 +15,12 @@ from core.modules.strategy.engines.shared.data_classes.discovered_strategy impor
     DiscoveredStrategy,
 )
 from core.modules.strategy.engines.scanner.manager import ScannerManager
-from core.modules.strategy.engines.simulator.capital_allocation.manager import (
-    CapitalAllocationManager,
+from core.modules.strategy.engines.simulator.capital_allocation.capital_allocation_flow import (
+    CapitalAllocationFlow,
 )
-from core.modules.strategy.engines.simulator.price_factor.manager import PriceFactorManager
+from core.modules.strategy.engines.simulator.price_factor.price_factor_flow import (
+    PriceFactorFlow,
+)
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 
 logger = logging.getLogger(__name__)
@@ -86,10 +88,10 @@ class StrategyManager:
 
         results: Dict[str, dict] = {}
         for info in targets:
-            price_result = PriceFactorManager(is_verbose=self.is_verbose).run(
+            price_result = PriceFactorFlow(is_verbose=self.is_verbose).run(
                 info.name, strategy_info=info
             )
-            capital_result = CapitalAllocationManager(is_verbose=self.is_verbose).run(
+            capital_result = CapitalAllocationFlow(is_verbose=self.is_verbose).run(
                 info.name, strategy_info=info
             )
             results[info.name] = {

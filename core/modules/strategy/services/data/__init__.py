@@ -2,6 +2,7 @@
 """Cross-engine strategy data services."""
 
 from .injection import StrategyDataInjectionService
+from .enumerator_bootstrap_service import StrategyEnumeratorBootstrapService
 from .output import (
     StrategyOutputPathService,
     SimulationEvent,
@@ -13,6 +14,7 @@ __all__ = [
     "StrategyOutputPathService",
     "SimulationEvent",
     "StrategyDataInjectionService",
+    "StrategyEnumeratorBootstrapService",
     "StrategyOutputReaderService",
     "StrategyOutputVersionService",
 ]

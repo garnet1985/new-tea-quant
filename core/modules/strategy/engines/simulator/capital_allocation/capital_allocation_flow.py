@@ -94,25 +94,47 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         preprocessed: CapitalAllocationPreprocessContext,
         executed: CapitalAllocationExecuteContext,
     ) -> Dict[str, object]:
-        # step1: aggregate metrics, persist outputs and run analyzer hooks
-        preprocessed_payload = {
-            "strategy_name": preprocessed.strategy_name,
-            "base_settings": preprocessed.base_settings,
-            "config": preprocessed.config,
-            "output_version_dir": preprocessed.output_version_dir,
-            "sim_version_dir": preprocessed.sim_version_dir,
-            "sim_version_id": preprocessed.sim_version_id,
-            "profiler": preprocessed.profiler,
-        }
-        executed_payload = {
-            "empty": executed.empty,
-            "events": executed.events,
-            "account": executed.account,
-            "trades": executed.trades,
-            "equity_curve": executed.equity_curve,
-            "completed_opportunities_map": executed.completed_opportunities_map,
-        }
-        return self._impl.postprocess(preprocessed_payload, executed_payload)
+        if executed.empty:
+            return {}
+        # step1: aggregate execution data into strategy-level summary
+        summary = self._impl.build_summary(
+            account=executed.account,
+            trades=executed.trades or [],
+            equity_curve=executed.equity_curve or [],
+            initial_capital=preprocessed.config.initial_capital,
+            events=executed.events or [],
+            completed_opportunities_map=executed.completed_opportunities_map or {},
+        )
+        # step2: persist output artifacts and metadata
+        preprocessed.profiler.start_timer("save_csv")
+        self._impl.save_outputs(
+            sim_version_dir=preprocessed.sim_version_dir,
+            sim_version_id=preprocessed.sim_version_id,
+            output_version=preprocessed.output_version_dir.name,
+            trades=executed.trades or [],
+            equity_curve=executed.equity_curve or [],
+            summary=summary,
+            config=preprocessed.config,
+            settings_snapshot=preprocessed.base_settings.to_dict(),
+        )
+        preprocessed.profiler.metrics.time_save_csv = preprocessed.profiler.end_timer(
+            "save_csv"
+        )
+        preprocessed.profiler.metrics.time_total = preprocessed.profiler.end_timer(
+            "total"
+        )
+        # step3: persist performance report
+        self._impl.save_performance_report(
+            sim_version_dir=preprocessed.sim_version_dir,
+            profiler=preprocessed.profiler,
+        )
+        # step4: trigger analyzer hooks
+        self._impl.run_analyzer_hook(
+            strategy_name=preprocessed.strategy_name,
+            sim_version_dir=preprocessed.sim_version_dir,
+            raw_settings=preprocessed.base_settings.to_dict(),
+        )
+        return summary
 
 
 __all__ = ["CapitalAllocationFlow"]

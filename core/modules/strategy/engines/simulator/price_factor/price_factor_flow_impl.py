@@ -17,14 +17,12 @@ from core.modules.strategy.engines.shared.performance_profiler import (
     AggregateProfiler,
     PerformanceMetrics,
 )
-from core.modules.strategy.engines.simulator.helpers.enumerator_bootstrap import (
-    resolve_or_build_enumerator_version,
-)
 from core.modules.strategy.engines.simulator.price_factor.data_classes.report import PriceReport
 from core.modules.strategy.engines.simulator.price_factor.data_classes.settings import (
     StrategyPriceSimulatorSettings,
 )
 from core.modules.strategy.engines.simulator.price_factor.helpers import DateTimeEncoder
+from core.modules.strategy.services.data import StrategyEnumeratorBootstrapService
 from core.modules.strategy.services.data.output import (
     StrategyOutputPathService,
     StrategyOutputVersionService,
@@ -63,7 +61,7 @@ class PriceFactorFlowImpl:
         config: StrategyPriceSimulatorSettings,
         strategy_info: "DiscoveredStrategy | None",
     ):
-        return resolve_or_build_enumerator_version(
+        return StrategyEnumeratorBootstrapService.resolve_or_build_enumerator_version(
             strategy_name=strategy_name,
             base_settings=base_settings,
             use_sampling=config.use_sampling,

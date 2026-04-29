@@ -8,6 +8,7 @@ __all__ = [
     "StrategyOutputPathService",
     "StrategyOutputVersionService",
     "StrategyDataInjectionService",
+    "StrategyEnumeratorBootstrapService",
     "StrategyOutputReaderService",
     "StrategyDiscoveryHelper",
     "build_settings",
@@ -19,7 +20,11 @@ __all__ = [
 def __getattr__(name: str) -> Any:
     if name in {"StrategyOutputPathService", "StrategyOutputVersionService"}:
         return getattr(import_module(".data", __name__), name)
-    if name in {"StrategyDataInjectionService", "StrategyOutputReaderService"}:
+    if name in {
+        "StrategyDataInjectionService",
+        "StrategyOutputReaderService",
+        "StrategyEnumeratorBootstrapService",
+    }:
         return getattr(import_module(".data", __name__), name)
     if name == "StrategyDiscoveryHelper":
         return getattr(import_module(".discovery", __name__), name)

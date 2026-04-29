@@ -519,7 +519,7 @@ class StrategyWorkbenchService:
 
     def get_strategies(self):
         try:
-            from core.modules.strategy.helpers.strategy_discovery_helper import StrategyDiscoveryHelper
+            from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 
             strategies = []
             discovered = StrategyDiscoveryHelper.discover_strategies()
@@ -539,7 +539,7 @@ class StrategyWorkbenchService:
 
     def get_strategy_settings_options_allocation_modes(self):
         try:
-            from core.modules.strategy.engines.shared.data_classes.strategy_settings.capital_allocation_settings import (
+            from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
                 _VALID_MODES,
             )
 

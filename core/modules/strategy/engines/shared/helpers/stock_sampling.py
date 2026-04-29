@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stock Sampling Helper - 股票采样助手。"""
+"""Stock sampling helpers shared by strategy engines."""
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -195,3 +195,5 @@ class StockSamplingHelper:
             logger.warning("[%s] 文件为空或无有效股票代码: %s", field_name, file_path)
         return stock_ids
 
+
+__all__ = ["StockSamplingHelper"]

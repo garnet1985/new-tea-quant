@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
@@ -32,14 +32,14 @@ class BaseSimulationFlow(ABC):
         *,
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"],
-    ) -> Dict[str, Any]:
+    ) -> Any:
         pass
 
     @abstractmethod
-    def execute(self, preprocessed: Dict[str, Any]) -> Any:
+    def execute(self, preprocessed: Any) -> Any:
         pass
 
     @abstractmethod
-    def postprocess(self, preprocessed: Dict[str, Any], executed: Any) -> Any:
+    def postprocess(self, preprocessed: Any, executed: Any) -> Any:
         pass
 

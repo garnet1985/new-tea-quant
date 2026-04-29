@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""
-Simulator base package
+"""Legacy simulator base bridge to engines.shared."""
 
-目前主要提供：
-- SimulatorHooksDispatcher：用于在模拟器中调用用户在 StrategyWorker 中实现的钩子方法
-- ReportBase：回测报告数据类基类
-"""
-
-from .report_base import ReportBase  # noqa: F401
+from core.modules.strategy.engines.shared import (
+    PerformanceMetrics,
+    PerformanceProfiler,
+    ReportBase,
+    SimulatorHooksDispatcher,
+)
 
 __all__ = [
     "ReportBase",
+    "SimulatorHooksDispatcher",
+    "PerformanceMetrics",
+    "PerformanceProfiler",
 ]
 

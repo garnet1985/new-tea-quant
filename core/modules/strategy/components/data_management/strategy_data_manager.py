@@ -11,13 +11,15 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_cursor import DataCursorManager
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract.data_contract_manager import DataContractManager
+from core.modules.data_cursor import DataCursorManager
 from core.modules.indicator import IndicatorService
-from core.modules.strategy.models.strategy_settings import StrategySettings
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+    StrategySettings,
+)
 from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
@@ -29,13 +31,6 @@ _STORAGE_KEY_ALIASES = {
 
 
 class StrategyDataManager:
-    """
-    解析 ``settings.data``、签发契约并维护行表 / 游标。
-
-    主进程仅 GLOBAL：``issue_contracts(..., entity_id=None)``；
-    子进程单标的：``entity_id=stock_id`` 后 ``hydrate_row_slots``。
-    """
-
     def __init__(
         self,
         stock_id: str,
@@ -55,8 +50,6 @@ class StrategyDataManager:
         self._cursor_mgr = DataCursorManager()
         self._cursor_name = f"strategy:{self.stock_id}"
 
-    # --- data 契约：签发与行表 hydrate ---
-
     def _contract_manager(self) -> DataContractManager:
         if self._dcf_mgr is None:
             self._dcf_mgr = DataContractManager(contract_cache=self._contract_cache)
@@ -64,7 +57,6 @@ class StrategyDataManager:
 
     @staticmethod
     def storage_key_for(data_id: DataKey) -> str:
-        """行表槽位名（与 ``DataKey`` 对应）。"""
         return _STORAGE_KEY_ALIASES.get(data_id, data_id.value)
 
     def issue_contracts(
@@ -75,11 +67,6 @@ class StrategyDataManager:
         entity_id: Optional[str] = None,
         data_block: Optional[Dict[str, Any]] = None,
     ) -> Dict[DataKey, DataContract]:
-        """
-        根据 ``data`` 块签发契约；默认使用 ``self.settings.data``。
-
-        :param entity_id: 非空时签发 ``PER_ENTITY``；为空则只签发 ``GLOBAL``。
-        """
         block = data_block if data_block is not None else self.settings.data
         st = StrategySettings({"data": block})
         declarations = st.required_data_sources
@@ -117,21 +104,20 @@ class StrategyDataManager:
 
     @staticmethod
     def _normalize_declaration_item(
-        st: StrategySettings, raw: Dict[str, Any]
+        st: StrategySettings,
+        raw: Dict[str, Any],
     ) -> Dict[str, Any]:
         item = dict(raw)
         dk = DataKey(str(item["data_id"]))
         params = dict(item.get("params") or {})
-        if dk == DataKey.TAG:
-            if str(params.get("entity_type") or "").strip() == "":
-                et = st.tag_storage_entity_type
-                if et:
-                    params["entity_type"] = str(et)
+        if dk == DataKey.TAG and str(params.get("entity_type") or "").strip() == "":
+            et = st.tag_storage_entity_type
+            if et:
+                params["entity_type"] = str(et)
             item["params"] = params
         return item
 
     def hydrate_row_slots(self, start_date: str, end_date: str) -> None:
-        """按声明 ``issue``，再 ``load`` 尚未物化的契约，写入 ``_current_data``。"""
         self._contract_cache.enter_strategy_run()
         self._slot_contracts = {}
         contracts = self.issue_contracts(
@@ -168,7 +154,6 @@ class StrategyDataManager:
         )
 
     def preload_klines(self, rows: List[Dict[str, Any]], *, start_date: str, end_date: str) -> None:
-        """枚举器预加载路径：注入 K 线并绑定对应 contract。"""
         c = self._contract_manager().issue(
             DataKey.STOCK_KLINE,
             entity_id=self.stock_id,
@@ -187,7 +172,6 @@ class StrategyDataManager:
         start_date: str,
         end_date: str,
     ) -> None:
-        """按声明列表加载数据源（用于枚举器预加载 K 线后补充 extra）。"""
         st = StrategySettings({"data": self.settings.data})
         for raw in items:
             item = self._normalize_declaration_item(st, raw)
@@ -223,29 +207,13 @@ class StrategyDataManager:
         latest_date = self._get_latest_trading_date()
         start_date = self._get_date_before(latest_date, lookback)
         self.hydrate_row_slots(start_date, latest_date)
-        klines = self._current_data.get("klines") or []
         self.apply_indicators()
         self.rebuild_data_cursor()
-        logger.debug(
-            "加载最新数据: stock=%s, records=%s, date_range=%s-%s",
-            self.stock_id,
-            len(klines),
-            start_date,
-            latest_date,
-        )
 
     def load_historical_data(self, start_date: str, end_date: str) -> None:
         self._current_data = {"klines": []}
         self._slot_contracts = {}
         self.hydrate_row_slots(start_date, end_date)
-        klines = self._current_data.get("klines") or []
-        logger.debug(
-            "加载历史数据: stock=%s, records=%s, date_range=%s-%s",
-            self.stock_id,
-            len(klines),
-            start_date,
-            end_date,
-        )
         self.apply_indicators()
         self.rebuild_data_cursor()
 
@@ -256,7 +224,6 @@ class StrategyDataManager:
         return self._current_data.get(entity_type, [])
 
     def get_loaded_data(self) -> Dict[str, List[Dict[str, Any]]]:
-        """返回当前已加载数据视图（浅拷贝）。"""
         return {k: list(v or []) for k, v in self._current_data.items()}
 
     def get_data_until(self, date_of_today: str) -> Dict[str, Any]:
@@ -287,13 +254,13 @@ class StrategyDataManager:
                             field = self._build_indicator_field_name(f"{name}_{key}", cfg)
                             for rec, val in zip(klines, series):
                                 rec[field] = val
-                except Exception as e:
+                except Exception as exc:
                     logger.error(
                         "计算指标失败: stock=%s, indicator=%s, params=%s, error=%s",
                         self.stock_id,
                         name,
                         cfg,
-                        e,
+                        exc,
                     )
 
     def _build_indicator_field_name(self, name: str, params: Dict[str, Any]) -> str:
@@ -318,23 +285,21 @@ class StrategyDataManager:
                 end=DateUtils.QUERY_DATE_RANGE_MAX,
                 **params,
             )
-            rows = c.load(start=DateUtils.get_query_date_range_min(), end=DateUtils.QUERY_DATE_RANGE_MAX)
+            rows = c.load(
+                start=DateUtils.get_query_date_range_min(),
+                end=DateUtils.QUERY_DATE_RANGE_MAX,
+            )
             if rows:
                 last = rows[-1]
                 if isinstance(last, dict) and last.get("date"):
                     return str(last["date"])
-            logger.warning("无法获取最新交易日，使用当前日期: stock=%s", self.stock_id)
             return datetime.now().strftime("%Y%m%d")
-        except Exception as e:
-            logger.error("获取最新交易日失败: stock=%s, error=%s", self.stock_id, e)
+        except Exception:
             return datetime.now().strftime("%Y%m%d")
 
     def _get_date_before(self, date: str, days: int) -> str:
-        from core.utils.date.date_utils import DateUtils
-
         try:
             adjusted_days = int(days * 1.5)
             return DateUtils.sub_days(date, adjusted_days)
-        except Exception as e:
-            logger.error("计算日期失败: date=%s, days=%s, error=%s", date, days, e)
+        except Exception:
             return date

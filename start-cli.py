@@ -271,7 +271,9 @@ class App:
             stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
         """
         from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
-        from core.modules.strategy.models.strategy_settings import StrategySettings
+        from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+            StrategySettings,
+        )
         from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
         from core.modules.strategy.strategy_manager import StrategyManager
         from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings

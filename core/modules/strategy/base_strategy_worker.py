@@ -13,7 +13,7 @@ from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-    StrategySettings,
+    StrategySettingsView,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class BaseStrategyWorker(ABC):
         self.stock_id = job_payload["stock_id"]
         self.execution_mode = job_payload["execution_mode"]
         self.strategy_name = job_payload["strategy_name"]
-        self.settings = StrategySettings.from_dict(job_payload["settings"])
+        self.settings = StrategySettingsView.from_dict(job_payload["settings"])
 
         self.contract_cache = ContractCacheManager()
         self.stock_info = self._load_stock_info()

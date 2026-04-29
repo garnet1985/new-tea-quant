@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 from core.modules.data_contract.contract_const import DataKey
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-    StrategySettings as StrategySettingsDictModel,
+    StrategySettingsView,
 )
 
 from .settings_base import SettingsBase, ValidationReport
@@ -48,7 +48,7 @@ class StrategyDataSettings(SettingsBase):
         result = SettingsBase.new_validation()
         self.apply_defaults()
         try:
-            StrategySettingsDictModel.validate_data_config(self.data)
+            StrategySettingsView.validate_data_config(self.data)
         except ValueError as e:
             SettingsBase.add_critical(
                 result,
@@ -90,13 +90,13 @@ class StrategyDataSettings(SettingsBase):
         if not base:
             return DataKey.STOCK_KLINE.value
         try:
-            return StrategySettingsDictModel.normalize_base_required_data(base)["data_id"]
+            return StrategySettingsView.normalize_base_required_data(base)["data_id"]
         except ValueError:
             return str(base.get("data_id", "") or "")
 
     @property
     def adjust_type(self) -> str:
-        view = StrategySettingsDictModel({"data": self.data})
+        view = StrategySettingsView({"data": self.data})
         return view.adjust_type
 
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Union
 
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-    StrategySettings,
+    StrategySettingsView,
 )
 
 
@@ -36,7 +36,7 @@ class OpportunityEnumeratorSettings:
         return cls(strategy_name=strategy_name, raw=settings_dict)
 
     @classmethod
-    def from_base(cls, base_settings: StrategySettings) -> "OpportunityEnumeratorSettings":
+    def from_base(cls, base_settings: StrategySettingsView) -> "OpportunityEnumeratorSettings":
         return cls(strategy_name=base_settings.name, raw=base_settings.to_dict())
 
     def _normalize_views(self) -> None:

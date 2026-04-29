@@ -18,7 +18,7 @@ from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.data_cursor import DataCursorManager
 from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-    StrategySettings,
+    StrategySettingsView,
 )
 from core.utils.date.date_utils import DateUtils
 
@@ -34,7 +34,7 @@ class StrategyDataManager:
     def __init__(
         self,
         stock_id: str,
-        settings: StrategySettings,
+        settings: StrategySettingsView,
         *,
         contract_cache: ContractCacheManager,
         global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None,
@@ -68,7 +68,7 @@ class StrategyDataManager:
         data_block: Optional[Dict[str, Any]] = None,
     ) -> Dict[DataKey, DataContract]:
         block = data_block if data_block is not None else self.settings.data
-        st = StrategySettings({"data": block})
+        st = StrategySettingsView({"data": block})
         declarations = st.required_data_sources
         eff_entity = entity_id.strip() if entity_id and str(entity_id).strip() else None
 
@@ -104,7 +104,7 @@ class StrategyDataManager:
 
     @staticmethod
     def _normalize_declaration_item(
-        st: StrategySettings,
+        st: StrategySettingsView,
         raw: Dict[str, Any],
     ) -> Dict[str, Any]:
         item = dict(raw)
@@ -172,7 +172,7 @@ class StrategyDataManager:
         start_date: str,
         end_date: str,
     ) -> None:
-        st = StrategySettings({"data": self.settings.data})
+        st = StrategySettingsView({"data": self.settings.data})
         for raw in items:
             item = self._normalize_declaration_item(st, raw)
             dk = DataKey(str(item["data_id"]))

@@ -1,7 +1,7 @@
 name: strategy
-version: 0.3.0
-status: skeleton
+version: 1.0.0
+status: active
 notes:
-  - "New architecture skeleton only"
-  - "Legacy module moved to core/modules/strategy1"
+  - "Canonical strategy runtime module"
+  - "Legacy strategy1 removed; no compatibility bridge retained"
 

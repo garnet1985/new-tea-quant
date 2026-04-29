@@ -1,15 +1,14 @@
-# Strategy Module (New Architecture Skeleton)
+# Strategy Module
 
-This is the new `strategy` module skeleton.
+`core/modules/strategy` is the canonical strategy runtime implementation.
 
-Current status:
-- New structure is in place
-- Foundation migration uses bridge imports from `core/modules/strategy1`
-- Incremental in-place migration will remove bridge dependencies module by module
+Current structure:
+- `strategy_manager.py`: top-level scan/simulate orchestrator
+- `engines/`: scanner, simulator, analyzer engines
+- `services/`: cross-engine shared capabilities (discovery, data, artifacts, validation, injection)
+- `engines/shared/`: shared DTOs and helpers used by multiple engines
 
-Planned layers:
-- `managers/`: top-level orchestrators
-- `engines/`: scanner, simulator, analyzer flows
-- `services/`: shared capabilities
-- `models/`: cross-engine shared entities
+Migration status:
+- Legacy `strategy1` has been removed.
+- Runtime flow is unified around discovered `StrategyInfo` and engine-local implementations.
 

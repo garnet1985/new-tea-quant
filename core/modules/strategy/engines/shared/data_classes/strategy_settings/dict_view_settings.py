@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 from core.modules.data_contract.contract_const import DataKey
 
 
-class StrategySettings:
+class StrategySettingsView:
     def __init__(self, settings_dict: Dict[str, Any]):
         self._settings = settings_dict
         self.name = settings_dict.get("name", "unknown")
@@ -95,7 +95,7 @@ class StrategySettings:
         base = data.get("base_required_data")
         if not isinstance(base, dict):
             raise ValueError("data.base_required_data 必须为 dict")
-        StrategySettings.normalize_base_required_data(base)
+        StrategySettingsView.normalize_base_required_data(base)
 
         extra = data.get("extra_required_data_sources", [])
         if extra is None:
@@ -106,7 +106,7 @@ class StrategySettings:
             if not isinstance(item, dict):
                 raise ValueError(f"data.extra_required_data_sources[{i}] 必须为 dict")
             try:
-                StrategySettings.normalize_extra_required_data_item(item)
+                StrategySettingsView.normalize_extra_required_data_item(item)
             except ValueError as e:
                 raise ValueError(f"data.extra_required_data_sources[{i}]: {e}") from e
 
@@ -187,8 +187,11 @@ class StrategySettings:
         return self._settings
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StrategySettings":
+    def from_dict(cls, data: Dict[str, Any]) -> "StrategySettingsView":
         return cls(data)
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._settings.get(key, default)
+
+
+__all__ = ["StrategySettingsView"]

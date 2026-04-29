@@ -67,8 +67,42 @@ export function buildEnumMetricsFromTotal(totalOpportunities) {
 }
 
 export function buildEnumMetrics(executionState) {
-  const totalOpportunities = Number(executionState?.result?.enum?.opportunities || 0);
-  return buildEnumMetricsFromTotal(totalOpportunities);
+  const summary = executionState?.result?.enum || {};
+  const totalOpportunities = Number(summary.totalOpportunities ?? summary.opportunities ?? 0);
+  const base = buildEnumMetricsFromTotal(totalOpportunities);
+  if (!base) return null;
+
+  const normalizePercent = (raw) => {
+    const n = Number(raw || 0);
+    if (n <= 0) return 0;
+    return n <= 1 ? Number((n * 100).toFixed(1)) : Number(n.toFixed(1));
+  };
+
+  const completionRatioFromSummary = normalizePercent(summary.completionRate);
+  const completionRatio = completionRatioFromSummary > 0
+    ? completionRatioFromSummary
+    : base.completedRatio;
+  const completedCount = Number(summary.completedCount ?? Math.round((completionRatio / 100) * totalOpportunities));
+  const unfinishedCount = Number(summary.unfinishedCount ?? Math.max(totalOpportunities - completedCount, 0));
+  const totalStocks = Number(summary.totalStocks ?? base.totalStocks);
+  const triggerStocks = Number(summary.triggerStocks ?? base.triggerStocks);
+  const triggerRatio = totalStocks > 0
+    ? Number(((triggerStocks / totalStocks) * 100).toFixed(1))
+    : base.triggerRatio;
+  const avgPerStock = triggerStocks > 0
+    ? Number((totalOpportunities / triggerStocks).toFixed(2))
+    : base.avgPerStock;
+
+  return {
+    ...base,
+    totalStocks,
+    triggerStocks,
+    triggerRatio,
+    avgPerStock,
+    completedRatio: completionRatio,
+    completedCount,
+    unfinishedCount,
+  };
 }
 
 export function buildPriceMetricsFromBase(base) {
@@ -77,18 +111,22 @@ export function buildPriceMetricsFromBase(base) {
   const avgRoi = Number(base.roi || 0);
   const avgDurationDays = Number(base.avgHoldDays || 0);
 
-  const totalInvestments = Math.max(18, Math.round(36 + winRate * 1.4));
-  const totalWinInvestments = Math.round(totalInvestments * (winRate / 100));
-  const totalLossInvestments = Math.max(0, totalInvestments - totalWinInvestments - 2);
-  const totalOpenInvestments = totalInvestments - totalWinInvestments - totalLossInvestments;
-  const stocksWithOpportunities = Math.max(8, Math.round(totalInvestments / 2.8));
-  const avgInvestmentsPerStock = Number((totalInvestments / stocksWithOpportunities).toFixed(2));
+  const derivedTotalInvestments = Math.max(18, Math.round(36 + winRate * 1.4));
+  const totalInvestments = Number(base.totalInvestments ?? derivedTotalInvestments);
+  const totalWinInvestments = Number(base.totalWinInvestments ?? Math.round(totalInvestments * (winRate / 100)));
+  const totalLossInvestments = Number(base.totalLossInvestments ?? Math.max(0, totalInvestments - totalWinInvestments - 2));
+  const totalOpenInvestments = Number(base.totalOpenInvestments ?? Math.max(totalInvestments - totalWinInvestments - totalLossInvestments, 0));
+  const stocksWithOpportunities = Number(base.stocksWithOpportunities ?? Math.max(8, Math.round(totalInvestments / 2.8)));
+  const avgInvestmentsPerStock = Number(
+    base.avgInvestmentsPerStock
+      ?? (stocksWithOpportunities > 0 ? (totalInvestments / stocksWithOpportunities).toFixed(2) : 0),
+  );
 
   const annualReturn = avgDurationDays > 0
     ? Number((avgRoi * (365 / avgDurationDays)).toFixed(2))
     : 0;
-  const avgProfitPerInvestment = Math.round(12000 + avgRoi * 1400);
-  const avgProfitPerStock = Math.round(avgProfitPerInvestment * avgInvestmentsPerStock);
+  const avgProfitPerInvestment = Number(base.avgProfitPerInvestment ?? Math.round(12000 + avgRoi * 1400));
+  const avgProfitPerStock = Number(base.avgProfitPerStock ?? Math.round(avgProfitPerInvestment * avgInvestmentsPerStock));
 
   const roiP10 = Number((avgRoi * 0.28).toFixed(2));
   const roiP20 = Number((avgRoi * 0.42).toFixed(2));
@@ -168,21 +206,31 @@ export function buildPriceMetrics(executionState) {
 
 export function buildCapitalMetricsFromBase(base) {
   if (!base) return null;
-  const initialCapital = 1_000_000;
-  const totalReturnPct = Number(base.totalReturnPct || 0);
-  const maxDrawdownPct = Number(base.maxDrawdownPct || 0);
-  const winRatePct = Number(base.winRatePct || 0);
+  const initialCapital = Number(base.initialCapital ?? 1_000_000);
+  const totalReturnPct = Number(
+    base.totalReturnPct
+      ?? (base.totalReturn !== undefined ? Number(base.totalReturn) * 100 : 0),
+  );
+  const maxDrawdownPct = Number(
+    base.maxDrawdownPct
+      ?? (base.maxDrawdown !== undefined ? Number(base.maxDrawdown) * 100 : 0),
+  );
+  const winRatePct = Number(
+    base.winRatePct
+      ?? (base.winRate !== undefined ? Number(base.winRate) * 100 : 0),
+  );
 
-  const finalEquity = Math.round(initialCapital * (1 + totalReturnPct / 100));
-  const totalProfit = finalEquity - initialCapital;
+  const finalEquity = Number(base.finalEquity ?? Math.round(initialCapital * (1 + totalReturnPct / 100)));
+  const totalProfit = Number(base.totalProfit ?? (finalEquity - initialCapital));
   const calmarRatio = maxDrawdownPct > 0 ? Number((totalReturnPct / maxDrawdownPct).toFixed(2)) : 0;
 
-  const sellTrades = Math.max(80, Math.round(140 + winRatePct * 1.1));
-  const buyTrades = sellTrades;
-  const totalTrades = buyTrades + sellTrades;
-  const winTrades = Math.round(sellTrades * (winRatePct / 100));
-  const lossTrades = Math.max(0, sellTrades - winTrades);
-  const avgPnlPerTrade = sellTrades > 0 ? Math.round(totalProfit / sellTrades) : 0;
+  const derivedSellTrades = Math.max(80, Math.round(140 + winRatePct * 1.1));
+  const sellTrades = Number(base.sellTrades ?? derivedSellTrades);
+  const buyTrades = Number(base.buyTrades ?? sellTrades);
+  const totalTrades = Number(base.totalTrades ?? (buyTrades + sellTrades));
+  const winTrades = Number(base.winTrades ?? Math.round(sellTrades * (winRatePct / 100)));
+  const lossTrades = Number(base.lossTrades ?? Math.max(0, sellTrades - winTrades));
+  const avgPnlPerTrade = Number(base.avgPnlPerTrade ?? (sellTrades > 0 ? Math.round(totalProfit / sellTrades) : 0));
 
   const peakPositions = 10;
   const avgOpenPositions = Number((peakPositions * (0.56 + winRatePct / 250)).toFixed(1));
@@ -259,13 +307,20 @@ export function buildCapitalMetrics(executionState) {
   const summary = executionState?.result?.capital;
   const parsed = summary
     ? {
-      totalReturnPct: Number((Number(summary.totalReturn || 0) * 100).toFixed(2)),
-      maxDrawdownPct: Number((Number(summary.maxDrawdown || 0) * 100).toFixed(2)),
-      winRatePct: Number((Number(summary.winRate || 0) * 100).toFixed(2)),
+      ...summary,
+      totalReturnPct: summary.totalReturnPct !== undefined
+        ? Number(summary.totalReturnPct)
+        : Number((Number(summary.totalReturn || 0) * 100).toFixed(2)),
+      maxDrawdownPct: summary.maxDrawdownPct !== undefined
+        ? Number(summary.maxDrawdownPct)
+        : Number((Number(summary.maxDrawdown || 0) * 100).toFixed(2)),
+      winRatePct: summary.winRatePct !== undefined
+        ? Number(summary.winRatePct)
+        : Number((Number(summary.winRate || 0) * 100).toFixed(2)),
     }
     : null;
   const hasRealCapitalMetrics = Boolean(
-    parsed && (Math.abs(parsed.totalReturnPct) > 0 || Math.abs(parsed.maxDrawdownPct) > 0 || Math.abs(parsed.winRatePct) > 0),
+    parsed && Object.keys(parsed).length > 0,
   );
   const base = hasRealCapitalMetrics ? parsed : MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION.latest;
   return buildCapitalMetricsFromBase(base);

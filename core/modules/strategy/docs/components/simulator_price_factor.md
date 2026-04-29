@@ -13,8 +13,8 @@
 |------|------|
 | `price_factor_simulator.py` | **`PriceFactorSimulator.run(strategy_name)`**：加载 settings、解析/自动生成枚举版本、创建模拟器版本目录、构建 jobs、汇总、可选 **Analyzer** |
 | `price_factor_simulator.py`（Worker类） | 子进程：读单股枚举片段、撮合目标价、写该股结果 JSON |
-| `investment_builder.py` / `result_aggregator.py` / `stock_summary_builder.py` | 投资对象构建与会话级汇总 |
-| `result_presenter.py` | 控制台展示 |
+| `investment_builder.py` / `stock_summary_builder.py` | 投资对象构建与单股汇总 |
+| `price_report.py` | 会话级聚合与控制台展示 |
 | `helpers.py` | 数值与 JSON 编码等工具 |
 
 ## 数据依赖

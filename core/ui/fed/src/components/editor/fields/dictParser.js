@@ -2,9 +2,7 @@ import React from 'react';
 import {
   Alert,
   Box,
-  Button,
   Paper,
-  Stack,
   TextField,
   Typography,
 } from '@mui/material';
@@ -23,15 +21,6 @@ function DictParserField({ field, context = {} }) {
 
   return (
     <Box>
-      <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-        <Button variant="contained" size="small" onClick={parser.onApply}>
-          检查并格式化
-        </Button>
-        <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
-          支持 JSON / Python dict 风格输入
-        </Typography>
-      </Stack>
-
       {parser.parseError ? (
         <Alert severity="error" sx={{ mb: 1 }}>
           <Typography variant="body2">{parser.parseError}</Typography>
@@ -48,9 +37,9 @@ function DictParserField({ field, context = {} }) {
         </Alert>
       ) : null}
 
-      {!parser.parseError && parser.parseMode ? (
+      {!parser.parseError ? (
         <Alert severity="success" sx={{ mb: 1 }}>
-          格式检查通过，当前解析模式：{parser.parseMode}
+          格式正确
         </Alert>
       ) : null}
 
@@ -85,6 +74,7 @@ function DictParserField({ field, context = {} }) {
         error={Boolean(parser.parseError)}
         value={parser.value}
         onChange={(e) => parser.onChange(e.target.value)}
+        onBlur={parser.onBlur}
         placeholder={field.placeholder || '输入 settings.core（dict）'}
         sx={{
           '& .MuiInputBase-root': {

@@ -33,10 +33,9 @@ from core.modules.strategy.components.opportunity_enumerator.performance_profile
     PerformanceMetrics,
     PerformanceProfiler,
 )
-from .result_presenter import ResultPresenter
-from .result_aggregator import ResultAggregator
 from .investment_builder import InvestmentBuilder
 from .stock_summary_builder import StockSummaryBuilder
+from .price_report import PriceReport
 
 
 logger = logging.getLogger(__name__)
@@ -314,7 +313,8 @@ class PriceFactorSimulator:
             logger.warning("[PriceFactorSimulator] 没有成功的结果，无法生成 session summary")
             return {}
         
-        session_summary = ResultAggregator.aggregate_results(stock_summaries)
+        report = PriceReport.from_stock_summaries(stock_summaries)
+        session_summary = report.to_dict()
         
         # 在 session_summary 中添加枚举器输出版本依赖信息
         session_summary["output_version"] = {
@@ -340,7 +340,12 @@ class PriceFactorSimulator:
             logger.error(f"[PriceFactorSimulator] 保存结果失败: {e}")
 
         # 10. 展示结果
-        ResultPresenter.present_results(session_summary, strategy_name)
+        print("\n" + "=" * 60)
+        print(f"📊 {strategy_name} 策略价格因子回测结果")
+        print("=" * 60)
+        for line in report.to_console_lines():
+            print(f"📈 {line}")
+        print("")
 
         # 11. 保存性能报告（如果有性能数据）
         try:

@@ -28,7 +28,7 @@ from core.modules.strategy.models.event import Event
 from .fee_calculator import FeeCalculator
 from .allocation_strategy import AllocationStrategy
 from .helpers import DateTimeEncoder
-from .result_presenter import CapitalAllocationResultPresenter
+from .capital_report import CapitalReport
 
 
 logger = logging.getLogger(__name__)
@@ -281,7 +281,12 @@ class CapitalAllocationSimulator:
 
         # 9. 计算汇总统计
         summary = self._calculate_summary(
-            account, trades, equity_curve, config.initial_capital
+            account,
+            trades,
+            equity_curve,
+            config.initial_capital,
+            events,
+            completed_opportunities_map,
         )
 
         # 10. 保存结果
@@ -337,8 +342,13 @@ class CapitalAllocationSimulator:
                 exc,
             )
 
-        # 控制台展示结果（类似 PriceFactorSimulator）
-        CapitalAllocationResultPresenter.present_results(summary, strategy_name)
+        # 控制台展示结果（由 report dataclass 输出结构化文本）
+        print("\n" + "=" * 60)
+        print(f"💰 {strategy_name} 策略资金分配回测结果")
+        print("=" * 60)
+        for line in CapitalReport.from_dict(summary).to_console_lines():
+            print(f"📈 {line}")
+        print("")
 
         # 运行 Analyzer（如果启用）
         try:
@@ -746,6 +756,8 @@ class CapitalAllocationSimulator:
         trades: List[Dict[str, Any]],
         equity_curve: List[Dict[str, Any]],
         initial_capital: float,
+        events: List[Event],
+        completed_opportunities_map: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Any]:
         """计算汇总统计"""
         # 计算最终总资产（使用权益曲线里的 total_equity 字段）
@@ -794,11 +806,30 @@ class CapitalAllocationSimulator:
             else:
                 stock_summary[stock_id]["loss_trades"] += 1
 
-        return {
+        # 机会完成度统计（无论是否切片都需要区分 completed/unfinished）
+        trigger_opportunity_ids = {
+            str(e.opportunity_id or "").strip()
+            for e in (events or [])
+            if e.is_trigger() and str(e.opportunity_id or "").strip()
+        }
+        completed_ids = {
+            str(opp_id).strip()
+            for opp_id in (completed_opportunities_map or {}).keys()
+            if str(opp_id).strip()
+        }
+        total_opportunities = len(trigger_opportunity_ids)
+        completed_opportunities = len(trigger_opportunity_ids & completed_ids)
+        unfinished_opportunities = max(total_opportunities - completed_opportunities, 0)
+        completion_rate = (
+            completed_opportunities / total_opportunities if total_opportunities > 0 else 0.0
+        )
+
+        raw_summary = {
             # 资金概况
             "initial_capital": initial_capital,
             "final_cash_balance": account.cash,
             "final_total_equity": final_equity,
+            "final_equity": final_equity,
             "total_return": total_return,
             "max_drawdown": max_drawdown,
             # 交易统计
@@ -810,9 +841,15 @@ class CapitalAllocationSimulator:
             "win_rate": len(win_trades) / len(sell_trades) if sell_trades else 0.0,
             # 总盈亏
             "total_profit": sum(t.get("pnl", 0.0) for t in sell_trades),
+            # 机会完成度（切片窗口口径）
+            "total_opportunities": total_opportunities,
+            "completed_opportunities": completed_opportunities,
+            "unfinished_opportunities": unfinished_opportunities,
+            "completion_rate": completion_rate,
             # 每只股票维度的盈亏汇总
             "stock_summary": dict(stock_summary),
         }
+        return CapitalReport.from_dict(raw_summary).to_dict()
 
     def _save_results(
         self,

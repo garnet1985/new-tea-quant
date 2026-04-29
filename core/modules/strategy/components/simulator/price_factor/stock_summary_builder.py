@@ -86,12 +86,18 @@ class StockSummaryBuilder:
         win_rate = to_ratio(
             profitable_count + minor_profitable_count, total_investments, 3
         )
+        total_completed = total_win + total_loss
+        total_unfinished = total_open
+        completion_rate = to_ratio(total_completed, total_investments, 4)
 
         return {
             "total_investments": total_investments,
             "total_win": total_win,
             "total_loss": total_loss,
             "total_open": total_open,
+            "total_completed": total_completed,
+            "total_unfinished": total_unfinished,
+            "completion_rate": round(completion_rate, 4),
             "profitable": profitable_count,
             "minor_profitable": minor_profitable_count,
             "unprofitable": unprofitable_count,
@@ -113,6 +119,9 @@ class StockSummaryBuilder:
             "total_win": 0,
             "total_loss": 0,
             "total_open": 0,
+            "total_completed": 0,
+            "total_unfinished": 0,
+            "completion_rate": 0.0,
             "profitable": 0,
             "minor_profitable": 0,
             "unprofitable": 0,

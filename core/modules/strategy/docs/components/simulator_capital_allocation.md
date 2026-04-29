@@ -16,7 +16,7 @@
 | `allocation_strategy.py` | 等资金、等股、Kelly 等分配策略入口 |
 | `fee_calculator.py` | 费用模型 |
 | `helpers.py` | 事件/账户辅助 |
-| `result_presenter.py` | 策略级结果展示 |
+| `capital_report.py` | 策略级结果结构化与展示文本 |
 
 ## 数据流
 

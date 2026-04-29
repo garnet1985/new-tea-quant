@@ -3,8 +3,10 @@
 
 from .opportunity_enumerator import OpportunityEnumerator
 from .enumerator_worker import OpportunityEnumeratorWorker
+from .enum_report import EnumReport
 
 __all__ = [
     'OpportunityEnumerator',
-    'OpportunityEnumeratorWorker'
+    'OpportunityEnumeratorWorker',
+    'EnumReport',
 ]

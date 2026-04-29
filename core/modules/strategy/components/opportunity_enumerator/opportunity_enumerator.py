@@ -20,6 +20,7 @@ from core.modules.strategy.components.opportunity_enumerator.enumerator_settings
     OpportunityEnumeratorSettings,
 )
 from core.modules.strategy.models.strategy_settings import StrategySettings
+from .enum_report import EnumReport
 
 logger = logging.getLogger(__name__)
 
@@ -469,15 +470,19 @@ class OpportunityEnumerator:
                 mode="output"
             )
         
-        # 7. 返回结果（目前直接返回 summary，而不是全量 opportunities）
-        return [{
-            'strategy_name': strategy_name,
-            'version_id': version_id,
-            'version_dir': version_dir_name,
-            'opportunity_count': total_opportunities,
-            'success_stocks': success_count,
-            'failed_stocks': failed_count,
-        }]
+        enum_report = EnumReport.from_run_summary(
+            strategy_name=strategy_name,
+            version_id=version_id,
+            version_dir=version_dir_name,
+            opportunity_count=total_opportunities,
+            success_stocks=success_count,
+            failed_stocks=failed_count,
+        )
+        for line in enum_report.to_console_lines():
+            logger.info("[OpportunityEnumerator] %s", line)
+
+        # 7. 返回结构化 summary（而不是全量 opportunities）
+        return [enum_report.to_dict()]
     
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:

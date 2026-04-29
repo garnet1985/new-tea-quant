@@ -8,9 +8,11 @@ Simulator.price_factor 子包
 """
 
 from .price_factor_simulator import PriceFactorSimulator, PriceFactorSimulatorWorker  # noqa: F401
+from .price_report import PriceReport  # noqa: F401
 
 __all__ = [
     "PriceFactorSimulator",
     "PriceFactorSimulatorWorker",
+    "PriceReport",
 ]
 

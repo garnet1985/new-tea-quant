@@ -1,5 +1,5 @@
 """
-主进程预加载 ``extra_required_data_sources`` 中 ``ContractScope.GLOBAL`` 的数据（MVP：opt1，随 job pickle 到子进程）。
+主进程预加载 ``extra_required_data_sources`` 中 ``ContractScope.GLOBAL`` 的数据。
 """
 
 from __future__ import annotations
@@ -12,7 +12,9 @@ from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.strategy.components.data_management.strategy_data_manager import (
     StrategyDataManager,
 )
-from core.modules.strategy.models.strategy_settings import StrategySettings
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+    StrategySettings,
+)
 
 
 def preload_global_extras_for_enumeration(
@@ -20,11 +22,6 @@ def preload_global_extras_for_enumeration(
     start_date: str,
     end_date: str,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    在主进程为枚举任务加载所有 GLOBAL 的 extra 依赖，返回 ``{存储槽位: rows}``。
-
-    PER_ENTITY 的 extra 不在此加载，由子进程自行拉取。
-    """
     ss = StrategySettings.from_dict(validated_settings)
     extras = ss.extra_required_data_sources
     if not extras:
@@ -46,3 +43,4 @@ def preload_global_extras_for_enumeration(
         out[slot] = list(c.data or [])
 
     return out
+

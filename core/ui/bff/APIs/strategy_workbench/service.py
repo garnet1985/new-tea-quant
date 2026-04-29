@@ -412,7 +412,7 @@ class StrategyWorkbenchService:
         runtime_settings = self._api_to_runtime_settings(settings)
         runtime_settings["name"] = strategy_name
 
-        from core.modules.strategy.data_classes.strategy_settings.strategy_settings import (
+        from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
             StrategySettings,
         )
         validated = StrategySettings(raw_settings=dict(runtime_settings))
@@ -539,7 +539,7 @@ class StrategyWorkbenchService:
 
     def get_strategy_settings_options_allocation_modes(self):
         try:
-            from core.modules.strategy.data_classes.strategy_settings.capital_allocation_settings import (
+            from core.modules.strategy.engines.shared.data_classes.strategy_settings.capital_allocation_settings import (
                 _VALID_MODES,
             )
 
@@ -594,7 +594,7 @@ class StrategyWorkbenchService:
 
     def get_strategy_settings_options_sampling_strategies(self):
         try:
-            from core.modules.strategy.data_classes.strategy_settings.sampling_settings import (
+            from core.modules.strategy.engines.shared.data_classes.strategy_settings.sampling_settings import (
                 KNOWN_STRATEGIES,
             )
 

@@ -214,7 +214,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
     return result;
   };
 
-  const applyCoreAndFormat = () => {
+  const applyCoreAndFormat = ({ focusOnError = true } = {}) => {
     try {
       const result = parseCoreInput(coreInputText);
 
@@ -240,7 +240,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
       setCoreErrorLine(loc.line);
       setCoreErrorColumn(loc.column);
-      setCoreErrorPosition(pos);
+      setCoreErrorPosition(focusOnError ? pos : -1);
       setCoreParseMode('');
     }
   };
@@ -303,13 +303,8 @@ function StrategySettingsContainer({ initialSettings, children }) {
       value: coreInputText,
       onChange: (nextText) => {
         setCoreInputText(nextText);
-        setCoreParseError('');
-        setCoreLineHint('');
-        setCoreErrorLine(0);
-        setCoreErrorColumn(0);
-        setCoreErrorPosition(-1);
-        setCoreParseMode('');
       },
+      onBlur: () => applyCoreAndFormat({ focusOnError: false }),
       onApply: applyCoreAndFormat,
       inputRef: coreInputRef,
       parseError: coreParseError,

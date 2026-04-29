@@ -3,9 +3,7 @@
 import json
 import threading
 import time
-import textwrap
 from datetime import datetime, timezone
-from pprint import pformat
 from uuid import uuid4
 
 from core.infra.project_context.config_manager import ConfigManager
@@ -88,10 +86,49 @@ class StrategyWorkbenchService:
     @staticmethod
     def _mock_step_summary(step: str):
         if step == StrategyWorkbenchService.STEP_ENUM:
-            return {"opportunities": 0}
+            return {
+                "opportunities": 0,
+                "totalStocks": 0,
+                "triggerStocks": 0,
+                "completedCount": 0,
+                "unfinishedCount": 0,
+                "completionRate": 0.0,
+            }
         if step == StrategyWorkbenchService.STEP_PRICE:
-            return {"winRate": 0.0, "roi": 0.0, "avgHoldDays": 0.0}
-        return {"initialCapital": 0, "endCapital": 0, "profit": 0, "retPct": 0.0}
+            return {
+                "winRate": 0.0,
+                "roi": 0.0,
+                "avgHoldDays": 0.0,
+                "totalInvestments": 0,
+                "totalWinInvestments": 0,
+                "totalLossInvestments": 0,
+                "totalOpenInvestments": 0,
+                "stocksWithOpportunities": 0,
+                "avgInvestmentsPerStock": 0.0,
+                "avgProfitPerInvestment": 0.0,
+                "avgProfitPerStock": 0.0,
+                "completionRate": 0.0,
+            }
+        return {
+            "initialCapital": 0,
+            "endCapital": 0,
+            "profit": 0,
+            "retPct": 0.0,
+            "totalReturn": 0.0,
+            "maxDrawdown": 0.0,
+            "winRate": 0.0,
+            "totalTrades": 0,
+            "buyTrades": 0,
+            "sellTrades": 0,
+            "winTrades": 0,
+            "lossTrades": 0,
+            "totalProfit": 0.0,
+            "avgPnlPerTrade": 0.0,
+            "totalOpportunities": 0,
+            "completedOpportunities": 0,
+            "unfinishedOpportunities": 0,
+            "completionRate": 0.0,
+        }
 
     @staticmethod
     def _parse_report_types(raw):
@@ -122,24 +159,58 @@ class StrategyWorkbenchService:
         for report_type in requested_types:
             if report_type == StrategyWorkbenchService.STEP_ENUM:
                 opportunities = int((enum_result or {}).get("opportunities") or 0)
-                payload = {"opportunities": opportunities} if opportunities > 0 else None
+                payload = (
+                    {
+                        "opportunities": opportunities,
+                        "totalStocks": int((enum_result or {}).get("totalStocks") or 0),
+                        "triggerStocks": int((enum_result or {}).get("triggerStocks") or 0),
+                        "completedCount": int((enum_result or {}).get("completedCount") or 0),
+                        "unfinishedCount": int((enum_result or {}).get("unfinishedCount") or 0),
+                        "completionRate": float((enum_result or {}).get("completionRate") or 0.0),
+                    }
+                    if opportunities > 0
+                    else None
+                )
             elif report_type == StrategyWorkbenchService.STEP_PRICE:
                 if price_result:
                     payload = {
                         "winRate": float(price_result.get("winRate") or 0.0),
                         "roi": float(price_result.get("roi") or 0.0),
                         "avgHoldDays": float(price_result.get("avgHoldDays") or 0.0),
+                        "totalInvestments": int(price_result.get("totalInvestments") or 0),
+                        "totalWinInvestments": int(price_result.get("totalWinInvestments") or 0),
+                        "totalLossInvestments": int(price_result.get("totalLossInvestments") or 0),
+                        "totalOpenInvestments": int(price_result.get("totalOpenInvestments") or 0),
+                        "stocksWithOpportunities": int(price_result.get("stocksWithOpportunities") or 0),
+                        "avgInvestmentsPerStock": float(price_result.get("avgInvestmentsPerStock") or 0.0),
+                        "avgProfitPerInvestment": float(price_result.get("avgProfitPerInvestment") or 0.0),
+                        "avgProfitPerStock": float(price_result.get("avgProfitPerStock") or 0.0),
+                        "completionRate": float(price_result.get("completionRate") or 0.0),
                     }
                 else:
                     payload = None
             else:
-                # 当前 run mock 返回的是 retPct，报告层按 totalReturn/maxDrawdown/winRate 读取。
                 if capital_result:
-                    total_return = float(capital_result.get("retPct") or 0.0) / 100.0
+                    total_return = capital_result.get("totalReturn")
+                    if total_return is None:
+                        total_return = float(capital_result.get("retPct") or 0.0) / 100.0
                     payload = {
-                        "totalReturn": total_return,
-                        "maxDrawdown": 0.12,
-                        "winRate": 0.55,
+                        "totalReturn": float(total_return or 0.0),
+                        "maxDrawdown": float(capital_result.get("maxDrawdown") or 0.0),
+                        "winRate": float(capital_result.get("winRate") or 0.0),
+                        "initialCapital": float(capital_result.get("initialCapital") or 0.0),
+                        "finalEquity": float(capital_result.get("finalEquity") or capital_result.get("endCapital") or 0.0),
+                        "totalTrades": int(capital_result.get("totalTrades") or 0),
+                        "buyTrades": int(capital_result.get("buyTrades") or 0),
+                        "sellTrades": int(capital_result.get("sellTrades") or 0),
+                        "winTrades": int(capital_result.get("winTrades") or 0),
+                        "lossTrades": int(capital_result.get("lossTrades") or 0),
+                        "totalProfit": float(capital_result.get("totalProfit") or capital_result.get("profit") or 0.0),
+                        "avgPnlPerTrade": float(capital_result.get("avgPnlPerTrade") or 0.0),
+                        "totalOpportunities": int(capital_result.get("totalOpportunities") or 0),
+                        "completedOpportunities": int(capital_result.get("completedOpportunities") or 0),
+                        "unfinishedOpportunities": int(capital_result.get("unfinishedOpportunities") or 0),
+                        "completionRate": float(capital_result.get("completionRate") or 0.0),
                     }
                 else:
                     payload = None
@@ -157,6 +228,8 @@ class StrategyWorkbenchService:
                     "stock_name": stock_name,
                     "opportunities": max(1, 24 - idx * 2),
                     "completion_rate": round(62 + (idx % 5) * 4.2, 1),
+                    "completed_count": max(1, 16 - idx),
+                    "unfinished_count": max(0, idx - 3),
                     "trigger_span_days": 4 + (idx % 6),
                 })
             elif report_type == self.STEP_PRICE:
@@ -166,6 +239,8 @@ class StrategyWorkbenchService:
                     "win_rate": round(48 + (idx % 6) * 3.1, 1),
                     "roi": round(-6 + idx * 1.9, 1),
                     "hold_days": 6 + (idx % 8),
+                    "completed_count": max(1, 12 - idx),
+                    "unfinished_count": max(0, idx - 4),
                 })
             else:
                 rows.append({
@@ -174,6 +249,9 @@ class StrategyWorkbenchService:
                     "trade_count": 8 + idx,
                     "pnl": int(-7000 + idx * 2400),
                     "win_rate": round(44 + (idx % 7) * 4.0, 1),
+                    "completed_count": max(1, 10 - idx),
+                    "unfinished_count": max(0, idx - 5),
+                    "completion_rate": round(58 + (idx % 4) * 6.0, 1),
                 })
         return rows
 
@@ -271,6 +349,55 @@ class StrategyWorkbenchService:
         except Exception:
             return ""
 
+    @staticmethod
+    def _format_python_literal(value, level: int = 0) -> str:
+        indent_unit = "    "
+        current_indent = indent_unit * level
+        next_indent = indent_unit * (level + 1)
+
+        if isinstance(value, dict):
+            if not value:
+                return "{}"
+            lines = ["{"]
+            items = list(value.items())
+            for idx, (k, v) in enumerate(items):
+                comma = "," if idx < len(items) - 1 else ""
+                rendered = StrategyWorkbenchService._format_python_literal(v, level + 1)
+                if "\n" in rendered:
+                    lines.append(f"{next_indent}{repr(k)}: {rendered}{comma}")
+                else:
+                    lines.append(f"{next_indent}{repr(k)}: {rendered}{comma}")
+            lines.append(f"{current_indent}}}")
+            return "\n".join(lines)
+
+        if isinstance(value, list):
+            if not value:
+                return "[]"
+            lines = ["["]
+            for idx, item in enumerate(value):
+                comma = "," if idx < len(value) - 1 else ""
+                rendered = StrategyWorkbenchService._format_python_literal(item, level + 1)
+                if "\n" in rendered:
+                    lines.append(f"{next_indent}{rendered}{comma}")
+                else:
+                    lines.append(f"{next_indent}{rendered}{comma}")
+            lines.append(f"{current_indent}]")
+            return "\n".join(lines)
+
+        return repr(value)
+
+    def _build_settings_file_text(self, settings_payload: dict, pretty: bool) -> str:
+        if pretty:
+            formatted = self._format_python_literal(settings_payload)
+        else:
+            # First pass writes a raw but valid dict literal quickly.
+            formatted = repr(settings_payload)
+        return (
+            "# Auto-generated by Strategy Workbench BFF API.\n"
+            "# Manual edits are allowed, but next save may reformat this file.\n\n"
+            f"settings = {formatted}\n"
+        )
+
     def _validate_strategy_exists(self, strategy_name: str):
         strategy_dir = PathManager.strategy(strategy_name)
         settings_file = PathManager.strategy_settings(strategy_name)
@@ -304,24 +431,11 @@ class StrategyWorkbenchService:
 
     def _save_runtime_settings_file(self, strategy_name: str, normalized_runtime_settings: dict):
         settings_file = PathManager.strategy_settings(strategy_name)
-        formatted = pformat(
-            normalized_runtime_settings,
-            indent=2,
-            width=88,
-            sort_dicts=False,
-            compact=False,
-        )
-        if formatted.startswith("{") and formatted.endswith("}"):
-            body = formatted[1:-1].strip()
-            if body:
-                formatted = "{\n" + textwrap.indent(body, "    ") + "\n}"
-        output_text = (
-            "# Auto-generated by Strategy Workbench BFF API.\n"
-            "# Manual edits are allowed, but next save may reformat this file.\n\n"
-            f"settings = {formatted}\n"
-        )
         backup_file(settings_file)
-        atomic_write_text(settings_file, output_text)
+        raw_output = self._build_settings_file_text(normalized_runtime_settings, pretty=False)
+        atomic_write_text(settings_file, raw_output)
+        pretty_output = self._build_settings_file_text(normalized_runtime_settings, pretty=True)
+        atomic_write_text(settings_file, pretty_output)
 
     def _run_chain_worker(self, strategy_name: str, run_id: str, resolved_chain: list):
         cancel_event = None

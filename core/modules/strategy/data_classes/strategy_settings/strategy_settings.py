@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 from dataclasses import dataclass, field
 from typing import Any, Dict
 
@@ -119,6 +121,57 @@ class StrategySettings(SettingsBase):
         out["capital_simulator"] = self.capital_simulator.to_dict()
         out["scanner"] = self.scanner.to_dict()
         return out
+
+    def to_enum_signature_dict(self) -> Dict[str, Any]:
+        """
+        提取“会影响枚举结果”的配置签名（用于复用判断）。
+
+        说明：
+        - 这里不使用完整 settings，避免 description 等无关字段导致误判。
+        - 以 apply_defaults + to_dict 后的数据为准，确保比较前先归一化。
+        """
+        normalized = self.to_dict()
+        return {
+            "name": normalized.get("name", ""),
+            "core": normalized.get("core", {}) or {},
+            "data": normalized.get("data", {}) or {},
+            "goal": normalized.get("goal", {}) or {},
+            "enumerator": normalized.get("enumerator", {}) or {},
+            # sampling/scanner 在部分模式下会影响枚举输入，纳入签名更稳妥。
+            "sampling": normalized.get("sampling", {}) or {},
+            "scanner": normalized.get("scanner", {}) or {},
+        }
+
+    @staticmethod
+    def _stable_hash(payload: Dict[str, Any]) -> str:
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def enum_signature_hash(self) -> str:
+        """当前 settings 的枚举签名 hash（sha256）。"""
+        return self._stable_hash(self.to_enum_signature_dict())
+
+    def is_enum_settings_same(self, other: Any) -> bool:
+        """
+        判断“枚举相关配置”是否一致。
+
+        支持：
+        - StrategySettings 实例
+        - 原始 settings dict
+        """
+        if isinstance(other, StrategySettings):
+            return self.enum_signature_hash() == other.enum_signature_hash()
+
+        if isinstance(other, dict):
+            other_settings = StrategySettings(raw_settings=dict(other))
+            return self.enum_signature_hash() == other_settings.enum_signature_hash()
+
+        return False
 
 
 BaseSettings = StrategySettings

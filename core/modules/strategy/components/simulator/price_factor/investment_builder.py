@@ -28,8 +28,8 @@ class InvestmentBuilder:
             investment 字典
         """
         trigger_date = opportunity_row.get("trigger_date", "")
-        # 优先使用枚举输出中的 sell_date 字段；如果未来引入 exit_date，则兼容回退
-        exit_date = opportunity_row.get("sell_date") or opportunity_row.get("exit_date", "")
+        # 先使用切片内已完成目标推导结束日期；若无，再回退到 opportunity 字段
+        exit_date = ""
         opp_id = str(opportunity_row.get("opportunity_id") or "").strip()
 
         # 解析基础字段
@@ -42,12 +42,29 @@ class InvestmentBuilder:
         except ValueError:
             roi = 0.0
 
-        # 计算整体 PnL（1 股）
-        # 说明：
-        # - 当前枚举输出 targets CSV 只有 roi（收益率）而没有绝对 profit/weighted_profit，
-        #   因此在 PriceFactorSimulator MVP 阶段，我们统一使用「1 股 × 触发价 × ROI」近似总盈亏。
-        # - 等后续枚举输出增加绝对收益列或更细粒度的拆分时，再改为基于 targets_list 精细计算。
-        pnl = trigger_price * roi
+        # 构造 completed_targets（targets 已由 DataLoader 严格按切片过滤）
+        completed_targets = InvestmentBuilder._build_completed_targets(targets_list, trigger_price)
+        total_sell_ratio = sum(
+            float(t.get("sell_ratio") or 0.0)
+            for t in completed_targets
+        )
+        is_completed_in_window = total_sell_ratio >= 1.0
+
+        if completed_targets:
+            exit_date = str(completed_targets[-1].get("sell_date") or "")
+        else:
+            exit_date = opportunity_row.get("sell_date") or opportunity_row.get("exit_date", "")
+
+        # 切片口径下盈亏：优先用 weighted_profit 汇总；缺失时回退 trigger_price * roi。
+        pnl = sum(float(t.get("weighted_profit") or 0.0) for t in completed_targets)
+        if not completed_targets:
+            pnl = trigger_price * roi
+
+        # 切片口径 ROI：使用切片内加权收益；避免使用全量机会的 roi 导致失真。
+        if trigger_price > 0:
+            roi = pnl / trigger_price
+        else:
+            roi = 0.0
 
         # 计算持续天数（自然日）
         start_dt = parse_yyyymmdd(trigger_date)
@@ -60,11 +77,8 @@ class InvestmentBuilder:
         # 构造 tracking
         tracking = InvestmentBuilder._build_tracking(opportunity_row, trigger_price, trigger_date, exit_date)
 
-        # 构造 completed_targets
-        completed_targets = InvestmentBuilder._build_completed_targets(targets_list, trigger_price)
-
         # result 分类
-        result = InvestmentBuilder._determine_result(opportunity_row, pnl)
+        result = InvestmentBuilder._determine_result(is_completed_in_window, pnl)
 
         # 构造 investment 记录
         overall_annual_return = get_annual_return(roi, duration_in_days)
@@ -79,6 +93,10 @@ class InvestmentBuilder:
             "overall_annual_return": overall_annual_return,
             "tracking": tracking,
             "completed_targets": completed_targets,
+            "is_completed_in_window": is_completed_in_window,
+            "completion_status": "completed" if is_completed_in_window else "unfinished",
+            "sell_ratio_in_window": round(min(total_sell_ratio, 1.0), 4),
+            "opportunity_id": opp_id,
         }
 
         return investment
@@ -189,18 +207,16 @@ class InvestmentBuilder:
         return completed_targets
 
     @staticmethod
-    def _determine_result(opportunity_row: Dict[str, Any], pnl: float) -> str:
-        """确定 investment 的 result（win/loss/open）"""
+    def _determine_result(is_completed_in_window: bool, pnl: float) -> str:
+        """确定 investment 的 result（严格按当前切片口径）。"""
         from core.modules.strategy.enums import OpportunityStatus
-        status = (opportunity_row.get("status") or "").lower()
-        if status in (OpportunityStatus.WIN.value, OpportunityStatus.LOSS.value, OpportunityStatus.OPEN.value):
-            return status
-        else:
-            if pnl > 0:
-                return OpportunityStatus.WIN.value
-            elif pnl < 0:
-                return OpportunityStatus.LOSS.value
-            else:
-                return OpportunityStatus.OPEN.value
+
+        if not is_completed_in_window:
+            return OpportunityStatus.OPEN.value
+        if pnl > 0:
+            return OpportunityStatus.WIN.value
+        if pnl < 0:
+            return OpportunityStatus.LOSS.value
+        return OpportunityStatus.OPEN.value
 
 

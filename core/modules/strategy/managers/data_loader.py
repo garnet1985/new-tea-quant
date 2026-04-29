@@ -335,7 +335,7 @@ class DataLoader:
             targets_rows: List[Dict[str, Any]]
             targets_index: {opportunity_id: [row_idx, ...]}
         """
-        # 1. 读取 targets，按 opportunity_id 建立索引
+        # 1. 读取 targets，按 opportunity_id 建立索引（严格按 [start_date, end_date] 切片）
         target_rows: List[Dict[str, Any]] = []
         targets_index: Dict[str, List[int]] = defaultdict(list)
 
@@ -345,6 +345,17 @@ class DataLoader:
                 for row in reader:
                     opp_id = str(row.get("opportunity_id") or "").strip()
                     if not opp_id:
+                        continue
+                    # 目标事件日期过滤（严格切片）
+                    target_date = (
+                        row.get("date")
+                        or row.get("sell_date")
+                        or row.get("target_date")
+                        or ""
+                    )
+                    if start_date and target_date and target_date < start_date:
+                        continue
+                    if end_date and target_date and target_date > end_date:
                         continue
                     # 规范化数值字段（部分字段在旧版 CSV 中可能不存在）
                     # 统一约定：sell_price 表示实际成交价格
@@ -418,7 +429,7 @@ class DataLoader:
         Returns:
             (opportunities, targets_map)
         """
-        # 1. 读取 targets，按 opportunity_id 分组
+        # 1. 读取 targets，按 opportunity_id 分组（严格按 [start_date, end_date] 切片）
         targets_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         if targets_path.exists():
             with targets_path.open("r", encoding="utf-8") as f_t:
@@ -426,6 +437,16 @@ class DataLoader:
                 for row in t_reader:
                     opp_id = str(row.get("opportunity_id") or "").strip()
                     if not opp_id:
+                        continue
+                    target_date = (
+                        row.get("date")
+                        or row.get("sell_date")
+                        or row.get("target_date")
+                        or ""
+                    )
+                    if start_date and target_date and target_date < start_date:
+                        continue
+                    if end_date and target_date and target_date > end_date:
                         continue
                     # 规范化数值字段（兼容旧字段名）
                     try:

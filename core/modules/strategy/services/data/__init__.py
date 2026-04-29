@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Legacy data management component bridge during migration."""
+"""Cross-engine strategy data services."""
 
 from .strategy_data_manager import StrategyDataManager
 
 __all__ = ["StrategyDataManager"]
-

@@ -1,5 +1,5 @@
 """
-Strategy 数据管理。
+Strategy data management.
 
 前半段：契约签发与行表装填（``issue_contracts`` / ``hydrate_row_slots``）。
 后半段：运行时能力（Scanner/Simulator 拉数、指标、游标）。

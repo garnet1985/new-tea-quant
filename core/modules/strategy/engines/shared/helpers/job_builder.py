@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Job Builder Helper - 作业构建助手。"""
+"""Cross-engine job builder helpers."""
 
-from datetime import datetime
-import logging
 from typing import Any, Dict, List, Tuple
 
 from core.modules.strategy.enums import ExecutionMode
-
-logger = logging.getLogger(__name__)
 
 
 def _strategy_job_fields(strategy_info: Any) -> Tuple[str, Any, str, str]:
@@ -79,3 +75,5 @@ class JobBuilderHelper:
             )
         return jobs
 
+
+__all__ = ["JobBuilderHelper"]

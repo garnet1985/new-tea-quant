@@ -3,16 +3,16 @@
 
 from .injection import StrategyDataInjectionService
 from .output import (
-    ResultPathManager,
+    StrategyOutputPathService,
     SimulationEvent,
-    StrategyDataOutputService,
-    VersionManager,
+    StrategyOutputReaderService,
+    StrategyOutputVersionService,
 )
 
 __all__ = [
-    "ResultPathManager",
+    "StrategyOutputPathService",
     "SimulationEvent",
     "StrategyDataInjectionService",
-    "StrategyDataOutputService",
-    "VersionManager",
+    "StrategyOutputReaderService",
+    "StrategyOutputVersionService",
 ]

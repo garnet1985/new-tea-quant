@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ResultPathManager:
+class StrategyOutputPathService:
     sim_version_dir: Path
 
     SESSION_SUMMARY_FILE: str = "0_session_summary.json"
@@ -23,7 +23,7 @@ class ResultPathManager:
             self.sim_version_dir.mkdir(parents=True, exist_ok=True)
         except Exception as exc:
             logger.warning(
-                "[ResultPathManager] failed to create result dir: dir=%s, error=%s",
+                "[StrategyOutputPathService] failed to create result dir: dir=%s, error=%s",
                 self.sim_version_dir,
                 exc,
             )
@@ -49,4 +49,4 @@ class ResultPathManager:
         return self.ensure_root() / f"{stock_id}.json"
 
 
-__all__ = ["ResultPathManager"]
+__all__ = ["StrategyOutputPathService"]

@@ -12,8 +12,8 @@ if TYPE_CHECKING:
         StrategySettingsView,
     )
     from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
-    from core.modules.strategy.engines.simulator.capital_allocation.capital_allocation_flow_impl import (
-        CapitalAllocationSimulatorConfig,
+    from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
+        StrategyCapitalSimulatorSettings,
     )
     from core.modules.strategy.services.data.output import SimulationEvent
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class CapitalAllocationPreprocessContext:
     strategy_name: str
     base_settings: "StrategySettingsView"
-    config: "CapitalAllocationSimulatorConfig"
+    config: "StrategyCapitalSimulatorSettings"
     output_version_dir: Path
     sim_version_dir: Path
     sim_version_id: int

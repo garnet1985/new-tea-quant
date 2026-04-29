@@ -32,10 +32,12 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.fingerprint
     EnumeratorFingerprint,
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker
-from core.modules.strategy.engines.simulator.price_factor.helpers import DateTimeEncoder
 from core.modules.strategy.enums import NotReusedBecause, ReuseAction
 from core.modules.strategy.services.data import StrategyDataInjectionService
-from core.modules.strategy.services.data.output import VersionManager
+from core.modules.strategy.services.data.output import (
+    EnumeratorOutputWriterService,
+    StrategyOutputVersionService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +102,7 @@ class OpportunityEnumeratorFlowImpl:
     def create_output_version(
         self, *, strategy_name: str, enum_settings: OpportunityEnumeratorSettings
     ) -> Dict[str, Any]:
-        output_dir, version_id = VersionManager.create_enumerator_version(
+        output_dir, version_id = StrategyOutputVersionService.create_enumerator_version(
             strategy_name=strategy_name, use_sampling=enum_settings.use_sampling
         )
         return {
@@ -467,14 +469,10 @@ class OpportunityEnumeratorFlowImpl:
         if success_count <= 0:
             return
         performance_summary = aggregate_profiler.get_summary()
-        with (output_dir / "0_performance_report.json").open("w", encoding="utf-8") as f:
-            json.dump(
-                performance_summary,
-                f,
-                indent=2,
-                ensure_ascii=False,
-                cls=DateTimeEncoder,
-            )
+        EnumeratorOutputWriterService.write_performance_report(
+            output_dir=output_dir,
+            performance_summary=performance_summary,
+        )
 
     def save_metadata(
         self,
@@ -491,25 +489,24 @@ class OpportunityEnumeratorFlowImpl:
         reuse_action: Optional[ReuseAction] = None,
         not_reused_because: Optional[NotReusedBecause] = None,
     ) -> None:
-        metadata = {
-            "strategy_name": strategy_name,
-            "start_date": self.start_date,
-            "end_date": self.end_date,
-            "opportunity_count": opportunity_count,
-            "created_at": datetime.now().isoformat(),
-            "version_id": version_id,
-            "version_dir": version_dir_name,
-            "settings_snapshot": settings_snapshot,
-            "is_full_enumeration": not enum_settings.use_sampling,
-            "fingerprint": fingerprint.to_dict(),
-            "status": status,
-        }
-        if reuse_action:
-            metadata["reuse_action"] = reuse_action.value
-        if not_reused_because and not_reused_because != NotReusedBecause.NONE:
-            metadata["not_reused_because"] = not_reused_because.value
-        with (output_dir / "0_metadata.json").open("w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+        metadata = EnumeratorOutputWriterService.build_metadata(
+            strategy_name=strategy_name,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            opportunity_count=opportunity_count,
+            version_id=version_id,
+            version_dir_name=version_dir_name,
+            settings_snapshot=settings_snapshot,
+            is_full_enumeration=not enum_settings.use_sampling,
+            fingerprint=fingerprint,
+            status=status,
+            reuse_action=reuse_action,
+            not_reused_because=not_reused_because,
+            created_at=datetime.now().isoformat(),
+        )
+        EnumeratorOutputWriterService.write_metadata(
+            output_dir=output_dir, metadata=metadata
+        )
 
     def build_reuse_summary(
         self,
@@ -544,12 +541,12 @@ class OpportunityEnumeratorFlowImpl:
     ) -> None:
         sub_dir = output_dir.parent
         if enum_settings.use_sampling:
-            self._cleanup_old_versions(
-                sub_dir, enum_settings.max_test_versions, strategy_name, mode="test"
+            StrategyOutputVersionService.prune_enumerator_versions(
+                sub_dir, enum_settings.max_test_versions
             )
         else:
-            self._cleanup_old_versions(
-                sub_dir, enum_settings.max_output_versions, strategy_name, mode="output"
+            StrategyOutputVersionService.prune_enumerator_versions(
+                sub_dir, enum_settings.max_output_versions
             )
 
     def build_result_summary(
@@ -587,41 +584,5 @@ class OpportunityEnumeratorFlowImpl:
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
         return OpportunityEnumeratorWorker(payload).run()
-
-    @staticmethod
-    def _cleanup_old_versions(
-        root_dir: Path, max_keep_versions: int, strategy_name: str, mode: str = "test"
-    ) -> None:
-        if max_keep_versions < 1:
-            return
-        version_dirs = [
-            item
-            for item in root_dir.iterdir()
-            if item.is_dir() and item.name != "__pycache__" and item.name[0].isdigit()
-        ]
-        versions = []
-        for version_dir in version_dirs:
-            metadata_path = version_dir / "0_metadata.json"
-            if not metadata_path.exists():
-                try:
-                    version_id = int(version_dir.name)
-                except ValueError:
-                    continue
-            else:
-                try:
-                    with metadata_path.open("r", encoding="utf-8") as f:
-                        version_id = int((json.load(f) or {}).get("version_id", 0))
-                except Exception:
-                    continue
-            versions.append((version_id, version_dir))
-        versions.sort(key=lambda x: x[0], reverse=True)
-        for _, vdir in versions[max_keep_versions:]:
-            try:
-                import shutil
-
-                shutil.rmtree(vdir)
-            except Exception as exc:
-                logger.warning("cleanup failed for %s: %s", vdir, exc)
-
 
 __all__ = ["OpportunityEnumeratorFlowImpl"]

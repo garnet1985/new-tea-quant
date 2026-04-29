@@ -3,8 +3,7 @@
 
 __all__ = [
     "PriceFactorFlow",
-    "PriceFactorSimulatorConfig",
-    "PriceFactorSimulatorWorker",
+    "PriceFactorWorker",
     "PriceReport",
     "DateTimeEncoder",
     "parse_yyyymmdd",

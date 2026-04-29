@@ -14,7 +14,7 @@ from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
     DiscoveredStrategy,
 )
-from core.modules.strategy.engines.scanner.manager import ScannerManager
+from core.modules.strategy.engines.scanner.scanner import Scanner
 from core.modules.strategy.engines.simulator.capital_allocation.capital_allocation_flow import (
     CapitalAllocationFlow,
 )
@@ -66,7 +66,7 @@ class StrategyManager:
 
         results: Dict[str, dict] = {}
         for info in targets:
-            scanner = ScannerManager(
+            scanner = Scanner(
                 strategy_name=info.name,
                 data_manager=self.data_mgr,
                 is_verbose=self.is_verbose,

@@ -64,6 +64,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             strategy_name=preprocessed.strategy_name,
             output_version_dir=preprocessed.output_version_dir,
             config=preprocessed.config,
+            base_settings=preprocessed.base_settings,
             profiler=preprocessed.profiler,
         )
         if not events:

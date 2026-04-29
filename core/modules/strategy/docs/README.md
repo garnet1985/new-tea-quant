@@ -8,5 +8,5 @@ This folder will hold architecture, contracts, and migration notes for the new `
 
 ## API Notes
 
-- `output-slice.md`: `StrategyDataOutputService.load_opportunity_snapshot(...)` request/response contract.
+- `output-slice.md`: `StrategyOutputReaderService.load_opportunity_snapshot(...)` request/response contract.
 

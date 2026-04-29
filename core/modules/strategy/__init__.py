@@ -10,7 +10,7 @@ from .engines.simulator.helpers import SimulatorStatisticsHelper
 from .enums import ExecutionMode, OpportunityStatus, SellReason
 from .services import (
     StrategyDataInjectionService,
-    StrategyDataOutputService,
+    StrategyOutputReaderService,
     StrategyDiscoveryHelper,
     build_settings,
     normalize_and_validate,
@@ -29,7 +29,7 @@ __all__ = [
     "SimulatorStatisticsHelper",
     "StockSamplingHelper",
     "StrategyDataInjectionService",
-    "StrategyDataOutputService",
+    "StrategyOutputReaderService",
     "StrategyDiscoveryHelper",
     "build_settings",
     "validate_settings",

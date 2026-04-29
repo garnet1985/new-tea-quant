@@ -3,13 +3,16 @@
 
 from datetime import datetime
 import json
+import logging
 from pathlib import Path
 from typing import Tuple
 
 from core.infra.project_context import PathManager
 
+logger = logging.getLogger(__name__)
 
-class VersionManager:
+
+class StrategyOutputVersionService:
     @staticmethod
     def create_enumerator_version(
         strategy_name: str,
@@ -56,19 +59,19 @@ class VersionManager:
         )
         base_root = root.parent
         if not root.exists():
-            raise FileNotFoundError(f"[VersionManager] enum dir missing: {root}")
+            raise FileNotFoundError(f"[StrategyOutputVersionService] enum dir missing: {root}")
         if version_str == "latest":
             candidates = [
                 p for p in root.iterdir() if p.is_dir() and p.name[0].isdigit()
             ]
             if not candidates:
                 raise FileNotFoundError(
-                    f"[VersionManager] no versions under {sub_dir_name}: {root}"
+                    f"[StrategyOutputVersionService] no versions under {sub_dir_name}: {root}"
                 )
             return sorted(candidates, key=lambda p: p.name)[-1], base_root
         version_dir = root / version_str
         if not version_dir.exists() or not version_dir.is_dir():
-            raise FileNotFoundError(f"[VersionManager] version dir missing: {version_dir}")
+            raise FileNotFoundError(f"[StrategyOutputVersionService] version dir missing: {version_dir}")
         return version_dir, base_root
 
     @staticmethod
@@ -108,7 +111,7 @@ class VersionManager:
         root_dir = PathManager.strategy_simulations_price_factor(strategy_name)
         if not root_dir.exists():
             raise FileNotFoundError(
-                f"[VersionManager] price factor simulator dir missing: {root_dir}"
+                f"[StrategyOutputVersionService] price factor simulator dir missing: {root_dir}"
             )
         if version_spec == "latest":
             candidates = [
@@ -116,14 +119,14 @@ class VersionManager:
             ]
             if not candidates:
                 raise FileNotFoundError(
-                    f"[VersionManager] no price factor versions: {root_dir}"
+                    f"[StrategyOutputVersionService] no price factor versions: {root_dir}"
                 )
             version_dir = sorted(candidates, key=lambda p: p.name)[-1]
             return version_dir, int(version_dir.name)
         version_dir = root_dir / version_spec
         if not version_dir.exists() or not version_dir.is_dir():
             raise FileNotFoundError(
-                f"[VersionManager] specified price factor version missing: {version_dir}"
+                f"[StrategyOutputVersionService] specified price factor version missing: {version_dir}"
             )
         return version_dir, int(version_spec)
 
@@ -163,7 +166,7 @@ class VersionManager:
         base_dir = PathManager.strategy_capital_allocation(strategy_name)
         if not base_dir.exists():
             raise FileNotFoundError(
-                f"[VersionManager] capital allocation simulator dir missing: {base_dir}"
+                f"[StrategyOutputVersionService] capital allocation simulator dir missing: {base_dir}"
             )
         if version_spec == "latest":
             version_dirs = [
@@ -171,14 +174,14 @@ class VersionManager:
             ]
             if not version_dirs:
                 raise FileNotFoundError(
-                    f"[VersionManager] no capital allocation versions: {base_dir}"
+                    f"[StrategyOutputVersionService] no capital allocation versions: {base_dir}"
                 )
             version_dirs.sort(key=lambda d: d.name, reverse=True)
             return version_dirs[0], int(version_dirs[0].name)
         version_dir = base_dir / version_spec
         if not version_dir.exists() or not version_dir.is_dir():
             raise FileNotFoundError(
-                f"[VersionManager] specified capital allocation version missing: {version_dir}"
+                f"[StrategyOutputVersionService] specified capital allocation version missing: {version_dir}"
             )
         return version_dir, int(version_spec)
 
@@ -187,10 +190,43 @@ class VersionManager:
         strategy_name: str,
         output_version: str,
     ) -> Tuple[Path, Path]:
-        version_dir, _ = VersionManager.resolve_enumerator_version(
+        version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
             strategy_name, output_version
         )
         return version_dir, version_dir.parent
 
+    @staticmethod
+    def prune_enumerator_versions(root_dir: Path, max_keep_versions: int) -> None:
+        if max_keep_versions < 1:
+            return
+        version_dirs = [
+            item
+            for item in root_dir.iterdir()
+            if item.is_dir() and item.name != "__pycache__" and item.name[0].isdigit()
+        ]
+        versions = []
+        for version_dir in version_dirs:
+            metadata_path = version_dir / "0_metadata.json"
+            if not metadata_path.exists():
+                try:
+                    version_id = int(version_dir.name)
+                except ValueError:
+                    continue
+            else:
+                try:
+                    with metadata_path.open("r", encoding="utf-8") as f:
+                        version_id = int((json.load(f) or {}).get("version_id", 0))
+                except Exception:
+                    continue
+            versions.append((version_id, version_dir))
+        versions.sort(key=lambda x: x[0], reverse=True)
+        for _, version_dir in versions[max_keep_versions:]:
+            try:
+                import shutil
 
-__all__ = ["VersionManager"]
+                shutil.rmtree(version_dir)
+            except Exception as exc:
+                logger.warning("prune failed for %s: %s", version_dir, exc)
+
+
+__all__ = ["StrategyOutputVersionService"]

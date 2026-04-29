@@ -2,11 +2,11 @@
 """Strategy engines package (side-effect free)."""
 
 __all__ = [
-    "ScannerManager",
+    "Scanner",
     "OpportunityEnumeratorFlow",
     "PriceFactorFlow",
     "CapitalAllocationFlow",
-    "AnalyzerManager",
+    "Analyzer",
     "ReportBase",
     "SimulatorHooksDispatcher",
     "PerformanceMetrics",

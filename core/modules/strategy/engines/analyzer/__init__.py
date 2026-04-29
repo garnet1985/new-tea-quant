@@ -10,10 +10,8 @@ from .helpers import (
     StatisticalAnalyzer,
     StatisticalMetric,
 )
-from .manager import AnalyzerManager
 
 __all__ = [
-    "AnalyzerManager",
     "AnalyzerConfig",
     "Analyzer",
     "AnalysisContext",

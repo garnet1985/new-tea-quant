@@ -14,8 +14,8 @@ from core.modules.strategy.services.data.output.event import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
-class StrategyDataOutputService:
-    """Service for reading strategy runtime outputs and artifacts."""
+class StrategyOutputReaderService:
+    """Read-side service for strategy runtime outputs and artifacts."""
 
     def __init__(self, strategy_name: str, cache_enabled: bool = True):
         self.strategy_name = strategy_name
@@ -25,7 +25,7 @@ class StrategyDataOutputService:
     def clear_cache(self) -> None:
         self._cache.clear()
         logger.debug(
-            "[StrategyDataOutputService] cache cleared: strategy=%s", self.strategy_name
+            "[StrategyOutputReaderService] cache cleared: strategy=%s", self.strategy_name
         )
 
     def load_opportunities(
@@ -80,7 +80,7 @@ class StrategyDataOutputService:
         cache_key = f"{output_version_dir.name}_{stock_id or 'all'}_{start_date}_{end_date}"
         if self.cache_enabled and cache_key in self._cache:
             logger.debug(
-                "[StrategyDataOutputService] cache hit: strategy=%s, key=%s",
+                "[StrategyOutputReaderService] cache hit: strategy=%s, key=%s",
                 self.strategy_name,
                 cache_key,
             )
@@ -110,7 +110,7 @@ class StrategyDataOutputService:
         if self.cache_enabled:
             self._cache[cache_key] = result
             logger.debug(
-                "[StrategyDataOutputService] cache set: strategy=%s, key=%s, opportunities=%s",
+                "[StrategyOutputReaderService] cache set: strategy=%s, key=%s, opportunities=%s",
                 self.strategy_name,
                 cache_key,
                 len(opportunities),
@@ -390,4 +390,4 @@ class StrategyDataOutputService:
                 yield opp_id, normalized
 
 
-__all__ = ["StrategyDataOutputService"]
+__all__ = ["StrategyOutputReaderService"]

@@ -12,8 +12,8 @@ if TYPE_CHECKING:
         StrategySettingsView,
     )
     from core.modules.strategy.engines.shared.performance_profiler import AggregateProfiler
-    from core.modules.strategy.engines.simulator.price_factor.price_factor_flow_impl import (
-        PriceFactorSimulatorConfig,
+    from core.modules.strategy.engines.simulator.price_factor.data_classes.settings import (
+        StrategyPriceSimulatorSettings,
     )
 
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class PriceFactorPreprocessContext:
     strategy_name: str
     base_settings: "StrategySettingsView"
-    simulator_config: "PriceFactorSimulatorConfig"
+    simulator_config: "StrategyPriceSimulatorSettings"
     output_version_dir: Path
     output_root: Path
     sim_version_dir: Path

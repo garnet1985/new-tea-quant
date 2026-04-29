@@ -14,7 +14,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.engines.simulator.enumerator import OpportunityEnumeratorFlow
-from core.modules.strategy.services.data.output import VersionManager
+from core.modules.strategy.services.data.output import StrategyOutputVersionService
 
 
 def resolve_or_build_enumerator_version(
@@ -31,11 +31,13 @@ def resolve_or_build_enumerator_version(
         raw_version = raw_version.split("/", 1)[1].strip() or "latest"
     version_spec = f"{sub_dir}/{raw_version}"
     try:
-        return VersionManager.resolve_enumerator_version(strategy_name, version_spec)
+        return StrategyOutputVersionService.resolve_enumerator_version(
+            strategy_name, version_spec
+        )
     except FileNotFoundError:
         if raw_version != "latest":
             try:
-                return VersionManager.resolve_enumerator_version(
+                return StrategyOutputVersionService.resolve_enumerator_version(
                     strategy_name, f"{sub_dir}/latest"
                 )
             except FileNotFoundError:
@@ -49,7 +51,9 @@ def resolve_or_build_enumerator_version(
     )
     if resolved_dir is not None:
         return resolved_dir, resolved_dir.parent
-    return VersionManager.resolve_enumerator_version(strategy_name, f"{sub_dir}/latest")
+    return StrategyOutputVersionService.resolve_enumerator_version(
+        strategy_name, f"{sub_dir}/latest"
+    )
 
 
 def run_enumerator_for_mode(
@@ -87,7 +91,7 @@ def run_enumerator_for_mode(
         version_dir_name = str(first.get("version_dir", "")).strip()
         if version_dir_name:
             sub_dir_name = "test" if use_sampling else "output"
-            version_dir, _ = VersionManager.resolve_enumerator_version(
+            version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
                 strategy_name,
                 f"{sub_dir_name}/{version_dir_name}",
             )

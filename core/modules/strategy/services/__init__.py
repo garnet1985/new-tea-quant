@@ -5,10 +5,10 @@ from importlib import import_module
 from typing import Any
 
 __all__ = [
-    "ResultPathManager",
-    "VersionManager",
+    "StrategyOutputPathService",
+    "StrategyOutputVersionService",
     "StrategyDataInjectionService",
-    "StrategyDataOutputService",
+    "StrategyOutputReaderService",
     "StrategyDiscoveryHelper",
     "build_settings",
     "validate_settings",
@@ -17,9 +17,9 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
-    if name in {"ResultPathManager", "VersionManager"}:
+    if name in {"StrategyOutputPathService", "StrategyOutputVersionService"}:
         return getattr(import_module(".data", __name__), name)
-    if name in {"StrategyDataInjectionService", "StrategyDataOutputService"}:
+    if name in {"StrategyDataInjectionService", "StrategyOutputReaderService"}:
         return getattr(import_module(".data", __name__), name)
     if name == "StrategyDiscoveryHelper":
         return getattr(import_module(".discovery", __name__), name)

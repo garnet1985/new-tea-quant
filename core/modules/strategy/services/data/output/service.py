@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""
-Data Loader - 统一数据加载器
-"""
+"""Output-side data service for strategy artifacts."""
+
+from __future__ import annotations
 
 from collections import defaultdict
 import csv
@@ -9,13 +9,13 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .event import SimulationEvent
+from core.modules.strategy.services.data.helper import coerce_float
+from core.modules.strategy.services.data.output.event import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
-
-class DataLoader:
-    """统一数据加载器（实例方法，支持缓存）"""
+class StrategyDataOutputService:
+    """Service for reading strategy runtime outputs and artifacts."""
 
     def __init__(self, strategy_name: str, cache_enabled: bool = True):
         self.strategy_name = strategy_name
@@ -24,7 +24,9 @@ class DataLoader:
 
     def clear_cache(self) -> None:
         self._cache.clear()
-        logger.debug("[DataLoader] 已清空缓存: strategy=%s", self.strategy_name)
+        logger.debug(
+            "[StrategyDataOutputService] cache cleared: strategy=%s", self.strategy_name
+        )
 
     def load_opportunities(
         self,
@@ -36,9 +38,11 @@ class DataLoader:
         if stock_id:
             opportunities_path = output_version_dir / f"{stock_id}_opportunities.csv"
             if not opportunities_path.exists():
-                logger.warning("[DataLoader] opportunities 文件不存在: %s", opportunities_path)
+                logger.warning("opportunities file missing: %s", opportunities_path)
                 return []
-            return self._load_opportunities_from_file(opportunities_path, start_date, end_date)
+            return self._load_opportunities_from_file(
+                opportunities_path, start_date, end_date
+            )
 
         opportunities: List[Dict[str, Any]] = []
         for entry in output_version_dir.iterdir():
@@ -75,7 +79,11 @@ class DataLoader:
     ) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
         cache_key = f"{output_version_dir.name}_{stock_id or 'all'}_{start_date}_{end_date}"
         if self.cache_enabled and cache_key in self._cache:
-            logger.debug("[DataLoader] 使用缓存: strategy=%s, key=%s", self.strategy_name, cache_key)
+            logger.debug(
+                "[StrategyDataOutputService] cache hit: strategy=%s, key=%s",
+                self.strategy_name,
+                cache_key,
+            )
             return self._cache[cache_key]
 
         if stock_id:
@@ -102,7 +110,7 @@ class DataLoader:
         if self.cache_enabled:
             self._cache[cache_key] = result
             logger.debug(
-                "[DataLoader] 已缓存: strategy=%s, key=%s, opportunities=%s",
+                "[StrategyDataOutputService] cache set: strategy=%s, key=%s, opportunities=%s",
                 self.strategy_name,
                 cache_key,
                 len(opportunities),
@@ -155,9 +163,7 @@ class DataLoader:
                         continue
                     target_row = target_rows[t_idx]
                     target_date = (
-                        target_row.get("date")
-                        or target_row.get("target_date")
-                        or ""
+                        target_row.get("date") or target_row.get("target_date") or ""
                     )
                     if not target_date:
                         continue
@@ -186,8 +192,8 @@ class DataLoader:
         targets_index: Dict[str, List[int]] = defaultdict(list)
 
         if targets_path.exists():
-            with targets_path.open("r", encoding="utf-8") as f_t:
-                reader = csv.DictReader(f_t)
+            with targets_path.open("r", encoding="utf-8") as file_targets:
+                reader = csv.DictReader(file_targets)
                 for opp_id, row in self._iter_normalized_target_rows(
                     reader, start_date=start_date, end_date=end_date
                 ):
@@ -196,8 +202,8 @@ class DataLoader:
 
         opp_rows: List[Dict[str, Any]] = []
         if opportunities_path.exists():
-            with opportunities_path.open("r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+            with opportunities_path.open("r", encoding="utf-8") as file_opps:
+                reader = csv.DictReader(file_opps)
                 for row in reader:
                     trigger_date = row.get("trigger_date") or ""
                     if start_date and trigger_date < start_date:
@@ -206,7 +212,7 @@ class DataLoader:
                         continue
                     opp_rows.append(row)
         else:
-            logger.warning("[DataLoader] opportunities 文件不存在: %s", opportunities_path)
+            logger.warning("opportunities file missing: %s", opportunities_path)
 
         return opp_rows, target_rows, targets_index
 
@@ -219,19 +225,19 @@ class DataLoader:
     ) -> Tuple[List[Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
         targets_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         if targets_path.exists():
-            with targets_path.open("r", encoding="utf-8") as f_t:
-                t_reader = csv.DictReader(f_t)
+            with targets_path.open("r", encoding="utf-8") as file_targets:
+                reader = csv.DictReader(file_targets)
                 for opp_id, row in self._iter_normalized_target_rows(
-                    t_reader, start_date=start_date, end_date=end_date
+                    reader, start_date=start_date, end_date=end_date
                 ):
                     targets_map[opp_id].append(row)
 
         opportunities: List[Dict[str, Any]] = []
         if not opportunities_path.exists():
-            logger.warning("[DataLoader] opportunities 文件不存在: %s", opportunities_path)
+            logger.warning("opportunities file missing: %s", opportunities_path)
             return opportunities, targets_map
-        with opportunities_path.open("r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
+        with opportunities_path.open("r", encoding="utf-8") as file_opps:
+            reader = csv.DictReader(file_opps)
             for row in reader:
                 trigger_date = row.get("trigger_date") or ""
                 if start_date and trigger_date < start_date:
@@ -250,8 +256,8 @@ class DataLoader:
         opportunities: List[Dict[str, Any]] = []
         if not opportunities_path.exists():
             return opportunities
-        with opportunities_path.open("r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
+        with opportunities_path.open("r", encoding="utf-8") as file_opps:
+            reader = csv.DictReader(file_opps)
             for row in reader:
                 trigger_date = row.get("trigger_date") or ""
                 if start_date and trigger_date < start_date:
@@ -269,8 +275,8 @@ class DataLoader:
         targets: List[Dict[str, Any]] = []
         if not targets_path.exists():
             return targets
-        with targets_path.open("r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
+        with targets_path.open("r", encoding="utf-8") as file_targets:
+            reader = csv.DictReader(file_targets)
             for opp_id, row in self._iter_normalized_target_rows(
                 reader, start_date="", end_date=""
             ):
@@ -278,13 +284,6 @@ class DataLoader:
                     continue
                 targets.append(row)
         return targets
-
-    @staticmethod
-    def _coerce_float(value: Any) -> float:
-        try:
-            return float(value or 0.0)
-        except (ValueError, TypeError):
-            return 0.0
 
     def _normalize_target_row(
         self,
@@ -297,10 +296,7 @@ class DataLoader:
         if not opp_id:
             return None, None
         target_date = (
-            row.get("date")
-            or row.get("sell_date")
-            or row.get("target_date")
-            or ""
+            row.get("date") or row.get("sell_date") or row.get("target_date") or ""
         )
         if start_date and target_date and target_date < start_date:
             return None, None
@@ -314,10 +310,10 @@ class DataLoader:
             or normalized.get("target_price")
             or 0.0
         )
-        normalized["sell_price"] = self._coerce_float(raw_sell_price)
-        normalized["sell_ratio"] = self._coerce_float(normalized.get("sell_ratio"))
-        normalized["profit"] = self._coerce_float(normalized.get("profit"))
-        normalized["weighted_profit"] = self._coerce_float(normalized.get("weighted_profit"))
+        normalized["sell_price"] = coerce_float(raw_sell_price)
+        normalized["sell_ratio"] = coerce_float(normalized.get("sell_ratio"))
+        normalized["profit"] = coerce_float(normalized.get("profit"))
+        normalized["weighted_profit"] = coerce_float(normalized.get("weighted_profit"))
         return opp_id, normalized
 
     def _iter_normalized_target_rows(
@@ -333,3 +329,6 @@ class DataLoader:
             )
             if opp_id and normalized is not None:
                 yield opp_id, normalized
+
+
+__all__ = ["StrategyDataOutputService"]

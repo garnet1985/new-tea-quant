@@ -22,13 +22,15 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.settings im
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker
 from core.modules.strategy.engines.simulator.price_factor.helpers import DateTimeEncoder
-from core.modules.strategy.services import preload_global_extras_for_enumeration
-from core.modules.strategy.services.artifacts.version_manager import VersionManager
+from core.modules.strategy.services.data import StrategyDataInjectionService
+from core.modules.strategy.services.data.output import VersionManager
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+    from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+        DiscoveredStrategy,
+    )
 
 
 class OpportunityEnumerator:
@@ -40,7 +42,7 @@ class OpportunityEnumerator:
         stock_list: List[str],
         max_workers: Union[str, int] = "auto",
         base_settings: Optional[StrategySettingsView] = None,
-        strategy_info: Optional["StrategyInfo"] = None,
+        strategy_info: Optional["DiscoveredStrategy"] = None,
     ) -> List[Dict[str, Any]]:
         from core.infra.worker.multi_process.process_worker import ProcessWorker
 
@@ -78,7 +80,11 @@ class OpportunityEnumerator:
             }
             for stock_id in stock_list
         ]
-        global_extra_cache = preload_global_extras_for_enumeration(validated_settings, enum_start_date, end_date)
+        global_extra_cache = (
+            StrategyDataInjectionService.preload_global_extras_for_enumeration(
+                validated_settings, enum_start_date, end_date
+            )
+        )
         from core.infra.worker import MemoryAwareScheduler, ProcessExecutionMode, ProcessExecutor
 
         executor = ProcessExecutor(

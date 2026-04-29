@@ -10,5 +10,5 @@ Current structure:
 
 Migration status:
 - Legacy `strategy1` has been removed.
-- Runtime flow is unified around discovered `StrategyInfo` and engine-local implementations.
+- Runtime flow is unified around discovered `DiscoveredStrategy` and engine-local implementations.
 

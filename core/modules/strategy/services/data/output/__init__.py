@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Result artifact and persistence services."""
+"""Output data service exports."""
 
-from .data_loader import DataLoader
 from .event import SimulationEvent
 from .result_path_manager import ResultPathManager
+from .service import StrategyDataOutputService
 from .version_manager import VersionManager
 
 __all__ = [
-    "DataLoader",
     "SimulationEvent",
     "ResultPathManager",
+    "StrategyDataOutputService",
     "VersionManager",
 ]
-

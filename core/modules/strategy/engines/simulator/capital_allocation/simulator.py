@@ -11,7 +11,9 @@ import logging
 import time
 
 from core.modules.strategy.engines.analyzer import Analyzer
-from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+    DiscoveredStrategy,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -28,8 +30,8 @@ from core.modules.strategy.engines.simulator.capital_allocation.helpers.fees imp
 from core.modules.strategy.engines.simulator.helpers.enumerator_bootstrap import (
     resolve_or_build_enumerator_version,
 )
-from core.modules.strategy.services.artifacts import (
-    DataLoader,
+from core.modules.strategy.services.data import StrategyDataOutputService
+from core.modules.strategy.services.data.output import (
     ResultPathManager,
     SimulationEvent,
     VersionManager,
@@ -94,7 +96,9 @@ class CapitalAllocationSimulator:
         self.hooks_dispatcher: Optional[SimulatorHooksDispatcher] = None
 
     def run(
-        self, strategy_name: str, strategy_info: Optional[StrategyInfo] = None
+        self,
+        strategy_name: str,
+        strategy_info: Optional[DiscoveredStrategy] = None,
     ) -> Dict[str, Any]:
         base_settings = load_strategy_settings_view(
             strategy_name, strategy_info=strategy_info
@@ -114,7 +118,9 @@ class CapitalAllocationSimulator:
         self.hooks_dispatcher = SimulatorHooksDispatcher(strategy_name)
 
         profiler.start_timer("load_data")
-        data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
+        data_loader = StrategyDataOutputService(
+            strategy_name=strategy_name, cache_enabled=True
+        )
         events = data_loader.build_event_stream(
             output_version_dir,
             start_date=config.start_date or "",

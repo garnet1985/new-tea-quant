@@ -9,11 +9,11 @@ from .engines.shared.helpers import JobBuilderHelper, StockSamplingHelper
 from .engines.simulator.helpers import SimulatorStatisticsHelper
 from .enums import ExecutionMode, OpportunityStatus, SellReason
 from .services import (
-    StrategyDataManager,
+    StrategyDataInjectionService,
+    StrategyDataOutputService,
     StrategyDiscoveryHelper,
     build_settings,
     normalize_and_validate,
-    preload_global_extras_for_enumeration,
     validate_settings,
 )
 
@@ -28,9 +28,9 @@ __all__ = [
     "ScannerStatisticsHelper",
     "SimulatorStatisticsHelper",
     "StockSamplingHelper",
-    "StrategyDataManager",
+    "StrategyDataInjectionService",
+    "StrategyDataOutputService",
     "StrategyDiscoveryHelper",
-    "preload_global_extras_for_enumeration",
     "build_settings",
     "validate_settings",
     "normalize_and_validate",

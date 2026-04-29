@@ -6,13 +6,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Tuple
 
-from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+    DiscoveredStrategy,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.engines.simulator.enumerator import OpportunityEnumerator
-from core.modules.strategy.services.artifacts import VersionManager
+from core.modules.strategy.services.data.output import VersionManager
 
 
 def resolve_or_build_enumerator_version(
@@ -21,7 +23,7 @@ def resolve_or_build_enumerator_version(
     base_settings: StrategySettingsView,
     use_sampling: bool,
     base_version: str,
-    strategy_info: Optional[StrategyInfo] = None,
+    strategy_info: Optional[DiscoveredStrategy] = None,
 ) -> Tuple[Path, Path]:
     sub_dir = "test" if use_sampling else "output"
     raw_version = (base_version or "latest").strip()
@@ -53,7 +55,7 @@ def run_enumerator_for_mode(
     strategy_name: str,
     base_settings: StrategySettingsView,
     use_sampling: bool,
-    strategy_info: Optional[StrategyInfo] = None,
+    strategy_info: Optional[DiscoveredStrategy] = None,
 ) -> None:
     from core.modules.data_manager import DataManager
     from core.utils.date.date_utils import DateUtils

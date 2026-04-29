@@ -1,9 +1,5 @@
-"""
-Strategy data management.
-
-前半段：契约签发与行表装填（``issue_contracts`` / ``hydrate_row_slots``）。
-后半段：运行时能力（Scanner/Simulator 拉数、指标、游标）。
-"""
+#!/usr/bin/env python3
+"""Input-side data injection service."""
 
 from __future__ import annotations
 
@@ -20,17 +16,17 @@ from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
+from core.modules.strategy.services.data.helper import (
+    normalize_declaration_item,
+    storage_key_for,
+)
 from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
 
-_STORAGE_KEY_ALIASES = {
-    DataKey.STOCK_KLINE: "klines",
-    DataKey.TAG: "tags",
-}
+class StrategyDataInjectionService:
+    """Service for preparing and injecting strategy input data."""
 
-
-class StrategyDataManager:
     def __init__(
         self,
         stock_id: str,
@@ -57,7 +53,7 @@ class StrategyDataManager:
 
     @staticmethod
     def storage_key_for(data_id: DataKey) -> str:
-        return _STORAGE_KEY_ALIASES.get(data_id, data_id.value)
+        return storage_key_for(data_id)
 
     def issue_contracts(
         self,
@@ -104,18 +100,10 @@ class StrategyDataManager:
 
     @staticmethod
     def _normalize_declaration_item(
-        st: StrategySettingsView,
+        settings: StrategySettingsView,
         raw: Dict[str, Any],
     ) -> Dict[str, Any]:
-        item = dict(raw)
-        dk = DataKey(str(item["data_id"]))
-        params = dict(item.get("params") or {})
-        if dk == DataKey.TAG and str(params.get("entity_type") or "").strip() == "":
-            et = st.tag_storage_entity_type
-            if et:
-                params["entity_type"] = str(et)
-            item["params"] = params
-        return item
+        return normalize_declaration_item(settings, raw)
 
     def hydrate_row_slots(self, start_date: str, end_date: str) -> None:
         self._contract_cache.enter_strategy_run()
@@ -153,17 +141,19 @@ class StrategyDataManager:
             contracts=self._slot_contracts,
         )
 
-    def preload_klines(self, rows: List[Dict[str, Any]], *, start_date: str, end_date: str) -> None:
-        c = self._contract_manager().issue(
+    def preload_klines(
+        self, rows: List[Dict[str, Any]], *, start_date: str, end_date: str
+    ) -> None:
+        contract = self._contract_manager().issue(
             DataKey.STOCK_KLINE,
             entity_id=self.stock_id,
             start=start_date,
             end=end_date,
             term="daily",
         )
-        c.data = list(rows or [])
+        contract.data = list(rows or [])
         self._current_data["klines"] = list(rows or [])
-        self._slot_contracts["klines"] = c
+        self._slot_contracts["klines"] = contract
 
     def load_declared_items(
         self,
@@ -177,7 +167,7 @@ class StrategyDataManager:
             item = self._normalize_declaration_item(st, raw)
             dk = DataKey(str(item["data_id"]))
             params = dict(item.get("params") or {})
-            c = self._contract_manager().issue(
+            contract = self._contract_manager().issue(
                 dk,
                 entity_id=self.stock_id,
                 start=start_date,
@@ -193,13 +183,13 @@ class StrategyDataManager:
                 and slot in self._global_extra_cache
             ):
                 rows = list(self._global_extra_cache[slot])
-                c.data = rows
+                contract.data = rows
             else:
-                if c.needs_load:
-                    c.load(start=start_date, end=end_date)
-                rows = list(c.data or [])
+                if contract.needs_load:
+                    contract.load(start=start_date, end=end_date)
+                rows = list(contract.data or [])
             self._current_data[slot] = rows
-            self._slot_contracts[slot] = c
+            self._slot_contracts[slot] = contract
 
     def load_latest_data(self, lookback: int = None) -> None:
         if lookback is None:
@@ -251,7 +241,9 @@ class StrategyDataManager:
                             rec[field] = val
                     elif isinstance(result, dict):
                         for key, series in result.items():
-                            field = self._build_indicator_field_name(f"{name}_{key}", cfg)
+                            field = self._build_indicator_field_name(
+                                f"{name}_{key}", cfg
+                            )
                             for rec, val in zip(klines, series):
                                 rec[field] = val
                 except Exception as exc:
@@ -269,23 +261,23 @@ class StrategyDataManager:
         if period is not None and isinstance(period, (int, float, str)):
             return f"{name}{int(period)}"
         parts = [name]
-        for k in sorted(params.keys()):
-            v = params[k]
-            if isinstance(v, (int, float, str)):
-                parts.append(f"{k}{v}")
+        for key in sorted(params.keys()):
+            value = params[key]
+            if isinstance(value, (int, float, str)):
+                parts.append(f"{key}{value}")
         return "_".join(parts)
 
     def _get_latest_trading_date(self) -> str:
         try:
             params = dict(self.settings.resolved_base_required_data.get("params") or {})
-            c = self._contract_manager().issue(
+            contract = self._contract_manager().issue(
                 DataKey.STOCK_KLINE,
                 entity_id=self.stock_id,
                 start=DateUtils.get_query_date_range_min(),
                 end=DateUtils.QUERY_DATE_RANGE_MAX,
                 **params,
             )
-            rows = c.load(
+            rows = contract.load(
                 start=DateUtils.get_query_date_range_min(),
                 end=DateUtils.QUERY_DATE_RANGE_MAX,
             )
@@ -303,3 +295,32 @@ class StrategyDataManager:
             return DateUtils.sub_days(date, adjusted_days)
         except Exception:
             return date
+
+    @staticmethod
+    def preload_global_extras_for_enumeration(
+        validated_settings: Dict[str, Any],
+        start_date: str,
+        end_date: str,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        ss = StrategySettingsView.from_dict(validated_settings)
+        extras = ss.extra_required_data_sources
+        if not extras:
+            return {}
+
+        dcm = DataContractManager(contract_cache=ContractCacheManager())
+        out: Dict[str, List[Dict[str, Any]]] = {}
+
+        for raw in extras:
+            item = StrategySettingsView.normalize_extra_required_data_item(raw)
+            dk = DataKey(str(item["data_id"]))
+            spec = dcm.map.get(dk)
+            if not spec or spec.get("scope") != ContractScope.GLOBAL:
+                continue
+
+            params = dict(item.get("params") or {})
+            c = dcm.issue(dk, start=start_date, end=end_date, **params)
+            out[storage_key_for(dk)] = list(c.data or [])
+        return out
+
+
+__all__ = ["StrategyDataInjectionService"]

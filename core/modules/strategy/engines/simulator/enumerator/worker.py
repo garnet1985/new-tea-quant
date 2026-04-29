@@ -11,7 +11,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_worker_class
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
-from core.modules.strategy.services.data import StrategyDataManager
+from core.modules.strategy.services.data import StrategyDataInjectionService
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class OpportunityEnumeratorWorker:
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.stock_info = {"id": self.stock_id, "name": self.stock_id, "industry": "", "type": "", "exchange_center": ""}
         self.contract_cache = ContractCacheManager()
-        self.data_manager = StrategyDataManager(
+        self.data_manager = StrategyDataInjectionService(
             stock_id=self.stock_id,
             settings=self.settings,
             contract_cache=self.contract_cache,

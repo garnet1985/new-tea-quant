@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Service-local event DTO for simulator artifact streams."""
+"""Output-side event DTO for simulator artifact streams."""
 
 from __future__ import annotations
 

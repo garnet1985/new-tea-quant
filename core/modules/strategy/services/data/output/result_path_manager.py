@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-ResultPathManager - 统一结果目录与文件路径管理器
-"""
+"""Output path manager for strategy simulation artifacts."""
 
 from dataclasses import dataclass
 import logging
@@ -25,7 +23,7 @@ class ResultPathManager:
             self.sim_version_dir.mkdir(parents=True, exist_ok=True)
         except Exception as exc:
             logger.warning(
-                "[ResultPathManager] 创建结果目录失败: dir=%s, error=%s",
+                "[ResultPathManager] failed to create result dir: dir=%s, error=%s",
                 self.sim_version_dir,
                 exc,
             )
@@ -49,3 +47,6 @@ class ResultPathManager:
 
     def stock_json_path(self, stock_id: str) -> Path:
         return self.ensure_root() / f"{stock_id}.json"
+
+
+__all__ = ["ResultPathManager"]

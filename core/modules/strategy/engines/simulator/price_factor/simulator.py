@@ -11,7 +11,9 @@ import logging
 import time
 
 from core.modules.strategy.engines.analyzer import Analyzer
-from core.modules.strategy.engines.shared.data_classes.strategy_info import StrategyInfo
+from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+    DiscoveredStrategy,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -32,7 +34,8 @@ from core.modules.strategy.engines.simulator.price_factor.helpers import DateTim
 from core.modules.strategy.engines.simulator.helpers.enumerator_bootstrap import (
     resolve_or_build_enumerator_version,
 )
-from core.modules.strategy.services.artifacts import DataLoader, ResultPathManager, VersionManager
+from core.modules.strategy.services.data import StrategyDataOutputService
+from core.modules.strategy.services.data.output import ResultPathManager, VersionManager
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +58,9 @@ class PriceFactorSimulator:
         self.is_verbose = is_verbose
 
     def run(
-        self, strategy_name: str, strategy_info: Optional[StrategyInfo] = None
+        self,
+        strategy_name: str,
+        strategy_info: Optional[DiscoveredStrategy] = None,
     ) -> Dict[str, Any]:
         base_settings = load_strategy_settings_view(
             strategy_name, strategy_info=strategy_info
@@ -69,7 +74,9 @@ class PriceFactorSimulator:
             strategy_info=strategy_info,
         )
         sim_version_dir, sim_version_id = VersionManager.create_price_factor_version(strategy_name)
-        data_loader = DataLoader(strategy_name=strategy_name, cache_enabled=True)
+        data_loader = StrategyDataOutputService(
+            strategy_name=strategy_name, cache_enabled=True
+        )
         stock_files = self._scan_output_files(output_version_dir)
         if not stock_files:
             return {}
@@ -233,7 +240,9 @@ class PriceFactorSimulatorWorker:
 
     def _simulate(self) -> Dict[str, Any]:
         self.profiler.start_timer("load_data")
-        data_loader = DataLoader(strategy_name=self.strategy_name, cache_enabled=False)
+        data_loader = StrategyDataOutputService(
+            strategy_name=self.strategy_name, cache_enabled=False
+        )
         opportunities_rows, targets_rows, targets_index = data_loader.load_rows_for_stock(
             opportunities_path=self.opportunities_path,
             targets_path=self.targets_path,

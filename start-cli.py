@@ -87,10 +87,6 @@ try:
     from core.modules.data_manager import DataManager
     from core.modules.data_source.data_source_manager import DataSourceManager
     from core.modules.tag import TagManager
-    from core.modules.strategy.components import PriceFactorSimulator
-    from core.modules.strategy.components.simulator.capital_allocation import (
-        CapitalAllocationSimulator,
-    )
     from core.infra.logging.logging_manager import LoggingManager
     from core.system import system_meta
 except ModuleNotFoundError as e:
@@ -270,13 +266,17 @@ class App:
             strategy_name: 策略名称
             stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
         """
-        from core.modules.strategy.components.opportunity_enumerator import OpportunityEnumerator
         from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-            StrategySettings,
+            StrategySettingsView,
         )
-        from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.engines.shared.helpers.stock_sampling import (
+            StockSamplingHelper,
+        )
+        from core.modules.strategy.engines.simulator.enumerator import (
+            OpportunityEnumeratorFlow,
+            OpportunityEnumeratorSettings,
+        )
         from core.modules.strategy.strategy_manager import StrategyManager
-        from core.modules.strategy.components.opportunity_enumerator.enumerator_settings import OpportunityEnumeratorSettings
         from core.utils.date.date_utils import DateUtils
         
         # 1. 加载策略配置
@@ -286,7 +286,7 @@ class App:
             logger.error(f"策略不存在: {strategy_name}")
             return []
         
-        settings = StrategySettings.from_dict(strategy_info.settings.to_dict())
+        settings = StrategySettingsView.from_dict(strategy_info.settings.to_dict())
         enum_settings = OpportunityEnumeratorSettings.from_base(settings)
         
         # 2. 获取股票列表
@@ -307,13 +307,16 @@ class App:
         logger.info(f"📊 实际股票数量: {len(stock_list)}")
         
         # 4. 执行枚举
-        summary_results = OpportunityEnumerator.enumerate(
-            strategy_name=strategy_name,
+        flow = OpportunityEnumeratorFlow(
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
             max_workers=enum_settings.max_workers,
             base_settings=settings,
+        )
+        summary_results = flow.run(
+            strategy_name=strategy_name,
+            strategy_info=strategy_info,
         )
         
         # 5. 显示结果
@@ -334,7 +337,9 @@ class App:
         Returns:
             list: 股票代码列表
         """
-        from core.modules.strategy.helpers.stock_sampling_helper import StockSamplingHelper
+        from core.modules.strategy.engines.shared.helpers.stock_sampling import (
+            StockSamplingHelper,
+        )
         
         if enum_settings.use_sampling:
             if stock_count is not None:
@@ -388,29 +393,49 @@ class App:
     
     def price_factor_simulate(self, strategy_name: str = 'example'):
         """
-        基于枚举输出结果的价格因子回放模拟（PriceFactorSimulator）
+        基于枚举输出结果的价格因子回放模拟（PriceFactorFlow）
         
         Args:
             strategy_name: 策略名称
         """
-        logger.info(f"🎯 运行 PriceFactorSimulator, strategy={strategy_name}")
-        simulator = PriceFactorSimulator(is_verbose=self.is_verbose)
-        summary = simulator.run(strategy_name=strategy_name)
+        from core.modules.strategy.engines.simulator.price_factor import PriceFactorFlow
+
+        manager = self._ensure_strategy_manager()
+        strategy_info = manager.get_strategy_info(strategy_name)
+        if not strategy_info:
+            logger.warning("策略不存在: %s", strategy_name)
+            return
+        logger.info(f"🎯 运行 PriceFactorFlow, strategy={strategy_name}")
+        summary = PriceFactorFlow(is_verbose=self.is_verbose).run(
+            strategy_name=strategy_name,
+            strategy_info=strategy_info,
+        )
         if not summary:
-            logger.warning("PriceFactorSimulator 未返回任何结果")
+            logger.warning("PriceFactorFlow 未返回任何结果")
     
     def capital_allocation_simulate(self, strategy_name: str = 'example'):
         """
-        基于枚举输出结果的资金分配模拟（CapitalAllocationSimulator）
+        基于枚举输出结果的资金分配模拟（CapitalAllocationFlow）
         
         Args:
             strategy_name: 策略名称
         """
-        logger.info(f"💰 运行 CapitalAllocationSimulator, strategy={strategy_name}")
-        simulator = CapitalAllocationSimulator(is_verbose=self.is_verbose)
-        summary = simulator.run(strategy_name=strategy_name)
+        from core.modules.strategy.engines.simulator.capital_allocation import (
+            CapitalAllocationFlow,
+        )
+
+        manager = self._ensure_strategy_manager()
+        strategy_info = manager.get_strategy_info(strategy_name)
+        if not strategy_info:
+            logger.warning("策略不存在: %s", strategy_name)
+            return
+        logger.info(f"💰 运行 CapitalAllocationFlow, strategy={strategy_name}")
+        summary = CapitalAllocationFlow(is_verbose=self.is_verbose).run(
+            strategy_name=strategy_name,
+            strategy_info=strategy_info,
+        )
         if not summary:
-            logger.warning("CapitalAllocationSimulator 未返回任何结果")
+            logger.warning("CapitalAllocationFlow 未返回任何结果")
     
     # ========================================================================
     # 工具方法
@@ -604,7 +629,7 @@ def _get_help_epilog() -> str:
     %(prog)s simulate --strategy example    只运行指定策略
     %(prog)s analysis --session xxx         分析指定session
     %(prog)s tag --scenario xxx             执行指定标签场景
-    %(prog)s price_factor --strategy xx     使用 PriceFactorSimulator 对指定策略做因子回放
+    %(prog)s price_factor --strategy xx     使用 PriceFactorFlow 对指定策略做因子回放
     %(prog)s -se -V                         详细输出模式
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -776,7 +801,7 @@ class CommandExecutor:
     
     def _handle_simulate_price(self, args):
         """处理 simulate_price 命令"""
-        logger.info("🎯 运行价格因子回放模拟 (PriceFactorSimulator)...")
+        logger.info("🎯 运行价格因子回放模拟 (PriceFactorFlow)...")
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
@@ -784,7 +809,7 @@ class CommandExecutor:
     
     def _handle_simulate_allocation(self, args):
         """处理 simulate_allocation 命令"""
-        logger.info("💰 运行资金分配模拟 (CapitalAllocationSimulator)...")
+        logger.info("💰 运行资金分配模拟 (CapitalAllocationFlow)...")
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return

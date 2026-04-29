@@ -20,10 +20,8 @@ from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
     load_strategy_settings_view,
 )
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
-from core.modules.strategy.engines.simulator.helpers.enumerator_bootstrap import (
-    resolve_or_build_enumerator_version,
-)
 from core.modules.strategy.services.data import StrategyOutputReaderService
+from core.modules.strategy.services.data import StrategyEnumeratorBootstrapService
 from core.modules.strategy.services.data.output import (
     SimulationEvent,
     StrategyOutputPathService,
@@ -67,12 +65,14 @@ class CapitalAllocationFlowImpl:
         config: StrategyCapitalSimulatorSettings,
         strategy_info: "DiscoveredStrategy | None",
     ) -> Path:
-        output_version_dir, _ = resolve_or_build_enumerator_version(
+        output_version_dir, _ = (
+            StrategyEnumeratorBootstrapService.resolve_or_build_enumerator_version(
             strategy_name=strategy_name,
             base_settings=base_settings,
             use_sampling=config.use_sampling,
             base_version=config.base_version,
             strategy_info=strategy_info,
+            )
         )
         return output_version_dir
 
@@ -199,71 +199,79 @@ class CapitalAllocationFlowImpl:
                 }
             )
 
-    def postprocess(
-        self, preprocessed: Dict[str, Any], executed: Dict[str, Any]
+    def build_summary(
+        self,
+        *,
+        account: Account,
+        trades: List[Dict[str, Any]],
+        equity_curve: List[Dict[str, Any]],
+        initial_capital: float,
+        events: List[SimulationEvent],
+        completed_opportunities_map: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Any]:
-        if executed.get("empty"):
-            return {}
-        strategy_name = preprocessed["strategy_name"]
-        base_settings: StrategySettingsView = preprocessed["base_settings"]
-        config: StrategyCapitalSimulatorSettings = preprocessed["config"]
-        output_version_dir: Path = preprocessed["output_version_dir"]
-        sim_version_dir: Path = preprocessed["sim_version_dir"]
-        sim_version_id: int = preprocessed["sim_version_id"]
-        profiler: PerformanceProfiler = preprocessed["profiler"]
-        events: List[SimulationEvent] = executed["events"]
-        account: Account = executed["account"]
-        trades: List[Dict[str, Any]] = executed["trades"]
-        equity_curve: List[Dict[str, Any]] = executed["equity_curve"]
-        completed_opportunities_map: Dict[str, Dict[str, Any]] = executed[
-            "completed_opportunities_map"
-        ]
-        summary = self._calculate_summary(
+        return self._calculate_summary(
             account,
             trades,
             equity_curve,
-            config.initial_capital,
+            initial_capital,
             events,
             completed_opportunities_map,
         )
-        profiler.start_timer("save_csv")
+
+    def save_outputs(
+        self,
+        *,
+        sim_version_dir: Path,
+        sim_version_id: int,
+        output_version: str,
+        trades: List[Dict[str, Any]],
+        equity_curve: List[Dict[str, Any]],
+        summary: Dict[str, Any],
+        config: StrategyCapitalSimulatorSettings,
+        settings_snapshot: Dict[str, Any],
+    ) -> None:
         self._save_results(
             sim_version_dir,
             sim_version_id,
-            output_version_dir.name,
+            output_version,
             trades,
             equity_curve,
             summary,
             config,
-            base_settings.to_dict(),
+            settings_snapshot,
         )
-        profiler.metrics.time_save_csv = profiler.end_timer("save_csv")
-        profiler.metrics.time_total = profiler.end_timer("total")
+
+    def save_performance_report(
+        self, *, sim_version_dir: Path, profiler: PerformanceProfiler
+    ) -> None:
         try:
             perf_path = (
                 StrategyOutputPathService(sim_version_dir=sim_version_dir).ensure_root()
                 / "0_performance_report.json"
             )
-            with perf_path.open("w", encoding="utf-8") as f:
+            with perf_path.open("w", encoding="utf-8") as file:
                 json.dump(
                     profiler.finalize().to_dict(),
-                    f,
+                    file,
                     indent=2,
                     ensure_ascii=False,
                     cls=DateTimeEncoder,
                 )
         except Exception:
             pass
+
+    def run_analyzer_hook(
+        self, *, strategy_name: str, sim_version_dir: Path, raw_settings: Dict[str, Any]
+    ) -> None:
         try:
             Analyzer.run_for_simulator(
                 strategy_name=strategy_name,
                 sim_type="capital_allocation",
                 sim_version_dir=sim_version_dir,
-                raw_settings=base_settings.to_dict(),
+                raw_settings=raw_settings,
             )
         except Exception:
             pass
-        return summary
 
     def _handle_trigger_event(
         self,

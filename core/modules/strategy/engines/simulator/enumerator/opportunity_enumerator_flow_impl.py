@@ -33,6 +33,7 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.fingerprint
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker
 from core.modules.strategy.engines.simulator.price_factor.helpers import DateTimeEncoder
+from core.modules.strategy.enums import NotReusedBecause, ReuseAction
 from core.modules.strategy.services.data import StrategyDataInjectionService
 from core.modules.strategy.services.data.output import VersionManager
 
@@ -121,18 +122,18 @@ class OpportunityEnumeratorFlowImpl:
         self,
         *,
         strategy_name: str,
-        validated_settings: Dict[str, Any],
+        settings_payload: Dict[str, Any],
         stock_ids: List[str],
         worker_ref: Dict[str, str],
     ) -> EnumeratorFingerprint:
         worker_anchor = self._build_worker_anchor(worker_ref)
-        data_contract_signature = self._build_data_contract_signature(validated_settings)
+        data_contract_signature = self._build_data_contract_signature(settings_payload)
         return EnumeratorFingerprint.from_request(
             strategy_name=strategy_name,
             start_date=self.start_date,
             end_date=self.end_date,
             stock_ids=stock_ids,
-            raw_settings=validated_settings,
+            raw_settings=settings_payload,
             worker_module_path=worker_ref.get("worker_module_path", ""),
             worker_class_name=worker_ref.get("worker_class_name", ""),
             worker_code_hash=worker_anchor["worker_code_hash"],
@@ -152,7 +153,8 @@ class OpportunityEnumeratorFlowImpl:
         )
         if not sub_dir.exists():
             return {
-                "action": "REBUILD_ALL",
+                "action": ReuseAction.REBUILD_ALL,
+                "not_reused_because": NotReusedBecause.NO_CACHE,
                 "version_dir": None,
                 "cached_fingerprint": None,
                 "missing_stock_ids": request_fingerprint.stock_ids,
@@ -183,7 +185,8 @@ class OpportunityEnumeratorFlowImpl:
                 continue
             if cached_fingerprint.is_contain(request_fingerprint):
                 return {
-                    "action": "REUSE_FULL",
+                    "action": ReuseAction.REUSE_FULL,
+                    "not_reused_because": NotReusedBecause.NONE,
                     "version_dir": version_dir,
                     "cached_fingerprint": cached_fingerprint,
                     "missing_stock_ids": [],
@@ -196,13 +199,23 @@ class OpportunityEnumeratorFlowImpl:
                 missing = cached_fingerprint.diff_stock_ids(request_fingerprint)
                 if missing and len(missing) < len(request_fingerprint.stock_ids):
                     return {
-                        "action": "RUN_DIFF_STOCKS",
+                        "action": ReuseAction.RUN_DIFF_STOCKS,
+                        "not_reused_because": NotReusedBecause.CACHE_PARTIAL_STOCK_COVERAGE,
                         "version_dir": version_dir,
                         "cached_fingerprint": cached_fingerprint,
                         "missing_stock_ids": missing,
                     }
+                if not missing:
+                    return {
+                        "action": ReuseAction.REBUILD_ALL,
+                        "not_reused_because": NotReusedBecause.CACHE_COVERAGE_CONFLICT,
+                        "version_dir": None,
+                        "cached_fingerprint": None,
+                        "missing_stock_ids": request_fingerprint.stock_ids,
+                    }
         return {
-            "action": "REBUILD_ALL",
+            "action": ReuseAction.REBUILD_ALL,
+            "not_reused_because": NotReusedBecause.CACHE_MISS_OR_INVALIDATED,
             "version_dir": None,
             "cached_fingerprint": None,
             "missing_stock_ids": request_fingerprint.stock_ids,
@@ -234,7 +247,7 @@ class OpportunityEnumeratorFlowImpl:
         return {"worker_code_hash": worker_code_hash}
 
     def _build_data_contract_signature(
-        self, validated_settings: Dict[str, Any]
+        self, settings_payload: Dict[str, Any]
     ) -> str:
         core_mapping_hash = ""
         userspace_mapping_hash = ""
@@ -251,7 +264,7 @@ class OpportunityEnumeratorFlowImpl:
             userspace_mapping_hash = self._hash_file(userspace_mapping_file)
 
         payload = {
-            "settings_data_block": (validated_settings or {}).get("data") or {},
+            "settings_data_block": (settings_payload or {}).get("data") or {},
             "core_mapping_hash": core_mapping_hash,
             "userspace_mapping_hash": userspace_mapping_hash,
         }
@@ -275,7 +288,7 @@ class OpportunityEnumeratorFlowImpl:
         self,
         *,
         strategy_name: str,
-        validated_settings: Dict[str, Any],
+        settings_payload: Dict[str, Any],
         output_dir: Path,
         worker_ref: Dict[str, str],
         stock_ids: Optional[List[str]] = None,
@@ -288,7 +301,7 @@ class OpportunityEnumeratorFlowImpl:
             {
                 "stock_id": stock_id,
                 "strategy_name": strategy_name,
-                "settings": validated_settings,
+                "settings": settings_payload,
                 "start_date": enum_start_date,
                 "end_date": self.end_date,
                 "output_dir": str(output_dir),
@@ -300,12 +313,12 @@ class OpportunityEnumeratorFlowImpl:
         return jobs
 
     def preload_global_cache(
-        self, validated_settings: Dict[str, Any], jobs: List[Dict[str, Any]]
+        self, settings_payload: Dict[str, Any], jobs: List[Dict[str, Any]]
     ) -> Dict[str, List[Dict[str, Any]]]:
         if not jobs:
             return {}
         return StrategyDataInjectionService.preload_global_extras_for_enumeration(
-            validated_settings,
+            settings_payload,
             jobs[0]["start_date"],
             self.end_date,
         )
@@ -475,6 +488,8 @@ class OpportunityEnumeratorFlowImpl:
         enum_settings: OpportunityEnumeratorSettings,
         fingerprint: EnumeratorFingerprint,
         status: str = "completed",
+        reuse_action: Optional[ReuseAction] = None,
+        not_reused_because: Optional[NotReusedBecause] = None,
     ) -> None:
         metadata = {
             "strategy_name": strategy_name,
@@ -489,6 +504,10 @@ class OpportunityEnumeratorFlowImpl:
             "fingerprint": fingerprint.to_dict(),
             "status": status,
         }
+        if reuse_action:
+            metadata["reuse_action"] = reuse_action.value
+        if not_reused_because and not_reused_because != NotReusedBecause.NONE:
+            metadata["not_reused_because"] = not_reused_because.value
         with (output_dir / "0_metadata.json").open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
 
@@ -497,22 +516,24 @@ class OpportunityEnumeratorFlowImpl:
         *,
         strategy_name: str,
         version_dir: Path,
-        reuse_action: str,
+        reuse_action: ReuseAction,
+        not_reused_because: Optional[NotReusedBecause] = None,
     ) -> List[Dict[str, Any]]:
         version_id = int(version_dir.name) if version_dir.name.isdigit() else 0
-        return [
-            {
-                "strategy_name": strategy_name,
-                "version_id": version_id,
-                "version_dir": version_dir.name,
-                "opportunity_count": None,
-                "success_stocks": len(self.stock_list),
-                "failed_stocks": 0,
-                "total_stocks": len(self.stock_list),
-                "elapsed_seconds": 0.0,
-                "reuse_action": reuse_action,
-            }
-        ]
+        summary = {
+            "strategy_name": strategy_name,
+            "version_id": version_id,
+            "version_dir": version_dir.name,
+            "opportunity_count": None,
+            "success_stocks": len(self.stock_list),
+            "failed_stocks": 0,
+            "total_stocks": len(self.stock_list),
+            "elapsed_seconds": 0.0,
+            "reuse_action": reuse_action.value,
+        }
+        if not_reused_because and not_reused_because != NotReusedBecause.NONE:
+            summary["not_reused_because"] = not_reused_because.value
+        return [summary]
 
     def cleanup_versions(
         self,
@@ -541,7 +562,8 @@ class OpportunityEnumeratorFlowImpl:
         success_count: int,
         failed_count: int,
         start_time: float,
-        reuse_action: Optional[str] = None,
+        reuse_action: Optional[ReuseAction] = None,
+        not_reused_because: Optional[NotReusedBecause] = None,
         diff_stock_count: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         summary = {
@@ -555,7 +577,9 @@ class OpportunityEnumeratorFlowImpl:
             "elapsed_seconds": time.time() - start_time,
         }
         if reuse_action:
-            summary["reuse_action"] = reuse_action
+            summary["reuse_action"] = reuse_action.value
+        if not_reused_because and not_reused_because != NotReusedBecause.NONE:
+            summary["not_reused_because"] = not_reused_because.value
         if diff_stock_count is not None:
             summary["diff_stock_count"] = int(diff_stock_count)
         return [summary]

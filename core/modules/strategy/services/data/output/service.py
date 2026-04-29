@@ -181,6 +181,65 @@ class StrategyDataOutputService:
         events.sort(key=lambda e: (e.date, e.stock_id, e.opportunity_id, e.event_type))
         return events
 
+    def load_opportunity_snapshot(
+        self,
+        output_version_dir: Path,
+        *,
+        start_date: str,
+        end_date: str,
+        stock_ids: Optional[List[str]] = None,
+        include_targets: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Load enumerator snapshot by date slice for UI/backend reuse.
+
+        Returns:
+            {
+              "opportunities": List[Dict[str, Any]],
+              "targets_map": Dict[str, List[Dict[str, Any]]],
+            }
+        """
+        normalized_stock_ids = (
+            {str(stock_id) for stock_id in stock_ids if str(stock_id).strip()}
+            if stock_ids
+            else None
+        )
+        opportunities: List[Dict[str, Any]] = []
+        targets_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for entry in output_version_dir.iterdir():
+            if not entry.is_file() or not entry.name.endswith("_opportunities.csv"):
+                continue
+            stock_id_from_file = entry.name[: -len("_opportunities.csv")]
+            if (
+                normalized_stock_ids is not None
+                and stock_id_from_file not in normalized_stock_ids
+            ):
+                continue
+            targets_path = output_version_dir / f"{stock_id_from_file}_targets.csv"
+            stock_opps, stock_targets_map = self._load_from_files(
+                entry,
+                targets_path,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            for row in stock_opps:
+                row.setdefault("stock_id", stock_id_from_file)
+            opportunities.extend(stock_opps)
+            if include_targets:
+                for opp_id, target_rows in stock_targets_map.items():
+                    targets_map[opp_id].extend(target_rows)
+        opportunities.sort(
+            key=lambda row: (
+                str(row.get("trigger_date") or ""),
+                str(row.get("stock_id") or ""),
+                str(row.get("opportunity_id") or ""),
+            )
+        )
+        return {
+            "opportunities": opportunities,
+            "targets_map": dict(targets_map) if include_targets else {},
+        }
+
     def load_rows_for_stock(
         self,
         opportunities_path: Path,

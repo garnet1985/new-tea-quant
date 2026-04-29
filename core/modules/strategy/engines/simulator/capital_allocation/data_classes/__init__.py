@@ -7,6 +7,10 @@ from .settings import (
     OutputConfig,
     StrategyCapitalSimulatorSettings,
 )
+from .flow_context import (
+    CapitalAllocationExecuteContext,
+    CapitalAllocationPreprocessContext,
+)
 
 __all__ = [
     "CapitalReport",
@@ -19,5 +23,7 @@ __all__ = [
     "OutputConfig",
     "StrategyCapitalSimulatorSettings",
     "CapitalAllocationSettings",
+    "CapitalAllocationPreprocessContext",
+    "CapitalAllocationExecuteContext",
 ]
 

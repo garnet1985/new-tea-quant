@@ -6,3 +6,7 @@ This folder will hold architecture, contracts, and migration notes for the new `
 
 - `decisions/001-enumerator-reuse-by-containment.md`: enumerator reuse strategy based on containment and stock-diff execution.
 
+## API Notes
+
+- `output-slice.md`: `StrategyDataOutputService.load_opportunity_snapshot(...)` request/response contract.
+

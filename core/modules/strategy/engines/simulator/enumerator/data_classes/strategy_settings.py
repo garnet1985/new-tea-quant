@@ -32,11 +32,7 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     @property
     def enumerator(self) -> Dict[str, Any]:
-        block = self.raw_settings.get("enumerator")
-        if not isinstance(block, dict):
-            block = {}
-            self.raw_settings["enumerator"] = block
-        return block
+        return SettingsBase.ensure_dict_block(self.raw_settings, "enumerator")
 
     @property
     def strategy_name(self) -> str:
@@ -48,9 +44,7 @@ class StrategyEnumeratorSettings(SettingsBase):
             root = {}
         block = root.get("enumerator")
         missing_use_sampling = not isinstance(block, dict) or "use_sampling" not in block
-        if not isinstance(block, dict):
-            block = {}
-            root["enumerator"] = block
+        SettingsBase.ensure_dict_block(root, "enumerator")
         return cls(raw_settings=root, _missing_use_sampling_at_load=missing_use_sampling)
 
     @classmethod
@@ -107,18 +101,13 @@ class StrategyEnumeratorSettings(SettingsBase):
             except (TypeError, ValueError):
                 SettingsBase.add_critical(result, f"enumerator.{key}", f"{key} 必须为正整数")
 
-        mw = e.get("max_workers", "auto")
-        if mw == "auto" or mw is None:
-            e["max_workers"] = "auto"
-        else:
-            try:
-                e["max_workers"] = max(int(mw), 1)
-            except (TypeError, ValueError):
-                SettingsBase.add_critical(
-                    result,
-                    "enumerator.max_workers",
-                    'enumerator.max_workers 须为 "auto" 或正整数',
-                )
+        SettingsBase.validate_max_workers_field(
+            report=result,
+            container=e,
+            key="max_workers",
+            field_path="enumerator.max_workers",
+            invalid_message='enumerator.max_workers 须为 "auto" 或正整数',
+        )
 
         mi = e.get("monitor_interval", 5)
         try:
@@ -150,13 +139,7 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     @property
     def max_workers(self) -> Union[Literal["auto"], int]:
-        mw = self.enumerator.get("max_workers", "auto")
-        if mw == "auto" or mw is None:
-            return "auto"
-        try:
-            return max(int(mw), 1)
-        except (TypeError, ValueError):
-            return "auto"
+        return SettingsBase.parse_max_workers(self.enumerator.get("max_workers", "auto"))
 
     @property
     def is_verbose(self) -> bool:

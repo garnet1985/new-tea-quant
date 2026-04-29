@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.strategy.engines.simulator.capital_allocation.data_classes.event import Event
+from .event import SimulationEvent
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +114,8 @@ class DataLoader:
         output_version_dir: Path,
         start_date: str = "",
         end_date: str = "",
-    ) -> List[Event]:
-        events: List[Event] = []
+    ) -> List[SimulationEvent]:
+        events: List[SimulationEvent] = []
         for entry in output_version_dir.iterdir():
             if not entry.is_file() or not entry.name.endswith("_opportunities.csv"):
                 continue
@@ -140,7 +140,7 @@ class DataLoader:
                     continue
 
                 events.append(
-                    Event(
+                    SimulationEvent(
                         event_type="trigger",
                         date=trigger_date,
                         stock_id=stock_id,
@@ -162,7 +162,7 @@ class DataLoader:
                     if not target_date:
                         continue
                     events.append(
-                        Event(
+                        SimulationEvent(
                             event_type="target",
                             date=target_date,
                             stock_id=stock_id,
@@ -188,43 +188,9 @@ class DataLoader:
         if targets_path.exists():
             with targets_path.open("r", encoding="utf-8") as f_t:
                 reader = csv.DictReader(f_t)
-                for row in reader:
-                    opp_id = str(row.get("opportunity_id") or "").strip()
-                    if not opp_id:
-                        continue
-                    target_date = (
-                        row.get("date")
-                        or row.get("sell_date")
-                        or row.get("target_date")
-                        or ""
-                    )
-                    if start_date and target_date and target_date < start_date:
-                        continue
-                    if end_date and target_date and target_date > end_date:
-                        continue
-                    try:
-                        raw_sell_price = (
-                            row.get("sell_price")
-                            or row.get("price")
-                            or row.get("target_price")
-                            or 0.0
-                        )
-                        row["sell_price"] = float(raw_sell_price)
-                    except (ValueError, TypeError):
-                        row["sell_price"] = 0.0
-                    try:
-                        row["sell_ratio"] = float(row.get("sell_ratio") or 0.0)
-                    except (ValueError, TypeError):
-                        row["sell_ratio"] = 0.0
-                    try:
-                        row["profit"] = float(row.get("profit") or 0.0)
-                    except (ValueError, TypeError):
-                        row["profit"] = 0.0
-                    try:
-                        row["weighted_profit"] = float(row.get("weighted_profit") or 0.0)
-                    except (ValueError, TypeError):
-                        row["weighted_profit"] = 0.0
-
+                for opp_id, row in self._iter_normalized_target_rows(
+                    reader, start_date=start_date, end_date=end_date
+                ):
                     target_rows.append(row)
                     targets_index[opp_id].append(len(target_rows) - 1)
 
@@ -255,42 +221,9 @@ class DataLoader:
         if targets_path.exists():
             with targets_path.open("r", encoding="utf-8") as f_t:
                 t_reader = csv.DictReader(f_t)
-                for row in t_reader:
-                    opp_id = str(row.get("opportunity_id") or "").strip()
-                    if not opp_id:
-                        continue
-                    target_date = (
-                        row.get("date")
-                        or row.get("sell_date")
-                        or row.get("target_date")
-                        or ""
-                    )
-                    if start_date and target_date and target_date < start_date:
-                        continue
-                    if end_date and target_date and target_date > end_date:
-                        continue
-                    try:
-                        raw_sell_price = (
-                            row.get("sell_price")
-                            or row.get("price")
-                            or row.get("target_price")
-                            or 0.0
-                        )
-                        row["sell_price"] = float(raw_sell_price)
-                    except (ValueError, TypeError):
-                        row["sell_price"] = 0.0
-                    try:
-                        row["sell_ratio"] = float(row.get("sell_ratio") or 0.0)
-                    except (ValueError, TypeError):
-                        row["sell_ratio"] = 0.0
-                    try:
-                        row["profit"] = float(row.get("profit") or 0.0)
-                    except (ValueError, TypeError):
-                        row["profit"] = 0.0
-                    try:
-                        row["weighted_profit"] = float(row.get("weighted_profit") or 0.0)
-                    except (ValueError, TypeError):
-                        row["weighted_profit"] = 0.0
+                for opp_id, row in self._iter_normalized_target_rows(
+                    t_reader, start_date=start_date, end_date=end_date
+                ):
                     targets_map[opp_id].append(row)
 
         opportunities: List[Dict[str, Any]] = []
@@ -338,14 +271,65 @@ class DataLoader:
             return targets
         with targets_path.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            for row in reader:
-                if opportunity_id:
-                    opp_id = str(row.get("opportunity_id") or "").strip()
-                    if opp_id != opportunity_id:
-                        continue
-                try:
-                    row["weighted_profit"] = float(row.get("weighted_profit") or 0.0)
-                except (ValueError, TypeError):
-                    row["weighted_profit"] = 0.0
+            for opp_id, row in self._iter_normalized_target_rows(
+                reader, start_date="", end_date=""
+            ):
+                if opportunity_id and opp_id != opportunity_id:
+                    continue
                 targets.append(row)
         return targets
+
+    @staticmethod
+    def _coerce_float(value: Any) -> float:
+        try:
+            return float(value or 0.0)
+        except (ValueError, TypeError):
+            return 0.0
+
+    def _normalize_target_row(
+        self,
+        row: Dict[str, Any],
+        *,
+        start_date: str,
+        end_date: str,
+    ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+        opp_id = str(row.get("opportunity_id") or "").strip()
+        if not opp_id:
+            return None, None
+        target_date = (
+            row.get("date")
+            or row.get("sell_date")
+            or row.get("target_date")
+            or ""
+        )
+        if start_date and target_date and target_date < start_date:
+            return None, None
+        if end_date and target_date and target_date > end_date:
+            return None, None
+
+        normalized = dict(row)
+        raw_sell_price = (
+            normalized.get("sell_price")
+            or normalized.get("price")
+            or normalized.get("target_price")
+            or 0.0
+        )
+        normalized["sell_price"] = self._coerce_float(raw_sell_price)
+        normalized["sell_ratio"] = self._coerce_float(normalized.get("sell_ratio"))
+        normalized["profit"] = self._coerce_float(normalized.get("profit"))
+        normalized["weighted_profit"] = self._coerce_float(normalized.get("weighted_profit"))
+        return opp_id, normalized
+
+    def _iter_normalized_target_rows(
+        self,
+        rows: csv.DictReader,
+        *,
+        start_date: str,
+        end_date: str,
+    ):
+        for row in rows:
+            opp_id, normalized = self._normalize_target_row(
+                row, start_date=start_date, end_date=end_date
+            )
+            if opp_id and normalized is not None:
+                yield opp_id, normalized

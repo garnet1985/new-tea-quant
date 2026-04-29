@@ -29,11 +29,7 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
     @property
     def price_simulator(self) -> Dict[str, Any]:
-        block = self.raw_settings.get("price_simulator")
-        if not isinstance(block, dict):
-            block = {}
-            self.raw_settings["price_simulator"] = block
-        return block
+        return SettingsBase.ensure_dict_block(self.raw_settings, "price_simulator")
 
     @classmethod
     def from_strategy_root(cls, root: Dict[str, Any]) -> "StrategyPriceSimulatorSettings":
@@ -41,9 +37,7 @@ class StrategyPriceSimulatorSettings(SettingsBase):
             root = {}
         block = root.get("price_simulator")
         missing_us = not isinstance(block, dict) or "use_sampling" not in block
-        if not isinstance(block, dict):
-            block = {}
-            root["price_simulator"] = block
+        SettingsBase.ensure_dict_block(root, "price_simulator")
         return cls(raw_settings=root, _missing_use_sampling_at_load=missing_us)
 
     @classmethod
@@ -76,18 +70,13 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
     def _validate_max_workers(self, result: ValidationReport) -> None:
         ps = self.price_simulator
-        mw = ps.get("max_workers", "auto")
-        if mw == "auto" or mw is None:
-            ps["max_workers"] = "auto"
-            return
-        try:
-            ps["max_workers"] = max(int(mw), 1)
-        except (TypeError, ValueError):
-            SettingsBase.add_critical(
-                result,
-                "price_simulator.max_workers",
-                'price_simulator.max_workers 须为 "auto" 或正整数',
-            )
+        SettingsBase.validate_max_workers_field(
+            report=result,
+            container=ps,
+            key="max_workers",
+            field_path="price_simulator.max_workers",
+            invalid_message='price_simulator.max_workers 须为 "auto" 或正整数',
+        )
 
     def _validate_fees_if_present(self, result: ValidationReport) -> None:
         fees = self.price_simulator.get("fees")
@@ -123,13 +112,9 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
     @property
     def max_workers(self) -> Union[Literal["auto"], int]:
-        mw = self.price_simulator.get("max_workers", "auto")
-        if mw == "auto" or mw is None:
-            return "auto"
-        try:
-            return max(int(mw), 1)
-        except (TypeError, ValueError):
-            return "auto"
+        return SettingsBase.parse_max_workers(
+            self.price_simulator.get("max_workers", "auto")
+        )
 
     @property
     def fees(self) -> Dict[str, Any]:

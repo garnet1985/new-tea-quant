@@ -28,20 +28,13 @@ class StrategyScannerSettings(SettingsBase):
 
     @property
     def scanner(self) -> Dict[str, Any]:
-        block = self.raw_settings.get("scanner")
-        if not isinstance(block, dict):
-            block = {}
-            self.raw_settings["scanner"] = block
-        return block
+        return SettingsBase.ensure_dict_block(self.raw_settings, "scanner")
 
     @classmethod
     def from_strategy_root(cls, root: Dict[str, Any]) -> "StrategyScannerSettings":
         if not isinstance(root, dict):
             root = {}
-        block = root.get("scanner")
-        if not isinstance(block, dict):
-            block = {}
-            root["scanner"] = block
+        SettingsBase.ensure_dict_block(root, "scanner")
         return cls(raw_settings=root)
 
     @classmethod
@@ -72,14 +65,7 @@ class StrategyScannerSettings(SettingsBase):
 
     def _normalize_fields(self) -> None:
         s = self.scanner
-        mw = s.get("max_workers", "auto")
-        if mw == "auto" or mw is None:
-            s["max_workers"] = "auto"
-        else:
-            try:
-                s["max_workers"] = max(int(mw), 1)
-            except (TypeError, ValueError):
-                s["max_workers"] = "auto"
+        SettingsBase.normalize_max_workers_inplace(s, "max_workers")
 
         adapter_config = s.get("adapters", [])
         if isinstance(adapter_config, str):
@@ -115,13 +101,7 @@ class StrategyScannerSettings(SettingsBase):
 
     @property
     def max_workers(self) -> Union[Literal["auto"], int]:
-        mw = self.scanner.get("max_workers", "auto")
-        if mw == "auto" or mw is None:
-            return "auto"
-        try:
-            return max(int(mw), 1)
-        except (TypeError, ValueError):
-            return "auto"
+        return SettingsBase.parse_max_workers(self.scanner.get("max_workers", "auto"))
 
     @property
     def adapter_names(self) -> List[str]:

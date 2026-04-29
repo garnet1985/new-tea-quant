@@ -8,7 +8,7 @@ from __future__ import annotations
 import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 
 @dataclass
@@ -162,3 +162,47 @@ class SettingsBase(ABC):
     @staticmethod
     def deep_copy_dict(data: Dict[str, Any]) -> Dict[str, Any]:
         return copy.deepcopy(data)
+
+    @staticmethod
+    def ensure_dict_block(root: Dict[str, Any], key: str) -> Dict[str, Any]:
+        if not isinstance(root, dict):
+            root = {}
+        block = root.get(key)
+        if not isinstance(block, dict):
+            block = {}
+            root[key] = block
+        return block
+
+    @staticmethod
+    def parse_max_workers(value: Any) -> Union[Literal["auto"], int]:
+        if value == "auto" or value is None:
+            return "auto"
+        try:
+            return max(int(value), 1)
+        except (TypeError, ValueError):
+            return "auto"
+
+    @staticmethod
+    def normalize_max_workers_inplace(container: Dict[str, Any], key: str) -> None:
+        container[key] = SettingsBase.parse_max_workers(container.get(key, "auto"))
+
+    @staticmethod
+    def validate_max_workers_field(
+        *,
+        report: ValidationReport,
+        container: Dict[str, Any],
+        key: str,
+        field_path: str,
+        invalid_message: str,
+    ) -> Tuple[bool, Union[Literal["auto"], int]]:
+        raw = container.get(key, "auto")
+        if raw == "auto" or raw is None:
+            container[key] = "auto"
+            return True, "auto"
+        try:
+            parsed = max(int(raw), 1)
+            container[key] = parsed
+            return True, parsed
+        except (TypeError, ValueError):
+            SettingsBase.add_critical(report, field_path, invalid_message)
+            return False, "auto"

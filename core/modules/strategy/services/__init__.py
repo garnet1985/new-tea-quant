@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """Shared services across engines."""
 
-from .artifacts import DataLoader, ResultPathManager, VersionManager
-from .data import StrategyDataManager
-from .discovery import StrategyDiscoveryHelper
-from .injection import preload_global_extras_for_enumeration
-from .validation import build_settings, normalize_and_validate, validate_settings
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "DataLoader",
@@ -18,3 +15,17 @@ __all__ = [
     "validate_settings",
     "normalize_and_validate",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in {"DataLoader", "ResultPathManager", "VersionManager"}:
+        return getattr(import_module(".artifacts", __name__), name)
+    if name == "StrategyDataManager":
+        return getattr(import_module(".data", __name__), name)
+    if name == "StrategyDiscoveryHelper":
+        return getattr(import_module(".discovery", __name__), name)
+    if name == "preload_global_extras_for_enumeration":
+        return getattr(import_module(".injection", __name__), name)
+    if name in {"build_settings", "validate_settings", "normalize_and_validate"}:
+        return getattr(import_module(".validation", __name__), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

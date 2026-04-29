@@ -64,6 +64,7 @@ class StrategyManager:
                 strategy_name=info.name,
                 data_manager=self.data_mgr,
                 is_verbose=self.is_verbose,
+                strategy_info=info,
             )
             results[info.name] = scanner.scan()
         return results
@@ -81,9 +82,11 @@ class StrategyManager:
 
         results: Dict[str, dict] = {}
         for info in targets:
-            price_result = PriceFactorManager(is_verbose=self.is_verbose).run(info.name)
+            price_result = PriceFactorManager(is_verbose=self.is_verbose).run(
+                info.name, strategy_info=info
+            )
             capital_result = CapitalAllocationManager(is_verbose=self.is_verbose).run(
-                info.name
+                info.name, strategy_info=info
             )
             results[info.name] = {
                 "price_factor": price_result,

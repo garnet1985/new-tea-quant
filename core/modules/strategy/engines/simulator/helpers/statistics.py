@@ -9,6 +9,23 @@ from core.modules.strategy.enums import OpportunityStatus
 
 class SimulatorStatisticsHelper:
     @staticmethod
+    def _closed_metrics(closed_opps: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not closed_opps:
+            return {}
+        metrics = {
+            "win_rate": sum(
+                1 for o in closed_opps if o.get("price_return", 0) > 0
+            ) / len(closed_opps),
+            "avg_price_return": sum(
+                o.get("price_return", 0) for o in closed_opps
+            ) / len(closed_opps),
+            "avg_holding_days": sum(
+                o.get("holding_days", 0) for o in closed_opps
+            ) / len(closed_opps),
+        }
+        return metrics
+
+    @staticmethod
     def calculate_summary(opportunities: List[Dict[str, Any]]) -> Dict[str, Any]:
         if not opportunities:
             return {}
@@ -21,14 +38,7 @@ class SimulatorStatisticsHelper:
             "total_closed": len(closed_opps),
         }
         if closed_opps:
-            wins = sum(1 for o in closed_opps if o.get("price_return", 0) > 0)
-            summary["win_rate"] = wins / len(closed_opps)
-            summary["avg_price_return"] = sum(
-                o.get("price_return", 0) for o in closed_opps
-            ) / len(closed_opps)
-            summary["avg_holding_days"] = sum(
-                o.get("holding_days", 0) for o in closed_opps
-            ) / len(closed_opps)
+            summary.update(SimulatorStatisticsHelper._closed_metrics(closed_opps))
             summary["max_return"] = max(o.get("price_return", 0) for o in closed_opps)
             summary["max_loss"] = min(o.get("price_return", 0) for o in closed_opps)
             if summary["avg_holding_days"] > 0:
@@ -54,15 +64,7 @@ class SimulatorStatisticsHelper:
             "total_closed": len(closed_opps),
         }
         if closed_opps:
-            summary["win_rate"] = sum(
-                1 for o in closed_opps if o.get("price_return", 0) > 0
-            ) / len(closed_opps)
-            summary["avg_price_return"] = sum(
-                o.get("price_return", 0) for o in closed_opps
-            ) / len(closed_opps)
-            summary["avg_holding_days"] = sum(
-                o.get("holding_days", 0) for o in closed_opps
-            ) / len(closed_opps)
+            summary.update(SimulatorStatisticsHelper._closed_metrics(closed_opps))
         return summary
 
 

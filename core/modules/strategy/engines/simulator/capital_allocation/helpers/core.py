@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Capital allocation helper bridge during migration."""
+import json
+from datetime import datetime
 
-from core.modules.strategy1.components.simulator.capital_allocation.helpers import (  # noqa: F401
-    DateTimeEncoder,
-)
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, (int, float)):
+            return float(obj) if isinstance(obj, float) else int(obj)
+        if hasattr(obj, "__dict__"):
+            return obj.__dict__
+        return super().default(obj)
+
 
 __all__ = ["DateTimeEncoder"]
-

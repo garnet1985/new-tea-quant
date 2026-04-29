@@ -13,7 +13,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
     StrategySettingsView,
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
-from core.modules.strategy.engines.simulator.enumerator import OpportunityEnumerator
+from core.modules.strategy.engines.simulator.enumerator import OpportunityEnumeratorFlow
 from core.modules.strategy.services.data.output import VersionManager
 
 
@@ -41,12 +41,14 @@ def resolve_or_build_enumerator_version(
             except FileNotFoundError:
                 pass
 
-    run_enumerator_for_mode(
+    resolved_dir = run_enumerator_for_mode(
         strategy_name=strategy_name,
         base_settings=base_settings,
         use_sampling=use_sampling,
         strategy_info=strategy_info,
     )
+    if resolved_dir is not None:
+        return resolved_dir, resolved_dir.parent
     return VersionManager.resolve_enumerator_version(strategy_name, f"{sub_dir}/latest")
 
 
@@ -56,7 +58,7 @@ def run_enumerator_for_mode(
     base_settings: StrategySettingsView,
     use_sampling: bool,
     strategy_info: Optional[DiscoveredStrategy] = None,
-) -> None:
+) -> Optional[Path]:
     from core.modules.data_manager import DataManager
     from core.utils.date.date_utils import DateUtils
 
@@ -72,15 +74,25 @@ def run_enumerator_for_mode(
     else:
         stock_list = [s["id"] for s in all_stocks]
 
-    OpportunityEnumerator.enumerate(
-        strategy_name=strategy_name,
+    flow = OpportunityEnumeratorFlow(
         start_date=DateUtils.DEFAULT_START_DATE,
         end_date=data_mgr.service.calendar.get_latest_completed_trading_date(),
         stock_list=stock_list,
         max_workers="auto",
         base_settings=base_settings,
-        strategy_info=strategy_info,
     )
+    result = flow.run(strategy_name=strategy_name, strategy_info=strategy_info)
+    if result and isinstance(result, list):
+        first = result[0] or {}
+        version_dir_name = str(first.get("version_dir", "")).strip()
+        if version_dir_name:
+            sub_dir_name = "test" if use_sampling else "output"
+            version_dir, _ = VersionManager.resolve_enumerator_version(
+                strategy_name,
+                f"{sub_dir_name}/{version_dir_name}",
+            )
+            return version_dir
+    return None
 
 
 __all__ = ["resolve_or_build_enumerator_version", "run_enumerator_for_mode"]

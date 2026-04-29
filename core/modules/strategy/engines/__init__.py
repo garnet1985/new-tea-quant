@@ -3,9 +3,9 @@
 
 __all__ = [
     "ScannerManager",
-    "EnumeratorManager",
-    "PriceFactorManager",
-    "CapitalAllocationManager",
+    "OpportunityEnumeratorFlow",
+    "PriceFactorFlow",
+    "CapitalAllocationFlow",
     "AnalyzerManager",
     "ReportBase",
     "SimulatorHooksDispatcher",

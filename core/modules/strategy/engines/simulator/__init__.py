@@ -2,8 +2,8 @@
 """Simulator engines package (side-effect free)."""
 
 __all__ = [
-    "EnumeratorManager",
-    "PriceFactorManager",
-    "CapitalAllocationManager",
+    "OpportunityEnumeratorFlow",
+    "PriceFactorFlow",
+    "CapitalAllocationFlow",
 ]
 

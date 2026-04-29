@@ -2,9 +2,8 @@
 """Price factor simulator package (side-effect free)."""
 
 __all__ = [
-    "PriceFactorManager",
+    "PriceFactorFlow",
     "PriceFactorSimulatorConfig",
-    "PriceFactorSimulator",
     "PriceFactorSimulatorWorker",
     "PriceReport",
     "DateTimeEncoder",

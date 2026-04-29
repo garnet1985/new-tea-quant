@@ -3,13 +3,11 @@
 
 from .data_classes import OpportunityEnumeratorSettings
 from .helpers import AggregateProfiler, PerformanceMetrics, PerformanceProfiler
-from .manager import EnumeratorManager
-from .opportunity_enumerator import OpportunityEnumerator
+from .opportunity_enumerator_flow import OpportunityEnumeratorFlow
 from .worker import OpportunityEnumeratorWorker
 
 __all__ = [
-    "EnumeratorManager",
-    "OpportunityEnumerator",
+    "OpportunityEnumeratorFlow",
     "OpportunityEnumeratorWorker",
     "OpportunityEnumeratorSettings",
     "PerformanceMetrics",

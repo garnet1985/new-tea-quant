@@ -2,9 +2,8 @@
 """Capital allocation simulator package (side-effect free)."""
 
 __all__ = [
-    "CapitalAllocationManager",
+    "CapitalAllocationFlow",
     "CapitalAllocationSimulatorConfig",
-    "CapitalAllocationSimulator",
     "CapitalReport",
     "DateTimeEncoder",
     "AllocationStrategy",

@@ -75,6 +75,12 @@ def setup_warnings():
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='pandas')
     warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='numpy')
+    try:
+        from urllib3.exceptions import NotOpenSSLWarning
+
+        warnings.filterwarnings("ignore", category=NotOpenSSLWarning)
+    except Exception:
+        pass
 
 setup_warnings()
 
@@ -329,7 +335,7 @@ class App:
         )
         
         # 5. 显示结果
-        self._display_enumerate_results(summary_results)
+        self._display_enumerate_results(strategy_name, summary_results)
         
         return summary_results
     
@@ -376,27 +382,16 @@ class App:
         
         return stock_list
     
-    def _display_enumerate_results(self, summary_results):
+    def _display_enumerate_results(self, strategy_name, summary_results):
         """显示枚举结果"""
-        if summary_results:
-            total_opps = summary_results[0].get('opportunities', 0)
-        else:
-            total_opps = 0
-        
-        logger.info(f"✅ 枚举完成！找到 {total_opps} 个机会")
-        
-        if summary_results:
-            logger.info("\n枚举结果概要:")
-            for res in summary_results:
-                logger.info(
-                    f"  strategy={res.get('strategy_name')}, "
-                    f"version={res.get('version_dir')}, "
-                    f"opportunities={res.get('opportunities', 0)}, "
-                    f"totalStocks={res.get('totalStocks', 0)}, "
-                    f"triggerStocks={res.get('triggerStocks', 0)}, "
-                    f"completedCount={res.get('completedCount', 0)}, "
-                    f"unfinishedCount={res.get('unfinishedCount', 0)}"
-                )
+        from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
+            EnumeratorReport,
+        )
+
+        EnumeratorReport.present(
+            strategy_name=str(strategy_name or ""),
+            summary_results=summary_results or [],
+        )
     
     # ========================================================================
     # 模拟器相关

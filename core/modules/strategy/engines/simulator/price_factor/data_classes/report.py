@@ -9,12 +9,6 @@ from typing import Any, Dict, List
 from core.modules.strategy.engines.shared.report_base import ReportBase
 
 
-def _safe_div(numerator: float, denominator: float) -> float:
-    if denominator == 0:
-        return 0.0
-    return numerator / denominator
-
-
 @dataclass
 class PriceReport(ReportBase):
     win_rate: float
@@ -60,15 +54,15 @@ class PriceReport(ReportBase):
             total_roi += float(summary.get("avg_roi", 0.0) or 0.0) * investment_count
             total_duration_days += float(summary.get("avg_duration_in_days", 0.0) or 0.0) * investment_count
 
-        avg_roi = round(_safe_div(total_roi, total_investments), 4)
-        avg_duration_days = _safe_div(total_duration_days, total_investments)
+        avg_roi = round(ReportBase.safe_div(total_roi, total_investments), 4)
+        avg_duration_days = ReportBase.safe_div(total_duration_days, total_investments)
         avg_duration_trading_days = avg_duration_days * (250.0 / 365.0) if avg_duration_days > 0 else 0.0
         annual_return = avg_roi * (365.0 / avg_duration_days) if avg_duration_days > 0 else 0.0
         annual_return_trading = avg_roi * (250.0 / avg_duration_days) if avg_duration_days > 0 else 0.0
-        win_rate = round(_safe_div(total_win, total_investments) * 100.0, 1)
+        win_rate = round(ReportBase.safe_div(total_win, total_investments) * 100.0, 1)
         total_completed = total_win + total_loss
         total_unfinished = total_open
-        completion_rate = round(_safe_div(total_completed, total_investments), 4)
+        completion_rate = round(ReportBase.safe_div(total_completed, total_investments), 4)
 
         return cls(
             win_rate=win_rate,
@@ -85,9 +79,15 @@ class PriceReport(ReportBase):
             total_unfinished_investments=total_unfinished,
             completion_rate=completion_rate,
             total_profit=round(total_profit, 2),
-            avg_profit_per_investment=round(_safe_div(total_profit, total_investments), 2),
-            avg_profit_per_stock=round(_safe_div(total_profit, stocks_with_opportunities), 2),
-            avg_investments_per_stock=round(_safe_div(total_investments, stocks_with_opportunities), 2),
+            avg_profit_per_investment=round(
+                ReportBase.safe_div(total_profit, total_investments), 2
+            ),
+            avg_profit_per_stock=round(
+                ReportBase.safe_div(total_profit, stocks_with_opportunities), 2
+            ),
+            avg_investments_per_stock=round(
+                ReportBase.safe_div(total_investments, stocks_with_opportunities), 2
+            ),
             stocks_have_opportunities=stocks_with_opportunities,
         )
 

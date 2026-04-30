@@ -36,8 +36,13 @@ def validate_adapter(adapter_name: str) -> Tuple[bool, str]:
     
     try:
         module = importlib.import_module(module_path)
-    except ModuleNotFoundError:
-        return False, f"无法找到适配器模块: {module_path}"
+    except ModuleNotFoundError as exc:
+        # 仅当缺失的正是 adapter 模块本身时，才报告“模块不存在”；
+        # 否则说明是 adapter 内部依赖缺失，应返回真实缺失项，避免误导排查。
+        if str(getattr(exc, "name", "") or "") == module_path:
+            return False, f"无法找到适配器模块: {module_path}"
+        missing = str(getattr(exc, "name", "") or exc)
+        return False, f"适配器依赖缺失: {missing}"
     except Exception as exc:
         return False, f"加载适配器模块异常: {exc}"
     

@@ -28,6 +28,9 @@ from core.modules.strategy.engines.shared.performance_profiler import (
 from core.modules.strategy.engines.simulator.enumerator.data_classes.settings import (
     OpportunityEnumeratorSettings,
 )
+from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
+    EnumeratorReport,
+)
 from core.modules.strategy.engines.simulator.enumerator.data_classes.fingerprint import (
     EnumeratorFingerprint,
 )
@@ -713,6 +716,13 @@ class OpportunityEnumeratorFlowImpl:
                 "created_at": metadata.get("created_at"),
             },
         )
+        try:
+            EnumeratorReport.from_output_dir(
+                output_dir,
+                total_stocks_hint=len(self.stock_list),
+            ).write_bff_payload(output_dir)
+        except Exception:
+            pass
 
     def build_reuse_summary(
         self,
@@ -723,17 +733,33 @@ class OpportunityEnumeratorFlowImpl:
         not_reused_because: Optional[NotReusedBecause] = None,
     ) -> List[Dict[str, Any]]:
         metadata = self._read_version_metadata(version_dir)
+        report_payload = self._read_version_enum_report(version_dir)
+        enum_metrics = (
+            report_payload.get("enumMetrics")
+            if isinstance(report_payload.get("enumMetrics"), dict)
+            else {}
+        )
         version_id = int(version_dir.name) if version_dir.name.isdigit() else 0
         summary = {
             "strategy_name": strategy_name,
             "version_id": version_id,
             "version_dir": version_dir.name,
-            "opportunities": int(metadata.get("opportunity_count") or 0),
-            "totalStocks": len(self.stock_list),
-            "triggerStocks": 0,
-            "completedCount": int(metadata.get("completed_count") or 0),
-            "unfinishedCount": int(metadata.get("unfinished_count") or 0),
-            "completionRate": float(metadata.get("completion_rate") or 0.0),
+            "opportunities": int(
+                enum_metrics.get("totalOpportunities") or metadata.get("opportunity_count") or 0
+            ),
+            "totalStocks": int(enum_metrics.get("totalStocks") or len(self.stock_list)),
+            "triggerStocks": int(enum_metrics.get("triggerStocks") or 0),
+            "completedCount": int(
+                enum_metrics.get("completedCount") or metadata.get("completed_count") or 0
+            ),
+            "unfinishedCount": int(
+                enum_metrics.get("unfinishedCount") or metadata.get("unfinished_count") or 0
+            ),
+            "completionRate": float(
+                (float(enum_metrics.get("completedRatio") or 0.0) / 100.0)
+                if enum_metrics.get("completedRatio") is not None
+                else float(metadata.get("completion_rate") or 0.0)
+            ),
             "elapsed_seconds": 0.0,
             "reuse_action": reuse_action.value,
         }
@@ -806,6 +832,20 @@ class OpportunityEnumeratorFlowImpl:
             return {}
         try:
             with metadata_path.open("r", encoding="utf-8") as f:
+                payload = json.load(f) or {}
+            if isinstance(payload, dict):
+                return payload
+        except Exception:
+            pass
+        return {}
+
+    @staticmethod
+    def _read_version_enum_report(version_dir: Path) -> Dict[str, Any]:
+        report_path = version_dir / "0_report_enum.json"
+        if not report_path.exists():
+            return {}
+        try:
+            with report_path.open("r", encoding="utf-8") as f:
                 payload = json.load(f) or {}
             if isinstance(payload, dict):
                 return payload

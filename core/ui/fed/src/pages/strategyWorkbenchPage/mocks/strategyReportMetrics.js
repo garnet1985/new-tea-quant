@@ -37,6 +37,14 @@ export function buildEnumMetricsFromTotal(totalOpportunities) {
 
   const percentileLabels = ['10%分位', '20%分位', '30%分位', '40%分位', '50%分位', '60%分位', '70%分位', '80%分位', '90%分位'];
   const percentileValues = [p10, p20, p30, p40, p50, p60, p70, p80, p90];
+  const opportunityCountMin = 0;
+  const opportunityCountMax = Math.max(1, Math.round(avgPerStock * 5));
+  const opportunityCountBucketCount = 5;
+  const opportunityCountLabels = ['0-1', '2-3', '4-5', '6-7', '8-10'];
+  const opportunityCountStockCounts = [35, 42, 31, 24, 18];
+  const opportunityCountStockRatios = opportunityCountStockCounts.map(
+    (count) => Number(((count / totalStocks) * 100).toFixed(2)),
+  );
 
   return {
     totalOpportunities,
@@ -63,11 +71,20 @@ export function buildEnumMetricsFromTotal(totalOpportunities) {
     dispersionConclusion,
     percentileLabels,
     percentileValues,
+    opportunityCountMin,
+    opportunityCountMax,
+    opportunityCountBucketCount,
+    opportunityCountLabels,
+    opportunityCountStockCounts,
+    opportunityCountStockRatios,
   };
 }
 
 export function buildEnumMetrics(executionState) {
   const summary = executionState?.result?.enum || {};
+  const remoteEnumMetrics = summary?.enumMetrics && typeof summary.enumMetrics === 'object'
+    ? summary.enumMetrics
+    : {};
   const totalOpportunities = Number(summary.totalOpportunities ?? summary.opportunities ?? 0);
   const base = buildEnumMetricsFromTotal(totalOpportunities);
   if (!base) return null;
@@ -92,6 +109,24 @@ export function buildEnumMetrics(executionState) {
   const avgPerStock = triggerStocks > 0
     ? Number((totalOpportunities / triggerStocks).toFixed(2))
     : base.avgPerStock;
+  const toNumberList = (arr) => (Array.isArray(arr) ? arr.map((v) => Number(v || 0)) : []);
+  const toStringList = (arr) => (Array.isArray(arr) ? arr.map((v) => String(v ?? '')) : []);
+  const pick = (camel, snake) => (
+    remoteEnumMetrics[camel]
+    ?? summary[camel]
+    ?? remoteEnumMetrics[snake]
+    ?? summary[snake]
+  );
+
+  // 分布数据优先使用后端真实值；缺失时不再使用草图固定桶，避免误导。
+  const opportunityCountLabels = toStringList(pick('opportunityCountLabels', 'opportunity_count_labels'));
+  const opportunityCountStockCounts = toNumberList(pick('opportunityCountStockCounts', 'opportunity_count_stock_counts'));
+  const opportunityCountStockRatios = toNumberList(pick('opportunityCountStockRatios', 'opportunity_count_stock_ratios'));
+  const opportunityCountMin = Number(pick('opportunityCountMin', 'opportunity_count_min') ?? 0);
+  const opportunityCountMax = Number(pick('opportunityCountMax', 'opportunity_count_max') ?? 0);
+  const opportunityCountBucketCount = Number(
+    pick('opportunityCountBucketCount', 'opportunity_count_bucket_count') ?? opportunityCountLabels.length,
+  );
 
   return {
     ...base,
@@ -102,6 +137,12 @@ export function buildEnumMetrics(executionState) {
     completedRatio: completionRatio,
     completedCount,
     unfinishedCount,
+    opportunityCountMin,
+    opportunityCountMax,
+    opportunityCountBucketCount,
+    opportunityCountLabels,
+    opportunityCountStockCounts,
+    opportunityCountStockRatios,
   };
 }
 

@@ -156,12 +156,16 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
  * @param {'enum'|'price'|'capital'} targetStep
  * @param {object=} settings
  */
-export async function startStrategyRun(strategyName, targetStep, settings) {
+export async function startStrategyRun(strategyName, targetStep, settings, options = {}) {
+  const forceRefresh = Boolean(
+    options?.forceRefresh ?? options?.force_refresh ?? options?.force,
+  );
   const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/runs`, {
     method: 'POST',
     body: JSON.stringify({
       target_step: targetStep,
       settings: settings && typeof settings === 'object' ? settings : undefined,
+      force_refresh: forceRefresh,
     }),
   });
   return json?.message || {};

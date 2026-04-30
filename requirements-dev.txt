@@ -156,7 +156,7 @@ typing-extensions==4.15.0
     #   exceptiongroup
 tzdata==2026.1
     # via pandas
-urllib3==2.6.3
+urllib3==1.26.20
     # via
     #   akshare
     #   requests

@@ -14,12 +14,19 @@ const ENUM_STOCK_SORT_MENU = [
 ];
 
 function buildStockDistributionOption(metrics) {
+  const xData = Array.isArray(metrics?.opportunityCountLabels) ? metrics.opportunityCountLabels : [];
+  const countData = Array.isArray(metrics?.opportunityCountStockCounts)
+    ? metrics.opportunityCountStockCounts
+    : [];
+  const yData = Array.isArray(metrics?.opportunityCountStockRatios)
+    ? metrics.opportunityCountStockRatios
+    : [];
   return {
     animation: false,
     grid: { left: 30, right: 10, top: 20, bottom: 28 },
     xAxis: {
       type: 'category',
-      data: metrics.percentileLabels,
+      data: xData,
       axisTick: { show: false },
       axisLine: { lineStyle: { color: '#D0D7DE' } },
       axisLabel: { color: '#5F6368', fontSize: 11 },
@@ -35,9 +42,21 @@ function buildStockDistributionOption(metrics) {
     series: [
       {
         type: 'bar',
-        data: metrics.percentileValues,
+        data: yData,
         barMaxWidth: 28,
         itemStyle: { color: '#5B8FF9', borderRadius: [4, 4, 0, 0] },
+        label: {
+          show: true,
+          position: 'top',
+          fontSize: 10,
+          color: '#5F6368',
+          formatter: (params) => {
+            const idx = Number(params?.dataIndex ?? -1);
+            const count = idx >= 0 ? Number(countData[idx] ?? 0) : 0;
+            const ratio = Number(params?.data ?? 0);
+            return `${count}（${ratio}%）`;
+          },
+        },
       },
     ],
     tooltip: {
@@ -46,7 +65,9 @@ function buildStockDistributionOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>每股机会数：${point.data}`;
+        const idx = Number(point?.dataIndex ?? -1);
+        const count = idx >= 0 ? Number(countData[idx] ?? 0) : 0;
+        return `${point.axisValue} 次机会<br/>股票数：${count}（${point.data}%）`;
       },
     },
   };
@@ -102,6 +123,14 @@ function OpportunityEnumrateReport({
       valueFormatter: (params) => `${params.value} 天`,
     },
   ];
+  const opportunityCountMin = Number(metrics?.opportunityCountMin ?? 0);
+  const opportunityCountMax = Number(metrics?.opportunityCountMax ?? 0);
+  const opportunityCountBucketCount = Number(metrics?.opportunityCountBucketCount ?? 0);
+  const hasDistributionData = Array.isArray(metrics?.opportunityCountLabels)
+    && metrics.opportunityCountLabels.length > 0;
+  const distributionTip = opportunityCountBucketCount > 0
+    ? `每股机会数分布图（${opportunityCountMin}~${opportunityCountMax}，近似 ${opportunityCountBucketCount} 等分；显示：股票数（占比））`
+    : '每股机会数分布图（显示：股票数（占比））';
 
   return (
     <Stack spacing={1.25}>
@@ -144,7 +173,7 @@ function OpportunityEnumrateReport({
       >
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
           <MetricCard
-            title="股票触发机会的比例"
+            title="触发机会的股票占比"
             value={`${metrics.triggerStocks} / ${metrics.totalStocks} (${metrics.triggerRatio}%)`}
           />
           <MetricCard
@@ -154,14 +183,20 @@ function OpportunityEnumrateReport({
         </Box>
         <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75 }}>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-            每股机会数分位图（10% / 20% / 30% / 40% / 50% / 60% / 70% / 80% / 90%）
+            {distributionTip}
           </Typography>
-          <ReactECharts
-            option={buildStockDistributionOption(metrics)}
-            style={{ height: 170, width: '100%' }}
-            notMerge
-            lazyUpdate
-          />
+          {hasDistributionData ? (
+            <ReactECharts
+              option={buildStockDistributionOption(metrics)}
+              style={{ height: 170, width: '100%' }}
+              notMerge
+              lazyUpdate
+            />
+          ) : (
+            <Typography variant="caption" color="text.secondary">
+              暂无真实区间分布数据（等待枚举报告写入 opportunityCount* 字段）。
+            </Typography>
+          )}
         </Box>
       </SectionBlock>
 

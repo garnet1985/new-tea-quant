@@ -590,7 +590,10 @@ class ProcessWorker:
         ctx = mp.get_context(self.start_method)
         executor = None
         try:
-            executor = ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx)
+            executor = ProcessPoolExecutor(
+                max_workers=self.max_workers,
+                mp_context=ctx,
+            )
             # 提交初始任务到进程池
             future_to_job = {}
             submitted_count = 0
@@ -739,7 +742,10 @@ class ProcessWorker:
         ctx = mp.get_context(self.start_method)
         executor = None
         try:
-            executor = ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx)
+            executor = ProcessPoolExecutor(
+                max_workers=self.max_workers,
+                mp_context=ctx,
+            )
             # 提交所有任务到进程池
             future_to_job = {
                 executor.submit(self._execute_single_job, job): job 

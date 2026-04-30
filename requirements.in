@@ -17,6 +17,7 @@ pandas-ta-classic
 
 # HTTP / data source
 requests
+urllib3<2
 curl_cffi
 tushare
 akshare

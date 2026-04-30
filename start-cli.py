@@ -75,12 +75,6 @@ def setup_warnings():
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='pandas')
     warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
     warnings.filterwarnings('ignore', category=DeprecationWarning, module='numpy')
-    try:
-        from urllib3.exceptions import NotOpenSSLWarning
-
-        warnings.filterwarnings("ignore", category=NotOpenSSLWarning)
-    except Exception:
-        pass
 
 setup_warnings()
 
@@ -278,18 +272,8 @@ class App:
             stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
             force_refresh: 是否强制重跑枚举（忽略复用缓存）
         """
-        from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-            StrategySettingsView,
-        )
-        from core.modules.strategy.engines.shared.helpers.stock_sampling import (
-            StockSamplingHelper,
-        )
-        from core.modules.strategy.engines.simulator.enumerator import (
-            OpportunityEnumeratorFlow,
-            OpportunityEnumeratorSettings,
-        )
+        from core.modules.strategy.services import EnumeratorRuntimeService
         from core.modules.strategy.strategy_manager import StrategyManager
-        from core.utils.date.date_utils import DateUtils
         
         # 1. 加载策略配置
         strategy_manager = StrategyManager()
@@ -298,90 +282,30 @@ class App:
             logger.error(f"策略不存在: {strategy_name}")
             return []
         
-        settings = StrategySettingsView.from_dict(strategy_info.settings.to_dict())
-        enum_settings = OpportunityEnumeratorSettings.from_base(settings)
-        
-        # 2. 获取股票列表
-        all_stocks = self.data_manager.service.stock.list.load(filtered=True)
-        stock_list = self._get_stock_list(
-            all_stocks=all_stocks,
-            settings=settings,
-            enum_settings=enum_settings,
-            stock_count=stock_count
-        )
-        
-        # 3. 设置时间范围
-        latest_date = self.data_manager.service.calendar.get_latest_completed_trading_date()
-        start_date = settings.start_date or DateUtils.DEFAULT_START_DATE
-        end_date = settings.end_date or latest_date
-        
-        logger.info(f"📅 时间范围: {start_date} ~ {end_date}")
-        logger.info(f"📊 实际股票数量: {len(stock_list)}")
-        if force_refresh:
-            logger.info("♻️  强制刷新已启用：本次将跳过枚举结果复用")
-        
-        # 4. 执行枚举
-        flow = OpportunityEnumeratorFlow(
-            start_date=start_date,
-            end_date=end_date,
-            stock_list=stock_list,
-            max_workers=enum_settings.max_workers,
-            base_settings=settings,
-            force_refresh=force_refresh,
-        )
-        summary_results = flow.run(
+        context = EnumeratorRuntimeService.build_context(
             strategy_name=strategy_name,
             strategy_info=strategy_info,
+            stock_count=stock_count,
+            force_refresh=force_refresh,
         )
+        logger.info(f"📅 时间范围: {context.start_date} ~ {context.end_date}")
+        logger.info(f"📊 实际股票数量: {len(context.stock_list)}")
+        if force_refresh:
+            logger.info("♻️  强制刷新已启用：本次将跳过枚举结果复用")
+        summary_results = EnumeratorRuntimeService.run_enum(context)
+
+        # 4.5 CLI 强制枚举后同步刷新 workbench DB 临时缓存，避免 UI 仍读取旧摘要
+        if force_refresh:
+            EnumeratorRuntimeService.sync_force_refresh_snapshot(
+                context=context,
+                summary_results=summary_results,
+            )
         
         # 5. 显示结果
         self._display_enumerate_results(strategy_name, summary_results)
         
         return summary_results
-    
-    def _get_stock_list(self, all_stocks, settings, enum_settings, stock_count):
-        """
-        获取股票列表（采样或全量）
-        
-        Args:
-            all_stocks: 所有股票列表
-            settings: 策略设置
-            enum_settings: 枚举器设置
-            stock_count: 测试股票数量（可选）
-        
-        Returns:
-            list: 股票代码列表
-        """
-        from core.modules.strategy.engines.shared.helpers.stock_sampling import (
-            StockSamplingHelper,
-        )
-        
-        if enum_settings.use_sampling:
-            if stock_count is not None:
-                sampling_amount = stock_count
-                sampling_config = {'strategy': 'continuous', 'continuous': {'start_idx': 0}}
-                logger.info(f"🔍 开始枚举机会: strategy={settings.name}, stocks={stock_count} (采样模式)")
-            else:
-                sampling_amount = settings.sampling_amount
-                sampling_config = settings.sampling_config
-                logger.info(
-                    f"🔍 开始枚举机会: strategy={settings.name}, "
-                    f"sampling_amount={sampling_amount}, "
-                    f"sampling_strategy={sampling_config.get('strategy')} (采样模式)"
-                )
-            
-            stock_list = StockSamplingHelper.get_stock_list(
-                all_stocks=all_stocks,
-                sampling_amount=sampling_amount,
-                sampling_config=sampling_config,
-                strategy_name=settings.name,
-            )
-        else:
-            stock_list = [s['id'] for s in all_stocks]
-            logger.info(f"🔍 开始枚举机会: strategy={settings.name}, stocks={len(stock_list)} (全量枚举模式)")
-        
-        return stock_list
-    
+
     def _display_enumerate_results(self, strategy_name, summary_results):
         """显示枚举结果"""
         from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (

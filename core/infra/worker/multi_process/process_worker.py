@@ -672,8 +672,8 @@ class ProcessWorker:
 
             # 等待剩余任务完成
             if not self.should_stop:
-                for future in as_completed(future_to_job):
-                    job = future_to_job[future]
+                for future in as_completed(list(future_to_job.keys())):
+                    job = future_to_job.pop(future, None) or {"id": "unknown"}
                     try:
                         result = future.result(timeout=self.timeout)
                         all_results.append(result)
@@ -699,7 +699,7 @@ class ProcessWorker:
                         self._emit_progress_event(
                             event="job_finished",
                             total_jobs=total_jobs,
-                            running_jobs=max(len(future_to_job) - 1, 0),
+                            running_jobs=len(future_to_job),
                             last_job_id=job.get('id', ''),
                             last_job_status=(
                                 finished_result.status.value
@@ -988,6 +988,10 @@ class ProcessWorker:
         
         return self.stats
     
+    def get_stats(self) -> Dict[str, Any]:
+        """获取执行统计信息快照"""
+        return dict(self.stats or {})
+
     def get_results(self) -> List[JobResult]:
         """
         获取任务结果

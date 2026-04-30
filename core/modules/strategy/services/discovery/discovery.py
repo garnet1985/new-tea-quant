@@ -132,6 +132,5 @@ class StrategyDiscoveryHelper:
         settings = StrategySettings(raw_settings=dict(settings_dict))
         return settings.validate().is_usable()
 
-
 __all__ = ["StrategyDiscoveryHelper"]
 

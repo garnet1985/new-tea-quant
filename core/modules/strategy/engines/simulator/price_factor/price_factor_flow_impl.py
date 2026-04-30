@@ -103,10 +103,11 @@ class PriceFactorFlowImpl:
         jobs: List[Dict[str, Any]],
         max_workers: "str | int",
     ) -> List[Dict[str, Any]]:
-        from core.infra.worker.multi_process.process_worker import (
-            ExecutionMode as ProcessExecutionMode,
+        from core.infra.worker import (
+            ProcessExecutionMode,
+            ProcessJobStatus,
+            ProcessWorker,
         )
-        from core.infra.worker.multi_process.process_worker import JobStatus, ProcessWorker
 
         if not jobs:
             return []
@@ -122,7 +123,7 @@ class PriceFactorFlowImpl:
         worker_pool.run_jobs(process_jobs)
         results: List[Dict[str, Any]] = []
         for jr in worker_pool.get_results():
-            if jr.status == JobStatus.COMPLETED:
+            if jr.status == ProcessJobStatus.COMPLETED:
                 results.append(jr.result or {})
         return results
 

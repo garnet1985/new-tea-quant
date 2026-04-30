@@ -78,7 +78,7 @@ class OpportunityEnumeratorFlowImpl:
         }
 
     def resolve_runtime_workers(self) -> int:
-        from core.infra.worker.multi_process.process_worker import ProcessWorker
+        from core.infra.worker import ProcessWorker
 
         return ProcessWorker.resolve_max_workers(
             max_workers=self.max_workers, module_name="OpportunityEnumerator"

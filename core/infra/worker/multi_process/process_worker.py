@@ -67,6 +67,24 @@ class JobResult:
         return f"JobResult(job_id={self.job_id}, status={self.status.value}, duration={self.duration:.2f}s)"
 
 
+class ProgressReportMode(Enum):
+    """进度日志上报模式"""
+    NONE = "none"
+    EVERY_JOB_DONE = "every_job_done"
+    EVERY_SEC_INTERVAL = "every_sec_interval"
+    EVERY_PROGRESS_INTERVAL = "every_progress_interval"
+
+
+@dataclass
+class ProgressReportConfig:
+    """进度日志配置（仅控制日志上报频率）"""
+    mode: ProgressReportMode = ProgressReportMode.EVERY_PROGRESS_INTERVAL
+    interval_seconds: float = 2.0
+    interval_pct: int = 5
+    log_on_run_started: bool = False
+    log_on_run_finished: bool = True
+
+
 class ProcessWorker:
     """
     基于 multiprocessing 的多进程任务执行器
@@ -214,6 +232,9 @@ class ProcessWorker:
                  execution_mode: ExecutionMode = ExecutionMode.QUEUE,
                  batch_size: Optional[int] = None,
                  job_executor: Optional[Callable] = None,
+                 on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None,
+                 progress_report_config: Optional[ProgressReportConfig] = None,
+                 is_main_process_used_if_single_worker: bool = True,
                  enable_monitoring: bool = True,
                  timeout: float = 300.0,
                  is_verbose: bool = False,
@@ -227,6 +248,9 @@ class ProcessWorker:
             execution_mode: 执行模式（BATCH或QUEUE）
             batch_size: Batch模式下的batch大小，None时使用CPU核心数
             job_executor: 自定义任务执行函数
+            on_job_done: 每个 job 完成时的回调（可选）
+            progress_report_config: 进度日志上报配置（可选）
+            is_main_process_used_if_single_worker: 当 max_workers=1 时，是否使用主进程串行执行（默认 True）
             enable_monitoring: 是否启用监控
             timeout: 任务超时时间（秒）
             is_verbose: 是否启用详细日志输出
@@ -251,6 +275,11 @@ class ProcessWorker:
             self.batch_size = None
         
         self.job_executor = job_executor
+        self.on_job_done = on_job_done
+        self.progress_report_config = progress_report_config or ProgressReportConfig()
+        self.is_main_process_used_if_single_worker = bool(
+            is_main_process_used_if_single_worker
+        )
         self.enable_monitoring = enable_monitoring
         self.timeout = timeout
         self.is_verbose = is_verbose
@@ -275,6 +304,8 @@ class ProcessWorker:
             'start_time': None,
             'end_time': None
         }
+        self._last_progress_log_ts: float = 0.0
+        self._last_progress_log_pct: int = -1
         
         # 设置信号处理
         self._setup_signal_handlers()
@@ -282,6 +313,133 @@ class ProcessWorker:
         if self.is_verbose:
             mode_desc = f"BATCH (size={self.batch_size})" if execution_mode == ExecutionMode.BATCH else "QUEUE"
             logger.info(f"ProcessWorker initialized: {self.max_workers} workers, mode={mode_desc}")
+
+    def _build_progress_event(
+        self,
+        *,
+        event: str,
+        total_jobs: int,
+        running_jobs: int = 0,
+        last_job_id: str = "",
+        last_job_status: str = "",
+    ) -> Dict[str, Any]:
+        completed_jobs = int(self.stats.get('completed_jobs', 0) or 0)
+        failed_jobs = int(self.stats.get('failed_jobs', 0) or 0)
+        cancelled_jobs = int(self.stats.get('cancelled_jobs', 0) or 0)
+        done_jobs = completed_jobs + failed_jobs + cancelled_jobs
+        progress_pct = int((done_jobs / total_jobs) * 100) if total_jobs > 0 else 0
+        pending_jobs = max(total_jobs - done_jobs - max(running_jobs, 0), 0)
+        return {
+            "event": event,
+            "total_jobs": total_jobs,
+            "completed_jobs": completed_jobs,
+            "failed_jobs": failed_jobs,
+            "cancelled_jobs": cancelled_jobs,
+            "running_jobs": max(running_jobs, 0),
+            "pending_jobs": pending_jobs,
+            "progress_pct": progress_pct,
+            "last_job_id": str(last_job_id or ""),
+            "last_job_status": str(last_job_status or ""),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    def _emit_progress_event(
+        self,
+        *,
+        event: str,
+        total_jobs: int,
+        running_jobs: int = 0,
+        last_job_id: str = "",
+        last_job_status: str = "",
+    ) -> None:
+        payload = self._build_progress_event(
+            event=event,
+            total_jobs=total_jobs,
+            running_jobs=running_jobs,
+            last_job_id=last_job_id,
+            last_job_status=last_job_status,
+        )
+        if event == "job_finished" and callable(self.on_job_done):
+            try:
+                self.on_job_done(payload)
+            except Exception:
+                logger.exception("on_job_done callback failed")
+        self._report_progress_log(payload)
+
+    def _report_progress_log(self, payload: Dict[str, Any]) -> None:
+        cfg = self.progress_report_config or ProgressReportConfig()
+        mode = cfg.mode
+        if isinstance(mode, str):
+            try:
+                mode = ProgressReportMode(mode)
+            except Exception:
+                mode = ProgressReportMode.NONE
+
+        event = str(payload.get("event") or "")
+        total_jobs = int(payload.get("total_jobs", 0) or 0)
+        done_jobs = (
+            int(payload.get("completed_jobs", 0) or 0)
+            + int(payload.get("failed_jobs", 0) or 0)
+            + int(payload.get("cancelled_jobs", 0) or 0)
+        )
+        progress_pct = (done_jobs / total_jobs * 100.0) if total_jobs > 0 else 0.0
+
+        if event == "run_started":
+            # 分批执行场景会多次进入 run_started，非首次开始不打日志，避免噪音。
+            if done_jobs > 0:
+                return
+            if cfg.log_on_run_started:
+                print(f"任务开始：总任务数={total_jobs}", flush=True)
+            return
+        if event == "run_finished":
+            # 分批执行会触发多次 run_finished，仅在全量完成时输出最终日志。
+            if total_jobs > 0 and done_jobs < total_jobs:
+                return
+            if cfg.log_on_run_finished:
+                print(
+                    f"任务完成：{progress_pct:.1f}%（{done_jobs}/{total_jobs}），"
+                    f"成功={payload.get('completed_jobs', 0)}，"
+                    f"失败={payload.get('failed_jobs', 0)}",
+                    flush=True,
+                )
+            return
+
+        if event != "job_finished" or mode == ProgressReportMode.NONE:
+            return
+
+        should_log = False
+        if mode == ProgressReportMode.EVERY_JOB_DONE:
+            should_log = True
+        elif mode == ProgressReportMode.EVERY_SEC_INTERVAL:
+            interval_seconds = max(float(cfg.interval_seconds or 0), 0.0)
+            now_ts = time.time()
+            should_log = (
+                interval_seconds <= 0
+                or (now_ts - self._last_progress_log_ts) >= interval_seconds
+            )
+            if should_log:
+                self._last_progress_log_ts = now_ts
+        elif mode == ProgressReportMode.EVERY_PROGRESS_INTERVAL:
+            interval_pct = max(int(cfg.interval_pct or 0), 1)
+            pct = int(payload.get("progress_pct", 0) or 0)
+            if pct >= 100:
+                should_log = True
+            elif self._last_progress_log_pct < 0:
+                should_log = pct >= interval_pct
+            else:
+                should_log = pct - self._last_progress_log_pct >= interval_pct
+            if should_log:
+                self._last_progress_log_pct = pct
+
+        if not should_log:
+            return
+
+        print(
+            f"进度：{progress_pct:.1f}%（{done_jobs}/{total_jobs}），"
+            f"成功={payload.get('completed_jobs', 0)}，"
+            f"失败={payload.get('failed_jobs', 0)}",
+            flush=True,
+        )
     
     def _setup_signal_handlers(self):
         """设置信号处理器"""
@@ -371,6 +529,63 @@ class ProcessWorker:
         
         if self.is_verbose:
             logger.info(f"Executing in QUEUE mode: {len(self.job_queue)} jobs, max_workers={self.max_workers}")
+
+        total_jobs = self.stats.get('total_jobs', len(self.job_queue))
+        self._emit_progress_event(
+            event="run_started",
+            total_jobs=total_jobs,
+            running_jobs=0,
+        )
+
+        # max_workers=1 且启用开关时，走主进程串行执行；
+        # 若开关关闭，则仍可走单子进程模式（用于隔离场景）。
+        if (
+            int(self.max_workers or 1) <= 1
+            and self.is_main_process_used_if_single_worker
+        ):
+            for job in self.job_queue:
+                if self.should_stop:
+                    break
+                self._emit_progress_event(
+                    event="job_started",
+                    total_jobs=total_jobs,
+                    running_jobs=1,
+                    last_job_id=job.get('id', ''),
+                    last_job_status=JobStatus.RUNNING.value,
+                )
+                try:
+                    result = self._execute_single_job(job)
+                    all_results.append(result)
+                    if result.status == JobStatus.COMPLETED:
+                        self.stats['completed_jobs'] += 1
+                    elif result.status == JobStatus.FAILED:
+                        self.stats['failed_jobs'] += 1
+                except Exception as e:
+                    error_result = JobResult(
+                        job_id=job['id'],
+                        status=JobStatus.FAILED,
+                        error=str(e),
+                        start_time=datetime.now(),
+                        end_time=datetime.now()
+                    )
+                    all_results.append(error_result)
+                    self.stats['failed_jobs'] += 1
+                    logger.exception(f"Job {job['id']} failed: {e}")
+
+                last_status = all_results[-1].status.value if all_results else JobStatus.FAILED.value
+                self._emit_progress_event(
+                    event="job_finished",
+                    total_jobs=total_jobs,
+                    running_jobs=0,
+                    last_job_id=job.get('id', ''),
+                    last_job_status=last_status,
+                )
+            self._emit_progress_event(
+                event="run_finished",
+                total_jobs=total_jobs,
+                running_jobs=0,
+            )
+            return all_results
         
         ctx = mp.get_context(self.start_method)
         executor = None
@@ -379,9 +594,6 @@ class ProcessWorker:
             # 提交初始任务到进程池
             future_to_job = {}
             submitted_count = 0
-            # 使用 stats 中的 total_jobs（可能来自外部传入的总任务数）
-            total_jobs = self.stats.get('total_jobs', len(self.job_queue))
-            progress_update_interval = max(1, total_jobs // 50)  # 每2%更新一次，最多50次
             
             # 初始填充进程池
             while submitted_count < self.max_workers and submitted_count < len(self.job_queue):
@@ -389,16 +601,22 @@ class ProcessWorker:
                 future = executor.submit(self._execute_single_job, job)
                 future_to_job[future] = job
                 submitted_count += 1
+                self._emit_progress_event(
+                    event="job_started",
+                    total_jobs=total_jobs,
+                    running_jobs=len(future_to_job),
+                    last_job_id=job.get('id', ''),
+                    last_job_status=JobStatus.RUNNING.value,
+                )
             
             # 持续处理完成的任务并提交新任务
-            last_progress_time = time.time()
             while future_to_job and not self.should_stop:
                 # 等待任意一个任务完成
                 from concurrent.futures import wait, FIRST_COMPLETED
                 done, not_done = wait(future_to_job.keys(), return_when=FIRST_COMPLETED)
                 
                 for future in done:
-                    job = future_to_job.pop(future)
+                    finished_job = future_to_job.pop(future)
                     
                     try:
                         result = future.result(timeout=self.timeout)
@@ -412,7 +630,7 @@ class ProcessWorker:
                         
                     except Exception as e:
                         error_result = JobResult(
-                            job_id=job['id'],
+                            job_id=finished_job['id'],
                             status=JobStatus.FAILED,
                             error=str(e),
                             start_time=datetime.now(),
@@ -421,40 +639,37 @@ class ProcessWorker:
                         all_results.append(error_result)
                         self.stats['failed_jobs'] += 1
                         try:
-                            data_keys = list(job['payload'].keys()) if isinstance(job.get('payload'), dict) else type(job.get('payload')).__name__
+                            data_keys = list(finished_job['payload'].keys()) if isinstance(finished_job.get('payload'), dict) else type(finished_job.get('payload')).__name__
                         except Exception:
                             data_keys = 'unknown'
-                        logger.exception(f"Job {job['id']} failed: {e} | data_keys={data_keys}")
+                        logger.exception(f"Job {finished_job['id']} failed: {e} | data_keys={data_keys}")
                     
                     # 提交新任务（如果还有待处理的任务）
                     if submitted_count < len(self.job_queue):
-                        job = self.job_queue[submitted_count]
-                        future = executor.submit(self._execute_single_job, job)
-                        future_to_job[future] = job
+                        next_job = self.job_queue[submitted_count]
+                        future = executor.submit(self._execute_single_job, next_job)
+                        future_to_job[future] = next_job
                         submitted_count += 1
-                    
-                    # 实时进度展示
-                    completed_count = self.stats['completed_jobs'] + self.stats['failed_jobs']
-                    if completed_count > 0 and (completed_count % progress_update_interval == 0 or time.time() - last_progress_time >= 2.0):
-                        elapsed = time.time() - (self.stats['start_time'].timestamp() if self.stats['start_time'] else time.time())
-                        progress_pct = (completed_count / total_jobs * 100) if total_jobs > 0 else 0
-                        
-                        # 计算预计剩余时间
-                        if completed_count > 0 and elapsed > 0:
-                            avg_time_per_job = elapsed / completed_count
-                            remaining_jobs = total_jobs - completed_count
-                            estimated_remaining = avg_time_per_job * remaining_jobs
-                            eta_str = f", ETA: {estimated_remaining:.1f}s" if estimated_remaining > 0 else ""
-                        else:
-                            eta_str = ""
-                        
-                        logger.info(
-                            f"📊 进度: {completed_count}/{total_jobs} ({progress_pct:.1f}%) | "
-                            f"成功: {self.stats['completed_jobs']}, 失败: {self.stats['failed_jobs']}"
-                            f"{eta_str}"
+                        self._emit_progress_event(
+                            event="job_started",
+                            total_jobs=total_jobs,
+                            running_jobs=len(future_to_job),
+                            last_job_id=next_job.get('id', ''),
+                            last_job_status=JobStatus.RUNNING.value,
                         )
-                        last_progress_time = time.time()
-            
+                    finished_result = all_results[-1] if all_results else None
+                    self._emit_progress_event(
+                        event="job_finished",
+                        total_jobs=total_jobs,
+                        running_jobs=len(future_to_job),
+                        last_job_id=finished_job.get('id', ''),
+                        last_job_status=(
+                            finished_result.status.value
+                            if finished_result is not None
+                            else JobStatus.FAILED.value
+                        ),
+                    )
+
             # 等待剩余任务完成
             if not self.should_stop:
                 for future in as_completed(future_to_job):
@@ -467,29 +682,7 @@ class ProcessWorker:
                             self.stats['completed_jobs'] += 1
                         elif result.status == JobStatus.FAILED:
                             self.stats['failed_jobs'] += 1
-                        
-                        # 继续显示进度（等待剩余任务时）
-                        completed_count = self.stats['completed_jobs'] + self.stats['failed_jobs']
-                        if completed_count > 0 and (completed_count % progress_update_interval == 0 or time.time() - last_progress_time >= 2.0):
-                            elapsed = time.time() - (self.stats['start_time'].timestamp() if self.stats['start_time'] else time.time())
-                            progress_pct = (completed_count / total_jobs * 100) if total_jobs > 0 else 0
-                            
-                            # 计算预计剩余时间
-                            if completed_count > 0 and elapsed > 0:
-                                avg_time_per_job = elapsed / completed_count
-                                remaining_jobs = total_jobs - completed_count
-                                estimated_remaining = avg_time_per_job * remaining_jobs
-                                eta_str = f", ETA: {estimated_remaining:.1f}s" if estimated_remaining > 0 else ""
-                            else:
-                                eta_str = ""
-                            
-                            logger.info(
-                                f"📊 进度: {completed_count}/{total_jobs} ({progress_pct:.1f}%) | "
-                                f"成功: {self.stats['completed_jobs']}, 失败: {self.stats['failed_jobs']}"
-                                f"{eta_str}"
-                            )
-                            last_progress_time = time.time()
-                            
+
                     except Exception as e:
                         error_result = JobResult(
                             job_id=job['id'],
@@ -501,6 +694,19 @@ class ProcessWorker:
                         all_results.append(error_result)
                         self.stats['failed_jobs'] += 1
                         logger.error(f"Job {job['id']} failed: {e}")
+                    finally:
+                        finished_result = all_results[-1] if all_results else None
+                        self._emit_progress_event(
+                            event="job_finished",
+                            total_jobs=total_jobs,
+                            running_jobs=max(len(future_to_job) - 1, 0),
+                            last_job_id=job.get('id', ''),
+                            last_job_status=(
+                                finished_result.status.value
+                                if finished_result is not None
+                                else JobStatus.FAILED.value
+                            ),
+                        )
         except KeyboardInterrupt:
             self.should_stop = True
             if executor is not None:
@@ -509,6 +715,11 @@ class ProcessWorker:
         finally:
             if executor is not None:
                 executor.shutdown(cancel_futures=True)
+            self._emit_progress_event(
+                event="run_finished",
+                total_jobs=total_jobs,
+                running_jobs=0,
+            )
             
             # 显示最终进度
             completed_count = self.stats['completed_jobs'] + self.stats['failed_jobs']
@@ -580,12 +791,14 @@ class ProcessWorker:
             # - "Command Out of Sync"
             # - "Packet sequence number wrong"
             # 等连接状态错误。
-            try:
-                from core.infra.db import DatabaseManager
-                DatabaseManager.reset_default()
-            except Exception:
-                # 重置失败不应影响任务执行本身，最多失去连接池复用
-                pass
+            # 仅在子进程中重置 DB 默认实例，避免主进程路径被误重置。
+            if mp.current_process().name != "MainProcess":
+                try:
+                    from core.infra.db import DatabaseManager
+                    DatabaseManager.reset_default()
+                except Exception:
+                    # 重置失败不应影响任务执行本身，最多失去连接池复用
+                    pass
 
             if self.job_executor is None:
                 raise ValueError("Job executor not set")
@@ -727,6 +940,8 @@ class ProcessWorker:
         
         self.is_running = True
         self.should_stop = False
+        self._last_progress_log_ts = 0.0
+        self._last_progress_log_pct = -1
         
         # 设置开始时间（如果还没有设置）
         if not self.stats.get('start_time'):
@@ -835,5 +1050,7 @@ class ProcessWorker:
             'start_time': None,
             'end_time': None
         }
+        self._last_progress_log_ts = 0.0
+        self._last_progress_log_pct = -1
         if self.is_verbose:
             logger.info("ProcessWorker reset completed")

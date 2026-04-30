@@ -59,8 +59,7 @@ class Scanner:
         }
 
     def _scan_stocks(self, scan_date: str, stock_ids: List[str]) -> List[Opportunity]:
-        from core.infra.worker.multi_process.process_worker import ExecutionMode as ProcessExecutionMode
-        from core.infra.worker.multi_process.process_worker import ProcessWorker
+        from core.infra.worker import ProcessExecutionMode, ProcessWorker
 
         info = self._strategy_info
         jobs = [

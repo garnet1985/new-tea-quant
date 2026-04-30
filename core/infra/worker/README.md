@@ -29,12 +29,23 @@ core/infra/worker/
 ## 快速开始
 
 ```python
-from core.infra.worker import ProcessWorker, ProcessExecutionMode
+from core.infra.worker import (
+    ProcessWorker,
+    ProcessExecutionMode,
+    ProgressReportConfig,
+    ProgressReportMode,
+)
 
 worker = ProcessWorker(
     max_workers=None,
     execution_mode=ProcessExecutionMode.QUEUE,
     job_executor=my_fn,
+    on_job_done=None,  # 可选：每个 job 完成后回调（成功/失败都触发）
+    progress_report_config=ProgressReportConfig(
+        mode=ProgressReportMode.EVERY_PROGRESS_INTERVAL,
+        interval_pct=5,
+    ),
+    is_main_process_used_if_single_worker=True,  # 默认：max_workers=1 时走主进程
     is_verbose=True,
 )
 stats = worker.run_jobs(jobs)
@@ -54,6 +65,9 @@ python3 -m pytest core/infra/worker/__test__/ -q
 ## 当前实现说明（代码对齐）
 
 - `ProcessExecutionMode` / `ThreadExecutionMode` 等为各子模块 `ExecutionMode` 的**导出别名**（见 `__init__.py`）。
+- `ProcessWorker` 在 `execution_mode=QUEUE` 且 `max_workers=1` 时默认使用主进程串行执行，不创建子进程。
+- `ProcessWorker` 支持 `on_job_done` 回调，在每个 job 完成时回传当前进度快照（成功/失败都算完成）。
+- `ProcessWorker` 支持 `ProgressReportConfig`：按 `every_job_done` / `every_sec_interval` / `every_progress_interval` 控制日志频率（或关闭）。
 - `MemoryAwareBatchScheduler`（根目录 `memory_aware_scheduler.py`）为兼容旧用法保留；新代码优先 `schedulers.MemoryAwareScheduler` 与 `Orchestrator`。
 - 包级 `__version__` 来自 `core.system.get_version()`。
 

@@ -24,7 +24,9 @@ from .multi_process.process_worker import (
     ProcessWorker,
     ExecutionMode as ProcessExecutionMode,
     JobStatus as ProcessJobStatus,
-    JobResult as ProcessJobResult
+    JobResult as ProcessJobResult,
+    ProgressReportMode,
+    ProgressReportConfig,
 )
 
 # 导入多线程执行器
@@ -91,6 +93,8 @@ __all__ = [
     'ProcessExecutionMode',
     'ProcessJobStatus',
     'ProcessJobResult',
+    'ProgressReportMode',
+    'ProgressReportConfig',
     'MultiThreadWorker',
     'ThreadExecutionMode',
     'ThreadJobStatus',

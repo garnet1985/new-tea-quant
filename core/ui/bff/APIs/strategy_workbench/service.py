@@ -1,16 +1,23 @@
 """Strategy workbench service logic."""
 
+import copy
 import json
+import logging
+import multiprocessing as mp
 import threading
 import time
 from datetime import datetime, timezone
+from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
 
 from core.infra.project_context.config_manager import ConfigManager
 from core.infra.project_context.path_manager import PathManager
+from core.modules.strategy.services.progress import ProgressRecorder
 from core.tables.ui_bff.strategy_workbench_snapshot.model import SysStrategyWorkbenchSnapshotModel
 from core.ui.bff.shared.file_ops import atomic_write_text, backup_file
 from core.ui.bff.shared.response import error, ok
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyWorkbenchService:
@@ -30,6 +37,7 @@ class StrategyWorkbenchService:
     STEP_STATUS_CANCELLED = "cancelled"
     _run_lock = threading.Lock()
     _run_cancel_events = {}
+    _run_processes = {}
     _snapshot_model = None
     _sample_stocks = [
         ("600519.SH", "贵州茅台"),
@@ -45,6 +53,20 @@ class StrategyWorkbenchService:
         ("600276.SH", "恒瑞医药"),
         ("601888.SH", "中国中免"),
     ]
+    _sampling_strategy_options = (
+        ("continuous", "连续采样（默认）"),
+        ("uniform", "均匀采样"),
+        ("stratified", "分层采样"),
+        ("random", "随机采样"),
+        ("pool", "指定股票池采样"),
+        ("blacklist", "排除黑名单采样"),
+    )
+    _allocation_mode_options = (
+        ("equal_capital", "每个机会均等资金买入"),
+        ("equal_shares", "每个机会均等股数买入"),
+        ("kelly", "凯莉公式"),
+        ("custom", "自定义"),
+    )
 
     @staticmethod
     def _now_iso() -> str:
@@ -85,14 +107,15 @@ class StrategyWorkbenchService:
 
     @staticmethod
     def _mock_step_summary(step: str):
+        # BFF 占位：真实枚举应由策略引擎接入后写入 result_summary。
         if step == StrategyWorkbenchService.STEP_ENUM:
             return {
-                "opportunities": 0,
-                "totalStocks": 0,
-                "triggerStocks": 0,
-                "completedCount": 0,
-                "unfinishedCount": 0,
-                "completionRate": 0.0,
+                "opportunities": 128,
+                "totalStocks": 42,
+                "triggerStocks": 36,
+                "completedCount": 120,
+                "unfinishedCount": 8,
+                "completionRate": 93.75,
             }
         if step == StrategyWorkbenchService.STEP_PRICE:
             return {
@@ -158,19 +181,19 @@ class StrategyWorkbenchService:
         available_tabs = []
         for report_type in requested_types:
             if report_type == StrategyWorkbenchService.STEP_ENUM:
-                opportunities = int((enum_result or {}).get("opportunities") or 0)
-                payload = (
-                    {
+                # 枚举步骤完成后即应有报告占位（含 opportunities=0），不因「无数」而隐藏 Tab。
+                if not isinstance(enum_result, dict):
+                    payload = None
+                else:
+                    opportunities = int(enum_result.get("opportunities") or 0)
+                    payload = {
                         "opportunities": opportunities,
-                        "totalStocks": int((enum_result or {}).get("totalStocks") or 0),
-                        "triggerStocks": int((enum_result or {}).get("triggerStocks") or 0),
-                        "completedCount": int((enum_result or {}).get("completedCount") or 0),
-                        "unfinishedCount": int((enum_result or {}).get("unfinishedCount") or 0),
-                        "completionRate": float((enum_result or {}).get("completionRate") or 0.0),
+                        "totalStocks": int(enum_result.get("totalStocks") or 0),
+                        "triggerStocks": int(enum_result.get("triggerStocks") or 0),
+                        "completedCount": int(enum_result.get("completedCount") or 0),
+                        "unfinishedCount": int(enum_result.get("unfinishedCount") or 0),
+                        "completionRate": float(enum_result.get("completionRate") or 0.0),
                     }
-                    if opportunities > 0
-                    else None
-                )
             elif report_type == StrategyWorkbenchService.STEP_PRICE:
                 if price_result:
                     payload = {
@@ -350,6 +373,41 @@ class StrategyWorkbenchService:
             return ""
 
     @staticmethod
+    def _stable_json_hash(value: Any) -> str:
+        try:
+            canonical = json.dumps(
+                value if value is not None else {},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        except Exception:
+            canonical = "{}"
+        import hashlib
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _runtime_to_api_settings_fallback(runtime_settings):
+        """Lightweight fallback when heavy settings imports are temporarily locked."""
+        if not isinstance(runtime_settings, dict):
+            return {}
+        api_settings = dict(runtime_settings)
+        meta_from_runtime = {
+            "name": runtime_settings.get("name", ""),
+            "description": runtime_settings.get("description", ""),
+            "is_enabled": bool(runtime_settings.get("is_enabled", False)),
+        }
+        existing_meta = runtime_settings.get("meta")
+        if isinstance(existing_meta, dict):
+            meta_from_runtime.update({
+                "name": existing_meta.get("name", meta_from_runtime["name"]),
+                "description": existing_meta.get("description", meta_from_runtime["description"]),
+                "is_enabled": bool(existing_meta.get("is_enabled", meta_from_runtime["is_enabled"])),
+            })
+        api_settings["meta"] = meta_from_runtime
+        return api_settings
+
+    @staticmethod
     def _format_python_literal(value, level: int = 0) -> str:
         indent_unit = "    "
         current_indent = indent_unit * level
@@ -437,11 +495,581 @@ class StrategyWorkbenchService:
         pretty_output = self._build_settings_file_text(normalized_runtime_settings, pretty=True)
         atomic_write_text(settings_file, pretty_output)
 
-    def _run_chain_worker(self, strategy_name: str, run_id: str, resolved_chain: list):
-        cancel_event = None
-        with self._run_lock:
-            cancel_event = self._run_cancel_events.get(run_id)
+    @staticmethod
+    def _coerce_db_settings_snapshot(raw: Any):
+        """把表里读出的 settings_snapshot 规整为 dict；无效返回 None。"""
+        if raw is None:
+            return None
+        if isinstance(raw, dict):
+            return raw if raw else None
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return None
+            if isinstance(parsed, dict) and parsed:
+                return parsed
+            return None
+        return None
 
+    @staticmethod
+    def _coerce_db_result_summary(raw: Any):
+        """把表里读出的 result_summary 规整为 dict；无效返回空 dict。"""
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
+    def _fetch_api_settings_for_run(self, strategy_name: str, run_id: Optional[str] = None):
+        """
+        供枚举等运行时加载 settings（API 形状）。
+
+        规则（避免 UI 只写 DB、磁盘 settings.py 未同步导致指纹永远对齐物理文件）：
+        - 只要 sys_strategy_workbench_snapshot 里已有该策略的快照行：只用「最新版本」DB 快照，
+          **绝不**回退到 userspace/settings.py。
+        - 仅当从未有任何工作台快照时，才读磁盘 settings.py。
+        """
+        strategy_dir = PathManager.strategy(strategy_name)
+        settings_file = PathManager.strategy_settings(strategy_name)
+        if not strategy_dir.exists() or not strategy_dir.is_dir() or not settings_file.exists():
+            return None
+
+        if run_id:
+            status_payload = self._read_status(strategy_name) or {}
+            if str(status_payload.get("run_id") or "") == str(run_id):
+                run_snap = self._coerce_db_settings_snapshot(
+                    status_payload.get("run_settings_snapshot")
+                )
+                if run_snap:
+                    return self._canonicalize_api_settings(run_snap)
+
+        model = self._get_snapshot_model()
+        rows = model.list_by_strategy(strategy_name, limit=1)
+
+        if rows:
+            row = rows[0]
+            snap = self._coerce_db_settings_snapshot(row.get("settings_snapshot"))
+            v = int(row.get("version") or 0)
+            if snap:
+                return self._canonicalize_api_settings(snap)
+            logger.error(
+                "Workbench enum: 存在快照行但 settings_snapshot 无效或为空 | strategy=%s version=%s "
+                "（不会回退 userspace/settings.py；请在工作台重新保存配置）",
+                strategy_name,
+                v,
+            )
+            return None
+
+        runtime_settings = ConfigManager.load_python(settings_file, var_name="settings")
+        if not isinstance(runtime_settings, dict):
+            return None
+        api = self._runtime_to_api_settings(runtime_settings)
+        return api
+
+    @staticmethod
+    def _enum_summary_row_to_bff_payload(row: dict) -> dict:
+        if not isinstance(row, dict):
+            row = {}
+        return {
+            "opportunities": int(row.get("opportunities") or 0),
+            "totalStocks": int(row.get("totalStocks") or 0),
+            "triggerStocks": int(row.get("triggerStocks") or 0),
+            "completedCount": int(row.get("completedCount") or 0),
+            "unfinishedCount": int(row.get("unfinishedCount") or 0),
+            "completionRate": float(row.get("completionRate") or 0.0),
+        }
+
+    def _build_workbench_opportunity_enumerator_flow(
+        self,
+        strategy_name: str,
+        run_id: Optional[str],
+    ) -> Tuple[Any, Any, Optional[str]]:
+        """
+        构造与真实工作台枚举一致的 OpportunityEnumeratorFlow。
+        run_id 为空时不绑定进度文件（用于 reuse 预览）。
+        返回 (flow, strategy_info, error_message)。
+        """
+        raw_api = self._fetch_api_settings_for_run(strategy_name, run_id=run_id)
+        if not raw_api:
+            return None, None, "无法读取策略配置（目录或 settings 缺失）"
+
+        normalized_runtime_settings, detail = self._normalize_runtime_settings(
+            strategy_name,
+            raw_api,
+        )
+        if normalized_runtime_settings is None:
+            return None, None, detail or "settings 校验失败"
+
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+            StrategySettingsView,
+        )
+        from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
+        from core.modules.strategy.engines.simulator.enumerator import (
+            OpportunityEnumeratorFlow,
+            OpportunityEnumeratorSettings,
+        )
+        from core.modules.strategy.strategy_manager import StrategyManager
+        from core.utils.date.date_utils import DateUtils
+
+        settings_view = StrategySettingsView.from_dict(normalized_runtime_settings)
+        strategy_manager = StrategyManager(is_verbose=False)
+        strategy_info = strategy_manager.get_strategy_info(strategy_name)
+        if strategy_info is None:
+            return None, None, f"策略未被发现或无法加载: {strategy_name}"
+
+        enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
+        data_mgr = DataManager(is_verbose=False)
+        all_stocks = data_mgr.service.stock.list.load(filtered=True)
+        if enum_settings.use_sampling:
+            stock_list = StockSamplingHelper.get_stock_list(
+                all_stocks=all_stocks,
+                sampling_amount=settings_view.sampling_amount,
+                sampling_config=settings_view.sampling_config,
+                strategy_name=strategy_name,
+            )
+        else:
+            stock_list = [s["id"] for s in all_stocks]
+
+        latest_date = data_mgr.service.calendar.get_latest_completed_trading_date()
+        start_date = (settings_view.start_date or "").strip() or DateUtils.DEFAULT_START_DATE
+        end_date = (settings_view.end_date or "").strip() or latest_date
+
+        flow = OpportunityEnumeratorFlow(
+            start_date=start_date,
+            end_date=end_date,
+            stock_list=stock_list,
+            max_workers=enum_settings.max_workers,
+            base_settings=settings_view,
+            force_refresh=False,
+            workbench_strategy_name=strategy_name if run_id else None,
+            workbench_run_id=str(run_id) if run_id else None,
+        )
+        return flow, strategy_info, None
+
+    def _enumerator_fingerprint_for_row_snapshot(
+        self,
+        strategy_name: str,
+        flow_ref: Any,
+        strategy_info: Any,
+        api_snapshot: dict,
+    ) -> Any:
+        """
+        与 opportunity_enumerator_flow.preprocess 中指纹构造完全一致：
+        copy.deepcopy(base_settings.to_dict()) + build_request_fingerprint（同一 stock_list / 日期窗）。
+        返回 EnumeratorFingerprint，供完整 id 与 scope id 匹配。
+        """
+        from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+            StrategySettingsView,
+        )
+
+        normalized, _ = self._normalize_runtime_settings(strategy_name, api_snapshot)
+        if normalized is None:
+            return None
+        base_alt = StrategySettingsView.from_dict(normalized)
+        settings_for_fingerprint = copy.deepcopy(base_alt.to_dict())
+        worker_ref = flow_ref._impl.resolve_worker_blueprint(
+            strategy_name=strategy_name, strategy_info=strategy_info
+        )
+        return flow_ref._impl.build_request_fingerprint(
+            strategy_name=strategy_name,
+            settings_payload=settings_for_fingerprint,
+            stock_ids=flow_ref.stock_list,
+            worker_ref=worker_ref,
+        )
+
+    def _workbench_enum_preprocess(self, strategy_name: str, run_id: Optional[str]):
+        """
+        与工作台枚举 run 一致的 preprocess（指纹 + plan_reuse），供临时层命中判断与落库。
+        返回 (preprocessed, error_message)；成功时 error_message 为 None。
+        """
+        flow, strategy_info, err = self._build_workbench_opportunity_enumerator_flow(
+            strategy_name, run_id
+        )
+        if err:
+            return None, err
+        preprocessed = flow.preprocess(
+            strategy_name=strategy_name, strategy_info=strategy_info
+        )
+        return preprocessed, None
+
+    def _try_workbench_temp_snapshot_enum(
+        self, strategy_name: str, run_id: str
+    ) -> Optional[Tuple[dict, str, str]]:
+        """
+        临时层（sys_strategy_workbench_snapshot）：若任一历史版本存过相同 fingerprint 的枚举摘要，直接复用。
+        物理目录被 prune 时仍可命中；返回 (bff_enum_payload, fingerprint_id, scope_fingerprint_id)。
+
+        匹配顺序：
+        1) enum_meta.fingerprint_id 或 scope_fingerprint_id（不含日期，见 EnumeratorFingerprint）
+        2) 历史行按 build_request_fingerprint 重算，完整 id 或 scope id 与当前一致
+        """
+        from core.modules.strategy.engines.simulator.enumerator.data_classes.fingerprint import (
+            EnumeratorFingerprint,
+        )
+
+        preprocessed, err = self._workbench_enum_preprocess(strategy_name, run_id)
+        if err or not preprocessed or not preprocessed.request_fingerprint:
+            return None
+        req_fp = preprocessed.request_fingerprint
+        fp_id = str(req_fp.fingerprint_id or "")
+        if not fp_id:
+            return None
+        scope_id = EnumeratorFingerprint.compute_enumerator_scope_fingerprint_id(req_fp)
+        logger.warning(
+            "SWB enum temp-cache check: strategy=%s run_id=%s req_fp=%s req_scope_fp=%s",
+            strategy_name,
+            run_id,
+            fp_id,
+            scope_id,
+        )
+        flow_ref, strategy_info, ferr = self._build_workbench_opportunity_enumerator_flow(
+            strategy_name, run_id
+        )
+        if ferr or not flow_ref or not strategy_info:
+            return None
+        model = self._get_snapshot_model()
+        rows = model.list_by_strategy_enum_fingerprint(
+            strategy_name,
+            enum_fingerprint_id=fp_id,
+            enum_scope_fingerprint_id=scope_id,
+            limit=200,
+        )
+        from_fp_query = True
+        if not rows:
+            rows = model.list_by_strategy(strategy_name, limit=200)
+            from_fp_query = False
+        logger.warning(
+            "SWB enum temp-cache candidates: strategy=%s run_id=%s source=%s rows=%d",
+            strategy_name,
+            run_id,
+            "fingerprint_index" if from_fp_query else "full_scan",
+            len(rows or []),
+        )
+        no_result_summary = 0
+        no_enum_payload = 0
+        fp_mismatch = 0
+        for row in rows or []:
+            rs = self._coerce_db_result_summary(row.get("result_summary"))
+            if not rs:
+                no_result_summary += 1
+                continue
+            em = rs.get("enum_meta")
+            em = em if isinstance(em, dict) else {}
+            row_fp_col = str(row.get("enum_fingerprint_id") or "")
+            row_scope_col = str(row.get("enum_scope_fingerprint_id") or "")
+            id_ok = row_fp_col == fp_id or str(em.get("fingerprint_id") or "") == fp_id
+            scope_ok = (
+                row_scope_col == scope_id
+                or str(em.get("scope_fingerprint_id") or "") == scope_id
+            )
+            if not id_ok and not scope_ok:
+                fp_mismatch += 1
+                continue
+            en = rs.get("enum")
+            if not isinstance(en, dict):
+                no_enum_payload += 1
+                continue
+            if "opportunities" not in en and "totalStocks" not in en:
+                no_enum_payload += 1
+                continue
+            logger.warning(
+                "SWB enum temp-cache HIT(row): strategy=%s run_id=%s version=%s row_fp_col=%s row_scope_col=%s row_fp_meta=%s row_scope_meta=%s",
+                strategy_name,
+                run_id,
+                int(row.get("version") or 0),
+                row_fp_col,
+                row_scope_col,
+                str(em.get("fingerprint_id") or ""),
+                str(em.get("scope_fingerprint_id") or ""),
+            )
+            payload = self._enum_summary_row_to_bff_payload(en)
+            return payload, fp_id, scope_id
+        # Fingerprint-index query may return an empty-shell row (same fingerprint columns but
+        # no enum result_summary yet). In that case, fallback to full scan to find older usable rows.
+        if from_fp_query:
+            rows_full = model.list_by_strategy(strategy_name, limit=200)
+            if rows_full:
+                rows = rows_full
+                logger.warning(
+                    "SWB enum temp-cache fallback full-scan: strategy=%s run_id=%s rows=%d",
+                    strategy_name,
+                    run_id,
+                    len(rows or []),
+                )
+        recompute_mismatch = 0
+        recompute_no_enum = 0
+        for row in rows or []:
+            rs = self._coerce_db_result_summary(row.get("result_summary"))
+            if not rs:
+                continue
+            en = rs.get("enum")
+            if not isinstance(en, dict):
+                recompute_no_enum += 1
+                continue
+            if "opportunities" not in en and "totalStocks" not in en:
+                recompute_no_enum += 1
+                continue
+            snap = row.get("settings_snapshot")
+            if not isinstance(snap, dict):
+                continue
+            fp_row = self._enumerator_fingerprint_for_row_snapshot(
+                strategy_name, flow_ref, strategy_info, snap
+            )
+            if fp_row is None:
+                continue
+            row_fp = str(fp_row.fingerprint_id)
+            row_scope = EnumeratorFingerprint.compute_enumerator_scope_fingerprint_id(fp_row)
+            if row_fp != fp_id and row_scope != scope_id:
+                recompute_mismatch += 1
+                continue
+            logger.warning(
+                "SWB enum temp-cache HIT(recompute): strategy=%s run_id=%s version=%s row_fp=%s row_scope=%s",
+                strategy_name,
+                run_id,
+                int(row.get("version") or 0),
+                row_fp,
+                row_scope,
+            )
+            payload = self._enum_summary_row_to_bff_payload(en)
+            return payload, fp_id, scope_id
+        logger.warning(
+            "SWB enum temp-cache MISS: strategy=%s run_id=%s req_fp=%s req_scope_fp=%s no_result_summary=%d fp_mismatch=%d no_enum_payload=%d recompute_mismatch=%d recompute_no_enum=%d",
+            strategy_name,
+            run_id,
+            fp_id,
+            scope_id,
+            no_result_summary,
+            fp_mismatch,
+            no_enum_payload,
+            recompute_mismatch,
+            recompute_no_enum,
+        )
+        return None
+
+    def _write_enum_to_workbench_snapshot(
+        self,
+        strategy_name: str,
+        run_id: str,
+        enum_payload: dict,
+        fingerprint_id: str,
+        scope_fingerprint_id: str = "",
+    ) -> None:
+        """将本次枚举摘要写入当前 run 对应的快照版本行（含完整指纹与 scope 指纹，供临时层命中）。"""
+        try:
+            status_payload = self._read_status(strategy_name) or {}
+            if str(status_payload.get("run_id") or "") != str(run_id):
+                return
+            v = int(status_payload.get("workbench_snapshot_version") or 0)
+            if v <= 0 or not fingerprint_id:
+                run_snap = self._coerce_db_settings_snapshot(
+                    status_payload.get("run_settings_snapshot")
+                )
+                if not run_snap:
+                    return
+                model = self._get_snapshot_model()
+                # Merge-on-fingerprint: if an existing snapshot already has the same
+                # enum fingerprint (or scope fingerprint), reuse it instead of creating
+                # a duplicated version row.
+                matched_rows = model.list_by_strategy_enum_fingerprint(
+                    strategy_name,
+                    enum_fingerprint_id=fingerprint_id,
+                    enum_scope_fingerprint_id=scope_fingerprint_id or "",
+                    limit=1,
+                )
+                if matched_rows:
+                    mv = int((matched_rows[0] or {}).get("version") or 0)
+                    if mv > 0:
+                        rs0 = (matched_rows[0] or {}).get("result_summary")
+                        rs = dict(rs0) if isinstance(rs0, dict) else {}
+                        rs["enum"] = dict(enum_payload)
+                        rs["enum_meta"] = {
+                            "fingerprint_id": fingerprint_id,
+                            "scope_fingerprint_id": scope_fingerprint_id or "",
+                            "updated_at": self._now_iso(),
+                        }
+                        model.update_result_summary(
+                            strategy_name,
+                            mv,
+                            rs,
+                            enum_fingerprint_id=fingerprint_id,
+                            enum_scope_fingerprint_id=scope_fingerprint_id or "",
+                        )
+                        status_payload["workbench_snapshot_version"] = mv
+                        status_payload["updated_at"] = self._now_iso()
+                        self._write_status(strategy_name, status_payload)
+                        return
+                created = model.create_version(
+                    strategy_name=strategy_name,
+                    settings_snapshot=self._canonicalize_api_settings(run_snap),
+                    result_summary={
+                        "enum": dict(enum_payload),
+                        "enum_meta": {
+                            "fingerprint_id": fingerprint_id,
+                            "scope_fingerprint_id": scope_fingerprint_id or "",
+                            "updated_at": self._now_iso(),
+                        },
+                    },
+                    enum_fingerprint_id=fingerprint_id,
+                    enum_scope_fingerprint_id=scope_fingerprint_id or "",
+                )
+                new_v = int(created.get("version") or 0)
+                if new_v > 0:
+                    status_payload["workbench_snapshot_version"] = new_v
+                    status_payload["updated_at"] = self._now_iso()
+                    self._write_status(strategy_name, status_payload)
+                return
+            model = self._get_snapshot_model()
+            current = model.load_by_strategy_version(strategy_name, v)
+            if not current:
+                return
+            rs0 = current.get("result_summary")
+            rs: Dict[str, Any] = dict(rs0) if isinstance(rs0, dict) else {}
+            rs["enum"] = dict(enum_payload)
+            rs["enum_meta"] = {
+                "fingerprint_id": fingerprint_id,
+                "scope_fingerprint_id": scope_fingerprint_id or "",
+                "updated_at": self._now_iso(),
+            }
+            model.update_result_summary(
+                strategy_name,
+                v,
+                rs,
+                enum_fingerprint_id=fingerprint_id,
+                enum_scope_fingerprint_id=scope_fingerprint_id or "",
+            )
+        except Exception:
+            logger.exception(
+                "写入工作台枚举快照失败: strategy_name=%s run_id=%s",
+                strategy_name,
+                run_id,
+            )
+
+    def _execute_opportunity_enumeration(self, strategy_name: str, run_id: str):
+        """
+        调用核心 OpportunityEnumeratorFlow（含 fingerprint 复用缓存）。
+        返回 (summary_payload, error_message)；成功时 error_message 为 None。
+        """
+        try:
+            flow, strategy_info, err = self._build_workbench_opportunity_enumerator_flow(
+                strategy_name, run_id
+            )
+            if err:
+                return None, err
+
+            summary_results = flow.run(
+                strategy_name=strategy_name,
+                strategy_info=strategy_info,
+            )
+            if not summary_results or not isinstance(summary_results, list):
+                return None, "枚举完成但未返回摘要"
+            first = summary_results[0]
+            if not isinstance(first, dict):
+                return None, "枚举摘要格式无效"
+            payload = self._enum_summary_row_to_bff_payload(first)
+            return payload, None
+        except Exception as exc:
+            logger.exception(
+                "策略工作台枚举失败: strategy_name=%s",
+                strategy_name,
+            )
+            return None, str(exc)
+
+    def get_enumerator_reuse_preview(self, strategy_name: str):
+        """
+        仅做 preprocess / plan_reuse，不跑子进程枚举。
+        若将 REUSE_FULL，则根据磁盘 0_metadata 返回与 build_reuse_summary 一致的 enum 摘要，供前端先展示再决定是否跑任务。
+        """
+        try:
+            if not self._validate_strategy_exists(strategy_name):
+                return error(f"策略不存在: {strategy_name}", 404)
+
+            from core.modules.strategy.enums import ReuseAction
+
+            flow, strategy_info, err = self._build_workbench_opportunity_enumerator_flow(
+                strategy_name, None
+            )
+            if err:
+                return error(err, 422)
+
+            preprocessed = flow.preprocess(
+                strategy_name=strategy_name, strategy_info=strategy_info
+            )
+            req_fp = preprocessed.request_fingerprint
+            out: dict = {
+                "fingerprint_id": str(req_fp.fingerprint_id) if req_fp else "",
+                "reuse_action": preprocessed.reuse_action.value,
+                "would_reuse_full": preprocessed.reuse_action == ReuseAction.REUSE_FULL,
+                "not_reused_because": preprocessed.not_reused_because.value,
+            }
+
+            if preprocessed.reuse_action == ReuseAction.REUSE_FULL:
+                if preprocessed.reuse_version_dir:
+                    summaries = flow._impl.build_reuse_summary(
+                        strategy_name=strategy_name,
+                        version_dir=preprocessed.reuse_version_dir,
+                        reuse_action=ReuseAction.REUSE_FULL,
+                        not_reused_because=preprocessed.not_reused_because,
+                    )
+                    if summaries and isinstance(summaries[0], dict):
+                        out["enum_result_preview"] = self._enum_summary_row_to_bff_payload(
+                            summaries[0]
+                        )
+                    out["cached_version_dir"] = str(preprocessed.reuse_version_dir)
+            elif preprocessed.reuse_action == ReuseAction.RUN_DIFF_STOCKS:
+                out["cached_version_dir"] = (
+                    str(preprocessed.reuse_version_dir)
+                    if preprocessed.reuse_version_dir
+                    else ""
+                )
+                missing = preprocessed.missing_stock_ids or []
+                out["missing_stock_count"] = len(missing)
+                out["missing_stock_ids_sample"] = missing[:50]
+
+            return ok(out)
+        except Exception as e:
+            logger.exception("枚举复用预览失败: strategy_name=%s", strategy_name)
+            return error(f"枚举复用预览失败: {str(e)}", 500)
+
+    def _fail_run_step(
+        self,
+        strategy_name: str,
+        run_id: str,
+        failed_step: str,
+        message: str,
+    ) -> None:
+        status_payload = self._read_status(strategy_name) or {}
+        if str(status_payload.get("run_id") or "") != run_id:
+            return
+        step_status = (
+            status_payload.get("step_status")
+            if isinstance(status_payload.get("step_status"), dict)
+            else {}
+        )
+        step_status = dict(step_status)
+        step_status[failed_step] = self.STEP_STATUS_FAILED
+        status_payload.update({
+            "state": self.RUN_STATE_FAILED,
+            "step_status": step_status,
+            "running_step": "",
+            "progress_pct": 0,
+            "error_detail": message,
+            "updated_at": self._now_iso(),
+        })
+        self._write_status(strategy_name, status_payload)
+
+    def _run_chain_worker(
+        self,
+        strategy_name: str,
+        run_id: str,
+        resolved_chain: list,
+        cancel_event,
+    ) -> None:
         if cancel_event is None:
             return
 
@@ -474,6 +1102,100 @@ class StrategyWorkbenchService:
                 "updated_at": self._now_iso(),
             })
             self._write_status(strategy_name, status_payload)
+
+            if step == self.STEP_ENUM:
+                if cancel_event.is_set():
+                    step_status = status_payload.get("step_status") or {}
+                    if isinstance(step_status, dict):
+                        step_status[step] = self.STEP_STATUS_CANCELLED
+                    status_payload.update({
+                        "state": self.RUN_STATE_CANCELLED,
+                        "step_status": step_status,
+                        "running_step": "",
+                        "updated_at": self._now_iso(),
+                    })
+                    self._write_status(strategy_name, status_payload)
+                    return
+
+                try:
+                    # 1) 临时层（DB 快照，按 fingerprint）→ 2) 否则物理缓存/运算在 flow.run 内
+                    temp_hit = self._try_workbench_temp_snapshot_enum(strategy_name, run_id)
+                    if temp_hit is not None:
+                        enum_payload, enum_fp, scope_fp = temp_hit
+                        self._write_enum_to_workbench_snapshot(
+                            strategy_name,
+                            run_id,
+                            enum_payload,
+                            enum_fp,
+                            scope_fingerprint_id=scope_fp,
+                        )
+                        enum_err = None
+                    else:
+                        enum_payload, enum_err = self._execute_opportunity_enumeration(
+                            strategy_name, run_id
+                        )
+                        if not enum_err:
+                            pp, perr = self._workbench_enum_preprocess(strategy_name, run_id)
+                            if (
+                                not perr
+                                and pp
+                                and pp.request_fingerprint
+                            ):
+                                from core.modules.strategy.engines.simulator.enumerator.data_classes.fingerprint import (
+                                    EnumeratorFingerprint,
+                                )
+
+                                scope_fp = EnumeratorFingerprint.compute_enumerator_scope_fingerprint_id(
+                                    pp.request_fingerprint
+                                )
+                                self._write_enum_to_workbench_snapshot(
+                                    strategy_name,
+                                    run_id,
+                                    enum_payload,
+                                    str(pp.request_fingerprint.fingerprint_id),
+                                    scope_fingerprint_id=scope_fp,
+                                )
+
+                    status_payload = self._read_status(strategy_name) or {}
+                    if str(status_payload.get("run_id") or "") != run_id:
+                        return
+                    if enum_err:
+                        self._fail_run_step(strategy_name, run_id, step, enum_err)
+                        return
+                    if cancel_event.is_set():
+                        step_status = status_payload.get("step_status") or {}
+                        if isinstance(step_status, dict):
+                            step_status[step] = self.STEP_STATUS_CANCELLED
+                        status_payload.update({
+                            "state": self.RUN_STATE_CANCELLED,
+                            "step_status": step_status,
+                            "running_step": "",
+                            "updated_at": self._now_iso(),
+                        })
+                        self._write_status(strategy_name, status_payload)
+                        return
+
+                    step_status = status_payload.get("step_status") or {}
+                    if isinstance(step_status, dict):
+                        step_status[step] = self.STEP_STATUS_DONE
+                    result = status_payload.get("result_summary")
+                    if not isinstance(result, dict):
+                        result = {}
+                    result[step] = enum_payload
+                    status_payload["step_status"] = step_status
+                    status_payload["result_summary"] = result
+                    status_payload["progress_pct"] = 100
+                    status_payload["running_step"] = step
+                    status_payload["updated_at"] = self._now_iso()
+                    self._write_status(strategy_name, status_payload)
+                    continue
+                finally:
+                    try:
+                        ProgressRecorder.for_strategy_run_step(
+                            strategy_name, run_id, self.STEP_ENUM
+                        ).reset()
+                    except Exception:
+                        pass
 
             for pct in (20, 40, 60, 80, 100):
                 if cancel_event.is_set():
@@ -539,21 +1261,11 @@ class StrategyWorkbenchService:
 
     def get_strategy_settings_options_allocation_modes(self):
         try:
-            from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
-                _VALID_MODES,
-            )
-
-            ordered = (
-                ("equal_capital", "每个机会均等资金买入"),
-                ("equal_shares", "每个机会均等股数买入"),
-                ("kelly", "凯莉公式"),
-                ("custom", "自定义"),
-            )
-            options = [{"value": v, "label": lbl} for v, lbl in ordered if v in _VALID_MODES]
-            missing = _VALID_MODES - {o["value"] for o in options}
-            if missing:
-                for v in sorted(missing):
-                    options.append({"value": v, "label": v})
+            # 该 API 仅返回前端下拉选项，不依赖 capital_allocation settings 导入链，避免循环导入。
+            options = [
+                {"value": value, "label": label}
+                for value, label in self._allocation_mode_options
+            ]
 
             profiles = {
                 "equal_capital": {
@@ -594,23 +1306,11 @@ class StrategyWorkbenchService:
 
     def get_strategy_settings_options_sampling_strategies(self):
         try:
-            from core.modules.strategy.engines.shared.data_classes.strategy_settings.sampling_settings import (
-                KNOWN_STRATEGIES,
-            )
-
-            ordered = (
-                ("continuous", "连续采样（默认）"),
-                ("uniform", "均匀采样"),
-                ("stratified", "分层采样"),
-                ("random", "随机采样"),
-                ("pool", "指定股票池采样"),
-                ("blacklist", "排除黑名单采样"),
-            )
-            options = [{"value": v, "label": lbl} for v, lbl in ordered if v in KNOWN_STRATEGIES]
-            missing = KNOWN_STRATEGIES - {o["value"] for o in options}
-            if missing:
-                for v in sorted(missing):
-                    options.append({"value": v, "label": v})
+            # 该 API 仅返回前端下拉选项，不依赖 settings 模块导入链，避免运行时循环导入死锁。
+            options = [
+                {"value": value, "label": label}
+                for value, label in self._sampling_strategy_options
+            ]
 
             profiles = {
                 "continuous": {
@@ -651,34 +1351,50 @@ class StrategyWorkbenchService:
             return error(f"获取采样策略选项失败: {str(e)}", 500)
 
     def _runtime_to_api_settings(self, runtime_settings):
+        """
+        Canonicalize runtime settings via StrategySettings dataclass.
+        API shape equals validated runtime shape (single source of truth).
+        """
         if not isinstance(runtime_settings, dict):
             return {}
-        api_settings = dict(runtime_settings)
-        meta_from_runtime = {
-            "name": runtime_settings.get("name", ""),
-            "description": runtime_settings.get("description", ""),
-            "is_enabled": bool(runtime_settings.get("is_enabled", False)),
-        }
-        existing_meta = runtime_settings.get("meta")
-        if isinstance(existing_meta, dict):
-            meta_from_runtime.update({
-                "name": existing_meta.get("name", meta_from_runtime["name"]),
-                "description": existing_meta.get("description", meta_from_runtime["description"]),
-                "is_enabled": bool(existing_meta.get("is_enabled", meta_from_runtime["is_enabled"])),
-            })
-        api_settings["meta"] = meta_from_runtime
-        return api_settings
+        try:
+            from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
+                StrategySettings,
+            )
+            validated = StrategySettings(raw_settings=dict(runtime_settings))
+            report = validated.validate()
+            if not report.is_usable():
+                return {}
+            return validated.to_dict()
+        except Exception:
+            logger.exception(
+                "runtime->api settings canonicalization failed; fallback formatter used"
+            )
+            return self._runtime_to_api_settings_fallback(runtime_settings)
 
     def _api_to_runtime_settings(self, api_settings):
         if not isinstance(api_settings, dict):
             return {}
         runtime = dict(api_settings)
-        meta = runtime.get("meta")
+        # Backward compatibility: old API payloads may still carry meta block.
+        meta = runtime.pop("meta", None)
         if isinstance(meta, dict):
             runtime["name"] = meta.get("name", runtime.get("name", ""))
             runtime["description"] = meta.get("description", runtime.get("description", ""))
             runtime["is_enabled"] = bool(meta.get("is_enabled", runtime.get("is_enabled", False)))
         return runtime
+
+    def _canonicalize_api_settings(self, api_settings):
+        """
+        Normalize any API settings payload to canonical validated shape using StrategySettings.
+        """
+        runtime = self._api_to_runtime_settings(api_settings)
+        return self._runtime_to_api_settings(runtime)
+
+    def _get_latest_workbench_snapshot_row(self, strategy_name: str):
+        model = self._get_snapshot_model()
+        rows = model.list_by_strategy(strategy_name, limit=1)
+        return rows[0] if rows else None
 
     def get_strategy_settings(self, strategy_name: str):
         try:
@@ -689,6 +1405,18 @@ class StrategyWorkbenchService:
             if not settings_file.exists():
                 return error(f"策略缺少 settings.py: {strategy_name}", 404)
 
+            row = self._get_latest_workbench_snapshot_row(strategy_name)
+            if row:
+                settings_snapshot = row.get("settings_snapshot")
+                if isinstance(settings_snapshot, dict) and settings_snapshot:
+                    v = int(row.get("version") or 0)
+                    return ok({
+                        "strategy_name": strategy_name,
+                        "settings": self._canonicalize_api_settings(settings_snapshot),
+                        "settings_source": "workbench_snapshot",
+                        "workbench_version_id": self._format_version_id(v) if v > 0 else "",
+                    })
+
             runtime_settings = ConfigManager.load_python(settings_file, var_name="settings")
             if not isinstance(runtime_settings, dict):
                 return error(f"策略 settings 无效: {strategy_name}", 500)
@@ -696,11 +1424,65 @@ class StrategyWorkbenchService:
             return ok({
                 "strategy_name": strategy_name,
                 "settings": self._runtime_to_api_settings(runtime_settings),
+                "settings_source": "userspace",
+                "workbench_version_id": "",
             })
         except Exception as e:
             return error(f"读取策略 settings 失败: {str(e)}", 500)
 
     def save_strategy_settings(self, strategy_name: str, payload: dict):
+        """Persist workbench draft as a new row in sys_strategy_workbench_snapshot (never writes userspace)."""
+        try:
+            if not isinstance(payload, dict):
+                return error("请求体必须为对象", 400)
+            settings = payload.get("settings")
+            if not self._validate_strategy_exists(strategy_name):
+                return error(f"策略不存在: {strategy_name}", 404)
+
+            normalized_runtime_settings, detail = self._normalize_runtime_settings(strategy_name, settings)
+            if normalized_runtime_settings is None:
+                return error(detail, 422)
+
+            api_settings = self._runtime_to_api_settings(normalized_runtime_settings)
+            model = self._get_snapshot_model()
+            # Deduplicate identical snapshots: same canonical settings should reuse existing row
+            # instead of creating a new version.
+            target_hash = self._stable_json_hash(api_settings)
+            rows = model.list_by_strategy(strategy_name, limit=200)
+            for row in rows or []:
+                snap = self._coerce_db_settings_snapshot(row.get("settings_snapshot"))
+                if not isinstance(snap, dict):
+                    continue
+                if self._stable_json_hash(snap) != target_hash:
+                    continue
+                existing_v = int(row.get("version") or 0)
+                if existing_v > 0:
+                    return ok({
+                        "strategy_name": strategy_name,
+                        "saved": True,
+                        "merged": True,
+                        "version_id": self._format_version_id(existing_v),
+                    })
+            created = model.create_version(
+                strategy_name=strategy_name,
+                settings_snapshot=api_settings,
+                result_summary={},
+            )
+            version = int(created.get("version") or 0)
+            if version <= 0:
+                return error("写入工作台快照失败", 500)
+
+            return ok({
+                "strategy_name": strategy_name,
+                "saved": True,
+                "merged": False,
+                "version_id": self._format_version_id(version),
+            })
+        except Exception as e:
+            return error(f"保存策略 settings 失败: {str(e)}", 500)
+
+    def apply_strategy_settings_to_userspace(self, strategy_name: str, payload: dict):
+        """Write validated settings to userspace strategy settings.py (explicit deploy only)."""
         try:
             if not isinstance(payload, dict):
                 return error("请求体必须为对象", 400)
@@ -716,10 +1498,10 @@ class StrategyWorkbenchService:
 
             return ok({
                 "strategy_name": strategy_name,
-                "saved": True,
+                "applied": True,
             })
         except Exception as e:
-            return error(f"保存策略 settings 失败: {str(e)}", 500)
+            return error(f"应用 settings 到策略目录失败: {str(e)}", 500)
 
     def start_strategy_run(self, strategy_name: str, payload: dict):
         try:
@@ -758,6 +1540,20 @@ class StrategyWorkbenchService:
                 step_status[self.STEP_CAPITAL] = self.STEP_STATUS_RUNNING
 
             run_id = self._build_run_id()
+            run_api_settings = None
+            if "settings" in body:
+                normalized_runtime_settings, detail = self._normalize_runtime_settings(
+                    strategy_name,
+                    body.get("settings"),
+                )
+                if normalized_runtime_settings is None:
+                    return error(detail or "settings 校验失败", 422)
+                run_api_settings = self._runtime_to_api_settings(normalized_runtime_settings)
+            row = self._get_latest_workbench_snapshot_row(strategy_name)
+            wb_snapshot_v = int(row.get("version") or 0) if row else 0
+            if run_api_settings is not None:
+                # For run-scoped settings, only persist to DB on successful enum completion.
+                wb_snapshot_v = 0
             status_payload = {
                 "run_id": run_id,
                 "strategy_name": strategy_name,
@@ -768,18 +1564,24 @@ class StrategyWorkbenchService:
                 "progress_pct": 0,
                 "step_status": step_status,
                 "result_summary": {},
+                "workbench_snapshot_version": wb_snapshot_v,
+                "run_settings_snapshot": run_api_settings,
                 "updated_at": self._now_iso(),
             }
             self._write_status(strategy_name, status_payload)
 
+            cancel_ev = mp.Event()
             with self._run_lock:
-                self._run_cancel_events[run_id] = threading.Event()
-                worker = threading.Thread(
-                    target=self._run_chain_worker,
-                    args=(strategy_name, run_id, resolved_chain),
-                    daemon=True,
+                self._run_cancel_events[run_id] = cancel_ev
+                # daemon processes cannot spawn worker processes (enumerator uses ProcessPoolExecutor).
+                proc = mp.Process(
+                    target=_strategy_workbench_run_chain_entry,
+                    args=(strategy_name, run_id, resolved_chain, cancel_ev),
+                    daemon=False,
+                    name=f"swb_run_{run_id}",
                 )
-                worker.start()
+                proc.start()
+                self._run_processes[run_id] = proc
 
             return ok({
                 "run_id": run_id,
@@ -807,15 +1609,37 @@ class StrategyWorkbenchService:
                     self.STEP_CAPITAL: self.STEP_STATUS_IDLE,
                 }
 
-            return ok({
+            progress_pct = int(status_payload.get("progress_pct") or 0)
+            out: dict = {
                 "run_id": run_id,
                 "state": status_payload.get("state", self.RUN_STATE_RUNNING),
                 "running_step": status_payload.get("running_step", ""),
-                "progress_pct": int(status_payload.get("progress_pct") or 0),
+                "progress_pct": progress_pct,
                 "step_status": step_status,
                 "result_summary": status_payload.get("result_summary") or {},
                 "updated_at": status_payload.get("updated_at", self._now_iso()),
-            })
+            }
+            if str(status_payload.get("running_step") or "") == self.STEP_ENUM:
+                ep = ProgressRecorder.for_strategy_run_step(
+                    strategy_name, run_id, self.STEP_ENUM
+                ).get_progress()
+                if ep:
+                    out["progress_pct"] = int(ep.get("progress_pct") or progress_pct)
+                    out["enumerator_progress"] = ep
+
+            state = str(status_payload.get("state") or "")
+            if state in {
+                self.RUN_STATE_DONE,
+                self.RUN_STATE_FAILED,
+                self.RUN_STATE_CANCELLED,
+            }:
+                with self._run_lock:
+                    self._run_cancel_events.pop(str(run_id), None)
+                    proc = self._run_processes.pop(str(run_id), None)
+                if proc is not None:
+                    proc.join(timeout=1.0)
+
+            return ok(out)
         except Exception as e:
             return error(f"读取执行状态失败: {str(e)}", 500)
 
@@ -1093,14 +1917,19 @@ class StrategyWorkbenchService:
                 return error(f"版本不存在: {version_id}", 404)
 
             settings_snapshot = row.get("settings_snapshot") or {}
+            result_summary = row.get("result_summary")
+            if not isinstance(result_summary, dict):
+                result_summary = {}
             return ok({
                 "version_id": self._format_version_id(v),
                 "settings": settings_snapshot,
+                "result_summary": result_summary,
             })
         except Exception as e:
             return error(f"读取版本详情失败: {str(e)}", 500)
 
     def restore_strategy_version(self, strategy_name: str, version_id: str):
+        """Clone the chosen snapshot to a new latest workbench version (does not touch userspace)."""
         try:
             if not self._validate_strategy_exists(strategy_name):
                 return error(f"策略不存在: {strategy_name}", 404)
@@ -1120,12 +1949,21 @@ class StrategyWorkbenchService:
             )
             if normalized_runtime_settings is None:
                 return error(detail, 422)
-            self._save_runtime_settings_file(strategy_name, normalized_runtime_settings)
+            api_settings = self._runtime_to_api_settings(normalized_runtime_settings)
+            created = model.create_version(
+                strategy_name=strategy_name,
+                settings_snapshot=api_settings,
+                result_summary={},
+            )
+            new_v = int(created.get("version") or 0)
+            if new_v <= 0:
+                return error("恢复工作台版本失败", 500)
 
             return ok({
                 "restored": True,
                 "strategy_name": strategy_name,
-                "version_id": self._format_version_id(v),
+                "version_id": self._format_version_id(new_v),
+                "restored_from_version_id": self._format_version_id(v),
             })
         except Exception as e:
             return error(f"恢复版本失败: {str(e)}", 500)
@@ -1159,3 +1997,14 @@ class StrategyWorkbenchService:
             })
         except Exception as e:
             return error(f"固化版本失败: {str(e)}", 500)
+
+
+def _strategy_workbench_run_chain_entry(
+    strategy_name: str,
+    run_id: str,
+    resolved_chain: list,
+    cancel_event,
+) -> None:
+    """Run the workbench chain in a dedicated child process (main thread); avoids BFF worker threads."""
+    service = StrategyWorkbenchService()
+    service._run_chain_worker(strategy_name, run_id, resolved_chain, cancel_event)

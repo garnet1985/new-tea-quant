@@ -9,7 +9,7 @@ export function normalizeMeta(rawMeta) {
 const strategyMetaSchema = {
   name: 'strategyMeta',
   label: '策略基本信息',
-  description: '启用状态与全局模拟窗口',
+  description: '启用状态与基础数据约束',
   type: 'section',
   defaultExpanded: true,
   children: [
@@ -18,31 +18,6 @@ const strategyMetaSchema = {
       label: '是否启用策略',
       description: '控制策略启用状态',
       type: 'switch',
-    },
-    {
-      name: 'meta.simulationWindow',
-      label: '模拟时间段',
-      description: '同一时间段会同步到价格回测和资金模拟',
-      type: 'columns',
-      columns: 1,
-      children: [
-        {
-          name: 'meta.simulationDateRange',
-          label: '模拟时间段',
-          description: '结束日期不能早于开始日期',
-          type: 'dateRange',
-          startName: 'price_simulator.start_date',
-          endName: 'price_simulator.end_date',
-          startLabel: 'From',
-          endLabel: 'To',
-          syncTargets: [
-            {
-              startName: 'capital_simulator.start_date',
-              endName: 'capital_simulator.end_date',
-            },
-          ],
-        },
-      ],
     },
     {
       name: 'data.min_required_records',

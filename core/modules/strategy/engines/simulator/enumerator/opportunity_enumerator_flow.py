@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.engines.simulator.enumerator.opportunity_enumerator_flow_impl import (
@@ -33,6 +34,8 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         max_workers: Union[str, int],
         base_settings: Optional[StrategySettingsView],
         force_refresh: bool = False,
+        workbench_strategy_name: Optional[str] = None,
+        workbench_run_id: Optional[str] = None,
     ) -> None:
         self.start_date = start_date
         self.end_date = end_date
@@ -47,6 +50,8 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             max_workers=max_workers,
             base_settings=base_settings,
             force_refresh=force_refresh,
+            workbench_strategy_name=workbench_strategy_name,
+            workbench_run_id=workbench_run_id,
         )
 
     def preprocess(
@@ -55,8 +60,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"],
     ) -> EnumeratorPreprocessContext:
-        # step1: resolve runtime workers and load settings
-        resolved_workers = self._impl.resolve_runtime_workers()
+        # step1: load settings (do not resolve worker pool until we know reuse won't skip run_jobs)
         base_settings = self._impl.load_settings(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
@@ -66,9 +70,12 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         )
         enum_settings = self._impl.parse_enum_settings(base_settings)
         settings_payload = enum_settings.to_dict()
+        # Fingerprint must reflect full saved strategy settings (e.g. meta.core / rsi params),
+        # not only the enumerator overlay dict.
+        settings_for_fingerprint = copy.deepcopy(base_settings.to_dict())
         request_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=strategy_name,
-            settings_payload=settings_payload,
+            settings_payload=settings_for_fingerprint,
             stock_ids=self.stock_list,
             worker_ref=worker_ref,
         )
@@ -88,6 +95,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 reuse_version_dir=reuse_plan["version_dir"],
                 request_fingerprint=request_fingerprint,
             )
+        resolved_workers = self._impl.resolve_runtime_workers()
         # step3: create output version and build stock jobs
         if reuse_plan["action"] == ReuseAction.RUN_DIFF_STOCKS:
             version_info = self._impl.version_info_from_dir(reuse_plan["version_dir"])
@@ -109,7 +117,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         )
         result_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=strategy_name,
-            settings_payload=settings_payload,
+            settings_payload=settings_for_fingerprint,
             stock_ids=target_stocks,
             worker_ref=worker_ref,
         )
@@ -139,6 +147,25 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
 
     def execute(self, preprocessed: EnumeratorPreprocessContext) -> EnumeratorExecuteContext:
         if preprocessed.reuse_action == ReuseAction.REUSE_FULL:
+            if self._impl.workbench_strategy_name and self._impl.workbench_run_id:
+                from core.modules.strategy.services.progress import ProgressRecorder
+
+                recorder = ProgressRecorder.for_strategy_run_step(
+                    self._impl.workbench_strategy_name,
+                    self._impl.workbench_run_id,
+                    "enum",
+                )
+                recorder.record(
+                    {
+                        "strategy_name": self._impl.workbench_strategy_name,
+                        "run_id": self._impl.workbench_run_id,
+                        "step_name": "enum",
+                        "phase": "completed",
+                        "done_jobs": 1,
+                        "total_jobs": 1,
+                        "progress_pct": 100,
+                    }
+                )
             return EnumeratorExecuteContext(reused=True)
         # step1: run scheduled jobs with memory-aware batching
         job_results = self._impl.run_jobs(

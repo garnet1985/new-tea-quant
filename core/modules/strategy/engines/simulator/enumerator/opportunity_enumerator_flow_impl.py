@@ -8,7 +8,7 @@ import hashlib
 import importlib
 import inspect
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 import json
 import logging
 import time
@@ -47,6 +47,43 @@ if TYPE_CHECKING:
     )
 
 
+class WorkbenchEnumeratorProgressCallback:
+    """Pickle-safe ProcessWorker on_job_done hook (spawn multiprocessing cannot pickle nested functions)."""
+
+    __slots__ = ("strategy_name", "run_id")
+
+    def __init__(self, strategy_name: str, run_id: str) -> None:
+        self.strategy_name = strategy_name
+        self.run_id = run_id
+
+    def __call__(self, payload: Dict[str, Any]) -> None:
+        from core.modules.strategy.services.progress import ProgressRecorder
+
+        recorder = ProgressRecorder.for_strategy_run_step(
+            self.strategy_name, self.run_id, "enum"
+        )
+        total_jobs = int(payload.get("total_jobs") or 0)
+        done_jobs = (
+            int(payload.get("completed_jobs") or 0)
+            + int(payload.get("failed_jobs") or 0)
+            + int(payload.get("cancelled_jobs") or 0)
+        )
+        progress_pct = int(payload.get("progress_pct") or 0)
+        if total_jobs > 0:
+            progress_pct = min(100, max(0, progress_pct))
+        recorder.record(
+            {
+                "strategy_name": self.strategy_name,
+                "run_id": self.run_id,
+                "step_name": "enum",
+                "phase": "running",
+                "done_jobs": done_jobs,
+                "total_jobs": total_jobs,
+                "progress_pct": progress_pct,
+            }
+        )
+
+
 class OpportunityEnumeratorFlowImpl:
     def __init__(
         self,
@@ -57,6 +94,8 @@ class OpportunityEnumeratorFlowImpl:
         max_workers: Union[str, int],
         base_settings: Optional[StrategySettingsView],
         force_refresh: bool = False,
+        workbench_strategy_name: Optional[str] = None,
+        workbench_run_id: Optional[str] = None,
     ) -> None:
         self.start_date = start_date
         self.end_date = end_date
@@ -64,6 +103,8 @@ class OpportunityEnumeratorFlowImpl:
         self.max_workers = max_workers
         self.base_settings = base_settings
         self.force_refresh = force_refresh
+        self.workbench_strategy_name = workbench_strategy_name
+        self.workbench_run_id = workbench_run_id
 
     @staticmethod
     def build_force_rebuild_plan(
@@ -181,6 +222,7 @@ class OpportunityEnumeratorFlowImpl:
             if item.is_dir() and item.name and item.name[0].isdigit()
         ]
         versions.sort(key=lambda p: int(p.name), reverse=True)
+        miss_probe: Optional[Dict[str, Any]] = None
         for version_dir in versions:
             metadata_path = version_dir / "0_metadata.json"
             if not metadata_path.exists():
@@ -199,7 +241,52 @@ class OpportunityEnumeratorFlowImpl:
                 cached_fingerprint = EnumeratorFingerprint.from_dict(fingerprint_payload)
             except Exception:
                 continue
+            if miss_probe is None:
+                stock_subset = set(request_fingerprint.stock_ids).issubset(
+                    set(cached_fingerprint.stock_ids)
+                )
+                stock_missing = len(
+                    set(request_fingerprint.stock_ids) - set(cached_fingerprint.stock_ids)
+                )
+                miss_probe = {
+                    "version_dir": str(version_dir),
+                    "cached_fp": str(cached_fingerprint.fingerprint_id or ""),
+                    "settings_eq": cached_fingerprint.settings_core
+                    == request_fingerprint.settings_core,
+                    "worker_eq": (
+                        cached_fingerprint.worker_module_path
+                        == request_fingerprint.worker_module_path
+                        and cached_fingerprint.worker_class_name
+                        == request_fingerprint.worker_class_name
+                        and cached_fingerprint.worker_code_hash
+                        == request_fingerprint.worker_code_hash
+                    ),
+                    "dc_eq": cached_fingerprint.data_contract_signature
+                    == request_fingerprint.data_contract_signature,
+                    "date_cover": (
+                        cached_fingerprint.start_date <= request_fingerprint.start_date
+                        and cached_fingerprint.end_date >= request_fingerprint.end_date
+                    ),
+                    "stock_subset": stock_subset,
+                    "stock_missing": stock_missing,
+                    "req_date": (
+                        str(request_fingerprint.start_date),
+                        str(request_fingerprint.end_date),
+                    ),
+                    "cached_date": (
+                        str(cached_fingerprint.start_date),
+                        str(cached_fingerprint.end_date),
+                    ),
+                }
             if cached_fingerprint.is_contain(request_fingerprint):
+                logger.warning(
+                    "枚举器命中缓存 REUSE_FULL | strategy=%s version_dir=%s req_fp=%s "
+                    "cached_fp=%s",
+                    strategy_name,
+                    version_dir,
+                    request_fingerprint.fingerprint_id,
+                    cached_fingerprint.fingerprint_id,
+                )
                 return {
                     "action": ReuseAction.REUSE_FULL,
                     "not_reused_because": NotReusedBecause.NONE,
@@ -214,6 +301,14 @@ class OpportunityEnumeratorFlowImpl:
             ):
                 missing = cached_fingerprint.diff_stock_ids(request_fingerprint)
                 if missing and len(missing) < len(request_fingerprint.stock_ids):
+                    logger.warning(
+                        "枚举器命中部分缓存 RUN_DIFF_STOCKS | strategy=%s version_dir=%s "
+                        "missing_stocks=%d req_fp=%s",
+                        strategy_name,
+                        version_dir,
+                        len(missing),
+                        request_fingerprint.fingerprint_id,
+                    )
                     return {
                         "action": ReuseAction.RUN_DIFF_STOCKS,
                         "not_reused_because": NotReusedBecause.CACHE_PARTIAL_STOCK_COVERAGE,
@@ -358,12 +453,33 @@ class OpportunityEnumeratorFlowImpl:
             ProcessExecutionMode,
             ProcessExecutor,
         )
+        from core.modules.strategy.services.progress import ProgressRecorder
+
+        on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None
+        if self.workbench_strategy_name and self.workbench_run_id:
+            sn, rid = self.workbench_strategy_name, self.workbench_run_id
+            recorder = ProgressRecorder.for_strategy_run_step(sn, rid, "enum")
+            on_job_done = WorkbenchEnumeratorProgressCallback(sn, rid)
+            total_n = len(jobs)
+            if total_n > 0:
+                recorder.record(
+                    {
+                        "strategy_name": sn,
+                        "run_id": rid,
+                        "step_name": "enum",
+                        "phase": "running",
+                        "done_jobs": 0,
+                        "total_jobs": total_n,
+                        "progress_pct": 0,
+                    }
+                )
 
         # step1: create process executor and scheduler
         executor = ProcessExecutor(
             max_workers=max_workers,
             execution_mode=ProcessExecutionMode.QUEUE,
             job_executor=self._execute_single_job,
+            on_job_done=on_job_done,
             is_verbose=False,
         )
         scheduler = MemoryAwareScheduler(
@@ -582,6 +698,20 @@ class OpportunityEnumeratorFlowImpl:
         )
         EnumeratorOutputWriterService.write_metadata(
             output_dir=output_dir, metadata=metadata
+        )
+        scope_fingerprint_id = EnumeratorFingerprint.compute_enumerator_scope_fingerprint_id(
+            fingerprint
+        )
+        EnumeratorOutputWriterService.write_fingerprint(
+            output_dir=output_dir,
+            fingerprint_payload={
+                "fingerprint_id": str(fingerprint.fingerprint_id or ""),
+                "scope_fingerprint_id": str(scope_fingerprint_id or ""),
+                "strategy_name": strategy_name,
+                "version_id": int(version_id),
+                "version_dir": version_dir_name,
+                "created_at": metadata.get("created_at"),
+            },
         )
 
     def build_reuse_summary(

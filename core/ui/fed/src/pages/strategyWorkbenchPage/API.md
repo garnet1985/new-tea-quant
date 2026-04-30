@@ -113,13 +113,13 @@ React 路由组件、页面目录名：`strategyWorkbenchPage`、`StrategyWorkbe
 
 | UI 折叠块 | `settings` 键 | 枚举类 API |
 |-----------|----------------|------------|
-| 策略基本信息（含模拟窗口） | `meta`、`data`、`price_simulator` / `capital_simulator` 日期联动 | — |
+| 策略基本信息 | `meta`、`data` | — |
 | 策略核心设置 | `core` | — |
 | 策略目标设置 | `goal` | — |
 | 全局费用设置 | `fees` | — |
 | 机会枚举参数 | `enumerator` | — |
-| 价格回测参数 | `price_simulator` | — |
-| 资金模拟参数 | `capital_simulator`（Python 模块亦写作 capital_allocation 语义） | **SWB-02**（`allocation.mode`） |
+| 价格回测参数（含时间段） | `price_simulator` | — |
+| 资金模拟参数（含时间段） | `capital_simulator`（Python 模块亦写作 capital_allocation 语义） | **SWB-02**（`allocation.mode`） |
 | 采样配置 | `sampling` | **SWB-03**（`strategy`） |
 
 整包 settings 读写（SWB-04 / SWB-05）与选项/profile（SWB-02 / SWB-03）并行必需：前者给“当前值”，后者给“可选值与联动规则”。

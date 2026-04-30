@@ -114,6 +114,15 @@ class EnumeratorOutputWriterService:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     @staticmethod
+    def write_fingerprint(
+        *,
+        output_dir: Path,
+        fingerprint_payload: Dict[str, Any],
+    ) -> None:
+        with (output_dir / "0_fingerprint.json").open("w", encoding="utf-8") as f:
+            json.dump(fingerprint_payload, f, indent=2, ensure_ascii=False)
+
+    @staticmethod
     def build_metadata(
         *,
         strategy_name: str,

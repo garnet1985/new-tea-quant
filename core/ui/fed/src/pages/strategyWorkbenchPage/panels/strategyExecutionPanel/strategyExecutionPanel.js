@@ -22,7 +22,6 @@ import {
   cancelStrategyRun,
   fetchStrategyCompareOptions,
   fetchStrategyRunStatus,
-  saveStrategySettings,
   startStrategyRun,
 } from '../../../../api/apis/strategyApi';
 
@@ -297,9 +296,9 @@ function StrategyExecutionPanel({
       setProgress(Number(status?.progress_pct || 0));
       const summary = status?.result_summary || {};
       setResult((prev) => ({
-        enum: summary.enum ?? prev.enum,
-        price: summary.price ?? prev.price,
-        capital: summary.capital ?? prev.capital,
+        enum: Object.prototype.hasOwnProperty.call(summary, 'enum') ? summary.enum : prev.enum,
+        price: Object.prototype.hasOwnProperty.call(summary, 'price') ? summary.price : prev.price,
+        capital: Object.prototype.hasOwnProperty.call(summary, 'capital') ? summary.capital : prev.capital,
       }));
       if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {
         setActiveRunId('');
@@ -333,15 +332,18 @@ function StrategyExecutionPanel({
       setRunError('');
       const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
       if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
-      // 按约定：触发任一步执行前，先将当前工作台参数落到策略 settings。
-      await saveStrategySettings(strategyName, resolvedSettings);
-      const started = await startStrategyRun(strategyName, target);
+      const started = await startStrategyRun(strategyName, target, resolvedSettings);
       const runId = started?.run_id;
       if (!runId) throw new Error('启动执行失败：缺少 run_id');
       setActiveRunId(runId);
       setLatestRunId(runId);
       setRunningStep(started?.resolved_chain?.[0] || target);
       setProgress(0);
+      setResult({
+        enum: null,
+        price: null,
+        capital: null,
+      });
     } catch (err) {
       setRunError(err?.message || '启动执行失败');
     }

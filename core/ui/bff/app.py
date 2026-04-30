@@ -2,6 +2,11 @@
 BFF API 主应用
 """
 
+import warnings
+
+# 须在首次 import urllib3 之前注册（macOS 自带 Python + LibreSSL 会刷屏）
+warnings.filterwarnings("ignore", message=r".*urllib3 v2 only supports OpenSSL.*")
+
 from flask import Flask
 from flask_cors import CORS
 from .APIs.health import health_api_bp

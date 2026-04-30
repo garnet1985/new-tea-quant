@@ -58,7 +58,8 @@ export function StrategySettingsPanel({
   samplingStrategyOptions,
 }) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
-  const [metaEditorErrors, setMetaEditorErrors] = useState({});
+  const [priceEditorErrors, setPriceEditorErrors] = useState({});
+  const [capitalEditorErrors, setCapitalEditorErrors] = useState({});
   const capitalSimulatorSchema = useMemo(
     () => buildStrategyCapitalSimulatorSchema(allocationModeOptions),
     [allocationModeOptions],
@@ -75,17 +76,6 @@ export function StrategySettingsPanel({
           schema={strategyMetaSchema}
           value={settings}
           onChange={onSettingsChange}
-          errors={metaEditorErrors}
-          onValidate={(nextValue) => {
-            const start = nextValue?.price_simulator?.start_date || '';
-            const end = nextValue?.price_simulator?.end_date || '';
-            const errors = {};
-            if (start && end && end < start) {
-              errors['price_simulator.end_date'] = '结束日期不能早于开始日期';
-            }
-            return errors;
-          }}
-          onValidationChange={setMetaEditorErrors}
         />
         {shouldShowCore ? (
           <Editor
@@ -124,6 +114,17 @@ export function StrategySettingsPanel({
             schema={strategyPriceSimulatorSchema}
             value={settings?.price_simulator}
             onChange={onPriceSimulatorChange}
+            errors={priceEditorErrors}
+            onValidate={(nextValue) => {
+              const start = nextValue?.start_date || '';
+              const end = nextValue?.end_date || '';
+              const errors = {};
+              if (start && end && end < start) {
+                errors.end_date = '结束日期不能早于开始日期';
+              }
+              return errors;
+            }}
+            onValidationChange={setPriceEditorErrors}
           />
         </SectionAccordion>
         <SectionAccordion title="资金模拟参数">
@@ -131,6 +132,17 @@ export function StrategySettingsPanel({
             schema={capitalSimulatorSchema}
             value={settings?.capital_simulator}
             onChange={onCapitalSimulatorChange}
+            errors={capitalEditorErrors}
+            onValidate={(nextValue) => {
+              const start = nextValue?.start_date || '';
+              const end = nextValue?.end_date || '';
+              const errors = {};
+              if (start && end && end < start) {
+                errors.end_date = '结束日期不能早于开始日期';
+              }
+              return errors;
+            }}
+            onValidationChange={setCapitalEditorErrors}
           />
         </SectionAccordion>
         <SectionAccordion title="采样配置">

@@ -88,7 +88,7 @@
 ---
 
 ### 函数名
-`ProgressReportConfig(mode: ProgressReportMode = ProgressReportMode.NONE, interval_seconds: float = 2.0, interval_pct: int = 5, log_on_run_started: bool = True, log_on_run_finished: bool = True)`
+`ProgressReportConfig(mode: ProgressReportMode = ProgressReportMode.EVERY_PROGRESS_INTERVAL, interval_seconds: float = 2.0, interval_pct: int = 5, log_on_run_started: bool = False, log_on_run_finished: bool = True)`
 
 - 状态：`stable`
 - 描述：进度日志上报配置；用于控制何时打印进度日志。

@@ -2,63 +2,118 @@
 # Manual edits are allowed, but next save may reformat this file.
 
 settings = {
-    'core': {'rsi_oversold_threshold': 20},
-      'data': { 'base_required_data': {'params': {'term': 'daily'}},
-                'extra_required_data_sources': [],
-                'indicators': {'rsi': [{'period': 14}]},
-                'min_required_records': 30},
-      'goal': { 'expiration': {'fixed_window_in_days': 30, 'is_trading_days': True},
-                'stop_loss': { 'stages': [ { 'close_invest': True,
-                                             'name': 'loss10%',
-                                             'ratio': -0.1}]},
-                'take_profit': { 'stages': [ { 'name': 'win10%',
-                                               'ratio': 0.1,
-                                               'sell_ratio': 0.5},
-                                             { 'close_invest': True,
-                                               'name': 'win20%',
-                                               'ratio': 0.2}]}},
-      'sampling': {'sampling_amount': 2, 'strategy': 'continuous'},
-      'enumerator': { 'is_verbose': True,
-                      'max_batch_size': 'auto',
-                      'max_output_versions': 2,
-                      'max_test_versions': 3,
-                      'max_workers': 'auto',
-                      'memory_budget_mb': 'auto',
-                      'min_batch_size': 'auto',
-                      'monitor_interval': 5,
-                      'use_sampling': False,
-                      'warmup_batch_size': 'auto'},
-      'fees': { 'commission_rate': 0.00025,
-                'min_commission': 5,
-                'stamp_duty_rate': 0.001,
-                'transfer_fee_rate': 0},
-      'price_simulator': { 'base_version': 'latest',
-                           'end_date': '',
-                           'max_workers': 'auto',
-                           'start_date': '',
-                           'use_sampling': False},
-      'capital_simulator': { 'allocation': { 'kelly_fraction': 0.5,
-                                             'lot_size': 100,
-                                             'lots_per_trade': 1,
-                                             'max_portfolio_size': 10,
-                                             'max_weight_per_stock': 0.3,
-                                             'mode': 'equal_capital'},
-                             'base_version': 'latest',
-                             'end_date': '',
-                             'initial_capital': 1000000.0,
-                             'max_workers': 'auto',
-                             'output': {'save_equity_curve': True, 'save_trades': True},
-                             'start_date': '',
-                             'use_sampling': False},
-      'scanner': { 'adapters': ['console'],
-                   'max_cache_days': 10,
-                   'max_workers': 'auto',
-                   'use_strict_previous_trading_day': True,
-                   'watch_list': ''},
-      'meta': { 'name': 'example',
-                'description': 'Example RSI oversold strategy (minimal settings)',
-                'is_enabled': True},
-      'description': 'Example RSI oversold strategy (minimal settings)',
-      'is_enabled': True,
-      'name': 'example'
+    'core': {
+        'rsi_oversold_threshold': 20
+    },
+    'data': {
+        'base_required_data': {
+            'params': {
+                'term': 'daily'
+            }
+        },
+        'extra_required_data_sources': [],
+        'indicators': {
+            'rsi': [
+                {
+                    'period': 14
+                }
+            ]
+        },
+        'min_required_records': 30
+    },
+    'goal': {
+        'expiration': {
+            'fixed_window_in_days': 30,
+            'is_trading_days': True
+        },
+        'stop_loss': {
+            'stages': [
+                {
+                    'close_invest': True,
+                    'name': 'loss10%',
+                    'ratio': -0.1
+                }
+            ]
+        },
+        'take_profit': {
+            'stages': [
+                {
+                    'name': 'win10%',
+                    'ratio': 0.1,
+                    'sell_ratio': 0.5
+                },
+                {
+                    'close_invest': True,
+                    'name': 'win20%',
+                    'ratio': 0.2
+                }
+            ]
+        }
+    },
+    'sampling': {
+        'sampling_amount': 2,
+        'strategy': 'continuous'
+    },
+    'enumerator': {
+        'is_verbose': True,
+        'max_batch_size': 'auto',
+        'max_output_versions': 2,
+        'max_test_versions': 3,
+        'max_workers': 'auto',
+        'memory_budget_mb': 'auto',
+        'min_batch_size': 'auto',
+        'monitor_interval': 5,
+        'use_sampling': False,
+        'warmup_batch_size': 'auto'
+    },
+    'fees': {
+        'commission_rate': 0.00025,
+        'min_commission': 5,
+        'stamp_duty_rate': 0.001,
+        'transfer_fee_rate': 0
+    },
+    'price_simulator': {
+        'base_version': 'latest',
+        'end_date': '',
+        'max_workers': 'auto',
+        'start_date': '',
+        'use_sampling': False
+    },
+    'capital_simulator': {
+        'allocation': {
+            'kelly_fraction': 0.5,
+            'lot_size': 100,
+            'lots_per_trade': 1,
+            'max_portfolio_size': 10,
+            'max_weight_per_stock': 0.3,
+            'mode': 'equal_capital'
+        },
+        'base_version': 'latest',
+        'end_date': '',
+        'initial_capital': 1000000.0,
+        'max_workers': 'auto',
+        'output': {
+            'save_equity_curve': True,
+            'save_trades': True
+        },
+        'start_date': '',
+        'use_sampling': False
+    },
+    'scanner': {
+        'adapters': [
+            'console'
+        ],
+        'max_cache_days': 10,
+        'max_workers': 'auto',
+        'use_strict_previous_trading_day': True,
+        'watch_list': ''
+    },
+    'meta': {
+        'name': 'example',
+        'description': 'Example RSI oversold strategy (minimal settings)',
+        'is_enabled': True
+    },
+    'description': 'Example RSI oversold strategy (minimal settings)',
+    'is_enabled': True,
+    'name': 'example'
 }

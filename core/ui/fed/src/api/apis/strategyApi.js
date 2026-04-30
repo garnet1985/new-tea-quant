@@ -39,14 +39,16 @@ export async function fetchStrategySettings(strategyName) {
   return {
     strategy_name: json?.message?.strategy_name || strategyName,
     settings: json?.message?.settings || {},
+    settings_source: json?.message?.settings_source,
+    workbench_version_id: json?.message?.workbench_version_id,
   };
 }
 
 /**
- * SWB-05：保存单策略完整 settings。
+ * SWB-05：保存工作台 settings 快照（写入 DB `sys_strategy_workbench_snapshot`，不修改 userspace）。
  * @param {string} strategyName
  * @param {object} settings
- * @returns {Promise<{ strategy_name: string, saved: boolean }>}
+ * @returns {Promise<{ strategy_name: string, saved: boolean, version_id: string }>}
  */
 export async function saveStrategySettings(strategyName, settings) {
   const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/settings`, {
@@ -56,6 +58,26 @@ export async function saveStrategySettings(strategyName, settings) {
   return {
     strategy_name: json?.message?.strategy_name || strategyName,
     saved: Boolean(json?.message?.saved),
+    version_id: json?.message?.version_id || '',
+  };
+}
+
+/**
+ * 将当前参数写入 userspace 策略 `settings.py`（显式发布，非快照保存）。
+ * @param {string} strategyName
+ * @param {object} settings
+ */
+export async function applyStrategySettingsToUserspace(strategyName, settings) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/settings/apply-userspace`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ settings }),
+    },
+  );
+  return {
+    strategy_name: json?.message?.strategy_name || strategyName,
+    applied: Boolean(json?.message?.applied),
   };
 }
 
@@ -102,6 +124,7 @@ export async function restoreStrategyVersion(strategyName, versionId) {
   return {
     restored: Boolean(json?.message?.restored),
     version_id: json?.message?.version_id || versionId,
+    restored_from_version_id: json?.message?.restored_from_version_id,
   };
 }
 
@@ -131,12 +154,29 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
  * SWB-06：启动执行 run。
  * @param {string} strategyName
  * @param {'enum'|'price'|'capital'} targetStep
+ * @param {object=} settings
  */
-export async function startStrategyRun(strategyName, targetStep) {
+export async function startStrategyRun(strategyName, targetStep, settings) {
   const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/runs`, {
     method: 'POST',
-    body: JSON.stringify({ target_step: targetStep }),
+    body: JSON.stringify({
+      target_step: targetStep,
+      settings: settings && typeof settings === 'object' ? settings : undefined,
+    }),
   });
+  return json?.message || {};
+}
+
+/**
+ * 枚举复用预判：与真实枚举相同的 preprocess/plan_reuse，不跑子进程。
+ * 若 would_reuse_full 为 true，message.enum_result_preview 为磁盘元数据中的摘要（与 REUSE_FULL 跑完一致）。
+ * @param {string} strategyName
+ */
+export async function fetchEnumeratorReusePreview(strategyName) {
+  const json = await requestJson(
+    `${API_BASE}/${encodeURIComponent(strategyName)}/enumerator-reuse-preview`,
+    { method: 'GET' },
+  );
   return json?.message || {};
 }
 

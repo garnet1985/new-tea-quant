@@ -24,10 +24,27 @@ def save_strategy_settings(strategy_name):
     return _strategy_workbench_service.save_strategy_settings(strategy_name, payload)
 
 
+@strategy_workbench_api_bp.route(
+    '/v1/strategies/<strategy_name>/settings/apply-userspace',
+    methods=['POST'],
+)
+def apply_strategy_settings_to_userspace(strategy_name):
+    payload = request.get_json(silent=True) or {}
+    return _strategy_workbench_service.apply_strategy_settings_to_userspace(strategy_name, payload)
+
+
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/runs', methods=['POST'])
 def start_strategy_run(strategy_name):
     payload = request.get_json(silent=True) or {}
     return _strategy_workbench_service.start_strategy_run(strategy_name, payload)
+
+
+@strategy_workbench_api_bp.route(
+    '/v1/strategies/<strategy_name>/enumerator-reuse-preview',
+    methods=['GET'],
+)
+def get_strategy_enumerator_reuse_preview(strategy_name):
+    return _strategy_workbench_service.get_enumerator_reuse_preview(strategy_name)
 
 
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/runs/<run_id>', methods=['GET'])

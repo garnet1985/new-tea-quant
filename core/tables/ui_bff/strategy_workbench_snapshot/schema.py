@@ -46,6 +46,22 @@ schema = {
             "description": "三步 summary 聚合：enum/price/capital",
         },
         {
+            "name": "enum_fingerprint_id",
+            "type": "varchar",
+            "length": 128,
+            "isRequired": False,
+            "nullable": True,
+            "description": "枚举完整指纹（含时间窗）",
+        },
+        {
+            "name": "enum_scope_fingerprint_id",
+            "type": "varchar",
+            "length": 128,
+            "isRequired": False,
+            "nullable": True,
+            "description": "枚举 scope 指纹（不含时间窗）",
+        },
+        {
             "name": "created_at",
             "type": "datetime",
             "isRequired": True,
@@ -63,5 +79,7 @@ schema = {
     "indexes": [
         {"name": "uk_swb_snapshot_strategy_version", "fields": ["strategy_name", "version"], "unique": True},
         {"name": "idx_swb_snapshot_strategy_updated", "fields": ["strategy_name", "updated_at"]},
+        {"name": "idx_swb_snapshot_strategy_enum_fp", "fields": ["strategy_name", "enum_fingerprint_id"]},
+        {"name": "idx_swb_snapshot_strategy_enum_scope_fp", "fields": ["strategy_name", "enum_scope_fingerprint_id"]},
     ],
 }

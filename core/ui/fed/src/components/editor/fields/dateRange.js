@@ -1,8 +1,12 @@
 import React from 'react';
-import { Box, TextField } from '@mui/material';
+import DateRangeInput from 'components/dateRangeInput/DateRangeInput';
 import { getByPath, setByPath } from '../editor.helper';
 
-function DateRangeNode({ field, value, errors, onChange, emitChangeMeta }) {
+function DateRangeField({ field, value, errors, onChange, emitChangeMeta }) {
+  if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
+    return null;
+  }
+
   const startPath = field.startName;
   const endPath = field.endName;
   const startValue = getByPath(value, startPath) || '';
@@ -33,36 +37,19 @@ function DateRangeNode({ field, value, errors, onChange, emitChangeMeta }) {
   };
 
   return (
-    <Box
-      key={field.name}
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-        gap: 1,
-      }}
-    >
-      <TextField
-        size="small"
-        type="date"
-        label={field.startLabel || 'From'}
-        value={startValue}
-        onChange={(e) => apply(e.target.value, endValue, 'start')}
-        InputLabelProps={{ shrink: true }}
-        error={Boolean(startError)}
-        helperText={startError || ''}
-      />
-      <TextField
-        size="small"
-        type="date"
-        label={field.endLabel || 'To'}
-        value={endValue}
-        onChange={(e) => apply(startValue, e.target.value, 'end')}
-        InputLabelProps={{ shrink: true }}
-        error={Boolean(endError)}
-        helperText={endError || field.description || ''}
-      />
-    </Box>
+    <DateRangeInput
+      label={field.label}
+      tooltipTitle={field.tooltip}
+      startLabel={field.startLabel}
+      endLabel={field.endLabel}
+      startValue={startValue}
+      endValue={endValue}
+      onStartChange={(nextStart) => apply(nextStart, endValue, 'start')}
+      onEndChange={(nextEnd) => apply(startValue, nextEnd, 'end')}
+      startError={startError}
+      endError={endError}
+    />
   );
 }
 
-export default DateRangeNode;
+export default DateRangeField;

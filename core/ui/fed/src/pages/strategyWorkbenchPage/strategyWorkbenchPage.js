@@ -22,7 +22,7 @@ import {
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import {
-  createStrategyVersion,
+  applyStrategySettingsToUserspace,
   fetchCapitalAllocationModeConfig,
   fetchStrategyList,
   fetchStrategySettings,
@@ -85,14 +85,41 @@ function StrategyWorkbenchPage() {
   const [initialSettings, setInitialSettings] = useState(() => buildFallbackSettings());
 
   const deepClone = (value) => JSON.parse(JSON.stringify(value));
+  const mergeShapeOnly = useCallback((baseValue, incomingValue) => {
+    if (Array.isArray(incomingValue)) return incomingValue;
+    if (incomingValue && typeof incomingValue === 'object') {
+      const out = {};
+      const baseObj = baseValue && typeof baseValue === 'object' && !Array.isArray(baseValue) ? baseValue : {};
+      const keys = new Set([
+        ...Object.keys(baseObj || {}),
+        ...Object.keys(incomingValue || {}),
+      ]);
+      keys.forEach((key) => {
+        const next = incomingValue[key];
+        if (next !== undefined) {
+          out[key] = mergeShapeOnly(baseObj[key], next);
+          return;
+        }
+        const base = baseObj[key];
+        if (Array.isArray(base)) {
+          out[key] = [];
+        } else if (base && typeof base === 'object') {
+          out[key] = mergeShapeOnly(base, {});
+        }
+      });
+      return out;
+    }
+    return incomingValue;
+  }, []);
   const [savedBaselineSettings, setSavedBaselineSettings] = useState(() => deepClone(initialSettings));
   const [appliedSettings, setAppliedSettings] = useState(() => deepClone(initialSettings));
-  const [appliedVersionId, setAppliedVersionId] = useState('file_current');
+  const [appliedVersionId, setAppliedVersionId] = useState('userspace');
+  const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
+  const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
 
   useEffect(() => {
     setSavedBaselineSettings(deepClone(initialSettings));
     setAppliedSettings(deepClone(initialSettings));
-    setAppliedVersionId('file_current');
   }, [initialSettings]);
 
   useEffect(() => {
@@ -178,6 +205,7 @@ function StrategyWorkbenchPage() {
       .then((res) => {
         if (isCancelled) return;
         const serverSettings = res?.settings || {};
+        const hasServerSettings = serverSettings && typeof serverSettings === 'object' && Object.keys(serverSettings).length > 0;
         const incomingMeta = (
           serverSettings?.meta && typeof serverSettings.meta === 'object'
             ? serverSettings.meta
@@ -187,15 +215,25 @@ function StrategyWorkbenchPage() {
               is_enabled: serverSettings?.is_enabled,
             }
         );
-        setInitialSettings({
-          ...fallback,
-          ...serverSettings,
-          meta: normalizeMeta({
-            ...fallback.meta,
-            ...incomingMeta,
-            name: strategyName,
-          }),
-        });
+        // Merge shape only: allow missing fields to exist for editor rendering,
+        // but never inject primitive fallback values that would perturb fingerprinting.
+        const nextSettings = hasServerSettings
+          ? mergeShapeOnly(fallback, {
+            ...serverSettings,
+            meta: normalizeMeta({
+              ...incomingMeta,
+              name: strategyName,
+            }),
+          })
+          : fallback;
+        setInitialSettings(nextSettings);
+        const wbVer = res?.workbench_version_id;
+        setAppliedVersionId(
+          typeof wbVer === 'string' && wbVer.trim() !== '' ? wbVer.trim() : 'userspace',
+        );
+        setSelectedConfigVersion(
+          typeof wbVer === 'string' && wbVer.trim() !== '' ? wbVer.trim() : '',
+        );
       })
       .catch((err) => {
         if (isCancelled) return;
@@ -209,7 +247,7 @@ function StrategyWorkbenchPage() {
     return () => {
       isCancelled = true;
     };
-  }, [buildFallbackSettings, strategyName]);
+  }, [buildFallbackSettings, mergeShapeOnly, strategyName]);
 
   const versionMap = useMemo(
     () => Object.fromEntries(configVersions.map((version) => [version.id, version])),
@@ -257,8 +295,10 @@ function StrategyWorkbenchPage() {
             {(() => {
               const hasUnsavedChanges = JSON.stringify(draftSettings) !== JSON.stringify(savedBaselineSettings);
               const isAppliedSettings = JSON.stringify(draftSettings) === JSON.stringify(appliedSettings);
-              const workspaceVersionLabel = selectedConfigVersion || '未保存';
-              const appliedVersionLabel = appliedVersionId || 'file_current';
+              const workspaceVersionLabel = selectedConfigVersion || '（尚无快照）';
+              const appliedVersionLabel = appliedVersionId === 'userspace'
+                ? '策略目录 settings.py（无 DB 快照）'
+                : appliedVersionId;
               const visibleStrategies = strategyRows.filter((row) => row?.name && row.name !== strategyName);
               const disableSettingsActions = isSavingSettings || isLoadingSettings || !strategyName;
               const getDraftSettingsForSubmit = () => (
@@ -275,24 +315,6 @@ function StrategyWorkbenchPage() {
                   return;
                 }
                 navigate(getStrategyWorkbenchPath(nextStrategyName));
-              };
-
-              const createWorkspaceVersion = async (settingsValue) => {
-                if (!strategyName) return '';
-                const resolvedSettings = settingsValue || getDraftSettingsForSubmit();
-                const created = await createStrategyVersion(strategyName, resolvedSettings);
-                const versionId = created?.version_id || '';
-                const latest = await fetchStrategyVersions(strategyName);
-                const rows = (latest?.versions || []).map((version) => ({
-                  id: version.version_id || `v${version.version || ''}`,
-                  createdAt: version.created_at || '',
-                  updatedAt: version.updated_at || '',
-                  version: Number(version.version || 0),
-                }));
-                setConfigVersions(rows);
-                if (versionId) setSelectedConfigVersion(versionId);
-                setSavedBaselineSettings(deepClone(resolvedSettings));
-                return versionId;
               };
 
               return (
@@ -332,6 +354,11 @@ function StrategyWorkbenchPage() {
                   选项加载提示：{settingsOptionError}
                 </Typography>
               ) : null}
+              {userspaceApplyOk ? (
+                <Typography variant="body2" color="success.main">
+                  {userspaceApplyOk}
+                </Typography>
+              ) : null}
 
               <Box
                 sx={{
@@ -344,13 +371,13 @@ function StrategyWorkbenchPage() {
               >
                 <Stack spacing={1}>
                   <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Typography variant="subtitle2" fontWeight={700}>应用工作台版本</Typography>
-                    <Tooltip title="触发任一步执行时会自动保存当前工作台参数到策略配置；应用按钮用于版本选择与恢复。">
+                    <Typography variant="subtitle2" fontWeight={700}>工作台与策略目录</Typography>
+                    <Tooltip title="左侧改动默认保存在 DB 快照（执行任一步会先 PUT 快照）；「应用当前工作台版本到策略」才把当前参数写入 userspace 下的 settings.py。">
                       <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                     </Tooltip>
                   </Stack>
                   <Typography variant="caption" color="text.secondary">
-                    字段合法性以后端校验结果为准，前端仅做最小交互约束。
+                    字段合法性以后端校验结果为准；策略目录文件仅在显式发布时覆盖。
                   </Typography>
                   <Box
                     sx={{
@@ -362,29 +389,35 @@ function StrategyWorkbenchPage() {
                     }}
                   >
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
-                      <Typography variant="body2">工作台版本：<strong>{workspaceVersionLabel}</strong></Typography>
-                      <Typography variant="body2">已应用版本：<strong>{appliedVersionLabel}</strong></Typography>
+                      <Typography variant="body2">选中快照：<strong>{workspaceVersionLabel}</strong></Typography>
+                      <Typography variant="body2">加载来源：<strong>{appliedVersionLabel}</strong></Typography>
                       {isAppliedSettings ? (
-                        <Chip size="small" color="success" label="策略版本 = 工作台版本" />
+                        <Chip size="small" color="success" label="草稿与基线一致" />
                       ) : (
-                        <Chip size="small" color="error" label="策略版本 < 工作台版本" />
+                        <Chip size="small" color="warning" label="草稿相对基线已变更" />
                       )}
                     </Stack>
-                    <Stack direction="row" justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent={{ xs: 'stretch', md: 'flex-end' }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={disableSettingsActions}
+                        onClick={() => {
+                          setSaveError('');
+                          setUserspaceApplyOk('');
+                          setMoreVersionsOpen(true);
+                        }}
+                      >
+                        历史快照…
+                      </Button>
                       <Button
                         variant="contained"
                         size="small"
                         disabled={disableSettingsActions}
-                        onClick={async () => {
-                          try {
-                            setSaveError('');
-                            if (!selectedConfigVersion || hasUnsavedChanges) {
-                              await createWorkspaceVersion(getDraftSettingsForSubmit());
-                            }
-                            setMoreVersionsOpen(true);
-                          } catch (err) {
-                            setSaveError(err?.message || '创建工作台版本失败');
-                          }
+                        onClick={() => {
+                          setSaveError('');
+                          setUserspaceApplyOk('');
+                          setDeployConfirmOpen(true);
                         }}
                       >
                         应用当前工作台版本到策略
@@ -448,15 +481,54 @@ function StrategyWorkbenchPage() {
               </Grid>
             </Grid>
 
-            <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
-              <DialogTitle>确认应用历史版本</DialogTitle>
+            <Dialog open={deployConfirmOpen} onClose={() => setDeployConfirmOpen(false)} maxWidth="xs" fullWidth>
+              <DialogTitle>发布到策略目录</DialogTitle>
               <DialogContent dividers>
                 <Typography variant="body2">
-                  确定要将历史版本
+                  将把当前工作台参数写入该策略在 userspace 下的 settings.py，覆盖目录中的现有文件。
+                  此操作不会改动 DB 中的工作台快照（快照仍通过保存/执行步骤累积）。
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setDeployConfirmOpen(false)}>取消</Button>
+                <Button
+                  variant="contained"
+                  disabled={isSavingSettings}
+                  onClick={() => {
+                    if (!strategyName) {
+                      setDeployConfirmOpen(false);
+                      return;
+                    }
+                    setIsSavingSettings(true);
+                    setSaveError('');
+                    applyStrategySettingsToUserspace(strategyName, getDraftSettingsForSubmit())
+                      .then(() => {
+                        setUserspaceApplyOk('已写入 userspace 策略 settings.py。');
+                        setDeployConfirmOpen(false);
+                      })
+                      .catch((err) => {
+                        setSaveError(err?.message || '发布到策略目录失败');
+                      })
+                      .finally(() => {
+                        setIsSavingSettings(false);
+                      });
+                  }}
+                >
+                  {isSavingSettings ? '发布中...' : '确认发布'}
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
+              <DialogTitle>恢复历史快照到工作台</DialogTitle>
+              <DialogContent dividers>
+                <Typography variant="body2">
+                  将把快照
                   {' '}
                   <strong>{pendingVersionId}</strong>
                   {' '}
-                  应用到策略配置吗？当前工作台未保存修改会被覆盖。
+                  恢复为当前工作台内容（写入 DB 新快照，不修改 userspace 下的 settings.py）。
+                  未保存的草稿将被覆盖。
                 </Typography>
               </DialogContent>
               <DialogActions>
@@ -473,10 +545,16 @@ function StrategyWorkbenchPage() {
                     setIsSavingSettings(true);
                     setSaveError('');
                     restoreStrategyVersion(strategyName, target.id)
-                      .then(() => {
-                        return fetchStrategySettings(strategyName);
-                      })
-                      .then((res) => {
+                      .then(async (restoreMeta) => {
+                        const res = await fetchStrategySettings(strategyName);
+                        const vr = await fetchStrategyVersions(strategyName);
+                        const rows = (vr?.versions || []).map((version) => ({
+                          id: version.version_id || `v${version.version || ''}`,
+                          createdAt: version.created_at || '',
+                          updatedAt: version.updated_at || '',
+                          version: Number(version.version || 0),
+                        }));
+                        setConfigVersions(rows);
                         const fallback = buildFallbackSettings();
                         const serverSettings = res?.settings || {};
                         const incomingMeta = (
@@ -497,23 +575,26 @@ function StrategyWorkbenchPage() {
                             name: strategyName,
                           }),
                         };
+                        const wb = res?.workbench_version_id || restoreMeta?.version_id || '';
                         setInitialSettings(mergedSettings);
                         setDraftSettings(deepClone(mergedSettings));
-                        setSelectedConfigVersion(target.id);
+                        setSelectedConfigVersion(wb);
                         setSavedBaselineSettings(deepClone(mergedSettings));
                         setAppliedSettings(deepClone(mergedSettings));
-                        setAppliedVersionId(target.id);
+                        setAppliedVersionId(
+                          typeof wb === 'string' && wb.trim() !== '' ? wb.trim() : 'userspace',
+                        );
                         setConfirmOpen(false);
                       })
                       .catch((err) => {
-                        setSaveError(err?.message || '应用工作台版本失败');
+                        setSaveError(err?.message || '恢复快照失败');
                       })
                       .finally(() => {
                         setIsSavingSettings(false);
                       });
                   }}
                 >
-                  {isSavingSettings ? '保存中...' : '确认应用'}
+                  {isSavingSettings ? '处理中...' : '确认恢复'}
                 </Button>
               </DialogActions>
             </Dialog>

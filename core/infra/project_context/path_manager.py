@@ -178,6 +178,16 @@ class PathManager:
         备份数据目录：userspace/backup/data
         """
         return PathManager.backup() / "data"
+
+    @staticmethod
+    def userspace_ntq() -> Path:
+        """NTQ 内部目录：userspace/.ntq"""
+        return PathManager.userspace() / ".ntq"
+
+    @staticmethod
+    def userspace_tmp() -> Path:
+        """临时目录：userspace/.ntq/tmp"""
+        return PathManager.userspace_ntq() / "tmp"
     
     @staticmethod
     def strategy(strategy_name: str) -> Path:

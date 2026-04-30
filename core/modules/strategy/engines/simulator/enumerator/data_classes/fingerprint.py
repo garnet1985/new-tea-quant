@@ -21,6 +21,11 @@ _NON_CORE_ENUMERATOR_KEYS = {
     "max_output_versions",
 }
 
+_NON_CORE_ROOT_KEYS = {
+    "description",
+    "is_enabled",
+}
+
 
 @dataclass(frozen=True)
 class EnumeratorFingerprint:
@@ -131,15 +136,29 @@ class EnumeratorFingerprint:
     @staticmethod
     def extract_settings_core(raw_settings: Dict[str, Any]) -> Dict[str, Any]:
         source = raw_settings or {}
-        enumerator = dict(source.get("enumerator") or {})
+        normalized_source = dict(source)
+        enumerator = dict(normalized_source.get("enumerator") or {})
         for key in _NON_CORE_ENUMERATOR_KEYS:
             enumerator.pop(key, None)
-        return {
-            "data": source.get("data") or {},
-            "goal": source.get("goal") or {},
-            "price_simulator": source.get("price_simulator") or {},
-            "enumerator": enumerator,
-        }
+        normalized_source["enumerator"] = enumerator
+        # sampling 仅在任一模拟模块实际启用采样时参与 hash。
+        # 否则 sampling 的编辑不应影响枚举缓存命中。
+        sampling_is_used = bool(enumerator.get("use_sampling", False))
+        price_cfg = normalized_source.get("price_simulator")
+        if isinstance(price_cfg, dict) and bool(price_cfg.get("use_sampling", False)):
+            sampling_is_used = True
+        capital_cfg = normalized_source.get("capital_simulator")
+        if isinstance(capital_cfg, dict) and bool(capital_cfg.get("use_sampling", False)):
+            sampling_is_used = True
+        if not sampling_is_used:
+            normalized_source.pop("sampling", None)
+        for key in _NON_CORE_ROOT_KEYS:
+            normalized_source.pop(key, None)
+        # meta（名称/描述等）不影响枚举计算；参与指纹会导致「仅改文案 / 版本切换」也换指纹，临时层与磁盘复用失真。
+        normalized_source.pop("meta", None)
+        # Keep full strategy config (except explicitly non-core keys) to avoid
+        # stale cache reuse when strategy-specific params are changed.
+        return normalized_source
 
     @staticmethod
     def compute_fingerprint_id(
@@ -164,6 +183,27 @@ class EnumeratorFingerprint:
             "worker_class_name": str(worker_class_name),
             "worker_code_hash": str(worker_code_hash),
             "data_contract_signature": str(data_contract_signature),
+        }
+        canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        return sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def compute_enumerator_scope_fingerprint_id(fp: "EnumeratorFingerprint") -> str:
+        """
+        机会枚举在业务上不按日历窗口区分结果，但完整 fingerprint_id 含 start/end，
+        会导致「隔日 / 默认 end_date 漂移」时无法命中 DB 临时层。scope 指纹去掉日期，仅保留
+        策略名、股票池、settings_core、worker、数据契约签名。
+        """
+        payload = {
+            "v": 1,
+            "kind": "enumerator_scope",
+            "strategy_name": fp.strategy_name,
+            "stock_ids": list(fp.stock_ids),
+            "settings_core": fp.settings_core,
+            "worker_module_path": fp.worker_module_path,
+            "worker_class_name": fp.worker_class_name,
+            "worker_code_hash": fp.worker_code_hash,
+            "data_contract_signature": fp.data_contract_signature,
         }
         canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
         return sha256(canonical.encode("utf-8")).hexdigest()

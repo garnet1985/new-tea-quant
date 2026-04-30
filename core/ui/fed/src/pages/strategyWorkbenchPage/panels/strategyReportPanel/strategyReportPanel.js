@@ -263,7 +263,7 @@ function StrategyReportPanel({ strategyName, executionState }) {
     };
 
     if (resolvedActiveTab === 'enum') {
-      const enumMetrics = buildEnumMetrics(metricsSource);
+      const enumMetrics = remoteReports?.reports?.enum?.enumMetrics || buildEnumMetrics(metricsSource);
       if (!enumMetrics) {
         return (
           <Typography variant="body2" color="text.secondary">
@@ -365,9 +365,17 @@ function StrategyReportPanel({ strategyName, executionState }) {
                 {renderReportByTab(
                   resolvedActiveTab,
                   {
-                    enumMetrics: buildEnumMetrics({
-                      result: { enum: comparePayload?.base_report || remoteReports?.reports?.enum || executionState?.result?.enum || null },
-                    }),
+                    enumMetrics:
+                      comparePayload?.base_report?.enumMetrics
+                      || remoteReports?.reports?.enum?.enumMetrics
+                      || buildEnumMetrics({
+                        result: {
+                          enum: comparePayload?.base_report
+                            || remoteReports?.reports?.enum
+                            || executionState?.result?.enum
+                            || null,
+                        },
+                      }),
                     priceMetrics: buildPriceMetrics({
                       result: { price: comparePayload?.base_report || remoteReports?.reports?.price || executionState?.result?.price || null },
                     }),
@@ -391,7 +399,9 @@ function StrategyReportPanel({ strategyName, executionState }) {
                   ? renderReportByTab(
                     resolvedActiveTab,
                     {
-                      enumMetrics: buildEnumMetrics({ result: { enum: comparePayload?.compare_report || null } }),
+                      enumMetrics:
+                        comparePayload?.compare_report?.enumMetrics
+                        || buildEnumMetrics({ result: { enum: comparePayload?.compare_report || null } }),
                       priceMetrics: buildPriceMetrics({ result: { price: comparePayload?.compare_report || null } }),
                       capitalMetrics: buildCapitalMetrics({ result: { capital: comparePayload?.compare_report || null } }),
                     },

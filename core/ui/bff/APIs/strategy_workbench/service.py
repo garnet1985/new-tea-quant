@@ -7,7 +7,7 @@ import multiprocessing as mp
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from core.infra.project_context.config_manager import ConfigManager
@@ -185,6 +185,11 @@ class StrategyWorkbenchService:
                 if not isinstance(enum_result, dict):
                     payload = None
                 else:
+                    enum_metrics = (
+                        enum_result.get("enumMetrics")
+                        if isinstance(enum_result.get("enumMetrics"), dict)
+                        else None
+                    )
                     opportunities = int(enum_result.get("opportunities") or 0)
                     payload = {
                         "opportunities": opportunities,
@@ -194,6 +199,8 @@ class StrategyWorkbenchService:
                         "unfinishedCount": int(enum_result.get("unfinishedCount") or 0),
                         "completionRate": float(enum_result.get("completionRate") or 0.0),
                     }
+                    if enum_metrics:
+                        payload["enumMetrics"] = enum_metrics
             elif report_type == StrategyWorkbenchService.STEP_PRICE:
                 if price_result:
                     payload = {
@@ -575,7 +582,7 @@ class StrategyWorkbenchService:
     def _enum_summary_row_to_bff_payload(row: dict) -> dict:
         if not isinstance(row, dict):
             row = {}
-        return {
+        out = {
             "opportunities": int(row.get("opportunities") or 0),
             "totalStocks": int(row.get("totalStocks") or 0),
             "triggerStocks": int(row.get("triggerStocks") or 0),
@@ -583,6 +590,40 @@ class StrategyWorkbenchService:
             "unfinishedCount": int(row.get("unfinishedCount") or 0),
             "completionRate": float(row.get("completionRate") or 0.0),
         }
+        version_dir = str(row.get("version_dir") or "").strip()
+        if version_dir:
+            out["versionDir"] = version_dir
+        return out
+
+    @staticmethod
+    def _resolve_enum_output_dir(strategy_name: str, version_dir_name: str):
+        if not version_dir_name:
+            return None
+        output_candidate = PathManager.strategy_opportunity_enums(
+            strategy_name, use_sampling=False
+        ) / version_dir_name
+        if output_candidate.exists() and output_candidate.is_dir():
+            return output_candidate
+        sampling_candidate = PathManager.strategy_opportunity_enums(
+            strategy_name, use_sampling=True
+        ) / version_dir_name
+        if sampling_candidate.exists() and sampling_candidate.is_dir():
+            return sampling_candidate
+        return None
+
+    def _load_enum_report_from_output(self, strategy_name: str, enum_payload: dict) -> dict:
+        version_dir_name = str(enum_payload.get("versionDir") or "").strip()
+        output_dir = self._resolve_enum_output_dir(strategy_name, version_dir_name)
+        if output_dir is None:
+            return {}
+        try:
+            report_file = output_dir / "0_report_enum.json"
+            if not report_file.exists():
+                return {}
+            payload = json.loads(report_file.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
 
     def _build_workbench_opportunity_enumerator_flow(
         self,
@@ -721,13 +762,6 @@ class StrategyWorkbenchService:
         if not fp_id:
             return None
         scope_id = EnumeratorFingerprint.compute_enumerator_scope_fingerprint_id(req_fp)
-        logger.warning(
-            "SWB enum temp-cache check: strategy=%s run_id=%s req_fp=%s req_scope_fp=%s",
-            strategy_name,
-            run_id,
-            fp_id,
-            scope_id,
-        )
         flow_ref, strategy_info, ferr = self._build_workbench_opportunity_enumerator_flow(
             strategy_name, run_id
         )
@@ -744,20 +778,9 @@ class StrategyWorkbenchService:
         if not rows:
             rows = model.list_by_strategy(strategy_name, limit=200)
             from_fp_query = False
-        logger.warning(
-            "SWB enum temp-cache candidates: strategy=%s run_id=%s source=%s rows=%d",
-            strategy_name,
-            run_id,
-            "fingerprint_index" if from_fp_query else "full_scan",
-            len(rows or []),
-        )
-        no_result_summary = 0
-        no_enum_payload = 0
-        fp_mismatch = 0
         for row in rows or []:
             rs = self._coerce_db_result_summary(row.get("result_summary"))
             if not rs:
-                no_result_summary += 1
                 continue
             em = rs.get("enum_meta")
             em = em if isinstance(em, dict) else {}
@@ -769,25 +792,12 @@ class StrategyWorkbenchService:
                 or str(em.get("scope_fingerprint_id") or "") == scope_id
             )
             if not id_ok and not scope_ok:
-                fp_mismatch += 1
                 continue
             en = rs.get("enum")
             if not isinstance(en, dict):
-                no_enum_payload += 1
                 continue
             if "opportunities" not in en and "totalStocks" not in en:
-                no_enum_payload += 1
                 continue
-            logger.warning(
-                "SWB enum temp-cache HIT(row): strategy=%s run_id=%s version=%s row_fp_col=%s row_scope_col=%s row_fp_meta=%s row_scope_meta=%s",
-                strategy_name,
-                run_id,
-                int(row.get("version") or 0),
-                row_fp_col,
-                row_scope_col,
-                str(em.get("fingerprint_id") or ""),
-                str(em.get("scope_fingerprint_id") or ""),
-            )
             payload = self._enum_summary_row_to_bff_payload(en)
             return payload, fp_id, scope_id
         # Fingerprint-index query may return an empty-shell row (same fingerprint columns but
@@ -796,24 +806,14 @@ class StrategyWorkbenchService:
             rows_full = model.list_by_strategy(strategy_name, limit=200)
             if rows_full:
                 rows = rows_full
-                logger.warning(
-                    "SWB enum temp-cache fallback full-scan: strategy=%s run_id=%s rows=%d",
-                    strategy_name,
-                    run_id,
-                    len(rows or []),
-                )
-        recompute_mismatch = 0
-        recompute_no_enum = 0
         for row in rows or []:
             rs = self._coerce_db_result_summary(row.get("result_summary"))
             if not rs:
                 continue
             en = rs.get("enum")
             if not isinstance(en, dict):
-                recompute_no_enum += 1
                 continue
             if "opportunities" not in en and "totalStocks" not in en:
-                recompute_no_enum += 1
                 continue
             snap = row.get("settings_snapshot")
             if not isinstance(snap, dict):
@@ -826,30 +826,9 @@ class StrategyWorkbenchService:
             row_fp = str(fp_row.fingerprint_id)
             row_scope = EnumeratorFingerprint.compute_enumerator_scope_fingerprint_id(fp_row)
             if row_fp != fp_id and row_scope != scope_id:
-                recompute_mismatch += 1
                 continue
-            logger.warning(
-                "SWB enum temp-cache HIT(recompute): strategy=%s run_id=%s version=%s row_fp=%s row_scope=%s",
-                strategy_name,
-                run_id,
-                int(row.get("version") or 0),
-                row_fp,
-                row_scope,
-            )
             payload = self._enum_summary_row_to_bff_payload(en)
             return payload, fp_id, scope_id
-        logger.warning(
-            "SWB enum temp-cache MISS: strategy=%s run_id=%s req_fp=%s req_scope_fp=%s no_result_summary=%d fp_mismatch=%d no_enum_payload=%d recompute_mismatch=%d recompute_no_enum=%d",
-            strategy_name,
-            run_id,
-            fp_id,
-            scope_id,
-            no_result_summary,
-            fp_mismatch,
-            no_enum_payload,
-            recompute_mismatch,
-            recompute_no_enum,
-        )
         return None
 
     def _write_enum_to_workbench_snapshot(
@@ -972,6 +951,9 @@ class StrategyWorkbenchService:
             if not isinstance(first, dict):
                 return None, "枚举摘要格式无效"
             payload = self._enum_summary_row_to_bff_payload(first)
+            enum_report = self._load_enum_report_from_output(strategy_name, payload)
+            if enum_report:
+                payload.update(enum_report)
             return payload, None
         except Exception as exc:
             logger.exception(
@@ -1756,7 +1738,23 @@ class StrategyWorkbenchService:
                 return error(f"未找到运行记录: {run_id}", 404)
 
             safe_limit = max(1, min(int(limit or 10), 50))
-            rows = self._build_stock_rows(report_type, limit=50)
+            result_summary = (
+                status_payload.get("result_summary")
+                if isinstance(status_payload.get("result_summary"), dict)
+                else {}
+            )
+            rows: list = []
+            if report_type == self.STEP_ENUM:
+                enum_payload = (
+                    result_summary.get("enum")
+                    if isinstance(result_summary.get("enum"), dict)
+                    else {}
+                )
+                enum_rows = enum_payload.get("stockRows") if isinstance(enum_payload, dict) else None
+                if isinstance(enum_rows, list):
+                    rows = [row for row in enum_rows if isinstance(row, dict)]
+            if not rows:
+                rows = self._build_stock_rows(report_type, limit=50)
 
             keyword = str(search or "").strip().lower()
             if keyword:

@@ -78,7 +78,7 @@ React 路由组件、页面目录名：`strategyWorkbenchPage`、`StrategyWorkbe
 
 1. **整包 settings 优先**：单策略调试页以整包读取/整包保存为主链路，便于整体调试与 breaking change 感知。
 2. **前端自拆分**：左侧各 block 由 FED 从整包 settings 解析，不要求后端按 block 拆分返回。
-3. **主数据与选项并行必需**：SWB-04/05 返回实例值（当前 settings）；SWB-02/03 返回候选值与字段 profile（possible values）。两类契约缺一不可。
+3. **主数据与选项并行必需**：SWB-04 返回实例值（当前 settings）；SWB-02/03 返回候选值与字段 profile（possible values）。两类契约缺一不可。
 
 ### 契约目录
 
@@ -86,7 +86,6 @@ React 路由组件、页面目录名：`strategyWorkbenchPage`、`StrategyWorkbe
 |------|------|------|------|
 | **SWB-01** | `GET` | `/api/v1/strategies` | 返回已发现策略列表及 meta |
 | **SWB-04** | `GET` | `/api/v1/strategies/{strategy_name}/settings` | 读取单策略完整 settings（主链路） |
-| **SWB-05** | `PUT` | `/api/v1/strategies/{strategy_name}/settings` | 保存单策略完整 settings（主链路） |
 | **SWB-02** | `GET` | `/api/v1/strategies/settings-options/allocation-modes` | 资金分配策略 `capital_simulator.allocation.mode` 下拉选项 |
 | **SWB-03** | `GET` | `/api/v1/strategies/settings-options/sampling-strategies` | 采样策略 `sampling.strategy` 下拉选项 |
 | **SWB-06** | `POST` | `/api/v1/strategies/{strategy_name}/runs` | 启动执行（枚举/价格/资金），返回 `run_id` |
@@ -122,7 +121,7 @@ React 路由组件、页面目录名：`strategyWorkbenchPage`、`StrategyWorkbe
 | 资金模拟参数（含时间段） | `capital_simulator`（Python 模块亦写作 capital_allocation 语义） | **SWB-02**（`allocation.mode`） |
 | 采样配置 | `sampling` | **SWB-03**（`strategy`） |
 
-整包 settings 读写（SWB-04 / SWB-05）与选项/profile（SWB-02 / SWB-03）并行必需：前者给“当前值”，后者给“可选值与联动规则”。
+整包 settings 读取（SWB-04）与选项/profile（SWB-02 / SWB-03）并行必需：前者给“当前值”，后者给“可选值与联动规则”。
 
 ---
 
@@ -179,63 +178,6 @@ React 路由组件、页面目录名：`strategyWorkbenchPage`、`StrategyWorkbe
 1. 按 `strategy_name` 定位策略目录并读取 settings。
 2. 将 Python 配置结构稳定序列化为 JSON 对象返回（不做 UI 专属拆分）。
 3. 错误时返回可读 `message.detail`，便于 FED 直接提示。
-
----
-
-### SWB-05 — 保存单策略完整 settings（主链路）
-
-- **Method & path**：`PUT /api/v1/strategies/{strategy_name}/settings`
-- **消费页面**：`StrategyWorkbenchPage`（保存配置动作）
-- **语义**：FED 提交完整 settings，BFF 校验并写回策略 `settings.py`（或等价存储）。
-
-#### 请求契约
-
-- **Path params**：
-  - `strategy_name`（string，必填）
-- **Body**：
-
-```json
-{
-  "settings": {
-    "meta": { "name": "example", "description": "", "is_enabled": true },
-    "core": {},
-    "data": {},
-    "goal": {},
-    "fees": {},
-    "enumerator": {},
-    "price_simulator": {},
-    "capital_simulator": {},
-    "sampling": {},
-    "scanner": {}
-  }
-}
-```
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "strategy_name": "example",
-    "saved": true
-  }
-}
-```
-
-#### 响应契约（失败）
-
-- 400：请求体非法（`settings` 缺失或类型错误）。
-- 422：settings 校验不通过（建议在 `message` 返回可读错误详情）。
-- 500：写入失败。
-- 统一错误体：`{ "status": "error", "message": { "detail": "..." } }`。
-
-#### BFF / Backend 职责
-
-1. 校验请求体结构，确保是完整 settings 对象。
-2. 调用策略 settings 校验逻辑（与后端运行时一致）。
-3. 原子写回并返回保存结果；失败时不部分落盘。
-4. 建议在保存成功后自动创建一个 `source=save` 的配置版本（等同 SWB-20 语义），保证后续可对比/可恢复。
 
 ---
 
@@ -1037,7 +979,7 @@ HTTP 500（或与错误语义一致的 4xx/5xx），示例：
 
 ## 修订记录
 
-- **SWB-04 / SWB-05**：单策略整包 settings 读写（实例值契约）。
+- **SWB-04**：单策略整包 settings 读取（实例值契约）。
 - **SWB-02 / SWB-03**：左侧下拉与字段联动 profile（候选值契约，必需）。
 - **SWB-06 ~ SWB-10**：执行面板（启动 / 状态轮询 / 取消 / 摘要 / 对比版本）。
 - **SWB-11 ~ SWB-14**：报告面板（摘要 / 样本表 / 单股K线 / 双栏对比）。

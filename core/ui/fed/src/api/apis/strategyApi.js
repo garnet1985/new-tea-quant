@@ -45,31 +45,13 @@ export async function fetchStrategySettings(strategyName) {
 }
 
 /**
- * SWB-05：保存工作台 settings 快照（写入 DB `sys_strategy_workbench_snapshot`，不修改 userspace）。
- * @param {string} strategyName
- * @param {object} settings
- * @returns {Promise<{ strategy_name: string, saved: boolean, version_id: string }>}
- */
-export async function saveStrategySettings(strategyName, settings) {
-  const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/settings`, {
-    method: 'PUT',
-    body: JSON.stringify({ settings }),
-  });
-  return {
-    strategy_name: json?.message?.strategy_name || strategyName,
-    saved: Boolean(json?.message?.saved),
-    version_id: json?.message?.version_id || '',
-  };
-}
-
-/**
  * 将当前参数写入 userspace 策略 `settings.py`（显式发布，非快照保存）。
  * @param {string} strategyName
  * @param {object} settings
  */
 export async function applyStrategySettingsToUserspace(strategyName, settings) {
   const json = await requestJson(
-    `${API_BASE}/${encodeURIComponent(strategyName)}/settings/apply-userspace`,
+    `${API_BASE}/${encodeURIComponent(strategyName)}/settings/apply-to-userspace`,
     {
       method: 'POST',
       body: JSON.stringify({ settings }),
@@ -157,15 +139,13 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
  * @param {object=} settings
  */
 export async function startStrategyRun(strategyName, targetStep, settings, options = {}) {
-  const forceRefresh = Boolean(
-    options?.forceRefresh ?? options?.force_refresh ?? options?.force,
-  );
+  const isForce = Boolean(options?.is_force);
   const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/runs`, {
     method: 'POST',
     body: JSON.stringify({
       target_step: targetStep,
       settings: settings && typeof settings === 'object' ? settings : undefined,
-      force_refresh: forceRefresh,
+      is_force: isForce,
     }),
   });
   return json?.message || {};

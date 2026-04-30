@@ -258,13 +258,19 @@ class App:
     # 枚举器相关
     # ========================================================================
     
-    def enumerate(self, strategy_name: str = 'example', stock_count: int = None):
+    def enumerate(
+        self,
+        strategy_name: str = 'example',
+        stock_count: int = None,
+        force_refresh: bool = False,
+    ):
         """
         枚举投资机会
         
         Args:
             strategy_name: 策略名称
             stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
+            force_refresh: 是否强制重跑枚举（忽略复用缓存）
         """
         from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
             StrategySettingsView,
@@ -305,6 +311,8 @@ class App:
         
         logger.info(f"📅 时间范围: {start_date} ~ {end_date}")
         logger.info(f"📊 实际股票数量: {len(stock_list)}")
+        if force_refresh:
+            logger.info("♻️  强制刷新已启用：本次将跳过枚举结果复用")
         
         # 4. 执行枚举
         flow = OpportunityEnumeratorFlow(
@@ -313,6 +321,7 @@ class App:
             stock_list=stock_list,
             max_workers=enum_settings.max_workers,
             base_settings=settings,
+            force_refresh=force_refresh,
         )
         summary_results = flow.run(
             strategy_name=strategy_name,
@@ -370,7 +379,7 @@ class App:
     def _display_enumerate_results(self, summary_results):
         """显示枚举结果"""
         if summary_results:
-            total_opps = summary_results[0].get('opportunity_count', 0)
+            total_opps = summary_results[0].get('opportunities', 0)
         else:
             total_opps = 0
         
@@ -382,9 +391,11 @@ class App:
                 logger.info(
                     f"  strategy={res.get('strategy_name')}, "
                     f"version={res.get('version_dir')}, "
-                    f"opportunities={res.get('opportunity_count', 0)}, "
-                    f"success_stocks={res.get('success_stocks', 0)}, "
-                    f"failed_stocks={res.get('failed_stocks', 0)}"
+                    f"opportunities={res.get('opportunities', 0)}, "
+                    f"totalStocks={res.get('totalStocks', 0)}, "
+                    f"triggerStocks={res.get('triggerStocks', 0)}, "
+                    f"completedCount={res.get('completedCount', 0)}, "
+                    f"unfinishedCount={res.get('unfinishedCount', 0)}"
                 )
     
     # ========================================================================
@@ -551,6 +562,8 @@ def _add_shortcut_flags(parser):
 
 def _add_extra_arguments(parser):
     """添加额外参数"""
+    parser.add_argument('-f', '--force-refresh', action='store_true',
+                       help='强制刷新枚举结果（仅 enumerate/-se 生效，跳过缓存复用）')
     parser.add_argument('--strategy', type=str,
                        help='指定策略名称（用于 scan/simulate/enumerate/价格与资金模拟）；'
                             '省略时：enumerate/-se/-sp/-sa 默认使用「唯一」is_enabled 的策略，'
@@ -617,6 +630,7 @@ def _get_help_epilog() -> str:
     %(prog)s -t                   Tag generating
     %(prog)s -s                   Strategy scan
     %(prog)s -se                  Strategy enumerate
+    %(prog)s -se -f               Strategy enumerate（强制刷新，跳过缓存复用）
     %(prog)s -sp                  Strategy price factor simulation
     %(prog)s -sa                  Strategy capital allocation simulation
     %(prog)s -sy                  Strategy analysis
@@ -797,7 +811,11 @@ class CommandExecutor:
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
-        self.app.enumerate(strategy_name=strategy, stock_count=args.stocks)
+        self.app.enumerate(
+            strategy_name=strategy,
+            stock_count=args.stocks,
+            force_refresh=bool(args.force_refresh),
+        )
     
     def _handle_simulate_price(self, args):
         """处理 simulate_price 命令"""

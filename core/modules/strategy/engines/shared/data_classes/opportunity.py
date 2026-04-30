@@ -91,6 +91,146 @@ class Opportunity:
         price_return = (current_price - self.trigger_price) / self.trigger_price
         self._settle(current_date, current_price, reason, price_return, sell_ratio=1.0)
 
+    def check_targets(
+        self,
+        current_kline: Dict[str, Any],
+        goal_config: Dict[str, Any],
+    ) -> bool:
+        current_price = current_kline["close"]
+        current_date = current_kline["date"]
+
+        holding_days = self._calculate_holding_days(self.trigger_date, current_date)
+        price_return = (current_price - self.trigger_price) / self.trigger_price
+
+        self.max_price = max(self.max_price or 0, current_price)
+        self.min_price = min(self.min_price or float("inf"), current_price)
+
+        expiration_config = goal_config.get("expiration", {})
+        if expiration_config:
+            fixed_window_in_days = expiration_config.get("fixed_window_in_days", 0)
+            if fixed_window_in_days > 0 and holding_days >= fixed_window_in_days:
+                self._settle(
+                    current_date,
+                    current_price,
+                    "expiration",
+                    price_return,
+                    sell_ratio=1.0,
+                )
+                return True
+
+        if self.protect_loss_active:
+            protect_loss_config = goal_config.get("protect_loss", {})
+            protect_ratio = protect_loss_config.get("ratio", 0)
+            if price_return <= protect_ratio:
+                self._settle(
+                    current_date,
+                    current_price,
+                    "protect_loss",
+                    price_return,
+                    sell_ratio=1.0,
+                )
+                return True
+
+        if self.dynamic_loss_active:
+            dynamic_loss_config = goal_config.get("dynamic_loss", {})
+            dynamic_ratio = dynamic_loss_config.get("ratio", -0.1)
+            if not self.dynamic_loss_highest:
+                self.dynamic_loss_highest = self.trigger_price
+            self.dynamic_loss_highest = max(self.dynamic_loss_highest, current_price)
+            dynamic_threshold = (
+                current_price - self.dynamic_loss_highest
+            ) / self.dynamic_loss_highest
+            if dynamic_threshold <= dynamic_ratio:
+                self._settle(
+                    current_date,
+                    current_price,
+                    "dynamic_loss",
+                    price_return,
+                    sell_ratio=1.0,
+                )
+                return True
+
+        stop_loss_stages = goal_config.get("stop_loss", {}).get("stages", [])
+        for idx, stage in enumerate(stop_loss_stages):
+            if idx <= self.triggered_stop_loss_idx:
+                continue
+            stage_ratio = stage.get("ratio", 0)
+            if price_return <= stage_ratio:
+                self.triggered_stop_loss_idx = idx
+                if stage.get("close_invest", False):
+                    stage_name = stage.get("name")
+                    if stage_name:
+                        reason = stage_name
+                    else:
+                        ratio_percent = int(stage_ratio * 100)
+                        reason = f"stop_loss_{ratio_percent}%"
+                    self._settle(
+                        current_date,
+                        current_price,
+                        reason,
+                        price_return,
+                        sell_ratio=1.0,
+                    )
+                    return True
+
+        take_profit_stages = goal_config.get("take_profit", {}).get("stages", [])
+        for idx, stage in enumerate(take_profit_stages):
+            if idx <= self.triggered_take_profit_idx:
+                continue
+            stage_ratio = stage.get("ratio", 0)
+            if price_return >= stage_ratio:
+                self.triggered_take_profit_idx = idx
+                actions = stage.get("actions", [])
+                if "set_protect_loss" in actions:
+                    self.protect_loss_active = True
+                if "set_dynamic_loss" in actions:
+                    self.dynamic_loss_active = True
+                    self.dynamic_loss_highest = current_price
+
+                stage_name = stage.get("name")
+                if stage_name:
+                    reason = stage_name
+                else:
+                    ratio_percent = int(stage_ratio * 100)
+                    reason = f"take_profit_{ratio_percent}%"
+
+                if stage.get("close_invest", False):
+                    self._settle(
+                        current_date,
+                        current_price,
+                        reason,
+                        price_return,
+                        sell_ratio=1.0,
+                    )
+                    return True
+                else:
+                    if not self.completed_targets:
+                        self.completed_targets = []
+                    sell_ratio = stage.get("sell_ratio", 1.0)
+                    profit = current_price - self.trigger_price
+                    weighted_profit = profit * sell_ratio
+                    self.completed_targets.append(
+                        {
+                            "date": current_date,
+                            "price": current_price,
+                            "reason": reason,
+                            "roi": price_return,
+                            "sell_ratio": sell_ratio,
+                            "profit": profit,
+                            "weighted_profit": weighted_profit,
+                        }
+                    )
+
+        return False
+
+    def _calculate_holding_days(self, start_date: str, end_date: str) -> int:
+        try:
+            start = datetime.strptime(start_date, "%Y%m%d")
+            end = datetime.strptime(end_date, "%Y%m%d")
+            return (end - start).days
+        except Exception:
+            return 0
+
     def _settle(
         self,
         sell_date: str,

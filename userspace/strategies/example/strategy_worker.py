@@ -9,7 +9,7 @@ Example Strategy Worker - 示例策略
 """
 
 from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
-from core.modules.strategy.models.opportunity import Opportunity
+from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from typing import Optional, Dict, Any
 import logging
 

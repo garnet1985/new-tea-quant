@@ -1,6 +1,6 @@
 # Adapter 模块（`modules.adapter`）
 
-策略 **Scanner** 完成扫描后，将 `Opportunity` 列表与上下文交给用户配置的 **adapter** 做后续处理（控制台展示、Webhook、入库等）。本模块提供 **`BaseOpportunityAdapter`** 基类、**`validate_adapter`** 校验、以及可选的 **`HistoryLoader`**（读取价格模拟结果用于展示统计）。实际加载与调用在 **`core.modules.strategy.components.scanner.AdapterDispatcher`** 中完成。
+策略 **Scanner** 完成扫描后，将 `Opportunity` 列表与上下文交给用户配置的 **adapter** 做后续处理（控制台展示、Webhook、入库等）。本模块提供 **`BaseOpportunityAdapter`** 基类、**`validate_adapter`** 校验、以及可选的 **`HistoryLoader`**（读取价格模拟结果用于展示统计）。实际加载与调用在 **`core.modules.strategy.engines.scanner.helpers.adapter_dispatcher.AdapterDispatcher`** 中完成。
 
 ## 适用场景
 

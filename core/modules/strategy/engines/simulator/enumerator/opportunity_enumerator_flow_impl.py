@@ -56,12 +56,26 @@ class OpportunityEnumeratorFlowImpl:
         stock_list: List[str],
         max_workers: Union[str, int],
         base_settings: Optional[StrategySettingsView],
+        force_refresh: bool = False,
     ) -> None:
         self.start_date = start_date
         self.end_date = end_date
         self.stock_list = stock_list
         self.max_workers = max_workers
         self.base_settings = base_settings
+        self.force_refresh = force_refresh
+
+    @staticmethod
+    def build_force_rebuild_plan(
+        request_fingerprint: EnumeratorFingerprint,
+    ) -> Dict[str, Any]:
+        return {
+            "action": ReuseAction.REBUILD_ALL,
+            "not_reused_because": NotReusedBecause.CACHE_MISS_OR_INVALIDATED,
+            "version_dir": None,
+            "cached_fingerprint": None,
+            "missing_stock_ids": request_fingerprint.stock_ids,
+        }
 
     def resolve_runtime_workers(self) -> int:
         from core.infra.worker.multi_process.process_worker import ProcessWorker
@@ -345,6 +359,7 @@ class OpportunityEnumeratorFlowImpl:
             ProcessExecutor,
         )
 
+        # step1: create process executor and scheduler
         executor = ProcessExecutor(
             max_workers=max_workers,
             execution_mode=ProcessExecutionMode.QUEUE,
@@ -360,27 +375,29 @@ class OpportunityEnumeratorFlowImpl:
             monitor_interval=enum_settings.monitor_interval,
             log=logger,
         )
+        # step2: run jobs batch-by-batch and collect raw job results
+        job_results = self._run_scheduled_batches(
+            jobs=jobs,
+            global_extra_cache=global_extra_cache,
+            scheduler=scheduler,
+            executor=executor,
+        )
+        executor.shutdown()
+        return job_results
+
+    def _run_scheduled_batches(
+        self,
+        *,
+        jobs: List[Dict[str, Any]],
+        global_extra_cache: Dict[str, List[Dict[str, Any]]],
+        scheduler: Any,
+        executor: Any,
+    ) -> List[Any]:
         total_jobs = len(jobs)
         job_results = []
         finished_jobs = 0
         for batch in scheduler.iter_batches():
-            process_jobs = [
-                {
-                    "id": job["stock_id"],
-                    "data": {
-                        "stock_id": job["stock_id"],
-                        "strategy_name": job["strategy_name"],
-                        "settings": job["settings"],
-                        "start_date": job["start_date"],
-                        "end_date": job["end_date"],
-                        "output_dir": job["output_dir"],
-                        "global_extra_cache": global_extra_cache,
-                        "worker_module_path": job["worker_module_path"],
-                        "worker_class_name": job["worker_class_name"],
-                    },
-                }
-                for job in batch
-            ]
+            process_jobs = self._build_process_jobs(batch, global_extra_cache)
             batch_results = executor.run_jobs(process_jobs, total_jobs=total_jobs)
             finished_jobs += len(batch)
             scheduler.update_after_batch(
@@ -389,8 +406,30 @@ class OpportunityEnumeratorFlowImpl:
                 finished_jobs=finished_jobs,
             )
             job_results.extend(batch_results)
-        executor.shutdown()
         return job_results
+
+    @staticmethod
+    def _build_process_jobs(
+        batch: List[Dict[str, Any]],
+        global_extra_cache: Dict[str, List[Dict[str, Any]]],
+    ) -> List[Dict[str, Any]]:
+        return [
+            {
+                "id": job["stock_id"],
+                "data": {
+                    "stock_id": job["stock_id"],
+                    "strategy_name": job["strategy_name"],
+                    "settings": job["settings"],
+                    "start_date": job["start_date"],
+                    "end_date": job["end_date"],
+                    "output_dir": job["output_dir"],
+                    "global_extra_cache": global_extra_cache,
+                    "worker_module_path": job["worker_module_path"],
+                    "worker_class_name": job["worker_class_name"],
+                },
+            }
+            for job in batch
+        ]
 
     def aggregate_job_results(
         self,
@@ -398,36 +437,73 @@ class OpportunityEnumeratorFlowImpl:
         job_results: List[Any],
         aggregate_profiler: AggregateProfiler,
     ) -> Dict[str, Any]:
+        # step1: aggregate result counts and performance metrics
         total_opportunities = 0
         success_count = 0
         failed_count = 0
         success_stock_ids: List[str] = []
         failed_stock_ids: List[str] = []
+        trigger_stock_count = 0
+        completed_count = 0
+        unfinished_count = 0
         for job_result in job_results:
-            if job_result.status.value == "completed":
-                result = job_result.result
-                if result.get("success"):
-                    success_count += 1
-                    success_stock_ids.append(str(result.get("stock_id", "")))
-                    total_opportunities += int(result.get("opportunity_count", 0))
-                    perf_data = result.get("performance_metrics")
-                    if perf_data:
-                        metrics = PerformanceMetrics.from_dict(perf_data)
-                        aggregate_profiler.add_stock_metrics(
-                            result.get("stock_id"), metrics
-                        )
-                else:
-                    failed_count += 1
-                    failed_stock_ids.append(str(result.get("stock_id", "")))
+            row = self._aggregate_single_job_result(job_result, aggregate_profiler)
+            total_opportunities += row["opportunity_count"]
+            completed_count += row["completed_count"]
+            unfinished_count += row["unfinished_count"]
+            if row["success"]:
+                success_count += 1
+                success_stock_ids.append(row["stock_id"])
+                if row["opportunity_count"] > 0:
+                    trigger_stock_count += 1
             else:
                 failed_count += 1
-                failed_stock_ids.append(str(getattr(job_result, "job_id", "")))
+                failed_stock_ids.append(row["stock_id"])
+
+        # step2: normalize and return aggregate summary
         return {
             "total_opportunities": total_opportunities,
             "success_count": success_count,
             "failed_count": failed_count,
+            "trigger_stock_count": trigger_stock_count,
+            "completed_count": completed_count,
+            "unfinished_count": unfinished_count,
             "success_stock_ids": [s for s in success_stock_ids if s],
             "failed_stock_ids": [s for s in failed_stock_ids if s],
+        }
+
+    @staticmethod
+    def _aggregate_single_job_result(
+        job_result: Any, aggregate_profiler: AggregateProfiler
+    ) -> Dict[str, Any]:
+        if job_result.status.value != "completed":
+            return {
+                "success": False,
+                "stock_id": str(getattr(job_result, "job_id", "")),
+                "opportunity_count": 0,
+                "completed_count": 0,
+                "unfinished_count": 0,
+            }
+        result = job_result.result or {}
+        stock_id = str(result.get("stock_id", ""))
+        if not result.get("success"):
+            return {
+                "success": False,
+                "stock_id": stock_id,
+                "opportunity_count": 0,
+                "completed_count": 0,
+                "unfinished_count": 0,
+            }
+        perf_data = result.get("performance_metrics")
+        if perf_data:
+            metrics = PerformanceMetrics.from_dict(perf_data)
+            aggregate_profiler.add_stock_metrics(result.get("stock_id"), metrics)
+        return {
+            "success": True,
+            "stock_id": stock_id,
+            "opportunity_count": int(result.get("opportunity_count", 0)),
+            "completed_count": int(result.get("completed_count", 0)),
+            "unfinished_count": int(result.get("unfinished_count", 0)),
         }
 
     @staticmethod
@@ -516,15 +592,18 @@ class OpportunityEnumeratorFlowImpl:
         reuse_action: ReuseAction,
         not_reused_because: Optional[NotReusedBecause] = None,
     ) -> List[Dict[str, Any]]:
+        metadata = self._read_version_metadata(version_dir)
         version_id = int(version_dir.name) if version_dir.name.isdigit() else 0
         summary = {
             "strategy_name": strategy_name,
             "version_id": version_id,
             "version_dir": version_dir.name,
-            "opportunity_count": None,
-            "success_stocks": len(self.stock_list),
-            "failed_stocks": 0,
-            "total_stocks": len(self.stock_list),
+            "opportunities": int(metadata.get("opportunity_count") or 0),
+            "totalStocks": len(self.stock_list),
+            "triggerStocks": 0,
+            "completedCount": int(metadata.get("completed_count") or 0),
+            "unfinishedCount": int(metadata.get("unfinished_count") or 0),
+            "completionRate": float(metadata.get("completion_rate") or 0.0),
             "elapsed_seconds": 0.0,
             "reuse_action": reuse_action.value,
         }
@@ -558,19 +637,28 @@ class OpportunityEnumeratorFlowImpl:
         total_opportunities: int,
         success_count: int,
         failed_count: int,
+        trigger_stock_count: int,
+        completed_count: int,
+        unfinished_count: int,
         start_time: float,
         reuse_action: Optional[ReuseAction] = None,
         not_reused_because: Optional[NotReusedBecause] = None,
         diff_stock_count: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
+        total_stocks = success_count + failed_count
+        completion_rate = (
+            (completed_count / total_opportunities) if total_opportunities > 0 else 0.0
+        )
         summary = {
             "strategy_name": strategy_name,
             "version_id": version_id,
             "version_dir": version_dir_name,
-            "opportunity_count": total_opportunities,
-            "success_stocks": success_count,
-            "failed_stocks": failed_count,
-            "total_stocks": success_count + failed_count,
+            "opportunities": total_opportunities,
+            "totalStocks": total_stocks,
+            "triggerStocks": int(trigger_stock_count),
+            "completedCount": completed_count,
+            "unfinishedCount": unfinished_count,
+            "completionRate": completion_rate,
             "elapsed_seconds": time.time() - start_time,
         }
         if reuse_action:
@@ -578,8 +666,22 @@ class OpportunityEnumeratorFlowImpl:
         if not_reused_because and not_reused_because != NotReusedBecause.NONE:
             summary["not_reused_because"] = not_reused_because.value
         if diff_stock_count is not None:
-            summary["diff_stock_count"] = int(diff_stock_count)
+            summary["diffStockCount"] = int(diff_stock_count)
         return [summary]
+
+    @staticmethod
+    def _read_version_metadata(version_dir: Path) -> Dict[str, Any]:
+        metadata_path = version_dir / "0_metadata.json"
+        if not metadata_path.exists():
+            return {}
+        try:
+            with metadata_path.open("r", encoding="utf-8") as f:
+                payload = json.load(f) or {}
+            if isinstance(payload, dict):
+                return payload
+        except Exception:
+            pass
+        return {}
 
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:

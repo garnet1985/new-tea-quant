@@ -4,17 +4,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
-from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
-    DiscoveredStrategy,
-)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
-from core.modules.strategy.engines.simulator.enumerator import OpportunityEnumeratorFlow
 from core.modules.strategy.services.data.output import StrategyOutputVersionService
+
+if TYPE_CHECKING:
+    from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
+        DiscoveredStrategy,
+    )
 
 
 class StrategyEnumeratorBootstrapService:
@@ -25,7 +26,7 @@ class StrategyEnumeratorBootstrapService:
         base_settings: StrategySettingsView,
         use_sampling: bool,
         base_version: str,
-        strategy_info: Optional[DiscoveredStrategy] = None,
+        strategy_info: Optional["DiscoveredStrategy"] = None,
     ) -> Tuple[Path, Path]:
         sub_dir = "test" if use_sampling else "output"
         raw_version = (base_version or "latest").strip()
@@ -63,9 +64,12 @@ class StrategyEnumeratorBootstrapService:
         strategy_name: str,
         base_settings: StrategySettingsView,
         use_sampling: bool,
-        strategy_info: Optional[DiscoveredStrategy] = None,
+        strategy_info: Optional["DiscoveredStrategy"] = None,
     ) -> Optional[Path]:
         from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.simulator.enumerator import (
+            OpportunityEnumeratorFlow,
+        )
         from core.utils.date.date_utils import DateUtils
 
         data_mgr = DataManager(is_verbose=False)

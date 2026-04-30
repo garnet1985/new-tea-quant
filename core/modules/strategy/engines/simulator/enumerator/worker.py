@@ -4,7 +4,6 @@ import logging
 import time
 
 from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -12,6 +11,8 @@ from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolv
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.services.data import StrategyDataInjectionService
+from core.modules.strategy.services.data.output import EnumeratorOutputWriterService
+from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class OpportunityEnumeratorWorker:
         self.end_date = job_payload["end_date"]
         self.profiler = PerformanceProfiler(self.stock_id)
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
+        self.settings_dict = self.settings.to_dict()
         self.stock_info = {"id": self.stock_id, "name": self.stock_id, "industry": "", "type": "", "exchange_center": ""}
         self.contract_cache = ContractCacheManager()
         self.data_manager = StrategyDataInjectionService(
@@ -49,7 +51,7 @@ class OpportunityEnumeratorWorker:
                 "stock_id": self.stock_id,
                 "execution_mode": ExecutionMode.SCAN.value,
                 "strategy_name": self.strategy_name,
-                "settings": self.settings.to_dict(),
+                "settings": self.settings_dict,
             }
         )
         if hasattr(self.strategy_instance, "stock_info"):
@@ -58,74 +60,130 @@ class OpportunityEnumeratorWorker:
     def run(self) -> Dict[str, Any]:
         self.profiler.start_timer("total")
         try:
-            lookback_days = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
-            actual_start_date = self._get_date_before(self.start_date, lookback_days)
-            self.profiler.start_timer("load_data")
-            if "_preloaded_klines" in self.job_payload:
-                self.data_manager.preload_klines(
-                    self.job_payload["_preloaded_klines"],
-                    start_date=actual_start_date,
-                    end_date=self.end_date,
-                )
-                self.data_manager.apply_indicators()
-                extras = getattr(self.settings, "extra_required_data_sources", []) or []
-                if extras:
-                    q_start = time.perf_counter()
-                    self.data_manager.load_declared_items(extras, start_date=actual_start_date, end_date=self.end_date)
-                    q_elapsed = time.perf_counter() - q_start
-                    for _ in range(len(extras)):
-                        self.profiler.record_db_query(q_elapsed / max(len(extras), 1))
-                self.data_manager.rebuild_data_cursor()
-            else:
-                q_start = time.perf_counter()
-                self.data_manager.load_historical_data(start_date=actual_start_date, end_date=self.end_date)
-                q_elapsed = time.perf_counter() - q_start
-                required_sources = getattr(self.settings, "required_data_sources", []) or []
-                estimated = max(len(required_sources), 1)
-                for _ in range(estimated):
-                    self.profiler.record_db_query(q_elapsed / estimated)
-            self.profiler.metrics.time_load_data = self.profiler.end_timer("load_data")
-
+            # step1: prepare query time range
+            actual_start_date = self._prepare_actual_start_date()
+            # step2: load declared data into injection service
+            self._load_runtime_data(actual_start_date)
+            # step3: enumerate opportunities over kline timeline
             all_klines = self.data_manager.get_klines()
             if not all_klines or len(all_klines) < self.settings.min_required_records:
                 return {"success": True, "stock_id": self.stock_id, "opportunity_count": 0}
-
-            tracker = {"stock_id": self.stock_id, "passed_dates": [], "active_opportunities": [], "all_opportunities": []}
-            self.profiler.start_timer("enumerate")
-            last_kline = None
-            for current_kline in all_klines:
-                virtual_date_of_today = current_kline["date"]
-                tracker["passed_dates"].append(virtual_date_of_today)
-                if len(tracker["passed_dates"]) < self.settings.min_required_records:
-                    continue
-                data_of_today = self.data_manager.get_data_until(virtual_date_of_today)
-                self._enumerate_single_day(tracker, current_kline, data_of_today)
-                last_kline = current_kline
-            self.profiler.metrics.time_enumerate = self.profiler.end_timer("enumerate")
-            if tracker["active_opportunities"] and last_kline:
-                self._close_all_open_opportunities(tracker, last_kline)
-            self.profiler.start_timer("serialize")
-            opportunities_dict = [opp.to_dict() for opp in tracker["all_opportunities"]]
-            self.profiler.metrics.time_serialize = self.profiler.end_timer("serialize")
-            if self.job_payload.get("output_dir") and opportunities_dict:
-                self.profiler.start_timer("save_csv")
-                self._save_stock_results(self.job_payload["output_dir"], opportunities_dict)
-                self.profiler.metrics.time_save_csv = self.profiler.end_timer("save_csv")
-            self.profiler.metrics.kline_count = len(all_klines)
-            self.profiler.metrics.opportunity_count = len(opportunities_dict)
-            self.profiler.metrics.target_count = sum(len(opp.get("completed_targets", []) or []) for opp in opportunities_dict)
-            self.profiler.metrics.time_total = self.profiler.end_timer("total")
-            metrics = self.profiler.finalize()
-            return {"success": True, "stock_id": self.stock_id, "opportunity_count": len(opportunities_dict), "performance_metrics": metrics.to_dict()}
+            tracker = self._enumerate_opportunities(all_klines)
+            # step4: serialize opportunity objects
+            opportunities_dict = self._serialize_opportunities(tracker)
+            # step5: persist outputs and finalize metrics
+            return self._finalize_success_result(all_klines, opportunities_dict)
         except Exception as exc:
             logger.error("enumeration failed: stock_id=%s, error=%s", self.stock_id, exc, exc_info=True)
             return {"success": False, "stock_id": self.stock_id, "opportunity_count": 0, "error": str(exc)}
 
-    def _get_date_before(self, date_str: str, days: int) -> str:
-        from datetime import datetime, timedelta
+    def _prepare_actual_start_date(self) -> str:
+        lookback_days = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
+        return self._get_date_before(self.start_date, lookback_days)
 
+    def _load_runtime_data(self, actual_start_date: str) -> None:
+        self.profiler.start_timer("load_data")
+        if "_preloaded_klines" in self.job_payload:
+            self.data_manager.preload_klines(
+                self.job_payload["_preloaded_klines"],
+                start_date=actual_start_date,
+                end_date=self.end_date,
+            )
+            self.data_manager.apply_indicators()
+            extras = getattr(self.settings, "extra_required_data_sources", []) or []
+            if extras:
+                query_start = time.perf_counter()
+                self.data_manager.load_declared_items(
+                    extras,
+                    start_date=actual_start_date,
+                    end_date=self.end_date,
+                )
+                query_elapsed = time.perf_counter() - query_start
+                for _ in range(len(extras)):
+                    self.profiler.record_db_query(query_elapsed / max(len(extras), 1))
+            self.data_manager.rebuild_data_cursor()
+        else:
+            query_start = time.perf_counter()
+            self.data_manager.load_historical_data(
+                start_date=actual_start_date, end_date=self.end_date
+            )
+            query_elapsed = time.perf_counter() - query_start
+            required_sources = getattr(self.settings, "required_data_sources", []) or []
+            estimated = max(len(required_sources), 1)
+            for _ in range(estimated):
+                self.profiler.record_db_query(query_elapsed / estimated)
+        self.profiler.metrics.time_load_data = self.profiler.end_timer("load_data")
+
+    def _enumerate_opportunities(self, all_klines: List[Dict[str, Any]]) -> Dict[str, Any]:
+        tracker = {
+            "stock_id": self.stock_id,
+            "passed_dates": [],
+            "active_opportunities": [],
+            "all_opportunities": [],
+        }
+        self.profiler.start_timer("enumerate")
+        last_kline = None
+        for current_kline in all_klines:
+            virtual_date_of_today = current_kline["date"]
+            tracker["passed_dates"].append(virtual_date_of_today)
+            if len(tracker["passed_dates"]) < self.settings.min_required_records:
+                continue
+            data_of_today = self.data_manager.get_data_until(virtual_date_of_today)
+            self._enumerate_single_day(tracker, current_kline, data_of_today)
+            last_kline = current_kline
+        self.profiler.metrics.time_enumerate = self.profiler.end_timer("enumerate")
+        if tracker["active_opportunities"] and last_kline:
+            self._close_all_open_opportunities(tracker, last_kline)
+        return tracker
+
+    def _serialize_opportunities(self, tracker: Dict[str, Any]) -> List[Dict[str, Any]]:
+        self.profiler.start_timer("serialize")
+        opportunities_dict = [opportunity.to_dict() for opportunity in tracker["all_opportunities"]]
+        self.profiler.metrics.time_serialize = self.profiler.end_timer("serialize")
+        return opportunities_dict
+
+    def _finalize_success_result(
+        self,
+        all_klines: List[Dict[str, Any]],
+        opportunities_dict: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if self.job_payload.get("output_dir") and opportunities_dict:
+            self.profiler.start_timer("save_csv")
+            self._save_stock_results(self.job_payload["output_dir"], opportunities_dict)
+            self.profiler.metrics.time_save_csv = self.profiler.end_timer("save_csv")
+        self.profiler.metrics.kline_count = len(all_klines)
+        self.profiler.metrics.opportunity_count = len(opportunities_dict)
+        self.profiler.metrics.target_count = sum(
+            len(opportunity.get("completed_targets", []) or [])
+            for opportunity in opportunities_dict
+        )
+        completed_count = 0
+        unfinished_count = 0
+        for opportunity in opportunities_dict:
+            sell_reason = str(opportunity.get("sell_reason", "") or "").lower()
+            if sell_reason in {"enumeration_end", "backtest_end"}:
+                unfinished_count += 1
+            else:
+                # 兜底：若未写 sell_reason 但仍显示持仓态，仍视为未完成
+                status = str(opportunity.get("status", "") or "").lower()
+                if status in {"open", "active", "testing"}:
+                    unfinished_count += 1
+                else:
+                    completed_count += 1
+        self.profiler.metrics.time_total = self.profiler.end_timer("total")
+        metrics = self.profiler.finalize()
+        return {
+            "success": True,
+            "stock_id": self.stock_id,
+            "opportunity_count": len(opportunities_dict),
+            "completed_count": completed_count,
+            "unfinished_count": unfinished_count,
+            "performance_metrics": metrics.to_dict(),
+        }
+
+    def _get_date_before(self, date_str: str, days: int) -> str:
         try:
-            return (datetime.strptime(date_str, "%Y%m%d") - timedelta(days=days)).strftime("%Y%m%d")
+            return DateUtils.sub_days(date_str, days)
         except Exception:
             return date_str
 
@@ -156,8 +214,7 @@ class OpportunityEnumeratorWorker:
         tracker["all_opportunities"].append(opportunity)
 
     def _scan_opportunity_with_data(self, data: Dict[str, Any]):
-        settings_dict = self.settings.to_dict()
-        return self.strategy_instance.scan_opportunity(data, settings_dict)
+        return self.strategy_instance.scan_opportunity(data, self.settings_dict)
 
     def _close_all_open_opportunities(self, tracker: Dict[str, Any], last_kline: Dict[str, Any]):
         for opportunity in tracker["active_opportunities"]:
@@ -165,66 +222,18 @@ class OpportunityEnumeratorWorker:
         tracker["active_opportunities"].clear()
 
     def _save_stock_results(self, output_dir: str, opportunities: List[Dict[str, Any]]):
-        import json
         from pathlib import Path
 
-        from core.utils.io.csv_io import write_dicts_to_csv
-
         output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-        opp_rows: List[Dict[str, Any]] = []
-        target_rows: List[Dict[str, Any]] = []
-        excluded_fields = {
-            "completed_targets",
-            "config_hash",
-            "created_at",
-            "updated_at",
-            "record_of_today",
-            "dynamic_loss_active",
-            "dynamic_loss_highest",
-            "expired_reason",
-            "expired_date",
-            "exit_reason",
-            "protect_loss_active",
-            "scan_date",
-            "stock",
-            "stock_id",
-            "stock_name",
-            "strategy_name",
-            "strategy_version",
-            "holding_days",
-            "max_drawdown",
-            "metadata",
-            "price_return",
-            "tracking",
-            "triggered_stop_loss_idx",
-        }
-        for opp_dict in opportunities:
-            completed_targets = opp_dict.get("completed_targets", [])
-            for target in completed_targets or []:
-                target_rows.append(
-                    {
-                        "opportunity_id": opp_dict.get("opportunity_id", ""),
-                        "date": target.get("date", ""),
-                        "sell_price": target.get("price", ""),
-                        "sell_ratio": target.get("sell_ratio", ""),
-                        "profit": target.get("profit", ""),
-                        "weighted_profit": target.get("weighted_profit", ""),
-                        "reason": target.get("reason", ""),
-                        "roi": target.get("roi", ""),
-                    }
-                )
-            opp_row = {k: v for k, v in opp_dict.items() if k not in excluded_fields}
-            for key, value in opp_row.items():
-                if isinstance(value, (dict, list)):
-                    opp_row[key] = json.dumps(value, ensure_ascii=False)
-                elif value is None:
-                    opp_row[key] = ""
-            opp_rows.append(opp_row)
-        if opp_rows:
-            write_dicts_to_csv(output_path / f"{self.stock_id}_opportunities.csv", opp_rows, preferred_order=list(opp_rows[0].keys()))
-        if target_rows:
-            write_dicts_to_csv(output_path / f"{self.stock_id}_targets.csv", target_rows, preferred_order=list(target_rows[0].keys()))
+        opportunity_rows, target_rows = EnumeratorOutputWriterService.build_stock_rows(
+            opportunities=opportunities
+        )
+        EnumeratorOutputWriterService.write_stock_csv(
+            output_dir=output_path,
+            stock_id=self.stock_id,
+            opportunity_rows=opportunity_rows,
+            target_rows=target_rows,
+        )
 
 
 __all__ = ["OpportunityEnumeratorWorker"]

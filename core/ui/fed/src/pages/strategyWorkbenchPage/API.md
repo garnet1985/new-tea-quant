@@ -658,7 +658,7 @@ HTTP 500（或与错误语义一致的 4xx/5xx），示例：
 - **绑定字段**：`capital_simulator.allocation.mode`（见 `strategyCapitalSimulator` schema）
 - **FED 调用**：`fetchCapitalAllocationModeOptions()`（`strategyApi.js`）
 
-**语义**：返回可选 **`value`** 必须与 ``core.modules.strategy.data_classes.strategy_settings.capital_allocation_settings`` 中 **mode** 校验集合一致（当前为 `equal_capital` / `equal_shares` / `kelly` / `custom`）。**`label`** 为界面展示文案。并返回每个 mode 对应的字段 profile，供前端在切换 mode 时联动显示/校验下方字段。
+**语义**：返回可选 **`value`** 必须与 ``core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings`` 中 **mode** 校验集合一致（当前为 `equal_capital` / `equal_shares` / `kelly` / `custom`）。**`label`** 为界面展示文案。并返回每个 mode 对应的字段 profile，供前端在切换 mode 时联动显示/校验下方字段。
 
 #### 请求契约
 

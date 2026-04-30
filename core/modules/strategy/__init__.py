@@ -1,21 +1,8 @@
 #!/usr/bin/env python3
 """Strategy module public entrypoints."""
 
-from .strategy_manager import StrategyManager
-from .base_strategy_worker import BaseStrategyWorker
-from .engines.shared.data_classes.opportunity import Opportunity
-from .engines.scanner.helpers import ScannerStatisticsHelper
-from .engines.shared.helpers import JobBuilderHelper, StockSamplingHelper
-from .engines.simulator.helpers import SimulatorStatisticsHelper
-from .enums import ExecutionMode, OpportunityStatus, SellReason
-from .services import (
-    StrategyDataInjectionService,
-    StrategyOutputReaderService,
-    StrategyDiscoveryHelper,
-    build_settings,
-    normalize_and_validate,
-    validate_settings,
-)
+from importlib import import_module
+from typing import Any
 
 __all__ = [
     "StrategyManager",
@@ -35,4 +22,33 @@ __all__ = [
     "validate_settings",
     "normalize_and_validate",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "StrategyManager":
+        return getattr(import_module(".strategy_manager", __name__), name)
+    if name == "BaseStrategyWorker":
+        return getattr(import_module(".base_strategy_worker", __name__), name)
+    if name == "Opportunity":
+        return getattr(
+            import_module(".engines.shared.data_classes.opportunity", __name__), name
+        )
+    if name in {"ExecutionMode", "OpportunityStatus", "SellReason"}:
+        return getattr(import_module(".enums", __name__), name)
+    if name == "ScannerStatisticsHelper":
+        return getattr(import_module(".engines.scanner.helpers", __name__), name)
+    if name in {"JobBuilderHelper", "StockSamplingHelper"}:
+        return getattr(import_module(".engines.shared.helpers", __name__), name)
+    if name == "SimulatorStatisticsHelper":
+        return getattr(import_module(".engines.simulator.helpers", __name__), name)
+    if name in {
+        "StrategyDataInjectionService",
+        "StrategyOutputReaderService",
+        "StrategyDiscoveryHelper",
+        "build_settings",
+        "normalize_and_validate",
+        "validate_settings",
+    }:
+        return getattr(import_module(".services", __name__), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

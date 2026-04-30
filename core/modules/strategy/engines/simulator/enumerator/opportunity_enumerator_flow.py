@@ -32,18 +32,21 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         stock_list: List[str],
         max_workers: Union[str, int],
         base_settings: Optional[StrategySettingsView],
+        force_refresh: bool = False,
     ) -> None:
         self.start_date = start_date
         self.end_date = end_date
         self.stock_list = stock_list
         self.max_workers = max_workers
         self.base_settings = base_settings
+        self.force_refresh = force_refresh
         self._impl = OpportunityEnumeratorFlowImpl(
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
             max_workers=max_workers,
             base_settings=base_settings,
+            force_refresh=force_refresh,
         )
 
     def preprocess(
@@ -69,11 +72,14 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             stock_ids=self.stock_list,
             worker_ref=worker_ref,
         )
-        reuse_plan = self._impl.plan_reuse(
-            strategy_name=strategy_name,
-            enum_settings=enum_settings,
-            request_fingerprint=request_fingerprint,
-        )
+        if self.force_refresh:
+            reuse_plan = self._impl.build_force_rebuild_plan(request_fingerprint)
+        else:
+            reuse_plan = self._impl.plan_reuse(
+                strategy_name=strategy_name,
+                enum_settings=enum_settings,
+                request_fingerprint=request_fingerprint,
+            )
         if reuse_plan["action"] == ReuseAction.REUSE_FULL:
             return EnumeratorPreprocessContext(
                 strategy_name=strategy_name,
@@ -200,6 +206,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             total_opportunities=aggregate["total_opportunities"],
             success_count=aggregate["success_count"],
             failed_count=aggregate["failed_count"],
+            trigger_stock_count=aggregate["trigger_stock_count"],
+            completed_count=aggregate["completed_count"],
+            unfinished_count=aggregate["unfinished_count"],
             start_time=preprocessed.start_time,
             reuse_action=preprocessed.reuse_action,
             not_reused_because=preprocessed.not_reused_because,

@@ -189,17 +189,17 @@ new-tea-quant/
 
 `core/modules/strategy/` 的核心是一个**四层架构**：
 
-- **Layer 0：OpportunityEnumerator（底层枚举器 / 枚举输出结果 / 缓存层）**
+- **Layer 0：OpportunityEnumeratorFlow（底层枚举器 / 枚举输出结果 / 缓存层）**
   - 全市场、全周期地枚举所有潜在机会，生成 CSV 双表（opportunities + targets）。
   - 这是整个框架的**底层事实表**，同时也是「回测缓存层」：
     - 一次枚举，多次复用，方便分析软件和机器学习使用。
     - 可追溯：任何一条机会都能追到具体股票、具体日期、具体触发条件。
 - **Layer 1：Scanner**
   - 针对最新一日做扫描，产出实时机会（active Opportunity），用于实盘提示。
-- **Layer 2：PriceFactorSimulator（价格回测）**
+- **Layer 2：PriceFactorFlow（价格回测）**
   - 在不考虑资金约束的前提下，基于枚举器的 枚举输出结果快速验证「价格层策略是否有 alpha」。
   - 速度非常快，适合频繁调参与因子实验。
-- **Layer 3：CapitalAllocationSimulator（带资金的回测）**
+- **Layer 3：CapitalAllocationFlow（带资金的回测）**
   - 在价格层策略被证明有效后，进一步引入资金约束、多股票、费用等，模拟真实交易过程。
   - 仍然复用同一份 枚举输出结果 枚举结果，只是在其上叠加资金管理逻辑。
 

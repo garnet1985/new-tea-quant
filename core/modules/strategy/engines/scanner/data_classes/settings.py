@@ -52,6 +52,7 @@ class StrategyScannerSettings(SettingsBase):
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
         self.apply_defaults()
+
         self._normalize_fields()
         self._validate_adapters(result)
         SettingsBase.log_warnings(result, logger)

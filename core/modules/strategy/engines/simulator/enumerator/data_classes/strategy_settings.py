@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 @dataclass
 class StrategyEnumeratorSettings(SettingsBase):
     raw_settings: Dict[str, Any]
-    _missing_use_sampling_at_load: bool = field(default=False, repr=False)
     _enumerator_validated: bool = field(default=False, repr=False)
 
     @property
@@ -42,10 +41,8 @@ class StrategyEnumeratorSettings(SettingsBase):
     def from_strategy_root(cls, root: Dict[str, Any]) -> "StrategyEnumeratorSettings":
         if not isinstance(root, dict):
             root = {}
-        block = root.get("enumerator")
-        missing_use_sampling = not isinstance(block, dict) or "use_sampling" not in block
         SettingsBase.ensure_dict_block(root, "enumerator")
-        return cls(raw_settings=root, _missing_use_sampling_at_load=missing_use_sampling)
+        return cls(raw_settings=root)
 
     @classmethod
     def from_base_settings(cls, base_settings: StrategySettings) -> "StrategyEnumeratorSettings":
@@ -53,8 +50,6 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         e = self.enumerator
-        e.setdefault("use_sampling", False)
-        e.setdefault("max_test_versions", 10)
         e.setdefault("max_output_versions", 3)
         e.setdefault("max_workers", "auto")
         e.setdefault("is_verbose", False)
@@ -67,6 +62,7 @@ class StrategyEnumeratorSettings(SettingsBase):
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
         self.apply_defaults()
+
         goal_config = self.raw_settings.get("goal")
         if not isinstance(goal_config, dict):
             goal_config = {}
@@ -78,12 +74,6 @@ class StrategyEnumeratorSettings(SettingsBase):
         if not goal_result.is_valid:
             result.is_valid = False
 
-        if self._missing_use_sampling_at_load:
-            SettingsBase.add_warning(
-                result,
-                "enumerator.use_sampling",
-                "use_sampling 未配置，已默认 False",
-            )
         self._validate_numeric_fields(result)
         SettingsBase.log_warnings(result, logger)
         self._enumerator_validated = True
@@ -91,7 +81,7 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     def _validate_numeric_fields(self, result: ValidationReport) -> None:
         e = self.enumerator
-        for key, default in (("max_test_versions", 10), ("max_output_versions", 3)):
+        for key, default in (("max_output_versions", 3),):
             val = e.get(key, default)
             try:
                 n = int(val)
@@ -121,14 +111,10 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     @property
     def use_sampling(self) -> bool:
-        return bool(self.enumerator.get("use_sampling", False))
-
-    @property
-    def max_test_versions(self) -> int:
-        try:
-            return max(int(self.enumerator.get("max_test_versions", 10)), 1)
-        except (TypeError, ValueError):
-            return 10
+        s = self.raw_settings.get("sampling")
+        if isinstance(s, dict):
+            return bool(s.get("use_sampling", False))
+        return False
 
     @property
     def max_output_versions(self) -> int:

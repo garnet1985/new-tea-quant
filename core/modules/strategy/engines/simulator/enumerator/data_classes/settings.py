@@ -65,21 +65,10 @@ class OpportunityEnumeratorSettings:
         self.data = data
         self.min_required_records = mrr_int
 
+        sampling_block = dict(settings.get("sampling") or {})
+        self.use_sampling = bool(sampling_block.get("use_sampling", False))
+
         enumerator = dict(settings.get("enumerator") or {})
-        use_sampling = enumerator.get("use_sampling", True)
-        if not isinstance(use_sampling, bool):
-            use_sampling = True
-        self.use_sampling = use_sampling
-
-        max_test_versions = enumerator.get("max_test_versions", 10)
-        try:
-            max_test_versions_int = int(max_test_versions)
-        except (TypeError, ValueError):
-            max_test_versions_int = 10
-        if max_test_versions_int < 1:
-            max_test_versions_int = 10
-        self.max_test_versions = max_test_versions_int
-
         max_output_versions = enumerator.get("max_output_versions", 3)
         try:
             max_output_versions_int = int(max_output_versions)
@@ -112,10 +101,14 @@ class OpportunityEnumeratorSettings:
         merged = dict(self.raw or {})
         merged["data"] = self.data
         merged["price_simulator"] = self.price_simulator
+        if "sampling" not in merged or not isinstance(merged.get("sampling"), dict):
+            merged["sampling"] = {}
+        merged["sampling"] = dict(merged["sampling"])
+        merged["sampling"]["use_sampling"] = self.use_sampling
         if "enumerator" not in merged:
             merged["enumerator"] = {}
-        merged["enumerator"]["use_sampling"] = self.use_sampling
-        merged["enumerator"]["max_test_versions"] = self.max_test_versions
+        merged["enumerator"].pop("use_sampling", None)
+        merged["enumerator"].pop("max_test_versions", None)
         merged["enumerator"]["max_output_versions"] = self.max_output_versions
         merged["enumerator"]["max_workers"] = self.max_workers
         merged["enumerator"]["is_verbose"] = self.is_verbose

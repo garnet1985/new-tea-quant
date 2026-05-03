@@ -140,13 +140,19 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
  */
 export async function startStrategyRun(strategyName, targetStep, settings, options = {}) {
   const isForce = Boolean(options?.is_force);
+  const workbenchVersionId =
+    typeof options?.workbench_version_id === 'string' ? options.workbench_version_id.trim() : '';
+  const body = {
+    target_step: targetStep,
+    settings: settings && typeof settings === 'object' ? settings : undefined,
+    is_force: isForce,
+  };
+  if (workbenchVersionId) {
+    body.workbench_version_id = workbenchVersionId;
+  }
   const json = await requestJson(`${API_BASE}/${encodeURIComponent(strategyName)}/runs`, {
     method: 'POST',
-    body: JSON.stringify({
-      target_step: targetStep,
-      settings: settings && typeof settings === 'object' ? settings : undefined,
-      is_force: isForce,
-    }),
+    body: JSON.stringify(body),
   });
   return json?.message || {};
 }

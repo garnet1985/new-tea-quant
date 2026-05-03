@@ -129,7 +129,7 @@ def start_strategy_run(strategy_name):
         return err
 
     # Step 2: parse and validate run contract fields.
-    target_step, is_force, run_settings = (
+    target_step, run_settings, is_force, workbench_version_id = (
         _strategy_workbench_service.parse_start_run_request_fields(payload)
     )
     err = _strategy_workbench_service.validate_target_step(target_step)
@@ -176,6 +176,7 @@ def start_strategy_run(strategy_name):
         workbench_snapshot_version=workbench_snapshot_version,
         run_settings_snapshot=run_settings_snapshot,
         is_force=is_force,
+        workbench_version_id=workbench_version_id,
     )
 
     # Step 7: persist status then launch worker process.
@@ -188,7 +189,6 @@ def start_strategy_run(strategy_name):
         strategy_name=strategy_key,
         target_step=target_step,
         resolved_chain=resolved_chain,
-        is_force=is_force,
     )
 
 

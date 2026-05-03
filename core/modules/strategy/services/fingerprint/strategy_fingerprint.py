@@ -1,34 +1,25 @@
 #!/usr/bin/env python3
-"""Enumerator fingerprint for reuse planning."""
+"""
+策略运行指纹（全局）：规范化后的 `settings_core` + 运行维度；构造工具与 runtime 封装。
+
+枚举磁盘产物不按旧 enumerator plan 复用；工作台侧 DB 以 fingerprint 对齐缓存命中（TTL / 版本漂移由 BFF 校验）。
+"""
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Any, Dict, List
 import json
+from typing import Any, Dict, List, Tuple
 
-
-_NON_CORE_ENUMERATOR_KEYS = {
-    "max_workers",
-    "is_verbose",
-    "memory_budget_mb",
-    "warmup_batch_size",
-    "min_batch_size",
-    "max_batch_size",
-    "monitor_interval",
-    "max_test_versions",
-    "max_output_versions",
-}
-
-_NON_CORE_ROOT_KEYS = {
-    "description",
-    "is_enabled",
-}
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 
 
 @dataclass(frozen=True)
-class EnumeratorFingerprint:
+class StrategyRunFingerprint:
     schema_version: int
     strategy_name: str
     start_date: str
@@ -54,7 +45,7 @@ class EnumeratorFingerprint:
         worker_class_name: str = "",
         worker_code_hash: str = "",
         data_contract_signature: str = "",
-    ) -> "EnumeratorFingerprint":
+    ) -> "StrategyRunFingerprint":
         settings_core = cls.extract_settings_core(raw_settings)
         normalized_stocks = sorted({str(stock_id) for stock_id in stock_ids if stock_id})
         fingerprint_id = cls.compute_fingerprint_id(
@@ -83,7 +74,7 @@ class EnumeratorFingerprint:
         )
 
     @classmethod
-    def from_dict(cls, payload: Dict[str, Any]) -> "EnumeratorFingerprint":
+    def from_dict(cls, payload: Dict[str, Any]) -> "StrategyRunFingerprint":
         return cls(
             schema_version=int(payload.get("schema_version", 1)),
             strategy_name=str(payload.get("strategy_name", "")),
@@ -113,52 +104,9 @@ class EnumeratorFingerprint:
             "fingerprint_id": self.fingerprint_id,
         }
 
-    def is_contain(self, request: "EnumeratorFingerprint") -> bool:
-        if self.strategy_name and request.strategy_name != self.strategy_name:
-            return False
-        if request.start_date < self.start_date or request.end_date > self.end_date:
-            return False
-        if request.settings_core != self.settings_core:
-            return False
-        if request.worker_module_path != self.worker_module_path:
-            return False
-        if request.worker_class_name != self.worker_class_name:
-            return False
-        if request.worker_code_hash != self.worker_code_hash:
-            return False
-        if request.data_contract_signature != self.data_contract_signature:
-            return False
-        return set(request.stock_ids).issubset(set(self.stock_ids))
-
-    def diff_stock_ids(self, request: "EnumeratorFingerprint") -> List[str]:
-        return sorted(set(request.stock_ids) - set(self.stock_ids))
-
     @staticmethod
     def extract_settings_core(raw_settings: Dict[str, Any]) -> Dict[str, Any]:
-        source = raw_settings or {}
-        normalized_source = dict(source)
-        enumerator = dict(normalized_source.get("enumerator") or {})
-        for key in _NON_CORE_ENUMERATOR_KEYS:
-            enumerator.pop(key, None)
-        normalized_source["enumerator"] = enumerator
-        # sampling 仅在任一模拟模块实际启用采样时参与 hash。
-        # 否则 sampling 的编辑不应影响枚举缓存命中。
-        sampling_is_used = bool(enumerator.get("use_sampling", False))
-        price_cfg = normalized_source.get("price_simulator")
-        if isinstance(price_cfg, dict) and bool(price_cfg.get("use_sampling", False)):
-            sampling_is_used = True
-        capital_cfg = normalized_source.get("capital_simulator")
-        if isinstance(capital_cfg, dict) and bool(capital_cfg.get("use_sampling", False)):
-            sampling_is_used = True
-        if not sampling_is_used:
-            normalized_source.pop("sampling", None)
-        for key in _NON_CORE_ROOT_KEYS:
-            normalized_source.pop(key, None)
-        # meta（名称/描述等）不影响枚举计算；参与指纹会导致「仅改文案 / 版本切换」也换指纹，临时层与磁盘复用失真。
-        normalized_source.pop("meta", None)
-        # Keep full strategy config (except explicitly non-core keys) to avoid
-        # stale cache reuse when strategy-specific params are changed.
-        return normalized_source
+        return StrategySettings.build_settings_core_for_fingerprint(raw_settings)
 
     @staticmethod
     def compute_fingerprint_id(
@@ -188,15 +136,11 @@ class EnumeratorFingerprint:
         return sha256(canonical.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def compute_enumerator_scope_fingerprint_id(fp: "EnumeratorFingerprint") -> str:
-        """
-        机会枚举在业务上不按日历窗口区分结果，但完整 fingerprint_id 含 start/end，
-        会导致「隔日 / 默认 end_date 漂移」时无法命中 DB 临时层。scope 指纹去掉日期，仅保留
-        策略名、股票池、settings_core、worker、数据契约签名。
-        """
+    def compute_scope_fingerprint_id(fp: "StrategyRunFingerprint") -> str:
+        """不含日历窗的 scope 指纹（DB / 工作台侧按策略语义对齐结果）。"""
         payload = {
-            "v": 1,
-            "kind": "enumerator_scope",
+            "v": 2,
+            "kind": "strategy_run_scope",
             "strategy_name": fp.strategy_name,
             "stock_ids": list(fp.stock_ids),
             "settings_core": fp.settings_core,
@@ -209,4 +153,89 @@ class EnumeratorFingerprint:
         return sha256(canonical.encode("utf-8")).hexdigest()
 
 
-__all__ = ["EnumeratorFingerprint"]
+class StrategyFingerprintManager:
+    """规范化 settings 与构建运行指纹。"""
+
+    @staticmethod
+    def canonicalize_settings(raw_settings: Dict[str, Any]) -> Dict[str, Any]:
+        validated = StrategySettings(raw_settings=dict(raw_settings or {}))
+        report = validated.validate()
+        if not report.is_usable():
+            raise ValueError("settings validation failed")
+        return validated.to_dict()
+
+    @staticmethod
+    def build_run_fingerprint(
+        *,
+        flow_impl: Any,
+        strategy_name: str,
+        strategy_info: Any,
+        settings_payload: Dict[str, Any],
+        stock_ids: List[str],
+    ) -> StrategyRunFingerprint:
+        worker_ref = flow_impl.resolve_worker_blueprint(
+            strategy_name=strategy_name,
+            strategy_info=strategy_info,
+        )
+        return flow_impl.build_request_fingerprint(
+            strategy_name=strategy_name,
+            settings_payload=copy.deepcopy(settings_payload),
+            stock_ids=stock_ids,
+            worker_ref=worker_ref,
+        )
+
+    @staticmethod
+    def build_scope_fingerprint_id(fp: StrategyRunFingerprint) -> str:
+        return str(StrategyRunFingerprint.compute_scope_fingerprint_id(fp) or "")
+
+
+class StrategyFingerprintRuntimeService:
+    """与 runtime context 配合的指纹辅助。"""
+
+    @staticmethod
+    def build_ids_for_runtime_context(context: Any) -> Tuple[str, str]:
+        fp = StrategyFingerprintManager.build_run_fingerprint(
+            flow_impl=context.flow._impl,
+            strategy_name=context.strategy_name,
+            strategy_info=context.strategy_info,
+            settings_payload=context.settings_view.to_dict(),
+            stock_ids=context.stock_list,
+        )
+        return str(fp.fingerprint_id or ""), StrategyFingerprintManager.build_scope_fingerprint_id(
+            fp
+        )
+
+    @staticmethod
+    def build_ids_from_request_fingerprint(
+        request_fingerprint: Any,
+    ) -> Tuple[str, str]:
+        if request_fingerprint is None:
+            return "", ""
+        fp_id = str(getattr(request_fingerprint, "fingerprint_id", "") or "")
+        if not fp_id:
+            return "", ""
+        return fp_id, StrategyFingerprintManager.build_scope_fingerprint_id(request_fingerprint)
+
+    @staticmethod
+    def build_fingerprint_for_snapshot_candidate(
+        *,
+        flow_ref: Any,
+        strategy_name: str,
+        strategy_info: Any,
+        canonical_settings_payload: Dict[str, Any],
+        stock_ids: List[str],
+    ) -> Any:
+        return StrategyFingerprintManager.build_run_fingerprint(
+            flow_impl=flow_ref._impl,
+            strategy_name=strategy_name,
+            strategy_info=strategy_info,
+            settings_payload=canonical_settings_payload,
+            stock_ids=stock_ids,
+        )
+
+
+__all__ = [
+    "StrategyFingerprintManager",
+    "StrategyFingerprintRuntimeService",
+    "StrategyRunFingerprint",
+]

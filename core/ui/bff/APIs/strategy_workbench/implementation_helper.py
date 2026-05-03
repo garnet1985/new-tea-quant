@@ -158,6 +158,15 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 dedup.append(p)
         return dedup, ""
 
+    def parse_report_types_query(self, report_types_raw):
+        """Returns (requested_types, error_detail). error_detail empty string when ok."""
+        return self._parse_report_types(report_types_raw)
+
+    def resolve_reports_summary_for_strategy_run(
+        self, strategy_name: str, status_payload: dict
+    ) -> dict:
+        return self._resolve_reports_summary_for_run(strategy_name, status_payload)
+
     # todo: move to helper
     @staticmethod
     def _build_reports_payload(result_summary: dict, requested_types: list):
@@ -481,6 +490,67 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         api = self._runtime_to_api_settings(runtime_settings)
         return api
 
+    def _load_api_settings_for_workbench_enumerator(
+        self, strategy_name: str, run_id: Optional[str]
+    ) -> Tuple[Optional[dict], Optional[str]]:
+        raw_api = self._fetch_api_settings_for_run(strategy_name, run_id=run_id)
+        if not raw_api:
+            return None, "无法读取策略配置（目录或 settings 缺失）"
+        return raw_api, None
+
+    def _normalize_api_settings_for_workbench_enumerator(
+        self, strategy_name: str, raw_api: dict
+    ) -> Tuple[Optional[dict], Optional[str]]:
+        normalized_runtime_settings, detail = self._normalize_runtime_settings(
+            strategy_name,
+            raw_api,
+        )
+        if normalized_runtime_settings is None:
+            return None, detail or "settings 校验失败"
+        return normalized_runtime_settings, None
+
+    @staticmethod
+    def _validate_strategy_settings_report_usable(normalized_runtime_settings: dict) -> Optional[str]:
+        from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
+            StrategySettings,
+        )
+
+        validated = StrategySettings(raw_settings=dict(normalized_runtime_settings))
+        report = validated.validate()
+        if not report.is_usable():
+            return "settings 校验失败"
+        return None
+
+    def _load_strategy_info_for_workbench_enumerator(
+        self, strategy_name: str
+    ) -> Tuple[Any, Optional[str]]:
+        from core.modules.strategy.strategy_manager import StrategyManager
+
+        strategy_manager = StrategyManager(is_verbose=False)
+        strategy_info = strategy_manager.get_strategy_info(strategy_name)
+        if strategy_info is None:
+            return None, f"策略未被发现或无法加载: {strategy_name}"
+        return strategy_info, None
+
+    def _build_opportunity_enumerator_runtime_context(
+        self,
+        *,
+        strategy_name: str,
+        strategy_info: Any,
+        normalized_runtime_settings: dict,
+        force_refresh: bool,
+        run_id: Optional[str],
+    ):
+        return EnumeratorRuntimeService.build_context(
+            strategy_name=strategy_name,
+            strategy_info=strategy_info,
+            raw_settings_override=normalized_runtime_settings,
+            stock_count=None,
+            force_refresh=bool(force_refresh),
+            workbench_strategy_name=strategy_name if run_id else None,
+            workbench_run_id=str(run_id) if run_id else None,
+        )
+
     def _build_workbench_opportunity_enumerator_flow(
         self,
         strategy_name: str,
@@ -492,37 +562,35 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         run_id 为空时不绑定进度文件（用于 reuse 预览）。
         返回 (flow, strategy_info, error_message)。
         """
-        raw_api = self._fetch_api_settings_for_run(strategy_name, run_id=run_id)
-        if not raw_api:
-            return None, None, "无法读取策略配置（目录或 settings 缺失）"
+        # Step 1: load API-shaped settings (snapshot / run snapshot / userspace).
+        raw_api, err = self._load_api_settings_for_workbench_enumerator(strategy_name, run_id)
+        if err:
+            return None, None, err
 
-        normalized_runtime_settings, detail = self._normalize_runtime_settings(
-            strategy_name,
-            raw_api,
+        # Step 2: normalize to runtime settings dict.
+        normalized_runtime_settings, err = self._normalize_api_settings_for_workbench_enumerator(
+            strategy_name, raw_api
         )
-        if normalized_runtime_settings is None:
-            return None, None, detail or "settings 校验失败"
+        if err:
+            return None, None, err
 
-        from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
-            StrategySettings,
-        )
-        from core.modules.strategy.strategy_manager import StrategyManager
-        validated = StrategySettings(raw_settings=dict(normalized_runtime_settings))
-        report = validated.validate()
-        if not report.is_usable():
-            return None, None, "settings 校验失败"
-        strategy_manager = StrategyManager(is_verbose=False)
-        strategy_info = strategy_manager.get_strategy_info(strategy_name)
-        if strategy_info is None:
-            return None, None, f"策略未被发现或无法加载: {strategy_name}"
-        context = EnumeratorRuntimeService.build_context(
+        # Step 3: StrategySettings.validate() usability gate.
+        err = self._validate_strategy_settings_report_usable(normalized_runtime_settings)
+        if err:
+            return None, None, err
+
+        # Step 4: resolve StrategyManager strategy_info.
+        strategy_info, err = self._load_strategy_info_for_workbench_enumerator(strategy_name)
+        if err:
+            return None, None, err
+
+        # Step 5: build flow via EnumeratorRuntimeService.build_context.
+        context = self._build_opportunity_enumerator_runtime_context(
             strategy_name=strategy_name,
             strategy_info=strategy_info,
-            raw_settings_override=normalized_runtime_settings,
-            stock_count=None,
-            force_refresh=bool(force_refresh),
-            workbench_strategy_name=strategy_name if run_id else None,
-            workbench_run_id=str(run_id) if run_id else None,
+            normalized_runtime_settings=normalized_runtime_settings,
+            force_refresh=force_refresh,
+            run_id=run_id,
         )
         return context.flow, strategy_info, None
 
@@ -899,61 +967,59 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 run_id,
             )
 
-    def get_enumerator_reuse_preview(self, strategy_name: str):
+    def build_enumerator_reuse_preview_flow(self, strategy_name: str):
         """
-        仅做 preprocess / plan_reuse，不跑子进程枚举。
-        若将 REUSE_FULL，则根据磁盘 0_metadata 返回与 build_reuse_summary 一致的 enum 摘要，供前端先展示再决定是否跑任务。
+        Build OpportunityEnumeratorFlow for reuse preview (no subprocess run).
+        Returns (flow, strategy_info, err_message). err_message is set when flow cannot be built.
         """
-        try:
-            if not self._validate_strategy_exists(strategy_name):
-                return error(f"策略不存在: {strategy_name}", 404)
+        return self._build_workbench_opportunity_enumerator_flow(
+            strategy_name, None, force_refresh=False
+        )
 
-            from core.modules.strategy.enums import ReuseAction
+    @staticmethod
+    def preprocess_enumerator_reuse_preview(flow, strategy_name: str, strategy_info):
+        """Run preprocess / plan_reuse only."""
+        return flow.preprocess(strategy_name=strategy_name, strategy_info=strategy_info)
 
-            flow, strategy_info, err = self._build_workbench_opportunity_enumerator_flow(
-                strategy_name, None, force_refresh=False
-            )
-            if err:
-                return error(err, 422)
+    def assemble_enumerator_reuse_preview_payload(self, strategy_name: str, flow, preprocessed):
+        """
+        Turn preprocess result into API payload (fingerprint, reuse_action, optional enum preview).
+        REUSE_FULL 时根据磁盘 0_metadata 组装与 build_reuse_summary 一致的 enum 摘要。
+        """
+        from core.modules.strategy.enums import ReuseAction
 
-            preprocessed = flow.preprocess(
-                strategy_name=strategy_name, strategy_info=strategy_info
-            )
-            req_fp = preprocessed.request_fingerprint
-            out: dict = {
-                "fingerprint_id": str(req_fp.fingerprint_id) if req_fp else "",
-                "reuse_action": preprocessed.reuse_action.value,
-                "would_reuse_full": preprocessed.reuse_action == ReuseAction.REUSE_FULL,
-                "not_reused_because": preprocessed.not_reused_because.value,
-            }
+        req_fp = preprocessed.request_fingerprint
+        out: dict = {
+            "fingerprint_id": str(req_fp.fingerprint_id) if req_fp else "",
+            "reuse_action": preprocessed.reuse_action.value,
+            "would_reuse_full": preprocessed.reuse_action == ReuseAction.REUSE_FULL,
+            "not_reused_because": preprocessed.not_reused_because.value,
+        }
 
-            if preprocessed.reuse_action == ReuseAction.REUSE_FULL:
-                if preprocessed.reuse_version_dir:
-                    summaries = flow._impl.build_reuse_summary(
-                        strategy_name=strategy_name,
-                        version_dir=preprocessed.reuse_version_dir,
-                        reuse_action=ReuseAction.REUSE_FULL,
-                        not_reused_because=preprocessed.not_reused_because,
-                    )
-                    if summaries and isinstance(summaries[0], dict):
-                        out["enum_result_preview"] = self._enum_summary_row_to_bff_payload(
-                            summaries[0]
-                        )
-                    out["cached_version_dir"] = str(preprocessed.reuse_version_dir)
-            elif preprocessed.reuse_action == ReuseAction.RUN_DIFF_STOCKS:
-                out["cached_version_dir"] = (
-                    str(preprocessed.reuse_version_dir)
-                    if preprocessed.reuse_version_dir
-                    else ""
+        if preprocessed.reuse_action == ReuseAction.REUSE_FULL:
+            if preprocessed.reuse_version_dir:
+                summaries = flow._impl.build_reuse_summary(
+                    strategy_name=strategy_name,
+                    version_dir=preprocessed.reuse_version_dir,
+                    reuse_action=ReuseAction.REUSE_FULL,
+                    not_reused_because=preprocessed.not_reused_because,
                 )
-                missing = preprocessed.missing_stock_ids or []
-                out["missing_stock_count"] = len(missing)
-                out["missing_stock_ids_sample"] = missing[:50]
+                if summaries and isinstance(summaries[0], dict):
+                    out["enum_result_preview"] = self._enum_summary_row_to_bff_payload(
+                        summaries[0]
+                    )
+                out["cached_version_dir"] = str(preprocessed.reuse_version_dir)
+        elif preprocessed.reuse_action == ReuseAction.RUN_DIFF_STOCKS:
+            out["cached_version_dir"] = (
+                str(preprocessed.reuse_version_dir)
+                if preprocessed.reuse_version_dir
+                else ""
+            )
+            missing = preprocessed.missing_stock_ids or []
+            out["missing_stock_count"] = len(missing)
+            out["missing_stock_ids_sample"] = missing[:50]
 
-            return ok(out)
-        except Exception as e:
-            logger.exception("枚举复用预览失败: strategy_name=%s", strategy_name)
-            return error(f"枚举复用预览失败: {str(e)}", 500)
+        return out
 
     def _fail_run_step(
         self,
@@ -1472,108 +1538,98 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         except Exception as e:
             return error(f"启动执行任务失败: {str(e)}", 500)
 
-    def get_strategy_run_status(self, strategy_name: str, run_id: str):
-        try:
-            status_payload, err = self._require_status_for_run(strategy_name, run_id)
-            if err:
-                return err
-
-            step_status = status_payload.get("step_status")
-            if not isinstance(step_status, dict):
-                step_status = {
-                    self.STEP_ENUM: self.STEP_STATUS_IDLE,
-                    self.STEP_PRICE: self.STEP_STATUS_IDLE,
-                    self.STEP_CAPITAL: self.STEP_STATUS_IDLE,
-                }
-
-            progress_pct = int(status_payload.get("progress_pct") or 0)
-            out: dict = {
-                "run_id": run_id,
-                "state": status_payload.get("state", self.RUN_STATE_RUNNING),
-                "running_step": status_payload.get("running_step", ""),
-                "progress_pct": progress_pct,
-                "step_status": step_status,
-                "result_summary": status_payload.get("result_summary") or {},
-                "updated_at": status_payload.get("updated_at", datetime.now().astimezone().isoformat()),
+    def normalize_run_status_step_status(self, status_payload: dict) -> dict:
+        step_status = status_payload.get("step_status")
+        if not isinstance(step_status, dict):
+            return {
+                self.STEP_ENUM: self.STEP_STATUS_IDLE,
+                self.STEP_PRICE: self.STEP_STATUS_IDLE,
+                self.STEP_CAPITAL: self.STEP_STATUS_IDLE,
             }
-            if str(status_payload.get("running_step") or "") == self.STEP_ENUM:
-                ep = ProgressRecorder.for_strategy_run_step(
-                    strategy_name, run_id, self.STEP_ENUM
-                ).get_progress()
-                if ep:
-                    out["progress_pct"] = int(ep.get("progress_pct") or progress_pct)
-                    out["enumerator_progress"] = ep
+        return step_status
 
-            state = str(status_payload.get("state") or "")
-            if state in {
-                self.RUN_STATE_DONE,
-                self.RUN_STATE_FAILED,
-                self.RUN_STATE_CANCELLED,
-            }:
-                with self._run_lock:
-                    self._run_cancel_events.pop(str(run_id), None)
-                    proc = self._run_processes.pop(str(run_id), None)
-                if proc is not None:
-                    proc.join(timeout=1.0)
+    def build_run_status_response_body(
+        self, run_id: str, status_payload: dict, step_status: dict
+    ) -> dict:
+        progress_pct = int(status_payload.get("progress_pct") or 0)
+        return {
+            "run_id": run_id,
+            "state": status_payload.get("state", self.RUN_STATE_RUNNING),
+            "running_step": status_payload.get("running_step", ""),
+            "progress_pct": progress_pct,
+            "step_status": step_status,
+            "result_summary": status_payload.get("result_summary") or {},
+            "updated_at": status_payload.get(
+                "updated_at", datetime.now().astimezone().isoformat()
+            ),
+        }
 
-            return ok(out)
-        except Exception as e:
-            return error(f"读取执行状态失败: {str(e)}", 500)
+    def merge_enumerator_progress_into_run_status(
+        self,
+        strategy_name: str,
+        run_id: str,
+        status_payload: dict,
+        out: dict,
+    ) -> None:
+        if str(status_payload.get("running_step") or "") != self.STEP_ENUM:
+            return
+        base_pct = int(out.get("progress_pct") or 0)
+        ep = ProgressRecorder.for_strategy_run_step(
+            strategy_name, run_id, self.STEP_ENUM
+        ).get_progress()
+        if ep:
+            out["progress_pct"] = int(ep.get("progress_pct") or base_pct)
+            out["enumerator_progress"] = ep
 
-    def cancel_strategy_run(self, strategy_name: str, run_id: str):
-        try:
-            _status_payload, err = self._require_status_for_run(strategy_name, run_id)
-            if err:
-                return err
+    def finalize_run_worker_handles_if_terminal(
+        self, strategy_name: str, run_id: str, status_payload: dict
+    ) -> None:
+        state = str(status_payload.get("state") or "")
+        if state not in {
+            self.RUN_STATE_DONE,
+            self.RUN_STATE_FAILED,
+            self.RUN_STATE_CANCELLED,
+        }:
+            return
+        with self._run_lock:
+            self._run_cancel_events.pop(str(run_id), None)
+            proc = self._run_processes.pop(str(run_id), None)
+        if proc is not None:
+            proc.join(timeout=1.0)
 
-            with self._run_lock:
-                cancel_event = self._run_cancel_events.get(run_id)
-                if cancel_event:
-                    cancel_event.set()
+    @staticmethod
+    def normalize_run_result_summary_from_status(status_payload: dict) -> dict:
+        """`result_summary` from run status file; empty dict if missing/invalid."""
+        result_summary = status_payload.get("result_summary")
+        return result_summary if isinstance(result_summary, dict) else {}
 
-            return ok({"run_id": run_id, "cancelled": True})
-        except Exception as e:
-            return error(f"取消执行任务失败: {str(e)}", 500)
+    @staticmethod
+    def build_strategy_run_results_payload(run_id: str, result_summary: dict) -> dict:
+        """Execution panel: per-step summary slots (enum / price / capital) from status."""
+        return {
+            "run_id": run_id,
+            "result": {
+                "enum": result_summary.get("enum"),
+                "price": result_summary.get("price"),
+                "capital": result_summary.get("capital"),
+            },
+        }
 
-    def get_strategy_run_results(self, strategy_name: str, run_id: str):
-        try:
-            status_payload, err = self._require_status_for_run(strategy_name, run_id)
-            if err:
-                return err
-
-            result_summary = status_payload.get("result_summary")
-            if not isinstance(result_summary, dict):
-                result_summary = {}
-
-            return ok({
-                "run_id": run_id,
-                "result": {
-                    "enum": result_summary.get("enum"),
-                    "price": result_summary.get("price"),
-                    "capital": result_summary.get("capital"),
-                },
-            })
-        except Exception as e:
-            return error(f"读取执行摘要结果失败: {str(e)}", 500)
-
-    def get_strategy_compare_options(self, strategy_name: str):
-        try:
-            if not self._validate_strategy_exists(strategy_name):
-                return error(f"策略不存在: {strategy_name}", 404)
-            versions = ["latest"]
-            versions.extend(self._get_snapshot_service().list_version_ids(strategy_name, limit=100))
-
-            deduped = []
-            seen = set()
-            for item in versions:
-                if item in seen:
-                    continue
-                seen.add(item)
-                deduped.append(item)
-
-            return ok({"versions": deduped})
-        except Exception as e:
-            return error(f"读取对比版本选项失败: {str(e)}", 500)
+    def resolve_workbench_version_history_ids(self, strategy_name: str) -> list:
+        """
+        Synthetic ``latest`` plus persisted snapshot version ids, stable order, deduped.
+        Caller must ensure strategy exists (e.g. route + ensure_strategy_exists).
+        """
+        versions = ["latest"]
+        versions.extend(self._get_snapshot_service().list_version_ids(strategy_name, limit=100))
+        deduped = []
+        seen = set()
+        for item in versions:
+            if item in seen:
+                continue
+            seen.add(item)
+            deduped.append(item)
+        return deduped
 
     def _resolve_reports_summary_for_run(self, strategy_name: str, status_payload: dict) -> dict:
         result_summary = (
@@ -1600,33 +1656,26 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 result_summary["enum"] = latest_summary.get("enum")
         return result_summary
 
-    def get_strategy_reports(self, strategy_name: str, run_id: str, report_types_raw=None):
-        try:
-            if not self._validate_strategy_exists(strategy_name):
-                return error(f"策略不存在: {strategy_name}", 404)
-            requested_types, detail = self._parse_report_types(report_types_raw)
-            if detail:
-                return error(detail, 400)
-
-            status_payload, err = self._require_status_for_run(strategy_name, run_id)
-            if err:
-                return err
-
-            result_summary = self._resolve_reports_summary_for_run(strategy_name, status_payload)
-            reports, available_tabs = self._build_reports_payload(result_summary, requested_types)
-            enum_payload = reports.get(self.STEP_ENUM) if isinstance(reports.get(self.STEP_ENUM), dict) else None
-            if enum_payload and not isinstance(enum_payload.get("enumMetrics"), dict):
-                enum_report = self._load_enum_report_from_output(strategy_name, enum_payload)
-                enum_metrics = enum_report.get("enumMetrics") if isinstance(enum_report.get("enumMetrics"), dict) else None
-                if enum_metrics:
-                    enum_payload["enumMetrics"] = enum_metrics
-            return ok({
-                "run_id": run_id,
-                "reports": reports,
-                "available_tabs": available_tabs,
-            })
-        except Exception as e:
-            return error(f"读取报告主数据失败: {str(e)}", 500)
+    def assemble_strategy_reports_message(
+        self,
+        strategy_name: str,
+        run_id: str,
+        result_summary: dict,
+        requested_types: list,
+    ) -> dict:
+        """Build SWB-11 message body: tab payloads + optional enumMetrics backfill from disk."""
+        reports, available_tabs = self._build_reports_payload(result_summary, requested_types)
+        enum_payload = reports.get(self.STEP_ENUM) if isinstance(reports.get(self.STEP_ENUM), dict) else None
+        if enum_payload and not isinstance(enum_payload.get("enumMetrics"), dict):
+            enum_report = self._load_enum_report_from_output(strategy_name, enum_payload)
+            enum_metrics = enum_report.get("enumMetrics") if isinstance(enum_report.get("enumMetrics"), dict) else None
+            if enum_metrics:
+                enum_payload["enumMetrics"] = enum_metrics
+        return {
+            "run_id": run_id,
+            "reports": reports,
+            "available_tabs": available_tabs,
+        }
 
     def get_strategy_report_stocks(
         self,

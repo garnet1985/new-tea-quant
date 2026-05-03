@@ -4,7 +4,6 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  Button,
   Box,
   IconButton,
   MenuItem,
@@ -19,8 +18,7 @@ import {
   MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION,
 } from '../../mocks/strategyWorkbenchMocks';
 import {
-  cancelStrategyRun,
-  fetchStrategyCompareOptions,
+  fetchStrategyVersionHistory,
   fetchStrategyRunStatus,
   startStrategyRun,
 } from '../../../../api/apis/strategyApi';
@@ -77,7 +75,7 @@ function StrategyExecutionPanel({
     }
     const loadCompareOptions = async () => {
       try {
-        const data = await fetchStrategyCompareOptions(strategyName);
+        const data = await fetchStrategyVersionHistory(strategyName);
         if (disposed) return;
         const options = Array.isArray(data?.versions)
           ? data.versions.filter((item) => typeof item === 'string' && item.trim() !== '')
@@ -349,15 +347,6 @@ function StrategyExecutionPanel({
     }
   };
 
-  const handleCancel = async () => {
-    if (!strategyName || !activeRunId) return;
-    try {
-      await cancelStrategyRun(strategyName, activeRunId);
-    } catch (err) {
-      setRunError(err?.message || '取消执行失败');
-    }
-  };
-
   return (
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -375,9 +364,6 @@ function StrategyExecutionPanel({
                 {runLabel}
               </Typography>
               <LinearProgress variant="determinate" value={progress} sx={{ mt: 0.5 }} />
-              <Box sx={{ mt: 0.75, display: 'flex', justifyContent: 'flex-end' }}>
-                <Button size="small" color="error" onClick={handleCancel}>取消执行</Button>
-              </Box>
             </Box>
           ) : null}
           {runError ? (

@@ -31,7 +31,8 @@ class StrategyWorkbenchService:
         return str(value or "").strip()
 
     @staticmethod
-    def to_strategy_list_response_rows(discovered: dict) -> list:
+    def to_response_format(discovered: dict) -> list:
+        """Map discovery dict to `GET /v1/strategies` response rows (`strategies[]`)."""
         rows = []
         for _name, info in (discovered or {}).items():
             meta = getattr(info.settings, "meta", None)
@@ -302,29 +303,73 @@ class StrategyWorkbenchService:
     def generate_run_id(self) -> str:
         return self._impl._build_run_id()
 
-    def get_enumerator_reuse_preview(self, strategy_name: str):
-        # Step 1: delegate enumerator preprocess and reuse preview.
-        return self._impl.get_enumerator_reuse_preview(strategy_name)
+    def build_enumerator_reuse_preview_flow(self, strategy_name: str):
+        return self._impl.build_enumerator_reuse_preview_flow(strategy_name)
 
-    def get_strategy_run_status(self, strategy_name: str, run_id: str):
-        # Step 1: delegate run-status lookup and progress aggregation.
-        return self._impl.get_strategy_run_status(strategy_name, run_id)
+    def preprocess_enumerator_reuse_preview(self, flow, strategy_name: str, strategy_info):
+        return self._impl.preprocess_enumerator_reuse_preview(
+            flow, strategy_name, strategy_info
+        )
 
-    def cancel_strategy_run(self, strategy_name: str, run_id: str):
-        # Step 1: delegate cancellation signal workflow.
-        return self._impl.cancel_strategy_run(strategy_name, run_id)
+    def assemble_enumerator_reuse_preview_payload(self, strategy_name: str, flow, preprocessed):
+        return self._impl.assemble_enumerator_reuse_preview_payload(
+            strategy_name, flow, preprocessed
+        )
 
-    def get_strategy_run_results(self, strategy_name: str, run_id: str):
-        # Step 1: delegate result-summary extraction.
-        return self._impl.get_strategy_run_results(strategy_name, run_id)
+    def require_run_status_for_run(self, strategy_name: str, run_id: str):
+        return self._impl._require_status_for_run(strategy_name, run_id)
 
-    def get_strategy_compare_options(self, strategy_name: str):
-        # Step 1: delegate compare-option assembly.
-        return self._impl.get_strategy_compare_options(strategy_name)
+    def normalize_run_status_step_status(self, status_payload: dict):
+        return self._impl.normalize_run_status_step_status(status_payload)
 
-    def get_strategy_reports(self, strategy_name: str, run_id: str, report_types_raw=None):
-        # Step 1: delegate report payload construction.
-        return self._impl.get_strategy_reports(strategy_name, run_id, report_types_raw)
+    def build_run_status_response_body(
+        self, run_id: str, status_payload: dict, step_status: dict
+    ):
+        return self._impl.build_run_status_response_body(run_id, status_payload, step_status)
+
+    def merge_enumerator_progress_into_run_status(
+        self,
+        strategy_name: str,
+        run_id: str,
+        status_payload: dict,
+        out: dict,
+    ) -> None:
+        self._impl.merge_enumerator_progress_into_run_status(
+            strategy_name, run_id, status_payload, out
+        )
+
+    def finalize_run_worker_handles_if_terminal(
+        self, strategy_name: str, run_id: str, status_payload: dict
+    ) -> None:
+        self._impl.finalize_run_worker_handles_if_terminal(
+            strategy_name, run_id, status_payload
+        )
+
+    def normalize_run_result_summary_from_status(self, status_payload: dict) -> dict:
+        return self._impl.normalize_run_result_summary_from_status(status_payload)
+
+    def build_strategy_run_results_payload(self, run_id: str, result_summary: dict) -> dict:
+        return self._impl.build_strategy_run_results_payload(run_id, result_summary)
+
+    def resolve_workbench_version_history_ids(self, strategy_name: str) -> list:
+        return self._impl.resolve_workbench_version_history_ids(strategy_name)
+
+    def parse_report_types_query(self, report_types_raw):
+        return self._impl.parse_report_types_query(report_types_raw)
+
+    def resolve_reports_summary_for_strategy_run(self, strategy_name: str, status_payload: dict) -> dict:
+        return self._impl.resolve_reports_summary_for_strategy_run(strategy_name, status_payload)
+
+    def assemble_strategy_reports_message(
+        self,
+        strategy_name: str,
+        run_id: str,
+        result_summary: dict,
+        requested_types: list,
+    ) -> dict:
+        return self._impl.assemble_strategy_reports_message(
+            strategy_name, run_id, result_summary, requested_types
+        )
 
     def get_strategy_report_stocks(
         self,

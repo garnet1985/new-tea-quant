@@ -1,993 +1,200 @@
-# Strategy Workbench — BFF API 归纳（策略工作台）
+# 策略工作台 API（V2）
 
-本文档描述 **策略工作台** 前端与 **BFF** 之间的接口约定。所有交互经 BFF，禁止 FED 直连其它后端。**仅收录当前已约定的契约**；未落地的端点不写入本文。
+本文档**仅**描述 V2 契约与语义，不包含旧接口编号或迁移对照。
 
-## 术语与命名（统一口径）
+## 核心模型
 
-| 用语 | 说明 |
-|------|------|
-| **策略工作台** / **Strategy Workbench** | 本产品能力：策略列表 + 单策略调试（左侧配置、中间执行、右侧报告）。**本模块与代码、路由统一用此称呼。** |
-| URL 前缀 | 列表与调试页路由为 **`/strategy-workbench`**（保持不变）。 |
-| 弃用别名 | 不再使用 **console**、**workspace** 指代本模块；历史若出现，逐步替换为 **workbench**。 |
+- **版本（version）** = 策略工作台版本 = **快照（snapshot）**，三者指同一实体。
+- **运行（run）** 是**动作**，不是持久化的业务实体。
+- **前端不持久化版本列表**；版本的创建、`latest` 指向由**后端**维护。
+- 页面状态以 **`version_id`** 为锚点。
 
-React 路由组件、页面目录名：`strategyWorkbenchPage`、`StrategyWorkbenchPage`。
+### `version_id` 与「本次运行」流水线的关系
 
----
+- **何时存在**：对**某次** **`POST …/run`** 产生的产出而言，**新的 `version_id`** 仅在 **BED** 侧 **job 成功结束并完成持久化（含写入快照与可缓存的结果）之后**才成立。
+- **谁在何时第一次看到它**：**FED** 在本次流水线上 **第一个能使用的** 新 **`version_id`**，来自 **`progress` 到达 100% 之后**调用的 **「取结果」接口（V2-07）的响应体**，**不是**来自 **`POST …/run`**，**也不是** **`GET …/progress` 的契约义务**（progress **只**表达进度；即使实现里顺带带了 **`version_id`**，也**不**作为首次锚点的约定来源）。
 
-## 全局约定
+### 页面加载时的 `version_id` 与一次 run 结束之后
 
-- **Base path**：`/api/v1`（见 `src/api/conf/apiConfig.js`）。
-- **传输格式**：JSON；与 `requestJson` 的通用包装一致。
-- **策略标识**：列表项的 **`key`** 与 `userspace/strategies/<key>/` 目录名一致。
+- **进页时带了 `version_id`**：一般表示**上一次 run 已成功落库**后保存下来的锚点（如路由、会话、或前次 **V2-07** 写入的「当前版本」），**不是**本次还没跑完的工作中间态。
+- **进页时不带 `version_id`**：表示还没有任何一次**可展示的成功运行结果**可锚定（或尚未与 **V2-01** 等拉齐首条版本）。
+- **本次流水线全部结束（含 BED 持久化完成）之后**：FED 从 **V2-07 `GET …/summary`（无 path `version_id`）** 的响应拿到「本轮」对应的 **`version_id`**，并用来更新页面锚点。
+- **与进页锚点的先后关系（语义上）**：
+  - **未命中缓存、产生新版本行**：新的 **`version_id`** 相对进页时的锚点通常是**更新的一个版本**（存储侧递增的一条快照）。
+  - **命中缓存、复用已有快照行**：**不会**产生新的版本行，**`version_id` 可以与进页时相同**；不得以「必须比进页大一号」作为契约。
 
-### 统一响应与错误（FED `requestJson`）
+### BFF 边界：不做缓存，只做转发与 HTTP 门面
 
-- 成功：HTTP 2xx 且 JSON 根级 `status === "ok"`。
-- 失败：HTTP 非 2xx 或 `status !== "ok"` 时，前端抛错，错误文案优先取 `message.detail`（字符串）。
-- BFF 出错：`{"status":"error","message":{"detail":"<人类可读说明>"}}`，HTTP 状态与错误语义一致。
+- **任何「命中缓存 / 指纹复用 / 结果可否短路」** 均为 **BED（含引擎与存储）** 的内部策略；**BFF 不参与决策，也不实现业务缓存**。
+- **BFF** 在本工作台契约下的职责限于：**解析与校验 HTTP**、**必要时把 body 交给 BED 做 normalize**、**调用 BED 领域入口**、**把 BED 返回值装入统一响应信封**。既往若在 BFF 层做过「缓存加速」「缓存命中判断」等，**与 V2 契约不符**，应迁入 **BED** 或删除。
+- **推论**：编排文档里凡涉及「是否缓存」，**实现落点一律写在 BED**；**BFF** 条目里不得出现「缓存命中分支」。
+- **编排允许的 BFF 行为**：除上述外，**将请求体交给 BED 做 `normalize`、调用 BED 返回再封信封**，属于门面职责，**不**视为「业务缓存」。
 
----
+## 生命周期规则
 
-## API Contract（策略工作台 · BFF 接口契约）
+### `latest` 的初始化
 
-### 页面框架上下文（供协作快速接手）
+- `GET /strategy/{strategy_name}/version/latest`（V2-01）**始终**返回一条有效的「当前最新版本」。
+- **尚无任意版本时**：后端读取磁盘上的物理策略 settings，生成**第一个**版本并作为 `latest`。
 
-`StrategyWorkbenchPage` 可按业务生命周期理解为三段：
+### 一次「运行」的三段式（FED / BFF 不感知是否命中缓存）
 
-1. **修改 settings（preprocess）**
-   - 对应执行 job 前的参数准备、校验、临时保存与版本对比。
-2. **执行三步（simulation）**
-   - UI 中的三个执行步骤，对应后端 simulation 主流程与进度状态。
-3. **report（post process / report）**
-   - 对应结果整理、报表指标、样本明细、对比展示。
+**是否走缓存、如何算指纹、是否落库 version**，**仅 BED 内部**决定；**BFF 与 FED 均不分支「命中 / 未命中」**，只按下面三步编排：
 
-在这三段之上，存在一个贯穿全页的 **snapshot** 概念，用于记录：
+| 阶段 | 接口 | 职责 |
+|------|------|------|
+| 启动 | **`POST …/run`（V2-05）** | **只负责触发 job**；响应**不**含本次将产生的新 **`version_id`**；只有 **`is_triggered`**（及可选 **`job_id`**）。 |
+| 轮询 | **`GET …/progress`（V2-06）** | **只读进度**；**到 100%** 表示本条任务在后端已完结；**契约不要求**本接口向 FED **首次下发** 新 **`version_id`**。 |
+| 取结果 | **`GET …/summary`（V2-07，无 path `version_id`）** | **在 `progress` 达 100% 之后**调用，取**本轮 job** 的报告/摘要；**响应体中首次给出** 本次运行对应的新 **`version_id`**（见契约细则）。 |
+| 取结果（已知版本） | **`GET …/summary/{version_id}`（V2-07）** | 在**已持有** **`version_id`** 时（历史、对比、二次打开），读取该版本的 summary。 |
 
-- 用户 workbench 状态（当前页上下文、选中的版本、执行态等）。
-- 当前工作上下文的版本指针（例如当前配置版本、上次运行版本）。
+- **走缓存时**：上述三步都会在很短时间内结束（进度仍可能被建模为 0→100，只是更快）。
+- **不走缓存时**：时间主要花在 **V2-06** 轮询上。
 
-页面加载时的推荐顺序：
+**FED**：只做 settings + 策略上下文上报（**V2-05**）、轮询 **V2-06**、再在 **100%** 后请求 **`GET …/summary`（无 path `version_id`）** 拿结果与**首次** **`version_id`**；**不**做 normalize；**不**理解指纹。
 
-1. 先读取当前策略的 snapshot（恢复用户上次工作台状态）。
-2. 再按 snapshot 引用加载 settings / cache / report 所需数据。
-3. 最后加载 options/profile（select 候选值与字段联动规则）。
+**BFF**：校验与转发（门面）；对 **`settings`** 可调 **BED** 做 **normalize** 再交给 **BED** 启动 job；**不**参与指纹判断；**不**做任何业务缓存（见上文 **「BFF 边界」**）。
 
-> 当前实现中的持久化承载可先复用现有缓存机制；是否从 `sys_cache` 迁移到专用表（如 snapshot 专表）后续再定。
+## API 清单（V2）
 
-### API 分层（全局视图）
-
-| 分层 | 目的 | 典型数据 |
-|------|------|----------|
-| 调度层（Snapshot / Session） | 恢复页面上下文、保存工作台状态、管理版本指针 | snapshot、last_opened_state、compare_targets |
-| 数据层（Settings / Cache / Report Data） | 提供实例值与执行中间结果 | settings、run cache、report payload |
-| 执行层（Simulation Orchestration） | 启动/跟踪三步执行流程 | run request、step status、progress |
-| 选项层（Options / Profiles） | 提供候选值与字段联动规则 | `options`、`profiles` |
-
-### 关键边界约定
-
-- **settings 是实例值真源**：策略配置以整包 settings 为主，不由 options 接口反向生成。
-- **options/profile 是候选值真源**：用于约束与渲染可选项，不能替代 settings 当前值。
-- **snapshot 是工作台态真源**：用于恢复 UI 工作现场，不替代 settings/report 的业务真源。
-- **执行态需可追溯**：启动 simulation 时应冻结本次执行所依赖的版本上下文（便于 report 解释与复现）。
-
----
-
-本節为**正式契约**：方法、路径、请求/响应形状、消费方与 BFF 职责。新端点按 **SWB-02、SWB-03…** 递增编号后追加；**SWB** = *Strategy Workbench*。
-
-### 契约原则（当前版本）
-
-1. **整包 settings 优先**：单策略调试页以整包读取/整包保存为主链路，便于整体调试与 breaking change 感知。
-2. **前端自拆分**：左侧各 block 由 FED 从整包 settings 解析，不要求后端按 block 拆分返回。
-3. **主数据与选项并行必需**：SWB-04 返回实例值（当前 settings）；SWB-02/03 返回候选值与字段 profile（possible values）。两类契约缺一不可。
-
-### 契约目录
-
-| 编号 | 方法 | 路径 | 摘要 |
+| 编号 | 方法 | 路径 | 用途 |
 |------|------|------|------|
-| **SWB-01** | `GET` | `/api/v1/strategies` | 返回已发现策略列表及 meta |
-| **SWB-04** | `GET` | `/api/v1/strategies/{strategy_name}/settings` | 读取单策略完整 settings（主链路） |
-| **SWB-02** | `GET` | `/api/v1/strategies/settings-options/allocation-modes` | 资金分配策略 `capital_simulator.allocation.mode` 下拉选项 |
-| **SWB-03** | `GET` | `/api/v1/strategies/settings-options/sampling-strategies` | 采样策略 `sampling.strategy` 下拉选项 |
-| **SWB-06** | `POST` | `/api/v1/strategies/{strategy_name}/runs` | 启动执行（枚举/价格/资金），返回 `run_id` |
-| **SWB-07** | `GET` | `/api/v1/strategies/{strategy_name}/runs/{run_id}` | 读取执行状态与步骤进度（轮询） |
-| **SWB-08** | `POST` | `/api/v1/strategies/{strategy_name}/runs/{run_id}/cancel` | 取消执行 |
-| **SWB-09** | `GET` | `/api/v1/strategies/{strategy_name}/run-results/{run_id}` | 读取执行面板摘要结果（enum/price/capital） |
-| **SWB-10** | `GET` | `/api/v1/strategies/{strategy_name}/compare-options` | 执行/报告「对比版本」下拉选项 |
-| **SWB-11** | `GET` | `/api/v1/strategies/{strategy_name}/reports/{run_id}` | 读取报告面板三类报告摘要（enum/price/capital） |
-| **SWB-12** | `GET` | `/api/v1/strategies/{strategy_name}/reports/{run_id}/stocks` | 读取报告样本股票表（支持 report_type） |
-| **SWB-13** | `GET` | `/api/v1/strategies/{strategy_name}/reports/{run_id}/stocks/{stock_id}/kline` | 读取单股票 K 线与买卖点明细 |
-| **SWB-14** | `GET` | `/api/v1/strategies/{strategy_name}/reports/compare` | 读取本次与对比版本报告数据（双栏对比） |
-| **SWB-15** | `GET` | `/api/v1/strategies/{strategy_name}/snapshot` | 读取工作台 snapshot（页面恢复入口） |
-| **SWB-16** | `PUT` | `/api/v1/strategies/{strategy_name}/snapshot` | 保存工作台 snapshot（UI态 + 指针） |
-| **SWB-17** | `GET` | `/api/v1/strategies/{strategy_name}/versions` | 读取配置版本列表（对比/恢复来源） |
-| **SWB-18** | `GET` | `/api/v1/strategies/{strategy_name}/versions/{version_id}` | 读取单个配置版本详情 |
-| **SWB-19** | `POST` | `/api/v1/strategies/{strategy_name}/versions/{version_id}/restore` | 恢复指定版本到当前 settings |
-| **SWB-20** | `POST` | `/api/v1/strategies/{strategy_name}/versions` | 固化当前工作台配置为后端版本（供应用/对比） |
+| V2-01 | GET | `/strategy/{strategy_name}/version/latest` | 获取 latest；**路径** `strategy_name` **必填**；响应含 `version_id`、`settings`、`step_status`、`result_summary` 等 |
+| V2-02 | GET | `/strategies/list` | 策略列表（分页） |
+| V2-03 | GET | `/strategy/{strategy_name}/versions` | 某策略工作台版本的**最近 10 条**（固定条数、不分页），用于「恢复到某一版本」下拉框 |
+| V2-04 | GET | 多个明确路径（见下） | 选项类 / profile 类全量数据；**非**单一泛化 `/strategy/{entity}`，implementation 按资源拆路由 |
+| V2-05 | POST | `/strategy/{strategy_name}/{step}/run` | **启动**一步对应的 job（仅表示触发成功与否；结果见 progress → summary） |
+| V2-06 | GET | `/strategy/{strategy_name}/{step}/progress` | **轮询**该步骤 job 的**进度**（不区分缓存；到 100% 后去拉 summary） |
+| V2-07 | GET | `/strategy/{strategy_name}/{step}/summary` 与 `/strategy/{strategy_name}/{step}/summary/{version_id}` | **无** `version_id`：**progress 100% 后**首次取本轮结果（响应含 **`version_id`**）；**有** `version_id`：读取已知版本的 summary（对比/历史） |
+| V2-08 | GET | `/strategy/{strategy_name}/version/{version_id}` | 按 **`version_id`** 读完整快照；**路径** `strategy_name` **必填**；响应与 **V2-01** 同形（切换版本后用；内含汇总 summary，见「V2-07 与 V2-08」） |
+| V2-09 | POST | `/strategy/{strategy_name}/apply-settings/{version_id}` | 将某工作台版本的 **`settings` 快照** **永久化**到该策略目录的 **`settings.py`**（反向写磁盘）；**路径** `strategy_name` **必填** |
+| V2-10 | GET | `/strategy/{strategy_name}/versions/range` | 按**时间段**筛选版本列表，**必须分页**（浏览 / 检索历史版本） |
+
+### V2-04 说明（选项类家族）
+
+- **不是**单一泛化路由（禁止 `/strategy/settings/{entity}` 一类运行时拼接）；**每个选项资源一条固定的 GET 路径**，路由与 handler 在实现里显式注册。
+- **当前契约已锁定的示例子路径**见下表（响应字段以 **契约细则 · V2-04 家族共性** 为准；新增资源时在本表与 [`API_LAYER_STEPS.md`](./API_LAYER_STEPS.md) 各增一行）。
+
+| 子路径 | 用途 |
+|--------|------|
+| `GET /strategy/settings/capital-allocation-strategies` | 资金分配方式等枚举选项（表单下拉 / radio） |
+| `GET /strategy/settings/sampling-strategies` | 采样策略等枚举选项 |
+
+- 其它 profile / 选项资源：**路径命名与上表同一风格**（`/strategy/settings/...`），上线前完成上表与编排文档的同步增补。
+
+## 契约细则
+
+### V2-01 `GET /strategy/{strategy_name}/version/latest`
+
+- **路径参数 `strategy_name`**：与 **V2-03** / **V2-05** 等相同，标识目标策略；**须**出现在 URL 中（**不得**仅依赖 query/body 传策略名取代路径）。
+- **语义**：返回当前策略工作台的 **latest 快照**（与 **V2-08** 同形 DTO，区别为按「最新一条」而非按 id）。
+- **尚无任意快照时**：见 **「`latest` 的初始化」**（可由物理 `settings` 冷启动首条）；一旦存在快照行，**正常工作台状态一律以 DB 快照为准**。
+
+### V2-05 `POST /strategy/{strategy_name}/{step}/run`
+
+- **路径参数 `strategy_name`**：与 **V2-03** / **V2-10** 相同，标识目标策略；**请求体不得**用另一策略名覆盖（若 body 含 `strategy_name` 作校验，则**必须**与路径**完全相同**，否则 **400**；推荐实现为**只认路径、忽略或禁止 body 中的** `strategy_name`）。
+- **路径参数 `step`**：要触达的目标步骤，取值限定为 **`enum` | `price` | `capital`**（与前端步骤条、引擎管线一致；大小写按实现统一，建议全小写）。
+- **请求体（JSON）**（字段以实现校验为准，以下为语义必备集）：
+  - **`settings`**：`object`，**必填**。须为 FED 事先通过 **GET**（如 **V2-01** `GET /strategy/{strategy_name}/version/latest`）加载并与表单绑定后的 **API 形态 settings**；POST 时随请求提交。**若缺失、为 `null` 或非 object** → **400**（或 **422**，项目统一即可），服务端**不**再读库用「当前最新快照」兜底。
+  - **`is_force`**：`boolean`，默认 `false`。含义由 **BED** 统一实现（如是否绕过可复用结果、强制重算），**BFF/FED 不解释业务分支**。
+
+#### 响应（本接口的语义终点 =「是否成功触发 job」）
+
+- **成功**响应至少包含 **`is_triggered: true`**，表示 job 已被后端接受并进入可被 **V2-06** 观察的状态。
+- **不要求**、**通常也不返回** **`version_id`**；**不**在本接口返回最终报告正文。
+- **可选**返回 **`job_id` / `run_id`** 供 **V2-06** 关联（若实现为单槽隐式定位则可省略，实现写死一种）。
+- **失败**响应：`is_triggered: false`，`reason: object | string`。
+
+### V2-06 `GET /strategy/{strategy_name}/{step}/progress`
+
+- **职责**：**只读进度**；**不**区分是否命中缓存；**不**承担「向 FED **首次**下发本次新 **`version_id`**」的契约责任（**不是** FED 拿到新锚点的接口）。
+- **路径参数 `strategy_name`**：与 **V2-05** 一致。
+- **路径参数 `step`**：**枚举**，与引擎侧 **三种回测步骤**一一对应（当前契约占位 `enum` | `price` | `capital`）。**对外展示名可调整**，但契约上仍是 **三选一**，且须与 **V2-05 / V2-07** 的 `step` **完全一致**。若需绑定某次 run，加 **`job_id`** query（或单槽隐式）。
+- **轮询**：FED 在 **V2-05** 成功后重复请求，直到 **100%**（或失败），再调用 **无 path `version_id` 的 V2-07** 取结果。
+- 进度数值保留 **两位小数**；可含 `is_success`、`reason`。
+- **卡住进度超时**属前端行为；网络超时按全局 HTTP。
+- **同一 `strategy_name`** 与 **`step`**（及可选 **`job_id`**）下同屏至多一条 active job，与 **V2-05** 互斥一致。
+
+### V2-07 `GET /strategy/{strategy_name}/{step}/summary` 与 `GET …/summary/{version_id}`
+
+#### `GET /strategy/{strategy_name}/{step}/summary`（无 path `version_id`）
+
+- **调用时机**：**仅在 V2-06 进度达到 100%（成功完结）之后**，用于拉取**刚刚结束的这一条 job** 对应的报告/摘要。
+- **成功语义**：后端根据当前上下文（单槽 / **`job_id`** 等，实现写死）解析「本轮产出」，此时 **BED 已完成持久化**，**响应体须包含本次新的 `version_id`** —— 这是 **FED 在本次流水线上第一次可以写入锚点的 `version_id`**。
+- **不关心**是否曾命中缓存。
+- **失败 / 无可用产出路径**（本次 job **未**产出可锚定的 **`version_id`**，例如失败、中止、或尚无持久化结果）：响应**不得**当作「本轮已成功」；**FED 不得展示本轮的结果面板**，且 **UI 上本次 run 对应的步骤条不得进入「成功」完成态**（可停留在进行中/失败/可重试）。用户应可 **重新发起 `POST …/run`**。**不得**用占位 **`version_id`** 冒充成功。
+
+#### `GET /strategy/{strategy_name}/{step}/summary/{version_id}`（已知版本）
+
+- **路径参数**：**`strategy_name`** 须与 **`version_id`** 所属策略一致，否则 **404**。
+- **用途**：在**已经知道** **`version_id`** 时读取（历史列表、对比、从 V2-03 选择版本等）。
+- 响应须**回显** `version_id`。
+
+### V2-08 `GET /strategy/{strategy_name}/version/{version_id}`
+
+- **路径参数 `strategy_name`**：与 **V2-01** 相同；**须**出现在 URL 中。
+- **路径参数 `version_id`**：工作台快照的主键/展示 id（如 `v3`，格式与 **V2-01** 等一致）。
+- **语义**：读取**指定版本**的完整工作台快照并映射为与 **V2-01** **同一形状**的契约 DTO（含 **`version_id`**、`settings`、`step_status`、`result_summary` 等），供 FED **恢复到该 snapshot 的 UI 状态**（与 **latest** 的区别仅在于**按 id 取行**，不按「最新一条」）。
+- **与 V2-01 的差异**：**不**存在「无快照则冷启动从磁盘造首条」的 **2.1** 分支；若 **`version_id`** 不存在、或与 **`strategy_name`** 不匹配 → **404**。行损坏时的校验 / 删除 / 重试可与 **V2-01** 分支 **2.2** 同构（约定 A/B），见 [`API_LAYER_STEPS.md`](./API_LAYER_STEPS.md)。
+- **缓存/指纹**：由 **BED** 决定；**BFF** 仅转发与映射（见 **BFF 边界**）。
+
+### V2-09 `POST /strategy/{strategy_name}/apply-settings/{version_id}`
+
+- **路径参数 `strategy_name`**：目标策略；**须**出现在 URL 中（与 **V2-01** 等一致）。
+- **路径参数 `version_id`**：要落地到磁盘的那份工作台快照版本。
+- **工作台数据模型**：页面加载与版本列表等工作台功能**一律以快照（DB）为准**，除非尚无任何快照（此时走 **V2-01** 冷启动首条等分支）。
+- **语义**：将该 **`version_id`** 对应的 **`settings_snapshot`（API 形态经 BED 规范化后）** **写入**该策略目录下的物理 **`settings.py`**（覆盖用户空间文件），即把「仅存在于工作台 DB / 临时缓存语义下的版本」**永久化**到 repo 内策略包；**不等价**于一次新的 **`POST …/run`**。
+- **`latest` 与物理最后写入对齐**：**apply 成功**后，BED **须更新**该 **`version_id`** 对应快照行的 **`updated_at`（last update）**，使得 **`GET /strategy/{strategy_name}/version/latest` 与「磁盘 settings 最后一次由工作台写出」在版本语义上指向同一快照**（避免 latest 仍指向旧行而磁盘已是另一意图）。
+- **请求体**：可为空对象 **`{}`**，或含实现支持的选项（如 **`pretty`** 是否美化写出）；**不得**在 body 里再传一整套 **`settings`** 覆盖路径上的 **`version_id`**（除非后续契约显式允许，默认 **不允许**）。
+- **成功**：至少 **`applied: true`**（及 **`strategy_name`** 等辅助字段，形状与项目信封一致）。
+- **失败**：版本不存在、与策略不匹配、校验失败、写盘失败等 → **4xx/5xx** 按约定；**不**应留下半写入的损坏文件（建议先备份再原子写，见编排文档）。
+- **副作用**：直接修改用户仓库内文件；调用前应在前端二次确认（产品侧）。
+
+### V2-03 `GET /strategy/{strategy_name}/versions`
+
+- **策略作用域**：路径参数 **`strategy_name`** 必填；表示「哪一个策略」的工作台快照版本。
+- **条数**：服务端**固定返回至多 10 条**，按版本从新到旧（或按 `updated_at` 降序，实现阶段择一并在 BED 固定）；**不支持**客户端改 `limit`（避免与「下拉专用」语义混淆）。
+- **用途**：恢复版本下拉、对比目标列表的快速数据源（与其他「全量浏览」接口区分）。
+
+### V2-10 `GET /strategy/{strategy_name}/versions/range`
+
+- **策略作用域**：路径参数 **`strategy_name`** 必填。
+- **筛选**：须支持按时间窗口过滤版本（边界语义实现阶段落定，建议 query：**`start`** / **`end`**，ISO 8601 字符串，表示 **`created_at` 或 `updated_at` 落在区间内**——二选一写死在契约里）。
+- **分页**：与「固定约定」一致，请求 **`page`、`limit`**，响应 **`total`** + **`page_info`（或等价）**；**不得**依赖客户端一次性拉全量。
+
+### V2-04 选项类 GET（家族共性）
+
+- **作用域**：一般为**工作台表单用的静态或半静态枚举目录**，**不**按 `strategy_name` 区分（若某选项将来策略相关，须**新开路径**并在本文档单列，禁止在同一资源下混用两种语义）。
+- **分页**：**不分页**；单次响应返回该资源的**完整选项列表**（体量由产品控制在可接受范围内）。
+- **响应**：成功信封内至少包含 **`items: array`**；每项至少包含 **`value`**（提交 / 写入 settings 用的稳定键）与 **`label`**（展示文案）。允许附加 **`description`**、**`disabled`** 等扩展字段，以各子路径在 `API_LAYER_STEPS` 中的约定为准。
+- **错误**：配置缺失或组装失败时 **5xx**；目录合法为空时 **`items: []`**、**200**（是否允许空列表由产品定，默认允许）。
+
+## 固定约定
+
+### `strategy_name`（凡针对某策略的接口，须在 URL 路径中）
+
+- **原则**：凡操作**某一具体策略**工作台（读 latest、读指定版本、apply、run、progress、summary、版本列表等），**`strategy_name` 必须作为路径段出现**（统一写作 **`/strategy/{strategy_name}/…`**），**不得**仅靠 query 或 body 作为唯一策略定位（校验字段除外）。
+- **例外**：**不**针对单一命名策略资源的接口（如 **V2-02** 策略列表、**V2-04** 全局选项目录）**不带** `{strategy_name}`，符合产品设计即可。
 
 ---
 
-### 单策略调试页 · 左侧设置（`StrategySettingsPanel`）
+- **分页**：查询参数与响应结构沿用本项目内对 **`page` / `limit` / `total`** 的既有约定（含 `page_info` 或等价字段的具体形状在实现时与现有列表接口对齐）。**V2-02** `GET /strategies/list`、**V2-10** `GET /strategy/{strategy_name}/versions/range` **必须按此分页**（非全量一次返回；除非后续契约显式改为一页拉全量）。
+- **选项类接口**：各选项资源的 **URL 拆分方式** 与现有 settings 相关 GET 约定对齐；不在本文档中新增「运行时动态展开泛型路径」的规则。
 
-左侧折叠块对应整包 **`settings`**（与各策略 `settings.py` 载入结构一致）。其中 **下拉枚举**不硬编码在前端可读配置中维持与 Python 校验一致；由 **SWB-02 / SWB-03** 提供 **`value` + `label`** 列表。
+## V2-07 与 V2-08：何时调用、数据关系
 
-| UI 折叠块 | `settings` 键 | 枚举类 API |
-|-----------|----------------|------------|
-| 策略基本信息 | `meta`、`data` | — |
-| 策略核心设置 | `core` | — |
-| 策略目标设置 | `goal` | — |
-| 全局费用设置 | `fees` | — |
-| 机会枚举参数 | `enumerator` | — |
-| 价格回测参数（含时间段） | `price_simulator` | — |
-| 资金模拟参数（含时间段） | `capital_simulator`（Python 模块亦写作 capital_allocation 语义） | **SWB-02**（`allocation.mode`） |
-| 采样配置 | `sampling` | **SWB-03**（`strategy`） |
+| 接口 | 典型时机 | 内容侧重 |
+|------|----------|----------|
+| **V2-07** | **某次 `POST …/run` 对应的 job 整条流水线结束后**（**progress 已成功完结**之后），取**本轮**在该 **`step`** 下的摘要/报告 | **按步骤**的 summary（路径含 **`step`**） |
+| **V2-08** | 用户在 UI **切换到某一 snapshot（`version_id`）** 之后，拉**整份工作台快照**以恢复表单与步骤状态 | 与 **V2-01** **同形**的整包 DTO |
 
-整包 settings 读取（SWB-04）与选项/profile（SWB-02 / SWB-03）并行必需：前者给“当前值”，后者给“可选值与联动规则”。
+- **包含关系**：**V2-08**（及 **V2-01**）返回的版本体中的 **`result_summary`（或等价聚合字段）** 应**汇总**各步骤结果；其中**包含**与各 **`step`** 对应的 **V2-07** 所能提供的摘要内容（不必重复单独拉 **V2-07**，除非产品要单独刷新某一 `step` 的明细）。
 
----
+## 对比与基准（业务语义，非额外接口）
 
-### SWB-04 — 读取单策略完整 settings（主链路）
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/settings`
-- **消费页面**：`StrategyWorkbenchPage`（路由 `/strategy-workbench/:strategyName`）
-- **语义**：返回该策略当前生效的整包 settings。FED 在本地拆分到左侧各 block。
-
-#### 请求契约
-
-- **Path params**：
-  - `strategy_name`（string，必填）：策略目录名，对应 `userspace/strategies/{strategy_name}`。
-- Query：无。
-- Body：无。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "strategy_name": "example",
-    "settings": {
-      "meta": { "name": "example", "description": "", "is_enabled": true },
-      "core": {},
-      "data": {},
-      "goal": {},
-      "fees": {},
-      "enumerator": {},
-      "price_simulator": {},
-      "capital_simulator": {},
-      "sampling": {},
-      "scanner": {}
-    }
-  }
-}
-```
-
-#### `message.settings` 约定
-
-- 类型：`object`（完整 settings）。
-- 要求：保持与策略目录下 `settings.py` 语义一致；未知键可透传，不做静默丢弃。
-- FED 处理：不依赖后端分段字段，按自身 schema 自行读取/拆分。
-
-#### 响应契约（失败）
-
-- 404：策略不存在。
-- 500：读取/解析失败。
-- 统一错误体：`{ "status": "error", "message": { "detail": "..." } }`。
-
-#### BFF / Backend 职责
-
-1. 按 `strategy_name` 定位策略目录并读取 settings。
-2. 将 Python 配置结构稳定序列化为 JSON 对象返回（不做 UI 专属拆分）。
-3. 错误时返回可读 `message.detail`，便于 FED 直接提示。
+- **基准侧（base）**：来自当前 **`latest`** 对应的 `version_id`，通过 **V2-01** / **V2-08** 拉整包快照（内含汇总 summary）；**run 结束后**可按需再调 **V2-07** 看该 **`step`** 的明细。
+- **对比目标**：从 V2-03（或 V2-10）任选 `version_id`，再经 **V2-07**（按 step）及 **V2-08**（整包）对照。
 
 ---
 
-### 执行面板（`StrategyExecutionPanel`）契约设计
-
-UI 当前行为要点（来自 `strategyExecutionPanel.js`）：
-
-- 三步：`enum`、`price`、`capital`。
-- 依赖：当 `enum` 不是 `done` 时，点击 `price/capital` 会先补跑 `enum`。
-- 执行中：显示单步 progress，禁止再次触发。
-- 对比：每一步完成后可选「对比版本」展示摘要。
-
-后端契约按「启动一次 run -> 轮询 run 状态 -> 读取摘要结果」设计。
-
----
-
-### SWB-06 — 启动执行 run
-
-- **Method & path**：`POST /api/v1/strategies/{strategy_name}/runs`
-- **语义**：启动一次执行任务；可指定目标步骤。若目标是 `price/capital` 且枚举结果不可用，后端按依赖自动补跑。
-
-#### 请求契约
-
-Path params:
-- `strategy_name`（string，必填）
-
-Body:
-
-```json
-{
-  "target_step": "price",
-  "settings_version": "v_current",
-  "settings_snapshot": {},
-  "idempotency_key": "optional-client-uuid"
-}
-```
-
-字段说明：
-- `target_step`：`enum | price | capital`（必填）
-- `settings_version`：可选，指向已保存版本（推荐）
-- `settings_snapshot`：可选，未保存时可传冻结副本（与 snapshot 体系配合）
-- 两者至少提供其一，便于结果可追溯。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "run_id": "run_20260428_001",
-    "strategy_name": "example",
-    "state": "running",
-    "target_step": "price",
-    "resolved_chain": ["enum", "price"]
-  }
-}
-```
-
----
-
-### SWB-07 — 轮询 run 状态
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/runs/{run_id}`
-- **语义**：返回当前 run 生命周期状态与步骤进度；执行面板轮询此接口。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "run_id": "run_20260428_001",
-    "state": "running",
-    "running_step": "enum",
-    "progress_pct": 42,
-    "step_status": {
-      "enum": "running",
-      "price": "idle",
-      "capital": "idle"
-    },
-    "updated_at": "2026-04-28T03:00:00Z"
-  }
-}
-```
-
-状态值约定：
-- run `state`: `queued | running | done | failed | cancelled`
-- step status: `idle | running | done | failed | cancelled`
-
----
-
-### SWB-08 — 取消 run
-
-- **Method & path**：`POST /api/v1/strategies/{strategy_name}/runs/{run_id}/cancel`
-- **语义**：请求取消正在运行的任务。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "run_id": "run_20260428_001",
-    "cancelled": true
-  }
-}
-```
-
----
-
-### SWB-09 — 读取执行摘要结果
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/run-results/{run_id}`
-- **语义**：run 完成后读取执行面板摘要（对应 UI 三行摘要）。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "run_id": "run_20260428_001",
-    "result": {
-      "enum": { "opportunities": 123 },
-      "price": { "winRate": 56.2, "roi": 18.4, "avgHoldDays": 13.1 },
-      "capital": { "initialCapital": 1000000, "endCapital": 1031800, "profit": 31800, "retPct": 3.18 }
-    }
-  }
-}
-```
-
-说明：
-- 未执行到的步骤可为 `null`。
-- 若重新跑 `enum`，后端应使下游旧摘要失效（与当前 UI 逻辑一致）。
-
----
-
-### SWB-10 — 对比版本选项
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/compare-options`
-- **语义**：返回执行面板/报告共用的对比版本下拉列表（替换前端 mock `STRATEGY_WORKBENCH_COMPARE_VERSION_OPTIONS`）。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "versions": ["latest", "v3", "v2", "v1"]
-  }
-}
-```
-
----
-
-### 报告面板（`StrategyReportPanel`）契约设计
-
-UI 当前行为要点（来自 `strategyReportPanel.js` 与三个 report 子组件）：
-
-- 报告分三类：`enum` / `price` / `capital`，仅在对应执行步骤 `done` 后展示 Tab。
-- 报告弹窗支持“本次结果 vs 对比版本结果”双栏对比。
-- 每类报告包含：汇总指标 + 样本股票表（最多10）；
-  其中价格报告支持点击样本股票打开 K 线弹窗（买卖点示意）。
-
-实现策略（当前阶段）：
-
-- **UI-first contract**：先以当前前端 UI 所需字段/结构定义契约，优先保证前后端联调与页面可用。
-- **后端渐进增强**：summary 的计算口径、存储结构、聚合性能与可追溯性后续迭代增强，不阻塞本轮契约冻结。
-
-后端契约按「报告主数据 + 样本明细 + 单股详情 + 对比聚合」拆分。
-
----
-
-### SWB-11 — 读取报告主数据（三类摘要）
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/reports/{run_id}`
-- **语义**：返回报告面板所需的三类摘要指标，供 Tab 内容渲染。
-
-#### 请求契约
-
-Path params:
-- `strategy_name`（string，必填）
-- `run_id`（string，必填）
-
-Query（可选）：
-- `report_types=enum,price,capital`（不传则默认全量）
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "run_id": "run_20260428_001",
-    "reports": {
-      "enum": {},
-      "price": {},
-      "capital": {}
-    },
-    "available_tabs": ["enum", "price", "capital"]
-  }
-}
-```
-
-说明：
-- `reports.<type>` 结构由各报告模块定义（指标字段可演进，保持向后兼容优先）。
-- `available_tabs` 与执行完成状态对齐，前端据此决定可见 Tab。
-
----
-
-### SWB-12 — 读取报告样本股票表
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/reports/{run_id}/stocks`
-- **语义**：返回某报告类型样本股票数据，供 `ReportStockSampleGrid`。
-
-#### 请求契约
-
-Path params:
-- `strategy_name`（string，必填）
-- `run_id`（string，必填）
-
-Query:
-- `report_type`（必填）：`enum | price | capital`
-- `limit`（可选，默认10）
-- `search`（可选，按代码/名称过滤）
-- `sort_by`（可选，report_type 相关字段）
-- `sort_order`（可选，`asc | desc`）
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "report_type": "price",
-    "rows": [
-      {
-        "stock_id": "600519.SH",
-        "stock_name": "贵州茅台",
-        "win_rate": 58.3,
-        "roi": 12.6,
-        "hold_days": 14.2
-      }
-    ],
-    "total": 1
-  }
-}
-```
-
-说明：
-- 字段按 `report_type` 变化；上例为 `price`。
-- `stock_id` 为后续 K 线详情接口主键（SWB-13）。
-
----
-
-### SWB-13 — 读取单股票 K 线与买卖点
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/reports/{run_id}/stocks/{stock_id}/kline`
-- **语义**：返回价格报告中 K 线弹窗的数据（OHLC + 交易标记）。
-
-#### 请求契约
-
-Path params:
-- `strategy_name`（string，必填）
-- `run_id`（string，必填）
-- `stock_id`（string，必填）
-
-Query（可选）：
-- `start_date` / `end_date`（不传则使用 run 对应窗口）
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "stock_id": "600519.SH",
-    "stock_name": "贵州茅台",
-    "candles": [
-      { "date": "2026-01-01", "open": 100.1, "high": 101.2, "low": 99.8, "close": 100.9 }
-    ],
-    "markers": [
-      { "type": "buy", "date": "2026-01-09", "price": 103.2 },
-      { "type": "sell", "date": "2026-01-31", "price": 109.8 }
-    ]
-  }
-}
-```
-
----
-
-### SWB-14 — 报告对比数据（双栏）
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/reports/compare`
-- **语义**：返回本次 run 与对比版本（或 run）同口径报告数据，供“对比结果”弹窗双栏展示。
-
-#### 请求契约
-
-Path params:
-- `strategy_name`（string，必填）
-
-Query:
-- `base_run_id`（必填）
-- `compare_version`（必填，值来自 SWB-10）
-- `report_type`（可选：`enum | price | capital`，不传返回三类）
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "base_run_id": "run_20260428_001",
-    "compare_version": "v3",
-    "report_type": "price",
-    "base_report": {},
-    "compare_report": {}
-  }
-}
-```
-
-说明：
-- `base_report/compare_report` 字段结构与 SWB-11 对应 `report_type` 一致。
-- 若对比目标不存在，返回统一错误体（建议 404/422）。
-
----
-
-### SWB-01 — 获取已发现策略列表
-
-- **Method & path**：`GET /api/v1/strategies`
-- **消费页面**：`StrategyListPage`（路由 `/strategy-workbench`）
-- **FED 调用**：`fetchStrategyList()`（`src/api/apis/strategyApi.js`）
-
-**场景说明**：进入列表时与「刷新」时各请求 **SWB-01** 一次。双击行进入 `/strategy-workbench/:strategyName`。
-
-#### 策略列表页：搜索与分页（FED 行为，与 BFF 无附加参数）
-
-页面 `StrategyListPage` 上提供 **按策略名搜索** 与 **表格分页**；二者均在**取得 SWB-01 全量列表后**在浏览器内完成，**不**向 BFF 传 `q` / `page` / `page_size` 等参数，也**不**因翻页或输入搜索词而再次请求列表。
-
-| 能力 | FED 实现要点 |
-|------|----------------|
-| **搜索** | 文本框绑定 `nameQuery`。对 **`name`** 字段做 **不区分大小写的子串匹配**（`trim` 后为空则显示全部）。搜索结果来自内存中的 `rows`，非服务端筛选。切换搜索关键词时 **页码重置为第 1 页**（`page` → `0`）。 |
-| **分页** | MUI DataGrid：`paginationModel`（`page`、`pageSize`）；**`pageSizeOptions` 固定为 `[10]`**（每页 10 条）。分页作用在 **`displayRows`**（先按搜索过滤后的数据集）上，属客户端分页。 |
-
-补充：**「刷新」**按钮仅重新执行 **SWB-01**，与搜索词、当前页无关（重新拉取后仍以当前搜索词过滤、分页状态沿用 DataGrid 惯例）。
-
-#### 请求契约
-
-无 Query；无 Body。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "strategies": [
-      {
-        "key": "example",
-        "name": "Example display name",
-        "description": "",
-        "is_enabled": true
-      }
-    ]
-  }
-}
-```
-
-**`message.strategies[]` 字段**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `key` | string | 是 | 策略目录名；BFF 按 `key` 升序排序。 |
-| `name` | string | 是 | **meta.name**；缺省时 BFF 用目录名兜底。 |
-| `description` | string | 否 | **meta.description**，可为空串。 |
-| `is_enabled` | boolean | 是 | **meta.is_enabled**。 |
-
-#### FED 归一化类型（表格行）
-
-```ts
-type StrategyListRow = {
-  id: string;           // = key（目录名），DataGrid row id
-  name: string;         // 展示名，来自 meta.name
-  description: string;
-  is_enabled: boolean;
-};
-
-type FetchStrategyListResult = {
-  data: StrategyListRow[];
-};
-```
-
-**映射规则**：`id = key || name`；`name = name || key`；`description` 默认 `''`；`is_enabled` → `Boolean(...)`。
-
-#### 响应契约（失败）
-
-HTTP 500（或与错误语义一致的 4xx/5xx），示例：
-
-```json
-{
-  "status": "error",
-  "message": {
-    "detail": "获取策略列表失败: <异常信息>"
-  }
-}
-```
-
-#### BFF / Backend 职责
-
-1. `StrategyDiscoveryHelper.discover_strategies()` 发现策略并遍历。
-2. 每项：`key` = 目录名；`name` / `description` / `is_enabled` 来自 `StrategyInfo.settings.meta`（与当前 `core/ui/bff/APIs/strategy_workbench/service.py` 一致）。
-3. 按 `key` 升序排序。
-4. 异常时返回 `status: error`、`message.detail`，HTTP 500。
-
----
-
-### SWB-02 — 资金分配模式选项（必需选项契约）
-
-- **Method & path**：`GET /api/v1/strategies/settings-options/allocation-modes`
-- **绑定字段**：`capital_simulator.allocation.mode`（见 `strategyCapitalSimulator` schema）
-- **FED 调用**：`fetchCapitalAllocationModeOptions()`（`strategyApi.js`）
-
-**语义**：返回可选 **`value`** 必须与 ``core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings`` 中 **mode** 校验集合一致（当前为 `equal_capital` / `equal_shares` / `kelly` / `custom`）。**`label`** 为界面展示文案。并返回每个 mode 对应的字段 profile，供前端在切换 mode 时联动显示/校验下方字段。
-
-#### 请求契约
-
-无 Query；无 Body。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "options": [
-      { "value": "equal_capital", "label": "每个机会均等资金买入" },
-      { "value": "equal_shares", "label": "每个机会均等股数买入" },
-      { "value": "kelly", "label": "凯莉公式" },
-      { "value": "custom", "label": "自定义" }
-    ],
-    "profiles": {
-      "equal_capital": {
-        "configurable_fields": ["allocation.max_portfolio_size", "allocation.max_weight_per_stock"],
-        "required_fields": []
-      },
-      "equal_shares": {
-        "configurable_fields": [
-          "allocation.max_portfolio_size",
-          "allocation.max_weight_per_stock",
-          "allocation.lot_size",
-          "allocation.lots_per_trade"
-        ],
-        "required_fields": ["allocation.lot_size", "allocation.lots_per_trade"]
-      },
-      "kelly": {
-        "configurable_fields": [
-          "allocation.max_portfolio_size",
-          "allocation.max_weight_per_stock",
-          "allocation.kelly_fraction"
-        ],
-        "required_fields": ["allocation.kelly_fraction"]
-      },
-      "custom": {
-        "configurable_fields": ["allocation.max_portfolio_size", "allocation.max_weight_per_stock"],
-        "required_fields": []
-      }
-    }
-  }
-}
-```
-
-**`message.options[]`**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `value` | string | 是 | 写入 `settings` 的机器值 |
-| `label` | string | 是 | 下拉展示文案 |
-
-**`message.profiles`**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `profiles.<mode>.configurable_fields` | string[] | 是 | 当前 mode 可编辑字段（点路径）。前端可用于字段显隐。 |
-| `profiles.<mode>.required_fields` | string[] | 是 | 当前 mode 必填字段（点路径）。前端可用于即时校验提示。 |
-
-#### 响应契约（失败）
-
-与 SWB-01 相同形态：`status: error`，`message.detail`。
-
-#### BFF / Backend 职责
-
-1. 选项中的 **`value`** 集合与框架 **capital_simulator allocation mode** 校验逻辑对齐（不可擅自增加未在后端注册的 mode）。
-2. **`label`** 由 BFF 维护中文文案；若框架新增合法 `value`，BFF 须在有序列表或兜底分支中给出对应项。
-3. 维护 `profiles`，确保 mode 切换后的字段联动与后端能力一致。
-
----
-
-### SWB-03 — 采样策略选项（必需选项契约）
-
-- **Method & path**：`GET /api/v1/strategies/settings-options/sampling-strategies`
-- **绑定字段**：`sampling.strategy`（见 `strategySampling` schema）
-- **FED 调用**：`fetchSamplingStrategyOptions()`（`strategyApi.js`）
-
-**语义**：返回可选 **`value`** 必须与 ``StrategySamplingSettings`` / ``KNOWN_STRATEGIES`` 一致（当前含 `continuous`、`uniform`、`stratified`、`random`、`pool`、`blacklist`）。并返回每个 strategy 对应的字段 profile，供前端联动展示对应子配置。
-
-#### 请求契约
-
-无 Query；无 Body。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "options": [
-      { "value": "continuous", "label": "连续采样（默认）" },
-      { "value": "uniform", "label": "均匀采样" },
-      { "value": "stratified", "label": "分层采样" },
-      { "value": "random", "label": "随机采样" },
-      { "value": "pool", "label": "指定股票池采样" },
-      { "value": "blacklist", "label": "排除黑名单采样" }
-    ],
-    "profiles": {
-      "continuous": {
-        "configurable_fields": ["sampling.sampling_amount", "sampling.continuous.start_idx"],
-        "required_fields": []
-      },
-      "uniform": {
-        "configurable_fields": ["sampling.sampling_amount"],
-        "required_fields": []
-      },
-      "stratified": {
-        "configurable_fields": ["sampling.sampling_amount", "sampling.stratified.seed"],
-        "required_fields": []
-      },
-      "random": {
-        "configurable_fields": ["sampling.sampling_amount", "sampling.random.seed"],
-        "required_fields": []
-      },
-      "pool": {
-        "configurable_fields": ["sampling.sampling_amount", "sampling.pool.stock_ids", "sampling.pool.file"],
-        "required_fields": []
-      },
-      "blacklist": {
-        "configurable_fields": ["sampling.sampling_amount", "sampling.blacklist.stock_ids", "sampling.blacklist.file"],
-        "required_fields": []
-      }
-    }
-  }
-}
-```
-
-**`message.options[]`**：字段表同 SWB-02。  
-**`message.profiles`**：字段表同 SWB-02。
-
-#### 响应契约（失败）
-
-与 SWB-01 相同形态。
-
-#### BFF / Backend 职责
-
-1. **`value`** 集合与 ``sampling_settings.KNOWN_STRATEGIES`` 对齐。
-2. **`label`** 由 BFF 维护；新增合法采样策略时同步扩展列表。
-3. 维护 `profiles`，确保 sampling.strategy 切换后子字段联动一致。
-
----
-
-### Snapshot（工作台状态）契约与存储
-
-决策：**使用专门表承载工作台 snapshot，不复用 `sys_cache`**。
-
-全局概念定义（统一语义）：
-- **Draft（前端草稿）**：用户仅在左侧改了 settings，但尚未触发任何后端交互（未执行任一步、未点击保存配置）。只存在于前端内存态，不入库。
-- **Version（后端版本）**：一旦发生后端交互即生成/更新的可追溯状态（例如执行任一步写入系统缓存，或点击保存覆盖 settings 文件）。
-- **Snapshot（工作台态）**：页面 UI 上下文与“当前使用哪个版本”的指针；不替代 settings 真源。
-
-原因：
-- snapshot 是业务对象（可演进 schema + 语义稳定），不是临时缓存；
-- 需要版本化、并发控制与可追溯（`updated_at`、`revision`、操作者）；
-- 与执行 run-state、配置版本存在明确关联，后续可做治理与迁移。
-
----
-
-### SWB-15 — 读取 snapshot（页面加载第一入口）
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/snapshot`
-- **语义**：恢复用户上次工作台状态；不存在时返回默认结构。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "strategy_name": "example",
-    "snapshot": {
-      "snapshot_id": "swb_example_default_user",
-      "revision": 7,
-      "ui_state": {
-        "active_report_tab": "price",
-        "expanded_panels": ["settings", "execution", "report"],
-        "compare_version": { "enum": "v3", "price": "", "capital": "" }
-      },
-      "working_state": {
-        "current_settings_version": "ver_20260428_003",
-        "current_run_id": "run_20260428_001",
-        "last_completed_run_id": "run_20260427_003"
-      },
-      "updated_at": "2026-04-28T03:00:00Z"
-    }
-  }
-}
-```
-
----
-
-### SWB-16 — 保存 snapshot（upsert）
-
-- **Method & path**：`PUT /api/v1/strategies/{strategy_name}/snapshot`
-- **语义**：保存页面 UI 态与工作态指针。支持并发控制（`revision`）。
-
-#### 请求契约
-
-```json
-{
-  "revision": 7,
-  "snapshot": {
-    "ui_state": {},
-    "working_state": {}
-  }
-}
-```
-
-并发建议：
-- 若 `revision` 过期，返回 `409 conflict`，前端提示刷新后重试。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "strategy_name": "example",
-    "saved": true,
-    "revision": 8,
-    "updated_at": "2026-04-28T03:01:20Z"
-  }
-}
-```
-
----
-
-### SWB-17 — 读取配置版本列表
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/versions`
-- **语义**：返回可对比/可恢复的后端版本索引（不包含前端草稿）。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "versions": [
-      {
-        "version_id": "ver_20260428_003",
-        "source": "run",
-        "source_ref": "run_20260428_001",
-        "created_at": "2026-04-28T03:00:00Z"
-      },
-      {
-        "version_id": "ver_20260427_012",
-        "source": "save",
-        "source_ref": null,
-        "created_at": "2026-04-27T10:32:00Z"
-      }
-    ],
-    "retention": {
-      "max_count": 100,
-      "max_age_days": 30
-    },
-    "truncated": false
-  }
-}
-```
-
-说明：
-- `retention` 告知版本保留策略（数量/时间窗口）。
-- `truncated=true` 表示存在历史版本已被淘汰，避免用户误认为“版本丢失是故障”。
-
----
-
-### SWB-18 — 读取单个配置版本详情
-
-- **Method & path**：`GET /api/v1/strategies/{strategy_name}/versions/{version_id}`
-- **语义**：返回指定版本对应的整包 settings（用于对比/恢复预览）。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "version_id": "ver_20260428_003",
-    "settings": {}
-  }
-}
-```
-
----
-
-### SWB-19 — 恢复配置版本
-
-- **Method & path**：`POST /api/v1/strategies/{strategy_name}/versions/{version_id}/restore`
-- **语义**：将指定版本覆盖为当前 settings（等价于一次“恢复并保存”）。
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "restored": true,
-    "strategy_name": "example",
-    "version_id": "ver_20260428_003"
-  }
-}
-```
-
----
-
-### SWB-20 — 固化当前工作台配置为后端版本
-
-- **Method & path**：`POST /api/v1/strategies/{strategy_name}/versions`
-- **语义**：将当前工作台配置（前端传入 settings 快照）固化为后端版本，供“应用到策略”“历史对比”“版本恢复”统一使用。
-
-#### 请求契约
-
-```json
-{
-  "source": "manual_apply",
-  "source_ref": null,
-  "settings": {}
-}
-```
-
-字段说明：
-- `source`：建议值 `manual_apply | run | save`
-- `source_ref`：可选，`run` 场景可写 `run_id`
-- `settings`：完整 settings 快照
-
-#### 响应契约（成功，HTTP 200）
-
-```json
-{
-  "status": "ok",
-  "message": {
-    "version_id": "ver_20260428_021",
-    "created": true
-  }
-}
-```
-
----
-
-### Snapshot 存储（专门表，建议）
-
-建议至少两张表：
-
-1. `workbench_snapshot`
-   - 主键建议：`(strategy_name, user_key)`
-   - 字段：
-     - `strategy_name` (varchar)
-     - `user_key` (varchar，单机可先固定 `default_user`)
-     - `revision` (int)
-     - `ui_state_json` (json/text)
-     - `working_state_json` (json/text)
-     - `updated_at` (datetime)
-     - `created_at` (datetime)
-
-2. `workbench_version`
-   - 主键：`version_id`
-   - 索引建议：`(strategy_name, user_key, created_at desc)`
-   - 字段：
-     - `version_id` (varchar)
-     - `strategy_name` (varchar)
-     - `user_key` (varchar)
-     - `source` (varchar，建议 `run | save`)
-     - `source_ref` (varchar, nullable，run 时可写 `run_id`)
-     - `settings_json` (json/text)
-     - `created_at` (datetime)
-
-保留策略：
-- `version` 仅保留最近 N 条（如 100）；
-- 超限按时间淘汰，避免表无限增长。
-
----
-
-## 修订记录
-
-- **SWB-04**：单策略整包 settings 读取（实例值契约）。
-- **SWB-02 / SWB-03**：左侧下拉与字段联动 profile（候选值契约，必需）。
-- **SWB-06 ~ SWB-10**：执行面板（启动 / 状态轮询 / 取消 / 摘要 / 对比版本）。
-- **SWB-11 ~ SWB-14**：报告面板（摘要 / 样本表 / 单股K线 / 双栏对比）。
-- **SWB-15 ~ SWB-20**：snapshot（专门表）读取/保存 + 配置版本列表/详情/恢复 + 版本固化。
-
-## Roadmap（执行面板）
-
-- **近期（v1）**：执行状态采用 API 轮询（`run_id` + status/progress 持久化），先保证稳定可观测。
-- **中期（v1.x）**：在同一状态源上评估新增 SSE 推送，减少前端轮询频率与延迟。
-- **后续（worker 改造后）**：当后端引入正式 Queue/Pipeline 系统后，重构执行层事件模型，再决定是否将执行进度通道升级为 SSE/WS 主链路。
-- **原则**：无论轮询或推送，先保证统一 run-state 真源，避免 UI 状态与任务真实状态漂移。
+*细节字段（V2-01 响应体的完整 JSON 形状、各 `step` 对外命名与展示文案等）在后续迭代中补齐。*

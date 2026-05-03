@@ -1,14 +1,17 @@
 """Strategy workbench routes (endpoint definitions)."""
 
+import logging
+
 from flask import Blueprint, request
 
-from core.ui.bff.shared.response import ok
+from core.ui.bff.shared.response import error, ok
 from .service import StrategyWorkbenchService
 from .request_helper import StrategyWorkbenchRequestHelper
 
 
 strategy_workbench_api_bp = Blueprint("strategy_workbench_api", __name__)
 _strategy_workbench_service = StrategyWorkbenchService()
+_logger = logging.getLogger(__name__)
 
 
 def _json_payload() -> dict:
@@ -39,7 +42,7 @@ def get_strategies():
 
     discovered = _strategy_workbench_service.discover_strategies()
 
-    strategies = _strategy_workbench_service.to_strategy_list_response_rows(discovered)
+    strategies = _strategy_workbench_service.to_response_format(discovered)
 
     ordered = _strategy_workbench_service.sort_discovered_strategies(strategies)
 
@@ -196,10 +199,34 @@ def start_strategy_run(strategy_name):
 def get_strategy_enumerator_reuse_preview(strategy_name):
     # Step 1: read and normalize route parameter.
     strategy_key = route_value(strategy_name)
-    # Step 2: delegate reuse-preview planning workflow.
-    response = delegate("get_enumerator_reuse_preview", strategy_key)
-    # Step 3: return response envelope.
-    return response
+    # Step 2: ensure strategy exists.
+    err = _strategy_workbench_service.ensure_strategy_exists(strategy_key)
+    if err:
+        return err
+    try:
+        # Step 3: build enumerator flow for preview (no subprocess).
+        flow, strategy_info, build_err = (
+            _strategy_workbench_service.build_enumerator_reuse_preview_flow(strategy_key)
+        )
+        if build_err:
+            return error(build_err, 422)
+        # Step 4: preprocess / plan reuse.
+        preprocessed = _strategy_workbench_service.preprocess_enumerator_reuse_preview(
+            flow,
+            strategy_key,
+            strategy_info,
+        )
+        # Step 5: assemble response payload (fingerprints, reuse branches).
+        payload = _strategy_workbench_service.assemble_enumerator_reuse_preview_payload(
+            strategy_key,
+            flow,
+            preprocessed,
+        )
+        # Step 6: return success envelope.
+        return ok(payload)
+    except Exception as e:
+        _logger.exception("枚举复用预览失败: strategy_name=%s", strategy_key)
+        return error(f"枚举复用预览失败: {str(e)}", 500)
 
 
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/runs/<run_id>', methods=['GET'])
@@ -207,55 +234,134 @@ def get_strategy_run_status(strategy_name, run_id):
     # Step 1: read and normalize route parameters.
     strategy_key = route_value(strategy_name)
     run_key = route_value(run_id)
-    # Step 2: delegate run-status query + progress aggregation.
-    response = delegate("get_strategy_run_status", strategy_key, run_key)
-    # Step 3: return response envelope.
-    return response
+    # Step 2: load status file for this run_id (404 if missing / mismatch).
+    status_payload, err = _strategy_workbench_service.require_run_status_for_run(
+        strategy_key, run_key
+    )
+    if err:
+        return err
+    try:
+        # Step 3: normalize step_status dict with idle defaults.
+        step_status = _strategy_workbench_service.normalize_run_status_step_status(
+            status_payload
+        )
+        # Step 4: build response body from persisted status fields.
+        body = _strategy_workbench_service.build_run_status_response_body(
+            run_key, status_payload, step_status
+        )
+        # Step 5: overlay enumerator progress when enum step is active.
+        _strategy_workbench_service.merge_enumerator_progress_into_run_status(
+            strategy_key, run_key, status_payload, body
+        )
+        # Step 6: drop worker handles after terminal states.
+        _strategy_workbench_service.finalize_run_worker_handles_if_terminal(
+            strategy_key, run_key, status_payload
+        )
+        # Step 7: return success envelope.
+        return ok(body)
+    except Exception as e:
+        _logger.exception(
+            "读取执行状态失败: strategy_name=%s run_id=%s", strategy_key, run_key
+        )
+        return error(f"读取执行状态失败: {str(e)}", 500)
 
 
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/runs/<run_id>/cancel', methods=['POST'])
 def cancel_strategy_run(strategy_name, run_id):
-    # Step 1: read and normalize route parameters.
-    strategy_key = route_value(strategy_name)
-    run_key = route_value(run_id)
-    # Step 2: delegate cancellation signaling workflow.
-    response = delegate("cancel_strategy_run", strategy_key, run_key)
-    # Step 3: return response envelope.
-    return response
+    """Product does not support run cancellation; path kept for a stable contract."""
+    _ = strategy_name, run_id
+    return error("取消执行暂不支持", 501)
 
 
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/run-results/<run_id>', methods=['GET'])
 def get_strategy_run_results(strategy_name, run_id):
+    """
+    Execution panel: read `result_summary` from the run status file (enum/price/capital slots).
+    Full tab reports use SWB-11; this is the lightweight per-step summary persisted with run state.
+    """
     # Step 1: read and normalize route parameters.
     strategy_key = route_value(strategy_name)
     run_key = route_value(run_id)
-    # Step 2: delegate run-result summary query.
-    response = delegate("get_strategy_run_results", strategy_key, run_key)
-    # Step 3: return response envelope.
-    return response
+    # Step 2: load status JSON for this run_id (404 if missing / mismatch).
+    status_payload, err = _strategy_workbench_service.require_run_status_for_run(
+        strategy_key, run_key
+    )
+    if err:
+        return err
+    try:
+        # Step 3: coerce `result_summary` to a dict.
+        result_summary = _strategy_workbench_service.normalize_run_result_summary_from_status(
+            status_payload
+        )
+        # Step 4: shape execution-panel payload (three step slots).
+        body = _strategy_workbench_service.build_strategy_run_results_payload(
+            run_key, result_summary
+        )
+        # Step 5: return success envelope.
+        return ok(body)
+    except Exception as e:
+        _logger.exception(
+            "读取执行摘要结果失败: strategy_name=%s run_id=%s", strategy_key, run_key
+        )
+        return error(f"读取执行摘要结果失败: {str(e)}", 500)
 
 
-@strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/compare-options', methods=['GET'])
-def get_strategy_compare_options(strategy_name):
+@strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/version-history', methods=['GET'])
+def get_strategy_version_history(strategy_name):
     # Step 1: read and normalize route parameter.
     strategy_key = route_value(strategy_name)
-    # Step 2: delegate compare-options query.
-    response = delegate("get_strategy_compare_options", strategy_key)
-    # Step 3: return response envelope.
-    return response
+    # Step 2: ensure strategy exists.
+    err = _strategy_workbench_service.ensure_strategy_exists(strategy_key)
+    if err:
+        return err
+    try:
+        # Step 3: resolve latest + snapshot version ids (deduped).
+        versions = _strategy_workbench_service.resolve_workbench_version_history_ids(strategy_key)
+        # Step 4: return success envelope.
+        return ok({"versions": versions})
+    except Exception as e:
+        _logger.exception(
+            "读取工作台版本历史失败: strategy_name=%s", strategy_key
+        )
+        return error(f"读取工作台版本历史失败: {str(e)}", 500)
 
 
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/reports/<run_id>', methods=['GET'])
 def get_strategy_reports(strategy_name, run_id):
-    # Step 1: read and normalize route parameters.
+    # Step 1: read and normalize route parameters + query.
     strategy_key = route_value(strategy_name)
     run_key = route_value(run_id)
-    # Step 2: read query filters.
     report_types = query_arg("report_types")
-    # Step 3: delegate report aggregation workflow.
-    response = delegate("get_strategy_reports", strategy_key, run_key, report_types)
-    # Step 4: return response envelope.
-    return response
+    # Step 2: ensure strategy exists.
+    err = _strategy_workbench_service.ensure_strategy_exists(strategy_key)
+    if err:
+        return err
+    # Step 3: parse report_types filter (default full triple when empty).
+    requested_types, parse_detail = _strategy_workbench_service.parse_report_types_query(report_types)
+    if parse_detail:
+        return error(parse_detail, 400)
+    # Step 4: load run status for this run_id.
+    status_payload, err = _strategy_workbench_service.require_run_status_for_run(
+        strategy_key, run_key
+    )
+    if err:
+        return err
+    try:
+        # Step 5: merge status summary with snapshot / latest enum backfill rules.
+        result_summary = _strategy_workbench_service.resolve_reports_summary_for_strategy_run(
+            strategy_key, status_payload
+        )
+        # Step 6: build tab payloads and optional enumMetrics from disk.
+        body = _strategy_workbench_service.assemble_strategy_reports_message(
+            strategy_key, run_key, result_summary, requested_types
+        )
+        # Step 7: return success envelope.
+        return ok(body)
+    except Exception as e:
+        _logger.exception(
+            "读取报告主数据失败: strategy_name=%s run_id=%s", strategy_key, run_key
+        )
+        return error(f"读取报告主数据失败: {str(e)}", 500)
 
 
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/reports/<run_id>/stocks', methods=['GET'])

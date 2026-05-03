@@ -25,7 +25,7 @@ import {
   buildPriceMetrics,
 } from '../../mocks/strategyReportMetrics';
 import {
-  fetchStrategyCompareOptions,
+  fetchStrategyVersionHistory,
   fetchStrategyReportCompare,
   fetchStrategyReportStocks,
   fetchStrategyReports,
@@ -75,7 +75,7 @@ function StrategyReportPanel({ strategyName, executionState }) {
     }
     const loadCompareOptions = async () => {
       try {
-        const data = await fetchStrategyCompareOptions(strategyName);
+        const data = await fetchStrategyVersionHistory(strategyName);
         if (disposed) return;
         const options = Array.isArray(data?.versions)
           ? data.versions.filter((item) => typeof item === 'string' && item.trim() !== '')

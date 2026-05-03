@@ -178,19 +178,6 @@ export async function fetchStrategyRunStatus(strategyName, runId) {
 }
 
 /**
- * SWB-08：取消执行。
- * @param {string} strategyName
- * @param {string} runId
- */
-export async function cancelStrategyRun(strategyName, runId) {
-  const json = await requestJson(
-    `${API_BASE}/${encodeURIComponent(strategyName)}/runs/${encodeURIComponent(runId)}/cancel`,
-    { method: 'POST' },
-  );
-  return json?.message || {};
-}
-
-/**
  * SWB-09：读取执行摘要结果。
  * @param {string} strategyName
  * @param {string} runId
@@ -204,12 +191,13 @@ export async function fetchStrategyRunResults(strategyName, runId) {
 }
 
 /**
- * SWB-10：读取对比版本选项。
+ * SWB-10：工作台快照版本标识列表（含 latest），供下拉等选用。
  * @param {string} strategyName
+ * @returns {Promise<{ versions: string[] }>}
  */
-export async function fetchStrategyCompareOptions(strategyName) {
+export async function fetchStrategyVersionHistory(strategyName) {
   const json = await requestJson(
-    `${API_BASE}/${encodeURIComponent(strategyName)}/compare-options`,
+    `${API_BASE}/${encodeURIComponent(strategyName)}/version-history`,
     { method: 'GET' },
   );
   return json?.message || {};

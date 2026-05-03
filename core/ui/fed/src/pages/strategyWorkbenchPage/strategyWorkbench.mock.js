@@ -38,10 +38,11 @@ export const defaultSettings = {
   sampling: {
     strategy: 'continuous',
     sampling_amount: 2,
+    use_sampling: false,
+    start_date: '',
+    end_date: '',
   },
   enumerator: {
-    use_sampling: false,
-    max_test_versions: 3,
     max_output_versions: 2,
     max_workers: 'auto',
     is_verbose: true,
@@ -58,25 +59,12 @@ export const defaultSettings = {
     transfer_fee_rate: 0.0,
   },
   price_simulator: {
-    use_sampling: false,
-    // 兼容 settings_example 的完整块：时间窗口可为空，表示走全量输出时段
-    start_date: '',
-    end_date: '',
     max_workers: 'auto',
     base_version: 'latest',
-    fees: {
-      commission_rate: 0.00025,
-      min_commission: 5.0,
-      stamp_duty_rate: 0.001,
-      transfer_fee_rate: 0.0,
-    },
   },
   capital_simulator: {
-    use_sampling: false,
     base_version: 'latest',
     initial_capital: 1000000,
-    start_date: '',
-    end_date: '',
     max_workers: 'auto',
     allocation: {
       mode: 'equal_capital',
@@ -89,12 +77,6 @@ export const defaultSettings = {
     output: {
       save_trades: true,
       save_equity_curve: true,
-    },
-    fees: {
-      commission_rate: 0.00025,
-      min_commission: 5.0,
-      stamp_duty_rate: 0.001,
-      transfer_fee_rate: 0.0,
     },
   },
   scanner: {

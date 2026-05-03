@@ -15,7 +15,7 @@ The system should reuse previous results when the previous run contains the new 
 
 ## Decision
 
-We introduce `EnumeratorFingerprint` as a run/request descriptor and use containment-based reuse planning.
+We introduce `StrategyRunFingerprint` (historical alias `EnumeratorFingerprint`) as a run/request descriptor and use containment-based reuse planning.
 
 Fingerprint fields:
 

@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 @dataclass
 class StrategyPriceSimulatorSettings(SettingsBase):
     raw_settings: Dict[str, Any]
-    _missing_use_sampling_at_load: bool = field(default=False, repr=False)
     _price_simulator_validated: bool = field(default=False, repr=False)
 
     @property
@@ -35,10 +34,8 @@ class StrategyPriceSimulatorSettings(SettingsBase):
     def from_strategy_root(cls, root: Dict[str, Any]) -> "StrategyPriceSimulatorSettings":
         if not isinstance(root, dict):
             root = {}
-        block = root.get("price_simulator")
-        missing_us = not isinstance(block, dict) or "use_sampling" not in block
         SettingsBase.ensure_dict_block(root, "price_simulator")
-        return cls(raw_settings=root, _missing_use_sampling_at_load=missing_us)
+        return cls(raw_settings=root)
 
     @classmethod
     def from_base_settings(cls, base_settings: StrategySettings) -> "StrategyPriceSimulatorSettings":
@@ -46,24 +43,19 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         ps = self.price_simulator
-        ps.setdefault("use_sampling", False)
         if "base_version" not in ps and "output_version" in ps:
             ps["base_version"] = ps.get("output_version") or "latest"
         ps.setdefault("base_version", "latest")
         ps.setdefault("max_workers", "auto")
-        ps.setdefault("start_date", "")
-        ps.setdefault("end_date", "")
 
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
         self.apply_defaults()
+
         bv = str(self.price_simulator.get("base_version") or "latest")
         if bv != "latest":
             SettingsBase.add_warning(result, "price_simulator.base_version", f"指定 base_version={bv}")
-        if self._missing_use_sampling_at_load:
-            SettingsBase.add_warning(result, "price_simulator.use_sampling", "use_sampling 未配置，默认 False")
         self._validate_max_workers(result)
-        self._validate_fees_if_present(result)
         SettingsBase.log_warnings(result, logger)
         self._price_simulator_validated = True
         return result
@@ -78,24 +70,20 @@ class StrategyPriceSimulatorSettings(SettingsBase):
             invalid_message='price_simulator.max_workers 须为 "auto" 或正整数',
         )
 
-    def _validate_fees_if_present(self, result: ValidationReport) -> None:
-        fees = self.price_simulator.get("fees")
-        if fees is None:
-            return
-        if not isinstance(fees, dict):
-            SettingsBase.add_critical(result, "price_simulator.fees", "fees 必须为对象（dict）")
-            return
-        required = ("commission_rate", "min_commission", "stamp_duty_rate", "transfer_fee_rate")
-        for k in required:
-            if k not in fees:
-                SettingsBase.add_warning(result, f"price_simulator.fees.{k}", f"fees 缺少 {k}")
-
     def to_dict(self) -> Dict[str, Any]:
-        return self.deep_copy_dict(dict(self.price_simulator))
+        out = self.deep_copy_dict(dict(self.price_simulator))
+        for key in ("use_sampling", "start_date", "end_date", "fees"):
+            out.pop(key, None)
+        return out
+
+    def _root_sampling(self) -> Dict[str, Any]:
+        s = self.raw_settings.get("sampling")
+        return s if isinstance(s, dict) else {}
 
     @property
     def use_sampling(self) -> bool:
-        return bool(self.price_simulator.get("use_sampling", False))
+        s = self._root_sampling()
+        return bool(s.get("use_sampling", False))
 
     @property
     def base_version(self) -> str:
@@ -104,11 +92,13 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
     @property
     def start_date(self) -> str:
-        return str(self.price_simulator.get("start_date", "") or "")
+        s = self._root_sampling()
+        return str(s.get("start_date", "") or "").strip()
 
     @property
     def end_date(self) -> str:
-        return str(self.price_simulator.get("end_date", "") or "")
+        s = self._root_sampling()
+        return str(s.get("end_date", "") or "").strip()
 
     @property
     def max_workers(self) -> Union[Literal["auto"], int]:
@@ -118,7 +108,7 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
     @property
     def fees(self) -> Dict[str, Any]:
-        f = self.price_simulator.get("fees")
+        f = self.raw_settings.get("fees")
         return f if isinstance(f, dict) else {}
 
 

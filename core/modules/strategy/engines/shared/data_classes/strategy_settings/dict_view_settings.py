@@ -157,11 +157,13 @@ class StrategySettingsView:
 
     @property
     def start_date(self) -> str:
-        return self.price_simulator.get("start_date", "") or ""
+        s = self.sampling if isinstance(self.sampling, dict) else {}
+        return str(s.get("start_date", "") or "").strip()
 
     @property
     def end_date(self) -> str:
-        return self.price_simulator.get("end_date", "") or ""
+        s = self.sampling if isinstance(self.sampling, dict) else {}
+        return str(s.get("end_date", "") or "").strip()
 
     @property
     def sampling_amount(self) -> int:

@@ -34,19 +34,3 @@ class SellReason(Enum):
     END_OF_PERIOD = "end_of_period"
 
 
-class ReuseAction(Enum):
-    """Enumerator reuse action."""
-
-    REUSE_FULL = "REUSE_FULL"
-    RUN_DIFF_STOCKS = "RUN_DIFF_STOCKS"
-    REBUILD_ALL = "REBUILD_ALL"
-
-
-class NotReusedBecause(Enum):
-    """Reason for not fully reusing previous enumerator results."""
-
-    NONE = "NONE"
-    NO_CACHE = "NO_CACHE"
-    CACHE_MISS_OR_INVALIDATED = "CACHE_MISS_OR_INVALIDATED"
-    CACHE_PARTIAL_STOCK_COVERAGE = "CACHE_PARTIAL_STOCK_COVERAGE"
-    CACHE_COVERAGE_CONFLICT = "CACHE_COVERAGE_CONFLICT"

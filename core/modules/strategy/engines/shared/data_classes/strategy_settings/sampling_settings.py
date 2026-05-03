@@ -33,10 +33,18 @@ class StrategySamplingSettings(SettingsBase):
     def apply_defaults(self) -> None:
         self.sampling.setdefault("strategy", "continuous")
         self.sampling.setdefault("sampling_amount", 10)
+        self.sampling.setdefault("use_sampling", False)
+        self.sampling.setdefault("start_date", "")
+        self.sampling.setdefault("end_date", "")
 
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
         self.apply_defaults()
+        us = self.sampling.get("use_sampling", False)
+        if not isinstance(us, bool):
+            SettingsBase.add_critical(result, "sampling.use_sampling", "use_sampling 必须为布尔")
+        else:
+            self.sampling["use_sampling"] = us
         raw_strategy = self.sampling.get("strategy", "continuous")
         strategy = raw_strategy.strip() if isinstance(raw_strategy, str) else ""
         strategy = strategy or "continuous"
@@ -57,6 +65,20 @@ class StrategySamplingSettings(SettingsBase):
                 continue
             if not isinstance(sub, dict):
                 SettingsBase.add_critical(result, f"sampling.{key}", f"sampling.{key} 必须为 dict")
+
+        for date_key in ("start_date", "end_date"):
+            raw = self.sampling.get(date_key)
+            if raw is None:
+                continue
+            text = str(raw).strip()
+            if not text:
+                continue
+            if len(text) != 8 or not text.isdigit():
+                SettingsBase.add_critical(
+                    result,
+                    f"sampling.{date_key}",
+                    f"sampling.{date_key} 须为 YYYYMMDD 格式（8 位数字）或空字符串",
+                )
         return result
 
     def to_dict(self) -> Dict[str, Any]:
@@ -74,6 +96,15 @@ class StrategySamplingSettings(SettingsBase):
     def get_sub_config(self, key: str) -> Dict[str, Any]:
         sub = self.sampling.get(key)
         return sub if isinstance(sub, dict) else {}
+
+    def get_use_sampling(self) -> bool:
+        return bool(self.sampling.get("use_sampling", False))
+
+    def get_start_date(self) -> str:
+        return str(self.sampling.get("start_date", "") or "")
+
+    def get_end_date(self) -> str:
+        return str(self.sampling.get("end_date", "") or "")
 
 
 __all__ = ["StrategySamplingSettings", "KNOWN_STRATEGIES"]

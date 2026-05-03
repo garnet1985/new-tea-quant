@@ -9,6 +9,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict
 
+from .fees_settings import StrategyFeesSettings
 from .settings_base import SettingsBase, ValidationReport
 
 
@@ -38,6 +39,7 @@ class StrategySettings(SettingsBase):
         )
 
         object.__setattr__(self, "meta", StrategyMetaSettings.from_raw(rs))
+        object.__setattr__(self, "fees", StrategyFeesSettings.from_strategy_root(rs))
         object.__setattr__(self, "data", StrategyDataSettings.from_strategy_root(rs))
         object.__setattr__(self, "sampling", StrategySamplingSettings.from_strategy_root(rs))
         object.__setattr__(self, "goal", StrategyGoalSettings.from_strategy_root(rs))
@@ -61,8 +63,7 @@ class StrategySettings(SettingsBase):
         rs["description"] = self.meta.description
         rs["core"] = self.meta.core
         rs["is_enabled"] = self.meta.is_enabled
-        if "fees" not in rs or not isinstance(rs.get("fees"), dict):
-            rs["fees"] = {}
+        self.fees.apply_defaults()
         self.data.apply_defaults()
         self.sampling.apply_defaults()
         self.goal.apply_defaults()
@@ -78,6 +79,7 @@ class StrategySettings(SettingsBase):
         self.apply_defaults()
         merged = SettingsBase.merge_validation_results(
             self.meta.validate(),
+            self.fees.validate(),
             self.data.validate(),
             self.sampling.validate(),
             self.goal.validate(),
@@ -95,7 +97,10 @@ class StrategySettings(SettingsBase):
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         out = self.deep_copy_dict(self.raw_settings)
+        # API/BFF 有时会同时带根级 name/description 与嵌套 meta；引擎语义只用根级（见 meta.to_dict）。
+        out.pop("meta", None)
         out.update(self.meta.to_dict())
+        out["fees"] = self.fees.to_dict()
         out["data"] = self.data.to_dict()
         out["sampling"] = self.sampling.to_dict()
         out["goal"] = self.goal.to_dict()
@@ -104,6 +109,33 @@ class StrategySettings(SettingsBase):
         out["capital_simulator"] = self.capital_simulator.to_dict()
         out["scanner"] = self.scanner.to_dict()
         return out
+
+    def settings_core_for_fingerprint(self) -> Dict[str, Any]:
+        """
+        在已通过校验、默认已补足的 settings 上，剔除非语义字段，得到用于指纹的 settings_core。
+        若当前配置校验失败则抛出 ValueError。
+        """
+        from .settings_fingerprint_core import strip_fingerprint_non_core
+
+        report = self.validate()
+        if not report.is_usable():
+            errs = [
+                f'{item.get("field_path", "?")}: {item.get("message", "")}'
+                for item in (report.errors or [])
+                if item.get("level") == "critical"
+            ]
+            detail = "；".join(errs) if errs else "settings 校验未通过，无法构建指纹"
+            raise ValueError(detail)
+        return strip_fingerprint_non_core(self.to_dict())
+
+    @classmethod
+    def build_settings_core_for_fingerprint(cls, raw_settings: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        从原始 settings dict 构建指纹用 settings_core：内部先 `StrategySettings.validate()` + `to_dict()`，
+        再按 `settings_fingerprint_core` 忽略表剔除。
+        """
+        inst = cls(raw_settings=dict(raw_settings or {}))
+        return inst.settings_core_for_fingerprint()
 
     def to_enum_signature_dict(self) -> Dict[str, Any]:
         normalized = self.to_dict()
@@ -171,6 +203,7 @@ __all__ = [
     "EnumeratorSettings",
     "OutputConfig",
     "StrategyDataSettings",
+    "StrategyFeesSettings",
     "StrategyEnumeratorSettings",
     "StrategyGoalSettings",
     "StrategyCapitalSimulatorSettings",

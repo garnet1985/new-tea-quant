@@ -262,7 +262,6 @@ class App:
         self,
         strategy_name: str = 'example',
         stock_count: int = None,
-        force_refresh: bool = False,
     ):
         """
         枚举投资机会
@@ -270,7 +269,6 @@ class App:
         Args:
             strategy_name: 策略名称
             stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
-            force_refresh: 是否强制重跑枚举（忽略复用缓存）
         """
         from core.modules.strategy.services import EnumeratorRuntimeService
         from core.modules.strategy.strategy_manager import StrategyManager
@@ -286,22 +284,12 @@ class App:
             strategy_name=strategy_name,
             strategy_info=strategy_info,
             stock_count=stock_count,
-            force_refresh=force_refresh,
         )
         logger.info(f"📅 时间范围: {context.start_date} ~ {context.end_date}")
         logger.info(f"📊 实际股票数量: {len(context.stock_list)}")
-        if force_refresh:
-            logger.info("♻️  强制刷新已启用：本次将跳过枚举结果复用")
         summary_results = EnumeratorRuntimeService.run_enum(context)
 
-        # 4.5 CLI 强制枚举后同步刷新 workbench DB 临时缓存，避免 UI 仍读取旧摘要
-        if force_refresh:
-            EnumeratorRuntimeService.sync_force_refresh_snapshot(
-                context=context,
-                summary_results=summary_results,
-            )
-        
-        # 5. 显示结果
+        # 4. 显示结果
         self._display_enumerate_results(strategy_name, summary_results)
         
         return summary_results
@@ -481,8 +469,6 @@ def _add_shortcut_flags(parser):
 
 def _add_extra_arguments(parser):
     """添加额外参数"""
-    parser.add_argument('-f', '--force-refresh', action='store_true',
-                       help='强制刷新枚举结果（仅 enumerate/-se 生效，跳过缓存复用）')
     parser.add_argument('--strategy', type=str,
                        help='指定策略名称（用于 scan/simulate/enumerate/价格与资金模拟）；'
                             '省略时：enumerate/-se/-sp/-sa 默认使用「唯一」is_enabled 的策略，'
@@ -733,7 +719,6 @@ class CommandExecutor:
         self.app.enumerate(
             strategy_name=strategy,
             stock_count=args.stocks,
-            force_refresh=bool(args.force_refresh),
         )
     
     def _handle_simulate_price(self, args):

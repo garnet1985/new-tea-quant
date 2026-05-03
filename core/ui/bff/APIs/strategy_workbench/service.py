@@ -155,9 +155,14 @@ class StrategyWorkbenchService:
     @staticmethod
     def parse_start_run_request_fields(payload: dict):
         target_step = StrategyWorkbenchRequestHelper.to_stripped_str(payload, "target_step")
-        is_force = StrategyWorkbenchRequestHelper.to_bool(payload, "is_force", default=False)
         run_settings = StrategyWorkbenchRequestHelper.to_dict_or_none(payload, "settings")
-        return target_step, is_force, run_settings
+        is_force = StrategyWorkbenchRequestHelper.to_bool(
+            payload, "is_force", "force_refresh", default=False
+        )
+        workbench_version_id = StrategyWorkbenchRequestHelper.to_stripped_str(
+            payload, "workbench_version_id", default=""
+        )
+        return target_step, run_settings, is_force, workbench_version_id
 
     def validate_target_step(self, target_step: str):
         valid = {
@@ -248,7 +253,8 @@ class StrategyWorkbenchService:
         step_status: dict,
         workbench_snapshot_version: int,
         run_settings_snapshot,
-        is_force: bool,
+        is_force: bool = False,
+        workbench_version_id: str = "",
     ) -> dict:
         return {
             "run_id": run_id,
@@ -262,7 +268,8 @@ class StrategyWorkbenchService:
             "result_summary": {},
             "workbench_snapshot_version": workbench_snapshot_version,
             "run_settings_snapshot": run_settings_snapshot,
-            "force_refresh": is_force,
+            "is_force": bool(is_force),
+            "workbench_version_id": str(workbench_version_id or ""),
             "updated_at": datetime.now().astimezone().isoformat(),
         }
 
@@ -289,7 +296,6 @@ class StrategyWorkbenchService:
         strategy_name: str,
         target_step: str,
         resolved_chain: list,
-        is_force: bool,
     ):
         return ok({
             "run_id": run_id,
@@ -297,7 +303,6 @@ class StrategyWorkbenchService:
             "state": self._impl.RUN_STATE_RUNNING,
             "target_step": target_step,
             "resolved_chain": resolved_chain,
-            "is_force": is_force,
         })
 
     def generate_run_id(self) -> str:

@@ -3,14 +3,10 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.infra.project_context import PathManager
 from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
@@ -20,14 +16,11 @@ from core.modules.strategy.engines.simulator.enumerator import (
     OpportunityEnumeratorFlow,
     OpportunityEnumeratorSettings,
 )
-from core.modules.strategy.services.fingerprint.manager import StrategyFingerprintManager
-from core.modules.strategy.services.fingerprint.runtime_service import (
+from core.modules.strategy.services.fingerprint import (
+    StrategyFingerprintManager,
     StrategyFingerprintRuntimeService,
 )
 from core.modules.strategy.strategy_manager import StrategyManager
-from core.tables.ui_bff.strategy_workbench_snapshot.model import (
-    SysStrategyWorkbenchSnapshotModel,
-)
 from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
@@ -62,7 +55,6 @@ class EnumeratorRuntimeService:
         strategy_info: Any,
         raw_settings_override: Optional[Dict[str, Any]] = None,
         stock_count: Optional[int] = None,
-        force_refresh: bool = False,
         workbench_run_id: Optional[str] = None,
         workbench_strategy_name: Optional[str] = None,
     ) -> EnumeratorRuntimeContext:
@@ -95,7 +87,6 @@ class EnumeratorRuntimeService:
             stock_list=stock_list,
             max_workers=enum_settings.max_workers,
             base_settings=settings_view,
-            force_refresh=bool(force_refresh),
             workbench_strategy_name=workbench_strategy_name,
             workbench_run_id=workbench_run_id,
         )
@@ -132,97 +123,6 @@ class EnumeratorRuntimeService:
     def build_ids_from_preprocessed(preprocessed: Any) -> tuple[str, str]:
         request_fp = getattr(preprocessed, "request_fingerprint", None)
         return StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(request_fp)
-
-    @classmethod
-    def sync_force_refresh_snapshot(
-        cls,
-        *,
-        context: EnumeratorRuntimeContext,
-        summary_results: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        first = (summary_results or [{}])[0] if isinstance(summary_results, list) else {}
-        if not isinstance(first, dict):
-            first = {}
-        version_dir = str(first.get("version_dir") or "").strip()
-        if not version_dir:
-            raise ValueError("summary missing version_dir")
-
-        output_dir = (
-            PathManager.strategy_opportunity_enums(
-                strategy_name=context.strategy_name,
-                use_sampling=bool(getattr(context.enum_settings, "use_sampling", False)),
-            )
-            / version_dir
-        )
-        report_path = output_dir / "0_report_enum.json"
-        if not report_path.exists():
-            raise FileNotFoundError(str(report_path))
-        report_payload = json.loads(report_path.read_text(encoding="utf-8"))
-        report_payload = report_payload if isinstance(report_payload, dict) else {}
-        enum_metrics = report_payload.get("enumMetrics")
-
-        fp_id, scope_id = cls.build_fingerprints(context)
-        model = SysStrategyWorkbenchSnapshotModel()
-        matched_rows = model.list_by_strategy_enum_fingerprint(
-            context.strategy_name,
-            enum_fingerprint_id=fp_id,
-            enum_scope_fingerprint_id=scope_id,
-            limit=1,
-        )
-        enum_payload: Dict[str, Any] = {
-            "opportunities": int(first.get("opportunities") or 0),
-            "totalStocks": int(first.get("totalStocks") or len(context.stock_list)),
-            "triggerStocks": int(first.get("triggerStocks") or 0),
-            "completedCount": int(first.get("completedCount") or 0),
-            "unfinishedCount": int(first.get("unfinishedCount") or 0),
-            "completionRate": float(first.get("completionRate") or 0.0),
-            "version_dir": version_dir,
-        }
-        if isinstance(enum_metrics, dict):
-            enum_payload["enumMetrics"] = enum_metrics
-
-        result_summary = {
-            "enum": enum_payload,
-            "enum_meta": {
-                "fingerprint_id": fp_id,
-                "scope_fingerprint_id": scope_id,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "source": "enum_runtime_service_force_refresh",
-            },
-        }
-        if matched_rows:
-            matched = matched_rows[0] or {}
-            matched_version = int(matched.get("version") or 0)
-            new_version = matched_version
-            if matched_version > 0:
-                current_summary = matched.get("result_summary")
-                merged_summary = dict(current_summary) if isinstance(current_summary, dict) else {}
-                merged_summary["enum"] = result_summary["enum"]
-                merged_summary["enum_meta"] = result_summary["enum_meta"]
-                model.update_result_summary(
-                    context.strategy_name,
-                    matched_version,
-                    merged_summary,
-                    enum_fingerprint_id=fp_id,
-                    enum_scope_fingerprint_id=scope_id,
-                )
-        else:
-            created = model.create_version(
-                strategy_name=context.strategy_name,
-                settings_snapshot=context.settings_view.to_dict(),
-                result_summary=result_summary,
-                enum_fingerprint_id=fp_id,
-                enum_scope_fingerprint_id=scope_id,
-            )
-            new_version = int((created or {}).get("version") or 0)
-        logger.warning(
-            "force-refresh snapshot synchronized | strategy=%s mode=%s new_version=%s fp=%s",
-            context.strategy_name,
-            "update" if matched_rows else "create",
-            new_version,
-            fp_id,
-        )
-        return {"cleared": 0, "version": new_version, "fingerprint_id": fp_id}
 
 
 __all__ = ["EnumeratorRuntimeContext", "EnumeratorRuntimeService"]

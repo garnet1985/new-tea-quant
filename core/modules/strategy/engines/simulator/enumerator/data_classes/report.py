@@ -466,11 +466,6 @@ class EnumeratorReport(ReportBase):
                     use_sampling=False,
                 )
                 / version_name,
-                PathManager.strategy_opportunity_enums(
-                    strategy_name or str(res.get("strategy_name") or ""),
-                    use_sampling=True,
-                )
-                / version_name,
             ]
             report = cls.from_bff_payload({})
             for output_dir in candidates:

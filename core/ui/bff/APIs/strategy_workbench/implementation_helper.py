@@ -6,7 +6,7 @@ import logging
 import multiprocessing as mp
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -16,9 +16,7 @@ from core.modules.strategy.services.progress import ProgressRecorder
 from core.modules.strategy.services import EnumeratorRuntimeService
 from core.modules.strategy.services.settings_service import StrategySettingsService
 from core.modules.strategy.services.snapshot_service import StrategyWorkbenchSnapshotService
-from core.modules.strategy.services.fingerprint.runtime_service import (
-    StrategyFingerprintRuntimeService,
-)
+from core.modules.strategy.services.fingerprint import StrategyFingerprintRuntimeService
 from core.tables.ui_bff.strategy_workbench_snapshot.model import SysStrategyWorkbenchSnapshotModel
 from core.ui.bff.shared.file_ops import atomic_write_text, backup_file
 from core.ui.bff.shared.response import error, ok
@@ -27,6 +25,10 @@ from .status_helper import StrategyWorkbenchStatusHelper
 
 
 logger = logging.getLogger(__name__)
+
+# DB 枚举结果缓存：与 fingerprint 一对一；命中时需同时满足时长与快照版本漂移窗口。
+_ENUM_DB_CACHE_MAX_AGE = timedelta(hours=24)
+_ENUM_DB_CACHE_MAX_SNAPSHOT_VERSION_DRIFT = 10
 
 
 class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWorkbenchCacheHelper):
@@ -355,23 +357,28 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
 
     @staticmethod
     def _runtime_to_api_settings_fallback(runtime_settings):
-        """Lightweight fallback when heavy settings imports are temporarily locked."""
+        """
+        Lightweight fallback when StrategySettings canonicalization fails.
+
+        Returns the same unified shape as runtime_to_api / StrategySettings.to_dict():
+        name, description, is_enabled at root only — no nested ``meta`` key.
+        Legacy files may still nest meta; those fields are merged onto root and ``meta`` is dropped.
+        """
         if not isinstance(runtime_settings, dict):
             return {}
         api_settings = dict(runtime_settings)
-        meta_from_runtime = {
-            "name": runtime_settings.get("name", ""),
-            "description": runtime_settings.get("description", ""),
-            "is_enabled": bool(runtime_settings.get("is_enabled", False)),
-        }
-        existing_meta = runtime_settings.get("meta")
+        name = api_settings.get("name", "")
+        description = api_settings.get("description", "")
+        is_enabled = bool(api_settings.get("is_enabled", False))
+        existing_meta = api_settings.get("meta")
         if isinstance(existing_meta, dict):
-            meta_from_runtime.update({
-                "name": existing_meta.get("name", meta_from_runtime["name"]),
-                "description": existing_meta.get("description", meta_from_runtime["description"]),
-                "is_enabled": bool(existing_meta.get("is_enabled", meta_from_runtime["is_enabled"])),
-            })
-        api_settings["meta"] = meta_from_runtime
+            name = existing_meta.get("name", name)
+            description = existing_meta.get("description", description)
+            is_enabled = bool(existing_meta.get("is_enabled", is_enabled))
+        api_settings["name"] = name
+        api_settings["description"] = description
+        api_settings["is_enabled"] = is_enabled
+        api_settings.pop("meta", None)
         return api_settings
 
     @staticmethod
@@ -538,7 +545,6 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         strategy_name: str,
         strategy_info: Any,
         normalized_runtime_settings: dict,
-        force_refresh: bool,
         run_id: Optional[str],
     ):
         return EnumeratorRuntimeService.build_context(
@@ -546,7 +552,6 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             strategy_info=strategy_info,
             raw_settings_override=normalized_runtime_settings,
             stock_count=None,
-            force_refresh=bool(force_refresh),
             workbench_strategy_name=strategy_name if run_id else None,
             workbench_run_id=str(run_id) if run_id else None,
         )
@@ -555,11 +560,10 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         self,
         strategy_name: str,
         run_id: Optional[str],
-        force_refresh: bool = False,
     ) -> Tuple[Any, Any, Optional[str]]:
         """
         构造与真实工作台枚举一致的 OpportunityEnumeratorFlow。
-        run_id 为空时不绑定进度文件（用于 reuse 预览）。
+        run_id 为空时不绑定进度文件。
         返回 (flow, strategy_info, error_message)。
         """
         # Step 1: load API-shaped settings (snapshot / run snapshot / userspace).
@@ -589,7 +593,6 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             strategy_name=strategy_name,
             strategy_info=strategy_info,
             normalized_runtime_settings=normalized_runtime_settings,
-            force_refresh=force_refresh,
             run_id=run_id,
         )
         return context.flow, strategy_info, None
@@ -602,9 +605,9 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         api_snapshot: dict,
     ) -> Any:
         """
-        与 opportunity_enumerator_flow.preprocess 中指纹构造完全一致：
-        copy.deepcopy(base_settings.to_dict()) + build_request_fingerprint（同一 stock_list / 日期窗）。
-        返回 EnumeratorFingerprint，供完整 id 与 scope id 匹配。
+        与 opportunity_enumerator_flow.preprocess 中指纹构造一致：`settings_core` 均经
+        StrategySettings 校验/默认补足 + settings_fingerprint_core 剔除（见 build_request_fingerprint）。
+        返回 StrategyRunFingerprint，供完整 id 与 scope id 匹配。
         """
         normalized, _ = self._normalize_runtime_settings(strategy_name, api_snapshot)
         if normalized is None:
@@ -622,15 +625,13 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         self,
         strategy_name: str,
         run_id: Optional[str],
-        *,
-        force_refresh: bool = False,
     ):
         """
-        与工作台枚举 run 一致的 preprocess（指纹 + plan_reuse），供临时层命中判断与落库。
+        与工作台枚举 run 一致的 preprocess（指纹等）。
         返回 (preprocessed, error_message)；成功时 error_message 为 None。
         """
         flow, strategy_info, err = self._build_workbench_opportunity_enumerator_flow(
-            strategy_name, run_id, force_refresh=force_refresh
+            strategy_name, run_id
         )
         if err:
             return None, err
@@ -639,116 +640,89 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         )
         return preprocessed, None
 
+    def _parse_iso_datetime(self, raw: Any) -> Optional[datetime]:
+        if raw is None:
+            return None
+        if isinstance(raw, datetime):
+            return raw
+        text = str(raw).strip()
+        if not text:
+            return None
+        try:
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            return datetime.fromisoformat(text)
+        except Exception:
+            return None
+
+    def _workbench_enum_db_cache_is_fresh(self, strategy_name: str, cached_row: dict) -> bool:
+        """缓存有效：更新时间距今不超过窗口，且全局最新快照版本与缓存行版本差不超过阈值。"""
+        updated = self._parse_iso_datetime((cached_row or {}).get("updated_at"))
+        if updated is None:
+            return False
+        now = datetime.now(updated.tzinfo) if updated.tzinfo else datetime.now()
+        if now - updated > _ENUM_DB_CACHE_MAX_AGE:
+            return False
+        model = self._get_snapshot_model()
+        latest_rows = model.list_by_strategy(strategy_name, limit=1)
+        if not latest_rows:
+            return True
+        latest_v = int((latest_rows[0] or {}).get("version") or 0)
+        cached_v = int((cached_row or {}).get("version") or 0)
+        if latest_v - cached_v > _ENUM_DB_CACHE_MAX_SNAPSHOT_VERSION_DRIFT:
+            return False
+        return True
+
     def _try_workbench_temp_snapshot_enum(
         self,
         strategy_name: str,
         run_id: str,
-        *,
-        force_refresh: bool = False,
     ) -> Optional[Tuple[dict, str, str]]:
         """
-        临时层（sys_strategy_workbench_snapshot）：若任一历史版本存过相同 fingerprint 的枚举摘要，直接复用。
-        物理目录被 prune 时仍可命中；返回 (bff_enum_payload, fingerprint_id, scope_fingerprint_id)。
-
-        匹配顺序：
-        1) enum_meta.fingerprint_id 或 scope_fingerprint_id（不含日期，见 EnumeratorFingerprint）
-        2) 历史行按 build_request_fingerprint 重算，完整 id 或 scope id 与当前一致
+        非强制跑枚举：用本次 run 的 settings 生成 fingerprint，查 DB；
+        命中且缓存仍新鲜则返回 (枚举摘要 payload, fingerprint_id, scope_fingerprint_id)。
         """
-        if force_refresh:
+        status_payload = self._read_status(strategy_name) or {}
+        if str(status_payload.get("run_id") or "") != str(run_id):
             return None
-        preprocessed, err = self._workbench_enum_preprocess(
-            strategy_name,
-            run_id,
-            force_refresh=False,
-        )
-        if err or not preprocessed or not preprocessed.request_fingerprint:
+        if bool(status_payload.get("is_force")):
             return None
-        fp_id, scope_id = StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(
-            preprocessed.request_fingerprint
-        )
+
+        pp, err = self._workbench_enum_preprocess(strategy_name, run_id)
+        if err or not pp or not getattr(pp, "request_fingerprint", None):
+            return None
+
+        req_fp = pp.request_fingerprint
+        fp_id = str(getattr(req_fp, "fingerprint_id", "") or "")
+        _, scope_fp = StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(req_fp)
         if not fp_id:
             return None
-        flow_ref, strategy_info, ferr = self._build_workbench_opportunity_enumerator_flow(
-            strategy_name, run_id, force_refresh=False
-        )
-        if ferr or not flow_ref or not strategy_info:
-            return None
+
         model = self._get_snapshot_model()
         rows = model.list_by_strategy_enum_fingerprint(
             strategy_name,
             enum_fingerprint_id=fp_id,
-            enum_scope_fingerprint_id=scope_id,
-            limit=200,
+            enum_scope_fingerprint_id=scope_fp or "",
+            limit=20,
         )
-        from_fp_query = True
         if not rows:
-            rows = model.list_by_strategy(strategy_name, limit=200)
-            from_fp_query = False
-        for row in rows or []:
-            rs = self._coerce_db_result_summary(row.get("result_summary"))
-            if not rs:
+            return None
+
+        for row in rows:
+            if not self._workbench_enum_db_cache_is_fresh(strategy_name, row):
                 continue
-            em = rs.get("enum_meta")
-            em = em if isinstance(em, dict) else {}
-            row_fp_col = str(row.get("enum_fingerprint_id") or "")
-            row_scope_col = str(row.get("enum_scope_fingerprint_id") or "")
-            id_ok = row_fp_col == fp_id or str(em.get("fingerprint_id") or "") == fp_id
-            scope_ok = (
-                row_scope_col == scope_id
-                or str(em.get("scope_fingerprint_id") or "") == scope_id
-            )
-            if not id_ok and not scope_ok:
+            rs = row.get("result_summary")
+            if not isinstance(rs, dict):
                 continue
-            en = rs.get("enum")
-            if not isinstance(en, dict):
+            enum_snap = rs.get("enum")
+            if not isinstance(enum_snap, dict) or not enum_snap:
                 continue
-            if "opportunities" not in en and "totalStocks" not in en:
-                continue
-            payload = self._enum_summary_row_to_bff_payload(en)
-            if not isinstance(payload.get("enumMetrics"), dict):
-                reuse_version_dir = getattr(preprocessed, "reuse_version_dir", None)
-                if reuse_version_dir:
-                    payload["versionDir"] = Path(str(reuse_version_dir)).name
+            payload = dict(enum_snap)
             enum_report = self._load_enum_report_from_output(strategy_name, payload)
             if enum_report:
                 payload.update(enum_report)
-            return payload, fp_id, scope_id
-        # Fingerprint-index query may return an empty-shell row (same fingerprint columns but
-        # no enum result_summary yet). In that case, fallback to full scan to find older usable rows.
-        if from_fp_query:
-            rows_full = model.list_by_strategy(strategy_name, limit=200)
-            if rows_full:
-                rows = rows_full
-        for row in rows or []:
-            rs = self._coerce_db_result_summary(row.get("result_summary"))
-            if not rs:
-                continue
-            en = rs.get("enum")
-            if not isinstance(en, dict):
-                continue
-            if "opportunities" not in en and "totalStocks" not in en:
-                continue
-            snap = row.get("settings_snapshot")
-            if not isinstance(snap, dict):
-                continue
-            fp_row = self._enumerator_fingerprint_for_row_snapshot(
-                strategy_name, flow_ref, strategy_info, snap
-            )
-            if fp_row is None:
-                continue
-            row_fp = str(fp_row.fingerprint_id)
-            _, row_scope = StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(fp_row)
-            if row_fp != fp_id and row_scope != scope_id:
-                continue
-            payload = self._enum_summary_row_to_bff_payload(en)
-            if not isinstance(payload.get("enumMetrics"), dict):
-                reuse_version_dir = getattr(preprocessed, "reuse_version_dir", None)
-                if reuse_version_dir:
-                    payload["versionDir"] = Path(str(reuse_version_dir)).name
-            enum_report = self._load_enum_report_from_output(strategy_name, payload)
-            if enum_report:
-                payload.update(enum_report)
-            return payload, fp_id, scope_id
+            return (payload, fp_id, scope_fp or "")
+
         return None
 
     def _write_enum_to_workbench_snapshot(
@@ -900,12 +874,9 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         返回 (summary_payload, error_message)；成功时 error_message 为 None。
         """
         try:
-            status_payload = self._read_status(strategy_name) or {}
-            force_refresh = bool(status_payload.get("force_refresh"))
             flow, strategy_info, err = self._build_workbench_opportunity_enumerator_flow(
                 strategy_name,
                 run_id,
-                force_refresh=force_refresh,
             )
             if err:
                 return None, err
@@ -931,95 +902,31 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             )
             return None, str(exc)
 
-    def _clear_temp_enum_cache_for_same_fingerprint(self, strategy_name: str, run_id: str) -> None:
-        """强制运行前清理同 fingerprint 的 DB 临时枚举缓存，避免命中旧摘要。"""
-        try:
-            preprocessed, err = self._workbench_enum_preprocess(
-                strategy_name,
-                run_id,
-                force_refresh=False,
-            )
-            if err or not preprocessed or not preprocessed.request_fingerprint:
-                return
-            fp_id, scope_id = StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(
-                preprocessed.request_fingerprint
-            )
-            if not fp_id and not scope_id:
-                return
-            model = self._get_snapshot_model()
-            cleared = model.replace_enum_cache_by_fingerprint(
-                strategy_name=strategy_name,
-                enum_fingerprint_id=fp_id,
-                enum_scope_fingerprint_id=scope_id,
-            )
-            if cleared > 0:
-                logger.warning(
-                    "强制枚举前已清理同 fingerprint 临时缓存 | strategy=%s run_id=%s cleared=%s fp=%s",
-                    strategy_name,
-                    run_id,
-                    cleared,
-                    fp_id,
-                )
-        except Exception:
-            logger.exception(
-                "强制枚举前清理同 fingerprint 临时缓存失败 | strategy=%s run_id=%s",
-                strategy_name,
-                run_id,
-            )
-
     def build_enumerator_reuse_preview_flow(self, strategy_name: str):
         """
         Build OpportunityEnumeratorFlow for reuse preview (no subprocess run).
         Returns (flow, strategy_info, err_message). err_message is set when flow cannot be built.
         """
-        return self._build_workbench_opportunity_enumerator_flow(
-            strategy_name, None, force_refresh=False
-        )
+        return self._build_workbench_opportunity_enumerator_flow(strategy_name, None)
 
     @staticmethod
     def preprocess_enumerator_reuse_preview(flow, strategy_name: str, strategy_info):
-        """Run preprocess / plan_reuse only."""
+        """Run preprocess（指纹等）。"""
         return flow.preprocess(strategy_name=strategy_name, strategy_info=strategy_info)
 
     def assemble_enumerator_reuse_preview_payload(self, strategy_name: str, flow, preprocessed):
-        """
-        Turn preprocess result into API payload (fingerprint, reuse_action, optional enum preview).
-        REUSE_FULL 时根据磁盘 0_metadata 组装与 build_reuse_summary 一致的 enum 摘要。
-        """
-        from core.modules.strategy.enums import ReuseAction
-
+        """指纹 ID（完整 + scope），供前端展示。"""
         req_fp = preprocessed.request_fingerprint
-        out: dict = {
-            "fingerprint_id": str(req_fp.fingerprint_id) if req_fp else "",
-            "reuse_action": preprocessed.reuse_action.value,
-            "would_reuse_full": preprocessed.reuse_action == ReuseAction.REUSE_FULL,
-            "not_reused_because": preprocessed.not_reused_because.value,
-        }
-
-        if preprocessed.reuse_action == ReuseAction.REUSE_FULL:
-            if preprocessed.reuse_version_dir:
-                summaries = flow._impl.build_reuse_summary(
-                    strategy_name=strategy_name,
-                    version_dir=preprocessed.reuse_version_dir,
-                    reuse_action=ReuseAction.REUSE_FULL,
-                    not_reused_because=preprocessed.not_reused_because,
-                )
-                if summaries and isinstance(summaries[0], dict):
-                    out["enum_result_preview"] = self._enum_summary_row_to_bff_payload(
-                        summaries[0]
-                    )
-                out["cached_version_dir"] = str(preprocessed.reuse_version_dir)
-        elif preprocessed.reuse_action == ReuseAction.RUN_DIFF_STOCKS:
-            out["cached_version_dir"] = (
-                str(preprocessed.reuse_version_dir)
-                if preprocessed.reuse_version_dir
-                else ""
+        fp_id = str(req_fp.fingerprint_id) if req_fp else ""
+        scope_id = ""
+        if req_fp:
+            _, scope_id = StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(
+                req_fp
             )
-            missing = preprocessed.missing_stock_ids or []
-            out["missing_stock_count"] = len(missing)
-            out["missing_stock_ids_sample"] = missing[:50]
-
-        return out
+        return {
+            "fingerprint_id": fp_id,
+            "scope_fingerprint_id": scope_id or "",
+        }
 
     def _fail_run_step(
         self,
@@ -1103,61 +1010,43 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                     return
 
                 try:
-                    status_payload = self._read_status(strategy_name) or {}
-                    force_refresh = bool(status_payload.get("force_refresh"))
-                    if force_refresh:
-                        self._clear_temp_enum_cache_for_same_fingerprint(strategy_name, run_id)
-                    # 1) 临时层（DB 快照，按 fingerprint）→ 2) 否则物理缓存/运算在 flow.run 内
-                    temp_hit = self._try_workbench_temp_snapshot_enum(
-                        strategy_name,
-                        run_id,
-                        force_refresh=force_refresh,
+                    status_for_enum = self._read_status(strategy_name) or {}
+                    force_run = bool(status_for_enum.get("is_force"))
+                    cached = (
+                        None
+                        if force_run
+                        else self._try_workbench_temp_snapshot_enum(strategy_name, run_id)
                     )
-                    if temp_hit is not None:
-                        enum_payload, enum_fp, scope_fp = temp_hit
-                        self._write_enum_to_workbench_snapshot(
-                            strategy_name,
-                            run_id,
-                            enum_payload,
-                            enum_fp,
-                            scope_fingerprint_id=scope_fp,
-                        )
+                    if cached:
+                        enum_payload, _, _ = cached
                         enum_err = None
                     else:
                         enum_payload, enum_err = self._execute_opportunity_enumeration(
                             strategy_name, run_id
                         )
-                        if not enum_err:
-                            wrote_snapshot = False
-                            pp, perr = self._workbench_enum_preprocess(
+                    if not enum_err and not cached:
+                        wrote_snapshot = False
+                        pp, perr = self._workbench_enum_preprocess(strategy_name, run_id)
+                        if not perr and pp and pp.request_fingerprint:
+                            _, scope_fp = StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(
+                                pp.request_fingerprint
+                            )
+                            self._write_enum_to_workbench_snapshot(
                                 strategy_name,
                                 run_id,
-                                force_refresh=False,
+                                enum_payload,
+                                str(pp.request_fingerprint.fingerprint_id),
+                                scope_fingerprint_id=scope_fp,
                             )
-                            if (
-                                not perr
-                                and pp
-                                and pp.request_fingerprint
-                            ):
-                                _, scope_fp = StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(
-                                    pp.request_fingerprint
-                                )
-                                self._write_enum_to_workbench_snapshot(
-                                    strategy_name,
-                                    run_id,
-                                    enum_payload,
-                                    str(pp.request_fingerprint.fingerprint_id),
-                                    scope_fingerprint_id=scope_fp,
-                                )
-                                wrote_snapshot = True
-                            if not wrote_snapshot:
-                                self._write_enum_to_workbench_snapshot(
-                                    strategy_name,
-                                    run_id,
-                                    enum_payload,
-                                    "",
-                                    scope_fingerprint_id="",
-                                )
+                            wrote_snapshot = True
+                        if not wrote_snapshot:
+                            self._write_enum_to_workbench_snapshot(
+                                strategy_name,
+                                run_id,
+                                enum_payload,
+                                "",
+                                scope_fingerprint_id="",
+                            )
 
                     status_payload = self._read_status(strategy_name) or {}
                     if str(status_payload.get("run_id") or "") != run_id:
@@ -1445,11 +1334,6 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         try:
             body = payload if isinstance(payload, dict) else {}
             target_step = str(body.get("target_step") or "").strip()
-            force_refresh = bool(
-                body.get("force_refresh")
-                or body.get("forceRefresh")
-                or body.get("force")
-            )
             if target_step not in {self.STEP_ENUM, self.STEP_PRICE, self.STEP_CAPITAL}:
                 return error("target_step 必须是 enum | price | capital", 400)
 
@@ -1497,6 +1381,8 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             if run_api_settings is not None:
                 # For run-scoped settings, only persist to DB on successful enum completion.
                 wb_snapshot_v = 0
+            is_force = bool(body.get("is_force") or body.get("force_refresh"))
+            workbench_version_id = str(body.get("workbench_version_id") or "").strip()
             status_payload = {
                 "run_id": run_id,
                 "strategy_name": strategy_name,
@@ -1509,7 +1395,8 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 "result_summary": {},
                 "workbench_snapshot_version": wb_snapshot_v,
                 "run_settings_snapshot": run_api_settings,
-                "force_refresh": force_refresh,
+                "is_force": is_force,
+                "workbench_version_id": workbench_version_id,
                 "updated_at": datetime.now().astimezone().isoformat(),
             }
             self._write_status(strategy_name, status_payload)
@@ -1533,7 +1420,6 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 "state": self.RUN_STATE_RUNNING,
                 "target_step": target_step,
                 "resolved_chain": resolved_chain,
-                "force_refresh": force_refresh,
             })
         except Exception as e:
             return error(f"启动执行任务失败: {str(e)}", 500)
@@ -1559,6 +1445,8 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             "progress_pct": progress_pct,
             "step_status": step_status,
             "result_summary": status_payload.get("result_summary") or {},
+            "is_force": bool(status_payload.get("is_force")),
+            "workbench_version_id": str(status_payload.get("workbench_version_id") or ""),
             "updated_at": status_payload.get(
                 "updated_at", datetime.now().astimezone().isoformat()
             ),

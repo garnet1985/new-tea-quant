@@ -2,6 +2,9 @@
 # Manual edits are allowed, but next save may reformat this file.
 
 settings = {
+    'name': 'example',
+    'description': 'Example RSI oversold strategy (minimal settings)',
+    'is_enabled': True,
     'core': {
         'rsi_oversold_threshold': 20
     },
@@ -51,19 +54,20 @@ settings = {
         }
     },
     'sampling': {
+        'use_sampling': False,
         'sampling_amount': 2,
-        'strategy': 'continuous'
+        'strategy': 'continuous',
+        'start_date': '',
+        'end_date': '',
     },
     'enumerator': {
         'is_verbose': True,
         'max_batch_size': 'auto',
         'max_output_versions': 2,
-        'max_test_versions': 3,
         'max_workers': 'auto',
         'memory_budget_mb': 'auto',
         'min_batch_size': 'auto',
         'monitor_interval': 5,
-        'use_sampling': False,
         'warmup_batch_size': 'auto'
     },
     'fees': {
@@ -74,10 +78,7 @@ settings = {
     },
     'price_simulator': {
         'base_version': 'latest',
-        'end_date': '',
         'max_workers': 'auto',
-        'start_date': '',
-        'use_sampling': False
     },
     'capital_simulator': {
         'allocation': {
@@ -89,15 +90,12 @@ settings = {
             'mode': 'equal_capital'
         },
         'base_version': 'latest',
-        'end_date': '',
         'initial_capital': 1000000.0,
         'max_workers': 'auto',
         'output': {
             'save_equity_curve': True,
             'save_trades': True
         },
-        'start_date': '',
-        'use_sampling': False
     },
     'scanner': {
         'adapters': [
@@ -107,13 +105,5 @@ settings = {
         'max_workers': 'auto',
         'use_strict_previous_trading_day': True,
         'watch_list': ''
-    },
-    'meta': {
-        'name': 'example',
-        'description': 'Example RSI oversold strategy (minimal settings)',
-        'is_enabled': True
-    },
-    'description': 'Example RSI oversold strategy (minimal settings)',
-    'is_enabled': True,
-    'name': 'example'
+    }
 }

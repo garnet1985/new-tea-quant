@@ -236,12 +236,15 @@ class StrategyWorkbenchService:
         return self._impl._runtime_to_api_settings(normalized_runtime_settings), None
 
     def resolve_workbench_snapshot_version(self, strategy_name: str, run_api_settings) -> int:
+        """当前绑定的工作台快照行 id（与 DB 列 ``version`` / ``snapshot_id`` 同义）。"""
         row = self._impl._get_latest_workbench_snapshot_row(strategy_name)
-        workbench_snapshot_version = int(row.get("version") or 0) if row else 0
+        snapshot_id = (
+            int(row.get("snapshot_id") or row.get("version") or 0) if row else 0
+        )
         if run_api_settings is not None:
-            # Run-scoped settings should not reuse persisted snapshot version.
+            # Run-scoped settings should not reuse persisted snapshot row.
             return 0
-        return workbench_snapshot_version
+        return snapshot_id
 
     def build_run_status_payload(
         self,

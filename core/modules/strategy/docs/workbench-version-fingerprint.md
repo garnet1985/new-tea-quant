@@ -10,6 +10,7 @@
 **与其它文档的关系**：
 
 - [`settings-fingerprint-policy.md`](./settings-fingerprint-policy.md)：API settings 形态与 **哪些字段参与 `settings_core` 哈希**。
+- [`db-cache-service.md`](./db-cache-service.md)：表级 **`settings_finger_print_id` / `env_fingerprint_id`** 的职责拆分、**命中须两条指纹 AND**、失效与写入语义（实现时的运行时契约）。
 - 本文：**工作台版本身份** 的因子（含范围、引擎版本、代码身份等）。
 
 ---
@@ -38,7 +39,7 @@
 
 | 因子 | 说明 |
 |------|------|
-| **数据契约签名** | `data_contract_signature`：同类 settings 下数据源或契约变更时结果可能不同 |
+| **数据契约 mapping 指纹** | `data_contract_mapping`：core / userspace `mapping.py` 变更时结果可能不同（实现载荷见 `finger_print.env_fingerprint_id`，`v=4`） |
 
 ---
 
@@ -75,7 +76,7 @@
   "run_mode": "sampling|full",
   "engine_version": "<semver>",
   "strategy_code_fp": "<hex>",
-  "data_contract_signature": "<optional string>"
+  "data_contract_mapping": "<optional string>"
 }
 ```
 
@@ -109,5 +110,6 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05 | 增加与 [`db-cache-service.md`](./db-cache-service.md) 的交叉引用：表上 **env_fp** 对应「§2 中除 settings 语义核外的因子」打包。 |
 | （初稿） | 因子维度、代码指纹思路、规范哈希、强制刷新。 |
 | （更新） | `settings_core` 规则改引用策略专篇；剔除列表以 `settings-fingerprint-policy.md` 为准。 |

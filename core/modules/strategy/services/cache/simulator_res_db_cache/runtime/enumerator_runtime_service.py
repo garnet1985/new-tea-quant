@@ -11,11 +11,21 @@ from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
-from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.engines.simulator.enumerator import (
     OpportunityEnumeratorFlow,
     OpportunityEnumeratorSettings,
 )
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
+from core.modules.strategy.services.cache.simulator_res_db_cache import (
+    db_cache_fingerprint_pair_from_parts,
+)
+from core.modules.strategy.services.cache.simulator_res_db_cache.runtime.stock_universe import (
+    stock_ids_for_enumerator_view,
+)
+from core.modules.strategy.services.cache.simulator_res_db_cache.config import derive_run_mode
+from ..settings import StrategySettingsService
 from core.modules.strategy.services.fingerprint import (
     StrategyFingerprintManager,
     StrategyFingerprintRuntimeService,
@@ -24,6 +34,17 @@ from core.modules.strategy.strategy_manager import StrategyManager
 from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
+
+
+def _run_mode_from_preprocessed(preprocessed: Any) -> str:
+    api = getattr(preprocessed, "full_settings_snapshot_api", None)
+    if not isinstance(api, dict) or not api:
+        return "full"
+    runtime = StrategySettingsService.api_to_runtime(dict(api))
+    st = StrategySettings(raw_settings=dict(runtime))
+    if not st.validate().is_usable():
+        return "full"
+    return derive_run_mode(st.to_dict())
 
 
 @dataclass
@@ -57,27 +78,18 @@ class EnumeratorRuntimeService:
         stock_count: Optional[int] = None,
         workbench_run_id: Optional[str] = None,
         workbench_strategy_name: Optional[str] = None,
+        force_refresh: bool = False,
     ) -> EnumeratorRuntimeContext:
         raw_settings = raw_settings_override if raw_settings_override is not None else strategy_info.settings.to_dict()
         settings_view = cls.build_canonical_settings(raw_settings)
         enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
+        stock_list = stock_ids_for_enumerator_view(
+            strategy_name=strategy_name,
+            settings_view=settings_view,
+            all_stocks=None,
+            stock_count=stock_count,
+        )
         data_manager = DataManager(is_verbose=False)
-        all_stocks = data_manager.service.stock.list.load(filtered=True)
-        if enum_settings.use_sampling:
-            sampling_amount = stock_count if stock_count is not None else settings_view.sampling_amount
-            sampling_config = (
-                {"strategy": "continuous", "continuous": {"start_idx": 0}}
-                if stock_count is not None
-                else settings_view.sampling_config
-            )
-            stock_list = StockSamplingHelper.get_stock_list(
-                all_stocks=all_stocks,
-                sampling_amount=sampling_amount,
-                sampling_config=sampling_config,
-                strategy_name=settings_view.name,
-            )
-        else:
-            stock_list = [s["id"] for s in all_stocks]
         latest_date = data_manager.service.calendar.get_latest_completed_trading_date()
         start_date = settings_view.start_date or DateUtils.DEFAULT_START_DATE
         end_date = settings_view.end_date or latest_date
@@ -89,6 +101,7 @@ class EnumeratorRuntimeService:
             base_settings=settings_view,
             workbench_strategy_name=workbench_strategy_name,
             workbench_run_id=workbench_run_id,
+            force_refresh=force_refresh,
         )
         return EnumeratorRuntimeContext(
             strategy_name=strategy_name,
@@ -122,7 +135,20 @@ class EnumeratorRuntimeService:
     @staticmethod
     def build_ids_from_preprocessed(preprocessed: Any) -> tuple[str, str]:
         request_fp = getattr(preprocessed, "request_fingerprint", None)
-        return StrategyFingerprintRuntimeService.build_ids_from_request_fingerprint(request_fp)
+        if request_fp is None:
+            return "", ""
+        return db_cache_fingerprint_pair_from_parts(
+            semantic_core_payload=dict(request_fp.settings_core or {}),
+            strategy_name=str(request_fp.strategy_name),
+            stock_ids=list(request_fp.stock_ids),
+            start_date=str(request_fp.start_date),
+            end_date=str(request_fp.end_date),
+            run_mode=_run_mode_from_preprocessed(preprocessed),
+            worker_module_path=str(request_fp.worker_module_path),
+            worker_class_name=str(request_fp.worker_class_name),
+            worker_code_hash=str(request_fp.worker_code_hash),
+            data_contract_mapping=str(request_fp.data_contract_mapping),
+        )
 
 
 __all__ = ["EnumeratorRuntimeContext", "EnumeratorRuntimeService"]

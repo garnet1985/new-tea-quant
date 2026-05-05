@@ -24,14 +24,14 @@ Fingerprint fields:
 - `stock_ids`
 - `strategy_name` (for validation)
 - `worker_module_path`, `worker_class_name`, `worker_code_hash` (code-change invalidation)
-- `data_contract_signature` (contract/settings-data-change invalidation)
+- `data_contract_mapping` (data contract mapping layer / invalidation when mapping sources change)
 
 Runtime rules:
 
 1. If cached fingerprint contains the request fingerprint, reuse the cached version directly.
 2. If only `stock_ids` are not fully covered, run only the stock-id diff.
 3. If core settings or time range are not compatible, rebuild fully.
-4. If worker code hash or data contract signature changed, rebuild fully.
+4. If worker code hash or data contract mapping fingerprint changed, rebuild fully.
 
 Only completed enumerator runs produce reusable fingerprints.
 

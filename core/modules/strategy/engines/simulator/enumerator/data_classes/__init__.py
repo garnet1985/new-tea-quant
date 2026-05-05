@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Enumerator data classes."""
 
-from core.modules.strategy.services.fingerprint import StrategyRunFingerprint
+from core.modules.strategy.services.cache.simulator_res_db_cache.runtime.run_types import (
+    StrategyRunFingerprint,
+)
 from .settings import OpportunityEnumeratorSettings
-from .flow_context import EnumeratorExecuteContext, EnumeratorPreprocessContext
+from .flow_context import (
+    EnumeratorExecuteContext,
+    EnumeratorPreprocessContext,
+    EnumeratorProbeContext,
+)
 from .strategy_settings import EnumeratorSettings, StrategyEnumeratorSettings
 from .report import EnumeratorReport
 
@@ -14,5 +20,6 @@ __all__ = [
     "StrategyRunFingerprint",
     "EnumeratorReport",
     "EnumeratorPreprocessContext",
+    "EnumeratorProbeContext",
     "EnumeratorExecuteContext",
 ]

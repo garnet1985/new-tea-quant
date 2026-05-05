@@ -6,7 +6,7 @@
 
 - **API settings** 形态规范化（避免同义不同形的 payload）
 - **工作台 `settings_core`**：构建 **`settings_snapshot` 指纹** 时 **哪些字段参与、哪些剔除**（与 [`workbench-version-fingerprint.md`](./workbench-version-fingerprint.md) 一致）
-- （历史）枚举器按磁盘结果做缓存命中时，字段策略与下文 **「剔除」** 一致；实现上为 **`StrategySettings.build_settings_core_for_fingerprint`** → `engines/shared/.../settings_fingerprint_core.py` 中的忽略表（再由 **`StrategyRunFingerprint.extract_settings_core`** 调用）
+- **DB 缓存 settings 指纹列**：语义剔除与哈希的 **运行时契约** 见 [`db-cache-service.md`](./db-cache-service.md)；剔除表现位于 `services/cache/simulator_res_db_cache/finger_print/semantic_core_strip.py`（不再放在 `StrategySettings` 包内）。
 
 字段含义可参考 `userspace/strategies/settings_example.py` 与 `StrategySettings` 各子数据类。
 
@@ -112,7 +112,7 @@
 
 ## 与实现的关系
 
-指纹路径：**先** `StrategySettings.validate()` + **`to_dict()`**（默认补足），**再** `strip_fingerprint_non_core`（见 `settings_fingerprint_core.py`）。`StrategyRunFingerprint.extract_settings_core` 仅封装 **`StrategySettings.build_settings_core_for_fingerprint`**；`EnumeratorFingerprint` 为同类型的历史别名。
+语义剔除与 **settings 指纹列** 的工程路径见 [`db-cache-service.md`](./db-cache-service.md)。算法上：**先** `StrategySettings.validate()` + **`to_dict()`**（默认补足），**再** 通过 **`finger_print.semantic_core_strip.strip_to_semantic_core`**（`IGNORE_*` / `DROP_ROOT_BLOCKS` 等）得到用于哈希的语义核。
 
 还会：
 
@@ -122,7 +122,7 @@
 - 按 **是否启用 sampling** 决定是否保留 **`sampling`** 块（`resolve_sampling_is_used`，与旧版 `enumerator` / 模拟器内开关兼容）
 - 按忽略表去掉 **enumerator / price_simulator / capital_simulator** 中非语义键
 
-工作台的 **`settings_core`** 应与上表 **语义一致**；单测应对齐 **`StrategySettings.build_settings_core_for_fingerprint`** / **`strip_fingerprint_non_core`** 与本文。
+工作台的 **`settings_core`** 应与上表 **语义一致**；单测应对齐 **`semantic_core_strip`** 与本文。
 
 ---
 
@@ -144,4 +144,5 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-05 | 实现入口改指向 `db-cache-service.md` 与 `semantic_core_strip`；去除已迁移的 `settings_fingerprint_core` / `build_settings_core_for_fingerprint` 表述。 |
 | （更新） | 按 `settings_example.py` 与数据类补充逐字段表；明确 `scanner` 整块剔除、enumerator 保留项与运行时剔除项。 |

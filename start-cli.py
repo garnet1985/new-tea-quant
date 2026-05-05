@@ -262,6 +262,7 @@ class App:
         self,
         strategy_name: str = 'example',
         stock_count: int = None,
+        force_refresh: bool = False,
     ):
         """
         枚举投资机会
@@ -284,6 +285,7 @@ class App:
             strategy_name=strategy_name,
             strategy_info=strategy_info,
             stock_count=stock_count,
+            force_refresh=force_refresh,
         )
         logger.info(f"📅 时间范围: {context.start_date} ~ {context.end_date}")
         logger.info(f"📊 实际股票数量: {len(context.stock_list)}")
@@ -479,6 +481,8 @@ def _add_extra_arguments(parser):
                        help='指定场景名称（用于 tag）')
     parser.add_argument('--stocks', type=int, default=None,
                        help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
+    parser.add_argument('-f', '--force', dest='force_enumerate', action='store_true',
+                       help='枚举时强制重跑（跳过 sys_strategy_workbench_snapshot 指纹缓存命中）')
     parser.add_argument('--base-date', type=str,
                        help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
     parser.add_argument('-v', '--version', action='store_true',
@@ -719,6 +723,7 @@ class CommandExecutor:
         self.app.enumerate(
             strategy_name=strategy,
             stock_count=args.stocks,
+            force_refresh=bool(getattr(args, 'force_enumerate', False)),
         )
     
     def _handle_simulate_price(self, args):

@@ -110,33 +110,6 @@ class StrategySettings(SettingsBase):
         out["scanner"] = self.scanner.to_dict()
         return out
 
-    def settings_core_for_fingerprint(self) -> Dict[str, Any]:
-        """
-        在已通过校验、默认已补足的 settings 上，剔除非语义字段，得到用于指纹的 settings_core。
-        若当前配置校验失败则抛出 ValueError。
-        """
-        from .settings_fingerprint_core import strip_fingerprint_non_core
-
-        report = self.validate()
-        if not report.is_usable():
-            errs = [
-                f'{item.get("field_path", "?")}: {item.get("message", "")}'
-                for item in (report.errors or [])
-                if item.get("level") == "critical"
-            ]
-            detail = "；".join(errs) if errs else "settings 校验未通过，无法构建指纹"
-            raise ValueError(detail)
-        return strip_fingerprint_non_core(self.to_dict())
-
-    @classmethod
-    def build_settings_core_for_fingerprint(cls, raw_settings: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        从原始 settings dict 构建指纹用 settings_core：内部先 `StrategySettings.validate()` + `to_dict()`，
-        再按 `settings_fingerprint_core` 忽略表剔除。
-        """
-        inst = cls(raw_settings=dict(raw_settings or {}))
-        return inst.settings_core_for_fingerprint()
-
     def to_enum_signature_dict(self) -> Dict[str, Any]:
         normalized = self.to_dict()
         return {

@@ -1,5 +1,8 @@
 """
 sys_strategy_workbench_snapshot 表 Model。
+
+命名约定：表中列 ``version`` 在领域含义上就是 **snapshot_id**（整型，一条快照一行）；
+``version_id`` / ``v{n}`` 仅作展示用字符串，由 ``simulator_res_db_cache.domain.snapshot_service`` 格式化。
 """
 
 import threading
@@ -9,6 +12,9 @@ from typing import Any, Dict, List, Optional
 
 from core.infra.db import DbBaseModel
 from core.tables.ui_bff.strategy_workbench_snapshot.schema import schema as _schema
+
+COL_SETTINGS_FP = "settings_finger_print_id"
+COL_ENV_FP = "env_fingerprint_id"
 
 
 class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
@@ -43,20 +49,19 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             except Exception:
                 exists = False
             if not exists:
-                # 使用 schema_manager 按 schema 创建表 + 索引，避免首次查询报表不存在。
                 self.db.schema_manager.create_table_with_indexes(self.schema, self.db.get_connection)
             self.__class__._table_ready = True
 
-    def load_by_strategy_version(self, strategy_name: str, version: int) -> Optional[Dict[str, Any]]:
+    def load_by_strategy_snapshot_id(
+        self, strategy_name: str, snapshot_id: int
+    ) -> Optional[Dict[str, Any]]:
         self._ensure_table_ready()
-        row = self.load_one("strategy_name = %s AND version = %s", (strategy_name, int(version)))
+        row = self.load_one("strategy_name = %s AND version = %s", (strategy_name, int(snapshot_id)))
         return self._normalize_row(row) if row else None
 
     def list_by_strategy(self, strategy_name: str, limit: int = 100) -> List[Dict[str, Any]]:
         self._ensure_table_ready()
         safe_limit = max(1, min(int(limit or 100), 500))
-        # 按版本号降序：不能把 updated_at 当「最新」——update_result_summary 会改写旧行的 updated_at，
-        # 否则会读到过时 settings_snapshot（枚举指纹不变 → 永远命中缓存）。
         rows = self.load(
             "strategy_name = %s",
             (strategy_name,),
@@ -69,9 +74,11 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         out = dict(row or {})
         out["settings_snapshot"] = self._coerce_json_dict(out.get("settings_snapshot"))
         out["result_summary"] = self._coerce_json_dict(out.get("result_summary"))
+        if "version" in out:
+            out["snapshot_id"] = int(out.get("version") or 0)
         return out
 
-    def get_next_version(self, strategy_name: str) -> int:
+    def get_next_snapshot_id(self, strategy_name: str) -> int:
         self._ensure_table_ready()
         latest = self.load(
             "strategy_name = %s",
@@ -84,144 +91,115 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         current = latest[0].get("version", 0) or 0
         return int(current) + 1
 
-    def create_version(
+    def create_snapshot(
         self,
         strategy_name: str,
         settings_snapshot: Dict[str, Any],
         result_summary: Optional[Dict[str, Any]] = None,
-        enum_fingerprint_id: str = "",
-        enum_scope_fingerprint_id: str = "",
+        settings_finger_print_id: str = "",
+        env_fingerprint_id: str = "",
     ) -> Dict[str, Any]:
         self._ensure_table_ready()
-        version = self.get_next_version(strategy_name)
+        snapshot_id = self.get_next_snapshot_id(strategy_name)
         now = datetime.now()
         payload = {
             "strategy_name": strategy_name,
-            "version": version,
+            "version": snapshot_id,
             "settings_snapshot": settings_snapshot or {},
             "result_summary": result_summary or {},
-            "enum_fingerprint_id": str(enum_fingerprint_id or ""),
-            "enum_scope_fingerprint_id": str(enum_scope_fingerprint_id or ""),
+            COL_SETTINGS_FP: str(settings_finger_print_id or ""),
+            COL_ENV_FP: str(env_fingerprint_id or ""),
             "created_at": now,
             "updated_at": now,
         }
         self.upsert_one(payload, unique_keys=["strategy_name", "version"])
-        return {"strategy_name": strategy_name, "version": version}
+        return {"strategy_name": strategy_name, "snapshot_id": snapshot_id}
 
     def update_result_summary(
         self,
         strategy_name: str,
-        version: int,
+        snapshot_id: int,
         result_summary: Dict[str, Any],
-        enum_fingerprint_id: str = "",
-        enum_scope_fingerprint_id: str = "",
+        settings_finger_print_id: str = "",
+        env_fingerprint_id: str = "",
     ) -> int:
         self._ensure_table_ready()
-        current = self.load_by_strategy_version(strategy_name, version)
+        current = self.load_by_strategy_snapshot_id(strategy_name, snapshot_id)
         if not current:
             return 0
-        target_fp = (
-            str(enum_fingerprint_id)
-            if enum_fingerprint_id is not None and str(enum_fingerprint_id) != ""
-            else str(current.get("enum_fingerprint_id") or "")
+        target_settings_fp = (
+            str(settings_finger_print_id)
+            if settings_finger_print_id is not None and str(settings_finger_print_id) != ""
+            else str(current.get(COL_SETTINGS_FP) or "")
         )
-        target_scope_fp = (
-            str(enum_scope_fingerprint_id)
-            if enum_scope_fingerprint_id is not None and str(enum_scope_fingerprint_id) != ""
-            else str(current.get("enum_scope_fingerprint_id") or "")
+        target_env_fp = (
+            str(env_fingerprint_id)
+            if env_fingerprint_id is not None and str(env_fingerprint_id) != ""
+            else str(current.get(COL_ENV_FP) or "")
         )
         return self.execute_raw_update(
             (
-                "UPDATE sys_strategy_workbench_snapshot "
-                "SET result_summary = %s, enum_fingerprint_id = %s, enum_scope_fingerprint_id = %s, updated_at = %s "
+                f"UPDATE sys_strategy_workbench_snapshot "
+                f"SET result_summary = %s, {COL_SETTINGS_FP} = %s, {COL_ENV_FP} = %s, updated_at = %s "
                 "WHERE strategy_name = %s AND version = %s"
             ),
             (
                 json.dumps(result_summary or {}, ensure_ascii=False),
-                target_fp,
-                target_scope_fp,
+                target_settings_fp,
+                target_env_fp,
                 datetime.now(),
                 strategy_name,
-                int(version),
+                int(snapshot_id),
             ),
         )
 
-    def list_by_strategy_enum_fingerprint(
+    def list_by_strategy_fingerprints(
         self,
         strategy_name: str,
         *,
-        enum_fingerprint_id: str = "",
-        enum_scope_fingerprint_id: str = "",
+        settings_finger_print_id: str = "",
+        env_fingerprint_id: str = "",
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
+        """
+        按指纹列匹配。
+
+        - 若 **同时** 传入 settings_fp 与 env_fp：**两条必须同时相等（AND）**，才是 DbCache 语义下的命中。
+        - 若仅传其一：按单列相等筛选（调试或迁移脚本用途）。
+        """
         self._ensure_table_ready()
         safe_limit = max(1, min(int(limit or 100), 500))
-        fp = str(enum_fingerprint_id or "").strip()
-        scope_fp = str(enum_scope_fingerprint_id or "").strip()
-        if fp and scope_fp:
+        settings_fp = str(settings_finger_print_id or "").strip()
+        env_fp = str(env_fingerprint_id or "").strip()
+        if settings_fp and env_fp:
             where = (
-                "strategy_name = %s AND (enum_fingerprint_id = %s OR enum_scope_fingerprint_id = %s)"
+                f"strategy_name = %s AND {COL_SETTINGS_FP} = %s AND {COL_ENV_FP} = %s"
             )
-            params = (strategy_name, fp, scope_fp)
-        elif fp:
-            where = "strategy_name = %s AND enum_fingerprint_id = %s"
-            params = (strategy_name, fp)
-        elif scope_fp:
-            where = "strategy_name = %s AND enum_scope_fingerprint_id = %s"
-            params = (strategy_name, scope_fp)
+            params = (strategy_name, settings_fp, env_fp)
+        elif settings_fp:
+            where = f"strategy_name = %s AND {COL_SETTINGS_FP} = %s"
+            params = (strategy_name, settings_fp)
+        elif env_fp:
+            where = f"strategy_name = %s AND {COL_ENV_FP} = %s"
+            params = (strategy_name, env_fp)
         else:
             return []
         rows = self.load(where, params, order_by="version DESC", limit=safe_limit)
         return [self._normalize_row(row) for row in rows]
 
-    def clear_enum_cache_for_version(self, strategy_name: str, version: int) -> int:
-        """
-        清理指定版本的枚举缓存字段（enum / enum_meta + fingerprint 列）。
-        保留该版本其它结果（如 price / capital）与 settings_snapshot。
-        """
+    def delete_snapshot_row(self, strategy_name: str, snapshot_id: int) -> int:
+        """删除指定策略版本行（``strategy_name`` + ``version``）。"""
         self._ensure_table_ready()
-        current = self.load_by_strategy_version(strategy_name, version)
-        if not current:
-            return 0
-        rs = self._coerce_json_dict(current.get("result_summary"))
-        rs.pop("enum", None)
-        rs.pop("enum_meta", None)
-        return self.execute_raw_update(
-            (
-                "UPDATE sys_strategy_workbench_snapshot "
-                "SET result_summary = %s, enum_fingerprint_id = %s, enum_scope_fingerprint_id = %s, updated_at = %s "
-                "WHERE strategy_name = %s AND version = %s"
-            ),
-            (
-                json.dumps(rs, ensure_ascii=False),
-                "",
-                "",
-                datetime.now(),
-                strategy_name,
-                int(version),
-            ),
-        )
+        return self.delete_one("strategy_name = %s AND version = %s", (strategy_name, int(snapshot_id)))
 
-    def replace_enum_cache_by_fingerprint(
-        self,
-        *,
-        strategy_name: str,
-        enum_fingerprint_id: str,
-        enum_scope_fingerprint_id: str,
-    ) -> int:
-        """
-        Atomic-style replace semantics at model boundary:
-        clear all rows matched by fingerprint/scope before inserting a new cache row.
-        """
-        rows = self.list_by_strategy_enum_fingerprint(
-            strategy_name,
-            enum_fingerprint_id=enum_fingerprint_id,
-            enum_scope_fingerprint_id=enum_scope_fingerprint_id,
-            limit=500,
+    def list_versions_asc(self, strategy_name: str, *, limit: int = 500) -> List[Dict[str, Any]]:
+        """同一策略下按 ``version`` 升序（用于淘汰最早版本）。"""
+        self._ensure_table_ready()
+        safe_limit = max(1, min(int(limit or 500), 1000))
+        rows = self.load(
+            "strategy_name = %s",
+            (strategy_name,),
+            order_by="version ASC",
+            limit=safe_limit,
         )
-        cleared = 0
-        for row in rows:
-            version = int((row or {}).get("version") or 0)
-            if version > 0 and self.clear_enum_cache_for_version(strategy_name, version):
-                cleared += 1
-        return cleared
+        return [self._normalize_row(row) for row in rows]

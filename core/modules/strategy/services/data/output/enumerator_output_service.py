@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 import json
 
-from core.modules.strategy.services.fingerprint import StrategyRunFingerprint
+from core.modules.strategy.services.cache.simulator_res_db_cache.runtime.run_types import (
+    StrategyRunFingerprint,
+)
 
 
 class EnumeratorOutputWriterService:

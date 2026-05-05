@@ -3,6 +3,7 @@
 import json
 
 from core.infra.project_context.path_manager import PathManager
+from core.modules.strategy.services.cache import sanitize_enum_payload_for_snapshot
 
 
 class StrategyWorkbenchCacheHelper:
@@ -10,9 +11,7 @@ class StrategyWorkbenchCacheHelper:
 
     @staticmethod
     def _sanitize_enum_payload_for_snapshot(enum_payload: dict) -> dict:
-        payload = dict(enum_payload or {})
-        payload.pop("stockRows", None)
-        return payload
+        return sanitize_enum_payload_for_snapshot(dict(enum_payload or {}))
 
     @staticmethod
     def _coerce_db_settings_snapshot(raw):

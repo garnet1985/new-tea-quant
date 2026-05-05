@@ -31,7 +31,9 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.settings im
 from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
     EnumeratorReport,
 )
-from core.modules.strategy.services.fingerprint import StrategyRunFingerprint
+from core.modules.strategy.services.cache.simulator_res_db_cache.runtime.run_types import (
+    StrategyRunFingerprint,
+)
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker
 from core.modules.strategy.services.data import StrategyDataInjectionService
 from core.modules.strategy.services.data.output import (
@@ -95,6 +97,7 @@ class OpportunityEnumeratorFlowImpl:
         base_settings: Optional[StrategySettingsView],
         workbench_strategy_name: Optional[str] = None,
         workbench_run_id: Optional[str] = None,
+        force_refresh: bool = False,
     ) -> None:
         self.start_date = start_date
         self.end_date = end_date
@@ -103,6 +106,7 @@ class OpportunityEnumeratorFlowImpl:
         self.base_settings = base_settings
         self.workbench_strategy_name = workbench_strategy_name
         self.workbench_run_id = workbench_run_id
+        self.force_refresh = bool(force_refresh)
 
     def resolve_runtime_workers(self) -> int:
         from core.infra.worker import ProcessWorker
@@ -170,7 +174,7 @@ class OpportunityEnumeratorFlowImpl:
         worker_ref: Dict[str, str],
     ) -> StrategyRunFingerprint:
         worker_anchor = self._build_worker_anchor(worker_ref)
-        data_contract_signature = self._build_data_contract_signature(settings_payload)
+        data_contract_mapping = self._build_data_contract_mapping(settings_payload)
         return StrategyRunFingerprint.from_request(
             strategy_name=strategy_name,
             start_date=self.start_date,
@@ -180,7 +184,7 @@ class OpportunityEnumeratorFlowImpl:
             worker_module_path=worker_ref.get("worker_module_path", ""),
             worker_class_name=worker_ref.get("worker_class_name", ""),
             worker_code_hash=worker_anchor["worker_code_hash"],
-            data_contract_signature=data_contract_signature,
+            data_contract_mapping=data_contract_mapping,
         )
 
     def _build_worker_anchor(self, worker_ref: Dict[str, str]) -> Dict[str, str]:
@@ -196,7 +200,7 @@ class OpportunityEnumeratorFlowImpl:
                 worker_code_hash = ""
         return {"worker_code_hash": worker_code_hash}
 
-    def _build_data_contract_signature(
+    def _build_data_contract_mapping(
         self, settings_payload: Dict[str, Any]
     ) -> str:
         core_mapping_hash = ""

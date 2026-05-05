@@ -18,7 +18,6 @@ __all__ = [
     "EnumeratorRuntimeContext",
     "StrategyFingerprintManager",
     "StrategyFingerprintRuntimeService",
-    "StrategySettingsService",
     "StrategyWorkbenchSnapshotService",
 ]
 
@@ -37,13 +36,17 @@ def __getattr__(name: str) -> Any:
     if name in {"build_settings", "validate_settings", "normalize_and_validate"}:
         return getattr(import_module(".validation", __name__), name)
     if name in {"EnumeratorRuntimeService", "EnumeratorRuntimeContext"}:
-        return getattr(import_module(".enumerator_runtime_service", __name__), name)
+        return getattr(
+            import_module(".cache.simulator_res_db_cache.runtime.enumerator_runtime_service", __name__),
+            name,
+        )
     if name == "StrategyFingerprintManager":
         return getattr(import_module(".fingerprint", __name__), name)
     if name == "StrategyFingerprintRuntimeService":
         return getattr(import_module(".fingerprint", __name__), name)
-    if name == "StrategySettingsService":
-        return getattr(import_module(".settings_service", __name__), name)
     if name == "StrategyWorkbenchSnapshotService":
-        return getattr(import_module(".snapshot_service", __name__), name)
+        return getattr(
+            import_module(".cache.simulator_res_db_cache.domain.snapshot_service", __name__),
+            name,
+        )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

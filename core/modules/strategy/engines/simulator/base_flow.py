@@ -20,11 +20,10 @@ class BaseSimulationFlow(ABC):
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"] = None,
     ) -> Any:
-        preprocessed = self.preprocess(
-            strategy_name=strategy_name, strategy_info=strategy_info
-        )
-        executed = self.execute(preprocessed)
-        return self.postprocess(preprocessed, executed)
+        self.preprocess(strategy_name=strategy_name, strategy_info=strategy_info)
+        self.execute(self.preprocessed)
+        self.postprocess(self.preprocessed, self.executed)
+
 
     @abstractmethod
     def preprocess(
@@ -42,4 +41,3 @@ class BaseSimulationFlow(ABC):
     @abstractmethod
     def postprocess(self, preprocessed: Any, executed: Any) -> Any:
         pass
-

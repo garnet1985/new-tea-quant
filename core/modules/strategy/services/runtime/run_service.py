@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""运行期指纹服务层（依赖 StrategySettings / flow_impl）。"""
+"""
+运行期指纹服务层（依赖 StrategySettings / flow_impl）。
+
+与 DbCache 无关；位于 ``strategy.services.runtime``。说明见同包 ``__init__.py``。
+"""
 
 from __future__ import annotations
 

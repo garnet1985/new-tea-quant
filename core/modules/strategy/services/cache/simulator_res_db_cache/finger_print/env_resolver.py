@@ -123,6 +123,88 @@ class ResolveEnv:
         canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _collect_stock_ids(stock_list: List[str]) -> List[str]:
+        return sorted({str(sid) for sid in stock_list if sid})
+
+
+    @staticmethod
+    def resolve_env_inputs(
+        *,
+        strategy_name: str,
+        normalized_settings_dict: Dict[str, Any],
+        stock_list: List[str],
+        latest_completed_trading_date: str,
+    ) -> Optional[EnvFingerprintInputs]:
+        """
+        由已通过校验的规范化快照解析 env。
+
+        ``stock_list`` 须与本次回测 / 枚举 flow 在 build jobs 阶段使用的列表一致（不由 settings 推导）。
+        ``latest_completed_trading_date`` 须与 flow 侧解析的最新已完成交易日一致（用于空 ``end_date`` fallback）。
+        Worker 身份解析失败时返回 ``None``。
+        """
+        stock_ids = ResolveEnv._collect_stock_ids(stock_list)
+        env_start_date, env_end_date = ResolveEnv.date_range_for_fingerprint(
+            strategy_name=strategy_name,
+            normalized_settings_dict=normalized_settings_dict,
+            latest_completed_trading_date=latest_completed_trading_date,
+        )
+        run_mode = derive_run_mode(normalized_settings_dict)
+        engine_version = get_version()
+
+        try:
+            worker = ResolveEnv.worker_code_identity(strategy_name=strategy_name)
+        except Exception:
+            return None
+
+        data_contract_mapping = ResolveEnv.data_contract_mapping()
+
+        return EnvFingerprintInputs(
+            stock_ids=stock_ids,
+            env_start_date=env_start_date,
+            env_end_date=env_end_date,
+            run_mode=run_mode,
+            engine_version=engine_version,
+            worker_module_path=worker["worker_module_path"],
+            worker_class_name=worker["worker_class_name"],
+            worker_code_hash=worker["worker_code_hash"],
+            data_contract_mapping=data_contract_mapping,
+        )
+
+    @staticmethod
+    def env_fingerprint_payload(
+        *,
+        strategy_name: str,
+        stock_list: List[str],
+        start_date: str,
+        end_date: str,
+        run_mode: str,
+        engine_version: str,
+        worker_module_path: str = "",
+        worker_class_name: str = "",
+        worker_code_hash: str = "",
+        data_contract_mapping: str = "",
+    ) -> Dict[str, Any]:
+        """
+        组装 env 指纹 **载荷 dict**（``v=4``），**不含** settings 语义核。
+
+        稳定哈希由 ``finger_print.to_env_hash``（内部 ``_stable_sha256``）完成。
+        """
+        stock_ids = ResolveEnv._collect_stock_ids(stock_list)
+        return {
+            "v": 4,
+            "kind": "strategy_db_cache_env",
+            "strategy_name": str(strategy_name),
+            "stock_ids": stock_ids,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "run_mode": str(run_mode),
+            "engine_version": str(engine_version),
+            "worker_module_path": str(worker_module_path),
+            "worker_class_name": str(worker_class_name),
+            "worker_code_hash": str(worker_code_hash),
+            "data_contract_mapping": str(data_contract_mapping),
+        }
 
 class EnvFingerprintInputs(NamedTuple):
     """供 DbCache env 指纹与 ``generate_cache`` 使用的 env 切片。"""
@@ -136,93 +218,3 @@ class EnvFingerprintInputs(NamedTuple):
     worker_class_name: str
     worker_code_hash: str
     data_contract_mapping: str
-
-
-def resolve_env_inputs(
-    *,
-    strategy_name: str,
-    normalized_settings_dict: Dict[str, Any],
-    stock_ids: List[str],
-    latest_completed_trading_date: str,
-) -> Optional[EnvFingerprintInputs]:
-    """
-    由已通过校验的规范化快照解析 env。
-
-    ``stock_ids`` 须与本次回测 / 枚举 flow 在 build jobs 阶段使用的列表一致（不由 settings 推导）。
-    ``latest_completed_trading_date`` 须与 flow 侧解析的最新已完成交易日一致（用于空 ``end_date`` fallback）。
-    Worker 身份解析失败时返回 ``None``。
-    """
-    ids = list(stock_ids or [])
-    env_start_date, env_end_date = ResolveEnv.date_range_for_fingerprint(
-        strategy_name=strategy_name,
-        normalized_settings_dict=normalized_settings_dict,
-        latest_completed_trading_date=latest_completed_trading_date,
-    )
-    run_mode = derive_run_mode(normalized_settings_dict)
-    engine_version = get_version()
-
-    try:
-        worker = ResolveEnv.worker_code_identity(strategy_name=strategy_name)
-    except Exception:
-        return None
-
-    data_contract_mapping = ResolveEnv.data_contract_mapping()
-
-    return EnvFingerprintInputs(
-        stock_ids=ids,
-        env_start_date=env_start_date,
-        env_end_date=env_end_date,
-        run_mode=run_mode,
-        engine_version=engine_version,
-        worker_module_path=worker["worker_module_path"],
-        worker_class_name=worker["worker_class_name"],
-        worker_code_hash=worker["worker_code_hash"],
-        data_contract_mapping=data_contract_mapping,
-    )
-
-
-def _normalize_stock_ids(stock_ids: Sequence[str]) -> list[str]:
-    return sorted({str(sid) for sid in stock_ids if sid})
-
-
-def env_fingerprint_payload(
-    *,
-    strategy_name: str,
-    stock_ids: Sequence[str],
-    start_date: str,
-    end_date: str,
-    run_mode: str,
-    engine_version: str,
-    worker_module_path: str = "",
-    worker_class_name: str = "",
-    worker_code_hash: str = "",
-    data_contract_mapping: str = "",
-) -> Dict[str, Any]:
-    """
-    组装 env 指纹 **载荷 dict**（``v=4``），**不含** settings 语义核。
-
-    稳定哈希由 ``finger_print.to_env_hash``（内部 ``_stable_sha256``）完成。
-    """
-    sid_list = _normalize_stock_ids(stock_ids)
-    return {
-        "v": 4,
-        "kind": "strategy_db_cache_env",
-        "strategy_name": str(strategy_name),
-        "stock_ids": list(sid_list),
-        "start_date": str(start_date),
-        "end_date": str(end_date),
-        "run_mode": str(run_mode),
-        "engine_version": str(engine_version),
-        "worker_module_path": str(worker_module_path),
-        "worker_class_name": str(worker_class_name),
-        "worker_code_hash": str(worker_code_hash),
-        "data_contract_mapping": str(data_contract_mapping),
-    }
-
-
-__all__ = [
-    "EnvFingerprintInputs",
-    "ResolveEnv",
-    "env_fingerprint_payload",
-    "resolve_env_inputs",
-]

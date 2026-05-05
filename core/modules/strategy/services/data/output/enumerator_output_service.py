@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 import json
 
-from core.modules.strategy.services.cache.simulator_res_db_cache.runtime.run_types import (
+from core.modules.strategy.services.runtime.run_types import (
     StrategyRunFingerprint,
 )
 

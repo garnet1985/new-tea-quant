@@ -276,7 +276,7 @@ def cancel_strategy_run(strategy_name, run_id):
 @strategy_workbench_api_bp.route('/v1/strategies/<strategy_name>/run-results/<run_id>', methods=['GET'])
 def get_strategy_run_results(strategy_name, run_id):
     """
-    Execution panel: read `result_summary` from the run status file (enum/price/capital slots).
+    Execution panel: read `result_report` from the run status file (enum/price/capital slots).
     Full tab reports use SWB-11; this is the lightweight per-step summary persisted with run state.
     """
     # Step 1: read and normalize route parameters.
@@ -289,13 +289,13 @@ def get_strategy_run_results(strategy_name, run_id):
     if err:
         return err
     try:
-        # Step 3: coerce `result_summary` to a dict.
-        result_summary = _strategy_workbench_service.normalize_run_result_summary_from_status(
+        # Step 3: coerce `result_report` to a dict.
+        result_report = _strategy_workbench_service.normalize_run_result_report_from_status(
             status_payload
         )
         # Step 4: shape execution-panel payload (three step slots).
         body = _strategy_workbench_service.build_strategy_run_results_payload(
-            run_key, result_summary
+            run_key, result_report
         )
         # Step 5: return success envelope.
         return ok(body)
@@ -347,13 +347,13 @@ def get_strategy_reports(strategy_name, run_id):
     if err:
         return err
     try:
-        # Step 5: merge status summary with snapshot / latest enum backfill rules.
-        result_summary = _strategy_workbench_service.resolve_reports_summary_for_strategy_run(
+        # Step 5: merge status result_report with snapshot / latest enum backfill rules.
+        result_report = _strategy_workbench_service.resolve_result_report_for_strategy_run(
             strategy_key, status_payload
         )
         # Step 6: build tab payloads and optional enumMetrics from disk.
         body = _strategy_workbench_service.assemble_strategy_reports_message(
-            strategy_key, run_key, result_summary, requested_types
+            strategy_key, run_key, result_report, requested_types
         )
         # Step 7: return success envelope.
         return ok(body)

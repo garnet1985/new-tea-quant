@@ -29,7 +29,7 @@ class StrategyWorkbenchCacheHelper:
         return None
 
     @staticmethod
-    def _coerce_db_result_summary(raw):
+    def _coerce_db_result_report(raw):
         if isinstance(raw, dict):
             return raw
         if isinstance(raw, str):

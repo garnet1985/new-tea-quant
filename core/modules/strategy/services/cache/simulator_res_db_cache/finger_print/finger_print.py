@@ -98,7 +98,7 @@ def resolve_db_cache_fingerprints(
     *,
     strategy_name: str,
     raw_settings: Dict[str, Any],
-    stock_ids: List[str],
+    stock_list: List[str],
     latest_completed_trading_date: str,
 ) -> Optional[DbCacheFingerprintResolution]:
     """
@@ -120,7 +120,7 @@ def resolve_db_cache_fingerprints(
     env = resolve_env_inputs(
         strategy_name=strategy_name,
         normalized_settings_dict=normalized_settings_dict,
-        stock_ids=stock_ids,
+        stock_list=stock_list,
         latest_completed_trading_date=latest_completed_trading_date,
     )
     if env is None:

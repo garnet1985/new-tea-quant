@@ -59,7 +59,7 @@ class StrategyWorkbenchService:
         return isinstance(snapshot, dict) and isinstance(snapshot.get("settings"), dict)
 
     def load_latest_settings_snapshot(self, strategy_name: str):
-        return self._impl._get_snapshot_service().load_latest_settings_snapshot(strategy_name)
+        return self._impl.load_latest_settings_snapshot(strategy_name)
 
     def to_runtime_settings(self, snapshot: dict) -> dict:
         raw_settings = snapshot.get("settings") if isinstance(snapshot, dict) else {}
@@ -268,7 +268,7 @@ class StrategyWorkbenchService:
             "running_step": resolved_chain[0],
             "progress_pct": 0,
             "step_status": step_status,
-            "result_summary": {},
+            "result_report": {},
             "workbench_snapshot_version": workbench_snapshot_version,
             "run_settings_snapshot": run_settings_snapshot,
             "is_force": bool(is_force),
@@ -353,11 +353,11 @@ class StrategyWorkbenchService:
             strategy_name, run_id, status_payload
         )
 
-    def normalize_run_result_summary_from_status(self, status_payload: dict) -> dict:
-        return self._impl.normalize_run_result_summary_from_status(status_payload)
+    def normalize_run_result_report_from_status(self, status_payload: dict) -> dict:
+        return self._impl.normalize_run_result_report_from_status(status_payload)
 
-    def build_strategy_run_results_payload(self, run_id: str, result_summary: dict) -> dict:
-        return self._impl.build_strategy_run_results_payload(run_id, result_summary)
+    def build_strategy_run_results_payload(self, run_id: str, result_report: dict) -> dict:
+        return self._impl.build_strategy_run_results_payload(run_id, result_report)
 
     def resolve_workbench_version_history_ids(self, strategy_name: str) -> list:
         return self._impl.resolve_workbench_version_history_ids(strategy_name)
@@ -365,18 +365,18 @@ class StrategyWorkbenchService:
     def parse_report_types_query(self, report_types_raw):
         return self._impl.parse_report_types_query(report_types_raw)
 
-    def resolve_reports_summary_for_strategy_run(self, strategy_name: str, status_payload: dict) -> dict:
-        return self._impl.resolve_reports_summary_for_strategy_run(strategy_name, status_payload)
+    def resolve_result_report_for_strategy_run(self, strategy_name: str, status_payload: dict) -> dict:
+        return self._impl.resolve_result_report_for_strategy_run(strategy_name, status_payload)
 
     def assemble_strategy_reports_message(
         self,
         strategy_name: str,
         run_id: str,
-        result_summary: dict,
+        result_report: dict,
         requested_types: list,
     ) -> dict:
         return self._impl.assemble_strategy_reports_message(
-            strategy_name, run_id, result_summary, requested_types
+            strategy_name, run_id, result_report, requested_types
         )
 
     def get_strategy_report_stocks(

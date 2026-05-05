@@ -39,11 +39,11 @@ schema = {
             "description": "该版本对应的完整 settings 快照",
         },
         {
-            "name": "result_summary",
+            "name": "reports",
             "type": "json",
             "isRequired": False,
             "nullable": True,
-            "description": "三个回测步骤的结果聚合：enum/price/capital",
+            "description": "三个回测步骤的 reports 聚合：enum/price/capital",
         },
         {
             "name": "settings_finger_print_id",

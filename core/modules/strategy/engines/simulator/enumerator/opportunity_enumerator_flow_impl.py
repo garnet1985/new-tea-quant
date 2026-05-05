@@ -31,7 +31,7 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.settings im
 from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
     EnumeratorReport,
 )
-from core.modules.strategy.services.cache.simulator_res_db_cache.runtime.run_types import (
+from core.modules.strategy.services.runtime.run_types import (
     StrategyRunFingerprint,
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker
@@ -543,7 +543,7 @@ class OpportunityEnumeratorFlowImpl:
             sub_dir, enum_settings.max_output_versions
         )
 
-    def build_result_summary(
+    def build_result_report(
         self,
         *,
         strategy_name: str,

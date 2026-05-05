@@ -1,6 +1,7 @@
 """Strategy workbench service logic."""
 
 import copy
+import hashlib
 import json
 import logging
 import multiprocessing as mp
@@ -20,8 +21,12 @@ from core.modules.strategy.services.cache.simulator_res_db_cache.settings import
 from core.modules.strategy.services.cache.simulator_res_db_cache.domain.snapshot_service import (
     StrategyWorkbenchSnapshotService,
 )
-from core.modules.strategy.services.fingerprint import StrategyFingerprintRuntimeService
-from core.tables.ui_bff.strategy_workbench_snapshot.model import SysStrategyWorkbenchSnapshotModel
+from core.modules.strategy.services.runtime.run_service import StrategyFingerprintRuntimeService
+from core.tables.strategy_workbench_snapshot.model import (
+    COL_ENV_FP,
+    COL_SETTINGS_FP,
+    SysStrategyWorkbenchSnapshotModel,
+)
 from core.ui.bff.shared.file_ops import atomic_write_text, backup_file
 from core.ui.bff.shared.response import error, ok
 from .cache_helper import StrategyWorkbenchCacheHelper
@@ -49,7 +54,6 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
     _run_cancel_events = {}
     _run_processes = {}
     _snapshot_model = None
-    _snapshot_service = None
     _sample_stocks = [
         ("600519.SH", "贵州茅台"),
         ("000858.SZ", "五粮液"),
@@ -95,7 +99,7 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
     # todo: move to helper
     @staticmethod
     def _mock_step_summary(step: str):
-        # BFF 占位：真实枚举应由策略引擎接入后写入 result_summary。
+        # BFF 占位：真实枚举应由策略引擎接入后写入 result_report。
         if step == StrategyWorkbenchImplementation.STEP_ENUM:
             return {
                 "opportunities": 128,
@@ -163,18 +167,18 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         """Returns (requested_types, error_detail). error_detail empty string when ok."""
         return self._parse_report_types(report_types_raw)
 
-    def resolve_reports_summary_for_strategy_run(
+    def resolve_result_report_for_strategy_run(
         self, strategy_name: str, status_payload: dict
     ) -> dict:
-        return self._resolve_reports_summary_for_run(strategy_name, status_payload)
+        return self._resolve_result_report_for_run(strategy_name, status_payload)
 
     # todo: move to helper
     @staticmethod
-    def _build_reports_payload(result_summary: dict, requested_types: list):
-        result_summary = result_summary if isinstance(result_summary, dict) else {}
-        enum_result = result_summary.get("enum") if isinstance(result_summary.get("enum"), dict) else None
-        price_result = result_summary.get("price") if isinstance(result_summary.get("price"), dict) else None
-        capital_result = result_summary.get("capital") if isinstance(result_summary.get("capital"), dict) else None
+    def _build_reports_payload(result_report: dict, requested_types: list):
+        result_report = result_report if isinstance(result_report, dict) else {}
+        enum_result = result_report.get("enum") if isinstance(result_report.get("enum"), dict) else None
+        price_result = result_report.get("price") if isinstance(result_report.get("price"), dict) else None
+        capital_result = result_report.get("capital") if isinstance(result_report.get("capital"), dict) else None
 
         reports = {}
         available_tabs = []
@@ -299,8 +303,33 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             return None, f"report_type 必须是 enum | price | capital: {value}"
         return value, ""
 
-    def _resolve_compare_snapshot(self, strategy_name: str, compare_version: str):
-        return self._get_snapshot_service().resolve_compare_snapshot(strategy_name, compare_version)
+    def _resolve_compare_snapshot(
+        self, strategy_name: str, compare_version: str
+    ) -> Tuple[Optional[dict], str, str]:
+        """
+        Resolve a snapshot row for report compare.
+
+        ``compare_version`` may be ``latest`` or ``v{n}`` / integer string.
+        Returns ``(row, error_detail, resolved_version_id_str)``; ``error_detail`` empty on success.
+        """
+        raw = str(compare_version or "").strip()
+        if not raw:
+            return None, "compare_version 不能为空", compare_version
+        lowered = raw.lower()
+        model = self._get_snapshot_model()
+        if lowered == "latest":
+            row = self._get_latest_workbench_snapshot_row(strategy_name)
+            if not row:
+                return None, "对比快照不存在", compare_version
+            sid = int(row.get("snapshot_id") or row.get("version") or 0)
+            return row, "", self._format_version_id(sid)
+        parsed = self._parse_version_id(raw)
+        if parsed is None:
+            return None, "compare_version 无效", compare_version
+        row = model.load_by_strategy_snapshot_id(strategy_name, int(parsed))
+        if not row:
+            return None, "对比快照不存在", compare_version
+        return row, "", self._format_version_id(int(parsed))
 
     @staticmethod
     def _build_mock_kline(stock_id: str):
@@ -333,12 +362,6 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         return cls._snapshot_model
 
     @classmethod
-    def _get_snapshot_service(cls):
-        if cls._snapshot_service is None:
-            cls._snapshot_service = StrategyWorkbenchSnapshotService()
-        return cls._snapshot_service
-
-    @classmethod
     def _get_latest_workbench_snapshot_row(cls, strategy_name: str):
         rows = cls._get_snapshot_model().list_by_strategy(strategy_name, limit=1)
         return rows[0] if rows else None
@@ -353,11 +376,50 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
 
     @staticmethod
     def _to_iso_or_empty(value):
-        return StrategyWorkbenchSnapshotService.to_iso_or_empty(value)
+        if value is None:
+            return ""
+        if isinstance(value, datetime):
+            return value.astimezone().isoformat()
+        return str(value).strip()
 
     @staticmethod
     def _stable_json_hash(value: Any) -> str:
-        return StrategyWorkbenchSnapshotService.stable_json_hash(value)
+        try:
+            blob = json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
+        except Exception:
+            blob = str(value)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+    def _step_status_from_result_report(self, result_report: Optional[dict]) -> dict:
+        rr = result_report if isinstance(result_report, dict) else {}
+
+        def slot_done(key: str) -> str:
+            block = rr.get(key)
+            return (
+                self.STEP_STATUS_DONE
+                if isinstance(block, dict) and bool(block)
+                else self.STEP_STATUS_IDLE
+            )
+
+        return {
+            self.STEP_ENUM: slot_done("enum"),
+            self.STEP_PRICE: slot_done("price"),
+            self.STEP_CAPITAL: slot_done("capital"),
+        }
+
+    def _version_detail_from_snapshot_row(self, row: dict) -> dict:
+        sid = int(row.get("snapshot_id") or row.get("version") or 0)
+        settings_snapshot = row.get("settings_snapshot") if isinstance(row.get("settings_snapshot"), dict) else {}
+        normalized_settings = self._canonicalize_api_settings(settings_snapshot)
+        result_report = row.get("result_report") if isinstance(row.get("result_report"), dict) else {}
+        return {
+            "version_id": self._format_version_id(sid),
+            "settings": normalized_settings,
+            "step_status": self._step_status_from_result_report(result_report),
+            "result_report": result_report,
+            "created_at": self._to_iso_or_empty(row.get("created_at")),
+            "updated_at": self._to_iso_or_empty(row.get("updated_at")),
+        }
 
     @staticmethod
     def _runtime_to_api_settings_fallback(runtime_settings):
@@ -827,12 +889,12 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                     step_status = status_payload.get("step_status") or {}
                     if isinstance(step_status, dict):
                         step_status[step] = self.STEP_STATUS_DONE
-                    result = status_payload.get("result_summary")
+                    result = status_payload.get("result_report")
                     if not isinstance(result, dict):
                         result = {}
                     result[step] = enum_payload
                     status_payload["step_status"] = step_status
-                    status_payload["result_summary"] = result
+                    status_payload["result_report"] = result
                     status_payload["progress_pct"] = 100
                     status_payload["running_step"] = step
                     status_payload["updated_at"] = datetime.now().astimezone().isoformat()
@@ -873,11 +935,11 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 self._write_status(strategy_name, status_payload)
                 return
 
-            result = status_payload.get("result_summary")
+            result = status_payload.get("result_report")
             if not isinstance(result, dict):
                 result = {}
             result[step] = self._mock_step_summary(step)
-            status_payload["result_summary"] = result
+            status_payload["result_report"] = result
             self._write_status(strategy_name, status_payload)
 
         final_payload = self._read_status(strategy_name) or {}
@@ -1023,6 +1085,18 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         """
         return StrategySettingsService.canonicalize_api_settings(api_settings)
 
+    def load_latest_settings_snapshot(self, strategy_name: str):
+        """Latest DB row as ``{ "settings": dict, "version_id": "v{n}" }``, or ``None``."""
+        row = self._get_latest_workbench_snapshot_row(strategy_name)
+        if not row:
+            return None
+        settings_snap = row.get("settings_snapshot") if isinstance(row.get("settings_snapshot"), dict) else {}
+        sid = int(row.get("snapshot_id") or row.get("version") or 0)
+        return {
+            "settings": settings_snap,
+            "version_id": self._format_version_id(sid),
+        }
+
     def get_strategy_settings(self, strategy_name: str):
         try:
             # Step 1: resolve strategy/settings file paths.
@@ -1038,15 +1112,16 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 return error(f"策略缺少 settings.py: {strategy_name}", 404)
 
             # Step 4: try latest workbench snapshot first.
-            latest_snapshot = self._get_snapshot_service().load_latest_settings_snapshot(strategy_name)
-            if latest_snapshot:
-                snapshot_settings = latest_snapshot.get("settings")
-                normalized_snapshot_settings = self._canonicalize_api_settings(snapshot_settings)
+            latest_row = self._get_latest_workbench_snapshot_row(strategy_name)
+            if latest_row:
+                snapshot_settings = latest_row.get("settings_snapshot")
+                normalized_snapshot_settings = self._canonicalize_api_settings(snapshot_settings or {})
+                sid = int(latest_row.get("snapshot_id") or latest_row.get("version") or 0)
                 return ok({
                     "strategy_name": strategy_name,
                     "settings": normalized_snapshot_settings,
                     "settings_source": "workbench_snapshot",
-                    "workbench_version_id": latest_snapshot.get("version_id") or "",
+                    "workbench_version_id": self._format_version_id(sid),
                 })
 
             # Step 5: fallback to userspace settings.py when snapshot is absent.
@@ -1149,7 +1224,7 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 "running_step": resolved_chain[0],
                 "progress_pct": 0,
                 "step_status": step_status,
-                "result_summary": {},
+                "result_report": {},
                 "workbench_snapshot_version": wb_snapshot_v,
                 "run_settings_snapshot": run_api_settings,
                 "is_force": is_force,
@@ -1201,7 +1276,7 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             "running_step": status_payload.get("running_step", ""),
             "progress_pct": progress_pct,
             "step_status": step_status,
-            "result_summary": status_payload.get("result_summary") or {},
+            "result_report": status_payload.get("result_report") or {},
             "is_force": bool(status_payload.get("is_force")),
             "workbench_version_id": str(status_payload.get("workbench_version_id") or ""),
             "updated_at": status_payload.get(
@@ -1243,20 +1318,20 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             proc.join(timeout=1.0)
 
     @staticmethod
-    def normalize_run_result_summary_from_status(status_payload: dict) -> dict:
-        """`result_summary` from run status file; empty dict if missing/invalid."""
-        result_summary = status_payload.get("result_summary")
-        return result_summary if isinstance(result_summary, dict) else {}
+    def normalize_run_result_report_from_status(status_payload: dict) -> dict:
+        """`result_report` from run status file; empty dict if missing/invalid."""
+        result_report = status_payload.get("result_report")
+        return result_report if isinstance(result_report, dict) else {}
 
     @staticmethod
-    def build_strategy_run_results_payload(run_id: str, result_summary: dict) -> dict:
+    def build_strategy_run_results_payload(run_id: str, result_report: dict) -> dict:
         """Execution panel: per-step summary slots (enum / price / capital) from status."""
         return {
             "run_id": run_id,
             "result": {
-                "enum": result_summary.get("enum"),
-                "price": result_summary.get("price"),
-                "capital": result_summary.get("capital"),
+                "enum": result_report.get("enum"),
+                "price": result_report.get("price"),
+                "capital": result_report.get("capital"),
             },
         }
 
@@ -1266,7 +1341,11 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         Caller must ensure strategy exists (e.g. route + ensure_strategy_exists).
         """
         versions = ["latest"]
-        versions.extend(self._get_snapshot_service().list_version_ids(strategy_name, limit=100))
+        rows = self._get_snapshot_model().list_by_strategy(strategy_name, limit=100)
+        for row in rows:
+            sid = int(row.get("snapshot_id") or row.get("version") or 0)
+            if sid > 0:
+                versions.append(self._format_version_id(sid))
         deduped = []
         seen = set()
         for item in versions:
@@ -1276,10 +1355,10 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             deduped.append(item)
         return deduped
 
-    def _resolve_reports_summary_for_run(self, strategy_name: str, status_payload: dict) -> dict:
-        result_summary = (
-            status_payload.get("result_summary")
-            if isinstance(status_payload.get("result_summary"), dict)
+    def _resolve_result_report_for_run(self, strategy_name: str, status_payload: dict) -> dict:
+        result_report = (
+            status_payload.get("result_report")
+            if isinstance(status_payload.get("result_report"), dict)
             else {}
         )
         wb_snapshot_v = int(
@@ -1288,32 +1367,34 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             or 0
         )
         if wb_snapshot_v > 0:
-            snap_summary = self._get_snapshot_service().load_result_summary_by_version(
+            row = SysStrategyWorkbenchSnapshotModel().load_by_strategy_snapshot_id(
                 strategy_name, wb_snapshot_v
             )
-            if isinstance(snap_summary, dict) and isinstance(snap_summary.get("enum"), dict):
-                result_summary = dict(result_summary or {})
-                result_summary["enum"] = snap_summary.get("enum")
-        enum_in_result = result_summary.get("enum") if isinstance(result_summary, dict) else None
+            snap_report = row.get("result_report") if row else None
+            if isinstance(snap_report, dict) and isinstance(snap_report.get("enum"), dict):
+                result_report = dict(result_report or {})
+                result_report["enum"] = snap_report.get("enum")
+        enum_in_result = result_report.get("enum") if isinstance(result_report, dict) else None
         enum_needs_backfill = not isinstance(enum_in_result, dict) or not isinstance(
             enum_in_result.get("enumMetrics"), dict
         )
         if enum_needs_backfill:
-            latest_summary = self._get_snapshot_service().load_latest_result_summary(strategy_name)
-            if isinstance(latest_summary, dict) and isinstance(latest_summary.get("enum"), dict):
-                result_summary = dict(result_summary or {})
-                result_summary["enum"] = latest_summary.get("enum")
-        return result_summary
+            rows = SysStrategyWorkbenchSnapshotModel().list_by_strategy(strategy_name, limit=1)
+            latest_report = (rows[0].get("result_report") if rows else None) or {}
+            if isinstance(latest_report, dict) and isinstance(latest_report.get("enum"), dict):
+                result_report = dict(result_report or {})
+                result_report["enum"] = latest_report.get("enum")
+        return result_report
 
     def assemble_strategy_reports_message(
         self,
         strategy_name: str,
         run_id: str,
-        result_summary: dict,
+        result_report: dict,
         requested_types: list,
     ) -> dict:
         """Build SWB-11 message body: tab payloads + optional enumMetrics backfill from disk."""
-        reports, available_tabs = self._build_reports_payload(result_summary, requested_types)
+        reports, available_tabs = self._build_reports_payload(result_report, requested_types)
         enum_payload = reports.get(self.STEP_ENUM) if isinstance(reports.get(self.STEP_ENUM), dict) else None
         if enum_payload and not isinstance(enum_payload.get("enumMetrics"), dict):
             enum_report = self._load_enum_report_from_output(strategy_name, enum_payload)
@@ -1347,16 +1428,16 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
                 return err
 
             safe_limit = max(1, min(int(limit or 10), 50))
-            result_summary = (
-                status_payload.get("result_summary")
-                if isinstance(status_payload.get("result_summary"), dict)
+            result_report = (
+                status_payload.get("result_report")
+                if isinstance(status_payload.get("result_report"), dict)
                 else {}
             )
             rows: list = []
             if report_type == self.STEP_ENUM:
                 enum_payload = (
-                    result_summary.get("enum")
-                    if isinstance(result_summary.get("enum"), dict)
+                    result_report.get("enum")
+                    if isinstance(result_report.get("enum"), dict)
                     else {}
                 )
                 enum_rows = enum_payload.get("stockRows") if isinstance(enum_payload, dict) else None
@@ -1445,12 +1526,12 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             status_payload, err = self._require_status_for_run(strategy_name, base_run_id)
             if err:
                 return err
-            base_result_summary = (
-                status_payload.get("result_summary")
-                if isinstance(status_payload.get("result_summary"), dict)
+            base_result_report = (
+                status_payload.get("result_report")
+                if isinstance(status_payload.get("result_report"), dict)
                 else {}
             )
-            base_reports, _ = self._build_reports_payload(base_result_summary, requested_types)
+            base_reports, _ = self._build_reports_payload(base_result_report, requested_types)
 
             compare_row, compare_detail, resolved_compare_version = self._resolve_compare_snapshot(
                 strategy_name,
@@ -1458,12 +1539,12 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             )
             if compare_detail:
                 return error(compare_detail, 404)
-            compare_result_summary = (
-                compare_row.get("result_summary")
-                if isinstance(compare_row.get("result_summary"), dict)
+            compare_result_report = (
+                compare_row.get("result_report")
+                if isinstance(compare_row.get("result_report"), dict)
                 else {}
             )
-            compare_reports, _ = self._build_reports_payload(compare_result_summary, requested_types)
+            compare_reports, _ = self._build_reports_payload(compare_result_report, requested_types)
 
             if report_type:
                 return ok({
@@ -1487,11 +1568,20 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         try:
             if not self._validate_strategy_exists(strategy_name):
                 return error(f"策略不存在: {strategy_name}", 404)
-            versions = self._get_snapshot_service().list_versions(strategy_name, limit=100)
+            rows = self._get_snapshot_model().list_by_strategy(strategy_name, limit=10)
+            versions = []
+            for row in rows:
+                sid = int(row.get("snapshot_id") or row.get("version") or 0)
+                versions.append({
+                    "version_id": self._format_version_id(sid),
+                    "version": sid,
+                    "created_at": self._to_iso_or_empty(row.get("created_at")),
+                    "updated_at": self._to_iso_or_empty(row.get("updated_at")),
+                })
             return ok({
                 "versions": versions,
-                "retention": {"max_count": 100},
-                "truncated": False,
+                "retention": {"max_count": 10},
+                "truncated": len(rows) >= 10,
             })
         except Exception as e:
             return error(f"读取版本列表失败: {str(e)}", 500)
@@ -1503,10 +1593,10 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             v = self._parse_version_id(version_id)
             if v is None:
                 return error(f"version_id 无效: {version_id}", 400)
-            detail = self._get_snapshot_service().load_version_detail(strategy_name, v)
-            if not detail:
+            row = self._get_snapshot_model().load_by_strategy_snapshot_id(strategy_name, int(v))
+            if not row:
                 return error(f"版本不存在: {version_id}", 404)
-            return ok(detail)
+            return ok(self._version_detail_from_snapshot_row(row))
         except Exception as e:
             return error(f"读取版本详情失败: {str(e)}", 500)
 
@@ -1515,24 +1605,34 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
         try:
             if not self._validate_strategy_exists(strategy_name):
                 return error(f"策略不存在: {strategy_name}", 404)
-            restored = self._get_snapshot_service().restore_version(strategy_name, version_id)
-            if not restored.get("ok"):
-                reason = restored.get("reason")
-                if reason == "invalid_version_id":
-                    return error(f"version_id 无效: {version_id}", 400)
-                if reason == "version_not_found":
-                    return error(f"版本不存在: {version_id}", 404)
-                if reason == "invalid_snapshot_settings":
-                    return error("恢复版本失败: 快照 settings 非法", 422)
+            v = self._parse_version_id(version_id)
+            if v is None:
+                return error(f"version_id 无效: {version_id}", 400)
+            model = self._get_snapshot_model()
+            src = model.load_by_strategy_snapshot_id(strategy_name, int(v))
+            if not src:
+                return error(f"版本不存在: {version_id}", 404)
+            settings_snap = src.get("settings_snapshot") if isinstance(src.get("settings_snapshot"), dict) else {}
+            normalized = self._canonicalize_api_settings(settings_snap)
+            if not isinstance(normalized, dict) or not normalized:
+                return error("恢复版本失败: 快照 settings 非法", 422)
+            result_rep = src.get("result_report") if isinstance(src.get("result_report"), dict) else {}
+            created = model.create_snapshot(
+                strategy_name,
+                normalized,
+                result_report=dict(result_rep or {}),
+                settings_finger_print_id=str(src.get(COL_SETTINGS_FP) or ""),
+                env_fingerprint_id=str(src.get(COL_ENV_FP) or ""),
+            )
+            new_v = int(created.get("snapshot_id") or 0)
+            if new_v <= 0:
                 return error("恢复工作台版本失败", 500)
-            new_v = int(restored.get("new_snapshot_id") or restored.get("new_version") or 0)
-            source_v = int(restored.get("source_snapshot_id") or restored.get("source_version") or 0)
 
             return ok({
                 "restored": True,
                 "strategy_name": strategy_name,
                 "version_id": self._format_version_id(new_v),
-                "restored_from_version_id": self._format_version_id(source_v),
+                "restored_from_version_id": self._format_version_id(int(v)),
             })
         except Exception as e:
             return error(f"恢复版本失败: {str(e)}", 500)
@@ -1550,10 +1650,13 @@ class StrategyWorkbenchImplementation(StrategyWorkbenchStatusHelper, StrategyWor
             if normalized_runtime_settings is None:
                 return error(detail, 422)
 
-            version = self._get_snapshot_service().create_version_from_api_settings(
-                strategy_name=strategy_name,
-                settings_api=self._runtime_to_api_settings(normalized_runtime_settings),
+            api_settings = self._runtime_to_api_settings(normalized_runtime_settings)
+            created = self._get_snapshot_model().create_snapshot(
+                strategy_name,
+                api_settings,
+                result_report={},
             )
+            version = int(created.get("snapshot_id") or 0)
             if version <= 0:
                 return error("创建版本失败", 500)
 

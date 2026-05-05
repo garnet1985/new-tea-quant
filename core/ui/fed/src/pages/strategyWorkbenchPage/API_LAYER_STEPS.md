@@ -26,7 +26,7 @@
 
 ## V2-01 `GET /strategy/{strategy_name}/version/latest`
 
-**作用**：取当前策略的 **latest** 工作台版本；无版本时从物理 settings 建首条并落库。响应需含 `version_id`、`settings`、`step_status`、`result_summary` 等（以 `API.md` 为准）。
+**作用**：取当前策略的 **latest** 工作台版本；无版本时从物理 settings 建首条并落库。响应需含 `version_id`、`settings`、`step_status`、`result_report` 等（以 `API.md` 为准）。
 
 **请求**：**路径** **`{strategy_name}` 必填**；与 [`API.md`](./API.md) **「`strategy_name`（凡针对某策略的接口，须在 URL 路径中）」** 一致。工作台在存在快照时**以 DB 快照为准**。
 
@@ -109,7 +109,7 @@
 
 #### 3 — 组装：给前端的统一响应体（契约 JSON）
 
-- **做什么**：把分支 **2** 结束时手里的 **`strategy_snapshot`（领域态 / 存储态）**，变成 [`API.md`](./API.md) 规定的**这一条 GET** 的响应 JSON：字段名、嵌套、`settings` 用 UI 可读形态、`step_status` / `result_summary` 等与 FED 约定一致；不该下发的内部字段在此剔除或折叠。
+- **做什么**：把分支 **2** 结束时手里的 **`strategy_snapshot`（领域态 / 存储态）**，变成 [`API.md`](./API.md) 规定的**这一条 GET** 的响应 JSON：字段名、嵌套、`settings` 用 UI 可读形态、`step_status` / `result_report` 等与 FED 约定一致；不该下发的内部字段在此剔除或折叠。
 - **目的**：FED **只认一种 DTO**，不必知道数据来自 DB 哪列、也不必耦合 BED 内部字典结构；以后存储演变只改这一层映射。
 - **实现落点**：BFF 调用 `to_fed_strategy_workbench_format(strategy_snapshot)`，产出 `workbench_dto`。这是本步里的**核心一段逻辑**，不是单独再来一层「步骤 3.1」——整个第 **3** 步就是在做「领域快照 → 契约 DTO」这件事。
 - **触发条件**：已有最终可用的 `strategy_snapshot`：
@@ -150,7 +150,7 @@
 
 - **何时做**：step2 之后（或同一成功回调内紧跟 step2）。
 - **输入**：`WorkbenchLatestDto`
-- **输出**：无（表单、步骤条、`result_summary` 等）
+- **输出**：无（表单、步骤条、`result_report` 等）
 
 **step4** — `onWorkbenchLatestError`
 
@@ -547,7 +547,7 @@
 
 ## V2-08 `GET /strategy/{strategy_name}/version/{version_id}`
 
-**作用**：按 **`strategy_name` + `version_id`** 读取**一条**工作台快照并映射为与 **V2-01** **完全相同形状**的契约 DTO，供 FED **把界面恢复到该版本**（表单、`step_status`、`result_summary` 等）。编排与 **V2-01** **基本一致**，区别是 **步骤 1** 按 **`version_id`** 查行，且 **无** 「库空则从磁盘冷启动造首条」的 **2.1**；[`API.md`](./API.md) **V2-08**。
+**作用**：按 **`strategy_name` + `version_id`** 读取**一条**工作台快照并映射为与 **V2-01** **完全相同形状**的契约 DTO，供 FED **把界面恢复到该版本**（表单、`step_status`、`result_report` 等）。编排与 **V2-01** **基本一致**，区别是 **步骤 1** 按 **`version_id`** 查行，且 **无** 「库空则从磁盘冷启动造首条」的 **2.1**；[`API.md`](./API.md) **V2-08**。
 
 ### BFF / BED（顺序执行）
 

@@ -292,11 +292,11 @@ function StrategyExecutionPanel({
       setStepStatus(normalized);
       setRunningStep(status?.running_step || '');
       setProgress(Number(status?.progress_pct || 0));
-      const summary = status?.result_summary || {};
+      const report = status?.result_report || {};
       setResult((prev) => ({
-        enum: Object.prototype.hasOwnProperty.call(summary, 'enum') ? summary.enum : prev.enum,
-        price: Object.prototype.hasOwnProperty.call(summary, 'price') ? summary.price : prev.price,
-        capital: Object.prototype.hasOwnProperty.call(summary, 'capital') ? summary.capital : prev.capital,
+        enum: Object.prototype.hasOwnProperty.call(report, 'enum') ? report.enum : prev.enum,
+        price: Object.prototype.hasOwnProperty.call(report, 'price') ? report.price : prev.price,
+        capital: Object.prototype.hasOwnProperty.call(report, 'capital') ? report.capital : prev.capital,
       }));
       if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {
         setActiveRunId('');

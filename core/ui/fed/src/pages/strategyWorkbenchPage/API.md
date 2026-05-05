@@ -59,7 +59,7 @@
 
 | 编号 | 方法 | 路径 | 用途 |
 |------|------|------|------|
-| V2-01 | GET | `/strategy/{strategy_name}/version/latest` | 获取 latest；**路径** `strategy_name` **必填**；响应含 `version_id`、`settings`、`step_status`、`result_summary` 等 |
+| V2-01 | GET | `/strategy/{strategy_name}/version/latest` | 获取 latest；**路径** `strategy_name` **必填**；响应含 `version_id`、`settings`、`step_status`、`result_report` 等 |
 | V2-02 | GET | `/strategies/list` | 策略列表（分页） |
 | V2-03 | GET | `/strategy/{strategy_name}/versions` | 某策略工作台版本的**最近 10 条**（固定条数、不分页），用于「恢复到某一版本」下拉框 |
 | V2-04 | GET | 多个明确路径（见下） | 选项类 / profile 类全量数据；**非**单一泛化 `/strategy/{entity}`，implementation 按资源拆路由 |
@@ -134,7 +134,7 @@
 
 - **路径参数 `strategy_name`**：与 **V2-01** 相同；**须**出现在 URL 中。
 - **路径参数 `version_id`**：工作台快照的主键/展示 id（如 `v3`，格式与 **V2-01** 等一致）。
-- **语义**：读取**指定版本**的完整工作台快照并映射为与 **V2-01** **同一形状**的契约 DTO（含 **`version_id`**、`settings`、`step_status`、`result_summary` 等），供 FED **恢复到该 snapshot 的 UI 状态**（与 **latest** 的区别仅在于**按 id 取行**，不按「最新一条」）。
+- **语义**：读取**指定版本**的完整工作台快照并映射为与 **V2-01** **同一形状**的契约 DTO（含 **`version_id`**、`settings`、`step_status`、`result_report` 等），供 FED **恢复到该 snapshot 的 UI 状态**（与 **latest** 的区别仅在于**按 id 取行**，不按「最新一条」）。
 - **与 V2-01 的差异**：**不**存在「无快照则冷启动从磁盘造首条」的 **2.1** 分支；若 **`version_id`** 不存在、或与 **`strategy_name`** 不匹配 → **404**。行损坏时的校验 / 删除 / 重试可与 **V2-01** 分支 **2.2** 同构（约定 A/B），见 [`API_LAYER_STEPS.md`](./API_LAYER_STEPS.md)。
 - **缓存/指纹**：由 **BED** 决定；**BFF** 仅转发与映射（见 **BFF 边界**）。
 
@@ -188,7 +188,7 @@
 | **V2-07** | **某次 `POST …/run` 对应的 job 整条流水线结束后**（**progress 已成功完结**之后），取**本轮**在该 **`step`** 下的摘要/报告 | **按步骤**的 summary（路径含 **`step`**） |
 | **V2-08** | 用户在 UI **切换到某一 snapshot（`version_id`）** 之后，拉**整份工作台快照**以恢复表单与步骤状态 | 与 **V2-01** **同形**的整包 DTO |
 
-- **包含关系**：**V2-08**（及 **V2-01**）返回的版本体中的 **`result_summary`（或等价聚合字段）** 应**汇总**各步骤结果；其中**包含**与各 **`step`** 对应的 **V2-07** 所能提供的摘要内容（不必重复单独拉 **V2-07**，除非产品要单独刷新某一 `step` 的明细）。
+- **包含关系**：**V2-08**（及 **V2-01**）返回的版本体中的 **`result_report`（或等价聚合字段）** 应**汇总**各步骤结果；其中**包含**与各 **`step`** 对应的 **V2-07** 所能提供的摘要内容（不必重复单独拉 **V2-07**，除非产品要单独刷新某一 `step` 的明细）。
 
 ## 对比与基准（业务语义，非额外接口）
 

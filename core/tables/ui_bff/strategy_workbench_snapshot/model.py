@@ -2,11 +2,13 @@
 sys_strategy_workbench_snapshot 表 Model。
 
 命名约定：表中列 ``version`` 在领域含义上就是 **snapshot_id**（整型，一条快照一行）；
-``version_id`` / ``v{n}`` 仅作展示用字符串，由 ``simulator_res_db_cache.domain.snapshot_service`` 格式化。
+``version_id`` / ``v{n}`` 仅作展示用字符串。
+
+JSON 聚合列在 schema 中为 ``reports``；读出行上同时提供 ``result_report`` 键（与 ``reports`` 同一 dict），便于调用方沿用原有命名。
 """
 
-import threading
 import json
+import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +17,7 @@ from core.tables.ui_bff.strategy_workbench_snapshot.schema import schema as _sch
 
 COL_SETTINGS_FP = "settings_finger_print_id"
 COL_ENV_FP = "env_fingerprint_id"
+COL_REPORTS = "reports"
 
 
 class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
@@ -73,7 +76,9 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
     def _normalize_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
         out = dict(row or {})
         out["settings_snapshot"] = self._coerce_json_dict(out.get("settings_snapshot"))
-        out["result_summary"] = self._coerce_json_dict(out.get("result_summary"))
+        blob = self._coerce_json_dict(out.get(COL_REPORTS))
+        out[COL_REPORTS] = blob
+        out["result_report"] = blob
         if "version" in out:
             out["snapshot_id"] = int(out.get("version") or 0)
         return out
@@ -95,7 +100,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         self,
         strategy_name: str,
         settings_snapshot: Dict[str, Any],
-        result_summary: Optional[Dict[str, Any]] = None,
+        result_report: Optional[Dict[str, Any]] = None,
         settings_finger_print_id: str = "",
         env_fingerprint_id: str = "",
     ) -> Dict[str, Any]:
@@ -106,7 +111,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             "strategy_name": strategy_name,
             "version": snapshot_id,
             "settings_snapshot": settings_snapshot or {},
-            "result_summary": result_summary or {},
+            COL_REPORTS: result_report or {},
             COL_SETTINGS_FP: str(settings_finger_print_id or ""),
             COL_ENV_FP: str(env_fingerprint_id or ""),
             "created_at": now,
@@ -115,14 +120,15 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         self.upsert_one(payload, unique_keys=["strategy_name", "version"])
         return {"strategy_name": strategy_name, "snapshot_id": snapshot_id}
 
-    def update_result_summary(
+    def update_result_report(
         self,
         strategy_name: str,
         snapshot_id: int,
-        result_summary: Dict[str, Any],
+        result_report: Dict[str, Any],
         settings_finger_print_id: str = "",
         env_fingerprint_id: str = "",
     ) -> int:
+        """更新聚合 JSON（物理列 ``reports``）。"""
         self._ensure_table_ready()
         current = self.load_by_strategy_snapshot_id(strategy_name, snapshot_id)
         if not current:
@@ -140,11 +146,11 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         return self.execute_raw_update(
             (
                 f"UPDATE sys_strategy_workbench_snapshot "
-                f"SET result_summary = %s, {COL_SETTINGS_FP} = %s, {COL_ENV_FP} = %s, updated_at = %s "
+                f"SET {COL_REPORTS} = %s, {COL_SETTINGS_FP} = %s, {COL_ENV_FP} = %s, updated_at = %s "
                 "WHERE strategy_name = %s AND version = %s"
             ),
             (
-                json.dumps(result_summary or {}, ensure_ascii=False),
+                json.dumps(result_report or {}, ensure_ascii=False),
                 target_settings_fp,
                 target_env_fp,
                 datetime.now(),

@@ -69,7 +69,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
             StrategySettings,
         )
-        from core.modules.strategy.services.cache import persist_enum_snapshot, try_load_cached_summary
+        from core.modules.strategy.services.cache import lookup_enum_cache, persist_enum_snapshot
         from core.modules.strategy.services.cache.simulator_res_db_cache import db_cache_fingerprint_pair
 
         self.last_snapshot_id = 0
@@ -90,7 +90,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         )
 
         if not self._impl.force_refresh:
-            hit = try_load_cached_summary(strategy_name, settings_fingerprint_id, env_fingerprint_id)
+            hit = lookup_enum_cache(strategy_name, settings_fingerprint_id, env_fingerprint_id)
             if hit:
                 summary_list, snapshot_id = hit
                 self.last_snapshot_id = int(snapshot_id or 0)
@@ -103,14 +103,12 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         if summary_list and isinstance(summary_list, list):
             first = summary_list[0] if summary_list else {}
             settings_api = preprocessed.full_settings_snapshot_api or {}
-            wr_id = self._impl.workbench_run_id
             persisted_sid = persist_enum_snapshot(
                 strategy_name,
                 settings_snapshot_api=settings_api,
-                enum_summary_first_row=first if isinstance(first, dict) else {},
+                report_enum=first if isinstance(first, dict) else {},
                 settings_fingerprint_id=settings_fingerprint_id,
                 env_fingerprint_id=env_fingerprint_id,
-                workbench_run_id=str(wr_id) if wr_id else None,
             )
             self.last_snapshot_id = int(persisted_sid or 0)
         return summary_list
@@ -238,7 +236,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             strategy_name=preprocessed.strategy_name,
             enum_settings=preprocessed.enum_settings,
         )
-        return self._impl.build_result_summary(
+        return self._impl.build_result_report(
             strategy_name=preprocessed.strategy_name,
             version_id=preprocessed.version_id,
             version_dir_name=preprocessed.version_dir_name,

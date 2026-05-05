@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.modules.strategy.engines.shared.performance_profiler import AggregateProfiler
-from core.modules.strategy.services.cache.simulator_res_db_cache.runtime.run_types import (
+from core.modules.strategy.services.runtime.run_types import (
     StrategyRunFingerprint,
 )
 from .settings import OpportunityEnumeratorSettings

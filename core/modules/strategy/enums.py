@@ -34,3 +34,9 @@ class SellReason(Enum):
     END_OF_PERIOD = "end_of_period"
 
 
+class Simulator(Enum):
+    """模拟器"""
+
+    ENUMERATOR = "enumerator"
+    PRICE_FACTOR = "price_factor"
+    CAPITAL_ALLOCATION = "capital_allocation"

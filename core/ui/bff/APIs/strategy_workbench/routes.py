@@ -11,25 +11,21 @@ from flask import Blueprint, request
 
 from core.modules.strategy.services.launcher import fetch_latest_workbench_snapshot
 from core.modules.strategy.services.launcher.workbench import (
+    apply_workbench_snapshot_settings_to_userspace,
+    build_step_report_message,
     fetch_workbench_snapshot_by_snapshot_id,
+    parse_snapshot_id,
 )
-from core.modules.strategy.services.launcher.strategy_list import fetch_discovered_strategies_page
-from core.modules.strategy.services.launcher.strategy_versions import fetch_strategy_versions_dropdown
-from core.modules.strategy.services.launcher.workbench_setting_options import (
+from core.modules.strategy.services.launcher.workbench_catalog import (
+    fetch_discovered_strategies_page,
+    fetch_strategy_versions_dropdown,
     items_capital_allocation_strategies,
     items_sampling_strategies,
 )
-from core.modules.strategy.services.launcher.workbench_progress import get_step_progress
-from core.modules.strategy.services.launcher.workbench_report import (
-    build_step_report_message,
-    parse_snapshot_id,
-)
 from core.modules.strategy.services.launcher.workbench_step_run import (
+    get_step_progress,
     normalize_step,
     trigger_workbench_step_run,
-)
-from core.modules.strategy.services.launcher.workbench_apply_settings import (
-    apply_workbench_snapshot_settings_to_userspace,
 )
 from core.ui.bff.shared.response import error, ok
 

@@ -1,4 +1,4 @@
-"""V2-05：触发单步回测（后台线程执行引擎 flow）。
+"""工作台单步运行：进程内 job 表（V2-06）、触发 run（V2-05）。
 
 模块顶层避免导入 ``price_factor`` / ``capital_allocation`` / ``enumerator``，以免经 DbCache
 链式导入 ``cache_service`` → BFF（Flask）。
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from typing import Any, Dict, Optional, Tuple
 
 from core.infra.project_context.path_manager import PathManager
@@ -16,12 +17,106 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.strateg
     StrategySettings,
 )
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
-from core.modules.strategy.services.launcher.strategy_settings_service import StrategySettingsService
-from core.modules.strategy.services.launcher.workbench_jobs import job_create, job_update
+from core.modules.strategy.services.launcher.run_service import StrategySettingsService
 
 logger = logging.getLogger(__name__)
 
 _VALID_STEPS = frozenset({"enum", "price", "capital"})
+
+# --- 进程内 job 表 ---
+
+_LOCK = threading.Lock()
+_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+def job_create(*, strategy_name: str, step: str, is_force: bool) -> str:
+    jid = str(uuid.uuid4())
+    name = str(strategy_name).strip()
+    st = str(step).strip()
+    with _LOCK:
+        _JOBS[jid] = {
+            "strategy_name": name,
+            "step": st,
+            "is_force": bool(is_force),
+            "progress": 0.0,
+            "status": "queued",
+            "error": None,
+            "snapshot_id": 0,
+        }
+    return jid
+
+
+def job_resolve_id(
+    strategy_name: str,
+    normalized_step: str,
+    job_id: str,
+) -> Optional[str]:
+    jid = str(job_id or "").strip()
+    if not jid:
+        return None
+    name = str(strategy_name).strip()
+    step_key = str(normalized_step).strip()
+    row = job_get(jid)
+    if not row:
+        return None
+    if row.get("strategy_name") != name or row.get("step") != step_key:
+        return None
+    return jid
+
+
+def job_update(job_id: str, **fields: Any) -> None:
+    with _LOCK:
+        row = _JOBS.get(job_id)
+        if row is None:
+            return
+        row.update(fields)
+
+
+def job_get(job_id: str) -> Optional[Dict[str, Any]]:
+    with _LOCK:
+        row = _JOBS.get(job_id)
+        return dict(row) if row else None
+
+
+def _progress_payload(row: Dict[str, Any]) -> Dict[str, Any]:
+    progress = round(float(row.get("progress") or 0), 2)
+    status = str(row.get("status") or "unknown")
+    out: Dict[str, Any] = {"progress": progress, "status": status}
+    if status == "completed":
+        out["is_success"] = True
+        sid = int(row.get("snapshot_id") or 0)
+        if sid > 0:
+            out["snapshot_id"] = sid
+            out["version_id"] = f"v{sid}"
+    elif status == "failed":
+        out["is_success"] = False
+        err = row.get("error")
+        if err:
+            out["reason"] = str(err)
+    else:
+        out["is_success"] = None
+    return out
+
+
+def get_step_progress(
+    *,
+    strategy_name: str,
+    normalized_step: str,
+    job_id: str,
+) -> Optional[Dict[str, Any]]:
+    """V2-06：``job_id`` 须与路径一致；否则 ``None``。"""
+    jid = job_resolve_id(strategy_name, normalized_step, job_id)
+    if not jid:
+        return None
+    row = job_get(jid)
+    if not row:
+        return None
+    payload = _progress_payload(row)
+    payload["job_id"] = jid
+    return payload
+
+
+# --- V2-05：后台线程跑 flow ---
 
 
 def normalize_step(step: str) -> Optional[str]:
@@ -69,7 +164,6 @@ def _run_step_and_snapshot_id(
     is_force: bool,
     job_id: str,
 ) -> int:
-    """惰性导入引擎（避免测试环境无 Flask 时导入失败）。"""
     if step == "enum":
         from core.modules.strategy.services.launcher.enumerator_runtime_service import (
             EnumeratorRuntimeService,
@@ -140,12 +234,6 @@ def trigger_workbench_step_run(
     api_settings: Dict[str, Any],
     is_force: bool,
 ) -> Dict[str, Any]:
-    """
-    校验并入队后台任务。
-
-    返回 ``{"is_triggered": True, "job_id": "..."}`` 或
-    ``{"is_triggered": False, "reason": "..."}``。
-    """
     norm_step = normalize_step(step)
     if norm_step is None:
         return {"is_triggered": False, "reason": f"step 须为 enum / price / capital，收到 {step!r}"}

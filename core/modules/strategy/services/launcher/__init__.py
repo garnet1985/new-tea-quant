@@ -28,7 +28,7 @@ def __getattr__(name: str) -> Any:
 
         return EnumeratorRuntimeService
     if name == "StrategySettingsService":
-        from .strategy_settings_service import StrategySettingsService
+        from .run_service import StrategySettingsService
 
         return StrategySettingsService
     if name == "fetch_latest_workbench_snapshot":

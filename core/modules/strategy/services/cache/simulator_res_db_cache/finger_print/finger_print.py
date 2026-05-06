@@ -253,7 +253,7 @@ def db_cache_fingerprint_pair_from_parts(
 def __getattr__(name: str):
     """惰性导出（兼容旧路径 ``finger_print.StrategySettingsService``）。"""
     if name == "StrategySettingsService":
-        from core.modules.strategy.services.launcher.strategy_settings_service import (
+        from core.modules.strategy.services.launcher.run_service import (
             StrategySettingsService as _StrategySettingsService,
         )
 

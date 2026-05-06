@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Unified enumerator runtime facade for CLI and BFF.
+枚举器 runtime：CLI / 工作台共用；含 universe 解析（原 ``stock_universe`` 合并入此文件）。
 
-所在包 ``strategy.services.launcher`` 非 DbCache 职责域；模块说明见同目录 ``__init__.py``。
+所在包 ``strategy.services.launcher`` 非 DbCache 职责域；说明见同包 ``__init__.py``。
 """
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -15,38 +14,46 @@ from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
+from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.engines.simulator.enumerator import (
     OpportunityEnumeratorFlow,
     OpportunityEnumeratorSettings,
 )
-from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
-    StrategySettings,
-)
-from core.modules.strategy.services.cache.simulator_res_db_cache import (
-    db_cache_fingerprint_pair_from_parts,
-)
-from .stock_universe import stock_ids_for_enumerator_view
-from core.modules.strategy.services.cache.simulator_res_db_cache.config import derive_run_mode
-from .strategy_settings_service import StrategySettingsService
-from .run_service import (
-    StrategyFingerprintManager,
-    StrategyFingerprintRuntimeService,
-)
-from core.modules.strategy.strategy_manager import StrategyManager
+from .run_service import StrategyFingerprintManager
 from core.utils.date.date_utils import DateUtils
 
-logger = logging.getLogger(__name__)
 
+def _stock_ids_for_enumerator_view(
+    *,
+    strategy_name: str,
+    settings_view: StrategySettingsView,
+    all_stocks: Optional[List[Dict[str, Any]]] = None,
+    stock_count: Optional[int] = None,
+) -> List[str]:
+    """与枚举 run 一致的 ``stock_ids``；``stock_count`` 非空时与 workbench 连续窗采样覆盖一致。"""
+    enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
+    universe = all_stocks
+    if universe is None:
+        data_manager = DataManager(is_verbose=False)
+        universe = data_manager.service.stock.list.load(filtered=True)
 
-def _run_mode_from_preprocessed(preprocessed: Any) -> str:
-    api = getattr(preprocessed, "full_settings_snapshot_api", None)
-    if not isinstance(api, dict) or not api:
-        return "full"
-    runtime = StrategySettingsService.api_to_runtime(dict(api))
-    st = StrategySettings(raw_settings=dict(runtime))
-    if not st.validate().is_usable():
-        return "full"
-    return derive_run_mode(st.to_dict())
+    helper_strategy_name = str(settings_view.name or "").strip() or strategy_name
+
+    if enum_settings.use_sampling:
+        sampling_amount = stock_count if stock_count is not None else settings_view.sampling_amount
+        sampling_config = (
+            {"strategy": "continuous", "continuous": {"start_idx": 0}}
+            if stock_count is not None
+            else settings_view.sampling_config
+        )
+        return StockSamplingHelper.get_stock_list(
+            all_stocks=universe,
+            sampling_amount=sampling_amount,
+            sampling_config=sampling_config,
+            strategy_name=helper_strategy_name,
+        )
+
+    return [s["id"] for s in universe]
 
 
 @dataclass
@@ -62,7 +69,7 @@ class EnumeratorRuntimeContext:
 
 
 class EnumeratorRuntimeService:
-    """Single owner for canonical enumerate runtime/fingerprint/snapshot orchestration."""
+    """CLI / 工作台共用的枚举 runtime 编排入口。"""
 
     @staticmethod
     def build_canonical_settings(raw_settings: Dict[str, Any]) -> StrategySettingsView:
@@ -85,7 +92,7 @@ class EnumeratorRuntimeService:
         raw_settings = raw_settings_override if raw_settings_override is not None else strategy_info.settings.to_dict()
         settings_view = cls.build_canonical_settings(raw_settings)
         enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
-        stock_list = stock_ids_for_enumerator_view(
+        stock_list = _stock_ids_for_enumerator_view(
             strategy_name=strategy_name,
             settings_view=settings_view,
             all_stocks=None,
@@ -121,35 +128,6 @@ class EnumeratorRuntimeService:
         return context.flow.run(
             strategy_name=context.strategy_name,
             strategy_info=context.strategy_info,
-        )
-
-    @staticmethod
-    def build_fingerprints(context: EnumeratorRuntimeContext) -> tuple[str, str]:
-        return StrategyFingerprintRuntimeService.build_ids_for_runtime_context(context)
-
-    @staticmethod
-    def preprocess(context: EnumeratorRuntimeContext) -> Any:
-        return context.flow.preprocess(
-            strategy_name=context.strategy_name,
-            strategy_info=context.strategy_info,
-        )
-
-    @staticmethod
-    def build_ids_from_preprocessed(preprocessed: Any) -> tuple[str, str]:
-        request_fp = getattr(preprocessed, "request_fingerprint", None)
-        if request_fp is None:
-            return "", ""
-        return db_cache_fingerprint_pair_from_parts(
-            semantic_core_payload=dict(request_fp.settings_core or {}),
-            strategy_name=str(request_fp.strategy_name),
-            stock_ids=list(request_fp.stock_ids),
-            start_date=str(request_fp.start_date),
-            end_date=str(request_fp.end_date),
-            run_mode=_run_mode_from_preprocessed(preprocessed),
-            worker_module_path=str(request_fp.worker_module_path),
-            worker_class_name=str(request_fp.worker_class_name),
-            worker_code_hash=str(request_fp.worker_code_hash),
-            data_contract_mapping=str(request_fp.data_contract_mapping),
         )
 
 

@@ -15,7 +15,7 @@ from core.infra.project_context.config_manager import ConfigManager
 from core.infra.project_context.path_manager import PathManager
 from core.modules.strategy.services.progress import ProgressRecorder
 from core.modules.strategy.services import EnumeratorRuntimeService
-from core.modules.strategy.services.cache.simulator_res_db_cache.settings import (
+from core.modules.strategy.services.runtime.strategy_settings_service import (
     StrategySettingsService,
 )
 from core.modules.strategy.services.cache.simulator_res_db_cache.domain.snapshot_service import (

@@ -14,6 +14,7 @@ from typing import Any
 __all__ = [
     "EnumeratorRuntimeContext",
     "EnumeratorRuntimeService",
+    "StrategySettingsService",
 ]
 
 
@@ -26,6 +27,10 @@ def __getattr__(name: str) -> Any:
         from .enumerator_runtime_service import EnumeratorRuntimeService
 
         return EnumeratorRuntimeService
+    if name == "StrategySettingsService":
+        from .strategy_settings_service import StrategySettingsService
+
+        return StrategySettingsService
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

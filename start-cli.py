@@ -306,17 +306,46 @@ class App:
             strategy_name=str(strategy_name or ""),
             summary_results=summary_results or [],
         )
-    
+
+    def _display_price_factor_summary(self, summary: dict, *, used_db_cache: bool = False) -> None:
+        """将 session_summary 打印为可读汇总（与枚举器的 Present 对应）。"""
+        from core.modules.strategy.engines.simulator.price_factor.data_classes.report import (
+            PriceReport,
+        )
+
+        if not isinstance(summary, dict) or not summary:
+            return
+        payload = {
+            k: v
+            for k, v in summary.items()
+            if k not in ("output_version", "sim_version")
+        }
+        report = PriceReport.from_dict(payload)
+        logger.info("── Price Factor 汇总 ──")
+        for line in report.to_console_lines():
+            logger.info(line)
+        ov = summary.get("output_version") if isinstance(summary.get("output_version"), dict) else {}
+        sv = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
+        logger.info(
+            "📂 枚举输出版本目录: %s | 本次模拟目录: %s (version_id=%s)",
+            ov.get("version_dir", ""),
+            sv.get("version_dir", ""),
+            sv.get("version_id", ""),
+        )
+        if used_db_cache:
+            logger.info("ℹ️  本次结果来自 Simulator DB 缓存，未新建模拟输出目录。")
+
     # ========================================================================
     # 模拟器相关
     # ========================================================================
-    
-    def price_factor_simulate(self, strategy_name: str = 'example'):
+
+    def price_factor_simulate(self, strategy_name: str = 'example', *, force_refresh: bool = False):
         """
         基于枚举输出结果的价格因子回放模拟（PriceFactorFlow）
         
         Args:
             strategy_name: 策略名称
+            force_refresh: 为 True 时跳过 Simulator Res DB 指纹读缓存，强制完整重算（仍会写回缓存）。
         """
         from core.modules.strategy.engines.simulator.price_factor import PriceFactorFlow
 
@@ -326,13 +355,21 @@ class App:
             logger.warning("策略不存在: %s", strategy_name)
             return
         logger.info(f"🎯 运行 PriceFactorFlow, strategy={strategy_name}")
-        summary = PriceFactorFlow(is_verbose=self.is_verbose).run(
-            strategy_name=strategy_name,
+        if force_refresh:
+            logger.info("🔁 已启用 --force：跳过 price_factor DbCache 读路径，强制重跑模拟")
+        flow = PriceFactorFlow(is_verbose=self.is_verbose, force_refresh=force_refresh)
+        summary = flow.run(
+            strategy_name=str(strategy_name),
             strategy_info=strategy_info,
         )
         if not summary:
             logger.warning("PriceFactorFlow 未返回任何结果")
-    
+            return
+        self._display_price_factor_summary(
+            summary,
+            used_db_cache=getattr(flow, "last_run_used_db_cache", False),
+        )
+
     def capital_allocation_simulate(self, strategy_name: str = 'example'):
         """
         基于枚举输出结果的资金分配模拟（CapitalAllocationFlow）
@@ -482,7 +519,7 @@ def _add_extra_arguments(parser):
     parser.add_argument('--stocks', type=int, default=None,
                        help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
     parser.add_argument('-f', '--force', dest='force_enumerate', action='store_true',
-                       help='枚举时强制重跑（跳过 sys_strategy_workbench_snapshot 指纹缓存命中）')
+                       help='强制重跑：枚举(-se)跳过 DbCache；价格因子(-sp)跳过 Simulator Res DB 读缓存')
     parser.add_argument('--base-date', type=str,
                        help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
     parser.add_argument('-v', '--version', action='store_true',
@@ -541,6 +578,7 @@ def _get_help_epilog() -> str:
     %(prog)s -se                  Strategy enumerate
     %(prog)s -se -f               Strategy enumerate（强制刷新，跳过缓存复用）
     %(prog)s -sp                  Strategy price factor simulation
+    %(prog)s -sp -f               Strategy price factor（跳过指纹读缓存，强制重算）
     %(prog)s -sa                  Strategy capital allocation simulation
     %(prog)s -sy                  Strategy analysis
     %(prog)s -sa                  资金分配模拟
@@ -701,7 +739,10 @@ class CommandExecutor:
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
-        self.app.price_factor_simulate(strategy_name=strategy)
+        self.app.price_factor_simulate(
+            strategy_name=strategy,
+            force_refresh=bool(getattr(args, "force_enumerate", False)),
+        )
         self.app.capital_allocation_simulate(strategy_name=strategy)
     
     def _handle_analysis(self, args):
@@ -732,7 +773,10 @@ class CommandExecutor:
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
-        self.app.price_factor_simulate(strategy_name=strategy)
+        self.app.price_factor_simulate(
+            strategy_name=strategy,
+            force_refresh=bool(getattr(args, "force_enumerate", False)),
+        )
     
     def _handle_simulate_allocation(self, args):
         """处理 simulate_allocation 命令"""

@@ -13,7 +13,7 @@ import logging
 import importlib
 from pathlib import Path
 
-from core.modules.strategy.models.opportunity import Opportunity
+from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 
 logger = logging.getLogger(__name__)
 

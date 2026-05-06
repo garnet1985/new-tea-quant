@@ -57,7 +57,7 @@
 ---
 
 ### 函数名
-`ProcessWorker.__init__(max_workers: Optional[int] = None, execution_mode: ExecutionMode = QUEUE, batch_size: Optional[int] = None, job_executor: Optional[Callable] = None, enable_monitoring: bool = True, timeout: float = 300.0, is_verbose: bool = False, debug: bool = False, start_method: str = "spawn")`
+`ProcessWorker.__init__(max_workers: Optional[int] = None, execution_mode: ExecutionMode = QUEUE, batch_size: Optional[int] = None, job_executor: Optional[Callable] = None, on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None, progress_report_config: Optional[ProgressReportConfig] = None, is_main_process_used_if_single_worker: bool = True, enable_monitoring: bool = True, timeout: float = 300.0, is_verbose: bool = False, debug: bool = False, start_method: str = "spawn")`
 
 - 状态：`stable`
 - 描述：多进程执行器；`ExecutionMode` 对外导出名为 `ProcessExecutionMode`。
@@ -70,6 +70,9 @@
 | `execution_mode` (可选) | `ProcessExecutionMode` | `BATCH` / `QUEUE` |
 | `batch_size` (可选) | `Optional[int]` | 仅 BATCH；默认 `cpu_count()` |
 | `job_executor` (可选) | `Optional[Callable]` | 单 job 执行函数 |
+| `on_job_done` (可选) | `Optional[Callable[[Dict[str, Any]], None]]` | 每个 job 完成回调（成功/失败都会触发）；回调载荷为进度事件字典 |
+| `progress_report_config` (可选) | `Optional[ProgressReportConfig]` | 进度日志上报配置（模式与阈值） |
+| `is_main_process_used_if_single_worker` (可选) | `bool` | 默认 `True`；当 `max_workers=1` 时使用主进程串行执行 |
 | `enable_monitoring` (可选) | `bool` | 默认 `True` |
 | `timeout` (可选) | `float` | 秒；默认 `300` |
 | `is_verbose` (可选) | `bool` | 默认 `False` |
@@ -77,6 +80,30 @@
 | `start_method` (可选) | `str` | `spawn` / `fork` / `forkserver` |
 
 - 返回值：`ProcessWorker` 实例
+- 语义补充：
+  - 默认情况下，`execution_mode=QUEUE` 且 `max_workers=1` 不创建子进程，直接在主进程执行任务。
+  - 若需单子进程执行（例如进程隔离场景），可显式设置 `is_main_process_used_if_single_worker=False`。
+  - `on_job_done` 面向结构化消费；`progress_report_config` 仅控制日志输出节奏，不影响回调触发。
+
+---
+
+### 函数名
+`ProgressReportConfig(mode: ProgressReportMode = ProgressReportMode.EVERY_PROGRESS_INTERVAL, interval_seconds: float = 2.0, interval_pct: int = 5, log_on_run_started: bool = False, log_on_run_finished: bool = True)`
+
+- 状态：`stable`
+- 描述：进度日志上报配置；用于控制何时打印进度日志。
+- 诞生版本：`0.2.0`
+- params：
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| `mode` (可选) | `ProgressReportMode` | `NONE` / `EVERY_JOB_DONE` / `EVERY_SEC_INTERVAL` / `EVERY_PROGRESS_INTERVAL` |
+| `interval_seconds` (可选) | `float` | `EVERY_SEC_INTERVAL` 模式下的日志时间间隔 |
+| `interval_pct` (可选) | `int` | `EVERY_PROGRESS_INTERVAL` 模式下的日志百分比步长 |
+| `log_on_run_started` (可选) | `bool` | 是否打印 `run_started` |
+| `log_on_run_finished` (可选) | `bool` | 是否打印 `run_finished` |
+
+- 返回值：`ProgressReportConfig` 实例
 
 ---
 

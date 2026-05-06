@@ -10,7 +10,7 @@ Console Adapter - 控制台输出适配器
 from typing import List, Dict, Any
 
 from core.modules.adapter import BaseOpportunityAdapter
-from core.modules.strategy.models.opportunity import Opportunity
+from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 
 
 class ConsoleAdapter(BaseOpportunityAdapter):

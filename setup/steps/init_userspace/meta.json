@@ -1,0 +1,45 @@
+{
+  "id": "init_userspace",
+  "name": "初始化 userspace",
+  "description": "从初始化 userspace zip 解压到目标目录，并写入路径状态供 ProjectContext 使用。",
+  "scriptEntry": "setup/steps/init_userspace/install.py",
+  "requiresUserInput": true,
+  "inputSchema": [
+    {
+      "key": "userspaceTargetPath",
+      "label": "userspace 路径",
+      "type": "text",
+      "required": false,
+      "defaultValue": "",
+      "placeholder": "默认自动使用项目根目录下的 userspace/",
+      "helperText": "默认会自动给出绝对路径，勾选后可改成自定义路径。",
+      "editableByCheckbox": true,
+      "editableLabel": "我想自定义 userspace 路径"
+    },
+    {
+      "key": "userspaceConflictPolicy",
+      "label": "目标路径已存在时",
+      "type": "select",
+      "required": true,
+      "defaultValue": "skip",
+      "options": [
+        {
+          "label": "跳过（保留当前 userspace）",
+          "value": "skip"
+        },
+        {
+          "label": "覆盖（删除原来的 userspace 目录，重新创建）",
+          "value": "overwrite"
+        }
+      ]
+    }
+  ],
+  "retryPolicy": {
+    "mode": "input_required_on_failure"
+  },
+  "dependencies": [
+    "resolve_deps"
+  ],
+  "order": 3,
+  "uiVisible": true
+}

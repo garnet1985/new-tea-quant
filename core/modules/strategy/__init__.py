@@ -1,22 +1,54 @@
 #!/usr/bin/env python3
-"""
-Strategy 模块：策略发现、扫描、simulate、枚举与双模拟器。
+"""Strategy module public entrypoints."""
 
-说明见模块 `README.md` 与 `docs/`；子组件见 `docs/components/`。
-"""
-
-from .strategy_manager import StrategyManager
-from .base_strategy_worker import BaseStrategyWorker
-from .models.opportunity import Opportunity
-from .models.strategy_settings import StrategySettings
-from .enums import ExecutionMode, OpportunityStatus, SellReason
+from importlib import import_module
+from typing import Any
 
 __all__ = [
-    'StrategyManager',
-    'BaseStrategyWorker',
-    'Opportunity',
-    'StrategySettings',
-    'ExecutionMode',
-    'OpportunityStatus',
-    'SellReason',
+    "StrategyManager",
+    "BaseStrategyWorker",
+    "Opportunity",
+    "ExecutionMode",
+    "OpportunityStatus",
+    "SellReason",
+    "JobBuilderHelper",
+    "ScannerStatisticsHelper",
+    "SimulatorStatisticsHelper",
+    "StockSamplingHelper",
+    "StrategyDataInjectionService",
+    "StrategyOutputReaderService",
+    "StrategyDiscoveryHelper",
+    "build_settings",
+    "validate_settings",
+    "normalize_and_validate",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "StrategyManager":
+        return getattr(import_module(".strategy_manager", __name__), name)
+    if name == "BaseStrategyWorker":
+        return getattr(import_module(".base_strategy_worker", __name__), name)
+    if name == "Opportunity":
+        return getattr(
+            import_module(".engines.shared.data_classes.opportunity", __name__), name
+        )
+    if name in {"ExecutionMode", "OpportunityStatus", "SellReason"}:
+        return getattr(import_module(".enums", __name__), name)
+    if name == "ScannerStatisticsHelper":
+        return getattr(import_module(".engines.scanner.helpers", __name__), name)
+    if name in {"JobBuilderHelper", "StockSamplingHelper"}:
+        return getattr(import_module(".engines.shared.helpers", __name__), name)
+    if name == "SimulatorStatisticsHelper":
+        return getattr(import_module(".engines.simulator.helpers", __name__), name)
+    if name in {
+        "StrategyDataInjectionService",
+        "StrategyOutputReaderService",
+        "StrategyDiscoveryHelper",
+        "build_settings",
+        "normalize_and_validate",
+        "validate_settings",
+    }:
+        return getattr(import_module(".services", __name__), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+

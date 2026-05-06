@@ -3,12 +3,11 @@
 HistoryLoader - 历史模拟结果加载器
 
 职责：
-- 加载 PriceFactorSimulator 的历史结果
+- 加载 PriceFactorFlow 的历史结果
 - 计算每只股票的统计信息（胜率、平均收益等）
 """
 
 from typing import Dict, List, Any, Optional
-from pathlib import Path
 import json
 import logging
 
@@ -44,11 +43,14 @@ class HistoryLoader:
             }
         """
         try:
-            # 1. 获取最新的 PriceFactorSimulator 版本
-            from core.modules.strategy.managers.version_manager import VersionManager
+            # 1. 获取最新的 PriceFactorFlow 版本
+            from core.modules.strategy.services.data.output import (
+                StrategyOutputPathService,
+                StrategyOutputVersionService,
+            )
             
             try:
-                version_dir, _ = VersionManager.resolve_price_factor_version(
+                version_dir, _ = StrategyOutputVersionService.resolve_price_factor_version(
                     strategy_name=strategy_name,
                     version_spec="latest"
                 )
@@ -57,8 +59,7 @@ class HistoryLoader:
                 return None
             
             # 2. 读取股票结果文件
-            from core.modules.strategy.managers.result_path_manager import ResultPathManager
-            path_manager = ResultPathManager(sim_version_dir=version_dir)
+            path_manager = StrategyOutputPathService(sim_version_dir=version_dir)
             stock_file = path_manager.stock_json_path(stock_id)
             
             if not stock_file.exists():
@@ -120,7 +121,7 @@ class HistoryLoader:
         loss_count = 0
         
         for inv in completed:
-            # ROI 字段（PriceFactorSimulator 使用 roi）
+            # ROI 字段（PriceFactorFlow 使用 roi）
             roi = inv.get('roi', 0.0)
             if not isinstance(roi, (int, float)):
                 try:
@@ -185,10 +186,13 @@ class HistoryLoader:
             会话汇总字典，如果不存在返回 None
         """
         try:
-            from core.modules.strategy.managers.version_manager import VersionManager
+            from core.modules.strategy.services.data.output import (
+                StrategyOutputPathService,
+                StrategyOutputVersionService,
+            )
             
             try:
-                version_dir, _ = VersionManager.resolve_price_factor_version(
+                version_dir, _ = StrategyOutputVersionService.resolve_price_factor_version(
                     strategy_name=strategy_name,
                     version_spec="latest"
                 )
@@ -196,8 +200,7 @@ class HistoryLoader:
                 logger.debug(f"[HistoryLoader] 无法获取最新模拟版本: {e}")
                 return None
             
-            from core.modules.strategy.managers.result_path_manager import ResultPathManager
-            path_manager = ResultPathManager(sim_version_dir=version_dir)
+            path_manager = StrategyOutputPathService(sim_version_dir=version_dir)
             summary_file = path_manager.session_summary_path()
             
             if not summary_file.exists():

@@ -189,7 +189,7 @@ def db_cache_fingerprint_pair(
         StrategySettings as _StrategySettings,
     )
 
-    from ..config import derive_run_mode, read_strategy_module_version
+    from ..config import derive_run_mode
     from .settings_resolver import _require_valid_snapshot, strip_to_semantic_core
 
     if not isinstance(settings, _StrategySettings):
@@ -197,7 +197,6 @@ def db_cache_fingerprint_pair(
     snap = _require_valid_snapshot(settings)
     core = strip_to_semantic_core(snap)
     rm = run_mode if run_mode is not None else derive_run_mode(snap)
-    ev = engine_version if engine_version is not None else read_strategy_module_version()
     return (
         to_settings_hash(core),
         to_env_hash(
@@ -206,7 +205,7 @@ def db_cache_fingerprint_pair(
             start_date=str(start_date),
             end_date=str(end_date),
             run_mode=str(rm),
-            engine_version=str(ev),
+            engine_version=str(engine_version),
             worker_module_path=worker_module_path,
             worker_class_name=worker_class_name,
             worker_code_hash=worker_code_hash,

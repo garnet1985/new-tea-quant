@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
-"""对外入口：读缓存、写缓存、应用缓存（apply 待实现）。"""
+"""对外门面：指纹解析后读写快照表、按版本应用 settings、缓存清理与删除。"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from core.modules.strategy.enums import Simulator
 
-from .cache_service import SimulatorResDbCacheService
 from .finger_print.finger_print import resolve_db_cache_fingerprints
 
-class SimulatorResDbCacheWriteRequest:
+if TYPE_CHECKING:
+    from .cache_service import SimulatorResDbCacheService
 
-    def __init__(self):
-        self.service = SimulatorResDbCacheService()
+
+class SimulatorResDbCacheWriteRequest:
+    __slots__ = ("_service",)
+
+    def __init__(self) -> None:
+        self._service: SimulatorResDbCacheService | None = None
+
+    @property
+    def service(self) -> "SimulatorResDbCacheService":
+        if self._service is None:
+            from .cache_service import SimulatorResDbCacheService as _Svc
+
+            self._service = _Svc()
+        return self._service
 
     def load_cache_by_fingerprints(
         self,
@@ -27,13 +38,13 @@ class SimulatorResDbCacheWriteRequest:
         resolved = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
             raw_settings=dict(raw_settings or {}),
-            stock_ids=list(stock_ids or []),
+            stock_list=list(stock_ids or []),
             latest_completed_trading_date=str(latest_completed_trading_date or "").strip(),
         )
         if resolved is None:
             return {}
 
-        cache = self.service.get_cache_by_fingerprints(
+        cache = self.service.load_cache_by_fingerprints(
             strategy_name=strategy_name,
             settings_fingerprint_id=resolved.settings_fp,
             env_fingerprint_id=resolved.env_fp,
@@ -44,16 +55,11 @@ class SimulatorResDbCacheWriteRequest:
         return cache
 
     def load_cache_by_version(self, strategy_name: str, version: int) -> Dict[str, Any]:
-        return self.service.get_cache_by_version(
-            strategy_name=strategy_name,
-            version=version,
-        )
+        return self.service.load_cache_by_version(strategy_name, version)
 
     def load_latest_cache_for_strategy(self, strategy_name: str,
     ) -> Dict[str, Any]:
-        return self.service.get_latest_cache_for_strategy(
-            strategy_name=strategy_name,
-        )
+        return self.service.load_latest_cache_for_strategy(strategy_name)
 
     def save_cache(
         self,
@@ -80,14 +86,14 @@ class SimulatorResDbCacheWriteRequest:
             return 0
 
         try:
-            self.service.set_cache(
+            return self.service.set_cache(
                 strategy_name=strategy_name,
                 settings_snapshot=resolved.normalized_settings_dict or {},
-                result_report=simulator_report or {},
+                simulator=simulator,
+                simulator_report=simulator_report or {},
                 settings_fingerprint_id=resolved.settings_fp,
                 env_fingerprint_id=resolved.env_fp,
             )
-            return 1
         except Exception:
             return 0
 
@@ -97,19 +103,22 @@ class SimulatorResDbCacheWriteRequest:
         strategy_name: str,
         version: int,
     ) -> bool:
-
-        settings = self.service.load_cache_by_version(
+        row = self.service.load_cache_by_version(
             strategy_name=strategy_name,
             version=version,
         )
-
-        if settings is None:
+        if not row:
+            return False
+        settings_snapshot = row.get("settings_snapshot")
+        if not isinstance(settings_snapshot, dict) or not settings_snapshot:
             return False
 
         self.service.backup_settings_file_for_strategy(strategy_name)
-
-        self.service.write_settings_file_for_strategy(strategy_name, settings, pretty=True)
-
+        self.service.write_settings_file_for_strategy(
+            strategy_name,
+            settings_snapshot,
+            pretty=True,
+        )
         return True
 
     def clean_up_cache(self):

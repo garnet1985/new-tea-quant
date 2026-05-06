@@ -9,6 +9,23 @@ from typing import Any, Dict, List
 from core.modules.strategy.engines.shared.report_base import ReportBase
 
 
+def _tone_signed_pct(pct: float) -> str:
+    """Float already as percentage points (e.g. 7.04 for 7.04%)."""
+    if pct > 0:
+        return "🟢"
+    if pct < 0:
+        return "🔴"
+    return "⚪"
+
+
+def _tone_win_rate(pct: float) -> str:
+    if pct >= 55.0:
+        return "🟢"
+    if pct >= 45.0:
+        return "🟡"
+    return "🔴"
+
+
 @dataclass
 class PriceReport(ReportBase):
     win_rate: float
@@ -115,20 +132,77 @@ class PriceReport(ReportBase):
         )
 
     def to_console_lines(self) -> List[str]:
-        return [
-            f"胜率: {self.win_rate:.1f}%",
-            f"平均每笔投资回报率(ROI): {self.avg_roi * 100:.2f}%",
-            f"折算后平均每笔投资年化收益率(自然日): {self.annual_return * 100:.2f}%",
-            f"折算后平均每笔投资年化收益率(交易日): {self.annual_return_in_trading_days * 100:.2f}%",
-            f"平均投资时长: {self.avg_duration_in_days:.1f} 自然日 / {self.avg_duration_in_trading_days:.1f} 交易日",
-            f"总投资次数: {self.total_investments}",
-            f"成功/失败/未完成: {self.total_win_investments}/{self.total_loss_investments}/{self.total_open_investments}",
-            f"完成率: {self.completion_rate * 100:.2f}%",
-            f"每笔平均盈利: {self.avg_profit_per_investment:.2f}",
-            f"每只股票平均盈利: {self.avg_profit_per_stock:.2f}",
-            f"每只股票平均投资次数: {self.avg_investments_per_stock:.2f}",
-            f"产生机会的股票数: {self.stocks_have_opportunities}",
+        wr_icon = _tone_win_rate(self.win_rate)
+        roi_pct = self.avg_roi * 100.0
+        roi_icon = _tone_signed_pct(roi_pct)
+        ann_cal = self.annual_return * 100.0
+        ann_td = self.annual_return_in_trading_days * 100.0
+        ann_cal_icon = _tone_signed_pct(ann_cal)
+        ann_td_icon = _tone_signed_pct(ann_td)
+        lines: List[str] = [
+            f"{wr_icon} 胜率: {self.win_rate:.1f}%",
+            f"{roi_icon} 平均每笔投资回报率(ROI): {roi_pct:.2f}%",
+            "折算后平均每笔投资年化收益率:",
+            f" - {ann_cal_icon} 按自然日: {ann_cal:.2f}%",
+            f" - {ann_td_icon} 按交易日: {ann_td:.2f}%",
+            (
+                f"🕙 平均投资时长: {self.avg_duration_in_days:.1f} 自然日 / "
+                f"{self.avg_duration_in_trading_days:.1f} 交易日(换算)"
+            ),
+            f"📊 总投资次数: {self.total_investments}",
+            f"✅ 成功次数: {self.total_win_investments}",
+            f"❌ 失败次数: {self.total_loss_investments}",
+            f"🔄 未完成次数: {self.total_open_investments}",
+            f"📈 完成率: {self.completion_rate * 100:.2f}%",
+            (
+                f"📊 每笔平均盈利: {self.avg_profit_per_investment:.2f} "
+                "(单位：1股机会的绝对盈亏)"
+            ),
+            (
+                f"💰 每只股票平均盈利: {self.avg_profit_per_stock:.2f} "
+                "(单位：1股机会，按有机会的股票数均分)"
+            ),
+            f"📊 每只股票平均投资次数: {self.avg_investments_per_stock:.2f}",
+            f"💰 产生机会的股票数: {self.stocks_have_opportunities}",
         ]
+        return lines
+
+    @classmethod
+    def present_session_summary(
+        cls,
+        summary: Dict[str, Any],
+        *,
+        strategy_name: str = "",
+        used_db_cache: bool = False,
+    ) -> None:
+        """在终端打印价格因子 session 汇总（不用 logging，避免前缀臃肿）。"""
+        if not isinstance(summary, dict) or not summary:
+            return
+        payload = {
+            k: v
+            for k, v in summary.items()
+            if k not in ("output_version", "sim_version")
+        }
+        report = cls.from_dict(payload)
+        label = (strategy_name or "").strip() or "策略"
+        sep = "=" * 60
+        print(sep)
+        print(f"📊 {label} 策略价格因子回测结果")
+        print(sep)
+        for line in report.to_console_lines():
+            print(line)
+        ov = summary.get("output_version") if isinstance(summary.get("output_version"), dict) else {}
+        sv = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
+        print("")
+        print(
+            "📂 枚举输出版本目录: "
+            f"{ov.get('version_dir') or '—'}  │  "
+            "本次模拟目录: "
+            f"{sv.get('version_dir') or '—'} "
+            f"(version_id={sv.get('version_id', '')})"
+        )
+        if used_db_cache:
+            print("💾 本次结果来自 Simulator DB 缓存，未新建模拟输出目录。")
 
 
 __all__ = ["PriceReport"]

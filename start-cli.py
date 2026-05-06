@@ -280,15 +280,15 @@ class App:
         if not strategy_info:
             logger.error(f"策略不存在: {strategy_name}")
             return []
-        
+
         context = EnumeratorRuntimeService.build_context(
             strategy_name=strategy_name,
             strategy_info=strategy_info,
             stock_count=stock_count,
             force_refresh=force_refresh,
         )
-        logger.info(f"📅 时间范围: {context.start_date} ~ {context.end_date}")
-        logger.info(f"📊 实际股票数量: {len(context.stock_list)}")
+        print(f"📅 时间范围: {context.start_date} ~ {context.end_date}")
+        print(f"📊 股票数量: {len(context.stock_list)}")
         summary_results = EnumeratorRuntimeService.run_enum(context)
 
         # 4. 显示结果
@@ -307,33 +307,23 @@ class App:
             summary_results=summary_results or [],
         )
 
-    def _display_price_factor_summary(self, summary: dict, *, used_db_cache: bool = False) -> None:
-        """将 session_summary 打印为可读汇总（与枚举器的 Present 对应）。"""
+    def _display_price_factor_summary(
+        self,
+        strategy_name: str,
+        summary: dict,
+        *,
+        used_db_cache: bool = False,
+    ) -> None:
+        """将 session_summary 打印为可读汇总（与枚举器 Present 一致，使用 print）。"""
         from core.modules.strategy.engines.simulator.price_factor.data_classes.report import (
             PriceReport,
         )
 
-        if not isinstance(summary, dict) or not summary:
-            return
-        payload = {
-            k: v
-            for k, v in summary.items()
-            if k not in ("output_version", "sim_version")
-        }
-        report = PriceReport.from_dict(payload)
-        logger.info("── Price Factor 汇总 ──")
-        for line in report.to_console_lines():
-            logger.info(line)
-        ov = summary.get("output_version") if isinstance(summary.get("output_version"), dict) else {}
-        sv = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
-        logger.info(
-            "📂 枚举输出版本目录: %s | 本次模拟目录: %s (version_id=%s)",
-            ov.get("version_dir", ""),
-            sv.get("version_dir", ""),
-            sv.get("version_id", ""),
+        PriceReport.present_session_summary(
+            summary if isinstance(summary, dict) else {},
+            strategy_name=str(strategy_name or ""),
+            used_db_cache=used_db_cache,
         )
-        if used_db_cache:
-            logger.info("ℹ️  本次结果来自 Simulator DB 缓存，未新建模拟输出目录。")
 
     # ========================================================================
     # 模拟器相关
@@ -354,9 +344,9 @@ class App:
         if not strategy_info:
             logger.warning("策略不存在: %s", strategy_name)
             return
-        logger.info(f"🎯 运行 PriceFactorFlow, strategy={strategy_name}")
+        print(f"🎯 PriceFactorFlow · strategy={strategy_name}")
         if force_refresh:
-            logger.info("🔁 已启用 --force：跳过 price_factor DbCache 读路径，强制重跑模拟")
+            print("🔁 --force：跳过 price_factor DbCache 读路径，强制重跑模拟")
         flow = PriceFactorFlow(is_verbose=self.is_verbose, force_refresh=force_refresh)
         summary = flow.run(
             strategy_name=str(strategy_name),
@@ -366,6 +356,7 @@ class App:
             logger.warning("PriceFactorFlow 未返回任何结果")
             return
         self._display_price_factor_summary(
+            strategy_name,
             summary,
             used_db_cache=getattr(flow, "last_run_used_db_cache", False),
         )
@@ -735,7 +726,7 @@ class CommandExecutor:
         - capital_allocation（-sa）
         依赖枚举输出；若枚举输出不存在，底层模拟器会按既有逻辑自行提示/触发枚举。
         """
-        logger.info("🎮 运行模拟链路（PriceFactor + CapitalAllocation）...")
+        print("🎮 模拟链路 · PriceFactor → CapitalAllocation …")
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
@@ -757,7 +748,7 @@ class CommandExecutor:
     
     def _handle_enumerate(self, args):
         """处理 enumerate 命令"""
-        logger.info("🔢 枚举投资机会...")
+        print("🔢 枚举投资机会…")
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
@@ -769,7 +760,6 @@ class CommandExecutor:
     
     def _handle_simulate_price(self, args):
         """处理 simulate_price 命令"""
-        logger.info("🎯 运行价格因子回放模拟 (PriceFactorFlow)...")
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return

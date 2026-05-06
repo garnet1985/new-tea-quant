@@ -393,25 +393,28 @@ class EnumeratorReport(ReportBase):
 
     def to_console_lines(self) -> List[str]:
         lines = [
-            f"机会总数={self.total_opportunities}",
-            f"股票总数={self.total_stocks}",
-            f"触发机会股票数={self.trigger_stocks}",
-            f"触发比例={self.trigger_ratio}%",
-            f"已完成机会数={self.completed_count}",
-            f"未完成机会数={self.unfinished_count}",
-            f"完成率={self.completed_ratio}%",
-            f"平均每股机会数={self.avg_per_stock}",
-            f"平均机会间隔={self.mean_gap} 天",
-            f"平均机会持续={self.mean_duration} 天",
-            f"机会间隔标准差={self.std_gap} 天",
-            f"变异系数(CV)={self.cv}",
-            f"分散度结论={self.dispersion_conclusion}",
+            f"📊 机会总数: {self.total_opportunities}",
+            f"🏷️ 扫描股票数: {self.total_stocks}",
+            f"🎯 至少出现过机会的股票数: {self.trigger_stocks}",
+            f"📈 触发比例: {self.trigger_ratio}%",
+            f"✅ 已完成机会数: {self.completed_count}",
+            f"⏳ 未完成机会数: {self.unfinished_count}",
+            f"📉 完成率: {self.completed_ratio}%",
+            f"📐 平均每只股票机会数: {self.avg_per_stock}",
+            f"⏱️ 平均两次触发间隔: {self.mean_gap} 天",
+            f"⌛ 平均单笔持续: {self.mean_duration} 天",
+            f"📏 触发间隔标准差: {self.std_gap} 天",
+            f"📐 变异系数(CV): {self.cv}",
+            f"💡 节奏结论: {self.dispersion_conclusion}",
         ]
+        if self.percentile_labels and self.percentile_values:
+            pct_pairs = zip(self.percentile_labels, self.percentile_values)
+            pv = " · ".join(f"{lb} {val}" for lb, val in pct_pairs)
+            lines.append(f"📊 每股机会数分位: {pv}")
         if self.opportunity_count_labels:
             lines.append(
-                "机会数区间分布="
-                f"[{self.opportunity_count_min}~{self.opportunity_count_max}] "
-                f"近似{max(1, self.opportunity_count_bucket_count)}等分"
+                f"📦 机会数区间分布 [{self.opportunity_count_min}~{self.opportunity_count_max}] "
+                f"（约 {max(1, self.opportunity_count_bucket_count)} 档）"
             )
             for idx, label in enumerate(self.opportunity_count_labels):
                 count = (
@@ -424,7 +427,7 @@ class EnumeratorReport(ReportBase):
                     if idx < len(self.opportunity_count_stock_ratios)
                     else 0.0
                 )
-                lines.append(f"  {label} 次: {count} 只 ({ratio}%)")
+                lines.append(f"   ▸ {label} 次: {count} 只 ({ratio}%)")
         return lines
 
     def write_bff_payload(self, output_dir: Path) -> None:
@@ -453,16 +456,26 @@ class EnumeratorReport(ReportBase):
     def present(cls, **kwargs: Any) -> None:
         strategy_name = str(kwargs.get("strategy_name") or "")
         summary_results: List[Dict[str, Any]] = kwargs.get("summary_results") or []
-        total_opps = int(summary_results[0].get("opportunities", 0) or 0) if summary_results else 0
-        print(f"✅ 枚举完成！找到 {total_opps} 个机会")
+        total_opps = (
+            int(summary_results[0].get("opportunities", 0) or 0)
+            if summary_results
+            else 0
+        )
+        label = strategy_name.strip() or "策略"
+        sep = "=" * 60
+        print(sep)
+        print(f"📋 {label} 策略 · 机会枚举")
+        print(sep)
+        print(f"✅ 枚举完成 · 共 {total_opps} 条机会")
         if not summary_results:
             return
-        print("\n枚举结果概要:")
+        print("")
         for res in summary_results:
             version_name = str(res.get("version_dir") or "").strip()
+            sn = str(res.get("strategy_name") or strategy_name or "").strip()
             candidates = [
                 PathManager.strategy_opportunity_enums(
-                    strategy_name or str(res.get("strategy_name") or ""),
+                    sn or label,
                     use_sampling=False,
                 )
                 / version_name,
@@ -472,10 +485,11 @@ class EnumeratorReport(ReportBase):
                 if output_dir.exists():
                     report = cls.load(output_dir)
                     break
-            print(f"  strategy={res.get('strategy_name')}")
-            print(f"  version={res.get('version_dir')}")
+            print(f"🔖 strategy={sn or label}")
+            print(f"📁 version_dir={res.get('version_dir')}")
+            print("")
             for line in report.to_console_lines():
-                print(f"  {line}")
+                print(f"   {line}")
             print("")
 
 

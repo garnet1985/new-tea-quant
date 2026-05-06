@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional
 
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
+from core.modules.strategy.services.data.output.enumerator_output_service import (
+    EnumeratorOutputWriterService,
+)
 from core.modules.strategy.engines.simulator.price_factor.data_classes.flow_context import (
     PriceFactorExecuteContext,
     PriceFactorPreprocessContext,
@@ -20,6 +23,47 @@ if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
         StrategySettingsView,
     )
+
+
+def _stock_ids_for_db_cache_fingerprint(
+    output_version_dir: Path,
+    *,
+    fallback_ids: List[str],
+) -> List[str]:
+    """
+    DbCache env 中的 ``stock_ids`` 须与枚举 run 一致。
+
+    优先读 ``0_scope_stock_ids.txt``（与 ``0_metadata.json`` 分列）；若无则读旧版元数据
+    内嵌 ``fingerprint.stock_ids``；再不行则用 ``fallback_ids``（扫描到的成对 CSV）。
+    """
+    ids = EnumeratorOutputWriterService.read_scope_stock_ids(output_version_dir)
+    if ids:
+        return ids
+    return sorted({str(s) for s in fallback_ids if s})
+
+
+def _raw_settings_for_db_cache_fingerprint(
+    base_settings: "StrategySettingsView",
+    strategy_info: Optional["DiscoveredStrategy"],
+) -> Dict[str, Any]:
+    """
+    与 ``EnumeratorRuntimeService.build_canonical_settings`` 同源：
+
+    ``StrategyFingerprintManager.canonicalize_settings(strategy_info.settings)``，
+    使 ``settings_fp`` / env 日期窗与 CLI 枚举路径对齐；不可用时回退 ``base_settings.to_dict()``。
+    """
+    if strategy_info is not None:
+        try:
+            from core.modules.strategy.services.runtime.run_service import (
+                StrategyFingerprintManager,
+            )
+
+            return StrategyFingerprintManager.canonicalize_settings(
+                dict(strategy_info.settings.to_dict())
+            )
+        except Exception:
+            pass
+    return dict(base_settings.to_dict())
 
 
 class _PriceFactorProbe(NamedTuple):
@@ -103,7 +147,13 @@ class PriceFactorFlow(BaseSimulationFlow):
         self.last_run_used_db_cache = False
 
         probe = self._probe(strategy_name=strategy_name, strategy_info=strategy_info)
-        stock_list = sorted(probe.stock_files.keys())
+        stock_list = _stock_ids_for_db_cache_fingerprint(
+            probe.output_version_dir,
+            fallback_ids=sorted(probe.stock_files.keys()),
+        )
+        raw_for_fp = _raw_settings_for_db_cache_fingerprint(
+            probe.base_settings, strategy_info
+        )
 
         data_mgr = DataManager(is_verbose=False)
         latest_completed_trading_date = str(
@@ -112,7 +162,7 @@ class PriceFactorFlow(BaseSimulationFlow):
 
         resolved_probe = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
-            raw_settings=dict(probe.base_settings.to_dict()),
+            raw_settings=raw_for_fp,
             stock_list=list(stock_list),
             latest_completed_trading_date=latest_completed_trading_date,
         )
@@ -134,9 +184,12 @@ class PriceFactorFlow(BaseSimulationFlow):
         summary = self.postprocess(preprocessed, executed)
 
         if summary and isinstance(summary, dict):
+            raw_save = _raw_settings_for_db_cache_fingerprint(
+                preprocessed.base_settings, strategy_info
+            )
             resolved_save = resolve_db_cache_fingerprints(
                 strategy_name=str(strategy_name),
-                raw_settings=dict(preprocessed.base_settings.to_dict()),
+                raw_settings=raw_save,
                 stock_list=list(stock_list),
                 latest_completed_trading_date=latest_completed_trading_date,
             )

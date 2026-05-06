@@ -493,7 +493,7 @@ class OpportunityEnumeratorFlowImpl:
         fingerprint: StrategyRunFingerprint,
         status: str = "completed",
     ) -> None:
-        metadata = EnumeratorOutputWriterService.build_metadata(
+        metadata, scope_stock_ids = EnumeratorOutputWriterService.build_metadata(
             strategy_name=strategy_name,
             start_date=self.start_date,
             end_date=self.end_date,
@@ -506,6 +506,7 @@ class OpportunityEnumeratorFlowImpl:
             status=status,
             created_at=datetime.now().isoformat(),
         )
+        EnumeratorOutputWriterService.write_scope_stock_ids(output_dir, scope_stock_ids)
         EnumeratorOutputWriterService.write_metadata(
             output_dir=output_dir, metadata=metadata
         )

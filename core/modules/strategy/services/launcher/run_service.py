@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -69,36 +69,32 @@ class StrategyFingerprintRuntimeService:
             fp
         )
 
-    @staticmethod
-    def build_ids_from_request_fingerprint(
-        request_fingerprint: Any,
-    ) -> Tuple[str, str]:
-        if request_fingerprint is None:
-            return "", ""
-        fp_id = str(getattr(request_fingerprint, "fingerprint_id", "") or "")
-        if not fp_id:
-            return "", ""
-        return fp_id, StrategyFingerprintManager.build_scope_fingerprint_id(request_fingerprint)
+
+class StrategySettingsService:
+    """UI / DB settings → ``StrategyFingerprintManager`` 规范化（单一入口）。"""
 
     @staticmethod
-    def build_fingerprint_for_snapshot_candidate(
+    def normalize_runtime_settings(
         *,
-        flow_ref: Any,
         strategy_name: str,
-        strategy_info: Any,
-        canonical_settings_payload: Dict[str, Any],
-        stock_ids: List[str],
-    ) -> Any:
-        return StrategyFingerprintManager.build_run_fingerprint(
-            flow_impl=flow_ref._impl,
-            strategy_name=strategy_name,
-            strategy_info=strategy_info,
-            settings_payload=canonical_settings_payload,
-            stock_ids=stock_ids,
-        )
+        api_settings: Any,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        if not isinstance(api_settings, dict):
+            return None, "settings 必须为对象"
+        try:
+            merged = dict(api_settings)
+            if strategy_name and not str(merged.get("name") or "").strip():
+                merged["name"] = str(strategy_name)
+            normalized = StrategyFingerprintManager.canonicalize_settings(merged)
+            return normalized, None
+        except ValueError as e:
+            return None, str(e) or "settings 校验失败"
+        except Exception as e:
+            return None, str(e)
 
 
 __all__ = [
     "StrategyFingerprintManager",
     "StrategyFingerprintRuntimeService",
+    "StrategySettingsService",
 ]

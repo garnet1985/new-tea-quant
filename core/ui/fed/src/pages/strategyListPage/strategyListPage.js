@@ -143,7 +143,7 @@ function StrategyListPage() {
       </Stack>
       <Typography color="text.secondary" component="div" variant="body2" sx={{ mb: 2 }}>
         本页为进入系统后的落地页。列表数据来自 BFF{' '}
-        <code>GET /api/v1/strategies</code>
+        <code>GET /api/v1/strategies/list</code>
         ，列字段对应各策略 <code>settings</code> 中 meta 段（
         <code>name</code>、<code>description</code>、<code>is_enabled</code>
         ），与各策略目录下 <code>settings.py</code> 一致。

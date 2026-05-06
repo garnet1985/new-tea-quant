@@ -25,7 +25,6 @@ import {
   buildPriceMetrics,
 } from '../../mocks/strategyReportMetrics';
 import {
-  fetchStrategyVersionHistory,
   fetchStrategyReportCompare,
   fetchStrategyReportStocks,
   fetchStrategyReports,
@@ -37,9 +36,26 @@ const STEP_TABS = [
   { key: 'capital', label: '资金模拟报告' },
 ];
 
-function StrategyReportPanel({ strategyName, executionState }) {
+function StrategyReportPanel({
+  strategyName,
+  executionState,
+  compareVersionOptions,
+  workbenchResultReport,
+}) {
   const [remoteReports, setRemoteReports] = useState({ reports: {}, availableTabs: [] });
-  const [compareOptions, setCompareOptions] = useState(['latest']);
+  /** V2-01 ``result_report.enum``：含 ``enumMetrics.opportunityCount*``，由页面 ``GET …/version/latest`` 注入 */
+  const snapshotEnumSlot = useMemo(() => {
+    const slot = workbenchResultReport?.enum;
+    return slot && typeof slot === 'object' ? slot : null;
+  }, [workbenchResultReport]);
+  const compareOptions = useMemo(
+    () => (
+      Array.isArray(compareVersionOptions) && compareVersionOptions.length > 0
+        ? compareVersionOptions
+        : ['latest']
+    ),
+    [compareVersionOptions],
+  );
   const [reportStocks, setReportStocks] = useState({ enum: [], price: [], capital: [] });
   const [reportError, setReportError] = useState('');
   const runId = executionState?.runId || '';
@@ -57,6 +73,14 @@ function StrategyReportPanel({ strategyName, executionState }) {
 
   const [activeTab, setActiveTab] = useState('');
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (availableTabs.length === 0) return;
+    const keys = availableTabs.map((t) => t.key);
+    if (!keys.includes(activeTab)) {
+      setActiveTab(keys[0]);
+    }
+  }, [availableTabs, activeTab]);
   const [compareVersion, setCompareVersion] = useState('');
   const [comparePayload, setComparePayload] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
@@ -66,31 +90,6 @@ function StrategyReportPanel({ strategyName, executionState }) {
     if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
     return availableTabs[availableTabs.length - 1].key;
   }, [activeTab, availableTabs]);
-
-  useEffect(() => {
-    let disposed = false;
-    if (!strategyName) {
-      setCompareOptions(['latest']);
-      return undefined;
-    }
-    const loadCompareOptions = async () => {
-      try {
-        const data = await fetchStrategyVersionHistory(strategyName);
-        if (disposed) return;
-        const options = Array.isArray(data?.versions)
-          ? data.versions.filter((item) => typeof item === 'string' && item.trim() !== '')
-          : [];
-        setCompareOptions(options.length > 0 ? options : ['latest']);
-      } catch (err) {
-        if (disposed) return;
-        setCompareOptions(['latest']);
-      }
-    };
-    loadCompareOptions();
-    return () => {
-      disposed = true;
-    };
-  }, [strategyName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -256,14 +255,18 @@ function StrategyReportPanel({ strategyName, executionState }) {
 
     const metricsSource = {
       result: {
-        enum: remoteReports?.reports?.enum || executionState?.result?.enum || null,
+        enum:
+          snapshotEnumSlot
+          || remoteReports?.reports?.enum
+          || executionState?.result?.enum
+          || null,
         price: remoteReports?.reports?.price || executionState?.result?.price || null,
         capital: remoteReports?.reports?.capital || executionState?.result?.capital || null,
       },
     };
 
     if (resolvedActiveTab === 'enum') {
-      const enumMetrics = remoteReports?.reports?.enum?.enumMetrics || buildEnumMetrics(metricsSource);
+      const enumMetrics = buildEnumMetrics(metricsSource);
       if (!enumMetrics) {
         return (
           <Typography variant="body2" color="text.secondary">

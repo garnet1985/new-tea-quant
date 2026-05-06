@@ -18,7 +18,6 @@ import {
   MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION,
 } from '../../mocks/strategyWorkbenchMocks';
 import {
-  fetchStrategyVersionHistory,
   fetchStrategyRunStatus,
   startStrategyRun,
 } from '../../../../api/apis/strategyApi';
@@ -32,6 +31,7 @@ function StrategyExecutionPanel({
   settings,
   getSettingsForRun,
   onExecutionStateChange,
+  compareVersionOptions,
 }) {
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
@@ -68,29 +68,12 @@ function StrategyExecutionPanel({
   }, [activeRunId, compareVersion, latestRunId, onExecutionStateChange, result, runningStep, stepStatus]);
 
   useEffect(() => {
-    let disposed = false;
-    if (!strategyName) {
-      setCompareOptions(['latest']);
-      return undefined;
+    if (Array.isArray(compareVersionOptions) && compareVersionOptions.length > 0) {
+      setCompareOptions(compareVersionOptions);
+      return;
     }
-    const loadCompareOptions = async () => {
-      try {
-        const data = await fetchStrategyVersionHistory(strategyName);
-        if (disposed) return;
-        const options = Array.isArray(data?.versions)
-          ? data.versions.filter((item) => typeof item === 'string' && item.trim() !== '')
-          : [];
-        setCompareOptions(options.length > 0 ? options : ['latest']);
-      } catch (err) {
-        if (disposed) return;
-        setCompareOptions(['latest']);
-      }
-    };
-    loadCompareOptions();
-    return () => {
-      disposed = true;
-    };
-  }, [strategyName]);
+    setCompareOptions(['latest']);
+  }, [compareVersionOptions]);
 
   useEffect(() => {
     setStepStatus({
@@ -306,7 +289,7 @@ function StrategyExecutionPanel({
 
     const poll = async () => {
       try {
-        const status = await fetchStrategyRunStatus(strategyName, activeRunId);
+        const status = await fetchStrategyRunStatus(strategyName, activeRunId, runningStep || STEP_ENUM);
         if (stopped) return;
         applyStatus(status);
       } catch (err) {
@@ -322,12 +305,14 @@ function StrategyExecutionPanel({
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [activeRunId, strategyName]);
+  }, [activeRunId, strategyName, runningStep]);
 
   const handleRun = async (target) => {
     if (isRunning || !strategyName) return;
     try {
       setRunError('');
+      setRunningStep(target);
+      setProgress(0);
       const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
       if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
       const started = await startStrategyRun(strategyName, target, resolvedSettings);
@@ -344,6 +329,8 @@ function StrategyExecutionPanel({
       });
     } catch (err) {
       setRunError(err?.message || '启动执行失败');
+      setRunningStep('');
+      setProgress(0);
     }
   };
 
@@ -363,7 +350,11 @@ function StrategyExecutionPanel({
               <Typography variant="caption" color="text.secondary">
                 {runLabel}
               </Typography>
-              <LinearProgress variant="determinate" value={progress} sx={{ mt: 0.5 }} />
+              <LinearProgress
+                variant={progress > 0 ? 'determinate' : 'indeterminate'}
+                value={progress > 0 ? progress : 0}
+                sx={{ mt: 0.5 }}
+              />
             </Box>
           ) : null}
           {runError ? (

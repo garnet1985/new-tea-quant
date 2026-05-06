@@ -78,6 +78,82 @@ def job_get(job_id: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
+def _fed_result_report_slice(
+    strategy_name: str,
+    normalized_step: str,
+    snapshot_id: int,
+) -> Dict[str, Any]:
+    """从工作台快照 ``result_report`` 取出当前 step  execution 条需要的摘要（与 FED 执行面板字段对齐）。"""
+    if snapshot_id <= 0:
+        return {}
+    try:
+        from core.modules.strategy.services.launcher.workbench import (
+            fetch_workbench_snapshot_by_snapshot_id,
+        )
+    except Exception:
+        return {}
+
+    row = fetch_workbench_snapshot_by_snapshot_id(
+        str(strategy_name).strip(),
+        int(snapshot_id),
+    )
+    if not row:
+        return {}
+    rr = row.get("result_report") or {}
+    out: Dict[str, Any] = {}
+
+    if normalized_step == "enum":
+        raw = rr.get("enum")
+        if isinstance(raw, dict) and raw:
+            merged = dict(raw)
+            try:
+                merged["opportunities"] = int(merged.get("opportunities", 0) or 0)
+            except (TypeError, ValueError):
+                merged["opportunities"] = 0
+            out["enum"] = merged
+
+    elif normalized_step == "price":
+        raw = rr.get("price_factor")
+        if isinstance(raw, dict) and raw:
+
+            def _num(val: Any, default: float = 0.0) -> float:
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return default
+
+            win = _num(
+                raw.get("winRate", raw.get("win_rate", raw.get("win_pct"))),
+            )
+            roi = _num(raw.get("roi", raw.get("avg_roi", raw.get("roi_pct"))))
+            out["price"] = {"winRate": round(win, 2), "roi": round(roi, 2)}
+
+    elif normalized_step == "capital":
+        raw = rr.get("capital_allocation")
+        if isinstance(raw, dict) and raw:
+
+            def _num(val: Any, default: float = 0.0) -> float:
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return default
+
+            profit = _num(raw.get("profit", raw.get("total_profit")))
+            ic = _num(raw.get("initialCapital", raw.get("initial_capital")))
+            ec = _num(raw.get("endCapital", raw.get("end_capital")))
+            if ec == 0.0 and (ic != 0.0 or profit != 0.0):
+                ec = ic + profit
+            ret_pct = _num(raw.get("retPct", raw.get("return_pct", raw.get("ret_pct"))))
+            out["capital"] = {
+                "profit": profit,
+                "retPct": round(ret_pct, 4),
+                "initialCapital": ic,
+                "endCapital": ec,
+            }
+
+    return out
+
+
 def _progress_payload(row: Dict[str, Any]) -> Dict[str, Any]:
     progress = round(float(row.get("progress") or 0), 2)
     status = str(row.get("status") or "unknown")
@@ -113,10 +189,19 @@ def get_step_progress(
         return None
     payload = _progress_payload(row)
     payload["job_id"] = jid
+    if str(row.get("status") or "") == "completed":
+        sid = int(row.get("snapshot_id") or 0)
+        fed = _fed_result_report_slice(strategy_name, normalized_step, sid)
+        if fed:
+            payload["result_report"] = fed
     return payload
 
 
-# --- V2-05：后台线程跑 flow ---
+# --- V2-05：后台线程执行 flow，HTTP 立即返回 job_id 供轮询 ---
+#
+# 枚举耗时较长时，若在请求线程内同步执行，浏览器会一直阻塞在 POST 上无法渲染进度。
+# 另启线程运行步骤；ProcessWorker 在非主线程初始化时需跳过 ``signal.signal``（见
+# ``process_worker._setup_signal_handlers``）。
 
 
 def normalize_step(step: str) -> Optional[str]:

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
@@ -116,6 +122,9 @@ function StrategyWorkbenchPage() {
   const [appliedVersionId, setAppliedVersionId] = useState('userspace');
   const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
+  /** 来自 V2-01 `GET …/version/latest`，与子面板共享，避免重复请求 */
+  const [workbenchResultReport, setWorkbenchResultReport] = useState(null);
+  const prevEnumStepStatusRef = useRef('idle');
 
   useEffect(() => {
     setSavedBaselineSettings(deepClone(initialSettings));
@@ -157,41 +166,13 @@ function StrategyWorkbenchPage() {
 
   useEffect(() => {
     let isCancelled = false;
-    if (!strategyName) {
-      setConfigVersions([]);
-      setSelectedConfigVersion('');
-      return () => {
-        isCancelled = true;
-      };
-    }
-
-    fetchStrategyVersions(strategyName)
-      .then((res) => {
-        if (isCancelled) return;
-        const rows = (res?.versions || []).map((version) => ({
-          id: version.version_id || `v${version.version || ''}`,
-          createdAt: version.created_at || '',
-          updatedAt: version.updated_at || '',
-          version: Number(version.version || 0),
-        }));
-        setConfigVersions(rows);
-      })
-      .catch(() => {
-        if (isCancelled) return;
-        setConfigVersions([]);
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [buildFallbackSettings, strategyName]);
-
-  useEffect(() => {
-    let isCancelled = false;
     const fallback = buildFallbackSettings();
 
     if (!strategyName) {
+      setConfigVersions([]);
+      setSelectedConfigVersion('');
       setInitialSettings(fallback);
+      setWorkbenchResultReport(null);
       setIsLoadingSettings(false);
       setSettingsError('');
       return () => {
@@ -201,9 +182,20 @@ function StrategyWorkbenchPage() {
 
     setIsLoadingSettings(true);
     setSettingsError('');
-    fetchStrategySettings(strategyName)
-      .then((res) => {
+    Promise.all([
+      fetchStrategyVersions(strategyName),
+      fetchStrategySettings(strategyName),
+    ])
+      .then(([verRes, res]) => {
         if (isCancelled) return;
+        const rows = (verRes?.versions || []).map((version) => ({
+          id: version.version_id || `v${version.version || ''}`,
+          createdAt: version.created_at || '',
+          updatedAt: version.updated_at || '',
+          version: Number(version.version || 0),
+        }));
+        setConfigVersions(rows);
+
         const serverSettings = res?.settings || {};
         const hasServerSettings = serverSettings && typeof serverSettings === 'object' && Object.keys(serverSettings).length > 0;
         const incomingMeta = (
@@ -215,8 +207,6 @@ function StrategyWorkbenchPage() {
               is_enabled: serverSettings?.is_enabled,
             }
         );
-        // Merge shape only: allow missing fields to exist for editor rendering,
-        // but never inject primitive fallback values that would perturb fingerprinting.
         const nextSettings = hasServerSettings
           ? mergeShapeOnly(fallback, {
             ...serverSettings,
@@ -227,6 +217,7 @@ function StrategyWorkbenchPage() {
           })
           : fallback;
         setInitialSettings(nextSettings);
+        setWorkbenchResultReport(res?.result_report ?? null);
         const wbVer = res?.workbench_version_id;
         setAppliedVersionId(
           typeof wbVer === 'string' && wbVer.trim() !== '' ? wbVer.trim() : 'userspace',
@@ -238,6 +229,8 @@ function StrategyWorkbenchPage() {
       .catch((err) => {
         if (isCancelled) return;
         setInitialSettings(fallback);
+        setWorkbenchResultReport(null);
+        setConfigVersions([]);
         setSettingsError(err?.message || '读取策略配置失败');
       })
       .finally(() => {
@@ -249,10 +242,36 @@ function StrategyWorkbenchPage() {
     };
   }, [buildFallbackSettings, mergeShapeOnly, strategyName]);
 
+  useEffect(() => {
+    prevEnumStepStatusRef.current = 'idle';
+  }, [strategyName]);
+
+  useEffect(() => {
+    const next = executionState?.stepStatus?.enum || 'idle';
+    const prev = prevEnumStepStatusRef.current;
+    prevEnumStepStatusRef.current = next;
+    if (!strategyName || next !== 'done' || prev === 'done') return undefined;
+    let cancelled = false;
+    fetchStrategySettings(strategyName).then((res) => {
+      if (cancelled) return;
+      setWorkbenchResultReport(res?.result_report ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [executionState?.stepStatus?.enum, strategyName]);
+
   const versionMap = useMemo(
     () => Object.fromEntries(configVersions.map((version) => [version.id, version])),
     [configVersions],
   );
+  /** 与 `fetchStrategyVersionHistory` 同源（GET …/versions），避免执行/报告面板各打一遍 */
+  const compareVersionOptions = useMemo(() => {
+    const ids = configVersions
+      .map((v) => v.id)
+      .filter((id) => typeof id === 'string' && id.trim() !== '');
+    return ids.length > 0 ? ['latest', ...ids] : ['latest'];
+  }, [configVersions]);
   const latestFiveVersions = useMemo(() => configVersions.slice(0, 5), [configVersions]);
   const displayedVersions = useMemo(() => {
     const keyword = versionSearch.trim().toLowerCase();
@@ -439,7 +458,6 @@ function StrategyWorkbenchPage() {
                   onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
                   onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}
                   onFeesChange={(nextFees) => updateSection('fees', nextFees)}
-                  onEnumeratorChange={(nextEnumerator) => updateSection('enumerator', nextEnumerator)}
                   onPriceSimulatorChange={(nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator)}
                   onCapitalSimulatorChange={(nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator)}
                 />
@@ -472,10 +490,13 @@ function StrategyWorkbenchPage() {
                     settings={draftSettings}
                     getSettingsForRun={getDraftSettingsForSubmit}
                     onExecutionStateChange={setExecutionState}
+                    compareVersionOptions={compareVersionOptions}
                   />
                   <StrategyReportPanel
                     strategyName={strategyName}
                     executionState={executionState}
+                    compareVersionOptions={compareVersionOptions}
+                    workbenchResultReport={workbenchResultReport}
                   />
                 </Box>
               </Grid>
@@ -555,6 +576,7 @@ function StrategyWorkbenchPage() {
                           version: Number(version.version || 0),
                         }));
                         setConfigVersions(rows);
+                        setWorkbenchResultReport(res?.result_report ?? null);
                         const fallback = buildFallbackSettings();
                         const serverSettings = res?.settings || {};
                         const incomingMeta = (

@@ -557,12 +557,13 @@ class OpportunityEnumeratorFlowImpl:
         completed_count: int,
         unfinished_count: int,
         start_time: float,
+        output_dir: Optional[Path] = None,
     ) -> List[Dict[str, Any]]:
         total_stocks = success_count + failed_count
         completion_rate = (
             (completed_count / total_opportunities) if total_opportunities > 0 else 0.0
         )
-        summary = {
+        summary: Dict[str, Any] = {
             "strategy_name": strategy_name,
             "version_id": version_id,
             "version_dir": version_dir_name,
@@ -574,6 +575,26 @@ class OpportunityEnumeratorFlowImpl:
             "completionRate": completion_rate,
             "elapsed_seconds": time.time() - start_time,
         }
+        # ``save_metadata`` 已写出 ``0_report_enum.json``；并入完整 ``enumMetrics``（含
+        # opportunityCount* 区间分布）。优先直接读 JSON（与磁盘一致），避免 load 往返异常被吞。
+        if output_dir is not None:
+            em: Optional[Dict[str, Any]] = None
+            raw_file = self._read_version_enum_report(output_dir)
+            if isinstance(raw_file, dict):
+                cand = raw_file.get("enumMetrics")
+                if isinstance(cand, dict) and cand:
+                    em = cand
+            if em is None:
+                try:
+                    er = EnumeratorReport.load(output_dir)
+                    bff = er.to_bff_payload()
+                    cand = bff.get("enumMetrics") if isinstance(bff, dict) else None
+                    if isinstance(cand, dict) and cand:
+                        em = cand
+                except Exception:
+                    pass
+            if isinstance(em, dict) and em:
+                summary = {**summary, "enumMetrics": em}
         return [summary]
 
     @staticmethod

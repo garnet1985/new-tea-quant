@@ -9,6 +9,7 @@
 """
 
 import time
+import threading
 import multiprocessing as mp
 import logging
 import signal
@@ -442,15 +443,27 @@ class ProcessWorker:
         )
     
     def _setup_signal_handlers(self):
-        """设置信号处理器"""
+        """设置信号处理器。
+
+        ``signal.signal`` 仅在解释器主线程可用。BFF 等工作台在后台线程里跑枚举时，
+        只注册 ``atexit``，跳过 SIGTERM（仍可通过 ``should_stop`` / 进程退出清理）。
+        """
         def signal_handler(signum, frame):
             if self.is_verbose:
                 logger.info(f"Received signal {signum}, stopping worker...")
             self.should_stop = True
-        
+
+        atexit.register(self._cleanup)
+
+        if threading.current_thread() is not threading.main_thread():
+            if self.is_verbose:
+                logger.debug(
+                    "Skipping SIGTERM handler (not main thread); graceful stop via should_stop only",
+                )
+            return
+
         # 让 Ctrl+C 保持默认行为（抛出 KeyboardInterrupt），避免需要多次 Ctrl+C
         signal.signal(signal.SIGTERM, signal_handler)
-        atexit.register(self._cleanup)
     
     def _cleanup(self):
         """清理资源"""

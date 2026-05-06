@@ -86,7 +86,7 @@ def fetch_strategy_versions_dropdown(strategy_name: str) -> List[Dict[str, Any]]
 _CAPITAL_LABELS: Dict[str, str] = {
     "equal_capital": "等额资金",
     "equal_shares": "等额股数",
-    "kelly": "Kelly",
+    "kelly": "凯莉公式",
     "custom": "自定义",
 }
 

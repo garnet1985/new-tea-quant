@@ -2,6 +2,32 @@
 
 本文档**仅**描述 V2 契约与语义，不包含旧接口编号或迁移对照。
 
+## HTTP 前缀与契约编号
+
+- **BFF** 蓝图挂载前缀为 **`/api`**（见 `core/ui/bff/app.py` 中 `register_blueprint(..., url_prefix='/api')`）。
+- 路由声明形如 **`/v1/strategy/...`**、**`/v1/strategies/list`** 等，与蓝图拼接后的**完整路径**为 **`/api/v1/strategy/...`**、**`/api/v1/strategies/list`**。
+- 下文表格与细则中的路径均省略 **`/api`** 前缀时，仍指上述蓝图下的同一资源。
+- **「V2-xx」** 为本契约的接口族编号；URL 中的 **`/v1/`** 仅为 REST 路径版本段，**不表示存在另一套「产品级 API v1」文档**。
+
+## FED 对接说明（实现备忘）
+
+下列条目便于前后端开工对齐；**不改变**上文契约条款。
+
+- **表单选项与 profiles（按选项控制显隐/必填）**  
+  **V2-04** 当前保证响应内有 **`items`**（每项至少 **`value` / `label`**）。历史上 SWB 风格的 **`profiles`**（按某个 `value` 给出 `configurable_fields` / `required_fields`）**不在必选契约内**。首期建议 **FED 用静态映射表**与引擎校验规则对齐；若需服务端单一来源，可在后续迭代中扩展 **V2-04** 响应形状（并同步本文档与 BFF）。
+
+- **报告「产品化」UI**  
+  股票表分页、K 线、专用对比聚合等 **无单独 V2 资源**。首期可对 **V2-07 / V2-08** 返回的 **`report` / `result_report`** 做解析展示，不足部分 **mock**；**`report` JSON 与 UI 组件期望形状**可在核心模块与 FED 迭代中对齐。若某 **`version_id`** 因物理产物保留策略等原因**无法还原明细**，由 **UI 提示用户重新 run**（产品约定）。
+
+- **恢复工作台到某一版本**  
+  无单独「restore」POST。使用 **V2-08** 拉取该 **`version_id`** 的整包快照（与 **V2-01** 同形），将 **`settings` / `step_status` / `result_report`** 填回表单与步骤状态即可；是否在服务端再写入**新快照行**由产品决定（若需要再另立接口或流程）。
+
+- **发布到 userspace**  
+  使用 **V2-09**，路径上的 **`version_id`** 指定要落盘的那条快照；**不得**在 body 里用另一套 settings 覆盖该语义（见 V2-09 细则）。
+
+- **枚举复用 / 缓存预判**  
+  **不对接**；FED / BFF **不展示** BED 是否命中缓存。
+
 ## 核心模型
 
 - **版本（version）** = 策略工作台版本 = **快照（snapshot）**，三者指同一实体。
@@ -79,7 +105,8 @@
 | `GET /strategy/settings/capital-allocation-strategies` | 资金分配方式等枚举选项（表单下拉 / radio） |
 | `GET /strategy/settings/sampling-strategies` | 采样策略等枚举选项 |
 
-- 其它 profile / 选项资源：**路径命名与上表同一风格**（`/strategy/settings/...`），上线前完成上表与编排文档的同步增补。
+- **与「profiles」**：见上文 **「FED 对接说明 · 表单选项与 profiles」**；本表接口**不隐含**返回 SWB 式 `profiles`，除非后续扩展并写明字段。
+- 其它选项资源：**路径命名与上表同一风格**（`/strategy/settings/...`），上线前完成上表与编排文档的同步增补。
 
 ## 契约细则
 

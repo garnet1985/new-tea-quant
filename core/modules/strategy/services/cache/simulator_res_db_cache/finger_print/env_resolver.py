@@ -175,7 +175,7 @@ class ResolveEnv:
     def env_fingerprint_payload(
         *,
         strategy_name: str,
-        stock_list: List[str],
+        stock_ids: Sequence[str],
         start_date: str,
         end_date: str,
         run_mode: str,
@@ -190,12 +190,12 @@ class ResolveEnv:
 
         稳定哈希由 ``finger_print.to_env_hash``（内部 ``_stable_sha256``）完成。
         """
-        stock_ids = ResolveEnv._collect_stock_ids(stock_list)
+        normalized_stock_ids = ResolveEnv._collect_stock_ids(list(stock_ids))
         return {
             "v": 4,
             "kind": "strategy_db_cache_env",
             "strategy_name": str(strategy_name),
-            "stock_ids": stock_ids,
+            "stock_ids": normalized_stock_ids,
             "start_date": str(start_date),
             "end_date": str(end_date),
             "run_mode": str(run_mode),
@@ -218,3 +218,21 @@ class EnvFingerprintInputs(NamedTuple):
     worker_class_name: str
     worker_code_hash: str
     data_contract_mapping: str
+
+
+def resolve_env_inputs(**kwargs: Any) -> Optional[EnvFingerprintInputs]:
+    """模块级入口（与 ``ResolveEnv.resolve_env_inputs`` 等价）。"""
+    return ResolveEnv.resolve_env_inputs(**kwargs)
+
+
+def env_fingerprint_payload(**kwargs: Any) -> Dict[str, Any]:
+    """模块级入口（与 ``ResolveEnv.env_fingerprint_payload`` 等价）。"""
+    return ResolveEnv.env_fingerprint_payload(**kwargs)
+
+
+__all__ = [
+    "EnvFingerprintInputs",
+    "ResolveEnv",
+    "env_fingerprint_payload",
+    "resolve_env_inputs",
+]

@@ -250,6 +250,17 @@ def db_cache_fingerprint_pair_from_parts(
     )
 
 
+def __getattr__(name: str):
+    """惰性导出（兼容旧路径 ``finger_print.StrategySettingsService``）。"""
+    if name == "StrategySettingsService":
+        from core.modules.strategy.services.runtime.strategy_settings_service import (
+            StrategySettingsService as _StrategySettingsService,
+        )
+
+        return _StrategySettingsService
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
     "DbCacheFingerprintResolution",
     "db_cache_fingerprint_pair",

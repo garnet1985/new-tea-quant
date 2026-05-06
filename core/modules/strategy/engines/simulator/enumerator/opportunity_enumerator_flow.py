@@ -61,36 +61,41 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         strategy_info: Optional["DiscoveredStrategy"] = None,
     ) -> Any:
         """
-        Lightweight fingerprint probe → (optional DB cache hit) → full preprocess → execute → postprocess → persist.
+        指纹探针 → **仅当 DbCache 指纹解析完全成功时** 尝试命中表缓存 → 否则完整
+        preprocess → execute → postprocess → **成功后再解析指纹并回写缓存**。
 
-        Cache hit skips output version dirs, worker pool resolution, and job build.
+        命中缓存时跳过输出目录、worker 池与任务构建；``force_refresh`` 时跳过读缓存但仍可写缓存。
         """
-        # Deferred import: package ``cache`` / ``simulator_res_db_cache`` 避免与枚举器初始化循环依赖。
-        from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
-            StrategySettings,
-        )
+        # Deferred import: ``cache`` / ``simulator_res_db_cache`` / ``DataManager`` 避免与枚举器初始化循环依赖。
+        from core.modules.data_manager import DataManager
         from core.modules.strategy.services.cache import lookup_enum_cache, persist_enum_snapshot
-        from core.modules.strategy.services.cache.simulator_res_db_cache import db_cache_fingerprint_pair
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
+            resolve_db_cache_fingerprints,
+        )
 
         self.last_snapshot_id = 0
         self.last_run_used_db_cache = False
         probe = self._preprocess_probe(strategy_name=strategy_name, strategy_info=strategy_info)
-        settings_model = StrategySettings(raw_settings=dict(probe.settings_for_fingerprint or {}))
-        req_fp = probe.request_fingerprint
-        settings_fingerprint_id, env_fingerprint_id = db_cache_fingerprint_pair(
-            settings=settings_model,
-            strategy_name=req_fp.strategy_name,
-            stock_ids=req_fp.stock_ids,
-            start_date=str(self.start_date),
-            end_date=str(self.end_date),
-            worker_module_path=req_fp.worker_module_path,
-            worker_class_name=req_fp.worker_class_name,
-            worker_code_hash=req_fp.worker_code_hash,
-            data_contract_mapping=req_fp.data_contract_mapping,
+
+        data_mgr = DataManager(is_verbose=False)
+        latest_completed_trading_date = str(
+            data_mgr.service.calendar.get_latest_completed_trading_date() or ""
+        ).strip()
+
+        resolved_probe = resolve_db_cache_fingerprints(
+            strategy_name=str(strategy_name),
+            raw_settings=dict(probe.settings_for_fingerprint or {}),
+            stock_list=list(self.stock_list or []),
+            latest_completed_trading_date=latest_completed_trading_date,
         )
 
-        if not self._impl.force_refresh:
-            hit = lookup_enum_cache(strategy_name, settings_fingerprint_id, env_fingerprint_id)
+        # 指纹条件不足（settings / env / worker 等）时不走读缓存，直接跑完整 flow。
+        if resolved_probe is not None and not self._impl.force_refresh:
+            hit = lookup_enum_cache(
+                strategy_name,
+                resolved_probe.settings_fp,
+                resolved_probe.env_fp,
+            )
             if hit:
                 summary_list, snapshot_id = hit
                 self.last_snapshot_id = int(snapshot_id or 0)
@@ -100,17 +105,26 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         preprocessed = self._preprocess_finish(probe)
         executed = self.execute(preprocessed)
         summary_list = self.postprocess(preprocessed, executed)
+
+        # Flow 完成后用与 DbCache 一致的解析路径再算指纹并落库（run 内 settings 可能与 probe 略有差异）。
         if summary_list and isinstance(summary_list, list):
-            first = summary_list[0] if summary_list else {}
-            settings_api = preprocessed.full_settings_snapshot_api or {}
-            persisted_sid = persist_enum_snapshot(
-                strategy_name,
-                settings_snapshot_api=settings_api,
-                report_enum=first if isinstance(first, dict) else {},
-                settings_fingerprint_id=settings_fingerprint_id,
-                env_fingerprint_id=env_fingerprint_id,
+            raw_for_resolve = dict(preprocessed.full_settings_snapshot_api or probe.settings_for_fingerprint or {})
+            resolved_save = resolve_db_cache_fingerprints(
+                strategy_name=str(strategy_name),
+                raw_settings=raw_for_resolve,
+                stock_list=list(self.stock_list or []),
+                latest_completed_trading_date=latest_completed_trading_date,
             )
-            self.last_snapshot_id = int(persisted_sid or 0)
+            if resolved_save is not None:
+                first = summary_list[0] if summary_list else {}
+                persisted_sid = persist_enum_snapshot(
+                    strategy_name,
+                    settings_snapshot_api=dict(resolved_save.normalized_settings_dict or {}),
+                    report_enum=first if isinstance(first, dict) else {},
+                    settings_fingerprint_id=resolved_save.settings_fp,
+                    env_fingerprint_id=resolved_save.env_fp,
+                )
+                self.last_snapshot_id = int(persisted_sid or 0)
         return summary_list
 
     def _preprocess_probe(
@@ -119,10 +133,6 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"],
     ) -> EnumeratorProbeContext:
-        from core.modules.strategy.services.cache.simulator_res_db_cache.settings import (
-            StrategySettingsService,
-        )
-
         base_settings = self._impl.load_settings(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
@@ -132,9 +142,8 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         enum_settings = self._impl.parse_enum_settings(base_settings)
         settings_payload = enum_settings.to_dict()
         raw_full = copy.deepcopy(base_settings.to_dict())
-        full_settings_snapshot_api = StrategySettingsService.runtime_to_api(raw_full)
-        if not full_settings_snapshot_api:
-            full_settings_snapshot_api = raw_full
+        # API 形态转换器未接入时使用 runtime 快照（与校验 / 指纹路径同源 dict）。
+        full_settings_snapshot_api = raw_full
         settings_for_fingerprint = copy.deepcopy(base_settings.to_dict())
         request_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=strategy_name,

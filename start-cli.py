@@ -325,6 +325,23 @@ class App:
             used_db_cache=used_db_cache,
         )
 
+    def _display_capital_allocation_summary(
+        self,
+        strategy_name: str,
+        summary: dict,
+        *,
+        used_db_cache: bool = False,
+    ) -> None:
+        from core.modules.strategy.engines.simulator.capital_allocation.data_classes.report import (
+            CapitalReport,
+        )
+
+        CapitalReport.present_session_summary(
+            summary if isinstance(summary, dict) else {},
+            strategy_name=str(strategy_name or ""),
+            used_db_cache=used_db_cache,
+        )
+
     # ========================================================================
     # 模拟器相关
     # ========================================================================
@@ -361,12 +378,15 @@ class App:
             used_db_cache=getattr(flow, "last_run_used_db_cache", False),
         )
 
-    def capital_allocation_simulate(self, strategy_name: str = 'example'):
+    def capital_allocation_simulate(
+        self, strategy_name: str = "example", *, force_refresh: bool = False
+    ):
         """
         基于枚举输出结果的资金分配模拟（CapitalAllocationFlow）
-        
+
         Args:
             strategy_name: 策略名称
+            force_refresh: 为 True 时跳过 DbCache 读路径，强制完整重算（仍会写回缓存）。
         """
         from core.modules.strategy.engines.simulator.capital_allocation import (
             CapitalAllocationFlow,
@@ -377,13 +397,24 @@ class App:
         if not strategy_info:
             logger.warning("策略不存在: %s", strategy_name)
             return
-        logger.info(f"💰 运行 CapitalAllocationFlow, strategy={strategy_name}")
-        summary = CapitalAllocationFlow(is_verbose=self.is_verbose).run(
-            strategy_name=strategy_name,
+        print(f"💰 CapitalAllocationFlow · strategy={strategy_name}")
+        if force_refresh:
+            print("🔁 --force：跳过 capital_allocation DbCache 读路径，强制重跑模拟")
+        flow = CapitalAllocationFlow(
+            is_verbose=self.is_verbose, force_refresh=force_refresh
+        )
+        summary = flow.run(
+            strategy_name=str(strategy_name),
             strategy_info=strategy_info,
         )
         if not summary:
             logger.warning("CapitalAllocationFlow 未返回任何结果")
+            return
+        self._display_capital_allocation_summary(
+            strategy_name,
+            summary,
+            used_db_cache=getattr(flow, "last_run_used_db_cache", False),
+        )
     
     # ========================================================================
     # 工具方法
@@ -730,11 +761,12 @@ class CommandExecutor:
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
+        fr = bool(getattr(args, "force_enumerate", False))
         self.app.price_factor_simulate(
             strategy_name=strategy,
-            force_refresh=bool(getattr(args, "force_enumerate", False)),
+            force_refresh=fr,
         )
-        self.app.capital_allocation_simulate(strategy_name=strategy)
+        self.app.capital_allocation_simulate(strategy_name=strategy, force_refresh=fr)
     
     def _handle_analysis(self, args):
         """处理 analysis 命令"""
@@ -770,11 +802,13 @@ class CommandExecutor:
     
     def _handle_simulate_allocation(self, args):
         """处理 simulate_allocation 命令"""
-        logger.info("💰 运行资金分配模拟 (CapitalAllocationFlow)...")
         strategy = resolve_cli_strategy_name(self.app, args.strategy)
         if not strategy:
             return
-        self.app.capital_allocation_simulate(strategy_name=strategy)
+        self.app.capital_allocation_simulate(
+            strategy_name=strategy,
+            force_refresh=bool(getattr(args, "force_enumerate", False)),
+        )
 
     def _handle_export_adj_factor_csv(self, args):
         """处理 export_adj_factor_csv 命令"""

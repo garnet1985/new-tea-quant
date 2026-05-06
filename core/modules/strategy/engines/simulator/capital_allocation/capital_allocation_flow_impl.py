@@ -174,12 +174,14 @@ class CapitalAllocationFlowImpl:
                 if trade:
                     state["trades"].append(trade)
             elif event.is_target():
-                trade = self._handle_target_event(event, account, fee_calculator)
+                trade = self._handle_target_event(
+                    event,
+                    account,
+                    fee_calculator,
+                    completed_opportunities_map=state["completed_opportunities_map"],
+                )
                 if trade:
                     state["trades"].append(trade)
-                    self._update_completed_opportunities(
-                        event, state["completed_opportunities_map"], account
-                    )
         profiler.metrics.time_enumerate = profiler.end_timer("enumerate")
 
     def finalize_equity_curve(
@@ -327,7 +329,12 @@ class CapitalAllocationFlowImpl:
         }
 
     def _handle_target_event(
-        self, event: SimulationEvent, account: Account, fee_calculator: FeeCalculator
+        self,
+        event: SimulationEvent,
+        account: Account,
+        fee_calculator: FeeCalculator,
+        *,
+        completed_opportunities_map: Dict[str, Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
         stock_id = event.stock_id
         target = event.target or {}
@@ -366,6 +373,12 @@ class CapitalAllocationFlowImpl:
         position.shares -= sell_shares
         position.realized_pnl += pnl
         if position.shares == 0:
+            # 须在清空 ``current_opportunity_id`` 之前记入已完成；否则下游无法用 id 对齐。
+            opportunity = dict(event.opportunity or {})
+            if not str(opportunity.get("opportunity_id") or "").strip():
+                opportunity["opportunity_id"] = opp_id
+            if opp_id not in completed_opportunities_map:
+                completed_opportunities_map[opp_id] = opportunity
             position.current_opportunity_id = None
         return {
             "date": event.date,
@@ -392,26 +405,6 @@ class CapitalAllocationFlowImpl:
             1 for opp in opportunities if float(opp.get("roi", 0) or 0) > 0
         )
         return win_count / len(opportunities) if opportunities else 0.5
-
-    def _update_completed_opportunities(
-        self,
-        event: SimulationEvent,
-        completed_opportunities_map: Dict[str, Dict[str, Any]],
-        account: Account,
-    ) -> None:
-        target = event.target or {}
-        opp_id = str(target.get("opportunity_id", "")).strip()
-        if not opp_id:
-            return
-        position = account.get_position(event.stock_id)
-        if (
-            position
-            and position.current_opportunity_id == opp_id
-            and position.shares == 0
-        ):
-            opportunity = event.opportunity or {}
-            if opportunity and opp_id not in completed_opportunities_map:
-                completed_opportunities_map[opp_id] = opportunity
 
     def _calculate_summary(
         self,

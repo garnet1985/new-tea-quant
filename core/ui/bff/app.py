@@ -55,4 +55,9 @@ if __name__ == "__main__":
     port = int(conf["PORT"])
     debug = bool(conf["DEBUG"])
 
-    app.run(host=host, port=port, debug=debug, threaded=True)
+    app.run(
+        host=host,
+        port=port,
+        debug=debug,
+        threaded=bool(conf.get("THREADED", False)),
+    )

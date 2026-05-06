@@ -10,7 +10,6 @@ import {
 import Editor from 'components/editor/editor';
 import strategyCoreSchema from './editorSchemas/strategyCore';
 import strategyMetaSchema from './editorSchemas/strategyMeta';
-import strategyEnumeratorSchema from './editorSchemas/strategyEnumerator';
 import {
   applyGoalActions,
   normalizeGoalSettings,
@@ -44,6 +43,9 @@ function hasNonEmptyCore(value) {
   return isPlainObject(value) && Object.keys(value).length > 0;
 }
 
+const hasPriceSimulatorFields = Array.isArray(strategyPriceSimulatorSchema.children)
+  && strategyPriceSimulatorSchema.children.length > 0;
+
 export function StrategySettingsPanel({
   settings,
   onSettingsChange,
@@ -51,15 +53,13 @@ export function StrategySettingsPanel({
   onGoalChange,
   onSamplingChange,
   onFeesChange,
-  onEnumeratorChange,
   onPriceSimulatorChange,
   onCapitalSimulatorChange,
   allocationModeOptions,
   samplingStrategyOptions,
 }) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
-  const [priceEditorErrors, setPriceEditorErrors] = useState({});
-  const [capitalEditorErrors, setCapitalEditorErrors] = useState({});
+  const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
   const capitalSimulatorSchema = useMemo(
     () => buildStrategyCapitalSimulatorSchema(allocationModeOptions),
     [allocationModeOptions],
@@ -102,54 +102,38 @@ export function StrategySettingsPanel({
             onChange={onFeesChange}
           />
         </SectionAccordion>
-        <SectionAccordion title="机会枚举参数">
-          <Editor
-            schema={strategyEnumeratorSchema}
-            value={settings?.enumerator}
-            onChange={onEnumeratorChange}
-          />
-        </SectionAccordion>
-        <SectionAccordion title="价格回测参数">
-          <Editor
-            schema={strategyPriceSimulatorSchema}
-            value={settings?.price_simulator}
-            onChange={onPriceSimulatorChange}
-            errors={priceEditorErrors}
-            onValidate={(nextValue) => {
-              const start = nextValue?.start_date || '';
-              const end = nextValue?.end_date || '';
-              const errors = {};
-              if (start && end && end < start) {
-                errors.end_date = '结束日期不能早于开始日期';
-              }
-              return errors;
-            }}
-            onValidationChange={setPriceEditorErrors}
-          />
-        </SectionAccordion>
-        <SectionAccordion title="资金模拟参数">
-          <Editor
-            schema={capitalSimulatorSchema}
-            value={settings?.capital_simulator}
-            onChange={onCapitalSimulatorChange}
-            errors={capitalEditorErrors}
-            onValidate={(nextValue) => {
-              const start = nextValue?.start_date || '';
-              const end = nextValue?.end_date || '';
-              const errors = {};
-              if (start && end && end < start) {
-                errors.end_date = '结束日期不能早于开始日期';
-              }
-              return errors;
-            }}
-            onValidationChange={setCapitalEditorErrors}
-          />
-        </SectionAccordion>
         <SectionAccordion title="采样配置">
           <Editor
             schema={samplingSchema}
             value={normalizeSamplingSettings(settings?.sampling)}
             onChange={(nextSampling) => onSamplingChange(cleanupSamplingByStrategy(nextSampling))}
+            errors={samplingEditorErrors}
+            onValidate={(nextValue) => {
+              const start = nextValue?.start_date || '';
+              const end = nextValue?.end_date || '';
+              const errors = {};
+              if (start && end && end < start) {
+                errors.end_date = '结束日期不能早于开始日期';
+              }
+              return errors;
+            }}
+            onValidationChange={setSamplingEditorErrors}
+          />
+        </SectionAccordion>
+        {hasPriceSimulatorFields ? (
+          <SectionAccordion title="价格回测参数">
+            <Editor
+              schema={strategyPriceSimulatorSchema}
+              value={settings?.price_simulator}
+              onChange={onPriceSimulatorChange}
+            />
+          </SectionAccordion>
+        ) : null}
+        <SectionAccordion title="资金模拟参数">
+          <Editor
+            schema={capitalSimulatorSchema}
+            value={settings?.capital_simulator}
+            onChange={onCapitalSimulatorChange}
           />
         </SectionAccordion>
       </Stack>

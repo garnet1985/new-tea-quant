@@ -243,12 +243,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             fingerprint=result_fingerprint,
             status="completed",
         )
-        self._impl.cleanup_versions(
-            output_dir=preprocessed.output_dir,
-            strategy_name=preprocessed.strategy_name,
-            enum_settings=preprocessed.enum_settings,
-        )
-        return self._impl.build_result_report(
+        summary_list = self._impl.build_result_report(
             strategy_name=preprocessed.strategy_name,
             version_id=preprocessed.version_id,
             version_dir_name=preprocessed.version_dir_name,
@@ -259,7 +254,14 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             completed_count=aggregate["completed_count"],
             unfinished_count=aggregate["unfinished_count"],
             start_time=preprocessed.start_time,
+            output_dir=preprocessed.output_dir,
         )
+        self._impl.cleanup_versions(
+            output_dir=preprocessed.output_dir,
+            strategy_name=preprocessed.strategy_name,
+            enum_settings=preprocessed.enum_settings,
+        )
+        return summary_list
 
 
 __all__ = ["OpportunityEnumeratorFlow"]

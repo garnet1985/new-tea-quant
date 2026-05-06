@@ -57,7 +57,7 @@ class ApiJobExecutor:
             return {batch.batch_id: job_results}
 
         # 多个 batch：使用 MultiThreadWorker 并行调度
-        from core.infra.worker.multi_thread.futures_worker import MultiThreadWorker, ExecutionMode
+        from core.infra.worker import MultiThreadWorker, ThreadExecutionMode
         import threading
         import asyncio
 
@@ -83,7 +83,7 @@ class ApiJobExecutor:
 
         worker = MultiThreadWorker(
             max_workers=workers,
-            execution_mode=ExecutionMode.PARALLEL,
+            execution_mode=ThreadExecutionMode.PARALLEL,
             enable_monitoring=True,
             timeout=3600,
             is_verbose=False,

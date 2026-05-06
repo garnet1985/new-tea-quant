@@ -18,6 +18,12 @@ class PathManager:
     """路径管理器 - 提供常用路径的快捷访问"""
     
     _root_cache: Optional[Path] = None
+    _userspace_cache: Optional[Path] = None
+
+    @staticmethod
+    def invalidate_userspace_cache() -> None:
+        """清理 userspace 路径缓存。用于 setup 运行时路径切换后强制重读。"""
+        PathManager._userspace_cache = None
     
     @staticmethod
     def get_root() -> Path:
@@ -100,6 +106,9 @@ class PathManager:
            - userspace/（新结构）
            - app/userspace/（旧结构，迁移期间兼容）
         """
+        if PathManager._userspace_cache is not None:
+            return PathManager._userspace_cache
+
         root = PathManager.get_root()
         
         # 1. 环境变量覆盖（允许用户将 userspace 放在项目根目录之外）
@@ -111,14 +120,33 @@ class PathManager:
             if env_path:
                 p = Path(env_path).expanduser().resolve()
                 if p.exists():
+                    PathManager._userspace_cache = p
                     return p
+
+        # 2. 安装步骤写入的 userspace 路径状态
+        state_file = root / ".ntq" / "userspace-path.json"
+        if state_file.is_file():
+            try:
+                import json
+
+                payload = json.loads(state_file.read_text(encoding="utf-8"))
+                state_path = str(payload.get("userspacePath", "")).strip()
+                if state_path:
+                    p = Path(state_path).expanduser().resolve()
+                    if p.exists():
+                        PathManager._userspace_cache = p
+                        return p
+            except Exception:
+                pass
         
         # 2. 优先使用新路径结构（相对项目根目录）
         new_path = root / "userspace"
         if new_path.exists():
+            PathManager._userspace_cache = new_path
             return new_path
 
         # 如果不存在，返回新路径（由调用方决定是否创建）
+        PathManager._userspace_cache = new_path
         return new_path
     
     @staticmethod
@@ -150,6 +178,16 @@ class PathManager:
         备份数据目录：userspace/backup/data
         """
         return PathManager.backup() / "data"
+
+    @staticmethod
+    def userspace_ntq() -> Path:
+        """NTQ 内部目录：userspace/.ntq"""
+        return PathManager.userspace() / ".ntq"
+
+    @staticmethod
+    def userspace_tmp() -> Path:
+        """临时目录：userspace/.ntq/tmp"""
+        return PathManager.userspace_ntq() / "tmp"
     
     @staticmethod
     def strategy(strategy_name: str) -> Path:

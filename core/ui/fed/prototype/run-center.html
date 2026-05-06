@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - 运行中心</title>
+  <link rel="stylesheet" href="./global.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a href="./index.html">工作台</a>
+        <a href="./strategy-builder.html">策略构建</a>
+        <a href="./simulation-setup.html">模拟配置</a>
+        <a class="active" href="./run-center.html">运行中心</a>
+        <a href="./results-trace.html">结果回溯</a>
+      </nav>
+    </header>
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="title">运行中心</h1>
+          <p class="subtitle">用阶段化状态替代纯日志视角，快速掌握任务进度</p>
+        </div>
+        <button class="button">刷新状态</button>
+      </header>
+
+      <section class="grid cards-2">
+        <article class="card">
+          <h3>任务进度</h3>
+          <div class="metric">67%</div>
+          <div class="progress"><span style="width: 67%;"></span></div>
+          <p class="muted" style="margin-top: 8px;">当前阶段：Layer 2 资金决策回放</p>
+          <div class="step"><div class="dot">1</div><div class="tag-success">Layer 1 已完成</div></div>
+          <div class="step"><div class="dot">2</div><div class="tag-warning">Layer 2 运行中</div></div>
+          <div class="step"><div class="dot">3</div><div>Layer 3 等待中</div></div>
+        </article>
+        <article class="card">
+          <h3>任务队列</h3>
+          <table class="table">
+            <thead><tr><th>任务ID</th><th>策略</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>RUN-2048</td><td>双低点突破 v3</td><td class="tag-warning">运行中</td></tr>
+              <tr><td>RUN-2049</td><td>趋势增强 v1</td><td>排队</td></tr>
+              <tr><td>RUN-2046</td><td>双低点突破 v2</td><td class="tag-success">完成</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 14px;">
+        <h3>日志视图（分层）</h3>
+        <p class="muted">默认只展示摘要与关键事件，全量日志可展开查看。</p>
+        <div class="step"><div class="dot">S</div><div>摘要：已处理 2,318/3,400 标的，异常 2 条。</div></div>
+        <div class="step"><div class="dot">K</div><div>关键事件：2026-04-22 14:45 风险阈值触发，自动降仓位。</div></div>
+        <div class="step"><div class="dot">L</div><div>全量日志：点击展开（prototype 中仅示意）。</div></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

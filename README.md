@@ -199,6 +199,20 @@ python start-cli.py -h
 python -m pytest
 ```
 
+## 依赖管理（Python）
+
+项目使用 `pip-tools` 维护可复现锁定依赖：
+
+- 顶层声明：`requirements.in`、`requirements-dev.in`
+- 锁定结果：`requirements.txt`、`requirements-dev.txt`
+
+更新锁文件（在仓库根目录）：
+
+```bash
+python3 -m piptools compile --output-file requirements.txt requirements.in
+python3 -m piptools compile --output-file requirements-dev.txt requirements-dev.in
+```
+
 ## 支持、反馈与捐赠
 
 - **文档与会员资源（Demo 数据、扩展策略等）**：[new-tea.cn](https://new-tea.cn)  

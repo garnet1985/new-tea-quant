@@ -1,0 +1,352 @@
+.button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.status.status-idle {
+  color: rgba(229, 231, 235, 0.78);
+}
+
+.topbar {
+  align-items: flex-start;
+}
+
+.experiment-context {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+}
+
+.context-label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: rgba(229, 231, 235, 0.72);
+}
+
+.experiment-context h3 {
+  margin: 0;
+}
+
+.context-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.context-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.context-summary strong {
+  color: rgba(244, 247, 252, 0.94);
+  font-size: 13px;
+}
+
+.experiment-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.section-head h3 {
+  margin: 0;
+}
+
+.config-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.config-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(229, 231, 235, 0.74);
+}
+
+.config-form input,
+.config-form select {
+  background: rgba(10, 13, 18, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(242, 245, 249, 0.94);
+  border-radius: 9px;
+  padding: 9px 10px;
+  font-size: 13px;
+}
+
+.config-meta {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.plan-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.plan-step {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.plan-step.is-current {
+  border-color: rgba(255, 210, 138, 0.55);
+  background: rgba(255, 210, 138, 0.08);
+}
+
+.plan-step.is-complete {
+  border-color: rgba(127, 227, 174, 0.55);
+  background: rgba(127, 227, 174, 0.08);
+}
+
+.step-index {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: rgba(242, 245, 249, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.step-title {
+  margin: 0 0 2px;
+  color: rgba(244, 247, 252, 0.94);
+  font-weight: 600;
+}
+
+.plan-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(142, 197, 255, 0.08);
+  border: 1px solid rgba(142, 197, 255, 0.22);
+  font-size: 13px;
+}
+
+.action-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.run-progress {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.run-progress > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, rgba(142, 197, 255, 0.95), rgba(127, 227, 174, 0.95));
+  transition: width 180ms linear;
+}
+
+.plan-progress {
+  margin-top: 10px;
+}
+
+.progress-label {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.unified-result .result-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.result-item {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 12px;
+}
+
+.metric-label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: rgba(229, 231, 235, 0.72);
+}
+
+.metric {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.snapshot-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.snapshot-grid div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.snapshot-grid strong {
+  color: rgba(243, 246, 250, 0.93);
+  font-size: 13px;
+  text-align: right;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+}
+
+.history-row p {
+  margin: 0 0 3px;
+}
+
+.library-list {
+  display: grid;
+  gap: 8px;
+}
+
+.library-item {
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.library-item.active {
+  border-color: rgba(142, 197, 255, 0.42);
+  background: rgba(142, 197, 255, 0.09);
+}
+
+.strategy-name {
+  margin: 0 0 2px;
+  font-weight: 600;
+  color: rgba(245, 247, 250, 0.96);
+}
+
+.library-item .muted {
+  margin: 0 0 3px;
+}
+
+.metric-positive {
+  color: var(--success);
+}
+
+.metric-negative {
+  color: var(--danger);
+}
+
+.report-btn {
+  width: fit-content;
+}
+
+.report-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 11, 16, 0.68);
+  display: grid;
+  place-items: center;
+  z-index: 120;
+}
+
+.report-modal.hidden {
+  display: none;
+}
+
+.report-panel {
+  width: min(920px, 92vw);
+  max-height: 82vh;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(145deg, rgba(21, 24, 31, 0.92), rgba(16, 19, 26, 0.88));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.report-header h3 {
+  margin: 0;
+}
+
+.report-close {
+  padding: 8px 12px;
+}
+
+.report-content {
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(231, 236, 241, 0.9);
+  background: rgba(10, 13, 18, 0.62);
+}
+
+.report-content h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: rgba(246, 248, 252, 0.96);
+}
+
+.report-content p {
+  margin: 0 0 8px;
+}

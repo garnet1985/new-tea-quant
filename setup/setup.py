@@ -152,7 +152,7 @@ class NewTeaQuantSetup:
 
     @classmethod
     def install_script_path(cls, step_name: str) -> Path:
-        return cls.repo_root / "setup" / step_name / "install.py"
+        return cls.repo_root / "setup" / "steps" / step_name / "install.py"
 
     @classmethod
     def run_install_script(cls, step_name: str, script_args: Sequence[str] = ()) -> int:

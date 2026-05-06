@@ -62,6 +62,17 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         row = self.load_one("strategy_name = %s AND version = %s", (strategy_name, int(snapshot_id)))
         return self._normalize_row(row) if row else None
 
+    def touch_snapshot_updated_at(self, strategy_name: str, snapshot_id: int) -> int:
+        """仅刷新 ``updated_at``（V2-09 apply-settings 落盘后与会话对齐）。"""
+        self._ensure_table_ready()
+        return self.execute_raw_update(
+            (
+                f"UPDATE {self.table_name} SET updated_at = %s "
+                "WHERE strategy_name = %s AND version = %s"
+            ),
+            (datetime.now(), str(strategy_name), int(snapshot_id)),
+        )
+
     def list_by_strategy(self, strategy_name: str, limit: int = 100) -> List[Dict[str, Any]]:
         self._ensure_table_ready()
         safe_limit = max(1, min(int(limit or 100), 500))

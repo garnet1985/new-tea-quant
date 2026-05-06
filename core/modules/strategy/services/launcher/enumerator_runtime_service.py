@@ -2,7 +2,7 @@
 """
 Unified enumerator runtime facade for CLI and BFF.
 
-所在包 ``strategy.services.runtime`` 非 DbCache 职责域；模块说明见同目录 ``__init__.py``。
+所在包 ``strategy.services.launcher`` 非 DbCache 职责域；模块说明见同目录 ``__init__.py``。
 """
 
 from __future__ import annotations
@@ -25,10 +25,10 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.strateg
 from core.modules.strategy.services.cache.simulator_res_db_cache import (
     db_cache_fingerprint_pair_from_parts,
 )
-from core.modules.strategy.services.runtime.stock_universe import stock_ids_for_enumerator_view
+from .stock_universe import stock_ids_for_enumerator_view
 from core.modules.strategy.services.cache.simulator_res_db_cache.config import derive_run_mode
 from .strategy_settings_service import StrategySettingsService
-from core.modules.strategy.services.runtime.run_service import (
+from .run_service import (
     StrategyFingerprintManager,
     StrategyFingerprintRuntimeService,
 )

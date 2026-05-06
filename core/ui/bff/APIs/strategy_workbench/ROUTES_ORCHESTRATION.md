@@ -21,7 +21,7 @@
 | V2-04 | GET | 各选项类子路径 | *待填* |
 | V2-05 | POST | `/strategy/{strategy_name}/{step}/run` | *待填* |
 | V2-06 | GET | `/strategy/{strategy_name}/{step}/progress` | *待填* |
-| V2-07 | GET | `/strategy/{strategy_name}/{step}/summary` 与 `…/summary/{version_id}` | *待填* |
+| V2-07 | GET | `/strategy/{strategy_name}/{step}/report`（query：必填 `version_id`） | *待填* |
 | V2-08 | GET | `/strategy/{strategy_name}/version/{version_id}` | *待填* |
 | V2-09 | POST | `/strategy/{strategy_name}/apply-settings/{version_id}` | *待填* |
 

@@ -27,7 +27,7 @@ from core.modules.strategy.services.cache.simulator_res_db_cache import (
 )
 from core.modules.strategy.services.runtime.stock_universe import stock_ids_for_enumerator_view
 from core.modules.strategy.services.cache.simulator_res_db_cache.config import derive_run_mode
-from core.modules.strategy.services.cache.simulator_res_db_cache.settings import (
+from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
     StrategySettingsService,
 )
 from core.modules.strategy.services.runtime.run_service import (

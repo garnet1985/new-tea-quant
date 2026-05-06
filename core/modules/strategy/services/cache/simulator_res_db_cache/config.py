@@ -16,23 +16,23 @@ MAX_SNAPSHOT_ROWS_PER_STRATEGY: int = 50
 MAX_SNAPSHOT_ROW_UPDATES: int = 10
 
 
-@lru_cache(maxsize=1)
-def read_strategy_module_version() -> str:
-    """读取 ``core/modules/strategy/module_info.yaml`` 的 ``version``（用于 env 指纹）。"""
-    here = Path(__file__).resolve()
-    strategy_root = here.parents[3]
-    info_path = strategy_root / "module_info.yaml"
-    if not info_path.is_file():
-        return "0.0.0"
-    try:
-        raw = yaml.safe_load(info_path.read_text(encoding="utf-8"))
-        if isinstance(raw, dict):
-            ver = raw.get("version")
-            if ver is not None:
-                return str(ver).strip() or "0.0.0"
-    except Exception:
-        pass
-    return "0.0.0"
+# @lru_cache(maxsize=1)
+# def read_strategy_module_version() -> str:
+#     """读取 ``core/modules/strategy/module_info.yaml`` 的 ``version``（用于 env 指纹）。"""
+#     here = Path(__file__).resolve()
+#     strategy_root = here.parents[3]
+#     info_path = strategy_root / "module_info.yaml"
+#     if not info_path.is_file():
+#         return "0.0.0"
+#     try:
+#         raw = yaml.safe_load(info_path.read_text(encoding="utf-8"))
+#         if isinstance(raw, dict):
+#             ver = raw.get("version")
+#             if ver is not None:
+#                 return str(ver).strip() or "0.0.0"
+#     except Exception:
+#         pass
+#     return "0.0.0"
 
 
 def derive_run_mode(normalized_settings: Dict[str, Any]) -> str:

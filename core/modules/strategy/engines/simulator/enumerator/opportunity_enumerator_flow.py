@@ -68,7 +68,10 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         """
         # Deferred import: ``cache`` / ``simulator_res_db_cache`` / ``DataManager`` 避免与枚举器初始化循环依赖。
         from core.modules.data_manager import DataManager
-        from core.modules.strategy.services.cache import lookup_enum_cache, persist_enum_snapshot
+        from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
+            lookup_enum_cache,
+            persist_enum_snapshot,
+        )
         from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
             resolve_db_cache_fingerprints,
         )

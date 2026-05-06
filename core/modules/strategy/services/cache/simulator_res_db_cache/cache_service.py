@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Simulator Res DB Cache：校验并标准化 settings → 计算指纹 → 读/写 ``result_report``。
+Simulator Res DB Cache：``SimulatorResDbCacheService`` 负责表行读写与 ``result_report`` 合并。
 
-表访问（双指纹命中、``result_report`` 槽位合并）在 ``SimulatorResDbCacheService`` 私有方法内；指纹数学在 ``finger_print``。
+槽位 lookup / persist 见 ``snapshot_slot_adapters``（**禁止**在本模块再导出，避免与 ``snapshot_slot_adapters`` 循环依赖）。
+指纹数学在 ``finger_print``。
 """
 
 from __future__ import annotations
 
 import pprint
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 
 from core.modules.strategy.enums import Simulator
 
@@ -212,95 +213,9 @@ class SimulatorResDbCacheService:
         return int(n or 0) > 0
 
 
-def lookup_enum_cache(
-    strategy_name: str,
-    settings_finger_print_id: str,
-    env_fingerprint_id: str,
-) -> Optional[Tuple[List[Dict[str, Any]], int]]:
-    """双指纹命中且 ``result_report.enum`` 为非空 dict 时返回 ``([payload], snapshot_id)``；否则 ``None``。"""
-    svc = SimulatorResDbCacheService()
-    row = svc.load_cache_by_fingerprints(
-        str(strategy_name),
-        str(settings_finger_print_id or "").strip(),
-        str(env_fingerprint_id or "").strip(),
-    )
-    if not row:
-        return None
-    snapshot_id = int((row or {}).get("snapshot_id") or 0)
-    rr = dict((row or {}).get("result_report") or {})
-    enum_raw = rr.get("enum")
-    if not isinstance(enum_raw, dict) or not enum_raw:
-        return None
-    return ([enum_raw], snapshot_id)
-
-
-def persist_enum_snapshot(
-    strategy_name: str,
-    *,
-    settings_snapshot_api: Dict[str, Any],
-    report_enum: Dict[str, Any],
-    settings_fingerprint_id: str,
-    env_fingerprint_id: str,
-) -> int:
-    """写入或合并 ``enum`` 槽位（委托 ``set_cache`` + ``Simulator.ENUMERATOR``）。"""
-    return SimulatorResDbCacheService().set_cache(
-        strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
-        simulator=Simulator.ENUMERATOR,
-        simulator_report=dict(report_enum or {}),
-        settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
-        env_fingerprint_id=str(env_fingerprint_id or "").strip(),
-    )
-
-
-def lookup_price_factor_cache(
-    strategy_name: str,
-    settings_finger_print_id: str,
-    env_fingerprint_id: str,
-) -> Optional[Tuple[Dict[str, Any], int]]:
-    """双指纹命中且 ``result_report.price_factor`` 为非空 dict 时返回 ``(payload, snapshot_id)``；否则 ``None``。"""
-    svc = SimulatorResDbCacheService()
-    row = svc.load_cache_by_fingerprints(
-        str(strategy_name),
-        str(settings_finger_print_id or "").strip(),
-        str(env_fingerprint_id or "").strip(),
-    )
-    if not row:
-        return None
-    snapshot_id = int((row or {}).get("snapshot_id") or 0)
-    rr = dict((row or {}).get("result_report") or {})
-    slot = rr.get("price_factor")
-    if not isinstance(slot, dict) or not slot:
-        return None
-    return (slot, snapshot_id)
-
-
-def persist_price_factor_snapshot(
-    strategy_name: str,
-    *,
-    settings_snapshot_api: Dict[str, Any],
-    report_price_factor: Dict[str, Any],
-    settings_fingerprint_id: str,
-    env_fingerprint_id: str,
-) -> int:
-    """写入或合并 ``price_factor`` 槽位。"""
-    return SimulatorResDbCacheService().set_cache(
-        strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
-        simulator=Simulator.PRICE_FACTOR,
-        simulator_report=dict(report_price_factor or {}),
-        settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
-        env_fingerprint_id=str(env_fingerprint_id or "").strip(),
-    )
-
-
 DbCacheService = SimulatorResDbCacheService
 
 __all__ = [
     "DbCacheService",
     "SimulatorResDbCacheService",
-    "lookup_enum_cache",
-    "lookup_price_factor_cache",
-    "persist_enum_snapshot",
-    "persist_price_factor_snapshot",
 ]

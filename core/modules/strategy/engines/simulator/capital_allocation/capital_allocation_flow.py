@@ -3,12 +3,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.flow_context import (
     CapitalAllocationExecuteContext,
     CapitalAllocationPreprocessContext,
+)
+from core.modules.strategy.services.cache.simulator_res_db_cache.helpers import (
+    raw_settings_for_db_cache_fingerprint,
+    stock_ids_for_db_cache_fingerprint,
 )
 from .capital_allocation_flow_impl import CapitalAllocationFlowImpl
 
@@ -19,10 +23,111 @@ if TYPE_CHECKING:
 
 
 class CapitalAllocationFlow(BaseSimulationFlow):
-    """Three-stage capital allocation simulation flow."""
+    """Three-stage capital allocation simulation flow（支持 Simulator Res DB Cache）。"""
 
-    def __init__(self, is_verbose: bool = False) -> None:
+    def __init__(self, is_verbose: bool = False, *, force_refresh: bool = False) -> None:
         self._impl = CapitalAllocationFlowImpl(is_verbose=is_verbose)
+        self._force_refresh = bool(force_refresh)
+        self.last_snapshot_id: int = 0
+        self.last_run_used_db_cache: bool = False
+
+    def run(
+        self,
+        strategy_name: str,
+        strategy_info: Optional["DiscoveredStrategy"] = None,
+    ) -> Any:
+        """
+        指纹探针 → DbCache 命中则直接返回 session summary → 否则 preprocess → execute →
+        postprocess → 写 ``capital_allocation`` 槽位。
+        """
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.simulator.price_factor.price_factor_flow_impl import (
+            PriceFactorFlowImpl,
+        )
+        from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
+            lookup_capital_allocation_cache,
+            persist_capital_allocation_snapshot,
+        )
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
+            resolve_db_cache_fingerprints,
+        )
+
+        self.last_snapshot_id = 0
+        self.last_run_used_db_cache = False
+
+        base_settings = self._impl.load_settings(strategy_name, strategy_info)
+        config = self._impl.parse_config(base_settings)
+        output_version_dir = self._impl.resolve_source_version(
+            strategy_name=strategy_name,
+            base_settings=base_settings,
+            config=config,
+            strategy_info=strategy_info,
+        )
+
+        scan = PriceFactorFlowImpl(is_verbose=False).scan_stock_files(output_version_dir)
+        stock_list = stock_ids_for_db_cache_fingerprint(
+            output_version_dir,
+            fallback_ids=sorted(scan.keys()),
+        )
+        raw_for_fp = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
+
+        data_mgr = DataManager(is_verbose=False)
+        latest_completed_trading_date = str(
+            data_mgr.service.calendar.get_latest_completed_trading_date() or ""
+        ).strip()
+
+        resolved = resolve_db_cache_fingerprints(
+            strategy_name=str(strategy_name),
+            raw_settings=raw_for_fp,
+            stock_list=list(stock_list),
+            latest_completed_trading_date=latest_completed_trading_date,
+        )
+
+        if resolved is not None and not self._force_refresh:
+            hit = lookup_capital_allocation_cache(
+                strategy_name,
+                resolved.settings_fp,
+                resolved.env_fp,
+            )
+            if hit:
+                summary, snapshot_id = hit
+                self.last_snapshot_id = int(snapshot_id or 0)
+                self.last_run_used_db_cache = True
+                return summary
+
+        sim_version_dir, sim_version_id = self._impl.create_simulation_version(strategy_name)
+        profiler = self._impl.create_profiler()
+        preprocessed = CapitalAllocationPreprocessContext(
+            strategy_name=strategy_name,
+            base_settings=base_settings,
+            config=config,
+            output_version_dir=output_version_dir,
+            sim_version_dir=sim_version_dir,
+            sim_version_id=sim_version_id,
+            profiler=profiler,
+        )
+        executed = self.execute(preprocessed)
+        summary = self.postprocess(preprocessed, executed)
+
+        if summary and isinstance(summary, dict):
+            raw_save = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
+            resolved_save = resolve_db_cache_fingerprints(
+                strategy_name=str(strategy_name),
+                raw_settings=raw_save,
+                stock_list=list(stock_list),
+                latest_completed_trading_date=latest_completed_trading_date,
+            )
+            if resolved_save is not None:
+                sid = persist_capital_allocation_snapshot(
+                    strategy_name,
+                    settings_snapshot_api=dict(resolved_save.normalized_settings_dict or {}),
+                    report_capital_allocation=summary,
+                    settings_fingerprint_id=resolved_save.settings_fp,
+                    env_fingerprint_id=resolved_save.env_fp,
+                )
+                self.last_snapshot_id = int(sid or 0)
+
+        return summary
 
     def preprocess(
         self,

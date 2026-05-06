@@ -65,19 +65,65 @@ class CapitalReport(ReportBase):
         )
 
     def to_console_lines(self) -> List[str]:
-        return [
-            f"初始资金: {self.initial_capital:,.2f}",
-            f"最终总资产: {self.final_total_equity:,.2f}",
-            f"总收益率: {self.total_return * 100:.2f}%",
-            f"最大回撤: {self.max_drawdown * 100:.2f}%",
-            f"总交易次数: {self.total_trades} (买入: {self.buy_trades}, 卖出: {self.sell_trades})",
-            f"盈利/亏损交易: {self.win_trades}/{self.loss_trades}",
-            f"交易胜率: {self.win_rate * 100:.2f}%",
-            f"总盈亏: {self.total_profit:,.2f}",
-            f"单笔平均盈亏: {self.avg_pnl_per_trade:,.2f}",
-            f"机会完成/未完成: {self.completed_opportunities}/{self.unfinished_opportunities}",
-            f"机会完成率: {self.completion_rate * 100:.2f}%",
+        ret_icon = "🟢" if self.total_return >= 0 else "🔴"
+        pnl_icon = "🟢" if self.total_profit >= 0 else "🔴"
+        wr_icon = "🟢" if self.win_rate >= 0.5 else "🟡" if self.win_rate >= 0.4 else "🔴"
+        sell_buy_ratio = (
+            round(self.sell_trades / self.buy_trades, 2) if self.buy_trades > 0 else 0.0
+        )
+        lines = [
+            f"💵 初始资金: {self.initial_capital:,.2f}",
+            f"📊 最终总资产: {self.final_total_equity:,.2f}",
+            f"{ret_icon} 总收益率: {self.total_return * 100:.2f}%",
+            f"📉 最大回撤: {self.max_drawdown * 100:.2f}%",
+            (
+                f"🔄 成交笔数: {self.total_trades} "
+                f"(开仓买入 {self.buy_trades} / 减仓卖出 {self.sell_trades}"
+                + (
+                    f"，卖出÷买入≈{sell_buy_ratio}"
+                    if self.buy_trades > 0
+                    else ""
+                )
+                + ")"
+            ),
+            (
+                "   └ 每次触发仅记 1 笔买入；每个成交的 target 记 1 笔卖出，"
+                "同一机会可多条 target（分批卖），故卖出笔数常多于买入。"
+            ),
+            f"✅ 盈利交易 / ❌ 亏损交易: {self.win_trades} / {self.loss_trades}",
+            f"{wr_icon} 卖出侧胜率: {self.win_rate * 100:.2f}%",
+            f"{pnl_icon} 已实现总盈亏: {self.total_profit:,.2f}",
+            f"📐 单笔平均盈亏 (卖出): {self.avg_pnl_per_trade:,.2f}",
+            (
+                f"🎯 机会 (完成/未完成): "
+                f"{self.completed_opportunities}/{self.unfinished_opportunities}"
+            ),
+            f"📈 机会完成率: {self.completion_rate * 100:.2f}%",
         ]
+        return lines
+
+    @classmethod
+    def present_session_summary(
+        cls,
+        summary: Dict[str, Any],
+        *,
+        strategy_name: str = "",
+        used_db_cache: bool = False,
+    ) -> None:
+        """在终端打印资金分配 session 汇总（print，与 PriceReport 一致）。"""
+        if not isinstance(summary, dict) or not summary:
+            return
+        report = cls.from_dict(summary)
+        label = (strategy_name or "").strip() or "策略"
+        sep = "=" * 60
+        print(sep)
+        print(f"💰 {label} 策略资金分配回测结果")
+        print(sep)
+        for line in report.to_console_lines():
+            print(line)
+        print("")
+        if used_db_cache:
+            print("💾 本次结果来自 Simulator DB 缓存，未新建模拟输出目录。")
 
 
 __all__ = ["CapitalReport"]

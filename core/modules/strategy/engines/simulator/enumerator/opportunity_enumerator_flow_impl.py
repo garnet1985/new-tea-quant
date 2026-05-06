@@ -31,7 +31,7 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.settings im
 from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
     EnumeratorReport,
 )
-from core.modules.strategy.services.runtime.run_types import (
+from core.modules.strategy.services.launcher.run_types import (
     StrategyRunFingerprint,
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker

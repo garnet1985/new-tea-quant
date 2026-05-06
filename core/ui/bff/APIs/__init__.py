@@ -4,12 +4,11 @@ BFF APIs 模块
 """
 from .health import health_api_bp
 from .setup import setup_api_bp, SetupService, SetupRuntimeManager
-from .strategy_workbench import strategy_workbench_api_bp, StrategyWorkbenchService
+from .strategy_workbench import strategy_workbench_api_bp
 
 __all__ = [
     'SetupService',
     'SetupRuntimeManager',
-    'StrategyWorkbenchService',
     'health_api_bp',
     'setup_api_bp',
     'strategy_workbench_api_bp',

@@ -11,8 +11,12 @@ from core.modules.strategy.services.launcher.run_types import (
     StrategyRunFingerprint,
 )
 
-# 与 ``0_metadata.json`` 分列：大 universe 下不把数万 ``stock_ids`` 塞进主元数据 JSON。
+# 侧载股票列表（旧版）；新跑次用 ``0_stock_ref.json`` 的键作为 universe。
 SCOPE_STOCK_IDS_FILENAME = "0_scope_stock_ids.txt"
+# 逐股摘要（ref）：``{ 代码: { stock_name, opportunities, completion_rate, avg_opportunity_interval_days } }``
+STOCK_REF_FILENAME = "0_stock_ref.json"
+# 旧文件名兼容读取
+LEGACY_STOCK_SUMMARY_FILENAME = "0_enumerator_stocks.json"
 
 
 class EnumeratorOutputWriterService:
@@ -116,24 +120,32 @@ class EnumeratorOutputWriterService:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     @staticmethod
-    def write_fingerprint(
+    def write_stock_summary_by_stock_id(
         *,
         output_dir: Path,
-        fingerprint_payload: Dict[str, Any],
+        by_stock_id: Dict[str, Dict[str, Any]],
     ) -> None:
-        with (output_dir / "0_fingerprint.json").open("w", encoding="utf-8") as f:
-            json.dump(fingerprint_payload, f, indent=2, ensure_ascii=False)
+        """单文件、以股票代码为键；数据在 job 完成时已在内存中汇总，此处仅一次顺序写盘。"""
+        if not by_stock_id:
+            return
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ordered = {sid: by_stock_id[sid] for sid in sorted(by_stock_id.keys())}
+        path = output_dir / STOCK_REF_FILENAME
+        path.write_text(
+            json.dumps(ordered, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
     @staticmethod
     def fingerprint_dict_for_metadata(
         fingerprint: StrategyRunFingerprint,
     ) -> Tuple[Dict[str, Any], List[str]]:
-        """嵌入 ``0_metadata.json`` 的 fingerprint 去掉 ``stock_ids``；返回侧载文件用列表。"""
+        """嵌入 ``0_metadata.json`` 的 fingerprint 去掉 ``stock_ids``；指向 ``0_stock_ref.json``（与逐股 ref 合一）。"""
         d = fingerprint.to_dict()
         raw_ids = d.pop("stock_ids", None) or []
         scope_ids = sorted({str(x).strip() for x in raw_ids if str(x).strip()})
         if scope_ids:
-            d["stock_ids_ref"] = SCOPE_STOCK_IDS_FILENAME
+            d["stock_ids_ref"] = STOCK_REF_FILENAME
         return d, scope_ids
 
     @staticmethod
@@ -149,9 +161,29 @@ class EnumeratorOutputWriterService:
     @staticmethod
     def read_scope_stock_ids(output_dir: Path) -> List[str]:
         """
-        优先读侧载 ``0_scope_stock_ids.txt``；否则回退旧版 ``0_metadata.json`` 内嵌 ``stock_ids``。
-        均无则返回空列表。
+        解析枚举目录的股票 universe：``0_stock_ref.json`` / 旧 ``0_enumerator_stocks.json`` 键、
+        侧载 ``0_scope_stock_ids.txt``、或 ``0_metadata.json`` 内嵌 ``stock_ids``。
         """
+        ref_path = output_dir / STOCK_REF_FILENAME
+        if ref_path.is_file():
+            try:
+                data = json.loads(ref_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and data:
+                    ids = sorted({str(k).strip() for k in data.keys() if str(k).strip()})
+                    if ids:
+                        return list(ids)
+            except Exception:
+                pass
+        legacy_ref = output_dir / LEGACY_STOCK_SUMMARY_FILENAME
+        if legacy_ref.is_file():
+            try:
+                data = json.loads(legacy_ref.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and data:
+                    ids = sorted({str(k).strip() for k in data.keys() if str(k).strip()})
+                    if ids:
+                        return list(ids)
+            except Exception:
+                pass
         sidecar = output_dir / SCOPE_STOCK_IDS_FILENAME
         if sidecar.is_file():
             try:
@@ -180,7 +212,6 @@ class EnumeratorOutputWriterService:
         strategy_name: str,
         start_date: str,
         end_date: str,
-        opportunity_count: int,
         version_id: int,
         version_dir_name: str,
         settings_snapshot: Dict[str, Any],
@@ -196,7 +227,6 @@ class EnumeratorOutputWriterService:
             "strategy_name": strategy_name,
             "start_date": start_date,
             "end_date": end_date,
-            "opportunity_count": opportunity_count,
             "created_at": created_at,
             "version_id": version_id,
             "version_dir": version_dir_name,
@@ -208,4 +238,8 @@ class EnumeratorOutputWriterService:
         return metadata, scope_stock_ids
 
 
-__all__ = ["EnumeratorOutputWriterService", "SCOPE_STOCK_IDS_FILENAME"]
+__all__ = [
+    "EnumeratorOutputWriterService",
+    "SCOPE_STOCK_IDS_FILENAME",
+    "STOCK_REF_FILENAME",
+]

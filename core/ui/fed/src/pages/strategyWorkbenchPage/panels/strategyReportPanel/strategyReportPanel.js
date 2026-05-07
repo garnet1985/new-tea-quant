@@ -15,6 +15,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
+import { API_VERSION_PREFIX } from '../../../../api/conf/apiConfig';
 import OpportunityEnumrateReport from './reports/opportunityEnumerate';
 import PriceFactorReport from './reports/priceFactor';
 import CapitalAllocationReport from './reports/capitalAllocation';
@@ -28,7 +29,57 @@ import {
   fetchStrategyReportCompare,
   fetchStrategyReportStocks,
   fetchStrategyReports,
+  fetchStrategyStepReportRef,
 } from '../../../../api/apis/strategyApi';
+
+/** 与 ``sortMappedEnumRows`` 字段一致；仅用于首屏默认顺序（后续排序为 DataGrid 客户端） */
+const ENUM_REF_DEFAULT_SORT = { sortBy: 'opportunities', order: 'desc' };
+
+function mapStockRefToRows(stockRef) {
+  if (!stockRef || typeof stockRef !== 'object') return [];
+  return Object.entries(stockRef).map(([code, v]) => {
+    const row = v && typeof v === 'object' ? v : {};
+    const opp = row.opportunities ?? row.opportunity_count ?? row.opportunityCount;
+    return {
+      id: String(code),
+      stockCode: String(code),
+      stockName: String(row.stock_name || row.stockName || code),
+      opportunities: Number(opp ?? 0),
+      completionRate: Number(row.completion_rate ?? row.completionRate ?? 0),
+      triggerSpanDays: Number(row.avg_opportunity_interval_days ?? row.triggerSpanDays ?? 0),
+    };
+  });
+}
+
+/** JSON object 键顺序不可靠：映射成行数组后按维度排序一次，便于首屏与分页。 */
+function sortMappedEnumRows(rows, sortBy, order) {
+  if (!Array.isArray(rows) || rows.length <= 1) return rows;
+  const desc = order === 'desc';
+  const tie = (a, b) => String(a.stockCode).localeCompare(String(b.stockCode), undefined, { numeric: true });
+  return [...rows].sort((a, b) => {
+    let cmp = 0;
+    switch (sortBy) {
+      case 'stock_code':
+        cmp = String(a.stockCode).localeCompare(String(b.stockCode), undefined, { numeric: true });
+        break;
+      case 'stock_name':
+        cmp = String(a.stockName).localeCompare(String(b.stockName), undefined, { numeric: true });
+        break;
+      case 'completion_rate':
+        cmp = Number(a.completionRate) - Number(b.completionRate);
+        break;
+      case 'avg_opportunity_interval_days':
+        cmp = Number(a.triggerSpanDays) - Number(b.triggerSpanDays);
+        break;
+      case 'opportunities':
+      default:
+        cmp = Number(a.opportunities) - Number(b.opportunities);
+        break;
+    }
+    if (cmp !== 0) return desc ? -cmp : cmp;
+    return tie(a, b);
+  });
+}
 
 const STEP_TABS = [
   { key: 'enum', label: '枚举报告' },
@@ -41,6 +92,8 @@ function StrategyReportPanel({
   executionState,
   compareVersionOptions,
   workbenchResultReport,
+  workbenchVersionId = '',
+  onForceEnumerate,
 }) {
   const [remoteReports, setRemoteReports] = useState({ reports: {}, availableTabs: [] });
   /** V2-01 ``result_report.enum``：含 ``enumMetrics.opportunityCount*``，由页面 ``GET …/version/latest`` 注入 */
@@ -58,7 +111,18 @@ function StrategyReportPanel({
   );
   const [reportStocks, setReportStocks] = useState({ enum: [], price: [], capital: [] });
   const [reportError, setReportError] = useState('');
+  const [enumRefStatus, setEnumRefStatus] = useState('idle');
+  const [enumRefRows, setEnumRefRows] = useState([]);
   const runId = executionState?.runId || '';
+
+  const anchorVersionId = useMemo(() => {
+    const run = typeof executionState?.lastCompletedWorkbenchVersionId === 'string'
+      ? executionState.lastCompletedWorkbenchVersionId.trim()
+      : '';
+    if (run) return run;
+    const wb = typeof workbenchVersionId === 'string' ? workbenchVersionId.trim() : '';
+    return wb && wb !== 'userspace' ? wb : '';
+  }, [executionState?.lastCompletedWorkbenchVersionId, workbenchVersionId]);
 
   const availableTabs = useMemo(() => {
     const remoteTabs = Array.isArray(remoteReports?.availableTabs)
@@ -81,6 +145,7 @@ function StrategyReportPanel({
       setActiveTab(keys[0]);
     }
   }, [availableTabs, activeTab]);
+
   const [compareVersion, setCompareVersion] = useState('');
   const [comparePayload, setComparePayload] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
@@ -90,6 +155,40 @@ function StrategyReportPanel({
     if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
     return availableTabs[availableTabs.length - 1].key;
   }, [activeTab, availableTabs]);
+
+  const enumReportRefUrl = useMemo(() => {
+    if (enumRefStatus !== 'ok' || !anchorVersionId) return '';
+    return `${API_VERSION_PREFIX}/strategy/${encodeURIComponent(strategyName)}/enum/report_ref/${encodeURIComponent(anchorVersionId)}`;
+  }, [enumRefStatus, anchorVersionId, strategyName]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!strategyName || !anchorVersionId || resolvedActiveTab !== 'enum') {
+      setEnumRefStatus('idle');
+      setEnumRefRows([]);
+      return undefined;
+    }
+    setEnumRefStatus('loading');
+    fetchStrategyStepReportRef(strategyName, 'enum', anchorVersionId).then((msg) => {
+      if (cancelled) return;
+      const raw = msg?.stock_ref;
+      if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
+        const mapped = sortMappedEnumRows(
+          mapStockRefToRows(raw),
+          ENUM_REF_DEFAULT_SORT.sortBy,
+          ENUM_REF_DEFAULT_SORT.order,
+        );
+        setEnumRefRows(mapped);
+        setEnumRefStatus('ok');
+        return;
+      }
+      setEnumRefRows([]);
+      setEnumRefStatus('missing');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [anchorVersionId, resolvedActiveTab, strategyName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +307,13 @@ function StrategyReportPanel({
     setActiveTab(nextValue);
   };
 
+  const enumStockRowsForGrid = useMemo(() => {
+    if (enumRefStatus === 'ok' && Array.isArray(enumRefRows) && enumRefRows.length > 0) {
+      return enumRefRows;
+    }
+    return reportStocks.enum;
+  }, [enumRefRows, enumRefStatus, reportStocks.enum]);
+
   const renderReportByTab = (tabKey, reportData, title, options = {}) => {
     if (tabKey === 'enum') {
       return (
@@ -216,6 +322,9 @@ function StrategyReportPanel({
           stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          stockGridOverlay={options.stockGridOverlay}
+          reportRefUrl={options.reportRefUrl || ''}
+          enumRefStockTotal={options.enumRefStockTotal}
         />
       );
     }
@@ -274,10 +383,50 @@ function StrategyReportPanel({
           </Typography>
         );
       }
+      const stockGridOverlay =
+        anchorVersionId
+        && enumRefStatus === 'missing'
+        && typeof onForceEnumerate === 'function' ? (
+          <Box
+            role="button"
+            tabIndex={0}
+            onClick={() => onForceEnumerate()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onForceEnumerate();
+              }
+            }}
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 2,
+              borderRadius: 1,
+              backgroundColor: 'rgba(255,255,255,0.92)',
+              border: 1,
+              borderColor: 'divider',
+              cursor: 'pointer',
+              textAlign: 'center',
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              当前快照下没有逐股引用文件；请重新执行枚举（忽略缓存）后查看样本表。点击此处强制执行。
+            </Typography>
+          </Box>
+          ) : null;
       return renderReportByTab(
         'enum',
-        { enumMetrics, stockRows: reportStocks.enum },
+        { enumMetrics, stockRows: enumStockRowsForGrid },
         '枚举核心结论（草图）',
+        {
+          stockGridOverlay,
+          reportRefUrl: enumReportRefUrl,
+          enumRefStockTotal: enumRefStatus === 'ok' ? enumRefRows.length : undefined,
+        },
       );
     }
 

@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, Optional
+from typing import AbstractSet, Any, Dict, Optional
 
 from core.infra.project_context.path_manager import PathManager
 
@@ -41,6 +41,40 @@ class ProgressRecorder:
     ) -> "ProgressRecorder":
         key = f"{strategy_name}__{run_id}__scan"
         return cls(cls.build_path(channel, key))
+
+    @classmethod
+    def clear_workspace_runs_for_strategy_step(
+        cls,
+        strategy_name: str,
+        step_name: str,
+        *,
+        channel: str = "strategy-workbench",
+        preserve_run_ids: Optional[AbstractSet[str]] = None,
+    ) -> None:
+        """删除该策略、该 step 下已不再需要的进度文件（``{strategy}__*__{step}.json``），避免反复运行堆积。
+
+        ``preserve_run_ids``：仍应保留的 ``job_id``（典型为内存 job 表中仍为 queued/running 的任务）。
+        """
+        sn = str(strategy_name).strip()
+        step = str(step_name).strip()
+        if not sn or not step:
+            return
+        keep = preserve_run_ids or set()
+        d = PathManager.userspace_tmp() / "progress" / channel
+        if not d.is_dir():
+            return
+        prefix = f"{sn}__"
+        suffix = f"__{step}.json"
+        for p in d.iterdir():
+            try:
+                if not p.is_file() or not p.name.startswith(prefix) or not p.name.endswith(suffix):
+                    continue
+                rid = p.name[len(prefix) : -len(suffix)]
+                if rid in keep:
+                    continue
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def _atomic_write_json(self, payload: Dict[str, Any]) -> None:
         self.recorder_path.parent.mkdir(parents=True, exist_ok=True)

@@ -122,9 +122,18 @@ function StrategyWorkbenchPage() {
   const [appliedVersionId, setAppliedVersionId] = useState('userspace');
   const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
-  /** 来自 V2-01 `GET …/version/latest`，与子面板共享，避免重复请求 */
+  /** V2-01 初次加载；单步跑完后由 V2-06 progress 的 ``result_report`` 切片合并写入，避免再打一枪 ``version/latest`` */
   const [workbenchResultReport, setWorkbenchResultReport] = useState(null);
-  const prevEnumStepStatusRef = useRef('idle');
+
+  const forceRunHandlersRef = useRef({ forceEnum: null });
+
+  const mergeWorkbenchResultReportFromProgress = useCallback((slice) => {
+    if (!slice || typeof slice !== 'object' || Object.keys(slice).length === 0) return;
+    setWorkbenchResultReport((prev) => ({
+      ...(prev && typeof prev === 'object' ? prev : {}),
+      ...slice,
+    }));
+  }, []);
 
   useEffect(() => {
     setSavedBaselineSettings(deepClone(initialSettings));
@@ -242,25 +251,6 @@ function StrategyWorkbenchPage() {
     };
   }, [buildFallbackSettings, mergeShapeOnly, strategyName]);
 
-  useEffect(() => {
-    prevEnumStepStatusRef.current = 'idle';
-  }, [strategyName]);
-
-  useEffect(() => {
-    const next = executionState?.stepStatus?.enum || 'idle';
-    const prev = prevEnumStepStatusRef.current;
-    prevEnumStepStatusRef.current = next;
-    if (!strategyName || next !== 'done' || prev === 'done') return undefined;
-    let cancelled = false;
-    fetchStrategySettings(strategyName).then((res) => {
-      if (cancelled) return;
-      setWorkbenchResultReport(res?.result_report ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [executionState?.stepStatus?.enum, strategyName]);
-
   const versionMap = useMemo(
     () => Object.fromEntries(configVersions.map((version) => [version.id, version])),
     [configVersions],
@@ -315,6 +305,11 @@ function StrategyWorkbenchPage() {
               const hasUnsavedChanges = JSON.stringify(draftSettings) !== JSON.stringify(savedBaselineSettings);
               const isAppliedSettings = JSON.stringify(draftSettings) === JSON.stringify(appliedSettings);
               const workspaceVersionLabel = selectedConfigVersion || '（尚无快照）';
+              const reportAnchorVersionId = (
+                selectedConfigVersion && String(selectedConfigVersion).trim() !== ''
+                  ? String(selectedConfigVersion).trim()
+                  : (appliedVersionId !== 'userspace' ? String(appliedVersionId).trim() : '')
+              );
               const appliedVersionLabel = appliedVersionId === 'userspace'
                 ? '策略目录 settings.py（无 DB 快照）'
                 : appliedVersionId;
@@ -491,12 +486,18 @@ function StrategyWorkbenchPage() {
                     getSettingsForRun={getDraftSettingsForSubmit}
                     onExecutionStateChange={setExecutionState}
                     compareVersionOptions={compareVersionOptions}
+                    onProgressResultReport={mergeWorkbenchResultReportFromProgress}
+                    onRegisterForceHandlers={(api) => {
+                      forceRunHandlersRef.current = api || {};
+                    }}
                   />
                   <StrategyReportPanel
                     strategyName={strategyName}
                     executionState={executionState}
                     compareVersionOptions={compareVersionOptions}
                     workbenchResultReport={workbenchResultReport}
+                    workbenchVersionId={reportAnchorVersionId}
+                    onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
                   />
                 </Box>
               </Grid>

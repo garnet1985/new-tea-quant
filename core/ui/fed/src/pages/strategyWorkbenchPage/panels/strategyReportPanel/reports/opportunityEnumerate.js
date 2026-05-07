@@ -6,13 +6,6 @@ import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 
-const ENUM_STOCK_SORT_MENU = [
-  { value: 'default', label: '接口顺序' },
-  { value: 'opportunitiesDesc', label: '机会数（高到低）' },
-  { value: 'completionDesc', label: '完整度（高到低）' },
-  { value: 'spanAsc', label: '平均机会间隔（低到高）' },
-];
-
 function buildStockDistributionOption(metrics) {
   const xData = Array.isArray(metrics?.opportunityCountLabels) ? metrics.opportunityCountLabels : [];
   const countData = Array.isArray(metrics?.opportunityCountStockCounts)
@@ -78,28 +71,26 @@ function OpportunityEnumrateReport({
   stockRows,
   title = '枚举核心结论（草图）',
   showStockGrid = true,
+  stockGridOverlay = null,
+  reportRefUrl = '',
+  enumRefStockTotal,
 }) {
   const [stockSearch, setStockSearch] = useState('');
-  const [stockSortBy, setStockSortBy] = useState('default');
 
   const derivedStockRows = useMemo(() => {
     if (Array.isArray(stockRows) && stockRows.length > 0) return stockRows;
     return buildEnumSampleStockRows(metrics || {});
   }, [metrics, stockRows]);
 
-  const filteredAndSortedRows = useMemo(() => {
+  const filteredRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
     const filtered = keyword
       ? derivedStockRows.filter((row) => (
         row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
       ))
       : derivedStockRows;
-    const sorted = [...filtered];
-    if (stockSortBy === 'opportunitiesDesc') sorted.sort((a, b) => b.opportunities - a.opportunities);
-    if (stockSortBy === 'completionDesc') sorted.sort((a, b) => b.completionRate - a.completionRate);
-    if (stockSortBy === 'spanAsc') sorted.sort((a, b) => a.triggerSpanDays - b.triggerSpanDays);
-    return sorted.slice(0, 10);
-  }, [derivedStockRows, stockSearch, stockSortBy]);
+    return filtered;
+  }, [derivedStockRows, stockSearch]);
 
   const stockColumns = [
     { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },
@@ -132,23 +123,38 @@ function OpportunityEnumrateReport({
     ? `每股机会数分布图（${opportunityCountMin}~${opportunityCountMax}，近似 ${opportunityCountBucketCount} 等分；显示：股票数（占比））`
     : '每股机会数分布图（显示：股票数（占比））';
 
+  const stockGridTip = [
+    '用于查看枚举阶段的单股指标；支持搜索、表头排序与底部分页（数据一次加载后在前端分页）。',
+    typeof enumRefStockTotal === 'number' && enumRefStockTotal > 0
+      ? `当前共 ${enumRefStockTotal} 只股票。`
+      : '',
+  ].filter(Boolean).join(' ');
+
   return (
     <Stack spacing={1.25}>
       <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
 
+      {typeof reportRefUrl === 'string' && reportRefUrl.trim() !== '' ? (
+        <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
+          逐股数据：
+          {reportRefUrl}
+        </Typography>
+      ) : null}
+
       {showStockGrid ? (
-        <ReportStockSampleGrid
-          title="样本股票（最多 10 只）"
-          tip="用于快速查看枚举阶段的单股机会覆盖情况，支持搜索和核心参数排序。"
-          searchValue={stockSearch}
-          onSearchChange={setStockSearch}
-          sortValue={stockSortBy}
-          onSortChange={setStockSortBy}
-          sortSelectLabelId="enum-stock-sort-label"
-          sortMenuItems={ENUM_STOCK_SORT_MENU}
-          rows={filteredAndSortedRows}
-          columns={stockColumns}
-        />
+        <Box sx={{ position: 'relative' }}>
+          {stockGridOverlay}
+          <ReportStockSampleGrid
+            title="逐股样本"
+            tip={stockGridTip}
+            searchValue={stockSearch}
+            onSearchChange={setStockSearch}
+            rows={filteredRows}
+            columns={stockColumns}
+            sortingMode="client"
+            initialSortModel={[{ field: 'opportunities', sort: 'desc' }]}
+          />
+        </Box>
       ) : null}
 
       <SectionBlock

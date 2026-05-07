@@ -18,6 +18,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.strateg
 )
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 from core.modules.strategy.services.launcher.run_service import StrategySettingsService
+from core.modules.strategy.services.progress import ProgressRecorder
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,20 @@ def job_get(job_id: str) -> Optional[Dict[str, Any]]:
     with _LOCK:
         row = _JOBS.get(job_id)
         return dict(row) if row else None
+
+
+def _active_job_ids_for_strategy_step(strategy_name: str, normalized_step: str) -> set[str]:
+    """仍为 queued / running 的 job_id，对应进度文件在清理时需保留。"""
+    name = str(strategy_name).strip()
+    step_key = str(normalized_step).strip()
+    out: set[str] = set()
+    with _LOCK:
+        for jid, row in _JOBS.items():
+            if row.get("strategy_name") != name or row.get("step") != step_key:
+                continue
+            if str(row.get("status") or "") in ("queued", "running"):
+                out.add(str(jid))
+    return out
 
 
 def _fed_result_report_slice(
@@ -188,6 +203,23 @@ def get_step_progress(
     if not row:
         return None
     payload = _progress_payload(row)
+    # 枚举步：worker 通过 ProgressRecorder 写磁盘进度；内存 job 表仅在启动时设为 1%/5%，长跑期间不刷新。
+    if normalized_step == "enum":
+        st = str(row.get("status") or "")
+        if st in ("queued", "running"):
+            disk = ProgressRecorder.for_strategy_run_step(
+                str(strategy_name).strip(),
+                jid,
+                "enum",
+            ).get_progress()
+            if disk:
+                raw_pct = disk.get("progress_pct")
+                if raw_pct is not None:
+                    try:
+                        pct = float(raw_pct)
+                        payload["progress"] = round(min(100.0, max(0.0, pct)), 2)
+                    except (TypeError, ValueError):
+                        pass
     payload["job_id"] = jid
     if str(row.get("status") or "") == "completed":
         sid = int(row.get("snapshot_id") or 0)
@@ -330,6 +362,12 @@ def trigger_workbench_step_run(
     discovered, err = _resolve_discovered(name, api_settings)
     if err or discovered is None:
         return {"is_triggered": False, "reason": err or "无法解析策略"}
+
+    ProgressRecorder.clear_workspace_runs_for_strategy_step(
+        name,
+        norm_step,
+        preserve_run_ids=_active_job_ids_for_strategy_step(name, norm_step),
+    )
 
     jid = job_create(strategy_name=name, step=norm_step, is_force=is_force)
     thread = threading.Thread(

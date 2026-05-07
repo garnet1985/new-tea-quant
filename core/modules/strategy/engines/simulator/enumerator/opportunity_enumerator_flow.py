@@ -237,7 +237,6 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             output_dir=preprocessed.output_dir,
             version_id=preprocessed.version_id,
             version_dir_name=preprocessed.version_dir_name,
-            opportunity_count=aggregate["total_opportunities"],
             settings_snapshot=preprocessed.settings_payload,
             enum_settings=preprocessed.enum_settings,
             fingerprint=result_fingerprint,

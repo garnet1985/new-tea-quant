@@ -24,6 +24,8 @@ import {
   buildCapitalMetrics,
   buildEnumMetrics,
   buildPriceMetrics,
+  normalizeEnumMetricsFromSummary,
+  REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
 import {
   fetchStrategyReportCompare,
@@ -316,15 +318,23 @@ function StrategyReportPanel({
 
   const renderReportByTab = (tabKey, reportData, title, options = {}) => {
     if (tabKey === 'enum') {
+      if (!reportData?.enumMetrics) {
+        return (
+          <Typography variant="body2" color="text.secondary">
+            {REPORT_BLOCK_UNAVAILABLE_ZH}
+          </Typography>
+        );
+      }
       return (
         <OpportunityEnumrateReport
-          metrics={reportData?.enumMetrics}
-          stockRows={reportData?.stockRows}
+          metrics={reportData.enumMetrics}
+          stockRows={reportData.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
           stockGridOverlay={options.stockGridOverlay}
           reportRefUrl={options.reportRefUrl || ''}
           enumRefStockTotal={options.enumRefStockTotal}
+          stockGridLoading={Boolean(options.stockGridLoading)}
         />
       );
     }
@@ -375,14 +385,6 @@ function StrategyReportPanel({
     };
 
     if (resolvedActiveTab === 'enum') {
-      const enumMetrics = buildEnumMetrics(metricsSource);
-      if (!enumMetrics) {
-        return (
-          <Typography variant="body2" color="text.secondary">
-            枚举步骤已完成，等待汇总指标（Placeholder：后续接真实枚举 summary）。
-          </Typography>
-        );
-      }
       const stockGridOverlay =
         anchorVersionId
         && enumRefStatus === 'missing'
@@ -420,12 +422,13 @@ function StrategyReportPanel({
           ) : null;
       return renderReportByTab(
         'enum',
-        { enumMetrics, stockRows: enumStockRowsForGrid },
-        '枚举核心结论（草图）',
+        { enumMetrics: buildEnumMetrics(metricsSource), stockRows: enumStockRowsForGrid },
+        '枚举核心结论',
         {
           stockGridOverlay,
           reportRefUrl: enumReportRefUrl,
           enumRefStockTotal: enumRefStatus === 'ok' ? enumRefRows.length : undefined,
+          stockGridLoading: Boolean(anchorVersionId) && enumRefStatus === 'loading',
         },
       );
     }
@@ -437,7 +440,7 @@ function StrategyReportPanel({
           priceMetrics: buildPriceMetrics(metricsSource),
           stockRows: reportStocks.price,
         },
-        '价格回测报告（草图）',
+        '价格回测报告',
       );
     }
 
@@ -447,7 +450,7 @@ function StrategyReportPanel({
         capitalMetrics: buildCapitalMetrics(metricsSource),
         stockRows: reportStocks.capital,
       },
-      '资金模拟报告（草图）',
+      '资金模拟报告',
     );
   };
 
@@ -486,7 +489,7 @@ function StrategyReportPanel({
           {renderTabContent()}
           <Divider />
           <Typography variant="caption" color="text.secondary">
-            注：报告数据已优先接入 BFF API，暂缺字段时会回退为草图推导值。
+            注：枚举汇总仅使用快照返回字段，缺项的区块会单独提示。价格/资金等报告在数据未齐时可能仍含占位内容。
           </Typography>
         </Stack>
       </AccordionDetails>
@@ -517,17 +520,11 @@ function StrategyReportPanel({
                 {renderReportByTab(
                   resolvedActiveTab,
                   {
-                    enumMetrics:
-                      comparePayload?.base_report?.enumMetrics
-                      || remoteReports?.reports?.enum?.enumMetrics
-                      || buildEnumMetrics({
-                        result: {
-                          enum: comparePayload?.base_report
-                            || remoteReports?.reports?.enum
-                            || executionState?.result?.enum
-                            || null,
-                        },
-                      }),
+                    enumMetrics: normalizeEnumMetricsFromSummary(
+                      comparePayload?.base_report
+                        || remoteReports?.reports?.enum
+                        || executionState?.result?.enum,
+                    ),
                     priceMetrics: buildPriceMetrics({
                       result: { price: comparePayload?.base_report || remoteReports?.reports?.price || executionState?.result?.price || null },
                     }),
@@ -551,9 +548,7 @@ function StrategyReportPanel({
                   ? renderReportByTab(
                     resolvedActiveTab,
                     {
-                      enumMetrics:
-                        comparePayload?.compare_report?.enumMetrics
-                        || buildEnumMetrics({ result: { enum: comparePayload?.compare_report || null } }),
+                      enumMetrics: normalizeEnumMetricsFromSummary(comparePayload?.compare_report),
                       priceMetrics: buildPriceMetrics({ result: { price: comparePayload?.compare_report || null } }),
                       capitalMetrics: buildCapitalMetrics({ result: { capital: comparePayload?.compare_report || null } }),
                     },

@@ -253,7 +253,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             success_count=aggregate["success_count"],
             aggregate_profiler=preprocessed.aggregate_profiler,
         )
-        self._impl.save_metadata(
+        enum_bff_payload = self._impl.save_metadata(
             strategy_name=preprocessed.strategy_name,
             output_dir=preprocessed.output_dir,
             version_id=preprocessed.version_id,
@@ -275,6 +275,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             unfinished_count=aggregate["unfinished_count"],
             start_time=preprocessed.start_time,
             output_dir=preprocessed.output_dir,
+            enum_bff_payload=enum_bff_payload,
         )
         self._impl.cleanup_versions(
             output_dir=preprocessed.output_dir,

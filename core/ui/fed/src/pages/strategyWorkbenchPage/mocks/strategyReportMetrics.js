@@ -244,8 +244,11 @@ export function normalizePriceMetricsFromSummary(slot) {
   }
   const roiConclusion = String(m.roiConclusion || m.roi_conclusion || '').trim();
 
+  const roiStdPct = firstNum(['roiStdPct', 'roi_std_pct']);
+
   const roiBucketLabels = toStringList(m.roiBucketLabels || m.roi_bucket_labels);
   const roiBucketCounts = toNumberList(m.roiBucketCounts || m.roi_bucket_counts);
+  const roiBucketBinCount = Number(m.roiBucketBinCount ?? m.roi_bucket_bin_count ?? 0);
 
   const hasCoreSummary = [winRate, avgRoi, avgDurationDays, annualReturn].every((x) => Number.isFinite(x));
   const hasAny = hasCoreSummary
@@ -291,9 +294,13 @@ export function normalizePriceMetricsFromSummary(slot) {
     roiP25,
     roiP75,
     roiIqr,
+    roiStdPct,
     roiConclusion,
     roiBucketLabels,
     roiBucketCounts,
+    roiBucketBinCount: Number.isFinite(roiBucketBinCount) && roiBucketBinCount > 0
+      ? Math.round(roiBucketBinCount)
+      : 0,
     roiPercentileLabels: labelsForChart,
     roiPercentileValues: pv,
     _availability: {

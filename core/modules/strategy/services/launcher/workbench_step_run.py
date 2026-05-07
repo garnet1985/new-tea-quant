@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from core.infra.project_context.path_manager import PathManager
 from core.modules.strategy.engines.shared.data_classes.discovered_strategy import DiscoveredStrategy
@@ -115,9 +115,13 @@ def _fed_result_report_slice(
     out: Dict[str, Any] = {}
 
     if normalized_step == "enum":
-        e = _enum_summary_from_result_report(rr)
-        if e:
-            out["enum"] = e
+        raw_enum = rr.get("enum")
+        if isinstance(raw_enum, dict) and raw_enum:
+            out["enum"] = raw_enum
+        else:
+            e = _enum_summary_from_result_report(rr)
+            if e:
+                out["enum"] = e
 
     elif normalized_step == "price":
         # 单独跑价格步时，快照里仍带有本轮依赖的枚举摘要，一并下发供执行面板 / 报告用
@@ -127,6 +131,10 @@ def _fed_result_report_slice(
         p = _price_factor_summary_from_result_report(rr)
         if p:
             out["price"] = p
+        raw_pf = rr.get("price_factor")
+        if isinstance(raw_pf, dict) and raw_pf:
+            # 报告 Tab 需完整会话摘要（含 roi_percentile_* / roi_bucket_*）；执行面板仍只用上面的 ``price`` 摘要
+            out["price_factor"] = raw_pf
 
     elif normalized_step == "capital":
         e = _enum_summary_from_result_report(rr)
@@ -135,8 +143,12 @@ def _fed_result_report_slice(
         p = _price_factor_summary_from_result_report(rr)
         if p:
             out["price"] = p
+        raw_pf = rr.get("price_factor")
+        if isinstance(raw_pf, dict) and raw_pf:
+            out["price_factor"] = raw_pf
         raw = rr.get("capital_allocation")
         if isinstance(raw, dict) and raw:
+            out["capital_allocation"] = raw
 
             def _num(val: Any, default: float = 0.0) -> float:
                 try:
@@ -209,6 +221,39 @@ def _seed_workbench_progress_file(
             "progress_pct": 0,
         }
     )
+
+
+def _disk_workbench_step_progress(
+    strategy_name: str,
+    job_id: str,
+    normalized_step: str,
+    progress_pct: float,
+    *,
+    phase: str = "running",
+) -> None:
+    """运行中段更新进度文件中的 ``progress_pct``（不写 ``snapshot_id``；完成仍由 merge 写 100）。"""
+    sn = str(strategy_name).strip()
+    jid = str(job_id).strip()
+    step = str(normalized_step).strip()
+    rec = ProgressRecorder.for_strategy_run_step(sn, jid, step)
+    prev = rec.get_progress()
+    base = dict(prev) if isinstance(prev, dict) else {}
+    try:
+        pct = float(progress_pct)
+    except (TypeError, ValueError):
+        pct = 0.0
+    pct = max(0.0, min(99.9, pct))
+    base.update(
+        {
+            "strategy_name": sn,
+            "run_id": jid,
+            "step_name": step,
+            "phase": phase,
+            "status": "running",
+            "progress_pct": round(pct, 2),
+        }
+    )
+    rec.record(base)
 
 
 def _disk_mark_running(strategy_name: str, job_id: str, normalized_step: str) -> None:
@@ -386,6 +431,7 @@ def _run_step_and_snapshot_id(
     *,
     is_force: bool,
     job_id: str,
+    on_step_progress: Optional[Callable[[float], None]] = None,
 ) -> int:
     if step == "enum":
         from core.modules.strategy.services.launcher.enumerator_runtime_service import (
@@ -407,7 +453,8 @@ def _run_step_and_snapshot_id(
         from core.modules.strategy.engines.simulator.price_factor.price_factor_flow import PriceFactorFlow
 
         flow = PriceFactorFlow(is_verbose=False, force_refresh=is_force)
-        flow.run(strategy_name, discovered)
+        cb = on_step_progress if callable(on_step_progress) else None
+        flow.run(strategy_name, discovered, progress_callback=cb)
         return int(flow.last_snapshot_id or 0)
 
     if step == "capital":
@@ -433,12 +480,17 @@ def _background_job(
     _disk_mark_running(strategy_name, job_id, step)
     try:
         job_update(job_id, progress=5.0)
+
+        def _tick_disk_pct(pct: float) -> None:
+            _disk_workbench_step_progress(strategy_name, job_id, step, pct)
+
         sid = _run_step_and_snapshot_id(
             step,
             strategy_name,
             discovered,
             is_force=is_force,
             job_id=job_id,
+            on_step_progress=_tick_disk_pct if step == "price" else None,
         )
         sid_int = int(sid or 0)
         job_update(

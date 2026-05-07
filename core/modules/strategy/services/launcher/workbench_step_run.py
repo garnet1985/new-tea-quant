@@ -1,4 +1,6 @@
-"""工作台单步运行：进程内 job 表（V2-06）、触发 run（V2-05）。
+"""工作台单步运行：进程内 ``_JOBS``（后台任务状态）、触发 run（V2-05）；``GET progress`` 读进度文件（V2-06）。
+
+进度 JSON 的清理不在此处触发，由后续 infra / 运维入口统一处理。
 
 模块顶层避免导入 ``price_factor`` / ``capital_allocation`` / ``enumerator``，以免经 DbCache
 链式导入 ``cache_service`` → BFF（Flask）。
@@ -47,24 +49,6 @@ def job_create(*, strategy_name: str, step: str, is_force: bool) -> str:
     return jid
 
 
-def job_resolve_id(
-    strategy_name: str,
-    normalized_step: str,
-    job_id: str,
-) -> Optional[str]:
-    jid = str(job_id or "").strip()
-    if not jid:
-        return None
-    name = str(strategy_name).strip()
-    step_key = str(normalized_step).strip()
-    row = job_get(jid)
-    if not row:
-        return None
-    if row.get("strategy_name") != name or row.get("step") != step_key:
-        return None
-    return jid
-
-
 def job_update(job_id: str, **fields: Any) -> None:
     with _LOCK:
         row = _JOBS.get(job_id)
@@ -73,24 +57,37 @@ def job_update(job_id: str, **fields: Any) -> None:
         row.update(fields)
 
 
-def job_get(job_id: str) -> Optional[Dict[str, Any]]:
-    with _LOCK:
-        row = _JOBS.get(job_id)
-        return dict(row) if row else None
+def _enum_summary_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    raw = rr.get("enum")
+    if not isinstance(raw, dict) or not raw:
+        return None
+    merged = dict(raw)
+    try:
+        merged["opportunities"] = int(merged.get("opportunities", 0) or 0)
+    except (TypeError, ValueError):
+        merged["opportunities"] = 0
+    return merged
 
 
-def _active_job_ids_for_strategy_step(strategy_name: str, normalized_step: str) -> set[str]:
-    """仍为 queued / running 的 job_id，对应进度文件在清理时需保留。"""
-    name = str(strategy_name).strip()
-    step_key = str(normalized_step).strip()
-    out: set[str] = set()
-    with _LOCK:
-        for jid, row in _JOBS.items():
-            if row.get("strategy_name") != name or row.get("step") != step_key:
-                continue
-            if str(row.get("status") or "") in ("queued", "running"):
-                out.add(str(jid))
-    return out
+def _price_factor_summary_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    raw = rr.get("price_factor")
+    if not isinstance(raw, dict) or not raw:
+        return None
+    merged = dict(raw)
+    try:
+        wr = float(merged.get("win_rate", merged.get("winRate", 0)) or 0)
+    except (TypeError, ValueError):
+        wr = 0.0
+    merged["winRate"] = round(wr, 2)
+    try:
+        ar = float(merged.get("avg_roi", merged.get("roi", merged.get("avgRoi", 0))) or 0)
+    except (TypeError, ValueError):
+        ar = 0.0
+    if ar != 0.0 and abs(ar) < 1.0:
+        merged["roi"] = round(ar * 100.0, 2)
+    else:
+        merged["roi"] = round(ar, 2)
+    return merged
 
 
 def _fed_result_report_slice(
@@ -118,32 +115,26 @@ def _fed_result_report_slice(
     out: Dict[str, Any] = {}
 
     if normalized_step == "enum":
-        raw = rr.get("enum")
-        if isinstance(raw, dict) and raw:
-            merged = dict(raw)
-            try:
-                merged["opportunities"] = int(merged.get("opportunities", 0) or 0)
-            except (TypeError, ValueError):
-                merged["opportunities"] = 0
-            out["enum"] = merged
+        e = _enum_summary_from_result_report(rr)
+        if e:
+            out["enum"] = e
 
     elif normalized_step == "price":
-        raw = rr.get("price_factor")
-        if isinstance(raw, dict) and raw:
-
-            def _num(val: Any, default: float = 0.0) -> float:
-                try:
-                    return float(val)
-                except (TypeError, ValueError):
-                    return default
-
-            win = _num(
-                raw.get("winRate", raw.get("win_rate", raw.get("win_pct"))),
-            )
-            roi = _num(raw.get("roi", raw.get("avg_roi", raw.get("roi_pct"))))
-            out["price"] = {"winRate": round(win, 2), "roi": round(roi, 2)}
+        # 单独跑价格步时，快照里仍带有本轮依赖的枚举摘要，一并下发供执行面板 / 报告用
+        e = _enum_summary_from_result_report(rr)
+        if e:
+            out["enum"] = e
+        p = _price_factor_summary_from_result_report(rr)
+        if p:
+            out["price"] = p
 
     elif normalized_step == "capital":
+        e = _enum_summary_from_result_report(rr)
+        if e:
+            out["enum"] = e
+        p = _price_factor_summary_from_result_report(rr)
+        if p:
+            out["price"] = p
         raw = rr.get("capital_allocation")
         if isinstance(raw, dict) and raw:
 
@@ -169,21 +160,161 @@ def _fed_result_report_slice(
     return out
 
 
-def _progress_payload(row: Dict[str, Any]) -> Dict[str, Any]:
-    progress = round(float(row.get("progress") or 0), 2)
-    status = str(row.get("status") or "unknown")
-    out: Dict[str, Any] = {"progress": progress, "status": status}
-    if status == "completed":
+def _merge_snapshot_into_disk_progress(
+    strategy_name: str,
+    job_id: str,
+    normalized_step: str,
+    snapshot_id: int,
+) -> None:
+    """完成后把 ``snapshot_id`` 写入进度 JSON（轮询只读该文件）。"""
+    sid = int(snapshot_id or 0)
+    if sid <= 0:
+        return
+    sn = str(strategy_name).strip()
+    jid = str(job_id).strip()
+    step = str(normalized_step).strip()
+    rec = ProgressRecorder.for_strategy_run_step(sn, jid, step)
+    prev = rec.get_progress()
+    base = dict(prev) if isinstance(prev, dict) else {}
+    base.update(
+        {
+            "strategy_name": sn,
+            "run_id": jid,
+            "step_name": step,
+            "progress_pct": 100,
+            "snapshot_id": sid,
+            "status": "completed",
+            "phase": "completed",
+        }
+    )
+    base.pop("error", None)
+    rec.record(base)
+
+
+def _seed_workbench_progress_file(
+    strategy_name: str,
+    job_id: str,
+    normalized_step: str,
+) -> None:
+    """POST 返回 ``job_id`` 后立即落盘，轮询只读该文件，不依赖进程内 ``_JOBS``。"""
+    sn = str(strategy_name).strip()
+    jid = str(job_id).strip()
+    step = str(normalized_step).strip()
+    ProgressRecorder.for_strategy_run_step(sn, jid, step).record(
+        {
+            "strategy_name": sn,
+            "run_id": jid,
+            "step_name": step,
+            "phase": "queued",
+            "progress_pct": 0,
+        }
+    )
+
+
+def _disk_mark_running(strategy_name: str, job_id: str, normalized_step: str) -> None:
+    sn = str(strategy_name).strip()
+    jid = str(job_id).strip()
+    step = str(normalized_step).strip()
+    rec = ProgressRecorder.for_strategy_run_step(sn, jid, step)
+    prev = rec.get_progress()
+    base = dict(prev) if isinstance(prev, dict) else {}
+    base.update(
+        {
+            "strategy_name": sn,
+            "run_id": jid,
+            "step_name": step,
+            "phase": "running",
+            "progress_pct": 5,
+        }
+    )
+    rec.record(base)
+
+
+def _disk_mark_failed(
+    strategy_name: str,
+    job_id: str,
+    normalized_step: str,
+    error: str,
+) -> None:
+    sn = str(strategy_name).strip()
+    jid = str(job_id).strip()
+    step = str(normalized_step).strip()
+    rec = ProgressRecorder.for_strategy_run_step(sn, jid, step)
+    prev = rec.get_progress()
+    base = dict(prev) if isinstance(prev, dict) else {}
+    base.update(
+        {
+            "strategy_name": sn,
+            "run_id": jid,
+            "step_name": step,
+            "phase": "failed",
+            "status": "failed",
+            "progress_pct": 100,
+            "error": str(error),
+        }
+    )
+    rec.record(base)
+
+
+def _progress_payload_from_disk(
+    strategy_name: str,
+    normalized_step: str,
+    job_id: str,
+) -> Optional[Dict[str, Any]]:
+    """``GET progress`` 唯一数据源：``userspace_tmp/progress/strategy-workbench/*.json``。"""
+    jid = str(job_id or "").strip()
+    if not jid:
+        return None
+    name = str(strategy_name).strip()
+    step = str(normalized_step).strip()
+    disk = ProgressRecorder.for_strategy_run_step(name, jid, step).get_progress()
+    if not isinstance(disk, dict) or not disk:
+        return None
+    sn = str(disk.get("strategy_name") or "").strip()
+    if sn and sn != name:
+        return None
+    st = str(disk.get("step_name") or "").strip()
+    if st and st != step:
+        return None
+
+    disk_status = str(disk.get("status") or "").strip().lower()
+    phase = str(disk.get("phase") or "").strip().lower()
+    if disk_status == "failed" or phase == "failed":
+        err = disk.get("error")
+        out: Dict[str, Any] = {
+            "progress": 100.0,
+            "status": "failed",
+            "job_id": jid,
+            "is_success": False,
+        }
+        if err:
+            out["reason"] = str(err)
+        return out
+
+    try:
+        pct = float(disk.get("progress_pct") or 0)
+    except (TypeError, ValueError):
+        pct = 0.0
+    sid_disk = int(disk.get("snapshot_id") or 0)
+    if sid_disk > 0 and pct < 100.0:
+        pct = 100.0
+    pct = max(0.0, min(100.0, pct))
+    done = pct >= 100.0 or sid_disk > 0
+    status = "completed" if done else "running"
+    out = {
+        "progress": round(pct, 2),
+        "status": status,
+        "job_id": jid,
+    }
+    if done:
         out["is_success"] = True
-        sid = int(row.get("snapshot_id") or 0)
+        sid = sid_disk
         if sid > 0:
             out["snapshot_id"] = sid
             out["version_id"] = f"v{sid}"
-    elif status == "failed":
-        out["is_success"] = False
-        err = row.get("error")
-        if err:
-            out["reason"] = str(err)
+            fed = _fed_result_report_slice(name, step, sid)
+            if fed:
+                out["result_report"] = fed
     else:
         out["is_success"] = None
     return out
@@ -195,38 +326,13 @@ def get_step_progress(
     normalized_step: str,
     job_id: str,
 ) -> Optional[Dict[str, Any]]:
-    """V2-06：``job_id`` 须与路径一致；否则 ``None``。"""
-    jid = job_resolve_id(strategy_name, normalized_step, job_id)
-    if not jid:
+    """V2-06：进度仅来自进度文件（见 ``_progress_payload_from_disk``）。"""
+    jid_in = str(job_id or "").strip()
+    if not jid_in:
         return None
-    row = job_get(jid)
-    if not row:
-        return None
-    payload = _progress_payload(row)
-    # 枚举步：worker 通过 ProgressRecorder 写磁盘进度；内存 job 表仅在启动时设为 1%/5%，长跑期间不刷新。
-    if normalized_step == "enum":
-        st = str(row.get("status") or "")
-        if st in ("queued", "running"):
-            disk = ProgressRecorder.for_strategy_run_step(
-                str(strategy_name).strip(),
-                jid,
-                "enum",
-            ).get_progress()
-            if disk:
-                raw_pct = disk.get("progress_pct")
-                if raw_pct is not None:
-                    try:
-                        pct = float(raw_pct)
-                        payload["progress"] = round(min(100.0, max(0.0, pct)), 2)
-                    except (TypeError, ValueError):
-                        pass
-    payload["job_id"] = jid
-    if str(row.get("status") or "") == "completed":
-        sid = int(row.get("snapshot_id") or 0)
-        fed = _fed_result_report_slice(strategy_name, normalized_step, sid)
-        if fed:
-            payload["result_report"] = fed
-    return payload
+    return _progress_payload_from_disk(strategy_name, normalized_step, jid_in)
+
+
 
 
 # --- V2-05：后台线程执行 flow，HTTP 立即返回 job_id 供轮询 ---
@@ -324,6 +430,7 @@ def _background_job(
     is_force: bool,
 ) -> None:
     job_update(job_id, status="running", progress=1.0)
+    _disk_mark_running(strategy_name, job_id, step)
     try:
         job_update(job_id, progress=5.0)
         sid = _run_step_and_snapshot_id(
@@ -333,15 +440,18 @@ def _background_job(
             is_force=is_force,
             job_id=job_id,
         )
+        sid_int = int(sid or 0)
         job_update(
             job_id,
             status="completed",
             progress=100.0,
-            snapshot_id=int(sid or 0),
+            snapshot_id=sid_int,
         )
+        _merge_snapshot_into_disk_progress(strategy_name, job_id, step, sid_int)
     except Exception as exc:  # noqa: BLE001 — 任务边界兜底
         logger.exception("Workbench step run failed job_id=%s", job_id)
         job_update(job_id, status="failed", progress=100.0, error=str(exc))
+        _disk_mark_failed(strategy_name, job_id, step, str(exc))
 
 
 def trigger_workbench_step_run(
@@ -363,13 +473,8 @@ def trigger_workbench_step_run(
     if err or discovered is None:
         return {"is_triggered": False, "reason": err or "无法解析策略"}
 
-    ProgressRecorder.clear_workspace_runs_for_strategy_step(
-        name,
-        norm_step,
-        preserve_run_ids=_active_job_ids_for_strategy_step(name, norm_step),
-    )
-
     jid = job_create(strategy_name=name, step=norm_step, is_force=is_force)
+    _seed_workbench_progress_file(name, jid, norm_step)
     thread = threading.Thread(
         target=_background_job,
         args=(jid, name, norm_step, discovered, is_force),

@@ -103,6 +103,27 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 summary_list, snapshot_id = hit
                 self.last_snapshot_id = int(snapshot_id or 0)
                 self.last_run_used_db_cache = True
+                # 缓存命中不跑 worker，原无中间进度落盘；工作台 GET progress 在内存丢失时会读此文件，故在此写入终态。
+                wn = self._impl.workbench_strategy_name
+                wr = self._impl.workbench_run_id
+                if wn and wr:
+                    from core.modules.strategy.services.progress import ProgressRecorder
+
+                    sn, rid = str(wn).strip(), str(wr).strip()
+                    rec = ProgressRecorder.for_strategy_run_step(sn, rid, "enum")
+                    sid = int(snapshot_id or 0)
+                    rec.record(
+                        {
+                            "strategy_name": sn,
+                            "run_id": rid,
+                            "step_name": "enum",
+                            "phase": "cache_hit",
+                            "done_jobs": 0,
+                            "total_jobs": 0,
+                            "progress_pct": 100,
+                            "snapshot_id": sid,
+                        }
+                    )
                 return summary_list
 
         preprocessed = self._preprocess_finish(probe)

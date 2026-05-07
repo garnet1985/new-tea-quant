@@ -25,6 +25,7 @@ import {
   buildEnumMetrics,
   buildPriceMetrics,
   normalizeEnumMetricsFromSummary,
+  normalizePriceMetricsFromSummary,
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
 import {
@@ -101,6 +102,11 @@ function StrategyReportPanel({
   /** V2-01 ``result_report.enum``：含 ``enumMetrics.opportunityCount*``，由页面 ``GET …/version/latest`` 注入 */
   const snapshotEnumSlot = useMemo(() => {
     const slot = workbenchResultReport?.enum;
+    return slot && typeof slot === 'object' ? slot : null;
+  }, [workbenchResultReport]);
+  /** ``result_report.price_factor``：与 ``0_session_summary.json`` / DbCache 写入形态一致（snake_case 汇总） */
+  const snapshotPriceSlot = useMemo(() => {
+    const slot = workbenchResultReport?.price_factor;
     return slot && typeof slot === 'object' ? slot : null;
   }, [workbenchResultReport]);
   const compareOptions = useMemo(
@@ -339,10 +345,17 @@ function StrategyReportPanel({
       );
     }
     if (tabKey === 'price') {
+      if (!reportData?.priceMetrics) {
+        return (
+          <Typography variant="body2" color="text.secondary">
+            {REPORT_BLOCK_UNAVAILABLE_ZH}
+          </Typography>
+        );
+      }
       return (
         <PriceFactorReport
-          metrics={reportData?.priceMetrics}
-          stockRows={reportData?.stockRows}
+          metrics={reportData.priceMetrics}
+          stockRows={reportData.stockRows}
           strategyName={strategyName}
           runId={runId}
           title={title}
@@ -379,7 +392,11 @@ function StrategyReportPanel({
           || remoteReports?.reports?.enum
           || executionState?.result?.enum
           || null,
-        price: remoteReports?.reports?.price || executionState?.result?.price || null,
+        price:
+          snapshotPriceSlot
+          || remoteReports?.reports?.price
+          || executionState?.result?.price
+          || null,
         capital: remoteReports?.reports?.capital || executionState?.result?.capital || null,
       },
     };
@@ -525,9 +542,12 @@ function StrategyReportPanel({
                         || remoteReports?.reports?.enum
                         || executionState?.result?.enum,
                     ),
-                    priceMetrics: buildPriceMetrics({
-                      result: { price: comparePayload?.base_report || remoteReports?.reports?.price || executionState?.result?.price || null },
-                    }),
+                    priceMetrics: normalizePriceMetricsFromSummary(
+                      comparePayload?.base_report?.price_factor
+                        || comparePayload?.base_report
+                        || remoteReports?.reports?.price
+                        || executionState?.result?.price,
+                    ),
                     capitalMetrics: buildCapitalMetrics({
                       result: { capital: comparePayload?.base_report || remoteReports?.reports?.capital || executionState?.result?.capital || null },
                     }),
@@ -549,7 +569,9 @@ function StrategyReportPanel({
                     resolvedActiveTab,
                     {
                       enumMetrics: normalizeEnumMetricsFromSummary(comparePayload?.compare_report),
-                      priceMetrics: buildPriceMetrics({ result: { price: comparePayload?.compare_report || null } }),
+                      priceMetrics: normalizePriceMetricsFromSummary(
+                        comparePayload?.compare_report?.price_factor || comparePayload?.compare_report,
+                      ),
                       capitalMetrics: buildCapitalMetrics({ result: { capital: comparePayload?.compare_report || null } }),
                     },
                     `对比报告（${compareVersion}）`,

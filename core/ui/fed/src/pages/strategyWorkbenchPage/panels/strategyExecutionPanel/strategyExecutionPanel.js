@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import {
   Accordion,
   AccordionDetails,
@@ -13,7 +14,6 @@ import {
   Typography,
 } from '@mui/material';
 import { ReactComponent as PlayCircleIcon } from '../../../../assets/icon/play_circle.svg';
-import { ReactComponent as DoneIcon } from '../../../../assets/icon/task_alt.svg';
 import {
   MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION,
 } from '../../mocks/strategyWorkbenchMocks';
@@ -26,6 +26,14 @@ const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
 const STEP_CAPITAL = 'capital';
 
+function StepRunButtonIcon({ done }) {
+  return done ? (
+    <RefreshRoundedIcon sx={{ fontSize: 18 }} />
+  ) : (
+    <PlayCircleIcon width={18} height={18} />
+  );
+}
+
 function StrategyExecutionPanel({
   strategyName,
   settings,
@@ -34,6 +42,8 @@ function StrategyExecutionPanel({
   compareVersionOptions,
   onProgressResultReport,
   onRegisterForceHandlers,
+  /** V2-01 加载/恢复快照后注入；``key`` 变化时同步卡片状态与摘要行 */
+  workbenchHydration = null,
 }) {
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
@@ -54,6 +64,8 @@ function StrategyExecutionPanel({
   });
   const [compareOptions, setCompareOptions] = useState(['latest']);
   const [activeRunId, setActiveRunId] = useState('');
+  /** 与 V2-06 ``GET …/{step}/progress`` 路径一致；锁定为本次点击的 step，避免 ``runningStep`` 被状态推导清空后误用 ``enum`` 轮询导致 404 */
+  const [progressPollStep, setProgressPollStep] = useState('');
   const [latestRunId, setLatestRunId] = useState('');
   const [runError, setRunError] = useState('');
   const [lastCompletedWorkbenchVersionId, setLastCompletedWorkbenchVersionId] = useState('');
@@ -107,17 +119,35 @@ function StrategyExecutionPanel({
       capital: '',
     });
     setActiveRunId('');
+    setProgressPollStep('');
     setLatestRunId('');
     setRunError('');
     setLastCompletedWorkbenchVersionId('');
   }, [strategyName]);
 
-  const isRunning = Boolean(runningStep);
+  useEffect(() => {
+    if (!workbenchHydration || typeof workbenchHydration.key !== 'string') return;
+    const { stepStatus: nextStatus, result: nextResult, lastCompletedWorkbenchVersionId: wbVid } = workbenchHydration;
+    if (nextStatus && typeof nextStatus === 'object') {
+      setStepStatus(nextStatus);
+    }
+    if (nextResult && typeof nextResult === 'object') {
+      setResult(nextResult);
+    }
+    if (typeof wbVid === 'string') {
+      setLastCompletedWorkbenchVersionId(wbVid);
+    }
+  }, [workbenchHydration?.key, strategyName]);
+
+  /** 已有任务 id、正在轮询进度（与标签文案用的 ``runningStep`` 解耦，避免后者被接口推导清空） */
+  const isPollingRun = Boolean(activeRunId);
+  const executionBusy = Boolean(activeRunId) || Boolean(runningStep);
 
   const startRun = async (target, { isForce = false } = {}) => {
-    if (isRunning || !strategyName) return;
+    if (executionBusy || !strategyName) return;
     try {
       setRunError('');
+      setProgressPollStep(target);
       setRunningStep(target);
       setProgress(0);
       setLastCompletedWorkbenchVersionId('');
@@ -137,17 +167,20 @@ function StrategyExecutionPanel({
       });
     } catch (err) {
       setRunError(err?.message || '启动执行失败');
+      setProgressPollStep('');
       setRunningStep('');
       setProgress(0);
     }
   };
 
+  const displayRunStep = activeRunId ? (progressPollStep || runningStep) : runningStep;
+
   const runLabel = useMemo(() => {
-    if (!runningStep) return '等待开始';
-    if (runningStep === STEP_ENUM) return '正在执行：枚举机会';
-    if (runningStep === STEP_PRICE) return '正在执行：价格回测';
+    if (!displayRunStep) return '等待开始';
+    if (displayRunStep === STEP_ENUM) return '正在执行：枚举机会';
+    if (displayRunStep === STEP_PRICE) return '正在执行：价格回测';
     return '正在执行：资金模拟';
-  }, [runningStep]);
+  }, [displayRunStep]);
 
   const getStepClass = (status) => {
     if (status === 'failed') return 'is-error';
@@ -179,17 +212,6 @@ function StrategyExecutionPanel({
       borderColor: 'divider',
       backgroundColor: 'background.paper',
     };
-  };
-
-  const renderStepDoneIcon = (step) => {
-    if (stepStatus[step] !== 'done') return null;
-    return (
-      <DoneIcon
-        width={16}
-        height={16}
-        style={{ color: 'var(--mui-palette-success-main)' }}
-      />
-    );
   };
 
   const formatPriceLine = (price, withComparePrefix = false) => (
@@ -331,19 +353,25 @@ function StrategyExecutionPanel({
       }
       if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {
         setActiveRunId('');
+        setProgressPollStep('');
         if (status?.state === 'failed') setRunError('执行失败，请检查后端日志。');
       }
     };
 
     const poll = async () => {
       try {
-        const status = await fetchStrategyRunStatus(strategyName, activeRunId, runningStep || STEP_ENUM);
+        const status = await fetchStrategyRunStatus(
+          strategyName,
+          activeRunId,
+          progressPollStep || STEP_ENUM,
+        );
         if (stopped) return;
         applyStatus(status);
       } catch (err) {
         if (stopped) return;
         setRunError(err?.message || '读取执行状态失败');
         setActiveRunId('');
+        setProgressPollStep('');
       }
     };
 
@@ -353,7 +381,7 @@ function StrategyExecutionPanel({
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [activeRunId, onProgressResultReport, runningStep, strategyName]);
+  }, [activeRunId, onProgressResultReport, progressPollStep, strategyName]);
 
   const startRunRef = useRef(startRun);
   startRunRef.current = startRun;
@@ -366,7 +394,15 @@ function StrategyExecutionPanel({
     return () => onRegisterForceHandlers(null);
   }, [onRegisterForceHandlers]);
 
-  const handleRun = (target) => startRun(target);
+  /** 该步已为完成态时点播放 = 强制重跑（与 V2-05 ``is_force`` 一致） */
+  const runStep = (target) => {
+    const st =
+      target === STEP_ENUM ? stepStatus.enum
+        : target === STEP_PRICE ? stepStatus.price
+          : stepStatus.capital;
+    const isForce = st === 'done';
+    return startRun(target, { isForce });
+  };
 
   return (
     <Accordion defaultExpanded disableGutters>
@@ -379,7 +415,7 @@ function StrategyExecutionPanel({
             三层执行依赖：价格回测和资金模拟依赖枚举机会；重跑枚举会使下游结果失效。
           </Typography>
 
-          {isRunning ? (
+          {isPollingRun ? (
             <Box>
               <Typography variant="caption" color="text.secondary">
                 {runLabel}
@@ -431,9 +467,13 @@ function StrategyExecutionPanel({
                 </Box>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Typography fontWeight={600}>枚举机会</Typography>
-                  {renderStepDoneIcon(STEP_ENUM)}
-                  <IconButton size="small" onClick={() => handleRun(STEP_ENUM)} disabled={isRunning}>
-                    <PlayCircleIcon width={18} height={18} />
+                  <IconButton
+                    size="small"
+                    onClick={() => runStep(STEP_ENUM)}
+                    disabled={executionBusy}
+                    aria-label={stepStatus.enum === 'done' ? '强制重跑枚举' : '运行枚举'}
+                  >
+                    <StepRunButtonIcon done={stepStatus.enum === 'done'} />
                   </IconButton>
                 </Stack>
                 {renderEnumSummary()}
@@ -491,9 +531,13 @@ function StrategyExecutionPanel({
                 </Box>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Typography fontWeight={600}>价格回测</Typography>
-                  {renderStepDoneIcon(STEP_PRICE)}
-                  <IconButton size="small" onClick={() => handleRun(STEP_PRICE)} disabled={isRunning}>
-                    <PlayCircleIcon width={18} height={18} />
+                  <IconButton
+                    size="small"
+                    onClick={() => runStep(STEP_PRICE)}
+                    disabled={executionBusy}
+                    aria-label={stepStatus.price === 'done' ? '强制重跑价格回测' : '运行价格回测'}
+                  >
+                    <StepRunButtonIcon done={stepStatus.price === 'done'} />
                   </IconButton>
                 </Stack>
                 <Box sx={{ overflowX: 'auto', overflowY: 'hidden', '&::-webkit-scrollbar': { height: 6 } }}>
@@ -553,9 +597,13 @@ function StrategyExecutionPanel({
                 </Box>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Typography fontWeight={600}>资金模拟</Typography>
-                  {renderStepDoneIcon(STEP_CAPITAL)}
-                  <IconButton size="small" onClick={() => handleRun(STEP_CAPITAL)} disabled={isRunning}>
-                    <PlayCircleIcon width={18} height={18} />
+                  <IconButton
+                    size="small"
+                    onClick={() => runStep(STEP_CAPITAL)}
+                    disabled={executionBusy}
+                    aria-label={stepStatus.capital === 'done' ? '强制重跑资金模拟' : '运行资金模拟'}
+                  >
+                    <StepRunButtonIcon done={stepStatus.capital === 'done'} />
                   </IconButton>
                 </Stack>
                 {result.capital && compareVersion.capital ? (

@@ -254,15 +254,43 @@ export async function fetchStrategyRunStatus(strategyName, jobId, step = 'enum')
   const versionId = typeof m.version_id === 'string' ? m.version_id : '';
   const resultReport = m.result_report && typeof m.result_report === 'object' ? m.result_report : {};
 
+  const hasEnumSlot = Boolean(resultReport.enum && typeof resultReport.enum === 'object');
+  const hasPriceSlot = Boolean(resultReport.price && typeof resultReport.price === 'object');
+
+  /** 链式步骤：轮询下游 step 时，上游在 UI 上视为已就绪（数据来自快照依赖） */
+  let enumStatus = 'idle';
+  let priceStatus = 'idle';
+  let capitalStatus = 'idle';
+  if (step === 'enum') {
+    enumStatus = stepVal;
+  } else if (step === 'price') {
+    priceStatus = stepVal;
+    if (stepVal === 'running' || stepVal === 'done') {
+      enumStatus = 'done';
+    } else if (stepVal === 'failed') {
+      enumStatus = hasEnumSlot ? 'done' : 'idle';
+    }
+  } else if (step === 'capital') {
+    capitalStatus = stepVal;
+    if (stepVal === 'running' || stepVal === 'done') {
+      enumStatus = 'done';
+      priceStatus = 'done';
+    } else if (stepVal === 'failed') {
+      enumStatus = hasEnumSlot ? 'done' : 'idle';
+      priceStatus = hasPriceSlot ? 'done' : 'idle';
+    }
+  }
+
   return {
     run_id: m.job_id || jobId,
     progress_pct: prog,
     state: completed ? 'done' : failed ? 'failed' : 'running',
-    running_step: running || (prog > 0 && prog < 100) ? step : '',
+    /** 与轮询 URL 的 step 一致；未完成前不因 ``status`` 空窗而变成空串（否则下一跳会误用默认 ``enum``） */
+    running_step: completed || failed ? '' : step,
     step_status: {
-      enum: step === 'enum' ? stepVal : 'idle',
-      price: step === 'price' ? stepVal : 'idle',
-      capital: step === 'capital' ? stepVal : 'idle',
+      enum: enumStatus,
+      price: priceStatus,
+      capital: capitalStatus,
     },
     snapshot_id: Number.isFinite(snapshotId) && snapshotId > 0 ? snapshotId : null,
     version_id: versionId,

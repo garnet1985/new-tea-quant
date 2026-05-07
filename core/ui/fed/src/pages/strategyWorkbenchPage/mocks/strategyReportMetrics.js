@@ -1,69 +1,151 @@
 /**
- * 将 executionState / 对比版本 mock 转为各报告用 metrics（API 对接时在此层换实现）
+ * 策略报告 metrics：价格/资金仍可能带推导字段；**枚举**仅以快照/API 字段为准，不合成草图数据。
  */
 import {
   MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION,
   MOCK_REPORT_PRICE_SUMMARIES_BY_VERSION,
 } from './strategyWorkbenchMocks';
 
-export function buildEnumMetricsFromTotal(totalOpportunities) {
-  if (totalOpportunities <= 0) return null;
+/** 枚举报告某结果块缺少所需字段时的统一提示 */
+export const REPORT_BLOCK_UNAVAILABLE_ZH = '数据异常，无法显示该结果。';
 
-  const totalStocks = 150;
-  const triggerStocks = Math.max(1, Math.round(totalOpportunities * 0.42));
-  const triggerRatio = Number(((triggerStocks / totalStocks) * 100).toFixed(1));
-  const avgPerStock = totalOpportunities / triggerStocks;
-  const p10 = Math.max(0.4, Number((avgPerStock * 0.38).toFixed(2)));
-  const p20 = Math.max(0.5, Number((avgPerStock * 0.48).toFixed(2)));
-  const p30 = Math.max(0.6, Number((avgPerStock * 0.62).toFixed(2)));
-  const p40 = Math.max(0.7, Number((avgPerStock * 0.76).toFixed(2)));
-  const p50 = Number((avgPerStock * 0.9).toFixed(2));
-  const p60 = Number((avgPerStock * 1.04).toFixed(2));
-  const p70 = Number((avgPerStock * 1.2).toFixed(2));
-  const p75 = Number((avgPerStock * 1.35).toFixed(2));
-  const p80 = Number((avgPerStock * 1.5).toFixed(2));
-  const p90 = Number((avgPerStock * 1.72).toFixed(2));
-  const completedRatio = Number((58 + Math.min(30, totalOpportunities / 5)).toFixed(1));
-  const completedCount = Math.round((completedRatio / 100) * totalOpportunities);
+function mergeEnumSlot(summary) {
+  if (!summary || typeof summary !== 'object') return null;
+  const { enumMetrics, ...rest } = summary;
+  const inner = enumMetrics && typeof enumMetrics === 'object' ? enumMetrics : {};
+  return { ...inner, ...rest };
+}
 
-  const meanGap = Number((6 + (120 / Math.max(20, totalOpportunities))).toFixed(2));
-  const meanDuration = Number((4 + totalOpportunities / 18).toFixed(2));
-  const stdGap = Number((meanGap * 0.62).toFixed(2));
-  const cv = Number((stdGap / meanGap).toFixed(2));
+function normalizePercent(raw) {
+  const n = Number(raw ?? 0);
+  if (!Number.isFinite(n)) return NaN;
+  if (n <= 0) return 0;
+  return n <= 1 ? Number((n * 100).toFixed(1)) : Number(n.toFixed(1));
+}
 
-  const dispersionConclusion = cv < 0.45
-    ? '机会出现较均匀，节奏相对稳定'
-    : (cv < 0.8 ? '机会有一定聚集，节奏波动中等' : '机会集中出现，节奏波动较大');
+function toNumberList(arr) {
+  return Array.isArray(arr) ? arr.map((v) => Number(v ?? 0)) : [];
+}
 
-  const percentileLabels = ['10%分位', '20%分位', '30%分位', '40%分位', '50%分位', '60%分位', '70%分位', '80%分位', '90%分位'];
-  const percentileValues = [p10, p20, p30, p40, p50, p60, p70, p80, p90];
-  const opportunityCountMin = 0;
-  const opportunityCountMax = Math.max(1, Math.round(avgPerStock * 5));
-  const opportunityCountBucketCount = 5;
-  const opportunityCountLabels = ['0-1', '2-3', '4-5', '6-7', '8-10'];
-  const opportunityCountStockCounts = [35, 42, 31, 24, 18];
-  const opportunityCountStockRatios = opportunityCountStockCounts.map(
-    (count) => Number(((count / totalStocks) * 100).toFixed(2)),
+function toStringList(arr) {
+  return Array.isArray(arr) ? arr.map((v) => String(v ?? '')) : [];
+}
+
+/**
+ * 将 ``result_report.enum`` 槽位（可与 ``enumMetrics`` 嵌套并存）规范为扁平 metrics，并标记各展示块是否数据齐全。
+ * 不做数值臆造；缺字段时对应块由 UI 显示 ``REPORT_BLOCK_UNAVAILABLE_ZH``。
+ */
+export function normalizeEnumMetricsFromSummary(summary) {
+  const m = mergeEnumSlot(summary);
+  if (!m || typeof m !== 'object') return null;
+
+  const pick = (camel, snake) => {
+    if (m[camel] !== undefined && m[camel] !== null) return m[camel];
+    return m[snake];
+  };
+
+  const totalOpportunities = Number(pick('totalOpportunities', 'total_opportunities') ?? 0);
+  const totalStocks = Number(pick('totalStocks', 'total_stocks') ?? 0);
+
+  let triggerStocks = Number(pick('triggerStocks', 'trigger_stocks'));
+  let triggerRatio = Number(pick('triggerRatio', 'trigger_ratio'));
+  if (!Number.isFinite(triggerRatio) && totalStocks > 0 && Number.isFinite(triggerStocks)) {
+    triggerRatio = Number(((triggerStocks / totalStocks) * 100).toFixed(1));
+  }
+
+  let avgPerStock = Number(pick('avgPerStock', 'avg_per_stock'));
+  if (!Number.isFinite(avgPerStock) && triggerStocks > 0 && Number.isFinite(totalOpportunities)) {
+    avgPerStock = Number((totalOpportunities / triggerStocks).toFixed(2));
+  }
+
+  let completedRatio = normalizePercent(pick('completedRatio', 'completed_ratio'));
+  if (!Number.isFinite(completedRatio) || completedRatio === 0) {
+    const alt = normalizePercent(pick('completionRate', 'completion_rate'));
+    if (Number.isFinite(alt) && alt > 0) completedRatio = alt;
+  }
+
+  let completedCount = Number(pick('completedCount', 'completed_count'));
+  if (
+    !Number.isFinite(completedCount)
+    && Number.isFinite(completedRatio)
+    && Number.isFinite(totalOpportunities)
+  ) {
+    completedCount = Math.round((completedRatio / 100) * totalOpportunities);
+  }
+
+  const unfinishedCount = Number(pick('unfinishedCount', 'unfinished_count'));
+
+  let opportunityCountLabels = toStringList(pick('opportunityCountLabels', 'opportunity_count_labels'));
+  let opportunityCountStockCounts = toNumberList(pick('opportunityCountStockCounts', 'opportunity_count_stock_counts'));
+  let opportunityCountStockRatios = toNumberList(pick('opportunityCountStockRatios', 'opportunity_count_stock_ratios'));
+
+  const opportunityCountMin = Number(pick('opportunityCountMin', 'opportunity_count_min') ?? 0);
+  const opportunityCountMax = Number(pick('opportunityCountMax', 'opportunity_count_max') ?? 0);
+  const opportunityCountBucketCount = Number(
+    pick('opportunityCountBucketCount', 'opportunity_count_bucket_count') ?? opportunityCountLabels.length,
   );
+
+  const countSum = opportunityCountStockCounts.reduce((s, c) => s + Number(c || 0), 0);
+  const stockDenom = totalStocks > 0 ? totalStocks : countSum;
+  if (
+    opportunityCountLabels.length > 0
+    && opportunityCountStockCounts.length === opportunityCountLabels.length
+    && opportunityCountStockRatios.length !== opportunityCountLabels.length
+    && stockDenom > 0
+  ) {
+    opportunityCountStockRatios = opportunityCountStockCounts.map((c) => (
+      Number(((Number(c || 0) / stockDenom) * 100).toFixed(2))
+    ));
+  }
+
+  const meanGap = Number(pick('meanGap', 'mean_gap'));
+  const meanDuration = Number(pick('meanDuration', 'mean_duration'));
+  const stdGap = Number(pick('stdGap', 'std_gap'));
+  const cv = Number(pick('cv', 'cv'));
+  const dispersionConclusion = String(pick('dispersionConclusion', 'dispersion_conclusion') ?? '');
+
+  const percentileLabels = toStringList(pick('percentileLabels', 'percentile_labels'));
+  const percentileValues = toNumberList(pick('percentileValues', 'percentile_values'));
+
+  const hasPayload = (Number.isFinite(totalOpportunities) && totalOpportunities > 0)
+    || (Number.isFinite(totalStocks) && totalStocks > 0)
+    || opportunityCountLabels.length > 0
+    || [meanGap, meanDuration].some((x) => Number.isFinite(Number(x)));
+
+  if (!hasPayload) return null;
+
+  const overviewOk = Number.isFinite(totalOpportunities)
+    && Number.isFinite(totalStocks)
+    && totalStocks > 0
+    && totalOpportunities >= 0
+    && (Number.isFinite(completedCount) || Number.isFinite(completedRatio));
+
+  const stockStatsOk = Number.isFinite(totalStocks)
+    && totalStocks > 0
+    && Number.isFinite(triggerStocks)
+    && Number.isFinite(avgPerStock);
+
+  const distributionOk = opportunityCountLabels.length > 0
+    && opportunityCountStockCounts.length === opportunityCountLabels.length
+    && opportunityCountStockRatios.length === opportunityCountLabels.length;
+
+  const timingOk = [meanGap, meanDuration, stdGap, cv].every((x) => Number.isFinite(Number(x)));
 
   return {
     totalOpportunities,
     totalStocks,
     triggerStocks,
     triggerRatio,
-    avgPerStock,
-    p10,
-    p20,
-    p30,
-    p40,
-    p50,
-    p60,
-    p70,
-    p75,
-    p80,
-    p90,
-    completedRatio,
-    completedCount,
+    avgPerStock: Number.isFinite(avgPerStock) ? avgPerStock : NaN,
+    completedRatio: Number.isFinite(completedRatio) ? completedRatio : 0,
+    completedCount: Number.isFinite(completedCount) ? completedCount : 0,
+    unfinishedCount: Number.isFinite(unfinishedCount) ? unfinishedCount : 0,
+    opportunityCountMin,
+    opportunityCountMax,
+    opportunityCountBucketCount,
+    opportunityCountLabels,
+    opportunityCountStockCounts,
+    opportunityCountStockRatios,
     meanGap,
     meanDuration,
     stdGap,
@@ -71,79 +153,17 @@ export function buildEnumMetricsFromTotal(totalOpportunities) {
     dispersionConclusion,
     percentileLabels,
     percentileValues,
-    opportunityCountMin,
-    opportunityCountMax,
-    opportunityCountBucketCount,
-    opportunityCountLabels,
-    opportunityCountStockCounts,
-    opportunityCountStockRatios,
+    _availability: {
+      overview: overviewOk,
+      stockStats: stockStatsOk,
+      distribution: distributionOk,
+      timing: timingOk,
+    },
   };
 }
 
 export function buildEnumMetrics(executionState) {
-  const summary = executionState?.result?.enum || {};
-  const remoteEnumMetrics = summary?.enumMetrics && typeof summary.enumMetrics === 'object'
-    ? summary.enumMetrics
-    : {};
-  const totalOpportunities = Number(summary.totalOpportunities ?? summary.opportunities ?? 0);
-  const base = buildEnumMetricsFromTotal(totalOpportunities);
-  if (!base) return null;
-
-  const normalizePercent = (raw) => {
-    const n = Number(raw || 0);
-    if (n <= 0) return 0;
-    return n <= 1 ? Number((n * 100).toFixed(1)) : Number(n.toFixed(1));
-  };
-
-  const completionRatioFromSummary = normalizePercent(summary.completionRate);
-  const completionRatio = completionRatioFromSummary > 0
-    ? completionRatioFromSummary
-    : base.completedRatio;
-  const completedCount = Number(summary.completedCount ?? Math.round((completionRatio / 100) * totalOpportunities));
-  const unfinishedCount = Number(summary.unfinishedCount ?? Math.max(totalOpportunities - completedCount, 0));
-  const totalStocks = Number(summary.totalStocks ?? base.totalStocks);
-  const triggerStocks = Number(summary.triggerStocks ?? base.triggerStocks);
-  const triggerRatio = totalStocks > 0
-    ? Number(((triggerStocks / totalStocks) * 100).toFixed(1))
-    : base.triggerRatio;
-  const avgPerStock = triggerStocks > 0
-    ? Number((totalOpportunities / triggerStocks).toFixed(2))
-    : base.avgPerStock;
-  const toNumberList = (arr) => (Array.isArray(arr) ? arr.map((v) => Number(v || 0)) : []);
-  const toStringList = (arr) => (Array.isArray(arr) ? arr.map((v) => String(v ?? '')) : []);
-  const pick = (camel, snake) => (
-    remoteEnumMetrics[camel]
-    ?? summary[camel]
-    ?? remoteEnumMetrics[snake]
-    ?? summary[snake]
-  );
-
-  // 分布数据优先使用后端真实值；缺失时不再使用草图固定桶，避免误导。
-  const opportunityCountLabels = toStringList(pick('opportunityCountLabels', 'opportunity_count_labels'));
-  const opportunityCountStockCounts = toNumberList(pick('opportunityCountStockCounts', 'opportunity_count_stock_counts'));
-  const opportunityCountStockRatios = toNumberList(pick('opportunityCountStockRatios', 'opportunity_count_stock_ratios'));
-  const opportunityCountMin = Number(pick('opportunityCountMin', 'opportunity_count_min') ?? 0);
-  const opportunityCountMax = Number(pick('opportunityCountMax', 'opportunity_count_max') ?? 0);
-  const opportunityCountBucketCount = Number(
-    pick('opportunityCountBucketCount', 'opportunity_count_bucket_count') ?? opportunityCountLabels.length,
-  );
-
-  return {
-    ...base,
-    totalStocks,
-    triggerStocks,
-    triggerRatio,
-    avgPerStock,
-    completedRatio: completionRatio,
-    completedCount,
-    unfinishedCount,
-    opportunityCountMin,
-    opportunityCountMax,
-    opportunityCountBucketCount,
-    opportunityCountLabels,
-    opportunityCountStockCounts,
-    opportunityCountStockRatios,
-  };
+  return normalizeEnumMetricsFromSummary(executionState?.result?.enum);
 }
 
 export function buildPriceMetricsFromBase(base) {

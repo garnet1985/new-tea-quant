@@ -41,6 +41,8 @@ function StrategyExecutionPanel({
   onExecutionStateChange,
   compareVersionOptions,
   onProgressResultReport,
+  /** 单步 run 成功结束（与 progress 的 ``result_report`` 合并后）；用于报告 Tab 切到对应回测器 */
+  onRunStepComplete,
   onRegisterForceHandlers,
   /** V2-01 加载/恢复快照后注入；``key`` 变化时同步卡片状态与摘要行 */
   workbenchHydration = null,
@@ -347,6 +349,14 @@ function StrategyExecutionPanel({
       }));
       if (status?.state === 'done' && report && Object.keys(report).length > 0) {
         onProgressResultReport?.(report);
+        const finishedStep = (progressPollStep || '').trim();
+        if (
+          finishedStep === STEP_ENUM
+          || finishedStep === STEP_PRICE
+          || finishedStep === STEP_CAPITAL
+        ) {
+          onRunStepComplete?.(finishedStep);
+        }
       }
       if (status?.state === 'done' && status?.version_id) {
         setLastCompletedWorkbenchVersionId(String(status.version_id));
@@ -381,7 +391,7 @@ function StrategyExecutionPanel({
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [activeRunId, onProgressResultReport, progressPollStep, strategyName]);
+  }, [activeRunId, onProgressResultReport, onRunStepComplete, progressPollStep, strategyName]);
 
   const startRunRef = useRef(startRun);
   startRunRef.current = startRun;

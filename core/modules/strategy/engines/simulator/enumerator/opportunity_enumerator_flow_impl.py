@@ -31,6 +31,9 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.settings im
 from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
     EnumeratorReport,
 )
+from core.modules.strategy.engines.simulator.enumerator.session_enum_stats import (
+    materialize_enum_report,
+)
 from core.modules.strategy.services.launcher.run_types import (
     StrategyRunFingerprint,
 )
@@ -523,7 +526,7 @@ class OpportunityEnumeratorFlowImpl:
         fingerprint: StrategyRunFingerprint,
         status: str = "completed",
         stock_summary_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
-    ) -> None:
+    ) -> Optional[Dict[str, Any]]:
         summary_map = stock_summary_by_id if stock_summary_by_id is not None else self._stock_summary_by_id
         if summary_map:
             EnumeratorOutputWriterService.write_stock_summary_by_stock_id(
@@ -547,19 +550,18 @@ class OpportunityEnumeratorFlowImpl:
             output_dir=output_dir, metadata=metadata
         )
 
+        bff_out: Optional[Dict[str, Any]] = None
         try:
-            if self._enumeration_bundles_by_id and self.stock_list:
-                EnumeratorReport.from_per_stock_bundles(
-                    self._enumeration_bundles_by_id,
-                    stock_universe=list(self.stock_list),
-                ).write_bff_payload(output_dir, include_stock_rows=False)
-            else:
-                EnumeratorReport.from_output_dir(
-                    output_dir,
-                    total_stocks_hint=len(self.stock_list),
-                ).write_bff_payload(output_dir, include_stock_rows=False)
+            report = materialize_enum_report(
+                bundles_by_stock=self._enumeration_bundles_by_id,
+                stock_universe=list(self.stock_list),
+                output_dir=output_dir,
+            )
+            bff_out = report.to_bff_payload(include_stock_rows=False)
+            report.write_bff_payload(output_dir, include_stock_rows=False)
         except Exception:
-            pass
+            bff_out = None
+        return bff_out
 
     def cleanup_versions(
         self,
@@ -587,6 +589,7 @@ class OpportunityEnumeratorFlowImpl:
         unfinished_count: int,
         start_time: float,
         output_dir: Optional[Path] = None,
+        enum_bff_payload: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         total_stocks = success_count + failed_count
         completion_rate = (
@@ -604,10 +607,14 @@ class OpportunityEnumeratorFlowImpl:
             "completionRate": completion_rate,
             "elapsed_seconds": time.time() - start_time,
         }
-        # ``save_metadata`` 已写出 ``0_report_enum.json``；并入完整 ``enumMetrics``（含
-        # opportunityCount* 区间分布）。优先直接读 JSON（与磁盘一致），避免 load 往返异常被吞。
-        if output_dir is not None:
-            em: Optional[Dict[str, Any]] = None
+        # ``enumMetrics``：优先使用 ``save_metadata`` 里与落盘同源的内存 ``to_bff_payload``；
+        # 再读 ``0_report_enum.json``，最后 ``EnumeratorReport.load`` 目录兜底。
+        em: Optional[Dict[str, Any]] = None
+        if enum_bff_payload and isinstance(enum_bff_payload, dict):
+            cand = enum_bff_payload.get("enumMetrics")
+            if isinstance(cand, dict) and cand:
+                em = cand
+        if em is None and output_dir is not None:
             raw_file = self._read_version_enum_report(output_dir)
             if isinstance(raw_file, dict):
                 cand = raw_file.get("enumMetrics")
@@ -622,8 +629,8 @@ class OpportunityEnumeratorFlowImpl:
                         em = cand
                 except Exception:
                     pass
-            if isinstance(em, dict) and em:
-                summary = {**summary, "enumMetrics": em}
+        if isinstance(em, dict) and em:
+            summary = {**summary, "enumMetrics": em}
         return [summary]
 
     @staticmethod

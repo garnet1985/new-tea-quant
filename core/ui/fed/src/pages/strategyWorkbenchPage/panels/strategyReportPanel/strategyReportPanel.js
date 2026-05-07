@@ -96,6 +96,8 @@ function StrategyReportPanel({
   compareVersionOptions,
   workbenchResultReport,
   workbenchVersionId = '',
+  /** ``{ step: 'enum'|'price'|'capital', tick }``：单步跑完后由工作台页注入，切到对应报告 */
+  reportTabFocusRequest = null,
   onForceEnumerate,
 }) {
   const [remoteReports, setRemoteReports] = useState({ reports: {}, availableTabs: [] });
@@ -153,6 +155,14 @@ function StrategyReportPanel({
       setActiveTab(keys[0]);
     }
   }, [availableTabs, activeTab]);
+
+  useEffect(() => {
+    if (!reportTabFocusRequest || typeof reportTabFocusRequest.step !== 'string') return;
+    const step = reportTabFocusRequest.step;
+    if (!STEP_TABS.some((t) => t.key === step)) return;
+    if (!availableTabs.some((tab) => tab.key === step)) return;
+    setActiveTab(step);
+  }, [reportTabFocusRequest, availableTabs]);
 
   const [compareVersion, setCompareVersion] = useState('');
   const [comparePayload, setComparePayload] = useState(null);

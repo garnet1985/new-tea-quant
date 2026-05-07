@@ -14,6 +14,40 @@ const EMPTY_METRICS_BASE = {
   avgDurationDays: 0,
 };
 
+const BAR_RADIUS = 4;
+
+/** 纵轴柱状图：正值圆角朝上侧（顶端），负值圆角朝外侧（底端），避免负柱圆角挤在 X 轴一侧 */
+function signedVerticalBarItems(values) {
+  if (!Array.isArray(values)) return [];
+  return values.map((v) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) {
+      return { value: 0, itemStyle: { borderRadius: [BAR_RADIUS, BAR_RADIUS, 0, 0] } };
+    }
+    if (n >= 0) {
+      return { value: n, itemStyle: { borderRadius: [BAR_RADIUS, BAR_RADIUS, 0, 0] } };
+    }
+    return { value: n, itemStyle: { borderRadius: [0, 0, BAR_RADIUS, BAR_RADIUS] } };
+  });
+}
+
+function tooltipPrimaryValue(point) {
+  const raw = point?.data;
+  if (raw != null && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'value')) {
+    return raw.value;
+  }
+  return raw;
+}
+
+/** 旧版会话摘要里的固定 ROI 档位（与新版的 [min,max] 等分标签区分） */
+function looksLikeLegacyFixedRoiBuckets(labels) {
+  if (!Array.isArray(labels)) return false;
+  return labels.some((t) => (
+    typeof t === 'string'
+    && (t.includes('≤-20') || t.includes('>50%') || /\(-20,-5]/.test(t))
+  ));
+}
+
 function UnavailableHint() {
   return (
     <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
@@ -44,9 +78,9 @@ function buildRoiDistributionOption(metrics) {
     series: [
       {
         type: 'bar',
-        data: metrics.roiPercentileValues,
+        data: signedVerticalBarItems(metrics.roiPercentileValues),
         barMaxWidth: 28,
-        itemStyle: { color: '#36A2EB', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: '#36A2EB' },
       },
     ],
     tooltip: {
@@ -55,7 +89,8 @@ function buildRoiDistributionOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>ROI：${point.data}%`;
+        const val = tooltipPrimaryValue(point);
+        return `${point.axisValue}<br/>ROI：${val}%`;
       },
     },
   };
@@ -161,12 +196,19 @@ function PriceFactorReport({
     return <UnavailableHint />;
   }
 
-  const percentileHint = avail.roiPercentileViz
-    ? [
+  const volCardHint = (() => {
+    if (!avail.roiPercentileViz) return '';
+    if (Number.isFinite(metrics.roiStdPct)) {
+      return [
+        Number.isFinite(metrics.roiP50) ? `P50 ${metrics.roiP50}%` : '',
+        Number.isFinite(metrics.roiIqr) ? `IQR ${metrics.roiIqr}%` : '',
+      ].filter(Boolean).join(' · ');
+    }
+    return [
       Number.isFinite(metrics.roiIqr) ? `IQR ${metrics.roiIqr}%` : '',
       metrics.roiConclusion || '',
-    ].filter(Boolean).join(' · ')
-    : '';
+    ].filter(Boolean).join(' · ');
+  })();
 
   return (
     <Stack spacing={1.25}>
@@ -228,21 +270,23 @@ function PriceFactorReport({
             />
             <MetricCard title="每笔平均盈利" value={metrics.avgProfitPerInvestment.toLocaleString()} />
             <MetricCard title="每股平均盈利" value={metrics.avgProfitPerStock.toLocaleString()} />
+            {avail.roiPercentileViz ? (
+              <MetricCard
+                title="ROI 波动"
+                value={
+                  Number.isFinite(metrics.roiStdPct)
+                    ? `标准差 ${metrics.roiStdPct}%（样本）`
+                    : `P25 ${metrics.roiP25}% · P50 ${metrics.roiP50}% · P75 ${metrics.roiP75}%`
+                }
+                hint={volCardHint}
+              />
+            ) : null}
           </Box>
         ) : <UnavailableHint />}
-        {avail.profitBasics && avail.roiPercentileViz ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1, mt: 1 }}>
-            <MetricCard
-              title="ROI 分位摘要"
-              value={`P25 ${metrics.roiP25}% · P50 ${metrics.roiP50}% · P75 ${metrics.roiP75}%`}
-              hint={percentileHint}
-            />
-          </Box>
-        ) : null}
         {!avail.roiPercentileViz ? (
           <Box sx={{ mt: avail.profitBasics ? 1 : 0 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              ROI 分位图（依赖后端写入 roiPercentileValues 等字段；当前 PriceReport 未产出）
+              ROI 分位图：需价格回测摘要中含 roi_percentile_values（长度 9）；会话级汇总正常产出后即展示。
             </Typography>
             <UnavailableHint />
           </Box>
@@ -250,6 +294,9 @@ function PriceFactorReport({
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
               ROI 分位图（10% / 20% / … / 90%）
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
+              横轴为固定的分位点（10%～90%），纵轴为该分位上的 ROI 水平；区间不随样本自动重划。
             </Typography>
             <ReactECharts
               option={buildRoiDistributionOption(metrics)}
@@ -262,15 +309,25 @@ function PriceFactorReport({
         {!avail.roiBucketViz ? (
           <Box sx={{ mt: 1 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              ROI 桶分布（依赖后端写入 roiBucketLabels / roiBucketCounts）
+              ROI 桶分布：需 roi_bucket_labels / roi_bucket_counts 与摘要一同下发。
             </Typography>
             <UnavailableHint />
           </Box>
         ) : (
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-              ROI 收益分布（档位投资次数）
+              ROI 收益分布（区间内投资笔数）
             </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
+              {metrics.roiBucketBinCount > 0
+                ? `将本轮 ROI 的 min～max 等分为 ${metrics.roiBucketBinCount} 段，统计落入各段的投资笔数；末段含右端点 max。`
+                : '将本轮 ROI 的 min～max 等分为若干段，统计落入各段的投资笔数；末段含右端点 max。'}
+            </Typography>
+            {looksLikeLegacyFixedRoiBuckets(metrics.roiBucketLabels) ? (
+              <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
+                当前摘要仍为旧版固定档位（如 ≤-20%）；请重新执行一次价格回测以写入新版 min～max 等分区间。
+              </Typography>
+            ) : null}
             <ReactECharts
               option={buildRoiBucketOption(metrics)}
               style={{ height: 190, width: '100%' }}

@@ -133,6 +133,14 @@ function StrategyWorkbenchPage() {
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
   /** V2-01 初次加载；单步跑完后由 V2-06 progress 的 ``result_report`` 切片合并写入，避免再打一枪 ``version/latest`` */
   const [workbenchResultReport, setWorkbenchResultReport] = useState(null);
+  /** 单步跑完后让「模拟结果」 accordion 内 Tab 切到刚完成的回测步 */
+  const reportTabFocusSeqRef = useRef(0);
+  const [reportTabFocusRequest, setReportTabFocusRequest] = useState(null);
+  const handleRunStepComplete = useCallback((step) => {
+    if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
+    reportTabFocusSeqRef.current += 1;
+    setReportTabFocusRequest({ step, tick: reportTabFocusSeqRef.current });
+  }, []);
 
   const forceRunHandlersRef = useRef({ forceEnum: null });
 
@@ -531,6 +539,7 @@ function StrategyWorkbenchPage() {
                     onExecutionStateChange={setExecutionState}
                     compareVersionOptions={compareVersionOptions}
                     onProgressResultReport={mergeWorkbenchResultReportFromProgress}
+                    onRunStepComplete={handleRunStepComplete}
                     workbenchHydration={workbenchExecutionHydration}
                     onRegisterForceHandlers={(api) => {
                       forceRunHandlersRef.current = api || {};
@@ -542,6 +551,7 @@ function StrategyWorkbenchPage() {
                     compareVersionOptions={compareVersionOptions}
                     workbenchResultReport={workbenchResultReport}
                     workbenchVersionId={reportAnchorVersionId}
+                    reportTabFocusRequest={reportTabFocusRequest}
                     onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
                   />
                 </Box>

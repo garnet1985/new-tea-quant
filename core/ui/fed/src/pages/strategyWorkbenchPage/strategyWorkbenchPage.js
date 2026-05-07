@@ -43,6 +43,10 @@ import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/stra
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
 import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
 import {
+  buildExecutionResultFromWorkbenchReport,
+  mapWorkbenchStepStatusToExecutionCards,
+} from './workbenchExecutionHydration';
+import {
   PlaceholderSection,
   StrategySettingsPanel,
 } from './panels/strategySettingsPanel/strategySettingsPanel';
@@ -83,7 +87,12 @@ function StrategyWorkbenchPage() {
       capital: '',
     },
     runningStep: '',
+    runId: '',
+    activeRunId: '',
+    lastCompletedWorkbenchVersionId: '',
   });
+  /** 与 V2-01/恢复后执行面板子组件同步；``key`` 随策略+版本变 */
+  const [workbenchExecutionHydration, setWorkbenchExecutionHydration] = useState(null);
   const buildFallbackSettings = useCallback(() => ({
     ...defaultSettings,
     meta: normalizeMeta({ ...defaultMetaInfo, name: strategyName || defaultMetaInfo.name }),
@@ -182,6 +191,16 @@ function StrategyWorkbenchPage() {
       setSelectedConfigVersion('');
       setInitialSettings(fallback);
       setWorkbenchResultReport(null);
+      setWorkbenchExecutionHydration(null);
+      setExecutionState({
+        stepStatus: { enum: 'idle', price: 'idle', capital: 'idle' },
+        result: { enum: null, price: null, capital: null },
+        compareVersion: { enum: '', price: '', capital: '' },
+        runningStep: '',
+        runId: '',
+        activeRunId: '',
+        lastCompletedWorkbenchVersionId: '',
+      });
       setIsLoadingSettings(false);
       setSettingsError('');
       return () => {
@@ -191,6 +210,7 @@ function StrategyWorkbenchPage() {
 
     setIsLoadingSettings(true);
     setSettingsError('');
+    setWorkbenchExecutionHydration(null);
     Promise.all([
       fetchStrategyVersions(strategyName),
       fetchStrategySettings(strategyName),
@@ -227,18 +247,42 @@ function StrategyWorkbenchPage() {
           : fallback;
         setInitialSettings(nextSettings);
         setWorkbenchResultReport(res?.result_report ?? null);
-        const wbVer = res?.workbench_version_id;
-        setAppliedVersionId(
-          typeof wbVer === 'string' && wbVer.trim() !== '' ? wbVer.trim() : 'userspace',
-        );
-        setSelectedConfigVersion(
-          typeof wbVer === 'string' && wbVer.trim() !== '' ? wbVer.trim() : '',
-        );
+        const wbVerRaw = res?.workbench_version_id;
+        const wbVer = typeof wbVerRaw === 'string' ? wbVerRaw.trim() : '';
+        const stepCards = mapWorkbenchStepStatusToExecutionCards(res?.step_status);
+        const execResult = buildExecutionResultFromWorkbenchReport(res?.result_report);
+        setWorkbenchExecutionHydration({
+          key: `${strategyName}:${wbVer || 'none'}`,
+          stepStatus: stepCards,
+          result: execResult,
+          lastCompletedWorkbenchVersionId: wbVer,
+        });
+        setExecutionState({
+          stepStatus: stepCards,
+          result: execResult,
+          compareVersion: { enum: '', price: '', capital: '' },
+          runningStep: '',
+          runId: '',
+          activeRunId: '',
+          lastCompletedWorkbenchVersionId: wbVer,
+        });
+        setAppliedVersionId(wbVer !== '' ? wbVer : 'userspace');
+        setSelectedConfigVersion(wbVer);
       })
       .catch((err) => {
         if (isCancelled) return;
         setInitialSettings(fallback);
         setWorkbenchResultReport(null);
+        setWorkbenchExecutionHydration(null);
+        setExecutionState({
+          stepStatus: { enum: 'idle', price: 'idle', capital: 'idle' },
+          result: { enum: null, price: null, capital: null },
+          compareVersion: { enum: '', price: '', capital: '' },
+          runningStep: '',
+          runId: '',
+          activeRunId: '',
+          lastCompletedWorkbenchVersionId: '',
+        });
         setConfigVersions([]);
         setSettingsError(err?.message || '读取策略配置失败');
       })
@@ -487,6 +531,7 @@ function StrategyWorkbenchPage() {
                     onExecutionStateChange={setExecutionState}
                     compareVersionOptions={compareVersionOptions}
                     onProgressResultReport={mergeWorkbenchResultReportFromProgress}
+                    workbenchHydration={workbenchExecutionHydration}
                     onRegisterForceHandlers={(api) => {
                       forceRunHandlersRef.current = api || {};
                     }}
@@ -578,6 +623,26 @@ function StrategyWorkbenchPage() {
                         }));
                         setConfigVersions(rows);
                         setWorkbenchResultReport(res?.result_report ?? null);
+                        const wbVerRestore = typeof res?.workbench_version_id === 'string'
+                          ? res.workbench_version_id.trim()
+                          : '';
+                        const stepCardsRestore = mapWorkbenchStepStatusToExecutionCards(res?.step_status);
+                        const execResultRestore = buildExecutionResultFromWorkbenchReport(res?.result_report);
+                        setWorkbenchExecutionHydration({
+                          key: `${strategyName}:${wbVerRestore || String(restoreMeta?.version_id || 'restore')}`,
+                          stepStatus: stepCardsRestore,
+                          result: execResultRestore,
+                          lastCompletedWorkbenchVersionId: wbVerRestore,
+                        });
+                        setExecutionState({
+                          stepStatus: stepCardsRestore,
+                          result: execResultRestore,
+                          compareVersion: { enum: '', price: '', capital: '' },
+                          runningStep: '',
+                          runId: '',
+                          activeRunId: '',
+                          lastCompletedWorkbenchVersionId: wbVerRestore,
+                        });
                         const fallback = buildFallbackSettings();
                         const serverSettings = res?.settings || {};
                         const incomingMeta = (
@@ -598,7 +663,7 @@ function StrategyWorkbenchPage() {
                             name: strategyName,
                           }),
                         };
-                        const wb = res?.workbench_version_id || restoreMeta?.version_id || '';
+                        const wb = wbVerRestore || restoreMeta?.version_id || '';
                         setInitialSettings(mergedSettings);
                         setDraftSettings(deepClone(mergedSettings));
                         setSelectedConfigVersion(wb);

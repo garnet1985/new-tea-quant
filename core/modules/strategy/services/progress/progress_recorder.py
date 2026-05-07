@@ -51,9 +51,11 @@ class ProgressRecorder:
         channel: str = "strategy-workbench",
         preserve_run_ids: Optional[AbstractSet[str]] = None,
     ) -> None:
-        """删除该策略、该 step 下已不再需要的进度文件（``{strategy}__*__{step}.json``），避免反复运行堆积。
+        """删除该策略、该 step 下已不再需要的进度文件（``{strategy}__*__{step}.json``）。
 
-        ``preserve_run_ids``：仍应保留的 ``job_id``（典型为内存 job 表中仍为 queued/running 的任务）。
+        供定时任务、清缓存按钮等 infra 调用；工作台 ``trigger_workbench_step_run`` 不在此处触发清理。
+
+        ``preserve_run_ids``：仍应保留的 ``job_id``（例如仍为 queued/running 的任务）。
         """
         sn = str(strategy_name).strip()
         step = str(step_name).strip()

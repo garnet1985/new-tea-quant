@@ -1,10 +1,7 @@
 /**
  * 策略报告 metrics：价格/资金仍可能带推导字段；**枚举**仅以快照/API 字段为准，不合成草图数据。
  */
-import {
-  MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION,
-  MOCK_REPORT_PRICE_SUMMARIES_BY_VERSION,
-} from './strategyWorkbenchMocks';
+import { MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION } from './strategyWorkbenchMocks';
 
 /** 枚举报告某结果块缺少所需字段时的统一提示 */
 export const REPORT_BLOCK_UNAVAILABLE_ZH = '数据异常，无法显示该结果。';
@@ -166,80 +163,122 @@ export function buildEnumMetrics(executionState) {
   return normalizeEnumMetricsFromSummary(executionState?.result?.enum);
 }
 
-export function buildPriceMetricsFromBase(base) {
-  if (!base) return null;
-  const winRate = Number(base.winRate || 0);
-  const avgRoi = Number(base.roi || 0);
-  const avgDurationDays = Number(base.avgHoldDays || 0);
+/**
+ * 将 ``result_report.price_factor`` 槽位（与 ``PriceReport.to_dict()`` / ``0_session_summary.json`` 一致，snake_case）
+ * 规范为 FED 展示用 metrics。ROI 分位、桶分布等**仅当**后端未来写入对应数组时才展示，否则对应区块由 UI 提示缺数。
+ */
+export function normalizePriceMetricsFromSummary(slot) {
+  if (!slot || typeof slot !== 'object') return null;
 
-  const derivedTotalInvestments = Math.max(18, Math.round(36 + winRate * 1.4));
-  const totalInvestments = Number(base.totalInvestments ?? derivedTotalInvestments);
-  const totalWinInvestments = Number(base.totalWinInvestments ?? Math.round(totalInvestments * (winRate / 100)));
-  const totalLossInvestments = Number(base.totalLossInvestments ?? Math.max(0, totalInvestments - totalWinInvestments - 2));
-  const totalOpenInvestments = Number(base.totalOpenInvestments ?? Math.max(totalInvestments - totalWinInvestments - totalLossInvestments, 0));
-  const stocksWithOpportunities = Number(base.stocksWithOpportunities ?? Math.max(8, Math.round(totalInvestments / 2.8)));
-  const avgInvestmentsPerStock = Number(
-    base.avgInvestmentsPerStock
-      ?? (stocksWithOpportunities > 0 ? (totalInvestments / stocksWithOpportunities).toFixed(2) : 0),
+  const m = { ...(slot.priceMetrics && typeof slot.priceMetrics === 'object' ? slot.priceMetrics : {}), ...slot };
+
+  const firstNum = (keys) => {
+    for (const k of keys) {
+      if (m[k] === undefined || m[k] === null) continue;
+      const n = Number(m[k]);
+      if (Number.isFinite(n)) return n;
+    }
+    return NaN;
+  };
+
+  const toRatioAsPercent = (v) => {
+    const x = Number(v);
+    if (!Number.isFinite(x)) return NaN;
+    if (x === 0) return 0;
+    if (Math.abs(x) < 1) return x * 100;
+    return x;
+  };
+
+  const toNumberList = (arr) => (Array.isArray(arr) ? arr.map((v) => Number(v ?? 0)) : []);
+  const toStringList = (arr) => (Array.isArray(arr) ? arr.map((v) => String(v ?? '')) : []);
+
+  const winRate = firstNum(['win_rate', 'winRate']);
+  const avgRoiRaw = firstNum(['avg_roi', 'avgRoi', 'roi']);
+  const avgRoi = Number.isFinite(avgRoiRaw) ? toRatioAsPercent(avgRoiRaw) : NaN;
+  const avgDurationDays = firstNum(['avg_duration_in_days', 'avgHoldDays', 'avg_duration_days']);
+
+  const annualRaw = firstNum(['annual_return', 'annualReturn']);
+  const annualReturn = Number.isFinite(annualRaw) ? toRatioAsPercent(annualRaw) : NaN;
+
+  const totalInvestments = firstNum(['total_investments', 'totalInvestments']);
+  const totalOpenInvestments = firstNum(['total_open_investments', 'totalOpenInvestments']);
+  const totalWinInvestments = firstNum(['total_win_investments', 'totalWinInvestments']);
+  const totalLossInvestments = firstNum(['total_loss_investments', 'totalLossInvestments']);
+  const stocksWithOpportunities = firstNum(['stocks_have_opportunities', 'stocksWithOpportunities']);
+  const avgInvestmentsPerStock = firstNum(['avg_investments_per_stock', 'avgInvestmentsPerStock']);
+  const avgProfitPerInvestment = firstNum(['avg_profit_per_investment', 'avgProfitPerInvestment']);
+  const avgProfitPerStock = firstNum(['avg_profit_per_stock', 'avgProfitPerStock']);
+
+  const roiPctLabelsIn = toStringList(
+    m.roiPercentileLabels || m.roi_percentile_labels,
   );
+  const roiPctValuesRaw = toNumberList(
+    m.roiPercentileValues || m.roi_percentile_values,
+  );
+  const pv = roiPctValuesRaw.length >= 9 ? roiPctValuesRaw.slice(0, 9) : [];
+  const defaultPctLabels = ['10%分位', '20%分位', '30%分位', '40%分位', '50%分位', '60%分位', '70%分位', '80%分位', '90%分位'];
+  const labelsForChart = pv.length === 9 && roiPctLabelsIn.length === 9
+    ? roiPctLabelsIn
+    : defaultPctLabels;
 
-  const annualReturn = avgDurationDays > 0
-    ? Number((avgRoi * (365 / avgDurationDays)).toFixed(2))
-    : 0;
-  const avgProfitPerInvestment = Number(base.avgProfitPerInvestment ?? Math.round(12000 + avgRoi * 1400));
-  const avgProfitPerStock = Number(base.avgProfitPerStock ?? Math.round(avgProfitPerInvestment * avgInvestmentsPerStock));
-
-  const roiP10 = Number((avgRoi * 0.28).toFixed(2));
-  const roiP20 = Number((avgRoi * 0.42).toFixed(2));
-  const roiP30 = Number((avgRoi * 0.58).toFixed(2));
-  const roiP40 = Number((avgRoi * 0.73).toFixed(2));
-  const roiP50 = Number((avgRoi * 0.92).toFixed(2));
-  const roiP60 = Number((avgRoi * 1.07).toFixed(2));
-  const roiP70 = Number((avgRoi * 1.22).toFixed(2));
-  const roiP80 = Number((avgRoi * 1.38).toFixed(2));
-  const roiP90 = Number((avgRoi * 1.55).toFixed(2));
-  const roiP25 = Number(((roiP20 + roiP30) / 2).toFixed(2));
-  const roiP75 = Number(((roiP70 + roiP80) / 2).toFixed(2));
-  const roiIqr = Number((roiP75 - roiP25).toFixed(2));
-  const roiBucketEdges = [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50];
-  const roiBucketLabels = roiBucketEdges.slice(0, -1).map((start, index) => {
-    const end = roiBucketEdges[index + 1];
-    return `${start}%~${end}%`;
-  });
-  const sigma = 18;
-  const roiBucketWeights = roiBucketEdges.slice(0, -1).map((start, index) => {
-    const center = (start + roiBucketEdges[index + 1]) / 2;
-    return Math.exp(-((center - avgRoi) ** 2) / (2 * sigma * sigma));
-  });
-  const weightSum = roiBucketWeights.reduce((sum, weight) => sum + weight, 0) || 1;
-  const rawCounts = roiBucketWeights.map((weight) => (weight / weightSum) * totalInvestments);
-  const roiBucketCounts = rawCounts.map((value) => Math.floor(value));
-  let remaining = totalInvestments - roiBucketCounts.reduce((sum, count) => sum + count, 0);
-  const remainders = rawCounts
-    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
-    .sort((a, b) => b.remainder - a.remainder);
-  for (let i = 0; i < remainders.length && remaining > 0; i += 1) {
-    roiBucketCounts[remainders[i].index] += 1;
-    remaining -= 1;
+  let roiP10 = firstNum(['roiP10', 'roi_p10']);
+  let roiP20 = firstNum(['roiP20', 'roi_p20']);
+  let roiP30 = firstNum(['roiP30', 'roi_p30']);
+  let roiP40 = firstNum(['roiP40', 'roi_p40']);
+  let roiP50 = firstNum(['roiP50', 'roi_p50']);
+  let roiP60 = firstNum(['roiP60', 'roi_p60']);
+  let roiP70 = firstNum(['roiP70', 'roi_p70']);
+  let roiP80 = firstNum(['roiP80', 'roi_p80']);
+  let roiP90 = firstNum(['roiP90', 'roi_p90']);
+  let roiP25 = firstNum(['roiP25', 'roi_p25']);
+  let roiP75 = firstNum(['roiP75', 'roi_p75']);
+  let roiIqr = firstNum(['roiIqr', 'roi_iqr']);
+  if (pv.length === 9 && pv.every((x) => Number.isFinite(x))) {
+    [roiP10, roiP20, roiP30, roiP40, roiP50, roiP60, roiP70, roiP80, roiP90] = pv;
+    if (!Number.isFinite(roiP25)) roiP25 = Number(((pv[1] + pv[2]) / 2).toFixed(2));
+    if (!Number.isFinite(roiP50)) roiP50 = Number(pv[4].toFixed(2));
+    if (!Number.isFinite(roiP75)) roiP75 = Number(((pv[6] + pv[7]) / 2).toFixed(2));
+    if (!Number.isFinite(roiIqr) && Number.isFinite(roiP25) && Number.isFinite(roiP75)) {
+      roiIqr = Number((roiP75 - roiP25).toFixed(2));
+    }
   }
+  const roiConclusion = String(m.roiConclusion || m.roi_conclusion || '').trim();
 
-  const roiConclusion = roiP50 > 0 && roiP25 > 0
-    ? '中位与下分位均为正，收益结构较稳'
-    : (roiP50 > 0 ? '中位收益为正，但下分位承压' : '中位收益偏弱，需关注策略有效性');
+  const roiBucketLabels = toStringList(m.roiBucketLabels || m.roi_bucket_labels);
+  const roiBucketCounts = toNumberList(m.roiBucketCounts || m.roi_bucket_counts);
+
+  const hasCoreSummary = [winRate, avgRoi, avgDurationDays, annualReturn].every((x) => Number.isFinite(x));
+  const hasAny = hasCoreSummary
+    || (Number.isFinite(totalInvestments) && totalInvestments > 0)
+    || [m.win_rate, m.winRate, m.total_investments].some((v) => v !== undefined && v !== null);
+
+  if (!hasAny) return null;
+
+  const overviewOk = hasCoreSummary;
+  const sampleCoverageOk = [totalInvestments, stocksWithOpportunities, avgInvestmentsPerStock, totalOpenInvestments]
+    .every((x) => Number.isFinite(x));
+  const profitBasicsOk = [totalWinInvestments, totalLossInvestments, avgProfitPerInvestment, avgProfitPerStock]
+    .every((x) => Number.isFinite(x));
+
+  const roiPercentileVizOk = pv.length === 9 && pv.every((x) => Number.isFinite(x));
+  const roiBucketVizOk = roiBucketLabels.length > 0
+    && roiBucketCounts.length === roiBucketLabels.length;
 
   return {
-    winRate: Number(winRate.toFixed(1)),
-    avgRoi: Number(avgRoi.toFixed(2)),
-    avgDurationDays: Number(avgDurationDays.toFixed(1)),
-    annualReturn,
-    totalInvestments,
-    totalWinInvestments,
-    totalLossInvestments,
-    totalOpenInvestments,
-    stocksWithOpportunities,
-    avgInvestmentsPerStock,
-    avgProfitPerInvestment,
-    avgProfitPerStock,
+    winRate: Number.isFinite(winRate) ? Number(winRate.toFixed(1)) : NaN,
+    avgRoi: Number.isFinite(avgRoi) ? Number(avgRoi.toFixed(2)) : NaN,
+    avgDurationDays: Number.isFinite(avgDurationDays) ? Number(avgDurationDays.toFixed(1)) : NaN,
+    annualReturn: Number.isFinite(annualReturn) ? Number(annualReturn.toFixed(2)) : NaN,
+    totalInvestments: Number.isFinite(totalInvestments) ? Math.round(totalInvestments) : 0,
+    totalOpenInvestments: Number.isFinite(totalOpenInvestments) ? Math.round(totalOpenInvestments) : 0,
+    totalWinInvestments: Number.isFinite(totalWinInvestments) ? Math.round(totalWinInvestments) : 0,
+    totalLossInvestments: Number.isFinite(totalLossInvestments) ? Math.round(totalLossInvestments) : 0,
+    stocksWithOpportunities: Number.isFinite(stocksWithOpportunities) ? Math.round(stocksWithOpportunities) : 0,
+    avgInvestmentsPerStock: Number.isFinite(avgInvestmentsPerStock) ? Number(avgInvestmentsPerStock.toFixed(2)) : NaN,
+    avgProfitPerInvestment: Number.isFinite(avgProfitPerInvestment)
+      ? Number(avgProfitPerInvestment.toFixed(2))
+      : NaN,
+    avgProfitPerStock: Number.isFinite(avgProfitPerStock) ? Number(avgProfitPerStock.toFixed(2)) : NaN,
     roiP10,
     roiP20,
     roiP30,
@@ -255,14 +294,20 @@ export function buildPriceMetricsFromBase(base) {
     roiConclusion,
     roiBucketLabels,
     roiBucketCounts,
-    roiPercentileLabels: ['10%分位', '20%分位', '30%分位', '40%分位', '50%分位', '60%分位', '70%分位', '80%分位', '90%分位'],
-    roiPercentileValues: [roiP10, roiP20, roiP30, roiP40, roiP50, roiP60, roiP70, roiP80, roiP90],
+    roiPercentileLabels: labelsForChart,
+    roiPercentileValues: pv,
+    _availability: {
+      overview: overviewOk,
+      sampleCoverage: sampleCoverageOk,
+      profitBasics: profitBasicsOk,
+      roiPercentileViz: roiPercentileVizOk,
+      roiBucketViz: roiBucketVizOk,
+    },
   };
 }
 
 export function buildPriceMetrics(executionState) {
-  const base = executionState?.result?.price || MOCK_REPORT_PRICE_SUMMARIES_BY_VERSION.latest;
-  return buildPriceMetricsFromBase(base);
+  return normalizePriceMetricsFromSummary(executionState?.result?.price);
 }
 
 export function buildCapitalMetricsFromBase(base) {

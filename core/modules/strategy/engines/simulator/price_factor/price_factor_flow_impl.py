@@ -154,6 +154,10 @@ class PriceFactorFlowImpl:
         sim_version_dir: Path,
         sim_version_id: int,
     ) -> Dict[str, Any]:
+        """聚合整轮逐股 worker 结果；与枚举器不同处：**不存在**「再扫磁盘逐文件」二次汇总——
+        ``stock_summaries`` 已在内存中收齐，落盘 ``0_session_summary.json`` 的单 dict 即为权威摘要。
+        （枚举器曾优化为优先读 ``0_report_enum.json`` 以避免 ``EnumeratorReport.load`` 重负载；价格侧无对等重路径。）
+        """
         if not stock_summaries:
             return {}
 

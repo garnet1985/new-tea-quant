@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Accordion,
@@ -32,6 +32,8 @@ function StrategyExecutionPanel({
   getSettingsForRun,
   onExecutionStateChange,
   compareVersionOptions,
+  onProgressResultReport,
+  onRegisterForceHandlers,
 }) {
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
@@ -54,6 +56,7 @@ function StrategyExecutionPanel({
   const [activeRunId, setActiveRunId] = useState('');
   const [latestRunId, setLatestRunId] = useState('');
   const [runError, setRunError] = useState('');
+  const [lastCompletedWorkbenchVersionId, setLastCompletedWorkbenchVersionId] = useState('');
 
   useEffect(() => {
     if (!onExecutionStateChange) return;
@@ -64,8 +67,18 @@ function StrategyExecutionPanel({
       runningStep,
       runId: latestRunId,
       activeRunId,
+      lastCompletedWorkbenchVersionId,
     });
-  }, [activeRunId, compareVersion, latestRunId, onExecutionStateChange, result, runningStep, stepStatus]);
+  }, [
+    activeRunId,
+    compareVersion,
+    lastCompletedWorkbenchVersionId,
+    latestRunId,
+    onExecutionStateChange,
+    result,
+    runningStep,
+    stepStatus,
+  ]);
 
   useEffect(() => {
     if (Array.isArray(compareVersionOptions) && compareVersionOptions.length > 0) {
@@ -96,9 +109,38 @@ function StrategyExecutionPanel({
     setActiveRunId('');
     setLatestRunId('');
     setRunError('');
+    setLastCompletedWorkbenchVersionId('');
   }, [strategyName]);
 
   const isRunning = Boolean(runningStep);
+
+  const startRun = async (target, { isForce = false } = {}) => {
+    if (isRunning || !strategyName) return;
+    try {
+      setRunError('');
+      setRunningStep(target);
+      setProgress(0);
+      setLastCompletedWorkbenchVersionId('');
+      const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
+      if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
+      const started = await startStrategyRun(strategyName, target, resolvedSettings, { is_force: isForce });
+      const runId = started?.run_id;
+      if (!runId) throw new Error('启动执行失败：缺少 run_id');
+      setActiveRunId(runId);
+      setLatestRunId(runId);
+      setRunningStep(started?.resolved_chain?.[0] || target);
+      setProgress(0);
+      setResult({
+        enum: null,
+        price: null,
+        capital: null,
+      });
+    } catch (err) {
+      setRunError(err?.message || '启动执行失败');
+      setRunningStep('');
+      setProgress(0);
+    }
+  };
 
   const runLabel = useMemo(() => {
     if (!runningStep) return '等待开始';
@@ -281,6 +323,12 @@ function StrategyExecutionPanel({
         price: Object.prototype.hasOwnProperty.call(report, 'price') ? report.price : prev.price,
         capital: Object.prototype.hasOwnProperty.call(report, 'capital') ? report.capital : prev.capital,
       }));
+      if (status?.state === 'done' && report && Object.keys(report).length > 0) {
+        onProgressResultReport?.(report);
+      }
+      if (status?.state === 'done' && status?.version_id) {
+        setLastCompletedWorkbenchVersionId(String(status.version_id));
+      }
       if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {
         setActiveRunId('');
         if (status?.state === 'failed') setRunError('执行失败，请检查后端日志。');
@@ -305,34 +353,20 @@ function StrategyExecutionPanel({
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [activeRunId, strategyName, runningStep]);
+  }, [activeRunId, onProgressResultReport, runningStep, strategyName]);
 
-  const handleRun = async (target) => {
-    if (isRunning || !strategyName) return;
-    try {
-      setRunError('');
-      setRunningStep(target);
-      setProgress(0);
-      const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
-      if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
-      const started = await startStrategyRun(strategyName, target, resolvedSettings);
-      const runId = started?.run_id;
-      if (!runId) throw new Error('启动执行失败：缺少 run_id');
-      setActiveRunId(runId);
-      setLatestRunId(runId);
-      setRunningStep(started?.resolved_chain?.[0] || target);
-      setProgress(0);
-      setResult({
-        enum: null,
-        price: null,
-        capital: null,
-      });
-    } catch (err) {
-      setRunError(err?.message || '启动执行失败');
-      setRunningStep('');
-      setProgress(0);
-    }
-  };
+  const startRunRef = useRef(startRun);
+  startRunRef.current = startRun;
+
+  useEffect(() => {
+    if (!onRegisterForceHandlers) return undefined;
+    onRegisterForceHandlers({
+      forceEnum: () => startRunRef.current(STEP_ENUM, { isForce: true }),
+    });
+    return () => onRegisterForceHandlers(null);
+  }, [onRegisterForceHandlers]);
+
+  const handleRun = (target) => startRun(target);
 
   return (
     <Accordion defaultExpanded disableGutters>

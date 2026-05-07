@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   FormControl,
@@ -27,8 +27,40 @@ function ReportStockSampleGrid({
   sortMenuItems,
   rows,
   columns,
-  gridHeight = 360,
+  gridHeight = 400,
+  sortingMode = 'client',
+  sortModel,
+  onSortModelChange,
+  /** 仅 ``sortingMode === 'client'`` 时生效：首屏默认排序（与受控 ``sortModel`` 二选一由调用方约定） */
+  initialSortModel,
+  pagination = true,
+  defaultPageSize = 10,
+  pageSizeOptions = [10, 25, 50, 100],
 }) {
+  const showSortSelect = Array.isArray(sortMenuItems)
+    && sortMenuItems.length > 0
+    && typeof onSortChange === 'function';
+
+  const [paginationModel, setPaginationModel] = useState({
+    page: 0,
+    pageSize: defaultPageSize,
+  });
+
+  useEffect(() => {
+    setPaginationModel((prev) => ({ ...prev, pageSize: defaultPageSize }));
+  }, [defaultPageSize]);
+
+  const rowsFingerprint = useMemo(() => {
+    if (!Array.isArray(rows) || rows.length === 0) return '0';
+    const last = rows[rows.length - 1];
+    return `${rows.length}:${rows[0]?.id}:${last?.id}`;
+  }, [rows]);
+
+  useEffect(() => {
+    if (!pagination) return;
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+  }, [pagination, rowsFingerprint]);
+
   return (
     <SectionBlock title={title} tip={tip}>
       <Stack spacing={1}>
@@ -40,28 +72,52 @@ function ReportStockSampleGrid({
             onChange={(event) => onSearchChange(event.target.value)}
             sx={{ minWidth: { xs: '100%', md: 220 } }}
           />
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 200 } }}>
-            <InputLabel id={sortSelectLabelId}>{sortLabel}</InputLabel>
-            <Select
-              labelId={sortSelectLabelId}
-              value={sortValue}
-              label={sortLabel}
-              onChange={(event) => onSortChange(event.target.value)}
-            >
-              {sortMenuItems.map((item) => (
-                <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {showSortSelect ? (
+            <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 200 } }}>
+              <InputLabel id={sortSelectLabelId}>{sortLabel}</InputLabel>
+              <Select
+                labelId={sortSelectLabelId}
+                value={sortValue}
+                label={sortLabel}
+                onChange={(event) => onSortChange(event.target.value)}
+              >
+                {sortMenuItems.map((item) => (
+                  <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          ) : null}
         </Stack>
         <Box sx={{ height: gridHeight }}>
           <DataGrid
             rows={rows}
             columns={columns}
-            hideFooter
             disableColumnMenu
             disableColumnFilter
             disableRowSelectionOnClick
+            sortingOrder={['desc', 'asc']}
+            sortingMode={sortingMode}
+            {...(pagination
+              ? {
+                pagination: true,
+                paginationMode: 'client',
+                paginationModel,
+                onPaginationModelChange: setPaginationModel,
+                pageSizeOptions,
+              }
+              : { pagination: false, hideFooter: true })}
+            {...(sortingMode === 'server'
+              ? {
+                sortModel: Array.isArray(sortModel) ? sortModel : [],
+                onSortModelChange,
+              }
+              : Array.isArray(initialSortModel) && initialSortModel.length > 0
+                ? {
+                  initialState: {
+                    sorting: { sortModel: initialSortModel },
+                  },
+                }
+                : {})}
             density="compact"
           />
         </Box>

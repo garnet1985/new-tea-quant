@@ -190,6 +190,52 @@ export async function fetchEnumeratorReusePreview(strategyName) {
  * @param {string} jobId
  * @param {'enum'|'price'|'capital'} [step='enum']
  */
+/**
+ * V2-07：按路径 ``version_id`` 读取该步 ``report`` 槽位 JSON。
+ * @param {string} strategyName
+ * @param {'enum'|'price'|'capital'} step
+ * @param {string} versionId 如 ``v3`` / ``3``
+ */
+export async function fetchStrategyStepReport(strategyName, step, versionId) {
+  const vid = encodeURIComponent(String(versionId || '').trim());
+  if (!vid) {
+    throw new Error('缺少 version_id');
+  }
+  const json = await requestJson(
+    `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/report/${vid}`,
+    { method: 'GET' },
+  );
+  return json?.message || {};
+}
+
+/**
+ * 枚举逐股 ref（``0_stock_ref.json``）；不存在时返回 ``null``（不抛错）。
+ * @param {string} strategyName
+ * @param {'enum'|'price'|'capital'} step
+ * @param {string} versionId
+ * @returns {Promise<object|null>}
+ */
+export async function fetchStrategyStepReportRef(strategyName, step, versionId) {
+  const vid = encodeURIComponent(String(versionId || '').trim());
+  if (!vid) {
+    return null;
+  }
+  const url = `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/report_ref/${vid}`;
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  let json = {};
+  try {
+    json = await response.json();
+  } catch {
+    return null;
+  }
+  if (!response.ok || json?.status !== 'ok') {
+    return null;
+  }
+  return json?.message || null;
+}
+
 export async function fetchStrategyRunStatus(strategyName, jobId, step = 'enum') {
   const json = await requestJson(
     `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/progress?job_id=${encodeURIComponent(jobId)}`,

@@ -25,8 +25,9 @@ def stock_ids_for_db_cache_fingerprint(
     fallback_ids: List[str],
 ) -> List[str]:
     """
-    env 指纹中的 ``stock_ids`` 与枚举 run 一致：侧载 ``0_scope_stock_ids.txt`` 优先，
-    否则旧 metadata 内嵌，再回退为 ``fallback_ids``（如扫描枚举目录成对 CSV）。
+    env 指纹中的 ``stock_ids`` 与枚举 run 一致：优先读 ``0_stock_ref.json``（或旧
+    ``0_enumerator_stocks.json`` / ``0_scope_stock_ids.txt``），否则 metadata 内嵌，再回退
+    ``fallback_ids``。
     """
     ids = EnumeratorOutputWriterService.read_scope_stock_ids(output_version_dir)
     if ids:

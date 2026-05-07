@@ -107,6 +107,9 @@ class OpportunityEnumeratorFlowImpl:
         self.workbench_strategy_name = workbench_strategy_name
         self.workbench_run_id = workbench_run_id
         self.force_refresh = bool(force_refresh)
+        # 在 ``aggregate_job_results``（postprocess）里单次遍历 ``job_results`` 填满；``save_metadata`` 再写 ``0_stock_ref.json``。
+        self._stock_summary_by_id: Dict[str, Dict[str, Any]] = {}
+        self._enumeration_bundles_by_id: Dict[str, Dict[str, Any]] = {}
 
     def resolve_runtime_workers(self) -> int:
         from core.infra.worker import ProcessWorker
@@ -405,11 +408,26 @@ class OpportunityEnumeratorFlowImpl:
         trigger_stock_count = 0
         completed_count = 0
         unfinished_count = 0
+        stock_summary_by_id: Dict[str, Dict[str, Any]] = {}
+        bundles_by_id: Dict[str, Dict[str, Any]] = {}
         for job_result in job_results:
             row = self._aggregate_single_job_result(job_result, aggregate_profiler)
             total_opportunities += row["opportunity_count"]
             completed_count += row["completed_count"]
             unfinished_count += row["unfinished_count"]
+            sid = str(row.get("stock_id") or "").strip()
+            raw_res = getattr(job_result, "result", None)
+            if sid and isinstance(raw_res, dict):
+                eb = raw_res.get("enumeration_report_bundle")
+                if isinstance(eb, dict):
+                    bundles_by_id[sid] = eb
+            if sid:
+                stock_summary_by_id[sid] = {
+                    "stock_name": str(row.get("stock_name") or sid),
+                    "opportunities": int(row.get("opportunity_count") or 0),
+                    "completion_rate": float(row.get("completion_rate") or 0.0),
+                    "avg_opportunity_interval_days": float(row.get("avg_opportunity_interval_days") or 0.0),
+                }
             if row["success"]:
                 success_count += 1
                 success_stock_ids.append(row["stock_id"])
@@ -418,6 +436,9 @@ class OpportunityEnumeratorFlowImpl:
             else:
                 failed_count += 1
                 failed_stock_ids.append(row["stock_id"])
+
+        self._stock_summary_by_id = stock_summary_by_id
+        self._enumeration_bundles_by_id = bundles_by_id
 
         # step2: normalize and return aggregate summary
         return {
@@ -436,12 +457,16 @@ class OpportunityEnumeratorFlowImpl:
         job_result: Any, aggregate_profiler: AggregateProfiler
     ) -> Dict[str, Any]:
         if job_result.status.value != "completed":
+            jid = str(getattr(job_result, "job_id", ""))
             return {
                 "success": False,
-                "stock_id": str(getattr(job_result, "job_id", "")),
+                "stock_id": jid,
+                "stock_name": jid,
                 "opportunity_count": 0,
                 "completed_count": 0,
                 "unfinished_count": 0,
+                "completion_rate": 0.0,
+                "avg_opportunity_interval_days": 0.0,
             }
         result = job_result.result or {}
         stock_id = str(result.get("stock_id", ""))
@@ -449,9 +474,12 @@ class OpportunityEnumeratorFlowImpl:
             return {
                 "success": False,
                 "stock_id": stock_id,
+                "stock_name": str(result.get("stock_name") or stock_id),
                 "opportunity_count": 0,
                 "completed_count": 0,
                 "unfinished_count": 0,
+                "completion_rate": 0.0,
+                "avg_opportunity_interval_days": 0.0,
             }
         perf_data = result.get("performance_metrics")
         if perf_data:
@@ -460,9 +488,12 @@ class OpportunityEnumeratorFlowImpl:
         return {
             "success": True,
             "stock_id": stock_id,
+            "stock_name": str(result.get("stock_name") or stock_id),
             "opportunity_count": int(result.get("opportunity_count", 0)),
             "completed_count": int(result.get("completed_count", 0)),
             "unfinished_count": int(result.get("unfinished_count", 0)),
+            "completion_rate": float(result.get("completion_rate") or 0.0),
+            "avg_opportunity_interval_days": float(result.get("avg_opportunity_interval_days") or 0.0),
         }
 
     def save_performance_report(
@@ -487,17 +518,23 @@ class OpportunityEnumeratorFlowImpl:
         output_dir: Path,
         version_id: int,
         version_dir_name: str,
-        opportunity_count: int,
         settings_snapshot: Dict[str, Any],
         enum_settings: OpportunityEnumeratorSettings,
         fingerprint: StrategyRunFingerprint,
         status: str = "completed",
+        stock_summary_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
-        metadata, scope_stock_ids = EnumeratorOutputWriterService.build_metadata(
-            strategy_name=strategy_name,
+        summary_map = stock_summary_by_id if stock_summary_by_id is not None else self._stock_summary_by_id
+        if summary_map:
+            EnumeratorOutputWriterService.write_stock_summary_by_stock_id(
+                output_dir=output_dir,
+                by_stock_id=summary_map,
+            )
+
+        metadata, _scope_unused = EnumeratorOutputWriterService.build_metadata(
+            strategy_name=str(strategy_name),
             start_date=self.start_date,
             end_date=self.end_date,
-            opportunity_count=opportunity_count,
             version_id=version_id,
             version_dir_name=version_dir_name,
             settings_snapshot=settings_snapshot,
@@ -506,29 +543,21 @@ class OpportunityEnumeratorFlowImpl:
             status=status,
             created_at=datetime.now().isoformat(),
         )
-        EnumeratorOutputWriterService.write_scope_stock_ids(output_dir, scope_stock_ids)
         EnumeratorOutputWriterService.write_metadata(
             output_dir=output_dir, metadata=metadata
         )
-        scope_fingerprint_id = StrategyRunFingerprint.compute_scope_fingerprint_id(
-            fingerprint
-        )
-        EnumeratorOutputWriterService.write_fingerprint(
-            output_dir=output_dir,
-            fingerprint_payload={
-                "fingerprint_id": str(fingerprint.fingerprint_id or ""),
-                "scope_fingerprint_id": str(scope_fingerprint_id or ""),
-                "strategy_name": strategy_name,
-                "version_id": int(version_id),
-                "version_dir": version_dir_name,
-                "created_at": metadata.get("created_at"),
-            },
-        )
+
         try:
-            EnumeratorReport.from_output_dir(
-                output_dir,
-                total_stocks_hint=len(self.stock_list),
-            ).write_bff_payload(output_dir)
+            if self._enumeration_bundles_by_id and self.stock_list:
+                EnumeratorReport.from_per_stock_bundles(
+                    self._enumeration_bundles_by_id,
+                    stock_universe=list(self.stock_list),
+                ).write_bff_payload(output_dir, include_stock_rows=False)
+            else:
+                EnumeratorReport.from_output_dir(
+                    output_dir,
+                    total_stocks_hint=len(self.stock_list),
+                ).write_bff_payload(output_dir, include_stock_rows=False)
         except Exception:
             pass
 

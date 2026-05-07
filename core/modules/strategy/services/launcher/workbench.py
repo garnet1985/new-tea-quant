@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import pprint
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context.path_manager import PathManager
 from core.modules.data_manager import DataManager
@@ -258,3 +259,135 @@ def build_step_report_message(
         "step": normalized_step,
         "report": report,
     }
+
+
+_STOCK_REF_FILENAMES = ("0_stock_ref.json", "0_enumerator_stocks.json")
+
+
+def _enumerator_output_base(strategy_name: str) -> Path:
+    return PathManager.strategy_opportunity_enums(str(strategy_name).strip(), use_sampling=False)
+
+
+def build_step_report_ref_message(
+    *,
+    strategy_name: str,
+    normalized_step: str,
+    snapshot_id: int,
+) -> Optional[Dict[str, Any]]:
+    """读取枚举产物目录下的 ``0_stock_ref.json``（或旧 ``0_enumerator_stocks.json``）；仅 ``enum`` 步有意义。"""
+    if normalized_step != "enum":
+        return None
+    name = str(strategy_name).strip()
+    if not name or snapshot_id <= 0:
+        return None
+
+    row = fetch_workbench_snapshot_by_snapshot_id(name, int(snapshot_id))
+    if not row:
+        return None
+
+    base = _enumerator_output_base(name)
+    candidates_dirs: List[str] = []
+
+    rr = row.get("result_report") or {}
+    enum_raw = rr.get("enum")
+    if isinstance(enum_raw, dict):
+        vd = str(enum_raw.get("version_dir") or "").strip()
+        if vd:
+            candidates_dirs.append(vd)
+        vid = enum_raw.get("version_id")
+        if vid is not None:
+            try:
+                candidates_dirs.append(str(int(vid)))
+            except (TypeError, ValueError):
+                pass
+
+    candidates_dirs.append(str(int(snapshot_id)))
+
+    seen: set[str] = set()
+    uniq_dirs: List[str] = []
+    for d in candidates_dirs:
+        if d and d not in seen:
+            seen.add(d)
+            uniq_dirs.append(d)
+
+    stock_ref: Optional[Dict[str, Any]] = None
+    resolved_dir = ""
+    for d in uniq_dirs:
+        for fname in _STOCK_REF_FILENAMES:
+            p = base / d / fname
+            if not p.is_file():
+                continue
+            try:
+                raw = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(raw, dict) and raw:
+                stock_ref = raw
+                resolved_dir = d
+                break
+        if stock_ref is not None:
+            break
+
+    if stock_ref is None:
+        return None
+
+    stock_ref = _enrich_stock_ref_with_list_names(stock_ref)
+
+    return {
+        "version_id": f"v{int(snapshot_id)}",
+        "strategy_name": name,
+        "step": normalized_step,
+        "stock_ref": stock_ref,
+        "resolved_output_dir": resolved_dir,
+    }
+
+
+def _batch_load_stock_display_names(codes: List[str]) -> Dict[str, str]:
+    """``sys_stock_list.id`` (ts_code) → ``name``，批量查询。"""
+    model = DataManager().get_table("sys_stock_list")
+    if model is None or not codes:
+        return {}
+    out: Dict[str, str] = {}
+    deduped = list(dict.fromkeys(c for c in codes if c))
+    chunk_size = 500
+    for i in range(0, len(deduped), chunk_size):
+        chunk = deduped[i : i + chunk_size]
+        ph = ",".join(["%s"] * len(chunk))
+        try:
+            rows = model.load(f"id IN ({ph})", tuple(chunk))
+        except Exception:
+            continue
+        for r in rows or []:
+            rec = dict(r or {})
+            sid = str(rec.get("id") or "").strip()
+            nm = str(rec.get("name") or "").strip()
+            if sid and nm:
+                out[sid] = nm
+    return out
+
+
+def _enrich_stock_ref_with_list_names(stock_ref: Dict[str, Any]) -> Dict[str, Any]:
+    """``stock_name`` 与 ts_code 相同或为空时，用 ``sys_stock_list.name`` 覆盖（证券简称）。"""
+    if not isinstance(stock_ref, dict) or not stock_ref:
+        return stock_ref
+    need: List[str] = []
+    for sid, payload in stock_ref.items():
+        code = str(sid).strip()
+        if not code:
+            continue
+        row = payload if isinstance(payload, dict) else {}
+        sn = str(row.get("stock_name") or "").strip()
+        if not sn or sn == code:
+            need.append(code)
+    names = _batch_load_stock_display_names(need)
+    if not names:
+        return stock_ref
+    out: Dict[str, Any] = {}
+    for sid, payload in stock_ref.items():
+        code = str(sid).strip()
+        base = dict(payload) if isinstance(payload, dict) else {}
+        sn = str(base.get("stock_name") or "").strip()
+        if (not sn or sn == code) and code in names:
+            base["stock_name"] = names[code]
+        out[str(sid)] = base
+    return out

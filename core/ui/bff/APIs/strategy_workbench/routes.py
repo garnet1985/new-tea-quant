@@ -13,6 +13,7 @@ from core.modules.strategy.services.launcher import fetch_latest_workbench_snaps
 from core.modules.strategy.services.launcher.workbench import (
     apply_workbench_snapshot_settings_to_userspace,
     build_step_report_message,
+    build_step_report_ref_message,
     fetch_workbench_snapshot_by_snapshot_id,
     parse_snapshot_id,
 )
@@ -138,27 +139,27 @@ def get_strategy_step_progress(strategy_name, step):
     return ok(payload)
 
 
-# --- V2-07（report：必填 ``version_id``；典型来源为 V2-06 completed 响应） ---
+# --- V2-07（report：路径 ``version_id``；典型来源为 V2-06 completed 响应） ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/<step>/report",
+    "/v1/strategy/<strategy_name>/<step>/report/<version_id>",
     methods=["GET"],
 )
-def get_strategy_step_report(strategy_name, step):
+def get_strategy_step_report(strategy_name, step, version_id):
     """
-    GET …/report?version_id=
+    GET …/report/<version_id>
 
-    **必填** query ``version_id``（``v3`` / ``3``）。本轮 run 在 **V2-06** 达 **completed**
+    **路径** ``version_id``（``v3`` / ``3``）。本轮 run 在 **V2-06** 达 **completed**
     且 ``snapshot_id>0`` 时已下发 ``version_id``，前端用同一值拉取该步明细；历史/对比亦为同一参数。
     """
     norm = normalize_step(step)
     if norm is None:
         return error("step 须为 enum / price / capital", 400)
 
-    q_vid = (request.args.get("version_id") or "").strip()
-    if not q_vid:
-        return error("缺少必填 query 参数 version_id", 400)
+    path_vid = str(version_id or "").strip()
+    if not path_vid:
+        return error("缺少路径参数 version_id", 400)
 
-    sid = parse_snapshot_id(q_vid)
+    sid = parse_snapshot_id(path_vid)
     if sid is None:
         return error("version_id 无效", 400)
     msg = build_step_report_message(
@@ -168,6 +169,35 @@ def get_strategy_step_report(strategy_name, step):
     )
     if msg is None:
         return error("快照不存在", 404)
+    return ok(msg)
+
+
+# --- V2-07b：枚举逐股 ref（``0_stock_ref.json``） ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/<strategy_name>/<step>/report_ref/<version_id>",
+    methods=["GET"],
+)
+def get_strategy_step_report_ref(strategy_name, step, version_id):
+    """GET …/report_ref/<version_id> — 仅 ``enum`` 步返回完整 ``stock_ref`` JSON；磁盘缺失时 404。
+    排序与分页由前端处理。"""
+    norm = normalize_step(step)
+    if norm is None:
+        return error("step 须为 enum / price / capital", 400)
+
+    path_vid = str(version_id or "").strip()
+    if not path_vid:
+        return error("缺少路径参数 version_id", 400)
+
+    sid = parse_snapshot_id(path_vid)
+    if sid is None:
+        return error("version_id 无效", 400)
+    msg = build_step_report_ref_message(
+        strategy_name=strategy_name,
+        normalized_step=norm,
+        snapshot_id=sid,
+    )
+    if msg is None:
+        return error("report_ref 不存在或该步骤无逐股引用", 404)
     return ok(msg)
 
 

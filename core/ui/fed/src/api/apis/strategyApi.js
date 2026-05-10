@@ -211,7 +211,8 @@ export async function fetchStrategyStepReport(strategyName, step, versionId) {
 }
 
 /**
- * 枚举逐股 ref（``0_stock_ref.json``）；不存在时返回 ``null``（不抛错）。
+ * 枚举逐股 ref（``0_stock_ref.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
+ * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
  * @param {string} strategyName
  * @param {'enum'|'price'|'capital'} step
  * @param {string} versionId

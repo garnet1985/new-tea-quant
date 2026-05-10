@@ -33,8 +33,6 @@ const STEP_CAPITAL = 'capital';
 /** 下拉末项：打开完整历史版本选择（占位）；勿写入 ``compareVersion`` */
 const EXEC_COMPARE_MORE_MENU_VALUE = '__exec_compare_more_versions__';
 
-const COMPARE_SELECT_EMPTY_LABEL = '无对比版本';
-
 const CAPITAL_NUM_FMT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
 /** 执行卡片资金行：金额两位小数；与 ``toLocaleString`` 千分位一致 */
@@ -165,8 +163,15 @@ function StrategyExecutionPanel({
   const isPollingRun = Boolean(activeRunId);
   const executionBusy = Boolean(activeRunId) || Boolean(runningStep);
 
-  const startRun = async (target, { isForce = false } = {}) => {
-    if (executionBusy || !strategyName) return;
+  const startRun = async (target, { isForce = false, _retryAfterBusy = false } = {}) => {
+    if (!strategyName) return;
+    if (executionBusy) {
+      // 与左侧草稿 reset 触发的 remount 同一瞬时使用：首帧可能仍认为 busy，下一微任务再试一次
+      if (!_retryAfterBusy) {
+        queueMicrotask(() => startRun(target, { isForce, _retryAfterBusy: true }));
+      }
+      return;
+    }
     try {
       setRunError('');
       setProgressPollStep(target);
@@ -273,6 +278,12 @@ function StrategyExecutionPanel({
     return recentCompareIds.filter((id) => id !== cur);
   }, [recentCompareIds, lastCompletedWorkbenchVersionId]);
 
+  /** 未选对比版本时：展示当前工作台快照版本号 +「当前版本」 */
+  const compareBaselineMenuLabel = useMemo(() => {
+    const cur = String(lastCompletedWorkbenchVersionId || '').trim();
+    return cur ? `${cur}（当前版本）` : '—（当前版本）';
+  }, [lastCompletedWorkbenchVersionId]);
+
   useEffect(() => {
     const cur = String(lastCompletedWorkbenchVersionId || '').trim();
     if (!cur) return;
@@ -298,7 +309,7 @@ function StrategyExecutionPanel({
   };
 
   const renderCompareVersionSelectValue = (selected) => {
-    if (selected === '' || selected == null) return COMPARE_SELECT_EMPTY_LABEL;
+    if (selected === '' || selected == null) return compareBaselineMenuLabel;
     return String(selected);
   };
 
@@ -835,7 +846,7 @@ function StrategyExecutionPanel({
                       onChange={(e) => handleExecutionCompareChange('enum', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >
-                      <MenuItem value="">{COMPARE_SELECT_EMPTY_LABEL}</MenuItem>
+                      <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
                       {compareDropdownVersionIds.map((id) => (
                         <MenuItem key={id} value={id}>{id}</MenuItem>
                       ))}
@@ -904,7 +915,7 @@ function StrategyExecutionPanel({
                       onChange={(e) => handleExecutionCompareChange('price', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >
-                      <MenuItem value="">{COMPARE_SELECT_EMPTY_LABEL}</MenuItem>
+                      <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
                       {compareDropdownVersionIds.map((id) => (
                         <MenuItem key={id} value={id}>{id}</MenuItem>
                       ))}
@@ -971,7 +982,7 @@ function StrategyExecutionPanel({
                       onChange={(e) => handleExecutionCompareChange('capital', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >
-                      <MenuItem value="">{COMPARE_SELECT_EMPTY_LABEL}</MenuItem>
+                      <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
                       {compareDropdownVersionIds.map((id) => (
                         <MenuItem key={id} value={id}>{id}</MenuItem>
                       ))}

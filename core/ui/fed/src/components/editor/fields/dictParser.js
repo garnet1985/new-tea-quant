@@ -75,6 +75,8 @@ function DictParserField({ field, context = {} }) {
         value={parser.value}
         onChange={(e) => parser.onChange(e.target.value)}
         onBlur={parser.onBlur}
+        onKeyUp={parser.onKeyUp}
+        onPaste={parser.onPaste}
         placeholder={field.placeholder || '输入 settings.core（dict）'}
         sx={{
           '& .MuiInputBase-root': {

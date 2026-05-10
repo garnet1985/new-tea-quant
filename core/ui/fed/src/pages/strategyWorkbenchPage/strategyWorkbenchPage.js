@@ -51,6 +51,50 @@ import {
   StrategySettingsPanel,
 } from './panels/strategySettingsPanel/strategySettingsPanel';
 
+/** 左侧草稿 settings 变更后重置右侧执行/报告（加载完成后首次对齐基线，之后任意变更触发 ``onReset``）。core 由容器在 keyup/粘贴时解析写入 ``draftSettings``，签名仅需序列化草稿。 */
+function WorkbenchDraftChangeResetBridge({
+  draftSettings,
+  strategyName,
+  isLoadingSettings,
+  onReset,
+  /** 下一次草稿签名变化来自服务端/容器同步（如恢复快照）时不触发右侧重置 */
+  suppressDraftDrivenPanelResetRef,
+}) {
+  const baselineSigRef = useRef(null);
+  const establishedRef = useRef(false);
+  const compositeSig = JSON.stringify(draftSettings);
+
+  useEffect(() => {
+    if (!strategyName) return;
+    if (isLoadingSettings) {
+      establishedRef.current = false;
+      baselineSigRef.current = null;
+      return;
+    }
+    if (!establishedRef.current) {
+      baselineSigRef.current = compositeSig;
+      establishedRef.current = true;
+      return;
+    }
+    if (compositeSig !== baselineSigRef.current) {
+      baselineSigRef.current = compositeSig;
+      if (suppressDraftDrivenPanelResetRef?.current) {
+        suppressDraftDrivenPanelResetRef.current = false;
+        return;
+      }
+      onReset();
+    }
+  }, [
+    compositeSig,
+    strategyName,
+    isLoadingSettings,
+    onReset,
+    suppressDraftDrivenPanelResetRef,
+  ]);
+
+  return null;
+}
+
 function StrategyWorkbenchPage() {
   const navigate = useNavigate();
   const { strategyName } = useParams();
@@ -140,6 +184,39 @@ function StrategyWorkbenchPage() {
   const [hasPersistedSnapshot, setHasPersistedSnapshot] = useState(false);
   const [hasOtherVersions, setHasOtherVersions] = useState(false);
   const syncedWorkbenchVerRef = useRef('');
+  /** 恢复快照等场景：草稿由容器跟随 ``initialSettings`` 替换，跳过一轮「草稿变更→清空右侧」 */
+  const suppressDraftDrivenPanelResetRef = useRef(false);
+  /** 草稿变更时递增，强制执行/报告面板 remount 清空内部 compare / 轮询等状态 */
+  const [panelsResetEpoch, setPanelsResetEpoch] = useState(0);
+
+  const resetPanelsAfterDraftChange = useCallback(() => {
+    setPanelsResetEpoch((n) => n + 1);
+    setWorkbenchResultReport(null);
+    setWorkbenchExecutionHydration(null);
+    setExecutionState({
+      stepStatus: {
+        enum: 'idle',
+        price: 'idle',
+        capital: 'idle',
+      },
+      result: {
+        enum: null,
+        price: null,
+        capital: null,
+      },
+      compareVersion: {
+        enum: '',
+        price: '',
+        capital: '',
+      },
+      runningStep: '',
+      runId: '',
+      activeRunId: '',
+      lastCompletedWorkbenchVersionId: '',
+    });
+    setReportTabFocusRequest(null);
+  }, []);
+
   const handleRunStepComplete = useCallback((step) => {
     if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
     reportTabFocusSeqRef.current += 1;
@@ -339,7 +416,6 @@ function StrategyWorkbenchPage() {
         setConfigVersions(rows);
         setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
         setHasOtherVersions(Boolean(res?.has_other_versions));
-        setWorkbenchResultReport(res?.result_report ?? null);
         const wbVer = typeof res?.workbench_version_id === 'string'
           ? res.workbench_version_id.trim()
           : '';
@@ -348,14 +424,7 @@ function StrategyWorkbenchPage() {
         if (wbVer !== '') {
           setAppliedVersionId(wbVer);
         }
-        const stepCards = mapWorkbenchStepStatusToExecutionCards(res?.step_status);
-        const execResult = buildExecutionResultFromWorkbenchReport(res?.result_report);
-        setWorkbenchExecutionHydration({
-          key: `${strategyName}:${wbVer || 'none'}`,
-          stepStatus: stepCards,
-          result: execResult,
-          lastCompletedWorkbenchVersionId: wbVer,
-        });
+        // 不在此处用 GET latest 覆盖 workbenchResultReport / hydration：易与 V2-06 进度片竞态，导致刚跑完仍显示旧版汇总
       })
       .catch(() => {});
     return () => {
@@ -421,11 +490,6 @@ function StrategyWorkbenchPage() {
               const hasUnsavedChanges = JSON.stringify(draftSettings) !== JSON.stringify(savedBaselineSettings);
               const isAppliedSettings = JSON.stringify(draftSettings) === JSON.stringify(appliedSettings);
               const workspaceVersionLabel = selectedConfigVersion || '（尚无快照）';
-              const reportAnchorVersionId = (
-                selectedConfigVersion && String(selectedConfigVersion).trim() !== ''
-                  ? String(selectedConfigVersion).trim()
-                  : (appliedVersionId !== 'userspace' ? String(appliedVersionId).trim() : '')
-              );
               const appliedVersionLabel = appliedVersionId === 'userspace'
                 ? '策略目录 settings.py（无 DB 快照）'
                 : appliedVersionId;
@@ -449,6 +513,14 @@ function StrategyWorkbenchPage() {
 
               return (
                 <>
+            <WorkbenchDraftChangeResetBridge
+              key={strategyName || ''}
+              draftSettings={draftSettings}
+              strategyName={strategyName}
+              isLoadingSettings={isLoadingSettings}
+              onReset={resetPanelsAfterDraftChange}
+              suppressDraftDrivenPanelResetRef={suppressDraftDrivenPanelResetRef}
+            />
             <Box
               sx={{
                 mb: 2,
@@ -601,6 +673,7 @@ function StrategyWorkbenchPage() {
               <Grid item xs={12} md={9}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   <StrategyExecutionPanel
+                    key={`exec-${strategyName || ''}-${panelsResetEpoch}`}
                     strategyName={strategyName}
                     settings={draftSettings}
                     getSettingsForRun={getDraftSettingsForSubmit}
@@ -615,11 +688,11 @@ function StrategyWorkbenchPage() {
                     showVersionCompare={hasOtherVersions}
                   />
                   <StrategyReportPanel
+                    key={`report-${strategyName || ''}-${panelsResetEpoch}`}
                     strategyName={strategyName}
                     executionState={executionState}
                     compareVersionOptions={compareVersionOptions}
                     workbenchResultReport={workbenchResultReport}
-                    workbenchVersionId={reportAnchorVersionId}
                     reportTabFocusRequest={reportTabFocusRequest}
                     onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
                     showReportCompare={hasOtherVersions}
@@ -693,6 +766,7 @@ function StrategyWorkbenchPage() {
                     setSaveError('');
                     restoreStrategyVersion(strategyName, target.id)
                       .then(async (restoreMeta) => {
+                        suppressDraftDrivenPanelResetRef.current = true;
                         const res = await fetchStrategySettings(strategyName);
                         const vr = await fetchStrategyVersions(strategyName);
                         const rows = (vr?.versions || []).map((version) => ({

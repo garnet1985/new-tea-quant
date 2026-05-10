@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import { buildCapitalSampleStockRows } from '../../../mocks/strategyReportSampleRows';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 import { formatReportChartDateLabel } from '../lib/reportDateFormat';
+import ReportUnavailableHint from '../components/ReportUnavailableHint';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
@@ -121,13 +121,12 @@ function buildDrawdownCurveOption(metrics) {
   };
 }
 
-function CapitalAllocationReport({ metrics, stockRows, title = '资金模拟报告（草图）', showStockGrid = true }) {
+function CapitalAllocationReport({ metrics, stockRows, title = '资金模拟报告', showStockGrid = true }) {
   const [stockSearch, setStockSearch] = useState('');
 
-  const derivedStockRows = useMemo(() => {
-    if (Array.isArray(stockRows) && stockRows.length > 0) return stockRows;
-    return buildCapitalSampleStockRows(metrics || {});
-  }, [metrics, stockRows]);
+  const derivedStockRows = useMemo(() => (
+    Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
+  ), [stockRows]);
 
   const filteredRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
@@ -162,11 +161,17 @@ function CapitalAllocationReport({ metrics, stockRows, title = '资金模拟报�
     },
   ];
 
+  if (!metrics || typeof metrics !== 'object') {
+    return <ReportUnavailableHint />;
+  }
+
+  const showStockSampleGrid = Boolean(showStockGrid && derivedStockRows.length > 0);
+
   return (
     <Stack spacing={1.25}>
       <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
 
-      {showStockGrid ? (
+      {showStockSampleGrid ? (
         <ReportStockSampleGrid
           title="逐股样本"
           tip="用于查看资金模拟阶段的单股交易结果；支持搜索、表头排序与底部分页。"

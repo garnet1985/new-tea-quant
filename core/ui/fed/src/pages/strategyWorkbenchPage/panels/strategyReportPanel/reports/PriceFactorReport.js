@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import { buildPriceSampleStockRows } from '../../../mocks/strategyReportSampleRows';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
@@ -14,13 +13,6 @@ import {
   REPORT_CHART_GRID_ROI_BUCKET,
   REPORT_CHART_SPLIT_LINE,
 } from '../lib/reportChartsTheme';
-
-const EMPTY_METRICS_BASE = {
-  totalInvestments: 0,
-  winRate: 0,
-  avgRoi: 0,
-  avgDurationDays: 0,
-};
 
 const BAR_RADIUS = 4;
 
@@ -153,11 +145,9 @@ function PriceFactorReport({
     roiBucketViz: false,
   };
 
-  const derivedStockRows = useMemo(() => {
-    if (Array.isArray(stockRows) && stockRows.length > 0) return stockRows;
-    const base = metrics || EMPTY_METRICS_BASE;
-    return buildPriceSampleStockRows(base);
-  }, [metrics, stockRows]);
+  const derivedStockRows = useMemo(() => (
+    Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
+  ), [stockRows]);
 
   const filteredRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
@@ -218,10 +208,10 @@ function PriceFactorReport({
         K 线与买卖点透视暂未启用（需加载行情并描点后再接）。
       </Typography>
 
-      {showStockGrid ? (
+      {showStockGrid && derivedStockRows.length > 0 ? (
         <ReportStockSampleGrid
           title="逐股样本"
-          tip="用于查看本次价格回测中单股表现；支持搜索、表头排序与底部分页。（逐股接口接入后将替换占位样本）"
+          tip="用于查看本次价格回测中单股表现；支持搜索、表头排序与底部分页。"
           searchValue={stockSearch}
           onSearchChange={setStockSearch}
           rows={filteredRows}

@@ -1,3 +1,7 @@
+/**
+ * K 线 + 买卖点弹窗（占位实现：无行情 API 时图为本地合成）。
+ * 接入真实行情与买卖点后再挂载到报告「逐股」交互；当前仓库内无引用，避免误触演示数据。
+ */
 import React from 'react';
 import { Dialog, DialogContent, DialogTitle, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';

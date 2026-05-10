@@ -1,6 +1,6 @@
 /**
  * 策略报告 metrics：API/BFF 快照字段 → 面板展示用结构。
- * **枚举**仅以快照/API 字段为准，不合成草图数据；不含 UI mock 回退（见 ``../mocks/strategyReportMetrics.js``）。
+ * **枚举**仅以快照/API 字段为准，不合成草图数据；资金汇总见 ``../mocks/strategyReportMetrics.js`` 的 ``buildCapitalMetrics``（无后端数据时返回 ``null``）。
  */
 
 /** 枚举报告某结果块缺少所需字段时的统一提示 */

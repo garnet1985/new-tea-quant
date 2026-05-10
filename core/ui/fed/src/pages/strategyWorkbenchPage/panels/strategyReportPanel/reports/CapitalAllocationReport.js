@@ -5,7 +5,13 @@ import { buildCapitalSampleStockRows } from '../../../mocks/strategyReportSample
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import { formatReportChartDateLabel } from '../reportDateFormat';
+import { formatReportChartDateLabel } from '../lib/reportDateFormat';
+import {
+  REPORT_CHART_AXIS_LABEL,
+  REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_GRID_BASE,
+  REPORT_CHART_SPLIT_LINE,
+} from '../lib/reportChartsTheme';
 
 /** 资产曲线纵轴按数据区间缩放（不再默认贴 0），少量留白便于读出波动 */
 function equityAxisMinMax(equityCurveValues) {
@@ -27,15 +33,14 @@ function buildEquityCurveOption(metrics) {
   const { min: yMin, max: yMax } = equityAxisMinMax(metrics.equityCurveValues);
   return {
     animation: false,
-    grid: { left: 36, right: 10, top: 20, bottom: 28 },
+    grid: REPORT_CHART_GRID_BASE,
     xAxis: {
       type: 'category',
       data: metrics.equityCurveLabels,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
+      axisLine: REPORT_CHART_AXIS_LINE,
       axisLabel: {
-        color: '#5F6368',
-        fontSize: 11,
+        ...REPORT_CHART_AXIS_LABEL,
         formatter: (v) => formatReportChartDateLabel(v),
       },
     },
@@ -46,11 +51,10 @@ function buildEquityCurveOption(metrics) {
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: {
-        color: '#5F6368',
-        fontSize: 11,
+        ...REPORT_CHART_AXIS_LABEL,
         formatter: (value) => `${(value / 10000).toFixed(0)}w`,
       },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     series: [
       {
@@ -76,15 +80,14 @@ function buildEquityCurveOption(metrics) {
 function buildDrawdownCurveOption(metrics) {
   return {
     animation: false,
-    grid: { left: 36, right: 10, top: 20, bottom: 28 },
+    grid: REPORT_CHART_GRID_BASE,
     xAxis: {
       type: 'category',
       data: metrics.equityCurveLabels,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
+      axisLine: REPORT_CHART_AXIS_LINE,
       axisLabel: {
-        color: '#5F6368',
-        fontSize: 11,
+        ...REPORT_CHART_AXIS_LABEL,
         formatter: (v) => formatReportChartDateLabel(v),
       },
     },
@@ -94,8 +97,8 @@ function buildDrawdownCurveOption(metrics) {
       splitNumber: 3,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 11, formatter: '{value}%' },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      axisLabel: { ...REPORT_CHART_AXIS_LABEL, formatter: '{value}%' },
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     series: [
       {

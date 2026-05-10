@@ -25,6 +25,7 @@ import {
   startStrategyRun,
 } from '../../../../api/apis/strategyApi';
 import { buildExecutionResultFromWorkbenchReport } from '../../workbenchExecutionHydration';
+import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 
 const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
@@ -261,28 +262,14 @@ function StrategyExecutionPanel({
     return 'text.primary';
   };
 
-  const recentCompareIds = useMemo(() => {
-    const raw = Array.isArray(executionCompareRecentVersionIds)
-      ? executionCompareRecentVersionIds
-      : [];
-    return raw
-      .map((id) => (typeof id === 'string' ? id.trim() : ''))
-      .filter(Boolean)
-      .slice(0, 5);
-  }, [executionCompareRecentVersionIds]);
-
-  /** 下拉可选对比版本：去掉当前工作台快照，避免与自身对比 */
-  const compareDropdownVersionIds = useMemo(() => {
-    const cur = String(lastCompletedWorkbenchVersionId || '').trim();
-    if (!cur) return recentCompareIds;
-    return recentCompareIds.filter((id) => id !== cur);
-  }, [recentCompareIds, lastCompletedWorkbenchVersionId]);
-
-  /** 未选对比版本时：展示当前工作台快照版本号 +「当前版本」 */
-  const compareBaselineMenuLabel = useMemo(() => {
-    const cur = String(lastCompletedWorkbenchVersionId || '').trim();
-    return cur ? `${cur}（当前版本）` : '—（当前版本）';
-  }, [lastCompletedWorkbenchVersionId]);
+  const {
+    compareDropdownVersionIds,
+    compareBaselineMenuLabel,
+    renderCompareSelectValue,
+  } = useWorkbenchCompareVersionMenu(
+    executionCompareRecentVersionIds,
+    lastCompletedWorkbenchVersionId,
+  );
 
   useEffect(() => {
     const cur = String(lastCompletedWorkbenchVersionId || '').trim();
@@ -306,11 +293,6 @@ function StrategyExecutionPanel({
       return;
     }
     setCompareVersion((prev) => ({ ...prev, [stepKey]: nextValue }));
-  };
-
-  const renderCompareVersionSelectValue = (selected) => {
-    if (selected === '' || selected == null) return compareBaselineMenuLabel;
-    return String(selected);
   };
 
   useEffect(() => {
@@ -842,7 +824,7 @@ function StrategyExecutionPanel({
                       size="small"
                       displayEmpty
                       value={compareVersion.enum}
-                      renderValue={renderCompareVersionSelectValue}
+                      renderValue={renderCompareSelectValue}
                       onChange={(e) => handleExecutionCompareChange('enum', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >
@@ -911,7 +893,7 @@ function StrategyExecutionPanel({
                       size="small"
                       displayEmpty
                       value={compareVersion.price}
-                      renderValue={renderCompareVersionSelectValue}
+                      renderValue={renderCompareSelectValue}
                       onChange={(e) => handleExecutionCompareChange('price', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >
@@ -978,7 +960,7 @@ function StrategyExecutionPanel({
                       size="small"
                       displayEmpty
                       value={compareVersion.capital}
-                      renderValue={renderCompareVersionSelectValue}
+                      renderValue={renderCompareSelectValue}
                       onChange={(e) => handleExecutionCompareChange('capital', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >

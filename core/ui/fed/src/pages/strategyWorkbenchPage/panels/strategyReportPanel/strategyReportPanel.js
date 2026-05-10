@@ -22,9 +22,9 @@ import {
   Typography,
 } from '@mui/material';
 import { API_VERSION_PREFIX } from '../../../../api/conf/apiConfig';
-import OpportunityEnumrateReport from './reports/opportunityEnumerate';
-import PriceFactorReport from './reports/priceFactor';
-import CapitalAllocationReport from './reports/capitalAllocation';
+import OpportunityEnumrateReport from './reports/OpportunityEnumerateReport';
+import PriceFactorReport from './reports/PriceFactorReport';
+import CapitalAllocationReport from './reports/CapitalAllocationReport';
 import {
   buildCapitalMetrics,
   buildEnumMetrics,
@@ -33,76 +33,16 @@ import {
   normalizePriceMetricsFromSummary,
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
-import SettingsJsonDiff from './settingsDiffView';
+import SettingsJsonDiff from './components/SettingsJsonDiff';
+import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
-  fetchStrategyReportCompare,
-  fetchStrategyReportStocks,
-  fetchStrategyReports,
-  fetchStrategyStepReportRef,
-  fetchStrategyVersionDetail,
-} from '../../../../api/apis/strategyApi';
-
-/** 与 ``sortMappedEnumRows`` 字段一致；仅用于首屏默认顺序（后续排序为 DataGrid 客户端） */
-const ENUM_REF_DEFAULT_SORT = { sortBy: 'opportunities', order: 'desc' };
-
-function mapStockRefToRows(stockRef) {
-  if (!stockRef || typeof stockRef !== 'object') return [];
-  return Object.entries(stockRef).map(([code, v]) => {
-    const row = v && typeof v === 'object' ? v : {};
-    const opp = row.opportunities ?? row.opportunity_count ?? row.opportunityCount;
-    return {
-      id: String(code),
-      stockCode: String(code),
-      stockName: String(row.stock_name || row.stockName || code),
-      opportunities: Number(opp ?? 0),
-      completionRate: Number(row.completion_rate ?? row.completionRate ?? 0),
-      triggerSpanDays: Number(row.avg_opportunity_interval_days ?? row.triggerSpanDays ?? 0),
-    };
-  });
-}
-
-/** JSON object 键顺序不可靠：映射成行数组后按维度排序一次，便于首屏与分页。 */
-function sortMappedEnumRows(rows, sortBy, order) {
-  if (!Array.isArray(rows) || rows.length <= 1) return rows;
-  const desc = order === 'desc';
-  const tie = (a, b) => String(a.stockCode).localeCompare(String(b.stockCode), undefined, { numeric: true });
-  return [...rows].sort((a, b) => {
-    let cmp = 0;
-    switch (sortBy) {
-      case 'stock_code':
-        cmp = String(a.stockCode).localeCompare(String(b.stockCode), undefined, { numeric: true });
-        break;
-      case 'stock_name':
-        cmp = String(a.stockName).localeCompare(String(b.stockName), undefined, { numeric: true });
-        break;
-      case 'completion_rate':
-        cmp = Number(a.completionRate) - Number(b.completionRate);
-        break;
-      case 'avg_opportunity_interval_days':
-        cmp = Number(a.triggerSpanDays) - Number(b.triggerSpanDays);
-        break;
-      case 'opportunities':
-      default:
-        cmp = Number(a.opportunities) - Number(b.opportunities);
-        break;
-    }
-    if (cmp !== 0) return desc ? -cmp : cmp;
-    return tie(a, b);
-  });
-}
-
-const STEP_TABS = [
-  { key: 'enum', label: '枚举报告' },
-  { key: 'price', label: '价格回测报告' },
-  { key: 'capital', label: '资金模拟报告' },
-];
-
-const REPORT_COMPARE_MORE_MENU_VALUE = '__report_compare_more_versions__';
-
-/** 报告对比弹窗右侧：未选其它快照版本 */
-const COMPARE_EMPTY_OTHER_VERSION_ZH = '无可对比结果，请选择不同版本';
-/** 报告对比弹窗右侧：已选版本但该 Tab 无可用报告数据 */
-const COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH = '无可对比结果，没有可用的报告，请使用相应版本生成报告后再试';
+  COMPARE_EMPTY_OTHER_VERSION_ZH,
+  COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
+  REPORT_COMPARE_MORE_MENU_VALUE,
+  STEP_TABS,
+} from './constants/strategyReportConstants';
+import { useStrategyReportCompareDialog } from './hooks/useStrategyReportCompareDialog';
+import { useStrategyReportRemoteData } from './hooks/useStrategyReportRemoteData';
 
 function StrategyReportPanel({
   strategyName,
@@ -118,7 +58,6 @@ function StrategyReportPanel({
   /** 至少两条快照时可对比报告；仅一条时隐藏「对比结果」 */
   showReportCompare = true,
 }) {
-  const [remoteReports, setRemoteReports] = useState({ reports: {}, availableTabs: [] });
   /** V2-01 ``result_report.enum``：含 ``enumMetrics.opportunityCount*``，由页面 ``GET …/version/latest`` 注入 */
   const snapshotEnumSlot = useMemo(() => {
     const slot = workbenchResultReport?.enum;
@@ -133,10 +72,6 @@ function StrategyReportPanel({
     const slot = workbenchResultReport?.capital_allocation;
     return slot && typeof slot === 'object' ? slot : null;
   }, [workbenchResultReport]);
-  const [reportStocks, setReportStocks] = useState({ enum: [], price: [], capital: [] });
-  const [reportError, setReportError] = useState('');
-  const [enumRefStatus, setEnumRefStatus] = useState('idle');
-  const [enumRefRows, setEnumRefRows] = useState([]);
   const runId = executionState?.runId || '';
 
   /** 仅绑定「本轮会话最近一次跑单完成」的快照 id；草稿变更 reset 后为空，不再回退到工作台选中快照，以免参数已改仍拉旧版 report_ref（404 / 条数不一致） */
@@ -147,26 +82,11 @@ function StrategyReportPanel({
     return run;
   }, [executionState?.lastCompletedWorkbenchVersionId]);
 
-  const recentCompareIds = useMemo(() => {
-    const raw = Array.isArray(executionCompareRecentVersionIds)
-      ? executionCompareRecentVersionIds
-      : [];
-    return raw
-      .map((id) => String(id || '').trim())
-      .filter(Boolean)
-      .slice(0, 5);
-  }, [executionCompareRecentVersionIds]);
-
-  const compareDropdownVersionIds = useMemo(() => {
-    const cur = String(anchorVersionId || '').trim();
-    if (!cur) return recentCompareIds;
-    return recentCompareIds.filter((id) => id !== cur);
-  }, [recentCompareIds, anchorVersionId]);
-
-  const compareBaselineMenuLabel = useMemo(() => {
-    const cur = String(anchorVersionId || '').trim();
-    return cur ? `${cur}（当前版本）` : '—（当前版本）';
-  }, [anchorVersionId]);
+  const {
+    compareDropdownVersionIds,
+    compareBaselineMenuLabel,
+    renderCompareSelectValue,
+  } = useWorkbenchCompareVersionMenu(executionCompareRecentVersionIds, anchorVersionId);
 
   const reportComparePickerVersions = useMemo(() => {
     const cur = String(anchorVersionId || '').trim();
@@ -175,37 +95,47 @@ function StrategyReportPanel({
     return rows.filter((v) => v.id !== cur);
   }, [configVersions, anchorVersionId]);
 
-  const availableTabs = useMemo(() => {
-    const remoteTabs = Array.isArray(remoteReports?.availableTabs)
-      ? remoteReports.availableTabs
-      : [];
-    if (remoteTabs.length > 0) {
-      return STEP_TABS.filter((tab) => remoteTabs.includes(tab.key));
-    }
-    const stepStatus = executionState?.stepStatus || {};
-    return STEP_TABS.filter((tab) => stepStatus[tab.key] === 'done');
-  }, [executionState, remoteReports]);
-
   const [activeTab, setActiveTab] = useState('');
-  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
-  /** 对比弹窗内：报告 | 设置 */
-  const [compareDialogSubTab, setCompareDialogSubTab] = useState('report');
-  const [reportCompareMoreOpen, setReportCompareMoreOpen] = useState(false);
-  const [baseSettingsPayload, setBaseSettingsPayload] = useState({
-    loading: false,
-    error: '',
-    settings: null,
-  });
-  /** 对比侧：``GET …/version/{对比 id}`` 全文（用于报告槽位 + 设置 Tab，避免 SWB-14 占位导致右侧全空） */
-  const [compareWorkbenchSnapshot, setCompareWorkbenchSnapshot] = useState({
-    loading: false,
-    error: '',
-    detail: null,
+
+  const {
+    remoteReports,
+    reportStocks,
+    reportError,
+    enumRefStatus,
+    enumRefRows,
+    availableTabs,
+    resolvedActiveTab,
+  } = useStrategyReportRemoteData({
+    strategyName,
+    runId,
+    anchorVersionId,
+    activeTab,
+    executionState,
   });
 
-  useEffect(() => {
-    if (!showReportCompare && compareDialogOpen) setCompareDialogOpen(false);
-  }, [showReportCompare, compareDialogOpen]);
+  const {
+    compareDialogOpen,
+    setCompareDialogOpen,
+    compareDialogSubTab,
+    setCompareDialogSubTab,
+    reportCompareMoreOpen,
+    setReportCompareMoreOpen,
+    baseSettingsPayload,
+    compareWorkbenchSnapshot,
+    compareVersion,
+    setCompareVersion,
+    comparePayload,
+    compareError,
+    handleReportCompareSelectChange,
+    compareResultReport,
+    compareSideReportBusy,
+  } = useStrategyReportCompareDialog({
+    strategyName,
+    runId,
+    anchorVersionId,
+    resolvedActiveTab,
+    showReportCompare,
+  });
 
   useEffect(() => {
     if (availableTabs.length === 0) return;
@@ -223,267 +153,14 @@ function StrategyReportPanel({
     setActiveTab(step);
   }, [reportTabFocusRequest, availableTabs]);
 
-  const [compareVersion, setCompareVersion] = useState('');
-  const [comparePayload, setComparePayload] = useState(null);
-  const [compareLoading, setCompareLoading] = useState(false);
-  const [compareError, setCompareError] = useState('');
-  const resolvedActiveTab = useMemo(() => {
-    if (availableTabs.length === 0) return '';
-    if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
-    return availableTabs[availableTabs.length - 1].key;
-  }, [activeTab, availableTabs]);
-
   const enumReportRefUrl = useMemo(() => {
     if (enumRefStatus !== 'ok' || !anchorVersionId) return '';
     return `${API_VERSION_PREFIX}/strategy/${encodeURIComponent(strategyName)}/enum/report_ref/${encodeURIComponent(anchorVersionId)}`;
   }, [enumRefStatus, anchorVersionId, strategyName]);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!strategyName || !anchorVersionId || resolvedActiveTab !== 'enum') {
-      setEnumRefStatus('idle');
-      setEnumRefRows([]);
-      return undefined;
-    }
-    setEnumRefStatus('loading');
-    fetchStrategyStepReportRef(strategyName, 'enum', anchorVersionId).then((msg) => {
-      if (cancelled) return;
-      const raw = msg?.stock_ref;
-      const available = msg?.stock_ref_available !== false;
-      if (
-        available
-        && raw
-        && typeof raw === 'object'
-        && Object.keys(raw).length > 0
-      ) {
-        const mapped = sortMappedEnumRows(
-          mapStockRefToRows(raw),
-          ENUM_REF_DEFAULT_SORT.sortBy,
-          ENUM_REF_DEFAULT_SORT.order,
-        );
-        setEnumRefRows(mapped);
-        setEnumRefStatus('ok');
-        return;
-      }
-      setEnumRefRows([]);
-      setEnumRefStatus('missing');
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [anchorVersionId, resolvedActiveTab, strategyName]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!strategyName || !runId) {
-      setRemoteReports({ reports: {}, availableTabs: [] });
-      setReportStocks({ enum: [], price: [], capital: [] });
-      setReportError('');
-      return undefined;
-    }
-    const loadReports = async () => {
-      try {
-        setReportError('');
-        const data = await fetchStrategyReports(strategyName, runId);
-        if (cancelled) return;
-        setRemoteReports({
-          reports: data?.reports || {},
-          availableTabs: data?.available_tabs || [],
-        });
-      } catch (err) {
-        if (cancelled) return;
-        setReportError(err?.message || '读取报告摘要失败');
-        setRemoteReports({ reports: {}, availableTabs: [] });
-      }
-    };
-    loadReports();
-    return () => {
-      cancelled = true;
-    };
-  }, [runId, strategyName]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!strategyName || !runId || !resolvedActiveTab) return undefined;
-    const loadStocks = async () => {
-      try {
-        const data = await fetchStrategyReportStocks(strategyName, runId, resolvedActiveTab, { limit: 10 });
-        if (cancelled) return;
-        const rows = Array.isArray(data?.rows) ? data.rows : [];
-        const mapped = rows.map((row, index) => {
-          if (resolvedActiveTab === 'enum') {
-            return {
-              id: `${row.stock_id}-${index}`,
-              stockCode: row.stock_id,
-              stockName: row.stock_name,
-              opportunities: Number(row.opportunities || 0),
-              completionRate: Number(row.completion_rate || 0),
-              triggerSpanDays: Number(row.trigger_span_days || 0),
-            };
-          }
-          if (resolvedActiveTab === 'price') {
-            return {
-              id: `${row.stock_id}-${index}`,
-              stockCode: row.stock_id,
-              stockName: row.stock_name,
-              winRate: Number(row.win_rate || 0),
-              roi: Number(row.roi || 0),
-              holdDays: Number(row.hold_days || 0),
-            };
-          }
-          return {
-            id: `${row.stock_id}-${index}`,
-            stockCode: row.stock_id,
-            stockName: row.stock_name,
-            tradeCount: Number(row.trade_count || 0),
-            pnl: Number(row.pnl || 0),
-            winRate: Number(row.win_rate || 0),
-          };
-        });
-        setReportStocks((prev) => ({ ...prev, [resolvedActiveTab]: mapped }));
-      } catch (err) {
-        if (cancelled) return;
-        setReportStocks((prev) => ({ ...prev, [resolvedActiveTab]: [] }));
-      }
-    };
-    loadStocks();
-    return () => {
-      cancelled = true;
-    };
-  }, [resolvedActiveTab, runId, strategyName]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!compareDialogOpen || !strategyName || !runId || !resolvedActiveTab || !compareVersion) {
-      setComparePayload(null);
-      setCompareError('');
-      setCompareLoading(false);
-      return undefined;
-    }
-    const loadCompare = async () => {
-      try {
-        setCompareLoading(true);
-        setCompareError('');
-        const data = await fetchStrategyReportCompare(
-          strategyName,
-          runId,
-          compareVersion,
-          resolvedActiveTab,
-        );
-        if (cancelled) return;
-        setComparePayload(data || null);
-      } catch (err) {
-        if (cancelled) return;
-        setCompareError(err?.message || '读取对比报告失败');
-        setComparePayload(null);
-      } finally {
-        if (!cancelled) setCompareLoading(false);
-      }
-    };
-    loadCompare();
-    return () => {
-      cancelled = true;
-    };
-  }, [compareDialogOpen, compareVersion, resolvedActiveTab, runId, strategyName]);
-
-  useEffect(() => {
-    if (!compareDialogOpen) {
-      setCompareDialogSubTab('report');
-      setReportCompareMoreOpen(false);
-    }
-  }, [compareDialogOpen]);
-
-  useEffect(() => {
-    if (!compareDialogOpen || compareDialogSubTab !== 'settings' || !strategyName) {
-      setBaseSettingsPayload({ loading: false, error: '', settings: null });
-      return undefined;
-    }
-    let cancelled = false;
-    const curId = String(anchorVersionId || '').trim();
-
-    if (!curId) {
-      setBaseSettingsPayload({ loading: false, error: '', settings: null });
-    } else {
-      setBaseSettingsPayload((prev) => ({ ...prev, loading: true, error: '' }));
-      fetchStrategyVersionDetail(strategyName, curId)
-        .then((res) => {
-          if (cancelled) return;
-          setBaseSettingsPayload({
-            loading: false,
-            error: '',
-            settings: res?.settings ?? null,
-          });
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setBaseSettingsPayload({
-            loading: false,
-            error: err?.message || '读取当前快照设置失败',
-            settings: null,
-          });
-        });
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [compareDialogOpen, compareDialogSubTab, strategyName, anchorVersionId]);
-
-  useEffect(() => {
-    if (!compareDialogOpen || !strategyName || !String(compareVersion || '').trim()) {
-      setCompareWorkbenchSnapshot({ loading: false, error: '', detail: null });
-      return undefined;
-    }
-    let cancelled = false;
-    const vid = String(compareVersion).trim();
-    setCompareWorkbenchSnapshot((prev) => ({ ...prev, loading: true, error: '' }));
-    fetchStrategyVersionDetail(strategyName, vid)
-      .then((detail) => {
-        if (cancelled) return;
-        setCompareWorkbenchSnapshot({ loading: false, error: '', detail });
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setCompareWorkbenchSnapshot({
-          loading: false,
-          error: err?.message || '读取对比快照失败',
-          detail: null,
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [compareDialogOpen, compareVersion, strategyName]);
-
   const handleTabChange = (_event, nextValue) => {
     setActiveTab(nextValue);
   };
-
-  const handleReportCompareSelectChange = (event) => {
-    const value = event.target.value;
-    const proceed = () => {
-      if (value === REPORT_COMPARE_MORE_MENU_VALUE) {
-        setReportCompareMoreOpen(true);
-        return;
-      }
-      setCompareVersion(value);
-    };
-    window.setTimeout(proceed, 0);
-  };
-
-  const renderReportCompareSelectValue = (selected) => {
-    if (selected === '' || selected == null) return compareBaselineMenuLabel;
-    return String(selected);
-  };
-
-  const compareResultReport = compareWorkbenchSnapshot.detail?.result_report && typeof compareWorkbenchSnapshot.detail.result_report === 'object'
-    ? compareWorkbenchSnapshot.detail.result_report
-    : null;
-
-  const compareSideReportBusy = Boolean(
-    compareVersion
-      && (compareLoading || compareWorkbenchSnapshot.loading),
-  );
 
   /** 对比弹窗内报告区块副标题：仅报告类型，版本号在列头「当前版本（vx）」展示 */
   const compareDialogReportKindLabel = useMemo(() => {
@@ -707,7 +384,7 @@ function StrategyReportPanel({
                 size="small"
                 displayEmpty
                 value={compareVersion}
-                renderValue={renderReportCompareSelectValue}
+                renderValue={renderCompareSelectValue}
                 onChange={handleReportCompareSelectChange}
                 sx={{ minWidth: 168 }}
               >

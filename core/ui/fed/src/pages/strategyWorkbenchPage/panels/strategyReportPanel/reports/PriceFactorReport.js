@@ -2,10 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import { buildPriceSampleStockRows } from '../../../mocks/strategyReportSampleRows';
-import { REPORT_BLOCK_UNAVAILABLE_ZH } from '../../../mocks/strategyReportMetrics';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
+import ReportUnavailableHint from '../components/ReportUnavailableHint';
+import {
+  REPORT_CHART_AXIS_LABEL,
+  REPORT_CHART_AXIS_LABEL_SM,
+  REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_GRID_BASE,
+  REPORT_CHART_GRID_ROI_BUCKET,
+  REPORT_CHART_SPLIT_LINE,
+} from '../lib/reportChartsTheme';
 
 const EMPTY_METRICS_BASE = {
   totalInvestments: 0,
@@ -48,32 +56,24 @@ function looksLikeLegacyFixedRoiBuckets(labels) {
   ));
 }
 
-function UnavailableHint() {
-  return (
-    <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
-      {REPORT_BLOCK_UNAVAILABLE_ZH}
-    </Typography>
-  );
-}
-
 function buildRoiDistributionOption(metrics) {
   return {
     animation: false,
-    grid: { left: 30, right: 10, top: 20, bottom: 28 },
+    grid: { ...REPORT_CHART_GRID_BASE, left: 30 },
     xAxis: {
       type: 'category',
       data: metrics.roiPercentileLabels,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: REPORT_CHART_AXIS_LABEL,
     },
     yAxis: {
       type: 'value',
       splitNumber: 3,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 11, formatter: '{value}%' },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      axisLabel: { ...REPORT_CHART_AXIS_LABEL, formatter: '{value}%' },
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     series: [
       {
@@ -99,21 +99,21 @@ function buildRoiDistributionOption(metrics) {
 function buildRoiBucketOption(metrics) {
   return {
     animation: false,
-    grid: { left: 30, right: 10, top: 20, bottom: 50 },
+    grid: REPORT_CHART_GRID_ROI_BUCKET,
     xAxis: {
       type: 'category',
       data: metrics.roiBucketLabels,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 10, interval: 0, rotate: 25 },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: { ...REPORT_CHART_AXIS_LABEL_SM, interval: 0, rotate: 25 },
     },
     yAxis: {
       type: 'value',
       splitNumber: 3,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      axisLabel: REPORT_CHART_AXIS_LABEL,
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     series: [
       {
@@ -193,7 +193,7 @@ function PriceFactorReport({
   ], []);
 
   if (!metrics || typeof metrics !== 'object') {
-    return <UnavailableHint />;
+    return <ReportUnavailableHint />;
   }
 
   const volCardHint = (() => {
@@ -240,7 +240,7 @@ function PriceFactorReport({
             <MetricCard title="平均持有时长" value={`${metrics.avgDurationDays} 天`} />
             <MetricCard title="年化收益（自然日）" value={`${metrics.annualReturn}%`} />
           </Box>
-        ) : <UnavailableHint />}
+        ) : <ReportUnavailableHint />}
       </SectionBlock>
 
       <SectionBlock
@@ -254,7 +254,7 @@ function PriceFactorReport({
             <MetricCard title="每股平均投资次数" value={metrics.avgInvestmentsPerStock.toFixed(2)} />
             <MetricCard title="未完成持仓数" value={metrics.totalOpenInvestments.toLocaleString()} />
           </Box>
-        ) : <UnavailableHint />}
+        ) : <ReportUnavailableHint />}
       </SectionBlock>
 
       <SectionBlock
@@ -282,13 +282,13 @@ function PriceFactorReport({
               />
             ) : null}
           </Box>
-        ) : <UnavailableHint />}
+        ) : <ReportUnavailableHint />}
         {!avail.roiPercentileViz ? (
           <Box sx={{ mt: avail.profitBasics ? 1 : 0 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
               ROI 分位图：需价格回测摘要中含 roi_percentile_values（长度 9）；会话级汇总正常产出后即展示。
             </Typography>
-            <UnavailableHint />
+            <ReportUnavailableHint />
           </Box>
         ) : (
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
@@ -311,7 +311,7 @@ function PriceFactorReport({
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
               ROI 桶分布：需 roi_bucket_labels / roi_bucket_counts 与摘要一同下发。
             </Typography>
-            <UnavailableHint />
+            <ReportUnavailableHint />
           </Box>
         ) : (
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>

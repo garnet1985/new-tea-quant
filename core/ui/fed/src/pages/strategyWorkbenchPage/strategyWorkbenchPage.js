@@ -45,7 +45,7 @@ import { defaultMetaInfo, defaultSettings } from './strategyWorkbench.mock';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
-import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
+import StrategyReportPanel from './panels/strategyReportPanel/StrategyReportPanel';
 import {
   buildExecutionResultFromWorkbenchReport,
   mapWorkbenchStepStatusToExecutionCards,

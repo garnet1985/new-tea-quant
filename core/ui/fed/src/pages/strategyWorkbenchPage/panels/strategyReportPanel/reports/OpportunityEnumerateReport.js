@@ -1,18 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import { REPORT_BLOCK_UNAVAILABLE_ZH } from '../../../mocks/strategyReportMetrics';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-
-function UnavailableHint() {
-  return (
-    <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
-      {REPORT_BLOCK_UNAVAILABLE_ZH}
-    </Typography>
-  );
-}
+import ReportUnavailableHint from '../components/ReportUnavailableHint';
+import {
+  REPORT_CHART_AXIS_LABEL,
+  REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_GRID_BASE,
+  REPORT_CHART_SPLIT_LINE,
+} from '../lib/reportChartsTheme';
 
 function buildStockDistributionOption(metrics) {
   const xData = Array.isArray(metrics?.opportunityCountLabels) ? metrics.opportunityCountLabels : [];
@@ -24,21 +22,21 @@ function buildStockDistributionOption(metrics) {
     : [];
   return {
     animation: false,
-    grid: { left: 30, right: 10, top: 20, bottom: 28 },
+    grid: { ...REPORT_CHART_GRID_BASE, left: 30 },
     xAxis: {
       type: 'category',
       data: xData,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: REPORT_CHART_AXIS_LABEL,
     },
     yAxis: {
       type: 'value',
       splitNumber: 3,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      axisLabel: REPORT_CHART_AXIS_LABEL,
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     series: [
       {
@@ -144,7 +142,7 @@ function OpportunityEnumrateReport({
   ].filter(Boolean).join(' ');
 
   if (!metrics || typeof metrics !== 'object') {
-    return <UnavailableHint />;
+    return <ReportUnavailableHint />;
   }
 
   const showStockGridTable = Boolean(stockGridOverlay || filteredRows.length > 0);
@@ -180,7 +178,7 @@ function OpportunityEnumrateReport({
                   sortingMode="client"
                   initialSortModel={[{ field: 'opportunities', sort: 'desc' }]}
                 />
-              ) : <UnavailableHint />}
+              ) : <ReportUnavailableHint />}
             </>
           )}
         </Box>
@@ -201,7 +199,7 @@ function OpportunityEnumrateReport({
               value={`${metrics.completedCount.toLocaleString()} / ${metrics.totalOpportunities.toLocaleString()} (${metrics.completedRatio}%)`}
             />
           </Box>
-        ) : <UnavailableHint />}
+        ) : <ReportUnavailableHint />}
       </SectionBlock>
 
       <SectionBlock
@@ -219,7 +217,7 @@ function OpportunityEnumrateReport({
               value={Number(metrics.avgPerStock).toFixed(2)}
             />
           </Box>
-        ) : <UnavailableHint />}
+        ) : <ReportUnavailableHint />}
         <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: avail.stockStats ? 1 : 0 }}>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
             {distributionTip}
@@ -231,7 +229,7 @@ function OpportunityEnumrateReport({
               notMerge
               lazyUpdate
             />
-          ) : <UnavailableHint />}
+          ) : <ReportUnavailableHint />}
         </Box>
       </SectionBlock>
 
@@ -251,7 +249,7 @@ function OpportunityEnumrateReport({
               hint={`CV ${metrics.cv} · ${metrics.dispersionConclusion}`}
             />
           </Stack>
-        ) : <UnavailableHint />}
+        ) : <ReportUnavailableHint />}
       </SectionBlock>
     </Stack>
   );

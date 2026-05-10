@@ -1,7 +1,13 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogTitle, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import { formatReportChartDateLabel } from '../reportDateFormat';
+import { formatReportChartDateLabel } from '../lib/reportDateFormat';
+import {
+  REPORT_CHART_AXIS_LABEL_SM,
+  REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_GRID_BASE,
+  REPORT_CHART_SPLIT_LINE,
+} from '../lib/reportChartsTheme';
 
 function hashString(text) {
   let hash = 0;
@@ -32,16 +38,15 @@ export function buildStockKlineChartOption(stock) {
 
   return {
     animation: false,
-    grid: { left: 36, right: 12, top: 20, bottom: 28 },
+    grid: { ...REPORT_CHART_GRID_BASE, right: 12 },
     xAxis: {
       type: 'category',
       data: dates,
       scale: true,
       boundaryGap: true,
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
+      axisLine: REPORT_CHART_AXIS_LINE,
       axisLabel: {
-        color: '#5F6368',
-        fontSize: 10,
+        ...REPORT_CHART_AXIS_LABEL_SM,
         formatter: (v) => formatReportChartDateLabel(v),
       },
     },
@@ -49,8 +54,8 @@ export function buildStockKlineChartOption(stock) {
       scale: true,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      axisLabel: REPORT_CHART_AXIS_LABEL_SM,
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     tooltip: {
       trigger: 'axis',
@@ -99,16 +104,15 @@ function buildStockKlineChartOptionFromApi(payload) {
     : [];
   return {
     animation: false,
-    grid: { left: 36, right: 12, top: 20, bottom: 28 },
+    grid: { ...REPORT_CHART_GRID_BASE, right: 12 },
     xAxis: {
       type: 'category',
       data: dates,
       scale: true,
       boundaryGap: true,
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
+      axisLine: REPORT_CHART_AXIS_LINE,
       axisLabel: {
-        color: '#5F6368',
-        fontSize: 10,
+        ...REPORT_CHART_AXIS_LABEL_SM,
         formatter: (v) => formatReportChartDateLabel(v),
       },
     },
@@ -116,8 +120,8 @@ function buildStockKlineChartOptionFromApi(payload) {
       scale: true,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      axisLabel: REPORT_CHART_AXIS_LABEL_SM,
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     tooltip: {
       trigger: 'axis',

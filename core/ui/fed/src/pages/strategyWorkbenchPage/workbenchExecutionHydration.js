@@ -1,7 +1,7 @@
 /**
  * 将 V2-01 ``GET …/version/latest`` 的 ``step_status`` / ``result_report`` 转为执行面板用的卡片状态与摘要行。
  */
-import { normalizePriceMetricsFromSummary } from './mocks/strategyReportMetrics';
+import { normalizePriceMetricsFromSummary } from './reportMetrics/strategyReportMetricsNormalize';
 
 const IDLE = { enum: 'idle', price: 'idle', capital: 'idle' };
 

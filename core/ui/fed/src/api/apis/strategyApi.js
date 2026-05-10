@@ -126,16 +126,18 @@ export async function fetchStrategyVersionDetail(strategyName, versionId) {
 }
 
 /**
- * 恢复历史版本到工作台：无单独 V2 restore；校验 **V2-08** 可读后由前端再 **GET V2-01** 刷新。
+ * 恢复历史版本到工作台：无单独写库 restore；以 **V2-08** ``GET …/version/{id}`` 的快照正文为准。
+ * 与 ``GET …/version/latest`` 正文同形（冷启动仅 latest 有合成行）；前端页面加载仍用 latest，恢复快照只用 detail。
  * @param {string} strategyName
  * @param {string} versionId
- * @returns {Promise<{ restored: boolean, version_id: string }>}
+ * @returns {Promise<{ restored: boolean, version_id: string, detail: object }>}
  */
 export async function restoreStrategyVersion(strategyName, versionId) {
-  await fetchStrategyVersionDetail(strategyName, versionId);
+  const detail = await fetchStrategyVersionDetail(strategyName, versionId);
   return {
     restored: true,
     version_id: versionId,
+    detail,
   };
 }
 

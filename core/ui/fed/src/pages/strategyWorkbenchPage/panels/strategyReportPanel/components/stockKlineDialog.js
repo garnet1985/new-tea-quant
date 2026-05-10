@@ -1,6 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogTitle, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
+import { formatReportChartDateLabel } from '../reportDateFormat';
 
 function hashString(text) {
   let hash = 0;
@@ -38,7 +39,11 @@ export function buildStockKlineChartOption(stock) {
       scale: true,
       boundaryGap: true,
       axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 10 },
+      axisLabel: {
+        color: '#5F6368',
+        fontSize: 10,
+        formatter: (v) => formatReportChartDateLabel(v),
+      },
     },
     yAxis: {
       scale: true,
@@ -101,7 +106,11 @@ function buildStockKlineChartOptionFromApi(payload) {
       scale: true,
       boundaryGap: true,
       axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 10 },
+      axisLabel: {
+        color: '#5F6368',
+        fontSize: 10,
+        formatter: (v) => formatReportChartDateLabel(v),
+      },
     },
     yAxis: {
       scale: true,
@@ -113,6 +122,27 @@ function buildStockKlineChartOptionFromApi(payload) {
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'cross' },
+      formatter(params) {
+        const arr = Array.isArray(params) ? params : [params];
+        if (!arr.length) return '';
+        const lines = [formatReportChartDateLabel(arr[0].axisValue)];
+        arr.forEach((p) => {
+          if (p.seriesType === 'candlestick') {
+            const row = Array.isArray(p.value) && p.value.length >= 4
+              ? p.value
+              : (Array.isArray(p.data) ? p.data : null);
+            if (Array.isArray(row) && row.length >= 4) {
+              const [o, c, l, h] = row;
+              lines.push(`开盘 ${o}　收盘 ${c}　最低 ${l}　最高 ${h}`);
+            }
+          } else if (p.seriesType === 'scatter') {
+            const y = Array.isArray(p.value) ? p.value[1] : null;
+            const tag = p.data?.label?.formatter || '点位';
+            if (y != null && Number.isFinite(Number(y))) lines.push(`${tag}：${y}`);
+          }
+        });
+        return lines.filter(Boolean).join('<br/>');
+      },
     },
     series: [
       {

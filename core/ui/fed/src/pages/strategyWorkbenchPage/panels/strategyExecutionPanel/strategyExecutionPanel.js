@@ -302,7 +302,7 @@ function StrategyExecutionPanel({
 
   const handleExecutionCompareChange = (stepKey, nextValue) => {
     if (nextValue === EXEC_COMPARE_MORE_MENU_VALUE) {
-      setExecutionMoreVersionsOpen(true);
+      window.setTimeout(() => setExecutionMoreVersionsOpen(true), 0);
       return;
     }
     setCompareVersion((prev) => ({ ...prev, [stepKey]: nextValue }));

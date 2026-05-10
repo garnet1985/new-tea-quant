@@ -20,6 +20,10 @@ import {
   ListItemButton,
   ListItemText,
   Link,
+  ListSubheader,
+  Pagination,
+  Select,
+  MenuItem,
   Stack,
   TextField,
   Tooltip,
@@ -95,6 +99,38 @@ function WorkbenchDraftChangeResetBridge({
   return null;
 }
 
+/** 与执行面板「对比版本」下拉末项一致：打开完整版本列表 */
+const RESTORE_MORE_MENU_VALUE = '__restore_more_versions__';
+const VERSION_PICKER_PAGE_SIZE = 8;
+
+/** 与 BFF ``workbench_latest_ui_flags.has_persisted_snapshot`` 一致：有效快照 id > 0 */
+function versionDetailHasPersistedSnapshot(detail) {
+  const vid = String(detail?.version_id ?? '').trim();
+  if (!vid) return false;
+  const n = Number(String(vid).replace(/^v/i, ''));
+  return Number.isFinite(n) && n > 0;
+}
+
+/**
+ * V2-08 单条快照 → 与 ``fetchStrategySettings``（V2-01）对齐的页面状态，避免恢复后再请求 ``version/latest``。
+ * ``has_other_versions``：与后端「≥2 条快照」一致；恢复不写库时用已缓存的 ``GET …/versions`` 列表长度近似。
+ */
+function workbenchPageStateFromVersionDetail(detail, strategyName, cachedVersionRows) {
+  const wbVer = typeof detail?.version_id === 'string' ? detail.version_id.trim() : '';
+  const persisted = versionDetailHasPersistedSnapshot(detail);
+  const rows = Array.isArray(cachedVersionRows) ? cachedVersionRows : [];
+  const hasOtherVersions = persisted && rows.length >= 2;
+  return {
+    strategy_name: strategyName,
+    settings: detail?.settings || {},
+    workbench_version_id: wbVer,
+    step_status: detail?.step_status,
+    result_report: detail?.result_report ?? null,
+    has_persisted_snapshot: persisted,
+    has_other_versions: hasOtherVersions,
+  };
+}
+
 function StrategyWorkbenchPage() {
   const navigate = useNavigate();
   const { strategyName } = useParams();
@@ -104,6 +140,7 @@ function StrategyWorkbenchPage() {
   const [pendingVersionId, setPendingVersionId] = useState('');
   const [moreVersionsOpen, setMoreVersionsOpen] = useState(false);
   const [versionSearch, setVersionSearch] = useState('');
+  const [versionPickerPage, setVersionPickerPage] = useState(1);
   const [strategyRows, setStrategyRows] = useState([]);
   const [pendingStrategyName, setPendingStrategyName] = useState('');
   const [switchStrategyConfirmOpen, setSwitchStrategyConfirmOpen] = useState(false);
@@ -440,32 +477,75 @@ function StrategyWorkbenchPage() {
     () => Object.fromEntries(configVersions.map((version) => [version.id, version])),
     [configVersions],
   );
-  /** 与 `fetchStrategyVersionHistory` 同源（GET …/versions），避免执行/报告面板各打一遍 */
-  const compareVersionOptions = useMemo(() => {
-    const ids = configVersions
-      .map((v) => v.id)
-      .filter((id) => typeof id === 'string' && id.trim() !== '');
-    return ids.length > 0 ? ['latest', ...ids] : ['latest'];
-  }, [configVersions]);
   const latestFiveVersions = useMemo(() => configVersions.slice(0, 5), [configVersions]);
-  const displayedVersions = useMemo(() => {
+  /** 与执行器对比下拉一致：最近 5 条，且排除当前工作台快照（恢复自身无意义） */
+  const restoreDropdownVersions = useMemo(() => {
+    const cur = String(selectedConfigVersion || '').trim();
+    return latestFiveVersions.filter((v) => !cur || v.id !== cur);
+  }, [latestFiveVersions, selectedConfigVersion]);
+
+  const versionPickerFiltered = useMemo(() => {
     const keyword = versionSearch.trim().toLowerCase();
-    if (!keyword) return latestFiveVersions;
+    if (!keyword) return configVersions;
     return configVersions.filter((version) => (
       version.id.toLowerCase().includes(keyword)
       || version.createdAt.toLowerCase().includes(keyword)
       || version.updatedAt.toLowerCase().includes(keyword)
     ));
-  }, [configVersions, latestFiveVersions, versionSearch]);
+  }, [configVersions, versionSearch]);
+
+  const versionPickerTotalPages = Math.max(
+    1,
+    Math.ceil(versionPickerFiltered.length / VERSION_PICKER_PAGE_SIZE) || 1,
+  );
+
+  const versionPickerSlice = useMemo(() => {
+    const page = Math.min(versionPickerPage, versionPickerTotalPages);
+    const start = (page - 1) * VERSION_PICKER_PAGE_SIZE;
+    return versionPickerFiltered.slice(start, start + VERSION_PICKER_PAGE_SIZE);
+  }, [versionPickerFiltered, versionPickerPage, versionPickerTotalPages]);
+
+  useEffect(() => {
+    setVersionPickerPage(1);
+  }, [versionSearch]);
+
+  useEffect(() => {
+    setVersionPickerPage((p) => Math.min(p, versionPickerTotalPages));
+  }, [versionPickerTotalPages]);
 
   const requestApplyVersion = (versionId) => {
     if (!versionId) return;
     setPendingVersionId(versionId);
     setConfirmOpen(true);
   };
+
+  const openMoreVersionsDialog = () => {
+    setSaveError('');
+    setUserspaceApplyOk('');
+    setVersionPickerPage(1);
+    setMoreVersionsOpen(true);
+  };
+
+  const handleRestoreMenuChange = (event) => {
+    const value = event.target.value;
+    const proceed = () => {
+      if (value === RESTORE_MORE_MENU_VALUE) {
+        openMoreVersionsDialog();
+        return;
+      }
+      if (value) {
+        setSaveError('');
+        setUserspaceApplyOk('');
+        requestApplyVersion(value);
+      }
+    };
+    window.setTimeout(proceed, 0);
+  };
+
   const closeVersionsDialog = () => {
     setMoreVersionsOpen(false);
     setVersionSearch('');
+    setVersionPickerPage(1);
   };
 
   return (
@@ -602,18 +682,23 @@ function StrategyWorkbenchPage() {
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent={{ xs: 'stretch', md: 'flex-end' }}>
                       {hasOtherVersions ? (
-                        <Button
-                          variant="outlined"
+                        <Select
                           size="small"
+                          displayEmpty
+                          value=""
+                          renderValue={() => '恢复到版本…'}
+                          onChange={handleRestoreMenuChange}
                           disabled={disableSettingsActions}
-                          onClick={() => {
-                            setSaveError('');
-                            setUserspaceApplyOk('');
-                            setMoreVersionsOpen(true);
-                          }}
+                          sx={{ minWidth: 168 }}
                         >
-                          历史快照…
-                        </Button>
+                          <ListSubheader disableSticky sx={{ lineHeight: '32px', py: 0 }}>
+                            恢复到版本…
+                          </ListSubheader>
+                          {restoreDropdownVersions.map((version) => (
+                            <MenuItem key={version.id} value={version.id}>{version.id}</MenuItem>
+                          ))}
+                          <MenuItem value={RESTORE_MORE_MENU_VALUE}>更多版本…</MenuItem>
+                        </Select>
                       ) : null}
                       <Button
                         variant="contained"
@@ -691,7 +776,8 @@ function StrategyWorkbenchPage() {
                     key={`report-${strategyName || ''}-${panelsResetEpoch}`}
                     strategyName={strategyName}
                     executionState={executionState}
-                    compareVersionOptions={compareVersionOptions}
+                    executionCompareRecentVersionIds={latestFiveVersions.map((v) => v.id)}
+                    configVersions={configVersions}
                     workbenchResultReport={workbenchResultReport}
                     reportTabFocusRequest={reportTabFocusRequest}
                     onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
@@ -765,17 +851,14 @@ function StrategyWorkbenchPage() {
                     setIsSavingSettings(true);
                     setSaveError('');
                     restoreStrategyVersion(strategyName, target.id)
-                      .then(async (restoreMeta) => {
+                      .then((restoreMeta) => {
                         suppressDraftDrivenPanelResetRef.current = true;
-                        const res = await fetchStrategySettings(strategyName);
-                        const vr = await fetchStrategyVersions(strategyName);
-                        const rows = (vr?.versions || []).map((version) => ({
-                          id: version.version_id || `v${version.version || ''}`,
-                          createdAt: version.created_at || '',
-                          updatedAt: version.updated_at || '',
-                          version: Number(version.version || 0),
-                        }));
-                        setConfigVersions(rows);
+                        const detail = restoreMeta.detail;
+                        const res = workbenchPageStateFromVersionDetail(
+                          detail,
+                          strategyName,
+                          configVersions,
+                        );
                         setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
                         setHasOtherVersions(Boolean(res?.has_other_versions));
                         setWorkbenchResultReport(res?.result_report ?? null);
@@ -845,18 +928,23 @@ function StrategyWorkbenchPage() {
             </Dialog>
 
             <Dialog open={moreVersionsOpen} onClose={closeVersionsDialog} maxWidth="sm" fullWidth>
-              <DialogTitle>选择工作台版本（最近 5 个）</DialogTitle>
+              <DialogTitle>选择工作台版本</DialogTitle>
               <DialogContent dividers>
                 <Stack spacing={1}>
                   <TextField
                     size="small"
                     fullWidth
-                    placeholder="搜索任意历史版本（版本 ID / 时间）"
+                    placeholder="搜索版本 ID、创建或更新时间"
                     value={versionSearch}
                     onChange={(event) => setVersionSearch(event.target.value)}
                   />
+                  <Typography variant="caption" color="text.secondary">
+                    {configVersions.length > 0
+                      ? `共 ${versionPickerFiltered.length} 条${versionPickerFiltered.length !== configVersions.length ? `（已筛选，全部 ${configVersions.length} 条）` : ''}`
+                      : '暂无可选版本'}
+                  </Typography>
                   <List sx={{ maxHeight: 340, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
-                    {displayedVersions.length > 0 ? displayedVersions.map((version) => (
+                    {versionPickerSlice.length > 0 ? versionPickerSlice.map((version) => (
                       <ListItemButton
                         key={version.id}
                         selected={version.id === selectedConfigVersion}
@@ -878,6 +966,17 @@ function StrategyWorkbenchPage() {
                       </Box>
                     )}
                   </List>
+                  {versionPickerFiltered.length > VERSION_PICKER_PAGE_SIZE ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>
+                      <Pagination
+                        count={versionPickerTotalPages}
+                        page={Math.min(versionPickerPage, versionPickerTotalPages)}
+                        onChange={(_event, nextPage) => setVersionPickerPage(nextPage)}
+                        size="small"
+                        color="primary"
+                      />
+                    </Box>
+                  ) : null}
                 </Stack>
               </DialogContent>
               <DialogActions>

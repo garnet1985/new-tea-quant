@@ -7,9 +7,15 @@ import {
   Box,
   Button,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  List,
+  ListItemButton,
+  ListItemText,
+  MenuItem,
+  Select,
   Stack,
   Tab,
   Tabs,
@@ -19,7 +25,6 @@ import { API_VERSION_PREFIX } from '../../../../api/conf/apiConfig';
 import OpportunityEnumrateReport from './reports/opportunityEnumerate';
 import PriceFactorReport from './reports/priceFactor';
 import CapitalAllocationReport from './reports/capitalAllocation';
-import CompareVersionSelect from 'components/compareVersionSelect/compareVersionSelect';
 import {
   buildCapitalMetrics,
   buildEnumMetrics,
@@ -28,11 +33,13 @@ import {
   normalizePriceMetricsFromSummary,
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
+import SettingsJsonDiff from './settingsDiffView';
 import {
   fetchStrategyReportCompare,
   fetchStrategyReportStocks,
   fetchStrategyReports,
   fetchStrategyStepReportRef,
+  fetchStrategyVersionDetail,
 } from '../../../../api/apis/strategyApi';
 
 /** 与 ``sortMappedEnumRows`` 字段一致；仅用于首屏默认顺序（后续排序为 DataGrid 客户端） */
@@ -90,10 +97,20 @@ const STEP_TABS = [
   { key: 'capital', label: '资金模拟报告' },
 ];
 
+const REPORT_COMPARE_MORE_MENU_VALUE = '__report_compare_more_versions__';
+
+/** 报告对比弹窗右侧：未选其它快照版本 */
+const COMPARE_EMPTY_OTHER_VERSION_ZH = '无可对比结果，请选择不同版本';
+/** 报告对比弹窗右侧：已选版本但该 Tab 无可用报告数据 */
+const COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH = '无可对比结果，没有可用的报告，请使用相应版本生成报告后再试';
+
 function StrategyReportPanel({
   strategyName,
   executionState,
-  compareVersionOptions,
+  /** 与执行面板相同：最近工作台 ``version_id``（新→旧，至多 5） */
+  executionCompareRecentVersionIds = [],
+  /** 完整版本列表，供「更多版本…」弹窗选择对比快照 */
+  configVersions = [],
   workbenchResultReport,
   /** ``{ step: 'enum'|'price'|'capital', tick }``：单步跑完后由工作台页注入，切到对应报告 */
   reportTabFocusRequest = null,
@@ -116,14 +133,6 @@ function StrategyReportPanel({
     const slot = workbenchResultReport?.capital_allocation;
     return slot && typeof slot === 'object' ? slot : null;
   }, [workbenchResultReport]);
-  const compareOptions = useMemo(
-    () => (
-      Array.isArray(compareVersionOptions) && compareVersionOptions.length > 0
-        ? compareVersionOptions
-        : ['latest']
-    ),
-    [compareVersionOptions],
-  );
   const [reportStocks, setReportStocks] = useState({ enum: [], price: [], capital: [] });
   const [reportError, setReportError] = useState('');
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
@@ -138,6 +147,34 @@ function StrategyReportPanel({
     return run;
   }, [executionState?.lastCompletedWorkbenchVersionId]);
 
+  const recentCompareIds = useMemo(() => {
+    const raw = Array.isArray(executionCompareRecentVersionIds)
+      ? executionCompareRecentVersionIds
+      : [];
+    return raw
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+      .slice(0, 5);
+  }, [executionCompareRecentVersionIds]);
+
+  const compareDropdownVersionIds = useMemo(() => {
+    const cur = String(anchorVersionId || '').trim();
+    if (!cur) return recentCompareIds;
+    return recentCompareIds.filter((id) => id !== cur);
+  }, [recentCompareIds, anchorVersionId]);
+
+  const compareBaselineMenuLabel = useMemo(() => {
+    const cur = String(anchorVersionId || '').trim();
+    return cur ? `${cur}（当前版本）` : '—（当前版本）';
+  }, [anchorVersionId]);
+
+  const reportComparePickerVersions = useMemo(() => {
+    const cur = String(anchorVersionId || '').trim();
+    const rows = Array.isArray(configVersions) ? configVersions : [];
+    if (!cur) return rows;
+    return rows.filter((v) => v.id !== cur);
+  }, [configVersions, anchorVersionId]);
+
   const availableTabs = useMemo(() => {
     const remoteTabs = Array.isArray(remoteReports?.availableTabs)
       ? remoteReports.availableTabs
@@ -151,6 +188,20 @@ function StrategyReportPanel({
 
   const [activeTab, setActiveTab] = useState('');
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+  /** 对比弹窗内：报告 | 设置 */
+  const [compareDialogSubTab, setCompareDialogSubTab] = useState('report');
+  const [reportCompareMoreOpen, setReportCompareMoreOpen] = useState(false);
+  const [baseSettingsPayload, setBaseSettingsPayload] = useState({
+    loading: false,
+    error: '',
+    settings: null,
+  });
+  /** 对比侧：``GET …/version/{对比 id}`` 全文（用于报告槽位 + 设置 Tab，避免 SWB-14 占位导致右侧全空） */
+  const [compareWorkbenchSnapshot, setCompareWorkbenchSnapshot] = useState({
+    loading: false,
+    error: '',
+    detail: null,
+  });
 
   useEffect(() => {
     if (!showReportCompare && compareDialogOpen) setCompareDialogOpen(false);
@@ -335,9 +386,110 @@ function StrategyReportPanel({
     };
   }, [compareDialogOpen, compareVersion, resolvedActiveTab, runId, strategyName]);
 
+  useEffect(() => {
+    if (!compareDialogOpen) {
+      setCompareDialogSubTab('report');
+      setReportCompareMoreOpen(false);
+    }
+  }, [compareDialogOpen]);
+
+  useEffect(() => {
+    if (!compareDialogOpen || compareDialogSubTab !== 'settings' || !strategyName) {
+      setBaseSettingsPayload({ loading: false, error: '', settings: null });
+      return undefined;
+    }
+    let cancelled = false;
+    const curId = String(anchorVersionId || '').trim();
+
+    if (!curId) {
+      setBaseSettingsPayload({ loading: false, error: '', settings: null });
+    } else {
+      setBaseSettingsPayload((prev) => ({ ...prev, loading: true, error: '' }));
+      fetchStrategyVersionDetail(strategyName, curId)
+        .then((res) => {
+          if (cancelled) return;
+          setBaseSettingsPayload({
+            loading: false,
+            error: '',
+            settings: res?.settings ?? null,
+          });
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setBaseSettingsPayload({
+            loading: false,
+            error: err?.message || '读取当前快照设置失败',
+            settings: null,
+          });
+        });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [compareDialogOpen, compareDialogSubTab, strategyName, anchorVersionId]);
+
+  useEffect(() => {
+    if (!compareDialogOpen || !strategyName || !String(compareVersion || '').trim()) {
+      setCompareWorkbenchSnapshot({ loading: false, error: '', detail: null });
+      return undefined;
+    }
+    let cancelled = false;
+    const vid = String(compareVersion).trim();
+    setCompareWorkbenchSnapshot((prev) => ({ ...prev, loading: true, error: '' }));
+    fetchStrategyVersionDetail(strategyName, vid)
+      .then((detail) => {
+        if (cancelled) return;
+        setCompareWorkbenchSnapshot({ loading: false, error: '', detail });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setCompareWorkbenchSnapshot({
+          loading: false,
+          error: err?.message || '读取对比快照失败',
+          detail: null,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [compareDialogOpen, compareVersion, strategyName]);
+
   const handleTabChange = (_event, nextValue) => {
     setActiveTab(nextValue);
   };
+
+  const handleReportCompareSelectChange = (event) => {
+    const value = event.target.value;
+    const proceed = () => {
+      if (value === REPORT_COMPARE_MORE_MENU_VALUE) {
+        setReportCompareMoreOpen(true);
+        return;
+      }
+      setCompareVersion(value);
+    };
+    window.setTimeout(proceed, 0);
+  };
+
+  const renderReportCompareSelectValue = (selected) => {
+    if (selected === '' || selected == null) return compareBaselineMenuLabel;
+    return String(selected);
+  };
+
+  const compareResultReport = compareWorkbenchSnapshot.detail?.result_report && typeof compareWorkbenchSnapshot.detail.result_report === 'object'
+    ? compareWorkbenchSnapshot.detail.result_report
+    : null;
+
+  const compareSideReportBusy = Boolean(
+    compareVersion
+      && (compareLoading || compareWorkbenchSnapshot.loading),
+  );
+
+  /** 对比弹窗内报告区块副标题：仅报告类型，版本号在列头「当前版本（vx）」展示 */
+  const compareDialogReportKindLabel = useMemo(() => {
+    const row = STEP_TABS.find((t) => t.key === resolvedActiveTab);
+    return row?.label ?? '报告';
+  }, [resolvedActiveTab]);
 
   const enumStockRowsForGrid = useMemo(() => {
     if (enumRefStatus === 'ok' && Array.isArray(enumRefRows) && enumRefRows.length > 0) {
@@ -347,12 +499,14 @@ function StrategyReportPanel({
   }, [enumRefRows, enumRefStatus, reportStocks.enum]);
 
   const renderReportByTab = (tabKey, reportData, title, options = {}) => {
+    const unavailableZh = options.unavailableHintZh ?? REPORT_BLOCK_UNAVAILABLE_ZH;
+    const unavailableTypographyProps = options.unavailableHintZh
+      ? { variant: 'body2', color: 'text.primary' }
+      : { variant: 'body2', color: 'text.secondary' };
     if (tabKey === 'enum') {
       if (!reportData?.enumMetrics) {
         return (
-          <Typography variant="body2" color="text.secondary">
-            {REPORT_BLOCK_UNAVAILABLE_ZH}
-          </Typography>
+          <Typography {...unavailableTypographyProps}>{unavailableZh}</Typography>
         );
       }
       return (
@@ -371,9 +525,7 @@ function StrategyReportPanel({
     if (tabKey === 'price') {
       if (!reportData?.priceMetrics) {
         return (
-          <Typography variant="body2" color="text.secondary">
-            {REPORT_BLOCK_UNAVAILABLE_ZH}
-          </Typography>
+          <Typography {...unavailableTypographyProps}>{unavailableZh}</Typography>
         );
       }
       return (
@@ -525,7 +677,10 @@ function StrategyReportPanel({
                 size="small"
                 variant="outlined"
                 disabled={!resolvedActiveTab}
-                onClick={() => setCompareDialogOpen(true)}
+                onClick={() => {
+                  setCompareDialogSubTab('report');
+                  setCompareDialogOpen(true);
+                }}
               >
                 对比结果
               </Button>
@@ -545,109 +700,291 @@ function StrategyReportPanel({
       <Dialog open={compareDialogOpen} onClose={() => setCompareDialogOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>报告对比</DialogTitle>
         <DialogContent dividers>
-          <Stack spacing={1.25}>
-            <CompareVersionSelect
-              value={compareVersion}
-              onChange={setCompareVersion}
-              options={compareOptions}
-              label="选择对比版本"
-              includeEmpty
-              emptyLabel="不对比"
-            />
-
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-                gap: 1.25,
-                alignItems: 'start',
-              }}
-            >
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" fontWeight={700}>本次结果</Typography>
-                {renderReportByTab(
-                  resolvedActiveTab,
-                  {
-                    enumMetrics: normalizeEnumMetricsFromSummary(
-                      comparePayload?.base_report
-                        || remoteReports?.reports?.enum
-                        || executionState?.result?.enum,
-                    ),
-                    priceMetrics: normalizePriceMetricsFromSummary(
-                      comparePayload?.base_report?.price_factor
-                        || comparePayload?.base_report
-                        || remoteReports?.reports?.price
-                        || executionState?.result?.price,
-                    ),
-                    capitalMetrics: buildCapitalMetrics({
-                      result: {
-                        capital_allocation: comparePayload?.base_report?.capital_allocation
-                          || snapshotCapitalSlot
-                          || null,
-                        capital: (comparePayload?.base_report && typeof comparePayload.base_report === 'object'
-                          && (comparePayload.base_report.profit !== undefined
-                            || comparePayload.base_report.initialCapital !== undefined)
-                          ? comparePayload.base_report
-                          : null)
-                          || remoteReports?.reports?.capital
-                          || executionState?.result?.capital
-                          || null,
-                      },
-                    }),
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+              <Typography variant="caption" color="text.secondary">对比版本</Typography>
+              <Select
+                size="small"
+                displayEmpty
+                value={compareVersion}
+                renderValue={renderReportCompareSelectValue}
+                onChange={handleReportCompareSelectChange}
+                sx={{ minWidth: 168 }}
+              >
+                <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
+                {compareDropdownVersionIds.map((id) => (
+                  <MenuItem key={id} value={id}>{id}</MenuItem>
+                ))}
+                <MenuItem value={REPORT_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
+              </Select>
+            </Stack>
+            <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', mt: 0 }}>
+              <Tabs
+                value={compareDialogSubTab}
+                onChange={(_e, v) => setCompareDialogSubTab(v)}
+                variant="standard"
+                sx={{
+                  width: '100%',
+                  minHeight: 40,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '& .MuiTabs-flexContainer': { gap: 0.5 },
+                  '& .MuiTab-root': {
+                    minHeight: 40,
+                    minWidth: 'auto',
+                    px: 2,
+                    py: 1,
                   },
-                  '本次报告',
-                  { showStockGrid: false },
-                )}
-              </Stack>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" fontWeight={700}>对比版本结果</Typography>
-                {compareLoading ? (
-                  <Typography variant="caption" color="text.secondary">正在加载对比结果...</Typography>
-                ) : null}
-                {compareError ? (
-                  <Typography variant="caption" color="error">{compareError}</Typography>
-                ) : null}
-                {compareVersion
-                  ? renderReportByTab(
+                }}
+              >
+                <Tab label="报告" value="report" />
+                <Tab label="设置" value="settings" />
+              </Tabs>
+
+              <Box
+                sx={{
+                  height: { xs: '58vh', sm: 560 },
+                  minHeight: 360,
+                  maxHeight: { xs: '72vh', md: 640 },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  mt: 0,
+                  borderLeft: 1,
+                  borderRight: 1,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  borderTop: 0,
+                  borderTopLeftRadius: 0,
+                  borderTopRightRadius: 0,
+                  borderBottomLeftRadius: 1,
+                  borderBottomRightRadius: 1,
+                  bgcolor: 'background.paper',
+                  p: 1.5,
+                }}
+              >
+              <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                {compareDialogSubTab === 'report' ? (
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                  gap: 2,
+                  alignItems: 'start',
+                }}
+              >
+                <Stack spacing={1}>
+                  <Typography variant="body2" color="text.primary">
+                    {`当前版本（${anchorVersionId || '—'}）`}
+                  </Typography>
+                  {renderReportByTab(
                     resolvedActiveTab,
                     {
-                      enumMetrics: normalizeEnumMetricsFromSummary(comparePayload?.compare_report),
+                      enumMetrics: normalizeEnumMetricsFromSummary(
+                        comparePayload?.base_report
+                          ?? snapshotEnumSlot
+                          ?? executionState?.result?.enum
+                          ?? remoteReports?.reports?.enum,
+                      ),
                       priceMetrics: normalizePriceMetricsFromSummary(
-                        comparePayload?.compare_report?.price_factor || comparePayload?.compare_report,
+                        comparePayload?.base_report?.price_factor
+                          ?? comparePayload?.base_report
+                          ?? snapshotPriceSlot
+                          ?? remoteReports?.reports?.price
+                          ?? executionState?.result?.price,
                       ),
                       capitalMetrics: buildCapitalMetrics({
                         result: {
-                          capital_allocation: comparePayload?.compare_report?.capital_allocation || null,
-                          capital: comparePayload?.compare_report && typeof comparePayload.compare_report === 'object'
-                            && (comparePayload.compare_report.profit !== undefined
-                              || comparePayload.compare_report.initialCapital !== undefined)
-                            ? comparePayload.compare_report
-                            : null,
+                          capital_allocation: comparePayload?.base_report?.capital_allocation
+                            ?? snapshotCapitalSlot
+                            ?? null,
+                          capital: (comparePayload?.base_report && typeof comparePayload.base_report === 'object'
+                            && (comparePayload.base_report.profit !== undefined
+                              || comparePayload.base_report.initialCapital !== undefined)
+                            ? comparePayload.base_report
+                            : null)
+                            ?? remoteReports?.reports?.capital
+                            ?? executionState?.result?.capital
+                            ?? null,
                         },
                       }),
                     },
-                    `对比报告（${compareVersion}）`,
+                    compareDialogReportKindLabel,
                     { showStockGrid: false },
-                  )
-                  : (
+                  )}
+                </Stack>
+                <Stack spacing={1}>
+                  <Typography variant="body2" color="text.primary">
+                    {`对比版本（${compareVersion || '—'}）`}
+                  </Typography>
+                  {compareVersion ? (
+                    <>
+                      {(compareWorkbenchSnapshot.error || compareError) ? (
+                        <Typography variant="caption" color="error">
+                          {compareWorkbenchSnapshot.error || compareError}
+                        </Typography>
+                      ) : null}
+                      {!(compareWorkbenchSnapshot.error || compareError) && compareSideReportBusy ? (
+                        <Typography variant="caption" color="text.secondary">
+                          正在加载对比快照…
+                        </Typography>
+                      ) : null}
+                      {!(compareWorkbenchSnapshot.error || compareError) && !compareSideReportBusy
+                        ? renderReportByTab(
+                          resolvedActiveTab,
+                          {
+                            enumMetrics: normalizeEnumMetricsFromSummary(
+                              comparePayload?.compare_report ?? compareResultReport?.enum,
+                            ),
+                            priceMetrics: normalizePriceMetricsFromSummary(
+                              comparePayload?.compare_report?.price_factor
+                                ?? comparePayload?.compare_report
+                                ?? compareResultReport?.price_factor,
+                            ),
+                            capitalMetrics: buildCapitalMetrics({
+                              result: {
+                                capital_allocation:
+                                  comparePayload?.compare_report?.capital_allocation
+                                  ?? compareResultReport?.capital_allocation
+                                  ?? null,
+                                capital:
+                                  comparePayload?.compare_report
+                                  && typeof comparePayload.compare_report === 'object'
+                                  && (comparePayload.compare_report.profit !== undefined
+                                    || comparePayload.compare_report.initialCapital !== undefined)
+                                    ? comparePayload.compare_report
+                                    : null,
+                              },
+                            }),
+                          },
+                          compareDialogReportKindLabel,
+                          {
+                            showStockGrid: false,
+                            unavailableHintZh: COMPARE_NO_REPORT_FOR_SNAPSHOT_ZH,
+                          },
+                        )
+                        : null}
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.primary">
+                      {COMPARE_EMPTY_OTHER_VERSION_ZH}
+                    </Typography>
+                  )}
+                </Stack>
+              </Box>
+            ) : (
+              <Stack spacing={2} sx={{ height: '100%', minHeight: 0 }}>
+                {!anchorVersionId ? (
+                  <Typography variant="body2" color="text.secondary">
+                    暂无绑定工作台快照版本，无法加载当前设置。
+                  </Typography>
+                ) : null}
+                {anchorVersionId && baseSettingsPayload.loading ? (
+                  <Typography variant="caption" color="text.secondary">正在加载当前快照设置…</Typography>
+                ) : null}
+                {baseSettingsPayload.error ? (
+                  <Typography variant="caption" color="error">{baseSettingsPayload.error}</Typography>
+                ) : null}
+                {compareVersion && compareWorkbenchSnapshot.loading ? (
+                  <Typography variant="caption" color="text.secondary">正在加载对比快照设置…</Typography>
+                ) : null}
+                {compareWorkbenchSnapshot.error ? (
+                  <Typography variant="caption" color="error">{compareWorkbenchSnapshot.error}</Typography>
+                ) : null}
+
+                {anchorVersionId && !baseSettingsPayload.loading && !baseSettingsPayload.error
+                && baseSettingsPayload.settings && !compareVersion ? (
+                  <Stack spacing={1}>
+                    <Typography variant="subtitle2" fontWeight={700}>当前快照 settings</Typography>
                     <Box
+                      component="pre"
                       sx={{
+                        m: 0,
+                        p: 1.5,
+                        maxHeight: 420,
+                        overflow: 'auto',
                         border: 1,
                         borderColor: 'divider',
                         borderRadius: 1,
-                        p: 2,
-                        backgroundColor: 'background.paper',
+                        fontSize: 12,
+                        bgcolor: 'action.hover',
                       }}
                     >
-                      <Typography variant="body2" color="text.secondary">
-                        请选择对比版本后查看结果。
-                      </Typography>
+                      {JSON.stringify(baseSettingsPayload.settings, null, 2)}
                     </Box>
-                  )}
+                  </Stack>
+                ) : null}
+
+                {!compareVersion ? (
+                  <Box
+                    sx={{
+                      border: 1,
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      p: 2,
+                      backgroundColor: 'background.paper',
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">
+                      选择对比版本后，左右两栏将并排高亮 settings 差异。
+                    </Typography>
+                  </Box>
+                ) : null}
+
+                {compareVersion && anchorVersionId && !baseSettingsPayload.loading && !baseSettingsPayload.error
+                && baseSettingsPayload.settings && !compareWorkbenchSnapshot.loading
+                && !compareWorkbenchSnapshot.error && compareWorkbenchSnapshot.detail?.settings ? (
+                  <SettingsJsonDiff
+                    left={baseSettingsPayload.settings}
+                    right={compareWorkbenchSnapshot.detail.settings}
+                    leftTitle={`当前版本（${anchorVersionId || '—'}）`}
+                    rightTitle={`对比版本（${compareVersion || '—'}）`}
+                  />
+                ) : null}
               </Stack>
+                )}
+              </Box>
+              </Box>
             </Box>
           </Stack>
         </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={reportCompareMoreOpen}
+        onClose={() => setReportCompareMoreOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>选择对比版本</DialogTitle>
+        <DialogContent dividers>
+          <List dense sx={{ maxHeight: 360, overflow: 'auto' }}>
+            {reportComparePickerVersions.map((version) => (
+              <ListItemButton
+                key={version.id}
+                onClick={() => {
+                  setCompareVersion(version.id);
+                  setReportCompareMoreOpen(false);
+                }}
+              >
+                <ListItemText
+                  primary={version.id}
+                  secondary={version.updatedAt || version.createdAt}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+          {reportComparePickerVersions.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              {(Array.isArray(configVersions) && configVersions.length > 0)
+                ? '没有其它可对比版本（已排除当前工作台快照）。'
+                : '暂无可选版本。'}
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReportCompareMoreOpen(false)}>关闭</Button>
+        </DialogActions>
       </Dialog>
     </Accordion>
   );

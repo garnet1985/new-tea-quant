@@ -5,8 +5,26 @@ import { buildCapitalSampleStockRows } from '../../../mocks/strategyReportSample
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
+import { formatReportChartDateLabel } from '../reportDateFormat';
+
+/** 资产曲线纵轴按数据区间缩放（不再默认贴 0），少量留白便于读出波动 */
+function equityAxisMinMax(equityCurveValues) {
+  const nums = (equityCurveValues || [])
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v));
+  if (nums.length === 0) return {};
+  const minV = Math.min(...nums);
+  const maxV = Math.max(...nums);
+  const span = Math.max(maxV - minV, Math.abs(minV) * 0.02, Math.abs(maxV) * 0.02, 1);
+  const pad = span * 0.12;
+  return {
+    min: minV - pad,
+    max: maxV + pad,
+  };
+}
 
 function buildEquityCurveOption(metrics) {
+  const { min: yMin, max: yMax } = equityAxisMinMax(metrics.equityCurveValues);
   return {
     animation: false,
     grid: { left: 36, right: 10, top: 20, bottom: 28 },
@@ -15,10 +33,15 @@ function buildEquityCurveOption(metrics) {
       data: metrics.equityCurveLabels,
       axisTick: { show: false },
       axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
+      axisLabel: {
+        color: '#5F6368',
+        fontSize: 11,
+        formatter: (v) => formatReportChartDateLabel(v),
+      },
     },
     yAxis: {
       type: 'value',
+      ...((yMin !== undefined && yMax !== undefined) ? { min: yMin, max: yMax } : {}),
       splitNumber: 4,
       axisLine: { show: false },
       axisTick: { show: false },
@@ -44,7 +67,7 @@ function buildEquityCurveOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>总资产：${Number(point.data).toLocaleString()}`;
+        return `${formatReportChartDateLabel(point.axisValue)}<br/>总资产：${Number(point.data).toLocaleString()}`;
       },
     },
   };
@@ -59,7 +82,11 @@ function buildDrawdownCurveOption(metrics) {
       data: metrics.equityCurveLabels,
       axisTick: { show: false },
       axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
+      axisLabel: {
+        color: '#5F6368',
+        fontSize: 11,
+        formatter: (v) => formatReportChartDateLabel(v),
+      },
     },
     yAxis: {
       type: 'value',
@@ -85,7 +112,7 @@ function buildDrawdownCurveOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>回撤：${point.data}%`;
+        return `${formatReportChartDateLabel(point.axisValue)}<br/>回撤：${point.data}%`;
       },
     },
   };

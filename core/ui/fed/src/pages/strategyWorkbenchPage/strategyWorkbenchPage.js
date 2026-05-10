@@ -41,7 +41,6 @@ import {
   restoreStrategyVersion,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
-import { defaultMetaInfo, defaultSettings } from './strategyWorkbench.mock';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
@@ -174,11 +173,13 @@ function StrategyWorkbenchPage() {
   });
   /** 与 V2-01/恢复后执行面板子组件同步；``key`` 随策略+版本变 */
   const [workbenchExecutionHydration, setWorkbenchExecutionHydration] = useState(null);
-  const buildFallbackSettings = useCallback(() => ({
-    ...defaultSettings,
-    meta: normalizeMeta({ ...defaultMetaInfo, name: strategyName || defaultMetaInfo.name }),
+  /** 与 ``mergeShapeOnly`` 合用的最小基底（仅 meta），不含任何示例策略字段 */
+  const buildMergeBaseSettings = useCallback(() => ({
+    meta: normalizeMeta({ name: strategyName || '' }),
   }), [strategyName]);
-  const [initialSettings, setInitialSettings] = useState(() => buildFallbackSettings());
+  const [initialSettings, setInitialSettings] = useState(() => ({
+    meta: normalizeMeta({ name: '' }),
+  }));
 
   const deepClone = (value) => JSON.parse(JSON.stringify(value));
   const mergeShapeOnly = useCallback((baseValue, incomingValue) => {
@@ -310,7 +311,7 @@ function StrategyWorkbenchPage() {
 
   useEffect(() => {
     let isCancelled = false;
-    const fallback = buildFallbackSettings();
+    const mergeBase = buildMergeBaseSettings();
 
     if (!strategyName) {
       setConfigVersions([]);
@@ -318,7 +319,7 @@ function StrategyWorkbenchPage() {
       setHasPersistedSnapshot(false);
       setHasOtherVersions(false);
       syncedWorkbenchVerRef.current = '';
-      setInitialSettings(fallback);
+      setInitialSettings({ meta: normalizeMeta({ name: '' }) });
       setWorkbenchResultReport(null);
       setWorkbenchExecutionHydration(null);
       setExecutionState({
@@ -368,16 +369,20 @@ function StrategyWorkbenchPage() {
               is_enabled: serverSettings?.is_enabled,
             }
         );
-        const nextSettings = hasServerSettings
-          ? mergeShapeOnly(fallback, {
+        if (hasServerSettings) {
+          const nextSettings = mergeShapeOnly(mergeBase, {
             ...serverSettings,
             meta: normalizeMeta({
               ...incomingMeta,
               name: strategyName,
             }),
-          })
-          : fallback;
-        setInitialSettings(nextSettings);
+          });
+          setInitialSettings(nextSettings);
+          setSettingsError('');
+        } else {
+          setInitialSettings(mergeBase);
+          setSettingsError('未返回有效策略配置（settings 为空）。');
+        }
         setWorkbenchResultReport(res?.result_report ?? null);
         const wbVerRaw = res?.workbench_version_id;
         const wbVer = typeof wbVerRaw === 'string' ? wbVerRaw.trim() : '';
@@ -404,7 +409,7 @@ function StrategyWorkbenchPage() {
       })
       .catch((err) => {
         if (isCancelled) return;
-        setInitialSettings(fallback);
+        setInitialSettings(mergeBase);
         setHasPersistedSnapshot(false);
         setHasOtherVersions(false);
         syncedWorkbenchVerRef.current = '';
@@ -429,7 +434,7 @@ function StrategyWorkbenchPage() {
     return () => {
       isCancelled = true;
     };
-  }, [buildFallbackSettings, mergeShapeOnly, strategyName]);
+  }, [buildMergeBaseSettings, mergeShapeOnly, strategyName]);
 
   /** 单步跑完写入新快照后，刷新版本列表与 UI 标志（singleton→第二条快照等） */
   useEffect(() => {
@@ -623,7 +628,7 @@ function StrategyWorkbenchPage() {
               ) : null}
               {settingsError ? (
                 <Typography variant="body2" color="error">
-                  读取失败：{settingsError}
+                  无法加载策略配置：{settingsError}
                 </Typography>
               ) : null}
               {saveError ? (
@@ -883,7 +888,6 @@ function StrategyWorkbenchPage() {
                           activeRunId: '',
                           lastCompletedWorkbenchVersionId: wbVerRestore,
                         });
-                        const fallback = buildFallbackSettings();
                         const serverSettings = res?.settings || {};
                         const incomingMeta = (
                           serverSettings?.meta && typeof serverSettings.meta === 'object'
@@ -894,15 +898,13 @@ function StrategyWorkbenchPage() {
                               is_enabled: serverSettings?.is_enabled,
                             }
                         );
-                        const mergedSettings = {
-                          ...fallback,
+                        const mergedSettings = mergeShapeOnly(buildMergeBaseSettings(), {
                           ...serverSettings,
                           meta: normalizeMeta({
-                            ...fallback.meta,
                             ...incomingMeta,
                             name: strategyName,
                           }),
-                        };
+                        });
                         const wb = wbVerRestore || restoreMeta?.version_id || '';
                         setInitialSettings(mergedSettings);
                         setDraftSettings(deepClone(mergedSettings));

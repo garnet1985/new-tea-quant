@@ -1,8 +1,7 @@
 /**
- * 策略报告 metrics 入口：默认从 ``reportMetrics`` 重导出纯转换；
- * 另提供 ``buildCapitalMetrics``：无实盘摘要时回落到 ``MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION``。
+ * 策略报告 metrics 入口：从 ``reportMetrics`` 重导出纯转换；
+ * ``buildCapitalMetrics`` 仅使用 ``capital_allocation`` 槽位或 ``result.capital`` 摘要；无数据时返回 ``null``（不设演示回落）。
  */
-import { MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION } from './strategyWorkbenchMocks';
 import {
   buildCapitalMetricsFromBase,
   normalizeCapitalMetricsFromSummary,
@@ -32,6 +31,6 @@ export function buildCapitalMetrics(executionState) {
   const hasRealCapitalMetrics = Boolean(
     parsed && Object.keys(parsed).length > 0,
   );
-  const base = hasRealCapitalMetrics ? parsed : MOCK_REPORT_CAPITAL_SUMMARIES_BY_VERSION.latest;
-  return buildCapitalMetricsFromBase(base);
+  if (!hasRealCapitalMetrics) return null;
+  return buildCapitalMetricsFromBase(parsed);
 }

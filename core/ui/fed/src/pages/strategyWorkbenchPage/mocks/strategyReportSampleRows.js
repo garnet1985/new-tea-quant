@@ -1,5 +1,5 @@
 /**
- * 报告页「样本股票」表格行 mock（集中于此，便于对接 API 后替换数据源）
+ * 报告页「样本股票」表格行生成（Story / 本地调试）；主界面逐股表仅在接口返回行数据时展示，不再调用此处。
  */
 import { SAMPLE_STOCK_CODES, SAMPLE_STOCK_DISPLAY_NAMES } from './strategyWorkbenchMocks';
 

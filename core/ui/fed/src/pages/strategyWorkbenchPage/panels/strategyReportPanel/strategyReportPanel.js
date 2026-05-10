@@ -217,9 +217,14 @@ function StrategyReportPanel({
       );
     }
     if (tabKey === 'capital') {
+      if (!reportData?.capitalMetrics) {
+        return (
+          <Typography {...unavailableTypographyProps}>{unavailableZh}</Typography>
+        );
+      }
       return (
         <CapitalAllocationReport
-          metrics={reportData?.capitalMetrics}
+          metrics={reportData.capitalMetrics}
           stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}

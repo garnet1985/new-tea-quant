@@ -60,7 +60,12 @@ export function buildExecutionResultFromWorkbenchReport(resultReport) {
   if (cap && typeof cap === 'object') {
     const profit = Number(cap.profit ?? cap.total_profit);
     const ic = Number(cap.initialCapital ?? cap.initial_capital);
-    const ec = Number(cap.endCapital ?? cap.end_capital);
+    const ec = Number(
+      cap.endCapital
+        ?? cap.final_total_equity
+        ?? cap.final_equity
+        ?? cap.end_capital,
+    );
     const retPct = Number(cap.retPct ?? cap.return_pct ?? cap.ret_pct);
     if ([profit, ic, ec, retPct].some((x) => Number.isFinite(x))) {
       out.capital = {

@@ -136,6 +136,10 @@ function StrategyWorkbenchPage() {
   /** 单步跑完后让「模拟结果」 accordion 内 Tab 切到刚完成的回测步 */
   const reportTabFocusSeqRef = useRef(0);
   const [reportTabFocusRequest, setReportTabFocusRequest] = useState(null);
+  /** V2-01 扩展：是否有 DB 快照、是否还有其它可对比版本（GET …/version/latest） */
+  const [hasPersistedSnapshot, setHasPersistedSnapshot] = useState(false);
+  const [hasOtherVersions, setHasOtherVersions] = useState(false);
+  const syncedWorkbenchVerRef = useRef('');
   const handleRunStepComplete = useCallback((step) => {
     if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
     reportTabFocusSeqRef.current += 1;
@@ -197,6 +201,9 @@ function StrategyWorkbenchPage() {
     if (!strategyName) {
       setConfigVersions([]);
       setSelectedConfigVersion('');
+      setHasPersistedSnapshot(false);
+      setHasOtherVersions(false);
+      syncedWorkbenchVerRef.current = '';
       setInitialSettings(fallback);
       setWorkbenchResultReport(null);
       setWorkbenchExecutionHydration(null);
@@ -219,6 +226,7 @@ function StrategyWorkbenchPage() {
     setIsLoadingSettings(true);
     setSettingsError('');
     setWorkbenchExecutionHydration(null);
+    syncedWorkbenchVerRef.current = '';
     Promise.all([
       fetchStrategyVersions(strategyName),
       fetchStrategySettings(strategyName),
@@ -232,6 +240,8 @@ function StrategyWorkbenchPage() {
           version: Number(version.version || 0),
         }));
         setConfigVersions(rows);
+        setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
+        setHasOtherVersions(Boolean(res?.has_other_versions));
 
         const serverSettings = res?.settings || {};
         const hasServerSettings = serverSettings && typeof serverSettings === 'object' && Object.keys(serverSettings).length > 0;
@@ -274,12 +284,16 @@ function StrategyWorkbenchPage() {
           activeRunId: '',
           lastCompletedWorkbenchVersionId: wbVer,
         });
+        syncedWorkbenchVerRef.current = wbVer;
         setAppliedVersionId(wbVer !== '' ? wbVer : 'userspace');
         setSelectedConfigVersion(wbVer);
       })
       .catch((err) => {
         if (isCancelled) return;
         setInitialSettings(fallback);
+        setHasPersistedSnapshot(false);
+        setHasOtherVersions(false);
+        syncedWorkbenchVerRef.current = '';
         setWorkbenchResultReport(null);
         setWorkbenchExecutionHydration(null);
         setExecutionState({
@@ -302,6 +316,56 @@ function StrategyWorkbenchPage() {
       isCancelled = true;
     };
   }, [buildFallbackSettings, mergeShapeOnly, strategyName]);
+
+  /** 单步跑完写入新快照后，刷新版本列表与 UI 标志（singleton→第二条快照等） */
+  useEffect(() => {
+    if (!strategyName || isLoadingSettings) return undefined;
+    const v = (executionState.lastCompletedWorkbenchVersionId || '').trim();
+    if (!v) return undefined;
+    if (v === syncedWorkbenchVerRef.current) return undefined;
+    let cancelled = false;
+    Promise.all([
+      fetchStrategySettings(strategyName),
+      fetchStrategyVersions(strategyName),
+    ])
+      .then(([res, verRes]) => {
+        if (cancelled) return;
+        const rows = (verRes?.versions || []).map((version) => ({
+          id: version.version_id || `v${version.version || ''}`,
+          createdAt: version.created_at || '',
+          updatedAt: version.updated_at || '',
+          version: Number(version.version || 0),
+        }));
+        setConfigVersions(rows);
+        setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
+        setHasOtherVersions(Boolean(res?.has_other_versions));
+        setWorkbenchResultReport(res?.result_report ?? null);
+        const wbVer = typeof res?.workbench_version_id === 'string'
+          ? res.workbench_version_id.trim()
+          : '';
+        syncedWorkbenchVerRef.current = wbVer;
+        setSelectedConfigVersion(wbVer);
+        if (wbVer !== '') {
+          setAppliedVersionId(wbVer);
+        }
+        const stepCards = mapWorkbenchStepStatusToExecutionCards(res?.step_status);
+        const execResult = buildExecutionResultFromWorkbenchReport(res?.result_report);
+        setWorkbenchExecutionHydration({
+          key: `${strategyName}:${wbVer || 'none'}`,
+          stepStatus: stepCards,
+          result: execResult,
+          lastCompletedWorkbenchVersionId: wbVer,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    strategyName,
+    isLoadingSettings,
+    executionState.lastCompletedWorkbenchVersionId,
+  ]);
 
   const versionMap = useMemo(
     () => Object.fromEntries(configVersions.map((version) => [version.id, version])),
@@ -426,6 +490,7 @@ function StrategyWorkbenchPage() {
                 </Typography>
               ) : null}
 
+              {hasPersistedSnapshot ? (
               <Box
                 sx={{
                   p: 1.5,
@@ -464,18 +529,20 @@ function StrategyWorkbenchPage() {
                       )}
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent={{ xs: 'stretch', md: 'flex-end' }}>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        disabled={disableSettingsActions}
-                        onClick={() => {
-                          setSaveError('');
-                          setUserspaceApplyOk('');
-                          setMoreVersionsOpen(true);
-                        }}
-                      >
-                        历史快照…
-                      </Button>
+                      {hasOtherVersions ? (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          disabled={disableSettingsActions}
+                          onClick={() => {
+                            setSaveError('');
+                            setUserspaceApplyOk('');
+                            setMoreVersionsOpen(true);
+                          }}
+                        >
+                          历史快照…
+                        </Button>
+                      ) : null}
                       <Button
                         variant="contained"
                         size="small"
@@ -492,6 +559,7 @@ function StrategyWorkbenchPage() {
                   </Box>
                 </Stack>
               </Box>
+              ) : null}
             </Box>
             <Grid container spacing={2}>
               <Grid item xs={12} md={3}>
@@ -537,13 +605,14 @@ function StrategyWorkbenchPage() {
                     settings={draftSettings}
                     getSettingsForRun={getDraftSettingsForSubmit}
                     onExecutionStateChange={setExecutionState}
-                    compareVersionOptions={compareVersionOptions}
+                    executionCompareRecentVersionIds={latestFiveVersions.map((v) => v.id)}
                     onProgressResultReport={mergeWorkbenchResultReportFromProgress}
                     onRunStepComplete={handleRunStepComplete}
                     workbenchHydration={workbenchExecutionHydration}
                     onRegisterForceHandlers={(api) => {
                       forceRunHandlersRef.current = api || {};
                     }}
+                    showVersionCompare={hasOtherVersions}
                   />
                   <StrategyReportPanel
                     strategyName={strategyName}
@@ -553,6 +622,7 @@ function StrategyWorkbenchPage() {
                     workbenchVersionId={reportAnchorVersionId}
                     reportTabFocusRequest={reportTabFocusRequest}
                     onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
+                    showReportCompare={hasOtherVersions}
                   />
                 </Box>
               </Grid>
@@ -632,10 +702,13 @@ function StrategyWorkbenchPage() {
                           version: Number(version.version || 0),
                         }));
                         setConfigVersions(rows);
+                        setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
+                        setHasOtherVersions(Boolean(res?.has_other_versions));
                         setWorkbenchResultReport(res?.result_report ?? null);
                         const wbVerRestore = typeof res?.workbench_version_id === 'string'
                           ? res.workbench_version_id.trim()
                           : '';
+                        syncedWorkbenchVerRef.current = wbVerRestore;
                         const stepCardsRestore = mapWorkbenchStepStatusToExecutionCards(res?.step_status);
                         const execResultRestore = buildExecutionResultFromWorkbenchReport(res?.result_report);
                         setWorkbenchExecutionHydration({

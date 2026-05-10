@@ -62,9 +62,40 @@ def fetch_workbench_snapshot_by_snapshot_id(
     return row
 
 
+def _synthetic_cold_start_snapshot_row(
+    strategy_name: str, settings_api: Dict[str, Any]
+) -> Dict[str, Any]:
+    """未落库时的合成行：仅 settings，``version==0`` / ``snapshot_id==0``（不落 DB）。"""
+    name = str(strategy_name or "").strip()
+    return {
+        "strategy_name": name,
+        "snapshot_id": 0,
+        "version": 0,
+        "settings_snapshot": dict(settings_api or {}),
+        "reports": {},
+        "result_report": {},
+        "settings_finger_print_id": "",
+        "env_fingerprint_id": "",
+    }
+
+
+def workbench_latest_ui_flags(strategy_name: str, row: Dict[str, Any]) -> Dict[str, bool]:
+    """供 V2-01：是否已有持久化快照、是否存在可对比的其它版本（≥2 条快照）。"""
+    sid = int(row.get("snapshot_id") or row.get("version") or 0)
+    model = _snapshot_model()
+    n = 0
+    if model is not None:
+        n = len(model.list_by_strategy(str(strategy_name).strip(), limit=500) or [])
+    return {
+        "has_persisted_snapshot": sid > 0,
+        "has_other_versions": sid > 0 and n >= 2,
+    }
+
+
 def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, Any]]:
     """
-    返回该策略快照表最新一行；若无则自 userspace ``settings.py`` discovery 后写入首条。
+    返回该策略快照表最新一行；若无表数据则从 userspace ``settings.py`` discovery 得到 **合成行**
+   （不写 DB，直至某步 run 结束经 DbCache 持久化）。
 
     无法加载策略时返回 ``None``（仅依赖快照表与 discovery，无 BFF / Flask）。
     """
@@ -104,11 +135,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
         logger.error("Workbench cold start normalize failed for %s: %s", name, err)
         return None
 
-    model.create_snapshot(name, settings_api, {})
-    row = _load_latest_row(model, name)
-    if not row or not _row_usable(row):
-        return None
-    return row
+    return _synthetic_cold_start_snapshot_row(name, settings_api)
 
 
 # --- V2-09：快照 settings → userspace（与 ``core.ui.bff.shared.file_ops`` 同语义，避免依赖 BFF 包初始化链） ---

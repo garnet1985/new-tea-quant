@@ -6,6 +6,11 @@ import {
   AccordionDetails,
   AccordionSummary,
   Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   MenuItem,
   LinearProgress,
@@ -15,16 +20,33 @@ import {
 } from '@mui/material';
 import { ReactComponent as PlayCircleIcon } from '../../../../assets/icon/play_circle.svg';
 import {
-  MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION,
-} from '../../mocks/strategyWorkbenchMocks';
-import {
   fetchStrategyRunStatus,
+  fetchStrategyVersionDetail,
   startStrategyRun,
 } from '../../../../api/apis/strategyApi';
+import { buildExecutionResultFromWorkbenchReport } from '../../workbenchExecutionHydration';
 
 const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
 const STEP_CAPITAL = 'capital';
+
+/** 下拉末项：打开完整历史版本选择（占位）；勿写入 ``compareVersion`` */
+const EXEC_COMPARE_MORE_MENU_VALUE = '__exec_compare_more_versions__';
+
+const COMPARE_SELECT_EMPTY_LABEL = '无对比版本';
+
+const CAPITAL_NUM_FMT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+
+/** 执行卡片资金行：金额两位小数；与 ``toLocaleString`` 千分位一致 */
+function formatCapitalMoney(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '--';
+  return Number(value).toLocaleString(undefined, CAPITAL_NUM_FMT);
+}
+
+function formatCapitalPct(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '--';
+  return Number(value).toFixed(2);
+}
 
 function StepRunButtonIcon({ done }) {
   return done ? (
@@ -39,13 +61,16 @@ function StrategyExecutionPanel({
   settings,
   getSettingsForRun,
   onExecutionStateChange,
-  compareVersionOptions,
+  /** 工作台版本列表中的最近 5 条 ``version_id``（与 GET …/versions 顺序一致，新→旧） */
+  executionCompareRecentVersionIds = [],
   onProgressResultReport,
   /** 单步 run 成功结束（与 progress 的 ``result_report`` 合并后）；用于报告 Tab 切到对应回测器 */
   onRunStepComplete,
   onRegisterForceHandlers,
   /** V2-01 加载/恢复快照后注入；``key`` 变化时同步卡片状态与摘要行 */
   workbenchHydration = null,
+  /** 至少两条快照时可对比；仅一条时隐藏「对比版本」下拉 */
+  showVersionCompare = true,
 }) {
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
@@ -64,7 +89,9 @@ function StrategyExecutionPanel({
     price: '',
     capital: '',
   });
-  const [compareOptions, setCompareOptions] = useState(['latest']);
+  const [executionMoreVersionsOpen, setExecutionMoreVersionsOpen] = useState(false);
+  /** ``version_id`` → 该快照 ``result_report`` 解析后的执行摘要（与 ``buildExecutionResultFromWorkbenchReport`` 一致） */
+  const [compareLinesByVersionId, setCompareLinesByVersionId] = useState({});
   const [activeRunId, setActiveRunId] = useState('');
   /** 与 V2-06 ``GET …/{step}/progress`` 路径一致；锁定为本次点击的 step，避免 ``runningStep`` 被状态推导清空后误用 ``enum`` 轮询导致 404 */
   const [progressPollStep, setProgressPollStep] = useState('');
@@ -95,14 +122,6 @@ function StrategyExecutionPanel({
   ]);
 
   useEffect(() => {
-    if (Array.isArray(compareVersionOptions) && compareVersionOptions.length > 0) {
-      setCompareOptions(compareVersionOptions);
-      return;
-    }
-    setCompareOptions(['latest']);
-  }, [compareVersionOptions]);
-
-  useEffect(() => {
     setStepStatus({
       enum: 'idle',
       price: 'idle',
@@ -120,6 +139,7 @@ function StrategyExecutionPanel({
       price: '',
       capital: '',
     });
+    setCompareLinesByVersionId({});
     setActiveRunId('');
     setProgressPollStep('');
     setLatestRunId('');
@@ -236,22 +256,155 @@ function StrategyExecutionPanel({
     return 'text.primary';
   };
 
+  const recentCompareIds = useMemo(() => {
+    const raw = Array.isArray(executionCompareRecentVersionIds)
+      ? executionCompareRecentVersionIds
+      : [];
+    return raw
+      .map((id) => (typeof id === 'string' ? id.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 5);
+  }, [executionCompareRecentVersionIds]);
+
+  /** 下拉可选对比版本：去掉当前工作台快照，避免与自身对比 */
+  const compareDropdownVersionIds = useMemo(() => {
+    const cur = String(lastCompletedWorkbenchVersionId || '').trim();
+    if (!cur) return recentCompareIds;
+    return recentCompareIds.filter((id) => id !== cur);
+  }, [recentCompareIds, lastCompletedWorkbenchVersionId]);
+
+  useEffect(() => {
+    const cur = String(lastCompletedWorkbenchVersionId || '').trim();
+    if (!cur) return;
+    setCompareVersion((prev) => {
+      let touched = false;
+      const next = { ...prev };
+      ['enum', 'price', 'capital'].forEach((k) => {
+        if (next[k] === cur) {
+          next[k] = '';
+          touched = true;
+        }
+      });
+      return touched ? next : prev;
+    });
+  }, [lastCompletedWorkbenchVersionId]);
+
+  const handleExecutionCompareChange = (stepKey, nextValue) => {
+    if (nextValue === EXEC_COMPARE_MORE_MENU_VALUE) {
+      setExecutionMoreVersionsOpen(true);
+      return;
+    }
+    setCompareVersion((prev) => ({ ...prev, [stepKey]: nextValue }));
+  };
+
+  const renderCompareVersionSelectValue = (selected) => {
+    if (selected === '' || selected == null) return COMPARE_SELECT_EMPTY_LABEL;
+    return String(selected);
+  };
+
+  useEffect(() => {
+    if (!strategyName) return undefined;
+    const ids = [...new Set(
+      [compareVersion.enum, compareVersion.price, compareVersion.capital]
+        .map((s) => String(s || '').trim())
+        .filter(Boolean),
+    )];
+    if (ids.length === 0) return undefined;
+
+    let cancelled = false;
+
+    ids.forEach((vid) => {
+      setCompareLinesByVersionId((prev) => {
+        const hit = prev[vid];
+        if (hit?.execLine != null && !hit?.error) return prev;
+        if (hit?.loading) return prev;
+        return { ...prev, [vid]: { loading: true, error: null } };
+      });
+
+      fetchStrategyVersionDetail(strategyName, vid)
+        .then((res) => {
+          if (cancelled) return;
+          const rr = res?.result_report;
+          const execLine = buildExecutionResultFromWorkbenchReport(
+            rr && typeof rr === 'object' ? rr : {},
+          );
+          setCompareLinesByVersionId((prev) => ({
+            ...prev,
+            [vid]: { loading: false, execLine, error: null },
+          }));
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setCompareLinesByVersionId((prev) => ({
+            ...prev,
+            [vid]: {
+              loading: false,
+              execLine: null,
+              error: err?.message || '读取对比快照失败',
+            },
+          }));
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [strategyName, compareVersion.enum, compareVersion.price, compareVersion.capital]);
+
   const renderEnumSummary = () => {
     const currentOpportunities = result.enum?.opportunities;
-    const compareOpportunities = compareVersion.enum
-      ? MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.enum]?.enum?.opportunities
-      : null;
+    const vid = compareVersion.enum?.trim();
+    const row = vid ? compareLinesByVersionId[vid] : null;
+    const loading = Boolean(vid) && (!row || row.loading);
+    const errMsg = row?.error;
+    const compareOpportunities = row?.execLine?.enum?.opportunities;
+
+    const gridSx = {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+      alignItems: 'center',
+      columnGap: 1,
+    };
+
+    if (vid && loading) {
+      return (
+        <Box sx={gridSx}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography variant="body2" color="text.secondary">(对比版本) 读取中…</Typography>
+        </Box>
+      );
+    }
+
+    if (vid && errMsg) {
+      return (
+        <Box sx={gridSx}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography variant="body2" color="error">(对比版本) {errMsg}</Typography>
+        </Box>
+      );
+    }
+
+    if (vid && row?.execLine && !Number.isFinite(compareOpportunities)) {
+      return (
+        <Box sx={gridSx}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography variant="body2" color="text.secondary">(对比版本) 该快照无枚举摘要</Typography>
+        </Box>
+      );
+    }
 
     if (Number.isFinite(currentOpportunities) && Number.isFinite(compareOpportunities)) {
       return (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-            alignItems: 'center',
-            columnGap: 1,
-          }}
-        >
+        <Box sx={gridSx}>
           <Typography
             variant="body2"
             sx={{
@@ -284,20 +437,58 @@ function StrategyExecutionPanel({
 
   const renderPriceSummary = () => {
     const currentPrice = result.price;
-    const comparePrice = compareVersion.price
-      ? MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.price]?.price
-      : null;
+    const vid = compareVersion.price?.trim();
+    const row = vid ? compareLinesByVersionId[vid] : null;
+    const loading = Boolean(vid) && (!row || row.loading);
+    const errMsg = row?.error;
+    const comparePrice = row?.execLine?.price ?? null;
+
+    const gridSx = {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+      alignItems: 'center',
+      columnGap: 1,
+    };
+
+    if (vid && loading) {
+      return (
+        <Box sx={gridSx}>
+          <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {formatPriceLine(currentPrice)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography variant="body2" color="text.secondary">(对比版本) 读取中…</Typography>
+        </Box>
+      );
+    }
+
+    if (vid && errMsg) {
+      return (
+        <Box sx={gridSx}>
+          <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {formatPriceLine(currentPrice)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography variant="body2" color="error">(对比版本) {errMsg}</Typography>
+        </Box>
+      );
+    }
+
+    if (vid && row?.execLine && currentPrice && !comparePrice) {
+      return (
+        <Box sx={gridSx}>
+          <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {formatPriceLine(currentPrice)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <Typography variant="body2" color="text.secondary">(对比版本) 该快照无价格回测摘要</Typography>
+        </Box>
+      );
+    }
 
     if (currentPrice && comparePrice) {
       return (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-            alignItems: 'center',
-            columnGap: 1,
-          }}
-        >
+        <Box sx={gridSx}>
           <Typography
             variant="body2"
             sx={{
@@ -324,6 +515,151 @@ function StrategyExecutionPanel({
     }
 
     return <Typography variant="body2">{formatPriceLine(currentPrice)}</Typography>;
+  };
+
+  const renderCapitalSummary = () => {
+    const cur = result.capital;
+    const vid = compareVersion.capital?.trim();
+    const row = vid ? compareLinesByVersionId[vid] : null;
+    const loading = Boolean(vid) && (!row || row.loading);
+    const errMsg = row?.error;
+    const cmp = row?.execLine?.capital ?? null;
+
+    const gridSx = {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+      alignItems: 'start',
+      columnGap: 1,
+    };
+
+    if (!cur) {
+      return (
+        <Stack spacing={0.25}>
+          <Typography variant="body2">收益：--</Typography>
+          <Typography variant="caption" color="text.secondary">--</Typography>
+        </Stack>
+      );
+    }
+
+    if (!vid) {
+      return (
+        <Stack spacing={0.25}>
+          <Typography variant="body2">
+            收益：{`${cur.profit >= 0 ? '+' : ''}${formatCapitalMoney(cur.profit)} (${formatCapitalPct(cur.retPct)}%)`}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
+          </Typography>
+        </Stack>
+      );
+    }
+
+    if (loading) {
+      return (
+        <Box sx={gridSx}>
+          <Stack spacing={0.25}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              收益：{`${cur.profit >= 0 ? '+' : ''}${formatCapitalMoney(cur.profit)} (${formatCapitalPct(cur.retPct)}%)`}
+            </Typography>
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
+            </Typography>
+          </Stack>
+          <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
+            <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">(对比版本) 读取中…</Typography>
+        </Box>
+      );
+    }
+
+    if (errMsg) {
+      return (
+        <Box sx={gridSx}>
+          <Stack spacing={0.25}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              收益：{`${cur.profit >= 0 ? '+' : ''}${formatCapitalMoney(cur.profit)} (${formatCapitalPct(cur.retPct)}%)`}
+            </Typography>
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
+            </Typography>
+          </Stack>
+          <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
+            <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          </Stack>
+          <Typography variant="body2" color="error">(对比版本) {errMsg}</Typography>
+        </Box>
+      );
+    }
+
+    if (!cmp) {
+      return (
+        <Box sx={gridSx}>
+          <Stack spacing={0.25}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              收益：{`${cur.profit >= 0 ? '+' : ''}${formatCapitalMoney(cur.profit)} (${formatCapitalPct(cur.retPct)}%)`}
+            </Typography>
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
+            </Typography>
+          </Stack>
+          <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
+            <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">(对比版本) 该快照无资金摘要</Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Box sx={gridSx}>
+        <Stack spacing={0.25}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: getCurrentResultColor(cur.profit, cmp.profit),
+              fontWeight: 600,
+            }}
+          >
+            收益：{`${cur.profit >= 0 ? '+' : ''}${formatCapitalMoney(cur.profit)} (${formatCapitalPct(cur.retPct)}%)`}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              color: getCurrentResultColor(cur.endCapital, cmp.endCapital),
+              fontWeight: 600,
+            }}
+          >
+            {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
+          </Typography>
+        </Stack>
+
+        <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
+          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+        </Stack>
+
+        <Stack spacing={0.25}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: getCompareResultColor(cmp.profit, cur.profit),
+              fontWeight: 600,
+            }}
+          >
+            (对比版本) 收益：{`${cmp.profit >= 0 ? '+' : ''}${formatCapitalMoney(cmp.profit)} (${formatCapitalPct(cmp.retPct)}%)`}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{
+              color: getCompareResultColor(cmp.endCapital, cur.endCapital),
+              fontWeight: 600,
+            }}
+          >
+            {`${formatCapitalMoney(cmp.initialCapital)} -> ${formatCapitalMoney(cmp.endCapital)}`}
+          </Typography>
+        </Stack>
+      </Box>
+    );
   };
 
   useEffect(() => {
@@ -415,6 +751,7 @@ function StrategyExecutionPanel({
   };
 
   return (
+    <>
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Typography fontWeight={600}>执行面板</Typography>
@@ -487,19 +824,22 @@ function StrategyExecutionPanel({
                   </IconButton>
                 </Stack>
                 {renderEnumSummary()}
-                {stepStatus.enum === 'done' ? (
+                {stepStatus.enum === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
                     <Typography variant="caption" color="text.secondary">对比版本</Typography>
                     <Select
                       size="small"
+                      displayEmpty
                       value={compareVersion.enum}
-                      onChange={(e) => setCompareVersion((prev) => ({ ...prev, enum: e.target.value }))}
-                      sx={{ minWidth: 120 }}
+                      renderValue={renderCompareVersionSelectValue}
+                      onChange={(e) => handleExecutionCompareChange('enum', e.target.value)}
+                      sx={{ minWidth: 168 }}
                     >
-                      <MenuItem value="">不对比</MenuItem>
-                      {compareOptions.map((v) => (
-                        <MenuItem key={v} value={v}>{v}</MenuItem>
+                      <MenuItem value="">{COMPARE_SELECT_EMPTY_LABEL}</MenuItem>
+                      {compareDropdownVersionIds.map((id) => (
+                        <MenuItem key={id} value={id}>{id}</MenuItem>
                       ))}
+                      <MenuItem value={EXEC_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
                     </Select>
                   </Stack>
                 ) : null}
@@ -553,19 +893,22 @@ function StrategyExecutionPanel({
                 <Box sx={{ overflowX: 'auto', overflowY: 'hidden', '&::-webkit-scrollbar': { height: 6 } }}>
                   {renderPriceSummary()}
                 </Box>
-                {stepStatus.price === 'done' ? (
+                {stepStatus.price === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
                     <Typography variant="caption" color="text.secondary">对比版本</Typography>
                     <Select
                       size="small"
+                      displayEmpty
                       value={compareVersion.price}
-                      onChange={(e) => setCompareVersion((prev) => ({ ...prev, price: e.target.value }))}
-                      sx={{ minWidth: 120 }}
+                      renderValue={renderCompareVersionSelectValue}
+                      onChange={(e) => handleExecutionCompareChange('price', e.target.value)}
+                      sx={{ minWidth: 168 }}
                     >
-                      <MenuItem value="">不对比</MenuItem>
-                      {compareOptions.map((v) => (
-                        <MenuItem key={v} value={v}>{v}</MenuItem>
+                      <MenuItem value="">{COMPARE_SELECT_EMPTY_LABEL}</MenuItem>
+                      {compareDropdownVersionIds.map((id) => (
+                        <MenuItem key={id} value={id}>{id}</MenuItem>
                       ))}
+                      <MenuItem value={EXEC_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
                     </Select>
                   </Stack>
                 ) : null}
@@ -616,96 +959,23 @@ function StrategyExecutionPanel({
                     <StepRunButtonIcon done={stepStatus.capital === 'done'} />
                   </IconButton>
                 </Stack>
-                {result.capital && compareVersion.capital ? (
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-                      alignItems: 'start',
-                      columnGap: 1,
-                    }}
-                  >
-                    <Stack spacing={0.25}>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: getCurrentResultColor(
-                            result.capital.profit,
-                            MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.profit,
-                          ),
-                          fontWeight: 600,
-                        }}
-                      >
-                        收益：{`${result.capital.profit >= 0 ? '+' : ''}${result.capital.profit.toLocaleString()} (${result.capital.retPct}%)`}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: getCurrentResultColor(
-                            result.capital.endCapital,
-                            MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.endCapital,
-                          ),
-                          fontWeight: 600,
-                        }}
-                      >
-                        {`${result.capital.initialCapital.toLocaleString()} -> ${result.capital.endCapital.toLocaleString()}`}
-                      </Typography>
-                    </Stack>
-
-                    <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
-                      <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-                    </Stack>
-
-                    <Stack spacing={0.25}>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: getCompareResultColor(
-                            MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.profit,
-                            result.capital.profit,
-                          ),
-                          fontWeight: 600,
-                        }}
-                      >
-                        (对比版本) 收益：{`${MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.profit >= 0 ? '+' : ''}${MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.profit?.toLocaleString() || '--'} (${MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.retPct ?? '--'}%)`}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: getCompareResultColor(
-                            MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.endCapital,
-                            result.capital.endCapital,
-                          ),
-                          fontWeight: 600,
-                        }}
-                      >
-                        {`${MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.initialCapital?.toLocaleString() || '--'} -> ${MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION?.[compareVersion.capital]?.capital?.endCapital?.toLocaleString() || '--'}`}
-                      </Typography>
-                    </Stack>
-                  </Box>
-                ) : (
-                  <Stack spacing={0.25}>
-                    <Typography variant="body2">
-                      收益：{result.capital ? `${result.capital.profit >= 0 ? '+' : ''}${result.capital.profit.toLocaleString()} (${result.capital.retPct}%)` : '--'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {result.capital ? `${result.capital.initialCapital.toLocaleString()} -> ${result.capital.endCapital.toLocaleString()}` : '--'}
-                    </Typography>
-                  </Stack>
-                )}
-                {stepStatus.capital === 'done' ? (
+                {renderCapitalSummary()}
+                {stepStatus.capital === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
                     <Typography variant="caption" color="text.secondary">对比版本</Typography>
                     <Select
                       size="small"
+                      displayEmpty
                       value={compareVersion.capital}
-                      onChange={(e) => setCompareVersion((prev) => ({ ...prev, capital: e.target.value }))}
-                      sx={{ minWidth: 120 }}
+                      renderValue={renderCompareVersionSelectValue}
+                      onChange={(e) => handleExecutionCompareChange('capital', e.target.value)}
+                      sx={{ minWidth: 168 }}
                     >
-                      <MenuItem value="">不对比</MenuItem>
-                      {compareOptions.map((v) => (
-                        <MenuItem key={v} value={v}>{v}</MenuItem>
+                      <MenuItem value="">{COMPARE_SELECT_EMPTY_LABEL}</MenuItem>
+                      {compareDropdownVersionIds.map((id) => (
+                        <MenuItem key={id} value={id}>{id}</MenuItem>
                       ))}
+                      <MenuItem value={EXEC_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
                     </Select>
                   </Stack>
                 ) : null}
@@ -715,6 +985,24 @@ function StrategyExecutionPanel({
         </Stack>
       </AccordionDetails>
     </Accordion>
+
+    <Dialog
+      open={executionMoreVersionsOpen}
+      onClose={() => setExecutionMoreVersionsOpen(false)}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>选择历史版本</DialogTitle>
+      <DialogContent dividers>
+        <Typography variant="body2" color="text.secondary">
+          完整版本列表将在此提供（占位）。后续可接入分页搜索或与设置区「更多版本」一致的选择器。
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setExecutionMoreVersionsOpen(false)}>关闭</Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 }
 

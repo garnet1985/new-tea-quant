@@ -41,7 +41,7 @@ export function getStrategyWorkbenchPath(strategyName) {
 /**
  * V2-01：读取 latest 工作台快照（settings + version_id + step_status + result_report）。
  * @param {string} strategyName
- * @returns {Promise<{ strategy_name: string, settings: object, workbench_version_id?: string }>}
+ * @returns {Promise<{ strategy_name: string, settings: object, workbench_version_id?: string, has_persisted_snapshot?: boolean, has_other_versions?: boolean }>}
  */
 export async function fetchStrategySettings(strategyName) {
   const json = await requestJson(`${apiStrategyPath(strategyName)}/version/latest`, { method: 'GET' });
@@ -53,6 +53,8 @@ export async function fetchStrategySettings(strategyName) {
     workbench_version_id: typeof m.version_id === 'string' ? m.version_id : '',
     step_status: m.step_status,
     result_report: m.result_report,
+    has_persisted_snapshot: Boolean(m.has_persisted_snapshot),
+    has_other_versions: Boolean(m.has_other_versions),
   };
 }
 

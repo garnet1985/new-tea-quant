@@ -16,6 +16,7 @@ from core.modules.strategy.services.launcher.workbench import (
     build_step_report_ref_message,
     fetch_workbench_snapshot_by_snapshot_id,
     parse_snapshot_id,
+    workbench_latest_ui_flags,
 )
 from core.modules.strategy.services.launcher.workbench_catalog import (
     fetch_discovered_strategies_page,
@@ -45,7 +46,9 @@ def get_strategy_version_latest(strategy_name):
     row = fetch_latest_workbench_snapshot(strategy_name)
     if row is None:
         return error("策略不存在或无法加载工作台数据", 404)
-    return ok(workbench_snapshot_to_message(row))
+    msg = workbench_snapshot_to_message(row)
+    msg.update(workbench_latest_ui_flags(strategy_name, row))
+    return ok(msg)
 
 
 # --- V2-02 ---

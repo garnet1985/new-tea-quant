@@ -99,6 +99,8 @@ function StrategyReportPanel({
   /** ``{ step: 'enum'|'price'|'capital', tick }``：单步跑完后由工作台页注入，切到对应报告 */
   reportTabFocusRequest = null,
   onForceEnumerate,
+  /** 至少两条快照时可对比报告；仅一条时隐藏「对比结果」 */
+  showReportCompare = true,
 }) {
   const [remoteReports, setRemoteReports] = useState({ reports: {}, availableTabs: [] });
   /** V2-01 ``result_report.enum``：含 ``enumMetrics.opportunityCount*``，由页面 ``GET …/version/latest`` 注入 */
@@ -109,6 +111,10 @@ function StrategyReportPanel({
   /** ``result_report.price_factor``：与 ``0_session_summary.json`` / DbCache 写入形态一致（snake_case 汇总） */
   const snapshotPriceSlot = useMemo(() => {
     const slot = workbenchResultReport?.price_factor;
+    return slot && typeof slot === 'object' ? slot : null;
+  }, [workbenchResultReport]);
+  const snapshotCapitalSlot = useMemo(() => {
+    const slot = workbenchResultReport?.capital_allocation;
     return slot && typeof slot === 'object' ? slot : null;
   }, [workbenchResultReport]);
   const compareOptions = useMemo(
@@ -147,6 +153,10 @@ function StrategyReportPanel({
 
   const [activeTab, setActiveTab] = useState('');
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!showReportCompare && compareDialogOpen) setCompareDialogOpen(false);
+  }, [showReportCompare, compareDialogOpen]);
 
   useEffect(() => {
     if (availableTabs.length === 0) return;
@@ -408,6 +418,7 @@ function StrategyReportPanel({
           || executionState?.result?.price
           || null,
         capital: remoteReports?.reports?.capital || executionState?.result?.capital || null,
+        capital_allocation: snapshotCapitalSlot || null,
       },
     };
 
@@ -500,16 +511,18 @@ function StrategyReportPanel({
               ))}
             </Tabs>
           ) : null}
-          <Stack direction="row" justifyContent="flex-end">
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={!resolvedActiveTab}
-              onClick={() => setCompareDialogOpen(true)}
-            >
-              对比结果
-            </Button>
-          </Stack>
+          {showReportCompare ? (
+            <Stack direction="row" justifyContent="flex-end">
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={!resolvedActiveTab}
+                onClick={() => setCompareDialogOpen(true)}
+              >
+                对比结果
+              </Button>
+            </Stack>
+          ) : null}
           {reportError ? (
             <Typography variant="caption" color="error">{reportError}</Typography>
           ) : null}
@@ -559,7 +572,19 @@ function StrategyReportPanel({
                         || executionState?.result?.price,
                     ),
                     capitalMetrics: buildCapitalMetrics({
-                      result: { capital: comparePayload?.base_report || remoteReports?.reports?.capital || executionState?.result?.capital || null },
+                      result: {
+                        capital_allocation: comparePayload?.base_report?.capital_allocation
+                          || snapshotCapitalSlot
+                          || null,
+                        capital: (comparePayload?.base_report && typeof comparePayload.base_report === 'object'
+                          && (comparePayload.base_report.profit !== undefined
+                            || comparePayload.base_report.initialCapital !== undefined)
+                          ? comparePayload.base_report
+                          : null)
+                          || remoteReports?.reports?.capital
+                          || executionState?.result?.capital
+                          || null,
+                      },
                     }),
                   },
                   '本次报告',
@@ -582,7 +607,16 @@ function StrategyReportPanel({
                       priceMetrics: normalizePriceMetricsFromSummary(
                         comparePayload?.compare_report?.price_factor || comparePayload?.compare_report,
                       ),
-                      capitalMetrics: buildCapitalMetrics({ result: { capital: comparePayload?.compare_report || null } }),
+                      capitalMetrics: buildCapitalMetrics({
+                        result: {
+                          capital_allocation: comparePayload?.compare_report?.capital_allocation || null,
+                          capital: comparePayload?.compare_report && typeof comparePayload.compare_report === 'object'
+                            && (comparePayload.compare_report.profit !== undefined
+                              || comparePayload.compare_report.initialCapital !== undefined)
+                            ? comparePayload.compare_report
+                            : null,
+                        },
+                      }),
                     },
                     `对比报告（${compareVersion}）`,
                     { showStockGrid: false },

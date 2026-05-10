@@ -463,7 +463,8 @@ def _run_step_and_snapshot_id(
         )
 
         flow = CapitalAllocationFlow(is_verbose=False, force_refresh=is_force)
-        flow.run(strategy_name, discovered)
+        cb = on_step_progress if callable(on_step_progress) else None
+        flow.run(strategy_name, discovered, progress_callback=cb)
         return int(flow.last_snapshot_id or 0)
 
     raise ValueError(f"未知 step: {step!r}")
@@ -490,7 +491,7 @@ def _background_job(
             discovered,
             is_force=is_force,
             job_id=job_id,
-            on_step_progress=_tick_disk_pct if step == "price" else None,
+            on_step_progress=_tick_disk_pct if step in ("price", "capital") else None,
         )
         sid_int = int(sid or 0)
         job_update(

@@ -214,11 +214,34 @@ function StrategySettingsContainer({ initialSettings, children }) {
     return result;
   };
 
-  const applyCoreAndFormat = ({ focusOnError = true } = {}) => {
-    try {
-      const result = parseCoreInput(coreInputText);
+  const applyCoreSourceFailure = (text, err, focusOnError) => {
+    const msg = err?.message || '解析失败';
+    let pos = extractErrorPosition(msg);
+    let loc = getLineColumnByPosition(text, pos);
+    if (loc.line <= 0 || loc.column <= 0) {
+      const lc = extractErrorLineColumn(msg);
+      if (lc.line > 0 && lc.column > 0) {
+        loc = lc;
+        pos = getPositionByLineColumn(text, lc.line, lc.column);
+      }
+    }
+    setCoreParseError(msg);
+    setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
+    setCoreErrorLine(loc.line);
+    setCoreErrorColumn(loc.column);
+    setCoreErrorPosition(focusOnError ? pos : -1);
+    setCoreParseMode('');
+  };
 
-      setCoreInputText(result.pretty);
+  /** 解析 ``text`` 并写入草稿；可选失焦时 pretty-print。keyup / blur / 粘贴后同步用 DOM 当前值，避免仅依赖闭包里的 ``coreInputText``。 */
+  const applyCoreSourceText = (
+    text,
+    { formatOnSuccess = false, focusOnError = false } = {},
+  ) => {
+    try {
+      const result = parseCoreInput(text);
+      if (formatOnSuccess) setCoreInputText(result.pretty);
+      setDraftSettings((prev) => ({ ...prev, core: result.parsed }));
       setCoreParseError('');
       setCoreLineHint('');
       setCoreErrorLine(0);
@@ -226,23 +249,24 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreErrorPosition(-1);
       setCoreParseMode(result.mode);
     } catch (err) {
-      const msg = err?.message || '解析失败';
-      let pos = extractErrorPosition(msg);
-      let loc = getLineColumnByPosition(coreInputText, pos);
-      if (loc.line <= 0 || loc.column <= 0) {
-        const lc = extractErrorLineColumn(msg);
-        if (lc.line > 0 && lc.column > 0) {
-          loc = lc;
-          pos = getPositionByLineColumn(coreInputText, lc.line, lc.column);
-        }
-      }
-      setCoreParseError(msg);
-      setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
-      setCoreErrorLine(loc.line);
-      setCoreErrorColumn(loc.column);
-      setCoreErrorPosition(focusOnError ? pos : -1);
-      setCoreParseMode('');
+      applyCoreSourceFailure(text, err, focusOnError);
     }
+  };
+
+  const applyCoreAndFormat = ({ focusOnError = true } = {}) => {
+    applyCoreSourceText(coreInputText, { formatOnSuccess: true, focusOnError });
+  };
+
+  const onCoreEditorLiveSync = (e) => {
+    applyCoreSourceText(e.target.value, { formatOnSuccess: false, focusOnError: false });
+  };
+
+  const onCoreEditorPaste = () => {
+    requestAnimationFrame(() => {
+      const el = coreInputRef.current;
+      if (!el) return;
+      applyCoreSourceText(el.value, { formatOnSuccess: false, focusOnError: false });
+    });
   };
 
   const getDraftSettingsForSubmit = () => {
@@ -304,7 +328,9 @@ function StrategySettingsContainer({ initialSettings, children }) {
       onChange: (nextText) => {
         setCoreInputText(nextText);
       },
-      onBlur: () => applyCoreAndFormat({ focusOnError: false }),
+      onKeyUp: onCoreEditorLiveSync,
+      onPaste: onCoreEditorPaste,
+      onBlur: () => applyCoreSourceText(coreInputText, { formatOnSuccess: true, focusOnError: false }),
       onApply: applyCoreAndFormat,
       inputRef: coreInputRef,
       parseError: coreParseError,

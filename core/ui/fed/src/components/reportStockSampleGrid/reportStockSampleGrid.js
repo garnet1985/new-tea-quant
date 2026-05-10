@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   FormControl,
@@ -46,9 +46,30 @@ function ReportStockSampleGrid({
     pageSize: defaultPageSize,
   });
 
+  const mountedRef = useRef(false);
   useEffect(() => {
-    setPaginationModel((prev) => ({ ...prev, pageSize: defaultPageSize }));
-  }, [defaultPageSize]);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const safeSetPaginationModel = useCallback((updater) => {
+    if (!mountedRef.current) return;
+    setPaginationModel(updater);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      if (cancelled || !mountedRef.current) return;
+      safeSetPaginationModel((prev) => ({ ...prev, pageSize: defaultPageSize }));
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [defaultPageSize, safeSetPaginationModel]);
 
   const rowsFingerprint = useMemo(() => {
     if (!Array.isArray(rows) || rows.length === 0) return '0';
@@ -58,8 +79,16 @@ function ReportStockSampleGrid({
 
   useEffect(() => {
     if (!pagination) return;
-    setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [pagination, rowsFingerprint]);
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      if (cancelled || !mountedRef.current) return;
+      safeSetPaginationModel((prev) => ({ ...prev, page: 0 }));
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, [pagination, rowsFingerprint, safeSetPaginationModel]);
 
   return (
     <SectionBlock title={title} tip={tip}>
@@ -102,7 +131,7 @@ function ReportStockSampleGrid({
                 pagination: true,
                 paginationMode: 'client',
                 paginationModel,
-                onPaginationModelChange: setPaginationModel,
+                onPaginationModelChange: (model) => safeSetPaginationModel(model),
                 pageSizeOptions,
               }
               : { pagination: false, hideFooter: true })}

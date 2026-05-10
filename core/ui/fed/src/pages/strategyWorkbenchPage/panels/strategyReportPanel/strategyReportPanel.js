@@ -95,7 +95,6 @@ function StrategyReportPanel({
   executionState,
   compareVersionOptions,
   workbenchResultReport,
-  workbenchVersionId = '',
   /** ``{ step: 'enum'|'price'|'capital', tick }``：单步跑完后由工作台页注入，切到对应报告 */
   reportTabFocusRequest = null,
   onForceEnumerate,
@@ -131,14 +130,13 @@ function StrategyReportPanel({
   const [enumRefRows, setEnumRefRows] = useState([]);
   const runId = executionState?.runId || '';
 
+  /** 仅绑定「本轮会话最近一次跑单完成」的快照 id；草稿变更 reset 后为空，不再回退到工作台选中快照，以免参数已改仍拉旧版 report_ref（404 / 条数不一致） */
   const anchorVersionId = useMemo(() => {
     const run = typeof executionState?.lastCompletedWorkbenchVersionId === 'string'
       ? executionState.lastCompletedWorkbenchVersionId.trim()
       : '';
-    if (run) return run;
-    const wb = typeof workbenchVersionId === 'string' ? workbenchVersionId.trim() : '';
-    return wb && wb !== 'userspace' ? wb : '';
-  }, [executionState?.lastCompletedWorkbenchVersionId, workbenchVersionId]);
+    return run;
+  }, [executionState?.lastCompletedWorkbenchVersionId]);
 
   const availableTabs = useMemo(() => {
     const remoteTabs = Array.isArray(remoteReports?.availableTabs)
@@ -200,7 +198,13 @@ function StrategyReportPanel({
     fetchStrategyStepReportRef(strategyName, 'enum', anchorVersionId).then((msg) => {
       if (cancelled) return;
       const raw = msg?.stock_ref;
-      if (raw && typeof raw === 'object' && Object.keys(raw).length > 0) {
+      const available = msg?.stock_ref_available !== false;
+      if (
+        available
+        && raw
+        && typeof raw === 'object'
+        && Object.keys(raw).length > 0
+      ) {
         const mapped = sortMappedEnumRows(
           mapStockRefToRows(raw),
           ENUM_REF_DEFAULT_SORT.sortBy,
@@ -405,19 +409,23 @@ function StrategyReportPanel({
       );
     }
 
+    /** 快照 ``result_report.*`` 须优先于 ``executionState.result.*``：hydration 里 enum/price 仅为卡片摘要，会遮住完整枚举/价格报告字段导致首屏各区「数据异常」。 */
     const metricsSource = {
       result: {
         enum:
           snapshotEnumSlot
-          || remoteReports?.reports?.enum
           || executionState?.result?.enum
+          || remoteReports?.reports?.enum
           || null,
         price:
           snapshotPriceSlot
-          || remoteReports?.reports?.price
           || executionState?.result?.price
+          || remoteReports?.reports?.price
           || null,
-        capital: remoteReports?.reports?.capital || executionState?.result?.capital || null,
+        capital:
+          executionState?.result?.capital
+          || remoteReports?.reports?.capital
+          || null,
         capital_allocation: snapshotCapitalSlot || null,
       },
     };

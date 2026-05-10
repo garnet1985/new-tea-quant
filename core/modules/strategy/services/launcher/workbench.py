@@ -301,7 +301,15 @@ def build_step_report_ref_message(
     normalized_step: str,
     snapshot_id: int,
 ) -> Optional[Dict[str, Any]]:
-    """读取枚举产物目录下的 ``0_stock_ref.json``（或旧 ``0_enumerator_stocks.json``）；仅 ``enum`` 步有意义。"""
+    """
+    读取枚举产物目录下的 ``0_stock_ref.json``（或旧 ``0_enumerator_stocks.json``）。
+
+    仅当快照行不存在（或参数非法）时返回 ``None``，路由 404。磁盘已清理、文件不存在时为正常情况，
+    仍返回 dict：``stock_ref_available=False``、``stock_ref=null``。
+
+    查找路径仅使用快照 ``result_report.enum`` 内记录的 ``enumerator_output_dir`` / ``version_dir`` /
+    ``version_id`` 及 ``snapshot_id``；不做全盘扫描或猜测。
+    """
     if normalized_step != "enum":
         return None
     name = str(strategy_name).strip()
@@ -318,17 +326,24 @@ def build_step_report_ref_message(
     rr = row.get("result_report") or {}
     enum_raw = rr.get("enum")
     if isinstance(enum_raw, dict):
+        out_d = str(enum_raw.get("enumerator_output_dir") or "").strip()
+        if out_d:
+            candidates_dirs.append(out_d)
         vd = str(enum_raw.get("version_dir") or "").strip()
-        if vd:
+        if vd and vd not in candidates_dirs:
             candidates_dirs.append(vd)
         vid = enum_raw.get("version_id")
         if vid is not None:
             try:
-                candidates_dirs.append(str(int(vid)))
+                vs = str(int(vid))
+                if vs not in candidates_dirs:
+                    candidates_dirs.append(vs)
             except (TypeError, ValueError):
                 pass
 
-    candidates_dirs.append(str(int(snapshot_id)))
+    sid_s = str(int(snapshot_id))
+    if sid_s not in candidates_dirs:
+        candidates_dirs.append(sid_s)
 
     seen: set[str] = set()
     uniq_dirs: List[str] = []
@@ -355,16 +370,25 @@ def build_step_report_ref_message(
         if stock_ref is not None:
             break
 
+    common = {
+        "version_id": f"v{int(snapshot_id)}",
+        "strategy_name": name,
+        "step": normalized_step,
+    }
     if stock_ref is None:
-        return None
+        return {
+            **common,
+            "stock_ref": None,
+            "stock_ref_available": False,
+            "resolved_output_dir": "",
+        }
 
     stock_ref = _enrich_stock_ref_with_list_names(stock_ref)
 
     return {
-        "version_id": f"v{int(snapshot_id)}",
-        "strategy_name": name,
-        "step": normalized_step,
+        **common,
         "stock_ref": stock_ref,
+        "stock_ref_available": True,
         "resolved_output_dir": resolved_dir,
     }
 

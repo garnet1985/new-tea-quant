@@ -41,7 +41,11 @@ export function normalizeEnumMetricsFromSummary(summary) {
     return m[snake];
   };
 
-  const totalOpportunities = Number(pick('totalOpportunities', 'total_opportunities') ?? 0);
+  let totalOpportunities = Number(pick('totalOpportunities', 'total_opportunities') ?? 0);
+  if (!Number.isFinite(totalOpportunities) || totalOpportunities <= 0) {
+    const alt = Number(pick('opportunities', 'opportunity_count'));
+    if (Number.isFinite(alt) && alt > 0) totalOpportunities = alt;
+  }
   const totalStocks = Number(pick('totalStocks', 'total_stocks') ?? 0);
 
   let triggerStocks = Number(pick('triggerStocks', 'trigger_stocks'));

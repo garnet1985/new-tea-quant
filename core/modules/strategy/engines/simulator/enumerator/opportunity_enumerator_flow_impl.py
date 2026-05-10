@@ -599,6 +599,8 @@ class OpportunityEnumeratorFlowImpl:
             "strategy_name": strategy_name,
             "version_id": version_id,
             "version_dir": version_dir_name,
+            # 与 ``version_dir`` 同义；工作台 ``report_ref`` 查找优先使用该字段（枚举产物子目录名）
+            "enumerator_output_dir": version_dir_name,
             "opportunities": total_opportunities,
             "totalStocks": total_stocks,
             "triggerStocks": int(trigger_stock_count),

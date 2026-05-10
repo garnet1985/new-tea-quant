@@ -181,8 +181,7 @@ def get_strategy_step_report(strategy_name, step, version_id):
     methods=["GET"],
 )
 def get_strategy_step_report_ref(strategy_name, step, version_id):
-    """GET …/report_ref/<version_id> — 仅 ``enum`` 步返回完整 ``stock_ref`` JSON；磁盘缺失时 404。
-    排序与分页由前端处理。"""
+    """GET …/report_ref/<version_id> — 仅 ``enum`` 步；``stock_ref`` 可空（磁盘清理属正常；见 ``stock_ref_available``）。"""
     norm = normalize_step(step)
     if norm is None:
         return error("step 须为 enum / price / capital", 400)
@@ -200,7 +199,7 @@ def get_strategy_step_report_ref(strategy_name, step, version_id):
         snapshot_id=sid,
     )
     if msg is None:
-        return error("report_ref 不存在或该步骤无逐股引用", 404)
+        return error("快照不存在", 404)
     return ok(msg)
 
 

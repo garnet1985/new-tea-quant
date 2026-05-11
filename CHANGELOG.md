@@ -5,8 +5,7 @@
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
 新版本更新清单：
-[] 有破坏性更改的模块需要在module_info.yaml里更新core的依赖
-[] 有新的核心模块需要在module_info.yaml里更新core的依赖
+[] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 更改system.py里的版本
 [] 同步版本徽章
 [] 更新readme文档（模块readme，API，module_info）

@@ -20,7 +20,7 @@ function ComingSoonPage({ title, description }) {
         <CardContent>
           <Stack spacing={1.5}>
             <Typography color="text.secondary" variant="body2" component="p" sx={{ fontStyle: 'italic' }}>
-              This feature is not available yet — we&apos;re working on it.
+              敬请期待 - 我正在努力中...
             </Typography>
           </Stack>
         </CardContent>

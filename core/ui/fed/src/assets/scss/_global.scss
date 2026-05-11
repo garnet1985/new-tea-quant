@@ -84,6 +84,103 @@ body {
   background-image: var(--ntq-glass-bg);
 }
 
+// Strategy report: stock grid overlay (force-enumerate hint)
+.ntq-stock-grid-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--ntq-white-12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 160ms ease;
+}
+
+.ntq-stock-grid-overlay__icon {
+  font-size: 60px !important;
+  opacity: 0.9;
+  color: var(--ntq-text);
+}
+
+.ntq-stock-grid-overlay:hover {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+// Call-to-action "attention" button (shine sweep)
+.ntq-attention-btn {
+  position: relative;
+  border-color: rgba(34, 211, 238, 0.55) !important;
+  color: var(--ntq-cyan) !important;
+  background: rgba(34, 211, 238, 0.08) !important;
+  box-shadow:
+    0 10px 26px rgba(34, 211, 238, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+  overflow: hidden;
+}
+
+.ntq-attention-btn::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  width: 42%;
+  left: -60%;
+  transform: skewX(-18deg);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.00) 18%,
+    rgba(255, 255, 255, 0.26) 50%,
+    rgba(255, 255, 255, 0.00) 82%,
+    transparent 100%
+  );
+  filter: blur(1px);
+  opacity: 0.9;
+  animation: ntq-attention-shine 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.ntq-attention-btn:hover {
+  background: rgba(34, 211, 238, 0.12) !important;
+  border-color: rgba(34, 211, 238, 0.75) !important;
+}
+
+@keyframes ntq-attention-shine {
+  0% {
+    left: -60%;
+    opacity: 0;
+  }
+  72% {
+    left: -60%;
+    opacity: 0;
+  }
+  78% {
+    opacity: 0.95;
+  }
+  92% {
+    left: 120%;
+    opacity: 0.95;
+  }
+  100% {
+    left: 120%;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-attention-btn::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 // Refraction highlight / edge bloom
 .MuiPaper-root::before,
 .MuiCard-root::before,

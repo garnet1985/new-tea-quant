@@ -45,6 +45,22 @@
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+// --- Report grids (DataGrid overlay) ---
+// Reduce "white mask" on empty/loading overlays; strengthen slightly on hover.
+.ntq-report-grid {
+  .MuiDataGrid-overlay {
+    background: rgba(255, 255, 255, 0.04);
+    border-top: 1px solid var(--ntq-white-12);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--ntq-text-muted);
+  }
+
+  &:hover .MuiDataGrid-overlay {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
 .MuiOutlinedInput-input {
   padding: 0 12px;
 }

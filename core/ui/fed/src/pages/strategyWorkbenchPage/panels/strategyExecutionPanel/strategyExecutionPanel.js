@@ -19,6 +19,7 @@ import {
   Typography,
 } from '@mui/material';
 import { ReactComponent as PlayCircleIcon } from '../../../../assets/icon/play_circle.svg';
+import './strategyExecutionPanel.scss';
 import {
   fetchStrategyRunStatus,
   fetchStrategyVersionDetail,
@@ -800,31 +801,12 @@ function StrategyExecutionPanel({
               }}
             >
               <Box
-                sx={{
-                  display: 'grid',
-                  // Give result summary more room; keep compare dropdown stable.
-                  gridTemplateColumns: '48px minmax(110px, 160px) minmax(420px, 1fr) 200px',
-                  gap: 1,
-                  alignItems: 'center',
-                }}
+                className="ntq-exec-step-grid"
               >
-                <Box
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    border: 1,
-                    borderColor: 'text.secondary',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
+                <Box className="ntq-exec-step-no">
                   1
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
                   <Typography fontWeight={600} noWrap>枚举机会</Typography>
                   <IconButton
                     size="small"
@@ -837,14 +819,14 @@ function StrategyExecutionPanel({
                 </Stack>
                 {renderEnumSummary()}
                 {stepStatus.enum === 'done' && showVersionCompare ? (
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">
                     <Select
                       size="small"
                       displayEmpty
                       value={compareVersion.enum}
                       renderValue={renderExecutionCompareValue}
                       onChange={(e) => handleExecutionCompareChange('enum', e.target.value)}
-                      sx={{ minWidth: 168 }}
+                      className="ntq-exec-compare__select"
                     >
                       <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
                       {compareDropdownVersionIds.map((id) => (
@@ -867,31 +849,12 @@ function StrategyExecutionPanel({
               }}
             >
               <Box
-                sx={{
-                  display: 'grid',
-                  // Give result summary more room; keep compare dropdown stable.
-                  gridTemplateColumns: '48px minmax(110px, 160px) minmax(420px, 1fr) 200px',
-                  gap: 1,
-                  alignItems: 'center',
-                }}
+                className="ntq-exec-step-grid"
               >
-                <Box
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    border: 1,
-                    borderColor: 'text.secondary',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
+                <Box className="ntq-exec-step-no">
                   2
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
                   <Typography fontWeight={600} noWrap>价格回测</Typography>
                   <IconButton
                     size="small"
@@ -906,14 +869,14 @@ function StrategyExecutionPanel({
                   {renderPriceSummary()}
                 </Box>
                 {stepStatus.price === 'done' && showVersionCompare ? (
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">
                     <Select
                       size="small"
                       displayEmpty
                       value={compareVersion.price}
                       renderValue={renderExecutionCompareValue}
                       onChange={(e) => handleExecutionCompareChange('price', e.target.value)}
-                      sx={{ minWidth: 168 }}
+                      className="ntq-exec-compare__select"
                     >
                       <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
                       {compareDropdownVersionIds.map((id) => (
@@ -936,31 +899,12 @@ function StrategyExecutionPanel({
               }}
             >
               <Box
-                sx={{
-                  display: 'grid',
-                  // Give result summary more room; keep compare dropdown stable.
-                  gridTemplateColumns: '48px minmax(110px, 160px) minmax(420px, 1fr) 200px',
-                  gap: 1,
-                  alignItems: 'center',
-                }}
+                className="ntq-exec-step-grid"
               >
-                <Box
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    border: 1,
-                    borderColor: 'text.secondary',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
+                <Box className="ntq-exec-step-no">
                   3
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
                   <Typography fontWeight={600} noWrap>资金模拟</Typography>
                   <IconButton
                     size="small"
@@ -973,14 +917,14 @@ function StrategyExecutionPanel({
                 </Stack>
                 {renderCapitalSummary()}
                 {stepStatus.capital === 'done' && showVersionCompare ? (
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">
                     <Select
                       size="small"
                       displayEmpty
                       value={compareVersion.capital}
                       renderValue={renderExecutionCompareValue}
                       onChange={(e) => handleExecutionCompareChange('capital', e.target.value)}
-                      sx={{ minWidth: 168 }}
+                      className="ntq-exec-compare__select"
                     >
                       <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
                       {compareDropdownVersionIds.map((id) => (

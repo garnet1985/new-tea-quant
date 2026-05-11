@@ -16,6 +16,124 @@ body {
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  // new-tea site tokens (subset) for component scss reuse
+  --ntq-ink: #060612;
+  --ntq-white-98: rgba(255, 255, 255, 0.98);
+  --ntq-white-75: rgba(255, 255, 255, 0.75);
+  --ntq-white-45: rgba(255, 255, 255, 0.45);
+  --ntq-white-12: rgba(255, 255, 255, 0.12);
+  --ntq-white-06: rgba(255, 255, 255, 0.06);
+  --ntq-white-03: rgba(255, 255, 255, 0.03);
+  --ntq-cyan: #22d3ee;
+  --ntq-violet: #a855f7;
+  --ntq-green: #22c55e;
+
+  // new-tea style background: noise + glow + ink gradient
+  background-color: var(--ntq-ink);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E"),
+    radial-gradient(1100px 820px at 12% -10%, rgba(168, 85, 247, 0.12), transparent 58%),
+    radial-gradient(980px 720px at 88% 0%, rgba(34, 211, 238, 0.18), transparent 56%),
+    radial-gradient(1200px 900px at 50% 110%, rgba(34, 197, 94, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(6, 6, 18, 1), rgba(6, 6, 18, 0.95));
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 240px 240px, auto, auto, auto, auto;
+  background-position: 0 0, center, center, center, center;
+  background-blend-mode: soft-light, normal, normal, normal, normal;
+  line-height: 1.68;
+  overflow-x: hidden;
+}
+
+// --- Glass blocks (new-tea style, adapted for MUI) ---
+// Default glass surface: subtle refraction edge + soft shadow + optional backdrop blur.
+// Applied globally to MUI Paper/Card/Dialog "blocks" so pages look consistent.
+.MuiPaper-root,
+.MuiCard-root,
+.MuiDialog-paper {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ntq-white-12) !important;
+  box-shadow:
+    0 18px 42px rgba(6, 6, 18, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(6, 6, 18, 0.35) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+// Refraction highlight / edge bloom
+.MuiPaper-root::before,
+.MuiCard-root::before,
+.MuiDialog-paper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 420px at 12% 0%, rgba(255, 255, 255, 0.02), transparent 55%),
+    radial-gradient(720px 360px at 88% -10%, rgba(34, 211, 238, 0.05), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  opacity: 0.65;
+}
+
+// Rim highlight: ONLY on edges (mask out the center) so it won't brighten the whole surface.
+.MuiPaper-root::after,
+.MuiCard-root::after,
+.MuiDialog-paper::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.38),
+    rgba(34, 211, 238, 0.18),
+    rgba(255, 255, 255, 0.10)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0.7;
+}
+
+// Enable background blur for true "glass" (opt-in via class).
+.ntq-glass-blur {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+// A slightly stronger variant for hero/primary panels.
+.ntq-glass-strong {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow:
+    0 22px 56px rgba(6, 6, 18, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -1px 0 rgba(6, 6, 18, 0.45) !important;
+}
+
+// 当视口宽度 < 1280 时，不再使用 vw 缩放内容宽度：
+// 固定为 1280 并在视口中居中（允许左右等量溢出，用户可横向滚动查看）。
+@media (max-width: 1279.98px) {
+  body {
+    width: $ntq-body-min-width;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .ntq-content-inner,
+  .ntq-content {
+    width: $ntq-body-min-width;
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
 
 code {

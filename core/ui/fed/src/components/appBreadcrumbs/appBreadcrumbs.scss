@@ -1,0 +1,25 @@
+.ntq-breadcrumbs {
+  font-size: 12px;
+  color: var(--ntq-white-75);
+
+  .MuiTypography-root,
+  .MuiLink-root {
+    font-size: 12px;
+  }
+
+  .MuiLink-root {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+      color: var(--ntq-white-98);
+    }
+  }
+}
+
+.ntq-breadcrumbs__current {
+  font-weight: 600;
+}
+

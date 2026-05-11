@@ -1,0 +1,94 @@
+// Full-width banner; inner content constrained by .ntq-content-inner
+.ntq-page-banner {
+  // Use viewport width (100vw) and center it, so it can bleed outside the constrained main content.
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  min-height: 116px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.03);
+
+  // Background image layer (blurred), fills full width
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -20px;
+    background-image: var(--ntq-banner-bg);
+    background-size: cover;
+    background-position: center;
+    filter: blur(18px);
+    transform: scale(1.04);
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  // Gradient mask so banner blends into page background naturally
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(6, 6, 18, 0.15) 0%,
+      rgba(6, 6, 18, 0.35) 15%,
+      rgba(6, 6, 18, 0.35) 85%,
+      rgba(6, 6, 18, 0.15) 100%
+    );
+    pointer-events: none;
+  }
+}
+
+// When body is forced to 1280px (small viewports), the banner should follow the same width
+// so it still "fills" the scrollable page width rather than the viewport width.
+@media (max-width: 1279.98px) {
+  .ntq-page-banner {
+    width: 1280px;
+    margin-left: 0;
+    margin-right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.ntq-page-banner__inner {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  padding: 24px 0;
+}
+
+.ntq-page-banner__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ntq-page-banner__right {
+  flex: 0 0 auto;
+  padding-top: 4px;
+}
+
+.ntq-page-banner__title {
+  font-weight: 700;
+  margin: 0 0 16px 0 !important;
+  font-size: 28px !important;
+}
+
+.ntq-page-banner__desc {
+  margin: 0;
+  line-height: 2 !important;
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--ntq-white-12);
+    background: var(--ntq-white-03);
+    color: var(--ntq-white-98);
+  }
+}
+

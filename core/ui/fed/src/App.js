@@ -8,10 +8,32 @@ import SetupGuard from 'components/setupGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
-import JsonFieldTestPage from './pages/jsonFieldTestPage';
 import ScanPage from './pages/scanPage';
 
-const theme = createTheme();
+const theme = createTheme({
+  palette: {
+    mode: 'dark',
+    // new-tea site tokens: ink background + cyan/violet accent family
+    primary: { main: '#22D3EE' }, // cyan
+    secondary: { main: '#A855F7' }, // violet
+    background: {
+      default: '#060612', // ink
+      paper: 'rgba(255, 255, 255, 0.06)', // glass surface
+    },
+    text: {
+      primary: 'rgba(255, 255, 255, 0.98)',
+      secondary: 'rgba(255, 255, 255, 0.75)',
+    },
+    divider: 'rgba(255, 255, 255, 0.12)',
+  },
+  shape: { borderRadius: 5 },
+  typography: {
+    fontFamily:
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+    h6: { fontWeight: 700 },
+    button: { textTransform: 'none', fontWeight: 650, fontSize: 13, letterSpacing: '0.2px' },
+  },
+});
 
 function App() {
   return (
@@ -46,7 +68,6 @@ function App() {
               path="/settings"
               element={<ComingSoonPage title="设置" description="系统、数据路径与运行参数等将在此配置。" />}
             />
-            <Route path="/test/json-fields" element={<JsonFieldTestPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/strategy-workbench" replace />} />
         </Routes>

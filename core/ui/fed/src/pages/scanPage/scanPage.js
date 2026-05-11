@@ -28,6 +28,7 @@ import {
   getStrategyWorkbenchPath,
   startStrategyScan,
 } from '../../api/apis/strategyApi';
+import PageLayout from '../../components/pageLayout/pageLayout';
 import './scanPage.scss';
 
 const PROTOTYPE_DATA_ASOF_DATE = '2025-12-30';
@@ -276,22 +277,24 @@ function ScanPage() {
   }, [mode, rows, running, runningJobId, runningStrategyId]);
 
   return (
-    <Box className="scan-page" sx={{ p: 2, width: '100%' }}>
-      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
-        <Box>
-          <Typography component="h1" variant="h5" sx={{ fontWeight: 700, mb: 0.75 }}>
-            机会扫描
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            勾选下方<strong>已启用</strong>的策略，对当前市场机会进行批量扫描；每个策略按其配置的标的域（target）分别执行。
-          </Typography>
-        </Box>
+    <PageLayout
+      className="scan-page"
+      breadcrumbsItems={[{ label: '策略工作台', to: '/strategy-workbench' }]}
+      breadcrumbsCurrent="机会扫描"
+      bannerTitle="机会扫描"
+      bannerDescription={(
+        <>
+          勾选下方<strong>已启用</strong>的策略，对当前市场机会进行批量扫描；每个策略按其配置的标的域（target）分别执行。
+        </>
+      )}
+      bannerRightSlot={(
         <Chip
           label={running ? '扫描中…' : '就绪'}
           color={running ? 'warning' : 'default'}
           variant={running ? 'filled' : 'outlined'}
         />
-      </Stack>
+      )}
+    >
 
       <Card variant="outlined" sx={{ mb: 2 }}>
         <CardContent>
@@ -407,7 +410,7 @@ function ScanPage() {
       </Card>
 
       {reportVisible ? (
-        <Card variant="outlined">
+      <Card variant="outlined">
           <CardContent>
             <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} sx={{ mb: 1 }}>
               <Typography variant="subtitle1" fontWeight={700}>扫描报告</Typography>
@@ -557,7 +560,7 @@ function ScanPage() {
           <Button onClick={closeDetail}>关闭</Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </PageLayout>
   );
 }
 

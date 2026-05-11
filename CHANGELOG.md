@@ -5,14 +5,15 @@
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
 新版本更新清单：
-[] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
-[] 更改system.py里的版本
-[] 同步版本徽章
-[] 更新readme文档（模块readme，API，module_info）
-[] 确保所有test都能跑过
-[] Changlog 里注明改动和可能存在的破坏性改动
+[x] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
+[x] 更改system.py里的版本
+[x] 同步版本徽章
+[x] 检查是不是正确配置了gitignore
+[x] Changlog 里注明改动和可能存在的破坏性改动
+[x] 更新模块文档（模块readme，API，module_info）
+[x] 确保所有test都能跑过
 [] 检查安装依赖的数据是不是齐全，是不是足够新
-[] 检查是不是正确配置了gitignore
+[] 更新项目README文档
 
 ---
 

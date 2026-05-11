@@ -68,6 +68,53 @@ class JobResult:
         return f"JobResult(job_id={self.job_id}, status={self.status.value}, duration={self.duration:.2f}s)"
 
 
+def _execute_single_job_static(job: Dict[str, Any], job_executor: Callable) -> JobResult:
+    """Top-level job runner for ProcessPoolExecutor.
+
+    Important: must be a module-level function so the executor doesn't pickle the ProcessWorker
+    instance (which may contain non-picklable callbacks like on_job_done).
+    """
+    start_time = datetime.now()
+    try:
+        # Reset DB default in child process (same intent as ProcessWorker._execute_single_job).
+        if mp.current_process().name != "MainProcess":
+            try:
+                from core.infra.db import DatabaseManager
+
+                DatabaseManager.reset_default()
+            except Exception:
+                pass
+
+        if job_executor is None:
+            raise ValueError("Job executor not set")
+        payload = job.get('payload') if 'payload' in job else job.get('data')
+        if payload is None:
+            raise ValueError(f"Job {job.get('id', 'unknown')} missing 'payload' or 'data' key")
+        result_data = job_executor(payload)
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        return JobResult(
+            job_id=job.get('id', 'unknown'),
+            status=JobStatus.COMPLETED,
+            result=result_data,
+            start_time=start_time,
+            end_time=end_time,
+            duration=duration,
+        )
+    except Exception as e:
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        logger.exception(f"Job {job.get('id', 'unknown')} failed with error: {e}")
+        return JobResult(
+            job_id=job.get('id', 'unknown'),
+            status=JobStatus.FAILED,
+            error=str(e),
+            start_time=start_time,
+            end_time=end_time,
+            duration=duration,
+        )
+
+
 class ProgressReportMode(Enum):
     """进度日志上报模式"""
     NONE = "none"
@@ -614,7 +661,7 @@ class ProcessWorker:
             # 初始填充进程池
             while submitted_count < self.max_workers and submitted_count < len(self.job_queue):
                 job = self.job_queue[submitted_count]
-                future = executor.submit(self._execute_single_job, job)
+                future = executor.submit(_execute_single_job_static, job, self.job_executor)
                 future_to_job[future] = job
                 submitted_count += 1
                 self._emit_progress_event(
@@ -663,7 +710,7 @@ class ProcessWorker:
                     # 提交新任务（如果还有待处理的任务）
                     if submitted_count < len(self.job_queue):
                         next_job = self.job_queue[submitted_count]
-                        future = executor.submit(self._execute_single_job, next_job)
+                        future = executor.submit(_execute_single_job_static, next_job, self.job_executor)
                         future_to_job[future] = next_job
                         submitted_count += 1
                         self._emit_progress_event(
@@ -761,7 +808,7 @@ class ProcessWorker:
             )
             # 提交所有任务到进程池
             future_to_job = {
-                executor.submit(self._execute_single_job, job): job 
+                executor.submit(_execute_single_job_static, job, self.job_executor): job
                 for job in batch
             }
             

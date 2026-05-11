@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import logging
 
 from core.modules.strategy.engines.scanner.data_classes.settings import StrategyScannerSettings
@@ -37,12 +37,12 @@ class Scanner:
         self.cache_manager = ScanCacheManager(self.strategy_name, self.settings.max_cache_days)
         self.adapter_dispatcher = AdapterDispatcher(self.strategy_name)
 
-    def scan(self) -> Dict[str, Any]:
+    def scan(self, *, on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
         scan_date, stock_ids = self.date_resolver.resolve_scan_date(
             use_strict=self.settings.use_strict_previous_trading_day
         )
         self.cache_manager.cleanup_old_cache()
-        opportunities = self._scan_stocks(scan_date, stock_ids)
+        opportunities = self._scan_stocks(scan_date, stock_ids, on_job_done=on_job_done)
         if opportunities:
             self.cache_manager.save_opportunities(scan_date, opportunities)
         summary = self._calculate_summary(opportunities)
@@ -58,7 +58,13 @@ class Scanner:
             "summary": summary,
         }
 
-    def _scan_stocks(self, scan_date: str, stock_ids: List[str]) -> List[Opportunity]:
+    def _scan_stocks(
+        self,
+        scan_date: str,
+        stock_ids: List[str],
+        *,
+        on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> List[Opportunity]:
         from core.infra.worker import ProcessExecutionMode, ProcessWorker
 
         info = self._strategy_info
@@ -78,6 +84,7 @@ class Scanner:
             max_workers=ProcessWorker.resolve_max_workers(self.settings.max_workers, module_name="Scanner"),
             execution_mode=ProcessExecutionMode.QUEUE,
             job_executor=Scanner._execute_single_job,
+            on_job_done=on_job_done if callable(on_job_done) else None,
             is_verbose=self.is_verbose,
         )
         worker_pool.run_jobs([{"id": job["stock_id"], "payload": job} for job in jobs])

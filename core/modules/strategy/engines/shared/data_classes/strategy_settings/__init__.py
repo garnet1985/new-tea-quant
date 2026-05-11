@@ -1,26 +1,12 @@
 #!/usr/bin/env python3
-"""Strategy settings dataclasses under engines.shared."""
+"""Strategy settings dataclasses under engines.shared.
 
-from .strategy_settings import (
-    AllocationConfig,
-    BaseSettings,
-    CapitalAllocationSettings,
-    EnumeratorSettings,
-    OutputConfig,
-    ScannerSettings,
-    SettingsBase,
-    StrategyCapitalSimulatorSettings,
-    StrategyDataSettings,
-    StrategyEnumeratorSettings,
-    StrategyGoalSettings,
-    StrategyMetaSettings,
-    StrategyPriceFactorSimulationSettings,
-    StrategyPriceSimulatorSettings,
-    StrategySamplingSettings,
-    StrategyScannerSettings,
-    StrategySettings,
-    ValidationReport,
-)
+Keep imports lazy to avoid circular-import issues under multiprocessing spawn.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 __all__ = [
     "AllocationConfig",
@@ -42,3 +28,21 @@ __all__ = [
     "StrategySettings",
     "ValidationReport",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in ("SettingsBase", "ValidationReport"):
+        from .settings_base import SettingsBase, ValidationReport
+
+        return SettingsBase if name == "SettingsBase" else ValidationReport
+
+    # The remaining dataclasses live in strategy_settings.py
+    from . import strategy_settings as _m
+
+    if hasattr(_m, name):
+        return getattr(_m, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)

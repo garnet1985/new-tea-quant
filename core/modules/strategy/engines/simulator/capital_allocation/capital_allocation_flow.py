@@ -83,7 +83,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
 
         data_mgr = DataManager(is_verbose=False)
         latest_completed_trading_date = str(
-            data_mgr.service.calendar.get_latest_completed_trading_date() or ""
+            data_mgr.stock.kline.load_latest_date("daily")
+            or data_mgr.service.calendar.get_latest_completed_trading_date()
+            or ""
         ).strip()
 
         resolved = resolve_db_cache_fingerprints(

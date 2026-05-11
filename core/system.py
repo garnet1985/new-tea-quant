@@ -10,12 +10,19 @@ from typing import Any, Dict, List, Tuple
 
 class SystemMeta:
     def __init__(self) -> None:
-        self._version = "0.2.2"
-        self._release_date = "2026-04-21"
+        self._version = "0.3.0"
+        self._release_date = "2026-05-11"
         self._description = "版本发布"
         # 与 JSON/序列化习惯一致用 list；比较时再转成 tuple
         self.python = {"minimum": [3, 9]}
-        self.new_features: List[str] = []
+        self.new_features: List[str] = [
+            "重大更新：UI 系统发布（BFF + FED），引入 Node.js 依赖",
+            "加入 Launder.py：一键启动与安装引导",
+            "完成策略工作台与策略扫描的 UI 能力",
+            "对齐 UI 与命令行的 Report 输出与展示",
+            "回测加入缓存：重复回测将直接返回 Report",
+            "Strategy 模块重构：按 flow 组织，更直观可维护",
+        ]
 
     @property
     def version(self) -> str:

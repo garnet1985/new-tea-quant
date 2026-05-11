@@ -299,6 +299,153 @@ class EnumeratorReport(ReportBase):
         )
 
     @classmethod
+    def from_per_stock_bundles(
+        cls,
+        bundles_by_stock: Dict[str, Dict[str, Any]],
+        *,
+        stock_universe: List[str],
+    ) -> "EnumeratorReport":
+        """由各 job 在内存中带回的摘要生成报告，避免跑完后再读每只股票的 CSV。
+
+        每股 ``bundles_by_stock[sid]`` 须含：
+        ``stock_name``, ``opportunity_count``, ``report_completed_count``, ``report_unfinished_count``,
+        ``status_completed_count``, ``trigger_gap_days``（list[float]）,
+        ``holding_duration_days``（list[float]）。
+        缺股的 key 视为无机会。
+        """
+        total_stocks = len(stock_universe)
+        if total_stocks <= 0:
+            return cls.from_opportunities_with_total_stocks(opportunities=[], total_stocks_hint=0)
+
+        def _bundle_for(sid: str) -> Dict[str, Any]:
+            raw = bundles_by_stock.get(sid)
+            return raw if isinstance(raw, dict) else {}
+
+        total_opportunities = 0
+        completed_count = 0
+        unfinished_count = 0
+        gaps: List[float] = []
+        durations: List[float] = []
+        trigger_stocks = 0
+
+        for sid in stock_universe:
+            b = _bundle_for(sid)
+            n = int(b.get("opportunity_count") or 0)
+            total_opportunities += n
+            completed_count += int(b.get("report_completed_count") or 0)
+            unfinished_count += int(b.get("report_unfinished_count") or 0)
+            if n > 0:
+                trigger_stocks += 1
+            gaps.extend(float(x) for x in (b.get("trigger_gap_days") or []) if isinstance(x, (int, float)))
+            durations.extend(float(x) for x in (b.get("holding_duration_days") or []) if isinstance(x, (int, float)))
+
+        unfinished_count = max(unfinished_count, total_opportunities - completed_count)
+        trigger_ratio = round(ReportBase.safe_div(trigger_stocks, total_stocks) * 100.0, 1)
+        avg_per_stock = round(ReportBase.safe_div(total_opportunities, trigger_stocks), 2) if trigger_stocks else 0.0
+        completed_ratio = round(ReportBase.safe_div(completed_count, total_opportunities) * 100.0, 1)
+
+        per_stock_counts = sorted(
+            float(_bundle_for(sid).get("opportunity_count") or 0)
+            for sid in stock_universe
+            if int(_bundle_for(sid).get("opportunity_count") or 0) > 0
+        )
+        percentile_labels = [
+            "10%分位",
+            "20%分位",
+            "30%分位",
+            "40%分位",
+            "50%分位",
+            "60%分位",
+            "70%分位",
+            "80%分位",
+            "90%分位",
+        ]
+        percentile_values = [
+            round(cls._quantile(per_stock_counts, q), 2)
+            for q in (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+        ]
+        all_stock_count_ints = [int(x) for x in per_stock_counts]
+        zero_count_stocks = max(0, total_stocks - trigger_stocks)
+        if zero_count_stocks > 0:
+            all_stock_count_ints.extend([0] * zero_count_stocks)
+        (
+            opportunity_count_min,
+            opportunity_count_max,
+            opportunity_count_bucket_count,
+            opportunity_count_labels,
+            opportunity_count_stock_counts,
+            opportunity_count_stock_ratios,
+        ) = cls._build_opportunity_count_buckets(
+            all_stock_count_ints,
+            total_stocks=total_stocks,
+            target_bucket_count=5,
+        )
+
+        stock_rows: List[Dict[str, Any]] = []
+        for sid in stock_universe:
+            b = _bundle_for(sid)
+            count_i = int(b.get("opportunity_count") or 0)
+            if count_i <= 0:
+                continue
+            completed_i = int(b.get("status_completed_count") or 0)
+            row_completion = round(ReportBase.safe_div(completed_i, count_i) * 100.0, 1)
+            tg = b.get("trigger_gap_days") or []
+            gaps_i = [float(x) for x in tg if isinstance(x, (int, float))]
+            avg_gap_i = round(ReportBase.safe_div(sum(gaps_i), len(gaps_i)), 1) if gaps_i else 0.0
+            stock_rows.append(
+                {
+                    "stock_id": sid,
+                    "stock_name": str(b.get("stock_name") or sid),
+                    "opportunities": count_i,
+                    "completion_rate": row_completion,
+                    "trigger_span_days": avg_gap_i,
+                }
+            )
+        stock_rows.sort(key=lambda r: int(r.get("opportunities") or 0), reverse=True)
+        stock_rows = stock_rows[:100]
+
+        mean_gap = round(ReportBase.safe_div(sum(gaps), len(gaps)), 2) if gaps else 0.0
+        mean_duration = round(ReportBase.safe_div(sum(durations), len(durations)), 2) if durations else 0.0
+        if gaps:
+            mean = sum(gaps) / len(gaps)
+            variance = sum((x - mean) ** 2 for x in gaps) / len(gaps)
+            std_gap = round(variance ** 0.5, 2)
+        else:
+            std_gap = 0.0
+        cv = round(ReportBase.safe_div(std_gap, mean_gap), 2) if mean_gap > 0 else 0.0
+        if cv < 0.45:
+            dispersion = "机会出现较均匀，节奏相对稳定"
+        elif cv < 0.8:
+            dispersion = "机会有一定聚集，节奏波动中等"
+        else:
+            dispersion = "机会集中出现，节奏波动较大"
+
+        return cls(
+            total_opportunities=total_opportunities,
+            total_stocks=total_stocks,
+            trigger_stocks=trigger_stocks,
+            trigger_ratio=trigger_ratio,
+            avg_per_stock=avg_per_stock,
+            completed_ratio=completed_ratio,
+            completed_count=completed_count,
+            unfinished_count=unfinished_count,
+            mean_gap=mean_gap,
+            mean_duration=mean_duration,
+            std_gap=std_gap,
+            cv=cv,
+            dispersion_conclusion=dispersion,
+            percentile_labels=percentile_labels,
+            percentile_values=percentile_values,
+            opportunity_count_min=opportunity_count_min,
+            opportunity_count_max=opportunity_count_max,
+            opportunity_count_bucket_count=opportunity_count_bucket_count,
+            opportunity_count_labels=opportunity_count_labels,
+            opportunity_count_stock_counts=opportunity_count_stock_counts,
+            opportunity_count_stock_ratios=opportunity_count_stock_ratios,
+            stock_rows=stock_rows,
+        )
+
+    @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "EnumeratorReport":
         return cls(
             total_opportunities=int(data.get("total_opportunities", 0) or 0),
@@ -329,8 +476,9 @@ class EnumeratorReport(ReportBase):
             stock_rows=list(data.get("stock_rows", []) or []),
         )
 
-    def to_bff_payload(self) -> Dict[str, Any]:
-        return {
+    def to_bff_payload(self, *, include_stock_rows: bool = False) -> Dict[str, Any]:
+        """``include_stock_rows``：逐股明细另存 ``0_stock_ref.json`` 时不写入报告，避免与 ref 重复。"""
+        out: Dict[str, Any] = {
             "enumMetrics": {
                 "totalOpportunities": self.total_opportunities,
                 "totalStocks": self.total_stocks,
@@ -354,8 +502,10 @@ class EnumeratorReport(ReportBase):
                 "opportunityCountStockCounts": self.opportunity_count_stock_counts,
                 "opportunityCountStockRatios": self.opportunity_count_stock_ratios,
             },
-            "stockRows": self.stock_rows,
         }
+        if include_stock_rows:
+            out["stockRows"] = self.stock_rows
+        return out
 
     @classmethod
     def from_bff_payload(cls, payload: Dict[str, Any]) -> "EnumeratorReport":
@@ -430,9 +580,14 @@ class EnumeratorReport(ReportBase):
                 lines.append(f"   ▸ {label} 次: {count} 只 ({ratio}%)")
         return lines
 
-    def write_bff_payload(self, output_dir: Path) -> None:
+    def write_bff_payload(self, output_dir: Path, *, include_stock_rows: bool = False) -> None:
         with (output_dir / "0_report_enum.json").open("w", encoding="utf-8") as f:
-            json.dump(self.to_bff_payload(), f, indent=2, ensure_ascii=False)
+            json.dump(
+                self.to_bff_payload(include_stock_rows=include_stock_rows),
+                f,
+                indent=2,
+                ensure_ascii=False,
+            )
 
     @classmethod
     def load(

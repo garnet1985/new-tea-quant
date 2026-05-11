@@ -83,6 +83,17 @@ class KlineService(BaseDataService):
             最新K线数据，如果不存在返回 None
         """
         return self._stock_kline.load_latest(stock_id)
+
+    def load_latest_date(self, term: str = "daily") -> str:
+        """
+        加载 **全市场** 指定周期最新 K 线日期（YYYYMMDD）。
+
+        与 ``load_latest(stock_id)`` 的区别：
+        - 本方法不依赖单只股票，避免个股缺数导致「最新日期」偏旧。
+        """
+        if not self._stock_kline:
+            return ""
+        return str(self._stock_kline.load_latest_date(term)).strip()
     
     def load_by_date(self, date: str) -> List[Dict[str, Any]]:
         """

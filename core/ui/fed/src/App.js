@@ -9,6 +9,7 @@ import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
 import JsonFieldTestPage from './pages/jsonFieldTestPage';
+import ScanPage from './pages/scanPage';
 
 const theme = createTheme();
 
@@ -30,7 +31,7 @@ function App() {
             <Route path="/strategy-workbench" element={<StrategyListPage />} />
             <Route
               path="/scan"
-              element={<ComingSoonPage title="机会扫描" description="全市场/自选池扫描与结果列表将在此提供。" />}
+              element={<ScanPage />}
             />
             <Route
               path="/advanced"

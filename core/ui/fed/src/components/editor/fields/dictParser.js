@@ -7,6 +7,13 @@ import {
   Typography,
 } from '@mui/material';
 
+/** 与 ``TextField`` multiline 输入一致，供只读 JSON / diff 视图复用核心设置编辑区观感 */
+export const DICT_PARSER_TEXT_FONT = {
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  fontSize: 13,
+  lineHeight: 1.5,
+};
+
 function DictParserField({ field, context = {} }) {
   const sourceKey = field.sourceKey || field.name;
   const parser = context?.[sourceKey];
@@ -75,6 +82,8 @@ function DictParserField({ field, context = {} }) {
         value={parser.value}
         onChange={(e) => parser.onChange(e.target.value)}
         onBlur={parser.onBlur}
+        onKeyUp={parser.onKeyUp}
+        onPaste={parser.onPaste}
         placeholder={field.placeholder || '输入 settings.core（dict）'}
         sx={{
           '& .MuiInputBase-root': {
@@ -83,9 +92,7 @@ function DictParserField({ field, context = {} }) {
           '& .MuiInputBase-inputMultiline': {
             height: '300px !important',
             overflow: 'auto !important',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            fontSize: 13,
-            lineHeight: 1.5,
+            ...DICT_PARSER_TEXT_FONT,
           },
         }}
       />

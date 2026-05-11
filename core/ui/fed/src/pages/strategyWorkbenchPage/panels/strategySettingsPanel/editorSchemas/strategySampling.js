@@ -29,6 +29,9 @@ const DEFAULT_SAMPLING_STRATEGY_OPTIONS = [
 export function normalizeSamplingSettings(sampling) {
   const next = sampling && typeof sampling === 'object' ? { ...sampling } : {};
   if (!next.strategy) next.strategy = STRATEGY_DEFAULT;
+  if (typeof next.use_sampling !== 'boolean') {
+    next.use_sampling = Boolean(next.use_sampling);
+  }
   return next;
 }
 
@@ -51,6 +54,21 @@ export function buildStrategySamplingSchema(samplingStrategyOptions = DEFAULT_SA
     type: 'fieldGroup',
     label: '',
     children: [
+    {
+      name: 'use_sampling',
+      type: 'switch',
+      label: '是否使用采样',
+    },
+    {
+      name: 'sampling.dateRange',
+      label: '时间段',
+      tooltip: '不填写开始或结束日期时，表示使用默认的全部时间区间。',
+      type: 'dateRange',
+      startName: 'start_date',
+      endName: 'end_date',
+      startLabel: '开始日期',
+      endLabel: '结束日期',
+    },
     {
       name: 'strategy',
       type: 'select',

@@ -1,5 +1,5 @@
 /**
- * 报告页「样本股票」表格行 mock（集中于此，便于对接 API 后替换数据源）
+ * 报告页「样本股票」表格行生成（Story / 本地调试）；主界面逐股表仅在接口返回行数据时展示，不再调用此处。
  */
 import { SAMPLE_STOCK_CODES, SAMPLE_STOCK_DISPLAY_NAMES } from './strategyWorkbenchMocks';
 
@@ -17,25 +17,6 @@ export function buildPriceSampleStockRows(metrics) {
       winRate,
       roi,
       holdDays,
-    };
-  });
-}
-
-export function buildEnumSampleStockRows(metrics) {
-  const count = Math.max(10, Math.min(15, metrics.triggerStocks || 10));
-  const avgBase = Number(metrics.avgPerStock || 0);
-  return Array.from({ length: count }).map((_, index) => {
-    const seed = index + 1;
-    const opportunities = Math.max(1, Math.round(avgBase * (0.6 + (seed % 7) * 0.22)));
-    const completionRate = Math.max(35, Math.min(98, Number((metrics.completedRatio + (seed % 5) * 2.2 - 5.5).toFixed(1))));
-    const triggerSpanDays = Math.max(3, Math.round(metrics.meanGap + (seed % 6) * 1.8));
-    return {
-      id: `${SAMPLE_STOCK_CODES[index] || `688${900 + seed}.SH`}-${seed}`,
-      stockCode: SAMPLE_STOCK_CODES[index] || `688${900 + seed}.SH`,
-      stockName: SAMPLE_STOCK_DISPLAY_NAMES[index] || `样本股票${seed}`,
-      opportunities,
-      completionRate,
-      triggerSpanDays,
     };
   });
 }

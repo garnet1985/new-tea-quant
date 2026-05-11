@@ -176,10 +176,70 @@ class App:
         manager = self._ensure_strategy_manager()
         manager.simulate(strategy_name=strategy_name)
     
-    def scan(self, strategy_name: str = None):
-        """扫描投资机会"""
+    def scan(self, strategy_name: str = None, *, demo: bool = False):
+        """扫描投资机会（机会扫描 Scanner）。默认严格模式；demo 模式用于放宽数据对齐校验。"""
         manager = self._ensure_strategy_manager()
-        manager.scan(strategy_name=strategy_name)
+        name = str(strategy_name or "").strip()
+        if not name:
+            logger.error("scan 缺少策略名（请使用 --strategy 或启用至少一个策略）")
+            return
+        info = manager.get_strategy_info(name)
+        if not info:
+            logger.error("策略不存在: %s", name)
+            return
+
+        from core.modules.strategy.engines.scanner.scanner import Scanner
+
+        kline_latest = str(self.data_manager.stock.kline.load_latest_date("daily") or "").strip()
+        if not kline_latest:
+            logger.error("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+            return
+
+        if demo:
+            print(f"🔍 扫描（DEMO）· strategy={name} · asof(kline_latest)={kline_latest}")
+        else:
+            cal_latest = str(self.data_manager.service.calendar.get_latest_completed_trading_date() or "").strip()
+            if not cal_latest:
+                logger.error("无法解析最新已完成交易日（日历服务不可用）")
+                return
+            if cal_latest != kline_latest:
+                logger.error("❌ 数据未对齐最新交易日：calendar=%s，kline=%s", cal_latest, kline_latest)
+                return
+            print(f"🔍 扫描（STRICT）· strategy={name} · latest_completed={cal_latest}")
+
+        last_pct = {"v": -1}
+
+        def _on_job_done(payload: dict) -> None:
+            try:
+                pct = int(payload.get("progress_pct", 0) or 0)
+                if pct >= 100 or pct - last_pct["v"] >= 5:
+                    last_pct["v"] = pct
+                    done = (
+                        int(payload.get("completed_jobs", 0) or 0)
+                        + int(payload.get("failed_jobs", 0) or 0)
+                        + int(payload.get("cancelled_jobs", 0) or 0)
+                    )
+                    total = int(payload.get("total_jobs", 0) or 0)
+                    print(f"  进度：{pct}%（{done}/{total}）", flush=True)
+            except Exception:
+                pass
+
+        scanner = Scanner(
+            strategy_name=info.name,
+            data_manager=self.data_manager,
+            is_verbose=self.is_verbose,
+            strategy_info=info,
+        )
+        # demo 模式：非严格日期解析（以 DB 最新日 kline 为准）
+        if demo:
+            try:
+                scanner.settings.scanner["use_strict_previous_trading_day"] = False
+            except Exception:
+                pass
+
+        report = scanner.scan(on_job_done=_on_job_done)
+        print("✅ 扫描完成")
+        print(report)
     
     def analysis(self, session_id: str = None):
         """
@@ -541,7 +601,7 @@ def _add_extra_arguments(parser):
     parser.add_argument('--stocks', type=int, default=None,
                        help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
     parser.add_argument('-f', '--force', dest='force_enumerate', action='store_true',
-                       help='强制重跑：枚举(-se)跳过 DbCache；价格因子(-sp)跳过 Simulator Res DB 读缓存')
+                       help='强制/放宽模式：scan 时表示 demo；枚举(-se)跳过 DbCache；价格因子(-sp)跳过 Simulator Res DB 读缓存')
     parser.add_argument('--base-date', type=str,
                        help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
     parser.add_argument('-v', '--version', action='store_true',
@@ -748,7 +808,11 @@ class CommandExecutor:
     def _handle_scan(self, args):
         """处理 scan 命令"""
         logger.info("🔍 扫描投资机会...")
-        self.app.scan(strategy_name=args.strategy)
+        strategy = resolve_cli_strategy_name(self.app, args.strategy)
+        if not strategy:
+            return
+        demo = bool(getattr(args, "force_enumerate", False))
+        self.app.scan(strategy_name=strategy, demo=demo)
     
     def _handle_simulate(self, args):
         """

@@ -9,14 +9,14 @@
 
 顶层 **惰性导出**，减轻初始化阶段导入负担。
 
-运行期请求指纹与枚举 universe 解析在 ``strategy.services.runtime``（非 DbCache 子包）。
+运行期请求指纹与枚举 universe 解析在 ``strategy.services.launcher``（非 DbCache 子包）。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from ....runtime.run_types import StrategyRunFingerprint
+from ....launcher.run_types import StrategyRunFingerprint
 
 _RUNTIME_SERVICE = frozenset({"StrategyFingerprintManager", "StrategyFingerprintRuntimeService"})
 _SETTINGS_RESOLVER = frozenset(
@@ -68,7 +68,7 @@ __all__ = [
 
 def __getattr__(name: str) -> Any:
     if name in _RUNTIME_SERVICE:
-        from ....runtime import run_service
+        from ....launcher import run_service
 
         return getattr(run_service, name)
     if name in _SETTINGS_RESOLVER:

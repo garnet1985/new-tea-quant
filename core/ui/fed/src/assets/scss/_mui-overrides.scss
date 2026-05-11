@@ -42,7 +42,7 @@
 }
 
 .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(34, 211, 238, 0.55);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .MuiOutlinedInput-input {
@@ -59,6 +59,49 @@
   padding: 10px 12px;
 }
 
+// --- Dropdowns (Select / Menu) ---
+// Global dropdown font sizing
+.MuiSelect-select {
+  font-size: 12px !important;
+}
+
+.MuiMenuItem-root {
+  font-size: 12px !important;
+}
+
+.MuiListSubheader-root {
+  font-size: 12px !important;
+}
+
+// Menu/Popover paper: keep readable, but DO NOT blur globally
+.MuiMenu-paper,
+.MuiPopover-paper {
+  background-color: rgba(0, 0, 0, 0.78) !important;
+  border: 1px solid var(--ntq-white-12);
+  color: var(--ntq-text);
+}
+
+// Keep dropdown option typography consistent (avoid mixed sizes from nested Typography)
+.MuiMenu-paper,
+.MuiPopover-paper {
+  .MuiMenuItem-root,
+  .MuiListSubheader-root {
+    font-size: 12px;
+    line-height: 1.25;
+    padding: 8px 14px;
+  }
+
+  .MuiMenuItem-root {
+    min-height: 36px;
+  }
+
+  .MuiMenuItem-root .MuiTypography-root,
+  .MuiListSubheader-root .MuiTypography-root {
+    font-size: inherit;
+    line-height: inherit;
+  }
+}
+
 // --- Buttons (base typography) ---
 .MuiButton-root {
   text-transform: none;
@@ -66,8 +109,8 @@
 
 // --- Chips / tags ---
 .MuiChip-root {
-  border-radius: 5px;
-  font-size: 12px;
+  border-radius: 5px !important;
+  font-size: 11px !important;
   font-weight: 650;
   border: 1px solid var(--ntq-white-12);
   background: var(--ntq-white-03);
@@ -75,6 +118,7 @@
   -webkit-backdrop-filter: blur(10px);
   height: auto;
   line-height: 1.2;
+  color: var(--ntq-text);
 }
 
 .MuiChip-sizeSmall {
@@ -84,5 +128,28 @@
 .MuiChip-labelSmall {
   padding-left: 0;
   padding-right: 0;
+}
+
+// --- Accordions ---
+// Stack accordion items with shared borders.
+.MuiAccordion-root {
+  &.Mui-expanded {
+    margin: 0;
+  }
+}
+
+.MuiAccordion-root + .MuiAccordion-root {
+  margin-top: -1px;
+}
+
+// Compact dropdown text (opt-in via className)
+.ntq-compact-dropdown {
+  .MuiSelect-select {
+    font-size: 12px;
+  }
+
+  .MuiSvgIcon-root {
+    font-size: 18px;
+  }
 }
 

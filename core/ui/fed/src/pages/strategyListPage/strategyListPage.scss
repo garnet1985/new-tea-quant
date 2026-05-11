@@ -66,7 +66,7 @@
   border-radius: 5px !important;
   border: 1px solid var(--ntq-white-12) !important;
   background: var(--ntq-white-03) !important;
-  color: var(--ntq-white-98) !important;
+  color: var(--ntq-text) !important;
   padding: 0 14px !important;
   line-height: 1 !important;
 
@@ -74,6 +74,12 @@
     background: var(--ntq-white-06) !important;
     border-color: rgba(255, 255, 255, 0.18) !important;
   }
+}
+
+.strategy-list-refresh-icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.9;
 }
 
 .strategy-list-grid-body {

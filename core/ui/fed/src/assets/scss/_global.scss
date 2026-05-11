@@ -29,6 +29,16 @@ body {
   --ntq-violet: #a855f7;
   --ntq-green: #22c55e;
 
+  // Unified text tones (only 2 whites)
+  --ntq-text: rgba(255, 255, 255, 0.86);
+  --ntq-text-muted: rgba(255, 255, 255, 0.62);
+
+  // Global glass background used by large blocks
+  --ntq-glass-bg:
+    radial-gradient(900px 420px at 12% 0%, rgba(255, 255, 255, 0.02), transparent 55%),
+    radial-gradient(720px 360px at 88% -10%, rgba(34, 211, 238, 0.04), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+
   // new-tea style background: noise + glow + ink gradient
   background-color: var(--ntq-ink);
   background-image:
@@ -61,6 +71,19 @@ body {
   overflow: hidden;
 }
 
+// Dialog backdrop: blur what's behind the popup
+.MuiBackdrop-root {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background-color: rgba(6, 6, 18, 0.52);
+}
+
+// Dialog surface: darker glass for readability (avoid "white-ish" panels)
+.MuiDialog-paper {
+  background-color: rgba(0, 0, 0, 0.90) !important;
+  background-image: var(--ntq-glass-bg);
+}
+
 // Refraction highlight / edge bloom
 .MuiPaper-root::before,
 .MuiCard-root::before,
@@ -69,10 +92,7 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(900px 420px at 12% 0%, rgba(255, 255, 255, 0.02), transparent 55%),
-    radial-gradient(720px 360px at 88% -10%, rgba(34, 211, 238, 0.05), transparent 58%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  background: var(--ntq-glass-bg);
   opacity: 0.65;
 }
 
@@ -86,12 +106,7 @@ body {
   pointer-events: none;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.38),
-    rgba(34, 211, 238, 0.18),
-    rgba(255, 255, 255, 0.10)
-  );
+  background: var(--ntq-glass-bg);
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);

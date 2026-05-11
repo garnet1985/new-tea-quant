@@ -55,7 +55,7 @@
 }
 
 .ntq-brand__version {
-  color: var(--ntq-white-75);
+  color: var(--ntq-text-muted);
   line-height: 1;
 }
 
@@ -71,7 +71,7 @@
   border-radius: 0 !important; // override MUI global button radius
   border: none;
   background: transparent;
-  color: var(--ntq-white-98);
+  color: var(--ntq-text);
   transition: background 180ms ease, color 180ms ease;
   padding-left: 18px !important;
   padding-right: 18px !important;
@@ -79,7 +79,7 @@
 
   &:hover {
     background: var(--ntq-white-06);
-    color: var(--ntq-white-98);
+    color: var(--ntq-text);
   }
 
   &:active {

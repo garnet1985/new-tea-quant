@@ -561,7 +561,7 @@ function StrategyWorkbenchPage() {
       ]}
       breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
       bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
-      bannerDescription="在左侧调整 settings，按步骤执行枚举/回测并查看报告；支持版本对比与结果复现。"
+      bannerDescription="您可以在左侧调整设置参数，然后在执行步骤面板按步骤执行回测和查看报告；也可以支持版本对比与结果复现。"
     >
       <StrategySettingsContainer initialSettings={initialSettings}>
         {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
@@ -609,13 +609,6 @@ function StrategyWorkbenchPage() {
                 gap: 1.5,
               }}
             >
-              <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
-                策略调试
-                {strategyName ? ` — ${strategyName}` : ''}
-              </Typography>
-              <Typography color="text.secondary">
-                策略作用是调参数并观察结果变化。本页设置区已接入 BFF `SWB-04/05`。
-              </Typography>
               {isLoadingSettings ? (
                 <Typography variant="body2" color="text.secondary">
                   正在加载策略配置...
@@ -653,15 +646,6 @@ function StrategyWorkbenchPage() {
                 }}
               >
                 <Stack spacing={1}>
-                  <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Typography variant="subtitle2" fontWeight={700}>工作台与策略目录</Typography>
-                    <Tooltip title="左侧改动默认保存在 DB 快照（执行任一步会先 PUT 快照）；「应用当前工作台版本到策略」才把当前参数写入 userspace 下的 settings.py。">
-                      <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    </Tooltip>
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary">
-                    字段合法性以后端校验结果为准；策略目录文件仅在显式发布时覆盖。
-                  </Typography>
                   <Box
                     sx={{
                       display: 'flex',
@@ -672,7 +656,7 @@ function StrategyWorkbenchPage() {
                     }}
                   >
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
-                      <Typography variant="body2">选中快照：<strong>{workspaceVersionLabel}</strong></Typography>
+                      <Typography variant="body2">当前工作台快照：<strong>{workspaceVersionLabel}</strong></Typography>
                       <Typography variant="body2">加载来源：<strong>{appliedVersionLabel}</strong></Typography>
                       {isAppliedSettings ? (
                         <Chip size="small" color="success" label="草稿与基线一致" />
@@ -690,8 +674,9 @@ function StrategyWorkbenchPage() {
                           onChange={handleRestoreMenuChange}
                           disabled={disableSettingsActions}
                           sx={{ minWidth: 168 }}
+                          className="ntq-compact-dropdown"
                         >
-                          <ListSubheader disableSticky sx={{ lineHeight: '32px', py: 0 }}>
+                          <ListSubheader disableSticky>
                             恢复到版本…
                           </ListSubheader>
                           {restoreDropdownVersions.map((version) => (

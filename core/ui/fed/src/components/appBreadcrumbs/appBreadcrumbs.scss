@@ -1,6 +1,6 @@
 .ntq-breadcrumbs {
   font-size: 12px;
-  color: var(--ntq-white-75);
+  color: var(--ntq-text-muted);
 
   .MuiTypography-root,
   .MuiLink-root {
@@ -14,7 +14,7 @@
 
     &:hover {
       text-decoration: underline;
-      color: var(--ntq-white-98);
+      color: var(--ntq-text);
     }
   }
 }

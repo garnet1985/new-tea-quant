@@ -17,6 +17,7 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import SearchIcon from '@mui/icons-material/Search';
 import { fetchStrategyList, getStrategyWorkbenchPath } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import { ReactComponent as RefreshIcon } from '../../assets/icon/refresh.svg';
 import './strategyListPage.scss';
 
 function StrategyListPage() {
@@ -144,6 +145,7 @@ function StrategyListPage() {
             onClick={load}
             disabled={loading}
             className="strategy-list-refresh-btn"
+            startIcon={<RefreshIcon className="strategy-list-refresh-icon" />}
           >
             刷新策略
           </Button>

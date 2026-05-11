@@ -1,0 +1,32 @@
+.ntq-exec-step-grid {
+  display: grid;
+  grid-template-columns: 48px minmax(110px, 160px) minmax(420px, 1fr) 200px;
+  gap: 8px;
+  align-items: center;
+}
+
+.ntq-exec-step-no {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--ntq-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ntq-text);
+}
+
+.ntq-exec-step-title {
+  min-width: 0;
+}
+
+.ntq-exec-compare {
+  padding-right: 4px;
+}
+
+.ntq-exec-compare__select {
+  min-width: 168px;
+}
+

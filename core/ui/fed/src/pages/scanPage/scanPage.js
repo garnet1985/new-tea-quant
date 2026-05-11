@@ -31,6 +31,18 @@ import {
 import './scanPage.scss';
 
 const PROTOTYPE_DATA_ASOF_DATE = '2025-12-30';
+// 报告生成时间（可选显示）
+const SHOW_REPORT_GENERATED_AT = false;
+
+function formatScanDate(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return '';
+  // yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  // yyyymmdd
+  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  return raw;
+}
 
 function ScanPage() {
   const [mode, setMode] = useState('demo');
@@ -44,9 +56,12 @@ function ScanPage() {
   const [progress, setProgress] = useState({ pct: 0, label: '准备扫描…' });
 
   const [results, setResults] = useState({}); // strategy_id -> report payload
-  const [reportMeta, setReportMeta] = useState('');
   const [reportVisible, setReportVisible] = useState(false);
   const [reportStrategyId, setReportStrategyId] = useState('');
+  const [reportStrategyName, setReportStrategyName] = useState('');
+  const [scanTriggeredAt, setScanTriggeredAt] = useState('');
+  const [reportGeneratedAt, setReportGeneratedAt] = useState('');
+  const [reportDemo, setReportDemo] = useState(null); // null | boolean
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStrategyId, setDetailStrategyId] = useState('');
@@ -56,6 +71,10 @@ function ScanPage() {
 
   const reportPayload = useMemo(() => results?.[reportStrategyId] || null, [results, reportStrategyId]);
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
+  const detailStrategyName = useMemo(() => {
+    if (!detailStrategyId) return '';
+    return rows.find((r) => r.id === detailStrategyId)?.name || detailStrategyId;
+  }, [detailStrategyId, rows]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -163,6 +182,7 @@ function ScanPage() {
                 setRunError('');
                 setReportVisible(false);
                 setReportStrategyId('');
+                setScanTriggeredAt(new Date().toLocaleString('zh-CN', { hour12: false }));
                 setProgress({ pct: 0, label: '准备扫描…' });
                 startStrategyScan(params.row.name, { demo: mode === 'demo' })
                   .then((res) => {
@@ -170,6 +190,7 @@ function ScanPage() {
                     if (!jobId) throw new Error('启动失败：未返回 job_id');
                     setRunningStrategyId(id);
                     setRunningJobId(jobId);
+                    setReportDemo(Boolean(res?.demo));
                   })
                   .catch((err) => {
                     setRunError(err?.message || '启动扫描失败');
@@ -221,11 +242,10 @@ function ScanPage() {
           if (status === 'completed') {
             const report = p?.report && typeof p.report === 'object' ? p.report : {};
             setResults((prev) => ({ ...(prev || {}), [runningStrategyId]: report }));
-            const modeLabel = mode === 'strict'
-              ? '严格模式（服务端校验数据已对齐最新交易日）'
-              : `扫描演示（截止 ${PROTOTYPE_DATA_ASOF_DATE}）`;
-            setReportMeta(`${modeLabel} · ${new Date().toLocaleString('zh-CN', { hour12: false })}`);
             setReportStrategyId(runningStrategyId);
+            setReportStrategyName(strategyName);
+            setReportGeneratedAt(new Date().toLocaleString('zh-CN', { hour12: false }));
+            if (typeof p?.demo === 'boolean') setReportDemo(p.demo);
             setReportVisible(true);
             setRunningStrategyId('');
             setRunningJobId('');
@@ -391,52 +411,139 @@ function ScanPage() {
           <CardContent>
             <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} sx={{ mb: 1 }}>
               <Typography variant="subtitle1" fontWeight={700}>扫描报告</Typography>
-              <Typography variant="caption" color="text.secondary">{reportMeta}</Typography>
+              <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+                <Typography variant="caption" color="text.secondary">
+                  扫描当日：{scanTriggeredAt || reportGeneratedAt || '—'}
+                </Typography>
+                {SHOW_REPORT_GENERATED_AT ? (
+                  <Typography variant="caption" color="text.secondary">
+                    报告日期：{reportGeneratedAt || '—'}
+                  </Typography>
+                ) : null}
+              </Stack>
             </Stack>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              策略
+            <Typography variant="body2" sx={{ mb: 0.75 }}>
+              使用策略
               {' '}
-              <strong>{reportStrategyId || '—'}</strong>
+              <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
               {' '}
-              扫描完成；命中
+              扫描完成：共找到
               {' '}
-              <strong>{Number(reportPayload?.total_opportunities ?? 0)}</strong>
+              <Button
+                size="small"
+                variant="text"
+                sx={{ minWidth: 'unset', px: 0.5, fontWeight: 700, lineHeight: 1.2 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!reportStrategyId) return;
+                  openDetail(reportStrategyId);
+                }}
+              >
+                {Number(reportPayload?.total_opportunities ?? 0)}
+              </Button>
               {' '}
-              条机会，覆盖
-              {' '}
-              <strong>{Number(reportPayload?.total_stocks ?? 0)}</strong>
-              {' '}
-              只股票。
+              个机会
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              正式环境：严格模式下若数据未更新至最新交易日将拦截；演示模式以数据集中最新已有交易日为截止。
+            <Box sx={{ pl: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+                - 扫描日期：{formatScanDate(reportPayload?.date) || '—'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
+                - 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
+              </Typography>
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              请点击表格里的机会数量查看详情。
             </Typography>
           </CardContent>
         </Card>
       ) : null}
 
-      <Dialog open={detailOpen} onClose={closeDetail} maxWidth="sm" fullWidth>
+      <Dialog open={detailOpen} onClose={closeDetail} maxWidth="md" fullWidth>
         <DialogTitle>
-          机会明细 · {detailStrategyId || '—'}
+          机会明细 · {detailStrategyName || '—'}
         </DialogTitle>
-        <DialogContent dividers>
+        <DialogContent dividers sx={{ height: 520 }}>
           {detailPayload ? (
             <>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                当前后端 report 为摘要；机会明细（股票列表/建议买入价）将于下一步在扫描结果落盘后补齐。
+                机会明细与 CLI 输出对齐；可分页查看。
               </Typography>
-              <Box sx={{ width: '100%' }}>
+              {(() => {
+                const rows0 = Array.isArray(detailPayload?.opportunities) ? detailPayload.opportunities : [];
+                const dates = Array.from(new Set(
+                  rows0
+                    .map((o) => formatScanDate(o?.trigger_date || o?.triggerDate))
+                    .filter(Boolean),
+                ));
+                if (!dates.length) return null;
+                dates.sort();
+                const label = dates.length === 1 ? dates[0] : `${dates[0]} ~ ${dates[dates.length - 1]}（多日）`;
+                return (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                    触发日期：{label}
+                  </Typography>
+                );
+              })()}
+              <Box sx={{ width: '100%', height: 420 }}>
                 <DataGrid
-                  autoHeight
-                  rows={Array.isArray(detailPayload?.summary?.stocks_with_opportunities)
-                    ? detailPayload.summary.stocks_with_opportunities.map((code) => ({ id: code, code }))
-                    : []}
+                  rows={(() => {
+                    const ops = Array.isArray(detailPayload?.opportunities) ? detailPayload.opportunities : null;
+                    if (ops) {
+                      return ops.map((o, idx) => ({
+                        id: String(o?.stock_id || o?.stockId || `${idx}`),
+                        stock_id: String(o?.stock_id || o?.stockId || ''),
+                        stock_name: String(o?.stock_name || o?.stockName || ''),
+                        trigger_price: o?.trigger_price ?? o?.triggerPrice ?? '',
+                        extra_fields: o?.extra_fields ?? o?.extraFields ?? {},
+                      }));
+                    }
+                    const list = Array.isArray(detailPayload?.summary?.stocks_with_opportunities)
+                      ? detailPayload.summary.stocks_with_opportunities
+                      : [];
+                    return list.map((code) => ({ id: code, stock_id: code, stock_name: '', trigger_price: '', extra_fields: {} }));
+                  })()}
                   columns={[
-                    { field: 'code', headerName: '代码', minWidth: 180, flex: 1 },
+                    { field: 'stock_id', headerName: '股票代码', minWidth: 140, flex: 0.6 },
+                    { field: 'stock_name', headerName: '名称', minWidth: 140, flex: 0.6 },
+                    {
+                      field: 'trigger_price',
+                      headerName: '触发价格',
+                      minWidth: 120,
+                      flex: 0.5,
+                      valueFormatter: (v) => (v?.value === '' || v?.value == null ? '—' : String(v.value)),
+                    },
+                    {
+                      field: 'extra_fields',
+                      headerName: '额外信息',
+                      minWidth: 220,
+                      flex: 1,
+                      valueGetter: (params) => {
+                        const v = params?.row?.extra_fields;
+                        if (!v || (typeof v === 'object' && Object.keys(v).length === 0)) return '';
+                        return typeof v === 'string' ? v : JSON.stringify(v);
+                      },
+                      renderCell: (params) => (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        >
+                          {params.value || '—'}
+                        </Typography>
+                      ),
+                    },
                   ]}
                   localeText={zhCN}
                   disableRowSelectionOnClick
-                  hideFooter
+                  pagination
+                  pageSizeOptions={[10, 25, 50]}
+                  initialState={{
+                    pagination: { paginationModel: { page: 0, pageSize: 10 } },
+                  }}
                 />
               </Box>
             </>

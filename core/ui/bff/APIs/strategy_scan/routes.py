@@ -5,11 +5,15 @@ Path prefix mounted at ``/api`` (see ``core/ui/bff/app.py``).
 
 from flask import Blueprint, request
 
+import logging
+
 from core.modules.strategy.services.launcher.scanner_run import (
     get_scan_progress,
     trigger_strategy_scan_run,
 )
 from core.ui.bff.shared.response import error, ok
+
+logger = logging.getLogger(__name__)
 
 
 strategy_scan_api_bp = Blueprint("strategy_scan_api", __name__)
@@ -38,12 +42,15 @@ def post_strategy_scan(strategy_name: str):
     - demo: optional query flag, default false.
     """
     demo = _parse_bool_query(request.args.get("demo"), default=False)
+    logger.info("[bff.scan] POST scan strategy=%s demo=%s", strategy_name, demo)
     out = trigger_strategy_scan_run(strategy_name=strategy_name, demo=demo)
     if not out.get("is_triggered"):
         reason = str(out.get("reason") or "启动扫描失败")
         # Single-flight guard / conflicts return 409 for clearer client handling.
         status = 409 if "运行中" in reason or "扫描任务" in reason else 400
+        logger.warning("[bff.scan] trigger rejected strategy=%s demo=%s status=%s reason=%s", strategy_name, demo, status, reason)
         return error(reason, status)
+    logger.info("[bff.scan] triggered strategy=%s demo=%s job_id=%s", strategy_name, demo, out.get("job_id"))
     return ok({"is_triggered": True, "job_id": out["job_id"], "demo": demo, "strategy_name": strategy_name})
 
 

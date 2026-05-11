@@ -4,15 +4,46 @@
 自 `v0.1.0` 起采用统一版本规范 `v[a].[b].[c]`（a=Version，b=Function，c=Patch）。  
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
+
 ---
 
-### v0.3.0 (TBD)
+### v0.3.2 (TBD)
 
-- (可能引起破坏的改动) 清理文件夹结构，将backup文件夹放入userspace，将docker以及badge生成还有自动更新readme这类代码放入devtools文件夹并更新代码引用和文档
+- 加入updater，可以直接一键升级
+- 清理start cli，清理代码
+
+---
+
+---
+
+### v0.3.1 (TBD)
+
+- 扫描系统加入缓存，如果当日扫描过，将直接返回结果
+- bugfix
+
+---
+
+---
+
+### v0.3.0 (2026-05-11) - 此次版本更新将会引入破坏性改动
+
+- 重大更新：UI系统发布，引入nodejs依赖
+- 加入Launder.py，一键启动app和UI，自动发现app的安装状态，自动引导安装
+- 在核心内加入BFF和UI，引入前端UI
+- 完成策略工作台和策略扫描的UI和BFF
+- 对齐UI和命令行的report，使输出结果保持一致
+- 对命令行和UI的回测加入缓存系统，现在重复的回测会直接返回report
+- 清理文件夹结构，将backup文件夹放入userspace，将docker以及badge生成还有自动更新readme这类代码放入devtools文件夹并更新代码引用和文档
 - 收敛复权因子的逻辑进入model底层，并且为K线复权做了一条特殊快速通道，以便回测减小IO次数
 - 在userspace里放入tables的文件夹，加入文档引导用户建立自己的数据表
-- 在核心内加入BFF和UI，引入前端UI（TODO）
-- 加入Launder.py，一键启动app和UI（TODO）
+- 重构strategy核心模块的组织方式，变成更直观的flow流模式
+
+
+破坏性改动：
+- backup文件夹从更目录移动到了userspace
+- app不再自带userspace文件夹，而是安装的时候自动创建
+- start-cli 的扫描命令现在降级成一次只能用一个策略进行扫描
+- 引入Nodejs依赖
 
 ---
 

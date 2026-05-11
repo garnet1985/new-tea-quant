@@ -31,14 +31,14 @@ _ACTIVE_JOB_ID: Optional[str] = None
 def _job_create(*, strategy_name: str, demo: bool) -> str:
     jid = str(uuid.uuid4())
     name = str(strategy_name).strip()
-    with _LOCK:
-        _JOBS[jid] = {
-            "strategy_name": name,
-            "demo": bool(demo),
-            "progress": 0.0,
-            "status": "queued",
-            "error": None,
-        }
+    # Caller must hold _LOCK when mutating _JOBS / _ACTIVE_JOB_ID.
+    _JOBS[jid] = {
+        "strategy_name": name,
+        "demo": bool(demo),
+        "progress": 0.0,
+        "status": "queued",
+        "error": None,
+    }
     return jid
 
 
@@ -162,6 +162,27 @@ def _disk_mark_completed(strategy_name: str, job_id: str, report: Dict[str, Any]
     rec = ProgressRecorder.for_scanner_run(sn, jid)
     prev = rec.get_progress()
     base = dict(prev) if isinstance(prev, dict) else {}
+    packed_report = dict(report or {})
+    # Attach opportunity details from scan cache (align with CLI output needs).
+    try:
+        scan_date = str(packed_report.get("date") or "").strip()
+        if scan_date:
+            from core.modules.strategy.engines.scanner.helpers.cache_manager import ScanCacheManager
+
+            cache = ScanCacheManager(sn)
+            opportunities = cache.load_opportunities(scan_date)
+            packed_report["opportunities"] = [
+                {
+                    "stock_id": opp.stock_id,
+                    "stock_name": opp.stock_name,
+                    "trigger_date": opp.trigger_date,
+                    "trigger_price": opp.trigger_price,
+                    "extra_fields": opp.extra_fields or {},
+                }
+                for opp in opportunities
+            ]
+    except Exception:
+        logger.exception("Failed to attach opportunities for job_id=%s strategy=%s", jid, sn)
     base.update(
         {
             "strategy_name": sn,
@@ -169,7 +190,7 @@ def _disk_mark_completed(strategy_name: str, job_id: str, report: Dict[str, Any]
             "phase": "completed",
             "status": "completed",
             "progress_pct": 100,
-            "report": dict(report or {}),
+            "report": packed_report,
         }
     )
     base.pop("error", None)
@@ -249,11 +270,6 @@ def trigger_strategy_scan_run(*, strategy_name: str, demo: bool = False) -> Dict
     if not name:
         return {"is_triggered": False, "reason": "strategy_name 无效"}
 
-    # Cheap existence check early (avoid spawning thread for unknown strategy)
-    discovered, err = _resolve_discovered_strategy(name)
-    if err or discovered is None:
-        return {"is_triggered": False, "reason": err or "策略不存在或无法加载"}
-
     global _ACTIVE_JOB_ID  # noqa: PLW0603
     with _LOCK:
         if _has_active_scan_locked():
@@ -319,6 +335,8 @@ def get_scan_progress(*, strategy_name: str, job_id: str) -> Optional[Dict[str, 
         "status": "completed" if done else "running",
         "job_id": jid,
     }
+    if "demo" in disk:
+        out["demo"] = bool(disk.get("demo"))
     if done:
         out["is_success"] = True
         report = disk.get("report")

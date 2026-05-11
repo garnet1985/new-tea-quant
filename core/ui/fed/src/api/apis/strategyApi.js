@@ -33,6 +33,31 @@ export async function fetchStrategyList() {
   };
 }
 
+/**
+ * 启动单策略扫描（机会扫描页使用）
+ * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1`
+ */
+export async function startStrategyScan(strategyName, { demo = false } = {}) {
+  const params = new URLSearchParams({ demo: demo ? '1' : '0' });
+  const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'POST' });
+  const m = json?.message || {};
+  return {
+    strategy_name: m.strategy_name || strategyName,
+    job_id: m.job_id || '',
+    demo: Boolean(m.demo),
+  };
+}
+
+/**
+ * 轮询单策略扫描进度
+ * BFF：`GET /api/v1/strategy/{strategy_name}/scan/progress?job_id=...`
+ */
+export async function fetchStrategyScanProgress(strategyName, jobId) {
+  const params = new URLSearchParams({ job_id: String(jobId || '') });
+  const json = await requestJson(`${apiStrategyPath(strategyName)}/scan/progress?${params.toString()}`, { method: 'GET' });
+  return json?.message || {};
+}
+
 /** 构建单策略策略工作台（调试）页路径（与路由定义保持一致） */
 export function getStrategyWorkbenchPath(strategyName) {
   return `/strategy-workbench/${encodeURIComponent(strategyName)}`;

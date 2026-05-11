@@ -1,47 +1,76 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { AppBar, Box, Toolbar, Typography, Button, Stack } from '@mui/material';
+import { ReactComponent as FallbackLogo } from '../assets/icon/tactic.svg';
+import './appNavigation.scss';
 
 const navItems = [
   { label: '策略工作台', path: '/strategy-workbench' },
   { label: '机会扫描', path: '/scan' },
   { label: '高级功能', path: '/advanced' },
-  { label: 'JSON测试', path: '/test/json-fields' },
   { label: '设置', path: '/settings' },
 ];
 
 function AppNavigation() {
   const location = useLocation();
+  const [logoFailed, setLogoFailed] = useState(false);
 
   return (
-    <AppBar position="static" color="default" elevation={1} sx={{ width: '100%' }}>
-      <Toolbar disableGutters sx={{ minHeight: 64, display: 'block', width: '100%' }}>
+    <AppBar
+      position="sticky"
+      color="transparent"
+      elevation={0}
+      className="ntq-app-header"
+    >
+      <Toolbar disableGutters className="ntq-app-header__toolbar">
         <Box
           className="ntq-content-inner"
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            minHeight: 64,
-            px: 2,
-            boxSizing: 'border-box',
-          }}
+          sx={{}}
         >
-          <Typography variant="h6" fontWeight={600}>
-            NTQ Prototype
-          </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
-            {navItems.map((item) => (
-              <Button
-                key={item.path}
-                component={RouterLink}
-                to={item.path}
-                variant={location.pathname.startsWith(item.path) ? 'contained' : 'text'}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </Stack>
+          <Box className="ntq-app-header__inner">
+            <Box
+              className="ntq-brand"
+              component={RouterLink}
+              to={navItems[0].path}
+              aria-label="Go to New Tea Quant home"
+            >
+            {logoFailed ? (
+              <FallbackLogo className="ntq-brand__logo" />
+            ) : (
+              <Box
+                component="img"
+                src="/logo.png"
+                alt="New Tea Quant"
+                onError={() => setLogoFailed(true)}
+                className="ntq-brand__logo"
+              />
+            )}
+            <Box className="ntq-brand__meta">
+              <Typography variant="h6" className="ntq-brand__name">
+                New Tea Quant
+              </Typography>
+              <Typography variant="caption" className="ntq-brand__version">
+                v0.3.0
+              </Typography>
+            </Box>
+            </Box>
+            <Stack direction="row" spacing={0} flexWrap="wrap" className="ntq-nav">
+              {navItems.map((item) => {
+                const isActive = location.pathname.startsWith(item.path);
+                return (
+                  <Button
+                    key={item.path}
+                    component={RouterLink}
+                    to={item.path}
+                    variant="text"
+                    className={`ntq-nav-btn${isActive ? ' is-active' : ''}`}
+                  >
+                    {item.label}
+                  </Button>
+                );
+              })}
+            </Stack>
+          </Box>
         </Box>
       </Toolbar>
     </AppBar>

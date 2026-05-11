@@ -1,0 +1,88 @@
+// MUI visual overrides (CSS-first).
+// Keep layout-critical defaults here to avoid mixing theme overrides / inline styles.
+
+// --- Inputs (TextField / Select / Autocomplete) ---
+.MuiInputBase-root {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.MuiInputBase-input {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.MuiInputLabel-root {
+  font-size: 13px;
+}
+
+.MuiFormHelperText-root {
+  font-size: 12px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+// Outlined input: default glass surface + consistent height/padding
+.MuiOutlinedInput-root {
+  border-radius: 5px;
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  min-height: 40px;
+  align-items: center;
+  transition: background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.MuiOutlinedInput-notchedOutline {
+  border-color: var(--ntq-white-12);
+}
+
+.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(34, 211, 238, 0.55);
+}
+
+.MuiOutlinedInput-input {
+  padding: 0 12px;
+}
+
+// Multiline: don't force 40px height
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline {
+  min-height: unset;
+  align-items: stretch;
+}
+
+.MuiOutlinedInput-inputMultiline {
+  padding: 10px 12px;
+}
+
+// --- Buttons (base typography) ---
+.MuiButton-root {
+  text-transform: none;
+}
+
+// --- Chips / tags ---
+.MuiChip-root {
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  border: 1px solid var(--ntq-white-12);
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  height: auto;
+  line-height: 1.2;
+}
+
+.MuiChip-sizeSmall {
+  padding: 2px 10px;
+}
+
+.MuiChip-labelSmall {
+  padding-left: 0;
+  padding-right: 0;
+}
+

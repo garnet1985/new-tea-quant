@@ -46,6 +46,7 @@ import {
 } from './setup.helpers';
 import SetupDialogs from './setupDialogs';
 import SetupExecutionPanel from './setupExecutionPanel';
+import PageLayout from '../../components/pageLayout/pageLayout';
 
 function SetupPage() {
   const [definition, setDefinition] = useState([]);
@@ -403,15 +404,14 @@ function SetupPage() {
         </Stack>
       </Backdrop>
       <Container maxWidth="lg" sx={{ py: 5, visibility: bootstrapping ? 'hidden' : 'visible' }}>
-        <Stack spacing={3}>
-          <Box>
-            <Typography variant="h4" fontWeight={700}>
-              初始化向导
-            </Typography>
-            <Typography color="text.secondary" sx={{ mt: 1 }}>
-              系统未就绪时的初始化流程。该页面通过 BFF setup API 驱动步骤执行。
-            </Typography>
-          </Box>
+        <PageLayout
+          className="setup-page"
+          breadcrumbsItems={[]}
+          breadcrumbsCurrent="初始化向导"
+          bannerTitle="初始化向导"
+          bannerDescription="系统未就绪时的初始化流程。该页面通过 BFF setup API 驱动步骤执行。"
+        >
+          <Stack spacing={3}>
 
           {flowStage !== 'input' && status?.isReady ? (
             <Alert severity="success">
@@ -630,7 +630,8 @@ function SetupPage() {
               </CardContent>
             </Card>
           ) : null}
-        </Stack>
+          </Stack>
+        </PageLayout>
       </Container>
     </>
   );

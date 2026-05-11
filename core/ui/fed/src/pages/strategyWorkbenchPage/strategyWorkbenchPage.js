@@ -8,7 +8,6 @@ import React, {
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
-  Breadcrumbs,
   Button,
   Chip,
   Dialog,
@@ -29,7 +28,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import {
   applyStrategySettingsToUserspace,
@@ -44,7 +42,7 @@ import {
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
-import StrategyReportPanel from './panels/strategyReportPanel/StrategyReportPanel';
+import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
 import {
   buildExecutionResultFromWorkbenchReport,
   mapWorkbenchStepStatusToExecutionCards,
@@ -53,6 +51,7 @@ import {
   PlaceholderSection,
   StrategySettingsPanel,
 } from './panels/strategySettingsPanel/strategySettingsPanel';
+import PageLayout from '../../components/pageLayout/pageLayout';
 
 /** 左侧草稿 settings 变更后重置右侧执行/报告（加载完成后首次对齐基线，之后任意变更触发 ``onReset``）。core 由容器在 keyup/粘贴时解析写入 ``draftSettings``，签名仅需序列化草稿。 */
 function WorkbenchDraftChangeResetBridge({
@@ -554,20 +553,16 @@ function StrategyWorkbenchPage() {
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 2 }}>
-        <Link component={RouterLink} underline="hover" color="inherit" to="/strategy-workbench">
-          策略工作台
-        </Link>
-        <Link component={RouterLink} underline="hover" color="inherit" to="/strategy-workbench">
-          策略列表
-        </Link>
-        {strategyName ? (
-          <Typography color="text.primary">调试：{strategyName}</Typography>
-        ) : (
-          <Typography color="text.primary">策略调试</Typography>
-        )}
-      </Breadcrumbs>
+    <PageLayout
+      className="strategy-workbench-page"
+      breadcrumbsItems={[
+        { label: '策略工作台', to: '/strategy-workbench' },
+        { label: '策略列表', to: '/strategy-workbench' },
+      ]}
+      breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
+      bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
+      bannerDescription="在左侧调整 settings，按步骤执行枚举/回测并查看报告；支持版本对比与结果复现。"
+    >
       <StrategySettingsContainer initialSettings={initialSettings}>
         {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
           <>
@@ -1022,7 +1017,7 @@ function StrategyWorkbenchPage() {
           </>
         )}
       </StrategySettingsContainer>
-    </Box>
+    </PageLayout>
   );
 }
 
